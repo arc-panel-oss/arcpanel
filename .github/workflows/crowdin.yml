@@ -1,3 +1,5 @@
+# Inactive for ArcPanel: the jobs only run in hestiacp/hestiacp. Translations are paused
+# until ArcPanel has its own Crowdin project (see the rebranding spec, WP2).
 name: Crowdin
 
 on:

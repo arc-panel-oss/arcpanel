@@ -1,5 +1,8 @@
 blank_issues_enabled: false
 contact_links:
-  - name: Support Question
-    url: https://forum.hestiacp.com
-    about: We use GitHub issues only to discuss about HestiaCP bugs and new features.
+  - name: Documentation
+    url: https://docs.arcpanel.top
+    about: Installation, configuration and troubleshooting guides for ArcPanel. We use GitHub issues only for ArcPanel bugs and feature requests.
+  - name: Report a security vulnerability
+    url: https://github.com/arc-panel-oss/arcpanel/security/advisories/new
+    about: Please report security issues privately, not as a public issue.

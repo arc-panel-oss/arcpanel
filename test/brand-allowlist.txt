@@ -1,0 +1,48 @@
+# Exceptions for test/brand-check.sh
+# Format: <path-glob> :: <fixed text>     ('*' as text ignores the whole file)
+# Every entry needs a reason. Prefer fixing the text over adding an entry.
+
+# Attribution required by GPLv3 and ADR-0006 ("Based on HestiaCP", HestiaCP base version).
+* :: Based on HestiaCP
+* :: based on HestiaCP
+* :: HestiaCP base
+
+# Planning documents and decision records describe the HestiaCP origin and internal names.
+docs/adr/* :: *
+docs/design/* :: *
+docs/features/* :: *
+docs/brand/* :: *
+docs/roadmap.md :: *
+docs/current-features.md :: *
+
+# Third-party add-ons written for HestiaCP keep their names (rebranding spec, WP2 item 7).
+docs/docs/community/* :: *
+docs/docs/index.md :: /docs/community/
+docs/.vitepress/config.js :: /docs/community/
+docs/.vitepress/config.js :: Ioncube installer for Hestia
+
+# Docs site footer: upstream attribution and copyright.
+docs/.vitepress/config.js :: github.com/hestiacp/hestiacp">HestiaCP</a>
+docs/.vitepress/config.js :: HestiaCP contributors
+
+# Upstream credits, project origin, trademark notice and upstream security coordination.
+docs/team.md :: HestiaCP
+docs/index.md :: HestiaCP
+README.md :: HestiaCP
+CONTRIBUTING.md :: HestiaCP
+SECURITY.md :: HestiaCP
+
+# ArcPanel restores HestiaCP and VestaCP backups; the product names describe the source format.
+docs/docs/server-administration/backup-restore.md :: HestiaCP
+
+# Functional marker written to sshd_config and searched by other commands; must not change.
+bin/* :: # Hestia SFTP Chroot
+
+# Upstream upgrade steps for HestiaCP <= 1.10.5; they never run on a fresh ArcPanel install.
+install/upgrade/versions/* :: *
+
+# gettext source reference to a PHP class path, not a message.
+web/locale/hestiacp.pot :: #: ../../web/src/app/System/HestiaApp.php
+
+# Contributor guide explains what the brand check looks for.
+CONTRIBUTING.md :: test/brand-check.sh

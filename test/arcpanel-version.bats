@@ -11,7 +11,6 @@ load 'test_helper/bats-assert/load'
 load 'test_helper/bats-file/load'
 
 setup() {
-    source /etc/hestiacp/hestia.conf
     source "$HESTIA/func/main.sh"
     source_conf "$HESTIA/conf/hestia.conf"
     source_conf "$HESTIA/install/upstream.conf"
@@ -41,6 +40,12 @@ teardown() {
     assert_success
     assert_output --partial "\"ARCPANEL_VERSION\": \"$ARCPANEL_VERSION\""
     assert_output --partial "\"VERSION\": \"$VERSION\""
+}
+
+@test "v-list-sys-info returns valid JSON with both versions" {
+    run bash -c "v-list-sys-info json | jq -r '.sysinfo.ARCPANEL + \" \" + .sysinfo.HESTIA'"
+    assert_success
+    assert_output "$ARCPANEL_VERSION $VERSION"
 }
 
 @test "ArcPanel upgrade runs only steps newer than ARCPANEL_VERSION and not newer than the package" {

@@ -1,12 +1,13 @@
 name: Bug Report
-description: File a bug report and help us to improve Hestia Control Panel
+description: File a bug report and help us to improve ArcPanel
 title: "[Bug] "
 labels: [bug]
 body:
   - type: markdown
     attributes:
       value: |
-        If you have encountered a bug or problem in Hestia Control Panel, use this form to let us know.
+        If you have encountered a bug or problem in ArcPanel, use this form to let us know.
+        To report a security vulnerability, do not use this form: follow the [security policy](https://github.com/arc-panel-oss/arcpanel/security/policy) instead.
         **Important: DO NOT include any private/sensitive information such as email addresses, passwords, IP addresses, or hostnames.**
   - type: textarea
     id: describe
@@ -51,7 +52,8 @@ body:
   - type: input
     id: version
     attributes:
-      label: Hestia Control Panel Version
+      label: ArcPanel Version
+      description: Shown on the About page, or run `grep ARCPANEL_VERSION /usr/local/hestia/conf/hestia.conf`.
       placeholder: 1.x.x
     validations:
       required: true
@@ -59,7 +61,7 @@ body:
     id: os
     attributes:
       label: Operating system
-      placeholder: Ubuntu 20.04 or Debian 11
+      placeholder: Ubuntu 24.04 or Debian 12
     validations:
       required: true
   - type: textarea

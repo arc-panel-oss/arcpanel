@@ -71,7 +71,7 @@ jobs:
               mkdir -p "${DEB_PATH}"
               cp /tmp/hestiacp-src/deb "${DEB_PATH}/${pkg}_${ver}_${arch}.deb"
             fi
-            if compgen -G "/tmp/hestiacp-src/deb/hestia_*.deb" >/dev/null; then
+            if compgen -G "/tmp/hestiacp-src/deb/arcpanel_*.deb" >/dev/null; then
               DEB_PATH="/tmp/hestiacp-src/deb"
             elif compgen -G "/tmp/hestiacp-src/debs/hestia_*.deb" >/dev/null; then
               DEB_PATH="/tmp/hestiacp-src/debs"

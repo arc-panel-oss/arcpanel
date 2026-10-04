@@ -1,0 +1,149 @@
+name: Release
+
+# Builds, signs and publishes the ArcPanel APT repository (ADR-0006, spec WP3).
+#
+# Tag naming follows src/deb/arcpanel/control:
+#   Version 1.0.0        -> tag v1.0.0        -> stable repository  https://apt.arcpanel.top/
+#   Version 1.0.1~beta1  -> tag v1.0.1-beta1  -> beta repository    https://apt.arcpanel.top/beta/
+#
+# Required repository secrets (see docs/docs/server-administration/release-signing.md):
+#   APT_SIGNING_KEY         ASCII-armored private signing subkey
+#   APT_SIGNING_KEY_ID      fingerprint of that subkey
+#   APT_DEPLOY_SSH_KEY      private SSH key allowed to write to the APT host
+#   APT_DEPLOY_KNOWN_HOSTS  known_hosts line(s) for the APT host
+#   APT_DEPLOY_TARGET       user@host:/path/to/webroot (no trailing slash)
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  check-version:
+    name: Check version
+    runs-on: ubuntu-24.04
+    outputs:
+      channel: ${{ steps.version.outputs.channel }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Compare tag, package and installer versions
+        id: version
+        run: |
+          set -euo pipefail
+          pkg_ver="$(awk '/^Version:/ {print $2}' src/deb/arcpanel/control)"
+          expected_tag="v${pkg_ver//\~/-}"
+          if [ "${GITHUB_REF_NAME}" != "${expected_tag}" ]; then
+            echo "::error::Tag ${GITHUB_REF_NAME} does not match src/deb/arcpanel/control Version ${pkg_ver} (expected ${expected_tag})"
+            exit 1
+          fi
+          for installer in install/hst-install-debian.sh install/hst-install-ubuntu.sh; do
+            inst_ver="$(grep "^ARCPANEL_INSTALL_VER=" "$installer" | cut -d"'" -f2)"
+            if [ "${inst_ver}" != "${pkg_ver}" ]; then
+              echo "::error::${installer} ARCPANEL_INSTALL_VER=${inst_ver} does not match package Version ${pkg_ver}"
+              exit 1
+            fi
+          done
+          if [[ "${pkg_ver}" == *"~"* ]]; then
+            echo "channel=beta" >> "$GITHUB_OUTPUT"
+          else
+            echo "channel=stable" >> "$GITHUB_OUTPUT"
+          fi
+
+  build:
+    name: Build ${{ matrix.image }} ${{ matrix.arch }}
+    needs: check-version
+    runs-on: ${{ matrix.arch == 'arm64' && 'ubuntu-24.04-arm' || 'ubuntu-24.04' }}
+    container: ${{ matrix.image }}
+    timeout-minutes: 120
+    strategy:
+      fail-fast: true
+      matrix:
+        image: ["debian:12", "debian:13", "ubuntu:22.04", "ubuntu:24.04", "ubuntu:26.04"]
+        arch: [amd64, arm64]
+    steps:
+      - name: Install build prerequisites
+        run: |
+          apt-get update -qq
+          DEBIAN_FRONTEND=noninteractive apt-get install -y -qq git curl wget ca-certificates lsb-release sudo
+
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Build packages
+        working-directory: src
+        run: bash ./hst_autocompile.sh --all --noinstall --keepbuild '~localsrc'
+
+      - name: Collect packages by distribution codename
+        run: |
+          set -euo pipefail
+          . /etc/os-release
+          mkdir -p "out/${VERSION_CODENAME}"
+          cp /tmp/hestiacp-src/deb/*.deb "out/${VERSION_CODENAME}/"
+          ls -l "out/${VERSION_CODENAME}"
+          echo "ARTIFACT_NAME=debs-${VERSION_CODENAME}-${{ matrix.arch }}" >> "$GITHUB_ENV"
+
+      - name: Upload packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.ARTIFACT_NAME }}
+          path: out/
+          if-no-files-found: error
+
+  publish:
+    name: Sign and publish (${{ needs.check-version.outputs.channel }})
+    needs: [check-version, build]
+    runs-on: ubuntu-24.04
+    environment: release
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Download packages
+        uses: actions/download-artifact@v4
+        with:
+          pattern: debs-*
+          path: debs
+          merge-multiple: true
+
+      - name: Install tools
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq reprepro rsync
+
+      - name: Import signing key
+        env:
+          APT_SIGNING_KEY: ${{ secrets.APT_SIGNING_KEY }}
+        run: printf '%s\n' "$APT_SIGNING_KEY" | gpg --batch --import > /dev/null 2>&1
+
+      - name: Build repository
+        env:
+          APT_SIGNING_KEY_ID: ${{ secrets.APT_SIGNING_KEY_ID }}
+        run: bash .github/scripts/build-apt-repo.sh debs repo "$APT_SIGNING_KEY_ID"
+
+      - name: Publish repository
+        env:
+          APT_DEPLOY_SSH_KEY: ${{ secrets.APT_DEPLOY_SSH_KEY }}
+          APT_DEPLOY_KNOWN_HOSTS: ${{ secrets.APT_DEPLOY_KNOWN_HOSTS }}
+          APT_DEPLOY_TARGET: ${{ secrets.APT_DEPLOY_TARGET }}
+          CHANNEL: ${{ needs.check-version.outputs.channel }}
+        run: |
+          set -euo pipefail
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$APT_DEPLOY_SSH_KEY" > ~/.ssh/id_deploy
+          chmod 600 ~/.ssh/id_deploy
+          printf '%s\n' "$APT_DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          ssh_cmd="ssh -i ~/.ssh/id_deploy -o IdentitiesOnly=yes"
+          if [ "$CHANNEL" = "beta" ]; then
+            rsync -az --delete -e "$ssh_cmd" repo/ "${APT_DEPLOY_TARGET}/beta/"
+          else
+            # Keep the beta repository when publishing stable.
+            rsync -az --delete --exclude '/beta/' -e "$ssh_cmd" repo/ "${APT_DEPLOY_TARGET}/"
+          fi
+          rm -f ~/.ssh/id_deploy

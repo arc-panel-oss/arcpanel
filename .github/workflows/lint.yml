@@ -21,6 +21,16 @@ jobs:
             *.md
             docs/**/*.md
 
+  brand-check:
+    name: Brand check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Check user-visible text for the old brand
+        run: bash test/brand-check.sh
+
   shellcheck:
     name: ShellCheck
     runs-on: ubuntu-latest

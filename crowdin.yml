@@ -1,3 +1,5 @@
+# Inactive: this config pointed at the HestiaCP translation project. Translations are
+# paused until ArcPanel has its own Crowdin project (see the rebranding spec, WP2).
 files:
   - source: /web/locale/hestiacp.pot
     translation: /web/locale/%two_letters_code%/LC_MESSAGES/hestiacp.po

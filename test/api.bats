@@ -33,7 +33,7 @@ function setup() {
 }
 
 @test "[Fail][ APIV2 ] Create new user" {
-    run curl -k -s -X POST -H "Content-Type: application/x-www-form-urlencoded" -d "hash=$accesskey&returncode=yes&cmd=v-add-user&arg1=hestiatest&arg2=strongpassword&arg3=info@hestiacp.com" "https://$server:$port/api/index.php"
+    run curl -k -s -X POST -H "Content-Type: application/x-www-form-urlencoded" -d "hash=$accesskey&returncode=yes&cmd=v-add-user&arg1=hestiatest&arg2=strongpassword&arg3=info@arcpanel.top" "https://$server:$port/api/index.php"
     assert_success
     assert_output --partial "don't have permission to run the command v-add-user"
 }
@@ -45,7 +45,7 @@ function setup() {
 }
 
 @test "[Success][ Hash ] Create new user" {
-    run curl -k -s -X POST -H "Content-Type: application/x-www-form-urlencoded" -d "hash=$apikey&cmd=v-add-user&arg1=hestiatest&arg2=/tmp/clusterpassword&arg3=info@hestiacp.com&arg4=default" "https://$server:$port/api/index.php"
+    run curl -k -s -X POST -H "Content-Type: application/x-www-form-urlencoded" -d "hash=$apikey&cmd=v-add-user&arg1=hestiatest&arg2=/tmp/clusterpassword&arg3=info@arcpanel.top&arg4=default" "https://$server:$port/api/index.php"
     assert_success
     assert_output --partial "OK"
 }
@@ -58,7 +58,7 @@ function setup() {
 
 
 @test "[Success][ Local ] Add user" {
-    run v-add-user hestiatest 1234BCD info@hestiacp.com
+    run v-add-user hestiatest 1234BCD info@arcpanel.top
     assert_success
 }
 
