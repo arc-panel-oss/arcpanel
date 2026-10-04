@@ -1,0 +1,10 @@
+#!/bin/bash
+# info: list hestia ssl certificate (alias of v-list-sys-hestia-ssl)
+# options: [FORMAT]
+#
+# example: v-list-sys-arcpanel-ssl
+#
+# ArcPanel name for v-list-sys-hestia-ssl. It runs the original command with the same
+# arguments, so output, exit codes and logging are identical (ADR-0006).
+
+exec "$(dirname "$(readlink -f "$0")")/v-list-sys-hestia-ssl" "$@"

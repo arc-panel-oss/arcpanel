@@ -1,0 +1,10 @@
+#!/bin/bash
+# info: delete hestia autoupdate cron job (alias of v-delete-cron-hestia-autoupdate)
+# options: NONE
+#
+# example: v-delete-cron-arcpanel-autoupdate
+#
+# ArcPanel name for v-delete-cron-hestia-autoupdate. It runs the original command with the same
+# arguments, so output, exit codes and logging are identical (ADR-0006).
+
+exec "$(dirname "$(readlink -f "$0")")/v-delete-cron-hestia-autoupdate" "$@"

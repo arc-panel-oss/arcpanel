@@ -1,0 +1,10 @@
+#!/bin/bash
+# info: list system updates (alias of v-list-sys-hestia-updates)
+# options: [FORMAT]
+#
+# example: v-list-sys-arcpanel-updates
+#
+# ArcPanel name for v-list-sys-hestia-updates. It runs the original command with the same
+# arguments, so output, exit codes and logging are identical (ADR-0006).
+
+exec "$(dirname "$(readlink -f "$0")")/v-list-sys-hestia-updates" "$@"

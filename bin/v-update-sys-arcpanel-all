@@ -1,0 +1,10 @@
+#!/bin/bash
+# info: update all hestia packages (alias of v-update-sys-hestia-all)
+# options: NONE
+#
+# example: v-update-sys-arcpanel-all
+#
+# ArcPanel name for v-update-sys-hestia-all. It runs the original command with the same
+# arguments, so output, exit codes and logging are identical (ADR-0006).
+
+exec "$(dirname "$(readlink -f "$0")")/v-update-sys-hestia-all" "$@"
