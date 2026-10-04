@@ -4,7 +4,7 @@
  * Hestia Control Panel Password Driver
  *
  * @version 1.0
- * @author HestiaCP <info@hestiacp.com>
+ * @author HestiaCP <info@arcpanel.top>
  */
 class rcube_hestia_password {
 	public function save($curpass, $passwd) {
@@ -35,7 +35,7 @@ class rcube_hestia_password {
 				CURLOPT_HEADER => true,
 				CURLOPT_POST => true,
 				CURLOPT_POSTFIELDS => http_build_query($postvars),
-				CURLOPT_USERAGENT => "Hestia Control Panel Password Driver",
+				CURLOPT_USERAGENT => "ArcPanel Password Driver",
 				CURLOPT_SSL_VERIFYPEER => false,
 				CURLOPT_SSL_VERIFYHOST => false,
 			])

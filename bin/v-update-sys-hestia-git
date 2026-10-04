@@ -2,9 +2,9 @@
 # info: Install update from Git repository
 # options: REPOSITORY BRANCH INSTALL
 #
-# example: v-update-sys-hestia-git hestiacp staging/beta install
-#          # Will download from the hestiacp repository
-#          # Pulls code from staging/beta branch
+# example: v-update-sys-hestia-git arc-panel-oss master install
+#          # Will download from the arc-panel-oss/arcpanel repository
+#          # Pulls code from the master branch
 #          # install: installs package immediately
 #          # install-auto: installs package and schedules automatic updates from Git
 #
@@ -135,7 +135,7 @@ if [ -z "$branch" ]; then
 fi
 
 # Set Version for compiling
-BUILD_VER=$(curl -s https://raw.githubusercontent.com/$fork/hestiacp/$branch/src/deb/hestia/control | grep "Version:" | cut -d' ' -f2)
+BUILD_VER=$(curl -s https://raw.githubusercontent.com/$fork/arcpanel/$branch/src/deb/arcpanel/control | grep "Version:" | cut -d' ' -f2)
 HESTIA_V="${BUILD_VER}_${BUILD_ARCH}"
 
 # Create build directories
@@ -179,7 +179,7 @@ install_build() {
 
 # Set install flags
 if [ -n "$fork" ]; then
-	fork_check=$(curl -s --head -w %{http_code} https://raw.githubusercontent.com/$fork/hestiacp/main/src/deb/hestia/control -o /dev/null)
+	fork_check=$(curl -s --head -w %{http_code} https://raw.githubusercontent.com/$fork/arcpanel/master/src/deb/arcpanel/control -o /dev/null)
 	if [ "$fork_check" -ne "200" ]; then
 		echo "ERROR: invalid repository name specified."
 		exit 1
@@ -187,12 +187,12 @@ if [ -n "$fork" ]; then
 		echo "[!] Download code from GitHub repository: $fork"
 	fi
 else
-	fork="hestiacp"
+	fork="arc-panel-oss"
 fi
 
 if [ -n "$branch" ]; then
-	echo https://raw.githubusercontent.com/$fork/hestiacp/$branch/src/deb/hestia/control
-	branch_check=$(curl -s --head -w %{http_code} https://raw.githubusercontent.com/$fork/hestiacp/$branch/src/deb/hestia/control -o /dev/null)
+	echo https://raw.githubusercontent.com/$fork/arcpanel/$branch/src/deb/arcpanel/control
+	branch_check=$(curl -s --head -w %{http_code} https://raw.githubusercontent.com/$fork/arcpanel/$branch/src/deb/arcpanel/control -o /dev/null)
 	if [ $branch_check -ne "200" ]; then
 		echo "ERROR: invalid branch name specified."
 		exit 1
@@ -203,7 +203,7 @@ if [ -n "$branch" ]; then
 else
 	source /usr/local/hestia/conf/hestia.conf
 	branch=$RELEASE_BRANCH
-	branch_check=$(curl -s --head -w %{http_code} https://raw.githubusercontent.com/$fork/hestiacp/$branch/src/deb/hestia/control -o /dev/null)
+	branch_check=$(curl -s --head -w %{http_code} https://raw.githubusercontent.com/$fork/arcpanel/$branch/src/deb/arcpanel/control -o /dev/null)
 	if [ "$branch_check" -ne "200" ]; then
 		echo "ERROR: invalid branch name specified."
 		exit 1
@@ -214,7 +214,7 @@ if [ -z "$branch" ]; then
 	echo "ERROR: No branch detected."
 	exit
 fi
-REPO="$fork/hestiacp"
+REPO="$fork/arcpanel"
 # Forward slashes in branchname are replaced with dashes to match foldername in github archive.
 branch_dash=$(echo "$branch" | sed 's/\//-/g')
 
@@ -245,7 +245,7 @@ GIT_REP='https://raw.githubusercontent.com/'$REPO'/'$branch'/src/deb'
 HESTIA_ARCHIVE_LINK='https://github.com/'$REPO'/archive/'$branch'.tar.gz'
 echo $HESTIA_ARCHIVE_LINK
 
-echo "Building Hestia Control Panel package..."
+echo "Building ArcPanel package..."
 
 BUILD_DIR_HESTIA=$BUILD_DIR/hestia_$HESTIA_V
 
@@ -263,11 +263,11 @@ if [ "$KEEPBUILD" != 'true' ] || [ ! -d "$BUILD_DIR_HESTIA" ]; then
 fi
 
 cd $BUILD_DIR
-rm -rf $BUILD_DIR/hestiacp-$branch_dash
+rm -rf $BUILD_DIR/arcpanel-$branch_dash
 # Download and unpack source files
 if [ "$use_src_folder" == 'true' ]; then
-	[ "$HESTIA_DEBUG" ] && echo DEBUG: cp -rf "$SRC_DIR/" $BUILD_DIR/hestiacp-$branch_dash
-	cp -rf "$SRC_DIR/" $BUILD_DIR/hestiacp-$branch_dash
+	[ "$HESTIA_DEBUG" ] && echo DEBUG: cp -rf "$SRC_DIR/" $BUILD_DIR/arcpanel-$branch_dash
+	cp -rf "$SRC_DIR/" $BUILD_DIR/arcpanel-$branch_dash
 elif [ -d $SRC_DIR ]; then
 	download_file $HESTIA_ARCHIVE_LINK '-' 'fresh' | tar xz
 fi
@@ -275,7 +275,7 @@ fi
 mkdir -p $BUILD_DIR_HESTIA/usr/local/hestia
 
 # Move needed directories
-cd $BUILD_DIR/hestiacp-$branch_dash
+cd $BUILD_DIR/arcpanel-$branch_dash
 
 npm ci
 npm run build
@@ -295,25 +295,25 @@ chown -R root:root $BUILD_DIR_HESTIA
 
 # Get Debian package files
 mkdir -p $BUILD_DIR_HESTIA/DEBIAN
-get_branch_file 'src/deb/hestia/control' "$BUILD_DIR_HESTIA/DEBIAN/control"
+get_branch_file 'src/deb/arcpanel/control' "$BUILD_DIR_HESTIA/DEBIAN/control"
 if [ "$BUILD_ARCH" != "amd64" ]; then
 	sed -i "s/amd64/${BUILD_ARCH}/g" "$BUILD_DIR_HESTIA/DEBIAN/control"
 fi
-get_branch_file 'src/deb/hestia/copyright' "$BUILD_DIR_HESTIA/DEBIAN/copyright"
-get_branch_file 'src/deb/hestia/preinst' "$BUILD_DIR_HESTIA/DEBIAN/preinst"
-get_branch_file 'src/deb/hestia/postinst' "$BUILD_DIR_HESTIA/DEBIAN/postinst"
+get_branch_file 'src/deb/arcpanel/copyright' "$BUILD_DIR_HESTIA/DEBIAN/copyright"
+get_branch_file 'src/deb/arcpanel/preinst' "$BUILD_DIR_HESTIA/DEBIAN/preinst"
+get_branch_file 'src/deb/arcpanel/postinst' "$BUILD_DIR_HESTIA/DEBIAN/postinst"
 chmod +x $BUILD_DIR_HESTIA/DEBIAN/postinst
 chmod +x $BUILD_DIR_HESTIA/DEBIAN/preinst
 
-echo Building Hestia DEB
+echo Building ArcPanel DEB
 dpkg-deb -Zxz --build $BUILD_DIR_HESTIA $DEB_DIR
 
 # clear up the source folder
 if [ "$KEEPBUILD" != 'true' ]; then
 	rm -r $BUILD_DIR_HESTIA
-	rm -rf hestiacp-$branch_dash
+	rm -rf arcpanel-$branch_dash
 fi
-cd $BUILD_DIR/hestiacp-$branch_dash
+cd $BUILD_DIR/arcpanel-$branch_dash
 
 # Installation steps
 if [ "$install" = "install" ] || [ "$install" = "yes" ] || [ "$install" = "install-auto" ]; then

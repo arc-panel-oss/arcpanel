@@ -156,7 +156,7 @@ if [ -n "$check_sysuser" ] || [ -e "$HESTIA/data/users/$directadmin_user" ]; the
 	check_result "$E_EXISTS" "user $directadmin_user exists"
 fi
 
-echo "Generate random password for $directadmin_user and create Hestiacp Account ..."
+echo "Generate random password for $directadmin_user and create ArcPanel account ..."
 new_password=$(generate_password)
 "$BIN"/v-add-user "$directadmin_user" "$new_password" "$directadmin_usermail" $hestia_package $addusertext
 if [ "$?" -ne 0 ]; then

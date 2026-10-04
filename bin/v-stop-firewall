@@ -70,7 +70,7 @@ else
 	sd_unit="/lib/systemd/system/hestia-iptables.service"
 	if [ ! -e "$sd_unit" ]; then
 		echo "[Unit]" >> $sd_unit
-		echo "Description=Loading Hestia firewall rules" >> $sd_unit
+		echo "Description=Loading ArcPanel firewall rules" >> $sd_unit
 		echo "DefaultDependencies=no" >> $sd_unit
 		echo "Wants=network-pre.target local-fs.target" >> $sd_unit
 		echo "Before=network-pre.target" >> $sd_unit

@@ -38,7 +38,7 @@ is_number_format_valid "$version" "version"
 is_object_valid 'user' 'USER' "$user"
 is_object_unsuspended 'user' 'USER' "$user"
 
-[ -z "$HOMEDIR" ] && check_result "$E_NOTEXIST" "Hestia environment vars not present"
+[ -z "$HOMEDIR" ] && check_result "$E_NOTEXIST" "ArcPanel environment vars not present"
 
 # Perform verification if read-only mode is enabled
 check_hestia_demo_mode

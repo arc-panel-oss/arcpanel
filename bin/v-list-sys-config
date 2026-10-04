@@ -110,6 +110,7 @@ json_list() {
 		"UPGRADE_SEND_EMAIL_LOG": "'$UPGRADE_SEND_EMAIL_LOG'",
 		"USE_SERVER_SMTP": "'$USE_SERVER_SMTP'",
 		"VERSION": "'$VERSION'",
+		"ARCPANEL_VERSION": "'$ARCPANEL_VERSION'",
 		"WEBMAIL_ALIAS": "'$WEBMAIL_ALIAS'",
 		"WEBMAIL_SYSTEM": "'$WEBMAIL_SYSTEM'",
 		"WEB_BACKEND": "'$WEB_BACKEND'",
@@ -198,7 +199,8 @@ shell_list() {
 	if [ -n "$LANGUAGE" ] && [ "$LANGUAGE" != 'en' ]; then
 		echo "System Language:                  $LANGUAGE"
 	fi
-	echo "Version:                          $VERSION"
+	echo "ArcPanel version:                 $ARCPANEL_VERSION"
+	echo "Version (HestiaCP base):          $VERSION"
 	if [ -n "$DEMO_MODE" ]; then
 		echo "Demo Mode:                        $DEMO_MODE"
 	fi

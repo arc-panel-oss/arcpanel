@@ -1,0 +1,22 @@
+[Unit]
+Description=ArcPanel (panel web server and PHP-FPM)
+Documentation=https://docs.arcpanel.top/docs/
+After=network-online.target remote-fs.target nss-lookup.target
+Wants=network-online.target
+
+[Service]
+# Wraps the upstream SysV script so `systemctl ... arcpanel` and
+# `systemctl ... hestia` act on one unit (ADR-0006, compatibility layer).
+Type=forking
+RemainAfterExit=yes
+GuessMainPID=no
+KillMode=process
+TimeoutSec=5min
+IgnoreSIGPIPE=no
+ExecStart=/etc/init.d/hestia start
+ExecStop=/etc/init.d/hestia stop
+ExecReload=/etc/init.d/hestia reload
+
+[Install]
+WantedBy=multi-user.target
+Alias=hestia.service

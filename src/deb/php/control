@@ -1,14 +1,15 @@
-Source: hestia-php
-Package: hestia-php
+Source: arcpanel-php
+Package: arcpanel-php
 Priority: optional
 Version: 8.5.11
 Section: admin
-Maintainer: HestaCP <info@hestiacp.com>
-Homepage: https://www.hestiacp.com
+Maintainer: ArcPanel <info@arcpanel.top>
+Homepage: https://arcpanel.top
 Architecture: amd64
-Depends: hestia, unzip, @LIBZIP_DEP@, @ONIG_DEP@
-Description: hestia php-fpm
- hestia is an open source hosting control panel.
- hestia has a clean and focused interface without the clutter.
- hestia has the latest of very innovative technologies.
- hestia is a fork from VestaCP, special thanks to vestacp.com and Serghey Rodin
+Depends: arcpanel, unzip, @LIBZIP_DEP@, @ONIG_DEP@
+Provides: hestia-php
+Conflicts: hestia-php
+Replaces: hestia-php
+Description: ArcPanel internal PHP interpreter (php-fpm)
+ ArcPanel is an open-source web hosting control panel for Debian and Ubuntu.
+ It is based on HestiaCP, a fork of VestaCP. Thanks to both projects.

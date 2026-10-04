@@ -39,7 +39,7 @@ if [ -z "$HESTIA" ]; then
 fi
 
 if [ -z "$HOMEDIR" ] || [ -z "$HESTIA_INSTALL_DIR" ]; then
-	echo "Error: Hestia environment vars not present"
+	echo "Error: ArcPanel environment vars not present"
 	exit 2
 fi
 

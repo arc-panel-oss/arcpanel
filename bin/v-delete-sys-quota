@@ -198,7 +198,7 @@ log_history "INFO" "Cleaning up quota-related files"
 [ -f "/forcequotacheck" ] && rm -f "/forcequotacheck"
 
 # Update hestia.conf value
-log_history "INFO" "Updating Hestia configuration"
+log_history "INFO" "Updating ArcPanel configuration"
 "$BIN/v-change-sys-config-value" "DISK_QUOTA" "no"
 
 # Remove quota package

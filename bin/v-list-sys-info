@@ -21,9 +21,10 @@ source $HESTIA/func/main.sh
 # load config file
 source_conf "$HESTIA/conf/hestia.conf"
 
-# Retrieve Hestia Control Panel version number
-HESTIA_VERSION=$(grep VERSION $HESTIA/conf/hestia.conf | cut -d '=' -f2 | sed "s|'||g")
-HESTIA_RELEASE=$(grep RELEASE_BRANCH $HESTIA/conf/hestia.conf | cut -d '=' -f2 | sed "s|'||g")
+# Retrieve the panel version numbers (VERSION is the HestiaCP base, see ADR-0006)
+HESTIA_VERSION=$(grep "^VERSION=" $HESTIA/conf/hestia.conf | cut -d '=' -f2 | sed "s|'||g")
+ARCPANEL_VERSION=$(grep "^ARCPANEL_VERSION=" $HESTIA/conf/hestia.conf | cut -d '=' -f2 | sed "s|'||g")
+HESTIA_RELEASE=$(grep "^RELEASE_BRANCH=" $HESTIA/conf/hestia.conf | cut -d '=' -f2 | sed "s|'||g")
 
 # JSON list function
 json_list() {
@@ -34,6 +35,7 @@ json_list() {
         "VERSION": "'$VERSION'",
         "ARCH": "'$ARCH'",
         "HESTIA": "'$HESTIA_VERSION'",
+        "ARCPANEL": "'$ARCPANEL_VERSION'",
         "RELEASE": "'$HESTIA_RELEASE'",
         "UPTIME": "'$UPTIME'",
         "LOADAVERAGE": "'$LOADAVERAGE'"
@@ -43,20 +45,20 @@ json_list() {
 
 # SHELL list function
 shell_list() {
-	echo "HOSTNAME   OS   VER   ARCH  HESTIA  RELEASE  UPTIME   LA"
-	echo "--------   --   ---   ----  ------  -------  ------   --"
-	echo "$HOSTNAME $OS $VERSION $ARCH $HESTIA_VERSION $HESTIA_RELEASE $UPTIME $LOADAVERAGE"
+	echo "HOSTNAME   OS   VER   ARCH  ARCPANEL  HESTIA  RELEASE  UPTIME   LA"
+	echo "--------   --   ---   ----  --------  ------  -------  ------   --"
+	echo "$HOSTNAME $OS $VERSION $ARCH $ARCPANEL_VERSION $HESTIA_VERSION $HESTIA_RELEASE $UPTIME $LOADAVERAGE"
 }
 
 # PLAIN list function
 plain_list() {
-	echo -e "$HOSTNAME\t$OS\t$VERSION\t$ARCH\t$HESTIA_VERSION\t$HESTIA_RELEASE\t$UPTIME\t$LOADAVERAGE"
+	echo -e "$HOSTNAME\t$OS\t$VERSION\t$ARCH\t$HESTIA_VERSION\t$HESTIA_RELEASE\t$UPTIME\t$LOADAVERAGE\t$ARCPANEL_VERSION"
 }
 
 # CSV list function
 csv_list() {
-	echo "HOSTNAME,OS,VERSION,ARCH,HESTIA,RELEASE,UPTIME,LOADAVERAGE"
-	echo "$HOSTNAME,$OS,$VERSION,$ARCH,$HESTIA_VERSION,$HESTIA_RELEASE,$UPTIME,$LOADAVERAGE"
+	echo "HOSTNAME,OS,VERSION,ARCH,HESTIA,RELEASE,UPTIME,LOADAVERAGE,ARCPANEL"
+	echo "$HOSTNAME,$OS,$VERSION,$ARCH,$HESTIA_VERSION,$HESTIA_RELEASE,$UPTIME,$LOADAVERAGE,$ARCPANEL_VERSION"
 }
 
 #----------------------------------------------------------#

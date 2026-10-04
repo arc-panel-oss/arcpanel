@@ -260,7 +260,7 @@ if [ -n "$CPANEL_PHP_VERSION" ]; then
 		fi
 	else
 		tput setaf 1
-		echo "PHP version $HESTIA_PHP_VERSION is not installed on HestiaCP."
+		echo "PHP version $HESTIA_PHP_VERSION is not installed on ArcPanel."
 		echo "Please install and set it to avoid errors in website."
 		echo "The restoration will continue but the website may not work as expected"
 		tput sgr0

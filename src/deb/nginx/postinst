@@ -18,6 +18,10 @@ fi
 
 # Touch and set permisions on default log files on installation
 update-rc.d hestia defaults > /dev/null
+if [ -f /lib/systemd/system/arcpanel.service ]; then
+	systemctl daemon-reload > /dev/null 2>&1 || true
+	systemctl enable arcpanel > /dev/null 2>&1 || true
+fi
 invoke-rc.d hestia start || true
 
 # Adapt Port Listing in HESTIA NGINX Backend

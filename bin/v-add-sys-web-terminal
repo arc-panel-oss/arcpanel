@@ -61,7 +61,7 @@ fi
 
 if [ ! -f "$HESTIA/web-terminal/server.js" ]; then
 	apt-get -qq update
-	apt-get -qq install hestia-web-terminal -y
+	apt-get -qq install arcpanel-web-terminal -y
 else
 	# Starting web terminal websocket server
 	$BIN/v-start-service "hestia-web-terminal"

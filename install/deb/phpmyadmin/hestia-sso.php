@@ -151,7 +151,7 @@ function session_invalid() {
 }
 
 /* Find the phpMyAdmin server index in config.inc.php
- that corresponds to the host received from Hestia */
+ that corresponds to the host received from ArcPanel */
 function find_pma_server_id($host) {
 	$cfg = [];
 	(function () use (&$cfg) {

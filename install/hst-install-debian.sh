@@ -3,7 +3,7 @@
 # ======================================================== #
 #
 # Hestia Control Panel Installer for Debian
-# https://www.hestiacp.com/
+# https://arcpanel.top/
 #
 # Currently Supported Versions:
 # Debian 12 13
@@ -15,7 +15,7 @@
 #----------------------------------------------------------#
 export PATH=$PATH:/sbin
 export DEBIAN_FRONTEND=noninteractive
-RHOST='apt.hestiacp.com'
+RHOST='apt.arcpanel.top'
 VERSION='debian'
 HESTIA='/usr/local/hestia'
 LOG="/root/hst_install_backups/hst_install-$(date +%d%m%Y%H%M).log"
@@ -31,13 +31,17 @@ HESTIA_COMMON_DIR="$HESTIA/install/common"
 VERBOSE='no'
 
 # Define software versions
+# ArcPanel version (what users see, the arcpanel package version) and the
+# HestiaCP base version it is built on (stored as VERSION), see ADR-0006.
+ARCPANEL_INSTALL_VER='1.0.0'
 HESTIA_INSTALL_VER='1.10.5'
+UPSTREAM_DISPLAY_VER="${HESTIA_INSTALL_VER%%~*}"
 
 # Build the full Hestia version
-# Split base version (1.10.0) from channel suffix (~alpha / ~beta), if present
-HESTIA_BASE_VER="${HESTIA_INSTALL_VER%%~*}"
-if [[ "$HESTIA_INSTALL_VER" == *"~"* ]]; then
-	HESTIA_CHANNEL="~${HESTIA_INSTALL_VER#*~}"
+# Split base version (1.0.0) from channel suffix (~alpha / ~beta), if present
+ARCPANEL_BASE_VER="${ARCPANEL_INSTALL_VER%%~*}"
+if [[ "$ARCPANEL_INSTALL_VER" == *"~"* ]]; then
+	HESTIA_CHANNEL="~${ARCPANEL_INSTALL_VER#*~}"
 else
 	HESTIA_CHANNEL=""
 fi
@@ -50,12 +54,18 @@ case "$os" in
 		os_id="debian${release}"
 		;;
 	*)
-		echo "Error: unsupported distribution for determining Hestia version ($os)"
+		echo "Error: unsupported distribution for determining ArcPanel version ($os)"
 		exit 1
 		;;
 esac
 # Final version string, e.g.: 1.10.0-1+deb13~alpha / 1.10.0-1+ubuntu26.04
-HESTIA_INSTALL_BUILD="${HESTIA_BASE_VER}-1+${os_id}${HESTIA_CHANNEL}"
+ARCPANEL_INSTALL_BUILD="${ARCPANEL_BASE_VER}-1+${os_id}${HESTIA_CHANNEL}"
+# Pre-release packages are published in the beta repository
+if [ -n "$HESTIA_CHANNEL" ]; then
+	RPATH='beta/'
+else
+	RPATH=''
+fi
 
 # Supported PHP versions
 multiphp_v=("5.6" "7.0" "7.1" "7.2" "7.3" "7.4" "8.0" "8.1" "8.2" "8.3" "8.4" "8.5")
@@ -71,7 +81,7 @@ node_v="24"
 # Defining software pack for all distros
 software="acl apache2 apache2-suexec-custom apache2-utils at awstats bc bind9 bsdmainutils bsdutils
   clamav-daemon cron curl dnsutils dovecot-imapd dovecot-managesieved dovecot-pop3d dovecot-sieve e2fslibs e2fsprogs
-  exim4 exim4-daemon-heavy expect fail2ban flex ftp git hestia=${HESTIA_INSTALL_BUILD} hestia-nginx hestia-php hestia-web-terminal
+  exim4 exim4-daemon-heavy expect fail2ban flex ftp git arcpanel=${ARCPANEL_INSTALL_BUILD} arcpanel-nginx arcpanel-php arcpanel-web-terminal
   idn2 imagemagick ipset jq libapache2-mod-fcgid libapache2-mod-php$fpm_v libapache2-mpm-itk libmail-dkim-perl lsb-release
   lsof mariadb-client mariadb-common mariadb-server mc mysql-client mysql-common mysql-server net-tools nginx nodejs openssh-server
   php$fpm_v php$fpm_v-apcu php$fpm_v-bz2 php$fpm_v-cgi php$fpm_v-cli php$fpm_v-common php$fpm_v-curl php$fpm_v-gd
@@ -111,11 +121,11 @@ help() {
   -e, --email             Set admin email
   -u, --username          Set admin user
   -p, --password          Set admin password
-  -D, --with-debs         Path to Hestia debs
+  -D, --with-debs         Path to ArcPanel debs
   -f, --force             Force installation
   -h, --help              Print this help
 
-  Example: bash $0 -e demo@hestiacp.com -p p4ssw0rd --multiphp yes"
+  Example: bash $0 -e demo@arcpanel.top -p p4ssw0rd --multiphp yes"
 	exit 1
 }
 
@@ -337,7 +347,7 @@ while getopts "a:w:v:j:k:m:M:g:d:x:z:Z:c:t:i:b:r:o:q:L:l:y:s:u:e:p:W:D:fh" Optio
 		e) email=$OPTARG ;;         # Admin email
 		u) username=$OPTARG ;;      # Admin username
 		p) vpass=$OPTARG ;;         # Admin password
-		D) withdebs=$OPTARG ;;      # Hestia debs path
+		D) withdebs=$OPTARG ;;      # ArcPanel debs path
 		f) force='yes' ;;           # Force install
 		h) help ;;                  # Help
 		*) help ;;                  # Print help (default)
@@ -448,7 +458,7 @@ if [ "x$(id -u)" != 'x0' ]; then
 fi
 
 if [ -d "/usr/local/hestia" ]; then
-	check_result 1 "Hestia install detected. Unable to continue"
+	check_result 1 "ArcPanel install detected. Unable to continue"
 fi
 
 type=$(grep "^ID=" /etc/os-release | cut -f 2 -d '=')
@@ -467,7 +477,7 @@ if [ ! -f /etc/apt/apt.conf.d/80-retries ]; then
 fi
 
 # Welcome message
-echo "Welcome to the Hestia Control Panel installer!"
+echo "Welcome to the ArcPanel installer!"
 echo
 echo "Please wait, the installer is now checking for missing dependencies..."
 echo
@@ -491,13 +501,13 @@ else
 fi
 
 # Check repository availability
-wget --quiet "https://$RHOST" -O /dev/null
-check_result $? "Unable to connect to the Hestia APT repository"
+wget --quiet "https://$RHOST/${RPATH}" -O /dev/null
+check_result $? "Unable to connect to the ArcPanel APT repository (https://$RHOST/${RPATH}). Check the network, or install offline with --with-debs"
 
 # Check installed packages
 tmpfile=$(mktemp -p /tmp)
 dpkg --get-selections > $tmpfile
-conflicts_pkg="exim4 mariadb-server apache2 nginx hestia postfix"
+conflicts_pkg="exim4 mariadb-server apache2 nginx hestia arcpanel postfix"
 
 # Drop postfix from the list if exim should not be installed
 if [ "$exim" = 'no' ]; then
@@ -526,7 +536,7 @@ if [ -n "$conflicts" ] && [ -z "$force" ]; then
 		check_result $? 'apt-get remove failed'
 		unset $answer
 	else
-		check_result 1 "Hestia Control Panel should be installed on a clean server."
+		check_result 1 "ArcPanel should be installed on a clean server."
 	fi
 fi
 
@@ -568,19 +578,19 @@ fi
 
 # Validate whether installation script matches release version before continuing with install
 if [ -z "$withdebs" ] || [ ! -d "$withdebs" ]; then
-	release_branch_ver=$(curl -s https://raw.githubusercontent.com/hestiacp/hestiacp/release/src/deb/hestia/control | grep "Version:" | awk '{print $2}')
-	if [ "$HESTIA_INSTALL_VER" != "$release_branch_ver" ]; then
+	release_branch_ver=$(curl -s https://raw.githubusercontent.com/arc-panel-oss/arcpanel/release/src/deb/arcpanel/control | grep "Version:" | awk '{print $2}')
+	if [ "$ARCPANEL_INSTALL_VER" != "$release_branch_ver" ]; then
 		echo
 		echo -e "\e[91mInstallation aborted\e[0m"
 		echo "===================================================================="
 		echo -e "\e[33mERROR: Install script version does not match package version!\e[0m"
 		echo -e "\e[33mPlease download the installer from the release branch in order to continue:\e[0m"
 		echo ""
-		echo -e "\e[33mhttps://raw.githubusercontent.com/hestiacp/hestiacp/release/install/hst-install.sh\e[0m"
+		echo -e "\e[33mhttps://arcpanel.top/install.sh\e[0m"
 		echo ""
 		echo -e "\e[33mTo test pre-release versions, build the .deb packages and re-run the installer:\e[0m"
 		echo -e "  \e[33m./hst_autocompile.sh \e[1m--hestia branchname no\e[21m\e[0m"
-		echo -e "  \e[33m./hst-install.sh .. \e[1m--with-debs /tmp/hestiacp-src/debs\e[21m\e[0m"
+		echo -e "  \e[33m./hst-install.sh .. \e[1m--with-debs /tmp/hestiacp-src/deb\e[21m\e[0m"
 		echo ""
 		check_result 1 "Installation aborted"
 	fi
@@ -600,7 +610,7 @@ case $architecture in
 		echo -e "\e[33mERROR: $architecture is currently not supported!\e[0m"
 		echo -e "\e[33mPlease verify the achitecture used is currenlty supported\e[0m"
 		echo ""
-		echo -e "\e[33mhttps://github.com/hestiacp/hestiacp/blob/main/README.md\e[0m"
+		echo -e "\e[33mhttps://github.com/arc-panel-oss/arcpanel/blob/main/README.md\e[0m"
 		echo ""
 		check_result 1 "Installation aborted"
 		;;
@@ -611,32 +621,35 @@ esac
 #----------------------------------------------------------#
 
 install_welcome_message() {
-	DISPLAY_VER=$(echo $HESTIA_INSTALL_VER | sed "s|~alpha||g" | sed "s|~beta||g" | sed "s|~rc[0-9]*||g")
+	DISPLAY_VER=$(echo $ARCPANEL_INSTALL_VER | sed "s|~alpha||g" | sed "s|~beta||g" | sed "s|~rc[0-9]*||g")
 	echo
-	echo '                _   _           _   _        ____ ____                  '
-	echo '               | | | | ___  ___| |_(_) __ _ / ___|  _ \                 '
-	echo '               | |_| |/ _ \/ __| __| |/ _` | |   | |_) |                '
-	echo '               |  _  |  __/\__ \ |_| | (_| | |___|  __/                 '
-	echo '               |_| |_|\___||___/\__|_|\__,_|\____|_|                    '
+	cat <<- 'ARCPANEL_LOGO'
+              _                 ____                       _
+             / \    _ __   ___ |  _ \   __ _  _ __    ___ | |
+            / _ \  | '__| / __|| |_) | / _` || '_ \  / _ \| |
+           / ___ \ | |   | (__ |  __/ | (_| || | | ||  __/| |
+          /_/   \_\|_|    \___||_|     \__,_||_| |_| \___||_|
+	ARCPANEL_LOGO
 	echo "                                                                        "
-	echo "                          Hestia Control Panel                          "
-	if [[ "$HESTIA_INSTALL_VER" =~ "rc" ]]; then
+	echo "                                ArcPanel                                "
+	if [[ "$ARCPANEL_INSTALL_VER" =~ "rc" ]]; then
 		echo "                             RELEASE CANDIDATE                      "
 	fi
-	if [[ "$HESTIA_INSTALL_VER" =~ "beta" ]]; then
+	if [[ "$ARCPANEL_INSTALL_VER" =~ "beta" ]]; then
 		echo "                              BETA RELEASE                          "
 	fi
-	if [[ "$HESTIA_INSTALL_VER" =~ "alpha" ]]; then
+	if [[ "$ARCPANEL_INSTALL_VER" =~ "alpha" ]]; then
 		echo "                          DEVELOPMENT SNAPSHOT                      "
 		echo "                    NOT INTENDED FOR PRODUCTION USE                 "
 		echo "                          USE AT YOUR OWN RISK                      "
 	fi
 	echo "                                  ${DISPLAY_VER}                        "
-	echo "                            www.hestiacp.com                            "
+	echo "                              arcpanel.top                              "
+	echo "                         Based on HestiaCP $UPSTREAM_DISPLAY_VER                         "
 	echo
 	echo "========================================================================"
 	echo
-	echo "Thank you for downloading Hestia Control Panel! In a few moments,"
+	echo "Thank you for downloading ArcPanel! In a few moments,"
 	echo "we will begin installing the following components on your server:"
 	echo
 }
@@ -900,10 +913,11 @@ if [ "$mysql8" = 'yes' ]; then
 	done
 fi
 
-# Installing HestiaCP repo
-echo "[ * ] Hestia Control Panel"
-echo "deb [arch=$ARCH signed-by=/usr/share/keyrings/hestia-keyring.gpg] https://$RHOST/ $codename main" > $apt/hestia.list
-curl -s "https://$RHOST/pubkey.gpg" | gpg --dearmor | tee /usr/share/keyrings/hestia-keyring.gpg > /dev/null 2>&1
+# Installing ArcPanel repo
+echo "[ * ] ArcPanel"
+rm -f $apt/hestia.list
+echo "deb [arch=$ARCH signed-by=/usr/share/keyrings/arcpanel-keyring.gpg] https://$RHOST/${RPATH} $codename main" > $apt/arcpanel.list
+curl -s "https://$RHOST/arcpanel.gpg" | gpg --dearmor | tee /usr/share/keyrings/arcpanel-keyring.gpg > /dev/null 2>&1
 
 # Installing Node.js repo
 if [ "$webterminal" = 'yes' ]; then
@@ -1006,9 +1020,9 @@ cp -r /etc/mysql/* $hst_backups/mysql > /dev/null 2>&1
 mv -f /root/.my.cnf $hst_backups/mysql > /dev/null 2>&1
 
 # Backup Hestia
-systemctl stop hestia > /dev/null 2>&1
+systemctl stop arcpanel hestia > /dev/null 2>&1
 cp -r $HESTIA/* $hst_backups/hestia > /dev/null 2>&1
-apt-get -y purge hestia hestia-nginx hestia-php > /dev/null 2>&1
+apt-get -y purge arcpanel arcpanel-nginx arcpanel-php hestia hestia-nginx hestia-php > /dev/null 2>&1
 rm -rf $HESTIA > /dev/null 2>&1
 
 #----------------------------------------------------------#
@@ -1107,7 +1121,7 @@ if [ "$iptables" = 'no' ]; then
 fi
 if [ "$webterminal" = 'no' ]; then
 	software=$(echo "$software" | sed -e "s/nodejs//")
-	software=$(echo "$software" | sed -e "s/hestia-web-terminal//")
+	software=$(echo "$software" | sed -e "s/arcpanel-web-terminal//")
 fi
 if [ "$phpfpm" = 'yes' ]; then
 	software=$(echo "$software" | sed -e "s/php$fpm_v-cgi//")
@@ -1116,10 +1130,10 @@ if [ "$phpfpm" = 'yes' ]; then
 	software=$(echo "$software" | sed -e "s/libapache2-mod-php$fpm_v//")
 fi
 if [ -d "$withdebs" ]; then
-	software=$(echo "$software" | sed -e "s/hestia-nginx//")
-	software=$(echo "$software" | sed -e "s/hestia-php//")
-	software=$(echo "$software" | sed -e "s/hestia-web-terminal//")
-	software=$(echo "$software" | sed -e "s/hestia=${HESTIA_INSTALL_BUILD}//")
+	software=$(echo "$software" | sed -e "s/arcpanel-nginx//")
+	software=$(echo "$software" | sed -e "s/arcpanel-php//")
+	software=$(echo "$software" | sed -e "s/arcpanel-web-terminal//")
+	software=$(echo "$software" | sed -e "s/arcpanel=${ARCPANEL_INSTALL_BUILD}//")
 fi
 
 #----------------------------------------------------------#
@@ -1162,32 +1176,32 @@ echo
 # Install Hestia packages from local folder
 if [ -n "$withdebs" ] && [ -d "$withdebs" ]; then
 	echo "[ * ] Installing local package files..."
-	echo "    - hestia core package"
-	dpkg -i $withdebs/hestia_*.deb > /dev/null 2>&1
+	echo "    - arcpanel core package"
+	dpkg -i $withdebs/arcpanel_*.deb > /dev/null 2>&1
 
-	if [ -z $(ls $withdebs/hestia-php_*.deb 2> /dev/null) ]; then
-		echo "    - hestia-php backend package (from apt)"
-		apt-get -y install hestia-php > /dev/null 2>&1
+	if [ -z $(ls $withdebs/arcpanel-php_*.deb 2> /dev/null) ]; then
+		echo "    - arcpanel-php backend package (from apt)"
+		apt-get -y install arcpanel-php > /dev/null 2>&1
 	else
-		echo "    - hestia-php backend package"
-		dpkg -i $withdebs/hestia-php_*.deb > /dev/null 2>&1
+		echo "    - arcpanel-php backend package"
+		dpkg -i $withdebs/arcpanel-php_*.deb > /dev/null 2>&1
 	fi
 
-	if [ -z $(ls $withdebs/hestia-nginx_*.deb 2> /dev/null) ]; then
-		echo "    - hestia-nginx backend package (from apt)"
-		apt-get -y install hestia-nginx > /dev/null 2>&1
+	if [ -z $(ls $withdebs/arcpanel-nginx_*.deb 2> /dev/null) ]; then
+		echo "    - arcpanel-nginx backend package (from apt)"
+		apt-get -y install arcpanel-nginx > /dev/null 2>&1
 	else
-		echo "    - hestia-nginx backend package"
-		dpkg -i $withdebs/hestia-nginx_*.deb > /dev/null 2>&1
+		echo "    - arcpanel-nginx backend package"
+		dpkg -i $withdebs/arcpanel-nginx_*.deb > /dev/null 2>&1
 	fi
 
 	if [ "$webterminal" = "yes" ]; then
-		if [ -z $(ls $withdebs/hestia-web-terminal_*.deb 2> /dev/null) ]; then
-			echo "    - hestia-web-terminal package (from apt)"
-			apt-get -y install hestia-web-terminal > /dev/null 2>&1
+		if [ -z $(ls $withdebs/arcpanel-web-terminal_*.deb 2> /dev/null) ]; then
+			echo "    - arcpanel-web-terminal package (from apt)"
+			apt-get -y install arcpanel-web-terminal > /dev/null 2>&1
 		else
-			echo "    - hestia-web-terminal"
-			dpkg -i $withdebs/hestia-web-terminal_*.deb > /dev/null 2>&1
+			echo "    - arcpanel-web-terminal"
+			dpkg -i $withdebs/arcpanel-web-terminal_*.deb > /dev/null 2>&1
 		fi
 	fi
 fi
@@ -1282,7 +1296,7 @@ fi
 #                     Configure Hestia                     #
 #----------------------------------------------------------#
 
-echo "[ * ] Configuring Hestia Control Panel..."
+echo "[ * ] Configuring ArcPanel..."
 # Installing sudo configuration
 mkdir -p /etc/sudoers.d
 cp -f $HESTIA_COMMON_DIR/sudo/hestiaweb /etc/sudoers.d/
@@ -1299,7 +1313,13 @@ echo "export HESTIA='$HESTIA'" > /etc/profile.d/hestia.sh
 echo 'PATH=$PATH:'$HESTIA'/bin' >> /etc/profile.d/hestia.sh
 echo 'export PATH' >> /etc/profile.d/hestia.sh
 chmod 755 /etc/profile.d/hestia.sh
+# ArcPanel names for the same paths (compatibility layer, ADR-0006)
+echo "export ARCPANEL='$HESTIA'" > /etc/profile.d/arcpanel.sh
+echo "export HESTIA='$HESTIA'" >> /etc/profile.d/arcpanel.sh
+chmod 755 /etc/profile.d/arcpanel.sh
+ln -sfn $HESTIA /usr/local/arcpanel
 source /etc/profile.d/hestia.sh
+source /etc/profile.d/arcpanel.sh
 
 # Configuring logrotate for Hestia logs
 cp -f $HESTIA_INSTALL_DIR/logrotate/hestia /etc/logrotate.d/hestia
@@ -1445,7 +1465,10 @@ write_config_value "THEME" "dark"
 write_config_value "INACTIVE_SESSION_TIMEOUT" "60"
 
 # Version & Release Branch
+# VERSION keeps the upstream HestiaCP base version; ARCPANEL_VERSION is shown to users (ADR-0006)
 write_config_value "VERSION" "${HESTIA_INSTALL_VER}"
+write_config_value "ARCPANEL_VERSION" "${ARCPANEL_INSTALL_VER}"
+write_config_value "APP_NAME" "ArcPanel"
 write_config_value "RELEASE_BRANCH" "release"
 
 # Email notifications after upgrade
@@ -1521,7 +1544,7 @@ fi
 # Generating SSL certificate
 echo "[ * ] Generating default self-signed SSL certificate..."
 $HESTIA/bin/v-generate-ssl-cert $(hostname) '' 'US' 'California' \
-	'San Francisco' 'Hestia Control Panel' 'IT' > /tmp/hst.pem
+	'San Francisco' 'ArcPanel' 'IT' > /tmp/hst.pem
 
 crt_end=$(grep -n "END CERTIFICATE-" /tmp/hst.pem | head -n1 | cut -f 1 -d:)
 # Newer OpenSSL may emit BEGIN PRIVATE KEY while older flows emit BEGIN RSA PRIVATE KEY.
@@ -1537,7 +1560,7 @@ check_result $(
 ) "failed to parse generated SSL certificate"
 
 # Adding SSL certificate
-echo "[ * ] Adding SSL certificate to Hestia Control Panel..."
+echo "[ * ] Adding SSL certificate to ArcPanel..."
 cd $HESTIA/ssl
 sed -n "1,${crt_end}p" /tmp/hst.pem > certificate.crt
 sed -n "$key_start,${key_end}p" /tmp/hst.pem > certificate.key
@@ -2354,7 +2377,7 @@ if [ "$iptables" = 'yes' ]; then
 fi
 
 # Get public IP
-pub_ipv4="$(curl -fsLm5 --retry 2 --ipv4 https://ip.hestiacp.com/)"
+pub_ipv4="$(curl -fsLm5 --retry 2 --ipv4 https://ip.arcpanel.top/ || curl -fsLm5 --retry 2 --ipv4 https://api.ipify.org/)"
 if [ -n "$pub_ipv4" ] && [ "$pub_ipv4" != "$ip" ]; then
 	if [ -e /etc/rc.local ]; then
 		sed -i '/exit 0/d' /etc/rc.local
@@ -2452,10 +2475,16 @@ apt-get -y upgrade >> $LOG &
 BACK_PID=$!
 echo
 
-# Starting Hestia service
-update-rc.d hestia defaults
-systemctl start hestia
-check_result $? "hestia start failed"
+# Starting ArcPanel service (arcpanel.service wraps /etc/init.d/hestia, alias hestia.service)
+systemctl daemon-reload
+if [ -f /lib/systemd/system/arcpanel.service ]; then
+	systemctl enable arcpanel > /dev/null 2>&1
+	systemctl start arcpanel
+else
+	update-rc.d hestia defaults
+	systemctl start hestia
+fi
+check_result $? "arcpanel start failed"
 chown hestiaweb:hestiaweb $HESTIA/data/sessions
 
 # Create backup folder and set correct permission
@@ -2502,7 +2531,7 @@ echo -e "\n"
 # Sending notification to admin email
 echo -e "Congratulations!
 
-You have successfully installed Hestia Control Panel on your server.
+You have successfully installed ArcPanel on your server.
 
 Ready to get started? Log in using the following credentials:
 
@@ -2513,31 +2542,28 @@ fi
 echo -e -n " 	Username:   $username
 	Password:   $displaypass
 
-Thank you for choosing Hestia Control Panel to power your full stack web server,
+Thank you for choosing ArcPanel to power your full stack web server,
 we hope that you enjoy using it as much as we do!
 
 Please feel free to contact us at any time if you have any questions,
 or if you encounter any bugs or problems:
 
-Documentation:  https://docs.hestiacp.com/
-Forum:          https://forum.hestiacp.com/
-GitHub:         https://www.github.com/hestiacp/hestiacp
+Documentation:  https://docs.arcpanel.top/
+GitHub:         https://github.com/arc-panel-oss/arcpanel
 
 Note: Automatic updates are enabled by default. If you would like to disable them,
 please log in and navigate to Server > Updates to turn them off.
 
-Help support the Hestia Control Panel project by donating via PayPal:
-https://www.hestiacp.com/donate
+ArcPanel is based on HestiaCP. Thanks to the HestiaCP and VestaCP communities.
 
 --
 Sincerely yours,
-The Hestia Control Panel development team
+The ArcPanel development team
 
-Made with love & pride by the open-source community around the world.
 " >> $tmpfile
 
 send_mail="$HESTIA/web/inc/mail-wrapper.php"
-cat $tmpfile | $send_mail -s "Hestia Control Panel" $email
+cat $tmpfile | $send_mail -s "ArcPanel" $email
 
 # Congrats
 echo
@@ -2545,7 +2571,7 @@ cat $tmpfile
 rm -f $tmpfile
 
 # Add welcome message to notification panel
-$HESTIA/bin/v-add-user-notification "$username" 'Welcome to Hestia Control Panel!' '<p>You are now ready to begin adding <a href="/add/user/">user accounts</a> and <a href="/add/web/">domains</a>. For help and assistance, <a href="https://hestiacp.com/docs/" target="_blank">view the documentation</a> or <a href="https://forum.hestiacp.com/" target="_blank">visit our forum</a>.</p><p>Please <a href="https://github.com/hestiacp/hestiacp/issues" target="_blank">report any issues via GitHub</a>.</p><p class="u-text-bold">Have a wonderful day!</p><p><i class="fas fa-heart icon-red"></i> The Hestia Control Panel development team</p>'
+$HESTIA/bin/v-add-user-notification "$username" 'Welcome to ArcPanel!' '<p>You are now ready to begin adding <a href="/add/user/">user accounts</a> and <a href="/add/web/">domains</a>. For help and assistance, <a href="https://docs.arcpanel.top/docs/" target="_blank">view the documentation</a>.</p><p>Please <a href="https://github.com/arc-panel-oss/arcpanel/issues" target="_blank">report any issues via GitHub</a>.</p><p class="u-text-bold">Have a wonderful day!</p><p><i class="fas fa-heart icon-red"></i> The ArcPanel development team</p>'
 
 # Clean-up
 # Sort final configuration file

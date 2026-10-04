@@ -40,7 +40,7 @@ $application = new Application();
 $application
 	->register("install")
 	->setDescription("Install app via the CLI")
-	->addArgument("user", InputArgument::REQUIRED, "Hestia User")
+	->addArgument("user", InputArgument::REQUIRED, "ArcPanel User")
 	->addArgument("domain", InputArgument::REQUIRED, "Domain")
 	->addArgument("app", InputArgument::REQUIRED, "App Name")
 	->addArgument("options", InputArgument::IS_ARRAY, "Options")
@@ -116,7 +116,7 @@ $application
 		foreach ($appInstallers as $appInstaller) {
 			$app = basename(dirname($appInstaller));
 			$hestia = new \Hestia\System\HestiaApp();
-			$domain = "demo.hestiacp.com";
+			$domain = "demo.arcpanel.top";
 			if (
 				!file_exists(
 					__DIR__ .
@@ -143,7 +143,7 @@ $application
 $application
 	->register("options")
 	->setDescription("List options requied / optional for the app")
-	->addArgument("user", InputArgument::REQUIRED, "Hestia User")
+	->addArgument("user", InputArgument::REQUIRED, "ArcPanel User")
 	->addArgument("domain", InputArgument::REQUIRED, "Domain")
 	->addArgument("app", InputArgument::REQUIRED, "App Name")
 	->setCode(function (InputInterface $input, OutputInterface $output): int {

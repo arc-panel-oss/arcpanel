@@ -1,6 +1,6 @@
 [Unit]
-Description=HestiaCP Web Terminal
-Documentation=https://hestiacp.com/docs/
+Description=ArcPanel Web Terminal
+Documentation=https://docs.arcpanel.top/docs/
 After=network.target
 
 [Service]

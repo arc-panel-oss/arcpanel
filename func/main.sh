@@ -112,7 +112,7 @@ MAILTPL=$HESTIA/data/templates/mail
 DNSTPL=$HESTIA/data/templates/dns
 RRD=$HESTIA/web/rrd
 SENDMAIL="$HESTIA/web/inc/mail-wrapper.php"
-HESTIA_GIT_REPO="https://raw.githubusercontent.com/hestiacp/hestiacp"
+HESTIA_GIT_REPO="https://raw.githubusercontent.com/arc-panel-oss/arcpanel"
 HESTIA_THEMES="$HESTIA/web/css/themes"
 HESTIA_THEMES_CUSTOM="$HESTIA/web/css/themes/custom"
 SCRIPT="$(basename $0)"
@@ -1979,7 +1979,7 @@ is_hestia_package() {
 		fi
 	done
 	if [ "$check" != "true" ]; then
-		check_result $E_INVALID "$2 package is not controlled by hestiacp"
+		check_result $E_INVALID "$2 package is not controlled by ArcPanel"
 	fi
 }
 

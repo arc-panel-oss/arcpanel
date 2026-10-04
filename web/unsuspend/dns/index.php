@@ -20,7 +20,7 @@ if (!empty($_GET["domain"]) && empty($_GET["record_id"])) {
 	if ($return_var != 0) {
 		$error = implode("<br>", $output);
 		if (empty($error)) {
-			$error = _("Error: Hestia did not return any output.");
+			$error = _("Error: ArcPanel did not return any output.");
 		}
 		$_SESSION["error_msg"] = $error;
 	}
@@ -46,7 +46,7 @@ if (!empty($_GET["domain"]) && !empty($_GET["record_id"])) {
 	if ($return_var != 0) {
 		$error = implode("<br>", $output);
 		if (empty($error)) {
-			$error = _("Error: Hestia did not return any output.");
+			$error = _("Error: ArcPanel did not return any output.");
 		}
 		$_SESSION["error_msg"] = $error;
 	}

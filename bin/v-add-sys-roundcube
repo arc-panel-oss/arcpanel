@@ -177,13 +177,13 @@ if [[ "$UPDATE" == "no" ]]; then
 
 	# Replace with Hestia config
 	cp -f "$HESTIA_COMMON_DIR/roundcube/main.inc.php" "$RC_CONFIG_DIR/config.inc.php" \
-		|| fail "Failed to install Hestia Roundcube configuration"
+		|| fail "Failed to install ArcPanel Roundcube configuration"
 	cp -f "$HESTIA_COMMON_DIR/roundcube/mimetypes.php" "$RC_CONFIG_DIR/mimetypes.php" \
 		|| fail "Failed to install mimetypes.php"
 	chmod 644 "$RC_CONFIG_DIR"/*.php
 
 	cp -f "$HESTIA_COMMON_DIR/roundcube/hestia.php" "$RC_INSTALL_DIR/plugins/password/drivers/" \
-		|| fail "Failed to install Hestia password driver"
+		|| fail "Failed to install ArcPanel password driver"
 	mkdir -p "$RC_CONFIG_DIR/plugins/password"
 	mkdir -p "$RC_CONFIG_DIR/plugins/newmail_notifier"
 	mkdir -p "$RC_CONFIG_DIR/plugins/zipdownload"
