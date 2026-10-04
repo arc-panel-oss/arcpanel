@@ -10,7 +10,7 @@ Every time you rebuild the user or domain, the config files of the domain are ov
 
 This happens when:
 
-- HestiaCP is updated.
+- ArcPanel is updated.
 - The admin initiates it.
 - The user modifies settings.
 
@@ -104,7 +104,7 @@ FastCGI cache works best for sites get a lot of request and where the pages don�
 
 ### Why does software package x and y not work with FastCGI cache
 
-As we have over 20 different templates and we don’t use them all, we have decided to stop releasing new ones the future and hope the community helps improving the templates by [submitting a Pull Request](https://github.com/hestiacp/hestiacp/pulls).
+As we have over 20 different templates and we don’t use them all, we have decided to stop releasing new ones the future and hope the community helps improving the templates by [submitting a Pull Request](https://github.com/arc-panel-oss/arcpanel/pulls).
 
 If you want to add support to a certain template, follow the instructions below.
 
@@ -148,9 +148,9 @@ To write custom caching templates, use the following naming scheme:
 
 `caching-yourname.tpl`, `caching-yourname.stpl` and `caching-yourname.sh`
 
-### Does Hestia support WebSockets?
+### Does ArcPanel support WebSockets?
 
-Yes, Hestia works fine with WebSockets; however, our default templates include by default:
+Yes, ArcPanel works fine with WebSockets; however, our default templates include by default:
 
 ```bash
 proxy_hide_header Upgrade

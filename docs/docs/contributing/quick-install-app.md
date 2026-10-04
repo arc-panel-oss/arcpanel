@@ -1,8 +1,8 @@
 # Quick install app
 
-One of Hestia’s most requested feature is to add support for Softaculous. However, due to the required use of Ioncube in hestia-php and because we are against the use of proprietary software, we have instead developed our own **Quick install app** solution.
+A frequently requested feature is support for Softaculous. However, Softaculous requires Ioncube in hestia-php, and we do not ship proprietary software. ArcPanel provides its own **Quick install app** solution instead.
 
-More information can be found in the [hestia-quick-install repo](https://github.com/hestiacp/hestia-quick-install/blob/main/Example/ExampleSetup.php)
+More information can be found in the upstream [hestia-quick-install repository](https://github.com/hestiacp/hestia-quick-install/blob/main/Example/ExampleSetup.php).
 
 ## Creating a new app
 
@@ -64,13 +64,13 @@ Enables you to set app requirements and web server templates. For example, some 
 There are multiple ways to install and configure the web app after it is has been downloaded.
 
 - Manipulation of config files.
-- Run commands. For example, use `drush` to install [Drupal](https://github.com/hestiacp/hestiacp/blob/88598deb49cec6a39be4682beb8e9b8720d59c7b/web/src/app/WebApp/Installers/Drupal/DrupalSetup.php#L56-L65).
+- Run commands. For example, use `drush` to install [Drupal](https://github.com/arc-panel-oss/arcpanel/blob/master/web/src/app/WebApp/Installers/Drupal/DrupalSetup.php).
 - Using curl to provide configure the app over HTTP.
 
 ::: warning
-To prevent any issues, make that all commands are executed as the user, instead of `root` or `admin`. All the commands that are supplied by HestiaCP do this by default.
+To prevent any issues, make that all commands are executed as the user, instead of `root` or `admin`. All the commands that are supplied by ArcPanel do this by default.
 :::
 
 ## Sharing
 
-Once you are done, you can [submit a Pull Request](https://github.com/hestiacp/hestiacp/pulls) and we will review the code. If it meets our standards, we will include in the next release.
+Once you are done, you can [submit a Pull Request](https://github.com/arc-panel-oss/arcpanel/pulls) and we will review the code. If it meets our standards, we will include in the next release.

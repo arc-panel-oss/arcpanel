@@ -1,11 +1,11 @@
 # Best Practices
 
-Managing a server is not easy. Here are some best practices you should try to adhere to while managing your Hestia server.
+Managing a server is not easy. Here are some best practices you should try to adhere to while managing your ArcPanel server.
 
 ## Use a regular user
 
 Before adding any web or mail domain on your server, you should create a regular user. To do this, you can refer to our [User Management Guide](../user-guide/users#adding-a-user).
-Remember, Hestia uses Linux system for User Management, so any user you already created can't be added to Hestia.
+Remember, ArcPanel uses Linux system for User Management, so any user you already created can't be added to ArcPanel.
 
 ## Enable two-factor authentication (2FA) for the _admin_ user
 

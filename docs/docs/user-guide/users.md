@@ -9,7 +9,7 @@ To manage users, log in as an **administrator** and navigate to the **Users <i c
 3. Click the **<i class="fas fa-fw fa-save"></i> Save** button in the top right.
 
 ::: warning
-Hestia uses Linux system for User Management, so any user you already created locally can't be added to Hestia.
+ArcPanel uses Linux system for User Management, so any user you already created locally can't be added to ArcPanel.
 :::
 
 ## Impersonating a user

@@ -1,5 +1,9 @@
 # Install script generator
 
+::: warning Third-party tools for HestiaCP
+The tools below are community projects written for HestiaCP, the project ArcPanel is based on. They are not maintained by the ArcPanel team. The installer options are the same in ArcPanel, but the generated commands download the HestiaCP installer: replace the download step with `wget https://arcpanel.top/install.sh` and run `sudo bash install.sh` with the generated options. You can also use the ArcPanel [install command builder](/install).
+:::
+
 These are some install script generators created by the community:
 
 - [hestiacp-scriptline-generator](https://github.com/gabizz/hestiacp-scriptline-generator)

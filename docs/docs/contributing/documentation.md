@@ -1,6 +1,6 @@
-# Contributing to Hestia’s documentation
+# Contributing to ArcPanel’s documentation
 
-The documentation is built using [VitePress](https://vitepress.vuejs.org). There are a couple of requirements to contribute to it.
+The documentation is built using [VitePress](https://vitepress.vuejs.org). It is published at [docs.arcpanel.top](https://docs.arcpanel.top) from the `docs/` folder of the [ArcPanel repository](https://github.com/arc-panel-oss/arcpanel). There are a couple of requirements to contribute to it.
 
 ## Requirements
 

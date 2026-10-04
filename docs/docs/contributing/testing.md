@@ -1,54 +1,21 @@
 # Beta and release candidate testing
 
 ::: tip
-If there is a beta or release candidate available, we will announce it via our Discord server or our forum.
+Beta releases and release candidates are announced on the [GitHub releases page](https://github.com/arc-panel-oss/arcpanel/releases).
 :::
 
-In the last few months, we have seen a growing number of issues when releasing minor and major updates. To prevent this from happening, we have decided to setup a beta apt server so we can push more regular updates, enabling us to test at a larger scale than only 4 or 5 users.
+ArcPanel publishes its packages (`arcpanel`, `arcpanel-nginx`, `arcpanel-php` and `arcpanel-web-terminal`) in its own APT repository at `apt.arcpanel.top`. The repository has two suites: `stable` for regular releases and `beta` for betas and release candidates. Tags named `v*-beta.*` are published to the `beta` suite.
 
-## Activating the beta repo on an existing install
+## Using beta packages
 
 ::: danger
 Betas and release candidates might still contain bugs and can possibly break your server. We cannot guarantee it will be fixed directly! Please be careful when testing on servers in production or containing important data!
 :::
 
-Run the following commands as root:
+The installer writes the ArcPanel package source to `/etc/apt/sources.list.d/arcpanel.list` and the signing key to `/usr/share/keyrings/arcpanel-keyring.gpg`. Step-by-step instructions for switching a server to the `beta` suite, and back to `stable`, will be published here together with the first beta release.
 
-```bash
-# Collecting system data
-ARCH=$(arch)
-case $(arch) in x86_64) ARCH="amd64" ;; aarch64) ARCH="arm64" ;; esac
-codename="$(lsb_release -s -c)"
-apt="/etc/apt/sources.list.d"
-
-# Add the beta repo to hestia.list
-sed -i 's/^/#/' $apt/hestia.list
-echo "deb [arch=$ARCH signed-by=/usr/share/keyrings/hestia-beta-keyring.gpg] https://beta-apt.hestiacp.com/ $codename main" >> $apt/hestia.list
-curl -s "https://beta-apt.hestiacp.com/pubkey.gpg" | gpg --dearmor | tee /usr/share/keyrings/hestia-beta-keyring.gpg > /dev/null 2>&1
-
-# Update to the beta version
-apt update && apt upgrade
-```
-
-## Install from beta repo
-
-If you want to install a new Hestia installation form the beta server.
-
-```bash
-# Debian
-wget https://beta-apt.hestiacp.com/hst-install-debian.sh
-# or Ubuntu
-wget https://beta-apt.hestiacp.com/hst-install-ubuntu.sh
-```
-
-Then install via bash hst-install-debian.sh or bash hst-install-ubuntu.sh
-
-## Disabling the beta repo
-
-Edit `/etc/apt/sources.list.d/hestia.list` and remove the `#` in front of `apt.hestiacp.com`, and add a `#` in front of `beta-apt.hestiacp.com`.
-
-Once that’s done, run `apt update && apt upgrade` to rollback to the regular release.
+To test unreleased code without the APT repository, build the packages yourself and install them with `--with-debs`, as described in [Building packages](./building).
 
 ## Reporting bugs
 
-If you encounter a bug, please [open an issue](https://github.com/hestiacp/hestiacp/issues/new/choose) or [submit a Pull Request](https://github.com/hestiacp/hestiacp/pulls). You can also report it on our forum or our Discord server
+If you encounter a bug, please [open an issue](https://github.com/arc-panel-oss/arcpanel/issues/new/choose) or [submit a Pull Request](https://github.com/arc-panel-oss/arcpanel/pulls).

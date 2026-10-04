@@ -1,26 +1,28 @@
+/* ArcPanel brand colours, from docs/brand/tokens.css (--ap-color-primary*). */
 :root {
-	--vp-c-brand-lighter: #ff558f;
-	--vp-c-brand-light: #da4778;
-	--vp-c-brand: #b7236a;
-	--vp-c-brand-dark: #9a1d5a;
-	--vp-c-brand-darker: #781746;
+	--vp-c-brand-lighter: #6f8ff0;
+	--vp-c-brand-light: #4a6fe0;
+	--vp-c-brand: #2f55d4;
+	--vp-c-brand-dark: #2443b0;
+	--vp-c-brand-darker: #1b3488;
 	--vp-home-hero-name-color: transparent;
-	--vp-home-hero-name-background: linear-gradient(120deg, #d83182, #633288, #41d1ff);
-	--vp-button-brand-bg: #b7236a;
-	--vp-button-brand-hover-bg: #9a1d5a;
-	--vp-button-brand-active-bg: #9a1d5a;
-	--vp-c-brand-1: #b7236a;
+	--vp-home-hero-name-background: linear-gradient(120deg, #2443b0, #2f55d4, #819eff);
+	--vp-button-brand-bg: #2f55d4;
+	--vp-button-brand-hover-bg: #2443b0;
+	--vp-button-brand-active-bg: #2443b0;
+	--vp-c-brand-1: #2f55d4;
 }
 
 .dark {
-	--vp-c-bg: #282828;
-	--vp-c-brand-lighter: #ff85ae;
-	--vp-c-brand-light: #ff558f;
-	--vp-c-brand: #ff558f;
-	--vp-c-brand-dark: #da4778;
-	--vp-c-brand-darker: #b7236a;
-	--vp-button-brand-bg: #da4778;
-	--vp-button-brand-hover-bg: #b7236a;
-	--vp-button-brand-active-bg: #b7236a;
-	--vp-c-brand-1: #da4778;
+	--vp-c-bg: #181b21;
+	--vp-c-brand-lighter: #c7d4ff;
+	--vp-c-brand-light: #a6bbff;
+	--vp-c-brand: #819eff;
+	--vp-c-brand-dark: #6f8ff0;
+	--vp-c-brand-darker: #4a6fe0;
+	--vp-home-hero-name-background: linear-gradient(120deg, #819eff, #a6bbff, #c7d4ff);
+	--vp-button-brand-bg: #2f55d4;
+	--vp-button-brand-hover-bg: #2443b0;
+	--vp-button-brand-active-bg: #2443b0;
+	--vp-c-brand-1: #819eff;
 }

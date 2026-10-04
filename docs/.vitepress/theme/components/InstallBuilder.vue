@@ -9,11 +9,11 @@
 				</p>
 				<CopyToClipboardInput
 					class="u-mb10"
-					value="wget https://raw.githubusercontent.com/hestiacp/hestiacp/release/install/hst-install.sh"
+					value="wget https://arcpanel.top/install.sh"
 				/>
 				<p class="u-mb10">
-					Check you are running as the <code>root</code> user, configure the options you want below,
-					then run:
+					Configure the options you want below, then run the installer as <code>root</code>
+					(with <code>sudo</code>):
 				</p>
 				<CopyToClipboardInput class="u-mb10" :value="installCommand" />
 			</div>
@@ -104,9 +104,9 @@ const toggleOption = (option) => {
 };
 
 // Build the install command
-const installCommand = ref("bash hst-install.sh");
+const installCommand = ref("sudo bash install.sh");
 watchEffect(() => {
-	let cmd = "bash hst-install.sh";
+	let cmd = "sudo bash install.sh";
 	const quoteshellarg = (str) => {
 		if (!str) return "''";
 		return `'${str.replace(/'/g, "'\\''")}'`;

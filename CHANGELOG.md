@@ -2,6 +2,35 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.0] - Unreleased
+
+First ArcPanel release, based on HestiaCP 1.10.5. Entries below this section are the historical HestiaCP changelog and are kept unchanged.
+
+### Rebranding
+
+- The product is now called **ArcPanel**. The web interface, notification emails, installer output, CLI messages and documentation use the ArcPanel name; the About page shows "Based on HestiaCP".
+- New homes: website and installer at `arcpanel.top`, documentation at `docs.arcpanel.top`, source code and issues at `github.com/arc-panel-oss/arcpanel`.
+- Links to HestiaCP infrastructure (website, documentation, forum, donations, translation platform) are replaced or removed. Translation sync is paused until ArcPanel has its own translation project.
+
+### Packages and installation
+
+- Packages are renamed to `arcpanel`, `arcpanel-nginx`, `arcpanel-php` and `arcpanel-web-terminal`. Each declares `Provides`, `Conflicts` and `Replaces` for its `hestia*` counterpart.
+- Packages are built and signed in GitHub Actions and published in the ArcPanel APT repository at `apt.arcpanel.top` (suites `stable` and `beta`), for Debian 12 and 13 and Ubuntu 22.04, 24.04 and 26.04 LTS, on `amd64` and `arm64`.
+- New install command: `wget https://arcpanel.top/install.sh` then `sudo bash install.sh`. The installer options are unchanged and `--with-debs` still works for offline installs.
+- ArcPanel servers no longer contact HestiaCP infrastructure at runtime (`apt.hestiacp.com`, `ip.hestiacp.com`, upstream GitHub raw files).
+- Fresh installs only: upgrading an existing HestiaCP server in place is not supported.
+
+### Versioning
+
+- ArcPanel has its own version numbers, starting at `1.0.0`, stored as `ARCPANEL_VERSION` in `hestia.conf`. This is the version shown in the UI, CLI output and emails.
+- `VERSION` keeps meaning the upstream HestiaCP base version (`1.10.5`), also shipped in `install/upstream.conf` as `UPSTREAM_VERSION`, so upstream upgrade scripts keep working.
+- ArcPanel upgrade steps live in `install/upgrade/arcpanel/`.
+
+### Compatibility
+
+- Internal names are unchanged: `/usr/local/hestia`, `/etc/hestiacp`, `HESTIA_*` variables, `v-*` commands and the API.
+- ArcPanel aliases: `/usr/local/arcpanel` (symlink), `$ARCPANEL` environment variable, `arcpanel` service (same unit as `hestia`), and `v-*-arcpanel-*` wrappers for the nine `v-*-hestia-*` commands (for example `v-update-sys-arcpanel` for `v-update-sys-hestia`).
+
 ## [1.10.5] - Service Release
 
 ### Security

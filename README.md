@@ -1,39 +1,34 @@
-<h1 align="center"><a href="https://www.hestiacp.com/">Hestia Control Panel</a></h1>
-
-![HestiaCP Web Interface screenshot](https://storage.hestiacp.com/hestiascreen.png)
+<h1 align="center">
+	<a href="https://arcpanel.top/">
+		<picture>
+			<source media="(prefers-color-scheme: dark)" srcset="docs/brand/logo-dark.svg">
+			<img src="docs/brand/logo.svg" alt="ArcPanel" height="64">
+		</picture>
+	</a>
+</h1>
 
 <h2 align="center">Lightweight and powerful control panel for the modern web</h2>
 
-<p align="center"><strong>Latest stable release:</strong> Version 1.10.5 | <a href="https://github.com/hestiacp/hestiacp/blob/release/CHANGELOG.md">View Changelog</a></p>
+<p align="center"><strong>Based on HestiaCP 1.10.5.</strong> Current release: ArcPanel 1.0.0 (in development).</p>
 
 <p align="center">
-	<a href="https://www.hestiacp.com/">HestiaCP.com</a> |
-	<a href="https://docs.hestiacp.com/">Documentation</a> |
-	<a href="https://forum.hestiacp.com/">Forum</a>
+	<a href="https://arcpanel.top/">arcpanel.top</a> |
+	<a href="https://docs.arcpanel.top/">Documentation</a> |
+	<a href="https://github.com/arc-panel-oss/arcpanel/releases">Releases</a> |
+	<a href="CHANGELOG.md">Changelog</a>
 	<br/><br/>
-	<a href="https://github.com/hestiacp/hestiacp/actions/workflows/lint.yml">
-		<img src="https://github.com/hestiacp/hestiacp/actions/workflows/lint.yml/badge.svg" alt="Lint Status"/>
-	</a>
-	<a href="https://gurubase.io/g/hestia">
-		<img src="https://img.shields.io/badge/Gurubase-Ask%20Hestia%20Guru-006BFF" alt="Gurubase"/>
+	<a href="https://github.com/arc-panel-oss/arcpanel/actions/workflows/lint.yml">
+		<img src="https://github.com/arc-panel-oss/arcpanel/actions/workflows/lint.yml/badge.svg" alt="Lint Status"/>
 	</a>
 </p>
 
-## **Welcome!**
+## What is ArcPanel?
 
-Hestia Control Panel is designed to provide administrators an easy to use web and command line interface, enabling them to quickly deploy and manage web domains, mail accounts, DNS zones, and databases from one central dashboard without the hassle of manually deploying and configuring individual components or services.
+ArcPanel is an open-source control panel for Linux web servers. It gives administrators an easy to use web and command line interface to deploy and manage web domains, mail accounts, DNS zones and databases from one central dashboard, without configuring each service by hand.
 
-## Donate
+ArcPanel is based on [HestiaCP](https://github.com/hestiacp/hestiacp) 1.10.5. It keeps the HestiaCP internals (`/usr/local/hestia`, `/etc/hestiacp`, the `v-*` commands and the API), so scripts and integrations written for HestiaCP keep working. ArcPanel adds its own name, packages, APT repository and versioning, plus ArcPanel names for what administrators see on the server.
 
-[![paypal](https://www.paypalobjects.com/en_US/i/btn/btn_donateCC_LG.gif)](https://www.paypal.com/cgi-bin/webscr?cmd=_s-xclick&hosted_button_id=ST87LQH2CHGLA)<br /><br />
-Bitcoin : bc1q48jt5wg5jaj8g9zy7c3j03cv57j2m2u5anlutu<br>
-Ethereum : 0xfF3Dd2c889bd0Ff73d8085B84A314FC7c88e5D51<br>
-Binance: bnb1l4ywvw5ejfmsgjdcx8jn5lxj7zsun8ktfu7rh8<br>
-Smart Chain: 0xfF3Dd2c889bd0Ff73d8085B84A314FC7c88e5D51<br>
-
-Project infrastructure is partly provided by [infrahost](https://infrahost.ch/en/).
-
-## Features and Services
+## Features and services
 
 - Apache2 and NGINX with PHP-FPM
 - Multiple PHP versions (5.6 - 8.5, 8.5 as default)
@@ -41,27 +36,28 @@ Project infrastructure is partly provided by [infrahost](https://infrahost.ch/en
 - POP/IMAP/SMTP mail services with Anti-Virus, Anti-Spam, and Webmail (ClamAV, SpamAssassin, Sieve, Roundcube)
 - MariaDB/MySQL and/or PostgreSQL databases
 - Let's Encrypt SSL support with wildcard certificates
-- Firewall with brute-force attack detection and IP lists (iptables, fail2ban, and ipset).
+- Firewall with brute-force attack detection and IP lists (iptables, fail2ban, and ipset)
 
 ## Supported platforms and operating systems
 
-- **Debian:** 13, 12, 11
-- **Ubuntu:** 26.04 LTS, 24.04 LTS, 22.04 LTS
+- **Debian:** 12, 13
+- **Ubuntu:** 22.04 LTS, 24.04 LTS, 26.04 LTS
+- **Architectures:** AMD64 / x86_64 and ARM64 / aarch64
 
-**NOTES:**
+**Notes:**
 
-- Hestia Control Panel does not support 32 bit operating systems!
-- Hestia Control Panel in combination with OpenVZ 7 or lower might have issues with DNS and/or firewall. If you use a Virtual Private Server we strongly advice you to use something based on KVM or LXC!
+- ArcPanel does not support 32-bit operating systems.
+- ArcPanel in combination with OpenVZ 7 or lower might have issues with DNS and/or firewall. If you use a Virtual Private Server, we strongly advise you to use one based on KVM or LXC.
 
-## Installing Hestia Control Panel
+## Installing ArcPanel
 
-- **NOTE:** You must install Hestia Control Panel on top of a fresh operating system installation to ensure proper functionality.
+**Note:** You must install ArcPanel on top of a fresh operating system installation to ensure proper functionality. ArcPanel supports fresh installs only; upgrading an existing HestiaCP server in place is not supported.
 
-While we have taken every effort to make the installation process and the control panel interface as friendly as possible (even for new users), it is assumed that you will have some prior knowledge and understanding in the basics how to set up a Linux server before continuing.
+While we have taken every effort to make the installation process and the control panel interface as friendly as possible (even for new users), it is assumed that you have some prior knowledge of how to set up a Linux server.
 
 ### Step 1: Log in
 
-To start the installation, you will need to be logged in as **root** or a user with super-user privileges. You can perform the installation either directly from the command line console or remotely via SSH:
+Log in to your server as **root** or as a user with `sudo` privileges, either directly on the console or remotely via SSH:
 
 ```bash
 ssh root@your.server
@@ -72,10 +68,10 @@ ssh root@your.server
 Download the installation script for the latest release:
 
 ```bash
-wget https://raw.githubusercontent.com/hestiacp/hestiacp/release/install/hst-install.sh
+wget https://arcpanel.top/install.sh
 ```
 
-If the download fails due to an SSL validation error, please be sure you've installed the ca-certificate package on your system - you can do this with the following command:
+If the download fails due to an SSL validation error, make sure the `ca-certificates` package is installed:
 
 ```bash
 apt-get update && apt-get install ca-certificates
@@ -83,58 +79,61 @@ apt-get update && apt-get install ca-certificates
 
 ### Step 3: Run
 
-To begin the installation process, simply run the script and follow the on-screen prompts:
+Run the script and follow the on-screen prompts:
 
 ```bash
-bash hst-install.sh
+sudo bash install.sh
 ```
 
-You will receive a welcome email at the address specified during installation (if applicable) and on-screen instructions after the installation is completed to log in and access your server.
+The installer adds the ArcPanel APT repository (`apt.arcpanel.top`) and installs the `arcpanel`, `arcpanel-nginx` and `arcpanel-php` packages (and `arcpanel-web-terminal` if selected). After the installation you receive on-screen instructions and, if an email address was given, a welcome email with the login details.
 
 ### Custom installation
 
-You may specify a number of various flags during installation to only install the features in which you need. To view a list of available options, run:
+You can pass flags to the installer to choose which software is installed, or to run an unattended installation. To list the available options, run:
 
 ```bash
-bash hst-install.sh -h
+sudo bash install.sh -h
 ```
 
-Alternatively, You can use <https://hestiacp.com/install.html> which allows you to easily generate the installation command via GUI.
+You can also use the [install command builder](https://docs.arcpanel.top/install.html) to generate the command. For offline installs or locally built packages, use `--with-debs` (see [Building packages](https://docs.arcpanel.top/docs/contributing/building.html)).
 
-## How to upgrade an existing installation
+## Upgrading
 
-Automatic Updates are enabled by default on new installations of Hestia Control Panel and can be managed from **Server Settings > Updates**. To manually check for and install available updates, use the apt package manager:
+Automatic updates are enabled by default and can be managed from **Server Settings > Updates**. To check for and install updates manually, use APT:
 
 ```bash
 apt-get update
 apt-get upgrade
 ```
 
-## Issues & Support Requests
+## Commands and compatibility names
 
-- If you encounter a general problem while using Hestia Control Panel and need help, please [visit our forum](https://forum.hestiacp.com/) to search for potential solutions or post a new thread where community members can assist.
-- Bugs and other reproducible issues should be filed via GitHub by [creating a new issue report](https://github.com/hestiacp/hestiacp/issues) so that our developers can investigate further. Please note that requests for support will be redirected to our forum.
+ArcPanel adds ArcPanel names next to the original ones. Both work:
 
-**IMPORTANT: We _cannot_ provide support for requests that do not describe the troubleshooting steps that have already been performed, or for third-party applications not related to Hestia Control Panel (such as WordPress). Please make sure that you include as much information as possible in your forum posts or issue reports!**
+| Original name | ArcPanel name |
+| --- | --- |
+| `/usr/local/hestia` | `/usr/local/arcpanel` |
+| `$HESTIA` | `$ARCPANEL` |
+| `v-update-sys-hestia`, `v-list-sys-hestia-updates`, … | `v-update-sys-arcpanel`, `v-list-sys-arcpanel-updates`, … |
+| `systemctl restart hestia` | `systemctl restart arcpanel` |
 
-## Contributions
+## Issues and support
 
-If you would like to contribute to the project, please [read our Contribution Guidelines](https://github.com/hestiacp/hestiacp/blob/release/CONTRIBUTING.md) for a brief overview of our development process and standards.
+- Bugs and other reproducible issues: [open an issue](https://github.com/arc-panel-oss/arcpanel/issues) on GitHub.
+- Security vulnerabilities: do not open a public issue; follow the [security policy](SECURITY.md).
 
-## Copyright
+Please describe the troubleshooting steps you have already taken and include as much information as possible. We cannot provide support for third-party applications (such as WordPress).
 
-"Hestia Control Panel", "HestiaCP", and the Hestia logo are original copyright of hestiacp.com and the following restrictions apply:
+## Contributing
 
-**You are allowed to:**
+If you would like to contribute, please read the [contribution guidelines](CONTRIBUTING.md).
 
-- use the names "Hestia Control Panel", "HestiaCP", or the Hestia logo in any context directly related to the application or the project. This includes the application itself, local communities and news or blog posts.
+## Attribution
 
-**You are not allowed to:**
+ArcPanel is based on [HestiaCP](https://github.com/hestiacp/hestiacp) (Hestia Control Panel), which is in turn based on [VestaCP](https://vestacp.com/). We thank the HestiaCP and VestaCP projects and all their contributors. Copyright notices of the original authors are kept in the source files.
 
-- sell or redistribute the application under the name "Hestia Control Panel", "HestiaCP", or similar derivatives, including the use of the Hestia logo in any brand or marketing materials related to revenue generating activities,
-- use the names "Hestia Control Panel", "HestiaCP", or the Hestia logo in any context that is not related to the project,
-- alter the name "Hestia Control Panel", "HestiaCP", or the Hestia logo in any way.
+ArcPanel is an independent project. It is not affiliated with or endorsed by the HestiaCP project. "Hestia Control Panel", "HestiaCP" and the Hestia logo belong to their respective owners and are used here only to describe where ArcPanel comes from.
 
 ## License
 
-Hestia Control Panel is licensed under [GPL v3](https://github.com/hestiacp/hestiacp/blob/release/LICENSE) license, and is based on the [VestaCP](https://vestacp.com/) project.<br>
+ArcPanel is licensed under the [GNU General Public License v3.0](LICENSE).

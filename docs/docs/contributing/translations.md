@@ -1,3 +1,5 @@
-# Contributing to Hestia’s translations
+# Contributing to ArcPanel’s translations
 
-If you are a non-English speaker and would like to improve the quality of the translations used in Hestia’s web interface, please go to [Hestia Translate](https://translate.hestiacp.com/) to review the translations database. For more information, please read [How to contribute with Translations](https://forum.hestiacp.com/t/how-to-contribute-with-translations/1664) on our forum.
+Translation work for ArcPanel is paused for now. The web interface ships with the translations inherited from the upstream project, and ArcPanel does not have its own translation project yet.
+
+If you find a wrong or missing translation, please [open an issue](https://github.com/arc-panel-oss/arcpanel/issues/new/choose) with the language, the page and the text concerned. We will announce here when a translation project is available.

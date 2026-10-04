@@ -1,13 +1,17 @@
 import { defineConfig } from 'vitepress';
-import { version } from '../../package.json';
+
+// ArcPanel release shown in the navigation. The upstream base version
+// is kept separately (VERSION in hestia.conf, install/upstream.conf).
+const arcpanelVersion = '1.0.0';
+const repo = 'https://github.com/arc-panel-oss/arcpanel';
 
 export default defineConfig({
 	lang: 'en-US',
-	title: 'Hestia Control Panel',
-	description: 'Open-source web server control panel.',
+	title: 'ArcPanel',
+	description: 'ArcPanel: open-source web server control panel.',
 
 	sitemap: {
-		hostname: 'https://hestiacp.com',
+		hostname: 'https://docs.arcpanel.top',
 	},
 
 	lastUpdated: true,
@@ -15,41 +19,38 @@ export default defineConfig({
 
 	head: [
 		['link', { rel: 'icon', sizes: 'any', href: '/favicon.ico' }],
-		['link', { rel: 'icon', type: 'image/svg+xml', sizes: '16x16', href: '/logo.svg' }],
+		['link', { rel: 'icon', type: 'image/svg+xml', sizes: 'any', href: '/icon.svg' }],
 		['link', { rel: 'apple-touch-icon', sizes: '180x180', href: '/apple-touch-icon.png' }],
 		['link', { rel: 'manifest', href: '/site.webmanifest' }],
-		['meta', { name: 'theme-color', content: '#b7236a' }],
+		['meta', { name: 'theme-color', content: '#2f55d4' }],
+		['meta', { property: 'og:site_name', content: 'ArcPanel' }],
 	],
 
 	themeConfig: {
-		logo: '/logo.svg',
+		logo: { src: '/icon.svg', alt: 'ArcPanel' },
+		siteTitle: 'ArcPanel',
 
 		nav: nav(),
 
-		socialLinks: [
-			{ icon: 'github', link: 'https://github.com/hestiacp/hestiacp' },
-			{ icon: 'twitter', link: 'https://twitter.com/HestiaPanel' },
-			{ icon: 'facebook', link: 'https://www.facebook.com/hestiacp' },
-		],
+		socialLinks: [{ icon: 'github', link: repo }],
 
 		sidebar: { '/docs/': sidebarDocs() },
 
 		outline: [2, 3],
 
 		editLink: {
-			pattern: 'https://github.com/hestiacp/hestiacp/edit/main/docs/:path',
+			pattern: `${repo}/edit/master/docs/:path`,
 			text: 'Edit this page on GitHub',
 		},
 
 		footer: {
-			message: 'Released under the GPLv3 License.',
-			copyright: 'Copyright © 2019-present Hestia Control Panel',
+			message: 'Based on <a href="https://github.com/hestiacp/hestiacp">HestiaCP</a> · GPL-3.0',
+			copyright:
+				'Copyright © 2019-present HestiaCP contributors · © 2026-present ArcPanel contributors',
 		},
 
-		algolia: {
-			appId: 'V04P0P5D2R',
-			apiKey: '7a90a3ac7f9313f174c50b0f301f7ec6',
-			indexName: 'hestia_cp',
+		search: {
+			provider: 'local',
 		},
 	},
 });
@@ -61,24 +62,13 @@ function nav() {
 		{ text: 'Install', link: '/install' },
 		{ text: 'Documentation', link: '/docs/introduction/getting-started', activeMatch: '/docs/' },
 		{ text: 'Team', link: '/team' },
-		{ text: 'Demo', link: 'https://demo.hestiacp.com:8083/' },
-		{ text: 'Forum', link: 'https://forum.hestiacp.com/' },
-		{ text: 'Donate', link: '/donate' },
 		{
-			text: `v${version}`,
+			text: `v${arcpanelVersion}`,
 			items: [
-				{
-					text: 'Changelog',
-					link: 'https://github.com/hestiacp/hestiacp/blob/release/CHANGELOG.md',
-				},
-				{
-					text: 'Contributing',
-					link: 'https://github.com/hestiacp/hestiacp/blob/release/CONTRIBUTING.md',
-				},
-				{
-					text: 'Security policy',
-					link: 'https://github.com/hestiacp/hestiacp/blob/release/SECURITY.md',
-				},
+				{ text: 'Changelog', link: `${repo}/blob/master/CHANGELOG.md` },
+				{ text: 'Releases', link: `${repo}/releases` },
+				{ text: 'Contributing', link: `${repo}/blob/master/CONTRIBUTING.md` },
+				{ text: 'Security policy', link: `${repo}/blob/master/SECURITY.md` },
 			],
 		},
 	];
@@ -139,6 +129,7 @@ function sidebarDocs() {
 				{ text: 'Development', link: '/docs/contributing/development' },
 				{ text: 'Documentation', link: '/docs/contributing/documentation' },
 				{ text: 'Quick install app', link: '/docs/contributing/quick-install-app' },
+				{ text: 'Releases & signing', link: '/docs/contributing/releases' },
 				{ text: 'Testing', link: '/docs/contributing/testing' },
 				{ text: 'Translations', link: '/docs/contributing/translations' },
 			],

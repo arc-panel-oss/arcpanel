@@ -6,7 +6,7 @@ This page is work in progress. A lot of information will be missing.
 
 ## Examples
 
-Examples can be found in a separate [repo](https://github.com/hestiacp/hestiacp-api-examples).
+Examples can be found in the upstream [hestiacp-api-examples](https://github.com/hestiacp/hestiacp-api-examples) repository. ArcPanel uses the same API, so they work unchanged.
 
 ## Upgrading from username/password authentication to access/secret keys
 

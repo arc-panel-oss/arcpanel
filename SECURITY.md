@@ -1,14 +1,18 @@
-# Hestia CP Security policy
+# ArcPanel Security policy
 
-Welcome and thanks for taking interest in Hestia CP!
+Welcome and thanks for taking interest in the security of ArcPanel!
 
-We are mostly interested in reports by actual Hestia CP users but all high quality contributions are welcome.
+We are mostly interested in reports by actual ArcPanel users, but all high quality contributions are welcome.
 
-If you believe you have discovered a vulnerability in Hestia Control Panel, please notify our development team by submitting a [vulnerability disclosure via GitHub](https://github.com/hestiacp/hestiacp/security/advisories/new).
+## Reporting a vulnerability
 
-We ask you to include a detailed description of the vulnerability, a list of services involved (e.g. exim, dovecot) and the versions which you've tested, full steps to reproduce the vulnerability, and include your findings and expected results.
+If you believe you have discovered a vulnerability in ArcPanel, please report it privately through a [GitHub Security Advisory](https://github.com/arc-panel-oss/arcpanel/security/advisories/new) on the `arc-panel-oss/arcpanel` repository.
 
-Please do not open any public issue on Github or any other social media before the report has been published and a fix has been released.
+Please include a detailed description of the vulnerability, a list of services involved (e.g. exim, dovecot) and the versions which you've tested (the ArcPanel version and, if known, the upstream base version shown on the About page), full steps to reproduce the vulnerability, and your findings and expected results.
+
+Please do not open any public issue on GitHub or post on any other channel or social media before the advisory has been published and a fix has been released.
+
+ArcPanel is based on HestiaCP. If the vulnerability also affects HestiaCP, we will coordinate with the upstream project before publishing. You may also report it to the upstream project directly through its own security policy.
 
 With that, good luck hacking us ;)
 
@@ -29,6 +33,7 @@ With that, good luck hacking us ;)
 - Cross-site scripting (XSS)
 - Performing limited admin actions without authorization
 - CSRF
+- Compromise of the release process: package signing, the APT repository at `apt.arcpanel.top` or the installer at `arcpanel.top/install.sh`
 
 ### Vulnerabilities we accept
 

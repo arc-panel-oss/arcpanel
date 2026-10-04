@@ -1,25 +1,25 @@
-# Contributing to Hestia’s development
+# Contributing to ArcPanel’s development
 
-Hestia is an open-source project, and we welcome contributions from the community. Please read the [contributing guidelines](https://github.com/hestiacp/hestiacp/blob/main/CONTRIBUTING.md) for additional information.
+ArcPanel is an open-source project based on HestiaCP, and we welcome contributions from the community. Please read the [contributing guidelines](https://github.com/arc-panel-oss/arcpanel/blob/master/CONTRIBUTING.md) for additional information.
 
-Hestia is designed to be installed on a web server. To develop Hestia on your local machine, a virtual machine is recommended.
+ArcPanel is designed to be installed on a web server. To develop ArcPanel on your local machine, a virtual machine is recommended.
 
 ::: warning
-Development builds are unstable. If you encounter a bug, please [report it via GitHub](https://github.com/hestiacp/hestiacp/issues/new/choose) or [submit a Pull Request](https://github.com/hestiacp/hestiacp/pulls).
+Development builds are unstable. If you encounter a bug, please [report it via GitHub](https://github.com/arc-panel-oss/arcpanel/issues/new/choose) or [submit a Pull Request](https://github.com/arc-panel-oss/arcpanel/pulls).
 :::
 
 ## Creating a virtual machine for development
 
-These are example instructions for creating a virtual machine running Hestia for development.
+These are example instructions for creating a virtual machine running ArcPanel for development.
 
 These instructions use [Multipass](https://multipass.run/) to create an Ubuntu VM. Feel free to adapt the commands for any virtualization software you prefer.
 
 1. [Install Multipass](https://multipass.run/install) for your OS
 
-1. [Fork Hestia](https://github.com/hestiacp/hestiacp/fork) and clone the repository to your local machine
+1. [Fork ArcPanel](https://github.com/arc-panel-oss/arcpanel/fork) and clone the repository to your local machine
 
    ```bash
-   git clone https://github.com/YourUsername/hestiacp.git ~/projects
+   git clone https://github.com/YourUsername/arcpanel.git ~/projects/arcpanel
    ```
 
 1. Create an Ubuntu VM with at least 2GB of memory and 15GB of disk space
@@ -27,36 +27,36 @@ These instructions use [Multipass](https://multipass.run/) to create an Ubuntu V
    _(if running VM on ARM architecture e.g. Apple M1, use at least 12GB of memory)_
 
    ```bash
-   multipass launch --name hestia-dev --memory 4G --disk 15G --cpus 4
+   multipass launch --name arcpanel-dev --memory 4G --disk 15G --cpus 4
    ```
 
 1. Mount your cloned repository to the VM's home directory
 
    ```bash
-   multipass mount ~/projects/hestiacp hestia-dev:/home/ubuntu/hestiacp
+   multipass mount ~/projects/arcpanel arcpanel-dev:/home/ubuntu/arcpanel
    ```
 
 1. SSH into the VM as root, then install some required packages
 
    ```bash
-   multipass exec hestia-dev -- sudo bash
+   multipass exec arcpanel-dev -- sudo bash
    sudo apt update && sudo apt install -y jq libjq1
    ```
 
-1. Navigate to `/src` in the VM, then build Hestia packages
+1. Navigate to `/src` in the VM, then build the ArcPanel packages
 
    ```bash
    cd src
    ./hst_autocompile.sh --all --noinstall --keepbuild '~localsrc'
    ```
 
-1. Navigate to `/install` in the VM, then install Hestia with these flags
+1. Navigate to `/install` in the VM, then install ArcPanel with these flags
 
    _(update the [installation flags](../introduction/getting-started#list-of-installation-options) to your liking, note that login credentials are set here)_
 
    ```bash
    cd ../install
-   bash hst-install-ubuntu.sh --hostname demo.hestiacp.com --email admin@example.com --username admin --password Password123 --with-debs /tmp/hestiacp-src/deb/ --interactive no --force
+   bash hst-install-ubuntu.sh --hostname dev.example.com --email admin@example.com --username admin --password Password123 --with-debs /tmp/hestiacp-src/deb/ --interactive no --force
    ```
 
 1. Reboot the VM (and exit SSH session)
@@ -73,29 +73,29 @@ These instructions use [Multipass](https://multipass.run/) to create an Ubuntu V
    multipass list
    ```
 
-1. Visit the VM's IP address in your browser using the default Hestia port and login with `admin`/`Password123`
+1. Visit the VM's IP address in your browser using the default ArcPanel port and login with `admin`/`Password123`
 
    _(proceed past any SSL errors you see when loading the page)_
 
    e.g. <https://192.168.64.15:8083>
 
-Hestia is now running in a virtual machine. If you'd like to make changes to the source code and test them in your browser, please continue to the next section.
+ArcPanel is now running in a virtual machine. If you'd like to make changes to the source code and test them in your browser, please continue to the next section.
 
 ::: warning
 Sometimes (with Multipass), the mapping between the source code directory on your local machine to the directory in the VM can be lost with a "failed to obtain exit status for remote process" error. If this happens, simply unmount and remount, e.g.
 
 ```bash
-multipass unmount hestia-dev
-multipass mount ~/projects/hestiacp hestia-dev:/home/ubuntu/hestiacp
+multipass unmount arcpanel-dev
+multipass mount ~/projects/arcpanel arcpanel-dev:/home/ubuntu/arcpanel
 ```
 
 :::
 
-## Making changes to Hestia
+## Making changes to ArcPanel
 
-After setting up Hestia in a development VM, you can now make changes to the source code at `~/projects/hestiacp` on your local machine (outside of the VM) using your editor of choice.
+After setting up ArcPanel in a development VM, you can now make changes to the source code at `~/projects/arcpanel` on your local machine (outside of the VM) using your editor of choice.
 
-Below are some instructions for making a change to Hestia's UI, running the build script and testing the change locally.
+Below are some instructions for making a change to ArcPanel's UI, running the build script and testing the change locally.
 
 1. On your local machine, make a change to a file that is easy to test
 
@@ -104,11 +104,11 @@ Below are some instructions for making a change to Hestia's UI, running the buil
 1. SSH into the VM as root and navigate to `/src`
 
    ```bash
-   multipass exec hestia-dev -- sudo bash
+   multipass exec arcpanel-dev -- sudo bash
    cd src
    ```
 
-1. Run the Hestia build script
+1. Run the ArcPanel build script
 
    ```bash
    ./hst_autocompile.sh --hestia --install '~localsrc'
@@ -116,10 +116,10 @@ Below are some instructions for making a change to Hestia's UI, running the buil
 
 1. Reload the page in your browser to see the change
 
-Please refer to the [contributing guidelines](https://github.com/hestiacp/hestiacp/blob/main/CONTRIBUTING.md#development-guidelines) for more details on submitting code changes for review.
+Please refer to the [contributing guidelines](https://github.com/arc-panel-oss/arcpanel/blob/master/CONTRIBUTING.md#development-guidelines) for more details on submitting code changes for review.
 
 ::: info
-A backup is created each time the Hestia build script is run. If you run this often it can fill up your VM's disk space.
+A backup is created each time the ArcPanel build script is run. If you run this often it can fill up your VM's disk space.
 You can delete the backups by running `rm -rf /root/hst_backups` as root user on the VM.
 :::
 
@@ -130,9 +130,9 @@ We currently use [Bats](https://github.com/bats-core/bats-core) to run our autom
 ### Install
 
 ```bash
-# Clone Hestia repo with testing submodules
-git clone --recurse-submodules https://github.com/hestiacp/hestiacp
-# Or, using an existing local repo with an up-to-date main branch
+# Clone the ArcPanel repo with testing submodules
+git clone --recurse-submodules https://github.com/arc-panel-oss/arcpanel
+# Or, using an existing local repo with an up-to-date master branch
 git submodule update --init --recursive
 
 # Install Bats
@@ -146,6 +146,6 @@ Do not run any testing script on a live server. It might cause issues or downtim
 :::
 
 ```bash
-# Run Hestia tests
+# Run ArcPanel tests
 test/test.bats
 ```

@@ -1,6 +1,6 @@
 # Getting Started
 
-This section will help you get Hestia installed on your server. If you already have Hestia installed and are just looking for options, you can skip this page.
+This section will help you get ArcPanel installed on your server. If you already have ArcPanel installed and are just looking for options, you can skip this page.
 
 ::: warning
 The installer needs to be run as **root**, either directly from the terminal or remotely, using SSH. If you do not do this, the installer will not proceed.
@@ -9,7 +9,7 @@ The installer needs to be run as **root**, either directly from the terminal or 
 ## Requirements
 
 ::: warning
-Hestia must be installed on top of a fresh operating system installation to ensure proper functionality.
+ArcPanel must be installed on top of a fresh operating system installation to ensure proper functionality.
 See custom installation below for further details.
 :::
 
@@ -21,7 +21,7 @@ See custom installation below for further details.
 | **Operating System** | Debian 12, 13<br>Ubuntu 22.04, 24.04, 26.04 LTS | Latest Debian<br>Latest Ubuntu LTS |
 
 ::: warning
-Hestia only runs on AMD64 / x86_64 and ARM64 / aarch64 processors. It also requires a 64bit operating system!
+ArcPanel only runs on AMD64 / x86_64 and ARM64 / aarch64 processors. It also requires a 64bit operating system!
 We currently do not support i386 or ARM7-based processors.
 :::
 
@@ -31,19 +31,19 @@ We currently do not support i386 or ARM7-based processors.
 - Ubuntu 22.04, 24.04 or 26.04
 
 ::: warning
-Hestia does not support non-LTS Operating systems. If you install it on, for example, Ubuntu 23.10, you will not receive support from us.
+ArcPanel does not support non-LTS Operating systems. If you install it on, for example, Ubuntu 23.10, you will not receive support from us.
 :::
 
 ## Regular installation
 
-Interactive installer that will install the default Hestia software configuration.
+Interactive installer that will install the default ArcPanel software configuration.
 
 ### Step 1: Download
 
 Download the installation script for the latest release:
 
 ```bash
-wget https://raw.githubusercontent.com/hestiacp/hestiacp/release/install/hst-install.sh
+wget https://arcpanel.top/install.sh
 ```
 
 If the download fails due to an SSL validation error, please be sure you've installed the ca-certificate package on your system - you can do this with the following command:
@@ -57,8 +57,10 @@ apt-get update && apt-get install ca-certificates
 To begin the installation process, simply run the script and follow the on-screen prompts:
 
 ```bash
-bash hst-install.sh
+sudo bash install.sh
 ```
+
+The installer downloads the ArcPanel packages (`arcpanel`, `arcpanel-nginx`, `arcpanel-php` and, if selected, `arcpanel-web-terminal`) from the ArcPanel APT repository at `apt.arcpanel.top`. If the repository cannot be reached, the installer stops before changing the system. You can then install from locally built packages with `--with-debs` (see [Building packages](../contributing/building)).
 
 You will receive a welcome email at the address specified during installation (if applicable) and on-screen instructions after the installation is completed to log in and access your server.
 
@@ -69,7 +71,7 @@ If you want to customise which software gets installed, or want to run an unatte
 To view a list of available options, run
 
 ```bash
-bash hst-install.sh -h
+sudo bash install.sh -h
 ```
 
 ### List of installation options
@@ -107,7 +109,7 @@ To choose what software gets installed, you can provide flags to the installatio
 -e, --email Set admin email
 -u, --username Set admin user
 -p, --password Set admin password
--D, --with-debs Path to Hestia debs
+-D, --with-debs Path to ArcPanel debs
 -f, --force Force installation
 -h, --help Print this help
 ```
@@ -119,7 +121,7 @@ Option --multiphp (Multi PHP) also accepts a comma separated list of PHP version
 #### Example
 
 ```bash
-bash hst-install.sh \
+sudo bash install.sh \
 	--interactive no \
 	--hostname host.domain.tld \
 	--email email@domain.tld \
@@ -132,7 +134,7 @@ bash hst-install.sh \
 	--multiphp '8.2,8.3,8.4'
 ```
 
-This command will install Hestia in French with the following software:
+This command will install ArcPanel in French with the following software:
 
 - Nginx Web Server
 - PHP-FPM Application Server (PHP version 8.2, 8.3 and 8.4)
@@ -144,6 +146,6 @@ This command will install Hestia in French with the following software:
 
 ## What’s next?
 
-By now, you should have a Hestia installation on your server. You are ready to add new users, so that you (or they) can add new websites on your server.
+By now, you should have a ArcPanel installation on your server. You are ready to add new users, so that you (or they) can add new websites on your server.
 
 To access your control panel, navigate to `https://host.domain.tld:8083` or `http://your.public.ip.address:8083`

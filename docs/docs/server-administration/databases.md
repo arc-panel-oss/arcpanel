@@ -3,7 +3,7 @@
 ## How to setup a remote database server
 
 1. It is assumed you already have your second server up and running.
-2. On your Hestia server run the following command (`mysql` may be replaced by `postgresql`):
+2. On your ArcPanel server run the following command (`mysql` may be replaced by `postgresql`):
 
 ```bash
 v-add-database-host mysql new-server.com root password
@@ -114,7 +114,7 @@ NOTE: PhpMyAdmin Single Sign On enabled only for individual databases. Primary "
 
 ### Unable to activate phpMyAdmin Single Sign on
 
-Make sure the API is enabled and working properly. Hestia’s PhpMyAdmin Single Sign On function connects over the Hestia API.
+Make sure the API is enabled and working properly. ArcPanel’s PhpMyAdmin Single Sign On function connects over the ArcPanel API.
 
 ### When clicking the phpMyAdmin Single Sign On button, I am forwarded to the login page of phpMyAdmin
 
@@ -142,7 +142,7 @@ v-add-database-host TYPE HOST DBUSER DBPASS [MAX_DB] [CHARSETS] [TPL] [PORT]
 For example:
 
 ```bash
-v-add-database-host mysql db.hestiacp.com root mypassword 500
+v-add-database-host mysql db.example.com root mypassword 500
 ```
 
 If you want you can setup phpMyAdmin on the host server to allow to connect to the database. Create a copy of `01-localhost` file in `/etc/phpmyadmin/conf.d` and change:
