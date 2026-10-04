@@ -3536,3 +3536,12 @@ body {
 		display: none;
 	}
 }
+
+.ap-modal-icon.is-accent {
+	background: var(--ap-accent-subtle);
+	color: var(--ap-accent);
+}
+.ap-modal-icon.is-warn {
+	background: var(--ap-warn-subtle);
+	color: var(--ap-warn);
+}

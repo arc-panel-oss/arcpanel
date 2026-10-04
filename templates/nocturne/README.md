@@ -13,6 +13,12 @@ Static HTML prototypes for the new ArcPanel shell (epic E2) in **Nocturne**, a d
 | `reseller/`       | dashboard, customers, customer (detail), customer-new (wizard), packages, ports, stats, backups, logs, account, and "My hosting": web, dns, mail, db, cron, files, apps, store                                              |
 | `user/`           | dashboard, web, web-edit (domain settings + template picker), dns (zone records), mail, db, cron, backups (restore), apps (+ Node runtimes, My ports), store, app (Node app detail: logs, environment, deploy), files, account |
 
+The File Manager (docs/design/06) has 6 screens for each role: `files` (browse), `files-grid`, `files-upload`, `files-edit`, `files-search` and `files-snapshots`. `files-dialogs.html` holds the shared dialogs: permissions, move, delete, extract, compress, save conflict, too large to edit and new folder.
+
+- **User:** works in their own home folder.
+- **Admin:** browses any user's files through an account picker. A "Browsing files of …" banner shows whose files they are.
+- **Reseller:** `files` is their own home folder, with a picker for choosing a customer. `files-customer` and the other screens show customer `minh-kitchen` (a Laravel site).
+
 Admin module pages list objects across all owners (with an Owner column). User and reseller "My hosting" pages show the account's own objects. This follows `OwnerScope` in docs/design/03.
 
 ## Assets
