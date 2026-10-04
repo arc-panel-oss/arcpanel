@@ -66,7 +66,7 @@ For every legacy module, in this order. The checklist is a PR template (`.github
 8. **Bulk** — `POST <module>.bulk {action, ids[]}` → service loops the command, collects per-id results, flashes a summary (`n ok, m failed`); replaces `web/bulk/<x>`.
 9. **i18n** — new strings added to `web/locale/hestiacp.pot` by the extraction script; no hard-coded English outside `__()`.
 10. **Tests** — Pest feature tests per route × three principals (admin, reseller A, reseller B / user) with the fake; Playwright happy path per module; a11y gate.
-11. **Hand-off** — add the entry to `web/inc/arcpanel-routes.php`; replace `web/<kind>/<x>/index.php` with the 301 stub:
+11. **Hand-off** — *(E1-S2: Web Domains uses the `ARCPANEL_APP_PAGES` switch and `302` redirects through `arc_redirect_if_migrated()` instead of 301 stubs; stubs and deletions move to E8.)* add the entry to `web/inc/arcpanel-routes.php`; replace `web/<kind>/<x>/index.php` with the 301 stub:
 
     ```php
     <?php header("Location: /app/<module>" . (isset($_GET["domain"]) ? "/" . rawurlencode($_GET["domain"]) . "/edit" : ""), true, 301); exit();

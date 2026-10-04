@@ -39,6 +39,8 @@ All visual decisions are CSS custom properties defined once in `web-app/resource
 
 ### 3.2 Themes
 
+> **E1-S2 (2026-10-05):** the panel app ships the themes `nocturne` (dark, default), `light` and `auto`. The choice is kept in the cookie `arc_ui`, with defaults mapped from the legacy `THEME`; see the [E1-S2 spec](../features/specs/2026-10-05-002-e1-s2-dashboard-web-domains-design.md) §5.2.
+
 A theme is a file that assigns palette values to the semantic tokens under `[data-theme="<name>"]`. Light and dark are first-class; the user's choice is stored exactly as today (`THEME` in `user.conf` via `v-change-user-theme`; `POLICY_USER_CHANGE_THEME` respected).
 
 | Legacy theme                           | 2.0 mapping                                                                                                                                                                           |
@@ -218,6 +220,6 @@ Controller passes already owner-filtered rows and a `can` map; the view contains
 
 ## 11. Open questions
 
-1. Font Awesome 7 (already a dependency) vs an inline SVG sprite: recommendation — inline SVG sprite generated from the subset of FA icons actually used (smaller, themable, no font flash); keep FA for the legacy pages until E8.
+1. **Closed (E1-S2 D9):** inline SVG sprite from the Nocturne prototype; no Font Awesome in the panel app. Original question: Font Awesome 7 (already a dependency) vs an inline SVG sprite: recommendation — inline SVG sprite generated from the subset of FA icons actually used (smaller, themable, no font flash); keep FA for the legacy pages until E8.
 2. Should the command palette include actions ("Add domain …") in addition to objects? Yes if cheap: actions are route-index entries filtered by `Capabilities`.
-3. Density preference persistence in `user.conf` (`PREF_UI_DENSITY`) requires an upstream-visible key; acceptable since `source_conf` ignores unknown keys, but decide at E2 start.
+3. **Closed for now (E1-S2 D8):** density and theme live in the cookie `arc_ui`, because `v-change-user-config-value` cannot add new keys. Original question: Density preference persistence in `user.conf` (`PREF_UI_DENSITY`) requires an upstream-visible key; acceptable since `source_conf` ignores unknown keys, but decide at E2 start.

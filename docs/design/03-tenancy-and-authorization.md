@@ -148,7 +148,7 @@ final class OwnerScope
     public function canSee(string $user): bool;          // admin: true; reseller: $user in tree; user: $user === self
     public function canManage(string $user): bool;       // same as canSee, minus the reseller itself for destructive actions on itself? (no: resellers may manage themselves as users)
     public function assertVisible(string $user): void;   // throws AuthorizationException → 404 (not 403) to avoid existence leaks
-    public function tree(string $reseller): array;       // v-list-reseller-users RESELLER json, memoized per request
+    public function tree(string $reseller): array;       // v-list-reseller-users RESELLER json, memoized per request (E1-S2 ships OwnerScope without it; lands with E11)
 }
 ```
 

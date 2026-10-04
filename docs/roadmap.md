@@ -75,7 +75,7 @@ Effort sizing for this team: **S** ≤ 2 weeks · **M** 3–5 weeks · **L** 6�
 **Slices (2026-10-05):**
 
 1. **S1 — Plumbing + login.** Laravel 13 skeleton, nginx `/app/*`, `ArcCommand`, session bridge, Login/2FA/Logout behind the `ARCPANEL_APP_LOGIN` switch, impersonation endpoints, i18n import, packaging. **Design:** [E1-S1 spec](./features/specs/2026-10-05-001-e1-laravel-foundation-slice1-design.md).
-2. **S2 — Dashboard + Web Domains**, built together with the first E2 components.
+2. **S2 — Design system, shell, Dashboard and Web Domains.** The full E2 component library, role-aware shell, Dashboard (admin, user), the complete Web Domains module and the `ARCPANEL_APP_PAGES` switch, in five milestones. **Design:** [E1-S2 spec](./features/specs/2026-10-05-002-e1-s2-dashboard-web-domains-design.md).
 
 **Architecture decision to record in Q1 (ADR):** Blade + Alpine.js (closest to the existing stack, cheapest per page) vs. Inertia + Vue 3. **Recommendation:** Blade + Alpine for CRUD pages; Vue 3 islands only for highly interactive screens (File Manager, App Store, service editors). Vue 3 is already a dependency of the repo.
 
