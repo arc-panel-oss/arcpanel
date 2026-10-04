@@ -12,7 +12,7 @@
 	--alert-text-shadow: none;
 
 	/* Top Bar */
-	--top-bar-background: #5070a6;
+	--top-bar-background: var(--color-primary);
 	--top-bar-box-shadow: none;
 }
 
@@ -170,7 +170,7 @@
 
 .page-login,
 .page-reset {
-	background: #5f7eb3;
+	background: var(--color-primary-hover);
 }
 
 .login {

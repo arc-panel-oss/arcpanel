@@ -7,10 +7,17 @@
 @import url("../media_queries");
 
 :root {
+	/* Brand (ArcPanel brand kit, see docs/brand/brand.md) */
+	--color-primary: #819eff;
+	--color-primary-hover: #a6bbff;
+	--color-primary-active: #6d8cf5;
+	--color-primary-subtle: #1e2742;
+	--color-primary-border: #4f66b8;
+
 	/* Colors */
 	--color-text: #cdcdcd;
-	--color-text-link: #4fabe9;
-	--color-text-link-hover: #ff3478;
+	--color-text-link: var(--color-primary);
+	--color-text-link-hover: var(--color-primary-hover);
 	--color-text-heading: #e8e8e8;
 	--color-background: #282828;
 
@@ -22,16 +29,17 @@
 	--icon-color-purple: #c364ff;
 	--icon-color-maroon: #ff3478;
 	--icon-color-green: #37cf39;
-	--icon-color-blue: #0092f4;
+	--icon-color-blue: var(--color-primary);
 
 	/* Top Bar */
-	--top-bar-background: #454545;
+	--top-bar-background: #22262e;
 	--top-bar-box-shadow: 0 8px 15px rgb(0 0 0 / 25%);
 	--top-bar-border-bottom: 1px solid #505050;
 
 	/* Charts */
 	--chart-label-color: #cdcdcd;
 	--chart-grid-color: #434343;
+	--chart-line-1-color: var(--color-primary);
 }
 
 /* Top bar
@@ -219,11 +227,11 @@
 
 		&:hover {
 			background-color: #212121;
-			border-right-color: #0090ff;
+			border-right-color: var(--color-primary-border);
 		}
 
 		&:focus {
-			border-right-color: #0080df;
+			border-right-color: var(--color-primary);
 		}
 	}
 }
@@ -301,12 +309,12 @@
 	color: #cacaca;
 
 	&:hover {
-		color: #09f;
+		color: var(--color-primary);
 		background-color: #454545;
 	}
 
 	&:active {
-		color: #0074c2;
+		color: var(--color-primary-active);
 		text-shadow: 0 -1px rgb(255 255 255 / 20%);
 		box-shadow: inset 1px 1px 0 rgb(0 0 0 / 20%);
 	}
@@ -523,13 +531,13 @@
 	box-shadow: 0 1px 4px rgb(0 0 0 / 35%);
 
 	&:hover {
-		border-color: #0090ff;
+		border-color: var(--color-primary-border);
 		background-color: #494949;
 	}
 
 	&:focus {
 		background-color: #222;
-		border-color: #0080df;
+		border-color: var(--color-primary);
 		color: #fff;
 		box-shadow: 0 1px 6px rgb(0 52 91 / 75%);
 	}
@@ -548,13 +556,13 @@
 	box-shadow: 0 1px 4px rgb(0 0 0 / 35%);
 
 	&:hover {
-		border-color: #0090ff;
+		border-color: var(--color-primary-border);
 		background-color: #494949;
 	}
 
 	&:focus {
 		background-color: #222;
-		border-color: #0080df;
+		border-color: var(--color-primary);
 		color: #fff;
 		box-shadow: 0 1px 6px rgb(0 52 91 / 75%);
 	}
@@ -573,7 +581,7 @@
 }
 
 .form-link {
-	color: #09f;
+	color: var(--color-primary);
 }
 
 .form-link-danger {
@@ -620,7 +628,7 @@
 	&:hover {
 		color: #fff;
 		text-shadow: 1px 1px rgb(0 0 0 / 25%);
-		border-color: #0098ff;
+		border-color: var(--color-primary);
 		background:
 			linear-gradient(
 				0deg,
@@ -638,7 +646,7 @@
 	&:active {
 		color: #d4d4d4;
 		text-shadow: 0 -1px 1px rgb(0 0 0 / 55%);
-		border-color: #0066b4;
+		border-color: var(--color-primary-active);
 		background: linear-gradient(
 			0deg,
 			rgb(69 69 69 / 100%) 0%,

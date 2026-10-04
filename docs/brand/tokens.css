@@ -1,0 +1,92 @@
+/*
+ * ArcPanel brand tokens, direction A "Arch".
+ * Generated with the brand kit; see docs/brand/brand.md.
+ * Light values are the default. Dark values apply with
+ * prefers-color-scheme: dark (unless data-theme="light") or data-theme="dark".
+ */
+
+:root {
+	--ap-font-ui: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+	--ap-font-mono: "JetBrains Mono", ui-monospace, "Cascadia Mono", "Consolas", monospace;
+	--ap-radius: 6px;
+	--ap-color-primary: #2f55d4;
+	--ap-color-primary-hover: #2443b0;
+	--ap-color-primary-subtle: #eef2fe;
+	--ap-color-on-primary: #ffffff;
+	--ap-color-neutral-50: #f6f7f9;
+	--ap-color-neutral-100: #eceef2;
+	--ap-color-neutral-200: #d9dde5;
+	--ap-color-neutral-300: #bcc3cf;
+	--ap-color-neutral-400: #8f99aa;
+	--ap-color-neutral-500: #6b7587;
+	--ap-color-neutral-600: #525b6b;
+	--ap-color-neutral-700: #3d4451;
+	--ap-color-neutral-800: #282d36;
+	--ap-color-neutral-900: #171a20;
+	--ap-color-success: #1b7f47;
+	--ap-color-warning: #975a00;
+	--ap-color-danger: #c42f2f;
+	--ap-color-info: #0b6da6;
+	--ap-color-bg: #ffffff;
+	--ap-color-surface: #f6f7f9;
+	--ap-color-border: #d9dde5;
+	--ap-color-text: #171a20;
+	--ap-color-text-muted: #525b6b;
+	--ap-color-top-bar: #2443b0;
+}
+
+@media (prefers-color-scheme: dark) {
+	:root:not([data-theme="light"]) {
+		--ap-color-primary: #819eff;
+		--ap-color-primary-hover: #a6bbff;
+		--ap-color-primary-subtle: #1e2742;
+		--ap-color-on-primary: #111317;
+		--ap-color-neutral-50: #111317;
+		--ap-color-neutral-100: #181b21;
+		--ap-color-neutral-200: #22262e;
+		--ap-color-neutral-300: #2e333d;
+		--ap-color-neutral-400: #464c58;
+		--ap-color-neutral-500: #636b79;
+		--ap-color-neutral-600: #8a93a3;
+		--ap-color-neutral-700: #b0b8c5;
+		--ap-color-neutral-800: #d5dae2;
+		--ap-color-neutral-900: #f1f3f6;
+		--ap-color-success: #4cc38a;
+		--ap-color-warning: #f2b451;
+		--ap-color-danger: #f27b76;
+		--ap-color-info: #5cb6ee;
+		--ap-color-bg: #181b21;
+		--ap-color-surface: #22262e;
+		--ap-color-border: #2e333d;
+		--ap-color-text: #f1f3f6;
+		--ap-color-text-muted: #8a93a3;
+		--ap-color-top-bar: #22262e;
+	}
+}
+
+:root[data-theme="dark"] {
+	--ap-color-primary: #819eff;
+	--ap-color-primary-hover: #a6bbff;
+	--ap-color-primary-subtle: #1e2742;
+	--ap-color-on-primary: #111317;
+	--ap-color-neutral-50: #111317;
+	--ap-color-neutral-100: #181b21;
+	--ap-color-neutral-200: #22262e;
+	--ap-color-neutral-300: #2e333d;
+	--ap-color-neutral-400: #464c58;
+	--ap-color-neutral-500: #636b79;
+	--ap-color-neutral-600: #8a93a3;
+	--ap-color-neutral-700: #b0b8c5;
+	--ap-color-neutral-800: #d5dae2;
+	--ap-color-neutral-900: #f1f3f6;
+	--ap-color-success: #4cc38a;
+	--ap-color-warning: #f2b451;
+	--ap-color-danger: #f27b76;
+	--ap-color-info: #5cb6ee;
+	--ap-color-bg: #181b21;
+	--ap-color-surface: #22262e;
+	--ap-color-border: #2e333d;
+	--ap-color-text: #f1f3f6;
+	--ap-color-text-muted: #8a93a3;
+	--ap-color-top-bar: #22262e;
+}

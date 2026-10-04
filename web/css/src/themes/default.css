@@ -14,10 +14,17 @@
 	--font-family-monospace: "Inconsolata", "Lucida Console", "Monaco", monospace;
 	--border-radius-base: 4px;
 
+	/* Brand (ArcPanel brand kit, see docs/brand/brand.md) */
+	--color-primary: #2f55d4;
+	--color-primary-hover: #2443b0;
+	--color-primary-active: #1f3a99;
+	--color-primary-subtle: #eef2fe;
+	--color-primary-border: #9fb3f2;
+
 	/* Colors */
 	--color-text: #7c7c7c;
-	--color-text-link: #326b9b;
-	--color-text-link-hover: #c36;
+	--color-text-link: var(--color-primary);
+	--color-text-link-hover: var(--color-primary-hover);
 	--color-text-heading: #4b4b4b;
 	--color-background: #fff;
 
@@ -36,25 +43,51 @@
 	--icon-color-red: #f33;
 	--icon-color-green: #53ba55;
 	--icon-color-orange: #ffc043;
-	--icon-color-blue: #326b9b;
+	--icon-color-blue: var(--color-primary);
 	--icon-color-lightblue: #6eb6f0;
 
 	/* Top Bar */
 	--top-bar-background:
 		linear-gradient(
 			to bottom,
-			rgb(104 145 196 / 100%) 0%,
-			rgb(69 114 181 / 100%) 50%,
-			rgb(65 90 149 / 100%) 100%
+			rgb(58 95 220 / 100%) 0%,
+			rgb(47 85 212 / 100%) 50%,
+			rgb(36 67 176 / 100%) 100%
 		),
-		#5070a6;
+		#2f55d4;
 	--top-bar-box-shadow: 0 4px 10px rgb(100 100 100 / 40%);
 	--top-bar-border-bottom: 1px solid #fff;
+
+	/* Buttons */
+	--button-background:
+		linear-gradient(
+			to bottom,
+			rgb(238 242 254 / 100%) 0%,
+			rgb(213 222 251 / 100%) 51%,
+			rgb(230 236 253 / 100%) 100%
+		),
+		#2f55d4;
+	--button-background-hover: linear-gradient(
+		to bottom,
+		rgb(243 246 255 / 100%) 0%,
+		rgb(220 228 253 / 100%) 51%,
+		rgb(235 240 254 / 100%) 100%
+	);
+	--button-background-active: linear-gradient(
+		to bottom,
+		rgb(213 222 251 / 100%) 0%,
+		rgb(201 213 250 / 100%) 51%,
+		rgb(224 231 253 / 100%) 100%
+	);
+
+	/* Login */
+	--login-background:
+		radial-gradient(circle, rgb(63 99 219 / 100%) 0%, rgb(31 58 153 / 100%) 100%), #2f55d4;
 
 	/* Charts */
 	--chart-label-color: #7c7c7c;
 	--chart-grid-color: #e9e9e9;
-	--chart-line-1-color: var(--icon-color-blue);
+	--chart-line-1-color: var(--color-primary);
 	--chart-line-2-color: var(--icon-color-maroon);
 	--chart-line-3-color: var(--icon-color-green);
 }
@@ -397,7 +430,7 @@
 
 	&:hover {
 		box-shadow: inset 0 0 6px rgb(255 255 255 / 60%);
-		color: #4686b8;
+		color: var(--color-primary);
 		border-left: 1px solid rgb(0 0 0 / 10%);
 		border-right: 1px solid rgb(0 0 0 / 10%);
 		background: linear-gradient(
@@ -410,7 +443,7 @@
 	}
 
 	&:active {
-		color: #046c98;
+		color: var(--color-primary-active);
 		border-left: 1px solid rgb(0 0 0 / 15%);
 		border-right: 1px solid rgb(0 0 0 / 15%);
 		text-shadow: 0 -1px 1px rgb(255 255 255 / 50%);
@@ -426,7 +459,7 @@
 	}
 
 	&.active {
-		color: #4686b8;
+		color: var(--color-primary);
 		background: linear-gradient(
 			to bottom,
 			rgb(255 255 255 / 60%) 0%,
@@ -639,11 +672,11 @@
 		border-bottom-right-radius: 0;
 
 		&:hover {
-			border-right-color: #94c8f0;
+			border-right-color: var(--color-primary-border);
 		}
 
 		&:focus {
-			border-right-color: #008fee;
+			border-right-color: var(--color-primary);
 		}
 	}
 
@@ -724,10 +757,10 @@
 	}
 
 	&:active {
-		color: #3b9de8;
+		color: var(--color-primary);
 
 		& span {
-			color: #3b9de8;
+			color: var(--color-primary);
 		}
 	}
 
@@ -779,7 +812,7 @@
 		}
 
 		&.active {
-			color: #4686b8;
+			color: var(--color-primary);
 			background:
 				linear-gradient(
 					to bottom,
@@ -787,12 +820,12 @@
 					rgb(255 255 255 / 75%) 50%,
 					rgb(255 255 255 / 95%) 95%
 				),
-				#4f8bbc;
+				var(--color-primary);
 			text-shadow: 0 1px rgb(255 255 255 / 80%);
 		}
 
 		&:hover {
-			color: #3b9de8;
+			color: var(--color-primary);
 			text-shadow: 1px 1px rgb(255 255 255 / 50%);
 			background: linear-gradient(
 				to bottom,
@@ -815,7 +848,7 @@
 				rgb(162 207 244 / 100%) 51%,
 				rgb(194 224 248 / 100%) 100%
 			);
-			color: #046c98;
+			color: var(--color-primary-active);
 			text-shadow: 0 -1px 1px rgb(255 255 255 / 50%);
 			box-shadow:
 				inset 0 0 1px #fff,
@@ -868,7 +901,7 @@
 	}
 
 	&:active {
-		color: #3b9de8;
+		color: var(--color-primary);
 	}
 }
 
@@ -1464,13 +1497,13 @@
 	transition: background-color 0.5s;
 
 	&:hover {
-		border-color: #94c8f0;
+		border-color: var(--color-primary-border);
 	}
 
 	&:focus {
 		outline: 0;
-		border-color: #008fee;
-		background-color: #d7f9ff;
+		border-color: var(--color-primary);
+		background-color: var(--color-primary-subtle);
 		color: #333;
 	}
 
@@ -1524,12 +1557,12 @@
 	box-shadow: 0 1px 4px rgb(0 0 0 / 15%);
 
 	&:hover {
-		border-color: #94c8f0;
+		border-color: var(--color-primary-border);
 	}
 
 	&:focus {
 		outline: 0;
-		border-color: #008fee;
+		border-color: var(--color-primary);
 	}
 
 	@media (--viewport-small) {
@@ -1582,11 +1615,11 @@
 	&:hover {
 		text-decoration: none;
 		color: #fff;
-		background-color: #3b9de8;
+		background-color: var(--color-primary);
 	}
 
 	&:active {
-		background-color: #54a6e5;
+		background-color: var(--color-primary-hover);
 	}
 }
 
@@ -1843,31 +1876,19 @@
 	min-width: 100px;
 	text-align: center;
 	text-shadow: 0 1px 1px rgb(255 255 255 / 85%);
-	border: 1px solid #0083db;
+	border: 1px solid var(--color-primary);
 	border-radius: 3px;
-	background:
-		linear-gradient(
-			to bottom,
-			rgb(235 243 249 / 100%) 0%,
-			rgb(192 216 236 / 100%) 51%,
-			rgb(223 235 245 / 100%) 100%
-		),
-		#3b9de8;
+	background: var(--button-background);
 	box-shadow:
 		0 1px 3px rgb(0 0 0 / 25%),
 		inset 0 0 1px #fff,
 		inset 0 0 3px rgb(255 255 255 / 50%);
 
 	&:hover {
-		color: #0077c6;
+		color: var(--color-primary-hover);
 		text-shadow: 1px 1px rgb(255 255 255 / 50%);
-		border-color: #54a6e5;
-		background: linear-gradient(
-			to bottom,
-			rgb(241 248 253 / 100%) 0%,
-			rgb(190 221 246 / 100%) 51%,
-			rgb(227 240 251 / 100%) 100%
-		);
+		border-color: var(--color-primary-border);
+		background: var(--button-background-hover);
 		box-shadow:
 			0 1px 3px rgb(0 0 0 / 25%),
 			inset 0 0 1px #fff,
@@ -1875,15 +1896,10 @@
 	}
 
 	&:active {
-		color: #517bab;
+		color: var(--color-primary-active);
 		text-shadow: 0 -1px 2px rgb(255 255 255 / 85%);
-		border-color: #0066b4;
-		background: linear-gradient(
-			to bottom,
-			rgb(194 224 248 / 100%) 0%,
-			rgb(162 207 244 / 100%) 51%,
-			rgb(210 232 250 / 100%) 100%
-		);
+		border-color: var(--color-primary-active);
+		background: var(--button-background-active);
 		box-shadow:
 			0 1px 2px rgb(0 0 0 / 20%),
 			inset 0 0 1px #fff,
@@ -2211,9 +2227,7 @@
 
 .page-login,
 .page-reset {
-	background:
-		radial-gradient(circle, rgb(102 158 231 / 100%) 0%, rgb(43 86 177 / 100%) 100%),
-		rgb(102 158 231);
+	background: var(--login-background);
 
 	& .debug-panel {
 		display: none;
@@ -2285,7 +2299,7 @@
 		color: var(--color-text-link);
 
 		&:hover {
-			color: #0077c6;
+			color: var(--color-primary-hover);
 		}
 	}
 }
@@ -2455,7 +2469,7 @@
 	}
 
 	&:active {
-		color: #3b9de8;
+		color: var(--color-primary);
 	}
 
 	@media (--viewport-medium) {
