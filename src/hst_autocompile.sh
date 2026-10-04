@@ -428,6 +428,13 @@ if [ "$dontinstalldeps" != 'true' ]; then
 		exit 1
 	fi
 
+	# Composer installs the panel app (web-app/) dependencies; the distro
+	# package and its PHP are enough because no package script runs at build.
+	if [ -z "$(which "composer")" ]; then
+		echo "Installing Composer..."
+		apt-get -qq install -y composer php-cli php-xml php-mbstring php-curl > /dev/null
+	fi
+
 	# Fix for Debian PHP environment
 	if [ $BUILD_ARCH == "amd64" ]; then
 		if [ ! -L /usr/local/include/curl ]; then
@@ -849,10 +856,21 @@ if [ "$HESTIA_B" = true ]; then
 	cd $BUILD_DIR/arcpanel-$branch_dash
 	npm ci --ignore-scripts
 	npm run build
+
+	# Panel app (web-app/): production dependencies only. Scripts need PHP 8.5
+	# and run on the server instead (v-add-sys-arcpanel: allow-list,
+	# translations, caches).
+	if ! command -v composer > /dev/null 2>&1; then
+		echo "Composer is required to build the ArcPanel panel app (web-app/)." >&2
+		exit 1
+	fi
+	composer install --working-dir=web-app --no-dev --no-scripts --prefer-dist \
+		--classmap-authoritative --no-interaction --no-progress
+	rm -rf web-app/storage/logs/* web-app/bootstrap/cache/*.php
 	for BUILD_ARCH in $arch; do
 		for os in $supported_os; do
 			mkdir -p $BUILD_DIR_HESTIA/usr/local/hestia
-			cp -rf bin func install web $BUILD_DIR_HESTIA/usr/local/hestia/
+			cp -rf bin func install web web-app $BUILD_DIR_HESTIA/usr/local/hestia/
 
 			# Set permissions
 			find $BUILD_DIR_HESTIA/usr/local/hestia/ -type f -exec chmod -x {} \;

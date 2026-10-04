@@ -8,6 +8,18 @@ include $_SERVER["DOCUMENT_ROOT"] . "/inc/main.php";
 
 $TAB = "LOGIN";
 
+// ArcPanel: guests sign in on the panel app (Laravel) unless an administrator
+// switched back with `v-change-sys-config-value ARCPANEL_APP_LOGIN no`.
+// Impersonation (?loginas=) and logged-in sessions stay on this page.
+if (
+	($_SESSION["ARCPANEL_APP_LOGIN"] ?? "") === "yes" &&
+	!isset($_SESSION["user"]) &&
+	empty($_GET["loginas"])
+) {
+	header("Location: /app/login");
+	exit();
+}
+
 if (isset($_GET["logout"])) {
 	unset($_SESSION);
 	session_unset();

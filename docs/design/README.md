@@ -17,7 +17,7 @@ Every design here follows the constraints the roadmap already fixed:
 | #   | Document                                                                                                                                  | Roadmap epics | Status |
 | --- | ----------------------------------------------------------------------------------------------------------------------------------------- | ------------- | ------ |
 | 01  | [Architecture overview](./01-architecture-overview.md) — current and target system, runtime topology, request flow, packaging             | all           | Draft  |
-| 02  | [Laravel foundation](./02-laravel-foundation.md) — strangler routing, session bridge, `ArcCommand`, policies, i18n, packaging          | E1            | Draft  |
+| 02  | [Laravel foundation](./02-laravel-foundation.md) — strangler routing, session bridge, `ArcCommand`, policies, i18n, packaging             | E1            | Draft  |
 | 03  | [Tenancy and authorization](./03-tenancy-and-authorization.md) — admin / reseller / user roles, `OWNER` model, policy layer, API keys     | E11           | Draft  |
 | 04  | [Port registry](./04-port-registry.md) — allocation, enforcement, firewall integration                                                    | E12           | Draft  |
 | 05  | [Design system and frontend](./05-design-system-and-frontend.md) — tokens, components, Blade + Alpine, Vue islands, shell, build pipeline | E2            | Draft  |
@@ -42,16 +42,16 @@ Architecture Decision Records live in [`docs/adr/`](../adr/README.md). The ADRs 
 
 ## Conventions used in the designs
 
-| Term                | Meaning                                                                                                                                                                                      |
-| ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Legacy app**      | The PHP pages under `web/` served by `hestia-nginx` + `hestia-php` on port 8083                                                                                                              |
-| **Panel app**       | The Laravel application introduced in E1 (repository path `web-app/`)                                                                                                                        |
-| **`ArcCommand`** | The single service through which the panel app runs `sudo /usr/local/hestia/bin/v-*`                                                                                                         |
-| **Principal**       | Whoever is acting: a logged-in user, an impersonated user ("login as"), or an API access key                                                                                                 |
-| **Effective user**  | The Hestia user whose objects are being read or changed (the impersonated user when "login as" is active)                                                                                    |
-| **Owner**           | For a user: the reseller that manages it, or the root admin (`ROOT_USER`)                                                                                                                    |
-| **Tree**            | A reseller plus all users whose `OWNER` is that reseller                                                                                                                                     |
-| **Additive hook**   | A new `func/*.sh` file or a new `v-*` command called from an existing flow through a mechanism that already exists (queue pipe, cron, `conf.d` include), without editing the existing script |
+| Term               | Meaning                                                                                                                                                                                      |
+| ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Legacy app**     | The PHP pages under `web/` served by `hestia-nginx` + `hestia-php` on port 8083                                                                                                              |
+| **Panel app**      | The Laravel application introduced in E1 (repository path `web-app/`)                                                                                                                        |
+| **`ArcCommand`**   | The single service through which the panel app runs `sudo /usr/local/hestia/bin/v-*`                                                                                                         |
+| **Principal**      | Whoever is acting: a logged-in user, an impersonated user ("login as"), or an API access key                                                                                                 |
+| **Effective user** | The Hestia user whose objects are being read or changed (the impersonated user when "login as" is active)                                                                                    |
+| **Owner**          | For a user: the reseller that manages it, or the root admin (`ROOT_USER`)                                                                                                                    |
+| **Tree**           | A reseller plus all users whose `OWNER` is that reseller                                                                                                                                     |
+| **Additive hook**  | A new `func/*.sh` file or a new `v-*` command called from an existing flow through a mechanism that already exists (queue pipe, cron, `conf.d` include), without editing the existing script |
 
 ## Maintenance
 

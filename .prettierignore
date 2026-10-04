@@ -30,6 +30,9 @@ web/templates/
 # Modern Web (handled by PHPCS)
 web/src/
 
+# Panel app (handled by Laravel Pint)
+web-app/
+
 # Patch files
 /install/upgrade/patch/*
 

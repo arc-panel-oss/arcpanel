@@ -25,7 +25,7 @@ if (!is_string($hestia) || $hestia === "") {
 	deny("missing HESTIA env");
 }
 
-session_name("HESTIASID");
+session_name("ARCPANELSID");
 session_save_path($hestia . "/data/sessions");
 session_id($sessionId);
 

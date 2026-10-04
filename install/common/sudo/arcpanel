@@ -1,0 +1,3 @@
+# The ArcPanel panel app (web-app/) runs v-* commands through the
+# /usr/local/arcpanel symlink. Installed by v-add-sys-arcpanel.
+hestiaweb   ALL=NOPASSWD:/usr/local/arcpanel/bin/*

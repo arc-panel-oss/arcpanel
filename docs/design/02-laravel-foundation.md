@@ -55,7 +55,7 @@ location @arcpanel {
 }
 ```
 
-Laravel is told its base path with `APP_URL_PREFIX=/app` (read in `bootstrap/app.php` to set the router's prefix and the asset URL). In E8 the prefix becomes empty, `location /` points at `web-app/public/`, and the legacy `root` disappears (10 §6).
+Laravel derives its `/app` base URL from `SCRIPT_NAME=/app/index.php`, which nginx passes, so routes carry no prefix (E1-S1 spec §11). In E8 `location /` points at `web-app/public/` with `SCRIPT_NAME=/index.php` and the legacy `root` disappears (10 §6).
 
 `/api/`, `/fm/`, `/_shell/`, `/rrd/`, `/backup/` keep their current blocks throughout the migration.
 
@@ -123,11 +123,11 @@ final class Options
 
 | Rule                                                                                                                                                                                                                                                                              | Reason                                                                            |
 | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
-| `$command` must match `^v-[a-z0-9-]+$` **and** be in the generated allow-list `config/arc-commands.php` (built from `ls bin/` at package time)                                                                                                                                 | Prevents calling anything but a known script even if a caller is tricked          |
+| `$command` must match `^v-[a-z0-9-]+$` **and** be in the generated allow-list `config/arc-commands.php` (built from `ls bin/` at package time)                                                                                                                                    | Prevents calling anything but a known script even if a caller is tricked          |
 | Each argument is a `string`, `int`, `Stringable`, or `Secret`; arrays are rejected                                                                                                                                                                                                | No accidental serialization                                                       |
 | Arguments are escaped with `escapeshellarg()` (same semantics as legacy `quoteshellarg`), and rejected if they contain `\0` or `\n`                                                                                                                                               | Shell safety; `v-*` scripts read arguments positionally                           |
 | Empty string arguments are passed as `''` explicitly                                                                                                                                                                                                                              | Positional CLI contract (e.g. `v-add-web-domain user domain '' no`)               |
-| `Secret` arguments are written to a `0600` temp file under `storage/tmp/` and the **path** is passed, when the target command accepts a file (documented per command in `config/arc-commands.php`); otherwise passed inline but masked in every log, exception and job record  | Mirrors the API's `v-make-tmp-file` pattern; keeps passwords out of `ps` and logs |
+| `Secret` arguments are written to a `0600` temp file under `storage/tmp/` and the **path** is passed, when the target command accepts a file (documented per command in `config/arc-commands.php`); otherwise passed inline but masked in every log, exception and job record     | Mirrors the API's `v-make-tmp-file` pattern; keeps passwords out of `ps` and logs |
 | Process: `Symfony\Component\Process` with `['/usr/bin/sudo', '/usr/local/hestia/bin/'.$command, ...$args]` (argv form, no shell), `cwd=/`, env `['PATH' => '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin', 'HESTIA' => '/usr/local/hestia', 'LANG' => 'C.UTF-8']` | Same process user and sudo rule as legacy `exec()`, without a shell               |
 
 ### 4.3 Error mapping
@@ -287,12 +287,12 @@ Defined fully in [03](./03-tenancy-and-authorization.md); E1 ships the skeleton:
 
 ## 8. Error handling and UX parity
 
-| Situation                  | Legacy                                        | Panel app                                                                                                    |
-| -------------------------- | --------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| `v-*` fails                | `$_SESSION['error_msg']` shown in a top alert | `ArcCommandException` → flash `error` → same alert component (05)                                                |
-| `v-*` succeeds             | `$_SESSION['ok_msg']`                         | flash `ok` → toast                                                                                           |
-| Validation (missing field) | inline `$_SESSION['error_msg']`               | Laravel FormRequest → inline field errors (05 form component)                                                |
-| Unknown exception          | PHP error page                                | Laravel handler: 500 page from `web/error/50x.html` styling; stack trace only when `DEBUG_MODE='true'`       |
+| Situation                  | Legacy                                        | Panel app                                                                                                 |
+| -------------------------- | --------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| `v-*` fails                | `$_SESSION['error_msg']` shown in a top alert | `ArcCommandException` → flash `error` → same alert component (05)                                         |
+| `v-*` succeeds             | `$_SESSION['ok_msg']`                         | flash `ok` → toast                                                                                        |
+| Validation (missing field) | inline `$_SESSION['error_msg']`               | Laravel FormRequest → inline field errors (05 form component)                                             |
+| Unknown exception          | PHP error page                                | Laravel handler: 500 page from `web/error/50x.html` styling; stack trace only when `DEBUG_MODE='true'`    |
 | `DEBUG_MODE='true'`        | debug panel (`debug_panel.php`)               | Laravel debug bar is **not** installed; a small `x-debug-panel` shows the last `ArcCommand` calls instead |
 
 ---
@@ -301,8 +301,8 @@ Defined fully in [03](./03-tenancy-and-authorization.md); E1 ships the skeleton:
 
 - `web-app/` is a standard Laravel 13 skeleton, PHP 8.5, `composer.json` with `"config": {"platform": {"php": "8.5"}}`; `vendor/` built in CI (`composer install --no-dev --prefer-dist --classmap-authoritative`) and shipped inside the `hestia` deb at `/usr/local/hestia/web-app/`.
 - Writable paths (`hestiaweb:hestiaweb 0750`; `uploads`/`downloads` `0700`): `web-app/storage/{framework/{cache,sessions,views},logs,tmp,uploads,downloads}`, `web-app/bootstrap/cache`. `uploads` and `downloads` are the File Manager staging areas ([06](./06-file-manager-v2.md) §6); `downloads` is exposed only through an `internal` NGINX location (`/_downloads/`, `X-Accel-Redirect`). Created by `install/hst-install-*.sh` and `install/upgrade/versions/<ver>.sh` (idempotent).
-- `/usr/local/hestia/conf/arcpanel.env` (`root:hestiaweb 0640`): `APP_KEY`, `APP_ENV=production`, `APP_DEBUG` (from `DEBUG_MODE`), `APP_URL_PREFIX=/app`. Generated once by `v-add-sys-arcpanel` (**new**, also runs `artisan optimize`, `storage:link`-free since assets are pre-built).
-- `php artisan optimize` (config, route, view caches) runs in the deb `postinst` and after each upgrade; `optimize:clear` on downgrade.
+- `/etc/arcpanel/arcpanel.env` (`root:hestiaweb 0640`): `APP_KEY`, `APP_ENV=production`, `APP_DEBUG` (from `DEBUG_MODE`). Generated once by `v-add-sys-arcpanel` (**new**; keeps an existing `APP_KEY`; no `storage:link` since assets are pre-built).
+- `v-add-sys-arcpanel` builds the config, event and view caches (not the route cache, see E1-S1 spec §11); `optimize:clear` on downgrade.
 - Build artifacts (`public/build/*`) come from the repo's esbuild pipeline (05 §7); no Node at runtime.
 - Upstream-diff CI (11 §5) treats `web-app/` as ArcPanel-owned; `web/` diffs are allowed (it is being deleted).
 
@@ -317,7 +317,7 @@ Defined fully in [03](./03-tenancy-and-authorization.md); E1 ships the skeleton:
 | `v-list-user` slow on large servers                        | Every request pays it                      | Per-request memo; 60 s cache of `v-list-sys-config`; later, `v-list-user` output cached for 10 s keyed by file mtime of `user.conf` (read-only `stat` is allowed for `hestiaweb`? — no: data dir is root-only, so time-based cache only) |
 | `sudo` fails (`requiretty`, PATH)                          | All commands fail                          | Same sudoers line as legacy; `Defaults:root !requiretty` already present; `/app/_health` runs `v-list-sys-config` and reports                                                                                                            |
 | Laravel `vendor/` incompatible with bundled PHP 8.5        | Panel app fails to boot                    | CI builds the deb against `hestia-php`; `composer.json` platform pin; smoke test in the install VM                                                                                                                                       |
-| Prefix mismatch (`/app` vs root) after E8                  | Broken links                               | All links via route names; `APP_URL_PREFIX` single switch; e2e crawls every nav link                                                                                                                                                     |
+| Prefix mismatch (`/app` vs root) after E8                  | Broken links                               | All links via route names; base URL from `SCRIPT_NAME`, a single switch; e2e crawls every nav link                                                                                                                                       |
 
 ---
 

@@ -1,0 +1,182 @@
+<?php
+
+namespace App\Auth;
+
+use App\Arc\ArcCommand;
+use App\Arc\Options;
+use App\Arc\Secret;
+use App\Arc\SysConfig;
+use Illuminate\Support\Sleep;
+
+/**
+ * The login algorithm of web/login/index.php (authenticate_user()), without
+ * HTTP or session handling. Error texts are the legacy msgids.
+ */
+final class LoginService
+{
+    public const INVALID_CREDENTIALS = 'Invalid username or password';
+
+    public const SUSPENDED = 'Account has been suspended';
+
+    public const UNSUPPORTED_HASH = 'Unsupported hash method';
+
+    public const INVALID_2FA = 'Invalid or missing 2FA token';
+
+    /** Wrong 2FA codes allowed before failures are logged and the attempt ends. */
+    public const MAX_2FA_FAILURES = 3;
+
+    /** web/login/index.php accepts only names matching this. */
+    public const USERNAME_PATTERN = '/^[[:alnum:]][-|\.|_[:alnum:]]{0,28}[[:alnum:]]$/';
+
+    public function __construct(
+        private readonly ArcCommand $arc,
+        private readonly SysConfig $config,
+    ) {}
+
+    public function attempt(string $username, string $password, LoginContext $context): LoginResult
+    {
+        if (preg_match(self::USERNAME_PATTERN, $username) !== 1 || $password === '') {
+            return $this->fail(self::INVALID_CREDENTIALS);
+        }
+
+        $salt = $this->arc->run('v-get-user-salt', [$username, $context->ip, 'json'], Options::allowFailure());
+        if (! $salt->ok()) {
+            return $this->fail(match ($salt->exitCode) {
+                5 => self::SUSPENDED,
+                1 => self::UNSUPPORTED_HASH,
+                default => self::INVALID_CREDENTIALS,
+            });
+        }
+        $pam = json_decode($salt->stdout, true)[$username] ?? [];
+        $hash = $this->hash($username, $password, (string) ($pam['SALT'] ?? ''), (string) ($pam['METHOD'] ?? ''), $context);
+
+        $check = $this->arc->run(
+            'v-check-user-hash',
+            [$username, Secret::file($hash), $context->ip],
+            Options::allowFailure(),
+        );
+        if (! $check->ok()) {
+            $this->logFailure($username, $context);
+
+            return $this->fail(self::INVALID_CREDENTIALS);
+        }
+
+        $user = $this->userRecord($username);
+        if (($user['LOGIN_DISABLED'] ?? '') === 'yes') {
+            $this->logFailure($username, $context, 'Login disabled for this user');
+
+            return $this->fail(self::INVALID_CREDENTIALS);
+        }
+
+        if (($user['LOGIN_USE_IPLIST'] ?? '') === 'yes') {
+            $allowed = array_map('trim', explode(',', $user['LOGIN_ALLOW_IPS'] ?? ''));
+            if (! in_array($context->ip, $allowed, true)) {
+                $this->logFailure($username, $context, 'IP address not in allowed list');
+
+                return $this->fail(self::INVALID_CREDENTIALS);
+            }
+        }
+
+        if (($user['TWOFA'] ?? '') !== '') {
+            return LoginResult::secondFactor($username, $user);
+        }
+
+        return LoginResult::success($username, $user);
+    }
+
+    /**
+     * Check a 2FA code for a user who already passed attempt().
+     *
+     * @param  int  $failuresBefore  wrong codes already entered in this attempt
+     */
+    public function verifySecondFactor(string $username, string $code, int $failuresBefore, LoginContext $context): LoginResult
+    {
+        if ($code === '' || strlen($code) >= 10) {
+            return $this->fail(self::INVALID_2FA);
+        }
+
+        $check = $this->arc->run('v-check-user-2fa', [$username, $code], Options::allowFailure());
+        if (! $check->ok()) {
+            if ($failuresBefore >= self::MAX_2FA_FAILURES) {
+                $this->logFailure($username, $context, self::INVALID_2FA);
+            }
+
+            return $this->fail(self::INVALID_2FA);
+        }
+
+        return LoginResult::success($username, $this->userRecord($username));
+    }
+
+    /**
+     * Log the successful login and return what the legacy session must hold.
+     *
+     * @param  array<string, string>  $user
+     * @return array<string, mixed> patch for LegacySession::establish()
+     */
+    public function complete(string $username, array $user, LoginContext $context): array
+    {
+        $this->arc->run(
+            'v-log-user-login',
+            [$username, $context->ip, 'success', $context->fingerprint, $context->userAgent],
+            Options::allowFailure(),
+        );
+
+        $languages = $this->arc->json('v-list-sys-languages', [], Options::allowFailure());
+        $language = in_array($user['LANGUAGE'] ?? '', $languages, true) ? $user['LANGUAGE'] : 'en';
+
+        return [
+            'user' => $username,
+            'look' => '',
+            'userContext' => $user['ROLE'] ?? Role::User->value,
+            'LAST_ACTIVITY' => time(),
+            'user_combined_ip' => $context->ip,
+            'token' => $context->fingerprint,
+            'language' => $language,
+            'userTheme' => $this->config->is('POLICY_USER_CHANGE_THEME') ? ($user['THEME'] ?? '') : null,
+            'userSortOrder' => ($user['PREF_UI_SORT'] ?? '') !== '' ? $user['PREF_UI_SORT'] : 'name',
+            // Leftovers of a legacy login attempt in the same session
+            'login' => null,
+            'failed_twofa' => null,
+        ];
+    }
+
+    private function hash(string $username, string $password, string $salt, string $method, LoginContext $context): string
+    {
+        return match ($method) {
+            'md5' => crypt($password, '$1$'.$salt.'$'),
+            'sha-512' => str_replace('$rounds=5000', '', crypt($password, '$6$rounds=5000$'.$salt.'$')),
+            'des' => crypt($password, $salt),
+            'yescrypt' => $this->arc->run(
+                'v-check-user-password',
+                [$username, Secret::file($password), $context->ip, 'yes'],
+                Options::allowFailure(),
+            )->lines()[0] ?? '',
+            default => '',
+        };
+    }
+
+    /** @return array<string, string> */
+    private function userRecord(string $username): array
+    {
+        $data = $this->arc->json('v-list-user', [$username]);
+
+        return array_map('strval', $data[$username] ?? []);
+    }
+
+    private function logFailure(string $username, LoginContext $context, ?string $reason = null): void
+    {
+        $args = [$username, $context->ip, 'failed', $context->fingerprint, $context->userAgent];
+        if ($reason !== null) {
+            array_push($args, 'yes', $reason);
+        }
+        $this->arc->run('v-log-user-login', $args, Options::allowFailure());
+    }
+
+    private function fail(string $error): LoginResult
+    {
+        // Slow down guessing, as the legacy login does.
+        Sleep::sleep(2);
+
+        return LoginResult::failed($error);
+    }
+}

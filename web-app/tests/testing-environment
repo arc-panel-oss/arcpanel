@@ -1,0 +1,2 @@
+# Environment of the test suite (phpunit.xml points ARCPANEL_ENV_FILE here).
+APP_NAME=ArcPanel

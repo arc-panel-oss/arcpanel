@@ -1,0 +1,126 @@
+#!/bin/bash
+# info: set up the ArcPanel panel app (Laravel, web-app/)
+# options: NONE
+#
+# example: v-add-sys-arcpanel
+#
+# This function prepares the panel app that is shipped in the arcpanel
+# package: writable directories, its configuration file with a private key,
+# the sudo rule for its command path and the framework caches. It is safe to
+# run again; an existing key is kept.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Includes
+# shellcheck source=/etc/hestiacp/hestia.conf
+source /etc/hestiacp/hestia.conf
+# shellcheck source=/usr/local/hestia/func/main.sh
+source $HESTIA/func/main.sh
+# load config file
+source_conf "$HESTIA/conf/hestia.conf"
+
+APP_DIR="$HESTIA/web-app"
+# /usr/local/hestia/conf is root-only (0750), so the file lives in /etc
+ENV_DIR="/etc/arcpanel"
+ENV_FILE="$ENV_DIR/arcpanel.env"
+SUDOERS_SOURCE="$HESTIA/install/common/sudo/arcpanel"
+SUDOERS_FILE="/etc/sudoers.d/arcpanel"
+PHP_BIN="$HESTIA/php/bin/php"
+WEB_USER="hestiaweb"
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+if [ "$(id -u)" != '0' ]; then
+	echo "Error: v-add-sys-arcpanel can only be executed by the root user"
+	exit "$E_FORBIDEN"
+fi
+
+if [ ! -f "$APP_DIR/artisan" ]; then
+	check_result "$E_NOTEXIST" "panel app not found in $APP_DIR"
+fi
+
+if [ ! -x "$PHP_BIN" ]; then
+	check_result "$E_NOTEXIST" "panel PHP not found at $PHP_BIN"
+fi
+
+# Perform verification if read-only mode is enabled
+check_hestia_demo_mode
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+# Writable directories of the panel app
+for dir in storage/framework/cache/data storage/framework/sessions storage/framework/views \
+	storage/logs storage/tmp bootstrap/cache; do
+	mkdir -p "$APP_DIR/$dir"
+done
+chown -R "$WEB_USER:$WEB_USER" "$APP_DIR/storage" "$APP_DIR/bootstrap/cache"
+find "$APP_DIR/storage" "$APP_DIR/bootstrap/cache" -type d -exec chmod 750 {} +
+
+# Configuration: keep the existing key, refresh everything else
+app_key=''
+if [ -f "$ENV_FILE" ]; then
+	app_key=$(grep -E '^APP_KEY=base64:' "$ENV_FILE" | head -n1 | cut -d= -f2-)
+fi
+if [ -z "$app_key" ]; then
+	app_key="base64:$(head -c 32 /dev/urandom | base64)"
+fi
+app_debug='false'
+if [ "$DEBUG_MODE" = 'true' ]; then
+	app_debug='true'
+fi
+
+install -d -o root -g "$WEB_USER" -m 750 "$ENV_DIR"
+tmp_env=$(mktemp "$ENV_DIR/arcpanel.env.XXXXXX")
+cat > "$tmp_env" << EOF
+# Written by v-add-sys-arcpanel. Changes are overwritten on the next run.
+APP_NAME=ArcPanel
+APP_ENV=production
+APP_KEY=$app_key
+APP_DEBUG=$app_debug
+LOG_LEVEL=info
+EOF
+chown "root:$WEB_USER" "$tmp_env"
+chmod 640 "$tmp_env"
+mv -f "$tmp_env" "$ENV_FILE"
+
+# sudo rule for the command path the panel app uses (/usr/local/arcpanel/bin)
+if [ -f "$SUDOERS_SOURCE" ]; then
+	install -m 0440 -o root -g root "$SUDOERS_SOURCE" "$SUDOERS_FILE.new"
+	if command -v visudo > /dev/null 2>&1 && ! visudo -cqf "$SUDOERS_FILE.new" > /dev/null 2>&1; then
+		rm -f "$SUDOERS_FILE.new"
+		check_result "$E_INVALID" "invalid sudoers file $SUDOERS_SOURCE"
+	fi
+	mv -f "$SUDOERS_FILE.new" "$SUDOERS_FILE"
+fi
+
+# Command allow-list from the installed v-* scripts, and translations from the
+# installed gettext catalogues (both generated, never shipped)
+"$PHP_BIN" "$APP_DIR/artisan" arcpanel:allow-list --bin="$HESTIA/bin" > /dev/null
+check_result $? "panel app allow-list failed"
+"$PHP_BIN" "$APP_DIR/artisan" arcpanel:i18n-import --locale-dir="$HESTIA/web/locale" > /dev/null
+check_result $? "panel app translations failed"
+chown -R "$WEB_USER:$WEB_USER" "$APP_DIR/storage" "$APP_DIR/bootstrap/cache"
+
+# Framework caches, built as the web user. Routes are not cached: with a route
+# cache Laravel trims the trailing slash of /app/ and no longer finds its
+# /app base URL, so the panel app's root page fails (HTTP 405).
+runuser -u "$WEB_USER" -- "$PHP_BIN" "$APP_DIR/artisan" optimize:clear > /dev/null 2>&1
+for cache in config:cache event:cache view:cache; do
+	runuser -u "$WEB_USER" -- "$PHP_BIN" "$APP_DIR/artisan" "$cache" > /dev/null 2>&1
+	check_result $? "panel app $cache failed"
+done
+
+#----------------------------------------------------------#
+#                       Hestia                             #
+#----------------------------------------------------------#
+
+$BIN/v-log-action "system" "Info" "System" "Panel app configured."
+log_event "$OK" "$ARGUMENTS"
+
+exit

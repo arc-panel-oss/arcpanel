@@ -1514,6 +1514,8 @@ write_config_value "INACTIVE_SESSION_TIMEOUT" "60"
 # VERSION keeps the upstream HestiaCP base version; ARCPANEL_VERSION is shown to users (ADR-0006)
 write_config_value "VERSION" "${HESTIA_INSTALL_VER}"
 write_config_value "ARCPANEL_VERSION" "${ARCPANEL_INSTALL_VER}"
+# Guests sign in on the panel app (web-app/); "no" restores the legacy login page
+write_config_value "ARCPANEL_APP_LOGIN" "yes"
 write_config_value "APP_NAME" "ArcPanel"
 write_config_value "RELEASE_BRANCH" "release"
 
@@ -2385,6 +2387,13 @@ fi
 
 echo "[ * ] Configuring File Manager..."
 $HESTIA/bin/v-add-sys-filemanager quiet
+
+#----------------------------------------------------------#
+#                  Configure panel app                     #
+#----------------------------------------------------------#
+
+echo "[ * ] Configuring the ArcPanel panel app..."
+$HESTIA/bin/v-add-sys-arcpanel
 # Configuring sudoers to remove unsupported requiretty option on Ubuntu 26.04
 ubuntu_major="${release%%.*}"
 if [[ "$ubuntu_major" -ge 26 ]]; then

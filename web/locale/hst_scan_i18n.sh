@@ -12,7 +12,8 @@ mv hestiacp.pot hestiacp.pot.old
 true > hestiacp.pot
 
 echo "[ * ] Search *.php *.html and *.sh for php based gettext functions"
-find ../.. \( -name '*.php' -o -name '*.html' -o -name '*.sh' \) | xgettext --output=hestiacp.pot --language=PHP --join-existing -f -
+# __() is the translation helper of the ArcPanel panel app (web-app/)
+find ../.. \( -path '*/vendor' -o -path '*/node_modules' \) -prune -o \( -name '*.php' -o -name '*.html' -o -name '*.sh' \) -print | xgettext --output=hestiacp.pot --language=PHP --keyword=__ --join-existing -f -
 
 # Scan the description string for list updates page
 while IFS= read -r string; do

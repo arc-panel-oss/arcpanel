@@ -136,6 +136,11 @@ async function buildCSS() {
 	await Promise.all(cssBuildPromises);
 }
 
+// Build the panel app (web-app/) stylesheet
+async function buildPanelAppCSS() {
+	await processCSS('./web-app/resources/css/arc.css', './web-app/public/build/arc.min.css');
+}
+
 // Ensure a directory exists
 async function ensureDir(dir) {
 	try {
@@ -153,6 +158,7 @@ async function build() {
 	await buildJS();
 	await buildExternalJS();
 	await buildCSS();
+	await buildPanelAppCSS();
 	console.log('🎉 Build completed.');
 }
 

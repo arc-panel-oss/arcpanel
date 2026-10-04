@@ -73,7 +73,7 @@ New shipped packages: `install/common/packages/reseller.pkg` (03 §4.2), `instal
 | `UPDATES_PAUSED`                           | unset                                 | E33 (set after a failed health check) | 14 E33                             |
 | `AI_ASSISTANT`, `AI_ROLES`                 | `no`, —                               | E32                                   | 14 E32                             |
 
-Panel-only configuration (not in `hestia.conf`): `$HESTIA/conf/arcpanel.env` (`root:hestiaweb 0640`) with `APP_KEY`, `APP_ENV`, `APP_DEBUG`, `APP_URL_PREFIX` ([02](./02-laravel-foundation.md) §9).
+Panel-only configuration (not in `hestia.conf`): `/etc/arcpanel/arcpanel.env` (`root:hestiaweb 0640`) with `APP_KEY`, `APP_ENV`, `APP_DEBUG`, `LOG_LEVEL` ([02](./02-laravel-foundation.md) §9).
 
 ---
 
@@ -96,7 +96,7 @@ Panel-only configuration (not in `hestia.conf`): `$HESTIA/conf/arcpanel.env` (`r
 | `data/templates/web/<system>/[<backend>/]<name>.json`                    | template sidecars (schema `docs/design/schemas/web-template.schema.json`)                                | `v-update-web-templates` (copies from `install/deb/templates/web/`) | [09](./09-web-templates-metadata.md) §4           |
 | `data/templates/web/<system>/[<backend>/]<name>.sh`                      | post-render hook calling `func/tplmeta.sh:apply_template_vars`                                           | shipped with templates                                              | 09 §5                                             |
 | `data/secrets/<user>/<kind>/<name>`, `data/secrets/system/<kind>/<name>` | third-party credentials; dir `0700`, files `0600`; never read by the panel                               | owning `v-*` commands                                               | [12](./12-security-model.md) §6.2                 |
-| `data/sessions/`                                                         | existing PHP session files (`ARCPANELSID`), now shared by both apps                                        | PHP                                                                 | 02 §5                                             |
+| `data/sessions/`                                                         | existing PHP session files (`ARCPANELSID`), now shared by both apps                                      | PHP                                                                 | 02 §5                                             |
 | `data/alerts/rules.conf`, `channels.conf`, `state/<rule>-<object>.json`  | alert rules, channels, firing state (E16)                                                                | `v-*-sys-alert-*`, `v-check-sys-alerts`                             | 14 E16                                            |
 | `data/audit/YYYY-MM-DD.jsonl`, `.anchor`                                 | append-only audit events with hash chain (E23)                                                           | `v-add-sys-audit-event`                                             | 14 E23                                            |
 | `data/doctor/<scope>.json`, `ignore.conf`                                | last Doctor results, ignored checks (E17)                                                                | `v-run-sys-doctor`                                                  | 14 E17                                            |
@@ -138,12 +138,12 @@ Panel-only configuration (not in `hestia.conf`): `$HESTIA/conf/arcpanel.env` (`r
 
 | Path                                                        | Content                                                                                                | Doc                                         |
 | ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ | ------------------------------------------- |
-| `storage/framework/{cache,sessions,views}`, `storage/logs/` | Laravel cache, panel-only session (`arcpanel_session`), logs (`arc-command.log`)                    | 02 §4.6, §9                                 |
+| `storage/framework/{cache,sessions,views}`, `storage/logs/` | Laravel cache, panel-only session (`arcpanel_session`), logs (`arc-command.log`)                       | 02 §4.6, §9                                 |
 | `storage/tmp/`                                              | `Secret` temp files (`0600`, deleted after the call)                                                   | 02 §4.2                                     |
 | `storage/uploads/<token>/` (`0700`)                         | File Manager chunk staging, `meta.json`; handed off by `v-add-fs-upload`                               | 06 §6.2                                     |
 | `storage/downloads/<ticket>` (`0700`)                       | download tickets served via `internal` location `/_downloads/`                                         | 06 §6.3                                     |
 | `lang/<lang>.json`                                          | generated from `web/locale/*.po` (not committed)                                                       | 02 §7                                       |
-| `config/arc-commands.php`                                | generated allow-list of `bin/` names + per-command flags (file-accepting secret positions, idempotent) | 02 §4.2                                     |
+| `config/arc-commands.php`                                   | generated allow-list of `bin/` names + per-command flags (file-accepting secret positions, idempotent) | 02 §4.2                                     |
 | `public/build/` + `manifest.json`                           | hashed esbuild output (Alpine bundle, Vue islands, CSS)                                                | [05](./05-design-system-and-frontend.md) §7 |
 | `tests/Fixtures/commands/<command>/<case>.json`             | recorded `v-*` output for the fake                                                                     | 02 §4.5                                     |
 
