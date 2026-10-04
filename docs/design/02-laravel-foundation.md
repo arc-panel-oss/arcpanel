@@ -1,12 +1,12 @@
 # 02 — Laravel Foundation (Strangler)
 
-**Epic:** E1 · **Status:** Draft v1 · **Depends on:** nothing · **Unblocks:** everything else
+**Epic:** E1 · **Status:** Draft v1.1 (2026-10-05: Laravel 13, `ArcCommand` names, login flow corrected — see the [E1-S1 spec](../features/specs/2026-10-05-001-e1-laravel-foundation-slice1-design.md)) · **Depends on:** nothing · **Unblocks:** everything else
 
 ---
 
 ## 1. Goal
 
-Run a Laravel 12 application next to the legacy PHP app, on the same port, with the same login, talking to the same `v-*` backend, so that pages can move one at a time. Deliver Login, Dashboard and Web Domains (list/add/edit) on Laravel as proof, with 2FA, "login as", read-only mode and i18n working.
+Run a Laravel 13 application next to the legacy PHP app, on the same port, with the same login, talking to the same `v-*` backend, so that pages can move one at a time. Deliver Login, Dashboard and Web Domains (list/add/edit) on Laravel as proof, with 2FA, "login as", read-only mode and i18n working.
 
 Non-goals: a JSON-only API, a SPA, changing any `v-*` command, changing the `hestia-nginx` / `hestia-php` packages beyond one config file.
 
@@ -16,7 +16,7 @@ Non-goals: a JSON-only API, a SPA, changing any `v-*` command, changing the `hes
 
 - `src/deb/nginx/nginx.conf`: one `server { listen 8083 ssl; root /usr/local/hestia/web; }` with `location ~ \.php$ → unix:/run/hestia-php.sock`, plus `/fm/` (FileGator), `/_shell/` (web terminal ws proxy), `/rrd/`, `/backup/` internal locations and a deny list for `/(inc|src|locale|templates)`.
 - `web/inc/main.php` is the bootstrap of every legacy page: `session_start()`, IP-binding check (`user_combined_ip`), inactivity timeout, user existence re-check via `v-list-user`, admin demotion check, suspended logout, `look` handling, CSRF token, `policies.php` (read-only computation), i18n.
-- Session: PHP `files` handler, cookie `HESTIASID`, path `/usr/local/hestia/data/sessions`. The web terminal (`web-terminal-session-auth.php`) already opens these files from another process by session id, which proves out-of-process reads work.
+- Session: PHP `files` handler, cookie `HESTIASID` (renamed `ARCPANELSID` in E1-S1), path `/usr/local/hestia/data/sessions`. The web terminal (`web-terminal-session-auth.php`) already opens these files from another process by session id, which proves out-of-process reads work.
 - Login (`web/login/index.php`): `v-check-user-password USER PASSWORD_FILE IP`, then `v-list-user USER json` to populate session (`userContext = ROLE`, `userTheme`, `userSortOrder`, `language`), `v-log-user-login` for the auth log; 2FA via `v-check-user-2fa USER CODE` with the password kept in `$_SESSION['login']` between steps; login-as via `?loginas=<user>` setting `$_SESSION['look']`.
 - Every mutation: `exec(HESTIA_CMD . "v-... " . quoteshellarg($arg), $output, $return_var)` then `check_return_code($return_var, $output)` which turns a non-zero exit into `$_SESSION['error_msg']`.
 - Exit codes: `OK=0, E_ARGS=1, E_INVALID=2, E_NOTEXIST=3, E_EXISTS=4, E_SUSPENDED=5, E_UNSUSPENDED=6, E_INUSE=7, E_LIMIT=8, E_PASSWORD=9, E_FORBIDEN=10, E_DISABLED=11, E_PARSING=12, E_DISK=13, E_LA=14, E_CONNECT=15, E_FTP=16, E_DB=17, E_RRD=18, E_UPDATE=19, E_RESTART=20` (`func/main.sh:123-143`).
@@ -77,18 +77,18 @@ The legacy top panel (`web/templates/includes/panel.php`) gets its link targets 
 
 ---
 
-## 4. `HestiaCommand`
+## 4. `ArcCommand`
 
-The one way the panel app talks to the system. Lives in `web-app/app/Hestia/`.
+The one way the panel app talks to the system. Lives in `web-app/app/Arc/`.
 
 ### 4.1 Contract
 
 ```php
-namespace App\Hestia;
+namespace App\Arc;
 
-interface HestiaCommand
+interface ArcCommand
 {
-    /** Run a v-* command; throws HestiaException on non-zero exit. */
+    /** Run a v-* command; throws ArcCommandException on non-zero exit. */
     public function run(string $command, array $args = [], Options $options = null): CommandResult;
 
     /** run() with 'json' appended and the output decoded. */
@@ -123,16 +123,16 @@ final class Options
 
 | Rule                                                                                                                                                                                                                                                                              | Reason                                                                            |
 | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
-| `$command` must match `^v-[a-z0-9-]+$` **and** be in the generated allow-list `config/hestia-commands.php` (built from `ls bin/` at package time)                                                                                                                                 | Prevents calling anything but a known script even if a caller is tricked          |
+| `$command` must match `^v-[a-z0-9-]+$` **and** be in the generated allow-list `config/arc-commands.php` (built from `ls bin/` at package time)                                                                                                                                 | Prevents calling anything but a known script even if a caller is tricked          |
 | Each argument is a `string`, `int`, `Stringable`, or `Secret`; arrays are rejected                                                                                                                                                                                                | No accidental serialization                                                       |
 | Arguments are escaped with `escapeshellarg()` (same semantics as legacy `quoteshellarg`), and rejected if they contain `\0` or `\n`                                                                                                                                               | Shell safety; `v-*` scripts read arguments positionally                           |
 | Empty string arguments are passed as `''` explicitly                                                                                                                                                                                                                              | Positional CLI contract (e.g. `v-add-web-domain user domain '' no`)               |
-| `Secret` arguments are written to a `0600` temp file under `storage/tmp/` and the **path** is passed, when the target command accepts a file (documented per command in `config/hestia-commands.php`); otherwise passed inline but masked in every log, exception and job record  | Mirrors the API's `v-make-tmp-file` pattern; keeps passwords out of `ps` and logs |
+| `Secret` arguments are written to a `0600` temp file under `storage/tmp/` and the **path** is passed, when the target command accepts a file (documented per command in `config/arc-commands.php`); otherwise passed inline but masked in every log, exception and job record  | Mirrors the API's `v-make-tmp-file` pattern; keeps passwords out of `ps` and logs |
 | Process: `Symfony\Component\Process` with `['/usr/bin/sudo', '/usr/local/hestia/bin/'.$command, ...$args]` (argv form, no shell), `cwd=/`, env `['PATH' => '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin', 'HESTIA' => '/usr/local/hestia', 'LANG' => 'C.UTF-8']` | Same process user and sudo rule as legacy `exec()`, without a shell               |
 
 ### 4.3 Error mapping
 
-Non-zero exit becomes `HestiaException` with a typed code:
+Non-zero exit becomes `ArcCommandException` with a typed code:
 
 ```php
 enum ExitCode: int {
@@ -156,10 +156,10 @@ The exception handler renders it as the legacy app does: for HTML requests, redi
 
 ### 4.5 Fake for tests
 
-`HestiaCommandFake implements HestiaCommand`:
+`ArcCommandFake implements ArcCommand`:
 
 ```php
-$fake = HestiaCommand::fake();
+$fake = ArcCommand::fake();
 $fake->on('v-list-web-domains', ['admin', 'json'])->returnsFixture('web-domains/admin.json');
 $fake->on('v-add-web-domain')->returnsExit(ExitCode::Exists, "Error: domain example.com exists");
 $this->post(route('web.domains.store'), [...]);
@@ -167,11 +167,11 @@ $fake->assertRan('v-add-web-domain', fn (array $args) => $args[1] === 'example.c
 $fake->assertNotRan('v-delete-web-domain');
 ```
 
-Fixtures live in `web-app/tests/Fixtures/commands/<command>/<case>.json` and are recorded from a real VM by `php artisan hestia:record-fixtures` (runs the listed commands and stores output). The fake fails the test on any unexpected command, so controllers cannot silently call something new.
+Fixtures live in `web-app/tests/Fixtures/commands/<command>/<case>.json` and are recorded from a real VM by `php artisan arcpanel:record-fixtures` (runs the listed commands and stores output). The fake fails the test on any unexpected command, so controllers cannot silently call something new.
 
 ### 4.6 Logging
 
-Every call is logged at `debug` with command, masked args, exit code and duration to `storage/logs/hestia-command.log` (rotated daily, 7 files). At `info` only failures. Secrets never appear (see 12 §6).
+Every call is logged at `debug` with command, masked args, exit code and duration to `storage/logs/arc-command.log` (rotated daily, 7 files). At `info` only failures. Secrets never appear (see 12 §6).
 
 ---
 
@@ -186,7 +186,7 @@ The **legacy PHP session is the source of truth** for authentication until E8. L
 ```php
 final class LegacySession
 {
-    public function open(): void;        // session_name('HESTIASID'); session_save_path(...); session_start()
+    public function open(): void;        // session_name('ARCPANELSID'); session_save_path(...); session_start()
     public function read(): array;       // copy of $_SESSION
     public function write(array $patch): void;  // merge + session_write_close()
     public function close(): void;       // session_write_close() without changes (releases the file lock)
@@ -238,15 +238,9 @@ These are unit-tested against fixtures of each session state (Pest), and e2e-tes
 
 ### 5.5 Login on Laravel
 
-`LoginController` reproduces `web/login/index.php` with cleaner state handling:
+**Superseded by the [E1-S1 spec](../features/specs/2026-10-05-001-e1-laravel-foundation-slice1-design.md) §6** (2026-10-05). The earlier text here described the legacy flow wrongly: legacy login is `v-get-user-salt` → hash computed in PHP per method (`v-check-user-password … yes` only for yescrypt) → `v-check-user-hash` with the hash in a temp file, plus the `LOGIN_DISABLED` and `LOGIN_USE_IPLIST` checks. `LegacySession::establish()` writes only identity keys; system configuration keys are not copied because `web/inc/main.php` calls `load_hestia_config()` on every request.
 
-1. `POST /app/login {user, password}` → write password to a `Secret` temp file → `v-check-user-password USER FILE IP`. On failure: `v-log-user-login USER IP failed`-style call exactly as legacy, generic error.
-2. `v-list-user USER json`. If `LOGIN_DISABLED='yes'`, refuse. If `TWOFA` is set: store `pending_2fa_user` + expiry (5 min) in the **Laravel** session (never the password, unlike legacy) and redirect to `/app/login/2fa`.
-3. `POST /app/login/2fa {code}` → `v-check-user-2fa USER CODE`; three failures invalidate the pending state (legacy `failed_twofa > 2`).
-4. `LegacySession::establish($userRecord, $sysConfig)` writes every key legacy pages expect: `user`, `look=''`, `userContext=ROLE`, `role`, `login_shell`, `token` (32 hex), `LAST_ACTIVITY`, `user_combined_ip`, `language` (validated against `v-list-sys-languages`), `userTheme` (only when `POLICY_USER_CHANGE_THEME='yes'`), `userSortOrder`, and **all** `hestia.conf` keys from `v-list-sys-config json` (`VERSION`, `ROOT_USER`, `POLICY_*`, `INACTIVE_SESSION_TIMEOUT`, `DEBUG_MODE`, `RELEASE_BRANCH`, `LOGIN_STYLE`, `USE_SERVER_SMTP`, `SERVER_SMTP_*`, `DB_SYSTEM`, …) because `main.php` reads them from the session rather than from disk.
-5. `v-log-user-login USER IP success`, then redirect to `request_uri` if present, else the dashboard.
-
-Legacy `web/login/index.php` becomes a redirect to `/app/login` in the same release. Password reset (`web/reset/`) and 2FA reset (`web/reset2fa/`) stay legacy until E7.
+The cut-over is controlled by the `hestia.conf` key `ARCPANEL_APP_LOGIN` (`yes` by default): when `yes`, `web/login/index.php` redirects guests to `/app/login`; `no` restores the legacy form (spec §7). Password reset (`web/reset/`) and 2FA reset (`web/reset2fa/`) stay legacy until E7.
 
 ### 5.6 Read-only, demo and protected admin
 
@@ -276,7 +270,7 @@ When no legacy page remains, `LegacySession` stays as the session **handler** (s
 Defined fully in [03](./03-tenancy-and-authorization.md); E1 ships the skeleton:
 
 - `Role` enum (`admin`, `reseller`, `user`, `dnsCluster`) read from `userContext` / `ROLE`.
-- Middleware aliases: `auth.hestia` (Principal present), `role:admin`, `role:admin,reseller`, `not-readonly`, `effective-user` (resolves `{user}` route parameter to the effective user and authorizes visibility).
+- Middleware aliases: `auth.arc` (Principal present), `role:admin`, `role:admin,reseller`, `not-readonly`, `effective-user` (resolves `{user}` route parameter to the effective user and authorizes visibility).
 - Policies per object type registered in `AuthServiceProvider`, all delegating owner questions to `OwnerScope`. E1 implements `WebDomainPolicy`, `UserPolicy` (for impersonation) and `DashboardPolicy`.
 - CSRF: Laravel's `VerifyCsrfToken` for all Laravel forms. Links from Laravel into legacy pages that need `?token=` append `Principal::$csrfTokenLegacy`. `POLICY_CSRF_STRICTNESS` (legacy referer check) is also honoured by a `LegacyCsrfStrictness` middleware so admins see one behaviour.
 
@@ -295,17 +289,17 @@ Defined fully in [03](./03-tenancy-and-authorization.md); E1 ships the skeleton:
 
 | Situation                  | Legacy                                        | Panel app                                                                                                    |
 | -------------------------- | --------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| `v-*` fails                | `$_SESSION['error_msg']` shown in a top alert | `HestiaException` → flash `error` → same alert component (05)                                                |
+| `v-*` fails                | `$_SESSION['error_msg']` shown in a top alert | `ArcCommandException` → flash `error` → same alert component (05)                                                |
 | `v-*` succeeds             | `$_SESSION['ok_msg']`                         | flash `ok` → toast                                                                                           |
 | Validation (missing field) | inline `$_SESSION['error_msg']`               | Laravel FormRequest → inline field errors (05 form component)                                                |
 | Unknown exception          | PHP error page                                | Laravel handler: 500 page from `web/error/50x.html` styling; stack trace only when `DEBUG_MODE='true'`       |
-| `DEBUG_MODE='true'`        | debug panel (`debug_panel.php`)               | Laravel debug bar is **not** installed; a small `x-debug-panel` shows the last `HestiaCommand` calls instead |
+| `DEBUG_MODE='true'`        | debug panel (`debug_panel.php`)               | Laravel debug bar is **not** installed; a small `x-debug-panel` shows the last `ArcCommand` calls instead |
 
 ---
 
 ## 9. Packaging and configuration
 
-- `web-app/` is a standard Laravel 12 skeleton, PHP 8.5, `composer.json` with `"config": {"platform": {"php": "8.5"}}`; `vendor/` built in CI (`composer install --no-dev --prefer-dist --classmap-authoritative`) and shipped inside the `hestia` deb at `/usr/local/hestia/web-app/`.
+- `web-app/` is a standard Laravel 13 skeleton, PHP 8.5, `composer.json` with `"config": {"platform": {"php": "8.5"}}`; `vendor/` built in CI (`composer install --no-dev --prefer-dist --classmap-authoritative`) and shipped inside the `hestia` deb at `/usr/local/hestia/web-app/`.
 - Writable paths (`hestiaweb:hestiaweb 0750`; `uploads`/`downloads` `0700`): `web-app/storage/{framework/{cache,sessions,views},logs,tmp,uploads,downloads}`, `web-app/bootstrap/cache`. `uploads` and `downloads` are the File Manager staging areas ([06](./06-file-manager-v2.md) §6); `downloads` is exposed only through an `internal` NGINX location (`/_downloads/`, `X-Accel-Redirect`). Created by `install/hst-install-*.sh` and `install/upgrade/versions/<ver>.sh` (idempotent).
 - `/usr/local/hestia/conf/arcpanel.env` (`root:hestiaweb 0640`): `APP_KEY`, `APP_ENV=production`, `APP_DEBUG` (from `DEBUG_MODE`), `APP_URL_PREFIX=/app`. Generated once by `v-add-sys-arcpanel` (**new**, also runs `artisan optimize`, `storage:link`-free since assets are pre-built).
 - `php artisan optimize` (config, route, view caches) runs in the deb `postinst` and after each upgrade; `optimize:clear` on downgrade.
@@ -329,7 +323,7 @@ Defined fully in [03](./03-tenancy-and-authorization.md); E1 ships the skeleton:
 
 ## 11. Testing
 
-- **Pest unit:** `HestiaCommand` escaping, allow-list, error mapping, `Secret` masking; `LegacySession` against fixture session files in every state of §5.4; `Principal` read-only matrix.
+- **Pest unit:** `ArcCommand` escaping, allow-list, error mapping, `Secret` masking; `LegacySession` against fixture session files in every state of §5.4; `Principal` read-only matrix.
 - **Pest feature:** login (password, 2FA, disabled login, failed attempts), impersonation, logout, dashboard and web-domain pages with the fake; CSRF enforcement; read-only POST rejection.
 - **BATS:** `v-add-sys-arcpanel` idempotency; nginx config test (`hestia-nginx -t`) after install.
 - **Playwright (E10):** login on Laravel → open legacy `/list/dns/` → back to `/app/web/domains` with no re-login; login-as from Laravel visible in legacy; inactivity logout; both apps on Debian 12 and Ubuntu 24.04.
@@ -338,6 +332,6 @@ Defined fully in [03](./03-tenancy-and-authorization.md); E1 ships the skeleton:
 
 ## 12. Open questions
 
-1. Should `LegacySession::establish()` keep writing **all** `hestia.conf` keys into the session (legacy habit, large session file) or should legacy `main.php` be patched once to call `load_hestia_config()` when keys are missing? Recommendation: write all keys in E1 (zero legacy changes), drop them in E8.
-2. `Secret` via temp file requires the target `v-*` to accept a file path; `v-check-user-password` and `v-add-user` do, `v-change-user-password` does not. Audit the list in `config/hestia-commands.php` during E1 and prefer file-accepting commands; inline-with-masking is the fallback.
+1. ~~Should `LegacySession::establish()` write all `hestia.conf` keys into the session?~~ **Closed (2026-10-05):** no. Legacy `main.php:25` reloads them on every request.
+2. `Secret` via temp file requires the target `v-*` to accept a file path; `v-check-user-password` and `v-add-user` do, `v-change-user-password` does not. Audit the list in `config/arc-commands.php` during E1 and prefer file-accepting commands; inline-with-masking is the fallback.
 3. Laravel session driver `file` vs `array` for the panel's own session: `file` is needed for flash messages across the redirect; keep `file`, 2-hour lifetime, garbage collection by Laravel's lottery.

@@ -1,6 +1,6 @@
 # ADR-0001 — View layer: Blade + Alpine.js, with Vue 3 islands
 
-**Status:** Proposed · **Date:** 2026-10-04 · **Epic:** E1, E2
+**Status:** Accepted (2026-10-05) · **Date:** 2026-10-04 · **Epic:** E1, E2
 
 ## Context
 
@@ -22,6 +22,6 @@ The legacy UI is server-rendered PHP with Alpine.js for interactivity (`web/temp
 ## Consequences
 
 - Page migration stays cheap and mechanical ([10](../design/10-page-migration-and-retirement.md) §3).
-- Two component libraries exist (Blade/Alpine and Vue) but share design tokens, icons, i18n and the same JSON error contract from `HestiaCommand`.
+- Two component libraries exist (Blade/Alpine and Vue) but share design tokens, icons, i18n and the same JSON error contract from `ArcCommand`.
 - A later move to a full SPA (roadmap §7, post-2.0) remains possible because controllers already expose JSON for islands.
 - Alpine's CSP build is required for a nonce-based Content Security Policy ([12](../design/12-security-model.md)).

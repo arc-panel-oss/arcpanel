@@ -140,7 +140,7 @@ The matrix is encoded once in `web-app/app/Policies/Capabilities.php` as data (`
 ```php
 final class OwnerScope
 {
-    public function __construct(private HestiaCommand $hestia, private Principal $principal) {}
+    public function __construct(private ArcCommand $hestia, private Principal $principal) {}
 
     /** Usernames the principal may act on, or null for "all" (admin). */
     public function visibleUsers(): ?array;
@@ -185,7 +185,7 @@ Policies decide; the CLI still validates. A policy bug can only ever **widen** U
 
 - Blade templates and Vue components: they receive already-filtered data and a `can` map; they never compare usernames.
 - JavaScript: nothing security-relevant.
-- `HestiaCommand`: it does not know about roles.
+- `ArcCommand`: it does not know about roles.
 
 ---
 
@@ -242,7 +242,7 @@ sequenceDiagram
   participant R as Reseller (browser)
   participant L as Laravel
   participant P as UserPolicy / OwnerScope
-  participant H as HestiaCommand
+  participant H as ArcCommand
   participant C as v-add-reseller-user (root)
 
   R->>L: POST /app/customers {user, email, package, domain?}

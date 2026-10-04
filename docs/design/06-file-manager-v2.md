@@ -128,7 +128,7 @@ final class FileService
 | `GET /app/files/dl/{token}`                                                                                   | streams via `X-Accel-Redirect`                                                                     |
 | `GET api/snapshots?user=`, `api/snapshots/{id}/list?path=`, `POST api/snapshots/{id}/restore`                 | restic browser (`v-list-user-backups-restic`, `v-list-user-files-restic`, `v-restore-file-restic`) |
 
-All routes: `auth.hestia`, `effective-user`, `FilePolicy` (`view` = owner scope; `write` = owner scope ∧ `!isReadOnly()`), CSRF on mutations, `files.enabled` middleware (checks `FILE_MANAGER='true'` in `SysConfig`, i.e. the plugin toggle `v-add-sys-filemanager` / `v-delete-sys-filemanager`).
+All routes: `auth.arc`, `effective-user`, `FilePolicy` (`view` = owner scope; `write` = owner scope ∧ `!isReadOnly()`), CSRF on mutations, `files.enabled` middleware (checks `FILE_MANAGER='true'` in `SysConfig`, i.e. the plugin toggle `v-add-sys-filemanager` / `v-delete-sys-filemanager`).
 
 ---
 

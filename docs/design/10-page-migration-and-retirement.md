@@ -59,7 +59,7 @@ For every legacy module, in this order. The checklist is a PR template (`.github
 1. **Inventory** — grep the legacy dir for `v-` to list the commands and their argument order; list the `$_SESSION` policy keys and `$read_only` uses; note bulk actions in `web/bulk/<x>/index.php`.
 2. **Service** — `App\Services\<Module>Service` with one method per command, typed arguments, returning DTOs parsed from `json`; secrets through `Secret`. Fixtures recorded for tests ([02](./02-laravel-foundation.md) §4.5).
 3. **Policy** — `<Object>Policy` methods for every action, all via `Capabilities` + `OwnerScope` ([03](./03-tenancy-and-authorization.md) §7). Register.
-4. **Routes** — `routes/web/<module>.php`: `index`, `create`, `store`, `edit`, `update`, `destroy`, `suspend`, `unsuspend`, `bulk`, plus module-specific actions; names `<module>.<action>`; middleware `auth.hestia`, `effective-user`, `not-readonly` on mutations.
+4. **Routes** — `routes/web/<module>.php`: `index`, `create`, `store`, `edit`, `update`, `destroy`, `suspend`, `unsuspend`, `bulk`, plus module-specific actions; names `<module>.<action>`; middleware `auth.arc`, `effective-user`, `not-readonly` on mutations.
 5. **FormRequests** — validation mirrors the legacy `index.php` checks (required fields, formats); authorization delegated to the policy; messages reuse existing translation strings.
 6. **Controller** — thin: FormRequest → service → flash → redirect. No `exec`, no `$_SESSION`.
 7. **Views** — Blade with `x-ap-*` components only ([05](./05-design-system-and-frontend.md) §5); row actions and bulk bar; owner column for admin/reseller lists; every legacy string kept verbatim so translations apply.
@@ -112,11 +112,11 @@ New ArcPanel modules (Ports, Node, Apps, Templates) have their inventories in [0
 
 ### 5.2 Web Terminal page
 
-`/app/terminal` renders `<div class="js-web-terminal">` and loads the existing xterm bundles; the WebSocket stays `wss://host/_shell/` → `127.0.0.1:8085`, authenticated by the `HESTIASID` cookie — nothing changes on the server. Shown only when `WEB_TERMINAL='true'` and the effective user has a login shell (`Principal::$loginShell !== 'nologin'`). The same transport is extended for log streaming by [07](./07-node-platform.md) §6.4.
+`/app/terminal` renders `<div class="js-web-terminal">` and loads the existing xterm bundles; the WebSocket stays `wss://host/_shell/` → `127.0.0.1:8085`, authenticated by the `ARCPANELSID` cookie — nothing changes on the server. Shown only when `WEB_TERMINAL='true'` and the effective user has a login shell (`Principal::$loginShell !== 'nologin'`). The same transport is extended for log streaming by [07](./07-node-platform.md) §6.4.
 
 ### 5.3 Quick Install Apps
 
-- `web/src/app/WebApp/` moves to `web-app/app/QuickInstall/` (namespace `App\QuickInstall`), classes unchanged except namespace and the `HESTIA_CMD` calls inside `BaseSetup`/`InstallationTarget`, which are rewritten to use `HestiaCommand`. `web/src/composer.json` dependencies merge into `web-app/composer.json`.
+- `web/src/app/WebApp/` moves to `web-app/app/QuickInstall/` (namespace `App\QuickInstall`), classes unchanged except namespace and the `HESTIA_CMD` calls inside `BaseSetup`/`InstallationTarget`, which are rewritten to use `ArcCommand`. `web/src/composer.json` dependencies merge into `web-app/composer.json`.
 - `bin/v-quick-install-app` keeps working: it invokes PHP with the installer classes; its include path is updated to the new location by the 2.0 upgrade script (this is an ArcPanel-owned legacy bridge; the command's interface is unchanged).
 - UI: `/app/web/domains/{domain}/install` → `x-ap-card-picker` of installers (`InstallerInfo` icons served from `public/build/quick-install/`), options form generated from `getConfig('form')`, submit runs the installer; long installs run via the queue (`apps.pipe`) until E15.
 

@@ -44,7 +44,7 @@ flowchart TB
   subgraph panel["Panel stack (unchanged packages, user hestiaweb)"]
     hnginx[hestia-nginx :8083<br/>/ → Laravel public/index.php<br/>/_shell/ → ws]
     hphp[hestia-php 8.5 FPM]
-    laravel[Panel app — Laravel 12<br/>web-app/]
+    laravel[Panel app — Laravel 13<br/>web-app/]
     apiv1[REST API v1<br/>kept as-is, moved under Laravel routing]
     term[Web terminal ws :8085<br/>also streams logs]
   end
@@ -52,7 +52,7 @@ flowchart TB
   subgraph app["Panel app internals"]
     auth[Auth guard<br/>PHP session → Principal]
     policy[Policy layer<br/>role × owner × object]
-    hc[HestiaCommand<br/>sudo v-* json, escaping, error map, fake]
+    hc[ArcCommand<br/>sudo v-* json, escaping, error map, fake]
     svc[Domain services<br/>WebDomains · Users · Ports · NodeApps · DockerApps · Files]
     i18n[i18n<br/>generated from web/locale/*.po]
   end
@@ -94,7 +94,7 @@ What changes between the starting point (Appendix A) and 2.0:
 
 | Area          | 1.10.5                                                      | 2.0                                                                                                                                                    |
 | ------------- | ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Web UI        | `web/*/index.php` + `web/templates/pages/*.php`             | Laravel 12 in `web-app/`: controllers, Blade views, Vue islands; `web/` deleted except `web/api/` and static assets served by Laravel                  |
+| Web UI        | `web/*/index.php` + `web/templates/pages/*.php`             | Laravel 13 in `web-app/`: controllers, Blade views, Vue islands; `web/` deleted except `web/api/` and static assets served by Laravel                  |
 | Routing       | `hestia-nginx` serves PHP files from `web/`                 | `hestia-nginx` sends `/` to `web-app/public/index.php`; during migration `/app/*` only (ADR-0002)                                                      |
 | Auth          | `$_SESSION` checks in `main.php`                            | Laravel guard reading the same session (until E8), then a native session handler at the same path with the same keys so the web terminal keeps working |
 | Authorization | admin vs user via `userContext`; policies in `policies.php` | Policy classes: role × owner × object; the same classes back UI and API                                                                                |
@@ -185,12 +185,12 @@ sequenceDiagram
   participant N as hestia-nginx :8083
   participant L as Laravel (hestiaweb)
   participant P as Policy layer
-  participant H as HestiaCommand
+  participant H as ArcCommand
   participant S as sudo
   participant V as v-add-web-domain (root)
   participant Q as queue / nginx
 
-  B->>N: POST /app/web/domains (CSRF token, HESTIASID cookie)
+  B->>N: POST /app/web/domains (CSRF token, ARCPANELSID cookie)
   N->>L: fastcgi → web-app/public/index.php
   L->>L: SessionBridge: load PHP session → Principal(user, look, role)
   L->>P: authorize('create', WebDomain, effectiveUser)
@@ -201,7 +201,7 @@ sequenceDiagram
   V->>V: is_format_valid, is_object_valid, is_package_full
   V->>Q: write vhost from template; echo restart → restart.pipe
   V-->>H: exit 0 / stdout
-  H-->>L: CommandResult(ok, output) or HestiaException(code, message)
+  H-->>L: CommandResult(ok, output) or ArcCommandException(code, message)
   L-->>B: 303 → /app/web/domains?ok=1 (toast)
 ```
 
@@ -215,7 +215,7 @@ Unchanged in wire format. `web/api/index.php` stays until E7 moves it under Lara
 
 Until E15: a `v-*` command appends a line to a pipe (`data/queue/<name>.pipe`) and returns immediately; cron runs `v-update-sys-queue <name>`. The UI polls a `v-list-*` command for state. New pipes are added additively (`apps.pipe` for Docker installs, `node.pipe` for `npm ci`/builds) with their own cron entries installed by the upgrade script.
 
-Live output (build logs, container logs) is streamed through the existing web terminal WebSocket server (07 §6.4, 08 §6.5): the server already authenticates the `HESTIASID` cookie and already spawns processes as the effective user.
+Live output (build logs, container logs) is streamed through the existing web terminal WebSocket server (07 §6.4, 08 §6.5): the server already authenticates the `ARCPANELSID` cookie and already spawns processes as the effective user.
 
 ---
 
@@ -233,10 +233,10 @@ install/
   deb/templates/web/    .tpl/.stpl + <name>.json sidecars (E6)
   upgrade/              versions/*.sh + patch/ (upstream patches)
 web/                    legacy app — shrinks to web/api/ and static assets by E8
-web-app/                Laravel 12 panel app (E1)
+web-app/                Laravel 13 panel app (E1)
   app/
     Console/            artisan commands (i18n import, catalog sync)
-    Hestia/             HestiaCommand, CommandResult, exceptions, fakes
+    Hestia/             ArcCommand, CommandResult, exceptions, fakes
     Auth/               SessionBridge guard, Principal
     Policies/           per-object policies + OwnerScope
     Services/           WebDomains, Users, Resellers, Ports, Node, Docker, Files, Templates
@@ -246,7 +246,7 @@ web-app/                Laravel 12 panel app (E1)
     js/                 Alpine modules + Vue islands (E2, E3, E4, E14)
     lang/               generated from web/locale/*.po (do not edit by hand)
   routes/web.php, routes/api.php
-  tests/                Pest unit + feature (fake HestiaCommand)
+  tests/                Pest unit + feature (fake ArcCommand)
   public/               index.php + built assets
 src/deb/                hestia, hestia-nginx, hestia-php, web-terminal packaging (+ Laravel vendor in hestia)
 test/                   BATS (bin/) + e2e/ Playwright (E10)
@@ -272,11 +272,11 @@ docs/                   VitePress site, roadmap, current-features, design/, adr/
 | Panel latency | p95 < 300 ms for list pages on a 2 vCPU VPS | One `v-list-*` call per page; results cached per request; `v-list-sys-config` cached 60 s in the file cache |
 | Memory        | Panel stack < 150 MB RSS idle               | FPM pool unchanged (`pm.max_children` as today); opcache + `optimize`; no extra daemons until E15           |
 | Availability  | Panel outage does not affect hosted sites   | Panel stack and hosted services remain separate processes; pm2/Docker survive panel restarts                |
-| Security      | No new privileged path; no secrets in logs  | Only `v-*` through sudo; `HestiaCommand` masks arguments flagged secret; see 12                             |
+| Security      | No new privileged path; no secrets in logs  | Only `v-*` through sudo; `ArcCommand` masks arguments flagged secret; see 12                             |
 | Upgradability | Upstream merge < 1 day                      | Additive rule + CI diff check; `web/` replaced wholesale                                                    |
 | Accessibility | Lighthouse a11y ≥ 90 on every page          | Component library with keyboard and ARIA built in (05)                                                      |
 | i18n          | All 45+ languages keep working              | `.po` → Laravel lang import in CI; Crowdin stays the source                                                 |
-| Testability   | Every controller testable without a server  | `HestiaCommand` fake with recorded fixtures (02 §4.5)                                                       |
+| Testability   | Every controller testable without a server  | `ArcCommand` fake with recorded fixtures (02 §4.5)                                                       |
 
 ---
 
@@ -361,8 +361,8 @@ These are verified in the code and are load-bearing for everything that follows.
 | The panel's own NGINX runs as `hestiaweb`, listens on `8083 ssl`, `root /usr/local/hestia/web`, and passes `\.php$` to `unix:/run/hestia-php.sock`                                                                                                                                                                                                                  | `src/deb/nginx/nginx.conf`                                                  | The strangler route is one more `location` block in this file (see 02 §2)                                                                                                                                                                                                          |
 | PHP-FPM pool runs as `hestiaweb:hestiaweb`, bundled PHP 8.5                                                                                                                                                                                                                                                                                                         | `src/deb/php/php-fpm.conf`                                                  | Laravel runs as `hestiaweb`; no new system user is needed                                                                                                                                                                                                                          |
 | `hestiaweb ALL=NOPASSWD:/usr/local/hestia/bin/*`                                                                                                                                                                                                                                                                                                                    | `install/common/sudo/hestiaweb`                                             | The only privilege boundary between web and root is the `v-*` scripts' own argument validation. Nothing new is added to sudoers                                                                                                                                                    |
-| Every web action is `exec(HESTIA_CMD . "v-... " . quoteshellarg(...))` with `HESTIA_CMD = "/usr/bin/sudo /usr/local/hestia/bin/"`                                                                                                                                                                                                                                   | `web/inc/main.php:21`                                                       | `HestiaCommand` (02 §4) reproduces exactly this contract                                                                                                                                                                                                                           |
-| Session is PHP `files` handler, name `HESTIASID`, save path `$HESTIA/data/sessions`                                                                                                                                                                                                                                                                                 | `src/deb/php/php.ini`, `src/deb/web-terminal/web-terminal-session-auth.php` | The session bridge reads the same files; the web terminal already does this from Node                                                                                                                                                                                              |
+| Every web action is `exec(HESTIA_CMD . "v-... " . quoteshellarg(...))` with `HESTIA_CMD = "/usr/bin/sudo /usr/local/hestia/bin/"`                                                                                                                                                                                                                                   | `web/inc/main.php:21`                                                       | `ArcCommand` (02 §4) reproduces exactly this contract                                                                                                                                                                                                                           |
+| Session is PHP `files` handler, name `ARCPANELSID`, save path `$HESTIA/data/sessions`                                                                                                                                                                                                                                                                                 | `src/deb/php/php.ini`, `src/deb/web-terminal/web-terminal-session-auth.php` | The session bridge reads the same files; the web terminal already does this from Node                                                                                                                                                                                              |
 | Session keys: `user`, `look` (impersonated user), `userContext` (role at login), `role`, `login_shell`, `token` (CSRF), `LAST_ACTIVITY`, `INACTIVE_SESSION_TIMEOUT`, `user_combined_ip`, `DISABLE_IP_CHECK`, `language`, `userTheme`, `userSortOrder`, every `hestia.conf` key (`VERSION`, `POLICY_*`, `ROOT_USER`, …) and 2FA state under `login` / `failed_twofa` | `web/inc/main.php`, `web/login/index.php`                                   | The bridge must read these and nothing else; the legacy app keeps writing them until E8                                                                                                                                                                                            |
 | Role model today: `ROLE` is `user`, `admin` or `dns-cluster` in `user.conf`; admin checks use `$_SESSION["userContext"] === "admin"`; read-only mode computed in `web/inc/policies.php`                                                                                                                                                                             | `bin/v-change-user-role`, `web/inc/policies.php`                            | E11 adds `reseller` and `OWNER`; `func/main.sh:get_user_owner()` already greps `OWNER` from `user.conf` when `RESELLER_KEY` is set, so the key is upstream-blessed                                                                                                                 |
 | Data is flat files: `data/users/<user>/{user,web,dns,mail,db,cron,backup}.conf`, one object per line as `KEY='value'` pairs; packages in `data/packages/*.pkg`; access keys in `data/access-keys/`; legacy API keys in `data/keys/`                                                                                                                                 | `func/main.sh`, `bin/v-add-user`                                            | No database is introduced before 2.0; hosting state stays in these files forever. E15 (post-2.0) adds a SQLite file for panel-owned operational data only ([14](./14-later-backlog.md) §0.1). Laravel reads hosting state through `v-list-*` JSON, never from these files directly |

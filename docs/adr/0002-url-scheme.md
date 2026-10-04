@@ -1,6 +1,6 @@
 # ADR-0002 — URL scheme during the strangler migration
 
-**Status:** Proposed · **Date:** 2026-10-04 · **Epic:** E1, E8
+**Status:** Accepted (2026-10-05) · **Date:** 2026-10-04 · **Epic:** E1, E8
 
 ## Context
 

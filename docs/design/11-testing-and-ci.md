@@ -30,7 +30,7 @@ Non-goals: performance benchmarking in CI (measured manually per release), fuzzi
 flowchart TB
   e2e[Playwright e2e + Lighthouse<br/>disposable VM, 3 OS, nightly + release<br/>minutes: 25–40]
   bats[BATS — bin/ and func/<br/>systemd container, per PR<br/>minutes: 30–60]
-  feature[Pest feature — controllers, policies, pages<br/>HestiaCommandFake, per PR<br/>minutes: 2–4]
+  feature[Pest feature — controllers, policies, pages<br/>ArcCommandFake, per PR<br/>minutes: 2–4]
   unit[Pest unit · Vitest · PHPStan · lint · upstream-diff<br/>per PR<br/>minutes: 1–3]
   unit --> feature --> bats --> e2e
 ```
@@ -38,8 +38,8 @@ flowchart TB
 | Layer          | What it proves                                                                                                                                                                        | Runs                                                                | Owner of fixtures         |
 | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- | ------------------------- |
 | Lint + static  | formatting, ShellCheck errors, PHPStan level 6 on `web-app/`, Biome on JS/Vue, markdownlint, `composer audit`, `npm audit --audit-level=high`                                         | every PR, every push                                                | —                         |
-| Pest unit      | `HestiaCommand` escaping / allow-list / error mapping / `Secret` masking, `LegacySession`, `Principal`, `Capabilities`, `OwnerScope`, services with the fake                          | every PR                                                            | `web-app/tests/Fixtures/` |
-| Pest feature   | every Laravel route with each principal (admin, reseller A, reseller B, user) using `HestiaCommandFake`; asserts rendered data, redirects, flash messages, 404 on cross-tenant access | every PR                                                            | recorded fixtures         |
+| Pest unit      | `ArcCommand` escaping / allow-list / error mapping / `Secret` masking, `LegacySession`, `Principal`, `Capabilities`, `OwnerScope`, services with the fake                          | every PR                                                            | `web-app/tests/Fixtures/` |
+| Pest feature   | every Laravel route with each principal (admin, reseller A, reseller B, user) using `ArcCommandFake`; asserts rendered data, redirects, flash messages, 404 on cross-tenant access | every PR                                                            | recorded fixtures         |
 | Vitest         | Vue islands (File Manager, App Store, Node Apps) and Alpine component logic; jsdom; snapshot-free, behaviour tests with `@testing-library/vue` (already a devDependency)              | every PR                                                            | component fixtures        |
 | BATS           | each `v-*` command: arguments, exit codes, side effects on `data/`, generated configs, idempotency; additive hooks; patches applied                                                   | every PR touching `bin/`, `func/`, `install/`, `src/`; nightly full | the running container     |
 | Playwright e2e | real login, session bridge across legacy and Laravel, role matrix in UI + API, flagship flows (File Manager, Node app, Docker app, reseller onboarding), Lighthouse a11y              | nightly, release, label `e2e` on PR                                 | `test/e2e/seed.sh`        |
@@ -144,11 +144,11 @@ src/deb/hestia/control                 # Depends: adds nothing new today; placeh
 
 ### 6.2 Pest for `web-app/`
 
-- `HestiaCommandFake` (see [02](./02-laravel-foundation.md) §4.5) is bound in `tests/TestCase.php`; any unexpected command fails the test with the full argument list.
-- Fixtures: `web-app/tests/Fixtures/commands/<command>/<case>.json` plus `<case>.meta.json` (`exit`, `args`, `recorded_at`, `upstream_version`). Recorded by `php artisan hestia:record-fixtures --from tests/Fixtures/record-plan.yaml` on the e2e VM after `seed.sh`; the plan lists command + args + case name. A nightly job re-records and opens a PR when output shape changes (new keys, renamed fields) so the panel notices upstream format drift.
+- `ArcCommandFake` (see [02](./02-laravel-foundation.md) §4.5) is bound in `tests/TestCase.php`; any unexpected command fails the test with the full argument list.
+- Fixtures: `web-app/tests/Fixtures/commands/<command>/<case>.json` plus `<case>.meta.json` (`exit`, `args`, `recorded_at`, `upstream_version`). Recorded by `php artisan arcpanel:record-fixtures --from tests/Fixtures/record-plan.yaml` on the e2e VM after `seed.sh`; the plan lists command + args + case name. A nightly job re-records and opens a PR when output shape changes (new keys, renamed fields) so the panel notices upstream format drift.
 - Session fixtures: `tests/Fixtures/sessions/<state>.sess` (PHP-serialized) for every state in [02](./02-laravel-foundation.md) §5.4; `LegacySession` is pointed at a temp dir in tests.
-- Architecture tests (Pest `arch()`): controllers call no `exec`/`shell_exec`/`proc_open`; only `App\Hestia\*` uses Symfony Process; Blade files contain no `ROOT_USER`/`look`/`OWNER` string comparisons; every policy method calls `Capabilities::allows`.
-- Coverage gate: 80 % lines on `app/Hestia`, `app/Auth`, `app/Policies`, `app/Services`; reported, not gated, elsewhere.
+- Architecture tests (Pest `arch()`): controllers call no `exec`/`shell_exec`/`proc_open`; only `App\Arc\*` uses Symfony Process; Blade files contain no `ROOT_USER`/`look`/`OWNER` string comparisons; every policy method calls `Capabilities::allows`.
+- Coverage gate: 80 % lines on `app/Arc`, `app/Auth`, `app/Policies`, `app/Services`; reported, not gated, elsewhere.
 - PHPStan level 6 with `larastan`; baseline file committed and shrinking.
 
 ### 6.3 Vitest for the frontend
@@ -243,4 +243,4 @@ Full matrix: BATS on three OS, Playwright full groups on three browsers, Lightho
 
 1. Self-hosted runner budget for nightly LXC jobs (needed for reboot and Docker specs) — one small bare-metal host is enough; decide in Q1.
 2. Whether to gate Lighthouse **performance** as well as accessibility once baseline numbers exist (candidate for Q3).
-3. PHPStan level 6 vs 8 for new code: start at 6 with a baseline, raise per directory as `app/Hestia` and `app/Policies` reach 8.
+3. PHPStan level 6 vs 8 for new code: start at 6 with a baseline, raise per directory as `app/Arc` and `app/Policies` reach 8.

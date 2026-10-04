@@ -62,15 +62,20 @@ Effort sizing for this team: **S** ≤ 2 weeks · **M** 3–5 weeks · **L** 6�
 
 **Scope:**
 
-- Laravel 12 app in `web-app/` (or `app/`), built on the bundled `hestia-php` 8.5. `vendor/` shipped in the `hestia` deb package.
+- Laravel 13 app in `web-app/` (or `app/`), built on the bundled `hestia-php` 8.5. `vendor/` shipped in the `hestia` deb package.
 - `hestia-nginx` config: route a URL prefix (recommendation: `/app/*`, later the root) to Laravel's `public/index.php`; everything else keeps going to legacy `web/`.
 - **Session bridge:** a Laravel session handler/guard that reads the legacy PHP session (`$_SESSION['user']`, `login_shell`, `userContext`, 2FA state, "login as" state) so one login serves both apps.
-- `HestiaCommand` service: typed wrapper around `sudo /usr/local/hestia/bin/v-* ... json` with argument escaping, error mapping, and a fake for tests.
+- `ArcCommand` service: typed wrapper around `sudo /usr/local/hestia/bin/v-* ... json` with argument escaping, error mapping, and a fake for tests.
 - Policies/middleware mirroring the legacy checks: admin vs user, read-only/demo mode, suspended user read-only, system-administrator protection, CSRF.
 - i18n: import `web/locale/*.po` into Laravel language files (script), keep Crowdin workflow.
 - Packaging and upgrade: `install/deb/` and `install/upgrade/` changes to install the Laravel app and run its post-install steps (additive).
 
 **Success metric:** Login, Dashboard and the Web Domains list run on Laravel in production, with 2FA, "login as" and read-only mode working. **Effort:** L. **Outcome:** O2, O5.
+
+**Slices (2026-10-05):**
+
+1. **S1 — Plumbing + login.** Laravel 13 skeleton, nginx `/app/*`, `ArcCommand`, session bridge, Login/2FA/Logout behind the `ARCPANEL_APP_LOGIN` switch, impersonation endpoints, i18n import, packaging. **Design:** [E1-S1 spec](./features/specs/2026-10-05-001-e1-laravel-foundation-slice1-design.md).
+2. **S2 — Dashboard + Web Domains**, built together with the first E2 components.
 
 **Architecture decision to record in Q1 (ADR):** Blade + Alpine.js (closest to the existing stack, cheapest per page) vs. Inertia + Vue 3. **Recommendation:** Blade + Alpine for CRUD pages; Vue 3 islands only for highly interactive screens (File Manager, App Store, service editors). Vue 3 is already a dependency of the repo.
 
@@ -185,6 +190,7 @@ Every migrated page is built **reseller-aware from day one** (owner scoping from
 2. **R2 — Distribution identity (must, S–M, weeks 2–4).** Domain `arcpanel.top` and docs URL; GitHub `arc-panel-oss/arcpanel`; installer script name and URL; APT repository and signing key; deb package names; ArcPanel version scheme starting at `1.0.0` (`ARCPANEL_VERSION`; `VERSION` keeps the upstream base, see ADR-0006); own APT repository `apt.arcpanel.top` built and signed in GitHub Actions; update channel so ArcPanel servers no longer pull from HestiaCP servers; links to hestiacp.com/forum/donate replaced.
 3. **R3 — Compatibility layer (must, S, weeks 3–4; decided in ADR-0006, option B).** Administrators get ArcPanel names (`arcpanel*` packages, `/usr/local/arcpanel`, `$ARCPANEL`, `v-*-arcpanel-*` aliases, `arcpanel` service); internals (`/usr/local/hestia`, `HESTIA_*`, function names, gettext domain, `hestiaweb`) are not renamed and old names keep working.
 4. **R4 — Upgrade path from HestiaCP (deferred: fresh installs only, owner decision 2026-10-04).** In-place upgrade from HestiaCP 1.10.5 to ArcPanel keeps users, domains, mail, databases, backups and custom templates; covered by BATS on Debian 12 and Ubuntu 24.04.
+5. **R5 — Deep rename of internals (requested by owner 2026-10-05, not yet designed).** Rename `/usr/local/hestia`, `/etc/hestiacp`, `hestia.conf`, `HESTIA_*`, `hestiaweb`, the PHP-FPM socket and the gettext domain to ArcPanel names. Needs ADR-0007 to supersede ADR-0006 decision 1 and its own brainstorm, because it changes `bin/`, `func/` and `install/` and makes every upstream merge conflict. Until then the panel app reads every path from `config/arc.php`.
 
 **Success metric:** a fresh install shows no "Hestia" in the UI, emails, installer output or docs, except the attribution line; a CI check fails on new user-visible "Hestia" strings; in-place upgrade from HestiaCP 1.10.5 passes the BATS suite.
 
@@ -278,7 +284,7 @@ Every migrated page is built **reseller-aware from day one** (owner scoping from
 
 ### E10 — Testing and CI (continuous)
 
-**Scope:** Pest unit/feature tests for Laravel (fake `HestiaCommand`), Playwright e2e against a disposable Debian 12 VM/LXC built from `install/hst-install.sh`, keep existing BATS tests for `bin/`, GitHub Actions matrix (Debian 12/13, Ubuntu 24.04), lint already present (Prettier/Biome/markdownlint).
+**Scope:** Pest unit/feature tests for Laravel (fake `ArcCommand`), Playwright e2e against a disposable Debian 12 VM/LXC built from `install/hst-install.sh`, keep existing BATS tests for `bin/`, GitHub Actions matrix (Debian 12/13, Ubuntu 24.04), lint already present (Prettier/Biome/markdownlint).
 
 **Effort:** M to set up, then ongoing. **Outcome:** O2, O5.
 
@@ -300,7 +306,7 @@ These epics are **not** part of the 12-month capacity: §6 already books two dev
 
 **Scope:**
 
-- Laravel queue worker under a systemd unit. Each job wraps one or more `v-*` calls through `HestiaCommand` and stores status, timestamps, exit code and captured output (secrets masked).
+- Laravel queue worker under a systemd unit. Each job wraps one or more `v-*` calls through `ArcCommand` and stores status, timestamps, exit code and captured output (secrets masked).
 - Job types: backup and restore (`v-schedule-user-backup`, `v-schedule-user-restore`), Let's Encrypt requests (`v-schedule-letsencrypt-domain`), Quick Install Apps, Docker app install/update (E4), `npm ci` / build (E14), Git deploys (E20), migrations (E31).
 - UI: job drawer in the E2 notification tray (running / finished / failed), job detail with the log streamed over the Web Terminal WebSocket transport, retry or cancel when the command is idempotent. Visibility per role: user sees own jobs, reseller sees its tree, admin sees all.
 - Retention of 30 days; a failed job raises an alert through E16.
@@ -648,7 +654,7 @@ graph LR
 
 Hard blockers:
 
-- Nothing in E3, E4, E7, E11–E14 can ship without E1's session bridge and `HestiaCommand` service.
+- Nothing in E3, E4, E7, E11–E14 can ship without E1's session bridge and `ArcCommand` service.
 - E4 and E14 both need the port registry (E12) and their proxy templates from E6 batch 1 (`docker-proxy`, `nodejs-proxy`).
 - E14 needs a per-user Node runtime from E13 (pm2 is installed through nvm's npm).
 - E7 pages must be built on E11's owner model, so E11's data model and policies land before the bulk migration starts.
@@ -697,7 +703,7 @@ graph LR
 
 | Track A (dev 1) | Track B (dev 2) |
 | --- | --- |
-| **E1** Laravel skeleton, nginx routing, session bridge, `HestiaCommand`, policies, i18n import, packaging | **E6 batch 1** (8 templates incl. `docker-proxy`, `nodejs-proxy`, `nodejs-proxy-ws` + metadata sidecar format) |
+| **E1** Laravel skeleton, nginx routing, session bridge, `ArcCommand`, policies, i18n import, packaging | **E6 batch 1** (8 templates incl. `docker-proxy`, `nodejs-proxy`, `nodejs-proxy-ws` + metadata sidecar format) |
 | **E2** tokens, component library, shell, dashboard | **E11 part 1:** `OWNER` data model, `v-add-reseller-user`, `v-list-reseller-users`, `v-change-user-owner`, reseller counters, permission matrix as Laravel policies (used by every page from here on) |
 | First migrated pages: Login, Dashboard, Web Domains list/add/edit (proves the pattern end-to-end, built owner-aware) | **E12** port registry commands + package `PORTS` field; **E10** CI (Pest, Playwright on a test VM, upstream-diff check, visible-"Hestia" string check from E9) |
 
@@ -772,7 +778,7 @@ Same two tracks, about one quarter per wave. The order follows the backlog score
 | --- | --- | --- |
 | Session bridge between legacy PHP and Laravel is fragile (2FA, login-as, read-only mode) | Security regressions | Build it first in Q1 with Pest + e2e tests for every auth state; reuse the legacy session, do not duplicate it |
 | `sudo` + `v-*` from Laravel (different process user, env, `PATH`) | Commands fail or escalate | Keep the exact `HESTIA_CMD` model; whitelist in `install/common/sudo/`; integration tests on the VM |
-| Laravel `vendor/` size and PHP 8.5 compatibility in `hestia-php` | Packaging failures | Pin Laravel 12 LTS-ish releases; build the deb in CI from day one |
+| Laravel `vendor/` size and PHP 8.5 compatibility in `hestia-php` | Packaging failures | Pin Laravel 13 (decided in the E1-S1 spec); build the deb in CI from day one |
 | Docker on shared hosts (disk, ports, privilege) | Security/abuse | ADR in Q1 (rootless vs group mode); per-user cgroup limits from packages; admin can disable the store per package |
 | Upstream HestiaCP changes `web/` heavily | Merge pain | Irrelevant after we delete `web/`; only `bin/`/`func/`/`install/` are merged |
 | Two large epics (E3, E4) in one quarter with 1 dev | Slip | If only one dev: E3 in Q2, E4 MVP in Q3, shift E7 right; scope guards below |

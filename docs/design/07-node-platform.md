@@ -19,7 +19,7 @@ Non-goals: system-wide Node (the installer's `nodejs` package is for the web ter
 - The SSH/SFTP jail (`install/common/bubblewrap/jailbash`) bind-mounts `${HOME}` read-write and `/usr`, `/bin`, `/lib` read-only, so binaries under `~/.nvm` run inside the jail.
 - Web domain files live in `~/web/<domain>/` (`public_html`, `document_errors`, `stats`, …); `v-backup-user` archives the whole domain directory and `~/conf/web/<domain>/$WEB_SYSTEM.conf*`; `v-restore-user` re-renders templates with `rebuild_web_domain_conf`.
 - User directories outside `conf web dns tmp mail` are backed up unless listed in `USER=` of `backup-excludes.conf` (`v-update-user-backup-exclusions`).
-- The web terminal (`src/deb/web-terminal/server.js`) runs as root, validates the `HESTIASID` cookie through `web-terminal-session-auth.php`, checks the `Origin`, resolves the effective user (`look`), and spawns the user's shell with `node-pty` under the user's uid/gid. It refuses users with a `nologin` shell. Proxied at `/_shell/` by `hestia-nginx`.
+- The web terminal (`src/deb/web-terminal/server.js`) runs as root, validates the `ARCPANELSID` cookie through `web-terminal-session-auth.php`, checks the `Origin`, resolves the effective user (`look`), and spawns the user's shell with `node-pty` under the user's uid/gid. It refuses users with a `nologin` shell. Proxied at `/_shell/` by `hestia-nginx`.
 - No linger / `systemd --user` usage exists in the codebase today.
 
 ---
@@ -165,9 +165,9 @@ flowchart LR
 
 ### 6.1 Services and policies
 
-- `NodeRuntimeService` (`v-*-user-nvm`, `-node-version`, `-npm-package`, releases cache) and `NodeAppService` (apps, lifecycle, env, deploy) in `web-app/app/Services/Node/`, all through `HestiaCommand`.
+- `NodeRuntimeService` (`v-*-user-nvm`, `-node-version`, `-npm-package`, releases cache) and `NodeAppService` (apps, lifecycle, env, deploy) in `web-app/app/Services/Node/`, all through `ArcCommand`.
 - `NodePolicy`: `manageRuntimes` / `manageApps` = effective user is self (user), in tree (reseller), any (admin) **and** package `NODE='yes'`; `scale` additionally admin-only above package limits; `deploy` requires `GIT_URL`.
-- Long operations (`install`, `build`, `deploy`, runtime install) are started through `HestiaCommand::schedule()` into a new `node.pipe` processed by `v-update-sys-queue node` (additive cron line `*/1`), and the page polls `v-list-node-app` for `STATUS` while streaming the log (§6.4). E15 replaces the pipe with jobs; the UI contract (status + stream) stays.
+- Long operations (`install`, `build`, `deploy`, runtime install) are started through `ArcCommand::schedule()` into a new `node.pipe` processed by `v-update-sys-queue node` (additive cron line `*/1`), and the page polls `v-list-node-app` for `STATUS` while streaming the log (§6.4). E15 replaces the pipe with jobs; the UI contract (status + stream) stays.
 
 ### 6.2 Node Apps pages (Vue island)
 
@@ -185,7 +185,7 @@ Per-user dashboard card "Node apps: 2 online · 1 errored" from `v-list-node-app
 The web terminal server is the panel's only authenticated WebSocket endpoint; it is extended rather than duplicated.
 
 - **Protocol:** today the first bytes a client sends are pty input. New clients send a JSON **control frame** as the first text message: `{"type":"tail","target":"node:api.example.com","stream":"all","lines":200}`. If the first message is not valid JSON with a `type`, the connection behaves exactly as today (interactive shell) — zero change for existing clients. Targets: `node:<domain>` (this doc), `node-task:<domain>:<install|build|deploy>` (task logs), `docker:<app>` ([08](./08-app-store.md) §6.5), later `web:<domain>:access|error` (E18).
-- **Auth:** unchanged — `HESTIASID` cookie validated by `web-terminal-session-auth.php`, `Origin` must match the panel host/IPs, effective user = `look` or `user`. Additionally, for `tail` the server **does not** require a login shell (`nologin` users may read their own logs; the shell check stays for `type: shell`/legacy).
+- **Auth:** unchanged — `ARCPANELSID` cookie validated by `web-terminal-session-auth.php`, `Origin` must match the panel host/IPs, effective user = `look` or `user`. Additionally, for `tail` the server **does not** require a login shell (`nologin` users may read their own logs; the shell check stays for `type: shell`/legacy).
 - **Authorization:** the server resolves the target to a file set **owned by the effective user**: `node:<domain>` → `/home/<user>/web/<domain>/nodeapp/logs/*.log`, verified with `readlink -f` inside `/home/<user>/` and `stat` uid == effective uid; anything else is refused with close code 4403. Reseller/admin impersonation already yields the customer as effective user, so no role logic lives in the server.
 - **Execution:** `spawn('/usr/local/hestia/bin/v-list-node-app-logs', [user, domain, lines, stream, '--follow'])` as root is avoided; instead the server spawns `tail -n <lines> -F <files>` **as the effective user** (uid/gid from `/etc/passwd`, same as the pty path) with `node-pty` disabled (plain `child_process.spawn`), forwards stdout lines as text frames, kills the child on socket close, and limits one `tail` per socket and 4 sockets per user. Output is rate-limited (max 1,000 lines/s, then dropped with a `{"type":"notice","dropped":n}` frame).
 - **Client:** a small `useLogStream(target)` composable used by the Node Apps, Docker Apps and task panels; reconnects with backoff; renders into an xterm.js read-only instance (already bundled) for ANSI colours from pm2.
@@ -226,7 +226,7 @@ The web terminal server is the panel's only authenticated WebSocket endpoint; it
 ## 9. Testing
 
 - **BATS (`test/node.bats`):** `v-add-user-nvm` idempotent; install LTS from a pre-seeded cache offline; package limits (`NODE_VERSIONS`, `NODE_ALLOWED`, `NODE_APPS`) return `E_LIMIT`/`E_DISABLED`; `v-add-node-app` on a domain → `nginx -t` passes, `curl -H Host` through the proxy returns the app's response, `data/ports/<user>.conf` has `APP='node:<domain>'`; reboot simulation (`systemctl --user --machine … restart pm2-user`) → app back; backup → delete user → restore → app online on the same port; suspend stops the daemon; `v-rebuild-user` keeps everything.
-- **Pest:** `NodeAppService` with the `HestiaCommand` fake (argument order, temp-file env handling); `NodePolicy` matrix for admin/reseller/user and `NODE='no'`; `useLogStream` protocol parser unit tests (Vitest) for the control frame and fallback.
+- **Pest:** `NodeAppService` with the `ArcCommand` fake (argument order, temp-file env handling); `NodePolicy` matrix for admin/reseller/user and `NODE='no'`; `useLogStream` protocol parser unit tests (Vitest) for the control frame and fallback.
 - **Web terminal (Vitest + integration on the VM):** legacy first-message still opens a shell; `tail` frame with a foreign domain is refused (4403); `nologin` user can tail but not shell.
 - **Playwright (roadmap metric):** from an empty `developer`-package user, deploy an Express app and a Next.js app on two domains with Let's Encrypt staging in **< 5 minutes** wall-clock in the test; reboot the VM; both answer over HTTPS; logs visible live in the panel; reseller sees the customer's apps and cannot see another tree's.
 

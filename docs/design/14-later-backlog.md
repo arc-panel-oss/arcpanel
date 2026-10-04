@@ -29,11 +29,11 @@ Until E15 the panel has no database: the CLI's flat files are the state. Job rec
 
 **Goal:** every operation longer than a few seconds is a visible job with live output, result and retry.
 
-- **Worker:** `arcpanel-worker.service` (systemd) runs `php artisan queue:work --queue=jobs` as **`hestiaweb`** — not root. Jobs call `v-*` through `HestiaCommand` exactly as web requests do, so the privilege model is unchanged. Concurrency 2 by default (`JOB_WORKERS` in `hestia.conf`). Laravel queue driver `database` on the SQLite connection (§0.1).
-- **Job record:** `jobs_log` table: `id, type, user, owner, actor, state (queued|running|done|failed|cancelled), started_at, finished_at, exit_code, command (masked), output_path, retryable, parent_id`. Output is written to `/usr/local/hestia/data/arcpanel/jobs/<id>.log` (`0640 hestiaweb`), streamed to the browser through the ws `stream` type (`kind: job`), with secrets masked by `HestiaCommand` before writing.
+- **Worker:** `arcpanel-worker.service` (systemd) runs `php artisan queue:work --queue=jobs` as **`hestiaweb`** — not root. Jobs call `v-*` through `ArcCommand` exactly as web requests do, so the privilege model is unchanged. Concurrency 2 by default (`JOB_WORKERS` in `hestia.conf`). Laravel queue driver `database` on the SQLite connection (§0.1).
+- **Job record:** `jobs_log` table: `id, type, user, owner, actor, state (queued|running|done|failed|cancelled), started_at, finished_at, exit_code, command (masked), output_path, retryable, parent_id`. Output is written to `/usr/local/hestia/data/arcpanel/jobs/<id>.log` (`0640 hestiaweb`), streamed to the browser through the ws `stream` type (`kind: job`), with secrets masked by `ArcCommand` before writing.
 - **Replacing pipes:** the panel no longer appends to `data/queue/*.pipe` for user-initiated backups, restores and Let's Encrypt; it runs `v-backup-user` etc. directly inside a job with `Options::timeout` of hours. Cron-driven pipes (`v-update-sys-queue`) stay for system jobs. `v-schedule-*` remain for CLI/API users; `v-list-sys-jobs` (**new**) merges both views (pipe content + SQLite) for the UI.
 - **Commands (new):** `v-list-sys-jobs [USER] [FORMAT]`, `v-delete-sys-job-logs DAYS` (retention 30 days, cron).
-- **Laravel:** `Jobs\RunHestiaCommand`, `JobService::dispatch(type, user, command, args, retryable)`, `JobPolicy` (user: own; reseller: tree; admin: all), job drawer component in the notification tray, job detail page with live log, retry when `retryable` (idempotent commands only, declared in `config/hestia-commands.php`), cancel = `SIGTERM` to the child process group.
+- **Laravel:** `Jobs\RunArcCommand`, `JobService::dispatch(type, user, command, args, retryable)`, `JobPolicy` (user: own; reseller: tree; admin: all), job drawer component in the notification tray, job detail page with live log, retry when `retryable` (idempotent commands only, declared in `config/arc-commands.php`), cancel = `SIGTERM` to the child process group.
 - **Dependencies:** [02](./02-laravel-foundation.md) §4, ws transport, SQLite §0.1.
 - **Risk:** worker crash leaves jobs `running` → a heartbeat column and `v-check-sys-jobs` (cron) marks stale jobs failed and raises an E16 alert.
 
@@ -65,7 +65,7 @@ Until E15 the panel has no database: the CLI's flat files are the state. Job rec
 - **Event schema** (`web-app/app/Audit/Event.php`, JSON): `ts`, `id` (ULID), `actor` (login user or API key id), `effective_user`, `role`, `ip`, `user_agent_hash`, `action` (the `Capabilities` key, e.g. `web.domains.create`), `object` (`type:id`), `result` (`ok|denied|error:E_LIMIT`), `job_id?`, `meta` (masked arguments), `prev_hash`, `hash`.
 - **Storage:** append-only JSONL `data/audit/YYYY-MM-DD.jsonl` written by `v-add-sys-audit-event` (**new**, root; the panel passes the event as a JSON argument via temp file) so `hestiaweb` cannot rewrite history; `hash = sha256(prev_hash + line)`, daily chain anchored in `data/audit/YYYY-MM-DD.anchor` and reported by E17. SQLite index (`audit_index`: ts, actor, effective_user, owner, action, object → file offset) for queries.
 - **Ingestion:** `v-log-action` output (`history.log`) and the auth log are tailed nightly into the same stream with `actor=cli|api`, so CLI/API activity appears beside UI activity; the E11 impersonation start/stop become explicit `auth.impersonate.start|stop` events.
-- **Emission points:** one `AuditMiddleware` after the policy decision records `denied`; services record `ok|error` after the `HestiaCommand` result. No per-controller code.
+- **Emission points:** one `AuditMiddleware` after the policy decision records `denied`; services record `ok|error` after the `ArcCommand` result. No per-controller code.
 - **Commands (new):** `v-add-sys-audit-event`, `v-list-sys-audit DAYS [USER] [FORMAT]`, `v-verify-sys-audit DAYS` (chain check), `v-export-sys-audit` (CSV/JSON), optional syslog forwarding setting `AUDIT_SYSLOG='yes'`.
 - **Laravel:** Audit page — admin all, reseller tree read-only (filter `owner` in tree), user keeps the existing log page; retention setting `AUDIT_RETENTION_DAYS`.
 - **Risk:** event volume on busy API servers → index only, files rotate daily, compression after 7 days.
@@ -185,7 +185,7 @@ Until E15 the panel has no database: the CLI's flat files are the state. Job rec
 
 **Goal:** integrations without polling and a documented API.
 
-- **OpenAPI 3** spec for `web/api/index.php` generated from `config/hestia-commands.php` plus per-command metadata (`info:`/`options:` headers already present in every `v-*`, parsed by a build script — `src/hst_generate_clidocs.sh` already does similar), permission sets documented; published on the docs site.
+- **OpenAPI 3** spec for `web/api/index.php` generated from `config/arc-commands.php` plus per-command metadata (`info:`/`options:` headers already present in every `v-*`, parsed by a build script — `src/hst_generate_clidocs.sh` already does similar), permission sets documented; published on the docs site.
 - **Events:** the E23 audit stream filtered to a public subset (`user.created`, `user.suspended`, `domain.added`, `ssl.renewed`, `backup.failed`, `app.installed`, `job.failed`, …); subscriptions in SQLite `webhooks` (url, events, scope = owner tree, secret id); secrets in `data/secrets/<user>/webhooks/<id>`.
 - **Delivery:** the E16 channel sender's generic webhook: HMAC-SHA256 header, retries with exponential backoff (5 attempts), SQLite `webhook_deliveries` log with response code and body excerpt.
 - **Commands (new):** `v-add-user-webhook`, `v-delete-user-webhook`, `v-list-user-webhooks`, `v-list-user-webhook-deliveries`.
@@ -241,6 +241,6 @@ Until E15 the panel has no database: the CLI's flat files are the state. Job rec
 
 - **Opt-in:** `AI_ASSISTANT='no'` default; admin enables per role (`AI_ROLES`), provider and model in `hestia.conf`, API key in `data/secrets/system/ai/<provider>`; calls go through a Laravel `AiGateway` with per-user daily quota.
 - **Inputs:** an error-log excerpt (E18), a failed E15 job's masked output, an E17 finding. **Redaction** before sending: secrets (already masked), emails, IPs, hostnames mapped to placeholders; never mail bodies or database content; the user sees a preview of the exact payload and confirms.
-- **Outputs:** explanation + optional proposed `v-*` command rendered as a **button the user must click**, validated against `config/hestia-commands.php` and the user's policies before it is offered; executed as a normal E15 job. Config snippets (NGINX/PHP) are offered as text for manual review.
+- **Outputs:** explanation + optional proposed `v-*` command rendered as a **button the user must click**, validated against `config/arc-commands.php` and the user's policies before it is offered; executed as a normal E15 job. Config snippets (NGINX/PHP) are offered as text for manual review.
 - **Audit:** every request/response pair recorded as an E23 event (`ai.request`, with the redacted payload hash and token counts).
 - **Risk:** prompt injection via log content → the model output is never executed or rendered as HTML; only the fixed command allow-list and policies decide what is runnable.
