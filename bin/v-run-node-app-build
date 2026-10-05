@@ -1,0 +1,98 @@
+#!/bin/bash
+# info: run the build script of a Node.js app (E14)
+# options: USER DOMAIN [SCRIPT]
+#
+# example: v-run-node-app-build alice shop.example.com
+# example: v-run-node-app-build alice shop.example.com build:prod
+#
+# This function runs a script of package.json (default build) in the
+# working directory of the app as the user, with the app's runtime. The
+# output goes to logs/build.log of the app. A running app is reloaded when
+# the script succeeds. The panel runs it as a task
+# (v-start-user-node-task USER app-build DOMAIN [SCRIPT]).
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+user=$1
+domain=$2
+script=${3:-build}
+
+# Includes
+# shellcheck source=/etc/hestiacp/hestia.conf
+source /etc/hestiacp/hestia.conf
+# shellcheck source=/usr/local/hestia/func/main.sh
+source $HESTIA/func/main.sh
+# shellcheck source=/usr/local/hestia/func/tenancy.sh
+source $HESTIA/func/tenancy.sh
+# shellcheck source=/usr/local/hestia/func/nodeapp.sh
+source $HESTIA/func/nodeapp.sh
+# load config file
+source_conf "$HESTIA/conf/hestia.conf"
+
+# Additional argument formatting
+format_domain
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '2' "$#" 'USER DOMAIN [SCRIPT]'
+is_format_valid 'user' 'domain'
+is_object_valid 'user' 'USER' "$user"
+is_object_unsuspended 'user' 'USER' "$user"
+node_check_enabled_package "$user"
+nodeapp_check_app "$user" "$domain" any
+if ! [[ "$script" =~ ^[A-Za-z0-9][A-Za-z0-9:._-]{0,63}$ ]]; then
+	check_result "$E_INVALID" "invalid script :: $script"
+fi
+dir=$(nodeapp_cwd_path "$user" "$domain" "$(nodeapp_get "$user" "$domain" CWD)")
+nodeapp_check_inside "$user" "$domain" "$dir"
+if ! node_as_user "$user" test -f "$dir/package.json"; then
+	check_result "$E_NOTEXIST" "package.json does not exist in $(nodeapp_get "$user" "$domain" CWD)"
+fi
+if ! runtime=$(nodeapp_runtime "$user" "$(nodeapp_get "$user" "$domain" NODE_VERSION)"); then
+	check_result "$E_NOTEXIST" "the runtime of the app is not installed"
+fi
+if ! node_as_user "$user" cat "$dir/package.json" | jq -e --arg s "$script" '.scripts[$s] | type == "string"' > /dev/null 2>&1; then
+	check_result "$E_NOTEXIST" "package.json has no script \"$script\""
+fi
+
+# Perform verification if read-only mode is enabled
+check_hestia_demo_mode
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+log="$(nodeapp_dir "$user" "$domain")/logs/build.log"
+node_as_user "$user" bash -c 'umask 027; mkdir -p "${1%/*}" && [ ! -L "$1" ]' log "$log"
+check_result $? "the log folder of the app is not usable" "$E_FORBIDEN"
+echo "$ npm run $script (Node.js v$runtime, $dir)"
+NODE_RUN_VERSION="$runtime" node_as_user_long "$user" bash -c '
+	cd "$1" || exit 1
+	log=$2
+	shift 2
+	"$@" 2>&1 | tee "$log"
+	exit "${PIPESTATUS[0]}"' build "$dir" "$log" npm run "$script"
+rc=$?
+if [ "$rc" -eq 124 ] || [ "$rc" -eq 137 ]; then
+	check_result "$E_CONNECT" "npm run $script did not finish within $((NODE_NPM_TIMEOUT / 60)) minutes"
+fi
+check_result "$rc" "npm run $script failed" "$E_INVALID"
+if [ "$(nodeapp_get "$user" "$domain" SUSPENDED)" = 'no' ] && [ "$(nodeapp_status "$user" "$domain")" = 'online' ]; then
+	echo "Reloading the app"
+	"$BIN/v-reload-node-app" "$user" "$domain"
+fi
+
+#----------------------------------------------------------#
+#                       Hestia                             #
+#----------------------------------------------------------#
+
+# Logging
+$BIN/v-log-action "$user" "Info" "Node.js" "Node.js app built (Domain: $domain, Script: $script)."
+log_event "$OK" "$ARGUMENTS"
+
+exit

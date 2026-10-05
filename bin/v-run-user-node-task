@@ -48,6 +48,8 @@ case "$action" in
 	add-package) command=v-add-user-npm-package ;;
 	update-packages) command=v-update-user-npm-packages ;;
 	check-outdated) command=v-check-user-npm-outdated ;;
+	app-install) command=v-run-node-app-install ;;
+	app-build) command=v-run-node-app-build ;;
 	*) check_result "$E_INVALID" "invalid action :: $action" ;;
 esac
 

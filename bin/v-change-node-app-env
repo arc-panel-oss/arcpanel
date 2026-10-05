@@ -1,0 +1,96 @@
+#!/bin/bash
+# info: replace the environment of a Node.js app (E14)
+# options: USER DOMAIN FILE
+#
+# example: v-change-node-app-env alice api.example.com /tmp/env.txt
+#
+# This function replaces the .env file of the app with FILE: KEY=value
+# lines (blank lines and # comments are kept), at most 200 lines and 64 KB.
+# PORT, HOST, NODE_ENV and PATH are set by the panel and cannot be set
+# here. A running app is restarted. Values are never logged.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+user=$1
+domain=$2
+file=$3
+
+# Includes
+# shellcheck source=/etc/hestiacp/hestia.conf
+source /etc/hestiacp/hestia.conf
+# shellcheck source=/usr/local/hestia/func/main.sh
+source $HESTIA/func/main.sh
+# shellcheck source=/usr/local/hestia/func/tenancy.sh
+source $HESTIA/func/tenancy.sh
+# shellcheck source=/usr/local/hestia/func/nodeapp.sh
+source $HESTIA/func/nodeapp.sh
+# load config file
+source_conf "$HESTIA/conf/hestia.conf"
+
+# Additional argument formatting
+format_domain
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '3' "$#" 'USER DOMAIN FILE'
+is_format_valid 'user' 'domain'
+is_object_valid 'user' 'USER' "$user"
+is_object_unsuspended 'user' 'USER' "$user"
+node_check_enabled_package "$user"
+nodeapp_check_app "$user" "$domain" any
+if [ ! -f "$file" ] || [ -L "$file" ]; then
+	check_result "$E_NOTEXIST" "file $file does not exist"
+fi
+if [ "$(stat -c %s "$file")" -gt 65536 ]; then
+	check_result "$E_INVALID" "the environment is larger than 64 KB"
+fi
+if [ "$(tr -d '\000' < "$file" | wc -c)" -ne "$(stat -c %s "$file")" ]; then
+	check_result "$E_INVALID" "the environment contains binary data"
+fi
+content=$(tr -d '\r' < "$file")
+if [ "$(printf '%s\n' "$content" | grep -c .)" -gt 200 ]; then
+	check_result "$E_INVALID" "the environment has more than 200 lines"
+fi
+while IFS= read -r line; do
+	case "$line" in
+		'' | '#'*) continue ;;
+	esac
+	if ! [[ "$line" =~ ^([A-Za-z_][A-Za-z0-9_]*)= ]]; then
+		check_result "$E_INVALID" "invalid line :: ${line%%=*} (KEY=value)"
+	fi
+	case "${BASH_REMATCH[1]}" in
+		PORT | HOST | NODE_ENV | PATH)
+			check_result "$E_INVALID" "${BASH_REMATCH[1]} is set by the panel"
+			;;
+	esac
+done <<< "$content"
+
+# Perform verification if read-only mode is enabled
+check_hestia_demo_mode
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+nodeapp_lock "$user"
+dir=$(nodeapp_dir "$user" "$domain")
+node_as_user "$user" bash -c 'umask 027; mkdir -p "$1" && [ ! -L "$1" ]' dir "$dir"
+check_result $? "the folder of the app is not usable ($dir)" "$E_FORBIDEN"
+printf '%s\n' "$content" | node_as_user "$user" bash -c 'umask 077; [ ! -L "$1" ] && cat > "$1.tmp" && chmod 600 "$1.tmp" && mv -f "$1.tmp" "$1"' env "$dir/.env"
+check_result $? "the environment could not be written" "$E_FORBIDEN"
+nodeapp_apply "$user" "$domain"
+
+#----------------------------------------------------------#
+#                       Hestia                             #
+#----------------------------------------------------------#
+
+# Logging
+$BIN/v-log-action "$user" "Info" "Node.js" "Node.js app environment changed (Domain: $domain)."
+log_event "$OK" "$user $domain"
+
+exit

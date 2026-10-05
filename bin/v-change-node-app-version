@@ -1,0 +1,71 @@
+#!/bin/bash
+# info: change the Node.js runtime of an app (E14)
+# options: USER DOMAIN NODE_VERSION
+#
+# example: v-change-node-app-version alice api.example.com 22.11.0
+# example: v-change-node-app-version alice api.example.com default
+#
+# This function runs the app with another installed runtime, or with the
+# user's default runtime ("default"). A running app is restarted.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+user=$1
+domain=$2
+version=${3#v}
+
+# Includes
+# shellcheck source=/etc/hestiacp/hestia.conf
+source /etc/hestiacp/hestia.conf
+# shellcheck source=/usr/local/hestia/func/main.sh
+source $HESTIA/func/main.sh
+# shellcheck source=/usr/local/hestia/func/tenancy.sh
+source $HESTIA/func/tenancy.sh
+# shellcheck source=/usr/local/hestia/func/nodeapp.sh
+source $HESTIA/func/nodeapp.sh
+# load config file
+source_conf "$HESTIA/conf/hestia.conf"
+
+# Additional argument formatting
+format_domain
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '3' "$#" 'USER DOMAIN NODE_VERSION'
+is_format_valid 'user' 'domain'
+is_object_valid 'user' 'USER' "$user"
+is_object_unsuspended 'user' 'USER' "$user"
+node_check_enabled_package "$user"
+nodeapp_check_app "$user" "$domain" any
+if [ "$version" != 'default' ] && [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+	check_result "$E_INVALID" "invalid version :: $version (X.Y.Z or default)"
+fi
+if ! runtime=$(nodeapp_runtime "$user" "$version"); then
+	check_result "$E_NOTEXIST" "Node.js $version is not installed for $user"
+fi
+
+# Perform verification if read-only mode is enabled
+check_hestia_demo_mode
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+nodeapp_lock "$user"
+nodeapp_set "$user" "$domain" "NODE_VERSION=$version"
+nodeapp_apply "$user" "$domain"
+
+#----------------------------------------------------------#
+#                       Hestia                             #
+#----------------------------------------------------------#
+
+# Logging
+$BIN/v-log-action "$user" "Info" "Node.js" "Node.js app runtime changed (Domain: $domain, Runtime: $runtime)."
+log_event "$OK" "$ARGUMENTS"
+
+exit

@@ -1,0 +1,105 @@
+#!/bin/bash
+# info: install the dependencies of a Node.js app (E14)
+# options: USER DOMAIN
+#
+# example: v-run-node-app-install alice api.example.com
+#
+# This function installs the dependencies of the app in its working
+# directory as the user, with the app's runtime: pnpm install
+# --frozen-lockfile with pnpm-lock.yaml, yarn install (--immutable for Yarn
+# 2 and later, --frozen-lockfile for Yarn 1) with yarn.lock, npm ci with
+# package-lock.json, npm install otherwise. The output goes to
+# logs/install.log of the app. The panel runs it as a task
+# (v-start-user-node-task USER app-install DOMAIN).
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+user=$1
+domain=$2
+
+# Includes
+# shellcheck source=/etc/hestiacp/hestia.conf
+source /etc/hestiacp/hestia.conf
+# shellcheck source=/usr/local/hestia/func/main.sh
+source $HESTIA/func/main.sh
+# shellcheck source=/usr/local/hestia/func/tenancy.sh
+source $HESTIA/func/tenancy.sh
+# shellcheck source=/usr/local/hestia/func/nodeapp.sh
+source $HESTIA/func/nodeapp.sh
+# load config file
+source_conf "$HESTIA/conf/hestia.conf"
+
+# Additional argument formatting
+format_domain
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '2' "$#" 'USER DOMAIN'
+is_format_valid 'user' 'domain'
+is_object_valid 'user' 'USER' "$user"
+is_object_unsuspended 'user' 'USER' "$user"
+node_check_enabled_package "$user"
+nodeapp_check_app "$user" "$domain" any
+dir=$(nodeapp_cwd_path "$user" "$domain" "$(nodeapp_get "$user" "$domain" CWD)")
+nodeapp_check_inside "$user" "$domain" "$dir"
+if ! node_as_user "$user" test -f "$dir/package.json"; then
+	check_result "$E_NOTEXIST" "package.json does not exist in $(nodeapp_get "$user" "$domain" CWD)"
+fi
+if ! runtime=$(nodeapp_runtime "$user" "$(nodeapp_get "$user" "$domain" NODE_VERSION)"); then
+	check_result "$E_NOTEXIST" "the runtime of the app is not installed"
+fi
+rdir=$(node_version_dir "$user" "$runtime")
+if node_as_user "$user" test -f "$dir/pnpm-lock.yaml"; then
+	command=(pnpm install --frozen-lockfile)
+elif node_as_user "$user" test -f "$dir/yarn.lock"; then
+	if node_as_user "$user" test -f "$dir/.yarnrc.yml"; then
+		command=(yarn install --immutable)
+	else
+		command=(yarn install --frozen-lockfile --non-interactive)
+	fi
+elif node_as_user "$user" test -f "$dir/package-lock.json" || node_as_user "$user" test -f "$dir/npm-shrinkwrap.json"; then
+	command=(npm ci --no-fund --no-audit)
+else
+	command=(npm install --no-fund --no-audit)
+fi
+if ! node_as_user "$user" test -x "$rdir/bin/${command[0]}"; then
+	check_result "$E_NOTEXIST" "${command[0]} is not installed for Node.js v$runtime (add it on the Node.js page)"
+fi
+
+# Perform verification if read-only mode is enabled
+check_hestia_demo_mode
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+log="$(nodeapp_dir "$user" "$domain")/logs/install.log"
+node_as_user "$user" bash -c 'umask 027; mkdir -p "${1%/*}" && [ ! -L "$1" ]' log "$log"
+check_result $? "the log folder of the app is not usable" "$E_FORBIDEN"
+echo "$ ${command[*]} (Node.js v$runtime, $dir)"
+NODE_RUN_VERSION="$runtime" node_as_user_long "$user" bash -c '
+	cd "$1" || exit 1
+	log=$2
+	shift 2
+	"$@" 2>&1 | tee "$log"
+	exit "${PIPESTATUS[0]}"' install "$dir" "$log" "${command[@]}"
+rc=$?
+if [ "$rc" -eq 124 ] || [ "$rc" -eq 137 ]; then
+	check_result "$E_CONNECT" "${command[0]} did not finish within $((NODE_NPM_TIMEOUT / 60)) minutes"
+fi
+check_result "$rc" "${command[0]} could not install the dependencies" "$E_INVALID"
+
+#----------------------------------------------------------#
+#                       Hestia                             #
+#----------------------------------------------------------#
+
+# Logging
+$BIN/v-log-action "$user" "Info" "Node.js" "Node.js app dependencies installed (Domain: $domain, Command: ${command[0]})."
+log_event "$OK" "$ARGUMENTS"
+
+exit

@@ -1,0 +1,69 @@
+#!/bin/bash
+# info: reload the Node.js app of a web domain (E14)
+# options: USER DOMAIN
+#
+# example: v-reload-node-app alice api.example.com
+#
+# This function reloads a running app with pm2 (zero downtime in cluster
+# mode); a stopped app is started.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+user=$1
+domain=$2
+
+# Includes
+# shellcheck source=/etc/hestiacp/hestia.conf
+source /etc/hestiacp/hestia.conf
+# shellcheck source=/usr/local/hestia/func/main.sh
+source $HESTIA/func/main.sh
+# shellcheck source=/usr/local/hestia/func/tenancy.sh
+source $HESTIA/func/tenancy.sh
+# shellcheck source=/usr/local/hestia/func/nodeapp.sh
+source $HESTIA/func/nodeapp.sh
+# load config file
+source_conf "$HESTIA/conf/hestia.conf"
+
+# Additional argument formatting
+format_domain
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '2' "$#" 'USER DOMAIN'
+is_format_valid 'user' 'domain'
+is_object_valid 'user' 'USER' "$user"
+is_object_unsuspended 'user' 'USER' "$user"
+nodeapp_check_app "$user" "$domain"
+
+# Perform verification if read-only mode is enabled
+check_hestia_demo_mode
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+nodeapp_lock "$user"
+if [ "$(nodeapp_status "$user" "$domain")" = 'online' ]; then
+	nodeapp_files_write "$user" "$domain"
+	nodeapp_pm2 "$user" reload "$(nodeapp_get "$user" "$domain" NAME)" > /dev/null 2>&1
+	check_result $? "pm2 could not reload the app of $domain" "$E_RESTART"
+	nodeapp_pm2 "$user" save --force > /dev/null 2>&1
+else
+	out=$(nodeapp_launch "$user" "$domain")
+	check_result $? "$out"
+fi
+
+#----------------------------------------------------------#
+#                       Hestia                             #
+#----------------------------------------------------------#
+
+# Logging
+$BIN/v-log-action "$user" "Info" "Node.js" "Node.js app reloaded (Domain: $domain)."
+log_event "$OK" "$ARGUMENTS"
+
+exit

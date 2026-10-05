@@ -90,6 +90,8 @@ write_app() {
     cat > "$dir/$file" << EOF
 const http = require('http');
 http.createServer((req, res) => {
+    console.log('request ' + req.url);
+    if (req.url === '/fail') console.error('failure ' + req.url);
     res.end('$tag ' + process.env.PORT + ' ' + (process.env.GREETING || '-'));
 }).listen(process.env.PORT, process.env.HOST);
 EOF
@@ -297,10 +299,170 @@ setup() {
 }
 
 #----------------------------------------------------------#
+#                  Lifecycle and settings                  #
+#----------------------------------------------------------#
+
+@test "Lifecycle: stop, start, restart and reload" {
+    port=$(app_field $U1 $DA PORT)
+    run v-stop-node-app $U1 $DA
+    assert_success
+    run app_status $U1 $DA
+    assert_output "stopped"
+    run eventually "502" curl -s -o /dev/null -w '%{http_code}' --noproxy '*' --max-time 10 --resolve "$DA:80:$(web_ip $U1 $DA)" "http://$DA/"
+    assert_output "502"
+    run v-start-node-app $U1 $DA
+    assert_success
+    run eventually "tna-a $port -" fetch $U1 $DA
+    assert_output "tna-a $port -"
+    run v-restart-node-app $U1 $DA
+    assert_success
+    run v-reload-node-app $U1 $DA
+    assert_success
+    run eventually "online" app_status $U1 $DA
+    assert_output "online"
+    assert_equal "$(app_field $U1 $DA PORT)" "$port"
+    run v-start-node-app $U1 $DB
+    assert_failure 3
+}
+
+@test "Lifecycle: a port held by another process blocks the start" {
+    port=$(app_field $U1 $DA PORT)
+    v-stop-node-app $U1 $DA
+    python3 -m http.server "$port" --bind 127.0.0.1 > /dev/null 2>&1 &
+    holder=$!
+    sleep 1
+    run v-start-node-app $U1 $DA
+    kill "$holder"
+    assert_failure 7
+    assert_output --partial "port $port"
+    sleep 0.5
+    run v-start-node-app $U1 $DA
+    assert_success
+}
+
+@test "Settings: environment round trip, read by the app" {
+    port=$(app_field $U1 $DA PORT)
+    env=$(mktemp)
+    printf '# greeting of the test app\nGREETING="hello world"\nAPI_KEY=abc=def\n' > "$env"
+    run v-change-node-app-env $U1 $DA "$env"
+    assert_success
+    run eventually "tna-a $port hello world" fetch $U1 $DA
+    assert_output "tna-a $port hello world"
+    run v-list-node-app-env $U1 $DA json
+    assert_success
+    echo "$output" | jq -e '.VARS == [{"KEY": "GREETING", "VALUE": "hello world"}, {"KEY": "API_KEY", "VALUE": "abc=def"}]'
+    assert_equal "$(stat -c %a "/home/$U1/web/$DA/nodeapp/.env")" "600"
+    run grep -c "abc=def" "$HESTIA/log/system.log"
+    assert_output "0"
+    printf 'PORT=1234\n' > "$env"
+    run v-change-node-app-env $U1 $DA "$env"
+    assert_failure 2
+    printf 'not a line\n' > "$env"
+    run v-change-node-app-env $U1 $DA "$env"
+    assert_failure 2
+    rm -f "$env"
+    run v-list-node-app-env $U1 $DA json
+    echo "$output" | jq -e '.VARS | length == 2'
+}
+
+@test "Settings: start command and runtime" {
+    port=$(app_field $U1 $DA PORT)
+    write_app $U1 $DA other.js tna-other
+    run v-change-node-app-start $U1 $DA other.js
+    assert_success
+    run eventually "tna-other $port hello world" fetch $U1 $DA
+    assert_output "tna-other $port hello world"
+    run v-change-node-app-start $U1 $DA missing.js
+    assert_failure 3
+    run v-change-node-app-start $U1 $DA server.js
+    assert_success
+    run v-change-node-app-version $U1 $DA "$V22"
+    assert_success
+    run eventually "online" app_status $U1 $DA
+    pid=$(v-list-node-apps $U1 json | jq -r --arg d "$DA" '.APPS[] | select(.DOMAIN == $d) | .PID')
+    run readlink "/proc/$pid/exe"
+    assert_output --partial "v$V22"
+    run v-change-node-app-version $U1 $DA 99.0.0
+    assert_failure 3
+    run v-change-node-app-version $U1 $DA default
+    assert_success
+    assert_equal "$(app_field $U1 $DA NODE_VERSION)" "default"
+}
+
+@test "Settings: scale to cluster mode and back, within the limits" {
+    run v-change-node-app-scale $U1 $DA 2 256
+    assert_success
+    run v-list-node-app $U1 $DA json
+    echo "$output" | jq -e --arg d "$DA" '.[$d].INSTANCES == "2" and .[$d].MAX_MEMORY == "256"'
+    grep -q '"exec_mode": "cluster"' "/home/$U1/web/$DA/nodeapp/ecosystem.config.cjs"
+    run eventually "2" bash -c "v-list-node-apps $U1 json | jq -r --arg d $DA '.APPS[] | select(.DOMAIN == \$d) | .STATUS' > /dev/null; pgrep -u $U1 -fc 'server.js'"
+    assert_output "2"
+    run v-change-node-app-scale $U1 $DA 999
+    assert_failure 8
+    run v-change-node-app-scale $U1 $DA 1 32
+    assert_failure 2
+    run v-change-node-app-scale $U1 $DA 1
+    assert_success
+    run eventually "online" app_status $U1 $DA
+    assert_output "online"
+}
+
+@test "Logs: last lines, then only what was written after the offset" {
+    fetch $U1 $DA /first > /dev/null
+    fetch $U1 $DA /fail > /dev/null
+    run eventually "yes" bash -c "grep -q 'request /fail' /home/$U1/web/$DA/nodeapp/logs/out.log && echo yes"
+    run v-list-node-app-logs $U1 $DA out '' 50 json
+    assert_success
+    echo "$output" | jq -e '[.LINES[] | select(contains("request /first"))] | length >= 1'
+    offset=$(echo "$output" | jq -r '.OFFSET')
+    fetch $U1 $DA /second > /dev/null
+    run eventually "yes" bash -c "grep -q 'request /second' /home/$U1/web/$DA/nodeapp/logs/out.log && echo yes"
+    run v-list-node-app-logs $U1 $DA out "$offset" 50 json
+    assert_success
+    echo "$output" | jq -e '(.LINES | length) == 1 and (.LINES[0] | contains("request /second"))'
+    run v-list-node-app-logs $U1 $DA err '' 10 json
+    echo "$output" | jq -e '[.LINES[] | select(contains("failure /fail"))] | length >= 1'
+    run v-list-node-app-logs $U1 $DA out 999999999 10 json
+    echo "$output" | jq -e '.LINES | length > 1'
+    run v-list-node-app-logs $U1 $DA secrets
+    assert_failure 2
+}
+
+@test "Tasks: install the dependencies and build, as tasks" {
+    write_package_json $U1 $DC '{"name":"c","version":"1.0.0","scripts":{"start":"node server.js","build":"node build.js"}}'
+    printf "require('fs').writeFileSync('built.txt', 'ok');\n" > "/home/$U1/web/$DC/public_html/build.js"
+    chown $U1:$U1 "/home/$U1/web/$DC/public_html/build.js"
+    run v-add-node-app $U1 $DC server.js
+    assert_success
+    run v-start-user-node-task $U1 app-install $DC
+    assert_success
+    run eventually "done" bash -c "v-list-user-node-task $U1 10 json | jq -r .STATUS"
+    assert_output "done"
+    assert_file_exists "/home/$U1/web/$DC/public_html/package-lock.json"
+    assert_file_exists "/home/$U1/web/$DC/nodeapp/logs/install.log"
+    run v-list-node-app-logs $U1 $DC install
+    assert_success
+    run v-start-user-node-task $U1 app-build $DC
+    assert_success
+    run eventually "done" bash -c "v-list-user-node-task $U1 10 json | jq -r .STATUS"
+    assert_output "done"
+    assert_file_exists "/home/$U1/web/$DC/public_html/built.txt"
+    assert_equal "$(stat -c %U "/home/$U1/web/$DC/public_html/built.txt")" "$U1"
+    run v-start-user-node-task $U1 app-build $DC nosuchscript
+    run eventually "failed" bash -c "v-list-user-node-task $U1 10 json | jq -r .STATUS"
+    assert_output "failed"
+    run v-start-user-node-task $U1 app-install $DB
+    assert_failure 3
+}
+
+#----------------------------------------------------------#
 #                        Last app                          #
 #----------------------------------------------------------#
 
 @test "Last app: deleting it retires the daemon and the linger" {
+    run v-delete-node-app $U1 $DC
+    assert_success
+    assert_file_exists "/var/lib/systemd/linger/$U1"
     run v-delete-node-app $U1 $DA
     assert_success
     assert_file_not_exists "/home/$U1/.config/systemd/user/arcpanel-pm2.service"

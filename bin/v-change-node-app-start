@@ -1,0 +1,80 @@
+#!/bin/bash
+# info: change the start command of a Node.js app (E14)
+# options: USER DOMAIN START [CWD]
+#
+# example: v-change-node-app-start alice api.example.com server.js
+# example: v-change-node-app-start alice shop.example.com npm:start app
+#
+# This function sets the start command (a file relative to CWD or
+# npm:<script>) and optionally the working directory (relative to the
+# domain directory) of the app. A running app is restarted.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+user=$1
+domain=$2
+start=$3
+cwd=$4
+
+# Includes
+# shellcheck source=/etc/hestiacp/hestia.conf
+source /etc/hestiacp/hestia.conf
+# shellcheck source=/usr/local/hestia/func/main.sh
+source $HESTIA/func/main.sh
+# shellcheck source=/usr/local/hestia/func/tenancy.sh
+source $HESTIA/func/tenancy.sh
+# shellcheck source=/usr/local/hestia/func/nodeapp.sh
+source $HESTIA/func/nodeapp.sh
+# load config file
+source_conf "$HESTIA/conf/hestia.conf"
+
+# Additional argument formatting
+format_domain
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '3' "$#" 'USER DOMAIN START [CWD]'
+is_format_valid 'user' 'domain'
+is_object_valid 'user' 'USER' "$user"
+is_object_unsuspended 'user' 'USER' "$user"
+node_check_enabled_package "$user"
+nodeapp_check_app "$user" "$domain" any
+if [ -z "$cwd" ]; then
+	cwd=$(nodeapp_get "$user" "$domain" CWD)
+fi
+if ! nodeapp_relpath_valid "$cwd"; then
+	check_result "$E_INVALID" "invalid working directory :: $cwd"
+fi
+if ! nodeapp_start_valid "$start"; then
+	check_result "$E_INVALID" "invalid start command :: $start (a file relative to $cwd or npm:<script>)"
+fi
+if [[ "$start" == npm:* ]] && [ "$(nodeapp_get "$user" "$domain" INSTANCES)" -gt 1 ]; then
+	check_result "$E_INVALID" "cluster mode (more than one instance) needs a start file, not an npm script"
+fi
+nodeapp_check_start "$user" "$domain" "$cwd" "$start"
+
+# Perform verification if read-only mode is enabled
+check_hestia_demo_mode
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+nodeapp_lock "$user"
+nodeapp_set "$user" "$domain" "START=$start" "CWD=$cwd"
+nodeapp_apply "$user" "$domain"
+
+#----------------------------------------------------------#
+#                       Hestia                             #
+#----------------------------------------------------------#
+
+# Logging
+$BIN/v-log-action "$user" "Info" "Node.js" "Node.js app start command changed (Domain: $domain, Start: $start, Directory: $cwd)."
+log_event "$OK" "$ARGUMENTS"
+
+exit

@@ -1,0 +1,64 @@
+#!/bin/bash
+# info: list the environment of a Node.js app (E14)
+# options: USER DOMAIN [FORMAT]
+#
+# example: v-list-node-app-env alice api.example.com json
+#
+# This function lists the KEY=value lines of the .env file of the app,
+# with quotes around a value removed as the app sees it.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+user=$1
+domain=$2
+format=${3-shell}
+
+# Includes
+# shellcheck source=/etc/hestiacp/hestia.conf
+source /etc/hestiacp/hestia.conf
+# shellcheck source=/usr/local/hestia/func/main.sh
+source $HESTIA/func/main.sh
+# shellcheck source=/usr/local/hestia/func/tenancy.sh
+source $HESTIA/func/tenancy.sh
+# shellcheck source=/usr/local/hestia/func/nodeapp.sh
+source $HESTIA/func/nodeapp.sh
+# load config file
+source_conf "$HESTIA/conf/hestia.conf"
+
+# Additional argument formatting
+format_domain
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '2' "$#" 'USER DOMAIN [FORMAT]'
+is_format_valid 'user' 'domain'
+is_object_valid 'user' 'USER' "$user"
+nodeapp_check_app "$user" "$domain" any
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+file="$(nodeapp_dir "$user" "$domain")/.env"
+json=$(node_as_user "$user" bash -c '[ -f "$1" ] && [ ! -L "$1" ] && head -c 65536 "$1"' env "$file" 2> /dev/null \
+	| tr -d '\r' | jq -Rsc '
+		[ split("\n")[] | capture("^\\s*(?<KEY>[A-Za-z_][A-Za-z0-9_]*)\\s*=(?<VALUE>.*)$")?
+			| .VALUE |= (gsub("^\\s+|\\s+$"; "")
+				| if (length > 1 and ((startswith("\"") and endswith("\"")) or (startswith("'"'"'") and endswith("'"'"'")))) then .[1:-1] else . end) ]
+		| { VARS: . }')
+
+case "$format" in
+	json) jq . <<< "$json" ;;
+	*) jq -r '.VARS[] | "\(.KEY)=\(.VALUE)"' <<< "$json" ;;
+esac
+
+#----------------------------------------------------------#
+#                       Hestia                             #
+#----------------------------------------------------------#
+
+exit

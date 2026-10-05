@@ -765,3 +765,61 @@ nodeapp_detect_start() {
 		fi
 	done
 }
+
+# Exit unless USER's DOMAIN has an app that is not suspended
+nodeapp_check_app() {
+	if ! nodeapp_exists "$1" "$2"; then
+		check_result "$E_NOTEXIST" "$2 has no Node.js app"
+	fi
+	if [ "$3" != 'any' ] && [ "$(nodeapp_get "$1" "$2" SUSPENDED)" != 'no' ]; then
+		check_result "$E_SUSPENDED" "the Node.js app of $2 is suspended"
+	fi
+}
+
+# pm2 status of USER's DOMAIN, empty when pm2 does not list it
+nodeapp_status() {
+	nodeapp_status_of "$(nodeapp_jlist "$1")" "$(nodeapp_get "$1" "$2" NAME)"
+}
+
+# Regenerate the files of USER's DOMAIN and (re)start it: the daemon is
+# started when it is down, the port must not be held by another process.
+# Prints the reason and returns an error code on failure.
+nodeapp_launch() {
+	local user="$1" domain="$2" out rc port holder status
+	out=$(nodeapp_daemon_ensure "$user" 2>&1)
+	rc=$?
+	if [ "$rc" -ne 0 ]; then
+		printf '%s\n' "$out" | tail -n1
+		return "$rc"
+	fi
+	if ! nodeapp_files_write "$user" "$domain"; then
+		echo "the files of the app could not be written in $(nodeapp_dir "$user" "$domain")"
+		return "$E_FORBIDEN"
+	fi
+	status=$(nodeapp_status "$user" "$domain")
+	port=$(nodeapp_get "$user" "$domain" PORT)
+	if [ -n "$port" ] && [ "$status" != 'online' ] && [ "$status" != 'launching' ]; then
+		holder=$(nodeapp_port_holder "$port")
+		if [ -n "$holder" ]; then
+			echo "port $port is used by another process ($holder)"
+			return "$E_INUSE"
+		fi
+	fi
+	if ! nodeapp_start "$user" "$domain"; then
+		echo "pm2 could not start the app of $domain"
+		return "$E_RESTART"
+	fi
+	nodeapp_logrotate_write "$user"
+}
+
+# Restart USER's DOMAIN when it runs, so a changed setting applies
+nodeapp_apply() {
+	local status out
+	status=$(nodeapp_status "$1" "$2")
+	if [ "$status" = 'online' ] || [ "$status" = 'launching' ] || [ "$status" = 'errored' ]; then
+		out=$(nodeapp_launch "$1" "$2")
+		check_result $? "$out"
+	else
+		nodeapp_files_write "$1" "$2"
+	fi
+}

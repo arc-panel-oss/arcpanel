@@ -1,0 +1,75 @@
+#!/bin/bash
+# info: change the instances and the memory limit of a Node.js app (E14)
+# options: USER DOMAIN INSTANCES [MAX_MEMORY]
+#
+# example: v-change-node-app-scale alice api.example.com 2
+# example: v-change-node-app-scale alice api.example.com 1 768
+#
+# This function sets the number of pm2 instances (more than one runs the
+# app in cluster mode, at most NODE_MAX_INSTANCES) and the memory in MB at
+# which pm2 restarts the app (at most the package MEMORY_LIMIT). A running
+# app is restarted.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+user=$1
+domain=$2
+instances=$3
+memory=$4
+
+# Includes
+# shellcheck source=/etc/hestiacp/hestia.conf
+source /etc/hestiacp/hestia.conf
+# shellcheck source=/usr/local/hestia/func/main.sh
+source $HESTIA/func/main.sh
+# shellcheck source=/usr/local/hestia/func/tenancy.sh
+source $HESTIA/func/tenancy.sh
+# shellcheck source=/usr/local/hestia/func/nodeapp.sh
+source $HESTIA/func/nodeapp.sh
+# load config file
+source_conf "$HESTIA/conf/hestia.conf"
+
+# Additional argument formatting
+format_domain
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '3' "$#" 'USER DOMAIN INSTANCES [MAX_MEMORY]'
+is_format_valid 'user' 'domain'
+is_object_valid 'user' 'USER' "$user"
+is_object_unsuspended 'user' 'USER' "$user"
+node_check_enabled_package "$user"
+nodeapp_check_app "$user" "$domain" any
+if [ -z "$memory" ]; then
+	memory=$(nodeapp_get "$user" "$domain" MAX_MEMORY)
+fi
+nodeapp_check_scale "$user" "$instances" "$memory"
+if [ "$instances" -gt 1 ] && [[ "$(nodeapp_get "$user" "$domain" START)" == npm:* ]]; then
+	check_result "$E_INVALID" "cluster mode (more than one instance) needs a start file, not an npm script"
+fi
+
+# Perform verification if read-only mode is enabled
+check_hestia_demo_mode
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+nodeapp_lock "$user"
+nodeapp_set "$user" "$domain" "INSTANCES=$instances" "MAX_MEMORY=$memory"
+nodeapp_apply "$user" "$domain"
+
+#----------------------------------------------------------#
+#                       Hestia                             #
+#----------------------------------------------------------#
+
+# Logging
+$BIN/v-log-action "$user" "Info" "Node.js" "Node.js app scaled (Domain: $domain, Instances: $instances, Memory: $memory MB)."
+log_event "$OK" "$ARGUMENTS"
+
+exit
