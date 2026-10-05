@@ -11,6 +11,9 @@ export const BASE_URL = process.env.E2E_BASE_URL ?? 'https://127.0.0.1:8083';
 
 /** Sign in on /app/login and land on the dashboard. */
 export async function login(page, user, theme = 'nocturne') {
+	// Leave the current page first: a request still running there could set
+	// the previous session cookie again after it was cleared.
+	await page.goto('about:blank');
 	await page.context().clearCookies();
 	await page.context().addCookies([
 		{

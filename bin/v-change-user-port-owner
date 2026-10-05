@@ -7,8 +7,10 @@
 # This function moves free ports (not used by an app) from one user to
 # another: a reseller gives ports to a customer, takes unused ports back, or
 # the administrator moves ports between users. +COUNT moves the COUNT
-# lowest free ports. A move into a reseller's tree cannot take the tree
-# above the reseller's PORTS. Who may move what is decided by the panel.
+# lowest free ports; a reseller that gives more than its free pool to its
+# customer is topped up first while its tree has room. A move into a
+# reseller's tree cannot take the tree above the reseller's PORTS. Who may
+# move what is decided by the panel.
 
 #----------------------------------------------------------#
 #                Variables & Functions                     #
@@ -64,6 +66,13 @@ ports_lock
 records=$(ports_read "$user")
 if [ -n "$count" ]; then
 	free=$(printf '%s\n' "$records" | grep -v '^$' | ports_sum free)
+	# A reseller giving to its customer: top its pool up while its tree has
+	# room (PORTS), as a customer's own pool would be
+	if [ "$free" -lt "$count" ] && tenancy_is_reseller "$user" && [ "$(tenancy_raw_owner "$new_user")" = "$user" ]; then
+		ports_allocate_pool "$user" $((count - free))
+		records=$(ports_read "$user")
+		free=$(printf '%s\n' "$records" | grep -v '^$' | ports_sum free)
+	fi
 	if [ "$free" -lt "$count" ]; then
 		check_result "$E_LIMIT" "$user has $free free ports, $count requested"
 	fi

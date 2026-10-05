@@ -6,6 +6,8 @@ use App\Http\Controllers\Auth\TwoFactorController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ImpersonationController;
 use App\Http\Controllers\Packages\PackageController;
+use App\Http\Controllers\Ports\PortController;
+use App\Http\Controllers\Ports\ServerPortController;
 use App\Http\Controllers\Shell\LanguageController;
 use App\Http\Controllers\Shell\NotificationController;
 use App\Http\Controllers\Shell\PaletteController;
@@ -28,6 +30,7 @@ use Illuminate\Support\Facades\Route;
 Route::pattern('user', '[[:alnum:]][-.\w]{0,28}[[:alnum:]]');
 Route::pattern('domain', '[^/\s]{1,253}');
 Route::pattern('package', '[[:alnum:]][-.\w]{0,99}');
+Route::pattern('range', '\d{1,5}(-\d{1,5})?');
 
 Route::middleware('guest.arc')->group(function () {
     Route::get('/login', [LoginController::class, 'show'])->name('login');
@@ -86,6 +89,32 @@ Route::middleware('auth.arc')->group(function () {
             Route::post('/{package}', [PackageController::class, 'update'])->name('update');
             Route::post('/{package}/copy', [PackageController::class, 'copy'])->name('copy');
             Route::delete('/{package}', [PackageController::class, 'destroy'])->name('destroy');
+        });
+    });
+
+    // Port registry (E12 spec §7)
+    Route::get('/server/ports', [ServerPortController::class, 'index'])->name('server.ports');
+    Route::prefix('server/ports')->name('server.ports.')->middleware('not-readonly')->group(function () {
+        Route::post('/allocate', [ServerPortController::class, 'allocate'])->name('allocate');
+        Route::post('/range', [ServerPortController::class, 'range'])->name('range');
+        Route::post('/reserved', [ServerPortController::class, 'storeReserved'])->name('reserved.store');
+        Route::delete('/reserved/{range}', [ServerPortController::class, 'destroyReserved'])->name('reserved.destroy');
+        Route::post('/repair', [ServerPortController::class, 'repair'])->name('repair');
+        Route::post('/register', [ServerPortController::class, 'register'])->name('register');
+        Route::post('/adopt', [ServerPortController::class, 'adopt'])->name('adopt');
+        Route::post('/close-rule', [ServerPortController::class, 'closeRule'])->name('close-rule');
+    });
+    Route::prefix('ports')->name('ports.')->group(function () {
+        Route::get('/', [PortController::class, 'index'])->name('index');
+        Route::post('/request', [PortController::class, 'request'])->middleware('not-readonly')->name('request');
+        Route::middleware(['effective-user', 'not-readonly'])->prefix('{user}')->group(function () {
+            Route::post('/reserve', [PortController::class, 'reserve'])->name('reserve');
+            Route::post('/give', [PortController::class, 'give'])->name('give');
+            Route::post('/{range}/release', [PortController::class, 'release'])->name('release');
+            Route::post('/{range}/public', [PortController::class, 'public'])->name('public');
+            Route::post('/{range}/public-ok', [PortController::class, 'publicOk'])->name('public-ok');
+            Route::post('/{range}/reclaim', [PortController::class, 'reclaim'])->name('reclaim');
+            Route::delete('/{range}', [PortController::class, 'destroy'])->name('destroy');
         });
     });
 

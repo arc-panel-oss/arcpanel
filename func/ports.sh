@@ -529,9 +529,10 @@ ports_return_to_owner() {
 
 # Allocate SIZE ports to USER: from its reseller's free pool for a
 # customer (topping the reseller up when its tree has room), from the server
-# range otherwise. Exits E_LIMIT when there is no room.
+# range otherwise, with PUBLIC_OK (default no). Exits E_LIMIT when there is
+# no room.
 ports_allocate_pool() {
-	local user="$1" size="$2" owner free first range
+	local user="$1" size="$2" public_ok="${3:-no}" owner free first range
 	if [ "$size" -le 0 ]; then
 		return 0
 	fi
@@ -553,7 +554,7 @@ ports_allocate_pool() {
 	if [ -z "$first" ]; then
 		check_result "$E_LIMIT" "no free block of $size ports in the server range"
 	fi
-	ports_add_free "$user" "$first" $((first + size - 1))
+	ports_add_free "$user" "$first" $((first + size - 1)) "$public_ok"
 }
 
 # Ports a user is missing to reach its package PORTS (0 for unlimited);

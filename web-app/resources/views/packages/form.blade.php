@@ -46,6 +46,8 @@
                 @endforeach
                 <x-ap-input name="rate_limit" type="number" :label="__('Mail rate limit')" :value="$values['RATE_LIMIT']" suffix="/h" :hint="$own('RATE_LIMIT')" required />
                 <x-ap-input name="backups" type="number" :label="__('Backups')" :value="$values['BACKUPS']" :hint="$own('BACKUPS')" required />
+                <x-ap-unlimited-input name="ports" :label="__('Ports')" :value="$values['PORTS'] ?? '0'"
+                    :hint="$ownPorts !== null ? sprintf(__('Your plan: %s'), $ownPorts) : __('Allocated to each new user of this package (E12 port registry).')" />
             </div>
             <div class="ap-settings">
                 <x-ap-switch name="backups_incremental" :label="__('Incremental backups')" :checked="$values['BACKUPS_INCREMENTAL'] === 'yes'" />

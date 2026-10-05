@@ -63,6 +63,21 @@
         <x-ap-card :title="__('Usage')" icon="chart">
             @include('users.partials.usage', ['record' => $record])
         </x-ap-card>
+        <x-ap-card :title="__('Ports')" icon="plug">
+            <x-slot:actions>
+                <x-ap-button :href="route('ports.index')" variant="ghost" size="sm">{{ __('Ports') }}<x-ap-icon name="chevron-right" /></x-ap-button>
+            </x-slot:actions>
+            <div class="ap-usage-list">
+                <x-ap-usage-bar :label="__('Allocated')" :value="$ports->allocated" :limit="$ports->unlimited() ? null : (float) $ports->limit" :unlimited="$ports->unlimited()" />
+            </div>
+            <dl class="ap-dl">
+                <dt>{{ __('In use') }}</dt><dd class="mono">{{ $ports->assigned }}</dd>
+                <dt>{{ __('Public') }}</dt><dd class="mono">{{ $ports->public }}</dd>
+                @if ($ports->treeTotal !== null)
+                    <dt>{{ __('With customers') }}</dt><dd class="mono">{{ $ports->treeTotal }}</dd>
+                @endif
+            </dl>
+        </x-ap-card>
     </div>
 
     @if ($isReseller)

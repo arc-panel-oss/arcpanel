@@ -50,6 +50,15 @@ final class Capabilities
         'packages.update' => self::MANAGERS,
         'packages.delete' => self::MANAGERS,
 
+        // Port registry (E12 spec §7.2); PortPolicy adds the pool rules
+        'server.ports' => self::ADMIN,
+        'ports.view' => self::ALL_ROLES,
+        'ports.mine' => ['reseller' => Scope::Self, 'user' => Scope::Self],
+        'ports.reserve' => self::OWN,
+        'ports.public' => self::ALL_ROLES,
+        'ports.suballocate' => self::MANAGERS,
+        'ports.allocate' => self::ADMIN,
+
         'web.view' => self::ALL_ROLES,
         'web.create' => self::ALL_ROLES,
         'web.update' => self::ALL_ROLES,

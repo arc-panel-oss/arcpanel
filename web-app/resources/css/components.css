@@ -1114,6 +1114,33 @@
 .ap-list > li:last-child {
 	border-bottom: 0;
 }
+.ap-list > li.ap-list-item {
+	flex-direction: column;
+	align-items: flex-start;
+	justify-content: center;
+}
+
+/* Expandable rows (customers on the Ports page) */
+.ap-stack.ap-ports-customers {
+	gap: 0;
+}
+.ap-disclosure {
+	border-bottom: 1px solid var(--ap-border);
+}
+.ap-disclosure:last-child {
+	border-bottom: 0;
+}
+.ap-disclosure > summary {
+	min-height: 56px;
+	padding: var(--ap-space-2-5) var(--ap-space-5);
+	cursor: pointer;
+}
+.ap-disclosure > summary::-webkit-details-marker {
+	display: none;
+}
+.ap-disclosure[open] > summary {
+	border-bottom: 1px solid var(--ap-border);
+}
 .ap-list-main {
 	flex: 1 1 auto;
 	display: flex;

@@ -95,37 +95,47 @@ final class PackageService
     /**
      * @param  array<string, string>  $values
      * @param  array{USERS: string, RESELLER_PACKAGES: string, RESELLER_VISIBLE: string}|null  $tenancy  administrators only
+     * @param  string  $ports  PORTS of the package (E12), a number or unlimited
      * @return list<Step>
      */
-    public function planCreate(string $name, array $values, ?array $tenancy, string $reseller = ''): array
+    public function planCreate(string $name, array $values, ?array $tenancy, string $reseller = '', string $ports = '0'): array
     {
         $file = Secret::file($this->file($values));
         if ($reseller !== '') {
-            return [new Step(sprintf(__('Add package %s'), $name), 'v-add-reseller-package', [$reseller, $file, $name])];
+            return [
+                new Step(sprintf(__('Add package %s'), $name), 'v-add-reseller-package', [$reseller, $file, $name]),
+                ...$this->portsStep($reseller.'_'.$name, $ports, null),
+            ];
         }
 
         return [
             new Step(sprintf(__('Add package %s'), $name), 'v-add-user-package', [$file, $name]),
             ...$this->tenancySteps($name, $tenancy, null),
+            ...$this->portsStep($name, $ports, null),
         ];
     }
 
     /**
      * @param  array<string, string>  $values
      * @param  array{USERS: string, RESELLER_PACKAGES: string, RESELLER_VISIBLE: string}|null  $tenancy
+     * @param  string|null  $ports  PORTS of the package (E12), null to keep it
      * @return list<Step>
      */
-    public function planUpdate(PackageRecord $current, string $newName, array $values, ?array $tenancy, string $reseller = ''): array
+    public function planUpdate(PackageRecord $current, string $newName, array $values, ?array $tenancy, string $reseller = '', ?string $ports = null): array
     {
         $file = Secret::file($this->file($values));
         if ($reseller !== '') {
-            return [new Step(__('Save the package'), 'v-change-reseller-package', [$reseller, $file, $current->name])];
+            return [
+                new Step(__('Save the package'), 'v-change-reseller-package', [$reseller, $file, $current->name]),
+                ...$this->portsStep($current->name, $ports, $current),
+            ];
         }
 
         $steps = [
             new Step(__('Save the package'), 'v-add-user-package', [$file, $current->name, 'yes']),
             new Step(__('Apply the package to its users'), 'v-update-user-package', [$current->name]),
             ...$this->tenancySteps($current->name, $tenancy, $current),
+            ...$this->portsStep($current->name, $ports, $current),
         ];
         if ($newName !== $current->name) {
             $steps[] = new Step(__('Rename the package'), 'v-rename-user-package', [$current->name, $newName]);
@@ -145,6 +155,7 @@ final class PackageService
                 'RESELLER_PACKAGES' => $current->get('RESELLER_PACKAGES'),
                 'RESELLER_VISIBLE' => $current->get('RESELLER_VISIBLE', 'no'),
             ], null),
+            ...$this->portsStep($newName, $current->get('PORTS', '0'), null),
         ];
     }
 
@@ -164,6 +175,21 @@ final class PackageService
     public function exists(string $name): bool
     {
         return $this->arc->run('v-list-user-package', [$name, 'json'], Options::allowFailure())->ok();
+    }
+
+    /**
+     * PORTS of the package sidecar (E12) when it is set or changed. The
+     * command checks a reseller's package against the reseller's PORTS.
+     *
+     * @return list<Step>
+     */
+    private function portsStep(string $name, ?string $ports, ?PackageRecord $current): array
+    {
+        if ($ports === null || $ports === ($current?->get('PORTS', '0') ?? '0')) {
+            return [];
+        }
+
+        return [new Step(sprintf(__('Set %s'), 'PORTS'), 'v-change-package-tenancy', [$name, 'PORTS', $ports])];
     }
 
     /**

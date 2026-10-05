@@ -4,7 +4,8 @@
 #   prepare.sh prepare PASSWORD   creates arce2eadmin (admin), arce2euser, the
 #                                 reseller arce2ereseller with its customer
 #                                 arce2ecustomer, their web domains, and prints
-#                                 a self-signed certificate as JSON
+#                                 a self-signed certificate as JSON; the
+#                                 users start without ports (E12)
 #   prepare.sh cleanup            deletes them again
 set -euo pipefail
 
@@ -50,6 +51,9 @@ if ! "$B/v-list-user-package" "$PLAN" > /dev/null 2>&1; then
 fi
 "$B/v-change-package-tenancy" "$PLAN" USERS 10
 "$B/v-change-package-tenancy" "$PLAN" RESELLER_PACKAGES default
+# Port registry (E12): the reseller tree may hold 30 ports; every run starts
+# without ports, the ports spec allocates them through the UI.
+"$B/v-change-package-tenancy" "$PLAN" PORTS 30
 for user in $USERS; do
 	if ! "$B/v-list-user" "$user" > /dev/null 2>&1; then
 		package=default
@@ -68,6 +72,9 @@ done
 "$B/v-change-user-role" arce2ereseller reseller > /dev/null
 "$B/v-change-user-owner" arce2ecustomer arce2ereseller > /dev/null
 "$B/v-change-user-name" arce2ereseller 'E2E Reseller' > /dev/null
+for user in arce2ecustomer arce2euser arce2ereseller; do
+	"$B/v-delete-user-ports" "$user" > /dev/null
+done
 "$B/v-add-web-domain" arce2euser e2e-site.example > /dev/null
 "$B/v-add-web-domain" arce2euser e2e-bulk.example > /dev/null
 

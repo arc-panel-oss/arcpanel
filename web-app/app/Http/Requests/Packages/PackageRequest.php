@@ -36,6 +36,7 @@ final class PackageRequest extends FormRequest
             'users' => ['nullable', 'integer', 'min:0', 'max:100000'],
             'reseller_packages' => ['nullable', 'string', 'max:2000', 'regex:/^(\*|[[:alnum:]][-.\w]*(\s*,\s*[[:alnum:]][-.\w]*)*)?$/'],
             'reseller_visible' => ['nullable', 'boolean'],
+            'ports' => ['nullable', 'integer', 'min:0', 'max:65535'],
         ];
         foreach (PackageRecord::COUNTED as $key) {
             $rules[strtolower($key)] = ['nullable', 'required_without:'.strtolower($key).'_unlimited', 'integer', 'min:0', 'max:100000000'];
@@ -88,6 +89,12 @@ final class PackageRequest extends FormRequest
             'RESELLER_PACKAGES' => implode(',', array_filter($packages)),
             'RESELLER_VISIBLE' => $this->boolean('reseller_visible') ? 'yes' : 'no',
         ];
+    }
+
+    /** PORTS of the package sidecar (E12): a number, or unlimited when ticked. */
+    public function portsValue(): string
+    {
+        return $this->boolean('ports_unlimited') ? 'unlimited' : (string) $this->integer('ports');
     }
 
     /** @return list<string> */

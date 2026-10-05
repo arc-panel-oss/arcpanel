@@ -47,6 +47,7 @@ final class Navigation
                 ['route' => 'backups.index', 'label' => 'Backups', 'icon' => 'archive', 'cap' => 'backups.view', 'requires' => 'BACKUP_SYSTEM'],
                 ['route' => 'files.index', 'label' => 'File manager', 'icon' => 'folder', 'cap' => 'files.view', 'requires' => 'FILE_MANAGER=true', 'writable' => true],
                 ['route' => 'terminal.index', 'label' => 'Web terminal', 'icon' => 'terminal', 'cap' => 'files.view', 'requires' => 'WEB_TERMINAL=true', 'writable' => true, 'shell' => true],
+                ['route' => 'ports.index', 'label' => 'Ports', 'icon' => 'plug', 'cap' => 'ports.mine', 'section' => 'ports.'],
             ],
         ],
         'server' => [
@@ -56,6 +57,7 @@ final class Navigation
                 ['route' => 'server.services', 'label' => 'Services', 'icon' => 'activity', 'cap' => 'server.view', 'services' => true],
                 ['route' => 'server.ips', 'label' => 'IP Addresses', 'icon' => 'hash', 'cap' => 'server.view'],
                 ['route' => 'server.firewall', 'label' => 'Firewall', 'icon' => 'shield', 'cap' => 'server.view', 'requires' => 'FIREWALL_SYSTEM'],
+                ['route' => 'server.ports', 'label' => 'Ports', 'icon' => 'plug', 'cap' => 'server.ports', 'section' => 'server.ports'],
                 ['route' => 'server.updates', 'label' => 'Updates', 'icon' => 'refresh', 'cap' => 'server.view'],
                 ['route' => 'server.rrd', 'label' => 'Task Monitor', 'icon' => 'chart', 'cap' => 'server.view'],
             ],

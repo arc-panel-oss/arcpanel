@@ -1,6 +1,6 @@
 #!/bin/bash
 # info: allocate a block of ports to a user
-# options: USER [SIZE]
+# options: USER [SIZE] [PUBLIC_OK]
 #
 # example: v-add-user-port-pool alice 10
 #
@@ -8,7 +8,9 @@
 # missing to reach the PORTS of its package (for a reseller, its whole
 # tree counts). A reseller's customer gets them from the reseller's free
 # pool, which is topped up from the server range while the reseller's tree
-# has room. Other users get one contiguous block of the server range.
+# has room. Other users get one contiguous block of the server range;
+# PUBLIC_OK (yes or no, default no) lets them open its ports to the
+# internet.
 
 #----------------------------------------------------------#
 #                Variables & Functions                     #
@@ -17,6 +19,7 @@
 # Argument definition
 user=$1
 size=$2
+public_ok=${3-no}
 
 # Includes
 # shellcheck source=/etc/hestiacp/hestia.conf
@@ -34,12 +37,13 @@ source_conf "$HESTIA/conf/hestia.conf"
 #                    Verifications                         #
 #----------------------------------------------------------#
 
-check_args '1' "$#" 'USER [SIZE]'
+check_args '1' "$#" 'USER [SIZE] [PUBLIC_OK]'
 is_format_valid 'user'
 is_object_valid 'user' 'USER' "$user"
 if [ -n "$size" ] && { ! [[ "$size" =~ ^[0-9]{1,5}$ ]] || [ "$size" -lt 1 ]; }; then
 	check_result "$E_INVALID" "invalid size :: $size"
 fi
+ports_check_yes_no "$public_ok" 'PUBLIC_OK'
 
 # Perform verification if read-only mode is enabled
 check_hestia_demo_mode
@@ -53,7 +57,7 @@ if [ -z "$size" ]; then
 	size=$(ports_missing "$user")
 fi
 if [ "$size" -gt 0 ]; then
-	ports_allocate_pool "$user" "$size"
+	ports_allocate_pool "$user" "$size" "$public_ok"
 	$BIN/v-log-action "system" "Info" "Ports" "Port pool allocated (User: $user, Size: $size)."
 fi
 

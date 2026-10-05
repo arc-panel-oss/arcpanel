@@ -131,8 +131,43 @@ function fakeServerUsers(ArcCommandFake $fake, array $overrides = []): array
     fakeUsers($fake, $users);
     $fake->on('v-list-users', ['json'])->returnsJson($users);
     fakeOwners($fake, $users);
+    // No ports unless a test says otherwise (E12)
+    $fake->on('v-list-user-ports')->using(fn (array $args) => [0, (string) json_encode(portAccount($args[0]))]);
 
     return $users;
+}
+
+/**
+ * `v-list-user-ports USER json` (E12 spec §5.3).
+ *
+ * @param  array<string, string>  $overrides
+ * @param  list<array<string, string>>  $entries  from portEntry()
+ * @return array<string, mixed>
+ */
+function portAccount(string $user, array $overrides = [], array $entries = []): array
+{
+    return array_merge([
+        'USER' => $user, 'OWNER' => 'arcadmin', 'ROLE' => 'user', 'SUSPENDED' => 'no', 'LIMIT' => '0',
+        'ALLOCATED' => '0', 'ASSIGNED' => '0', 'PUBLIC' => '0', 'FREE' => '0', 'TREE_TOTAL' => '', 'TREE_USED' => '',
+        'FIREWALL' => 'iptables', 'RANGE_START' => '30000', 'RANGE_END' => '39999',
+    ], $overrides) + ['ENTRIES' => $entries];
+}
+
+/**
+ * One entry of `v-list-user-ports json`: a free port by default.
+ *
+ * @param  array<string, string>  $overrides
+ * @return array<string, string>
+ */
+function portEntry(string $port, array $overrides = []): array
+{
+    [$start, $end] = array_pad(explode('-', $port, 2), 2, null);
+
+    return array_merge([
+        'PORT' => $port, 'START' => $start, 'END' => $end ?? $start, 'SIZE' => (string) ((int) ($end ?? $start) - (int) $start + 1),
+        'PROTO' => 'tcp', 'APP' => '', 'PUBLIC' => 'no', 'PUBLIC_OK' => 'no', 'FW_RULE' => '', 'COMMENT' => '',
+        'SUSPENDED' => 'no', 'LISTEN' => 'no', 'TIME' => '10:00:00', 'DATE' => '2026-10-05',
+    ], $overrides);
 }
 
 /**

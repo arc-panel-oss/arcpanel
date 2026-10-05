@@ -161,3 +161,18 @@ it('copies a package with its reseller settings', function () {
     $this->fake->assertRan('v-change-package-tenancy', fn ($a) => $a === ['reseller2', 'USERS', '25']);
     $this->fake->assertRan('v-change-package-tenancy', fn ($a) => $a === ['reseller2', 'RESELLER_PACKAGES', '*']);
 });
+
+it('sets PORTS of a package, within the reseller plan for a reseller (E12)', function () {
+    $this->fake->on('v-add-user-package')->returns();
+    $this->fake->on('v-add-reseller-package')->returns();
+    $this->fake->on('v-change-package-tenancy')->returns();
+
+    signIn('arcadmin', 'admin');
+    $this->post('/packages', packageInput(['ports' => '5']))->assertRedirect('/packages');
+    $this->fake->assertRan('v-change-package-tenancy', fn ($a) => $a === ['business', 'PORTS', '5']);
+
+    signIn('hostco', 'reseller');
+    $this->get('/packages/create')->assertOk()->assertSee('Your plan: 0');
+    $this->post('/packages', packageInput(['ports' => '5']))->assertSessionHasErrors('ports');
+    $this->fake->assertNotRan('v-add-reseller-package');
+});

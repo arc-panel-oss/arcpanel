@@ -68,7 +68,7 @@ final class PackageController extends Controller
         $values = $this->checkedValues($request, [], $reseller);
         $tenancy = $policy->manageResellerSettings($principal) ? $request->tenancyValues() : null;
 
-        $result = $this->users->apply($this->packages->planCreate($name, $values, $tenancy, $reseller));
+        $result = $this->users->apply($this->packages->planCreate($name, $values, $tenancy, $reseller, $this->checkedPorts($request, $reseller)));
         if (! $result->ok()) {
             return $this->failed($request, $result);
         }
@@ -97,7 +97,7 @@ final class PackageController extends Controller
         $values = $this->checkedValues($request, $record->data, $reseller);
         $tenancy = $policy->manageResellerSettings($principal) ? $request->tenancyValues() : null;
 
-        $result = $this->users->apply($this->packages->planUpdate($record, $newName, $values, $tenancy, $reseller));
+        $result = $this->users->apply($this->packages->planUpdate($record, $newName, $values, $tenancy, $reseller, $this->checkedPorts($request, $reseller)));
         if (! $result->ok()) {
             return $this->failed($request, $result);
         }
@@ -146,7 +146,7 @@ final class PackageController extends Controller
             'CPU_QUOTA' => 'unlimited', 'CPU_QUOTA_PERIOD' => 'unlimited', 'MEMORY_LIMIT' => 'unlimited', 'SWAP_LIMIT' => 'unlimited',
             'RATE_LIMIT' => '200', 'BACKUPS' => '1', 'BACKUPS_INCREMENTAL' => 'no', 'SHELL' => 'nologin',
             'NS' => (string) ($this->packages->all()['default']?->get('NS') ?? ''),
-            'USERS' => '0', 'RESELLER_PACKAGES' => '', 'RESELLER_VISIBLE' => 'no',
+            'USERS' => '0', 'RESELLER_PACKAGES' => '', 'RESELLER_VISIBLE' => 'no', 'PORTS' => '0',
         ];
 
         return view('packages.form', [
@@ -158,6 +158,7 @@ final class PackageController extends Controller
             'resources' => $this->packages->resourcesLimit(),
             'resellerSettings' => $policy->manageResellerSettings($principal),
             'ownLimits' => $reseller !== '' ? $this->users->find($reseller)->data : [],
+            'ownPorts' => $reseller !== '' ? $this->ownPorts($reseller) : null,
         ]);
     }
 
@@ -219,6 +220,28 @@ final class PackageController extends Controller
         }
 
         return $values;
+    }
+
+    /** PORTS of the reseller's own package (E12). */
+    private function ownPorts(string $reseller): string
+    {
+        $package = $this->users->find($reseller)->package();
+
+        return ($this->packages->all()[$package] ?? null)?->get('PORTS', '0') ?? '0';
+    }
+
+    /** PORTS of the form; a reseller may not go above its own. */
+    private function checkedPorts(PackageRequest $request, string $reseller): string
+    {
+        $ports = $request->portsValue();
+        if ($reseller !== '') {
+            $limit = $this->ownPorts($reseller);
+            if ($limit !== 'unlimited' && ($ports === 'unlimited' || (int) $ports > (int) $limit)) {
+                throw ValidationException::withMessages(['ports' => sprintf(__('At most %s on your plan.'), $limit)]);
+            }
+        }
+
+        return $ports;
     }
 
     private function failed(PackageRequest $request, ApplyResult $result): RedirectResponse

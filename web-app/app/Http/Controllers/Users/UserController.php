@@ -11,6 +11,7 @@ use App\Http\Requests\Users\StoreUserRequest;
 use App\Policies\ImpersonationPolicy;
 use App\Policies\UserPolicy;
 use App\Services\Mail\AccountMailer;
+use App\Services\Ports\PortService;
 use App\Services\Users\UserPlanner;
 use App\Services\Users\UserRecord;
 use App\Services\Users\UserService;
@@ -78,7 +79,7 @@ final class UserController extends Controller
         ]);
     }
 
-    public function show(string $user, Principal $principal, UserPolicy $policy, ImpersonationPolicy $impersonation, WebDomainService $web): View
+    public function show(string $user, Principal $principal, UserPolicy $policy, ImpersonationPolicy $impersonation, WebDomainService $web, PortService $ports): View
     {
         abort_unless($policy->view($principal, $user), 404);
         $record = $this->users->find($user);
@@ -91,6 +92,7 @@ final class UserController extends Controller
             'isReseller' => $isReseller,
             'allocation' => $isReseller ? $this->users->allocation($record) : [],
             'customers' => $isReseller ? $this->users->only($this->tenancy->customersOf($user)) : [],
+            'ports' => $ports->account($user),
             'packageLabel' => UserService::packageLabel($record->package(), $principal->actingRole() === Role::Reseller ? $principal->effectiveUser() : ''),
         ]);
     }

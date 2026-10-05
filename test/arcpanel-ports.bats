@@ -39,7 +39,7 @@ kill_listeners() {
 
 cleanup() {
     kill_listeners
-    for user in tph1 tpc1 tpc2 tpres $USERS; do
+    for user in tph1 tpc1 tpc2 tpc3 tpres tpres3 $USERS; do
         v-delete-user "$user" > /dev/null 2>&1 || true
         rm -f "$PORTS_DIR/$user.conf"
     done
@@ -445,4 +445,26 @@ teardown_file() {
     run grep "hook post_suspend_user/99-tp-fail.sh failed with code 3 (tph1)" "$HESTIA/log/system.log"
     assert_success
     v-unsuspend-user tph1
+}
+
+@test "A reseller without a pool is topped up when it gives ports" {
+    v-add-user tpres3 "$PASS" tpres3@example.invalid tp-res > /dev/null
+    v-change-user-role tpres3 reseller
+    # A user turned into a reseller has no pool yet
+    v-delete-user-ports tpres3
+    run v-add-reseller-user tpres3 tpc3 "$PASS" tpc3@example.invalid tp-cust
+    assert_success
+    run v-list-user-ports tpc3 json
+    assert_output --partial '"ALLOCATED": "3"'
+    run v-change-user-port-owner tpres3 +5 tpc3
+    assert_success
+    run v-list-user-ports tpc3 json
+    assert_output --partial '"ALLOCATED": "8"'
+    run v-list-user-ports tpres3 json
+    assert_output --partial '"TREE_TOTAL": "8"'
+    run v-change-user-port-owner tpres3 +13 tpc3
+    assert_failure 8
+    assert_output --partial "PORTS"
+    v-delete-user tpc3 > /dev/null
+    v-delete-user tpres3 > /dev/null
 }
