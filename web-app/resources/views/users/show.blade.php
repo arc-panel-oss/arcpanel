@@ -84,6 +84,25 @@
             </x-slot:actions>
             <p class="muted">{{ __('Node.js versions and global npm packages of this account.') }}</p>
         </x-ap-card>
+        @if ($nodeApps !== null)
+            <x-ap-card :title="__('Node apps')" icon="layers" :flush="$nodeApps->apps !== []">
+                <x-slot:actions>
+                    <x-ap-button :href="route('node.apps.index', ['user' => $record->name])" variant="ghost" size="sm">{{ __('Node apps') }}<x-ap-icon name="chevron-right" /></x-ap-button>
+                </x-slot:actions>
+                @if ($nodeApps->apps === [])
+                    <p class="muted">{{ __('No Node.js app yet.') }}</p>
+                @else
+                    <ul class="ap-list">
+                        @foreach ($nodeApps->apps as $app)
+                            <li>
+                                <div class="ap-list-main"><a class="mono" href="{{ route('node.apps.show', ['user' => $record->name, 'domain' => $app->domain]) }}">{{ $app->domain }}</a><span class="mono">{{ $app->runtime !== '' ? 'v'.$app->runtime : '—' }} · :{{ $app->port }}</span></div>
+                                <x-ap-badge :tone="$app->isSuspended() ? 'warn' : ($app->online() ? 'ok' : ($app->status === 'errored' ? 'danger' : null))">{{ $app->isSuspended() ? __('Suspended') : ($app->online() ? __('Online') : ($app->status === 'errored' ? __('Errored') : __('Stopped'))) }}</x-ap-badge>
+                            </li>
+                        @endforeach
+                    </ul>
+                @endif
+            </x-ap-card>
+        @endif
     </div>
 
     @if ($isReseller)

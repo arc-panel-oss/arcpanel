@@ -8,6 +8,7 @@ use App\Http\Controllers\Files\FileController;
 use App\Http\Controllers\Files\FileTransferController;
 use App\Http\Controllers\ImpersonationController;
 use App\Http\Controllers\Node\NodeAppController;
+use App\Http\Controllers\Node\NodeAppPageController;
 use App\Http\Controllers\Node\NodeController;
 use App\Http\Controllers\Packages\PackageController;
 use App\Http\Controllers\Ports\PortController;
@@ -125,10 +126,17 @@ Route::middleware('auth.arc')->group(function () {
     });
 
     // Node.js runtimes and global packages (E13 spec §6.3)
+    // Node.js apps of the effective account (E14); not under /node/, where a
+    // user named "apps" has its Node.js page
+    Route::get('/node-apps', [NodeAppPageController::class, 'entry'])->name('node-apps');
     Route::prefix('node')->name('node.')->group(function () {
         Route::get('/', [NodeController::class, 'index'])->name('index');
         Route::middleware('effective-user')->prefix('{user}')->group(function () {
             Route::get('/', [NodeController::class, 'show'])->name('show');
+            // Node.js apps pages (E14 spec §7)
+            Route::get('/apps', [NodeAppPageController::class, 'index'])->name('apps.index');
+            Route::get('/apps/create', [NodeAppPageController::class, 'create'])->name('apps.create');
+            Route::get('/apps/{domain}', [NodeAppPageController::class, 'show'])->name('apps.show');
             Route::prefix('api')->name('api.')->group(function () {
                 Route::get('/overview', [NodeController::class, 'overview'])->name('overview');
                 Route::get('/releases', [NodeController::class, 'releases'])->name('releases');

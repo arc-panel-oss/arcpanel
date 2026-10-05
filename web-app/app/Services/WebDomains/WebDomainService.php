@@ -268,6 +268,8 @@ final class WebDomainService implements DomainProbe
                 if ($action === 'delete') {
                     // Ports the domain's template used go back to the pool (E6)
                     $this->arc->run('v-delete-web-domain-tpl-vars', [$item['user'], $item['domain']], Options::allowFailure());
+                    // Its Node.js app (E14): process, port and record; exit 3 when it has none
+                    $this->arc->run('v-delete-node-app', [$item['user'], $item['domain']], Options::allowFailure());
                 }
             } else {
                 $failed[$item['domain']] = $result->message() !== '' ? $result->message() : sprintf(__('Error code: %s'), $result->exitCode);

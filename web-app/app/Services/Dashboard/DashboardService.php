@@ -5,6 +5,8 @@ namespace App\Services\Dashboard;
 use App\Arc\ArcCommand;
 use App\Arc\ArcCommandException;
 use App\Arc\Options;
+use App\Services\Node\NodeAccess;
+use App\Services\Node\NodeApps;
 use App\Services\UserDirectory;
 use App\Services\Users\UserRecord;
 use App\Services\Users\UserService;
@@ -27,6 +29,7 @@ final class DashboardService
         private readonly WebDomainService $web,
         private readonly TenancyDirectory $tenancy,
         private readonly UserService $accounts,
+        private readonly NodeAccess $node,
     ) {}
 
     /** @return array<string, Widget> */
@@ -51,6 +54,10 @@ final class DashboardService
             'domains' => $this->widget(fn () => $this->domains($user)),
             'backups' => $this->widget(fn () => $this->lastBackup($user)),
             'notifications' => $this->widget(fn () => $this->notifications($user)),
+            // Node.js apps (E14 spec §7): only for packages with Node.js
+            'nodeApps' => $this->node->allowed($user)
+                ? $this->widget(fn () => NodeApps::from($this->arc->json('v-list-node-apps', [$user])))
+                : null,
         ];
     }
 

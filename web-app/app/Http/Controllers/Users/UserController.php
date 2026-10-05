@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Users;
 
+use App\Arc\ArcCommandException;
 use App\Arc\Secret;
 use App\Arc\SysConfig;
 use App\Auth\Principal;
@@ -11,6 +12,8 @@ use App\Http\Requests\Users\StoreUserRequest;
 use App\Policies\ImpersonationPolicy;
 use App\Policies\UserPolicy;
 use App\Services\Mail\AccountMailer;
+use App\Services\Node\NodeApps;
+use App\Services\Node\NodeAppService;
 use App\Services\Ports\PortService;
 use App\Services\Users\UserPlanner;
 use App\Services\Users\UserRecord;
@@ -79,7 +82,7 @@ final class UserController extends Controller
         ]);
     }
 
-    public function show(string $user, Principal $principal, UserPolicy $policy, ImpersonationPolicy $impersonation, WebDomainService $web, PortService $ports): View
+    public function show(string $user, Principal $principal, UserPolicy $policy, ImpersonationPolicy $impersonation, WebDomainService $web, PortService $ports, NodeAppService $nodeApps): View
     {
         abort_unless($policy->view($principal, $user), 404);
         $record = $this->users->find($user);
@@ -93,6 +96,7 @@ final class UserController extends Controller
             'allocation' => $isReseller ? $this->users->allocation($record) : [],
             'customers' => $isReseller ? $this->users->only($this->tenancy->customersOf($user)) : [],
             'ports' => $ports->account($user),
+            'nodeApps' => $this->nodeAppsOf($user, $nodeApps),
             'packageLabel' => UserService::packageLabel($record->package(), $principal->actingRole() === Role::Reseller ? $principal->effectiveUser() : ''),
         ]);
     }
@@ -298,5 +302,15 @@ final class UserController extends Controller
         }
 
         return [...array_values($tree), ...$rest];
+    }
+
+    /** The Node.js apps of the account for its detail page (E14), null when they cannot be read. */
+    private function nodeAppsOf(string $user, NodeAppService $nodeApps): ?NodeApps
+    {
+        try {
+            return $nodeApps->apps($user);
+        } catch (ArcCommandException) {
+            return null;
+        }
     }
 }

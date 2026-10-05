@@ -47,6 +47,7 @@ final class DashboardController extends Controller
             'provider' => $dashboard->provider($principal->effectiveUser()),
             'canCreate' => Capabilities::allows($principal->actingRole(), 'web.create') && ! $principal->isReadOnly(),
             'backupsUrl' => Navigation::url('backups.index'),
+            'nodeAppsUrl' => route('node.apps.index', ['user' => $principal->effectiveUser()]),
         ]);
     }
 }

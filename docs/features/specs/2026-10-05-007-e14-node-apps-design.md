@@ -1,6 +1,6 @@
 # E14 — Node Apps with pm2 — design
 
-**Status:** Approved (2026-10-05) · **Epic:** E14 · **Base design:** [07 Node platform](../../design/07-node-platform.md) §5–§7 · **Previous specs:** [E12](./2026-10-05-004-e12-port-registry-design.md), [E6 batch 1](./2026-10-05-005-e6-templates-batch1-design.md), [E13](./2026-10-05-006-e13-node-manager-design.md) · **ADRs:** [0005 pm2 process model](../../adr/0005-pm2-process-model.md), [0001 view layer](../../adr/0001-view-layer.md) · **Roadmap:** [§3 E14](../../roadmap.md)
+**Status:** Implemented (2026-10-05, see §13) · **Epic:** E14 · **Base design:** [07 Node platform](../../design/07-node-platform.md) §5–§7 · **Previous specs:** [E12](./2026-10-05-004-e12-port-registry-design.md), [E6 batch 1](./2026-10-05-005-e6-templates-batch1-design.md), [E13](./2026-10-05-006-e13-node-manager-design.md) · **ADRs:** [0005 pm2 process model](../../adr/0005-pm2-process-model.md), [0001 view layer](../../adr/0001-view-layer.md) · **Roadmap:** [§3 E14](../../roadmap.md)
 
 ## 1. Summary
 
@@ -222,3 +222,20 @@ HTTPS on `arcpanel-test` uses a self-signed certificate: Let's Encrypt cannot re
 - **13 Data model reference:** `nodeapps.conf`, `pm2.conf`, the `nodeapp/` files, the unit, the logrotate file, `NODE_APPS`, `NODE_MAX_INSTANCES`.
 - **01 Architecture overview:** no new upstream exception (D5).
 - **Roadmap:** E14 points to this spec and gets its status line.
+
+## 13. Implementation notes (2026-10-05)
+
+These notes win over the sections above where they differ.
+
+1. **`app.conf` copy (D4, §5.1).** The copy is written by the user (`0640`), not root: the folder belongs to the user, so a root write could follow a symlink the user planted. It is refreshed with every record change and only read by `v-rebuild-node-apps`, which validates every field again.
+2. **`STATE` key (§5.1).** Records have `STATE` (`running` or `stopped`) next to `SUSPENDED`, so an app stopped by the user stays stopped through a reboot, a rebuild, an unsuspension and the 5-minute check. `SUSPENDED` is `no`, `yes` (the app) or `user` (set by the user suspension).
+3. **Daemon (§5.3).** The unit is `~/.config/systemd/user/arcpanel-pm2.service` (not `pm2-<user>.service`), rendered from `install/common/node/arcpanel-pm2.service` with `Type=forking`, `pm2 resurrect` and `pm2 kill`; an empty `~/.pm2/dump.pm2` is written first so that `resurrect` starts the daemon. `systemctl --user` runs as the user with `XDG_RUNTIME_DIR` instead of `--machine=USER@`. The pm2 client is never called while the daemon is down, because it would start a daemon outside systemd. pm2 `7.0.4` is pinned in `func/nodeapp.sh`. A suspended user's unit is disabled, so it does not start at boot.
+4. **Ports on restore (§5.6).** `v-rebuild-node-apps` first keeps every port that can be kept, then gives new ports to the rest, so two restored apps never swap ports (a restore reorders `web.conf`). A restored user has no pool: the recorded port is put back with `v-add-user-port USER PORT no restored` when nobody holds it. A domain rendered before its port was registered again (it serves the "not configured" page) is rebuilt.
+5. **Environment (§5.5, D13).** `PATH` is refused too, because the panel sets it. The command does not remove `FILE`; `ArcCommand` removes its temp files itself.
+6. **Install and build (§5.5).** A successful install restarts an app that should run (it loads the new modules); a successful build reloads it, or starts it when it is not online (a Next.js app cannot start before its first build).
+7. **A deleted web domain.** Upstream `v-delete-web-domain` has no hook. The panel's delete action runs `v-delete-node-app` after it, and `v-check-sys-node` reports `domain-missing` and removes the process, the port and the record of a domain deleted on the CLI.
+8. **Routes (§6.3).** The navigation entry is `/node-apps`, which redirects to `/node/{user}/apps`: `/node/apps` would be the Node.js page of a user named `apps`. The Node.js entry is active on `node.show` only, so the two entries are not active together.
+9. **Policy (§6.2).** `viewApps` is the capability and the scope; the navigation entry follows the package key like the Node.js entry (administrators always see it). Stop and delete need `removeApps` only, every other change `manageApps` (`NODE='yes'`).
+10. **Pages (§7).** The user detail page has cards, not tabs, so the "Node apps" tab is a card that lists the account's apps and links to the list. The island's HTTP helper keeps the message and the field errors of a 422 answer, so the wizard shows validation errors at their fields.
+11. **Done when 3.** Checked by terminating the WSL distribution (`wsl --terminate arcpanel-test`) and starting it again: both apps answered on their ports with an uptime of a few seconds, started by `user@<uid>.service` through linger, without a login.
+12. **Tests.** On `arcpanel-test` (Ubuntu 24.04, x64, NGINX + Apache): BATS `test/arcpanel-nodeapps.bats` 25 of 25, and with `arcpanel-node.bats`, `arcpanel-ports.bats`, `arcpanel-templates.bats` and `arcpanel-tenancy.bats` 121 of 121; Pest 327; Vitest 139; Playwright 30 of 30 with `test/e2e/node-apps.spec.js` (Done when 1, 2, 6 and 7 on `arce2edev`: Express and Next.js apps created from the wizard, dependencies installed, Next.js built, both answering over HTTPS with a self-signed certificate, each well under 5 minutes; live logs; an environment value read by the app; axe on the three pages; two `accessibility.spec.js` cases failed once with `ERR_CONNECTION_CLOSED` and passed on the rerun). Done when 3 by hand (note 11); 4 and 5 in BATS. shellcheck, Pint and Biome clean. `prepare.sh` gained `nodeapps`, `nodeapps-clean` and `https`.

@@ -55,6 +55,12 @@ describe('request', () => {
 		expect(error).toMatchObject({ status: 429, code: 'E_LIMIT', message: 'Limit reached' });
 	});
 
+	it('keeps the message and the field errors of a validation answer', async () => {
+		fetchMock.mockResolvedValue(jsonResponse({ message: 'The start field format is invalid.', errors: { start: ['bad'] } }, 422));
+		const error = await request('/app/x', { method: 'POST' }).catch((e) => e);
+		expect(error).toMatchObject({ status: 422, code: 'E_HTTP', message: 'The start field format is invalid.', errors: { start: ['bad'] } });
+	});
+
 	it('falls back to the status when the error is not JSON', async () => {
 		fetchMock.mockResolvedValue({ ok: false, status: 502, json: async () => Promise.reject(new SyntaxError('html')) });
 		const error = await request('/app/x').catch((e) => e);

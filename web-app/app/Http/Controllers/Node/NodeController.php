@@ -33,6 +33,7 @@ final class NodeController extends Controller
         'No runtime is installed yet.', 'Your package allows no more runtimes.',
         'Task', 'Running', 'Done', 'Failed', 'Show the output', 'Hide the output', 'Another task is running.',
         'Install Node.js %s', 'Install %s', 'Update the packages of Node.js %s', 'Check the packages of Node.js %s for updates',
+        'Install the dependencies of %s', 'Build %s',
         'Remove Node.js and every runtime and package? This cannot be undone.', 'Uninstall Node.js %s and its global packages?',
         'Remove %s?', 'Open terminal', 'Read-only: changes are disabled.', 'Something went wrong', 'Loading…',
         'The default runtime is used by your shell and by new apps.', 'Changes have been saved.', 'Select a runtime',

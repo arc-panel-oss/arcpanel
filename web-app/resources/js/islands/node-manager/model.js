@@ -55,6 +55,10 @@ export function taskLabel(task, t) {
 			return t('Update the packages of Node.js %s', first);
 		case 'check-outdated':
 			return t('Check the packages of Node.js %s for updates', first);
+		case 'app-install':
+			return t('Install the dependencies of %s', first);
+		case 'app-build':
+			return t('Build %s', first);
 		default:
 			return t('Task');
 	}

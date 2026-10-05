@@ -292,6 +292,8 @@ Every migrated page is built **reseller-aware from day one** (owner scoping from
 
 **Success metric:** Deploy an Express/Next.js app on a domain with HTTPS from the UI in < 5 minutes; the app is up after a server reboot; logs visible in the panel. **Effort:** L. **Outcome:** O7, O1.
 
+**Design:** [E14 spec](./features/specs/2026-10-05-007-e14-node-apps-design.md) (one pm2 daemon per user under `systemd --user`, records in `data/users/<user>/nodeapps.conf` with a backup copy in the domain folder, a 5-minute `v-check-sys-node` instead of new upstream hooks, the Node apps island, five milestones). **Status:** implemented 2026-10-05; Git deploy (milestone 4 "nice") moves to E20 and the WebSocket log stream to E18.
+
 ### E10 — Testing and CI (continuous)
 
 **Scope:** Pest unit/feature tests for Laravel (fake `ArcCommand`), Playwright e2e against a disposable Debian 12 VM/LXC built from `install/hst-install.sh`, keep existing BATS tests for `bin/`, GitHub Actions matrix (Debian 12/13, Ubuntu 24.04), lint already present (Prettier/Biome/markdownlint).

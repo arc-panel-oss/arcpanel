@@ -71,6 +71,26 @@
                 </x-ap-card>
             @endif
 
+            @if ($widgets['nodeApps'] ?? null)
+                <x-ap-card :title="__('Node apps')" icon="layers">
+                    @php($nodeApps = $widgets['nodeApps'])
+                    @if (! $nodeApps->ok())
+                        <x-ap-alert tone="danger">{{ $nodeApps->error }}</x-ap-alert>
+                    @elseif ($nodeApps->data->apps === [])
+                        <p class="muted">{{ __('No Node.js app yet.') }}</p>
+                    @else
+                        @php($totals = $nodeApps->data->totals())
+                        <div class="ap-row">
+                            <x-ap-badge tone="ok">{{ sprintf(__('%d online'), $totals['online']) }}</x-ap-badge>
+                            @if ($totals['stopped'] > 0)<x-ap-badge>{{ sprintf(__('%d stopped'), $totals['stopped']) }}</x-ap-badge>@endif
+                            @if ($totals['errored'] > 0)<x-ap-badge tone="danger">{{ sprintf(__('%d errored'), $totals['errored']) }}</x-ap-badge>@endif
+                            @if ($totals['suspended'] > 0)<x-ap-badge tone="warn">{{ sprintf(__('%d suspended'), $totals['suspended']) }}</x-ap-badge>@endif
+                        </div>
+                    @endif
+                    <x-slot:footer><a href="{{ $nodeAppsUrl }}">{{ __('All Node apps') }}</a></x-slot:footer>
+                </x-ap-card>
+            @endif
+
             <x-ap-card :title="__('Last backup')" icon="archive">
                 @php($backup = $widgets['backups'])
                 @if (! $backup->ok())

@@ -6,11 +6,13 @@ export class HttpError extends Error {
 	 * @param {number} status
 	 * @param {string} code
 	 * @param {string} message
+	 * @param {Record<string, string[]>} [errors]  field errors of a 422 answer
 	 */
-	constructor(status, code, message) {
+	constructor(status, code, message, errors = {}) {
 		super(message);
 		this.status = status;
 		this.code = code;
+		this.errors = errors;
 	}
 }
 
@@ -45,7 +47,8 @@ export async function request(url, { method = 'GET', body, signal } = {}) {
 		throw new HttpError(
 			response.status,
 			data?.error?.code ?? 'E_HTTP',
-			data?.error?.message ?? `HTTP ${response.status}`,
+			data?.error?.message ?? data?.message ?? `HTTP ${response.status}`,
+			data?.errors ?? {},
 		);
 	}
 	return data;

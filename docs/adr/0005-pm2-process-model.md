@@ -1,6 +1,6 @@
 # ADR-0005 — Node process model: one pm2 daemon per user under `systemd --user`
 
-**Status:** Proposed · **Date:** 2026-10-04 · **Epic:** E14
+**Status:** Accepted (2026-10-05, [E14 spec](../features/specs/2026-10-05-007-e14-node-apps-design.md) D2) · **Date:** 2026-10-04 · **Epic:** E14
 
 ## Context
 
@@ -17,7 +17,7 @@ Node apps must survive reboots, be restarted on crash, expose logs, respect the 
 
 ## Decision
 
-**Option A** ([07](../design/07-node-platform.md)). `v-add-node-app` installs `pm2` into the user's default Node version if absent, generates the user unit with `pm2 startup systemd -u <user> --hp /home/<user>`, enables linger, and writes `~/web/<domain>/nodeapp/ecosystem.config.cjs`. `v-delete-node-app` disables linger and the unit when the last app is removed; `v-suspend-user` stops the daemon through an additive hook. `v-rebuild-user` regenerates the unit. The daemon count is bounded by the number of users with apps; the `developer` package documents the expected memory overhead.
+**Option A** ([07](../design/07-node-platform.md)). `v-add-node-app` installs `pm2` into the user's default Node version if absent (that runtime is recorded as `PM2_RUNTIME` and cannot be removed while apps exist), renders the user unit `arcpanel-pm2.service` from ArcPanel's own template (`install/common/node/arcpanel-pm2.service`, the shape of pm2's systemd template: `Type=forking`, `pm2 resurrect`, `pm2 kill`; the output of `pm2 startup` is not parsed), enables linger, and writes `~/web/<domain>/nodeapp/ecosystem.config.cjs`. `v-delete-node-app` disables linger and the unit when the last app is removed; `v-suspend-user` stops the daemon through an additive hook. `v-rebuild-user` regenerates the unit. The daemon count is bounded by the number of users with apps; the `developer` package documents the expected memory overhead.
 
 ## Consequences
 

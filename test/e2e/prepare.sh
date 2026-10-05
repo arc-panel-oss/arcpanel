@@ -42,16 +42,78 @@ stop_listeners() {
 	rm -rf /tmp/arce2e-listen-*
 }
 
-# Local address of arce2euser's DOMAIN: web.conf holds the NAT address when
-# the IP has one
+# Local address of DOMAIN of USER (default arce2euser): web.conf holds the
+# NAT address when the IP has one
 domain_ip() {
 	local ip
-	ip=$(grep "^DOMAIN='$1' " "$HESTIA/data/users/arce2euser/web.conf" | grep -o " IP='[^']*'" | cut -d"'" -f2)
+	ip=$(grep "^DOMAIN='$1' " "$HESTIA/data/users/${2:-arce2euser}/web.conf" | grep -o " IP='[^']*'" | cut -d"'" -f2)
 	if [ -f "$HESTIA/data/ips/$ip" ]; then
 		echo "$ip"
 	else
 		basename "$(grep -l "^NAT='$ip'" "$HESTIA"/data/ips/* | head -n1)"
 	fi
+}
+
+# Node.js apps (E14): arce2edev gets two web domains with HTTPS (self-signed)
+# and the code of an Express app and a Next.js app; the spec creates the
+# apps, installs the dependencies and builds through the panel.
+NODEAPP_DOMAINS="e2e-api.example e2e-next.example"
+
+nodeapps_reset() {
+	if ! "$B/v-list-user" arce2edev > /dev/null 2>&1; then
+		return 0
+	fi
+	for domain in $("$B/v-list-node-apps" arce2edev json | jq -r '.APPS[].DOMAIN'); do
+		"$B/v-delete-node-app" arce2edev "$domain" > /dev/null 2>&1 || true
+	done
+	for domain in $NODEAPP_DOMAINS; do
+		"$B/v-delete-web-domain" arce2edev "$domain" no > /dev/null 2>&1 || true
+	done
+	"$B/v-delete-user-nvm" arce2edev > /dev/null 2>&1 || true
+	rm -f "$HESTIA/data/users/arce2edev/node-task.conf" "$HESTIA/data/users/arce2edev/node-task.log"
+}
+
+# Write FILE (relative to the domain's public_html) as arce2edev
+dev_file() {
+	local path="/home/arce2edev/web/$1/public_html/$2"
+	runuser -u arce2edev -- mkdir -p "$(dirname "$path")"
+	runuser -u arce2edev -- tee "$path" > /dev/null
+}
+
+nodeapps_prepare() {
+	local dir domain
+	"$B/v-add-user-nvm" arce2edev > /dev/null
+	"$B/v-add-user-node-version" arce2edev lts > /dev/null
+	dir="$(mktemp -d)"
+	for domain in $NODEAPP_DOMAINS; do
+		"$B/v-add-web-domain" arce2edev "$domain" > /dev/null
+		runuser -u arce2edev -- rm -f "/home/arce2edev/web/$domain/public_html/index.html"
+		openssl req -x509 -newkey rsa:2048 -nodes -days 30 -subj "/CN=$domain" \
+			-keyout "$dir/$domain.key" -out "$dir/$domain.crt" > /dev/null 2>&1
+		"$B/v-add-web-domain-ssl" arce2edev "$domain" "$dir" > /dev/null
+	done
+	rm -rf "$dir"
+
+	dev_file e2e-api.example package.json <<- 'EOF'
+		{ "name": "e2e-api", "private": true, "scripts": { "start": "node server.js" }, "dependencies": { "express": "^4.21.2" } }
+	EOF
+	dev_file e2e-api.example server.js <<- 'EOF'
+		const express = require('express');
+		const app = express();
+		app.get('*', (req, res) => {
+			console.log(`request ${req.path}`);
+			res.send(`arce2e-express ${process.env.PORT} ${process.env.GREETING || '-'}`);
+		});
+		app.listen(process.env.PORT, process.env.HOST);
+	EOF
+	dev_file e2e-next.example package.json <<- 'EOF'
+		{ "name": "e2e-next", "private": true, "scripts": { "build": "next build", "start": "next start" }, "dependencies": { "next": "^15", "react": "^19", "react-dom": "^19" } }
+	EOF
+	dev_file e2e-next.example pages/index.js <<- 'EOF'
+		export default function Home() {
+			return <p>arce2e-next</p>;
+		}
+	EOF
 }
 
 case "${1:-}" in
@@ -80,6 +142,24 @@ case "${1:-}" in
 			--resolve "$domain:80:$(domain_ip "$domain")" "http://$domain/" || echo 000
 		head -c 200 "$body"
 		rm -f "$body"
+		exit 0
+		;;
+	https)
+		domain="${2:?domain}"
+		body="$(mktemp)"
+		curl -sk --noproxy '*' --max-time 10 -o "$body" -w '%{http_code}\n' \
+			--resolve "$domain:443:$(domain_ip "$domain" "${3:-arce2euser}")" "https://$domain/" || echo 000
+		head -c 65536 "$body"
+		rm -f "$body"
+		exit 0
+		;;
+	nodeapps)
+		nodeapps_reset
+		nodeapps_prepare
+		exit 0
+		;;
+	nodeapps-clean)
+		nodeapps_reset
 		exit 0
 		;;
 esac
@@ -132,8 +212,7 @@ done
 for user in arce2ecustomer arce2euser arce2ereseller; do
 	"$B/v-delete-user-ports" "$user" > /dev/null
 done
-"$B/v-delete-user-nvm" arce2edev > /dev/null 2>&1 || true
-rm -f "$HESTIA/data/users/arce2edev/node-task.conf" "$HESTIA/data/users/arce2edev/node-task.log"
+nodeapps_reset
 "$B/v-add-web-domain" arce2euser e2e-site.example > /dev/null
 "$B/v-add-web-domain" arce2euser e2e-bulk.example > /dev/null
 

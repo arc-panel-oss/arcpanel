@@ -98,6 +98,9 @@ function fakeArc(array $config = []): ArcCommandFake
     // without a package entry it does not.
     $fake->on('v-list-user')->returnsExit(ExitCode::NotExist);
     $fake->on('v-list-package-tenancy')->returnsJson([]);
+    // The user detail page and the dashboard list Node.js apps (E14); none by default.
+    $fake->on('v-list-node-apps')->using(fn (array $args) => [0, (string) json_encode(nodeAppList($args[0]))]);
+    $fake->on('v-delete-node-app')->returnsExit(ExitCode::NotExist);
 
     return $fake;
 }
