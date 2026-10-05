@@ -218,6 +218,11 @@ teardown_file() {
     run v-change-reseller-package "$RESELLER2" "$tmp" "${RESELLER}_own"
     assert_failure 10
     rm -f "$tmp"
+    run v-delete-reseller-package "$RESELLER2" "${RESELLER}_own"
+    assert_failure 10
+    run v-delete-reseller-package "$RESELLER" "${RESELLER}_own"
+    assert_success
+    assert_file_not_exists "$PKG_DIR/${RESELLER}_own.tenancy"
 }
 
 @test "Package rename and delete keep the sidecar in step" {

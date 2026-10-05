@@ -1,0 +1,59 @@
+#!/bin/bash
+# info: delete a package owned by a reseller
+# options: RESELLER PACKAGE
+#
+# example: v-delete-reseller-package agency agency_starter
+#
+# This function deletes a package created by RESELLER, with its reseller
+# settings, when no user has it.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+reseller=$1
+package=$2
+
+# Includes
+# shellcheck source=/etc/hestiacp/hestia.conf
+source /etc/hestiacp/hestia.conf
+# shellcheck source=/usr/local/hestia/func/main.sh
+source $HESTIA/func/main.sh
+# shellcheck source=/usr/local/hestia/func/tenancy.sh
+source $HESTIA/func/tenancy.sh
+# load config file
+source_conf "$HESTIA/conf/hestia.conf"
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '2' "$#" 'RESELLER PACKAGE'
+is_user_format_valid "$reseller" 'reseller'
+is_format_valid 'package'
+is_object_valid 'user' 'USER' "$reseller"
+is_package_valid "$package"
+if [ "$(tenancy_pkg_get "$package" RESELLER_OWNER)" != "$reseller" ]; then
+	check_result "$E_FORBIDEN" "package $package does not belong to $reseller"
+fi
+
+# Perform verification if read-only mode is enabled
+check_hestia_demo_mode
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+$BIN/v-delete-user-package "$package"
+check_result $? "package $package was not deleted" > /dev/null
+rm -f "$(tenancy_package_file "$package")"
+
+#----------------------------------------------------------#
+#                       Hestia                             #
+#----------------------------------------------------------#
+
+$BIN/v-log-action "$reseller" "Info" "Packages" "Package deleted (Name: $package)."
+log_event "$OK" "$ARGUMENTS"
+
+exit

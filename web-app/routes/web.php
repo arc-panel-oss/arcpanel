@@ -5,6 +5,7 @@ use App\Http\Controllers\Auth\LogoutController;
 use App\Http\Controllers\Auth\TwoFactorController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ImpersonationController;
+use App\Http\Controllers\Packages\PackageController;
 use App\Http\Controllers\Shell\LanguageController;
 use App\Http\Controllers\Shell\NotificationController;
 use App\Http\Controllers\Shell\PaletteController;
@@ -26,6 +27,7 @@ use Illuminate\Support\Facades\Route;
 // the commands, the route only keeps out slashes and spaces.
 Route::pattern('user', '[[:alnum:]][-.\w]{0,28}[[:alnum:]]');
 Route::pattern('domain', '[^/\s]{1,253}');
+Route::pattern('package', '[[:alnum:]][-.\w]{0,99}');
 
 Route::middleware('guest.arc')->group(function () {
     Route::get('/login', [LoginController::class, 'show'])->name('login');
@@ -71,6 +73,19 @@ Route::middleware('auth.arc')->group(function () {
                 Route::post('/unsuspend', [UserActionController::class, 'unsuspend'])->name('unsuspend');
                 Route::delete('/', [UserActionController::class, 'destroy'])->name('destroy');
             });
+        });
+    });
+
+    // Packages (E11 spec §8)
+    Route::prefix('packages')->name('packages.')->group(function () {
+        Route::get('/', [PackageController::class, 'index'])->name('index');
+        Route::get('/create', [PackageController::class, 'create'])->name('create');
+        Route::get('/{package}/edit', [PackageController::class, 'edit'])->name('edit');
+        Route::middleware('not-readonly')->group(function () {
+            Route::post('/', [PackageController::class, 'store'])->name('store');
+            Route::post('/{package}', [PackageController::class, 'update'])->name('update');
+            Route::post('/{package}/copy', [PackageController::class, 'copy'])->name('copy');
+            Route::delete('/{package}', [PackageController::class, 'destroy'])->name('destroy');
         });
     });
 

@@ -54,7 +54,9 @@ final class ArcCommandFake implements ArcCommand
     {
         $options ??= new Options;
         CommandArguments::assertCommand($command, [$command]);
-        $plain = array_map(fn ($arg) => CommandArguments::toString($command, $arg), array_values($args));
+        // File secrets reach the command as a file, like ProcessArcCommand
+        // writes them, so line breaks are allowed in them.
+        $plain = array_map(fn ($arg) => $arg instanceof Secret && $arg->viaFile ? $arg->reveal() : CommandArguments::toString($command, $arg), array_values($args));
         $this->calls[] = ['command' => $command, 'args' => $plain];
 
         foreach ($this->expectations as $expectation) {
