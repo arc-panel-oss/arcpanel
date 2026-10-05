@@ -199,3 +199,24 @@ it('sets the Node.js keys of a package, within the reseller plan for a reseller 
     $this->post('/packages', packageInput(['node_versions_unlimited' => '1']))->assertSessionHasErrors('node_versions');
     $this->fake->assertNotRan('v-add-reseller-package');
 });
+
+it('sets NODE_APPS of a package, within the reseller plan for a reseller (E14)', function () {
+    $this->fake->on('v-add-user-package')->returns();
+    $this->fake->on('v-add-reseller-package')->returns();
+    $this->fake->on('v-change-package-tenancy')->returns();
+
+    signIn('arcadmin', 'admin');
+    $this->get('/packages/create')->assertOk()->assertSee('name="node_apps"', false);
+    $this->post('/packages', packageInput(['node' => '1', 'node_apps' => '5']))->assertRedirect('/packages');
+    $steps = collect($this->fake->calls('v-change-package-tenancy'))->pluck('args')->all();
+    expect($steps)->toBe([['business', 'NODE_APPS', '5'], ['business', 'NODE', 'yes']]);
+    $this->post('/packages', packageInput(['name' => 'apps', 'node_apps_unlimited' => '1']))->assertRedirect('/packages');
+    $this->fake->assertRan('v-change-package-tenancy', fn ($a) => $a === ['apps', 'NODE_APPS', 'unlimited']);
+    $this->post('/packages', packageInput(['node_apps' => '-1']))->assertSessionHasErrors('node_apps');
+
+    // the reseller package has NODE_APPS 3 (the default)
+    signIn('hostco', 'reseller');
+    $this->post('/packages', packageInput(['node_apps' => '4']))->assertSessionHasErrors('node_apps');
+    $this->post('/packages', packageInput(['node_apps_unlimited' => '1']))->assertSessionHasErrors('node_apps');
+    $this->fake->assertNotRan('v-add-reseller-package');
+});

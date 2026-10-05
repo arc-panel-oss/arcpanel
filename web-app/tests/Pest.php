@@ -354,3 +354,34 @@ function nodeTask(string $user, array $overrides = []): array
         'START' => '', 'END' => '', 'LOG' => '',
     ], $overrides);
 }
+
+/**
+ * One app of `v-list-node-apps USER json` (E14 spec §5.4), online.
+ *
+ * @param  array<string, string>  $overrides
+ * @return array<string, string>
+ */
+function nodeApp(string $domain, array $overrides = []): array
+{
+    return array_merge([
+        'DOMAIN' => $domain, 'NAME' => $domain, 'START' => 'server.js', 'CWD' => 'public_html', 'NODE_VERSION' => 'default',
+        'PORT' => '30010', 'INSTANCES' => '1', 'MAX_MEMORY' => '512', 'TEMPLATE' => 'nodejs-proxy', 'PREV_TPL' => 'default',
+        'STATE' => 'running', 'SUSPENDED' => 'no', 'TIME' => '10:00:00', 'DATE' => '2026-10-05', 'RUNTIME' => '24.21.0',
+        'STATUS' => 'online', 'REASON' => '', 'PID' => '4242', 'CPU' => '0.5', 'MEMORY' => '48', 'RESTARTS' => '0', 'UPTIME' => '120',
+    ], $overrides);
+}
+
+/**
+ * `v-list-node-apps USER json` (E14 spec §5.4).
+ *
+ * @param  list<array<string, string>>  $apps  from nodeApp()
+ * @param  array<string, string>  $overrides
+ * @return array<string, mixed>
+ */
+function nodeAppList(string $user, array $apps = [], array $overrides = []): array
+{
+    return array_merge([
+        'USER' => $user, 'NODE' => 'yes', 'LIMIT' => '3', 'COUNT' => (string) count($apps), 'DAEMON' => $apps === [] ? 'no' : 'yes',
+        'PM2_RUNTIME' => $apps === [] ? '' : '24.21.0', 'MAX_INSTANCES' => '4', 'MEMORY_LIMIT' => '', 'APPS' => $apps,
+    ], $overrides);
+}

@@ -62,6 +62,9 @@ final class Capabilities
         // Node.js runtimes (E13 spec §6.2); NodePolicy adds the package key
         'node.view' => self::ALL_ROLES,
         'node.manage' => self::ALL_ROLES,
+        // Node.js apps (E14 spec §6.2); NodePolicy adds the package key
+        'node.apps.view' => self::ALL_ROLES,
+        'node.apps.manage' => self::ALL_ROLES,
 
         'web.view' => self::ALL_ROLES,
         'web.create' => self::ALL_ROLES,

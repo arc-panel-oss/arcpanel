@@ -39,6 +39,7 @@ final class PackageRequest extends FormRequest
             'ports' => ['nullable', 'integer', 'min:0', 'max:65535'],
             'node' => ['nullable', 'boolean'],
             'node_versions' => ['nullable', 'integer', 'min:0', 'max:999'],
+            'node_apps' => ['nullable', 'integer', 'min:0', 'max:999'],
             'node_allowed' => ['nullable', 'string', 'max:100', 'regex:/^(lts|\*|\d{1,3}(,\d{1,3})*)$/'],
         ];
         foreach (PackageRecord::COUNTED as $key) {
@@ -101,10 +102,10 @@ final class PackageRequest extends FormRequest
     }
 
     /**
-     * Node.js keys of the package sidecar (E13): NODE, NODE_VERSIONS (a
-     * number, or unlimited when ticked) and NODE_ALLOWED.
+     * Node.js keys of the package sidecar: NODE, NODE_VERSIONS (a number,
+     * or unlimited when ticked) and NODE_ALLOWED (E13), NODE_APPS (E14).
      *
-     * @return array{NODE: string, NODE_VERSIONS: string, NODE_ALLOWED: string}
+     * @return array{NODE: string, NODE_VERSIONS: string, NODE_ALLOWED: string, NODE_APPS: string}
      */
     public function nodeValues(): array
     {
@@ -112,6 +113,7 @@ final class PackageRequest extends FormRequest
             'NODE' => $this->boolean('node') ? 'yes' : 'no',
             'NODE_VERSIONS' => $this->boolean('node_versions_unlimited') ? 'unlimited' : (string) $this->integer('node_versions', 3),
             'NODE_ALLOWED' => (string) ($this->input('node_allowed') ?: 'lts'),
+            'NODE_APPS' => $this->boolean('node_apps_unlimited') ? 'unlimited' : (string) $this->integer('node_apps', 3),
         ];
     }
 

@@ -147,7 +147,7 @@ final class PackageController extends Controller
             'RATE_LIMIT' => '200', 'BACKUPS' => '1', 'BACKUPS_INCREMENTAL' => 'no', 'SHELL' => 'nologin',
             'NS' => (string) ($this->packages->all()['default']?->get('NS') ?? ''),
             'USERS' => '0', 'RESELLER_PACKAGES' => '', 'RESELLER_VISIBLE' => 'no', 'PORTS' => '0',
-            'NODE' => 'no', 'NODE_VERSIONS' => '3', 'NODE_ALLOWED' => 'lts',
+            'NODE' => 'no', 'NODE_VERSIONS' => '3', 'NODE_ALLOWED' => 'lts', 'NODE_APPS' => '3',
         ];
 
         return view('packages.form', [
@@ -233,22 +233,26 @@ final class PackageController extends Controller
     }
 
     /**
-     * Node.js keys of the reseller's own package (E13).
+     * Node.js keys of the reseller's own package (E13, E14).
      *
-     * @return array{NODE: string, NODE_VERSIONS: string}
+     * @return array{NODE: string, NODE_VERSIONS: string, NODE_APPS: string}
      */
     private function ownNode(string $reseller): array
     {
         $record = $this->packages->all()[$this->users->find($reseller)->package()] ?? null;
 
-        return ['NODE' => $record?->get('NODE', 'no') ?? 'no', 'NODE_VERSIONS' => $record?->get('NODE_VERSIONS', '3') ?? '3'];
+        return [
+            'NODE' => $record?->get('NODE', 'no') ?? 'no',
+            'NODE_VERSIONS' => $record?->get('NODE_VERSIONS', '3') ?? '3',
+            'NODE_APPS' => $record?->get('NODE_APPS', '3') ?? '3',
+        ];
     }
 
     /**
      * Node.js keys of the form; a reseller cannot give Node.js it does not
-     * have, nor more runtimes than its own package allows.
+     * have, nor more runtimes or apps than its own package allows.
      *
-     * @return array{NODE: string, NODE_VERSIONS: string, NODE_ALLOWED: string}
+     * @return array{NODE: string, NODE_VERSIONS: string, NODE_ALLOWED: string, NODE_APPS: string}
      */
     private function checkedNode(PackageRequest $request, string $reseller): array
     {
@@ -259,9 +263,11 @@ final class PackageController extends Controller
             if ($node['NODE'] === 'yes' && $own['NODE'] !== 'yes') {
                 $errors['node'] = __('Node.js is not included in your plan.');
             }
-            $limit = $own['NODE_VERSIONS'];
-            if ($limit !== 'unlimited' && ($node['NODE_VERSIONS'] === 'unlimited' || (int) $node['NODE_VERSIONS'] > (int) $limit)) {
-                $errors['node_versions'] = sprintf(__('At most %s on your plan.'), $limit);
+            foreach (['NODE_VERSIONS' => 'node_versions', 'NODE_APPS' => 'node_apps'] as $key => $field) {
+                $limit = $own[$key];
+                if ($limit !== 'unlimited' && ($node[$key] === 'unlimited' || (int) $node[$key] > (int) $limit)) {
+                    $errors[$field] = sprintf(__('At most %s on your plan.'), $limit);
+                }
             }
             if ($errors !== []) {
                 throw ValidationException::withMessages($errors);

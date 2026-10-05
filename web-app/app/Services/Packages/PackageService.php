@@ -96,7 +96,7 @@ final class PackageService
      * @param  array<string, string>  $values
      * @param  array{USERS: string, RESELLER_PACKAGES: string, RESELLER_VISIBLE: string}|null  $tenancy  administrators only
      * @param  string  $ports  PORTS of the package (E12), a number or unlimited
-     * @param  array{NODE: string, NODE_VERSIONS: string, NODE_ALLOWED: string}|null  $node  Node.js keys (E13), null to keep them
+     * @param  array{NODE: string, NODE_VERSIONS: string, NODE_ALLOWED: string, NODE_APPS: string}|null  $node  Node.js keys (E13), null to keep them
      * @return list<Step>
      */
     public function planCreate(string $name, array $values, ?array $tenancy, string $reseller = '', string $ports = '0', ?array $node = null): array
@@ -122,7 +122,7 @@ final class PackageService
      * @param  array<string, string>  $values
      * @param  array{USERS: string, RESELLER_PACKAGES: string, RESELLER_VISIBLE: string}|null  $tenancy
      * @param  string|null  $ports  PORTS of the package (E12), null to keep it
-     * @param  array{NODE: string, NODE_VERSIONS: string, NODE_ALLOWED: string}|null  $node  Node.js keys (E13), null to keep them
+     * @param  array{NODE: string, NODE_VERSIONS: string, NODE_ALLOWED: string, NODE_APPS: string}|null  $node  Node.js keys (E13), null to keep them
      * @return list<Step>
      */
     public function planUpdate(PackageRecord $current, string $newName, array $values, ?array $tenancy, string $reseller = '', ?string $ports = null, ?array $node = null): array
@@ -166,6 +166,7 @@ final class PackageService
                 'NODE' => $current->get('NODE', 'no'),
                 'NODE_VERSIONS' => $current->get('NODE_VERSIONS', '3'),
                 'NODE_ALLOWED' => $current->get('NODE_ALLOWED', 'lts'),
+                'NODE_APPS' => $current->get('NODE_APPS', '3'),
             ], null),
         ];
     }
@@ -204,12 +205,12 @@ final class PackageService
     }
 
     /**
-     * Node.js keys of the package sidecar (E13) that are set or changed;
-     * NODE_VERSIONS before NODE, so that lowering the runtimes and turning
-     * Node.js on in one save is checked against the new number. The command
+     * Node.js keys of the package sidecar (E13, NODE_APPS E14) that are set
+     * or changed; the limits before NODE, so that lowering them and turning
+     * Node.js on in one save is checked against the new numbers. The command
      * checks a reseller's package against the reseller's keys.
      *
-     * @param  array{NODE: string, NODE_VERSIONS: string, NODE_ALLOWED: string}|null  $node
+     * @param  array{NODE: string, NODE_VERSIONS: string, NODE_ALLOWED: string, NODE_APPS: string}|null  $node
      * @return list<Step>
      */
     private function nodeSteps(string $name, ?array $node, ?PackageRecord $current): array
@@ -217,9 +218,12 @@ final class PackageService
         if ($node === null) {
             return [];
         }
-        $defaults = ['NODE' => 'no', 'NODE_VERSIONS' => '3', 'NODE_ALLOWED' => 'lts'];
+        $defaults = ['NODE' => 'no', 'NODE_VERSIONS' => '3', 'NODE_ALLOWED' => 'lts', 'NODE_APPS' => '3'];
         $steps = [];
-        foreach (['NODE_VERSIONS', 'NODE_ALLOWED', 'NODE'] as $key) {
+        foreach (['NODE_VERSIONS', 'NODE_APPS', 'NODE_ALLOWED', 'NODE'] as $key) {
+            if (! isset($node[$key])) {
+                continue;
+            }
             $before = $current?->get($key, $defaults[$key]) ?? $defaults[$key];
             if ($node[$key] !== $before) {
                 $steps[] = new Step(sprintf(__('Set %s'), $key), 'v-change-package-tenancy', [$name, $key, $node[$key]]);

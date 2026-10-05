@@ -5,6 +5,7 @@ use App\Http\Controllers\Auth\LogoutController;
 use App\Http\Controllers\Auth\TwoFactorController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ImpersonationController;
+use App\Http\Controllers\Node\NodeAppController;
 use App\Http\Controllers\Node\NodeController;
 use App\Http\Controllers\Packages\PackageController;
 use App\Http\Controllers\Ports\PortController;
@@ -21,6 +22,7 @@ use App\Http\Controllers\WebDomains\WebDomainActionController;
 use App\Http\Controllers\WebDomains\WebDomainController;
 use App\Http\Controllers\WebDomains\WebDomainEditController;
 use App\Http\Controllers\WebDomains\WebDomainLogController;
+use App\Services\Node\NodeAppService;
 use Illuminate\Support\Facades\Route;
 
 // Served under /app/ (ADR-0002). Link with route names only, so the prefix
@@ -141,6 +143,28 @@ Route::middleware('auth.arc')->group(function () {
                     Route::post('/versions/{version}/packages/outdated', [NodeController::class, 'checkOutdated'])->name('packages.outdated');
                     Route::delete('/versions/{version}/packages/{name}', [NodeController::class, 'destroyPackage'])
                         ->where('name', '(@[a-z0-9][a-z0-9._~-]*/)?[a-z0-9][a-z0-9._~-]*')->name('packages.destroy');
+                });
+
+                // Node.js apps (E14 spec §6.3)
+                Route::prefix('apps')->name('apps.')->group(function () {
+                    Route::get('/', [NodeAppController::class, 'index'])->name('index');
+                    Route::get('/options', [NodeAppController::class, 'options'])->name('options');
+                    Route::get('/detect/{domain}', [NodeAppController::class, 'detect'])->name('detect');
+                    Route::get('/{domain}', [NodeAppController::class, 'show'])->name('show');
+                    Route::get('/{domain}/env', [NodeAppController::class, 'env'])->name('env');
+                    Route::get('/{domain}/logs', [NodeAppController::class, 'logs'])->name('logs');
+                    Route::middleware('not-readonly')->group(function () {
+                        Route::post('/', [NodeAppController::class, 'store'])->name('store');
+                        Route::delete('/{domain}', [NodeAppController::class, 'destroy'])->name('destroy');
+                        Route::post('/{domain}/install', [NodeAppController::class, 'install'])->name('install');
+                        Route::post('/{domain}/build', [NodeAppController::class, 'build'])->name('build');
+                        Route::post('/{domain}/{action}', [NodeAppController::class, 'action'])
+                            ->whereIn('action', NodeAppService::ACTIONS)->name('action');
+                        Route::put('/{domain}/start', [NodeAppController::class, 'changeStart'])->name('start');
+                        Route::put('/{domain}/version', [NodeAppController::class, 'changeVersion'])->name('version');
+                        Route::put('/{domain}/scale', [NodeAppController::class, 'scale'])->name('scale');
+                        Route::put('/{domain}/env', [NodeAppController::class, 'saveEnv'])->name('env.update');
+                    });
                 });
             });
         });
