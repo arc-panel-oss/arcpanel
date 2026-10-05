@@ -9,7 +9,7 @@
 #   $HESTIA/data/users/<user>/tenancy.conf     OWNER, R_* (resellers)       #
 #   $HESTIA/data/packages/<package>.tenancy    USERS, RESELLER_PACKAGES,    #
 #                                              RESELLER_VISIBLE,            #
-#                                              RESELLER_OWNER               #
+#                                              RESELLER_OWNER, PORTS (E12)  #
 # See docs/features/specs/2026-10-05-003-e11-reseller-design.md.            #
 #                                                                           #
 #===========================================================================#
@@ -162,7 +162,7 @@ tenancy_pkg_get() {
 	value=$(tenancy_conf_get "$(tenancy_package_file "$1")" "$2")
 	if [ -z "$value" ]; then
 		case "$2" in
-			USERS) value='0' ;;
+			USERS | PORTS) value='0' ;;
 			RESELLER_VISIBLE) value='no' ;;
 		esac
 	fi
@@ -194,8 +194,8 @@ tenancy_all_packages() {
 tenancy_pkg_value_valid() {
 	local key="$1" value="$2" item
 	case "$key" in
-		USERS)
-			[ "$value" = 'unlimited' ] || [[ "$value" =~ ^[0-9]+$ ]]
+		USERS | PORTS)
+			[ "$value" = 'unlimited' ] || [[ "$value" =~ ^[0-9]{1,5}$ ]]
 			;;
 		RESELLER_VISIBLE)
 			[ "$value" = 'yes' ] || [ "$value" = 'no' ]
@@ -300,6 +300,15 @@ tenancy_check_quota() {
 			return "$E_LIMIT"
 		fi
 	done
+
+	# Ports of the package (E12)
+	if ! declare -F ports_quota_check > /dev/null && [ -f "$HESTIA/func/ports.sh" ]; then
+		# shellcheck source=/usr/local/hestia/func/ports.sh
+		source "$HESTIA/func/ports.sh"
+	fi
+	if declare -F ports_quota_check > /dev/null; then
+		ports_quota_check "$reseller" "$package" "$except" || return $?
+	fi
 	return 0
 }
 
@@ -392,6 +401,7 @@ tenancy_package_json() {
 		printf '        "USERS": "%s",\n' "$(tenancy_json_escape "$(tenancy_pkg_get "$package" USERS)")"
 		printf '        "RESELLER_PACKAGES": "%s",\n' "$(tenancy_json_escape "$(tenancy_pkg_get "$package" RESELLER_PACKAGES)")"
 		printf '        "RESELLER_VISIBLE": "%s",\n' "$(tenancy_json_escape "$(tenancy_pkg_get "$package" RESELLER_VISIBLE)")"
+		printf '        "PORTS": "%s",\n' "$(tenancy_json_escape "$(tenancy_pkg_get "$package" PORTS)")"
 		printf '        "RESELLER_OWNER": "%s"\n    }' "$(tenancy_json_escape "$(tenancy_pkg_get "$package" RESELLER_OWNER)")"
 	)
 }

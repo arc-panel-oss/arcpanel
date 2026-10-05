@@ -115,6 +115,9 @@ json_list() {
 		"ARCPANEL_VERSION": "'$ARCPANEL_VERSION'",
 		"ARCPANEL_APP_LOGIN": "'$ARCPANEL_APP_LOGIN'",
 		"ARCPANEL_APP_PAGES": "'$ARCPANEL_APP_PAGES'",
+		"PORT_RANGE_START": "'$PORT_RANGE_START'",
+		"PORT_RANGE_END": "'$PORT_RANGE_END'",
+		"PORT_REGISTRY": "'$PORT_REGISTRY'",
 		"WEBMAIL_ALIAS": "'$WEBMAIL_ALIAS'",
 		"WEBMAIL_SYSTEM": "'$WEBMAIL_SYSTEM'",
 		"WEB_BACKEND": "'$WEB_BACKEND'",
@@ -216,6 +219,9 @@ shell_list() {
 	fi
 	if [ -n "$POLICY_RESELLER_LOGIN_AS" ]; then
 		echo "Resellers log in as customers:    $POLICY_RESELLER_LOGIN_AS"
+	fi
+	if [ -n "$PORT_REGISTRY" ]; then
+		echo "Port registry:                    $PORT_REGISTRY ($PORT_RANGE_START-$PORT_RANGE_END)"
 	fi
 	if [ -n "$DEMO_MODE" ]; then
 		echo "Demo Mode:                        $DEMO_MODE"

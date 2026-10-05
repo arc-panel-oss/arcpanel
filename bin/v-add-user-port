@@ -1,0 +1,73 @@
+#!/bin/bash
+# info: allocate a port or range to a user
+# options: USER PORT|RANGE [PUBLIC_OK] [COMMENT]
+#
+# example: v-add-user-port alice 30100-30109 yes 'API servers'
+#
+# This function allocates free ports of the server range to a user. The
+# ports must not be reserved or allocated to anyone. PUBLIC_OK (yes or no,
+# default no) lets the user open them to the internet. A user in a
+# reseller's tree cannot take the tree above the reseller's PORTS.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+user=$1
+range=$2
+public_ok=${3-no}
+comment=${4-}
+
+# Includes
+# shellcheck source=/etc/hestiacp/hestia.conf
+source /etc/hestiacp/hestia.conf
+# shellcheck source=/usr/local/hestia/func/main.sh
+source $HESTIA/func/main.sh
+# shellcheck source=/usr/local/hestia/func/tenancy.sh
+source $HESTIA/func/tenancy.sh
+# shellcheck source=/usr/local/hestia/func/ports.sh
+source $HESTIA/func/ports.sh
+# load config file
+source_conf "$HESTIA/conf/hestia.conf"
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '2' "$#" 'USER PORT|RANGE [PUBLIC_OK] [COMMENT]'
+is_format_valid 'user'
+is_object_valid 'user' 'USER' "$user"
+ports_parse_range "$range"
+ports_check_yes_no "$public_ok" 'PUBLIC_OK'
+ports_check_comment "$comment"
+if [ "$PSTART" -lt "$(ports_range_start)" ] || [ "$PEND" -gt "$(ports_range_end)" ]; then
+	check_result "$E_FORBIDEN" "ports of $range are outside the server range $(ports_range_start)-$(ports_range_end)"
+fi
+
+# Perform verification if read-only mode is enabled
+check_hestia_demo_mode
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+ports_lock
+holder=$(ports_holder "$PSTART" "$PEND")
+if [ "$holder" = '@reserved' ]; then
+	check_result "$E_FORBIDEN" "ports of $range are reserved"
+elif [ -n "$holder" ]; then
+	check_result "$E_EXISTS" "ports of $range are already allocated to $holder"
+fi
+ports_check_tree_room "$(ports_tree_of "$user")" $((PEND - PSTART + 1))
+
+ports_add_free "$user" "$PSTART" "$PEND" "$public_ok" "$comment"
+
+#----------------------------------------------------------#
+#                       Hestia                             #
+#----------------------------------------------------------#
+
+$BIN/v-log-action "system" "Info" "Ports" "Ports allocated (User: $user, Ports: $range, Public: $public_ok)."
+log_event "$OK" "$ARGUMENTS"
+
+exit

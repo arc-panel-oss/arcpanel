@@ -1,0 +1,99 @@
+#!/bin/bash
+# info: reconcile the port registry with the server
+# options: [notify|repair]
+#
+# example: v-check-sys-ports repair
+#
+# This function compares the registry with the listening sockets and the
+# firewall rules, prints the findings and writes them to
+# data/ports/.report.json. With "notify", the administrator gets one
+# notification when there are findings. With "repair", missing firewall
+# rules of public ports are written, stale tagged rules are deleted and the
+# files of users that no longer exist are archived.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+mode=${1-}
+
+# Includes
+# shellcheck source=/etc/hestiacp/hestia.conf
+source /etc/hestiacp/hestia.conf
+# shellcheck source=/usr/local/hestia/func/main.sh
+source $HESTIA/func/main.sh
+# shellcheck source=/usr/local/hestia/func/tenancy.sh
+source $HESTIA/func/tenancy.sh
+# shellcheck source=/usr/local/hestia/func/ports.sh
+source $HESTIA/func/ports.sh
+# load config file
+source_conf "$HESTIA/conf/hestia.conf"
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+case "$mode" in
+	'' | notify | repair) ;;
+	*) check_result "$E_INVALID" "invalid mode :: $mode" ;;
+esac
+
+if [ "$mode" = 'repair' ]; then
+	# Perform verification if read-only mode is enabled
+	check_hestia_demo_mode
+fi
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+ports_lock
+findings=$(ports_findings)
+
+if [ "$mode" = 'repair' ]; then
+	while IFS='|' read -r type user port proto rule detail; do
+		case "$type" in
+			missing-rule)
+				ports_fw_open "$user" "$port" "$proto"
+				;;
+			stale-rule)
+				# By comment: ids move after every delete
+				ports_fw_delete_comment "$detail"
+				;;
+			orphan-file)
+				mkdir -p "$PORTS_DIR/.deleted"
+				mv -f "$(ports_file "$user")" "$PORTS_DIR/.deleted/$user-$(date +%F-%H%M%S).conf"
+				;;
+		esac
+	done <<< "$findings"
+	findings=$(ports_findings)
+fi
+
+{
+	echo '{'
+	printf '    "TIME": "%s",\n' "$(date +'%T')"
+	printf '    "DATE": "%s",\n' "$(date +'%F')"
+	echo '    "FINDINGS": ['
+	printf '%s\n' "$findings" | ports_findings_json
+	echo '    ]'
+	echo '}'
+} > "$PORTS_DIR/.report.json.tmp"
+mv -f "$PORTS_DIR/.report.json.tmp" "$PORTS_DIR/.report.json"
+chmod 640 "$PORTS_DIR/.report.json"
+
+count=$(printf '%s\n' "$findings" | grep -c -v '^$')
+printf '%s\n' "$findings" | grep -v '^$' | awk -F'|' '{ for (i = 2; i <= 5; i++) if ($i == "") $i = "-"; print $1, $2, $3, $4, $5 }'
+
+if [ "$mode" = 'notify' ] && [ "$count" -gt 0 ]; then
+	types=$(printf '%s\n' "$findings" | grep -v '^$' | cut -d'|' -f1 | sort | uniq -c | awk '{ printf "%s%s %s", sep, $1, $2; sep = ", " }')
+	$BIN/v-add-user-notification "$ROOT_USER" "Port registry" "The nightly port check found $count issue(s): $types. See Server, Ports." > /dev/null 2>&1
+fi
+
+#----------------------------------------------------------#
+#                       Hestia                             #
+#----------------------------------------------------------#
+
+log_event "$OK" "$ARGUMENTS"
+
+exit

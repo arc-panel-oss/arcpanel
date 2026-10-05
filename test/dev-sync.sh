@@ -107,6 +107,7 @@ if ! grep -q "^ARCPANEL_APP_PAGES=" "$HESTIA/conf/hestia.conf"; then
 fi
 
 "$HESTIA/bin/v-add-sys-tenancy"
+"$HESTIA/bin/v-add-sys-port-registry"
 
 if [ "$restart_step" = yes ]; then
 	"$HESTIA/nginx/sbin/hestia-nginx" -t -q

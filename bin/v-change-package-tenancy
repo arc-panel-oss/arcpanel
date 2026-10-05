@@ -5,7 +5,9 @@
 # example: v-change-package-tenancy reseller USERS 25
 #
 # This function sets USERS (integer or unlimited), RESELLER_PACKAGES (comma
-# list of packages, or *) or RESELLER_VISIBLE (yes or no) of a package.
+# list of packages, or *), RESELLER_VISIBLE (yes or no) or PORTS (integer
+# or unlimited) of a package. PORTS of a reseller's own package cannot be
+# above the reseller's PORTS.
 
 #----------------------------------------------------------#
 #                Variables & Functions                     #
@@ -34,11 +36,18 @@ check_args '2' "$#" 'PACKAGE KEY VALUE'
 is_format_valid 'package'
 is_package_valid "$package"
 case "$key" in
-	USERS | RESELLER_PACKAGES | RESELLER_VISIBLE) ;;
+	USERS | RESELLER_PACKAGES | RESELLER_VISIBLE | PORTS) ;;
 	*) check_result "$E_INVALID" "invalid key $key" ;;
 esac
 if ! tenancy_pkg_value_valid "$key" "$value"; then
 	check_result "$E_INVALID" "invalid $key value :: $value"
+fi
+reseller=$(tenancy_pkg_get "$package" RESELLER_OWNER)
+if [ "$key" = 'PORTS' ] && [ -n "$reseller" ]; then
+	limit=$(tenancy_pkg_get "$(tenancy_user_value "$reseller" PACKAGE)" PORTS)
+	if [ "$limit" != 'unlimited' ] && { [ "$value" = 'unlimited' ] || [ "$value" -gt "$limit" ]; }; then
+		check_result "$E_LIMIT" "PORTS of $package cannot be above the reseller's PORTS ($limit)"
+	fi
 fi
 
 # Perform verification if read-only mode is enabled

@@ -1,0 +1,66 @@
+#!/bin/bash
+# info: allocate a block of ports to a user
+# options: USER [SIZE]
+#
+# example: v-add-user-port-pool alice 10
+#
+# This function allocates SIZE ports to a user, by default the ports it is
+# missing to reach the PORTS of its package (for a reseller, its whole
+# tree counts). A reseller's customer gets them from the reseller's free
+# pool, which is topped up from the server range while the reseller's tree
+# has room. Other users get one contiguous block of the server range.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+user=$1
+size=$2
+
+# Includes
+# shellcheck source=/etc/hestiacp/hestia.conf
+source /etc/hestiacp/hestia.conf
+# shellcheck source=/usr/local/hestia/func/main.sh
+source $HESTIA/func/main.sh
+# shellcheck source=/usr/local/hestia/func/tenancy.sh
+source $HESTIA/func/tenancy.sh
+# shellcheck source=/usr/local/hestia/func/ports.sh
+source $HESTIA/func/ports.sh
+# load config file
+source_conf "$HESTIA/conf/hestia.conf"
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '1' "$#" 'USER [SIZE]'
+is_format_valid 'user'
+is_object_valid 'user' 'USER' "$user"
+if [ -n "$size" ] && { ! [[ "$size" =~ ^[0-9]{1,5}$ ]] || [ "$size" -lt 1 ]; }; then
+	check_result "$E_INVALID" "invalid size :: $size"
+fi
+
+# Perform verification if read-only mode is enabled
+check_hestia_demo_mode
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+ports_lock
+if [ -z "$size" ]; then
+	size=$(ports_missing "$user")
+fi
+if [ "$size" -gt 0 ]; then
+	ports_allocate_pool "$user" "$size"
+	$BIN/v-log-action "system" "Info" "Ports" "Port pool allocated (User: $user, Size: $size)."
+fi
+
+#----------------------------------------------------------#
+#                       Hestia                             #
+#----------------------------------------------------------#
+
+log_event "$OK" "$ARGUMENTS"
+
+exit

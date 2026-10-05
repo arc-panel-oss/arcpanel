@@ -1,0 +1,370 @@
+#!/usr/bin/env bats
+# ArcPanel port registry (E12,
+# docs/features/specs/2026-10-05-004-e12-port-registry-design.md).
+# Run as root on a server installed with the ArcPanel installer, with the
+# iptables firewall on. Uses ports 38000-38399 of the server range.
+
+if [ "${PATH#*/usr/local/hestia/bin*}" = "$PATH" ]; then
+    . /etc/profile.d/hestia.sh
+fi
+
+load 'test_helper/bats-support/load'
+load 'test_helper/bats-assert/load'
+load 'test_helper/bats-file/load'
+
+HESTIA=/usr/local/hestia
+PKG_DIR=$HESTIA/data/packages
+PORTS_DIR=$HESTIA/data/ports
+RULES=$HESTIA/data/firewall/rules.conf
+PASS="Tp-$(date +%s)-Pass"
+USERS="tpu1 tpu2 tpu3 tpu4 tpu5"
+
+make_package() {
+    local name=$1 ports=$2 tmp
+    tmp=$(mktemp)
+    cp "$PKG_DIR/default.pkg" "$tmp"
+    v-add-user-package "$tmp" "$name" yes > /dev/null 2>&1 || v-add-user-package "$tmp" "$name" > /dev/null
+    rm -f "$tmp"
+    v-change-package-tenancy "$name" PORTS "$ports"
+}
+
+port_line() {
+    grep "^PORT='$2' " "$PORTS_DIR/$1.conf"
+}
+
+kill_listeners() {
+    pkill -f "nc -l 127.0.0.1 3800" > /dev/null 2>&1 || true
+    pkill -f "nc -l 0.0.0.0 383" > /dev/null 2>&1 || true
+}
+
+cleanup() {
+    kill_listeners
+    for user in tpc1 tpc2 tpres $USERS; do
+        v-delete-user "$user" > /dev/null 2>&1 || true
+        rm -f "$PORTS_DIR/$user.conf"
+    done
+    for package in tp-zero tp-five tp-unl tp-twenty tp-res tp-cust tp-bigp; do
+        v-delete-user-package "$package" > /dev/null 2>&1 || true
+        rm -f "$PKG_DIR/$package.tenancy"
+    done
+    rm -f "$PORTS_DIR/tpghost.conf"
+    for rule in $(grep -E "COMMENT='(arcpanel-port-38[0-9]{3}-|tp-manual)" "$RULES" 2> /dev/null | cut -d"'" -f2); do
+        v-delete-firewall-rule "$rule" > /dev/null 2>&1 || true
+    done
+    v-delete-sys-port-reserved 38100-38104 > /dev/null 2>&1 || true
+}
+
+setup_file() {
+    cleanup
+    make_package tp-zero 0
+    make_package tp-five 5
+    make_package tp-unl unlimited
+    make_package tp-twenty 20
+    make_package tp-res 20
+    make_package tp-cust 3
+    make_package tp-bigp 50
+    v-change-package-tenancy tp-res USERS 5
+    v-change-package-tenancy tp-res RESELLER_PACKAGES 'tp-cust,tp-bigp'
+    v-add-user tpu1 "$PASS" tpu1@example.invalid tp-zero > /dev/null
+    v-add-user tpu2 "$PASS" tpu2@example.invalid tp-zero > /dev/null
+    v-add-user tpu3 "$PASS" tpu3@example.invalid tp-five > /dev/null
+    v-add-user tpu4 "$PASS" tpu4@example.invalid tp-unl > /dev/null
+    v-add-user tpu5 "$PASS" tpu5@example.invalid tp-twenty > /dev/null
+    v-add-user tpres "$PASS" tpres@example.invalid tp-res > /dev/null
+    v-change-user-role tpres reseller
+    # Earlier runs may have given the test users pools through the hooks
+    for user in tpu1 tpu2 tpu3 tpu4 tpu5 tpres; do
+        rm -f "$PORTS_DIR/$user.conf"
+    done
+}
+
+teardown_file() {
+    cleanup
+}
+
+@test "Registry setup is idempotent and lists its settings" {
+    run v-add-sys-port-registry
+    assert_success
+    run v-add-sys-port-registry
+    assert_success
+    run grep -c "^PORT_RANGE_START=" "$HESTIA/conf/hestia.conf"
+    assert_output "1"
+    run grep "^PORT='8083' .*APP='system'" "$PORTS_DIR/.reserved.conf"
+    assert_success
+    run v-list-sys-config json
+    assert_output --partial '"PORT_REGISTRY": "yes"'
+    run grep -c "v-check-sys-ports notify" /var/spool/cron/crontabs/hestiaweb
+    assert_output "1"
+}
+
+@test "Package PORTS is validated and listed" {
+    run v-change-package-tenancy tp-five PORTS lots
+    assert_failure 2
+    run v-list-package-tenancy tp-five json
+    assert_output --partial '"PORTS": "5"'
+}
+
+@test "Admin allocates a range; taken, reserved and outside ports are refused" {
+    run v-add-user-port tpu1 38000-38009 no 'test block'
+    assert_success
+    run port_line tpu1 38000-38009
+    assert_success
+    run v-add-user-port tpu2 38005
+    assert_failure 4
+    run v-add-sys-port-reserved 38100-38104 'test reservation'
+    assert_success
+    run v-add-user-port tpu2 38102
+    assert_failure 10
+    run v-add-user-port tpu2 29999
+    assert_failure 10
+    run v-add-user-port tpu2 38020-38010
+    assert_failure 2
+}
+
+@test "Allocation splits a block and release merges it back" {
+    run v-allocate-user-port tpu1 manual
+    assert_success
+    assert_output "38000"
+    run v-allocate-user-port tpu1 manual tcp 38005 'game server'
+    assert_success
+    assert_output "38005"
+    run port_line tpu1 38005
+    assert_output --partial "APP='manual'"
+    assert_output --partial "COMMENT='game server'"
+    run port_line tpu1 38006-38009
+    assert_success
+    run v-allocate-user-port tpu1 manual tcp 38005
+    assert_failure 7
+    run v-release-user-port tpu1 38000
+    assert_success
+    run v-release-user-port tpu1 38005
+    assert_success
+    run grep -c "^PORT=" "$PORTS_DIR/tpu1.conf"
+    assert_output "1"
+    run v-release-user-port tpu1 38000
+    assert_failure 3
+}
+
+@test "A limited user with an empty pool is refused" {
+    run v-allocate-user-port tpu2 manual
+    assert_failure 8
+}
+
+@test "Package PORTS tops the pool up on first use; unlimited takes any port" {
+    run v-allocate-user-port tpu3 manual
+    assert_success
+    run v-list-user-ports tpu3 json
+    assert_output --partial '"ALLOCATED": "5"'
+    assert_output --partial '"ASSIGNED": "1"'
+    run v-allocate-user-port tpu4 manual
+    assert_success
+    run v-list-user-ports tpu4 json
+    assert_output --partial '"ALLOCATED": "1"'
+}
+
+@test "Public needs an assigned, public-capable port and writes one tagged rule" {
+    run v-change-user-port-public tpu1 38001 yes
+    assert_failure 3
+    v-allocate-user-port tpu1 manual tcp 38001
+    run v-change-user-port-public tpu1 38001 yes
+    assert_failure 10
+    run v-change-user-port-public-ok tpu1 38000-38009 yes
+    assert_success
+    run v-change-user-port-public tpu1 38001 yes
+    assert_success
+    run grep -c "COMMENT='arcpanel-port-38001-tpu1'" "$RULES"
+    assert_output "1"
+    rule=$(grep "COMMENT='arcpanel-port-38001-tpu1'" "$RULES" | cut -d"'" -f2)
+    run port_line tpu1 38001
+    assert_output --partial "PUBLIC='yes'"
+    run v-list-user-ports tpu1 json
+    assert_output --partial '"PORT": "38001", "START": "38001", "END": "38001", "SIZE": "1", "PROTO": "tcp", "APP": "manual", "PUBLIC": "yes", "PUBLIC_OK": "yes", "FW_RULE": "'"$rule"'"'
+    run v-change-user-port-public tpu1 38001 yes
+    assert_success
+    run grep -c "COMMENT='arcpanel-port-38001-tpu1'" "$RULES"
+    assert_output "1"
+    run v-change-user-port-public tpu1 38001 no
+    assert_success
+    run grep -c "COMMENT='arcpanel-port-38001-tpu1'" "$RULES"
+    assert_output "0"
+}
+
+@test "The tag keeps the link when firewall rule ids move" {
+    v-add-firewall-rule ACCEPT 0.0.0.0/0 38399 TCP tp-manual-shift
+    v-change-user-port-public tpu1 38001 yes
+    before=$(grep -c "^RULE=" "$RULES")
+    # Deleting an earlier rule renumbers every later rule
+    v-delete-firewall-rule "$(grep "COMMENT='tp-manual-shift'" "$RULES" | cut -d"'" -f2)"
+    run v-change-user-port-public tpu1 38001 no
+    assert_success
+    run grep -c "^RULE=" "$RULES"
+    assert_output "$((before - 2))"
+    run grep -c "COMMENT='arcpanel-port-38001-tpu1'" "$RULES"
+    assert_output "0"
+}
+
+@test "Forbidding public ports closes the open ones" {
+    v-change-user-port-public tpu1 38001 yes
+    run v-change-user-port-public-ok tpu1 38000-38009 no
+    assert_success
+    run grep -c "COMMENT='arcpanel-port-38001-tpu1'" "$RULES"
+    assert_output "0"
+    run port_line tpu1 38001
+    assert_output --partial "PUBLIC='no'"
+    assert_output --partial "PUBLIC_OK='no'"
+    v-change-user-port-public-ok tpu1 38000-38009 yes
+}
+
+@test "Port check sees the owner's listener and a foreign one" {
+    v-allocate-user-port tpu1 manual tcp 38002
+    runuser -u tpu1 -- nc -l 127.0.0.1 38002 > /dev/null 2>&1 &
+    nc -l 127.0.0.1 38004 > /dev/null 2>&1 &
+    sleep 1
+    run v-check-user-port tpu1 38002
+    assert_success
+    run v-check-user-port tpu1 38004
+    assert_failure 7
+    run v-check-user-port tpu2 38002
+    assert_failure 3
+    run v-list-user-ports tpu1 json
+    assert_output --partial '"PORT": "38002", "START": "38002", "END": "38002", "SIZE": "1", "PROTO": "tcp", "APP": "manual", "PUBLIC": "no", "PUBLIC_OK": "yes", "FW_RULE": "", "COMMENT": "", "SUSPENDED": "no", "LISTEN": "local"'
+    kill_listeners
+}
+
+@test "Twenty parallel allocations give twenty distinct ports" {
+    v-add-user-port-pool tpu5
+    out=$(mktemp)
+    for i in $(seq 1 20); do
+        v-allocate-user-port tpu5 manual >> "$out" 2>&1 &
+    done
+    wait
+    run sort -u "$out"
+    assert_equal "$(sort -u "$out" | grep -c '^[0-9]*$')" "20"
+    run v-allocate-user-port tpu5 manual
+    assert_failure 8
+    rm -f "$out"
+}
+
+@test "Reseller pool, customer pools, give and reclaim stay inside PORTS" {
+    run v-add-user-port-pool tpres
+    assert_success
+    run v-list-user-ports tpres json
+    assert_output --partial '"ALLOCATED": "20"'
+    v-add-reseller-user tpres tpc1 "$PASS" tpc1@example.invalid tp-cust > /dev/null
+    rm -f "$PORTS_DIR/tpc1.conf"
+    run v-add-user-port-pool tpc1
+    assert_success
+    run v-list-user-ports tpc1 json
+    assert_output --partial '"ALLOCATED": "3"'
+    run v-list-user-ports tpres json
+    assert_output --partial '"ALLOCATED": "17"'
+    assert_output --partial '"TREE_TOTAL": "20"'
+    run v-change-user-port-owner tpres +5 tpc1
+    assert_success
+    run v-list-user-ports tpc1 json
+    assert_output --partial '"ALLOCATED": "8"'
+    run v-change-user-port-owner tpres +50 tpc1
+    assert_failure 8
+    run v-add-user-port tpres 38200
+    assert_failure 8
+    assert_output --partial "PORTS"
+    run v-check-reseller-quota tpres tp-bigp
+    assert_failure 8
+    assert_output "PORTS"
+}
+
+@test "Reclaim and delete return a customer's ports to the reseller" {
+    first=$(grep -m1 "^PORT=" "$PORTS_DIR/tpc1.conf" | cut -d"'" -f2)
+    start=${first%-*}
+    run v-change-user-port-owner tpc1 "$start" tpres
+    assert_success
+    run v-list-user-ports tpres json
+    assert_output --partial '"ALLOCATED": "13"'
+    v-allocate-user-port tpc1 manual > /dev/null
+    range=$(awk -F"'" '/^PORT=/ { print $2 }' "$PORTS_DIR/tpc1.conf" | head -n1)
+    run v-delete-user-port tpc1 "$range"
+    assert_failure 7
+    all_start=$(awk -F"'" '/^PORT=/ { print $2 }' "$PORTS_DIR/tpc1.conf" | head -n1 | cut -d- -f1)
+    all_end=$(awk -F"'" '/^PORT=/ { print $2 }' "$PORTS_DIR/tpc1.conf" | tail -n1 | sed 's/.*-//')
+    run v-delete-user-port tpc1 "$all_start-$all_end" force
+    assert_success
+    run v-list-user-ports tpres json
+    assert_output --partial '"ALLOCATED": "20"'
+    run v-list-user-ports tpc1 json
+    assert_output --partial '"ALLOCATED": "0"'
+}
+
+@test "Range change refuses to leave allocations outside" {
+    run v-change-sys-port-range 30000 37999
+    assert_failure 7
+    run v-change-sys-port-range 30000 39999
+    assert_success
+}
+
+@test "Reconciliation finds and repairs registry and firewall drift" {
+    v-allocate-user-port tpu1 manual tcp 38003 > /dev/null
+    v-change-user-port-public tpu1 38003 yes
+    rule=$(grep "COMMENT='arcpanel-port-38003-tpu1'" "$RULES" | cut -d"'" -f2)
+    v-delete-firewall-rule "$rule"
+    v-add-firewall-rule ACCEPT 0.0.0.0/0 38301 TCP arcpanel-port-38301-tpnobody
+    v-add-firewall-rule ACCEPT 0.0.0.0/0 38302 TCP tp-manual
+    echo "PORT='38390' PROTO='tcp' APP='' PUBLIC='no' PUBLIC_OK='no' FW_RULE='' COMMENT='' SUSPENDED='no' TIME='' DATE=''" > "$PORTS_DIR/tpghost.conf"
+    nc -l 0.0.0.0 38300 > /dev/null 2>&1 &
+    sleep 1
+
+    run v-list-sys-ports json orphans
+    assert_success
+    assert_output --partial '"TYPE": "missing-rule", "USER": "tpu1", "PORT": "38003"'
+    assert_output --partial '"TYPE": "stale-rule"'
+    assert_output --partial '"TYPE": "unmanaged-rule", "USER": "", "PORT": "38302"'
+    assert_output --partial '"TYPE": "orphan-file", "USER": "tpghost"'
+    assert_output --partial '"TYPE": "orphan-socket", "USER": "root", "PORT": "38300"'
+
+    run v-check-sys-ports repair
+    assert_success
+    run grep -c "COMMENT='arcpanel-port-38003-tpu1'" "$RULES"
+    assert_output "1"
+    run grep -c "COMMENT='arcpanel-port-38301-tpnobody'" "$RULES"
+    assert_output "0"
+    assert_file_not_exist "$PORTS_DIR/tpghost.conf"
+    run cat "$PORTS_DIR/.report.json"
+    assert_output --partial '"FINDINGS"'
+    refute_output --partial 'missing-rule'
+
+    # Adopting the unmanaged rule links it to an assigned port
+    manual=$(grep "COMMENT='tp-manual'" "$RULES" | cut -d"'" -f2)
+    v-allocate-user-port tpu1 manual tcp 38006 > /dev/null
+    run v-change-user-port-public tpu1 38006 yes "$manual"
+    assert_failure 3
+    v-add-user-port tpu1 38302 yes
+    v-allocate-user-port tpu1 manual tcp 38302 > /dev/null
+    run v-change-user-port-public tpu1 38302 yes "$manual"
+    assert_success
+    run v-list-sys-ports json orphans
+    refute_output --partial '"PORT": "38302"'
+    # A reused rule id is not mistaken for the port's rule
+    v-delete-firewall-rule "$manual"
+    v-add-firewall-rule ACCEPT 0.0.0.0/0 38303 TCP tp-manual-other
+    run v-list-sys-ports json orphans
+    assert_output --partial '"TYPE": "missing-rule", "USER": "tpu1", "PORT": "38302"'
+    v-change-user-port-public tpu1 38302 no
+    run grep -c "COMMENT='tp-manual-other'" "$RULES"
+    assert_output "1"
+    kill_listeners
+}
+
+@test "Lists render in every format" {
+    for format in json plain csv shell; do
+        run v-list-user-ports tpu1 "$format"
+        assert_success
+        run v-list-sys-ports "$format"
+        assert_success
+    done
+    run v-list-sys-ports json
+    assert_output --partial '"RANGE_START": "30000"'
+    assert_output --partial '"tpu1": {"OWNER": "'
+    run bash -c "v-list-sys-ports json | python3 -m json.tool > /dev/null"
+    assert_success
+    run bash -c "v-list-user-ports tpres json | python3 -m json.tool > /dev/null"
+    assert_success
+}

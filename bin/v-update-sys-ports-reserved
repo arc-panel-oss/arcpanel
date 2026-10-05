@@ -1,0 +1,123 @@
+#!/bin/bash
+# info: update the list of reserved ports
+# options: [listening]
+#
+# example: v-update-sys-ports-reserved
+#
+# This function rewrites the ports the registry never hands out from the
+# panel configuration and the service configs: panel, web terminal, web,
+# proxy, SSH, FTP and its passive range, mail, DNS and databases. Entries an
+# administrator added are kept. With "listening", every socket that listens
+# in the server range and has no owner in the registry is reserved too.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+mode=$1
+
+# Includes
+# shellcheck source=/etc/hestiacp/hestia.conf
+source /etc/hestiacp/hestia.conf
+# shellcheck source=/usr/local/hestia/func/main.sh
+source $HESTIA/func/main.sh
+# shellcheck source=/usr/local/hestia/func/tenancy.sh
+source $HESTIA/func/tenancy.sh
+# shellcheck source=/usr/local/hestia/func/ports.sh
+source $HESTIA/func/ports.sh
+# load config file
+source_conf "$HESTIA/conf/hestia.conf"
+
+# "PORT COMMENT" lines of the system reservations
+system_ports() {
+	local port start end
+	echo "${BACKEND_PORT:-8083} panel"
+	if [ -n "$WEB_TERMINAL_PORT" ]; then
+		echo "$WEB_TERMINAL_PORT web terminal"
+	fi
+	for port in "$WEB_PORT" "$WEB_SSL_PORT" "$PROXY_PORT" "$PROXY_SSL_PORT" 80 443 8080 8443; do
+		if [ -n "$port" ]; then
+			echo "$port web"
+		fi
+	done
+	port=$(sshd -T 2> /dev/null | awk '$1 == "port" { print $2 }')
+	for port in ${port:-22}; do
+		echo "$port ssh"
+	done
+	echo "21 ftp"
+	if [ -f /etc/vsftpd.conf ]; then
+		start=$(grep -m1 "^pasv_min_port=" /etc/vsftpd.conf | cut -d= -f2)
+		end=$(grep -m1 "^pasv_max_port=" /etc/vsftpd.conf | cut -d= -f2)
+	elif [ -f /etc/proftpd/proftpd.conf ]; then
+		read -r start end < <(awk '$1 == "PassivePorts" { print $2, $3; exit }' /etc/proftpd/proftpd.conf)
+	fi
+	if [[ "$start" =~ ^[0-9]+$ ]] && [[ "$end" =~ ^[0-9]+$ ]] && [ "$start" -le "$end" ]; then
+		echo "$start-$end ftp passive"
+	fi
+	for port in 25 465 587 110 143 993 995; do
+		echo "$port mail"
+	done
+	echo "53 dns"
+	echo "3306 mysql"
+	echo "5432 postgresql"
+}
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+if [ -n "$mode" ] && [ "$mode" != 'listening' ]; then
+	check_result "$E_INVALID" "invalid mode :: $mode"
+fi
+
+# Perform verification if read-only mode is enabled
+check_hestia_demo_mode
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+ports_lock
+ports_now
+
+records=$(ports_read '@reserved' | awk -F'|' '$4 != "system"')
+
+while read -r port comment; do
+	[ -n "$port" ] || continue
+	start=${port%-*}
+	end=${port#*-}
+	records+=$'\n'"$start|$end|tcp|system|no|no||$comment|no|$PORTS_TIME|$PORTS_DATE"
+done < <(system_ports)
+
+if [ "$mode" = 'listening' ]; then
+	held=$(ports_all_records | grep -v '^@reserved|')
+	while IFS='|' read -r proto port scope uid; do
+		[ -n "$port" ] || continue
+		if [ "$port" -lt "$(ports_range_start)" ] || [ "$port" -gt "$(ports_range_end)" ]; then
+			continue
+		fi
+		if printf '%s\n' "$held" | awk -F'|' -v p="$port" 'NF && $2 <= p && $3 >= p { found = 1 } END { exit !found }'; then
+			continue
+		fi
+		records+=$'\n'"$port|$port|$proto|listening|no|no||listening at setup|no|$PORTS_TIME|$PORTS_DATE"
+	done < <(ports_live)
+fi
+
+# Reserved entries are never merged: write them as they are
+printf '%s\n' "$records" | grep -v '^$' | sort -t'|' -k1,1n -u | awk -F'|' -v q="'" '
+	{
+		port = ($1 == $2) ? $1 : $1 "-" $2
+		printf "PORT=%s%s%s PROTO=%s%s%s APP=%s%s%s COMMENT=%s%s%s TIME=%s%s%s DATE=%s%s%s\n", \
+			q, port, q, q, $3, q, q, $4, q, q, $8, q, q, $10, q, q, $11, q
+	}' > "$PORTS_RESERVED.tmp"
+mv -f "$PORTS_RESERVED.tmp" "$PORTS_RESERVED"
+chmod 640 "$PORTS_RESERVED"
+
+#----------------------------------------------------------#
+#                       Hestia                             #
+#----------------------------------------------------------#
+
+log_event "$OK" "$ARGUMENTS"
+
+exit

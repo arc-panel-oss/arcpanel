@@ -1,0 +1,110 @@
+#!/bin/bash
+# info: list the ports of a user
+# options: USER [FORMAT]
+#
+# example: v-list-user-ports alice json
+#
+# This function lists the user's ports with their live state (LISTEN: no,
+# local for loopback, any for every other address) and the totals of the
+# pool: LIMIT (package PORTS), ALLOCATED, ASSIGNED, PUBLIC and FREE. For a
+# reseller, TREE_TOTAL and TREE_USED count its customers too.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+user=$1
+format=${2-shell}
+
+# Includes
+# shellcheck source=/etc/hestiacp/hestia.conf
+source /etc/hestiacp/hestia.conf
+# shellcheck source=/usr/local/hestia/func/main.sh
+source $HESTIA/func/main.sh
+# shellcheck source=/usr/local/hestia/func/tenancy.sh
+source $HESTIA/func/tenancy.sh
+# shellcheck source=/usr/local/hestia/func/ports.sh
+source $HESTIA/func/ports.sh
+# load config file
+source_conf "$HESTIA/conf/hestia.conf"
+
+json_list() {
+	local tree_total='' tree_used=''
+	if tenancy_is_reseller "$user"; then
+		tree_total=$(ports_tree_total "$user")
+		tree_used=$(ports_tree_used "$user")
+	fi
+	echo '{'
+	printf '    "USER": "%s",\n' "$(ports_json_escape "$user")"
+	printf '    "OWNER": "%s",\n' "$(ports_json_escape "$(tenancy_get_owner "$user")")"
+	printf '    "ROLE": "%s",\n' "$(tenancy_role "$user")"
+	printf '    "SUSPENDED": "%s",\n' "$(tenancy_user_value "$user" SUSPENDED)"
+	printf '    "LIMIT": "%s",\n' "$(ports_limit "$user")"
+	printf '    "ALLOCATED": "%s",\n' "$(printf '%s\n' "$records" | ports_sum all)"
+	printf '    "ASSIGNED": "%s",\n' "$(printf '%s\n' "$records" | ports_sum assigned)"
+	printf '    "PUBLIC": "%s",\n' "$(printf '%s\n' "$records" | ports_sum public)"
+	printf '    "FREE": "%s",\n' "$(printf '%s\n' "$records" | ports_sum free)"
+	printf '    "TREE_TOTAL": "%s",\n' "$tree_total"
+	printf '    "TREE_USED": "%s",\n' "$tree_used"
+	printf '    "FIREWALL": "%s",\n' "$FIREWALL_SYSTEM"
+	printf '    "RANGE_START": "%s",\n' "$(ports_range_start)"
+	printf '    "RANGE_END": "%s",\n' "$(ports_range_end)"
+	echo '    "ENTRIES": ['
+	printf '%s\n' "$records" | ports_records_json "$live"
+	echo '    ]'
+	echo '}'
+}
+
+rows() {
+	local s e proto app pub ok fw cm sus t d port
+	while IFS='|' read -r s e proto app pub ok fw cm sus t d; do
+		[ -n "$s" ] || continue
+		port=$s
+		[ "$s" != "$e" ] && port="$s-$e"
+		echo "$port|$proto|$app|$pub|$ok|$(ports_listen_state "$s" "$e" "$live")|$cm|$sus|$fw|$d"
+	done <<< "$records"
+}
+
+shell_list() {
+	echo "PORT PROTO APP PUBLIC PUBLIC_OK LISTEN DATE"
+	echo "---- ----- --- ------ --------- ------ ----"
+	rows | awk -F'|' '{ print $1, $2, ($3 == "") ? "-" : $3, $4, $5, $6, $10 }'
+}
+
+plain_list() {
+	rows | tr '|' '\t'
+}
+
+csv_list() {
+	echo "PORT,PROTO,APP,PUBLIC,PUBLIC_OK,LISTEN,COMMENT,SUSPENDED,FW_RULE,DATE"
+	rows | awk -F'|' -v OFS=',' '{ $7 = "\"" $7 "\""; print }'
+}
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '1' "$#" 'USER [FORMAT]'
+is_format_valid 'user'
+is_object_valid 'user' 'USER' "$user"
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+records=$(ports_read "$user")
+live=$(ports_live)
+
+case $format in
+	json) json_list ;;
+	plain) plain_list ;;
+	csv) csv_list ;;
+	shell) shell_list | column -t ;;
+esac
+
+#----------------------------------------------------------#
+#                       Hestia                             #
+#----------------------------------------------------------#
+
+exit

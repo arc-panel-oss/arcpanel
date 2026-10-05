@@ -1,0 +1,131 @@
+#!/bin/bash
+# info: assign a port of a user's pool to an app
+# options: USER APP [PROTO] [PORT] [COMMENT]
+#
+# example: v-allocate-user-port alice node:api.example.com
+# example: v-allocate-user-port alice manual tcp 30105 'game server'
+#
+# This function assigns a free port of the user's pool to an app and prints
+# the port: the given PORT, or the lowest free one. APP is "manual" for a
+# port the user runs something on by hand, or <kind>:<id> for apps of the
+# panel (node:<domain>, docker:<app>). When the pool is empty it is first
+# topped up to the package PORTS; with PORTS unlimited a port of the server
+# range is taken. With PORT_REGISTRY='no' any free port of the server range
+# is taken without pool checks.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+user=$1
+app=$2
+proto=${3-tcp}
+port=${4-}
+comment=${5-}
+
+# Includes
+# shellcheck source=/etc/hestiacp/hestia.conf
+source /etc/hestiacp/hestia.conf
+# shellcheck source=/usr/local/hestia/func/main.sh
+source $HESTIA/func/main.sh
+# shellcheck source=/usr/local/hestia/func/tenancy.sh
+source $HESTIA/func/tenancy.sh
+# shellcheck source=/usr/local/hestia/func/ports.sh
+source $HESTIA/func/ports.sh
+# load config file
+source_conf "$HESTIA/conf/hestia.conf"
+
+lowest_free() {
+	ports_read "$user" | awk -F'|' '$4 == "" { print $1; exit }'
+}
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '2' "$#" 'USER APP [PROTO] [PORT] [COMMENT]'
+is_format_valid 'user'
+is_object_valid 'user' 'USER' "$user"
+is_object_unsuspended 'user' 'USER' "$user"
+ports_check_app "$app"
+if [ "$app" = 'admin' ] || [ "$app" = 'system' ] || [ "$app" = 'listening' ]; then
+	check_result "$E_INVALID" "invalid app :: $app"
+fi
+ports_check_proto "$proto"
+if [ -n "$port" ]; then
+	ports_parse_range "$port"
+	if [ "$PSTART" != "$PEND" ]; then
+		check_result "$E_INVALID" "invalid port :: $port"
+	fi
+	port=$PSTART
+fi
+ports_check_comment "$comment"
+
+# Perform verification if read-only mode is enabled
+check_hestia_demo_mode
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+ports_lock
+
+if [ -n "$port" ]; then
+	record=$(ports_read "$user" | awk -F'|' -v p="$port" '$1 <= p && $2 >= p { print; exit }')
+	if [ -z "$record" ] && ! ports_registry_enabled; then
+		if [ "$port" -lt "$(ports_range_start)" ] || [ "$port" -gt "$(ports_range_end)" ]; then
+			check_result "$E_FORBIDEN" "port $port is outside the server range"
+		fi
+		holder=$(ports_holder "$port" "$port")
+		if [ -n "$holder" ]; then
+			check_result "$E_EXISTS" "port $port is already allocated to $holder"
+		fi
+		ports_add_free "$user" "$port" "$port"
+		record="$port|$port|tcp|"
+	fi
+	if [ -z "$record" ]; then
+		holder=$(ports_holder "$port" "$port")
+		if [ -n "$holder" ] && [ "$holder" != '@reserved' ]; then
+			check_result "$E_EXISTS" "port $port is allocated to another user"
+		fi
+		check_result "$E_NOTEXIST" "port $port is not in the pool of $user"
+	fi
+	used=$(echo "$record" | cut -d'|' -f4)
+	if [ -n "$used" ]; then
+		check_result "$E_INUSE" "port $port is used by $used"
+	fi
+else
+	port=$(lowest_free)
+	if [ -z "$port" ]; then
+		if ! ports_registry_enabled; then
+			first=$(ports_free_block 1)
+			if [ -n "$first" ]; then
+				ports_add_free "$user" "$first" "$first"
+			fi
+		elif [ "$(ports_limit "$user")" = 'unlimited' ]; then
+			ports_allocate_pool "$user" 1
+		else
+			missing=$(ports_missing "$user")
+			if [ "$missing" -le 0 ]; then
+				check_result "$E_LIMIT" "no free ports left in the pool of $user"
+			fi
+			ports_allocate_pool "$user" "$missing"
+		fi
+		port=$(lowest_free)
+	fi
+	if [ -z "$port" ]; then
+		check_result "$E_LIMIT" "no free ports left in the pool of $user"
+	fi
+fi
+
+ports_assign "$user" "$port" "$app" "$proto" "$comment"
+
+#----------------------------------------------------------#
+#                       Hestia                             #
+#----------------------------------------------------------#
+
+$BIN/v-log-action "system" "Info" "Ports" "Port assigned (User: $user, Port: $port, App: $app)."
+log_event "$OK" "$ARGUMENTS"
+
+exit

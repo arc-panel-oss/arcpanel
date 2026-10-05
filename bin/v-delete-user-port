@@ -1,0 +1,71 @@
+#!/bin/bash
+# info: delete ports of a user
+# options: USER PORT|RANGE [force]
+#
+# example: v-delete-user-port alice 30100-30109
+#
+# This function takes ports away from a user and closes their firewall
+# rules. Ports of a reseller's customer go back to the reseller's pool,
+# other ports go back to the server range. Ports used by an app are only
+# deleted with "force".
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+user=$1
+range=$2
+force=${3-}
+
+# Includes
+# shellcheck source=/etc/hestiacp/hestia.conf
+source /etc/hestiacp/hestia.conf
+# shellcheck source=/usr/local/hestia/func/main.sh
+source $HESTIA/func/main.sh
+# shellcheck source=/usr/local/hestia/func/tenancy.sh
+source $HESTIA/func/tenancy.sh
+# shellcheck source=/usr/local/hestia/func/ports.sh
+source $HESTIA/func/ports.sh
+# load config file
+source_conf "$HESTIA/conf/hestia.conf"
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '2' "$#" 'USER PORT|RANGE [force]'
+is_format_valid 'user'
+is_object_valid 'user' 'USER' "$user"
+ports_parse_range "$range"
+if [ -n "$force" ] && [ "$force" != 'force' ]; then
+	check_result "$E_INVALID" "invalid option :: $force"
+fi
+
+# Perform verification if read-only mode is enabled
+check_hestia_demo_mode
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+ports_lock
+size=$((PEND - PSTART + 1))
+if [ "$(ports_read "$user" | ports_overlap_size "$PSTART" "$PEND")" -ne "$size" ]; then
+	check_result "$E_NOTEXIST" "ports of $range are not allocated to $user"
+fi
+app=$(ports_read "$user" | awk -F'|' -v S="$PSTART" -v E="$PEND" '$4 != "" && $1 >= S && $2 <= E { print $4; exit }')
+if [ -n "$app" ] && [ "$force" != 'force' ]; then
+	check_result "$E_INUSE" "ports of $range are used by $app"
+fi
+
+ports_return_to_owner "$user" "$PSTART" "$PEND"
+
+#----------------------------------------------------------#
+#                       Hestia                             #
+#----------------------------------------------------------#
+
+$BIN/v-log-action "system" "Info" "Ports" "Ports deleted (User: $user, Ports: $range)."
+log_event "$OK" "$ARGUMENTS"
+
+exit

@@ -1,0 +1,83 @@
+#!/bin/bash
+# info: set up the port registry (E12)
+# options: NONE
+#
+# example: v-add-sys-port-registry
+#
+# This function prepares a server for the port registry: the server range
+# and the registry switch with their defaults, the registry directory, the
+# list of reserved ports and the nightly reconciliation job. It is safe to
+# run again and keeps values an administrator has changed.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Includes
+# shellcheck source=/etc/hestiacp/hestia.conf
+source /etc/hestiacp/hestia.conf
+# shellcheck source=/usr/local/hestia/func/main.sh
+source $HESTIA/func/main.sh
+# load config file
+source_conf "$HESTIA/conf/hestia.conf"
+
+PORTS_DIR="$HESTIA/data/ports"
+CRONTAB="/var/spool/cron/crontabs/hestiaweb"
+CRON_LINE="10 03 * * * sudo /usr/local/hestia/bin/v-check-sys-ports notify"
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+if [ "$(id -u)" != '0' ]; then
+	echo "Error: v-add-sys-port-registry can only be executed by the root user"
+	exit "$E_FORBIDEN"
+fi
+
+# Perform verification if read-only mode is enabled
+check_hestia_demo_mode
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+# Server range and switch
+if ! grep -q "^PORT_RANGE_START=" "$HESTIA/conf/hestia.conf"; then
+	$BIN/v-change-sys-config-value PORT_RANGE_START 30000
+fi
+if ! grep -q "^PORT_RANGE_END=" "$HESTIA/conf/hestia.conf"; then
+	$BIN/v-change-sys-config-value PORT_RANGE_END 39999
+fi
+if ! grep -q "^PORT_REGISTRY=" "$HESTIA/conf/hestia.conf"; then
+	$BIN/v-change-sys-config-value PORT_REGISTRY yes
+fi
+
+# Registry directory
+mkdir -p "$PORTS_DIR/.deleted"
+chown root:root "$PORTS_DIR" "$PORTS_DIR/.deleted"
+chmod 750 "$PORTS_DIR" "$PORTS_DIR/.deleted"
+
+# Reserved ports; on the first run, whatever already listens in the server
+# range is reserved too
+if [ -f "$PORTS_DIR/.reserved.conf" ]; then
+	$BIN/v-update-sys-ports-reserved
+else
+	$BIN/v-update-sys-ports-reserved listening
+fi
+
+# Nightly reconciliation
+# (sed, not >>: fs.protected_regular forbids root to open another user's
+# file for appending in the sticky crontab directory)
+if [ -f "$CRONTAB" ] && ! grep -q "v-check-sys-ports" "$CRONTAB"; then
+	sed -i -e "\$a$CRON_LINE" "$CRONTAB"
+	chown hestiaweb:hestiaweb "$CRONTAB"
+	chmod 600 "$CRONTAB"
+fi
+
+#----------------------------------------------------------#
+#                       Hestia                             #
+#----------------------------------------------------------#
+
+log_event "$OK" "$ARGUMENTS"
+
+exit

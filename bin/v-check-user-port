@@ -1,0 +1,63 @@
+#!/bin/bash
+# info: check that a user may bind a port
+# options: USER PORT [PROTO]
+#
+# example: v-check-user-port alice 30105
+#
+# This function exits 0 when the port belongs to the user and no process of
+# another account listens on it, E_NOTEXIST when the port is not the user's
+# and E_INUSE when another account listens on it.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+user=$1
+port=$2
+proto=${3-tcp}
+
+# Includes
+# shellcheck source=/etc/hestiacp/hestia.conf
+source /etc/hestiacp/hestia.conf
+# shellcheck source=/usr/local/hestia/func/main.sh
+source $HESTIA/func/main.sh
+# shellcheck source=/usr/local/hestia/func/tenancy.sh
+source $HESTIA/func/tenancy.sh
+# shellcheck source=/usr/local/hestia/func/ports.sh
+source $HESTIA/func/ports.sh
+# load config file
+source_conf "$HESTIA/conf/hestia.conf"
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '2' "$#" 'USER PORT [PROTO]'
+is_format_valid 'user'
+is_object_valid 'user' 'USER' "$user"
+if ! [[ "$port" =~ ^[0-9]{1,5}$ ]]; then
+	check_result "$E_INVALID" "invalid port :: $port"
+fi
+port=$((10#$port))
+ports_check_proto "$proto"
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+if [ "$(ports_read "$user" | ports_overlap_size "$port" "$port")" -ne 1 ]; then
+	check_result "$E_NOTEXIST" "port $port is not allocated to $user"
+fi
+uid=$(id -u "$user" 2> /dev/null)
+other=$(ports_live | awk -F'|' -v p="$port" -v proto="$proto" -v uid="$uid" '
+	$1 == proto && $2 == p && $4 != uid { print $4; exit }')
+if [ -n "$other" ]; then
+	check_result "$E_INUSE" "port $port is in use by $(ports_uid_user "$other")"
+fi
+
+#----------------------------------------------------------#
+#                       Hestia                             #
+#----------------------------------------------------------#
+
+exit

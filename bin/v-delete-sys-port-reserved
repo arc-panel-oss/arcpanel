@@ -1,0 +1,65 @@
+#!/bin/bash
+# info: delete a reserved port or range
+# options: PORT|RANGE
+#
+# example: v-delete-sys-port-reserved 31000-31009
+#
+# This function removes a reservation an administrator added (or one taken
+# from a listening socket at setup). Reservations of the panel and its
+# services cannot be removed.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+range=$1
+
+# Includes
+# shellcheck source=/etc/hestiacp/hestia.conf
+source /etc/hestiacp/hestia.conf
+# shellcheck source=/usr/local/hestia/func/main.sh
+source $HESTIA/func/main.sh
+# shellcheck source=/usr/local/hestia/func/tenancy.sh
+source $HESTIA/func/tenancy.sh
+# shellcheck source=/usr/local/hestia/func/ports.sh
+source $HESTIA/func/ports.sh
+# load config file
+source_conf "$HESTIA/conf/hestia.conf"
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '1' "$#" 'PORT|RANGE'
+ports_parse_range "$range"
+port=$PSTART
+[ "$PSTART" != "$PEND" ] && port="$PSTART-$PEND"
+
+# Perform verification if read-only mode is enabled
+check_hestia_demo_mode
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+ports_lock
+line=$(grep "^PORT='$port' " "$PORTS_RESERVED" 2> /dev/null | head -n1)
+if [ -z "$line" ]; then
+	check_result "$E_NOTEXIST" "reservation $port doesn't exist"
+fi
+if [[ "$line" == *"APP='system'"* ]]; then
+	check_result "$E_FORBIDEN" "reservation $port belongs to a system service"
+fi
+grep -v "^PORT='$port' " "$PORTS_RESERVED" > "$PORTS_RESERVED.tmp"
+mv -f "$PORTS_RESERVED.tmp" "$PORTS_RESERVED"
+chmod 640 "$PORTS_RESERVED"
+
+#----------------------------------------------------------#
+#                       Hestia                             #
+#----------------------------------------------------------#
+
+$BIN/v-log-action "system" "Info" "Ports" "Port reservation deleted (Ports: $port)."
+log_event "$OK" "$ARGUMENTS"
+
+exit

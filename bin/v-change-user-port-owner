@@ -1,0 +1,104 @@
+#!/bin/bash
+# info: move free ports to another user
+# options: USER PORT|RANGE|+COUNT NEW_USER
+#
+# example: v-change-user-port-owner agency +10 alice
+#
+# This function moves free ports (not used by an app) from one user to
+# another: a reseller gives ports to a customer, takes unused ports back, or
+# the administrator moves ports between users. +COUNT moves the COUNT
+# lowest free ports. A move into a reseller's tree cannot take the tree
+# above the reseller's PORTS. Who may move what is decided by the panel.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+user=$1
+range=$2
+new_user=$3
+
+# Includes
+# shellcheck source=/etc/hestiacp/hestia.conf
+source /etc/hestiacp/hestia.conf
+# shellcheck source=/usr/local/hestia/func/main.sh
+source $HESTIA/func/main.sh
+# shellcheck source=/usr/local/hestia/func/tenancy.sh
+source $HESTIA/func/tenancy.sh
+# shellcheck source=/usr/local/hestia/func/ports.sh
+source $HESTIA/func/ports.sh
+# load config file
+source_conf "$HESTIA/conf/hestia.conf"
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '3' "$#" 'USER PORT|RANGE|+COUNT NEW_USER'
+is_format_valid 'user'
+is_object_valid 'user' 'USER' "$user"
+is_user_format_valid "$new_user" 'new user'
+is_object_valid 'user' 'USER' "$new_user"
+if [ "$user" = "$new_user" ]; then
+	check_result "$E_INVALID" "ports already belong to $user"
+fi
+count=''
+if [[ "$range" =~ ^\+([0-9]{1,5})$ ]]; then
+	count=$((10#${BASH_REMATCH[1]}))
+	if [ "$count" -lt 1 ]; then
+		check_result "$E_INVALID" "invalid count :: $range"
+	fi
+else
+	ports_parse_range "$range"
+fi
+
+# Perform verification if read-only mode is enabled
+check_hestia_demo_mode
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+ports_lock
+records=$(ports_read "$user")
+if [ -n "$count" ]; then
+	free=$(printf '%s\n' "$records" | grep -v '^$' | ports_sum free)
+	if [ "$free" -lt "$count" ]; then
+		check_result "$E_LIMIT" "$user has $free free ports, $count requested"
+	fi
+	ranges=$(printf '%s\n' "$records" | grep -v '^$' | ports_lowest_free "$count")
+	size=$count
+else
+	size=$((PEND - PSTART + 1))
+	held=$(printf '%s\n' "$records" | grep -v '^$' | ports_overlap_size "$PSTART" "$PEND")
+	free=$(printf '%s\n' "$records" | grep -v '^$' | ports_overlap_size "$PSTART" "$PEND" free)
+	if [ "$held" -ne "$size" ]; then
+		check_result "$E_NOTEXIST" "ports of $range are not allocated to $user"
+	fi
+	if [ "$free" -ne "$size" ]; then
+		check_result "$E_INUSE" "ports of $range are used by an app"
+	fi
+	ranges="$PSTART $PEND"
+fi
+
+from_tree=$(ports_tree_of "$user")
+to_tree=$(ports_tree_of "$new_user")
+if [ -n "$to_tree" ] && [ "$to_tree" != "$from_tree" ]; then
+	ports_check_tree_room "$to_tree" "$size"
+fi
+
+while read -r start end; do
+	if [ -n "$start" ]; then
+		ports_move_free "$user" "$start" "$end" "$new_user"
+	fi
+done <<< "$ranges"
+
+#----------------------------------------------------------#
+#                       Hestia                             #
+#----------------------------------------------------------#
+
+$BIN/v-log-action "system" "Info" "Ports" "Ports moved (From: $user, To: $new_user, Ports: $range)."
+log_event "$OK" "$ARGUMENTS"
+
+exit

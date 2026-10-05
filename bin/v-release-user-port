@@ -1,0 +1,79 @@
+#!/bin/bash
+# info: release ports assigned to an app
+# options: USER APP|PORT
+#
+# example: v-release-user-port alice node:api.example.com
+# example: v-release-user-port alice 30105
+#
+# This function frees the ports assigned to an app (or one port): it closes
+# their firewall rules and clears the app, the public flag and the comment.
+# The ports stay in the user's pool.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+user=$1
+target=$2
+
+# Includes
+# shellcheck source=/etc/hestiacp/hestia.conf
+source /etc/hestiacp/hestia.conf
+# shellcheck source=/usr/local/hestia/func/main.sh
+source $HESTIA/func/main.sh
+# shellcheck source=/usr/local/hestia/func/tenancy.sh
+source $HESTIA/func/tenancy.sh
+# shellcheck source=/usr/local/hestia/func/ports.sh
+source $HESTIA/func/ports.sh
+# load config file
+source_conf "$HESTIA/conf/hestia.conf"
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '2' "$#" 'USER APP|PORT'
+is_format_valid 'user'
+is_object_valid 'user' 'USER' "$user"
+if [[ "$target" =~ ^[0-9]{1,5}$ ]]; then
+	port=$((10#$target))
+	app=''
+else
+	ports_check_app "$target"
+	port=''
+	app=$target
+fi
+
+# Perform verification if read-only mode is enabled
+check_hestia_demo_mode
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+ports_lock
+matches=$(ports_read "$user" | awk -F'|' -v p="$port" -v app="$app" '
+	$4 != "" && $1 == $2 && ((p != "" && $1 == p) || (app != "" && $4 == app)) { print $1 }')
+if [ -z "$matches" ]; then
+	check_result "$E_NOTEXIST" "no port of $user is assigned to $target"
+fi
+
+while read -r number; do
+	ports_fw_close "$user" "$number"
+done <<< "$matches"
+
+ports_read "$user" | awk -F'|' -v OFS='|' -v p="$port" -v app="$app" '
+	$4 != "" && $1 == $2 && ((p != "" && $1 == p) || (app != "" && $4 == app)) {
+		$3 = "tcp"; $4 = ""; $5 = "no"; $7 = ""; $8 = ""
+	}
+	{ print }' | ports_write "$user"
+
+#----------------------------------------------------------#
+#                       Hestia                             #
+#----------------------------------------------------------#
+
+$BIN/v-log-action "system" "Info" "Ports" "Ports released (User: $user, Target: $target)."
+log_event "$OK" "$ARGUMENTS"
+
+exit

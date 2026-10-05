@@ -1,0 +1,68 @@
+#!/bin/bash
+# info: reserve a port or range
+# options: PORT|RANGE [COMMENT]
+#
+# example: v-add-sys-port-reserved 31000-31009 'monitoring agents'
+#
+# This function adds a port or a range to the ports the registry never hands
+# out. The ports must not be allocated to a user.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+range=$1
+comment=${2-}
+
+# Includes
+# shellcheck source=/etc/hestiacp/hestia.conf
+source /etc/hestiacp/hestia.conf
+# shellcheck source=/usr/local/hestia/func/main.sh
+source $HESTIA/func/main.sh
+# shellcheck source=/usr/local/hestia/func/tenancy.sh
+source $HESTIA/func/tenancy.sh
+# shellcheck source=/usr/local/hestia/func/ports.sh
+source $HESTIA/func/ports.sh
+# load config file
+source_conf "$HESTIA/conf/hestia.conf"
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '1' "$#" 'PORT|RANGE [COMMENT]'
+ports_parse_range "$range"
+ports_check_comment "$comment"
+
+# Perform verification if read-only mode is enabled
+check_hestia_demo_mode
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+ports_lock
+holder=$(ports_holder "$PSTART" "$PEND" '@reserved')
+if [ -n "$holder" ]; then
+	check_result "$E_EXISTS" "ports of $range are allocated to $holder"
+fi
+
+ports_now
+{
+	cat "$PORTS_RESERVED" 2> /dev/null
+	port=$PSTART
+	[ "$PSTART" != "$PEND" ] && port="$PSTART-$PEND"
+	echo "PORT='$port' PROTO='tcp' APP='admin' COMMENT='$comment' TIME='$PORTS_TIME' DATE='$PORTS_DATE'"
+} > "$PORTS_RESERVED.tmp"
+mv -f "$PORTS_RESERVED.tmp" "$PORTS_RESERVED"
+chmod 640 "$PORTS_RESERVED"
+
+#----------------------------------------------------------#
+#                       Hestia                             #
+#----------------------------------------------------------#
+
+$BIN/v-log-action "system" "Info" "Ports" "Ports reserved (Ports: $range)."
+log_event "$OK" "$ARGUMENTS"
+
+exit

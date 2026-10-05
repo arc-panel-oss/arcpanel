@@ -2459,6 +2459,8 @@ echo "$min $hour * * * sudo /usr/local/hestia/bin/v-update-letsencrypt-ssl" >> /
 echo "41 4 * * * sudo /usr/local/hestia/bin/v-update-sys-hestia-all" >> /var/spool/cron/crontabs/hestiaweb
 # Reseller usage totals and policies (E11)
 $HESTIA/bin/v-add-sys-tenancy
+# Port registry: server range, reserved ports, nightly check (E12)
+$HESTIA/bin/v-add-sys-port-registry
 
 chmod 600 /var/spool/cron/crontabs/hestiaweb
 chown hestiaweb:hestiaweb /var/spool/cron/crontabs/hestiaweb

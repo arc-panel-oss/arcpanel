@@ -1,0 +1,103 @@
+#!/bin/bash
+# info: open or close a port to the internet
+# options: USER PORT PUBLIC [RULE]
+#
+# example: v-change-user-port-public alice 30105 yes
+#
+# This function makes an assigned port public (yes) or private (no). A
+# public port has a firewall ACCEPT rule tagged arcpanel-port-<port>-<user>.
+# The port must be allowed to be public (PUBLIC_OK) and the user must not be
+# suspended. With RULE, an existing firewall rule on the same port is linked
+# to it (it gets the tag) instead of a new one. With the firewall off the
+# flag is stored and the rule is written by v-check-sys-ports repair once
+# it is on.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+user=$1
+port=$2
+public=$3
+rule=${4-}
+
+# Includes
+# shellcheck source=/etc/hestiacp/hestia.conf
+source /etc/hestiacp/hestia.conf
+# shellcheck source=/usr/local/hestia/func/main.sh
+source $HESTIA/func/main.sh
+# shellcheck source=/usr/local/hestia/func/tenancy.sh
+source $HESTIA/func/tenancy.sh
+# shellcheck source=/usr/local/hestia/func/ports.sh
+source $HESTIA/func/ports.sh
+# load config file
+source_conf "$HESTIA/conf/hestia.conf"
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '3' "$#" 'USER PORT PUBLIC [RULE]'
+is_format_valid 'user'
+is_object_valid 'user' 'USER' "$user"
+if ! [[ "$port" =~ ^[0-9]{1,5}$ ]]; then
+	check_result "$E_INVALID" "invalid port :: $port"
+fi
+port=$((10#$port))
+ports_check_yes_no "$public" 'PUBLIC'
+if [ -n "$rule" ] && ! [[ "$rule" =~ ^[0-9]+$ ]]; then
+	check_result "$E_INVALID" "invalid rule :: $rule"
+fi
+
+# Perform verification if read-only mode is enabled
+check_hestia_demo_mode
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+ports_lock
+record=$(ports_record "$user" "$port")
+IFS='|' read -r s e proto app current public_ok fw comment suspended t d <<< "$record"
+if [ -z "$record" ] || [ -z "$app" ]; then
+	check_result "$E_NOTEXIST" "port $port of $user is not assigned to an app"
+fi
+
+if [ "$public" = 'yes' ]; then
+	if [ "$public_ok" != 'yes' ]; then
+		check_result "$E_FORBIDEN" "port $port may not be public"
+	fi
+	if [ "$(tenancy_user_value "$user" SUSPENDED)" = 'yes' ]; then
+		check_result "$E_FORBIDEN" "user $user is suspended"
+	fi
+	if [ -n "$rule" ]; then
+		if [ "$(ports_fw_rule_value "$rule" PORT)" != "$port" ]; then
+			check_result "$E_NOTEXIST" "firewall rule $rule for port $port doesn't exist"
+		fi
+		if [ "$fw" != "$rule" ]; then
+			ports_fw_adopt "$user" "$port" "$rule"
+			check_result $? "firewall rule $rule was not linked" "$E_UPDATE"
+			# The port's previous rule (ids do not move on a change)
+			if [ -n "$fw" ]; then
+				"$BIN/v-delete-firewall-rule" "$fw" > /dev/null 2>&1
+			fi
+		fi
+	else
+		ports_fw_open "$user" "$port" "$proto"
+		check_result $? "firewall rule for port $port was not added" "$E_UPDATE"
+	fi
+	ports_set_fields "$user" "$port" "5=yes"
+else
+	ports_fw_close "$user" "$port"
+	ports_set_fields "$user" "$port" "5=no"
+fi
+
+#----------------------------------------------------------#
+#                       Hestia                             #
+#----------------------------------------------------------#
+
+$BIN/v-log-action "system" "Info" "Firewall" "Port visibility changed (User: $user, Port: $port, Public: $public)."
+log_event "$OK" "$ARGUMENTS"
+
+exit

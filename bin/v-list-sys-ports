@@ -1,0 +1,155 @@
+#!/bin/bash
+# info: list the port registry of the server
+# options: [FORMAT] [orphans]
+#
+# example: v-list-sys-ports json
+#
+# This function lists every allocated port with its owner, the reserved
+# ports, the sockets listening in the server range with the account that
+# runs them, a summary per user and the reconciliation findings (orphan
+# sockets, missing or stale firewall rules, ...). With "orphans", only the
+# findings are listed.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+format=${1-shell}
+mode=${2-}
+
+# Includes
+# shellcheck source=/etc/hestiacp/hestia.conf
+source /etc/hestiacp/hestia.conf
+# shellcheck source=/usr/local/hestia/func/main.sh
+source $HESTIA/func/main.sh
+# shellcheck source=/usr/local/hestia/func/tenancy.sh
+source $HESTIA/func/tenancy.sh
+# shellcheck source=/usr/local/hestia/func/ports.sh
+source $HESTIA/func/ports.sh
+# load config file
+source_conf "$HESTIA/conf/hestia.conf"
+
+users_json() {
+	local sep='' user records tree_total tree_used
+	while read -r user; do
+		[ -n "$user" ] || continue
+		records=$(ports_read "$user")
+		tree_total=''
+		tree_used=''
+		if tenancy_is_reseller "$user"; then
+			tree_total=$(ports_tree_total "$user")
+			tree_used=$(ports_tree_used "$user")
+		fi
+		printf '%s        "%s": {"OWNER": "%s", "ROLE": "%s", "SUSPENDED": "%s", "LIMIT": "%s", "ALLOCATED": "%s", "ASSIGNED": "%s", "PUBLIC": "%s", "FREE": "%s", "TREE_TOTAL": "%s", "TREE_USED": "%s"}' \
+			"$sep" "$(ports_json_escape "$user")" "$(ports_json_escape "$(tenancy_get_owner "$user")")" \
+			"$(tenancy_role "$user")" "$(tenancy_user_value "$user" SUSPENDED)" "$(ports_limit "$user")" \
+			"$(printf '%s\n' "$records" | ports_sum all)" "$(printf '%s\n' "$records" | ports_sum assigned)" \
+			"$(printf '%s\n' "$records" | ports_sum public)" "$(printf '%s\n' "$records" | ports_sum free)" \
+			"$tree_total" "$tree_used"
+		sep=$',\n'
+	done < <(tenancy_all_users)
+	[ -n "$sep" ] && echo
+}
+
+sockets_json() {
+	local sep='' proto port scope uid
+	while IFS='|' read -r proto port scope uid; do
+		[ -n "$port" ] || continue
+		if [ "$port" -lt "$(ports_range_start)" ] || [ "$port" -gt "$(ports_range_end)" ]; then
+			continue
+		fi
+		printf '%s        {"PROTO": "%s", "PORT": "%s", "SCOPE": "%s", "UID": "%s", "ACCOUNT": "%s"}' \
+			"$sep" "$proto" "$port" "$scope" "$uid" "$(ports_json_escape "$(ports_uid_user "$uid")")"
+		sep=$',\n'
+	done <<< "$live"
+	[ -n "$sep" ] && echo
+}
+
+json_list() {
+	echo '{'
+	if [ "$mode" != 'orphans' ]; then
+		printf '    "RANGE_START": "%s",\n' "$(ports_range_start)"
+		printf '    "RANGE_END": "%s",\n' "$(ports_range_end)"
+		printf '    "REGISTRY": "%s",\n' "${PORT_REGISTRY:-yes}"
+		printf '    "FIREWALL": "%s",\n' "$FIREWALL_SYSTEM"
+		echo '    "USERS": {'
+		users_json
+		echo '    },'
+		echo '    "ENTRIES": ['
+		printf '%s\n' "$records" | grep -v '^@reserved|' | ports_records_json "$live" yes
+		echo '    ],'
+		echo '    "RESERVED": ['
+		printf '%s\n' "$records" | grep '^@reserved|' | cut -d'|' -f2- | ports_records_json "$live"
+		echo '    ],'
+		echo '    "SOCKETS": ['
+		sockets_json
+		echo '    ],'
+	fi
+	echo '    "FINDINGS": ['
+	printf '%s\n' "$findings" | ports_findings_json
+	echo '    ]'
+	echo '}'
+}
+
+shell_list() {
+	if [ "$mode" = 'orphans' ]; then
+		echo "TYPE USER PORT PROTO RULE"
+		echo "---- ---- ---- ----- ----"
+		printf '%s\n' "$findings" | awk -F'|' 'NF { for (i = 2; i <= 5; i++) if ($i == "") $i = "-"; print $1, $2, $3, $4, $5 }'
+		return
+	fi
+	echo "USER PORT PROTO APP PUBLIC PUBLIC_OK"
+	echo "---- ---- ----- --- ------ ---------"
+	printf '%s\n' "$records" | awk -F'|' 'NF {
+		port = ($2 == $3) ? $2 : $2 "-" $3
+		print $1, port, $4, ($5 == "") ? "-" : $5, $6, $7
+	}'
+}
+
+plain_list() {
+	if [ "$mode" = 'orphans' ]; then
+		printf '%s\n' "$findings" | grep -v '^$' | tr '|' '\t'
+		return
+	fi
+	printf '%s\n' "$records" | grep -v '^$' | tr '|' '\t'
+}
+
+csv_list() {
+	if [ "$mode" = 'orphans' ]; then
+		echo "TYPE,USER,PORT,PROTO,RULE,DETAIL"
+		printf '%s\n' "$findings" | grep -v '^$' | awk -F'|' -v OFS=',' '{ $6 = "\"" $6 "\""; print }'
+		return
+	fi
+	echo "USER,START,END,PROTO,APP,PUBLIC,PUBLIC_OK,FW_RULE,COMMENT,SUSPENDED,TIME,DATE"
+	printf '%s\n' "$records" | grep -v '^$' | awk -F'|' -v OFS=',' '{ $9 = "\"" $9 "\""; print }'
+}
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+if [ -n "$mode" ] && [ "$mode" != 'orphans' ]; then
+	check_result "$E_INVALID" "invalid mode :: $mode"
+fi
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+records=$(ports_all_records)
+live=$(ports_live)
+findings=$(ports_findings)
+
+case $format in
+	json) json_list ;;
+	plain) plain_list ;;
+	csv) csv_list ;;
+	shell) shell_list | column -t ;;
+esac
+
+#----------------------------------------------------------#
+#                       Hestia                             #
+#----------------------------------------------------------#
+
+exit

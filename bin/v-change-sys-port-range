@@ -1,0 +1,64 @@
+#!/bin/bash
+# info: change the server port range
+# options: START END
+#
+# example: v-change-sys-port-range 30000 39999
+#
+# This function changes the range the port registry allocates from. It
+# refuses a range that would leave allocated ports outside.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+start=$1
+end=$2
+
+# Includes
+# shellcheck source=/etc/hestiacp/hestia.conf
+source /etc/hestiacp/hestia.conf
+# shellcheck source=/usr/local/hestia/func/main.sh
+source $HESTIA/func/main.sh
+# shellcheck source=/usr/local/hestia/func/tenancy.sh
+source $HESTIA/func/tenancy.sh
+# shellcheck source=/usr/local/hestia/func/ports.sh
+source $HESTIA/func/ports.sh
+# load config file
+source_conf "$HESTIA/conf/hestia.conf"
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '2' "$#" 'START END'
+if ! [[ "$start" =~ ^[0-9]{4,5}$ ]] || ! [[ "$end" =~ ^[0-9]{4,5}$ ]] \
+	|| [ "$start" -lt 1024 ] || [ "$end" -gt 65535 ] || [ "$start" -ge "$end" ]; then
+	check_result "$E_INVALID" "invalid range :: $start-$end"
+fi
+
+# Perform verification if read-only mode is enabled
+check_hestia_demo_mode
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+ports_lock
+outside=$(ports_all_records | grep -v '^@reserved|' | awk -F'|' -v S="$start" -v E="$end" '
+	$2 < S { print $2; exit } $3 > E { print ($2 > E) ? $2 : E + 1; exit }')
+if [ -n "$outside" ]; then
+	check_result "$E_INUSE" "port $outside is allocated outside the new range"
+fi
+
+$BIN/v-change-sys-config-value PORT_RANGE_START "$start"
+$BIN/v-change-sys-config-value PORT_RANGE_END "$end"
+
+#----------------------------------------------------------#
+#                       Hestia                             #
+#----------------------------------------------------------#
+
+$BIN/v-log-action "system" "Info" "Ports" "Port range changed (Range: $start-$end)."
+log_event "$OK" "$ARGUMENTS"
+
+exit

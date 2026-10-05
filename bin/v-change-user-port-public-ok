@@ -1,0 +1,71 @@
+#!/bin/bash
+# info: allow or forbid public ports
+# options: USER PORT|RANGE PUBLIC_OK
+#
+# example: v-change-user-port-public-ok alice 30100-30109 yes
+#
+# This function sets whether a user may open ports to the internet (yes or
+# no). Turning it off closes the ports that are public.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+user=$1
+range=$2
+public_ok=$3
+
+# Includes
+# shellcheck source=/etc/hestiacp/hestia.conf
+source /etc/hestiacp/hestia.conf
+# shellcheck source=/usr/local/hestia/func/main.sh
+source $HESTIA/func/main.sh
+# shellcheck source=/usr/local/hestia/func/tenancy.sh
+source $HESTIA/func/tenancy.sh
+# shellcheck source=/usr/local/hestia/func/ports.sh
+source $HESTIA/func/ports.sh
+# load config file
+source_conf "$HESTIA/conf/hestia.conf"
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '3' "$#" 'USER PORT|RANGE PUBLIC_OK'
+is_format_valid 'user'
+is_object_valid 'user' 'USER' "$user"
+ports_parse_range "$range"
+ports_check_yes_no "$public_ok" 'PUBLIC_OK'
+
+# Perform verification if read-only mode is enabled
+check_hestia_demo_mode
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+ports_lock
+size=$((PEND - PSTART + 1))
+if [ "$(ports_read "$user" | ports_overlap_size "$PSTART" "$PEND")" -ne "$size" ]; then
+	check_result "$E_NOTEXIST" "ports of $range are not allocated to $user"
+fi
+
+if [ "$public_ok" = 'no' ]; then
+	ports_close_rules "$user" "$PSTART" "$PEND"
+fi
+ports_read "$user" | ports_carve "$PSTART" "$PEND" | awk -F'|' -v OFS='|' -v S="$PSTART" -v E="$PEND" -v ok="$public_ok" '
+	$1 >= S && $2 <= E {
+		$6 = ok
+		if (ok == "no") { $5 = "no"; $7 = "" }
+	}
+	{ print }' | ports_write "$user"
+
+#----------------------------------------------------------#
+#                       Hestia                             #
+#----------------------------------------------------------#
+
+$BIN/v-log-action "system" "Info" "Firewall" "Public ports setting changed (User: $user, Ports: $range, Public allowed: $public_ok)."
+log_event "$OK" "$ARGUMENTS"
+
+exit
