@@ -20,6 +20,7 @@ force=$3
 source /etc/hestiacp/hestia.conf
 # shellcheck source=/usr/local/hestia/func/main.sh
 source $HESTIA/func/main.sh
+source $HESTIA/func/hooks.sh
 # load config file
 source_conf "$HESTIA/conf/hestia.conf"
 
@@ -192,6 +193,7 @@ fi
 if [ "$RESOURCES_LIMIT" = 'yes' ]; then
 	$BIN/v-update-user-cgroup "$user"
 fi
+run_arcpanel_hooks post_change_user_package "$user" "$package"
 #----------------------------------------------------------#
 #                       Hestia                             #
 #----------------------------------------------------------#

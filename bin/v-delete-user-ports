@@ -1,0 +1,62 @@
+#!/bin/bash
+# info: delete all ports of a user
+# options: USER
+#
+# example: v-delete-user-ports alice
+#
+# This function closes the firewall rules of every port of the user, keeps
+# a copy of its registry file in data/ports/.deleted/ and gives the ports
+# back: to the reseller's pool for a reseller's customer, to the server
+# range otherwise. v-delete-user runs it through the pre_delete_user hook.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+user=$1
+
+# Includes
+# shellcheck source=/etc/hestiacp/hestia.conf
+source /etc/hestiacp/hestia.conf
+# shellcheck source=/usr/local/hestia/func/main.sh
+source $HESTIA/func/main.sh
+# shellcheck source=/usr/local/hestia/func/tenancy.sh
+source $HESTIA/func/tenancy.sh
+# shellcheck source=/usr/local/hestia/func/ports.sh
+source $HESTIA/func/ports.sh
+# load config file
+source_conf "$HESTIA/conf/hestia.conf"
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '1' "$#" 'USER'
+is_format_valid 'user'
+is_object_valid 'user' 'USER' "$user"
+
+# Perform verification if read-only mode is enabled
+check_hestia_demo_mode
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+ports_lock
+file=$(ports_file "$user")
+if [ -f "$file" ]; then
+	mkdir -p "$PORTS_DIR/.deleted"
+	cp -f "$file" "$PORTS_DIR/.deleted/$user-$(date +%F-%H%M%S).conf"
+	ports_return_to_owner "$user" 1 65535
+	rm -f "$file"
+	$BIN/v-log-action "system" "Info" "Ports" "Ports of a deleted user given back (User: $user)."
+fi
+
+#----------------------------------------------------------#
+#                       Hestia                             #
+#----------------------------------------------------------#
+
+log_event "$OK" "$ARGUMENTS"
+
+exit

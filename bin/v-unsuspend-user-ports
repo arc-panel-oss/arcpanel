@@ -1,0 +1,59 @@
+#!/bin/bash
+# info: unsuspend the ports of a user
+# options: USER
+#
+# example: v-unsuspend-user-ports alice
+#
+# This function clears the suspended mark of the user's ports and opens the
+# firewall rules of its public ports again. v-unsuspend-user runs it
+# through the post_unsuspend_user hook.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+user=$1
+
+# Includes
+# shellcheck source=/etc/hestiacp/hestia.conf
+source /etc/hestiacp/hestia.conf
+# shellcheck source=/usr/local/hestia/func/main.sh
+source $HESTIA/func/main.sh
+# shellcheck source=/usr/local/hestia/func/tenancy.sh
+source $HESTIA/func/tenancy.sh
+# shellcheck source=/usr/local/hestia/func/ports.sh
+source $HESTIA/func/ports.sh
+# load config file
+source_conf "$HESTIA/conf/hestia.conf"
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '1' "$#" 'USER'
+is_format_valid 'user'
+is_object_valid 'user' 'USER' "$user"
+
+# Perform verification if read-only mode is enabled
+check_hestia_demo_mode
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+ports_lock
+if [ -f "$(ports_file "$user")" ]; then
+	ports_read "$user" | awk -F'|' -v OFS='|' 'NF { $9 = "no"; print }' | ports_write "$user"
+	while IFS='|' read -r port proto; do
+		ports_fw_open "$user" "$port" "$proto"
+	done < <(ports_read "$user" | awk -F'|' '$1 == $2 && $4 != "" && $5 == "yes" { print $1 "|" $3 }')
+fi
+
+#----------------------------------------------------------#
+#                       Hestia                             #
+#----------------------------------------------------------#
+
+log_event "$OK" "$ARGUMENTS"
+
+exit

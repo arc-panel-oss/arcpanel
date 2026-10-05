@@ -59,7 +59,8 @@ check_hestia_demo_mode
 #                       Action                             #
 #----------------------------------------------------------#
 
-$BIN/v-add-user "$user" "$password" "$email" "$package" "$name" "$lastname"
+# The port pool comes from the reseller once the owner is set (E12)
+ARC_PORTS_DEFER=yes $BIN/v-add-user "$user" "$password" "$email" "$package" "$name" "$lastname"
 check_result $? "user $user was not created" > /dev/null
 
 if ! tenancy_set_owner "$user" "$reseller"; then
@@ -68,6 +69,7 @@ if ! tenancy_set_owner "$user" "$reseller"; then
 fi
 
 tenancy_update_counters "$reseller"
+$BIN/v-add-user-port-pool "$user" > /dev/null 2>&1
 
 #----------------------------------------------------------#
 #                       Hestia                             #

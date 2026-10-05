@@ -29,6 +29,7 @@ FROM_V_ADD_USER=true
 source /etc/hestiacp/hestia.conf
 # shellcheck source=/usr/local/hestia/func/main.sh
 source $HESTIA/func/main.sh
+source $HESTIA/func/hooks.sh
 # load config file
 source_conf "$HESTIA/conf/hestia.conf"
 
@@ -292,6 +293,7 @@ fi
 
 # Adding jailed sftp env
 $BIN/v-add-user-sftp-jail $user
+run_arcpanel_hooks post_add_user "$user"
 
 #----------------------------------------------------------#
 #                       Hestia                             #

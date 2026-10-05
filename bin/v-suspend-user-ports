@@ -1,0 +1,58 @@
+#!/bin/bash
+# info: suspend the ports of a user
+# options: USER
+#
+# example: v-suspend-user-ports alice
+#
+# This function closes the firewall rules of the user's public ports and
+# marks its ports suspended. The ports stay public in the registry, so
+# v-unsuspend-user-ports opens them again. v-suspend-user runs it through
+# the post_suspend_user hook.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+user=$1
+
+# Includes
+# shellcheck source=/etc/hestiacp/hestia.conf
+source /etc/hestiacp/hestia.conf
+# shellcheck source=/usr/local/hestia/func/main.sh
+source $HESTIA/func/main.sh
+# shellcheck source=/usr/local/hestia/func/tenancy.sh
+source $HESTIA/func/tenancy.sh
+# shellcheck source=/usr/local/hestia/func/ports.sh
+source $HESTIA/func/ports.sh
+# load config file
+source_conf "$HESTIA/conf/hestia.conf"
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '1' "$#" 'USER'
+is_format_valid 'user'
+is_object_valid 'user' 'USER' "$user"
+
+# Perform verification if read-only mode is enabled
+check_hestia_demo_mode
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+ports_lock
+if [ -f "$(ports_file "$user")" ]; then
+	ports_close_rules "$user"
+	ports_read "$user" | awk -F'|' -v OFS='|' 'NF { $9 = "yes"; print }' | ports_write "$user"
+fi
+
+#----------------------------------------------------------#
+#                       Hestia                             #
+#----------------------------------------------------------#
+
+log_event "$OK" "$ARGUMENTS"
+
+exit

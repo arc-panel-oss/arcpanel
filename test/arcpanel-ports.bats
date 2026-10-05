@@ -39,7 +39,7 @@ kill_listeners() {
 
 cleanup() {
     kill_listeners
-    for user in tpc1 tpc2 tpres $USERS; do
+    for user in tph1 tpc1 tpc2 tpres $USERS; do
         v-delete-user "$user" > /dev/null 2>&1 || true
         rm -f "$PORTS_DIR/$user.conf"
     done
@@ -250,8 +250,8 @@ teardown_file() {
     assert_success
     run v-list-user-ports tpres json
     assert_output --partial '"ALLOCATED": "20"'
+    # v-add-reseller-user gives the customer its pool from the reseller's
     v-add-reseller-user tpres tpc1 "$PASS" tpc1@example.invalid tp-cust > /dev/null
-    rm -f "$PORTS_DIR/tpc1.conf"
     run v-add-user-port-pool tpc1
     assert_success
     run v-list-user-ports tpc1 json
@@ -367,4 +367,82 @@ teardown_file() {
     assert_success
     run bash -c "v-list-user-ports tpres json | python3 -m json.tool > /dev/null"
     assert_success
+}
+
+@test "Hook: a new user gets its package pool, a customer from its reseller" {
+    run v-add-user tph1 "$PASS" tph1@example.invalid tp-five
+    assert_success
+    run v-list-user-ports tph1 json
+    assert_output --partial '"ALLOCATED": "5"'
+    run v-add-reseller-user tpres tpc2 "$PASS" tpc2@example.invalid tp-cust
+    assert_success
+    run v-list-user-ports tpc2 json
+    assert_output --partial '"ALLOCATED": "3"'
+    run v-list-user-ports tpres json
+    assert_output --partial '"ALLOCATED": "17"'
+    assert_output --partial '"TREE_TOTAL": "20"'
+}
+
+@test "Hook: a package change tops the pool up and never shrinks it" {
+    run v-change-user-package tph1 tp-twenty
+    assert_success
+    run v-list-user-ports tph1 json
+    assert_output --partial '"ALLOCATED": "20"'
+    run v-change-user-package tph1 tp-five
+    assert_success
+    run v-list-user-ports tph1 json
+    assert_output --partial '"ALLOCATED": "20"'
+}
+
+@test "Hook: suspend closes public ports, unsuspend reopens them" {
+    range=$(awk -F"'" '/^PORT=/ { print $2; exit }' "$PORTS_DIR/tph1.conf")
+    v-change-user-port-public-ok tph1 "$range" yes
+    port=$(v-allocate-user-port tph1 manual)
+    v-change-user-port-public tph1 "$port" yes
+    run grep -c "COMMENT='arcpanel-port-$port-tph1'" "$RULES"
+    assert_output "1"
+    run v-suspend-user tph1
+    assert_success
+    run grep -c "COMMENT='arcpanel-port-$port-tph1'" "$RULES"
+    assert_output "0"
+    run port_line tph1 "$port"
+    assert_output --partial "PUBLIC='yes'"
+    assert_output --partial "SUSPENDED='yes'"
+    run v-list-sys-ports json orphans
+    refute_output --partial '"USER": "tph1"'
+    run v-change-user-port-public tph1 "$port" yes
+    assert_failure 10
+    run v-unsuspend-user tph1
+    assert_success
+    run grep -c "COMMENT='arcpanel-port-$port-tph1'" "$RULES"
+    assert_output "1"
+    run port_line tph1 "$port"
+    assert_output --partial "SUSPENDED='no'"
+}
+
+@test "Hook: deleting a customer closes its rules and returns its ports" {
+    range=$(awk -F"'" '/^PORT=/ { print $2; exit }' "$PORTS_DIR/tpc2.conf")
+    v-change-user-port-public-ok tpc2 "$range" yes
+    port=$(v-allocate-user-port tpc2 manual)
+    v-change-user-port-public tpc2 "$port" yes
+    run v-delete-user tpc2
+    assert_success
+    run grep -c "COMMENT='arcpanel-port-$port-tpc2'" "$RULES"
+    assert_output "0"
+    assert_file_not_exist "$PORTS_DIR/tpc2.conf"
+    run bash -c "ls $PORTS_DIR/.deleted/ | grep -c '^tpc2-'"
+    refute_output "0"
+    run v-list-user-ports tpres json
+    assert_output --partial '"ALLOCATED": "20"'
+}
+
+@test "Hook: a failing hook is logged and does not fail the command" {
+    hook=$HESTIA/func/hooks.d/post_suspend_user/99-tp-fail.sh
+    echo 'exit 3' > "$hook"
+    run v-suspend-user tph1
+    rm -f "$hook"
+    assert_success
+    run grep "hook post_suspend_user/99-tp-fail.sh failed with code 3 (tph1)" "$HESTIA/log/system.log"
+    assert_success
+    v-unsuspend-user tph1
 }

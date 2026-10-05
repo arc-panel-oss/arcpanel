@@ -20,6 +20,7 @@ restart=$2
 source /etc/hestiacp/hestia.conf
 # shellcheck source=/usr/local/hestia/func/main.sh
 source $HESTIA/func/main.sh
+source $HESTIA/func/hooks.sh
 # shellcheck source=/usr/local/hestia/func/domain.sh
 source $HESTIA/func/domain.sh
 # shellcheck source=/usr/local/hestia/func/db.sh
@@ -47,6 +48,7 @@ check_hestia_demo_mode
 #                       Action                             #
 #----------------------------------------------------------#
 
+run_arcpanel_hooks pre_delete_user "$user"
 # Deleting web domains
 if [ -n "$WEB_SYSTEM" ] && [ "$WEB_SYSTEM" != 'no' ]; then
 	$BIN/v-unsuspend-web-domains "$user" "$restart"

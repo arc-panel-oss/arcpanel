@@ -19,6 +19,7 @@ restart=$2
 source /etc/hestiacp/hestia.conf
 # shellcheck source=/usr/local/hestia/func/main.sh
 source $HESTIA/func/main.sh
+source $HESTIA/func/hooks.sh
 # load config file
 source_conf "$HESTIA/conf/hestia.conf"
 
@@ -79,6 +80,7 @@ fi
 if [ -n "$CRON_SYSTEM" ] && [ "$CRON_SYSTEM" != 'no' ]; then
 	$BIN/v-unsuspend-cron-jobs "$user" "no"
 fi
+run_arcpanel_hooks post_unsuspend_user "$user"
 
 #----------------------------------------------------------#
 #                       Hestia                             #
