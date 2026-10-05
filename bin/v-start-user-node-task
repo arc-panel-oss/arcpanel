@@ -1,0 +1,124 @@
+#!/bin/bash
+# info: start a Node.js task of a user in the background (E13)
+# options: USER ACTION [ARGS...]
+#
+# example: v-start-user-node-task alice add-version lts
+# example: v-start-user-node-task alice add-package 24.3.0 pm2
+# example: v-start-user-node-task alice update-packages 24.3.0
+# example: v-start-user-node-task alice check-outdated 24.3.0
+#
+# This function checks the arguments of a long Node.js operation, starts it
+# detached from the caller and prints the task ID. ACTION is add-version
+# (SPEC), add-package (VERSION SPEC), update-packages (VERSION) or
+# check-outdated (VERSION). A user runs one task at a time; the state and the
+# output are read with v-list-user-node-task.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+user=$1
+action=$2
+arg1=$3
+arg2=$4
+
+# Includes
+# shellcheck source=/etc/hestiacp/hestia.conf
+source /etc/hestiacp/hestia.conf
+# shellcheck source=/usr/local/hestia/func/main.sh
+source $HESTIA/func/main.sh
+# shellcheck source=/usr/local/hestia/func/tenancy.sh
+source $HESTIA/func/tenancy.sh
+# shellcheck source=/usr/local/hestia/func/node.sh
+source $HESTIA/func/node.sh
+# load config file
+source_conf "$HESTIA/conf/hestia.conf"
+
+check_installed_version() {
+	if [[ ! "$1" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+		check_result "$E_INVALID" "invalid version :: $1"
+	fi
+	if ! node_version_installed "$user" "$1"; then
+		check_result "$E_NOTEXIST" "Node.js v$1 is not installed"
+	fi
+}
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '3' "$#" 'USER ACTION [ARGS...]'
+is_format_valid 'user'
+is_object_valid 'user' 'USER' "$user"
+is_object_unsuspended 'user' 'USER' "$user"
+
+[ -z "$HOMEDIR" ] && check_result "$E_NOTEXIST" "ArcPanel environment vars not present"
+
+node_check_enabled_package "$user"
+case "$action" in
+	add-version)
+		if ! node_nvm_enabled "$user"; then
+			check_result "$E_NOTEXIST" "Node.js is not enabled for $user (v-add-user-nvm)"
+		fi
+		if [[ ! "${arg1#v}" =~ ^(lts|[0-9]{1,3}|[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3})$ ]]; then
+			check_result "$E_INVALID" "invalid version :: $arg1 (lts, a major or X.Y.Z)"
+		fi
+		args=("$arg1")
+		;;
+	add-package)
+		check_args '4' "$#" 'USER add-package VERSION SPEC'
+		arg1=${arg1#v}
+		check_installed_version "$arg1"
+		if ! node_pkg_spec_valid "$arg2"; then
+			check_result "$E_INVALID" "invalid package :: $arg2 (a package name with an optional @version)"
+		fi
+		args=("$arg1" "$arg2")
+		;;
+	update-packages | check-outdated)
+		arg1=${arg1#v}
+		check_installed_version "$arg1"
+		args=("$arg1")
+		;;
+	*)
+		check_result "$E_INVALID" "invalid action :: $action"
+		;;
+esac
+
+# Perform verification if read-only mode is enabled
+check_hestia_demo_mode
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+exec {lock}> "$HESTIA/data/users/$user/node-task.lock"
+flock -x "$lock"
+
+if node_task_running "$user"; then
+	check_result "$E_INUSE" "Another Node.js task is running for $user"
+fi
+
+id="$(date +%s)$(printf '%04d' $((RANDOM % 10000)))"
+log=$(node_task_log "$user")
+: > "$log"
+chmod 640 "$log"
+node_task_set "$user" "ID=$id" "ACTION=$action" "ARGS=${args[*]}" STATUS=running PID= EXIT= \
+	"START=$(date +'%F %T')" END=
+
+# Detached: new session, no descriptor shared with the caller, so the panel's
+# request returns at once and the task survives it
+setsid "$BIN/v-run-user-node-task" "$id" "$user" "$action" "${args[@]}" \
+	< /dev/null >> "$log" 2>&1 {lock}>&- &
+node_task_set "$user" "PID=$!"
+
+flock -u "$lock"
+echo "$id"
+
+#----------------------------------------------------------#
+#                       Hestia                             #
+#----------------------------------------------------------#
+
+log_event "$OK" "$ARGUMENTS"
+
+exit

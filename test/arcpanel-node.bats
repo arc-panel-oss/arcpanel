@@ -388,6 +388,140 @@ setup() {
     v-change-package-tenancy tn-dev NODE yes
 }
 
+#----------------------------------------------------------#
+#                     Global packages                      #
+#----------------------------------------------------------#
+
+@test "Packages: invalid specs are refused" {
+    for spec in 'https://example.invalid/x.tgz' 'git+ssh://example.invalid/x' '../x' 'file:x' 'a b' 'is-number@' '@scope' 'UPPER' 'x@1;id'; do
+        run v-add-user-npm-package tnu1 "$V24" "$spec"
+        assert_failure 2
+    done
+    run v-add-user-npm-package tnu1 1.2.3 is-number
+    assert_failure 3
+}
+
+@test "Packages: install a package and a scoped package, list them" {
+    run v-add-user-npm-package tnu1 "$V24" is-number@6.0.0
+    assert_success
+    run v-add-user-npm-package tnu1 "$V24" @sindresorhus/is@4.0.0
+    assert_success
+    run v-list-user-npm-packages tnu1 "$V24" json
+    assert_success
+    echo "$output" | jq -e '.PACKAGES[] | select(.NAME == "is-number") | .VERSION == "6.0.0" and .BUNDLED == "no" and .OUTDATED == ""'
+    echo "$output" | jq -e '.PACKAGES[] | select(.NAME == "@sindresorhus/is") | .VERSION == "4.0.0"'
+    echo "$output" | jq -e '.PACKAGES[] | select(.NAME == "npm") | .BUNDLED == "yes"'
+    run stat -c %U "/home/tnu1/.nvm/versions/node/v$V24/lib/node_modules/is-number/package.json"
+    assert_output "tnu1"
+    run v-list-user-node-versions tnu1 json
+    echo "$output" | jq -e --arg v "$V24" '.VERSIONS[] | select(.VERSION == $v) | .PACKAGES == "2"'
+}
+
+@test "Packages: outdated check, then update" {
+    run v-check-user-npm-outdated tnu1 "$V24"
+    assert_success
+    run v-list-user-npm-packages tnu1 "$V24" json
+    echo "$output" | jq -e '.CHECKED != ""'
+    echo "$output" | jq -e '.PACKAGES[] | select(.NAME == "is-number") | .OUTDATED == "yes" and .LATEST != "6.0.0"'
+    run v-update-user-npm-packages tnu1 "$V24"
+    assert_success
+    run v-list-user-npm-packages tnu1 "$V24" json
+    echo "$output" | jq -e '.CHECKED == ""'
+    echo "$output" | jq -e '.PACKAGES[] | select(.NAME == "is-number") | .VERSION != "6.0.0"'
+}
+
+@test "Packages: remove a package; npm cannot be removed" {
+    run v-delete-user-npm-package tnu1 "$V24" @sindresorhus/is
+    assert_success
+    run v-delete-user-npm-package tnu1 "$V24" @sindresorhus/is
+    assert_failure 3
+    run v-delete-user-npm-package tnu1 "$V24" npm
+    assert_failure 10
+    run v-list-user-npm-packages tnu1 "$V24" json
+    echo "$output" | jq -e '[.PACKAGES[] | select(.NAME == "@sindresorhus/is")] | length == 0'
+}
+
+@test "Packages: refused when the package has NODE='no'" {
+    v-change-package-tenancy tn-dev NODE no
+    run v-add-user-npm-package tnu1 "$V24" is-odd
+    v-change-package-tenancy tn-dev NODE yes
+    assert_failure 11
+}
+
+#----------------------------------------------------------#
+#                          Tasks                           #
+#----------------------------------------------------------#
+
+wait_task() {
+    local i
+    for i in $(seq 1 300); do
+        status=$(v-list-user-node-task "$1" 50 json | jq -r .STATUS)
+        if [ "$status" != 'running' ]; then
+            return 0
+        fi
+        sleep 1
+    done
+    return 1
+}
+
+@test "Tasks: an install runs in the background and its log can be read" {
+    run v-start-user-node-task tnu1 add-package "$V24" is-odd
+    assert_success
+    [[ "$output" =~ ^[0-9]+$ ]]
+    id=$output
+    wait_task tnu1
+    run v-list-user-node-task tnu1 100 json
+    echo "$output" | jq -e --arg id "$id" '.ID == $id and .STATUS == "done" and .EXIT == "0" and .ACTION == "add-package"'
+    echo "$output" | jq -e '.LOG | contains("Installing is-odd")'
+    run v-list-user-npm-packages tnu1 "$V24" json
+    echo "$output" | jq -e '[.PACKAGES[] | select(.NAME == "is-odd")] | length == 1'
+}
+
+@test "Tasks: a failing command marks the task failed" {
+    run v-start-user-node-task tnu1 add-package "$V24" arcpanel-no-such-package-e13
+    assert_success
+    wait_task tnu1
+    run v-list-user-node-task tnu1 100 json
+    echo "$output" | jq -e '.STATUS == "failed" and .EXIT != "0"'
+}
+
+@test "Tasks: one task at a time; a task whose process died is failed" {
+    bash -c 'exec -a v-run-user-node-task sleep 60' &
+    pid=$!
+    conf=$HESTIA/data/users/tnu1/node-task.conf
+    echo "ID='1' ACTION='add-version' ARGS='lts' STATUS='running' PID='$pid' EXIT='' START='' END=''" > "$conf"
+    run v-start-user-node-task tnu1 add-version lts
+    assert_failure 7
+    run v-delete-user-node-version tnu1 "$V24"
+    assert_failure 7
+    kill "$pid"
+    wait "$pid" 2> /dev/null || true
+    run v-list-user-node-task tnu1 10 json
+    echo "$output" | jq -e '.STATUS == "failed"'
+    run grep -c "STATUS='failed'" "$conf"
+    assert_output "1"
+}
+
+@test "Tasks: arguments are checked before the start" {
+    run v-start-user-node-task tnu1 add-version 'lts;id'
+    assert_failure 2
+    run v-start-user-node-task tnu1 add-package "$V24" 'file:../x'
+    assert_failure 2
+    run v-start-user-node-task tnu1 check-outdated 1.2.3
+    assert_failure 3
+    run v-start-user-node-task tnu1 rm-rf "$V24"
+    assert_failure 2
+    run v-start-user-node-task tnoff add-version lts
+    assert_failure 11
+    run v-list-user-node-task tnu1 0
+    assert_failure 2
+}
+
+@test "Tasks: the runner refuses a task it was not given" {
+    run v-run-user-node-task 42 tnu1 add-version lts
+    assert_failure 10
+}
+
 @test "nvm: remove deletes ~/.nvm and the shell block" {
     run v-delete-user-nvm tnu3
     assert_success

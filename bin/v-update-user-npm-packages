@@ -1,0 +1,75 @@
+#!/bin/bash
+# info: update the global npm packages of a user (E13)
+# options: USER VERSION
+#
+# example: v-update-user-npm-packages alice 24.3.0
+#
+# This function runs `npm update -g` as the user with the runtime VERSION.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+user=$1
+version=${2#v}
+
+# Includes
+# shellcheck source=/etc/hestiacp/hestia.conf
+source /etc/hestiacp/hestia.conf
+# shellcheck source=/usr/local/hestia/func/main.sh
+source $HESTIA/func/main.sh
+# shellcheck source=/usr/local/hestia/func/tenancy.sh
+source $HESTIA/func/tenancy.sh
+# shellcheck source=/usr/local/hestia/func/node.sh
+source $HESTIA/func/node.sh
+# load config file
+source_conf "$HESTIA/conf/hestia.conf"
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '2' "$#" 'USER VERSION'
+is_format_valid 'user'
+is_object_valid 'user' 'USER' "$user"
+is_object_unsuspended 'user' 'USER' "$user"
+
+[ -z "$HOMEDIR" ] && check_result "$E_NOTEXIST" "ArcPanel environment vars not present"
+
+node_check_enabled_package "$user"
+if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+	check_result "$E_INVALID" "invalid version :: $version"
+fi
+if ! node_version_installed "$user" "$version"; then
+	check_result "$E_NOTEXIST" "Node.js v$version is not installed"
+fi
+dir=$(node_version_dir "$user" "$version")
+node_check_path "$user" "$dir"
+
+# Perform verification if read-only mode is enabled
+check_hestia_demo_mode
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+echo "Updating the global packages of Node.js v$version"
+NODE_RUN_VERSION="$version" node_as_user_long "$user" \
+	npm update --global --no-fund --no-audit --prefix "$dir"
+rc=$?
+if [ "$rc" -eq 124 ] || [ "$rc" -eq 137 ]; then
+	check_result "$E_CONNECT" "npm did not finish within $((NODE_NPM_TIMEOUT / 60)) minutes"
+fi
+check_result "$rc" "npm could not update the packages" "$E_INVALID"
+node_outdated_clear "$user" "$version"
+
+#----------------------------------------------------------#
+#                       Hestia                             #
+#----------------------------------------------------------#
+
+# Logging
+$BIN/v-log-action "$user" "Info" "Node.js" "Global npm packages updated (Version: $version)."
+log_event "$OK" "$ARGUMENTS"
+
+exit

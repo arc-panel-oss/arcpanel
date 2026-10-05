@@ -1,0 +1,81 @@
+#!/bin/bash
+# info: show the current or last Node.js task of a user (E13)
+# options: USER [LINES] [FORMAT]
+#
+# example: v-list-user-node-task alice 100 json
+#
+# This function prints the task record (ID, ACTION, ARGS, STATUS, EXIT,
+# START, END) and the last LINES lines of its output (default 100, at most
+# 1000). STATUS is running, done or failed; a running task whose process is
+# gone is reported, and stored, as failed. Without a task, STATUS is empty.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+user=$1
+lines=${2-100}
+format=${3-shell}
+
+# Includes
+# shellcheck source=/etc/hestiacp/hestia.conf
+source /etc/hestiacp/hestia.conf
+# shellcheck source=/usr/local/hestia/func/main.sh
+source $HESTIA/func/main.sh
+# shellcheck source=/usr/local/hestia/func/tenancy.sh
+source $HESTIA/func/tenancy.sh
+# shellcheck source=/usr/local/hestia/func/node.sh
+source $HESTIA/func/node.sh
+# load config file
+source_conf "$HESTIA/conf/hestia.conf"
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '1' "$#" 'USER [LINES] [FORMAT]'
+is_format_valid 'user'
+is_object_valid 'user' 'USER' "$user"
+if [[ ! "$lines" =~ ^[0-9]{1,4}$ ]] || [ "$lines" -lt 1 ] || [ "$lines" -gt 1000 ]; then
+	check_result "$E_INVALID" "invalid number of lines :: $lines (1 to 1000)"
+fi
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+if [ -f "$(node_task_conf "$user")" ]; then
+	exec {lock}> "$HESTIA/data/users/$user/node-task.lock"
+	flock -x "$lock"
+	node_task_reap "$user"
+	flock -u "$lock"
+fi
+
+log=''
+if [ -f "$(node_task_log "$user")" ]; then
+	# no colours, no carriage returns of progress bars
+	log=$(tail -n "$lines" "$(node_task_log "$user")" | sed -e 's/\x1b\[[0-9;?]*[A-Za-z]//g' -e 's/\r$//' -e 's/.*\r//')
+fi
+
+json=$(jq -nc --arg id "$(node_task_get "$user" ID)" --arg action "$(node_task_get "$user" ACTION)" \
+	--arg args "$(node_task_get "$user" ARGS)" --arg status "$(node_task_get "$user" STATUS)" \
+	--arg exit "$(node_task_get "$user" EXIT)" --arg start "$(node_task_get "$user" START)" \
+	--arg end "$(node_task_get "$user" END)" --arg log "$log" --arg user "$user" '
+	{ USER: $user, ID: $id, ACTION: $action, ARGS: $args, STATUS: $status, EXIT: $exit,
+		START: $start, END: $end, LOG: $log }')
+
+case "$format" in
+	json) printf '%s\n' "$json" | jq . ;;
+	*)
+		printf '%s\n' "$json" | jq -r 'to_entries[] | select(.key != "LOG") | "\(.key): \(.value)"'
+		echo
+		printf '%s\n' "$log"
+		;;
+esac
+
+#----------------------------------------------------------#
+#                       Hestia                             #
+#----------------------------------------------------------#
+
+exit

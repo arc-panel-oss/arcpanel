@@ -1,0 +1,84 @@
+#!/bin/bash
+# info: check the global npm packages of a user for updates (E13)
+# options: USER VERSION
+#
+# example: v-check-user-npm-outdated alice 24.3.0
+#
+# This function runs `npm outdated -g --json` as the user with the runtime
+# VERSION and keeps the result for v-list-user-npm-packages (6 hours).
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+user=$1
+version=${2#v}
+
+# Includes
+# shellcheck source=/etc/hestiacp/hestia.conf
+source /etc/hestiacp/hestia.conf
+# shellcheck source=/usr/local/hestia/func/main.sh
+source $HESTIA/func/main.sh
+# shellcheck source=/usr/local/hestia/func/tenancy.sh
+source $HESTIA/func/tenancy.sh
+# shellcheck source=/usr/local/hestia/func/node.sh
+source $HESTIA/func/node.sh
+# load config file
+source_conf "$HESTIA/conf/hestia.conf"
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '2' "$#" 'USER VERSION'
+is_format_valid 'user'
+is_object_valid 'user' 'USER' "$user"
+is_object_unsuspended 'user' 'USER' "$user"
+
+[ -z "$HOMEDIR" ] && check_result "$E_NOTEXIST" "ArcPanel environment vars not present"
+
+node_check_enabled_package "$user"
+if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+	check_result "$E_INVALID" "invalid version :: $version"
+fi
+if ! node_version_installed "$user" "$version"; then
+	check_result "$E_NOTEXIST" "Node.js v$version is not installed"
+fi
+dir=$(node_version_dir "$user" "$version")
+node_check_path "$user" "$dir"
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+echo "Checking the global packages of Node.js v$version for updates"
+tmp=$(mktemp)
+NODE_RUN_VERSION="$version" node_as_user_long "$user" \
+	npm outdated --global --json --prefix "$dir" > "$tmp" 2> /dev/null
+rc=$?
+# npm outdated exits with 1 when it found outdated packages
+if [ "$rc" -gt 1 ]; then
+	rm -f "$tmp"
+	check_result "$E_CONNECT" "npm could not reach the registry"
+fi
+if [ ! -s "$tmp" ]; then
+	echo '{}' > "$tmp"
+fi
+if ! jq -e 'type == "object"' "$tmp" > /dev/null 2>&1; then
+	rm -f "$tmp"
+	check_result "$E_PARSING" "npm returned no usable result"
+fi
+file=$(node_outdated_file "$user" "$version")
+jq -c . "$tmp" > "$file"
+rm -f "$tmp"
+chmod 640 "$file"
+echo "$(jq 'length' "$file") package(s) can be updated"
+
+#----------------------------------------------------------#
+#                       Hestia                             #
+#----------------------------------------------------------#
+
+log_event "$OK" "$ARGUMENTS"
+
+exit

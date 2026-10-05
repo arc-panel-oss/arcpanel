@@ -1,0 +1,79 @@
+#!/bin/bash
+# info: uninstall a global npm package of a user (E13)
+# options: USER VERSION NAME
+#
+# example: v-delete-user-npm-package alice 24.3.0 pm2
+#
+# This function runs `npm uninstall -g NAME` as the user with the runtime
+# VERSION. npm and corepack, which come with Node.js, cannot be removed.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+user=$1
+version=${2#v}
+name=$3
+
+# Includes
+# shellcheck source=/etc/hestiacp/hestia.conf
+source /etc/hestiacp/hestia.conf
+# shellcheck source=/usr/local/hestia/func/main.sh
+source $HESTIA/func/main.sh
+# shellcheck source=/usr/local/hestia/func/tenancy.sh
+source $HESTIA/func/tenancy.sh
+# shellcheck source=/usr/local/hestia/func/node.sh
+source $HESTIA/func/node.sh
+# load config file
+source_conf "$HESTIA/conf/hestia.conf"
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '3' "$#" 'USER VERSION NAME'
+is_format_valid 'user'
+is_object_valid 'user' 'USER' "$user"
+
+[ -z "$HOMEDIR" ] && check_result "$E_NOTEXIST" "ArcPanel environment vars not present"
+
+if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+	check_result "$E_INVALID" "invalid version :: $version"
+fi
+if ! node_version_installed "$user" "$version"; then
+	check_result "$E_NOTEXIST" "Node.js v$version is not installed"
+fi
+if ! node_pkg_name_valid "$name"; then
+	check_result "$E_INVALID" "invalid package name :: $name"
+fi
+if node_pkg_bundled "$name"; then
+	check_result "$E_FORBIDEN" "$name comes with Node.js and cannot be removed"
+fi
+dir=$(node_version_dir "$user" "$version")
+node_check_path "$user" "$dir/lib/node_modules/$name"
+if ! node_as_user "$user" test -d "$dir/lib/node_modules/$name"; then
+	check_result "$E_NOTEXIST" "$name is not installed for Node.js v$version"
+fi
+
+# Perform verification if read-only mode is enabled
+check_hestia_demo_mode
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+NODE_RUN_VERSION="$version" node_as_user_long "$user" \
+	npm uninstall --global --no-fund --no-audit --prefix "$dir" "$name"
+check_result $? "npm could not uninstall $name" "$E_INVALID"
+node_outdated_clear "$user" "$version"
+
+#----------------------------------------------------------#
+#                       Hestia                             #
+#----------------------------------------------------------#
+
+# Logging
+$BIN/v-log-action "$user" "Info" "Node.js" "Global npm package removed (Package: $name, Version: $version)."
+log_event "$OK" "$ARGUMENTS"
+
+exit
