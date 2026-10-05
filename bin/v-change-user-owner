@@ -1,0 +1,78 @@
+#!/bin/bash
+# info: change the owner of a user
+# options: USER OWNER
+#
+# example: v-change-user-owner alice agency
+#
+# This function moves a user to another owner: a reseller (owned by the
+# system administrator, resellers do not nest) or ROOT_USER. The user must
+# fit into the new reseller's plan. Administrators and resellers always
+# belong to ROOT_USER.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+user=$1
+owner=$2
+
+# Includes
+# shellcheck source=/etc/hestiacp/hestia.conf
+source /etc/hestiacp/hestia.conf
+# shellcheck source=/usr/local/hestia/func/main.sh
+source $HESTIA/func/main.sh
+# shellcheck source=/usr/local/hestia/func/tenancy.sh
+source $HESTIA/func/tenancy.sh
+# load config file
+source_conf "$HESTIA/conf/hestia.conf"
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '2' "$#" 'USER OWNER'
+is_format_valid 'user'
+is_user_format_valid "$owner" 'owner'
+is_object_valid 'user' 'USER' "$user"
+is_object_valid 'user' 'USER' "$owner"
+if [ "$(tenancy_role "$user")" != 'user' ]; then
+	check_result "$E_FORBIDEN" "only users with the user role can change owner"
+fi
+if [ "$owner" != "$ROOT_USER" ]; then
+	if ! tenancy_is_reseller "$owner"; then
+		check_result "$E_INVALID" "owner $owner is not a reseller"
+	fi
+	exceeded=$(tenancy_check_quota "$owner" "$(tenancy_user_value "$user" PACKAGE)" "$user")
+	check_result $? "reseller plan has no room for $exceeded" "$E_LIMIT"
+fi
+
+# Perform verification if read-only mode is enabled
+check_hestia_demo_mode
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+previous=$(tenancy_get_owner "$user")
+if [ "$owner" = "$ROOT_USER" ]; then
+	tenancy_set_owner "$user" ""
+else
+	tenancy_set_owner "$user" "$owner"
+fi
+check_result $? "owner of $user could not be set" "$E_UPDATE"
+
+for reseller in "$previous" "$owner"; do
+	if tenancy_is_reseller "$reseller"; then
+		tenancy_update_counters "$reseller"
+	fi
+done
+
+#----------------------------------------------------------#
+#                       Hestia                             #
+#----------------------------------------------------------#
+
+$BIN/v-log-action "system" "Warning" "Security" "User owner changed (User: $user, Owner: $owner, Previous: $previous)."
+log_event "$OK" "$ARGUMENTS"
+
+exit

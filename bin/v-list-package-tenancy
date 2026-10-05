@@ -1,0 +1,96 @@
+#!/bin/bash
+# info: list the reseller settings of packages
+# options: [PACKAGE] [FORMAT]
+#
+# example: v-list-package-tenancy reseller json
+#
+# This function lists every package (or one) with its limits and its
+# reseller settings: USERS, RESELLER_PACKAGES, RESELLER_VISIBLE and
+# RESELLER_OWNER, defaults filled in.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+package=$1
+format=${2-shell}
+
+# Includes
+# shellcheck source=/etc/hestiacp/hestia.conf
+source /etc/hestiacp/hestia.conf
+# shellcheck source=/usr/local/hestia/func/main.sh
+source $HESTIA/func/main.sh
+# shellcheck source=/usr/local/hestia/func/tenancy.sh
+source $HESTIA/func/tenancy.sh
+# load config file
+source_conf "$HESTIA/conf/hestia.conf"
+
+json_list() {
+	local sep=''
+	echo '{'
+	for item in $packages; do
+		printf '%s' "$sep"
+		tenancy_package_json "$item"
+		sep=$',\n'
+	done
+	echo
+	echo '}'
+}
+
+rows() {
+	for item in $packages; do
+		echo "$item $(tenancy_pkg_get "$item" USERS) $(tenancy_pkg_get "$item" RESELLER_VISIBLE) $(tenancy_pkg_get "$item" RESELLER_PACKAGES) $(tenancy_pkg_get "$item" RESELLER_OWNER)"
+	done
+}
+
+shell_list() {
+	echo "PKG USERS VISIBLE PACKAGES OWNER"
+	echo "--- ----- ------- -------- -----"
+	rows | awk '{ for (i = 4; i <= 5; i++) if ($i == "") $i = "-"; print }'
+}
+
+plain_list() {
+	for item in $packages; do
+		echo -e "$item\t$(tenancy_pkg_get "$item" USERS)\t$(tenancy_pkg_get "$item" RESELLER_VISIBLE)\t$(tenancy_pkg_get "$item" RESELLER_PACKAGES)\t$(tenancy_pkg_get "$item" RESELLER_OWNER)"
+	done
+}
+
+csv_list() {
+	echo "PACKAGE,USERS,RESELLER_VISIBLE,RESELLER_PACKAGES,RESELLER_OWNER"
+	for item in $packages; do
+		echo "$item,$(tenancy_pkg_get "$item" USERS),$(tenancy_pkg_get "$item" RESELLER_VISIBLE),\"$(tenancy_pkg_get "$item" RESELLER_PACKAGES)\",$(tenancy_pkg_get "$item" RESELLER_OWNER)"
+	done
+}
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+if [ -n "$package" ] && [ "$package" != 'all' ]; then
+	is_format_valid 'package'
+	is_package_valid "$package"
+fi
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+if [ -n "$package" ] && [ "$package" != 'all' ]; then
+	packages="$package"
+else
+	packages=$(tenancy_all_packages)
+fi
+
+case $format in
+	json) json_list ;;
+	plain) plain_list ;;
+	csv) csv_list ;;
+	shell) shell_list | column -t ;;
+esac
+
+#----------------------------------------------------------#
+#                       Hestia                             #
+#----------------------------------------------------------#
+
+exit

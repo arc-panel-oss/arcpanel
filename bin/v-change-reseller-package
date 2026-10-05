@@ -1,0 +1,70 @@
+#!/bin/bash
+# info: change a package owned by a reseller
+# options: RESELLER TMPFILE PACKAGE
+#
+# example: v-change-reseller-package agency /tmp/package.XXXX agency_starter
+#
+# This function rewrites the limits of a package created by RESELLER from
+# TMPFILE and applies them to the users of that package. No limit may be
+# higher than the reseller's own limit.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+reseller=$1
+tmpfile=$2
+package=$3
+
+# Includes
+# shellcheck source=/etc/hestiacp/hestia.conf
+source /etc/hestiacp/hestia.conf
+# shellcheck source=/usr/local/hestia/func/main.sh
+source $HESTIA/func/main.sh
+# shellcheck source=/usr/local/hestia/func/tenancy.sh
+source $HESTIA/func/tenancy.sh
+# load config file
+source_conf "$HESTIA/conf/hestia.conf"
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '3' "$#" 'RESELLER TMPFILE PACKAGE'
+is_user_format_valid "$reseller" 'reseller'
+is_format_valid 'package'
+is_object_valid 'user' 'USER' "$reseller"
+is_package_valid "$package"
+if [ "$POLICY_RESELLER_CREATE_PACKAGES" != 'yes' ]; then
+	check_result "$E_DISABLED" "resellers may not change packages"
+fi
+if [ "$(tenancy_pkg_get "$package" RESELLER_OWNER)" != "$reseller" ]; then
+	check_result "$E_FORBIDEN" "package $package does not belong to $reseller"
+fi
+if [ ! -f "$tmpfile" ]; then
+	check_result "$E_NOTEXIST" "$tmpfile does not exist"
+fi
+exceeded=$(tenancy_check_package_limits "$reseller" "$tmpfile")
+check_result $? "reseller plan has no room for $exceeded" "$E_LIMIT"
+
+# Perform verification if read-only mode is enabled
+check_hestia_demo_mode
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+$BIN/v-add-user-package "$tmpfile" "$package" yes
+check_result $? "package $package was not changed" > /dev/null
+$BIN/v-update-user-package "$package"
+check_result $? "package $package was not applied to its users" > /dev/null
+
+#----------------------------------------------------------#
+#                       Hestia                             #
+#----------------------------------------------------------#
+
+$BIN/v-log-action "$reseller" "Info" "Packages" "Package limits updated (Name: $package)."
+log_event "$OK" "$ARGUMENTS"
+
+exit

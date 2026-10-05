@@ -1534,7 +1534,7 @@ is_object_format_valid() {
 
 # Role validator
 is_role_valid() {
-	if ! [[ "$1" =~ ^admin$|^user$|^dns-cluster$ ]]; then
+	if ! [[ "$1" =~ ^admin$|^user$|^reseller$|^dns-cluster$ ]]; then
 		check_result "$E_INVALID" "invalid $2 format :: $1"
 	fi
 }

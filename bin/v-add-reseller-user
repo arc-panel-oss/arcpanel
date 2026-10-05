@@ -1,0 +1,80 @@
+#!/bin/bash
+# info: add a customer owned by a reseller
+# options: RESELLER USER PASSWORD EMAIL [PACKAGE] [NAME] [LASTNAME]
+#
+# example: v-add-reseller-user agency alice 'P4$$w@rD' alice@example.com starter Alice Smith
+#
+# This function creates a user owned by RESELLER. The package must be one the
+# reseller may assign (v-list-reseller-packages) and must fit into the
+# reseller's own plan (v-check-reseller-quota).
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+reseller=$1
+user=$2
+password=$3
+HIDE=3
+email=$4
+package=${5-default}
+name=$6
+lastname=$7
+
+# Includes
+# shellcheck source=/etc/hestiacp/hestia.conf
+source /etc/hestiacp/hestia.conf
+# shellcheck source=/usr/local/hestia/func/main.sh
+source $HESTIA/func/main.sh
+# shellcheck source=/usr/local/hestia/func/tenancy.sh
+source $HESTIA/func/tenancy.sh
+# load config file
+source_conf "$HESTIA/conf/hestia.conf"
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '4' "$#" 'RESELLER USER PASSWORD EMAIL [PACKAGE] [NAME] [LASTNAME]'
+is_user_format_valid "$reseller" 'reseller'
+is_format_valid 'user' 'email' 'package'
+is_object_valid 'user' 'USER' "$reseller"
+USER_DATA="$HESTIA/data/users/$reseller"
+is_object_unsuspended 'user' 'USER' "$reseller"
+if ! tenancy_is_reseller "$reseller"; then
+	check_result "$E_INVALID" "user $reseller is not a reseller"
+fi
+is_package_valid "$package"
+if ! tenancy_is_assignable "$reseller" "$package"; then
+	check_result "$E_FORBIDEN" "package $package can't be assigned by $reseller"
+fi
+exceeded=$(tenancy_check_quota "$reseller" "$package")
+check_result $? "reseller plan has no room for $exceeded" "$E_LIMIT"
+
+# Perform verification if read-only mode is enabled
+check_hestia_demo_mode
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+$BIN/v-add-user "$user" "$password" "$email" "$package" "$name" "$lastname"
+check_result $? "user $user was not created" > /dev/null
+
+if ! tenancy_set_owner "$user" "$reseller"; then
+	$BIN/v-delete-user "$user" > /dev/null 2>&1
+	check_result "$E_UPDATE" "owner of $user could not be set"
+fi
+
+tenancy_update_counters "$reseller"
+
+#----------------------------------------------------------#
+#                       Hestia                             #
+#----------------------------------------------------------#
+
+$BIN/v-log-action "$reseller" "Info" "Users" "Customer added (User: $user, Package: $package)."
+$BIN/v-log-action "system" "Info" "Users" "Customer added (Reseller: $reseller, User: $user, Package: $package)."
+log_event "$OK" "$ARGUMENTS"
+
+exit

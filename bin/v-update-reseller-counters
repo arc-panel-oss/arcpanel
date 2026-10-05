@@ -1,0 +1,74 @@
+#!/bin/bash
+# info: update the usage totals of resellers
+# options: RESELLER|all
+#
+# example: v-update-reseller-counters all
+#
+# This function recomputes the R_* totals of a reseller (its own usage plus
+# its customers'). With "all" it updates every reseller and reports users
+# whose owner no longer exists or is no longer a reseller, and package
+# sidecars without a package.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+reseller=$1
+
+# Includes
+# shellcheck source=/etc/hestiacp/hestia.conf
+source /etc/hestiacp/hestia.conf
+# shellcheck source=/usr/local/hestia/func/main.sh
+source $HESTIA/func/main.sh
+# shellcheck source=/usr/local/hestia/func/tenancy.sh
+source $HESTIA/func/tenancy.sh
+# load config file
+source_conf "$HESTIA/conf/hestia.conf"
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '1' "$#" 'RESELLER|all'
+if [ "$reseller" != 'all' ]; then
+	is_user_format_valid "$reseller" 'reseller'
+	is_object_valid 'user' 'USER' "$reseller"
+	if ! tenancy_is_reseller "$reseller"; then
+		check_result "$E_INVALID" "user $reseller is not a reseller"
+	fi
+fi
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+if [ "$reseller" != 'all' ]; then
+	tenancy_update_counters "$reseller"
+	exit
+fi
+
+while read -r user; do
+	if tenancy_is_reseller "$user"; then
+		tenancy_update_counters "$user"
+		continue
+	fi
+	owner=$(tenancy_raw_owner "$user")
+	if [ -n "$owner" ] && [ "$owner" != "$ROOT_USER" ] && ! tenancy_is_reseller "$owner"; then
+		echo "Orphan: user $user is owned by $owner, which is not a reseller"
+		log_event "$E_NOTEXIST" "owner $owner of $user is not a reseller"
+	fi
+done < <(tenancy_all_users)
+
+for file in "$HESTIA"/data/packages/*.tenancy; do
+	if [ -f "$file" ] && [ ! -f "${file%.tenancy}.pkg" ]; then
+		echo "Orphan: $(basename "$file") has no package"
+		log_event "$E_NOTEXIST" "$(basename "$file") has no package"
+	fi
+done
+
+#----------------------------------------------------------#
+#                       Hestia                             #
+#----------------------------------------------------------#
+
+exit

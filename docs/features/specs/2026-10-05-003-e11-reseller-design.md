@@ -76,7 +76,7 @@ Design document 03 stays the reference. This spec records the decisions of the 2
 
 ### 5.2 Library `func/tenancy.sh`
 
-Helpers used by all commands below: `tenancy_get_owner USER`, `tenancy_set_owner USER OWNER`, `tenancy_is_reseller USER`, `tenancy_customers RESELLER`, `tenancy_pkg_get PACKAGE KEY`, `tenancy_pkg_set PACKAGE KEY VALUE`, `tenancy_assignable_packages RESELLER`, `tenancy_check_quota RESELLER PACKAGE [CURRENT_PACKAGE]` (prints the first exceeded key, returns `E_LIMIT`). Values are written with the same quoting as `update_object_value`; keys are validated against a fixed list.
+Helpers used by all commands below: `tenancy_get_owner USER`, `tenancy_set_owner USER OWNER`, `tenancy_is_reseller USER`, `tenancy_customers RESELLER`, `tenancy_pkg_get PACKAGE KEY`, `tenancy_pkg_set PACKAGE KEY VALUE`, `tenancy_assignable_packages RESELLER`, `tenancy_check_quota RESELLER PACKAGE [USER]` (prints the first exceeded key, returns `E_LIMIT`). Values are written with the same quoting as `update_object_value`; keys are validated against a fixed list.
 
 ### 5.3 Commands (all new)
 
@@ -87,14 +87,14 @@ Helpers used by all commands below: `tenancy_get_owner USER`, `tenancy_set_owner
 | `v-list-reseller-users RESELLER [FORMAT]` | users with `OWNER=RESELLER`; same columns as `v-list-users` plus `OWNER`; formats `json`, `plain`, `csv`, `shell` |
 | `v-list-user-owners [FORMAT]` | every user with `ROLE`, `OWNER` (resolved, never empty) and `SUSPENDED` |
 | `v-change-user-owner USER OWNER` | `USER` is not an admin and not a reseller; `OWNER` is `ROOT_USER` or a reseller owned by `ROOT_USER` (D9); quota of the new owner fits; counters of both owners updated; logged as `Security` |
-| `v-check-reseller-quota RESELLER PACKAGE [CURRENT_PACKAGE]` | exit `0` when it fits; `E_LIMIT` and the first exceeded key (`USERS`, `WEB_DOMAINS`, …) on stdout otherwise |
+| `v-check-reseller-quota RESELLER PACKAGE [USER]` | exit `0` when it fits; `E_LIMIT` and the first exceeded key (`USERS`, `WEB_DOMAINS`, …) on stdout otherwise; with `USER`, that customer's current package is left out (package change) |
 | `v-update-reseller-counters RESELLER\|all` | recomputes `R_*`; with `all`, reports owners that no longer exist or are no longer resellers |
 | `v-list-reseller-packages RESELLER [FORMAT]` | packages listed in the reseller's `RESELLER_PACKAGES` (or, for `*`, every package with `RESELLER_VISIBLE='yes'`) plus packages with `RESELLER_OWNER=RESELLER`; same columns as `v-list-user-packages` plus `RESELLER_OWNER` |
 | `v-list-package-tenancy [PACKAGE] [FORMAT]` | tenancy keys of one or all packages, with defaults filled in |
 | `v-change-package-tenancy PACKAGE KEY VALUE` | sets `USERS`, `RESELLER_PACKAGES` or `RESELLER_VISIBLE`; validates the value |
 | `v-delete-package-tenancy PACKAGE` · `v-rename-package-tenancy OLD NEW` | keep the sidecar in step with `v-delete-user-package` and `v-rename-user-package` |
 | `v-add-reseller-package RESELLER TMPFILE NAME` | `POLICY_RESELLER_CREATE_PACKAGES='yes'`; every limit in `TMPFILE` ≤ the reseller's own (`unlimited` only where the reseller has `unlimited`); then `v-add-user-package TMPFILE RESELLER_NAME` and `RESELLER_OWNER=RESELLER` |
-| `v-change-reseller-package RESELLER TMPFILE NAME` | same checks for a package with `RESELLER_OWNER=RESELLER`, then `v-add-user-package … yes` and `v-update-user-package` |
+| `v-change-reseller-package RESELLER TMPFILE PACKAGE` | same checks for a package with `RESELLER_OWNER=RESELLER`, then `v-add-user-package … yes` and `v-update-user-package` |
 
 ### 5.4 Rules shared by the commands
 
@@ -102,7 +102,7 @@ Helpers used by all commands below: `tenancy_get_owner USER`, `tenancy_set_owner
 - `v-change-user-role USER reseller` works through D10. The panel only offers it when the user's package has `USERS > 0`; the command itself does not check this (the example package and admin docs explain it).
 - Changing a reseller back to `user` and deleting a reseller require an empty tree. The panel enforces it. Through the CLI, orphans are treated as owned by `ROOT_USER` and reported by `v-update-reseller-counters all`.
 - Restore does not bring back `tenancy.conf` (backups copy `user.conf` only). A restored customer is owned by `ROOT_USER` until an admin runs `v-change-user-owner`. Recorded as a risk (§13).
-- `v-update-reseller-counters all` runs daily through `v-add-cron-hestia-job`, added by the installer and the upgrade script.
+- `v-add-sys-tenancy` (new, idempotent) writes the policy defaults, installs the example package when missing and adds the daily `v-update-reseller-counters all` line to the `hestiaweb` crontab. The installers, the upgrade step `install/upgrade/arcpanel/1.1.0.sh` and `test/dev-sync.sh` run it.
 - New commands are added to the panel app's allow-list (`config/arc-commands.php`) and to the sudoers file of S1.
 
 ## 6. Authorization (M2)

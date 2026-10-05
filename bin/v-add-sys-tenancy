@@ -1,0 +1,79 @@
+#!/bin/bash
+# info: set up resellers (E11)
+# options: NONE
+#
+# example: v-add-sys-tenancy
+#
+# This function prepares a server for resellers: the reseller policies with
+# their defaults, the example "reseller" package and the daily job that
+# updates the resellers' usage totals. It is safe to run again and keeps
+# values an administrator has changed.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Includes
+# shellcheck source=/etc/hestiacp/hestia.conf
+source /etc/hestiacp/hestia.conf
+# shellcheck source=/usr/local/hestia/func/main.sh
+source $HESTIA/func/main.sh
+# load config file
+source_conf "$HESTIA/conf/hestia.conf"
+
+COMMON_PACKAGES="$HESTIA/install/common/packages"
+CRONTAB="/var/spool/cron/crontabs/hestiaweb"
+CRON_LINE="40 02 * * * sudo /usr/local/hestia/bin/v-update-reseller-counters all"
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+if [ "$(id -u)" != '0' ]; then
+	echo "Error: v-add-sys-tenancy can only be executed by the root user"
+	exit "$E_FORBIDEN"
+fi
+
+# Perform verification if read-only mode is enabled
+check_hestia_demo_mode
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+# Policies
+if ! grep -q "^POLICY_RESELLER_CREATE_PACKAGES=" "$HESTIA/conf/hestia.conf"; then
+	$BIN/v-change-sys-config-value POLICY_RESELLER_CREATE_PACKAGES no
+fi
+if ! grep -q "^POLICY_RESELLER_LOGIN_AS=" "$HESTIA/conf/hestia.conf"; then
+	$BIN/v-change-sys-config-value POLICY_RESELLER_LOGIN_AS yes
+fi
+
+# Example reseller package
+if [ ! -f "$HESTIA/data/packages/reseller.pkg" ] && [ -f "$COMMON_PACKAGES/reseller.pkg" ]; then
+	install -m 644 "$COMMON_PACKAGES/reseller.pkg" "$HESTIA/data/packages/reseller.pkg"
+	install -m 644 "$COMMON_PACKAGES/reseller.tenancy" "$HESTIA/data/packages/reseller.tenancy"
+	sed -i 's/\r$//' "$HESTIA/data/packages/reseller.pkg" "$HESTIA/data/packages/reseller.tenancy"
+	# Same nameservers as the default package
+	ns=$(grep -m1 "^NS=" "$HESTIA/data/packages/default.pkg" 2> /dev/null)
+	if [ -n "$ns" ]; then
+		sed -i "s/^NS=.*/$ns/" "$HESTIA/data/packages/reseller.pkg"
+	fi
+fi
+
+# Daily usage totals
+# (sed, not >>: fs.protected_regular forbids root to open another user's
+# file for appending in the sticky crontab directory)
+if [ -f "$CRONTAB" ] && ! grep -q "v-update-reseller-counters" "$CRONTAB"; then
+	sed -i -e "\$a$CRON_LINE" "$CRONTAB"
+	chown hestiaweb:hestiaweb "$CRONTAB"
+	chmod 600 "$CRONTAB"
+fi
+
+#----------------------------------------------------------#
+#                       Hestia                             #
+#----------------------------------------------------------#
+
+log_event "$OK" "$ARGUMENTS"
+
+exit

@@ -106,6 +106,8 @@ if ! grep -q "^ARCPANEL_APP_PAGES=" "$HESTIA/conf/hestia.conf"; then
 	"$HESTIA/bin/v-change-sys-config-value" ARCPANEL_APP_PAGES yes
 fi
 
+"$HESTIA/bin/v-add-sys-tenancy"
+
 if [ "$restart_step" = yes ]; then
 	"$HESTIA/nginx/sbin/hestia-nginx" -t -q
 	systemctl restart arcpanel

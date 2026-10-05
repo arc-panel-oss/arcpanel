@@ -1,0 +1,61 @@
+#!/bin/bash
+# info: change a reseller setting of a package
+# options: PACKAGE KEY VALUE
+#
+# example: v-change-package-tenancy reseller USERS 25
+#
+# This function sets USERS (integer or unlimited), RESELLER_PACKAGES (comma
+# list of packages, or *) or RESELLER_VISIBLE (yes or no) of a package.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+package=$1
+key=${2^^}
+value=$3
+
+# Includes
+# shellcheck source=/etc/hestiacp/hestia.conf
+source /etc/hestiacp/hestia.conf
+# shellcheck source=/usr/local/hestia/func/main.sh
+source $HESTIA/func/main.sh
+# shellcheck source=/usr/local/hestia/func/tenancy.sh
+source $HESTIA/func/tenancy.sh
+# load config file
+source_conf "$HESTIA/conf/hestia.conf"
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '2' "$#" 'PACKAGE KEY VALUE'
+is_format_valid 'package'
+is_package_valid "$package"
+case "$key" in
+	USERS | RESELLER_PACKAGES | RESELLER_VISIBLE) ;;
+	*) check_result "$E_INVALID" "invalid key $key" ;;
+esac
+if ! tenancy_pkg_value_valid "$key" "$value"; then
+	check_result "$E_INVALID" "invalid $key value :: $value"
+fi
+
+# Perform verification if read-only mode is enabled
+check_hestia_demo_mode
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+tenancy_pkg_set "$package" "$key" "$value"
+check_result $? "package $package was not updated" "$E_UPDATE"
+
+#----------------------------------------------------------#
+#                       Hestia                             #
+#----------------------------------------------------------#
+
+$BIN/v-log-action "system" "Info" "System" "Package reseller setting changed (Package: $package, $key: $value)."
+log_event "$OK" "$ARGUMENTS"
+
+exit

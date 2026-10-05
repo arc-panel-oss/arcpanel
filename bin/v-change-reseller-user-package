@@ -1,0 +1,71 @@
+#!/bin/bash
+# info: change the package of a reseller's customer
+# options: RESELLER USER PACKAGE
+#
+# example: v-change-reseller-user-package agency alice business
+#
+# This function changes the package of a customer owned by RESELLER. The new
+# package must be assignable by the reseller and fit into its plan after the
+# customer's current package is taken out.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+reseller=$1
+user=$2
+package=$3
+
+# Includes
+# shellcheck source=/etc/hestiacp/hestia.conf
+source /etc/hestiacp/hestia.conf
+# shellcheck source=/usr/local/hestia/func/main.sh
+source $HESTIA/func/main.sh
+# shellcheck source=/usr/local/hestia/func/tenancy.sh
+source $HESTIA/func/tenancy.sh
+# load config file
+source_conf "$HESTIA/conf/hestia.conf"
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '3' "$#" 'RESELLER USER PACKAGE'
+is_user_format_valid "$reseller" 'reseller'
+is_format_valid 'user' 'package'
+is_object_valid 'user' 'USER' "$reseller"
+is_object_valid 'user' 'USER' "$user"
+if ! tenancy_is_reseller "$reseller"; then
+	check_result "$E_INVALID" "user $reseller is not a reseller"
+fi
+if [ "$(tenancy_get_owner "$user")" != "$reseller" ]; then
+	check_result "$E_FORBIDEN" "user $user is not a customer of $reseller"
+fi
+is_package_valid "$package"
+if ! tenancy_is_assignable "$reseller" "$package"; then
+	check_result "$E_FORBIDEN" "package $package can't be assigned by $reseller"
+fi
+exceeded=$(tenancy_check_quota "$reseller" "$package" "$user")
+check_result $? "reseller plan has no room for $exceeded" "$E_LIMIT"
+
+# Perform verification if read-only mode is enabled
+check_hestia_demo_mode
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+$BIN/v-change-user-package "$user" "$package"
+check_result $? "package of $user was not changed" > /dev/null
+
+tenancy_update_counters "$reseller"
+
+#----------------------------------------------------------#
+#                       Hestia                             #
+#----------------------------------------------------------#
+
+$BIN/v-log-action "$reseller" "Info" "Users" "Customer package changed (User: $user, Package: $package)."
+log_event "$OK" "$ARGUMENTS"
+
+exit

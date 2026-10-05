@@ -1,0 +1,91 @@
+#!/bin/bash
+# info: list the packages a reseller may assign
+# options: RESELLER [FORMAT]
+#
+# example: v-list-reseller-packages agency json
+#
+# This function lists the packages RESELLER may assign to its customers:
+# the packages named in RESELLER_PACKAGES of its own package (with "*", every
+# package flagged RESELLER_VISIBLE) and the packages it created.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+reseller=$1
+format=${2-shell}
+
+# Includes
+# shellcheck source=/etc/hestiacp/hestia.conf
+source /etc/hestiacp/hestia.conf
+# shellcheck source=/usr/local/hestia/func/main.sh
+source $HESTIA/func/main.sh
+# shellcheck source=/usr/local/hestia/func/tenancy.sh
+source $HESTIA/func/tenancy.sh
+# load config file
+source_conf "$HESTIA/conf/hestia.conf"
+
+json_list() {
+	local sep=''
+	echo '{'
+	for package in $packages; do
+		printf '%s' "$sep"
+		tenancy_package_json "$package"
+		sep=$',\n'
+	done
+	echo
+	echo '}'
+}
+
+shell_list() {
+	echo "PKG OWNER"
+	echo "--- -----"
+	for package in $packages; do
+		owner=$(tenancy_pkg_get "$package" RESELLER_OWNER)
+		echo "$package ${owner:--}"
+	done
+}
+
+plain_list() {
+	for package in $packages; do
+		echo -e "$package\t$(tenancy_pkg_get "$package" RESELLER_OWNER)"
+	done
+}
+
+csv_list() {
+	echo "PACKAGE,RESELLER_OWNER"
+	for package in $packages; do
+		echo "$package,$(tenancy_pkg_get "$package" RESELLER_OWNER)"
+	done
+}
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '1' "$#" 'RESELLER [FORMAT]'
+is_user_format_valid "$reseller" 'reseller'
+is_object_valid 'user' 'USER' "$reseller"
+if ! tenancy_is_reseller "$reseller"; then
+	check_result "$E_INVALID" "user $reseller is not a reseller"
+fi
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+packages=$(tenancy_assignable_packages "$reseller")
+
+case $format in
+	json) json_list ;;
+	plain) plain_list ;;
+	csv) csv_list ;;
+	shell) shell_list | column -t ;;
+esac
+
+#----------------------------------------------------------#
+#                       Hestia                             #
+#----------------------------------------------------------#
+
+exit

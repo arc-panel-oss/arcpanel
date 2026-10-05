@@ -1,0 +1,59 @@
+#!/bin/bash
+# info: check whether a package fits into a reseller's plan
+# options: RESELLER PACKAGE [USER]
+#
+# example: v-check-reseller-quota agency starter
+#
+# This function exits with 0 when a customer on PACKAGE fits into the
+# reseller's plan. Otherwise it prints the first exceeded key (USERS,
+# WEB_DOMAINS, ...) and exits with E_LIMIT. With USER, that customer's
+# current package is left out (package change).
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+reseller=$1
+package=$2
+user=$3
+
+# Includes
+# shellcheck source=/etc/hestiacp/hestia.conf
+source /etc/hestiacp/hestia.conf
+# shellcheck source=/usr/local/hestia/func/main.sh
+source $HESTIA/func/main.sh
+# shellcheck source=/usr/local/hestia/func/tenancy.sh
+source $HESTIA/func/tenancy.sh
+# load config file
+source_conf "$HESTIA/conf/hestia.conf"
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '2' "$#" 'RESELLER PACKAGE [USER]'
+is_user_format_valid "$reseller" 'reseller'
+is_format_valid 'package' 'user'
+is_object_valid 'user' 'USER' "$reseller"
+if ! tenancy_is_reseller "$reseller"; then
+	check_result "$E_INVALID" "user $reseller is not a reseller"
+fi
+is_package_valid "$package"
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+exceeded=$(tenancy_check_quota "$reseller" "$package" "$user")
+status=$?
+if [ "$status" -ne 0 ]; then
+	echo "$exceeded"
+	exit "$E_LIMIT"
+fi
+
+#----------------------------------------------------------#
+#                       Hestia                             #
+#----------------------------------------------------------#
+
+exit

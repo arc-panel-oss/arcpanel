@@ -1,0 +1,87 @@
+#!/bin/bash
+# info: list every user with its role and owner
+# options: [FORMAT]
+#
+# example: v-list-user-owners json
+#
+# This function lists every panel user with its ROLE, its resolved OWNER (the
+# reseller that owns it, else ROOT_USER; empty for administrators) and
+# whether it is suspended.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+format=${1-shell}
+
+# Includes
+# shellcheck source=/etc/hestiacp/hestia.conf
+source /etc/hestiacp/hestia.conf
+# shellcheck source=/usr/local/hestia/func/main.sh
+source $HESTIA/func/main.sh
+# shellcheck source=/usr/local/hestia/func/tenancy.sh
+source $HESTIA/func/tenancy.sh
+# load config file
+source_conf "$HESTIA/conf/hestia.conf"
+
+# USER ROLE OWNER SUSPENDED rows; "-" stands for an empty owner
+collect() {
+	local user owner
+	while read -r user; do
+		owner=$(tenancy_get_owner "$user")
+		echo "$user $(tenancy_role "$user") ${owner:--} $(tenancy_user_value "$user" SUSPENDED)"
+	done < <(tenancy_all_users)
+}
+
+json_list() {
+	local sep='' user role owner suspended
+	echo '{'
+	while read -r user role owner suspended; do
+		if [ -z "$user" ]; then
+			continue
+		fi
+		if [ "$owner" = '-' ]; then
+			owner=''
+		fi
+		printf '%s    "%s": {\n        "ROLE": "%s",\n        "OWNER": "%s",\n        "SUSPENDED": "%s"\n    }' \
+			"$sep" "$user" "$role" "$owner" "$suspended"
+		sep=$',\n'
+	done <<< "$rows"
+	echo
+	echo '}'
+}
+
+shell_list() {
+	echo "USER ROLE OWNER SPND"
+	echo "---- ---- ----- ----"
+	echo "$rows"
+}
+
+plain_list() {
+	echo "$rows" | awk '{ if ($3 == "-") $3 = ""; print $1 "\t" $2 "\t" $3 "\t" $4 }'
+}
+
+csv_list() {
+	echo "USER,ROLE,OWNER,SUSPENDED"
+	echo "$rows" | awk '{ if ($3 == "-") $3 = ""; print $1 "," $2 "," $3 "," $4 }'
+}
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+rows=$(collect)
+
+case $format in
+	json) json_list ;;
+	plain) plain_list ;;
+	csv) csv_list ;;
+	shell) shell_list | column -t ;;
+esac
+
+#----------------------------------------------------------#
+#                       Hestia                             #
+#----------------------------------------------------------#
+
+exit
