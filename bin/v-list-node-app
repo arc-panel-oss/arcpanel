@@ -1,0 +1,70 @@
+#!/bin/bash
+# info: list the Node.js app of a web domain (E14)
+# options: USER DOMAIN [FORMAT]
+#
+# example: v-list-node-app alice api.example.com json
+#
+# This function shows one app with its live state (as v-list-node-apps),
+# the web address and SSL state of the domain and the default memory and
+# instance limits.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+user=$1
+domain=$2
+format=${3-shell}
+
+# Includes
+# shellcheck source=/etc/hestiacp/hestia.conf
+source /etc/hestiacp/hestia.conf
+# shellcheck source=/usr/local/hestia/func/main.sh
+source $HESTIA/func/main.sh
+# shellcheck source=/usr/local/hestia/func/tenancy.sh
+source $HESTIA/func/tenancy.sh
+# shellcheck source=/usr/local/hestia/func/nodeapp.sh
+source $HESTIA/func/nodeapp.sh
+# load config file
+source_conf "$HESTIA/conf/hestia.conf"
+
+# Additional argument formatting
+format_domain
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '2' "$#" 'USER DOMAIN [FORMAT]'
+is_format_valid 'user' 'domain'
+is_object_valid 'user' 'USER' "$user"
+if ! nodeapp_exists "$user" "$domain"; then
+	check_result "$E_NOTEXIST" "$domain has no Node.js app"
+fi
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+jlist=$(nodeapp_jlist "$user")
+row=$(nodeapp_rows_json "$user" "$jlist" | jq -c --arg d "$domain" 'select(.DOMAIN == $d)')
+ssl=$(arc_tpl_domain_value "$user" "$domain" SSL)
+scheme=http
+[ "$ssl" = 'yes' ] && scheme=https
+
+json=$(jq -c --arg ssl "${ssl:-no}" --arg url "$scheme://$domain/" --arg pm2 "$(nodeapp_pm2_runtime "$user")" \
+	--arg instances "$(nodeapp_max_instances)" --arg memory "$(nodeapp_memory_limit "$user")" \
+	'{ ($in_domain): (. + { SSL: $ssl, URL: $url, PM2_RUNTIME: $pm2, MAX_INSTANCES: $instances, MEMORY_LIMIT: $memory }) }' \
+	--arg in_domain "$domain" <<< "$row")
+
+case "$format" in
+	json) jq . <<< "$json" ;;
+	*) jq -r '.[] | to_entries[] | "\(.key): \(.value)"' <<< "$json" ;;
+esac
+
+#----------------------------------------------------------#
+#                       Hestia                             #
+#----------------------------------------------------------#
+
+exit

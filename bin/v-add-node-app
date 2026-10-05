@@ -1,0 +1,218 @@
+#!/bin/bash
+# info: add a Node.js app to a web domain (E14)
+# options: USER DOMAIN [START] [NODE_VERSION] [PORT] [CWD] [INSTANCES] [TEMPLATE] [NAME]
+#
+# example: v-add-node-app alice api.example.com
+# example: v-add-node-app alice shop.example.com npm:start 24.3.0 auto public_html 1 nextjs
+#
+# This function runs a Node.js app for a web domain with the user's pm2
+# daemon. START is a file relative to CWD (default public_html) or
+# npm:<script> for a script of package.json; without it, the start script,
+# the main file or server.js, app.js, index.js is used. NODE_VERSION is an
+# installed runtime or "default". PORT is a port of the user's pool or
+# "auto". TEMPLATE is a Node.js template (default nodejs-proxy). The domain
+# is switched to the template with the app's port; deleting the app restores
+# the previous template.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+user=$1
+domain=$2
+start=$3
+version=${4:-default}
+port=${5:-auto}
+cwd=${6:-public_html}
+instances=${7:-1}
+template=${8:-nodejs-proxy}
+name=$9
+
+# Includes
+# shellcheck source=/etc/hestiacp/hestia.conf
+source /etc/hestiacp/hestia.conf
+# shellcheck source=/usr/local/hestia/func/main.sh
+source $HESTIA/func/main.sh
+# shellcheck source=/usr/local/hestia/func/tenancy.sh
+source $HESTIA/func/tenancy.sh
+# shellcheck source=/usr/local/hestia/func/ports.sh
+source $HESTIA/func/ports.sh
+# shellcheck source=/usr/local/hestia/func/nodeapp.sh
+source $HESTIA/func/nodeapp.sh
+# load config file
+source_conf "$HESTIA/conf/hestia.conf"
+
+# Additional argument formatting
+format_domain
+
+# Undo what this run changed and exit with CODE and MESSAGE
+rollback() {
+	local code="$1" message="$2"
+	if [ "$started" = 'yes' ]; then
+		nodeapp_forget "$user" "$domain"
+	fi
+	if [ "$recorded" = 'yes' ]; then
+		nodeapp_remove "$user" "$domain"
+		node_as_user "$user" rm -rf "$(nodeapp_dir "$user" "$domain")" 2> /dev/null
+	fi
+	if [ "$switched" = 'yes' ]; then
+		nodeapp_tpl_switch "$user" "$domain" "$prev_tpl" > /dev/null 2>&1
+		printf '%s\n' "$prev_vars" | arc_tplvars_write "$user" "$(arc_tplvars_file "$user" "$domain")"
+		"$BIN/v-rebuild-web-domain" "$user" "$domain" > /dev/null 2>&1
+	fi
+	if [ "$allocated" = 'yes' ]; then
+		"$BIN/v-release-user-port" "$user" "node:$domain" > /dev/null 2>&1
+	fi
+	if [ "$(nodeapp_count "$user")" -eq 0 ]; then
+		nodeapp_daemon_retire "$user"
+	fi
+	check_result "$code" "$message"
+}
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '2' "$#" 'USER DOMAIN [START] [NODE_VERSION] [PORT] [CWD] [INSTANCES] [TEMPLATE] [NAME]'
+is_format_valid 'user' 'domain'
+is_object_valid 'user' 'USER' "$user"
+is_object_unsuspended 'user' 'USER' "$user"
+is_object_valid 'web' 'DOMAIN' "$domain"
+is_object_unsuspended 'web' 'DOMAIN' "$domain"
+
+[ -z "$HOMEDIR" ] && check_result "$E_NOTEXIST" "ArcPanel environment vars not present"
+
+node_check_enabled_package "$user"
+if [ -z "$(arc_tpl_active_kind)" ]; then
+	check_result "$E_INVALID" "Node.js apps need NGINX as web server or proxy"
+fi
+if nodeapp_exists "$user" "$domain"; then
+	check_result "$E_EXISTS" "$domain already has a Node.js app"
+fi
+nodeapp_check_limit "$user"
+if ! nodeapp_relpath_valid "$cwd"; then
+	check_result "$E_INVALID" "invalid working directory :: $cwd"
+fi
+if [ -z "$start" ]; then
+	start=$(nodeapp_detect_start "$user" "$domain" "$cwd")
+	if [ -z "$start" ]; then
+		check_result "$E_NOTEXIST" "no start file found in $cwd (package.json start script, main, server.js, app.js or index.js)"
+	fi
+fi
+if ! nodeapp_start_valid "$start"; then
+	check_result "$E_INVALID" "invalid start command :: $start (a file relative to $cwd or npm:<script>)"
+fi
+if [[ "$instances" =~ ^[0-9]+$ ]] && [ "$instances" -gt 1 ] && [[ "$start" == npm:* ]]; then
+	check_result "$E_INVALID" "cluster mode (more than one instance) needs a start file, not an npm script"
+fi
+nodeapp_check_start "$user" "$domain" "$cwd" "$start"
+if [ "$version" != 'default' ]; then
+	version=${version#v}
+	if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+		check_result "$E_INVALID" "invalid version :: $version (X.Y.Z or default)"
+	fi
+fi
+if ! runtime=$(nodeapp_runtime "$user" "$version"); then
+	check_result "$E_NOTEXIST" "Node.js $version is not installed for $user"
+fi
+memory=$(nodeapp_default_memory "$user")
+nodeapp_check_scale "$user" "$instances" "$memory"
+if [ "$port" != 'auto' ] && ! arc_tpl_valid_port "$port"; then
+	check_result "$E_INVALID" "invalid port :: $port"
+fi
+if ! nodeapp_tpl_is_node "$template"; then
+	check_result "$E_INVALID" "$template is not a Node.js template"
+fi
+if [ -z "$name" ]; then
+	name=$(nodeapp_default_name "$domain")
+fi
+if ! nodeapp_name_valid "$name"; then
+	check_result "$E_INVALID" "invalid name :: $name"
+fi
+for other in $(nodeapp_domains "$user"); do
+	if [ "$(nodeapp_get "$user" "$other" NAME)" = "$name" ]; then
+		check_result "$E_EXISTS" "the app of $other is already named $name"
+	fi
+done
+
+# Perform verification if read-only mode is enabled
+check_hestia_demo_mode
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+nodeapp_lock "$user"
+if nodeapp_exists "$user" "$domain"; then
+	check_result "$E_EXISTS" "$domain already has a Node.js app"
+fi
+nodeapp_check_limit "$user"
+
+started=no
+recorded=no
+switched=no
+allocated=no
+
+# pm2 and its daemon first: nothing to undo when they fail
+out=$(nodeapp_daemon_ensure "$user" 2>&1)
+rc=$?
+if [ "$rc" -ne 0 ]; then
+	rollback "$rc" "$(printf '%s\n' "$out" | tail -n1)"
+fi
+
+# Port of the app
+if [ "$port" = 'auto' ]; then
+	out=$("$BIN/v-allocate-user-port" "$user" "node:$domain" 2>&1)
+else
+	out=$("$BIN/v-allocate-user-port" "$user" "node:$domain" tcp "$port" 2>&1)
+fi
+rc=$?
+if [ "$rc" -ne 0 ]; then
+	rollback "$rc" "${out#Error: }"
+fi
+allocated=yes
+port=$(printf '%s\n' "$out" | tail -n1)
+
+# Template with the port
+prev_tpl=$(arc_tpl_active "$user" "$domain")
+prev_vars=$(arc_tplvars_read "$user" "$domain")
+out=$(nodeapp_tpl_switch "$user" "$domain" "$template" 2>&1)
+rc=$?
+switched=yes
+if [ "$rc" -ne 0 ]; then
+	rollback "$E_RESTART" "template $template could not be applied to $domain: ${out#Error: }"
+fi
+out=$("$BIN/v-change-web-domain-tpl-vars" "$user" "$domain" "BACKEND_PORT=$port" 2>&1)
+rc=$?
+if [ "$rc" -ne 0 ]; then
+	rollback "$rc" "${out#Error: }"
+fi
+
+# Record, files and the process
+nodeapp_set "$user" "$domain" "NAME=$name" "START=$start" "CWD=$cwd" "NODE_VERSION=$version" \
+	"PORT=$port" "INSTANCES=$instances" "MAX_MEMORY=$memory" "TEMPLATE=$template" \
+	"PREV_TPL=$prev_tpl" SUSPENDED=no "TIME=$(date +'%T')" "DATE=$(date +'%F')"
+recorded=yes
+if ! nodeapp_files_write "$user" "$domain"; then
+	rollback "$E_FORBIDEN" "the files of the app could not be written in $(nodeapp_dir "$user" "$domain")"
+fi
+holder=$(nodeapp_port_holder "$port")
+if [ -n "$holder" ]; then
+	rollback "$E_INUSE" "port $port is used by another process ($holder)"
+fi
+started=yes
+if ! nodeapp_start "$user" "$domain"; then
+	rollback "$E_RESTART" "pm2 could not start the app of $domain"
+fi
+nodeapp_logrotate_write "$user"
+
+#----------------------------------------------------------#
+#                       Hestia                             #
+#----------------------------------------------------------#
+
+# Logging
+$BIN/v-log-action "$user" "Info" "Node.js" "Node.js app added (Domain: $domain, Start: $start, Runtime: $runtime, Port: $port)."
+log_event "$OK" "$ARGUMENTS"
+
+exit

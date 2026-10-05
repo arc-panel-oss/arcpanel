@@ -11,7 +11,8 @@
 #                                              RESELLER_VISIBLE,            #
 #                                              RESELLER_OWNER, PORTS (E12), #
 #                                              NODE, NODE_VERSIONS,         #
-#                                              NODE_ALLOWED (E13)           #
+#                                              NODE_ALLOWED (E13),          #
+#                                              NODE_APPS (E14)              #
 # See docs/features/specs/2026-10-05-003-e11-reseller-design.md.            #
 #                                                                           #
 #===========================================================================#
@@ -166,7 +167,7 @@ tenancy_pkg_get() {
 		case "$2" in
 			USERS | PORTS) value='0' ;;
 			RESELLER_VISIBLE | NODE) value='no' ;;
-			NODE_VERSIONS) value='3' ;;
+			NODE_VERSIONS | NODE_APPS) value='3' ;;
 			NODE_ALLOWED) value='lts' ;;
 		esac
 	fi
@@ -204,7 +205,7 @@ tenancy_pkg_value_valid() {
 		RESELLER_VISIBLE | NODE)
 			[ "$value" = 'yes' ] || [ "$value" = 'no' ]
 			;;
-		NODE_VERSIONS)
+		NODE_VERSIONS | NODE_APPS)
 			[ "$value" = 'unlimited' ] || [[ "$value" =~ ^[0-9]{1,3}$ ]]
 			;;
 		NODE_ALLOWED)
@@ -415,6 +416,7 @@ tenancy_package_json() {
 		printf '        "NODE": "%s",\n' "$(tenancy_json_escape "$(tenancy_pkg_get "$package" NODE)")"
 		printf '        "NODE_VERSIONS": "%s",\n' "$(tenancy_json_escape "$(tenancy_pkg_get "$package" NODE_VERSIONS)")"
 		printf '        "NODE_ALLOWED": "%s",\n' "$(tenancy_json_escape "$(tenancy_pkg_get "$package" NODE_ALLOWED)")"
+		printf '        "NODE_APPS": "%s",\n' "$(tenancy_json_escape "$(tenancy_pkg_get "$package" NODE_APPS)")"
 		printf '        "RESELLER_OWNER": "%s"\n    }' "$(tenancy_json_escape "$(tenancy_pkg_get "$package" RESELLER_OWNER)")"
 	)
 }

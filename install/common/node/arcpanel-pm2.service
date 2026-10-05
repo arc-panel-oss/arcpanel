@@ -1,0 +1,22 @@
+# ArcPanel: pm2 daemon of this user (E14). Rendered into
+# ~/.config/systemd/user/ by v-add-node-app and v-rebuild-node-apps from
+# $HESTIA/install/common/node/arcpanel-pm2.service; changes are overwritten.
+[Unit]
+Description=pm2 process manager (ArcPanel)
+Documentation=https://pm2.keymetrics.io/
+
+[Service]
+Type=forking
+Environment=PM2_HOME=%h/.pm2
+Environment=PATH=@RUNTIME@/bin:/usr/local/bin:/usr/bin:/bin
+PIDFile=%h/.pm2/pm2.pid
+ExecStart=@PM2@ resurrect
+ExecReload=@PM2@ reload all
+ExecStop=@PM2@ kill
+Restart=on-failure
+RestartSec=5
+TimeoutStartSec=60
+LimitNOFILE=65535
+
+[Install]
+WantedBy=default.target

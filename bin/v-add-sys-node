@@ -69,6 +69,10 @@ if [ ! -f "$HESTIA/data/packages/developer.pkg" ] && [ -f "$COMMON_PACKAGES/deve
 		sed -i "s/^NS=.*/$ns/" "$HESTIA/data/packages/developer.pkg"
 	fi
 fi
+# Node.js apps of the developer package (E14), for servers set up before it
+if [ -f "$HESTIA/data/packages/developer.tenancy" ] && ! grep -q "^NODE_APPS=" "$HESTIA/data/packages/developer.tenancy"; then
+	tenancy_pkg_set developer NODE_APPS 10
+fi
 
 # Daily refresh of the release index
 # (sed, not >>: fs.protected_regular forbids root to open another user's

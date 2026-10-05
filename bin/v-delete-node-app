@@ -1,0 +1,104 @@
+#!/bin/bash
+# info: delete the Node.js app of a web domain (E14)
+# options: USER DOMAIN [KEEP_FILES]
+#
+# example: v-delete-node-app alice api.example.com
+# example: v-delete-node-app alice api.example.com keep-files
+#
+# This function stops and removes the app from the user's pm2 daemon,
+# releases its port, removes the template variables and restores the
+# template the domain had before the app. The nodeapp folder is removed;
+# with keep-files only the generated files go and .env and the logs stay.
+# The daemon is removed with the last app.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+user=$1
+domain=$2
+keep=$3
+
+# Includes
+# shellcheck source=/etc/hestiacp/hestia.conf
+source /etc/hestiacp/hestia.conf
+# shellcheck source=/usr/local/hestia/func/main.sh
+source $HESTIA/func/main.sh
+# shellcheck source=/usr/local/hestia/func/tenancy.sh
+source $HESTIA/func/tenancy.sh
+# shellcheck source=/usr/local/hestia/func/ports.sh
+source $HESTIA/func/ports.sh
+# shellcheck source=/usr/local/hestia/func/nodeapp.sh
+source $HESTIA/func/nodeapp.sh
+# load config file
+source_conf "$HESTIA/conf/hestia.conf"
+
+# Additional argument formatting
+format_domain
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '2' "$#" 'USER DOMAIN [KEEP_FILES]'
+is_format_valid 'user' 'domain'
+is_object_valid 'user' 'USER' "$user"
+if [ -n "$keep" ] && [ "$keep" != 'keep-files' ]; then
+	check_result "$E_INVALID" "invalid option :: $keep (keep-files)"
+fi
+if ! nodeapp_exists "$user" "$domain"; then
+	check_result "$E_NOTEXIST" "$domain has no Node.js app"
+fi
+
+# Perform verification if read-only mode is enabled
+check_hestia_demo_mode
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+nodeapp_lock "$user"
+
+prev_tpl=$(nodeapp_get "$user" "$domain" PREV_TPL)
+template=$(nodeapp_get "$user" "$domain" TEMPLATE)
+nodeapp_forget "$user" "$domain"
+
+# Template back, variables and port gone (the domain may be gone already
+# when v-delete-user-node-apps runs before the user is deleted)
+if arc_tpl_domain_exists "$user" "$domain"; then
+	if [ -z "$prev_tpl" ] || ! nodeapp_tpl_exists "$prev_tpl"; then
+		prev_tpl=$(nodeapp_package_template "$user")
+	fi
+	if [ "$(arc_tpl_active "$user" "$domain")" = "$template" ]; then
+		nodeapp_tpl_switch "$user" "$domain" "$prev_tpl" yes > /dev/null 2>&1
+	fi
+	"$BIN/v-delete-web-domain-tpl-vars" "$user" "$domain" > /dev/null 2>&1
+fi
+if ports_read "$user" | awk -F'|' -v app="node:$domain" '$4 == app { found = 1 } END { exit found ? 0 : 1 }'; then
+	"$BIN/v-release-user-port" "$user" "node:$domain" > /dev/null 2>&1
+fi
+
+nodeapp_remove "$user" "$domain"
+dir=$(nodeapp_dir "$user" "$domain")
+if [ -d "$dir" ] && [ ! -L "$dir" ]; then
+	if [ "$keep" = 'keep-files' ]; then
+		node_as_user "$user" rm -f "$dir/app.conf" "$dir/ecosystem.config.cjs"
+	else
+		node_as_user "$user" rm -rf "$dir"
+	fi
+fi
+
+if [ "$(nodeapp_count "$user")" -eq 0 ]; then
+	nodeapp_daemon_retire "$user"
+fi
+
+#----------------------------------------------------------#
+#                       Hestia                             #
+#----------------------------------------------------------#
+
+# Logging
+$BIN/v-log-action "$user" "Info" "Node.js" "Node.js app deleted (Domain: $domain)."
+log_event "$OK" "$ARGUMENTS"
+
+exit
