@@ -1,0 +1,7 @@
+{
+	"title": "osTicket",
+	"description": "osTicket help desk with its API and support routes.",
+	"category": "other",
+	"runtime": "php",
+	"docs": "https://docs.arcpanel.top/docs/server-administration/web-templates.html"
+}

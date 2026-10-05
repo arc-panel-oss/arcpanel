@@ -1,0 +1,7 @@
+{
+	"title": "Symfony 4 and later",
+	"description": "Symfony 4 or later application served from the public/ folder.",
+	"category": "php-framework",
+	"runtime": "php",
+	"docs": "https://docs.arcpanel.top/docs/server-administration/web-templates.html"
+}

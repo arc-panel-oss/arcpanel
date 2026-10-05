@@ -1,0 +1,7 @@
+{
+	"title": "OpenProject",
+	"description": "Proxies the domain to an OpenProject server on localhost port 6000.",
+	"category": "proxy",
+	"runtime": "none",
+	"docs": "https://docs.arcpanel.top/docs/server-administration/web-templates.html"
+}

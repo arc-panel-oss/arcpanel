@@ -1,0 +1,7 @@
+{
+	"title": "PrestaShop",
+	"description": "PrestaShop store with friendly URLs.",
+	"category": "ecommerce",
+	"runtime": "php",
+	"docs": "https://docs.arcpanel.top/docs/server-administration/web-templates.html"
+}

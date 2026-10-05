@@ -1,0 +1,7 @@
+{
+	"title": "Vvveb CMS",
+	"description": "Vvveb CMS with its URL rewrites.",
+	"category": "php-cms",
+	"runtime": "php",
+	"docs": "https://docs.arcpanel.top/docs/server-administration/web-templates.html"
+}

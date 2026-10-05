@@ -1,0 +1,7 @@
+{
+	"title": "Static files (no PHP)",
+	"description": "Serves files as they are; PHP files are never executed.",
+	"category": "static",
+	"runtime": "none",
+	"docs": "https://docs.arcpanel.top/docs/server-administration/web-templates.html"
+}

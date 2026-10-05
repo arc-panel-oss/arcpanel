@@ -1,0 +1,7 @@
+{
+	"title": "WordPress Multisite (subfolders)",
+	"description": "WordPress Multisite with sites in subfolders.",
+	"category": "php-cms",
+	"runtime": "php",
+	"docs": "https://docs.arcpanel.top/docs/server-administration/web-templates.html"
+}

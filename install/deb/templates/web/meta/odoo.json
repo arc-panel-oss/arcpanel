@@ -1,0 +1,7 @@
+{
+	"title": "Odoo",
+	"description": "Proxies the domain to an Odoo server on localhost ports 8069 and 8072.",
+	"category": "proxy",
+	"runtime": "none",
+	"docs": "https://docs.arcpanel.top/docs/server-administration/web-templates.html"
+}

@@ -702,6 +702,13 @@ ports_findings() {
 		fi
 	done
 
+	# Ports of web domains whose template no longer uses them (E6)
+	if [ -f "$HESTIA/func/arc-template.sh" ]; then
+		# shellcheck source=/usr/local/hestia/func/arc-template.sh
+		source "$HESTIA/func/arc-template.sh"
+		arc_tpl_port_findings "$records"
+	fi
+
 	# Files of users that are gone, trees above their limit
 	while read -r user; do
 		[ -n "$user" ] || continue

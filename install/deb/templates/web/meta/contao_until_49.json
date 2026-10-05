@@ -1,0 +1,7 @@
+{
+	"title": "Contao 4.9 and earlier",
+	"description": "Contao up to 4.9, served from the web/ folder.",
+	"category": "php-cms",
+	"runtime": "php",
+	"docs": "https://docs.arcpanel.top/docs/server-administration/web-templates.html"
+}

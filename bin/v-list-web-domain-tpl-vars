@@ -1,0 +1,107 @@
+#!/bin/bash
+# info: list the template variables of a web domain
+# options: USER DOMAIN [FORMAT]
+#
+# example: v-list-web-domain-tpl-vars alice example.com json
+#
+# This function lists the variables stored for a web domain, the
+# client-facing template they belong to (ACTIVE_KIND, ACTIVE_TEMPLATE), the
+# variables that template declares and the required ones without a value
+# (MISSING).
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+user=$1
+domain=$2
+format=${3-shell}
+
+# Includes
+# shellcheck source=/etc/hestiacp/hestia.conf
+source /etc/hestiacp/hestia.conf
+# shellcheck source=/usr/local/hestia/func/main.sh
+source $HESTIA/func/main.sh
+# shellcheck source=/usr/local/hestia/func/arc-template.sh
+source $HESTIA/func/arc-template.sh
+# load config file
+source_conf "$HESTIA/conf/hestia.conf"
+
+# Additional argument formatting
+format_domain
+
+# JSON list function
+json_list() {
+	local declared_json values_json
+	declared_json=$(arc_tpl_meta_json "$kind" "$template" | jq -c '.VARIABLES')
+	[ -n "$kind" ] || declared_json='[]'
+	values_json=$(printf '%s\n' "$values" | jq -R 'select(length > 0) | split("|") | {(.[0]): .[1]}' | jq -s 'add // {}')
+	jq -n --arg domain "$domain" --arg kind "$kind" --arg template "$template" \
+		--argjson declared "$declared_json" --argjson values "$values_json" \
+		'{DOMAIN: $domain, ACTIVE_KIND: $kind, ACTIVE_TEMPLATE: $template, VARIABLES: $values, DECLARED: $declared,
+			MISSING: [$declared[] | select(.REQUIRED == "yes" and (($values[.KEY] // "") == "")) | .KEY]}'
+}
+
+# SHELL list function
+shell_list() {
+	echo "TEMPLATE: $template ($kind)"
+	echo "MISSING:  ${missing:--}"
+	echo
+	{
+		echo "KEY VALUE"
+		echo "--- -----"
+		printf '%s\n' "$values" | awk -F'|' 'NF { print $1, $2 }'
+	} | column -t
+}
+
+# PLAIN list function
+plain_list() {
+	printf '%s\n' "$values" | awk -F'|' 'NF { print $1 "\t" $2 }'
+}
+
+# CSV list function
+csv_list() {
+	echo "KEY,VALUE"
+	printf '%s\n' "$values" | awk -F'|' 'NF { print $1 "," $2 }'
+}
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '2' "$#" 'USER DOMAIN [FORMAT]'
+is_format_valid 'user' 'domain'
+is_object_valid 'user' 'USER' "$user"
+is_object_valid 'web' 'DOMAIN' "$domain"
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+kind=$(arc_tpl_active_kind)
+template=$(arc_tpl_active "$user" "$domain")
+values=$(arc_tplvars_read "$user" "$domain")
+missing=''
+if [ -n "$kind" ]; then
+	while IFS='|' read -r key type required; do
+		[ -n "$key" ] || continue
+		if [ "$required" = 'yes' ] && ! printf '%s\n' "$values" | grep -q "^$key|."; then
+			missing="$missing${missing:+,}$key"
+		fi
+	done < <(arc_tpl_variables "$kind" "$template")
+fi
+
+# Listing data
+case $format in
+	json) json_list ;;
+	plain) plain_list ;;
+	csv) csv_list ;;
+	shell) shell_list ;;
+esac
+
+#----------------------------------------------------------#
+#                       Hestia                             #
+#----------------------------------------------------------#
+
+exit

@@ -1,0 +1,7 @@
+{
+	"title": "Castopod",
+	"description": "Castopod podcast hosting platform with its public/ document root rewrites.",
+	"category": "php-cms",
+	"runtime": "php",
+	"docs": "https://docs.arcpanel.top/docs/server-administration/web-templates.html"
+}

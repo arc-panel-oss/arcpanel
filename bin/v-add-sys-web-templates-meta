@@ -1,0 +1,70 @@
+#!/bin/bash
+# info: install the web template metadata and the ArcPanel web templates
+# options: NONE
+#
+# example: v-add-sys-web-templates-meta
+#
+# This function copies the template metadata (templates/web/meta) and the
+# templates ArcPanel ships for NGINX (static, spa, nodejs-proxy and the other
+# E6 templates, with their trigger scripts) from the installed package into
+# the server's template folder. Other templates are not touched and no
+# domain is rebuilt. Safe to run on every upgrade.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Includes
+# shellcheck source=/etc/hestiacp/hestia.conf
+source /etc/hestiacp/hestia.conf
+# shellcheck source=/usr/local/hestia/func/main.sh
+source $HESTIA/func/main.sh
+# shellcheck source=/usr/local/hestia/func/arc-template.sh
+source $HESTIA/func/arc-template.sh
+# load config file
+source_conf "$HESTIA/conf/hestia.conf"
+
+src="$HESTIA_INSTALL_DIR/templates/web"
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+if [ ! -d "$src/meta" ]; then
+	check_result "$E_NOTEXIST" "template metadata not found in $src"
+fi
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+mkdir -p "$WEBTPL/meta"
+cp -rf "$src/meta/." "$WEBTPL/meta/"
+
+# The NGINX tree is installed under the same condition as in
+# v-update-web-templates
+if [ "$PROXY_SYSTEM" = 'nginx' ] || [ "$WEB_BACKEND" = 'php-fpm' ]; then
+	for dir in nginx nginx/php-fpm; do
+		mkdir -p "$WEBTPL/$dir"
+		for name in $ARC_TPL_ARCPANEL; do
+			for ext in tpl stpl sh; do
+				if [ -f "$src/$dir/$name.$ext" ]; then
+					cp -f "$src/$dir/$name.$ext" "$WEBTPL/$dir/$name.$ext"
+					if [ "$ext" = 'sh' ]; then
+						chmod 755 "$WEBTPL/$dir/$name.$ext"
+					else
+						chmod 644 "$WEBTPL/$dir/$name.$ext"
+					fi
+				fi
+			done
+		done
+	done
+fi
+
+#----------------------------------------------------------#
+#                       Hestia                             #
+#----------------------------------------------------------#
+
+log_event "$OK" "$ARGUMENTS"
+
+exit

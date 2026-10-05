@@ -1,0 +1,7 @@
+{
+	"title": "Thunder",
+	"description": "Thunder, the Drupal distribution for publishers.",
+	"category": "php-cms",
+	"runtime": "php",
+	"docs": "https://docs.arcpanel.top/docs/server-administration/web-templates.html"
+}

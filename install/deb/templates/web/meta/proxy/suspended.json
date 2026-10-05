@@ -1,0 +1,8 @@
+{
+	"title": "Suspended",
+	"description": "Page shown while the domain is suspended.",
+	"category": "other",
+	"runtime": "none",
+	"internal": true,
+	"docs": "https://docs.arcpanel.top/docs/server-administration/web-templates.html"
+}

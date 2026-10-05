@@ -1,0 +1,7 @@
+{
+	"title": "Dolibarr",
+	"description": "Dolibarr ERP and CRM.",
+	"category": "other",
+	"runtime": "php",
+	"docs": "https://docs.arcpanel.top/docs/server-administration/web-templates.html"
+}

@@ -1,0 +1,74 @@
+#!/bin/bash
+# info: delete the template variables of a web domain
+# options: USER DOMAIN
+#
+# example: v-delete-web-domain-tpl-vars alice example.com
+#
+# This function releases the ports assigned to web:<domain>, removes the
+# domain's variables and rebuilds the domain. It also cleans up after a
+# deleted domain: a missing domain or variables file is not an error.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+user=$1
+domain=$2
+
+# Includes
+# shellcheck source=/etc/hestiacp/hestia.conf
+source /etc/hestiacp/hestia.conf
+# shellcheck source=/usr/local/hestia/func/main.sh
+source $HESTIA/func/main.sh
+# shellcheck source=/usr/local/hestia/func/tenancy.sh
+source $HESTIA/func/tenancy.sh
+# shellcheck source=/usr/local/hestia/func/ports.sh
+source $HESTIA/func/ports.sh
+# shellcheck source=/usr/local/hestia/func/arc-template.sh
+source $HESTIA/func/arc-template.sh
+# load config file
+source_conf "$HESTIA/conf/hestia.conf"
+
+# Additional argument formatting
+format_domain
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '2' "$#" 'USER DOMAIN'
+is_format_valid 'user' 'domain'
+is_object_valid 'user' 'USER' "$user"
+
+# Perform verification if read-only mode is enabled
+check_hestia_demo_mode
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+ports_lock
+
+if ports_read "$user" | awk -F'|' -v app="web:$domain" '$4 == app { found = 1 } END { exit found ? 0 : 1 }'; then
+	"$BIN/v-release-user-port" "$user" "web:$domain" > /dev/null
+	check_result $? "ports of web:$domain could not be released"
+fi
+
+file=$(arc_tplvars_file "$user" "$domain")
+if [ -f "$file" ]; then
+	rm -f "$file"
+	if arc_tpl_domain_exists "$user" "$domain"; then
+		"$BIN/v-rebuild-web-domain" "$user" "$domain" > /dev/null
+		check_result $? "rebuild of $domain failed" "$E_RESTART"
+	fi
+fi
+
+#----------------------------------------------------------#
+#                       Hestia                             #
+#----------------------------------------------------------#
+
+$BIN/v-log-action "$user" "Info" "Web" "Template variables deleted (Domain: $domain)."
+log_event "$OK" "$ARGUMENTS"
+
+exit

@@ -4,11 +4,11 @@ namespace App\Services\Ports;
 
 /**
  * A reconciliation finding of `v-list-sys-ports` / `v-check-sys-ports`
- * (E12 spec §5.4).
+ * (E12 spec §5.4; orphan-web from E6 spec §5.4).
  */
 final class PortFinding
 {
-    public const TYPES = ['orphan-socket', 'foreign-socket', 'exposed-private', 'missing-rule', 'stale-rule', 'unmanaged-rule', 'orphan-file', 'over-limit'];
+    public const TYPES = ['orphan-socket', 'foreign-socket', 'exposed-private', 'missing-rule', 'stale-rule', 'unmanaged-rule', 'orphan-file', 'over-limit', 'orphan-web'];
 
     public function __construct(
         public readonly string $type,
@@ -38,6 +38,7 @@ final class PortFinding
             'unmanaged-rule' => __('Firewall rule not managed by the registry'),
             'orphan-file' => __('Ports of a deleted user'),
             'over-limit' => __('Above the PORTS of the package'),
+            'orphan-web' => __('Port no longer used by its web domain'),
             default => $this->type,
         };
     }

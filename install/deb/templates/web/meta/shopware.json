@@ -1,0 +1,7 @@
+{
+	"title": "Shopware",
+	"description": "Shopware 6 store served from the public/ folder.",
+	"category": "ecommerce",
+	"runtime": "php",
+	"docs": "https://docs.arcpanel.top/docs/server-administration/web-templates.html"
+}

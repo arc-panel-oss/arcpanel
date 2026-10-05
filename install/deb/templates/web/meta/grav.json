@@ -1,0 +1,7 @@
+{
+	"title": "Grav",
+	"description": "Grav flat-file CMS with its system folders protected.",
+	"category": "php-cms",
+	"runtime": "php",
+	"docs": "https://docs.arcpanel.top/docs/server-administration/web-templates.html"
+}

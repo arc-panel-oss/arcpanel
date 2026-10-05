@@ -1,0 +1,198 @@
+#!/bin/bash
+# info: change the template variables of a web domain
+# options: USER DOMAIN KEY=VALUE [KEY=VALUE...]
+#
+# example: v-change-web-domain-tpl-vars alice example.com BACKEND_PORT=auto
+# example: v-change-web-domain-tpl-vars alice example.com BACKEND_PORT=30001
+#
+# This function sets variables declared by the metadata of the domain's
+# client-facing template (the proxy template on NGINX + Apache, the web
+# template on NGINX + PHP-FPM) and rebuilds the domain. A port variable must
+# be a port of the domain owner's pool: an unassigned port (or "auto" for the
+# lowest free one) is assigned to web:<domain>; a port already assigned to
+# web:<domain>, node:<domain>, docker:<app> or manual is used as it is. When
+# NGINX refuses the result, the previous values are restored.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+user=$1
+domain=$2
+
+# Includes
+# shellcheck source=/etc/hestiacp/hestia.conf
+source /etc/hestiacp/hestia.conf
+# shellcheck source=/usr/local/hestia/func/main.sh
+source $HESTIA/func/main.sh
+# shellcheck source=/usr/local/hestia/func/tenancy.sh
+source $HESTIA/func/tenancy.sh
+# shellcheck source=/usr/local/hestia/func/ports.sh
+source $HESTIA/func/ports.sh
+# shellcheck source=/usr/local/hestia/func/arc-template.sh
+source $HESTIA/func/arc-template.sh
+# load config file
+source_conf "$HESTIA/conf/hestia.conf"
+
+# Additional argument formatting
+format_domain
+
+# Run v-allocate-user-port; on failure exit with its code and message
+allocate() {
+	local out rc
+	out=$("$BIN/v-allocate-user-port" "$user" "web:$domain" "$@")
+	rc=$?
+	if [ "$rc" -ne 0 ]; then
+		check_result "$rc" "${out#Error: }"
+	fi
+	PORT="$out"
+}
+
+# Resolve port variable KEY to PORT (spec §5.5), exiting on refusal. Sets
+# ASSIGNED=yes when this run assigned the port to web:<domain>.
+resolve_port() {
+	local key="$1" value="$2" current record app
+	ASSIGNED=no
+	current=$(arc_tplvars_get "$user" "$domain" "$key")
+	if [ "$value" = 'auto' ]; then
+		if [ -n "$current" ] && [ "$(ports_record "$user" "$current" | cut -d'|' -f4)" = "web:$domain" ]; then
+			PORT="$current"
+			return 0
+		fi
+		allocate
+		ASSIGNED=yes
+		return 0
+	fi
+
+	value=$((10#$value))
+	record=$(ports_read "$user" | awk -F'|' -v p="$value" '$1 <= p && $2 >= p { print; exit }')
+	if [ -z "$record" ]; then
+		if ! ports_registry_enabled; then
+			PORT="$value"
+			return 0
+		fi
+		check_result "$E_FORBIDEN" "port $value is not in the pool of $user"
+	fi
+	app=$(echo "$record" | cut -d'|' -f4)
+	case "$app" in
+		'')
+			allocate tcp "$value"
+			ASSIGNED=yes
+			;;
+		"web:$domain" | "node:$domain" | docker:* | manual) PORT="$value" ;;
+		*) check_result "$E_INUSE" "port $value is used by $app" ;;
+	esac
+}
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '3' "$#" 'USER DOMAIN KEY=VALUE [KEY=VALUE...]'
+is_format_valid 'user' 'domain'
+is_object_valid 'user' 'USER' "$user"
+is_object_unsuspended 'user' 'USER' "$user"
+is_object_valid 'web' 'DOMAIN' "$domain"
+is_object_unsuspended 'web' 'DOMAIN' "$domain"
+
+kind=$(arc_tpl_active_kind)
+if [ -z "$kind" ]; then
+	check_result "$E_INVALID" "template variables need NGINX as web server or proxy"
+fi
+template=$(arc_tpl_active "$user" "$domain")
+declared=$(arc_tpl_variables "$kind" "$template")
+
+shift 2
+changes=''
+for pair in "$@"; do
+	key=${pair%%=*}
+	value=${pair#*=}
+	if [ "$key" = "$pair" ] || ! [[ "$key" =~ ^[A-Z][A-Z0-9_]*$ ]]; then
+		check_result "$E_INVALID" "invalid variable :: $pair"
+	fi
+	type=$(printf '%s\n' "$declared" | awk -F'|' -v k="$key" '$1 == k { print $2; exit }')
+	if [ -z "$type" ]; then
+		check_result "$E_INVALID" "template $template does not declare $key"
+	fi
+	case "$type" in
+		port)
+			if [ "$value" != 'auto' ] && ! arc_tpl_valid_port "$value"; then
+				check_result "$E_INVALID" "invalid port :: $value"
+			fi
+			;;
+	esac
+	changes="$changes$key|$type|$value"$'\n'
+done
+
+# Perform verification if read-only mode is enabled
+check_hestia_demo_mode
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+ports_lock
+
+file=$(arc_tplvars_file "$user" "$domain")
+backup=$(mktemp)
+had_file=no
+if [ -f "$file" ]; then
+	cp -p "$file" "$backup"
+	had_file=yes
+fi
+
+values=$(arc_tplvars_read "$user" "$domain")
+allocated=''
+released=''
+while IFS='|' read -r key type value; do
+	[ -n "$key" ] || continue
+	old=$(printf '%s\n' "$values" | awk -F'|' -v k="$key" '$1 == k { print $2; exit }')
+	if [ "$type" = 'port' ]; then
+		resolve_port "$key" "$value"
+		value="$PORT"
+		if [ "$ASSIGNED" = 'yes' ]; then
+			allocated="$allocated $value"
+		fi
+		if [ -n "$old" ] && [ "$old" != "$value" ]; then
+			released="$released $old"
+		fi
+	fi
+	values=$(printf '%s\n' "$values" | awk -F'|' -v k="$key" '$1 != k && NF')
+	values="$values"$'\n'"$key|$value"
+done <<< "$changes"
+
+printf '%s\n' "$values" | sort | arc_tplvars_write "$user" "$file"
+
+if ! "$BIN/v-rebuild-web-domain" "$user" "$domain" > /dev/null 2>&1; then
+	if [ "$had_file" = 'yes' ]; then
+		cp -p "$backup" "$file"
+	else
+		rm -f "$file"
+	fi
+	for port in $allocated; do
+		"$BIN/v-release-user-port" "$user" "$port" > /dev/null 2>&1
+	done
+	"$BIN/v-rebuild-web-domain" "$user" "$domain" > /dev/null 2>&1
+	rm -f "$backup"
+	check_result "$E_RESTART" "the web server refused the new configuration of $domain"
+fi
+rm -f "$backup"
+
+# Ports this domain no longer uses go back to the pool
+for port in $released; do
+	record=$(ports_record "$user" "$port")
+	if [ "$(echo "$record" | cut -d'|' -f4)" = "web:$domain" ] \
+		&& ! arc_tplvars_read "$user" "$domain" | grep -q "|$port\$"; then
+		"$BIN/v-release-user-port" "$user" "$port" > /dev/null 2>&1
+	fi
+done
+
+#----------------------------------------------------------#
+#                       Hestia                             #
+#----------------------------------------------------------#
+
+$BIN/v-log-action "$user" "Info" "Web" "Template variables changed (Domain: $domain, Template: $template)."
+log_event "$OK" "$ARGUMENTS"
+
+exit

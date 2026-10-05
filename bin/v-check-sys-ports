@@ -8,8 +8,9 @@
 # firewall rules, prints the findings and writes them to
 # data/ports/.report.json. With "notify", the administrator gets one
 # notification when there are findings. With "repair", missing firewall
-# rules of public ports are written, stale tagged rules are deleted and the
-# files of users that no longer exist are archived.
+# rules of public ports are written, stale tagged rules are deleted, the
+# files of users that no longer exist are archived and ports of web domains
+# that no longer use them (orphan-web) are released.
 
 #----------------------------------------------------------#
 #                Variables & Functions                     #
@@ -60,6 +61,9 @@ if [ "$mode" = 'repair' ]; then
 			stale-rule)
 				# By comment: ids move after every delete
 				ports_fw_delete_comment "$detail"
+				;;
+			orphan-web)
+				"$BIN/v-release-user-port" "$user" "$port" > /dev/null 2>&1
 				;;
 			orphan-file)
 				mkdir -p "$PORTS_DIR/.deleted"

@@ -1,0 +1,7 @@
+{
+	"title": "Sendy",
+	"description": "Sendy newsletter application with its URL rewrites.",
+	"category": "other",
+	"runtime": "php",
+	"docs": "https://docs.arcpanel.top/docs/server-administration/web-templates.html"
+}

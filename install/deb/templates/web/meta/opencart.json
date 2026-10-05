@@ -1,0 +1,7 @@
+{
+	"title": "OpenCart",
+	"description": "OpenCart store with SEO URLs.",
+	"category": "ecommerce",
+	"runtime": "php",
+	"docs": "https://docs.arcpanel.top/docs/server-administration/web-templates.html"
+}

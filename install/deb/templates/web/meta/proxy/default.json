@@ -1,0 +1,7 @@
+{
+	"title": "Standard proxy",
+	"description": "NGINX serves static files and passes everything else to Apache.",
+	"category": "general",
+	"runtime": "php",
+	"docs": "https://docs.arcpanel.top/docs/server-administration/web-templates.html"
+}

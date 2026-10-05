@@ -1,0 +1,7 @@
+{
+	"title": "Opengist",
+	"description": "Proxies the domain to an Opengist server on localhost port 6157.",
+	"category": "proxy",
+	"runtime": "none",
+	"docs": "https://docs.arcpanel.top/docs/server-administration/web-templates.html"
+}

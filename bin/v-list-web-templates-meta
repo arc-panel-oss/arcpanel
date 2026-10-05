@@ -1,0 +1,89 @@
+#!/bin/bash
+# info: list web templates with their metadata
+# options: [KIND] [FORMAT]
+#
+# example: v-list-web-templates-meta proxy json
+#
+# This function lists the templates of KIND (web, proxy or backend) that
+# exist on this server, from the same folders as v-list-web-templates,
+# v-list-web-templates-proxy and v-list-web-templates-backend, with the
+# title, description, category, runtime and variables of their metadata
+# file. A template without metadata is listed with its name as title and
+# HAS_META='no'.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+kind=${1-web}
+format=${2-shell}
+
+# Includes
+# shellcheck source=/etc/hestiacp/hestia.conf
+source /etc/hestiacp/hestia.conf
+# shellcheck source=/usr/local/hestia/func/main.sh
+source $HESTIA/func/main.sh
+# shellcheck source=/usr/local/hestia/func/arc-template.sh
+source $HESTIA/func/arc-template.sh
+# load config file
+source_conf "$HESTIA/conf/hestia.conf"
+
+entries() {
+	local name
+	for name in $(arc_tpl_names "$kind"); do
+		arc_tpl_meta_json "$kind" "$name"
+	done
+}
+
+# JSON list function
+json_list() {
+	entries | jq -s '.'
+}
+
+# SHELL list function
+shell_list() {
+	{
+		echo "TEMPLATE^CATEGORY^RUNTIME^VARIABLES^TITLE"
+		echo "--------^--------^-------^---------^-----"
+		entries | jq -r '[.NAME, .CATEGORY, .RUNTIME, ([.VARIABLES[] | "\(.KEY):\(.TYPE)"] | join(",") | if . == "" then "-" else . end), .TITLE] | join("^")'
+	} | column -t -s '^'
+}
+
+# PLAIN list function
+plain_list() {
+	entries | jq -r '[.NAME, .TITLE, .DESCRIPTION, .CATEGORY, .RUNTIME, .INTERNAL, ([.VARIABLES[] | "\(.KEY):\(.TYPE)"] | join(",")), .DOCS, .HAS_META] | join("\t")'
+}
+
+# CSV list function
+csv_list() {
+	echo "NAME,TITLE,DESCRIPTION,CATEGORY,RUNTIME,INTERNAL,VARIABLES,DOCS,HAS_META"
+	entries | jq -r '[.NAME, .TITLE, .DESCRIPTION, .CATEGORY, .RUNTIME, .INTERNAL, ([.VARIABLES[] | "\(.KEY):\(.TYPE)"] | join(",")), .DOCS, .HAS_META] | @csv'
+}
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+case "$kind" in
+	web | proxy | backend) ;;
+	*) check_result "$E_INVALID" "invalid kind :: $kind" ;;
+esac
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+# Listing data
+case $format in
+	json) json_list ;;
+	plain) plain_list ;;
+	csv) csv_list ;;
+	shell) shell_list ;;
+esac
+
+#----------------------------------------------------------#
+#                       Hestia                             #
+#----------------------------------------------------------#
+
+exit
