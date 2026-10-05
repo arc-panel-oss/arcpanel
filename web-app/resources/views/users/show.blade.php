@@ -78,6 +78,12 @@
                 @endif
             </dl>
         </x-ap-card>
+        <x-ap-card :title="__('Node.js')" icon="hexagon">
+            <x-slot:actions>
+                <x-ap-button :href="route('node.show', ['user' => $record->name])" variant="ghost" size="sm">{{ __('Node.js') }}<x-ap-icon name="chevron-right" /></x-ap-button>
+            </x-slot:actions>
+            <p class="muted">{{ __('Node.js versions and global npm packages of this account.') }}</p>
+        </x-ap-card>
     </div>
 
     @if ($isReseller)

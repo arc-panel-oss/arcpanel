@@ -37,6 +37,9 @@ final class PackageRequest extends FormRequest
             'reseller_packages' => ['nullable', 'string', 'max:2000', 'regex:/^(\*|[[:alnum:]][-.\w]*(\s*,\s*[[:alnum:]][-.\w]*)*)?$/'],
             'reseller_visible' => ['nullable', 'boolean'],
             'ports' => ['nullable', 'integer', 'min:0', 'max:65535'],
+            'node' => ['nullable', 'boolean'],
+            'node_versions' => ['nullable', 'integer', 'min:0', 'max:999'],
+            'node_allowed' => ['nullable', 'string', 'max:100', 'regex:/^(lts|\*|\d{1,3}(,\d{1,3})*)$/'],
         ];
         foreach (PackageRecord::COUNTED as $key) {
             $rules[strtolower($key)] = ['nullable', 'required_without:'.strtolower($key).'_unlimited', 'integer', 'min:0', 'max:100000000'];
@@ -95,6 +98,21 @@ final class PackageRequest extends FormRequest
     public function portsValue(): string
     {
         return $this->boolean('ports_unlimited') ? 'unlimited' : (string) $this->integer('ports');
+    }
+
+    /**
+     * Node.js keys of the package sidecar (E13): NODE, NODE_VERSIONS (a
+     * number, or unlimited when ticked) and NODE_ALLOWED.
+     *
+     * @return array{NODE: string, NODE_VERSIONS: string, NODE_ALLOWED: string}
+     */
+    public function nodeValues(): array
+    {
+        return [
+            'NODE' => $this->boolean('node') ? 'yes' : 'no',
+            'NODE_VERSIONS' => $this->boolean('node_versions_unlimited') ? 'unlimited' : (string) $this->integer('node_versions', 3),
+            'NODE_ALLOWED' => (string) ($this->input('node_allowed') ?: 'lts'),
+        ];
     }
 
     /** @return list<string> */

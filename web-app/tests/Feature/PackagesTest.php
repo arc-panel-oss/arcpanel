@@ -176,3 +176,26 @@ it('sets PORTS of a package, within the reseller plan for a reseller (E12)', fun
     $this->post('/packages', packageInput(['ports' => '5']))->assertSessionHasErrors('ports');
     $this->fake->assertNotRan('v-add-reseller-package');
 });
+
+it('sets the Node.js keys of a package, within the reseller plan for a reseller (E13)', function () {
+    $this->fake->on('v-add-user-package')->returns();
+    $this->fake->on('v-add-reseller-package')->returns();
+    $this->fake->on('v-change-package-tenancy')->returns();
+
+    signIn('arcadmin', 'admin');
+    $this->get('/packages/create')->assertOk()->assertSee('name="node_allowed"', false);
+    $this->post('/packages', packageInput(['node' => '1', 'node_versions' => '2', 'node_allowed' => '22,24']))->assertRedirect('/packages');
+    $steps = collect($this->fake->calls('v-change-package-tenancy'))->pluck('args')->all();
+    expect($steps)->toBe([['business', 'NODE_VERSIONS', '2'], ['business', 'NODE_ALLOWED', '22,24'], ['business', 'NODE', 'yes']]);
+
+    $this->post('/packages', packageInput(['name' => 'plain']))->assertRedirect('/packages');
+    $this->fake->assertRan('v-change-package-tenancy', fn ($a) => $a[0] === 'plain', 0);
+    $this->post('/packages', packageInput(['node_allowed' => 'lts/*']))->assertSessionHasErrors('node_allowed');
+
+    // the reseller package has no Node.js
+    signIn('hostco', 'reseller');
+    $this->get('/packages/create')->assertOk()->assertSee('Node.js is not included in your plan.');
+    $this->post('/packages', packageInput(['node' => '1']))->assertSessionHasErrors('node');
+    $this->post('/packages', packageInput(['node_versions_unlimited' => '1']))->assertSessionHasErrors('node_versions');
+    $this->fake->assertNotRan('v-add-reseller-package');
+});

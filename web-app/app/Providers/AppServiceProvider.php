@@ -12,6 +12,7 @@ use App\Auth\Principal;
 use App\Services\Mail\AccountMailer;
 use App\Services\Mail\CredentialsMailer;
 use App\Services\Mail\PanelCredentialsMailer;
+use App\Services\Node\NodeAccess;
 use App\Tenancy\TenancyDirectory;
 use App\View\AssetManifest;
 use App\View\ShellComposer;
@@ -48,6 +49,9 @@ class AppServiceProvider extends ServiceProvider
 
         // Owner tree, read once per request (E11)
         $this->app->scoped(TenancyDirectory::class, fn ($app) => new TenancyDirectory($app->make(ArcCommand::class)));
+
+        // Package key NODE per package, read once per request (E13)
+        $this->app->scoped(NodeAccess::class);
 
         // The Principal is bound per request by ResolvePrincipal.
         $this->app->bind(OwnerScope::class, fn ($app) => new OwnerScope($app->make(Principal::class), $app->make(TenancyDirectory::class)));

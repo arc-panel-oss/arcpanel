@@ -6,6 +6,7 @@ use App\Arc\SysConfig;
 use App\Auth\Principal;
 use App\Auth\Role;
 use App\Policies\Capabilities;
+use App\Services\Node\NodeAccess;
 use Illuminate\Support\Facades\Route;
 
 /**
@@ -20,6 +21,8 @@ final class Navigation
 {
     /**
      * requires: hestia.conf key that must be set ("KEY") or equal ("KEY=value").
+     * node: only when the package of the account includes Node.js (E13),
+     * always for administrators.
      * labels: label per acting role, instead of label.
      */
     private const GROUPS = [
@@ -48,6 +51,7 @@ final class Navigation
                 ['route' => 'files.index', 'label' => 'File manager', 'icon' => 'folder', 'cap' => 'files.view', 'requires' => 'FILE_MANAGER=true', 'writable' => true],
                 ['route' => 'terminal.index', 'label' => 'Web terminal', 'icon' => 'terminal', 'cap' => 'files.view', 'requires' => 'WEB_TERMINAL=true', 'writable' => true, 'shell' => true],
                 ['route' => 'ports.index', 'label' => 'Ports', 'icon' => 'plug', 'cap' => 'ports.mine', 'section' => 'ports.'],
+                ['route' => 'node.index', 'label' => 'Node.js', 'icon' => 'hexagon', 'cap' => 'node.view', 'node' => true, 'section' => 'node.'],
             ],
         ],
         'server' => [
@@ -72,7 +76,10 @@ final class Navigation
         ],
     ];
 
-    public function __construct(private readonly SysConfig $config) {}
+    public function __construct(
+        private readonly SysConfig $config,
+        private readonly NodeAccess $node,
+    ) {}
 
     /**
      * @return list<array{key: string, label: ?string, items: list<array{key: string, label: string, icon: string, url: string, active: bool}>}>
@@ -119,6 +126,9 @@ final class Navigation
             return false;
         }
         if (isset($item['requires']) && ! $this->configAllows($item['requires'])) {
+            return false;
+        }
+        if (($item['node'] ?? false) && $principal->actingRole() !== Role::Admin && ! $this->node->allowed($principal->effectiveUser())) {
             return false;
         }
         if (($item['writable'] ?? false) && $principal->isReadOnly()) {

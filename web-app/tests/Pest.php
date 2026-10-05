@@ -1,6 +1,7 @@
 <?php
 
 use App\Arc\ArcCommandFake;
+use App\Arc\ExitCode;
 use App\Arc\SysConfig;
 use App\Auth\ArrayLegacySession;
 use App\Auth\Principal;
@@ -93,6 +94,10 @@ function fakeArc(array $config = []): ArcCommandFake
     app()->forgetInstance(SysConfig::class);
     cache()->flush();
     $fake->on('v-list-sys-config', ['json'])->returnsJson(sysConfig($config));
+    // The sidebar asks whether the account's package includes Node.js (E13);
+    // without a package entry it does not.
+    $fake->on('v-list-user')->returnsExit(ExitCode::NotExist);
+    $fake->on('v-list-package-tenancy')->returnsJson([]);
 
     return $fake;
 }
@@ -304,4 +309,48 @@ function fakeRestarts(ArcCommandFake $fake): void
     foreach (['v-restart-web', 'v-restart-proxy', 'v-restart-dns', 'v-restart-web-backend'] as $restart) {
         $fake->on($restart)->returns();
     }
+}
+
+/**
+ * `v-list-user-node-versions USER json` (E13 spec §5.4).
+ *
+ * @param  array<string, string>  $overrides
+ * @param  list<array<string, string>>  $versions  from nodeRuntime()
+ * @return array<string, mixed>
+ */
+function nodeAccount(string $user, array $overrides = [], array $versions = []): array
+{
+    return array_merge([
+        'USER' => $user, 'PACKAGE' => 'developer', 'NODE' => 'yes', 'ALLOWED' => 'lts', 'LIMIT' => '3',
+        'ENABLED' => 'yes', 'SHELL' => 'yes', 'SUSPENDED' => 'no', 'DEFAULT' => $versions[0]['VERSION'] ?? '',
+        'ARCH' => 'x64', 'COUNT' => (string) count($versions), 'VERSIONS' => $versions,
+    ], $overrides);
+}
+
+/**
+ * One runtime of `v-list-user-node-versions json`.
+ *
+ * @param  array<string, string>  $overrides
+ * @return array<string, string>
+ */
+function nodeRuntime(string $version, array $overrides = []): array
+{
+    return array_merge([
+        'VERSION' => $version, 'MAJOR' => explode('.', $version)[0], 'DEFAULT' => 'no', 'LTS' => 'Krypton',
+        'STATUS' => 'active', 'EOL' => '2028-04-30', 'SIZE' => '208', 'PACKAGES' => '0',
+    ], $overrides);
+}
+
+/**
+ * `v-list-user-node-task USER LINES json` (E13 spec §5.6): no task by default.
+ *
+ * @param  array<string, string>  $overrides
+ * @return array<string, string>
+ */
+function nodeTask(string $user, array $overrides = []): array
+{
+    return array_merge([
+        'USER' => $user, 'ID' => '', 'ACTION' => '', 'ARGS' => '', 'STATUS' => '', 'EXIT' => '',
+        'START' => '', 'END' => '', 'LOG' => '',
+    ], $overrides);
 }

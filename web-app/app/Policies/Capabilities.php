@@ -59,6 +59,10 @@ final class Capabilities
         'ports.suballocate' => self::MANAGERS,
         'ports.allocate' => self::ADMIN,
 
+        // Node.js runtimes (E13 spec §6.2); NodePolicy adds the package key
+        'node.view' => self::ALL_ROLES,
+        'node.manage' => self::ALL_ROLES,
+
         'web.view' => self::ALL_ROLES,
         'web.create' => self::ALL_ROLES,
         'web.update' => self::ALL_ROLES,

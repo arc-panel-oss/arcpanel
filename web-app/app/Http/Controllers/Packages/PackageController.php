@@ -68,7 +68,7 @@ final class PackageController extends Controller
         $values = $this->checkedValues($request, [], $reseller);
         $tenancy = $policy->manageResellerSettings($principal) ? $request->tenancyValues() : null;
 
-        $result = $this->users->apply($this->packages->planCreate($name, $values, $tenancy, $reseller, $this->checkedPorts($request, $reseller)));
+        $result = $this->users->apply($this->packages->planCreate($name, $values, $tenancy, $reseller, $this->checkedPorts($request, $reseller), $this->checkedNode($request, $reseller)));
         if (! $result->ok()) {
             return $this->failed($request, $result);
         }
@@ -97,7 +97,7 @@ final class PackageController extends Controller
         $values = $this->checkedValues($request, $record->data, $reseller);
         $tenancy = $policy->manageResellerSettings($principal) ? $request->tenancyValues() : null;
 
-        $result = $this->users->apply($this->packages->planUpdate($record, $newName, $values, $tenancy, $reseller, $this->checkedPorts($request, $reseller)));
+        $result = $this->users->apply($this->packages->planUpdate($record, $newName, $values, $tenancy, $reseller, $this->checkedPorts($request, $reseller), $this->checkedNode($request, $reseller)));
         if (! $result->ok()) {
             return $this->failed($request, $result);
         }
@@ -147,6 +147,7 @@ final class PackageController extends Controller
             'RATE_LIMIT' => '200', 'BACKUPS' => '1', 'BACKUPS_INCREMENTAL' => 'no', 'SHELL' => 'nologin',
             'NS' => (string) ($this->packages->all()['default']?->get('NS') ?? ''),
             'USERS' => '0', 'RESELLER_PACKAGES' => '', 'RESELLER_VISIBLE' => 'no', 'PORTS' => '0',
+            'NODE' => 'no', 'NODE_VERSIONS' => '3', 'NODE_ALLOWED' => 'lts',
         ];
 
         return view('packages.form', [
@@ -159,6 +160,7 @@ final class PackageController extends Controller
             'resellerSettings' => $policy->manageResellerSettings($principal),
             'ownLimits' => $reseller !== '' ? $this->users->find($reseller)->data : [],
             'ownPorts' => $reseller !== '' ? $this->ownPorts($reseller) : null,
+            'ownNode' => $reseller !== '' ? $this->ownNode($reseller) : null,
         ]);
     }
 
@@ -228,6 +230,45 @@ final class PackageController extends Controller
         $package = $this->users->find($reseller)->package();
 
         return ($this->packages->all()[$package] ?? null)?->get('PORTS', '0') ?? '0';
+    }
+
+    /**
+     * Node.js keys of the reseller's own package (E13).
+     *
+     * @return array{NODE: string, NODE_VERSIONS: string}
+     */
+    private function ownNode(string $reseller): array
+    {
+        $record = $this->packages->all()[$this->users->find($reseller)->package()] ?? null;
+
+        return ['NODE' => $record?->get('NODE', 'no') ?? 'no', 'NODE_VERSIONS' => $record?->get('NODE_VERSIONS', '3') ?? '3'];
+    }
+
+    /**
+     * Node.js keys of the form; a reseller cannot give Node.js it does not
+     * have, nor more runtimes than its own package allows.
+     *
+     * @return array{NODE: string, NODE_VERSIONS: string, NODE_ALLOWED: string}
+     */
+    private function checkedNode(PackageRequest $request, string $reseller): array
+    {
+        $node = $request->nodeValues();
+        if ($reseller !== '') {
+            $own = $this->ownNode($reseller);
+            $errors = [];
+            if ($node['NODE'] === 'yes' && $own['NODE'] !== 'yes') {
+                $errors['node'] = __('Node.js is not included in your plan.');
+            }
+            $limit = $own['NODE_VERSIONS'];
+            if ($limit !== 'unlimited' && ($node['NODE_VERSIONS'] === 'unlimited' || (int) $node['NODE_VERSIONS'] > (int) $limit)) {
+                $errors['node_versions'] = sprintf(__('At most %s on your plan.'), $limit);
+            }
+            if ($errors !== []) {
+                throw ValidationException::withMessages($errors);
+            }
+        }
+
+        return $node;
     }
 
     /** PORTS of the form; a reseller may not go above its own. */

@@ -64,6 +64,22 @@
                 :hint="__('Two to eight, one per line.')" />
         </x-ap-card>
 
+        <x-ap-card :title="__('Node.js')" icon="hexagon">
+            @if ($ownNode !== null && $ownNode['NODE'] !== 'yes')
+                <p class="muted">{{ __('Node.js is not included in your plan.') }}</p>
+            @endif
+            <div class="ap-settings">
+                <x-ap-switch name="node" :label="__('Node.js')" :description="__('Users of this package may install Node.js versions and global npm packages.')"
+                    :checked="$values['NODE'] === 'yes'" :disabled="$ownNode !== null && $ownNode['NODE'] !== 'yes'" />
+            </div>
+            <div class="ap-form-grid">
+                <x-ap-unlimited-input name="node_versions" :label="__('Node.js versions')" :value="$values['NODE_VERSIONS']"
+                    :hint="$ownNode !== null ? sprintf(__('Your plan: %s'), $ownNode['NODE_VERSIONS']) : __('Runtimes installed at the same time.')" />
+                <x-ap-input name="node_allowed" :label="__('Allowed majors')" :value="$values['NODE_ALLOWED']" mono
+                    :hint="__('lts for the supported LTS lines, * for every version, or majors such as 22,24.')" />
+            </div>
+        </x-ap-card>
+
         @if ($resellerSettings)
             <x-ap-card :title="__('Reseller')" icon="users">
                 <p class="muted">{{ __('A user on this package can resell hosting when the package allows customers.') }}</p>

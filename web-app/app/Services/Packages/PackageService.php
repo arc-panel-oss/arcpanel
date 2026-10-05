@@ -96,15 +96,17 @@ final class PackageService
      * @param  array<string, string>  $values
      * @param  array{USERS: string, RESELLER_PACKAGES: string, RESELLER_VISIBLE: string}|null  $tenancy  administrators only
      * @param  string  $ports  PORTS of the package (E12), a number or unlimited
+     * @param  array{NODE: string, NODE_VERSIONS: string, NODE_ALLOWED: string}|null  $node  Node.js keys (E13), null to keep them
      * @return list<Step>
      */
-    public function planCreate(string $name, array $values, ?array $tenancy, string $reseller = '', string $ports = '0'): array
+    public function planCreate(string $name, array $values, ?array $tenancy, string $reseller = '', string $ports = '0', ?array $node = null): array
     {
         $file = Secret::file($this->file($values));
         if ($reseller !== '') {
             return [
                 new Step(sprintf(__('Add package %s'), $name), 'v-add-reseller-package', [$reseller, $file, $name]),
                 ...$this->portsStep($reseller.'_'.$name, $ports, null),
+                ...$this->nodeSteps($reseller.'_'.$name, $node, null),
             ];
         }
 
@@ -112,6 +114,7 @@ final class PackageService
             new Step(sprintf(__('Add package %s'), $name), 'v-add-user-package', [$file, $name]),
             ...$this->tenancySteps($name, $tenancy, null),
             ...$this->portsStep($name, $ports, null),
+            ...$this->nodeSteps($name, $node, null),
         ];
     }
 
@@ -119,15 +122,17 @@ final class PackageService
      * @param  array<string, string>  $values
      * @param  array{USERS: string, RESELLER_PACKAGES: string, RESELLER_VISIBLE: string}|null  $tenancy
      * @param  string|null  $ports  PORTS of the package (E12), null to keep it
+     * @param  array{NODE: string, NODE_VERSIONS: string, NODE_ALLOWED: string}|null  $node  Node.js keys (E13), null to keep them
      * @return list<Step>
      */
-    public function planUpdate(PackageRecord $current, string $newName, array $values, ?array $tenancy, string $reseller = '', ?string $ports = null): array
+    public function planUpdate(PackageRecord $current, string $newName, array $values, ?array $tenancy, string $reseller = '', ?string $ports = null, ?array $node = null): array
     {
         $file = Secret::file($this->file($values));
         if ($reseller !== '') {
             return [
                 new Step(__('Save the package'), 'v-change-reseller-package', [$reseller, $file, $current->name]),
                 ...$this->portsStep($current->name, $ports, $current),
+                ...$this->nodeSteps($current->name, $node, $current),
             ];
         }
 
@@ -136,6 +141,7 @@ final class PackageService
             new Step(__('Apply the package to its users'), 'v-update-user-package', [$current->name]),
             ...$this->tenancySteps($current->name, $tenancy, $current),
             ...$this->portsStep($current->name, $ports, $current),
+            ...$this->nodeSteps($current->name, $node, $current),
         ];
         if ($newName !== $current->name) {
             $steps[] = new Step(__('Rename the package'), 'v-rename-user-package', [$current->name, $newName]);
@@ -156,6 +162,11 @@ final class PackageService
                 'RESELLER_VISIBLE' => $current->get('RESELLER_VISIBLE', 'no'),
             ], null),
             ...$this->portsStep($newName, $current->get('PORTS', '0'), null),
+            ...$this->nodeSteps($newName, [
+                'NODE' => $current->get('NODE', 'no'),
+                'NODE_VERSIONS' => $current->get('NODE_VERSIONS', '3'),
+                'NODE_ALLOWED' => $current->get('NODE_ALLOWED', 'lts'),
+            ], null),
         ];
     }
 
@@ -190,6 +201,32 @@ final class PackageService
         }
 
         return [new Step(sprintf(__('Set %s'), 'PORTS'), 'v-change-package-tenancy', [$name, 'PORTS', $ports])];
+    }
+
+    /**
+     * Node.js keys of the package sidecar (E13) that are set or changed;
+     * NODE_VERSIONS before NODE, so that lowering the runtimes and turning
+     * Node.js on in one save is checked against the new number. The command
+     * checks a reseller's package against the reseller's keys.
+     *
+     * @param  array{NODE: string, NODE_VERSIONS: string, NODE_ALLOWED: string}|null  $node
+     * @return list<Step>
+     */
+    private function nodeSteps(string $name, ?array $node, ?PackageRecord $current): array
+    {
+        if ($node === null) {
+            return [];
+        }
+        $defaults = ['NODE' => 'no', 'NODE_VERSIONS' => '3', 'NODE_ALLOWED' => 'lts'];
+        $steps = [];
+        foreach (['NODE_VERSIONS', 'NODE_ALLOWED', 'NODE'] as $key) {
+            $before = $current?->get($key, $defaults[$key]) ?? $defaults[$key];
+            if ($node[$key] !== $before) {
+                $steps[] = new Step(sprintf(__('Set %s'), $key), 'v-change-package-tenancy', [$name, $key, $node[$key]]);
+            }
+        }
+
+        return $steps;
     }
 
     /**

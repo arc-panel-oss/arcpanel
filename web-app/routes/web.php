@@ -5,6 +5,7 @@ use App\Http\Controllers\Auth\LogoutController;
 use App\Http\Controllers\Auth\TwoFactorController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\ImpersonationController;
+use App\Http\Controllers\Node\NodeController;
 use App\Http\Controllers\Packages\PackageController;
 use App\Http\Controllers\Ports\PortController;
 use App\Http\Controllers\Ports\ServerPortController;
@@ -31,6 +32,7 @@ Route::pattern('user', '[[:alnum:]][-.\w]{0,28}[[:alnum:]]');
 Route::pattern('domain', '[^/\s]{1,253}');
 Route::pattern('package', '[[:alnum:]][-.\w]{0,99}');
 Route::pattern('range', '\d{1,5}(-\d{1,5})?');
+Route::pattern('version', '\d{1,3}\.\d{1,3}\.\d{1,3}');
 
 Route::middleware('guest.arc')->group(function () {
     Route::get('/login', [LoginController::class, 'show'])->name('login');
@@ -115,6 +117,32 @@ Route::middleware('auth.arc')->group(function () {
             Route::post('/{range}/public-ok', [PortController::class, 'publicOk'])->name('public-ok');
             Route::post('/{range}/reclaim', [PortController::class, 'reclaim'])->name('reclaim');
             Route::delete('/{range}', [PortController::class, 'destroy'])->name('destroy');
+        });
+    });
+
+    // Node.js runtimes and global packages (E13 spec §6.3)
+    Route::prefix('node')->name('node.')->group(function () {
+        Route::get('/', [NodeController::class, 'index'])->name('index');
+        Route::middleware('effective-user')->prefix('{user}')->group(function () {
+            Route::get('/', [NodeController::class, 'show'])->name('show');
+            Route::prefix('api')->name('api.')->group(function () {
+                Route::get('/overview', [NodeController::class, 'overview'])->name('overview');
+                Route::get('/releases', [NodeController::class, 'releases'])->name('releases');
+                Route::get('/task', [NodeController::class, 'task'])->name('task');
+                Route::get('/versions/{version}/packages', [NodeController::class, 'packages'])->name('packages');
+                Route::middleware('not-readonly')->group(function () {
+                    Route::post('/enable', [NodeController::class, 'enable'])->name('enable');
+                    Route::delete('/enable', [NodeController::class, 'disable'])->name('disable');
+                    Route::post('/versions', [NodeController::class, 'install'])->name('install');
+                    Route::post('/versions/{version}/default', [NodeController::class, 'setDefault'])->name('default');
+                    Route::delete('/versions/{version}', [NodeController::class, 'destroyVersion'])->name('versions.destroy');
+                    Route::post('/versions/{version}/packages', [NodeController::class, 'addPackage'])->name('packages.store');
+                    Route::post('/versions/{version}/packages/update', [NodeController::class, 'updatePackages'])->name('packages.update');
+                    Route::post('/versions/{version}/packages/outdated', [NodeController::class, 'checkOutdated'])->name('packages.outdated');
+                    Route::delete('/versions/{version}/packages/{name}', [NodeController::class, 'destroyPackage'])
+                        ->where('name', '(@[a-z0-9][a-z0-9._~-]*/)?[a-z0-9][a-z0-9._~-]*')->name('packages.destroy');
+                });
+            });
         });
     });
 
