@@ -91,13 +91,14 @@ final class PaletteSearch
             }
             // Resellers open their customers' objects in the panel app only
             // (E11 spec D4): legacy pages have no "login as" for them.
-            if ($role === Role::Reseller && $owner !== $this->principal->effectiveUser() && $type !== 'web') {
+            $panelUrl = $this->panelUrl($type, $row);
+            if ($role === Role::Reseller && $owner !== $this->principal->effectiveUser() && $panelUrl === null) {
                 continue;
             }
             $groups[__($label)][] = [
                 'label' => (string) ($row['RESULT'] ?? ''),
                 'meta' => $owner,
-                'url' => $this->objectUrl($type, $row),
+                'url' => $panelUrl ?? $this->objectUrl($type, $row),
                 'icon' => $icon,
             ];
         }
@@ -106,8 +107,38 @@ final class PaletteSearch
     }
 
     /**
-     * Web domains open in the panel app; other objects open the legacy edit
-     * page, through "log in as" for another user (templates/pages/list_search.php).
+     * The panel app page of an object whose module has moved (E1-S2, E7),
+     * null while the module is still served by the legacy pages.
+     *
+     * @param  array<string, mixed>  $row
+     */
+    private function panelUrl(string $type, array $row): ?string
+    {
+        $owner = (string) $row['USER'];
+        $result = (string) ($row['RESULT'] ?? '');
+        $parent = (string) ($row['PARENT'] ?? '');
+        $link = (string) ($row['LINK'] ?? '');
+
+        [$route, $params] = match ($type.'/'.($row['KEY'] ?? '')) {
+            'web/DOMAIN' => ['web.domains.edit', ['domain' => $result]],
+            'db/DATABASE' => ['db.edit', ['database' => $result]],
+            'cron/JOB' => ['cron.edit', ['job' => $link]],
+            'dns/DOMAIN' => ['dns.records.index', ['domain' => $result]],
+            'dns/RECORD' => ['dns.records.index', ['domain' => $parent]],
+            'mail/DOMAIN' => ['mail.accounts.index', ['domain' => $result]],
+            'mail/ACCOUNT' => ['mail.accounts.edit', ['domain' => $parent, 'account' => $link]],
+            default => [null, []],
+        };
+        if ($route === null || ! Route::has($route) || in_array('', $params, true)) {
+            return null;
+        }
+
+        return route($route, ['user' => $owner, ...$params]);
+    }
+
+    /**
+     * Objects of modules that are still legacy open the legacy edit page,
+     * through "log in as" for another user (templates/pages/list_search.php).
      *
      * @param  array<string, mixed>  $row
      */
@@ -116,10 +147,6 @@ final class PaletteSearch
         $owner = (string) $row['USER'];
         $result = (string) ($row['RESULT'] ?? '');
         $key = (string) ($row['KEY'] ?? '');
-
-        if ($type === 'web' && $key === 'DOMAIN' && Route::has('web.domains.edit')) {
-            return route('web.domains.edit', ['user' => $owner, 'domain' => $result]);
-        }
 
         $query = ['user' => $owner];
         match ($key) {
@@ -178,8 +205,17 @@ final class PaletteSearch
         }
 
         $role = $this->principal->actingRole();
-        if (Capabilities::allows($role, 'web.create') && ! $this->principal->isReadOnly() && Route::has('web.domains.create')) {
-            $items[] = ['label' => __('Add Web Domain'), 'meta' => __('Web'), 'url' => route('web.domains.create'), 'icon' => 'plus'];
+        $creates = [
+            ['web.create', 'web.domains.create', 'Add Web Domain', 'Web'],
+            ['db.create', 'db.create', 'Add Database', 'Databases'],
+            ['cron.create', 'cron.create', 'Add Cron Job', 'Cron Jobs'],
+            ['dns.create', 'dns.create', 'Add DNS Domain', 'DNS'],
+            ['mail.create', 'mail.create', 'Add Mail Domain', 'Mail'],
+        ];
+        foreach ($creates as [$capability, $route, $label, $meta]) {
+            if (Capabilities::allows($role, $capability) && ! $this->principal->isReadOnly() && Route::has($route)) {
+                $items[] = ['label' => __($label), 'meta' => __($meta), 'url' => route($route), 'icon' => 'plus'];
+            }
         }
         if (Capabilities::allows($role, 'users.create') && ! $this->principal->isReadOnly()) {
             $items[] = ['label' => $role === Role::Reseller ? __('Add Customer') : __('Add User'), 'meta' => __('Users'), 'url' => (string) Navigation::url('users.create'), 'icon' => 'user-plus'];

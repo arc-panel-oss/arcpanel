@@ -48,7 +48,7 @@ final class Navigation
                 ['route' => 'web.domains.index', 'label' => 'Web', 'icon' => 'globe', 'cap' => 'web.view', 'requires' => 'WEB_SYSTEM', 'section' => 'web.'],
                 ['route' => 'dns.index', 'label' => 'DNS', 'icon' => 'dns', 'cap' => 'dns.view', 'requires' => 'DNS_SYSTEM'],
                 ['route' => 'mail.index', 'label' => 'Mail', 'icon' => 'mail', 'cap' => 'mail.view', 'requires' => 'MAIL_SYSTEM'],
-                ['route' => 'db.index', 'label' => 'Databases', 'icon' => 'db', 'cap' => 'db.view', 'requires' => 'DB_SYSTEM'],
+                ['route' => 'db.index', 'label' => 'Databases', 'icon' => 'db', 'cap' => 'db.view', 'requires' => 'DB_SYSTEM', 'section' => 'db.'],
                 ['route' => 'cron.index', 'label' => 'Cron Jobs', 'icon' => 'clock', 'cap' => 'cron.view', 'requires' => 'CRON_SYSTEM'],
                 ['route' => 'backups.index', 'label' => 'Backups', 'icon' => 'archive', 'cap' => 'backups.view', 'requires' => 'BACKUP_SYSTEM'],
                 ['route' => 'files.index', 'label' => 'File manager', 'icon' => 'folder', 'cap' => 'files.view', 'requires' => 'FILE_MANAGER=true', 'writable' => true],

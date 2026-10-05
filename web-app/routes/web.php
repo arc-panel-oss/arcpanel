@@ -4,6 +4,8 @@ use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\LogoutController;
 use App\Http\Controllers\Auth\TwoFactorController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\Databases\DatabaseActionController;
+use App\Http\Controllers\Databases\DatabaseController;
 use App\Http\Controllers\Docker\DockerAppController;
 use App\Http\Controllers\Docker\DockerAppPageController;
 use App\Http\Controllers\Docker\DockerEngineController;
@@ -45,6 +47,8 @@ Route::pattern('range', '\d{1,5}(-\d{1,5})?');
 Route::pattern('name', '[a-z][a-z0-9-]{0,30}[a-z0-9]');
 Route::pattern('slug', '[a-z][a-z0-9-]{1,31}');
 Route::pattern('version', '\d{1,3}\.\d{1,3}\.\d{1,3}');
+// Database names with the owner prefix (is_database_format_valid)
+Route::pattern('database', '[\w-]{1,64}');
 
 Route::middleware('guest.arc')->group(function () {
     Route::get('/login', [LoginController::class, 'show'])->name('login');
@@ -248,6 +252,27 @@ Route::middleware('auth.arc')->group(function () {
                     Route::post('/upload/{token}/finish', [FileTransferController::class, 'finish'])->where('token', '[a-f0-9]{32}')->name('upload.finish');
                     Route::delete('/upload/{token}', [FileTransferController::class, 'cancel'])->where('token', '[a-f0-9]{32}')->name('upload.cancel');
                 });
+            });
+        });
+    });
+
+    // Databases (E7 batch 1 spec §6)
+    Route::prefix('db')->name('db.')->group(function () {
+        Route::get('/', [DatabaseController::class, 'index'])->name('index');
+        Route::get('/create', [DatabaseController::class, 'create'])->name('create');
+        Route::post('/', [DatabaseController::class, 'store'])->middleware('not-readonly')->name('store');
+        Route::post('/bulk', [DatabaseActionController::class, 'bulk'])->middleware('not-readonly')->name('bulk');
+
+        Route::middleware('effective-user')->prefix('{user}/{database}')->group(function () {
+            Route::get('/edit', [DatabaseController::class, 'edit'])->name('edit');
+
+            Route::middleware('not-readonly')->group(function () {
+                Route::post('/edit', [DatabaseController::class, 'update'])->name('update');
+                Route::post('/suspend', [DatabaseActionController::class, 'suspend'])->name('suspend');
+                Route::post('/unsuspend', [DatabaseActionController::class, 'unsuspend'])->name('unsuspend');
+                Route::post('/download', [DatabaseActionController::class, 'download'])->name('download');
+                Route::post('/phpmyadmin', [DatabaseActionController::class, 'phpMyAdmin'])->name('phpmyadmin');
+                Route::delete('/', [DatabaseActionController::class, 'destroy'])->name('destroy');
             });
         });
     });

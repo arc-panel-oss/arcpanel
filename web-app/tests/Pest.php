@@ -107,6 +107,19 @@ function fakeArc(array $config = []): ArcCommandFake
     return $fake;
 }
 
+/**
+ * Answer v-list-sys-config with these keys from now on (a test that changes
+ * a policy after fakeArc()).
+ *
+ * @param  array<string, string>  $config
+ */
+function withSysConfig(ArcCommandFake $fake, array $config): void
+{
+    $fake->on('v-list-sys-config', ['json'])->returnsJson(sysConfig($config));
+    cache()->flush();
+    app()->forgetInstance(SysConfig::class);
+}
+
 /** Legacy session of a logged-in user (fresh activity, same IP as the test client). */
 function sessionOf(string $user, string $role, array $overrides = []): array
 {
@@ -306,6 +319,27 @@ function fakeWebDomains(ArcCommandFake $fake): void
     $fake->on('v-list-web-templates-meta', ['proxy', 'json'])->returnsFixture('v-list-web-templates-meta/proxy.json');
     $fake->on('v-list-web-domain-tpl-vars')->returnsFixture('v-list-web-domain-tpl-vars/none.json');
     $fake->on('v-delete-web-domain-tpl-vars')->returns();
+}
+
+/**
+ * Databases of the test users (E7): bob has bob_wp and the suspended
+ * bob_shop, carol has the PostgreSQL carol_app, everyone else none.
+ * `v-list-database USER DB json` answers from the same fixtures.
+ */
+function fakeDatabases(ArcCommandFake $fake): void
+{
+    $list = function (string $user): array {
+        $file = base_path("tests/Fixtures/commands/v-list-databases/{$user}.json");
+
+        return is_file($file) ? commandFixture("v-list-databases/{$user}.json") : [];
+    };
+    $fake->on('v-list-databases')->using(fn (array $args) => [0, (string) json_encode((object) $list($args[0]))]);
+    $fake->on('v-list-database')->using(function (array $args) use ($list) {
+        $row = $list($args[0])[$args[1]] ?? null;
+
+        return $row !== null ? [0, (string) json_encode([$args[1] => $row])] : [3, "Error: database {$args[1]} doesn't exist"];
+    });
+    $fake->on('v-list-database-hosts')->returnsFixture('v-list-database-hosts/default.json');
 }
 
 /** Restart commands answer success. */

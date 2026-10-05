@@ -82,11 +82,16 @@ final class Capabilities
         // Users and resellers also need POLICY_USER_EDIT_WEB_TEMPLATES (WebDomainPolicy).
         'web.templates.edit' => self::ALL_ROLES,
 
+        // Databases (E7 batch 1 spec §5.1)
+        'db.view' => self::ALL_ROLES,
+        'db.create' => self::ALL_ROLES,
+        'db.update' => self::ALL_ROLES,
+        'db.delete' => self::ALL_ROLES,
+
         // Modules still served by the legacy pages: navigation only. A
         // reseller reaches them for its own account.
         'dns.view' => self::OWN,
         'mail.view' => self::OWN,
-        'db.view' => self::OWN,
         'cron.view' => self::OWN,
         'backups.view' => self::OWN,
         'logs.view' => self::OWN,

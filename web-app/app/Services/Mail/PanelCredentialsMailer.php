@@ -18,7 +18,7 @@ use Throwable;
  * when USE_SERVER_SMTP is on, else the local sendmail. A failed mail does
  * not fail the change, as in the legacy page.
  */
-final class PanelCredentialsMailer implements AccountMailer, CredentialsMailer
+final class PanelCredentialsMailer implements AccountMailer, CredentialsMailer, HostingCredentialsMailer
 {
     public function __construct(
         private readonly SysConfig $config,
@@ -97,6 +97,83 @@ final class PanelCredentialsMailer implements AccountMailer, CredentialsMailer
         );
 
         $this->send($to, $subject, $text, 'Account mail failed');
+    }
+
+    /** web/add/db: the "database_credentials" template or the built-in text. */
+    public function sendDatabaseCredentials(string $to, string $database, string $dbUser, string $password, string $dbAdmin, string $language): void
+    {
+        [$subject, $text] = $this->compose(
+            'database_credentials',
+            $language,
+            // The legacy page spells the placeholder {{dabase}}; templates use it.
+            ['{{dabase}}' => $database, '{{dbuser}}' => $dbUser],
+            sprintf(__('Database Credentials: %s'), $database),
+            __("Database has been created.\n\nDatabase: {{database}}\nUsername: {{username}}\nPassword: {{password}}\nSQL Manager: {{dbadmin}}\n\nBest regards,\n\n--\n{{appname}}"),
+            ['database' => htmlentities($database), 'username' => htmlentities($dbUser), 'password' => htmlentities($password), 'dbadmin' => $dbAdmin],
+        );
+
+        $this->send($to, $subject, $text, 'Database credentials mail failed');
+    }
+
+    /** web/add/mail and web/edit/mail: the "email_credentials" template or the built-in text. */
+    public function sendMailCredentials(string $to, array $details, string $language): void
+    {
+        [$subject, $text] = $this->compose(
+            'email_credentials',
+            $language,
+            ['{{account}}' => htmlentities($details['account']), '{{domain}}' => htmlentities($details['domain'])],
+            sprintf(__('Email Credentials: %s@%s'), htmlentities($details['account']), htmlentities($details['domain'])),
+            __("Mail account has been created.\n\nCommon Account Settings:\nUsername: {{account}}@{{domain}}\nPassword: {{password}}\nWebmail: {{webmail}}\nHostname: {{hostname}}\n\nIMAP Settings\nAuthentication: Normal Password\nSSL/TLS: Port 993\nSTARTTLS: Port 143\nNo encryption: Port 143\n\nPOP3 Settings\nAuthentication: Normal Password\nSSL/TLS: Port 995\nSTARTTLS: Port 110\nNo encryption: Port 110\n\nSMTP Settings\nAuthentication: Normal Password\nSSL/TLS: Port 465\nSTARTTLS: Port 587\nNo encryption: Port 25\n\nBest regards,\n\n--\n{{appname}}"),
+            [
+                'domain' => htmlentities($details['domain']),
+                'account' => htmlentities($details['account']),
+                'password' => htmlentities($details['password']),
+                'webmail' => $details['webmail'],
+                'hostname' => $details['hostname'],
+            ],
+        );
+
+        $this->send($to, $subject, $text, 'Mail credentials mail failed');
+    }
+
+    /**
+     * Subject and body of a credentials mail (translate_email in
+     * web/inc/main.php): the template's <subject> with $subjectVars, else
+     * SUBJECT_EMAIL with $fallbackSubject; the template body, else
+     * $fallbackBody, with {{name}} replaced from $bodyVars.
+     *
+     * @param  array<string, string>  $subjectVars  placeholder => value
+     * @param  array<string, string>  $bodyVars  name => value
+     * @return array{0: string, 1: string}
+     */
+    private function compose(string $name, string $language, array $subjectVars, string $fallbackSubject, string $fallbackBody, array $bodyVars): array
+    {
+        $appName = $this->config->get('APP_NAME', 'ArcPanel');
+        $hostname = (string) gethostname();
+
+        $template = $this->template($name, $language);
+        $subject = '';
+        if ($template !== null) {
+            if (preg_match('/<subject>(.*?)<\/subject>/si', $template, $matches) === 1) {
+                $subject = strtr($matches[1], ['{{hostname}}' => $hostname, '{{appname}}' => $appName] + $subjectVars);
+                $template = str_replace($matches[0], '', $template);
+            }
+        } else {
+            $template = $fallbackBody;
+        }
+        if ($subject === '') {
+            $subject = strtr(
+                $this->config->get('SUBJECT_EMAIL', '{{subject}}') ?: '{{subject}}',
+                ['{{subject}}' => $fallbackSubject, '{{hostname}}' => $hostname, '{{appname}}' => $appName],
+            );
+        }
+
+        $replace = ['{{appname}}' => $appName];
+        foreach ($bodyVars as $key => $value) {
+            $replace['{{'.$key.'}}'] = $value;
+        }
+
+        return [$subject, strtr($template, $replace)];
     }
 
     private function send(string $to, string $subject, string $text, string $failure): void

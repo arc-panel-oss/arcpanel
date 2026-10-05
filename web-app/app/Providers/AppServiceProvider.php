@@ -12,6 +12,7 @@ use App\Auth\Principal;
 use App\Services\Files\FileStaging;
 use App\Services\Mail\AccountMailer;
 use App\Services\Mail\CredentialsMailer;
+use App\Services\Mail\HostingCredentialsMailer;
 use App\Services\Mail\PanelCredentialsMailer;
 use App\Services\Node\NodeAccess;
 use App\Tenancy\TenancyDirectory;
@@ -68,6 +69,7 @@ class AppServiceProvider extends ServiceProvider
             Log::channel('arc'),
         ));
         $this->app->bind(AccountMailer::class, fn ($app) => $app->make(CredentialsMailer::class));
+        $this->app->bind(HostingCredentialsMailer::class, fn ($app) => $app->make(CredentialsMailer::class));
     }
 
     public function boot(): void

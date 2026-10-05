@@ -7,6 +7,9 @@ $TAB = "DB";
 // Main include
 include $_SERVER["DOCUMENT_ROOT"] . "/inc/main.php";
 
+// ArcPanel: served by the panel app when ARCPANEL_APP_PAGES is on (inc/arcpanel-routes.php)
+arc_redirect_if_migrated("/add/db/", $_GET);
+
 // Check POST request
 if (!empty($_POST["ok"]) && $read_only !== true) {
 	// Check token

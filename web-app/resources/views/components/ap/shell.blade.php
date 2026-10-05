@@ -210,7 +210,15 @@
     </div>
     <div class="ap-toast-region" data-toast-region aria-live="polite">
         @if (session('ok'))
-            <x-ap-toast type="ok" :title="session('ok')" />
+            <x-ap-toast type="ok" :title="session('ok')">
+                {{-- ok_link: {url, label}, e.g. "Open phpMyAdmin" after a database was added --}}
+                @if (is_array(session('ok_link')) && filled(session('ok_link')['url'] ?? null))
+                    <a href="{{ session('ok_link')['url'] }}" target="_blank" rel="noopener">{{ session('ok_link')['label'] ?? '' }}</a>
+                @endif
+            </x-ap-toast>
+        @endif
+        @if (session('warn'))
+            <x-ap-toast type="warn" :title="session('warn')" />
         @endif
         @if (session('error'))
             <x-ap-toast type="error" :title="session('error')" :message="session('error_detail')" />

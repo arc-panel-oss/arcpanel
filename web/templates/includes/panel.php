@@ -408,7 +408,7 @@
 						<li class="main-menu-item">
 							<a class="main-menu-item-link <?php if ($TAB == "DB") {
        	echo "active";
-       } ?>" href="/list/db/" title="<?= _("Databases") ?>: <?= $panel[$user]["U_DATABASES"] ?>&#13;<?= _("Limit") ?>: <?= $panel[$user]["DATABASES"] == "unlimited"
+       } ?>" href="<?= tohtml(arc_route("/list/db/")) ?>" title="<?= _("Databases") ?>: <?= $panel[$user]["U_DATABASES"] ?>&#13;<?= _("Limit") ?>: <?= $panel[$user]["DATABASES"] == "unlimited"
 	? "∞"
 	: $panel[$user]["DATABASES"] ?>&#13;<?= _("Suspended") ?>: <?= $panel[$user]["SUSPENDED_DB"] ?>">
 								<p class="main-menu-item-label"><?= _("DB") ?><i class="fas fa-database"></i></p>

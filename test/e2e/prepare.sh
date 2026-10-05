@@ -7,7 +7,8 @@
 #                                 a self-signed certificate as JSON; the
 #                                 users start without ports (E12);
 #                                 arce2edev on the developer package starts
-#                                 without Node.js (E13)
+#                                 without Node.js (E13); arce2euser has the
+#                                 database arce2euser_e2edb (E7)
 #   prepare.sh cleanup            deletes them again
 #   prepare.sh ports RANGE        allocates RANGE to arce2euser (E6)
 #   prepare.sh listen PORT        serves "arce2e-app-PORT" on 127.0.0.1:PORT
@@ -342,6 +343,10 @@ for user in $USERS; do
 	for domain in $("$B/v-list-web-domains" "$user" plain | awk '{print $1}'); do
 		"$B/v-delete-web-domain" "$user" "$domain" no > /dev/null
 	done
+	# E7 batch 1: every run starts without databases
+	for database in $("$B/v-list-databases" "$user" plain | awk '{print $1}'); do
+		"$B/v-delete-database" "$user" "$database" > /dev/null
+	done
 done
 "$B/v-change-user-role" arce2eadmin admin > /dev/null
 "$B/v-change-user-role" arce2ereseller reseller > /dev/null
@@ -354,6 +359,13 @@ nodeapps_reset
 dockerapps_reset
 "$B/v-add-web-domain" arce2euser e2e-site.example > /dev/null
 "$B/v-add-web-domain" arce2euser e2e-bulk.example > /dev/null
+# Databases spec (E7): arce2euser_e2edb
+if [ -n "$(grep -o "^DB_SYSTEM='[^']\+'" "$HESTIA/conf/hestia.conf" || true)" ]; then
+	file="$(mktemp)"
+	printf '%s\n' "$password" > "$file"
+	"$B/v-add-database" arce2euser e2edb e2edb "$file" > /dev/null
+	rm -f "$file"
+fi
 
 # The style guide is part of the accessibility run.
 if [ ! -f "$STATE" ]; then

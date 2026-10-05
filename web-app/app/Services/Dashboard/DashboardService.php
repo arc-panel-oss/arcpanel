@@ -16,6 +16,7 @@ use App\Services\WebDomains\WebDomainService;
 use App\Tenancy\TenancyDirectory;
 use Closure;
 use Illuminate\Contracts\Cache\Repository as Cache;
+use Illuminate\Support\Facades\Route;
 
 /**
  * Data of the dashboards (docs/design/05 §4.3–4.4, E1-S2 spec §7). Every
@@ -302,10 +303,13 @@ final class DashboardService
             ['label' => __('Disk'), 'value' => $mb('U_DISK'), 'limit' => $limitSize('DISK_QUOTA'), 'valueLabel' => $size($mb('U_DISK')), 'limitLabel' => $limitSize('DISK_QUOTA') === 'unlimited' ? '' : $size((float) $record['DISK_QUOTA'])],
             ['label' => __('Bandwidth'), 'value' => $mb('U_BANDWIDTH'), 'limit' => $limitSize('BANDWIDTH'), 'valueLabel' => $size($mb('U_BANDWIDTH')), 'limitLabel' => $limitSize('BANDWIDTH') === 'unlimited' ? '' : $size((float) $record['BANDWIDTH'])],
         ];
+        // Each count links to its list page once the module runs in the panel app (E7).
+        $pages = ['WEB_DOMAINS' => 'web.domains.index', 'DNS_DOMAINS' => 'dns.index', 'MAIL_DOMAINS' => 'mail.index', 'MAIL_ACCOUNTS' => 'mail.index', 'DATABASES' => 'db.index', 'CRON_JOBS' => 'cron.index'];
         foreach (['WEB_DOMAINS' => 'Web Domains', 'DNS_DOMAINS' => 'DNS Domains', 'MAIL_DOMAINS' => 'Mail Domains', 'MAIL_ACCOUNTS' => 'Mail Accounts', 'DATABASES' => 'Databases', 'CRON_JOBS' => 'Cron Jobs'] as $key => $label) {
             $limit = (string) ($record[$key] ?? 'unlimited');
             $used = (string) (int) ($record['U_'.$key] ?? 0);
-            $items[] = ['label' => __($label), 'value' => (float) $used, 'limit' => $limit, 'valueLabel' => $used, 'limitLabel' => $limit];
+            $url = Route::has($pages[$key]) ? route($pages[$key]) : null;
+            $items[] = ['label' => __($label), 'value' => (float) $used, 'limit' => $limit, 'valueLabel' => $used, 'limitLabel' => $limit, 'url' => $url];
         }
 
         return ['package' => (string) ($record['PACKAGE'] ?? ''), 'items' => $items];

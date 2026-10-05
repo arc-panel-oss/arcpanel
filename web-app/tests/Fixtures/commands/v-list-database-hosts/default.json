@@ -1,0 +1,15 @@
+{
+    "localhost": {
+        "HOST": "localhost",
+        "PORT": "3306",
+        "TYPE": "mysql",
+        "CHARSETS": "UTF8,LATIN1,WINDOWS-1250,WINDOWS-1251,WINDOWS-1252,WINDOWS-1256,WINDOWS-1258,KOI8-R",
+        "MAX_DB": "500",
+        "U_SYS_USERS": "",
+        "U_DB_BASES": "3",
+        "TPL": "template1",
+        "SUSPENDED": "no",
+        "TIME": "10:00:00",
+        "DATE": "2026-09-01"
+    }
+}

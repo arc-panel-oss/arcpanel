@@ -23,6 +23,9 @@ function arc_route(string $legacyPath): string {
 		"/add/web/" => "/app/web/domains/create",
 		// File manager (E3): /fm/ itself keeps FileGator until E8
 		"/fm/" => "/app/files",
+		// E7 batch 1 (docs/features/specs/2026-10-06-001-e7-batch1-pages-design.md §5.6)
+		"/list/db/" => "/app/db",
+		"/add/db/" => "/app/db/create",
 	];
 
 	return arc_app_pages() && isset($routes[$legacyPath]) ? $routes[$legacyPath] : $legacyPath;
@@ -70,6 +73,19 @@ function arc_redirect_if_migrated(string $legacyPath, array $query = []): void {
 			}
 			$type = ($query["type"] ?? "") === "error" ? "error" : "access";
 			$url = "/app/web/domains/" . $segment($owner) . "/" . $segment($domain) . "/logs/" . $type;
+			break;
+		case "/list/db/":
+			$url = "/app/db";
+			break;
+		case "/add/db/":
+			$url = "/app/db/create";
+			break;
+		case "/edit/db/":
+			$database = isset($query["database"]) ? (string) $query["database"] : "";
+			if ($database === "" || $owner === "") {
+				return;
+			}
+			$url = "/app/db/" . $segment($owner) . "/" . $segment($database) . "/edit";
 			break;
 		default:
 			return;

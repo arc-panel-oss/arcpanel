@@ -1,0 +1,24 @@
+{
+    "bob_wp": {
+        "DATABASE": "bob_wp",
+        "DBUSER": "bob_wp",
+        "HOST": "localhost",
+        "TYPE": "mysql",
+        "CHARSET": "UTF8MB4",
+        "U_DISK": "12",
+        "SUSPENDED": "no",
+        "TIME": "10:00:00",
+        "DATE": "2026-10-01"
+    },
+    "bob_shop": {
+        "DATABASE": "bob_shop",
+        "DBUSER": "bob_shopuser",
+        "HOST": "localhost",
+        "TYPE": "mysql",
+        "CHARSET": "UTF8MB4",
+        "U_DISK": "3",
+        "SUSPENDED": "yes",
+        "TIME": "11:00:00",
+        "DATE": "2026-10-02"
+    }
+}

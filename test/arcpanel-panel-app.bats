@@ -111,6 +111,8 @@ setup_file() {
     export PAGES_PASS
     v-add-user "$PAGES_USER" "$PAGES_PASS" "$PAGES_USER@example.invalid" default > /dev/null
     v-add-web-domain "$PAGES_USER" "$PAGES_USER.example" > /dev/null
+    # E7 batch 1: one object per migrated module
+    v-add-database "$PAGES_USER" db db "$PAGES_PASS" > /dev/null
 }
 
 teardown_file() {
@@ -159,6 +161,35 @@ teardown_file() {
     assert_output "302 $PANEL/list/web/"
     # the panel app pages stay reachable by URL
     run pages_get /app/web/domains
+    assert_output "200 "
+    v-change-sys-config-value ARCPANEL_APP_PAGES yes
+}
+
+# E7 batch 1 (docs/features/specs/2026-10-06-001-e7-batch1-pages-design.md §4)
+
+@test "Legacy database pages redirect to the panel app when ARCPANEL_APP_PAGES is yes" {
+    v-change-sys-config-value ARCPANEL_APP_PAGES yes
+    pages_login
+    run pages_get /list/db/
+    assert_output "302 $PANEL/app/db"
+    run pages_get /add/db/
+    assert_output "302 $PANEL/app/db/create"
+    run pages_get "/edit/db/?database=${PAGES_USER}_db"
+    assert_output "302 $PANEL/app/db/$PAGES_USER/${PAGES_USER}_db/edit"
+    run pages_get "/app/db/$PAGES_USER/${PAGES_USER}_db/edit"
+    assert_output "200 "
+}
+
+@test "Legacy database pages come back when ARCPANEL_APP_PAGES is no" {
+    v-change-sys-config-value ARCPANEL_APP_PAGES no
+    pages_login
+    run pages_get /list/db/
+    assert_output "200 "
+    run pages_get /add/db/
+    assert_output "200 "
+    run pages_get "/edit/db/?database=${PAGES_USER}_db"
+    assert_output "200 "
+    run pages_get /app/db
     assert_output "200 "
     v-change-sys-config-value ARCPANEL_APP_PAGES yes
 }

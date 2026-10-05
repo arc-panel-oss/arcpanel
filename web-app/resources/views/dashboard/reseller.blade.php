@@ -102,7 +102,7 @@
             <div class="ap-usage-list">
                 @foreach ($usage->data['items'] as $item)
                     <x-ap-usage-bar :label="$item['label']" :value="$item['value']" :limit="$item['limit'] === 'unlimited' ? null : (float) $item['limit']"
-                        :value-label="$item['valueLabel']" :limit-label="$item['limitLabel']" :unlimited="$item['limit'] === 'unlimited'" />
+                        :value-label="$item['valueLabel']" :limit-label="$item['limitLabel']" :unlimited="$item['limit'] === 'unlimited'" :href="$item['url'] ?? null" />
                 @endforeach
             </div>
         @else
