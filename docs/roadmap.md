@@ -152,6 +152,8 @@ Effort sizing for this team: **S** ≤ 2 weeks · **M** 3–5 weeks · **L** 6�
 
 **Success metric:** ≥ 25 new templates with metadata; template picker in the new Web Domain form. **Effort:** M total, S per batch. **Outcome:** O4.
 
+**Design:** [E6 batch 1 spec](./features/specs/2026-10-05-005-e6-templates-batch1-design.md) (metadata for every shipped template, per-domain variables with ports from E12, ten templates on both NGINX stacks, card picker in Laravel, four milestones). **Status:** approved 2026-10-05.
+
 ### E7 — Migrate remaining pages to Laravel
 
 **Hypothesis:** We believe migrating pages in dependency order (list → add → edit per module) with the E2 component library will take about one week per module, because each page maps to a small set of `v-*` calls that are already documented in the legacy code.
