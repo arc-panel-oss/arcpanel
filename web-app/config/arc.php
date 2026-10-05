@@ -37,4 +37,9 @@ return [
     // How long the output of v-list-sys-config is cached, in seconds.
     'sys_config_ttl' => (int) env('ARC_SYS_CONFIG_TTL', 60),
 
+    // File manager staging tree (E3), created by v-add-sys-panel-files. The
+    // commands accept staged files only below <root>/uploads of the
+    // installed panel app.
+    'files_staging' => env('ARC_FILES_STAGING', storage_path('app/files')),
+
 ];

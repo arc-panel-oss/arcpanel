@@ -3,6 +3,7 @@
 use App\Arc\ArcCommandException;
 use App\Http\Controllers\HealthController;
 use App\Http\Middleware\BindEffectiveUser;
+use App\Http\Middleware\FilesEnabled;
 use App\Http\Middleware\NotReadOnly;
 use App\Http\Middleware\RedirectIfLoggedIn;
 use App\Http\Middleware\RequirePrincipal;
@@ -41,6 +42,7 @@ $app = Application::configure(basePath: dirname(__DIR__))
             'guest.arc' => RedirectIfLoggedIn::class,
             'not-readonly' => NotReadOnly::class,
             'effective-user' => BindEffectiveUser::class,
+            'files.enabled' => FilesEnabled::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

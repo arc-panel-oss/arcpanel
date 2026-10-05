@@ -9,6 +9,7 @@ use App\Auth\LegacySession;
 use App\Auth\NativeLegacySession;
 use App\Auth\OwnerScope;
 use App\Auth\Principal;
+use App\Services\Files\FileStaging;
 use App\Services\Mail\AccountMailer;
 use App\Services\Mail\CredentialsMailer;
 use App\Services\Mail\PanelCredentialsMailer;
@@ -52,6 +53,9 @@ class AppServiceProvider extends ServiceProvider
 
         // Package key NODE per package, read once per request (E13)
         $this->app->scoped(NodeAccess::class);
+
+        // File manager staging tree (E3)
+        $this->app->bind(FileStaging::class, fn () => FileStaging::fromConfig());
 
         // The Principal is bound per request by ResolvePrincipal.
         $this->app->bind(OwnerScope::class, fn ($app) => new OwnerScope($app->make(Principal::class), $app->make(TenancyDirectory::class)));

@@ -4,6 +4,8 @@ use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\LogoutController;
 use App\Http\Controllers\Auth\TwoFactorController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\Files\FileController;
+use App\Http\Controllers\Files\FileTransferController;
 use App\Http\Controllers\ImpersonationController;
 use App\Http\Controllers\Node\NodeAppController;
 use App\Http\Controllers\Node\NodeController;
@@ -165,6 +167,33 @@ Route::middleware('auth.arc')->group(function () {
                         Route::put('/{domain}/scale', [NodeAppController::class, 'scale'])->name('scale');
                         Route::put('/{domain}/env', [NodeAppController::class, 'saveEnv'])->name('env.update');
                     });
+                });
+            });
+        });
+    });
+
+    // File manager (E3 spec §6.4)
+    Route::prefix('files')->name('files.')->middleware('files.enabled')->group(function () {
+        Route::middleware('effective-user')->prefix('{user}')->group(function () {
+            Route::get('/download/{ticket}', [FileTransferController::class, 'show'])->where('ticket', '[a-f0-9]{32}')->name('download');
+            Route::prefix('api')->name('api.')->group(function () {
+                Route::get('/list', [FileController::class, 'list'])->name('list');
+                Route::get('/info', [FileController::class, 'info'])->name('info');
+                Route::get('/read', [FileController::class, 'read'])->name('read');
+                Route::get('/size', [FileController::class, 'size'])->name('size');
+                Route::get('/search', [FileController::class, 'search'])->name('search');
+                // A download changes nothing: read-only sessions may download
+                Route::post('/download', [FileTransferController::class, 'download'])->name('download');
+                Route::middleware('not-readonly')->group(function () {
+                    Route::put('/save', [FileController::class, 'save'])->name('save');
+                    foreach (['mkdir', 'touch', 'rename', 'copy', 'move', 'delete', 'chmod', 'compress', 'extract'] as $action) {
+                        Route::post('/'.$action, [FileController::class, $action])->name($action);
+                    }
+                    Route::post('/upload', [FileTransferController::class, 'init'])->name('upload');
+                    Route::put('/upload/{token}/{index}', [FileTransferController::class, 'chunk'])
+                        ->where(['token' => '[a-f0-9]{32}', 'index' => '[0-9]{1,6}'])->name('upload.chunk');
+                    Route::post('/upload/{token}/finish', [FileTransferController::class, 'finish'])->where('token', '[a-f0-9]{32}')->name('upload.finish');
+                    Route::delete('/upload/{token}', [FileTransferController::class, 'cancel'])->where('token', '[a-f0-9]{32}')->name('upload.cancel');
                 });
             });
         });

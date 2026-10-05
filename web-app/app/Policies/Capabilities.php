@@ -66,6 +66,10 @@ final class Capabilities
         'node.apps.view' => self::ALL_ROLES,
         'node.apps.manage' => self::ALL_ROLES,
 
+        // File manager (E3 spec §6.4); FilePolicy adds suspension and read-only
+        'files.view' => self::ALL_ROLES,
+        'files.manage' => self::ALL_ROLES,
+
         'web.view' => self::ALL_ROLES,
         'web.create' => self::ALL_ROLES,
         'web.update' => self::ALL_ROLES,
@@ -80,7 +84,6 @@ final class Capabilities
         'db.view' => self::OWN,
         'cron.view' => self::OWN,
         'backups.view' => self::OWN,
-        'files.view' => self::OWN,
         'logs.view' => self::OWN,
         'stats.view' => self::OWN,
     ];
