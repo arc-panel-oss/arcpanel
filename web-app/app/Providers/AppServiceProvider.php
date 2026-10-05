@@ -9,6 +9,7 @@ use App\Auth\LegacySession;
 use App\Auth\NativeLegacySession;
 use App\Auth\OwnerScope;
 use App\Auth\Principal;
+use App\Services\Mail\AccountMailer;
 use App\Services\Mail\CredentialsMailer;
 use App\Services\Mail\PanelCredentialsMailer;
 use App\Tenancy\TenancyDirectory;
@@ -58,6 +59,7 @@ class AppServiceProvider extends ServiceProvider
             (string) config('arc.install_dir'),
             Log::channel('arc'),
         ));
+        $this->app->bind(AccountMailer::class, fn ($app) => $app->make(CredentialsMailer::class));
     }
 
     public function boot(): void

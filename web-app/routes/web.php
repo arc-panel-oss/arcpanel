@@ -10,6 +10,9 @@ use App\Http\Controllers\Shell\NotificationController;
 use App\Http\Controllers\Shell\PaletteController;
 use App\Http\Controllers\Shell\RrdController;
 use App\Http\Controllers\Shell\StyleguideController;
+use App\Http\Controllers\Users\UserActionController;
+use App\Http\Controllers\Users\UserController;
+use App\Http\Controllers\Users\UserEditController;
 use App\Http\Controllers\WebDomains\WebDomainActionController;
 use App\Http\Controllers\WebDomains\WebDomainController;
 use App\Http\Controllers\WebDomains\WebDomainEditController;
@@ -46,6 +49,30 @@ Route::middleware('auth.arc')->group(function () {
     Route::post('/_language', LanguageController::class)->name('shell.language');
     Route::get('/_rrd', RrdController::class)->name('shell.rrd');
     Route::get('/_styleguide', StyleguideController::class)->name('styleguide');
+
+    // Users and customers (E11 spec §7)
+    Route::get('/account', [UserEditController::class, 'account'])->name('account.edit');
+    Route::prefix('users')->name('users.')->group(function () {
+        Route::get('/', [UserController::class, 'index'])->name('index');
+        Route::get('/create', [UserController::class, 'create'])->name('create');
+        Route::get('/quota', [UserController::class, 'quota'])->name('quota');
+        Route::post('/', [UserController::class, 'store'])->middleware('not-readonly')->name('store');
+        Route::post('/bulk', [UserActionController::class, 'bulk'])->middleware('not-readonly')->name('bulk');
+
+        Route::middleware('effective-user')->prefix('{user}')->group(function () {
+            Route::get('/', [UserController::class, 'show'])->name('show');
+            Route::get('/edit', [UserEditController::class, 'edit'])->name('edit');
+
+            Route::middleware('not-readonly')->group(function () {
+                foreach (['general', 'package', 'nameservers', 'security', 'administration'] as $tab) {
+                    Route::post('/'.$tab, [UserEditController::class, $tab])->name('update.'.$tab);
+                }
+                Route::post('/suspend', [UserActionController::class, 'suspend'])->name('suspend');
+                Route::post('/unsuspend', [UserActionController::class, 'unsuspend'])->name('unsuspend');
+                Route::delete('/', [UserActionController::class, 'destroy'])->name('destroy');
+            });
+        });
+    });
 
     // Web domains (E1-S2 spec §8)
     Route::prefix('web/domains')->name('web.domains.')->group(function () {
