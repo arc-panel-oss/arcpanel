@@ -1,6 +1,6 @@
 # 09 — Web Templates with Metadata
 
-**Epic:** E6 · **Status:** Draft v1 · **Depends on:** nothing (batch 1 runs in Q1 parallel to E1) · **Unblocks:** E4 (`docker-proxy`), E14 (`nodejs-proxy`), E5 (runtime `requires`)
+**Epic:** E6 · **Status:** Draft v1; batch 1 implemented by the [E6 batch 1 spec](../features/specs/2026-10-05-005-e6-templates-batch1-design.md), which wins where it differs (metadata in `templates/web/meta/`, `v-change-web-domain-tpl-vars` with `BACKEND_PORT`, `func/arc-template.sh`) · **Depends on:** nothing (batch 1 runs in Q1 parallel to E1) · **Unblocks:** E4 (`docker-proxy`), E14 (`nodejs-proxy`), E5 (runtime `requires`)
 
 ---
 

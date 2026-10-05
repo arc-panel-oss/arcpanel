@@ -1,6 +1,6 @@
 # E6 batch 1 — Template metadata and ten new templates — design
 
-**Status:** Approved (2026-10-05) · **Epic:** E6 batch 1 · **Previous specs:** [E1-S2](./2026-10-05-002-e1-s2-dashboard-web-domains-design.md), [E12](./2026-10-05-004-e12-port-registry-design.md) · **Roadmap:** [§3 E6](../../roadmap.md)
+**Status:** Implemented (2026-10-05, see §13) · **Epic:** E6 batch 1 · **Previous specs:** [E1-S2](./2026-10-05-002-e1-s2-dashboard-web-domains-design.md), [E12](./2026-10-05-004-e12-port-registry-design.md) · **Roadmap:** [§3 E6](../../roadmap.md)
 
 ## 1. Summary
 
@@ -60,7 +60,7 @@ Lookup for template `NAME` of kind `KIND` (`web`, `proxy`, `backend`):
 | ------------- | ------------------------------------------------------------------------------------------------------------------------------- |
 | `title`       | required, ≤ 60 characters, English                                                                                              |
 | `description` | required, one sentence, ≤ 160 characters, English                                                                               |
-| `category`    | required, one of `php-cms`, `php-framework`, `ecommerce`, `nodejs`, `python`, `static`, `proxy`, `other`                        |
+| `category`    | required, one of `php-cms`, `php-framework`, `ecommerce`, `nodejs`, `python`, `static`, `proxy`, `general`, `other`             |
 | `runtime`     | optional, one of `php`, `node`, `python`, `docker`, `none`; informational (E5 links it to an installable runtime later)         |
 | `internal`    | optional, default `false`; `true` hides the template from the picker (`suspended`)                                              |
 | `variables`   | optional list. `key`: `[A-Z][A-Z0-9_]*`. `type`: `port` only in batch 1. `required`: boolean. `label`: English, ≤ 40 characters |
@@ -245,3 +245,19 @@ Apache2 templates; batch 2 and 3 templates; template documentation pages; variab
 | Admin copies a port template without its `.sh`             | tokens stay, `nginx -t` fails and the rebuild reports it; docs note that custom copies need the trigger |
 | Two copies of each template drift apart                    | both copies are reviewed together; the BATS render case covers both folders                             |
 | Metadata goes stale when upstream adds a template          | the CI check fails on a shipped template without metadata                                               |
+
+## 13. Implementation notes (2026-10-05)
+
+These notes win over the sections above where they differ.
+
+1. **Variables file location (§5.1, §8).** The variables live in `~/conf/web/<domain>/nginx.conf.tplvars` (root:user 640), as design document 09 §5 proposed, not in `data/users/<user>/web-tplvars/`. Upstream `v-backup-user` copies `nginx.conf*` on both stacks and `v-restore-user` copies the file back before re-rendering, so a restored domain keeps its port (BATS case "Backup and restore keep the variables of a domain"); `v-delete-web-domain` removes the folder. The §8 row "user restored from a backup" no longer applies. A renamed domain still loses its variables (the folder keeps the old name).
+2. **Ownership checked at render time (§5.3).** `arc_apply_tpl_vars` drops a port that is not in the owner's `data/ports/<user>.conf` (unless `PORT_REGISTRY='no'`), so a variables file restored from an edited backup cannot point a domain at another user's port; the domain serves the 503 page instead.
+3. **Category `general` (§4.2).** Added for the standard templates (`default` web and proxy templates, `hosting`, `caching`, the PHP-FPM pools). The list is `php-cms`, `php-framework`, `ecommerce`, `nodejs`, `python`, `static`, `proxy`, `general`, `other`.
+4. **Installation on upgrades (§4.1).** Fresh installs copy the whole template tree, but upgrades do not refresh `$WEBTPL` (`UPGRADE_UPDATE_WEB_TEMPLATES='false'`). New idempotent command `v-add-sys-web-templates-meta` copies `meta/` and the ten templates with their triggers; it runs in `install/upgrade/arcpanel/1.1.0.sh` and in `test/dev-sync.sh`. No domain is rebuilt.
+5. **Library and helpers.** Everything shell-side is in `func/arc-template.sh` (metadata lookup, variables, rendering, the `orphan-web` finding). `func/ports.sh` sources it for `ports_findings`; `v-check-sys-ports repair` releases `orphan-web` ports; the Laravel `PortFinding` labels the new type.
+6. **Proxy-stack details (§6).** On NGINX + Apache the templates write the full access and bytes logs to `/var/log/%web_system%/domains/` so traffic statistics keep working without Apache, proxy `/vstats/` to Apache (its password file is in Apache format), and leave out the phpMyAdmin/phpPgAdmin includes, which only exist for the NGINX + PHP-FPM copies. Asset caching is 30 days, not `max`, because static file names are not hashed.
+7. **WebSockets (§6).** WebSocket locations pass `Upgrade $http_upgrade` and `Connection $http_connection`; the `.stpl` of `nodejs-proxy-ws`, `docker-proxy`, `nextjs` and `strapi` drops the upstream `proxy_hide_header Upgrade`. Locations that hide `Cache-Control` also hide `Upgrade`, because a location-level `proxy_hide_header` replaces the server-level one.
+8. **Panel app (§7).** `TemplateCatalog`, `TemplateMeta`, `BackendPorts` (choices: `auto`, the current port, manual ports, `node:<domain>` and `docker:*` ports, up to 50 free ports), `TemplateForm` (view data) and `Tabs\TemplateVarsTab` (port steps and error wording). `ApplyResult` carries the exit code of the failed command so `E_FORBIDEN`, `E_INUSE` and `E_LIMIT` land on the port field. `x-ap-card-picker` gained `categories` (filter chips), `badge`, `meta` (file name) and an error line; search shows with more than eight cards. The list page shows template titles; the port is shown on the edit page header only, because the list would need one command per domain.
+9. **Port state before the app runs.** A domain with a port and no app answers NGINX's 502; the 503 "App not configured" page only appears without a port. The Playwright spec checks 502, then 200 once a listener runs.
+10. **Tests run.** BATS `test/arcpanel-templates.bats` 21/21 on `arcpanel-test` (NGINX + Apache; the NGINX + PHP-FPM copies are checked by rendering them into `nginx -t`), `test/arcpanel-ports.bats` 22/22, Pest 281 passed, Vitest card picker 4/4, Playwright 22/22 including Lighthouse accessibility ≥ 90, shellcheck clean, `scripts/check-template-meta.js` OK.
+11. **Not done here.** The `nginx-fpm` CI job and the upstream-diff allowlist belong to E10 and do not exist yet. `git diff` over `bin/`, `func/`, `install/` and `src/` since the spec commit shows only added files plus ArcPanel's own `v-check-sys-ports`, `func/ports.sh` and `install/upgrade/arcpanel/1.1.0.sh`.
