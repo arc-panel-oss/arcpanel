@@ -1,0 +1,77 @@
+#!/bin/bash
+# info: enable Node.js (nvm) for a user (E13)
+# options: USER
+#
+# example: v-add-user-nvm alice
+#
+# This function installs nvm into ~/.nvm of the user and adds the nvm block
+# to ~/.bashrc, so that `node`, `npm` and `nvm use` work in the user's shell.
+# The user's package must have NODE='yes'. Running it again repairs the
+# shell block. Node.js runtimes are added with v-add-user-node-version.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+user=$1
+
+# Includes
+# shellcheck source=/etc/hestiacp/hestia.conf
+source /etc/hestiacp/hestia.conf
+# shellcheck source=/usr/local/hestia/func/main.sh
+source $HESTIA/func/main.sh
+# shellcheck source=/usr/local/hestia/func/tenancy.sh
+source $HESTIA/func/tenancy.sh
+# shellcheck source=/usr/local/hestia/func/node.sh
+source $HESTIA/func/node.sh
+# load config file
+source_conf "$HESTIA/conf/hestia.conf"
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '1' "$#" 'USER'
+is_format_valid 'user'
+is_object_valid 'user' 'USER' "$user"
+is_object_unsuspended 'user' 'USER' "$user"
+
+[ -z "$HOMEDIR" ] && check_result "$E_NOTEXIST" "ArcPanel environment vars not present"
+
+node_check_enabled_package "$user"
+nvm_dir=$(node_nvm_dir "$user")
+node_check_path "$user" "$nvm_dir"
+
+# Perform verification if read-only mode is enabled
+check_hestia_demo_mode
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+if ! node_nvm_enabled "$user"; then
+	node_nvm_fetch
+	check_result $? "$NODE_ERROR"
+	prefix="nvm-$NODE_NVM_VERSION"
+	node_as_user "$user" mkdir -p "$nvm_dir"
+	node_as_user "$user" tar -xzf - -C "$nvm_dir" --strip-components=1 --no-same-owner \
+		"$prefix/nvm.sh" "$prefix/nvm-exec" "$prefix/bash_completion" "$prefix/LICENSE.md" \
+		< "$NODE_CACHE/nvm-$NODE_NVM_VERSION.tar.gz"
+	check_result $? "nvm could not be unpacked into $nvm_dir"
+	enabled=yes
+fi
+node_shell_block_add "$user"
+check_result $? "the nvm block could not be added to ~/.bashrc"
+
+#----------------------------------------------------------#
+#                       Hestia                             #
+#----------------------------------------------------------#
+
+# Logging
+if [ "$enabled" = 'yes' ]; then
+	$BIN/v-log-action "$user" "Info" "Node.js" "Node.js enabled."
+fi
+log_event "$OK" "$ARGUMENTS"
+
+exit

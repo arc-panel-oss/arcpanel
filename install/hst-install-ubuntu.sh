@@ -2523,6 +2523,8 @@ echo "41 4 * * * sudo /usr/local/hestia/bin/v-update-sys-hestia-all" >> /var/spo
 $HESTIA/bin/v-add-sys-tenancy
 # Port registry: server range, reserved ports, nightly check (E12)
 $HESTIA/bin/v-add-sys-port-registry
+# Node.js manager: download cache, release keys, developer package (E13)
+$HESTIA/bin/v-add-sys-node
 
 chmod 600 /var/spool/cron/crontabs/hestiaweb
 chown hestiaweb:hestiaweb /var/spool/cron/crontabs/hestiaweb

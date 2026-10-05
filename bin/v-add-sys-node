@@ -1,0 +1,88 @@
+#!/bin/bash
+# info: set up the Node.js manager (E13)
+# options: NONE
+#
+# example: v-add-sys-node
+#
+# This function prepares a server for per-user Node.js runtimes: the shared
+# download cache, the keyring of the Node.js releasers, the release index,
+# the daily refresh of the index and the "developer" package. It is safe to
+# run again and keeps packages an administrator has changed.
+# NODE_RELEASES_URL, NODE_SCHEDULE_URL and NODE_NVM_URL in hestia.conf
+# override the download locations (mirrors, tests).
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Includes
+# shellcheck source=/etc/hestiacp/hestia.conf
+source /etc/hestiacp/hestia.conf
+# shellcheck source=/usr/local/hestia/func/main.sh
+source $HESTIA/func/main.sh
+# shellcheck source=/usr/local/hestia/func/tenancy.sh
+source $HESTIA/func/tenancy.sh
+# shellcheck source=/usr/local/hestia/func/node.sh
+source $HESTIA/func/node.sh
+# load config file
+source_conf "$HESTIA/conf/hestia.conf"
+
+COMMON_PACKAGES="$HESTIA/install/common/packages"
+CRONTAB="/var/spool/cron/crontabs/hestiaweb"
+CRON_LINE="25 04 * * * sudo /usr/local/hestia/bin/v-update-sys-node-releases"
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+if [ "$(id -u)" != '0' ]; then
+	echo "Error: v-add-sys-node can only be executed by the root user"
+	exit "$E_FORBIDEN"
+fi
+
+# Perform verification if read-only mode is enabled
+check_hestia_demo_mode
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+# Cache and keyring
+node_cache_prepare
+if ! node_keyring_build; then
+	echo "Warning: the keyring of the Node.js releasers could not be built from $NODE_KEYS_SOURCE"
+fi
+
+# Release index; a server without network gets it on first use
+if [ ! -s "$NODE_CACHE/index.json" ]; then
+	node_releases_refresh > /dev/null 2>&1 || true
+fi
+
+# Developer package
+if [ ! -f "$HESTIA/data/packages/developer.pkg" ] && [ -f "$COMMON_PACKAGES/developer.pkg" ]; then
+	install -m 644 "$COMMON_PACKAGES/developer.pkg" "$HESTIA/data/packages/developer.pkg"
+	install -m 644 "$COMMON_PACKAGES/developer.tenancy" "$HESTIA/data/packages/developer.tenancy"
+	sed -i 's/\r$//' "$HESTIA/data/packages/developer.pkg" "$HESTIA/data/packages/developer.tenancy"
+	# Same nameservers as the default package
+	ns=$(grep -m1 "^NS=" "$HESTIA/data/packages/default.pkg" 2> /dev/null)
+	if [ -n "$ns" ]; then
+		sed -i "s/^NS=.*/$ns/" "$HESTIA/data/packages/developer.pkg"
+	fi
+fi
+
+# Daily refresh of the release index
+# (sed, not >>: fs.protected_regular forbids root to open another user's
+# file for appending in the sticky crontab directory)
+if [ -f "$CRONTAB" ] && ! grep -q "v-update-sys-node-releases" "$CRONTAB"; then
+	sed -i -e "\$a$CRON_LINE" "$CRONTAB"
+	chown hestiaweb:hestiaweb "$CRONTAB"
+	chmod 600 "$CRONTAB"
+fi
+
+#----------------------------------------------------------#
+#                       Hestia                             #
+#----------------------------------------------------------#
+
+log_event "$OK" "$ARGUMENTS"
+
+exit

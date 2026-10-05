@@ -1,0 +1,40 @@
+#!/bin/bash
+# info: refresh the Node.js release index (E13)
+# options: NONE
+#
+# example: v-update-sys-node-releases
+#
+# This function downloads index.json from the Node.js release server and the
+# release schedule (LTS and end-of-life dates) into the cache. A failed
+# download keeps the files of the last successful run.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Includes
+# shellcheck source=/etc/hestiacp/hestia.conf
+source /etc/hestiacp/hestia.conf
+# shellcheck source=/usr/local/hestia/func/main.sh
+source $HESTIA/func/main.sh
+# shellcheck source=/usr/local/hestia/func/tenancy.sh
+source $HESTIA/func/tenancy.sh
+# shellcheck source=/usr/local/hestia/func/node.sh
+source $HESTIA/func/node.sh
+# load config file
+source_conf "$HESTIA/conf/hestia.conf"
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+node_with_cache_lock index node_releases_refresh
+check_result $? "Could not download the release index from $(node_url_host "$(node_releases_url)")" "$E_CONNECT"
+
+#----------------------------------------------------------#
+#                       Hestia                             #
+#----------------------------------------------------------#
+
+log_event "$OK" "$ARGUMENTS"
+
+exit

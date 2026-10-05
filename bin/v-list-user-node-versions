@@ -1,0 +1,90 @@
+#!/bin/bash
+# info: list the Node.js runtimes of a user (E13)
+# options: USER [FORMAT]
+#
+# example: v-list-user-node-versions alice json
+#
+# This function reads ~/.nvm of the user and lists each installed runtime:
+# VERSION, MAJOR, DEFAULT, LTS, STATUS, EOL, SIZE (MB) and PACKAGES (global
+# packages besides npm and corepack). The json format adds the package
+# settings (NODE, ALLOWED, LIMIT), ENABLED (nvm installed), SHELL (nvm block
+# in ~/.bashrc), COUNT, DEFAULT and ARCH.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+user=$1
+format=${2-shell}
+
+# Includes
+# shellcheck source=/etc/hestiacp/hestia.conf
+source /etc/hestiacp/hestia.conf
+# shellcheck source=/usr/local/hestia/func/main.sh
+source $HESTIA/func/main.sh
+# shellcheck source=/usr/local/hestia/func/tenancy.sh
+source $HESTIA/func/tenancy.sh
+# shellcheck source=/usr/local/hestia/func/node.sh
+source $HESTIA/func/node.sh
+# load config file
+source_conf "$HESTIA/conf/hestia.conf"
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '1' "$#" 'USER [FORMAT]'
+is_format_valid 'user'
+is_object_valid 'user' 'USER' "$user"
+
+[ -z "$HOMEDIR" ] && check_result "$E_NOTEXIST" "ArcPanel environment vars not present"
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+releases='[]'
+if [ -s "$NODE_CACHE/index.json" ]; then
+	releases=$(node_releases_json)
+fi
+default=$(node_default "$user")
+
+rows=$(
+	for version in $(node_versions "$user"); do
+		dir=$(node_version_dir "$user" "$version")
+		size=$(node_as_user "$user" du -sm "$dir" 2> /dev/null | cut -f1)
+		packages=$(node_packages_lines "$user" "$version" | jq -r '.name' | grep -cvxE 'npm|corepack')
+		is_default=no
+		[ "$version" = "$default" ] && is_default=yes
+		jq -nc --arg v "$version" --arg d "$is_default" --arg s "${size:-0}" --arg p "$packages" \
+			--argjson rel "$releases" '
+			($v | split(".")[0]) as $m
+			| ([ $rel[] | select(.MAJOR == $m) ][0] // {}) as $r
+			| { VERSION: $v, MAJOR: $m, DEFAULT: $d, LTS: ($r.LTS // ""), STATUS: ($r.STATUS // ""),
+				EOL: ($r.EOL // ""), SIZE: $s, PACKAGES: $p }'
+	done
+)
+
+enabled=no
+node_nvm_enabled "$user" && enabled=yes
+shell_block=no
+node_shell_block_present "$user" && shell_block=yes
+
+json=$(printf '%s\n' "$rows" | jq -sc \
+	--arg user "$user" --arg package "$(node_package_of "$user")" \
+	--arg node "$(node_pkg_key "$user" NODE)" --arg allowed "$(node_pkg_key "$user" NODE_ALLOWED)" \
+	--arg limit "$(node_pkg_key "$user" NODE_VERSIONS)" --arg enabled "$enabled" \
+	--arg shell "$shell_block" --arg default "$default" --arg arch "$(node_arch)" \
+	--arg suspended "$(tenancy_user_value "$user" SUSPENDED)" '
+	{ USER: $user, PACKAGE: $package, NODE: $node, ALLOWED: $allowed, LIMIT: $limit,
+		ENABLED: $enabled, SHELL: $shell, SUSPENDED: $suspended, DEFAULT: $default, ARCH: $arch,
+		COUNT: (length | tostring), VERSIONS: . }')
+
+node_print "$format" "$json" '.VERSIONS' 'VERSION MAJOR DEFAULT LTS STATUS EOL SIZE PACKAGES'
+
+#----------------------------------------------------------#
+#                       Hestia                             #
+#----------------------------------------------------------#
+
+exit

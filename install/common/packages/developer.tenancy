@@ -1,0 +1,4 @@
+NODE='yes'
+NODE_VERSIONS='3'
+NODE_ALLOWED='lts'
+PORTS='10'

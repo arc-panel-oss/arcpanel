@@ -9,7 +9,9 @@
 #   $HESTIA/data/users/<user>/tenancy.conf     OWNER, R_* (resellers)       #
 #   $HESTIA/data/packages/<package>.tenancy    USERS, RESELLER_PACKAGES,    #
 #                                              RESELLER_VISIBLE,            #
-#                                              RESELLER_OWNER, PORTS (E12)  #
+#                                              RESELLER_OWNER, PORTS (E12), #
+#                                              NODE, NODE_VERSIONS,         #
+#                                              NODE_ALLOWED (E13)           #
 # See docs/features/specs/2026-10-05-003-e11-reseller-design.md.            #
 #                                                                           #
 #===========================================================================#
@@ -163,7 +165,9 @@ tenancy_pkg_get() {
 	if [ -z "$value" ]; then
 		case "$2" in
 			USERS | PORTS) value='0' ;;
-			RESELLER_VISIBLE) value='no' ;;
+			RESELLER_VISIBLE | NODE) value='no' ;;
+			NODE_VERSIONS) value='3' ;;
+			NODE_ALLOWED) value='lts' ;;
 		esac
 	fi
 	echo "$value"
@@ -197,8 +201,14 @@ tenancy_pkg_value_valid() {
 		USERS | PORTS)
 			[ "$value" = 'unlimited' ] || [[ "$value" =~ ^[0-9]{1,5}$ ]]
 			;;
-		RESELLER_VISIBLE)
+		RESELLER_VISIBLE | NODE)
 			[ "$value" = 'yes' ] || [ "$value" = 'no' ]
+			;;
+		NODE_VERSIONS)
+			[ "$value" = 'unlimited' ] || [[ "$value" =~ ^[0-9]{1,3}$ ]]
+			;;
+		NODE_ALLOWED)
+			[ "$value" = 'lts' ] || [ "$value" = '*' ] || [[ "$value" =~ ^[0-9]{1,3}(,[0-9]{1,3})*$ ]]
 			;;
 		RESELLER_PACKAGES)
 			if [ -z "$value" ] || [ "$value" = '*' ]; then
@@ -402,6 +412,9 @@ tenancy_package_json() {
 		printf '        "RESELLER_PACKAGES": "%s",\n' "$(tenancy_json_escape "$(tenancy_pkg_get "$package" RESELLER_PACKAGES)")"
 		printf '        "RESELLER_VISIBLE": "%s",\n' "$(tenancy_json_escape "$(tenancy_pkg_get "$package" RESELLER_VISIBLE)")"
 		printf '        "PORTS": "%s",\n' "$(tenancy_json_escape "$(tenancy_pkg_get "$package" PORTS)")"
+		printf '        "NODE": "%s",\n' "$(tenancy_json_escape "$(tenancy_pkg_get "$package" NODE)")"
+		printf '        "NODE_VERSIONS": "%s",\n' "$(tenancy_json_escape "$(tenancy_pkg_get "$package" NODE_VERSIONS)")"
+		printf '        "NODE_ALLOWED": "%s",\n' "$(tenancy_json_escape "$(tenancy_pkg_get "$package" NODE_ALLOWED)")"
 		printf '        "RESELLER_OWNER": "%s"\n    }' "$(tenancy_json_escape "$(tenancy_pkg_get "$package" RESELLER_OWNER)")"
 	)
 }

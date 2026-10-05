@@ -5,9 +5,11 @@
 # example: v-change-package-tenancy reseller USERS 25
 #
 # This function sets USERS (integer or unlimited), RESELLER_PACKAGES (comma
-# list of packages, or *), RESELLER_VISIBLE (yes or no) or PORTS (integer
-# or unlimited) of a package. PORTS of a reseller's own package cannot be
-# above the reseller's PORTS.
+# list of packages, or *), RESELLER_VISIBLE (yes or no), PORTS (integer
+# or unlimited), NODE (yes or no), NODE_VERSIONS (integer or unlimited) or
+# NODE_ALLOWED (lts, * or a comma list of majors) of a package. PORTS and
+# NODE_VERSIONS of a reseller's own package cannot be above the reseller's,
+# and its NODE cannot be yes when the reseller's is no.
 
 #----------------------------------------------------------#
 #                Variables & Functions                     #
@@ -36,18 +38,28 @@ check_args '2' "$#" 'PACKAGE KEY VALUE'
 is_format_valid 'package'
 is_package_valid "$package"
 case "$key" in
-	USERS | RESELLER_PACKAGES | RESELLER_VISIBLE | PORTS) ;;
+	USERS | RESELLER_PACKAGES | RESELLER_VISIBLE | PORTS | NODE | NODE_VERSIONS | NODE_ALLOWED) ;;
 	*) check_result "$E_INVALID" "invalid key $key" ;;
 esac
 if ! tenancy_pkg_value_valid "$key" "$value"; then
 	check_result "$E_INVALID" "invalid $key value :: $value"
 fi
 reseller=$(tenancy_pkg_get "$package" RESELLER_OWNER)
-if [ "$key" = 'PORTS' ] && [ -n "$reseller" ]; then
-	limit=$(tenancy_pkg_get "$(tenancy_user_value "$reseller" PACKAGE)" PORTS)
-	if [ "$limit" != 'unlimited' ] && { [ "$value" = 'unlimited' ] || [ "$value" -gt "$limit" ]; }; then
-		check_result "$E_LIMIT" "PORTS of $package cannot be above the reseller's PORTS ($limit)"
-	fi
+if [ -n "$reseller" ]; then
+	case "$key" in
+		PORTS | NODE_VERSIONS)
+			limit=$(tenancy_pkg_get "$(tenancy_user_value "$reseller" PACKAGE)" "$key")
+			if [ "$limit" != 'unlimited' ] && { [ "$value" = 'unlimited' ] || [ "$value" -gt "$limit" ]; }; then
+				check_result "$E_LIMIT" "$key of $package cannot be above the reseller's $key ($limit)"
+			fi
+			;;
+		NODE)
+			limit=$(tenancy_pkg_get "$(tenancy_user_value "$reseller" PACKAGE)" NODE)
+			if [ "$value" = 'yes' ] && [ "$limit" != 'yes' ]; then
+				check_result "$E_LIMIT" "NODE of $package cannot be yes: the reseller's package has NODE='no'"
+			fi
+			;;
+	esac
 fi
 
 # Perform verification if read-only mode is enabled

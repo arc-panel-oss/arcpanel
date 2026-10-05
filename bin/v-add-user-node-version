@@ -1,0 +1,114 @@
+#!/bin/bash
+# info: install a Node.js runtime for a user (E13)
+# options: USER SPEC
+#
+# example: v-add-user-node-version alice lts
+# example: v-add-user-node-version alice 22
+# example: v-add-user-node-version alice 24.3.0
+#
+# This function installs the newest Node.js release matching SPEC (lts, a
+# major, or X.Y.Z) into ~/.nvm/versions/node of the user. The release is
+# downloaded into the shared cache once, checked against the signature of
+# the Node.js releasers and its checksum, then unpacked by the user. The
+# package decides which majors (NODE_ALLOWED) and how many runtimes
+# (NODE_VERSIONS) are allowed. The first runtime becomes the default.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+user=$1
+spec=$2
+
+# Includes
+# shellcheck source=/etc/hestiacp/hestia.conf
+source /etc/hestiacp/hestia.conf
+# shellcheck source=/usr/local/hestia/func/main.sh
+source $HESTIA/func/main.sh
+# shellcheck source=/usr/local/hestia/func/tenancy.sh
+source $HESTIA/func/tenancy.sh
+# shellcheck source=/usr/local/hestia/func/node.sh
+source $HESTIA/func/node.sh
+# load config file
+source_conf "$HESTIA/conf/hestia.conf"
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '2' "$#" 'USER SPEC'
+is_format_valid 'user'
+is_object_valid 'user' 'USER' "$user"
+is_object_unsuspended 'user' 'USER' "$user"
+
+[ -z "$HOMEDIR" ] && check_result "$E_NOTEXIST" "ArcPanel environment vars not present"
+
+node_check_enabled_package "$user"
+if ! node_nvm_enabled "$user"; then
+	check_result "$E_NOTEXIST" "Node.js is not enabled for $user (v-add-user-nvm)"
+fi
+node_arch > /dev/null
+check_result $? "Node.js releases are not built for $(uname -m)" "$E_NOTEXIST"
+
+version=$(node_resolve "$spec")
+case $? in
+	0) ;;
+	"$E_INVALID") check_result "$E_INVALID" "invalid version :: $spec (lts, a major or X.Y.Z)" ;;
+	"$E_CONNECT") check_result "$E_CONNECT" "Could not download the release index from $(node_url_host "$(node_releases_url)")" ;;
+	*) check_result "$E_NOTEXIST" "No Node.js release matches $spec" ;;
+esac
+major=${version%%.*}
+
+if ! node_allowed "$user" "$major"; then
+	check_result "$E_FORBIDEN" "Node.js $major is not allowed by the package (NODE_ALLOWED='$(node_pkg_key "$user" NODE_ALLOWED)')"
+fi
+if node_version_installed "$user" "$version"; then
+	check_result "$E_EXISTS" "Node.js v$version is already installed"
+fi
+limit=$(node_pkg_key "$user" NODE_VERSIONS)
+count=$(node_versions "$user" | grep -c .)
+if [ "$limit" != 'unlimited' ] && [ "$count" -ge "$limit" ]; then
+	check_result "$E_LIMIT" "The package allows $limit Node.js runtimes (NODE_VERSIONS)"
+fi
+
+base="$(node_nvm_dir "$user")/versions/node"
+node_check_path "$user" "$base"
+
+# Perform verification if read-only mode is enabled
+check_hestia_demo_mode
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+node_cache_fetch "$version"
+check_result $? "$NODE_ERROR"
+
+echo "Unpacking Node.js v$version"
+node_as_user "$user" mkdir -p "$base"
+tmp=$(node_as_user "$user" mktemp -d "$base/.install.XXXXXX")
+check_result $? "$base is not writable"
+if ! node_as_user "$user" tar -xJf - -C "$tmp" --strip-components=1 --no-same-owner < "$(node_cache_tarball "$version")"; then
+	node_as_user "$user" rm -rf -- "$tmp"
+	check_result "$E_DISK" "Node.js v$version could not be unpacked (is the disk quota full?)"
+fi
+if ! node_as_user "$user" mv -T "$tmp" "$base/v$version"; then
+	node_as_user "$user" rm -rf -- "$tmp"
+	check_result "$E_EXISTS" "Node.js v$version is already installed"
+fi
+
+if [ -z "$(node_default "$user")" ]; then
+	node_set_default "$user" "$version"
+fi
+echo "Node.js v$version installed"
+
+#----------------------------------------------------------#
+#                       Hestia                             #
+#----------------------------------------------------------#
+
+# Logging
+$BIN/v-log-action "$user" "Info" "Node.js" "Node.js runtime installed (Version: $version)."
+log_event "$OK" "$ARGUMENTS"
+
+exit

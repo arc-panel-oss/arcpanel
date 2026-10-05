@@ -1,0 +1,81 @@
+#!/bin/bash
+# info: uninstall a Node.js runtime of a user (E13)
+# options: USER VERSION
+#
+# example: v-delete-user-node-version alice 22.3.0
+#
+# This function deletes one runtime from ~/.nvm/versions/node of the user,
+# with its global packages. When it was the default, the newest remaining
+# runtime becomes the default.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+user=$1
+version=${2#v}
+
+# Includes
+# shellcheck source=/etc/hestiacp/hestia.conf
+source /etc/hestiacp/hestia.conf
+# shellcheck source=/usr/local/hestia/func/main.sh
+source $HESTIA/func/main.sh
+# shellcheck source=/usr/local/hestia/func/tenancy.sh
+source $HESTIA/func/tenancy.sh
+# shellcheck source=/usr/local/hestia/func/node.sh
+source $HESTIA/func/node.sh
+# load config file
+source_conf "$HESTIA/conf/hestia.conf"
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '2' "$#" 'USER VERSION'
+is_format_valid 'user'
+is_object_valid 'user' 'USER' "$user"
+
+[ -z "$HOMEDIR" ] && check_result "$E_NOTEXIST" "ArcPanel environment vars not present"
+
+if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+	check_result "$E_INVALID" "invalid version :: $version"
+fi
+if ! node_version_installed "$user" "$version"; then
+	check_result "$E_NOTEXIST" "Node.js v$version is not installed"
+fi
+dir=$(node_version_dir "$user" "$version")
+node_check_path "$user" "$dir"
+if node_task_running "$user"; then
+	check_result "$E_INUSE" "Another Node.js task is running for $user"
+fi
+
+# Perform verification if read-only mode is enabled
+check_hestia_demo_mode
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+was_default=no
+if [ "$(node_default "$user")" = "$version" ]; then
+	was_default=yes
+fi
+
+node_as_user "$user" rm -rf -- "$dir"
+check_result $? "$dir could not be removed"
+node_outdated_clear "$user" "$version"
+
+if [ "$was_default" = 'yes' ]; then
+	node_set_default "$user" "$(node_versions "$user" | tail -n1)"
+fi
+
+#----------------------------------------------------------#
+#                       Hestia                             #
+#----------------------------------------------------------#
+
+# Logging
+$BIN/v-log-action "$user" "Info" "Node.js" "Node.js runtime removed (Version: $version)."
+log_event "$OK" "$ARGUMENTS"
+
+exit
