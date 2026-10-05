@@ -1,0 +1,15 @@
+{
+	"title": "Next.js",
+	"description": "Proxies to a Next.js server and caches its build assets for a year.",
+	"category": "nodejs",
+	"runtime": "node",
+	"variables": [
+		{
+			"key": "BACKEND_PORT",
+			"type": "port",
+			"required": true,
+			"label": "App port"
+		}
+	],
+	"docs": "https://docs.arcpanel.top/docs/server-administration/web-templates.html"
+}

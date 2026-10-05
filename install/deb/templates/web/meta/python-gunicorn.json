@@ -1,0 +1,15 @@
+{
+	"title": "Python app (Gunicorn)",
+	"description": "Proxies to a Gunicorn or Uvicorn server; /static/ and /media/ come from the document root.",
+	"category": "python",
+	"runtime": "python",
+	"variables": [
+		{
+			"key": "BACKEND_PORT",
+			"type": "port",
+			"required": true,
+			"label": "App port"
+		}
+	],
+	"docs": "https://docs.arcpanel.top/docs/server-administration/web-templates.html"
+}

@@ -1,0 +1,7 @@
+{
+	"title": "Single-page app",
+	"description": "Static single-page app: unknown paths return index.html for client-side routing.",
+	"category": "static",
+	"runtime": "none",
+	"docs": "https://docs.arcpanel.top/docs/server-administration/web-templates.html"
+}

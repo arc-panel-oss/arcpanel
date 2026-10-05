@@ -1,0 +1,15 @@
+{
+	"title": "Node.js app with WebSockets",
+	"description": "Node.js proxy that also passes WebSocket connections and keeps them open.",
+	"category": "nodejs",
+	"runtime": "node",
+	"variables": [
+		{
+			"key": "BACKEND_PORT",
+			"type": "port",
+			"required": true,
+			"label": "App port"
+		}
+	],
+	"docs": "https://docs.arcpanel.top/docs/server-administration/web-templates.html"
+}

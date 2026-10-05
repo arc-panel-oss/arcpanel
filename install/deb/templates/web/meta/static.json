@@ -1,0 +1,7 @@
+{
+	"title": "Static site",
+	"description": "Static files with long browser caching, gzip and security headers; PHP is never executed.",
+	"category": "static",
+	"runtime": "none",
+	"docs": "https://docs.arcpanel.top/docs/server-administration/web-templates.html"
+}

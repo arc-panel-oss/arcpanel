@@ -1,0 +1,15 @@
+{
+	"title": "Node.js app",
+	"description": "Proxies the domain to a Node.js process listening on a port of your pool.",
+	"category": "nodejs",
+	"runtime": "node",
+	"variables": [
+		{
+			"key": "BACKEND_PORT",
+			"type": "port",
+			"required": true,
+			"label": "App port"
+		}
+	],
+	"docs": "https://docs.arcpanel.top/docs/server-administration/web-templates.html"
+}

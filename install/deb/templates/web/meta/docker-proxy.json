@@ -1,0 +1,15 @@
+{
+	"title": "Docker container",
+	"description": "Proxies the domain to a container port with WebSockets, large uploads and streaming.",
+	"category": "proxy",
+	"runtime": "docker",
+	"variables": [
+		{
+			"key": "BACKEND_PORT",
+			"type": "port",
+			"required": true,
+			"label": "App port"
+		}
+	],
+	"docs": "https://docs.arcpanel.top/docs/server-administration/web-templates.html"
+}

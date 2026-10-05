@@ -1,0 +1,15 @@
+{
+	"title": "Ghost",
+	"description": "Proxies to a Ghost blog with uploads up to 50 MB and an uncached admin.",
+	"category": "nodejs",
+	"runtime": "node",
+	"variables": [
+		{
+			"key": "BACKEND_PORT",
+			"type": "port",
+			"required": true,
+			"label": "App port"
+		}
+	],
+	"docs": "https://docs.arcpanel.top/docs/server-administration/web-templates.html"
+}
