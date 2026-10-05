@@ -614,6 +614,26 @@ user_systemctl() {
     assert_success
 }
 
+@test "Persistence: the app of a deleted web domain is removed by v-check-sys-node" {
+    de=e.tna.example
+    v-add-web-domain $U2 $de > /dev/null
+    write_app $U2 $de server.js tna-e
+    run v-add-node-app $U2 $de
+    assert_success
+    port=$(app_field $U2 $de PORT)
+    run v-delete-web-domain $U2 $de
+    assert_success
+    run v-check-sys-node json
+    echo "$output" | jq -e --arg u "$U2" --arg d "$de" '[.FINDINGS[] | select(.USER == $u and .TYPE == "domain-missing" and .DOMAIN == $d)] | length == 1'
+    run v-check-sys-node repair
+    assert_success
+    [ ! -f "$HESTIA/data/users/$U2/nodeapps.conf" ] || ! grep -q "$de" "$HESTIA/data/users/$U2/nodeapps.conf"
+    assert_equal "$(port_app $U2 "$port")" ""
+    run pgrep -u $U2 -f "tna-e|$de"
+    assert_failure
+    assert_file_not_exists "/var/lib/systemd/linger/$U2"
+}
+
 #----------------------------------------------------------#
 #                        Last app                          #
 #----------------------------------------------------------#

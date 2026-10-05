@@ -86,6 +86,7 @@ done
 pending=''
 for domain in $(nodeapp_domains "$user"); do
 	if ! grep -qx "$domain" <<< "$web_domains"; then
+		nodeapp_forget "$user" "$domain"
 		"$BIN/v-release-user-port" "$user" "node:$domain" > /dev/null 2>&1
 		nodeapp_remove "$user" "$domain"
 		note "$domain removed: the web domain does not exist"

@@ -11,10 +11,11 @@
 # (apps should run but the user's daemon does not), app-missing (an app that
 # should run is not in pm2), daemon-suspended (a suspended user's daemon
 # runs), linger-orphan (daemon files of a user without apps),
-# runtime-missing (the runtime of an app is not installed) and over-limit
-# (more apps than NODE_APPS, reported only). MODE repair (run every 5
-# minutes from cron) fixes all but over-limit. The totals are the users with
-# apps, the running daemons, the apps and the memory of the daemons in MB.
+# runtime-missing (the runtime of an app is not installed), domain-missing
+# (the web domain of an app was deleted) and over-limit (more apps than
+# NODE_APPS, reported only). MODE repair (run every 5 minutes from cron)
+# fixes all but over-limit. The totals are the users with apps, the running
+# daemons, the apps and the memory of the daemons in MB.
 
 #----------------------------------------------------------#
 #                Variables & Functions                     #
@@ -131,6 +132,11 @@ for user in $(tenancy_all_users); do
 	fi
 	should=0
 	for domain in $(nodeapp_domains "$user"); do
+		if ! arc_tpl_domain_exists "$user" "$domain"; then
+			finding "$user" domain-missing "$domain" "the web domain does not exist"
+			rebuild=yes
+			continue
+		fi
 		if ! nodeapp_runtime "$user" "$(nodeapp_get "$user" "$domain" NODE_VERSION)" > /dev/null; then
 			finding "$user" runtime-missing "$domain" "Node.js $(nodeapp_get "$user" "$domain" NODE_VERSION) is not installed"
 			rebuild=yes
