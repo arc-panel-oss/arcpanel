@@ -1,0 +1,72 @@
+#!/bin/bash
+# info: read a text file of a user's home for the editor (E3)
+# options: USER PATH [MAX_BYTES]
+#
+# example: v-read-fs-file alice /home/alice/web/example.com/public_html/.htaccess
+#
+# This function prints a JSON header line {SIZE, MTIME, MIME, HASH} and then
+# the content of a regular file read as the user. HASH is the SHA-256 of the
+# printed content; v-save-fs-file expects it back. Files above MAX_BYTES
+# (default 2097152) are refused with E_LIMIT.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+user=$1
+path=$2
+max_bytes=${3:-2097152}
+
+# Includes
+# shellcheck source=/etc/hestiacp/hestia.conf
+source /etc/hestiacp/hestia.conf
+# shellcheck source=/usr/local/hestia/func/main.sh
+source $HESTIA/func/main.sh
+# shellcheck source=/usr/local/hestia/func/fs.sh
+source $HESTIA/func/fs.sh
+# load config file
+source_conf "$HESTIA/conf/hestia.conf"
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '2' "$#" 'USER PATH [MAX_BYTES]'
+is_format_valid 'user'
+is_object_valid 'user' 'USER' "$user"
+if ! [[ "$max_bytes" =~ ^[0-9]+$ ]]; then
+	check_result "$E_INVALID" "invalid size limit $max_bytes"
+fi
+fs_check_path "$path"
+if ! fs_user_test -f "$FS_REAL"; then
+	check_result "$E_NOTEXIST" "$path is not a file"
+fi
+if ! fs_user_test -r "$FS_REAL"; then
+	check_result "$E_FORBIDEN" "$path is not readable"
+fi
+size=$(user_exec stat -c %s -- "$FS_REAL" 2> /dev/null)
+if [ "${size:-0}" -gt "$max_bytes" ]; then
+	check_result "$E_LIMIT" "$path is larger than $max_bytes bytes"
+fi
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+# One copy, so the header describes exactly the bytes printed
+copy=$(mktemp)
+trap 'rm -f "$copy"' EXIT
+user_exec head -c "$((max_bytes + 1))" -- "$FS_REAL" > "$copy" 2> /dev/null
+if [ "$(stat -c %s -- "$copy")" -gt "$max_bytes" ]; then
+	check_result "$E_LIMIT" "$path is larger than $max_bytes bytes"
+fi
+
+fs_header_json "$copy" "$FS_REAL"
+cat -- "$copy"
+
+#----------------------------------------------------------#
+#                       Hestia                             #
+#----------------------------------------------------------#
+
+exit

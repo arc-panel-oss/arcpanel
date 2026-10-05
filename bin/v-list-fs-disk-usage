@@ -1,0 +1,65 @@
+#!/bin/bash
+# info: show the size of a folder of a user's home (E3)
+# options: USER DIR [FORMAT]
+#
+# example: v-list-fs-disk-usage alice /home/alice/web/example.com json
+#
+# This function counts the bytes below DIR as the user (du -sb) and gives up
+# after 30 seconds with E_LIMIT.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+user=$1
+dir=$2
+format=${3-shell}
+
+# Includes
+# shellcheck source=/etc/hestiacp/hestia.conf
+source /etc/hestiacp/hestia.conf
+# shellcheck source=/usr/local/hestia/func/main.sh
+source $HESTIA/func/main.sh
+# shellcheck source=/usr/local/hestia/func/fs.sh
+source $HESTIA/func/fs.sh
+# load config file
+source_conf "$HESTIA/conf/hestia.conf"
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '2' "$#" 'USER DIR [FORMAT]'
+is_format_valid 'user'
+is_object_valid 'user' 'USER' "$user"
+fs_check_path "$dir"
+if ! fs_user_test -e "$FS_REAL"; then
+	check_result "$E_NOTEXIST" "$dir doesn't exist"
+fi
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+# du exits non-zero for unreadable subfolders but still prints the total
+out=$(fs_user_exec_timeout 30 du -sb -- "$FS_REAL" 2> /dev/null)
+rc=$?
+if [ "$rc" -eq 124 ]; then
+	check_result "$E_LIMIT" "counting the size of $dir took too long"
+fi
+size=${out%%[[:space:]]*}
+if ! [[ "$size" =~ ^[0-9]+$ ]]; then
+	check_result "$E_FORBIDEN" "$dir is not readable"
+fi
+
+case "$format" in
+	json) jq -n --argjson size "$size" '{SIZE: $size}' ;;
+	*) echo "SIZE: $size" ;;
+esac
+
+#----------------------------------------------------------#
+#                       Hestia                             #
+#----------------------------------------------------------#
+
+exit

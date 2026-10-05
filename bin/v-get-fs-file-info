@@ -1,0 +1,66 @@
+#!/bin/bash
+# info: show one file or folder of a user's home (E3)
+# options: USER PATH [FORMAT]
+#
+# example: v-get-fs-file-info alice /home/alice/web/example.com/public_html/index.php json
+#
+# This function shows type, size, mode, owner, group, modification time, MIME
+# type and whether the user can write the entry, all seen as the user.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+user=$1
+path=$2
+format=${3-shell}
+
+# Includes
+# shellcheck source=/etc/hestiacp/hestia.conf
+source /etc/hestiacp/hestia.conf
+# shellcheck source=/usr/local/hestia/func/main.sh
+source $HESTIA/func/main.sh
+# shellcheck source=/usr/local/hestia/func/fs.sh
+source $HESTIA/func/fs.sh
+# load config file
+source_conf "$HESTIA/conf/hestia.conf"
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '2' "$#" 'USER PATH [FORMAT]'
+is_format_valid 'user'
+is_object_valid 'user' 'USER' "$user"
+fs_check_path "$path"
+if ! fs_user_test -e "$FS_REAL"; then
+	check_result "$E_NOTEXIST" "$path doesn't exist"
+fi
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+entry=$(fs_entries_json "$(fs_home "$user")" "$FS_REAL" -maxdepth 0 | jq -c '.[0] // empty')
+if [ -z "$entry" ]; then
+	check_result "$E_FORBIDEN" "$path is not readable"
+fi
+mime=$(user_exec file -b --mime-type -- "$FS_REAL" 2> /dev/null)
+writable=no
+if fs_user_test -w "$FS_REAL"; then
+	writable=yes
+fi
+json=$(jq -c --arg mime "${mime:-application/octet-stream}" --arg writable "$writable" --arg path "$FS_REAL" \
+	'. + {PATH: $path, MIME: $mime, WRITABLE: $writable}' <<< "$entry")
+
+case "$format" in
+	json) jq . <<< "$json" ;;
+	*) jq -r 'to_entries[] | "\(.key): \(.value)"' <<< "$json" ;;
+esac
+
+#----------------------------------------------------------#
+#                       Hestia                             #
+#----------------------------------------------------------#
+
+exit

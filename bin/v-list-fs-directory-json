@@ -1,0 +1,79 @@
+#!/bin/bash
+# info: list a directory of a user's home as JSON (E3)
+# options: USER DIR [OFFSET] [LIMIT] [SORT] [ORDER] [HIDDEN]
+#
+# example: v-list-fs-directory-json alice /home/alice/web 0 2000 name asc yes
+#
+# This function lists the entries of DIR as the user: folders first, then
+# sorted by SORT (name, size, mtime) in ORDER (asc, desc). HIDDEN=no drops
+# dot entries. LIMIT is at most 5000. Symlinks carry their target, the
+# target's type and whether the target stays in the home directory.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+user=$1
+dir=$2
+offset=${3:-0}
+limit=${4:-2000}
+sort=${5:-name}
+order=${6:-asc}
+hidden=${7:-yes}
+
+# Includes
+# shellcheck source=/etc/hestiacp/hestia.conf
+source /etc/hestiacp/hestia.conf
+# shellcheck source=/usr/local/hestia/func/main.sh
+source $HESTIA/func/main.sh
+# shellcheck source=/usr/local/hestia/func/fs.sh
+source $HESTIA/func/fs.sh
+# load config file
+source_conf "$HESTIA/conf/hestia.conf"
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '2' "$#" 'USER DIR [OFFSET] [LIMIT] [SORT] [ORDER] [HIDDEN]'
+is_format_valid 'user'
+is_object_valid 'user' 'USER' "$user"
+if ! [[ "$offset" =~ ^[0-9]+$ ]] || ! [[ "$limit" =~ ^[0-9]+$ ]] || [ "$limit" -lt 1 ]; then
+	check_result "$E_INVALID" "invalid offset or limit"
+fi
+if [ "$limit" -gt "$FS_LIST_MAX" ]; then
+	limit=$FS_LIST_MAX
+fi
+case "$sort" in name | size | mtime) ;; *) check_result "$E_INVALID" "invalid sort $sort" ;; esac
+case "$order" in asc | desc) ;; *) check_result "$E_INVALID" "invalid order $order" ;; esac
+case "$hidden" in yes | no) ;; *) check_result "$E_INVALID" "invalid hidden flag $hidden" ;; esac
+
+fs_check_path "$dir"
+if ! fs_user_test -d "$FS_REAL"; then
+	check_result "$E_NOTEXIST" "$dir is not a directory"
+fi
+if ! fs_user_test -r "$FS_REAL" || ! fs_user_test -x "$FS_REAL"; then
+	check_result "$E_FORBIDEN" "$dir is not readable"
+fi
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+fs_entries_json "$(fs_home "$user")" "$FS_REAL" -mindepth 1 -maxdepth 1 \
+	| jq --arg sort "$sort" --arg order "$order" --arg hidden "$hidden" \
+		--argjson offset "$offset" --argjson limit "$limit" '
+		map(select($hidden == "yes" or (.NAME | startswith(".") | not)))
+		| (if $sort == "size" then sort_by(.SIZE, (.NAME | ascii_downcase))
+			elif $sort == "mtime" then sort_by(.MTIME, (.NAME | ascii_downcase))
+			else sort_by((.NAME | ascii_downcase), .NAME) end)
+		| (if $order == "desc" then reverse else . end)
+		| (map(select(.TYPE == "d" or .LINK_TYPE == "d")) + map(select((.TYPE == "d" or .LINK_TYPE == "d") | not))) as $all
+		| {TOTAL: ($all | length), OFFSET: $offset, ENTRIES: $all[$offset:($offset + $limit)]}'
+
+#----------------------------------------------------------#
+#                       Hestia                             #
+#----------------------------------------------------------#
+
+exit

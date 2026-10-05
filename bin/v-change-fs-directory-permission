@@ -1,0 +1,75 @@
+#!/bin/bash
+# info: change the permissions of a folder of a user's home (E3)
+# options: USER DIR DIR_MODE [FILES_MODE] [RECURSIVE]
+#
+# example: v-change-fs-directory-permission alice /home/alice/web/example.com/public_html 0755 0644 yes
+#
+# This function changes the mode of DIR as the user. RECURSIVE=no (default)
+# changes DIR only. RECURSIVE=yes gives DIR_MODE to DIR and every folder
+# below it and FILES_MODE (default DIR_MODE) to every file below it;
+# symlinks are skipped. Entries the user does not own are left as they are
+# and the command ends with E_FORBIDEN after changing the rest.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+user=$1
+dir=$2
+dir_mode=$3
+files_mode=${4:-$3}
+recursive=${5:-no}
+
+# Includes
+# shellcheck source=/etc/hestiacp/hestia.conf
+source /etc/hestiacp/hestia.conf
+# shellcheck source=/usr/local/hestia/func/main.sh
+source $HESTIA/func/main.sh
+# shellcheck source=/usr/local/hestia/func/fs.sh
+source $HESTIA/func/fs.sh
+# load config file
+source_conf "$HESTIA/conf/hestia.conf"
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '3' "$#" 'USER DIR DIR_MODE [FILES_MODE] [RECURSIVE]'
+is_format_valid 'user'
+is_object_valid 'user' 'USER' "$user"
+
+# Perform verification if read-only mode is enabled
+check_hestia_demo_mode
+
+if ! fs_mode_valid "$dir_mode" || ! fs_mode_valid "$files_mode"; then
+	check_result "$E_INVALID" "invalid mode"
+fi
+case "$recursive" in yes | no) ;; *) check_result "$E_INVALID" "invalid recursive flag $recursive" ;; esac
+fs_check_path "$dir"
+if ! fs_user_test -d "$FS_REAL"; then
+	check_result "$E_NOTEXIST" "$dir is not a directory"
+fi
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+failed=no
+if [ "$recursive" = 'yes' ]; then
+	user_exec find "$FS_REAL" -type d -exec chmod "$dir_mode" {} + > /dev/null 2>&1 || failed=yes
+	user_exec find "$FS_REAL" -type f -exec chmod "$files_mode" {} + > /dev/null 2>&1 || failed=yes
+else
+	user_exec chmod "$dir_mode" -- "$FS_REAL" > /dev/null 2>&1 || failed=yes
+fi
+if [ "$failed" = 'yes' ]; then
+	check_result "$E_FORBIDEN" "some entries could not be changed"
+fi
+
+#----------------------------------------------------------#
+#                       Hestia                             #
+#----------------------------------------------------------#
+
+log_event "$OK" "$ARGUMENTS"
+
+exit

@@ -17,3 +17,7 @@ $HESTIA/bin/v-add-sys-node
 # Web template metadata and the batch 1 templates (E6)
 echo "[ * ] Installing web template metadata..."
 $HESTIA/bin/v-add-sys-web-templates-meta
+
+# File manager (E3): staging tree and the panel app's scheduler
+echo "[ * ] Setting up the file manager..."
+$HESTIA/bin/v-add-sys-panel-files

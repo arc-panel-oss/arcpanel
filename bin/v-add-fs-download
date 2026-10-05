@@ -1,0 +1,120 @@
+#!/bin/bash
+# info: prepare a download from a user's home (E3)
+# options: USER TICKET PATH [PATH...]
+#
+# example: v-add-fs-download alice 0123456789abcdef0123456789abcdef /home/alice/web/example.com/public_html
+#
+# This function writes the download ticket TICKET into the panel's staging
+# tree for hestia-nginx to serve: one regular file is copied as read by the
+# user; several paths or a folder are zipped as the user (symlinks stored as
+# links, never followed). All paths of a zip must share one parent folder.
+# Prints {NAME, SIZE, MIME}.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+argc=$#
+user=$1
+ticket=$2
+paths=("${@:3}")
+
+# Includes
+# shellcheck source=/etc/hestiacp/hestia.conf
+source /etc/hestiacp/hestia.conf
+# shellcheck source=/usr/local/hestia/func/main.sh
+source $HESTIA/func/main.sh
+# shellcheck source=/usr/local/hestia/func/fs.sh
+source $HESTIA/func/fs.sh
+# load config file
+source_conf "$HESTIA/conf/hestia.conf"
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '3' "$argc" 'USER TICKET PATH [PATH...]'
+is_format_valid 'user'
+is_object_valid 'user' 'USER' "$user"
+if ! fs_ticket_valid "$ticket"; then
+	check_result "$E_INVALID" "invalid ticket"
+fi
+if [ ! -d "$FS_DOWNLOADS" ]; then
+	check_result "$E_NOTEXIST" "the staging tree is missing (v-add-sys-panel-files)"
+fi
+target="$FS_DOWNLOADS/$ticket"
+if [ -e "$target" ] || [ -L "$target" ]; then
+	check_result "$E_EXISTS" "ticket already exists"
+fi
+
+reals=()
+parent=''
+for path in "${paths[@]}"; do
+	fs_check_path "$path"
+	if ! fs_user_test -e "$FS_REAL"; then
+		check_result "$E_NOTEXIST" "$path doesn't exist"
+	fi
+	if [ "$FS_REAL" = "$(fs_home "$user")" ]; then
+		check_result "$E_FORBIDEN" "the home directory cannot be downloaded as a whole"
+	fi
+	dir=$(dirname -- "$FS_REAL")
+	if [ -n "$parent" ] && [ "$dir" != "$parent" ]; then
+		check_result "$E_INVALID" "all paths must be in the same folder"
+	fi
+	parent=$dir
+	reals+=("$FS_REAL")
+done
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+cleanup_fail() {
+	rm -f -- "$target"
+	check_result "$1" "$2"
+}
+
+if [ "${#reals[@]}" -eq 1 ] && fs_user_test -f "${reals[0]}"; then
+	name=$(basename -- "${reals[0]}")
+	size=$(user_exec stat -c %s -- "${reals[0]}" 2> /dev/null)
+	if [ "${size:-0}" -gt "$(fs_staging_free)" ]; then
+		check_result "$E_DISK" "not enough space on the server for this download"
+	fi
+	install -o "$FS_STAGING_OWNER" -g "$FS_STAGING_OWNER" -m 600 /dev/null "$target"
+	if ! user_exec cat -- "${reals[0]}" > "$target" 2> /dev/null; then
+		cleanup_fail "$E_FORBIDEN" "$name is not readable"
+	fi
+	mime=$(file -b --mime-type -- "$target")
+else
+	names=()
+	for real in "${reals[@]}"; do
+		names+=("./$(basename -- "$real")")
+	done
+	estimate=$(fs_user_exec_timeout 120 du -sbc -- "${reals[@]}" 2> /dev/null | tail -n 1 | cut -f 1)
+	if [ "${estimate:-0}" -gt "$(fs_staging_free)" ]; then
+		check_result "$E_DISK" "not enough space on the server for this download"
+	fi
+	if [ "${#reals[@]}" -eq 1 ]; then
+		name="$(basename -- "${reals[0]}").zip"
+	else
+		name="files.zip"
+	fi
+	install -o "$FS_STAGING_OWNER" -g "$FS_STAGING_OWNER" -m 600 /dev/null "$target"
+	# shellcheck disable=SC2016
+	if ! user_exec sh -c 'cd "$1" || exit 1; shift; exec zip -qry - "$@"' sh "$parent" "${names[@]}" > "$target" 2> /dev/null; then
+		cleanup_fail "$E_FORBIDEN" "the selection could not be zipped"
+	fi
+	mime=application/zip
+fi
+chown "$FS_STAGING_OWNER:$FS_STAGING_OWNER" "$target"
+chmod 600 "$target"
+
+jq -cn --arg name "$name" --argjson size "$(stat -c %s -- "$target")" --arg mime "$mime" \
+	'{NAME: $name, SIZE: $size, MIME: $mime}'
+
+#----------------------------------------------------------#
+#                       Hestia                             #
+#----------------------------------------------------------#
+
+exit

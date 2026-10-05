@@ -1,0 +1,116 @@
+#!/bin/bash
+# info: move an uploaded file into a user's home (E3)
+# options: USER STAGED_FILE DST_PATH [MODE] [ON_CONFLICT]
+#
+# example: v-add-fs-upload alice /usr/local/hestia/web-app/storage/app/files/uploads/0123…/file /home/alice/web/example.com/public_html/logo.png 0644 rename
+#
+# This function writes STAGED_FILE (assembled by the panel) into DST_PATH as
+# the user, so the user's quota applies, with MODE (default 0644). An
+# existing destination fails with E_EXISTS (ON_CONFLICT=fail, default), is
+# replaced (overwrite) or the file gets the first free "name (n).ext"
+# (rename). Prints the final path. STAGED_FILE is always removed.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+user=$1
+staged=$2
+dst=$3
+mode=${4:-0644}
+on_conflict=${5:-fail}
+
+# Includes
+# shellcheck source=/etc/hestiacp/hestia.conf
+source /etc/hestiacp/hestia.conf
+# shellcheck source=/usr/local/hestia/func/main.sh
+source $HESTIA/func/main.sh
+# shellcheck source=/usr/local/hestia/func/fs.sh
+source $HESTIA/func/fs.sh
+# load config file
+source_conf "$HESTIA/conf/hestia.conf"
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '3' "$#" 'USER STAGED_FILE DST_PATH [MODE] [ON_CONFLICT]'
+is_format_valid 'user'
+is_object_valid 'user' 'USER' "$user"
+if ! fs_staged_valid "$staged"; then
+	check_result "$E_FORBIDEN" "invalid staged file $staged"
+fi
+trap 'rm -f -- "$staged"' EXIT
+
+# Perform verification if read-only mode is enabled
+check_hestia_demo_mode
+
+if ! fs_mode_valid "$mode"; then
+	check_result "$E_INVALID" "invalid mode $mode"
+fi
+case "$on_conflict" in fail | overwrite | rename) ;; *) check_result "$E_INVALID" "invalid conflict mode $on_conflict" ;; esac
+
+name=$(basename -- "$dst")
+if ! fs_name_valid "$name"; then
+	check_result "$E_INVALID" "invalid file name"
+fi
+fs_check_path "$(dirname -- "$dst")"
+parent=$FS_REAL
+if ! fs_user_test -d "$parent"; then
+	check_result "$E_NOTEXIST" "$(dirname -- "$dst") doesn't exist"
+fi
+if ! fs_user_test -w "$parent" || ! fs_user_test -x "$parent"; then
+	check_result "$E_FORBIDEN" "$(dirname -- "$dst") is not writable"
+fi
+
+final="$parent/$name"
+if fs_user_test -e "$final" || fs_user_test -L "$final"; then
+	case "$on_conflict" in
+		fail) check_result "$E_EXISTS" "$name already exists" ;;
+		rename)
+			name=$(fs_free_name "$parent" "$name") || check_result "$E_EXISTS" "no free name for $name"
+			final="$parent/$name"
+			;;
+		overwrite)
+			if fs_user_test -d "$final" && ! fs_user_test -L "$final"; then
+				check_result "$E_EXISTS" "$name is a folder"
+			fi
+			;;
+	esac
+fi
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+tmp=$(fs_temp_beside "$final")
+fs_write_as_user "$staged" "$tmp"
+rc=$?
+if [ "$rc" -eq "$E_DISK" ]; then
+	check_result "$E_DISK" "disk quota exceeded"
+elif [ "$rc" -ne 0 ]; then
+	check_result "$E_FORBIDEN" "$name was not uploaded"
+fi
+user_exec chmod "$mode" -- "$tmp" > /dev/null 2>&1
+
+if [ "$on_conflict" = 'overwrite' ]; then
+	user_exec mv -f -T -- "$tmp" "$final" > /dev/null 2>&1
+else
+	# -n: a file created since the check is never replaced
+	user_exec mv -n -T -- "$tmp" "$final" > /dev/null 2>&1
+fi
+if fs_user_test -e "$tmp"; then
+	user_exec rm -f -- "$tmp" > /dev/null 2>&1
+	check_result "$E_EXISTS" "$name already exists"
+fi
+
+echo "$final"
+
+#----------------------------------------------------------#
+#                       Hestia                             #
+#----------------------------------------------------------#
+
+log_event "$OK" "$ARGUMENTS"
+
+exit

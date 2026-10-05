@@ -2525,6 +2525,8 @@ $HESTIA/bin/v-add-sys-tenancy
 $HESTIA/bin/v-add-sys-port-registry
 # Node.js manager: download cache, release keys, developer package (E13)
 $HESTIA/bin/v-add-sys-node
+# File manager staging tree and the panel app's scheduler (E3)
+$HESTIA/bin/v-add-sys-panel-files
 
 chmod 600 /var/spool/cron/crontabs/hestiaweb
 chown hestiaweb:hestiaweb /var/spool/cron/crontabs/hestiaweb

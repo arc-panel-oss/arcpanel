@@ -1,0 +1,125 @@
+#!/bin/bash
+# info: save the editor content into a file of a user's home (E3)
+# options: USER STAGED_FILE DST_PATH [EXPECTED_HASH]
+#
+# example: v-save-fs-file alice /usr/local/hestia/web-app/storage/app/files/uploads/0123…/file /home/alice/web/example.com/public_html/index.php 9f86d0…
+#
+# This function writes STAGED_FILE (staged by the panel) into DST_PATH as the
+# user. An existing file must still have the SHA-256 EXPECTED_HASH that
+# v-read-fs-file printed (E_INUSE otherwise) and keeps its mode; a file the
+# user owns is replaced atomically, a file owned by someone else is rewritten
+# in place so it keeps its owner. A new file needs an empty EXPECTED_HASH.
+# Prints the JSON header of the saved content. STAGED_FILE is always removed.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+user=$1
+staged=$2
+dst=$3
+expected=$4
+
+# Includes
+# shellcheck source=/etc/hestiacp/hestia.conf
+source /etc/hestiacp/hestia.conf
+# shellcheck source=/usr/local/hestia/func/main.sh
+source $HESTIA/func/main.sh
+# shellcheck source=/usr/local/hestia/func/fs.sh
+source $HESTIA/func/fs.sh
+# load config file
+source_conf "$HESTIA/conf/hestia.conf"
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '3' "$#" 'USER STAGED_FILE DST_PATH [EXPECTED_HASH]'
+is_format_valid 'user'
+is_object_valid 'user' 'USER' "$user"
+if ! fs_staged_valid "$staged"; then
+	check_result "$E_FORBIDEN" "invalid staged file $staged"
+fi
+trap 'rm -f -- "$staged"' EXIT
+
+# Perform verification if read-only mode is enabled
+check_hestia_demo_mode
+
+if [ -n "$expected" ] && ! [[ "$expected" =~ ^[a-f0-9]{64}$ ]]; then
+	check_result "$E_INVALID" "invalid hash $expected"
+fi
+fs_check_path "$dst"
+real=$FS_REAL
+
+if fs_user_test -e "$real"; then
+	if ! fs_user_test -f "$real"; then
+		check_result "$E_FORBIDEN" "$dst is not a file"
+	fi
+	if ! fs_user_test -w "$real"; then
+		check_result "$E_FORBIDEN" "$dst is not writable"
+	fi
+	if [ -z "$expected" ]; then
+		check_result "$E_EXISTS" "$dst already exists"
+	fi
+	current=$(user_exec sha256sum -- "$real" 2> /dev/null | cut -d ' ' -f 1)
+	if [ "$current" != "$expected" ]; then
+		check_result "$E_INUSE" "$dst changed since it was read"
+	fi
+	exists=yes
+else
+	if [ -n "$expected" ]; then
+		check_result "$E_NOTEXIST" "$dst no longer exists"
+	fi
+	parent=$(dirname -- "$real")
+	if ! fs_user_test -d "$parent" || ! fs_user_test -w "$parent"; then
+		check_result "$E_FORBIDEN" "cannot create $dst"
+	fi
+	exists=no
+fi
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+owner=$(stat -c %U -- "$real" 2> /dev/null)
+if [ "$exists" = 'yes' ] && [ "$owner" != "$user" ]; then
+	# Rewrite in place: keeps owner, group, mode and hard links
+	# shellcheck disable=SC2016
+	err=$(user_exec sh -c 'cat > "$1"' sh "$real" < "$staged" 2>&1)
+	if [ $? -ne 0 ]; then
+		if fs_is_disk_error "$err"; then
+			check_result "$E_DISK" "disk quota exceeded"
+		fi
+		check_result "$E_FORBIDEN" "$dst was not saved"
+	fi
+else
+	tmp=$(fs_temp_beside "$real")
+	fs_write_as_user "$staged" "$tmp"
+	rc=$?
+	if [ "$rc" -eq "$E_DISK" ]; then
+		check_result "$E_DISK" "disk quota exceeded"
+	elif [ "$rc" -ne 0 ]; then
+		check_result "$E_FORBIDEN" "$dst was not saved"
+	fi
+	if [ "$exists" = 'yes' ]; then
+		mode=$(stat -c %a -- "$real")
+	else
+		mode=644
+	fi
+	user_exec chmod "$mode" -- "$tmp" > /dev/null 2>&1
+	if ! user_exec mv -f -T -- "$tmp" "$real" > /dev/null 2>&1; then
+		user_exec rm -f -- "$tmp" > /dev/null 2>&1
+		check_result "$E_FORBIDEN" "$dst was not saved"
+	fi
+fi
+
+fs_header_json "$staged" "$real"
+
+#----------------------------------------------------------#
+#                       Hestia                             #
+#----------------------------------------------------------#
+
+log_event "$OK" "$ARGUMENTS"
+
+exit

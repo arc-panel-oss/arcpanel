@@ -110,6 +110,7 @@ fi
 "$HESTIA/bin/v-add-sys-port-registry"
 "$HESTIA/bin/v-add-sys-node"
 "$HESTIA/bin/v-add-sys-web-templates-meta"
+"$HESTIA/bin/v-add-sys-panel-files"
 
 if [ "$restart_step" = yes ]; then
 	"$HESTIA/nginx/sbin/hestia-nginx" -t -q

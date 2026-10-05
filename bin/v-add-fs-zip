@@ -1,0 +1,87 @@
+#!/bin/bash
+# info: compress files of a user's home into a zip archive (E3)
+# options: USER ARCHIVE PATH [PATH...]
+#
+# example: v-add-fs-zip alice /home/alice/web/example.com/public_html/site.zip /home/alice/web/example.com/public_html/assets
+#
+# This function creates the new zip archive ARCHIVE as the user from PATHs
+# that share one parent folder, which is also the folder of ARCHIVE.
+# Symlinks are stored as links.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+argc=$#
+user=$1
+archive=$2
+paths=("${@:3}")
+
+# Includes
+# shellcheck source=/etc/hestiacp/hestia.conf
+source /etc/hestiacp/hestia.conf
+# shellcheck source=/usr/local/hestia/func/main.sh
+source $HESTIA/func/main.sh
+# shellcheck source=/usr/local/hestia/func/fs.sh
+source $HESTIA/func/fs.sh
+# load config file
+source_conf "$HESTIA/conf/hestia.conf"
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '3' "$argc" 'USER ARCHIVE PATH [PATH...]'
+is_format_valid 'user'
+is_object_valid 'user' 'USER' "$user"
+
+# Perform verification if read-only mode is enabled
+check_hestia_demo_mode
+
+name=$(basename -- "$archive")
+if ! fs_name_valid "$name" || [[ "$name" != *.zip ]]; then
+	check_result "$E_INVALID" "invalid archive name"
+fi
+fs_check_path "$(dirname -- "$archive")"
+parent=$FS_REAL
+if fs_user_test -e "$parent/$name" || fs_user_test -L "$parent/$name"; then
+	check_result "$E_EXISTS" "$name already exists"
+fi
+if ! fs_user_test -w "$parent"; then
+	check_result "$E_FORBIDEN" "$(dirname -- "$archive") is not writable"
+fi
+
+names=()
+for path in "${paths[@]}"; do
+	fs_check_path "$path"
+	if ! fs_user_test -e "$FS_REAL"; then
+		check_result "$E_NOTEXIST" "$path doesn't exist"
+	fi
+	if [ "$(dirname -- "$FS_REAL")" != "$parent" ]; then
+		check_result "$E_INVALID" "all paths must be in the folder of the archive"
+	fi
+	names+=("./$(basename -- "$FS_REAL")")
+done
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+# shellcheck disable=SC2016
+err=$(user_exec sh -c 'cd "$1" || exit 1; out=$2; shift 2; exec zip -qry "$out" "$@"' sh "$parent" "./$name" "${names[@]}" 2>&1)
+if [ $? -ne 0 ]; then
+	user_exec rm -f -- "$parent/$name" > /dev/null 2>&1
+	if fs_is_disk_error "$err"; then
+		check_result "$E_DISK" "disk quota exceeded"
+	fi
+	check_result "$E_FORBIDEN" "the archive was not created"
+fi
+
+#----------------------------------------------------------#
+#                       Hestia                             #
+#----------------------------------------------------------#
+
+log_event "$OK" "$ARGUMENTS"
+
+exit
