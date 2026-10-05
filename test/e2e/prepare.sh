@@ -13,6 +13,9 @@
 #   prepare.sh listen PORT        serves "arce2e-app-PORT" on 127.0.0.1:PORT
 #   prepare.sh http DOMAIN        prints the HTTP status, then the start of
 #                                 the body, of arce2euser's DOMAIN
+#   prepare.sh files              fixtures of the file manager spec (E3);
+#                                 files-stat FILE, files-config KEY VALUE,
+#                                 files-gc and files-clean go with it
 set -euo pipefail
 
 HESTIA="${HESTIA:-/usr/local/hestia}"
@@ -116,7 +119,85 @@ nodeapps_prepare() {
 	EOF
 }
 
+# File manager (E3): arce2euser gets a folder of fixtures below the
+# document root of e2e-site.example; the spec uploads, edits and moves
+# files there through the panel.
+FILES_ROOT=/home/arce2euser/web/e2e-site.example/public_html/e2e-files
+
+# Write FILE (relative to FILES_ROOT) as arce2euser
+user_file() {
+	local path="$FILES_ROOT/$1"
+	runuser -u arce2euser -- mkdir -p "$(dirname "$path")"
+	runuser -u arce2euser -- tee "$path" > /dev/null
+}
+
+files_prepare() {
+	runuser -u arce2euser -- rm -rf "$FILES_ROOT"
+	runuser -u arce2euser -- mkdir -p "$FILES_ROOT"
+	printf '<?php echo "arce2e-before";\n' | user_file edit.php
+	printf '# arce2e htaccess\n' | user_file .htaccess
+	printf 'hello' | user_file 'my site/a b.txt'
+	printf 'xin chào' | user_file 'my site/ảnh/x.txt'
+	ln -s /etc/passwd "$FILES_ROOT/my site/outside"
+	chown -h arce2euser:arce2euser "$FILES_ROOT/my site/outside"
+	echo 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==' | base64 -d | user_file photo.png
+	printf '%%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj 2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj 3 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 200 200]>>endobj\ntrailer<</Root 1 0 R>>\n%%%%EOF\n' | user_file doc.pdf
+	head -c 4096 /dev/urandom | user_file clip.mp4
+	head -c 5242880 /dev/zero | tr '\0' 'a' | user_file big.log
+	printf 'one' | user_file 'archive-src/one.txt'
+	runuser -u arce2euser -- sh -c "cd '$FILES_ROOT' && zip -qr site.zip archive-src && rm -rf archive-src"
+}
+
 case "${1:-}" in
+	files)
+		files_prepare
+		exit 0
+		;;
+	files-http)
+		# The body of e2e-files/FILE on e2e-site.example over HTTP
+		curl -s --noproxy '*' --max-time 10 --resolve "e2e-site.example:80:$(domain_ip e2e-site.example)" \n "http://e2e-site.example/e2e-files/${2:?file}" || true
+		exit 0
+		;;
+	files-suspend)
+		"$B/v-suspend-user" "${2:?user}" > /dev/null
+		exit 0
+		;;
+	files-unsuspend)
+		"$B/v-unsuspend-user" "${2:?user}" > /dev/null 2>&1 || true
+		exit 0
+		;;
+	files-clean)
+		runuser -u arce2euser -- rm -rf "$FILES_ROOT"
+		exit 0
+		;;
+	files-stat)
+		# owner:group mode size, then the first bytes, of FILE below FILES_ROOT
+		path="$FILES_ROOT/${2:?file}"
+		stat -c '%U:%G %a %s' -- "$path"
+		if [ -f "$path" ]; then
+			head -c 200 -- "$path"
+		fi
+		exit 0
+		;;
+	files-config)
+		"$B/v-change-sys-config-value" "${2:?key}" "${3:?value}"
+		forget_config_cache
+		exit 0
+		;;
+	files-gc)
+		# An upload session older than 24 h and a ticket older than an hour,
+		# then the scheduler's clean-up; prints what is left of them
+		staging="$HESTIA/web-app/storage/app/files"
+		token=e2e0000000000000000000000000beef
+		install -d -o hestiaweb -g hestiaweb -m 700 "$staging/uploads/$token" "$staging/uploads/$token/chunks"
+		printf '{"created":%s}' "$(($(date +%s) - 90000))" > "$staging/uploads/$token/meta.json"
+		touch "$staging/downloads/$token" "$staging/downloads/$token.json"
+		chown hestiaweb:hestiaweb "$staging/uploads/$token/meta.json" "$staging/downloads/$token" "$staging/downloads/$token.json"
+		touch -d '2 hours ago' "$staging/downloads/$token" "$staging/downloads/$token.json"
+		runuser -u hestiaweb -- "$HESTIA/php/bin/php" "$HESTIA/web-app/artisan" files:gc > /dev/null
+		find "$staging" -name "$token*" | wc -l
+		exit 0
+		;;
 	ports)
 		"$B/v-add-user-port" arce2euser "${2:?range}" > /dev/null
 		exit 0

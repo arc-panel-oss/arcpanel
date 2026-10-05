@@ -11,6 +11,7 @@ use App\Http\Requests\WebDomains\GeneralRequest;
 use App\Http\Requests\WebDomains\RedirectRequest;
 use App\Http\Requests\WebDomains\SslRequest;
 use App\Http\Requests\WebDomains\StatsRequest;
+use App\Policies\FilePolicy;
 use App\Policies\WebDomainPolicy;
 use App\Services\Mail\CredentialsMailer;
 use App\Services\Ports\PortService;
@@ -45,7 +46,7 @@ final class WebDomainEditController extends Controller
         private readonly TemplateCatalog $catalog,
     ) {}
 
-    public function edit(string $user, string $domain, Principal $principal, WebDomainPolicy $policy, SysConfig $config, UserDirectory $directory, TemplateForm $form): View
+    public function edit(string $user, string $domain, Principal $principal, WebDomainPolicy $policy, SysConfig $config, UserDirectory $directory, TemplateForm $form, FilePolicy $files): View
     {
         abort_unless($policy->view($principal, $user), 403);
         $record = $this->web->find($user, $domain);
@@ -86,8 +87,9 @@ final class WebDomainEditController extends Controller
             'statsEngines' => $this->web->statsEngines(),
             'canPurge' => $this->web->canPurgeCache(),
             'ftpPrefix' => $user.'_',
-            'fileManagerUrl' => $config->is('FILE_MANAGER', 'true') && ! $principal->isReadOnly()
-                ? '/fm/?'.http_build_query(['path' => '/home/'.$user.'/web/'.$domain.'/public_html'])
+            // File manager (E3 spec §7.7): the document root of the domain
+            'fileManagerUrl' => $config->is('FILE_MANAGER', 'true') && $files->view($principal, $user)
+                ? route('files.show', ['user' => $user, 'path' => 'web/'.$domain.'/public_html'])
                 : null,
             'appInstallerUrl' => $config->get('PLUGIN_APP_INSTALLER') !== 'false' && $can['update'] && $user === $principal->effectiveUser()
                 ? Navigation::url('web.apps.install').'?'.http_build_query(['domain' => $domain, 'token' => $principal->legacyToken])

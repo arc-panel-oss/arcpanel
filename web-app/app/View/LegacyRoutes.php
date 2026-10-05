@@ -15,7 +15,6 @@ final class LegacyRoutes
         'db.index' => '/list/db/',
         'cron.index' => '/list/cron/',
         'backups.index' => '/list/backup/',
-        'files.index' => '/fm/',
         'terminal.index' => '/list/terminal/',
         'server.services' => '/list/server/',
         'server.settings' => '/edit/server/',

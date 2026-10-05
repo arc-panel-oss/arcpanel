@@ -21,6 +21,8 @@ function arc_route(string $legacyPath): string {
 		"/" => "/app/",
 		"/list/web/" => "/app/web/domains",
 		"/add/web/" => "/app/web/domains/create",
+		// File manager (E3): /fm/ itself keeps FileGator until E8
+		"/fm/" => "/app/files",
 	];
 
 	return arc_app_pages() && isset($routes[$legacyPath]) ? $routes[$legacyPath] : $legacyPath;

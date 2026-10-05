@@ -63,7 +63,8 @@ it('opens the wizard and the page of an app', function () {
     expect($props['view'])->toBe('show')
         ->and($props['app']['domain'])->toBe('api.bob.example')
         ->and($props['runtimes'][0]['version'])->toBe('24.21.0')
-        ->and($props['maxInstances'])->toBe(4);
+        ->and($props['maxInstances'])->toBe(4)
+        ->and($props['pages']['files'])->toBe('http://localhost/files/bob');
 
     $this->get('/node/bob/apps/none.bob.example')->assertNotFound();
 });

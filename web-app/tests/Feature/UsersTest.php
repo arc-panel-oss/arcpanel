@@ -60,7 +60,8 @@ it('keeps users out of user management', function () {
 
 it('shows a customer to its reseller and nobody else', function () {
     signIn('hostco', 'reseller');
-    $this->get('/users/bob')->assertOk()->assertSee('Bob Builder')->assertSee('example.com')->assertSee('Log in as');
+    $this->get('/users/bob')->assertOk()->assertSee('Bob Builder')->assertSee('example.com')->assertSee('Log in as')
+        ->assertSee('href="http://localhost/files/bob"', false);
     $this->get('/users/carol')->assertNotFound();
     $this->get('/users/hostco')->assertNotFound();
 

@@ -2,8 +2,10 @@
 
 namespace App\Http\Controllers\Node;
 
+use App\Arc\SysConfig;
 use App\Auth\Principal;
 use App\Http\Controllers\Controller;
+use App\Policies\FilePolicy;
 use App\Policies\NodePolicy;
 use App\Services\Node\NodeAppService;
 use App\Services\Node\NodeService;
@@ -34,7 +36,7 @@ final class NodeAppPageController extends Controller
         'Next.js and Nuxt start with the start script (next start, nuxt start).', 'No Node.js app yet.',
         'No package.json in this folder yet; you can upload the code later and start the app then.', 'No variable yet.', 'Node.js apps',
         'Node.js is not included in your package.', 'Node.js version', 'Not running', 'Nothing logged yet.', 'Online', 'Open', 'Open %s',
-        'Open the Node.js page', 'Open the app', 'Open the site', 'Output', 'Overview', 'Pause', 'Port', 'Port and name', 'Port number',
+        'Open the Node.js page', 'Open app folder', 'Open the app', 'Open the site', 'Output', 'Overview', 'Pause', 'Port', 'Port and name', 'Port number',
         'Process name', 'Read package.json', 'Read-only: changes are disabled.', 'Relative to the folder of the domain, e.g. public_html or app.',
         'Reload', 'Remove %s', 'Resources', 'Restart', 'Restart above', 'Restart above (MB)', 'Restarts', 'Resume', 'Run build', 'Running', 'Runtime',
         'Save', 'Save and restart', 'Saved; the app was restarted.', 'Script', 'Select %s', 'Select all', 'Settings', 'Show %s', 'Show the output',
@@ -51,6 +53,8 @@ final class NodeAppPageController extends Controller
     public function __construct(
         private readonly NodeAppService $apps,
         private readonly NodeService $node,
+        private readonly FilePolicy $files,
+        private readonly SysConfig $config,
     ) {}
 
     /** /node-apps: the list of the effective account. */
@@ -126,6 +130,8 @@ final class NodeAppPageController extends Controller
                 'create' => route('node.apps.create', ['user' => $user]),
                 'show' => route('node.apps.show', ['user' => $user, 'domain' => '__DOMAIN__']),
                 'node' => $policy->view($principal, $user) ? route('node.show', ['user' => $user]) : null,
+                // File manager (E3 spec §7.7): the folder of an app
+                'files' => $this->config->is('FILE_MANAGER', 'true') && $this->files->view($principal, $user) ? route('files.show', ['user' => $user]) : null,
             ],
             'abilities' => $policy->appAbilities($principal, $user),
             'task' => $this->node->task($user)->toArray(),

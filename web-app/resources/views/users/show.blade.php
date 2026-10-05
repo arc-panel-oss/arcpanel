@@ -31,6 +31,9 @@
         </div>
     </x-slot:head>
     <x-slot:actions>
+        @if ($filesUrl)
+            <x-ap-button :href="$filesUrl" icon="folder">{{ __('Files') }}</x-ap-button>
+        @endif
         @if ($can['impersonate'])
             <x-ap-button :form-action="route('impersonate.start', ['user' => $record->name])" icon="switch">{{ __('Log in as') }}</x-ap-button>
         @endif

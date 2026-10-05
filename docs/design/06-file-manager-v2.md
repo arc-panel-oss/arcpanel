@@ -1,6 +1,6 @@
 # 06 — File Manager v2
 
-**Epic:** E3 · **Status:** Draft v1 · **Depends on:** E1, E2 · **Unblocks:** E8 (FileGator removal), deep links from E4/E14/backups
+**Epic:** E3 · **Status:** §3–§6 implemented by the [E3 spec](../features/specs/2026-10-05-008-e3-file-manager-design.md), which wins where it differs (`/app/files/{user}?path=` instead of `?user=`; every read and write in the home runs as the user, so quotas apply; a SHA-256 guard instead of the mtime; `v-add-fs-zip` for Compress; downloads stream a zip from the user straight into the ticket; no editing of `~/conf/web` and no restart button; staging below `storage/app/files/`; the restic browser moves to E7); §7 (FileGator removal) stays with E8 · **Depends on:** E1, E2 · **Unblocks:** E8 (FileGator removal), deep links from E4/E14/backups
 
 ---
 

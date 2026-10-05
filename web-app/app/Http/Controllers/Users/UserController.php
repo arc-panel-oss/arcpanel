@@ -9,6 +9,7 @@ use App\Auth\Principal;
 use App\Auth\Role;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Users\StoreUserRequest;
+use App\Policies\FilePolicy;
 use App\Policies\ImpersonationPolicy;
 use App\Policies\UserPolicy;
 use App\Services\Mail\AccountMailer;
@@ -82,7 +83,7 @@ final class UserController extends Controller
         ]);
     }
 
-    public function show(string $user, Principal $principal, UserPolicy $policy, ImpersonationPolicy $impersonation, WebDomainService $web, PortService $ports, NodeAppService $nodeApps): View
+    public function show(string $user, Principal $principal, UserPolicy $policy, ImpersonationPolicy $impersonation, WebDomainService $web, PortService $ports, NodeAppService $nodeApps, FilePolicy $files, SysConfig $config): View
     {
         abort_unless($policy->view($principal, $user), 404);
         $record = $this->users->find($user);
@@ -98,6 +99,8 @@ final class UserController extends Controller
             'ports' => $ports->account($user),
             'nodeApps' => $this->nodeAppsOf($user, $nodeApps),
             'packageLabel' => UserService::packageLabel($record->package(), $principal->actingRole() === Role::Reseller ? $principal->effectiveUser() : ''),
+            // File manager (E3 spec §7.7)
+            'filesUrl' => $config->is('FILE_MANAGER', 'true') && $files->view($principal, $user) ? route('files.show', ['user' => $user]) : null,
         ]);
     }
 

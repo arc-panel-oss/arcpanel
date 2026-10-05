@@ -31,7 +31,7 @@ Dependency order from the roadmap; each module = list + add + edit + single acti
 | 3   | Q1      | Web domains                                         | `list/web`, `add/web`, `edit/web`, `bulk/web`, `list/web-log`                                                    | E1 proof; template card picker ([09](./09-web-templates-metadata.md))   |
 | 4   | Q2      | Users + Packages                                    | `list/user`, `add/user`, `edit/user`, `bulk/user`, `list/package`, `add/package`, `edit/package`, `bulk/package` | delivered inside E11 part 2 (Customers, Packages)                       |
 | 5   | Q2      | Ports                                               | — (new)                                                                                                          | E12 UI                                                                  |
-| 6   | Q2      | Files                                               | `/fm/`                                                                                                           | E3                                                                      |
+| 6   | Q2      | Files                                               | `/fm/`                                                                                                           | E3, implemented; menu switched by `ARCPANEL_APP_PAGES`, `/fm/` until E8 |
 | 7   | Q2      | Node (versions, apps)                               | — (new)                                                                                                          | E13/E14                                                                 |
 | 8   | Q3      | Databases                                           | `list/db`, `add/db`, `edit/db`, `bulk/db`                                                                        | phpMyAdmin/phpPgAdmin SSO links kept                                    |
 | 9   | Q3      | DNS                                                 | `list/dns`, `add/dns`, `edit/dns`, `bulk/dns`                                                                    | zones, records, DNSSEC public view (`v-list-dnssec-public-key`)         |
@@ -66,10 +66,16 @@ For every legacy module, in this order. The checklist is a PR template (`.github
 8. **Bulk** — `POST <module>.bulk {action, ids[]}` → service loops the command, collects per-id results, flashes a summary (`n ok, m failed`); replaces `web/bulk/<x>`.
 9. **i18n** — new strings added to `web/locale/hestiacp.pot` by the extraction script; no hard-coded English outside `__()`.
 10. **Tests** — Pest feature tests per route × three principals (admin, reseller A, reseller B / user) with the fake; Playwright happy path per module; a11y gate.
-11. **Hand-off** — *(E1-S2: Web Domains uses the `ARCPANEL_APP_PAGES` switch and `302` redirects through `arc_redirect_if_migrated()` instead of 301 stubs; stubs and deletions move to E8.)* add the entry to `web/inc/arcpanel-routes.php`; replace `web/<kind>/<x>/index.php` with the 301 stub:
+11. **Hand-off** — _(E1-S2: Web Domains uses the `ARCPANEL_APP_PAGES` switch and `302` redirects through `arc_redirect_if_migrated()` instead of 301 stubs; stubs and deletions move to E8.)_ add the entry to `web/inc/arcpanel-routes.php`; replace `web/<kind>/<x>/index.php` with the 301 stub:
 
     ```php
-    <?php header("Location: /app/<module>" . (isset($_GET["domain"]) ? "/" . rawurlencode($_GET["domain"]) . "/edit" : ""), true, 301); exit();
+    <?php header(
+    	"Location: /app/<module>" .
+    		(isset($_GET["domain"]) ? "/" . rawurlencode($_GET["domain"]) . "/edit" : ""),
+    	true,
+    	301,
+    );
+    exit();
     ```
 
     Delete `web/templates/pages/<x>*.php`. Keep single-action endpoints (`web/delete/<x>` …) as stubs pointing at the new module index (they are GET links with tokens in legacy; the new app uses POST forms).

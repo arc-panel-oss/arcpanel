@@ -44,6 +44,8 @@ const canManage = computed(() => abilities.value.manage && !app.value.suspended)
 const canRemove = computed(() => abilities.value.remove);
 const status = computed(() => appStatus(app.value));
 const path = computed(() => `/${encodeURIComponent(app.value.domain)}`);
+// File manager (E3): the working directory of the app
+const folderUrl = computed(() => `${pages.files}?path=${['web', app.value.domain, ...String(app.value.cwd).split('/').filter((p) => p !== '' && p !== '.')].map(encodeURIComponent).join('/')}`);
 
 function apply(data) {
 	if (data?.app) {
@@ -177,6 +179,7 @@ onBeforeUnmount(() => {
 					<ApBadge :tone="status.tone">{{ t(status.label) }}</ApBadge>
 				</div>
 				<div class="ap-actions">
+					<a v-if="pages.files" class="ap-btn ap-btn-ghost ap-btn-sm" :href="folderUrl"><ApIcon name="folder" />{{ t('Open app folder') }}</a>
 					<a class="ap-btn ap-btn-ghost ap-btn-sm" :href="app.url" target="_blank" rel="noopener">
 						<ApIcon name="external" />{{ app.url }}
 						<ApBadge v-if="app.ssl" tone="ok">HTTPS</ApBadge>

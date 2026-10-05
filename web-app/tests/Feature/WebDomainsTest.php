@@ -134,6 +134,8 @@ it('shows every tab of the edit page, without the private key', function () {
 
     $this->get('/web/domains/bob/example.com/edit')->assertOk()
         ->assertSee(['General', 'SSL', 'Redirect', 'FTP', 'Statistics'])
+        // File manager (E3 spec §7.7)
+        ->assertSee('Open document root')->assertSee('/files/bob?path=web%2Fexample.com%2Fpublic_html', false)
         ->assertSee("Let's Encrypt E6")->assertSee('Dec 19 00:00:00 2026 GMT')
         ->assertDontSee('MIIBexampleKEY')
         ->assertDontSee('id="tab-advanced"', false);

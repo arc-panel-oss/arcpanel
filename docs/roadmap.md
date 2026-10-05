@@ -109,6 +109,8 @@ Effort sizing for this team: **S** ≤ 2 weeks · **M** 3–5 weeks · **L** 6�
 
 **Success metric:** Upload-and-edit task time down 50% vs. FileGator; FileGator removed from the package. **Effort:** XL (split as above). **Outcome:** O1.
 
+**Design:** [E3 spec](./features/specs/2026-10-05-008-e3-file-manager-design.md) (milestones 1–3 of the scope above plus deep links, every read and write in the home run as the user, staging with a root hand-off, CodeMirror 6, five milestones). **Status:** implemented 2026-10-05; the restic snapshot browser moves to E7 (Backups page), FileGator removal stays with E8, Docker app links come with E4.
+
 ### E4 — App Store: Docker apps
 
 **Hypothesis:** We believe a curated Docker Compose catalog that binds apps to panel domains with automatic SSL will let non-expert users self-host popular tools, because today they must use SSH and write their own reverse-proxy config.

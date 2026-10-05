@@ -45,7 +45,7 @@
     <x-slot:actions>
         <x-ap-button :href="($record->ssl ? 'https://' : 'http://').$record->domain.'/'" icon="external" target="_blank" rel="noopener">{{ __('Visit') }}</x-ap-button>
         @if ($fileManagerUrl)
-            <x-ap-button :href="$fileManagerUrl" icon="folder">{{ __('Open files') }}</x-ap-button>
+            <x-ap-button :href="$fileManagerUrl" icon="folder">{{ __('Open document root') }}</x-ap-button>
         @endif
         <x-ap-button :href="route('web.domains.logs', $params + ['type' => 'access'])" icon="file">{{ __('Logs') }}</x-ap-button>
         @if ($appInstallerUrl)
