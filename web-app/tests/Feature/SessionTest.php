@@ -4,19 +4,6 @@ use App\Arc\ArcCommand;
 use App\Auth\ArrayLegacySession;
 use Illuminate\Support\Facades\Route;
 
-/** Legacy session of a logged-in user (fresh activity, same IP as the test client). */
-function sessionOf(string $user, string $role, array $overrides = []): array
-{
-    return array_merge([
-        'user' => $user,
-        'userContext' => $role,
-        'user_combined_ip' => '127.0.0.1',
-        'token' => str_repeat('e', 32),
-        'LAST_ACTIVITY' => time(),
-        'look' => '',
-    ], $overrides);
-}
-
 beforeEach(function () {
     $this->fake = fakeArc();
     fakeUsers($this->fake, [

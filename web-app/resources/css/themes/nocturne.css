@@ -1,0 +1,44 @@
+/*
+ * Theme "nocturne" (dark, default): palette values for the --ap-* colour tokens.
+ * Split from the Nocturne prototype (templates/nocturne/assets/css/nocturne.css).
+ */
+
+:root,
+[data-theme="nocturne"] {
+	color-scheme: dark;
+
+	--ap-bg: #0b0d12;
+	--ap-bg-sunken: #08090d;
+	--ap-surface: #11141b;
+	--ap-surface-raised: #171b24;
+	--ap-surface-hover: #1d222d;
+	--ap-border: #232836;
+	--ap-border-strong: #333a4a;
+	--ap-fg: #e8ebf1;
+	--ap-fg-muted: #a0a8b8;
+	--ap-fg-subtle: #838c9e;
+
+	--ap-accent: #8ea4ff;
+	--ap-accent-hover: #a9baff;
+	--ap-accent-fg: #0b0d12;
+	--ap-accent-subtle: #19203d;
+	--ap-accent-line: #36468a;
+
+	--ap-ok: #4cc38a;
+	--ap-ok-subtle: #0f241a;
+	--ap-warn: #f2b451;
+	--ap-warn-subtle: #2a1f0c;
+	--ap-danger: #f27b76;
+	--ap-danger-subtle: #2c1515;
+	--ap-info: #5cb6ee;
+	--ap-info-subtle: #0d202d;
+
+	--ap-star: #f2b451;
+	--ap-logo-tile: #0f1320;
+	--ap-logo-ring: #2c355a;
+	--ap-logo-mark: #9db0ff;
+
+	--ap-overlay: rgb(4 5 8 / 0.72);
+	--ap-shadow-1: 0 1px 0 rgb(255 255 255 / 0.03) inset, 0 1px 2px rgb(0 0 0 / 0.4);
+	--ap-shadow-2: 0 24px 48px -12px rgb(0 0 0 / 0.6), 0 0 0 1px var(--ap-border);
+}

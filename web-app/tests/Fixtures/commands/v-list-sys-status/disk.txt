@@ -1,0 +1,7 @@
+Filesystem      Size  Used Avail Use% Mounted on
+none            7.8G     0  7.8G   0% /usr/lib/modules
+/dev/sda1       500G  410G   90G  82% /
+tmpfs           1.6G   20K  1.6G   1% /run/user/0
+
+Filesystem     Inodes IUsed IFree IUse% Mounted on
+/dev/sda1         64M  120K   64M    1% /

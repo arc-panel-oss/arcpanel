@@ -4,21 +4,24 @@ namespace App\Http\Controllers;
 
 use App\Arc\ArcCommand;
 use App\Arc\Options;
+use App\Arc\SysConfig;
 use App\Auth\LegacySession;
 use App\Auth\Principal;
 use App\Policies\ImpersonationPolicy;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 
 /**
  * "Login as": the same session keys and log lines as web/login/index.php
  * (?loginas=) and web/logout/index.php, so either app can end what the other
- * started.
+ * started. With ARCPANEL_APP_PAGES='yes' both directions land on /app/.
  */
 final class ImpersonationController extends Controller
 {
     public function __construct(
         private readonly ArcCommand $arc,
         private readonly LegacySession $legacy,
+        private readonly SysConfig $config,
     ) {}
 
     public function start(string $user, Principal $principal, ImpersonationPolicy $policy): RedirectResponse
@@ -41,7 +44,17 @@ final class ImpersonationController extends Controller
         $this->legacy->write(['look' => $user, '_sf2_attributes' => null, '_sf2_meta' => null]);
 
         // The legacy /login/ sends a logged-in session to its landing page.
-        return redirect()->away('/login/');
+        return $this->config->is('ARCPANEL_APP_PAGES') ? redirect()->route('dashboard') : redirect()->away('/login/');
+    }
+
+    /** The user switcher of the top bar posts the user name in the body. */
+    public function fromForm(Request $request, Principal $principal, ImpersonationPolicy $policy): RedirectResponse
+    {
+        $user = (string) $request->validate([
+            'user' => ['required', 'string', 'regex:/^[[:alnum:]][-.\w]{0,28}[[:alnum:]]$/'],
+        ])['user'];
+
+        return $this->start($user, $principal, $policy);
     }
 
     public function stop(Principal $principal): RedirectResponse
@@ -55,6 +68,6 @@ final class ImpersonationController extends Controller
             $this->legacy->write(['look' => null, '_sf2_attributes' => null, '_sf2_meta' => null]);
         }
 
-        return redirect()->away('/');
+        return $this->config->is('ARCPANEL_APP_PAGES') ? redirect()->route('dashboard') : redirect()->away('/');
     }
 }

@@ -6,7 +6,7 @@
     <meta name="robots" content="noindex, nofollow">
     <title>@yield('title') · {{ $appName }}</title>
     <link rel="icon" href="/images/favicon.png" type="image/png">
-    <link rel="stylesheet" href="{{ asset('build/arc.min.css') }}">
+    <link rel="stylesheet" href="@apAsset('app.css')">
 </head>
 <body>
 <x-icons />

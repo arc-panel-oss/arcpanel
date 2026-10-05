@@ -1,0 +1,41 @@
+{
+    "1": {
+        "ID": "1",
+        "USER": "bob",
+        "TYPE": "web",
+        "KEY": "DOMAIN",
+        "RESULT": "example.com",
+        "ALIAS": "",
+        "LINK": "",
+        "PARENT": "",
+        "SUSPENDED": "no",
+        "TIME": "10:00:00",
+        "DATE": "2026-09-01"
+    },
+    "2": {
+        "ID": "2",
+        "USER": "carol",
+        "TYPE": "dns",
+        "KEY": "DOMAIN",
+        "RESULT": "example.org",
+        "ALIAS": "",
+        "LINK": "",
+        "PARENT": "",
+        "SUSPENDED": "no",
+        "TIME": "10:00:00",
+        "DATE": "2026-09-01"
+    },
+    "3": {
+        "ID": "3",
+        "USER": "bob",
+        "TYPE": "mail",
+        "KEY": "ACCOUNT",
+        "RESULT": "info@example.com",
+        "ALIAS": "",
+        "LINK": "info",
+        "PARENT": "example.com",
+        "SUSPENDED": "no",
+        "TIME": "10:00:00",
+        "DATE": "2026-09-01"
+    }
+}

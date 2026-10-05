@@ -1,0 +1,171 @@
+/*
+ * Base styles: reset, typography, focus ring, skip link, icons and logo.
+ * Tokens only (scripts/check-tokens.js).
+ */
+
+/* ---------- Base ---------- */
+
+*,
+*::before,
+*::after {
+	box-sizing: border-box;
+}
+
+body {
+	margin: 0;
+	background: var(--ap-bg);
+}
+
+.ap-root {
+	min-height: 100vh;
+	background: var(--ap-bg);
+	color: var(--ap-fg);
+	font: 400 var(--ap-text-md) / 1.5 var(--ap-font-sans);
+	font-feature-settings: "cv11", "ss01";
+	-webkit-font-smoothing: antialiased;
+}
+
+.ap-root a {
+	color: var(--ap-accent);
+	text-decoration: none;
+}
+.ap-root a:hover {
+	color: var(--ap-accent-hover);
+	text-decoration: underline;
+	text-underline-offset: 3px;
+}
+.ap-root :focus-visible {
+	outline: none;
+	box-shadow: var(--ap-focus);
+}
+.ap-root h1,
+.ap-root h2,
+.ap-root h3,
+.ap-root p {
+	margin: 0;
+}
+.ap-root h1 {
+	font-size: var(--ap-text-2xl);
+	font-weight: 600;
+	letter-spacing: -0.015em;
+	line-height: 1.2;
+}
+.ap-root h2 {
+	font-size: 15px;
+	font-weight: 600;
+	letter-spacing: -0.005em;
+}
+.ap-root h3 {
+	font-size: var(--ap-text-md);
+	font-weight: 600;
+}
+
+.mono {
+	font-family: var(--ap-font-mono);
+	font-size: 0.93em;
+}
+.muted {
+	color: var(--ap-fg-muted);
+}
+.subtle {
+	color: var(--ap-fg-subtle);
+}
+.num {
+	font-variant-numeric: tabular-nums;
+}
+.eyebrow {
+	font: 500 11px/1.2 var(--ap-font-mono);
+	letter-spacing: 0.09em;
+	text-transform: uppercase;
+	color: var(--ap-fg-subtle);
+}
+.sr-only {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	overflow: hidden;
+	clip: rect(0 0 0 0);
+	white-space: nowrap;
+}
+.skip-link {
+	position: absolute;
+	inset-inline-start: 12px;
+	top: -60px;
+	z-index: 100;
+	padding: var(--ap-space-2-5) var(--ap-space-3-5);
+	border-radius: var(--ap-radius-md);
+	background: var(--ap-accent);
+	color: var(--ap-accent-fg) !important;
+	font-weight: 600;
+}
+.skip-link:focus {
+	top: 12px;
+}
+
+.ap-sprite {
+	position: absolute;
+	width: 0;
+	height: 0;
+	overflow: hidden;
+}
+
+/* Icons: 24-unit stroke glyphs, coloured by currentColor */
+.ic {
+	width: 18px;
+	height: 18px;
+	flex: none;
+	fill: none;
+	stroke: currentColor;
+	stroke-width: 1.75;
+	stroke-linecap: round;
+	stroke-linejoin: round;
+}
+.ic-sm {
+	width: 16px;
+	height: 16px;
+}
+.ic-lg {
+	width: 22px;
+	height: 22px;
+}
+.ic-dots {
+	stroke-width: 3;
+}
+
+/* Logo (inline lockup, themed) */
+.ap-logo {
+	display: block;
+	height: 26px;
+	width: auto;
+}
+.ap-logo .lg-tile {
+	fill: var(--ap-logo-tile);
+}
+.ap-logo .lg-ring {
+	fill: none;
+	stroke: var(--ap-logo-ring);
+	stroke-width: 2;
+}
+.ap-logo .lg-a {
+	fill: none;
+	stroke: var(--ap-logo-mark);
+	stroke-width: 8;
+	stroke-linecap: round;
+	stroke-linejoin: round;
+}
+.ap-logo .lg-star {
+	fill: var(--ap-star);
+}
+.ap-logo .lg-word {
+	fill: none;
+	stroke: var(--ap-fg);
+	stroke-width: 12;
+	stroke-linecap: round;
+	stroke-linejoin: round;
+}
+
+
+/* The hidden attribute wins over component display rules (tabs, wizard steps). */
+[hidden] {
+	display: none !important;
+}

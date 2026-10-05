@@ -9,7 +9,7 @@
 			<div class="top-bar-left">
 
 				<!-- Logo / Home Button -->
-				<a href="/" class="top-bar-logo" title="<?= htmlentities($_SESSION["APP_NAME"]) ?>">
+				<a href="<?= tohtml(arc_route("/")) ?>" class="top-bar-logo" title="<?= htmlentities($_SESSION["APP_NAME"]) ?>">
 					<img src="/images/logo-header.svg" alt="<?= htmlentities($_SESSION["APP_NAME"]) ?>" width="54" height="29">
 				</a>
 
@@ -325,7 +325,7 @@
 						<li class="main-menu-item">
 							<a class="main-menu-item-link <?php if ($TAB == "WEB") {
        	echo "active";
-       } ?>" href="/list/web/" title="<?= _("Domains") ?>: <?= $panel[$user]["U_WEB_DOMAINS"] ?>&#13;<?= _("Aliases") ?>: <?= $panel[$user]["U_WEB_ALIASES"] ?>&#13;<?= _("Limit") ?>: <?= $panel[
+       } ?>" href="<?= tohtml(arc_route("/list/web/")) ?>" title="<?= _("Domains") ?>: <?= $panel[$user]["U_WEB_DOMAINS"] ?>&#13;<?= _("Aliases") ?>: <?= $panel[$user]["U_WEB_ALIASES"] ?>&#13;<?= _("Limit") ?>: <?= $panel[
 	$user
 ]["WEB_DOMAINS"] == "unlimited"
 	? "∞"

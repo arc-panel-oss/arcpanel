@@ -1,0 +1,28 @@
+{
+    "bob.2026-10-01_05-10-11.tar": {
+        "TYPE": "local",
+        "SIZE": "2150",
+        "WEB": "example.com",
+        "DNS": "",
+        "MAIL": "",
+        "DB": "",
+        "CRON": "",
+        "UDIR": "",
+        "RUNTIME": "1",
+        "TIME": "05:10:11",
+        "DATE": "2026-10-01"
+    },
+    "bob.2026-10-03_05-10-09.tar": {
+        "TYPE": "local",
+        "SIZE": "2200",
+        "WEB": "example.com",
+        "DNS": "",
+        "MAIL": "",
+        "DB": "",
+        "CRON": "",
+        "UDIR": "",
+        "RUNTIME": "1",
+        "TIME": "05:10:09",
+        "DATE": "2026-10-03"
+    }
+}

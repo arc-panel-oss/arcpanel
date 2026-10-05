@@ -1,0 +1,14 @@
+{
+    "10.0.0.10": {
+        "OWNER": "arcadmin",
+        "STATUS": "shared",
+        "NAME": "",
+        "NAT": "203.0.113.10"
+    },
+    "10.0.0.20": {
+        "OWNER": "bob",
+        "STATUS": "dedicated",
+        "NAME": "",
+        "NAT": ""
+    }
+}

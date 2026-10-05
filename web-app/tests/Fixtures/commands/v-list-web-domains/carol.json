@@ -1,0 +1,25 @@
+{
+    "carol.example": {
+        "IP6": "",
+        "AUTH_USER": "",
+        "BACKEND": "default",
+        "SSL_HOME": "same",
+        "IP": "10.0.0.11",
+        "DOCUMENT_ROOT": "/home/carol/web/carol.example/public_html/",
+        "U_DISK": "10",
+        "U_BANDWIDTH": "1",
+        "TPL": "default",
+        "ALIAS": "www.carol.example",
+        "STATS": "",
+        "STATS_USER": "",
+        "SSL": "no",
+        "LETSENCRYPT": "no",
+        "FTP_USER": "",
+        "FTP_PATH": "",
+        "PROXY": "default",
+        "PROXY_EXT": "css,js",
+        "SUSPENDED": "no",
+        "TIME": "12:00:00",
+        "DATE": "2026-09-03"
+    }
+}

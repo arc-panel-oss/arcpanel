@@ -3,6 +3,9 @@ use function Hestiacp\quoteshellarg\quoteshellarg;
 
 include $_SERVER["DOCUMENT_ROOT"] . "/inc/main.php";
 
+// ArcPanel: served by the panel app when ARCPANEL_APP_PAGES is on (inc/arcpanel-routes.php)
+arc_redirect_if_migrated("/list/web-log/", $_GET);
+
 $TAB = "WEB";
 
 $v_domain = quoteshellarg($_GET["domain"]);

@@ -1,0 +1,20 @@
+{
+    "1": {
+        "TOPIC": "Welcome",
+        "NOTICE": "Read the <a href='/docs/'>guide</a> to get started.",
+        "TYPE": "",
+        "ACK": "yes",
+        "PRIORITY": "0",
+        "TIME": "10:00:00",
+        "DATE": "2026-10-01"
+    },
+    "2": {
+        "TOPIC": "Maintenance tonight",
+        "NOTICE": "Services restart at 02:00.",
+        "TYPE": "",
+        "ACK": "no",
+        "PRIORITY": "0",
+        "TIME": "11:00:00",
+        "DATE": "2026-10-04"
+    }
+}

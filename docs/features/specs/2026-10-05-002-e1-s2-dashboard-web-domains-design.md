@@ -1,6 +1,6 @@
 # E1 slice 2 — design system, shell, Dashboard and Web Domains — design
 
-**Status:** Approved design (owner, 2026-10-05) · **Epics:** E1 slice S2 + E2 (full component library) · **Base designs:** [02 Laravel foundation](../../design/02-laravel-foundation.md), [03 Tenancy and authorization](../../design/03-tenancy-and-authorization.md), [05 Design system and frontend](../../design/05-design-system-and-frontend.md), [10 Page migration](../../design/10-page-migration-and-retirement.md) · **Previous slice:** [E1-S1](./2026-10-05-001-e1-laravel-foundation-slice1-design.md) · **Roadmap:** [§3 E1, E2](../../roadmap.md)
+**Status:** Implemented (2026-10-05, see §14) · **Epics:** E1 slice S2 + E2 (full component library) · **Base designs:** [02 Laravel foundation](../../design/02-laravel-foundation.md), [03 Tenancy and authorization](../../design/03-tenancy-and-authorization.md), [05 Design system and frontend](../../design/05-design-system-and-frontend.md), [10 Page migration](../../design/10-page-migration-and-retirement.md) · **Previous slice:** [E1-S1](./2026-10-05-001-e1-laravel-foundation-slice1-design.md) · **Roadmap:** [§3 E1, E2](../../roadmap.md)
 
 ## 1. Summary
 
@@ -195,11 +195,11 @@ One page, `x-ap-tabs` with URL hash sync. Each tab is a separate `<form>` postin
 | Tab | Fields | Commands |
 | --- | --- | --- |
 | General | aliases, IP, custom document root (target domain + folder) | `v-add-web-domain-alias` / `v-delete-web-domain-alias` (with `v-add-dns-on-web-alias` / `v-delete-dns-on-web-alias` when the DNS zone exists), `v-change-web-domain-ip` (+ `v-change-dns-domain-ip`, `v-rebuild-mail-domain` as legacy), `v-change-web-domain-docroot` |
-| SSL | SSL on/off, Let's Encrypt, key type, certificate, key, CA, force SSL, HSTS | `v-add-letsencrypt-domain` / `v-delete-letsencrypt-domain`, `v-add-web-domain-ssl` / `v-change-web-domain-sslcert` / `v-delete-web-domain-ssl` (files through `Secret`), `v-add|delete-web-domain-ssl-force`, `v-add|delete-web-domain-ssl-hsts` |
+| SSL | SSL on/off, Let's Encrypt, key type, certificate, key, CA, force SSL, HSTS | `v-add-letsencrypt-domain` / `v-delete-letsencrypt-domain`, `v-add-web-domain-ssl` / `v-change-web-domain-sslcert` / `v-delete-web-domain-ssl` (files through `Secret`), `v-add\|delete-web-domain-ssl-force`, `v-add\|delete-web-domain-ssl-hsts` |
 | Redirect | on/off, target (`www.` / bare / custom), status code | `v-add-web-domain-redirect`, `v-delete-web-domain-redirect` |
-| Advanced | web, backend and proxy templates, proxy on/off, proxy extensions, nginx FastCGI cache and duration | `v-change-web-domain-tpl`, `v-change-web-domain-backend-tpl`, `v-add|delete-web-domain-proxy`, `v-change-web-domain-proxy-tpl`, `v-add|delete-fastcgi-cache` — tab shown only with `updateTemplates` |
+| Advanced | web, backend and proxy templates, proxy on/off, proxy extensions, nginx FastCGI cache and duration | `v-change-web-domain-tpl`, `v-change-web-domain-backend-tpl`, `v-add\|delete-web-domain-proxy`, `v-change-web-domain-proxy-tpl`, `v-add\|delete-fastcgi-cache` — tab shown only with `updateTemplates` |
 | FTP | accounts: add, change password, change path, delete; "send credentials to" e-mail | `v-add-web-domain-ftp`, `v-change-web-domain-ftp-password`, `v-change-web-domain-ftp-path`, `v-delete-web-domain-ftp`; the credentials e-mail uses the legacy text, sender and subject keys (`FROM_EMAIL`, `FROM_NAME`, `SUBJECT_EMAIL`, `APP_NAME`) — tab shown only when `FTP_SYSTEM` is set |
-| Statistics | type, protect with login, username, password | `v-add|change|delete-web-domain-stats`, `v-add|delete-web-domain-stats-user` |
+| Statistics | type, protect with login, username, password | `v-add\|change\|delete-web-domain-stats`, `v-add\|delete-web-domain-stats-user` |
 
 Passwords (FTP, statistics) and private keys never leave the server in a response and go to commands through `Secret` files. The page header shows SSL state, links to the site, the document root in the file manager (legacy `/fm/` until E3) and Quick Install Apps (legacy page, when `PLUGIN_APP_INSTALLER` allows). `Restart` steps (`v-restart-web`, `v-restart-proxy`, `v-restart-dns`) run once at the end of a tab when a command asked for it, as legacy does.
 
@@ -260,3 +260,34 @@ Passwords (FTP, statistics) and private keys never leave the server in a respons
 | Full component library delays the pages | M1 ships before pages start; components without a page in S2 are kept small and covered by the style guide only |
 | Cookie-based theme differs between browsers | Accepted; defaults follow the legacy `THEME`; `user.conf` persistence revisited in E7 |
 | Fonts add size to the deb | woff2 latin and latin-ext subsets only |
+
+## 14. Implementation notes (2026-10-05)
+
+Decisions taken while building S2 that differ from, or add to, the sections above:
+
+- **Components:** the files live in `resources/views/components/ap/` and are registered as `<x-ap-NAME>` aliases in `AppServiceProvider` (Blade would otherwise expect `<x-ap.NAME>`). Extra building blocks: `x-ap-row-check`, `x-ap-tab-panel`, `x-ap-pager`, `x-ap-shell` and `x-ap-i18n`. Dropdowns (row actions, column chooser, user switcher) are `<details>`, so they open without JavaScript.
+- **Tokens:** the spacing scale gains half steps (`--ap-space-0-5` … `--ap-space-9`) so the prototype's rhythm survives the split. Density tokens are `--ap-control-h`, `--ap-control-h-sm`, `--ap-row-h`, `--ap-card-pad` and `--ap-content-gap`. `check-tokens.js` checks literal colours and pixel values in `margin`, `padding` and `gap`. Two palette values changed to pass `check-contrast.js`: Nocturne `--ap-fg-subtle` is now `#838c9e` and light `--ap-ok` is now `#1a7a44`.
+- **Fonts:** besides latin and latin-ext, the Vietnamese subset ships too. The SIL OFL licence files are copied next to the fonts. See `web-app/THIRD-PARTY-NOTICES.md`.
+- **Capabilities:** `dns.view`, `mail.view`, `db.view`, `cron.view`, `backups.view`, `files.view`, `logs.view`, `stats.view` and `account.view` exist for navigation only (legacy pages). Policies use the acting role, which is the effective user's role while impersonating, as the legacy menu does. `updateTemplates` checks the login role, as `web/edit/web` checks `userContext`.
+- **Dashboard:** server graphs come from `v-export-rrd` through `GET /app/_rrd` (chart.js), as the legacy `rrdCharts.js` does today, not from `/rrd/` images. `v-list-sys-{cpu,memory,disk}-status` print usable reports with a non-zero exit code on some systems, so their exit code is ignored.
+- **Web domains:**
+  - The add form passes aliases as the `ALIASES` argument of `v-add-web-domain`, which replaces the default `www.` alias.
+  - Logs use the plain output of `v-list-web-domain-{access,error}log`, because their JSON output does not escape backslashes.
+  - The private key is never rendered. An empty key field keeps the stored key when a certificate is replaced.
+  - Turning off Let's Encrypt also removes forced HTTPS, as the legacy page does.
+  - Single actions (suspend, unsuspend, rebuild, purge, delete) take the bulk path: `RESTART=no`, then `v-restart-web`, `-proxy`, `-dns` and `-web-backend`.
+- **Cut-over:**
+  - Legacy pages redirect only `GET` and `HEAD` requests, so a legacy form that is already open still posts.
+  - The legacy CSRF check needs a `Referer` header, which browsers send.
+  - The panel app reads the switch through `SysConfig`, which is cached for `ARC_SYS_CONFIG_TTL` seconds (60 by default). A change shows on the legacy side at once and in the panel app within that time. The smoke script forgets the cache after switching.
+  - `web/inc/main.php` loads `inc/arcpanel-routes.php`. `web/login/index.php` sends a logged-in session to `/app/` when the switch is on.
+- **Measured on `arcpanel-test` (WSL, 53 users with one domain each):**
+  - The admin Web Domains list takes about 1.8 s (one `v-list-web-domains` per user).
+  - The admin dashboard takes 2.6 s cold and 0.2 s with its caches warm.
+- **Tests (all green on `arcpanel-test`):**
+  - Pest: 187 tests.
+  - Vitest: 117 tests in 23 files.
+  - BATS `test/arcpanel-panel-app.bats`: 15 tests.
+  - Smoke script `test/arcpanel-login-smoke.sh`: 27 checks.
+  - Playwright `test/e2e`: 14 tests, with no axe violations. Lighthouse accessibility is 100 on the dashboard, list, add and edit pages for both roles and both themes.
+  - Run the browser suite with `E2E_BASE_URL=https://<server>:8083 npm run test:e2e`. It prepares and removes its own users through `test/e2e/prepare.sh`.

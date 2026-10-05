@@ -97,10 +97,13 @@ fi
 
 "$HESTIA/bin/v-add-sys-arcpanel"
 
-# Servers installed before the panel app existed: turn its login on once,
-# keep an administrator's later "no".
+# Servers installed before the panel app existed: turn its login and pages
+# on once, keep an administrator's later "no".
 if ! grep -q "^ARCPANEL_APP_LOGIN=" "$HESTIA/conf/hestia.conf"; then
 	"$HESTIA/bin/v-change-sys-config-value" ARCPANEL_APP_LOGIN yes
+fi
+if ! grep -q "^ARCPANEL_APP_PAGES=" "$HESTIA/conf/hestia.conf"; then
+	"$HESTIA/bin/v-change-sys-config-value" ARCPANEL_APP_PAGES yes
 fi
 
 if [ "$restart_step" = yes ]; then

@@ -1,0 +1,23 @@
+{
+    "1": {
+        "TYPE": "la",
+        "RRD": "la",
+        "TITLE": "Load Average",
+        "TIME": "10:00:00",
+        "DATE": "2026-10-04"
+    },
+    "2": {
+        "TYPE": "mem",
+        "RRD": "mem",
+        "TITLE": "Memory Usage",
+        "TIME": "10:00:00",
+        "DATE": "2026-10-04"
+    },
+    "3": {
+        "TYPE": "net",
+        "RRD": "net_eth0",
+        "TITLE": "Bandwidth Usage eth0",
+        "TIME": "10:00:00",
+        "DATE": "2026-10-04"
+    }
+}

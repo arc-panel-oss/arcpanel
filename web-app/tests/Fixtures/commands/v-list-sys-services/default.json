@@ -1,0 +1,23 @@
+{
+    "nginx": {
+        "SYSTEM": "reverse proxy",
+        "STATE": "running",
+        "CPU": "1",
+        "MEM": "43",
+        "RTIME": "120"
+    },
+    "apache2": {
+        "SYSTEM": "web server",
+        "STATE": "running",
+        "CPU": "0",
+        "MEM": "448",
+        "RTIME": "120"
+    },
+    "fail2ban": {
+        "SYSTEM": "brute-force monitor",
+        "STATE": "stopped",
+        "CPU": "0",
+        "MEM": "0",
+        "RTIME": "0"
+    }
+}

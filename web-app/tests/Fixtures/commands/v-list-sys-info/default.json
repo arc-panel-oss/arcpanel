@@ -1,0 +1,13 @@
+{
+    "sysinfo": {
+        "HOSTNAME": "srv01.example.net",
+        "OS": "Ubuntu",
+        "VERSION": "24.04",
+        "ARCH": "x86_64",
+        "HESTIA": "1.10.5",
+        "ARCPANEL": "1.0.0",
+        "RELEASE": "release",
+        "UPTIME": "5900",
+        "LOADAVERAGE": "0.42 / 0.51 / 0.48"
+    }
+}

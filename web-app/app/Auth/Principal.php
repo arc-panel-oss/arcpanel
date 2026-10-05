@@ -40,4 +40,20 @@ final class Principal
     {
         return $this->loginRole === Role::Admin;
     }
+
+    /**
+     * Role the panel acts with: the effective user's role while
+     * impersonating (the legacy pages show the user's view then), else the
+     * login role.
+     */
+    public function actingRole(): Role
+    {
+        return $this->isImpersonating() ? $this->effectiveRole : $this->loginRole;
+    }
+
+    /** web/inc/policies.php: suspended user who may only look, or the protected admin. */
+    public function isReadOnly(): bool
+    {
+        return $this->readOnly;
+    }
 }

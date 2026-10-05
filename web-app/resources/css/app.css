@@ -1,0 +1,11 @@
+/*
+ * Stylesheet of the panel app (web-app/), built by build.js into
+ * public/build/app.[hash].css (docs/design/05 §7).
+ */
+@import "fonts.css";
+@import "tokens.css";
+@import "themes/nocturne.css";
+@import "themes/light.css";
+@import "themes/auto.css";
+@import "base.css";
+@import "components.css";

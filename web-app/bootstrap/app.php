@@ -2,11 +2,13 @@
 
 use App\Arc\ArcCommandException;
 use App\Http\Controllers\HealthController;
+use App\Http\Middleware\BindEffectiveUser;
 use App\Http\Middleware\NotReadOnly;
 use App\Http\Middleware\RedirectIfLoggedIn;
 use App\Http\Middleware\RequirePrincipal;
 use App\Http\Middleware\ResolvePrincipal;
 use App\Http\Middleware\SetLocale;
+use App\View\UiPreferences;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -27,8 +29,9 @@ $app = Application::configure(basePath: dirname(__DIR__))
         then: fn () => Route::get('/_health', HealthController::class)->name('health'),
     )
     ->withMiddleware(function (Middleware $middleware): void {
-        // The legacy session cookie is PHP's own, never encrypted by Laravel.
-        $middleware->encryptCookies(except: [(string) ini_get('session.name')]);
+        // The legacy session cookie is PHP's own, never encrypted by Laravel;
+        // arc_ui (theme, density) is written by the user menu script.
+        $middleware->encryptCookies(except: [(string) ini_get('session.name'), UiPreferences::COOKIE]);
         $middleware->web(append: [
             ResolvePrincipal::class,
             SetLocale::class,
@@ -37,6 +40,7 @@ $app = Application::configure(basePath: dirname(__DIR__))
             'auth.arc' => RequirePrincipal::class,
             'guest.arc' => RedirectIfLoggedIn::class,
             'not-readonly' => NotReadOnly::class,
+            'effective-user' => BindEffectiveUser::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
@@ -52,7 +56,15 @@ $app = Application::configure(basePath: dirname(__DIR__))
                 ], $e->httpStatus());
             }
 
-            return back()->with('error', $e->userMessage());
+            // A page that cannot load shows the error; a failed change goes back to the form.
+            if ($request->isMethodSafe()) {
+                return response()->view('errors.command', [
+                    'message' => $e->userMessage(),
+                    'status' => $e->httpStatus(),
+                ], $e->httpStatus());
+            }
+
+            return back()->withInput($request->except(['password', 'key']))->with('error', $e->userMessage());
         });
     })->create();
 

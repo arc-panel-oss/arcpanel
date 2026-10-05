@@ -48,3 +48,7 @@ web/src/vendor/
 # Node
 **/node_modules/
 npm-debug.log
+
+# Playwright output (test/e2e)
+/test-results/
+/playwright-report/

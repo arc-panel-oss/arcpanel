@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Auth;
 
+use App\Arc\SysConfig;
 use App\Auth\ClientIp;
 use App\Auth\Landing;
 use App\Auth\LegacySession;
@@ -19,6 +20,7 @@ final class LoginResponder
     public function __construct(
         private readonly LoginService $login,
         private readonly LegacySession $legacy,
+        private readonly SysConfig $config,
     ) {}
 
     public function context(Request $request): LoginContext
@@ -57,6 +59,6 @@ final class LoginResponder
         $request->session()->forget(['login', 'pending_2fa']);
         $request->session()->regenerate();
 
-        return redirect()->away(Landing::for($user));
+        return redirect()->away(Landing::for($user, $this->config->is('ARCPANEL_APP_PAGES')));
     }
 }

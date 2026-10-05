@@ -7,7 +7,15 @@ use App\Arc\ProcessArcCommand;
 use App\Arc\SysConfig;
 use App\Auth\LegacySession;
 use App\Auth\NativeLegacySession;
+use App\Auth\OwnerScope;
+use App\Auth\Principal;
+use App\Services\Mail\CredentialsMailer;
+use App\Services\Mail\PanelCredentialsMailer;
+use App\View\AssetManifest;
+use App\View\ShellComposer;
+use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -35,5 +43,30 @@ class AppServiceProvider extends ServiceProvider
             name: (string) ini_get('session.name'),
             cookies: $app->make('request')->cookies->all(),
         ));
+
+        // The Principal is bound per request by ResolvePrincipal.
+        $this->app->bind(OwnerScope::class, fn ($app) => new OwnerScope($app->make(Principal::class)));
+
+        $this->app->singleton(AssetManifest::class, fn () => new AssetManifest(public_path('build/manifest.json')));
+
+        $this->app->bind(CredentialsMailer::class, fn ($app) => new PanelCredentialsMailer(
+            $app->make(SysConfig::class),
+            (string) config('arc.install_dir'),
+            Log::channel('arc'),
+        ));
+    }
+
+    public function boot(): void
+    {
+        // @apAsset('app.js'): hashed URL from public/build/manifest.json
+        Blade::directive('apAsset', fn (string $name) => "<?php echo e(app(\App\View\AssetManifest::class)->url({$name})); ?>");
+
+        View::composer('components.ap.shell', ShellComposer::class);
+
+        // resources/views/components/ap/NAME.blade.php is used as <x-ap-NAME> (docs/design/05 §5).
+        foreach (glob(resource_path('views/components/ap/*.blade.php')) ?: [] as $file) {
+            $name = basename($file, '.blade.php');
+            Blade::component('components.ap.'.$name, 'ap-'.$name);
+        }
     }
 }

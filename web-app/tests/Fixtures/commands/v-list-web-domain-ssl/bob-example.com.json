@@ -1,0 +1,14 @@
+{
+    "example.com": {
+        "CRT": "-----BEGIN CERTIFICATE-----\nMIIBexampleCERT\n-----END CERTIFICATE-----",
+        "KEY": "-----BEGIN PRIVATE KEY-----\nMIIBexampleKEY\n-----END PRIVATE KEY-----",
+        "CA": "-----BEGIN CERTIFICATE-----\nMIIBexampleCA\n-----END CERTIFICATE-----",
+        "SUBJECT": "example.com",
+        "ALIASES": "example.com www.example.com blog.example.com",
+        "NOT_BEFORE": "Sep 20 00:00:00 2026 GMT",
+        "NOT_AFTER": "Dec 19 00:00:00 2026 GMT",
+        "SIGNATURE": "ecdsa-with-SHA384",
+        "PUB_KEY": "id-ecPublicKey",
+        "ISSUER": "Let's Encrypt E6"
+    }
+}

@@ -85,3 +85,87 @@ app_key_hash() {
     assert_output --partial 'ARCPANELSID='
     refute_output --partial 'HESTIASID='
 }
+
+# E1 slice S2: the ARCPANEL_APP_PAGES switch
+# (docs/features/specs/2026-10-05-002-e1-s2-dashboard-web-domains-design.md §9)
+
+PAGES_USER="arcbatspages"
+PAGES_JAR="$BATS_FILE_TMPDIR/pages.jar"
+
+pages_login() {
+    local token
+    rm -f "$PAGES_JAR"
+    token="$(curl -sk -c "$PAGES_JAR" -b "$PAGES_JAR" "$PANEL/app/login" | grep -o 'name="_token" value="[^"]*"' | head -n1 | sed 's/.*value="\([^"]*\)"/\1/')"
+    curl -sk -c "$PAGES_JAR" -b "$PAGES_JAR" -o /dev/null --data-urlencode "_token=$token" \
+        --data-urlencode "user=$PAGES_USER" --data-urlencode "password=$PAGES_PASS" "$PANEL/app/login"
+}
+
+# status and redirect target of a page for the signed-in test user; like a
+# browser it sends the page it came from (the legacy CSRF check wants it)
+pages_get() {
+    curl -sk -b "$PAGES_JAR" -c "$PAGES_JAR" -e "$PANEL/list/web/" -o /dev/null -w '%{http_code} %{redirect_url}' "$PANEL$1"
+}
+
+setup_file() {
+    PAGES_PASS="$(head -c 18 /dev/urandom | base64 | tr -dc 'A-Za-z0-9' | head -c 20)Aa1"
+    export PAGES_PASS
+    v-add-user "$PAGES_USER" "$PAGES_PASS" "$PAGES_USER@example.invalid" default > /dev/null
+    v-add-web-domain "$PAGES_USER" "$PAGES_USER.example" > /dev/null
+}
+
+teardown_file() {
+    v-change-sys-config-value ARCPANEL_APP_PAGES yes
+    v-delete-user "$PAGES_USER" > /dev/null 2>&1 || true
+}
+
+@test "v-list-sys-config lists ARCPANEL_APP_PAGES" {
+    v-change-sys-config-value ARCPANEL_APP_PAGES yes
+    run v-list-sys-config json
+    assert_success
+    assert_output --partial '"ARCPANEL_APP_PAGES": "yes"'
+    run v-list-sys-config
+    assert_output --partial 'Panel app pages:                  yes'
+}
+
+@test "Legacy web pages redirect to the panel app when ARCPANEL_APP_PAGES is yes" {
+    v-change-sys-config-value ARCPANEL_APP_PAGES yes
+    pages_login
+    run pages_get /list/web/
+    assert_output "302 $PANEL/app/web/domains"
+    run pages_get /add/web/
+    assert_output "302 $PANEL/app/web/domains/create"
+    run pages_get "/edit/web/?domain=$PAGES_USER.example"
+    assert_output "302 $PANEL/app/web/domains/$PAGES_USER/$PAGES_USER.example/edit"
+    run pages_get "/list/web-log/?domain=$PAGES_USER.example&type=error"
+    assert_output "302 $PANEL/app/web/domains/$PAGES_USER/$PAGES_USER.example/logs/error"
+    run pages_get /login/
+    assert_output "302 $PANEL/app/"
+    run pages_get "/app/web/domains/$PAGES_USER/$PAGES_USER.example/edit"
+    assert_output "200 "
+}
+
+@test "Legacy web pages come back when ARCPANEL_APP_PAGES is no" {
+    v-change-sys-config-value ARCPANEL_APP_PAGES no
+    pages_login
+    run pages_get /list/web/
+    assert_output "200 "
+    run pages_get /add/web/
+    assert_output "200 "
+    run pages_get "/edit/web/?domain=$PAGES_USER.example"
+    assert_output "200 "
+    run pages_get "/list/web-log/?domain=$PAGES_USER.example&type=access"
+    assert_output "200 "
+    run pages_get /login/
+    assert_output "302 $PANEL/list/web/"
+    # the panel app pages stay reachable by URL
+    run pages_get /app/web/domains
+    assert_output "200 "
+    v-change-sys-config-value ARCPANEL_APP_PAGES yes
+}
+
+@test "Panel app build ships hashed assets and fonts" {
+    run cat /usr/local/hestia/web-app/public/build/manifest.json
+    assert_success
+    assert_output --regexp '"app.css": "app\.[0-9a-f]{10}\.css"'
+    assert_file_exists /usr/local/hestia/web-app/public/build/fonts/inter-latin-400-normal.woff2
+}

@@ -1470,6 +1470,8 @@ write_config_value "VERSION" "${HESTIA_INSTALL_VER}"
 write_config_value "ARCPANEL_VERSION" "${ARCPANEL_INSTALL_VER}"
 # Guests sign in on the panel app (web-app/); "no" restores the legacy login page
 write_config_value "ARCPANEL_APP_LOGIN" "yes"
+# Migrated pages (dashboard, web domains) are served by the panel app; "no" restores the legacy pages
+write_config_value "ARCPANEL_APP_PAGES" "yes"
 write_config_value "APP_NAME" "ArcPanel"
 write_config_value "RELEASE_BRANCH" "release"
 

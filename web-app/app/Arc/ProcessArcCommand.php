@@ -33,7 +33,11 @@ final class ProcessArcCommand implements ArcCommand
         try {
             $argv = [];
             foreach ($args as $arg) {
-                if ($arg instanceof Secret && $arg->viaFile) {
+                if ($arg instanceof Secret && $arg->isDirectory()) {
+                    $dir = $this->writeSecretDirectory($arg);
+                    $secretFiles[] = $dir;
+                    $argv[] = $dir;
+                } elseif ($arg instanceof Secret && $arg->viaFile) {
                     $file = $this->writeSecretFile($arg);
                     $secretFiles[] = $file;
                     $argv[] = $file;
@@ -63,7 +67,12 @@ final class ProcessArcCommand implements ArcCommand
             $durationMs = (hrtime(true) - $started) / 1e6;
         } finally {
             foreach ($secretFiles as $file) {
-                @unlink($file);
+                if (is_dir($file)) {
+                    array_map('unlink', glob($file.'/*') ?: []);
+                    @rmdir($file);
+                } else {
+                    @unlink($file);
+                }
             }
         }
 
@@ -95,6 +104,23 @@ final class ProcessArcCommand implements ArcCommand
         file_put_contents($file, $secret->reveal()."\n");
 
         return $file;
+    }
+
+    /** A 0700 directory of 0600 files (SSL_DIR of the certificate commands). */
+    private function writeSecretDirectory(Secret $secret): string
+    {
+        $dir = rtrim($this->secretDir, '/').'/arc'.bin2hex(random_bytes(8));
+        if (! @mkdir($dir, 0700)) {
+            throw new ArcCommandException('Cannot create a secret directory in '.$this->secretDir);
+        }
+        foreach ($secret->files() as $name => $content) {
+            $file = $dir.'/'.$name;
+            touch($file);
+            chmod($file, 0600);
+            file_put_contents($file, $content);
+        }
+
+        return $dir;
     }
 
     private function logResult(CommandResult $result): void

@@ -1,8 +1,0 @@
-/*
- * Stylesheet of the panel app (web-app/), built by build.js into
- * web-app/public/build/arc.min.css.
- *
- * Until the E2 component library exists, the panel app uses the Nocturne
- * prototype styles unchanged.
- */
-@import "../../../templates/nocturne/assets/css/nocturne.css";

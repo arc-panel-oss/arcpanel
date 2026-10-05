@@ -1,0 +1,26 @@
+{
+    "10.0.0.10": {
+        "OWNER": "arcadmin",
+        "STATUS": "shared",
+        "NAME": "",
+        "U_SYS_USERS": "",
+        "U_WEB_DOMAINS": "3",
+        "INTERFACE": "eth0",
+        "NETMASK": "255.255.255.0",
+        "NAT": "203.0.113.10",
+        "TIME": "10:00:00",
+        "DATE": "2026-09-01"
+    },
+    "10.0.0.11": {
+        "OWNER": "arcadmin",
+        "STATUS": "shared",
+        "NAME": "",
+        "U_SYS_USERS": "",
+        "U_WEB_DOMAINS": "1",
+        "INTERFACE": "eth0",
+        "NETMASK": "255.255.255.0",
+        "NAT": "",
+        "TIME": "10:00:00",
+        "DATE": "2026-09-01"
+    }
+}

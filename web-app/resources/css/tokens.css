@@ -1,0 +1,66 @@
+/*
+ * ArcPanel design tokens (docs/design/05 §3.1): type, spacing, radius,
+ * motion, layout and density. Colour tokens (--ap-bg, --ap-fg, --ap-accent …)
+ * are defined by the theme files in themes/; components use tokens only
+ * (scripts/check-tokens.js).
+ */
+
+:root {
+	--ap-font-sans: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+	--ap-font-mono: "JetBrains Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+
+	--ap-text-xs: 12px;
+	--ap-text-sm: 13px;
+	--ap-text-md: 14px;
+	--ap-text-lg: 16px;
+	--ap-text-xl: 20px;
+	--ap-text-2xl: 26px;
+
+	/* Spacing scale. Half steps keep the prototype's rhythm. */
+	--ap-space-px: 1px;
+	--ap-space-0-5: 2px;
+	--ap-space-1: 4px;
+	--ap-space-1-5: 6px;
+	--ap-space-2: 8px;
+	--ap-space-2-5: 10px;
+	--ap-space-3: 12px;
+	--ap-space-3-5: 14px;
+	--ap-space-4: 16px;
+	--ap-space-4-5: 18px;
+	--ap-space-5: 20px;
+	--ap-space-6: 24px;
+	--ap-space-6-5: 28px;
+	--ap-space-7: 32px;
+	--ap-space-7-5: 40px;
+	--ap-space-8: 48px;
+	--ap-space-9: 56px;
+
+	--ap-radius-sm: 6px;
+	--ap-radius-md: 9px;
+	--ap-radius-lg: 14px;
+
+	--ap-ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+	--ap-duration-fast: 120ms;
+	--ap-duration-base: 220ms;
+
+	--ap-sidebar-w: 260px;
+	--ap-topbar-h: 56px;
+	--ap-content-max: 1440px;
+
+	/* Density: comfortable (default) */
+	--ap-control-h: 40px;
+	--ap-control-h-sm: 32px;
+	--ap-row-h: 52px;
+	--ap-card-pad: var(--ap-space-5);
+	--ap-content-gap: var(--ap-space-6);
+
+	--ap-focus: 0 0 0 2px var(--ap-bg), 0 0 0 4px var(--ap-accent);
+}
+
+[data-density="compact"] {
+	--ap-control-h: 34px;
+	--ap-control-h-sm: 28px;
+	--ap-row-h: 40px;
+	--ap-card-pad: var(--ap-space-4);
+	--ap-content-gap: var(--ap-space-4);
+}

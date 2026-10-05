@@ -77,6 +77,13 @@ if (isset($_SESSION["user"])) {
 		exit();
 	}
 
+	// ArcPanel: every role lands on the panel app dashboard when the migrated
+	// pages are on (ARCPANEL_APP_PAGES, inc/arcpanel-routes.php).
+	if (empty($_GET["loginas"]) && arc_app_pages()) {
+		header("Location: /app/");
+		exit();
+	}
+
 	// Set view based on account properties
 	if (empty($_GET["loginas"])) {
 		// Default view to Users list for administrator accounts
@@ -380,6 +387,8 @@ function authenticate_user($user, $password, $twofa = "") {
 					header("Location: " . $_SESSION["request_uri"]);
 					unset($_SESSION["request_uri"]);
 					exit();
+				} elseif (arc_app_pages()) {
+					header("Location: /app/");
 				} else {
 					if ($_SESSION["userContext"] === "admin") {
 						header("Location: /list/user/");

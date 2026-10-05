@@ -112,6 +112,7 @@ json_list() {
 		"VERSION": "'$VERSION'",
 		"ARCPANEL_VERSION": "'$ARCPANEL_VERSION'",
 		"ARCPANEL_APP_LOGIN": "'$ARCPANEL_APP_LOGIN'",
+		"ARCPANEL_APP_PAGES": "'$ARCPANEL_APP_PAGES'",
 		"WEBMAIL_ALIAS": "'$WEBMAIL_ALIAS'",
 		"WEBMAIL_SYSTEM": "'$WEBMAIL_SYSTEM'",
 		"WEB_BACKEND": "'$WEB_BACKEND'",
@@ -204,6 +205,9 @@ shell_list() {
 	echo "Version (HestiaCP base):          $VERSION"
 	if [ -n "$ARCPANEL_APP_LOGIN" ]; then
 		echo "Panel app login:                  $ARCPANEL_APP_LOGIN"
+	fi
+	if [ -n "$ARCPANEL_APP_PAGES" ]; then
+		echo "Panel app pages:                  $ARCPANEL_APP_PAGES"
 	fi
 	if [ -n "$DEMO_MODE" ]; then
 		echo "Demo Mode:                        $DEMO_MODE"

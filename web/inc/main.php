@@ -25,6 +25,7 @@ define("DEFAULT_PHP_VERSION", "php-" . exec('php -r "echo substr(phpversion(),0,
 load_hestia_config();
 require_once dirname(__FILE__) . "/prevent_csrf.php";
 require_once dirname(__FILE__) . "/helpers.php";
+require_once dirname(__FILE__) . "/arcpanel-routes.php";
 $root_directory = dirname(__FILE__) . "/../../";
 
 function destroy_sessions() {
