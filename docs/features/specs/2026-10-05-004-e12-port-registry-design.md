@@ -1,6 +1,6 @@
 # E12 — Port registry — design
 
-**Status:** Approved (2026-10-05) · **Epic:** E12 · **Base design:** [04 Port registry](../../design/04-port-registry.md) · **Previous specs:** [E1-S1](./2026-10-05-001-e1-laravel-foundation-slice1-design.md), [E1-S2](./2026-10-05-002-e1-s2-dashboard-web-domains-design.md), [E11](./2026-10-05-003-e11-reseller-design.md) · **Roadmap:** [§3 E12](../../roadmap.md)
+**Status:** Implemented (2026-10-05, see §13) · **Epic:** E12 · **Base design:** [04 Port registry](../../design/04-port-registry.md) · **Previous specs:** [E1-S1](./2026-10-05-001-e1-laravel-foundation-slice1-design.md), [E1-S2](./2026-10-05-002-e1-s2-dashboard-web-domains-design.md), [E11](./2026-10-05-003-e11-reseller-design.md) · **Roadmap:** [§3 E12](../../roadmap.md)
 
 ## 1. Summary
 
@@ -216,3 +216,21 @@ All writes hold `data/ports/.lock`. Firewall changes run after the registry writ
 - **01 Architecture overview:** hook mechanism of §6 replaces the "proposed hook points".
 - **13 Data model reference:** `data/ports/*`, `PORTS` in the package sidecar, the `hestia.conf` keys.
 - **Roadmap:** E12 points to this spec and gets its status line.
+
+## 13. Implementation notes (2026-10-05)
+
+Decisions taken while building E12 that differ from, or add to, the sections above:
+
+- **Firewall link (D7):** `v-delete-firewall-rule` renumbers every rule after a delete, so rule ids are never stored. The comment `arcpanel-port-<port>-<user>` is the link: rules are found, opened and closed by it, one lookup per delete. `FW_RULE` in the JSON output is the current id, looked up when the entries are read, and is not written to the files. Linking an unmanaged rule ("Link to …") gives it the tag with `v-change-firewall-rule` (`v-change-user-port-public USER PORT yes RULE`; the rule must be on the same port).
+- **Protocols:** a port number belongs to one user for both protocols. `PROTO` names the protocol an assigned port is used with (firewall rule, live check); free entries are `tcp`. `v-add-user-port` has no `PROTO` argument.
+- **Public ports:** only assigned single ports can be public; releasing a port closes it. Admin → Ports allows public use first ("Allow public use"), then opens the port.
+- **Reserved list:** `data/ports/.reserved.conf`, a hidden file, so that a user named `reserved` cannot collide with it. Entries are `APP='system'` (rewritten by `v-update-sys-ports-reserved`), `admin` (`v-add-sys-port-reserved`, `v-delete-sys-port-reserved`) or `listening` (sockets found at the first setup).
+- **Merging:** adjacent free entries with the same `PUBLIC_OK` and `SUSPENDED` merge; the first comment is kept.
+- **Reseller PORTS (D6):** the tree's **use** is checked: the ports its customers hold plus the reseller's own assigned ports; its free pool does not count. `v-check-reseller-quota` and the owner change apply it through `ports_quota_check`. A physical allocation into a tree (`v-add-user-port`, `v-add-user-port-pool`, a move from outside the tree) checks the tree's total against `PORTS`. `over-limit` findings exist only for reseller trees and resellers' customers; administrators may give root-owned users more than their package says.
+- **Pools of customers:** `v-add-reseller-user` runs `v-add-user` with `ARC_PORTS_DEFER=yes`, so the `post_add_user` hook skips it, and allocates the pool from the reseller once the owner is set. A reseller that gives more ports than its free pool (`+COUNT`) is topped up from the server range while its tree has room; a reseller made with `v-change-user-role` therefore needs no allocation before it gives ports.
+- **Commands added to §5.3:** `v-add-sys-port-reserved`, `v-delete-sys-port-reserved`, and the hook back ends `v-suspend-user-ports`, `v-unsuspend-user-ports`, `v-delete-user-ports`. `v-add-user-port-pool` takes `[PUBLIC_OK]` for blocks from the server range. `v-change-user-port-owner` takes `+COUNT` for the lowest free ports.
+- **Hooks:** scripts run with `bash` (`func/` files are not executable on a server synced by `test/dev-sync.sh`). There is no upstream-diff CI check yet (E8/E10); the five changed commands are listed in [01](../../design/01-architecture-overview.md) §3.2.
+- **Findings:** `foreign-socket` ignores root-owned sockets (the Docker proxy of E4 runs as root).
+- **Panel:** the owner tree of Admin → Ports is the indented account table. The `PORT_REGISTRY` switch is shown as a warning when off and changed with `v-change-sys-config-value`; it has no switch on the page. "Request more ports" sends a notification to the owner (`ROOT_USER` for users without a reseller). The give dialog binds its customer with inline Alpine, so there is no new Alpine module and no Vitest case.
+- **Tests:** BATS `test/arcpanel-ports.bats` (22 cases, including 20 parallel allocations for one user and every hook) and `test/arcpanel-tenancy.bats` (20) pass on `arcpanel-test`; Pest 259 tests pass; Playwright 21 tests pass, with `test/e2e/ports.spec.js` and Lighthouse accessibility 100 on both Ports pages. The upstream `test.bats` passed 248 of 255: the 7 IP tests fail because `/run/sshd` is missing in the WSL distribution (2 of them, netplan, failed before E12 too). The roadmap's 20 Node and Docker apps across 5 users waits for E14 and E4.
+- **e2e helper:** `login()` leaves the page before it clears the cookies, so a request still running cannot bring back the previous session.

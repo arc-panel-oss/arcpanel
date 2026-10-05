@@ -1,6 +1,8 @@
 # 04 — Port Registry
 
-**Epic:** E12 · **Status:** Draft v1 · **Depends on:** E1, E11 (for reseller sub-allocation) · **Unblocks:** E4 (Docker apps), E14 (Node apps)
+**Epic:** E12 · **Status:** Implemented 2026-10-05 through the [E12 spec](../features/specs/2026-10-05-004-e12-port-registry-design.md), which wins where it differs · **Depends on:** E1, E11 (for reseller sub-allocation) · **Unblocks:** E4 (Docker apps), E14 (Node apps)
+
+Differences in short: no `U_PORTS` in `user.conf` and `PORTS` in the package sidecar (spec D5); a physical reseller pool with demand-based PORTS checks (D2, D6, §13); `PUBLIC_OK` is its own key, `IP` and stored `FW_RULE` ids are gone, and firewall rules are linked by the comment `arcpanel-port-<port>-<user>` because `v-delete-firewall-rule` renumbers rules (D7, §13); account changes reach the registry through hooks in five upstream commands (D4, §6); users reserve, release and open their own ports (D3); the reserved list is `data/ports/.reserved.conf`.
 
 ---
 
@@ -41,9 +43,9 @@ Non-goals: enforcing binds at the kernel level for arbitrary user processes (a u
 One object per line, Hestia style, so `v-list-*` helpers in `func/main.sh` (`parse_object_kv_list`, `is_object_valid 'ports/<user>' 'PORT' …`) work unchanged:
 
 ```text
-PORT='30001' PROTO='tcp' APP='node:api.example.com' PUBLIC='no' IP='' COMMENT='Express API' SUSPENDED='no' TIME='10:12:33' DATE='2026-10-04'
-PORT='30002' PROTO='tcp' APP='docker:uptime-kuma' PUBLIC='yes' IP='203.0.113.10' COMMENT='' SUSPENDED='no' TIME='10:14:02' DATE='2026-10-04'
-PORT='30010-30019' PROTO='tcp' APP='' PUBLIC='no' IP='' COMMENT='reserved block' SUSPENDED='no' TIME='…' DATE='…'
+PORT='30001' PROTO='tcp' APP='node:api.example.com' PUBLIC='no' PUBLIC_OK='no' COMMENT='Express API' SUSPENDED='no' TIME='10:12:33' DATE='2026-10-04'
+PORT='30002' PROTO='tcp' APP='docker:uptime-kuma' PUBLIC='yes' PUBLIC_OK='yes' COMMENT='' SUSPENDED='no' TIME='10:14:02' DATE='2026-10-04'
+PORT='30010-30019' PROTO='tcp' APP='' PUBLIC='no' PUBLIC_OK='yes' COMMENT='reserved block' SUSPENDED='no' TIME='…' DATE='…'
 ```
 
 - `APP` is `<kind>:<id>` (`node:<domain>`, `docker:<app>`, `manual`, or empty for an unassigned block). Kind strings are owned by E14 and E4.
@@ -51,21 +53,21 @@ PORT='30010-30019' PROTO='tcp' APP='' PUBLIC='no' IP='' COMMENT='reserved block'
 - A range entry (`PORT='a-b'`) is a block owned by the user; single ports inside it are split out when consumed (`v-allocate-user-port` rewrites the block as `a-(p-1)` + `p` + `(p+1)-b`).
 - Files are `root:root 0640` like other `data/` files. The panel reads them only through `v-list-user-ports`.
 
-### 4.2 `/usr/local/hestia/data/ports/reserved.conf` (**new**)
+### 4.2 `/usr/local/hestia/data/ports/.reserved.conf` (**new**)
 
 Same format, owner-less, written at install/upgrade by `v-update-sys-ports-reserved` from `hestia.conf` and service configs; admins may add entries. Used by every allocation check.
 
 ### 4.3 `user.conf`
 
-| Key       | Written by                                                                   | Meaning                                                  |
-| --------- | ---------------------------------------------------------------------------- | -------------------------------------------------------- |
-| `U_PORTS` | `v-update-user-counters` extension (additive cron) and every `v-*-user-port` | ports allocated to the user (single ports + range sizes) |
+| Key       | Written by                                                                                               | Meaning                                                  |
+| --------- | -------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
+| `U_PORTS` | not stored (E12 spec D5): upstream commands rewrite `user.conf`; `v-list-user-ports` computes the totals | ports allocated to the user (single ports + range sizes) |
 
 ### 4.4 Package
 
-| Key     | Values                                | Meaning                                                                                                                                                                                                                                                                                                                                                                                                                     |
-| ------- | ------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `PORTS` | integer · `unlimited` · `0` (default) | size of the pool automatically allocated on user creation (`v-add-user` is unchanged: the block is allocated by `v-add-user-port-pool`, called from the Laravel `UserService` after `v-add-user`, from the proposed `post_add_user.sh` hook for CLI/API creations once upstream ships it, and otherwise lazily on the first `v-allocate-user-port` call for that user). `unlimited` disables the pool check (admin-trusted) |
+| Key     | Values                                | Meaning                                                                                                                                                                                                                                                                                                                         |
+| ------- | ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `PORTS` | integer · `unlimited` · `0` (default) | size of the pool automatically allocated on user creation, by the `post_add_user` hook (`v-add-user-port-pool`) and otherwise lazily on the first `v-allocate-user-port` call for that user. `unlimited` disables the pool check (admin-trusted). Stored in the package sidecar `data/packages/<package>.tenancy` (E12 spec D5) |
 
 ### 4.5 `hestia.conf`
 
@@ -197,6 +199,8 @@ sequenceDiagram
 ---
 
 ## 12. Open questions
+
+Answered by the E12 spec: 1 as recommended (D8), 2 yes, with `v-allocate-user-port USER manual` (D3), 3 out of scope (D8).
 
 1. UDP support in v1: allocation supports `PROTO=udp` for completeness (Docker apps like game servers), but Node/Docker proxy templates are TCP-only. Keep UDP allocation, document that public UDP ports are firewall-only.
 2. Should a user be allowed to allocate from the pool themselves (not only via apps)? Recommendation: yes, through "Reserve a port" on My ports (calls `v-add-user-port` with `APP='manual'`) so SSH users can register what they run; still private unless flagged `public-ok`.

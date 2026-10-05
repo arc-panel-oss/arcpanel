@@ -256,6 +256,8 @@ Every migrated page is built **reseller-aware from day one** (owner scoping from
 
 **Success metric:** Zero port conflicts in e2e runs that create 20 Node + Docker apps across 5 users; every publicly reachable high port has an owner in the registry. **Effort:** M. **Outcome:** O6, O3, O7.
 
+**Design:** [E12 spec](./features/specs/2026-10-05-004-e12-port-registry-design.md) (CLI, hooks in five upstream user commands, Admin/Reseller/User Ports pages, four milestones). **Status:** implemented 2026-10-05; the success metric with real Node and Docker apps runs once E14 and E4 consume `v-allocate-user-port`.
+
 ### E13 — Node Manager (nvm) with package management
 
 **Hypothesis:** We believe per-user Node version management with a UI for global npm packages will make Node hosting predictable, because apps need different Node majors and users today install nvm/pm2 by hand in ways backups and rebuilds do not know about.
