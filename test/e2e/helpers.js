@@ -7,6 +7,8 @@ export const USER = 'arce2euser';
 export const SITE = 'e2e-site.example';
 export const RESELLER = 'arce2ereseller';
 export const CUSTOMER = 'arce2ecustomer';
+/** On the developer package, with Node.js (E13) */
+export const DEV = 'arce2edev';
 export const BASE_URL = process.env.E2E_BASE_URL ?? 'https://127.0.0.1:8083';
 
 /** Sign in on /app/login and land on the dashboard. */

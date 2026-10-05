@@ -5,7 +5,9 @@
 #                                 reseller arce2ereseller with its customer
 #                                 arce2ecustomer, their web domains, and prints
 #                                 a self-signed certificate as JSON; the
-#                                 users start without ports (E12)
+#                                 users start without ports (E12);
+#                                 arce2edev on the developer package starts
+#                                 without Node.js (E13)
 #   prepare.sh cleanup            deletes them again
 #   prepare.sh ports RANGE        allocates RANGE to arce2euser (E6)
 #   prepare.sh listen PORT        serves "arce2e-app-PORT" on 127.0.0.1:PORT
@@ -15,7 +17,7 @@ set -euo pipefail
 
 HESTIA="${HESTIA:-/usr/local/hestia}"
 B="$HESTIA/bin"
-USERS="arce2eadmin arce2euser arce2ereseller arce2ecustomer"
+USERS="arce2eadmin arce2euser arce2ereseller arce2ecustomer arce2edev"
 PLAN=arce2e-plan
 STATE=/root/.arcpanel-e2e-debug-mode
 
@@ -106,10 +108,13 @@ fi
 # Port registry (E12): the reseller tree may hold 30 ports; every run starts
 # without ports, the ports spec allocates them through the UI.
 "$B/v-change-package-tenancy" "$PLAN" PORTS 30
+# Node.js manager (E13): the developer package
+"$B/v-add-sys-node" > /dev/null
 for user in $USERS; do
 	if ! "$B/v-list-user" "$user" > /dev/null 2>&1; then
 		package=default
 		if [ "$user" = arce2ereseller ]; then package="$PLAN"; fi
+		if [ "$user" = arce2edev ]; then package=developer; fi
 		"$B/v-add-user" "$user" "$password" "$user@example.invalid" "$package" > /dev/null
 	fi
 	file="$(mktemp)"
@@ -127,6 +132,8 @@ done
 for user in arce2ecustomer arce2euser arce2ereseller; do
 	"$B/v-delete-user-ports" "$user" > /dev/null
 done
+"$B/v-delete-user-nvm" arce2edev > /dev/null 2>&1 || true
+rm -f "$HESTIA/data/users/arce2edev/node-task.conf" "$HESTIA/data/users/arce2edev/node-task.log"
 "$B/v-add-web-domain" arce2euser e2e-site.example > /dev/null
 "$B/v-add-web-domain" arce2euser e2e-bulk.example > /dev/null
 

@@ -1,6 +1,7 @@
 // axe on every panel app page for both roles and both themes, and Lighthouse
 // accessibility ≥ 90 on the dashboard, Web Domains, Users, Packages and Ports
-// pages (E1-S2 spec §4 "Done when", docs/design/05 §6, E12 spec §10).
+// pages (E1-S2 spec §4 "Done when", docs/design/05 §6, E12 spec §10) and
+// the Node.js page (E13 spec §10).
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -10,6 +11,7 @@ import {
 	ADMIN,
 	BASE_URL,
 	CUSTOMER,
+	DEV,
 	expectAccessible,
 	login,
 	RESELLER,
@@ -25,7 +27,9 @@ const pages = {
 		`/app/web/domains/${USER}/${SITE}/edit`,
 		`/app/web/domains/${USER}/${SITE}/logs/access`,
 		'/app/ports',
+		`/app/node/${USER}`,
 	],
+	[DEV]: [`/app/node/${DEV}`],
 	[ADMIN]: [
 		'/app/',
 		'/app/web/domains',
@@ -38,6 +42,7 @@ const pages = {
 		'/app/packages',
 		'/app/packages/default/edit',
 		'/app/server/ports',
+		`/app/node/${DEV}`,
 	],
 	[RESELLER]: [
 		'/app/',

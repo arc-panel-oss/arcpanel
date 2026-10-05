@@ -25,3 +25,4 @@ The legacy UI is server-rendered PHP with Alpine.js for interactivity (`web/temp
 - Two component libraries exist (Blade/Alpine and Vue) but share design tokens, icons, i18n and the same JSON error contract from `ArcCommand`.
 - A later move to a full SPA (roadmap §7, post-2.0) remains possible because controllers already expose JSON for islands.
 - Alpine's CSP build is required for a nonce-based Content Security Policy ([12](../design/12-security-model.md)).
+- The first island is the Node.js page (E13, [spec](../features/specs/2026-10-05-006-e13-node-manager-design.md) §7.1): `scripts/esbuild-vue.js` compiles single-file components with `<script setup>` ahead of time, so pages load Vue's runtime-only build; islands use the panel stylesheet (no `<style>` blocks) and share `http.js`, `toast.js` and the components in `resources/js/islands/shared/`.

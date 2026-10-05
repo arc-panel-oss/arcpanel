@@ -1,6 +1,6 @@
 # E13 — Node Manager — design
 
-**Status:** Approved (2026-10-05) · **Epic:** E13 · **Base design:** [07 Node platform](../../design/07-node-platform.md) §4 · **Previous specs:** [E11](./2026-10-05-003-e11-reseller-design.md), [E12](./2026-10-05-004-e12-port-registry-design.md), [E6 batch 1](./2026-10-05-005-e6-templates-batch1-design.md) · **ADRs:** [0001 view layer](../../adr/0001-view-layer.md) · **Roadmap:** [§3 E13](../../roadmap.md)
+**Status:** Implemented (2026-10-05, see §13) · **Epic:** E13 · **Base design:** [07 Node platform](../../design/07-node-platform.md) §4 · **Previous specs:** [E11](./2026-10-05-003-e11-reseller-design.md), [E12](./2026-10-05-004-e12-port-registry-design.md), [E6 batch 1](./2026-10-05-005-e6-templates-batch1-design.md) · **ADRs:** [0001 view layer](../../adr/0001-view-layer.md) · **Roadmap:** [§3 E13](../../roadmap.md)
 
 ## 1. Summary
 
@@ -209,3 +209,19 @@ A failed or interrupted install leaves no partial runtime: unpacking happens in 
 - **13 Data model reference:** the cache, task files, package keys and `hestia.conf` keys.
 - **ADR-0001:** first island noted under consequences.
 - **Roadmap:** E13 points to this spec and gets its status line.
+
+## 13. Implementation notes (2026-10-05)
+
+Decisions taken while building E13 that differ from, or add to, the sections above:
+
+- **Package defaults (D10):** `NODE_VERSIONS` defaults to `3`, not `0`: with `0`, turning `NODE` on in a package would allow nothing until a second field is changed. `NODE` still defaults to `no`, so no account gets Node.js by accident.
+- **Download locations:** `NODE_RELEASES_URL`, `NODE_SCHEDULE_URL` and `NODE_NVM_URL` are optional overrides read from `hestia.conf`; `v-add-sys-node` does not write them, the defaults live in `func/node.sh`. BATS points them at `file://` mirrors.
+- **Release keys (D8):** the keys ship as one armored bundle, `install/common/node/release-keys.asc`: the 29 keys of `keys.list` in `nodejs/release-keys`, current and former releasers, so that older majors verify too. `v-add-sys-node` imports them into a GnuPG keybox, `data/cache/node/release-keys.gpg`, which `gpgv` reads.
+- **nvm:** release `0.40.8`, pinned with its sha256 in `func/node.sh`; only `nvm.sh`, `nvm-exec`, `bash_completion` and `LICENSE.md` are unpacked into `~/.nvm`. An nvm the user installed by hand is kept.
+- **User side:** every read and write in a home directory runs through `user_exec` with `env -i`, `HOME`, `PATH` (runtime first) and `NVM_DIR`, in the home directory. Tarballs reach the user's `tar` on standard input, so the cache needs no permissions for users. npm runs with `--prefix` of the runtime, `nice`, `ionice` and a 15-minute `timeout`.
+- **Tasks (D4):** the runner is two commands: `v-start-user-node-task` checks the arguments, takes `data/users/<user>/node-task.lock` and starts `v-run-user-node-task` with `setsid`; the runner refuses a task id that `v-start-user-node-task` did not record and writes the result under the same lock. A running task is alive when its PID still runs `v-run-user-node-task`. `v-delete-user-nvm` and `v-delete-user-node-version` refuse while a task runs (`E_INUSE`).
+- **Routes (§6.3):** the page and its JSON routes carry the account: `/app/node/{user}` and `/app/node/{user}/api/…` through `effective-user`, so administrators and resellers open the page of an account in their scope directly; `/app/node` redirects to the effective account. The user detail page links to it.
+- **Sidebar (§6.2):** `NodeAccess` reads the account's package with `v-list-user USER json` and its `NODE` key with `v-list-package-tenancy PACKAGE json`, once per request; administrators always see the entry.
+- **Island (§7.1):** `scripts/esbuild-vue.js` compiles `<script setup>` components with their templates at build time, so the page loads Vue's runtime-only build; `<style>` blocks are refused. The island gets its strings translated in its props, so `i18n-keys.json` (strings of every page) is unchanged. Shared parts: `islands/shared/ApDialog.vue`, `ApIcon.vue`, `ApBadge.vue`, `strings.js`, `task-poller.js`; one CSS utility, `.ap-row-end`. The page renders the runtime table on the server too, so it reads without scripts.
+- **Done when 3:** `node -v` and `nvm use` are checked in a login shell, which reads the same `~/.bashrc` as the Web Terminal (BATS); the terminal's WebSocket is not driven by a test.
+- **Tests:** on `arcpanel-test` (Ubuntu 24.04, x64): BATS `test/arcpanel-node.bats` 33 of 33 (first run downloads Node 22 and 24 into `/root/arcpanel-node-mirror`, later runs are offline except the npm cases), `test/arcpanel-tenancy.bats` and `test/arcpanel-ports.bats` 42 of 42; Pest 303; Vitest 127; Playwright 26 of 26 with `test/e2e/node.spec.js` (Done when 1, 2 and 5 on the new `arce2edev` user of the developer package), axe on `/app/node` for user, developer and administrator in both themes, Lighthouse accessibility 100 on every Node.js page. arm64 is supported by the code but was not run.

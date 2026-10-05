@@ -1,6 +1,6 @@
 # 07 — Node Platform (nvm + pm2)
 
-**Epics:** E13 (Node Manager), E14 (Node Apps) · **Status:** Draft v1 · **Depends on:** E1, E6 batch 1 (`nodejs-proxy*` templates, [09](./09-web-templates-metadata.md)), E12 ([04](./04-port-registry.md)), E11 for owner scoping · **Unblocks:** E20 (Git deploy for all domains), E5 is **not** required (Node is per-user)
+**Epics:** E13 (Node Manager), E14 (Node Apps) · **Status:** §4 implemented by the [E13 spec](../features/specs/2026-10-05-006-e13-node-manager-design.md), which wins where it differs (no `node.conf`, no `PM` key or corepack, no `npm audit`, background tasks instead of `node.pipe`); §5–§7 draft v1 · **Depends on:** E1, E6 batch 1 (`nodejs-proxy*` templates, [09](./09-web-templates-metadata.md)), E12 ([04](./04-port-registry.md)), E11 for owner scoping · **Unblocks:** E20 (Git deploy for all domains), E5 is **not** required (Node is per-user)
 
 ---
 

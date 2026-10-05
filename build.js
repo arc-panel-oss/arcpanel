@@ -5,6 +5,7 @@ import path from 'node:path';
 import browserslist from 'browserslist';
 import esbuild from 'esbuild';
 import * as lightningcss from 'lightningcss';
+import { vueDefines, vuePlugin } from './scripts/esbuild-vue.js';
 
 // Packages to build but exclude from bundle
 const externalPackages = [
@@ -180,6 +181,9 @@ async function buildPanelApp() {
 			entryNames: '[name].[hash]',
 			chunkNames: 'chunks/[name].[hash]',
 			metafile: true,
+			// Vue islands (ADR-0001): precompiled single-file components
+			plugins: [vuePlugin()],
+			define: vueDefines,
 		});
 		for (const [file, output] of Object.entries(js.metafile.outputs)) {
 			// Dynamic imports (chart.js) are entry points too; only list the app.
@@ -235,7 +239,7 @@ async function checkPanelApp() {
 function watchPanelApp() {
 	let timer = null;
 	fsWatch(panelSource, { recursive: true }, (_event, file) => {
-		if (!file || !/\.(css|js)$/.test(file)) {
+		if (!file || !/\.(css|js|vue)$/.test(file)) {
 			return;
 		}
 		clearTimeout(timer);

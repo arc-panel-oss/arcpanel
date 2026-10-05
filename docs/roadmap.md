@@ -19,16 +19,16 @@ This roadmap is a strategic plan, not a commitment. Review it at the end of each
 
 ### Outcomes we are optimizing for
 
-| # | Outcome | Why it matters | How we measure it |
-| --- | --- | --- | --- |
-| O1 | **Modern, pleasant UI/UX** | Differentiates ArcPanel from HestiaCP; lowers the learning curve | Task time for 5 common tasks (add domain, upload file, edit file, add DB, install app) down 40% vs. baseline; Lighthouse accessibility ≥ 90 on every page |
-| O2 | **Maintainable web codebase (Laravel)** | Legacy PHP pages are hard to test and extend; new features (App Store) need a real framework | % of pages served by Laravel (target 100% by Q4); automated test coverage of controllers |
-| O3 | **"Install anything" platform** | Users want Docker and system apps from one panel without SSH | Number of catalog apps; successful installs/uninstalls without manual fixes |
-| O4 | **Broader stack support** | Node.js, Python, Go, static sites are common but need manual templates today | Number of documented templates; templates with metadata and a picker in the UI |
-| O5 | **Stay close to upstream** | Security fixes, new PHP/MariaDB versions come from HestiaCP | `bin/`, `func/`, `install/` diff against upstream stays additive; upstream merge takes < 1 day |
-| O6 | **Reseller-ready multi-tenancy** | Hosting providers need resellers who manage their own customers inside their own quota, with controlled network access (ports) | A reseller creates and manages sub-users without admin help; no cross-tenant data visible in UI/API; every public port is assigned, not guessed |
-| O7 | **First-class Node.js hosting** | Node apps are the most requested non-PHP workload; today they need SSH, nvm and pm2 by hand | A user deploys a Node app on a domain with HTTPS from the UI in < 5 minutes; app survives reboot |
-| O8 | **Operational confidence and security** *(Later backlog)* | Admins and resellers must know when something breaks and trust that sites are protected; today RRD graphs and logs exist, but nothing alerts, explains or records who changed what | An incident (service down, disk full, expiring SSL) reaches the admin within 5 minutes; the most common support issues are detected by a Doctor check; every state change has an audit event |
+| #   | Outcome                                                   | Why it matters                                                                                                                                                                     | How we measure it                                                                                                                                                                            |
+| --- | --------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| O1  | **Modern, pleasant UI/UX**                                | Differentiates ArcPanel from HestiaCP; lowers the learning curve                                                                                                                   | Task time for 5 common tasks (add domain, upload file, edit file, add DB, install app) down 40% vs. baseline; Lighthouse accessibility ≥ 90 on every page                                    |
+| O2  | **Maintainable web codebase (Laravel)**                   | Legacy PHP pages are hard to test and extend; new features (App Store) need a real framework                                                                                       | % of pages served by Laravel (target 100% by Q4); automated test coverage of controllers                                                                                                     |
+| O3  | **"Install anything" platform**                           | Users want Docker and system apps from one panel without SSH                                                                                                                       | Number of catalog apps; successful installs/uninstalls without manual fixes                                                                                                                  |
+| O4  | **Broader stack support**                                 | Node.js, Python, Go, static sites are common but need manual templates today                                                                                                       | Number of documented templates; templates with metadata and a picker in the UI                                                                                                               |
+| O5  | **Stay close to upstream**                                | Security fixes, new PHP/MariaDB versions come from HestiaCP                                                                                                                        | `bin/`, `func/`, `install/` diff against upstream stays additive; upstream merge takes < 1 day                                                                                               |
+| O6  | **Reseller-ready multi-tenancy**                          | Hosting providers need resellers who manage their own customers inside their own quota, with controlled network access (ports)                                                     | A reseller creates and manages sub-users without admin help; no cross-tenant data visible in UI/API; every public port is assigned, not guessed                                              |
+| O7  | **First-class Node.js hosting**                           | Node apps are the most requested non-PHP workload; today they need SSH, nvm and pm2 by hand                                                                                        | A user deploys a Node app on a domain with HTTPS from the UI in < 5 minutes; app survives reboot                                                                                             |
+| O8  | **Operational confidence and security** _(Later backlog)_ | Admins and resellers must know when something breaks and trust that sites are protected; today RRD graphs and logs exist, but nothing alerts, explains or records who changed what | An incident (service down, disk full, expiring SSL) reaches the admin within 5 minutes; the most common support issues are detected by a Doctor check; every state change has an audit event |
 
 ### Constraints and decisions already made
 
@@ -47,8 +47,8 @@ This roadmap is a strategic plan, not a commitment. Review it at the end of each
 4. **Platform** — Docker App Store, Node.js platform (nvm + pm2), then apt/snap system apps.
 5. **Stack breadth** — NGINX/Apache templates with metadata.
 6. **Completion** — Migrate all remaining pages, retire legacy `web/`, release 2.0.
-7. **Operations and trust** *(Later)* — job center, alerts, Doctor diagnostics, log explorer, update center (automatic and manual upgrades), audit log, WAF, malware scanning, login hardening.
-8. **Workflows and integrations** *(Later)* — per-domain PHP settings, Git deploy, WordPress Toolkit, staging, mail deliverability, Cloudflare, webhooks, collaborators, migration wizard, AI assistant.
+7. **Operations and trust** _(Later)_ — job center, alerts, Doctor diagnostics, log explorer, update center (automatic and manual upgrades), audit log, WAF, malware scanning, login hardening.
+8. **Workflows and integrations** _(Later)_ — per-domain PHP settings, Git deploy, WordPress Toolkit, staging, mail deliverability, Cloudflare, webhooks, collaborators, migration wizard, AI assistant.
 
 ---
 
@@ -177,16 +177,16 @@ Every migrated page is built **reseller-aware from day one** (owner scoping from
 
 **Baseline (measured 2026-10-04 on this repository):**
 
-| What | Count |
-| --- | --- |
-| Files that contain "hestia" (any case) | 1,220 (bin 524, install 288, web 275, docs 65, src 31) |
-| Occurrences of "hestia" | 14,061 |
-| `/usr/local/hestia` path references | 1,320 |
-| `HESTIA_*` variable uses | ~1,100 (`HESTIA_CMD` alone: 645) |
-| "Hestia" in `web/templates` (user-visible) | 61 |
-| `msgid` strings with "Hestia" in `web/locale/hestiacp.pot` | 5 |
-| Files under `install/deb/templates` with "hestia" | 127 |
-| Named artifacts | 9 `v-*-hestia-*` commands; gettext domain `hestiacp`; deb packages `hestia`, `hestia-nginx`, `hestia-php`, `hestia-web-terminal`; system user/sudoers `hestiaweb`; fail2ban, logrotate, Roundcube, phpMyAdmin SSO and FileGator adapters named after Hestia |
+| What                                                       | Count                                                                                                                                                                                                                                                       |
+| ---------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Files that contain "hestia" (any case)                     | 1,220 (bin 524, install 288, web 275, docs 65, src 31)                                                                                                                                                                                                      |
+| Occurrences of "hestia"                                    | 14,061                                                                                                                                                                                                                                                      |
+| `/usr/local/hestia` path references                        | 1,320                                                                                                                                                                                                                                                       |
+| `HESTIA_*` variable uses                                   | ~1,100 (`HESTIA_CMD` alone: 645)                                                                                                                                                                                                                            |
+| "Hestia" in `web/templates` (user-visible)                 | 61                                                                                                                                                                                                                                                          |
+| `msgid` strings with "Hestia" in `web/locale/hestiacp.pot` | 5                                                                                                                                                                                                                                                           |
+| Files under `install/deb/templates` with "hestia"          | 127                                                                                                                                                                                                                                                         |
+| Named artifacts                                            | 9 `v-*-hestia-*` commands; gettext domain `hestiacp`; deb packages `hestia`, `hestia-nginx`, `hestia-php`, `hestia-web-terminal`; system user/sudoers `hestiaweb`; fail2ban, logrotate, Roundcube, phpMyAdmin SSO and FileGator adapters named after Hestia |
 
 **Milestones:**
 
@@ -213,20 +213,20 @@ Every migrated page is built **reseller-aware from day one** (owner scoping from
 - **Data model (additive):** `OWNER='<reseller>'` in `user.conf`, set via the existing `v-change-user-config-value`. New commands: `v-add-reseller-user` (wraps `v-add-user` + sets `OWNER`, checks the reseller's aggregated quota), `v-list-reseller-users`, `v-change-user-owner`, `v-update-reseller-counters` (sum of sub-users' disk/bandwidth/domains into `U_*` of the reseller). `v-change-user-role` gains `reseller` as an accepted value (a 1-line change; sent upstream as a PR; until merged, kept in a tiny patch file in `install/upgrade/patch/`). `dns-cluster` stays as a system role.
 - **Permission matrix (enforced in Laravel policies and in the API layer):**
 
-  | Capability | admin | reseller | user |
-  | --- | --- | --- | --- |
-  | Server settings, services, IPs, firewall, updates | ✔ | ✖ | ✖ |
-  | Create/suspend/delete users | all | own sub-users only | ✖ |
-  | Packages | create/edit all | assign only packages flagged `RESELLER_VISIBLE` or packages the reseller created within own limits | ✖ |
-  | Login-as | any user | own sub-users | ✖ |
-  | Port registry | assign ranges to anyone | re-assign ports from own pool to own sub-users | use assigned ports |
-  | App Store install | ✔ | ✔ (if package allows) | ✔ (if package allows) |
-  | Statistics/logs | all | own tree | self |
-  | Backups | all | own tree | self |
+  | Capability                                        | admin                   | reseller                                                                                           | user                  |
+  | ------------------------------------------------- | ----------------------- | -------------------------------------------------------------------------------------------------- | --------------------- |
+  | Server settings, services, IPs, firewall, updates | ✔                       | ✖                                                                                                  | ✖                     |
+  | Create/suspend/delete users                       | all                     | own sub-users only                                                                                 | ✖                     |
+  | Packages                                          | create/edit all         | assign only packages flagged `RESELLER_VISIBLE` or packages the reseller created within own limits | ✖                     |
+  | Login-as                                          | any user                | own sub-users                                                                                      | ✖                     |
+  | Port registry                                     | assign ranges to anyone | re-assign ports from own pool to own sub-users                                                     | use assigned ports    |
+  | App Store install                                 | ✔                       | ✔ (if package allows)                                                                              | ✔ (if package allows) |
+  | Statistics/logs                                   | all                     | own tree                                                                                           | self                  |
+  | Backups                                           | all                     | own tree                                                                                           | self                  |
 
 - **Reseller package fields (additive keys in `.pkg`):** `USERS` (max sub-users), `RESELLER_PACKAGES` (comma list of assignable packages), `PORTS` (size of the port pool). Quotas of sub-users must fit inside the reseller's own package (checked in `v-add-reseller-user` and `v-change-user-package`).
 - **Reseller interface** (a dedicated role-based UI, not the admin UI with buttons hidden):
-  - **Role-aware shell (E2):** the sidebar is generated from the permission matrix. Reseller navigation: *Dashboard · Customers · Packages · Ports · Statistics · Backups · Logs · My account*. No Server, Services, IPs, Firewall or Updates entries. An "Acting as reseller" badge and a quick customer switcher (login-as) in the top bar.
+  - **Role-aware shell (E2):** the sidebar is generated from the permission matrix. Reseller navigation: _Dashboard · Customers · Packages · Ports · Statistics · Backups · Logs · My account_. No Server, Services, IPs, Firewall or Updates entries. An "Acting as reseller" badge and a quick customer switcher (login-as) in the top bar.
   - **Reseller dashboard:** usage of the reseller's own package vs. the sum of its customers (disk, bandwidth, domains, mail accounts, databases, ports used/free), customer count vs. `USERS` limit, suspended customers, recent customer activity, expiring SSL/backups across the tree, notifications from customers (e.g., "request more ports").
   - **Customers page (`/customers`):** list of own sub-users with status, package, usage bars and quick actions (login-as, suspend, change package, reset password, delete); bulk actions; create-customer wizard (username, contact, package from the reseller's assignable list, optional first domain + mail + DB in one step, send welcome email).
   - **Customer detail:** tabs for Web / DNS / Mail / DB / Cron / Backups / Node & Docker apps / Ports / Logs of that customer, all read through the same owner-scoped policies; "open as customer" to switch context.
@@ -274,6 +274,8 @@ Every migrated page is built **reseller-aware from day one** (owner scoping from
 
 **Success metric:** User installs Node 22 and `pm2`/`yarn` from the UI; `node -v` in the Web Terminal matches; survives `v-rebuild-user` and restore. **Effort:** M. **Outcome:** O7.
 
+**Design:** [E13 spec](./features/specs/2026-10-05-006-e13-node-manager-design.md) (runtimes unpacked from a signed shared cache into `~/.nvm`, pnpm and yarn as global packages, background tasks, `~/.nvm` as the only state, the first Vue island, four milestones). **Status:** implemented 2026-10-05; the Backup Exclusions toggle for `~/.nvm` moves with that page in E7.
+
 ### E14 — Node Apps with pm2
 
 **Hypothesis:** We believe a "Node App" object bound to a web domain and managed by a per-user pm2 daemon will give Node developers the same one-screen experience PHP users already have, because the panel already owns domains, SSL and reverse proxy templates—only the process manager and port wiring are missing.
@@ -283,7 +285,7 @@ Every migrated page is built **reseller-aware from day one** (owner scoping from
 1. **Core:** `v-add-node-app USER DOMAIN NAME [ENTRY=app.js] [NODE_VERSION] [PORT]` → allocates a port from E12, writes `~/web/<domain>/nodeapp/ecosystem.config.cjs` (name, script, cwd, env incl. `PORT`, instances, max memory from package), switches the domain to the `nodejs-proxy` template (E6) with that port, reloads nginx. `v-delete-node-app`, `v-list-node-apps`, `v-list-node-app`.
 2. **Lifecycle:** `v-start|stop|restart|reload-node-app`, `v-list-node-app-logs` (tail, follow via WebSocket reusing the Web Terminal transport), env editor (`v-change-node-app-env`), `v-change-node-app-version` (switch Node major), `v-change-node-app-entry`.
 3. **Persistence:** one pm2 daemon per user under a systemd user unit (`pm2 startup systemd -u <user>`; `loginctl enable-linger`), so apps come back after reboot; `v-rebuild-user` regenerates units; suspend user stops its pm2.
-4. **Deploy helpers:** "Install dependencies" (`npm ci` / `pnpm i`) and "Run build" buttons with streamed output; optional Git deploy (`v-add-node-app-git URL BRANCH`, pull + install + reload) as a *nice* milestone; `.env` file managed through File Manager v2.
+4. **Deploy helpers:** "Install dependencies" (`npm ci` / `pnpm i`) and "Run build" buttons with streamed output; optional Git deploy (`v-add-node-app-git URL BRANCH`, pull + install + reload) as a _nice_ milestone; `.env` file managed through File Manager v2.
 5. **UI (Vue island):** Node Apps list (status, CPU/mem from `pm2 jlist`, restarts, uptime), app page with logs, env, version, domain/SSL status; create wizard (domain → entry file → Node version → port auto-assigned).
 6. **Templates:** `nodejs-proxy` (HTTP), `nodejs-proxy-ws` (websocket upgrade), `nextjs`, `nuxt`, `strapi` from E6 all accept the `%node_port%`-style variable introduced by the template metadata sidecar.
 7. **Backups/restore:** app directory is inside `~/web/<domain>/` so it is already backed up; `ecosystem.config.cjs` + registry port are restored by `v-restore-web-domain` through an additive hook in `func/node.sh`.
@@ -298,15 +300,15 @@ Every migrated page is built **reseller-aware from day one** (owner scoping from
 
 ### Later backlog (E15–E33)
 
-These epics are **not** part of the 12-month capacity: §6 already books two developers until 2.0. They are scored in §4, sequenced as post-2.0 waves in §6, and reviewed every quarter. An item moves to *Next* only when a committed epic finishes early or is cut. They follow the same rules as E1–E14: Laravel UI built from E2 components, owner-scoped through E11 policies, and only additive `v-*` commands.
+These epics are **not** part of the 12-month capacity: §6 already books two developers until 2.0. They are scored in §4, sequenced as post-2.0 waves in §6, and reviewed every quarter. An item moves to _Next_ only when a committed epic finishes early or is cut. They follow the same rules as E1–E14: Laravel UI built from E2 components, owner-scoped through E11 policies, and only additive `v-*` commands.
 
-| Theme | Epics |
-| --- | --- |
-| Operations and observability | E15 Job Center · E16 Alerts · E17 Doctor · E18 Log Explorer · E33 Update Center |
-| Web workflows | E19 Per-domain PHP settings · E20 Git Deploy · E21 WordPress Toolkit · E22 Staging and clone |
-| Security | E23 Audit log · E24 WAF · E25 Malware scanning · E26 Login hardening |
-| Mail, DNS and integrations | E27 Mail deliverability · E28 Cloudflare / external DNS · E29 Webhooks and OpenAPI |
-| Tenancy and growth | E30 Collaborators · E31 Migration wizard · E32 AI assistant (experimental) |
+| Theme                        | Epics                                                                                        |
+| ---------------------------- | -------------------------------------------------------------------------------------------- |
+| Operations and observability | E15 Job Center · E16 Alerts · E17 Doctor · E18 Log Explorer · E33 Update Center              |
+| Web workflows                | E19 Per-domain PHP settings · E20 Git Deploy · E21 WordPress Toolkit · E22 Staging and clone |
+| Security                     | E23 Audit log · E24 WAF · E25 Malware scanning · E26 Login hardening                         |
+| Mail, DNS and integrations   | E27 Mail deliverability · E28 Cloudflare / external DNS · E29 Webhooks and OpenAPI           |
+| Tenancy and growth           | E30 Collaborators · E31 Migration wizard · E32 AI assistant (experimental)                   |
 
 ### E15 — Job Center
 
@@ -561,7 +563,7 @@ These epics are **not** part of the 12-month capacity: §6 already books two dev
   - Rollback: panel packages to the previous version from the local apt cache (`v-rollback-sys-hestia VERSION`), Docker apps to the previous image, restore of the config snapshot. OS packages are not rolled back automatically; the UI links to the snapshot and the job log instead.
 - **Reboots** — detect `/var/run/reboot-required` and the packages that need it; show a banner; `v-schedule-sys-reboot` reboots inside the next maintenance window, with a notification first.
 - **History** — `v-list-sys-update-history` (what changed, when, by whom or by which policy, result), linked to the E15 job logs and recorded in the audit log (E23).
-- **OS release upgrade readiness** *(nice milestone)* — a read-only pre-check for major OS upgrades (for example Debian 12 → 13) based on [os-upgrades.md](./docs/server-administration/os-upgrades.md): supported target, locally modified config files, packages from third-party repositories, free space. The upgrade itself stays a documented manual process.
+- **OS release upgrade readiness** _(nice milestone)_ — a read-only pre-check for major OS upgrades (for example Debian 12 → 13) based on [os-upgrades.md](./docs/server-administration/os-upgrades.md): supported target, locally modified config files, packages from third-party repositories, free space. The upgrade itself stays a documented manual process.
 - **Roles:** only admins change policies and run system updates; resellers and users see the update state of their own Docker apps, Node packages and WordPress sites.
 - **UI:** a redesigned Updates page (replaces the current Updates list): components with pending counts and security badges, policy editor, maintenance window, "Update now / Schedule", history.
 
@@ -573,22 +575,22 @@ These epics are **not** part of the 12-month capacity: §6 already books two dev
 
 Scores 1–5. **Priority = (Value + Strategic fit) ÷ Effort**, then adjusted for dependencies.
 
-| Epic | Value | Strategic fit | Effort (1=S…5=XL) | Score | Rank | Note |
-| --- | --- | --- | --- | --- | --- | --- |
-| E1 Laravel foundation | 3 | 5 | 4 | 2.0 | 1 | Blocks everything else; must go first |
-| E6 Templates (batch 1) | 4 | 3 | 1 | 7.0 | 2 | Cheapest user-visible win; no dependencies |
-| E2 Design system & shell | 5 | 4 | 4 | 2.3 | 3 | Needed before any page migration |
-| E3 File Manager v2 | 5 | 4 | 5 | 1.8 | 4 | Flagship UX; needs E1+E2 |
-| E4 Docker App Store | 5 | 5 | 5 | 2.0 | 5 | Strategic bet; needs E1, E6 proxy template |
-| E7 Page migration | 3 | 5 | 5 | 1.6 | 6 | Steady work once E2 exists |
-| E5 apt/snap apps | 3 | 3 | 2 | 3.0 | 7 | Deferred by decision; needs E4 store UI |
-| E10 Testing & CI | 3 | 4 | 2 | 3.5 | — | Continuous; starts in Q1 |
-| E8 Legacy retirement | 2 | 4 | 2 | 3.0 | 9 | Only after E7 |
-| E9 Rebranding | 4 | 5 | 2 | 4.5 | 0 | **Top priority by owner decision (2026-10-04).** R1–R2 before any page migration; R3 depth set by ADR-0006 |
-| E11 Roles (reseller) | 4 | 5 | 4 | 2.3 | 3 | Data model must exist before mass page migration (E7) |
-| E12 Port registry | 3 | 4 | 2 | 3.5 | 4 | Small, unblocks E4 and E14; pairs with E11 |
-| E13 Node Manager (nvm) | 4 | 4 | 2 | 4.0 | 5 | Cheap, follows the existing per-user tool pattern |
-| E14 Node Apps (pm2) | 5 | 5 | 4 | 2.5 | 6 | Needs E12 + E13 + `nodejs-proxy` template |
+| Epic                     | Value | Strategic fit | Effort (1=S…5=XL) | Score | Rank | Note                                                                                                       |
+| ------------------------ | ----- | ------------- | ----------------- | ----- | ---- | ---------------------------------------------------------------------------------------------------------- |
+| E1 Laravel foundation    | 3     | 5             | 4                 | 2.0   | 1    | Blocks everything else; must go first                                                                      |
+| E6 Templates (batch 1)   | 4     | 3             | 1                 | 7.0   | 2    | Cheapest user-visible win; no dependencies                                                                 |
+| E2 Design system & shell | 5     | 4             | 4                 | 2.3   | 3    | Needed before any page migration                                                                           |
+| E3 File Manager v2       | 5     | 4             | 5                 | 1.8   | 4    | Flagship UX; needs E1+E2                                                                                   |
+| E4 Docker App Store      | 5     | 5             | 5                 | 2.0   | 5    | Strategic bet; needs E1, E6 proxy template                                                                 |
+| E7 Page migration        | 3     | 5             | 5                 | 1.6   | 6    | Steady work once E2 exists                                                                                 |
+| E5 apt/snap apps         | 3     | 3             | 2                 | 3.0   | 7    | Deferred by decision; needs E4 store UI                                                                    |
+| E10 Testing & CI         | 3     | 4             | 2                 | 3.5   | —    | Continuous; starts in Q1                                                                                   |
+| E8 Legacy retirement     | 2     | 4             | 2                 | 3.0   | 9    | Only after E7                                                                                              |
+| E9 Rebranding            | 4     | 5             | 2                 | 4.5   | 0    | **Top priority by owner decision (2026-10-04).** R1–R2 before any page migration; R3 depth set by ADR-0006 |
+| E11 Roles (reseller)     | 4     | 5             | 4                 | 2.3   | 3    | Data model must exist before mass page migration (E7)                                                      |
+| E12 Port registry        | 3     | 4             | 2                 | 3.5   | 4    | Small, unblocks E4 and E14; pairs with E11                                                                 |
+| E13 Node Manager (nvm)   | 4     | 4             | 2                 | 4.0   | 5    | Cheap, follows the existing per-user tool pattern                                                          |
+| E14 Node Apps (pm2)      | 5     | 5             | 4                 | 2.5   | 6    | Needs E12 + E13 + `nodejs-proxy` template                                                                  |
 
 Ranks after adding E11–E14 and promoting E9: **0** E9 R1–R2 · **1** E1 · **2** E6 batch 1 · **3** E2 + E11 (designed together) · **4** E12 · **5** E13 · **6** E14 · **7** E3 · **8** E4 · **9** E7 · **10** E5 · **11** E8.
 
@@ -603,27 +605,27 @@ Ranks after adding E11–E14 and promoting E9: **0** E9 R1–R2 · **1** E1 · *
 
 Same formula. These scores order the post-2.0 waves in §6; they do not compete with E1–E14 for the 12-month capacity.
 
-| Epic | Value | Strategic fit | Effort (1=S…5=XL) | Score | Rank | Note |
-| --- | --- | --- | --- | --- | --- | --- |
-| E19 Per-domain PHP settings | 4 | 3 | 1 | 7.0 | 1 | Most frequent PHP support request; small |
-| E23 Audit log | 3 | 4 | 1 | 7.0 | 2 | Trust for resellers; prerequisite for E29, E30 |
-| E15 Job Center | 4 | 5 | 2 | 4.5 | 3 | Shared base for E16, E17, E20–E22, E31, E33 |
-| E16 Alerts and channels | 5 | 4 | 2 | 4.5 | 4 | Needs E15 for job failures |
-| E33 Update Center | 5 | 4 | 2 | 4.5 | 5 | Safe auto/manual updates; needs E15, E16, E17 |
-| E17 Server and Site Doctor | 4 | 4 | 2 | 4.0 | 6 | Read-only checks; fixes run as E15 jobs |
-| E20 Git Deploy | 4 | 4 | 2 | 4.0 | 7 | Reuses E14 deploy code |
-| E24 WAF and bot protection | 4 | 3 | 2 | 3.5 | 8 | Additive through `nginx.conf_*` includes |
-| E27 Mail deliverability | 4 | 3 | 2 | 3.5 | 9 | RBL alerts through E16 |
-| E28 Cloudflare / external DNS | 4 | 3 | 2 | 3.5 | 10 | Needs E7 DNS pages |
-| E18 Log Explorer | 3 | 3 | 2 | 3.0 | 11 | |
-| E25 Malware scanning | 3 | 3 | 2 | 3.0 | 12 | |
-| E26 Login hardening | 3 | 3 | 2 | 3.0 | 13 | After E8 (no session bridge) |
-| E29 Webhooks and OpenAPI | 3 | 3 | 2 | 3.0 | 14 | Needs E23 event stream |
-| E21 WordPress Toolkit | 5 | 4 | 4 | 2.3 | 15 | Promoted (see below) |
-| E30 Collaborators | 4 | 5 | 4 | 2.3 | 16 | Needs E11 policy layer and E23 |
-| E32 AI assistant | 3 | 2 | 2 | 2.5 | 17 | Experimental; kept last on purpose |
-| E22 Staging and clone | 4 | 3 | 4 | 1.8 | 18 | Built right after E21 (shared WP-CLI code) |
-| E31 Migration wizard | 4 | 3 | 4 | 1.8 | 19 | Acquisition lever; large |
+| Epic                          | Value | Strategic fit | Effort (1=S…5=XL) | Score | Rank | Note                                           |
+| ----------------------------- | ----- | ------------- | ----------------- | ----- | ---- | ---------------------------------------------- |
+| E19 Per-domain PHP settings   | 4     | 3             | 1                 | 7.0   | 1    | Most frequent PHP support request; small       |
+| E23 Audit log                 | 3     | 4             | 1                 | 7.0   | 2    | Trust for resellers; prerequisite for E29, E30 |
+| E15 Job Center                | 4     | 5             | 2                 | 4.5   | 3    | Shared base for E16, E17, E20–E22, E31, E33    |
+| E16 Alerts and channels       | 5     | 4             | 2                 | 4.5   | 4    | Needs E15 for job failures                     |
+| E33 Update Center             | 5     | 4             | 2                 | 4.5   | 5    | Safe auto/manual updates; needs E15, E16, E17  |
+| E17 Server and Site Doctor    | 4     | 4             | 2                 | 4.0   | 6    | Read-only checks; fixes run as E15 jobs        |
+| E20 Git Deploy                | 4     | 4             | 2                 | 4.0   | 7    | Reuses E14 deploy code                         |
+| E24 WAF and bot protection    | 4     | 3             | 2                 | 3.5   | 8    | Additive through `nginx.conf_*` includes       |
+| E27 Mail deliverability       | 4     | 3             | 2                 | 3.5   | 9    | RBL alerts through E16                         |
+| E28 Cloudflare / external DNS | 4     | 3             | 2                 | 3.5   | 10   | Needs E7 DNS pages                             |
+| E18 Log Explorer              | 3     | 3             | 2                 | 3.0   | 11   |                                                |
+| E25 Malware scanning          | 3     | 3             | 2                 | 3.0   | 12   |                                                |
+| E26 Login hardening           | 3     | 3             | 2                 | 3.0   | 13   | After E8 (no session bridge)                   |
+| E29 Webhooks and OpenAPI      | 3     | 3             | 2                 | 3.0   | 14   | Needs E23 event stream                         |
+| E21 WordPress Toolkit         | 5     | 4             | 4                 | 2.3   | 15   | Promoted (see below)                           |
+| E30 Collaborators             | 4     | 5             | 4                 | 2.3   | 16   | Needs E11 policy layer and E23                 |
+| E32 AI assistant              | 3     | 2             | 2                 | 2.5   | 17   | Experimental; kept last on purpose             |
+| E22 Staging and clone         | 4     | 3             | 4                 | 1.8   | 18   | Built right after E21 (shared WP-CLI code)     |
+| E31 Migration wizard          | 4     | 3             | 4                 | 1.8   | 19   | Acquisition lever; large                       |
 
 **Backlog overrides:**
 
@@ -705,59 +707,59 @@ graph LR
 
 **Capacity note.** With E11–E14 added, the plan below assumes **two developers for the full 12 months**. With one developer, keep the same order but expect ~15–16 months, or cut from the "Later" list first: E5 apt/snap apps → post-2.0, Docker catalog 10 → 6 apps, Apache2 templates → post-2.0, Git deploy for Node apps → post-2.0.
 
-### Q1 — Foundation & tenancy model (months 1–3) — *Now, committed*
+### Q1 — Foundation & tenancy model (months 1–3) — _Now, committed_
 
 **Sprint 0 — Rebranding (weeks 1–4, both tracks, top priority).** E9 brand kit, R1 visible brand, R2 distribution identity and R3 compatibility layer, as planned in the [rebranding spec](./features/specs/2026-10-04-001-arcpanel-rebranding-design.md); R4 deferred. E1/E6/E11 start once R1 is merged, so all new work ships under the ArcPanel name.
 
-| Track A (dev 1) | Track B (dev 2) |
-| --- | --- |
-| **E1** Laravel skeleton, nginx routing, session bridge, `ArcCommand`, policies, i18n import, packaging | **E6 batch 1** (8 templates incl. `docker-proxy`, `nodejs-proxy`, `nodejs-proxy-ws` + metadata sidecar format) |
-| **E2** tokens, component library, shell, dashboard | **E11 part 1:** `OWNER` data model, `v-add-reseller-user`, `v-list-reseller-users`, `v-change-user-owner`, reseller counters, permission matrix as Laravel policies (used by every page from here on) |
-| First migrated pages: Login, Dashboard, Web Domains list/add/edit (proves the pattern end-to-end, built owner-aware) | **E12** port registry commands + package `PORTS` field; **E10** CI (Pest, Playwright on a test VM, upstream-diff check, visible-"Hestia" string check from E9) |
+| Track A (dev 1)                                                                                                      | Track B (dev 2)                                                                                                                                                                                       |
+| -------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **E1** Laravel skeleton, nginx routing, session bridge, `ArcCommand`, policies, i18n import, packaging               | **E6 batch 1** (8 templates incl. `docker-proxy`, `nodejs-proxy`, `nodejs-proxy-ws` + metadata sidecar format)                                                                                        |
+| **E2** tokens, component library, shell, dashboard                                                                   | **E11 part 1:** `OWNER` data model, `v-add-reseller-user`, `v-list-reseller-users`, `v-change-user-owner`, reseller counters, permission matrix as Laravel policies (used by every page from here on) |
+| First migrated pages: Login, Dashboard, Web Domains list/add/edit (proves the pattern end-to-end, built owner-aware) | **E12** port registry commands + package `PORTS` field; **E10** CI (Pest, Playwright on a test VM, upstream-diff check, visible-"Hestia" string check from E9)                                        |
 
 **Exit criteria:** Log in as admin, reseller and user → correct dashboards and scoping; add a web domain with a template picked from the card picker, all on Laravel; admin assigns a port block to a user and sees live usage; legacy pages still work; CI green on Debian 12 and Ubuntu 24.04.
 **ADRs due:** view layer (Blade/Alpine vs Inertia/Vue), URL scheme, Docker rootless vs group mode, reseller quota semantics (hard nested quota vs soft), pm2 per-user systemd units vs single system pm2.
 
-### Q2 — Node platform, roles UI & File Manager (months 4–6) — *Next, high confidence*
+### Q2 — Node platform, roles UI & File Manager (months 4–6) — _Next, high confidence_
 
-| Track A | Track B |
-| --- | --- |
-| **E3** File Manager milestones 1–3 (browse/ops, upload/download, editor) | **E13** Node Manager: per-user nvm, versions, global packages, `developer` package, Node page |
-| **E11 part 2 — reseller interface:** role-aware shell and navigation, reseller dashboard, Customers page + create-customer wizard, customer detail, Packages page, login-as for resellers, admin owner tree view, policy toggles (Users & Packages pages migrated from E7 as part of this) | **E14** Node Apps milestones 1–3 (create/bind to domain, lifecycle, pm2 persistence) |
-| **E12** Ports UI (admin table, user "My ports", reseller sub-allocation) | **E14** milestone 5 UI (list, app page, logs via WebSocket, create wizard) |
+| Track A                                                                                                                                                                                                                                                                                    | Track B                                                                                       |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------- |
+| **E3** File Manager milestones 1–3 (browse/ops, upload/download, editor)                                                                                                                                                                                                                   | **E13** Node Manager: per-user nvm, versions, global packages, `developer` package, Node page |
+| **E11 part 2 — reseller interface:** role-aware shell and navigation, reseller dashboard, Customers page + create-customer wizard, customer detail, Packages page, login-as for resellers, admin owner tree view, policy toggles (Users & Packages pages migrated from E7 as part of this) | **E14** Node Apps milestones 1–3 (create/bind to domain, lifecycle, pm2 persistence)          |
+| **E12** Ports UI (admin table, user "My ports", reseller sub-allocation)                                                                                                                                                                                                                   | **E14** milestone 5 UI (list, app page, logs via WebSocket, create wizard)                    |
 
 **Exit criteria:** FileGator replaced for browsing/upload/edit; a reseller logs in to a reseller-specific dashboard, onboards a customer through the wizard and switches into the customer's account without admin help; a user deploys an Express/Next.js app on a domain with HTTPS from the UI and it survives a reboot.
 
-### Q3 — App Store & scale out (months 7–9) — *Later, medium confidence*
+### Q3 — App Store & scale out (months 7–9) — _Later, medium confidence_
 
-| Track A | Track B |
-| --- | --- |
-| **E7** Databases, DNS, Mail, Cron, Backups (incl. restic views) — all owner-scoped | **E4** milestones 1–4 (Docker engine, catalog format, lifecycle, store UI with 6 apps; ports from E12) |
-| **E3** milestones 4–5 (integrations incl. "open app directory" for Node/Docker apps, remove FileGator from package) | **E14** milestones 4, 6–7 (install/build buttons, Git deploy *nice*, template variables, backup/restore hooks) |
-| | **E6 batch 2** |
+| Track A                                                                                                             | Track B                                                                                                        |
+| ------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| **E7** Databases, DNS, Mail, Cron, Backups (incl. restic views) — all owner-scoped                                  | **E4** milestones 1–4 (Docker engine, catalog format, lifecycle, store UI with 6 apps; ports from E12)         |
+| **E3** milestones 4–5 (integrations incl. "open app directory" for Node/Docker apps, remove FileGator from package) | **E14** milestones 4, 6–7 (install/build buttons, Git deploy _nice_, template variables, backup/restore hooks) |
+|                                                                                                                     | **E6 batch 2**                                                                                                 |
 
 **Exit criteria:** ≥ 70% of routes on Laravel; a user installs Uptime Kuma or n8n on a domain with HTTPS from the UI; FileGator gone from the installer.
 
-### Q4 — Completion and 2.0 (months 10–12) — *Later, lower confidence*
+### Q4 — Completion and 2.0 (months 10–12) — _Later, lower confidence_
 
-| Track A | Track B |
-| --- | --- |
-| **E7** Firewall, IPs, Server settings, service config editors, Access keys/API (role-aware keys), Logs, Stats/RRD, Terminal page, Quick Install Apps | **E4** milestones 5–6 (app backups/restore, updates, logs, catalog to 10 apps) |
-| **E8** delete legacy `web/`, Laravel at root URL, upgrade script 1.10.5 → 2.0, release notes | **E5** apt/snap system apps (Python, Redis, Memcached, FFmpeg, ImageMagick); **E6 batch 3** + Apache2 templates + docs generator; hardening review |
+| Track A                                                                                                                                              | Track B                                                                                                                                            |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **E7** Firewall, IPs, Server settings, service config editors, Access keys/API (role-aware keys), Logs, Stats/RRD, Terminal page, Quick Install Apps | **E4** milestones 5–6 (app backups/restore, updates, logs, catalog to 10 apps)                                                                     |
+| **E8** delete legacy `web/`, Laravel at root URL, upgrade script 1.10.5 → 2.0, release notes                                                         | **E5** apt/snap system apps (Python, Redis, Memcached, FFmpeg, ImageMagick); **E6 batch 3** + Apache2 templates + docs generator; hardening review |
 
 **Exit criteria:** ArcPanel 2.0: 100% Laravel UI, three roles with reseller onboarding, port registry, Node platform (nvm + pm2), App Store (Docker + system), ≥ 25 new templates, upgrade path verified.
 
-### Later backlog — after 2.0 (months 13+) — *Later, not committed*
+### Later backlog — after 2.0 (months 13+) — _Later, not committed_
 
 Same two tracks, about one quarter per wave. The order follows the backlog scores and overrides in §4; it is re-planned at the 2.0 retrospective.
 
-| Wave | Track A | Track B | Exit criteria |
-| --- | --- | --- | --- |
-| 1 (months 13–15) | **E15** Job Center → **E16** Alerts and channels | **E19** Per-domain PHP settings · **E23** Audit log · **E17** Doctor | Long operations show live jobs; alerts reach Telegram/Slack; every state change is audited |
-| 2 (months 16–18) | **E33** Update Center · **E20** Git Deploy | **E24** WAF · **E27** Mail deliverability · **E28** Cloudflare | Auto-updates run in maintenance windows with health check and rollback; push-to-deploy with rollback |
-| 3 (months 19–21) | **E21** WordPress Toolkit | **E30** Collaborators | Bulk WordPress updates with snapshots; scoped collaborator logins |
-| 4 (months 22–24) | **E22** Staging and clone | **E29** Webhooks and OpenAPI · **E18** Log Explorer · **E25** Malware scanning | Staging push with pre-push snapshot; signed webhooks; scheduled malware scans |
-| 5 (months 25+) | **E31** Migration wizard | **E26** Login hardening · **E32** AI assistant (experimental) | HestiaCP → ArcPanel migration without manual fixes; passkeys and OIDC; AI assistant behind an opt-in flag |
+| Wave             | Track A                                          | Track B                                                                        | Exit criteria                                                                                             |
+| ---------------- | ------------------------------------------------ | ------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------- |
+| 1 (months 13–15) | **E15** Job Center → **E16** Alerts and channels | **E19** Per-domain PHP settings · **E23** Audit log · **E17** Doctor           | Long operations show live jobs; alerts reach Telegram/Slack; every state change is audited                |
+| 2 (months 16–18) | **E33** Update Center · **E20** Git Deploy       | **E24** WAF · **E27** Mail deliverability · **E28** Cloudflare                 | Auto-updates run in maintenance windows with health check and rollback; push-to-deploy with rollback      |
+| 3 (months 19–21) | **E21** WordPress Toolkit                        | **E30** Collaborators                                                          | Bulk WordPress updates with snapshots; scoped collaborator logins                                         |
+| 4 (months 22–24) | **E22** Staging and clone                        | **E29** Webhooks and OpenAPI · **E18** Log Explorer · **E25** Malware scanning | Staging push with pre-push snapshot; signed webhooks; scheduled malware scans                             |
+| 5 (months 25+)   | **E31** Migration wizard                         | **E26** Login hardening · **E32** AI assistant (experimental)                  | HestiaCP → ArcPanel migration without manual fixes; passkeys and OIDC; AI assistant behind an opt-in flag |
 
 ### Now / Next / Later summary
 
@@ -768,7 +770,7 @@ Same two tracks, about one quarter per wave. The order follows the backlog score
 
 ---
 
-## 7. What is *not* on this roadmap (and why)
+## 7. What is _not_ on this roadmap (and why)
 
 - **Separate SPA + JSON-only API** — more work than the strangler plan allows with 1–2 devs; can be revisited after 2.0 since Laravel controllers can expose JSON later.
 - **Deep rename of `HESTIA_*` paths/constants** — breaks upstream merges (O5). Confirmed in ADR-0006 (2026-10-04): ArcPanel uses a compatibility layer instead.
@@ -782,39 +784,39 @@ Same two tracks, about one quarter per wave. The order follows the backlog score
 
 ## 8. Risks and mitigations
 
-| Risk | Impact | Mitigation |
-| --- | --- | --- |
-| Session bridge between legacy PHP and Laravel is fragile (2FA, login-as, read-only mode) | Security regressions | Build it first in Q1 with Pest + e2e tests for every auth state; reuse the legacy session, do not duplicate it |
-| `sudo` + `v-*` from Laravel (different process user, env, `PATH`) | Commands fail or escalate | Keep the exact `HESTIA_CMD` model; whitelist in `install/common/sudo/`; integration tests on the VM |
-| Laravel `vendor/` size and PHP 8.5 compatibility in `hestia-php` | Packaging failures | Pin Laravel 13 (decided in the E1-S1 spec); build the deb in CI from day one |
-| Docker on shared hosts (disk, ports, privilege) | Security/abuse | ADR in Q1 (rootless vs group mode); per-user cgroup limits from packages; admin can disable the store per package |
-| Upstream HestiaCP changes `web/` heavily | Merge pain | Irrelevant after we delete `web/`; only `bin/`/`func/`/`install/` are merged |
-| Two large epics (E3, E4) in one quarter with 1 dev | Slip | If only one dev: E3 in Q2, E4 MVP in Q3, shift E7 right; scope guards below |
-| Translations drift (`.po` → Laravel) | Broken i18n | One-way import script run in CI; keep Crowdin as source |
-| Reseller isolation leaks (a reseller sees or edits another tenant's user, domain or API object) | Security, trust | Owner scoping in one place (Laravel policies + a scoped query service), never in templates; e2e tests that log in as two resellers and assert zero cross-visibility; API keys carry the role |
-| `v-change-user-role` must accept `reseller` (a change to an existing upstream command) | Upstream merge friction | Send the 1-line PR upstream; keep the change as a patch in `install/upgrade/patch/` until merged; everything else about resellers is additive |
-| Port registry drifts from reality (apps bind ports outside the registry, admins open ports by hand) | Conflicts, exposure | `v-list-sys-ports` reconciles registry vs `ss -ltn` and flags orphans; firewall rules for ports are only written through the registry; nightly check job with a notification |
-| pm2 per-user daemons and `loginctl enable-linger` on hosts with many users | Memory/boot time | One daemon per user only when the user has ≥ 1 app; stop daemon on suspend; document limits in the `developer` package; evaluate a single system pm2 in the Q1 ADR |
-| nvm downloads blocked or slow on some servers | Node install fails | Local download cache under `/usr/local/hestia/data/cache/node/`; admin can pre-seed versions; fall back to NodeSource apt if nvm is unreachable |
-| Added scope (E11–E14) overloads a 1–2 dev team | Dates slip | Capacity note in §6: two devs assumed; with one dev, defer E5, Apache2 templates, Git deploy and part of the Docker catalog to post-2.0 before moving the 2.0 date |
-| Later backlog (E15–E33) pulls focus away from 2.0 | 2.0 slips | Backlog items enter *Next* only at a quarterly review and only by replacing committed scope of the same size; E15/E16 are the only promotion candidates before 2.0 |
-| Automatic updates (E33) break production servers | Outages on many servers at once | Default policy `notify`; maintenance windows and release delay; pre-flight checks and config snapshot; post-update health check stops further automatic updates; rollback for panel packages and Docker apps |
-| WAF false positives (E24) break customer sites | Support load, churn | `detect` mode by default; per-app exclusion presets; per-domain exclusions in the UI; blocked requests visible to the site owner |
-| Third-party credentials on the server (Cloudflare tokens, deploy keys, webhook secrets, AI keys) | Credential leak | Stored root-only under the data directory; write-only in the UI; masked in logs, jobs and audit events; removed when the user is deleted |
-| AI assistant (E32) sends server data to an external provider | Privacy, compliance | Disabled by default; admin opt-in per role; redaction of secrets, emails and IPs; never mail or database content; preview of the outgoing request; every request audited |
-| Staging push or bulk WordPress updates (E21, E22) break production | Data loss | Mandatory pre-change snapshot with one-click restore; database push is a separate, explicit choice |
+| Risk                                                                                                | Impact                          | Mitigation                                                                                                                                                                                                   |
+| --------------------------------------------------------------------------------------------------- | ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Session bridge between legacy PHP and Laravel is fragile (2FA, login-as, read-only mode)            | Security regressions            | Build it first in Q1 with Pest + e2e tests for every auth state; reuse the legacy session, do not duplicate it                                                                                               |
+| `sudo` + `v-*` from Laravel (different process user, env, `PATH`)                                   | Commands fail or escalate       | Keep the exact `HESTIA_CMD` model; whitelist in `install/common/sudo/`; integration tests on the VM                                                                                                          |
+| Laravel `vendor/` size and PHP 8.5 compatibility in `hestia-php`                                    | Packaging failures              | Pin Laravel 13 (decided in the E1-S1 spec); build the deb in CI from day one                                                                                                                                 |
+| Docker on shared hosts (disk, ports, privilege)                                                     | Security/abuse                  | ADR in Q1 (rootless vs group mode); per-user cgroup limits from packages; admin can disable the store per package                                                                                            |
+| Upstream HestiaCP changes `web/` heavily                                                            | Merge pain                      | Irrelevant after we delete `web/`; only `bin/`/`func/`/`install/` are merged                                                                                                                                 |
+| Two large epics (E3, E4) in one quarter with 1 dev                                                  | Slip                            | If only one dev: E3 in Q2, E4 MVP in Q3, shift E7 right; scope guards below                                                                                                                                  |
+| Translations drift (`.po` → Laravel)                                                                | Broken i18n                     | One-way import script run in CI; keep Crowdin as source                                                                                                                                                      |
+| Reseller isolation leaks (a reseller sees or edits another tenant's user, domain or API object)     | Security, trust                 | Owner scoping in one place (Laravel policies + a scoped query service), never in templates; e2e tests that log in as two resellers and assert zero cross-visibility; API keys carry the role                 |
+| `v-change-user-role` must accept `reseller` (a change to an existing upstream command)              | Upstream merge friction         | Send the 1-line PR upstream; keep the change as a patch in `install/upgrade/patch/` until merged; everything else about resellers is additive                                                                |
+| Port registry drifts from reality (apps bind ports outside the registry, admins open ports by hand) | Conflicts, exposure             | `v-list-sys-ports` reconciles registry vs `ss -ltn` and flags orphans; firewall rules for ports are only written through the registry; nightly check job with a notification                                 |
+| pm2 per-user daemons and `loginctl enable-linger` on hosts with many users                          | Memory/boot time                | One daemon per user only when the user has ≥ 1 app; stop daemon on suspend; document limits in the `developer` package; evaluate a single system pm2 in the Q1 ADR                                           |
+| nvm downloads blocked or slow on some servers                                                       | Node install fails              | Local download cache under `/usr/local/hestia/data/cache/node/`; admin can pre-seed versions; fall back to NodeSource apt if nvm is unreachable                                                              |
+| Added scope (E11–E14) overloads a 1–2 dev team                                                      | Dates slip                      | Capacity note in §6: two devs assumed; with one dev, defer E5, Apache2 templates, Git deploy and part of the Docker catalog to post-2.0 before moving the 2.0 date                                           |
+| Later backlog (E15–E33) pulls focus away from 2.0                                                   | 2.0 slips                       | Backlog items enter _Next_ only at a quarterly review and only by replacing committed scope of the same size; E15/E16 are the only promotion candidates before 2.0                                           |
+| Automatic updates (E33) break production servers                                                    | Outages on many servers at once | Default policy `notify`; maintenance windows and release delay; pre-flight checks and config snapshot; post-update health check stops further automatic updates; rollback for panel packages and Docker apps |
+| WAF false positives (E24) break customer sites                                                      | Support load, churn             | `detect` mode by default; per-app exclusion presets; per-domain exclusions in the UI; blocked requests visible to the site owner                                                                             |
+| Third-party credentials on the server (Cloudflare tokens, deploy keys, webhook secrets, AI keys)    | Credential leak                 | Stored root-only under the data directory; write-only in the UI; masked in logs, jobs and audit events; removed when the user is deleted                                                                     |
+| AI assistant (E32) sends server data to an external provider                                        | Privacy, compliance             | Disabled by default; admin opt-in per role; redaction of secrets, emails and IPs; never mail or database content; preview of the outgoing request; every request audited                                     |
+| Staging push or bulk WordPress updates (E21, E22) break production                                  | Data loss                       | Mandatory pre-change snapshot with one-click restore; database push is a separate, explicit choice                                                                                                           |
 
 Rebranding risks (added 2026-10-04):
 
-| Risk | Impact | Mitigation |
-| --- | --- | --- |
-| Changed user-visible strings in `bin/`/`func/`/`install/` conflict with upstream merges | Slower merges | Only output lines change (ADR-0006); `test/brand-check.sh` flags new "Hestia" strings after each merge |
-| Scripts and integrations (WHMCS modules, API clients) call `/usr/local/hestia/bin/v-*`, `v-*-hestia-*` or depend on package `hestia` | Automation breaks | Old names are the implementation and keep working; `arcpanel` declares `Provides: hestia` |
-| Removing upstream copyright or attribution | GPLv3 violation, community backlash | Keep every copyright header and `LICENSE`; add "Based on HestiaCP" in README, about page and installer |
-| Using the HestiaCP name or logo in ArcPanel marketing | Trademark complaint | Only the factual "based on HestiaCP" phrase; no Hestia logo or look-alike assets |
-| Servers keep pulling updates from HestiaCP repositories | ArcPanel changes overwritten | R2 switches the APT repo and update channel; upgrade test asserts the new source list |
+| Risk                                                                                                                                 | Impact                              | Mitigation                                                                                             |
+| ------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| Changed user-visible strings in `bin/`/`func/`/`install/` conflict with upstream merges                                              | Slower merges                       | Only output lines change (ADR-0006); `test/brand-check.sh` flags new "Hestia" strings after each merge |
+| Scripts and integrations (WHMCS modules, API clients) call `/usr/local/hestia/bin/v-*`, `v-*-hestia-*` or depend on package `hestia` | Automation breaks                   | Old names are the implementation and keep working; `arcpanel` declares `Provides: hestia`              |
+| Removing upstream copyright or attribution                                                                                           | GPLv3 violation, community backlash | Keep every copyright header and `LICENSE`; add "Based on HestiaCP" in README, about page and installer |
+| Using the HestiaCP name or logo in ArcPanel marketing                                                                                | Trademark complaint                 | Only the factual "based on HestiaCP" phrase; no Hestia logo or look-alike assets                       |
+| Servers keep pulling updates from HestiaCP repositories                                                                              | ArcPanel changes overwritten        | R2 switches the APT repo and update channel; upgrade test asserts the new source list                  |
 
-**Scope guards:** each epic has a *must* milestone (listed first) and *nice* milestones; cut nice milestones before moving dates.
+**Scope guards:** each epic has a _must_ milestone (listed first) and _nice_ milestones; cut nice milestones before moving dates.
 
 ---
 
