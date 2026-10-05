@@ -1,0 +1,14 @@
+{
+	"shop.example": {
+        "CRT": "-----BEGIN CERTIFICATE-----\nMIIBshop\n-----END CERTIFICATE-----",
+        "KEY": "-----BEGIN PRIVATE KEY-----\nSECRETKEYshop\n-----END PRIVATE KEY-----",
+        "CA": "",
+        "SUBJECT": "mail.shop.example",
+        "ALIASES": "mail.shop.example,webmail.shop.example",
+        "NOT_BEFORE": "Oct  1 00:00:00 2026 GMT",
+        "NOT_AFTER": "Dec 30 00:00:00 2026 GMT",
+        "SIGNATURE": "ecdsa-with-SHA256",
+        "PUB_KEY": "256 bit",
+        "ISSUER": "R3"
+	}
+}

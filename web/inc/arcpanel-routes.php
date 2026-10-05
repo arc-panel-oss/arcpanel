@@ -30,6 +30,8 @@ function arc_route(string $legacyPath): string {
 		"/add/cron/" => "/app/cron/create",
 		"/list/dns/" => "/app/dns",
 		"/add/dns/" => "/app/dns/create",
+		"/list/mail/" => "/app/mail",
+		"/add/mail/" => "/app/mail/create",
 	];
 
 	return arc_app_pages() && isset($routes[$legacyPath]) ? $routes[$legacyPath] : $legacyPath;
@@ -131,6 +133,38 @@ function arc_redirect_if_migrated(string $legacyPath, array $query = []): void {
 				$url = $zone . "/edit";
 			} elseif (preg_match('/^\d{1,9}$/', $record) === 1) {
 				$url = $zone . "/records?edit=" . $record;
+			} else {
+				return;
+			}
+			break;
+		case "/list/mail/":
+			// ?domain= lists the domain's accounts, ?domain=&dns=1 shows its DNS records
+			if ($domain === "" || $owner === "") {
+				$url = "/app/mail";
+			} else {
+				$mail = "/app/mail/" . $segment($owner) . "/" . $segment($domain);
+				$url = $mail . (!empty($query["dns"]) ? "/dns" : "/accounts");
+			}
+			break;
+		case "/add/mail/":
+			// ?domain= adds an account to the domain
+			if ($domain === "" || $owner === "") {
+				$url = "/app/mail/create";
+			} else {
+				$url =
+					"/app/mail/" . $segment($owner) . "/" . $segment($domain) . "/accounts/create";
+			}
+			break;
+		case "/edit/mail/":
+			if ($domain === "" || $owner === "") {
+				return;
+			}
+			$mail = "/app/mail/" . $segment($owner) . "/" . $segment($domain);
+			$account = isset($query["account"]) ? (string) $query["account"] : "";
+			if ($account === "") {
+				$url = $mail . "/edit";
+			} elseif (preg_match('/^[\w.-]{1,64}$/', $account) === 1) {
+				$url = $mail . "/accounts/" . $segment($account) . "/edit";
 			} else {
 				return;
 			}

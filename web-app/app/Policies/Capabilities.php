@@ -102,9 +102,16 @@ final class Capabilities
         // Users and resellers also need POLICY_USER_EDIT_DNS_TEMPLATES (DnsPolicy).
         'dns.templates.edit' => self::ALL_ROLES,
 
+        // Mail domains and accounts (E7 batch 1 spec §5.1)
+        'mail.view' => self::ALL_ROLES,
+        'mail.create' => self::ALL_ROLES,
+        'mail.update' => self::ALL_ROLES,
+        'mail.delete' => self::ALL_ROLES,
+        // Rate limits of domains and accounts: administrators (web/edit/mail).
+        'mail.rate.edit' => self::ADMIN,
+
         // Modules still served by the legacy pages: navigation only. A
         // reseller reaches them for its own account.
-        'mail.view' => self::OWN,
         'backups.view' => self::OWN,
         'logs.view' => self::OWN,
         'stats.view' => self::OWN,

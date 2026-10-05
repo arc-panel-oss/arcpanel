@@ -407,6 +407,77 @@ function fakeDnsZones(ArcCommandFake $fake): void
     $fake->on('v-list-user-ips')->returnsFixture('v-list-user-ips/bob.json');
 }
 
+/**
+ * Mail domains of the test users (E7): bob has example.com (webmail,
+ * DKIM, spam filter, three accounts) and the suspended shop.example with a
+ * Let's Encrypt certificate and an SMTP relay, carol has carol.example,
+ * everyone else none. `v-list-mail-domain` answers from
+ * v-list-mail-domain/USER-DOMAIN.json, else from the list row;
+ * `v-list-mail-accounts`, `v-list-mail-account` and the autoreply, DKIM and
+ * SSL commands answer from their fixtures. The server has the roundcube
+ * and snappymail webmail clients and bob's IPs.
+ */
+function fakeMailDomains(ArcCommandFake $fake): void
+{
+    $list = function (string $user): array {
+        $file = base_path("tests/Fixtures/commands/v-list-mail-domains/{$user}.json");
+
+        return is_file($file) ? commandFixture("v-list-mail-domains/{$user}.json") : [];
+    };
+    $missing = fn (string $domain) => [3, "Error: mail domain {$domain} doesn't exist"];
+    $accounts = function (string $user, string $domain): array {
+        $file = base_path("tests/Fixtures/commands/v-list-mail-accounts/{$user}-{$domain}.json");
+
+        return is_file($file) ? commandFixture("v-list-mail-accounts/{$user}-{$domain}.json") : [];
+    };
+    $fake->on('v-list-mail-domains')->using(fn (array $args) => [0, (string) json_encode((object) $list($args[0]))]);
+    $fake->on('v-list-mail-domain')->using(function (array $args) use ($list, $missing) {
+        $row = $list($args[0])[$args[1]] ?? null;
+        if ($row === null) {
+            return $missing($args[1]);
+        }
+        $file = base_path("tests/Fixtures/commands/v-list-mail-domain/{$args[0]}-{$args[1]}.json");
+        if (is_file($file)) {
+            return [0, (string) file_get_contents($file)];
+        }
+        $row = array_merge($row, [
+            'SSL_KEY_ALGO' => '', 'LETSENCRYPT' => 'no', 'WEBMAIL_ALIAS' => $row['WEBMAIL_ALIAS'].'.'.$args[1],
+            'U_SMTP_RELAY' => '', 'U_SMTP_RELAY_HOST' => '', 'U_SMTP_RELAY_PORT' => '', 'U_SMTP_RELAY_USERNAME' => '',
+        ]);
+
+        return [0, (string) json_encode([$args[1] => $row])];
+    });
+    $fake->on('v-list-mail-accounts')->using(function (array $args) use ($list, $missing, $accounts) {
+        return isset($list($args[0])[$args[1]])
+            ? [0, (string) json_encode((object) $accounts($args[0], $args[1]))]
+            : $missing($args[1]);
+    });
+    $fake->on('v-list-mail-account')->using(function (array $args) use ($list, $missing, $accounts) {
+        if (! isset($list($args[0])[$args[1]])) {
+            return $missing($args[1]);
+        }
+        $row = $accounts($args[0], $args[1])[$args[2]] ?? null;
+
+        return $row !== null
+            ? [0, (string) json_encode([$args[2] => array_merge($row, ['RATE_LIMIT' => '', 'WEBMAIL_ALIAS' => 'webmail.'.$args[1]])])]
+            : [3, "Error: mail account {$args[2]} doesn't exist"];
+    });
+    $fake->on('v-list-mail-account-autoreply')->using(fn (array $args) => [0, (string) json_encode([$args[2] => ['MSG' => 'Away\nback soon']])]);
+    $fake->on('v-list-mail-domain-dkim-dns')->using(function (array $args) {
+        $file = base_path("tests/Fixtures/commands/v-list-mail-domain-dkim-dns/{$args[0]}-{$args[1]}.json");
+
+        return [0, is_file($file) ? (string) file_get_contents($file) : '{}'];
+    });
+    $fake->on('v-list-mail-domain-ssl')->using(function (array $args) {
+        $file = base_path("tests/Fixtures/commands/v-list-mail-domain-ssl/{$args[0]}-{$args[1]}.json");
+        $empty = [$args[1] => ['CRT' => '', 'KEY' => '', 'CA' => '', 'SUBJECT' => '', 'ALIASES' => '', 'NOT_BEFORE' => '', 'NOT_AFTER' => '', 'SIGNATURE' => '', 'PUB_KEY' => '', 'ISSUER' => '']];
+
+        return [0, is_file($file) ? (string) file_get_contents($file) : (string) json_encode($empty)];
+    });
+    $fake->on('v-list-sys-webmail', ['json'])->returnsJson(['roundcube', 'snappymail']);
+    $fake->on('v-list-user-ips')->returnsFixture('v-list-user-ips/bob.json');
+}
+
 /** Restart commands answer success. */
 function fakeRestarts(ArcCommandFake $fake): void
 {

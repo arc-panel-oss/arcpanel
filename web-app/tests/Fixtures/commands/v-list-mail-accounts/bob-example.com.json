@@ -1,0 +1,35 @@
+{
+    "info": {
+        "ALIAS": "sales,hello",
+        "FWD": "a@example.net,b@example.net",
+        "FWD_ONLY": "",
+        "AUTOREPLY": "yes",
+        "QUOTA": "100",
+        "U_DISK": "12",
+        "SUSPENDED": "no",
+        "TIME": "01:50:44",
+        "DATE": "2026-10-06"
+    },
+    "noreply": {
+        "ALIAS": "",
+        "FWD": ":blackhole:",
+        "FWD_ONLY": "",
+        "AUTOREPLY": "no",
+        "QUOTA": "unlimited",
+        "U_DISK": "0",
+        "SUSPENDED": "no",
+        "TIME": "01:51:00",
+        "DATE": "2026-10-06"
+    },
+    "old": {
+        "ALIAS": "",
+        "FWD": "",
+        "FWD_ONLY": "",
+        "AUTOREPLY": "no",
+        "QUOTA": "50",
+        "U_DISK": "3",
+        "SUSPENDED": "yes",
+        "TIME": "01:52:00",
+        "DATE": "2026-10-04"
+    }
+}

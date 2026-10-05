@@ -2755,6 +2755,26 @@ a.ap-pick:focus-visible {
 	word-break: break-all;
 }
 
+/* Mail account forms with the client configuration panel beside them */
+.ap-mail-layout {
+	display: grid;
+	gap: var(--ap-space-4);
+	grid-template-columns: minmax(0, 2fr) minmax(min(300px, 100%), 1fr);
+	align-items: start;
+}
+@media (max-width: 1024px) {
+	.ap-mail-layout {
+		grid-template-columns: minmax(0, 1fr);
+	}
+}
+.ap-mail-client-title {
+	margin: var(--ap-space-4) 0 var(--ap-space-2);
+	font-size: var(--ap-text-md);
+}
+.ap-mail-dns .ap-input-group {
+	min-width: 12rem;
+}
+
 /* Truncated mono cell */
 .ap-trunc {
 	display: block;

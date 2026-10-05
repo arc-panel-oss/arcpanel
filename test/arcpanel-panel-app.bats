@@ -117,6 +117,9 @@ setup_file() {
     v-add-cron-job "$PAGES_USER" 0 1 '*' '*' '*' 'echo arc' > /dev/null
     # a zone with the records of the default template (record id 1 is its first NS)
     v-add-dns-domain "$PAGES_USER" "$PAGES_USER.dns.example" 198.51.100.10 > /dev/null
+    # a mail domain with the account info (v-add-mail-account takes the password itself)
+    v-add-mail-domain "$PAGES_USER" "$PAGES_USER.mail.example" > /dev/null
+    v-add-mail-account "$PAGES_USER" "$PAGES_USER.mail.example" info "$PAGES_PASS" > /dev/null
 }
 
 teardown_file() {
@@ -264,6 +267,53 @@ teardown_file() {
     run pages_get "/edit/dns/?domain=$zone&record_id=1"
     assert_output "200 "
     run pages_get /app/dns
+    assert_output "200 "
+    v-change-sys-config-value ARCPANEL_APP_PAGES yes
+}
+
+@test "Legacy mail pages redirect to the panel app when ARCPANEL_APP_PAGES is yes" {
+    local domain="$PAGES_USER.mail.example"
+    v-change-sys-config-value ARCPANEL_APP_PAGES yes
+    pages_login
+    run pages_get /list/mail/
+    assert_output "302 $PANEL/app/mail"
+    run pages_get "/list/mail/?domain=$domain"
+    assert_output "302 $PANEL/app/mail/$PAGES_USER/$domain/accounts"
+    run pages_get "/list/mail/?domain=$domain&dns=1"
+    assert_output "302 $PANEL/app/mail/$PAGES_USER/$domain/dns"
+    run pages_get /add/mail/
+    assert_output "302 $PANEL/app/mail/create"
+    run pages_get "/add/mail/?domain=$domain"
+    assert_output "302 $PANEL/app/mail/$PAGES_USER/$domain/accounts/create"
+    run pages_get "/edit/mail/?domain=$domain"
+    assert_output "302 $PANEL/app/mail/$PAGES_USER/$domain/edit"
+    run pages_get "/edit/mail/?domain=$domain&account=info"
+    assert_output "302 $PANEL/app/mail/$PAGES_USER/$domain/accounts/info/edit"
+    run pages_get "/app/mail/$PAGES_USER/$domain/accounts/info/edit"
+    assert_output "200 "
+    run pages_get "/app/mail/$PAGES_USER/$domain/dns"
+    assert_output "200 "
+}
+
+@test "Legacy mail pages come back when ARCPANEL_APP_PAGES is no" {
+    local domain="$PAGES_USER.mail.example"
+    v-change-sys-config-value ARCPANEL_APP_PAGES no
+    pages_login
+    run pages_get /list/mail/
+    assert_output "200 "
+    run pages_get "/list/mail/?domain=$domain"
+    assert_output "200 "
+    run pages_get "/list/mail/?domain=$domain&dns=1"
+    assert_output "200 "
+    run pages_get /add/mail/
+    assert_output "200 "
+    run pages_get "/add/mail/?domain=$domain"
+    assert_output "200 "
+    run pages_get "/edit/mail/?domain=$domain"
+    assert_output "200 "
+    run pages_get "/edit/mail/?domain=$domain&account=info"
+    assert_output "200 "
+    run pages_get /app/mail
     assert_output "200 "
     v-change-sys-config-value ARCPANEL_APP_PAGES yes
 }

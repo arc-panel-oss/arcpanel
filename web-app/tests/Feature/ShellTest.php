@@ -62,7 +62,7 @@ it('searches objects, users and pages for the command palette', function () {
 
     expect($groups['Web domains']['items'][0])->toMatchArray(['label' => 'example.com', 'meta' => 'bob', 'url' => route('web.domains.edit', ['user' => 'bob', 'domain' => 'example.com'])])
         ->and($groups['DNS']['items'][0]['url'])->toBe(route('dns.records.index', ['user' => 'carol', 'domain' => 'example.org']))
-        ->and($groups['Mail']['items'][0]['url'])->toContain('account%3Dinfo');
+        ->and($groups['Mail']['items'][0]['url'])->toBe(route('mail.accounts.edit', ['user' => 'bob', 'domain' => 'example.com', 'account' => 'info']));
 
     $users = collect($this->getJson('/_palette?q=builder')->json('groups'))->keyBy('label');
     expect($users['Users']['items'][0]['label'])->toBe('bob');

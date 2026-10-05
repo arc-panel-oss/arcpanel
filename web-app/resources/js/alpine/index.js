@@ -5,6 +5,7 @@ import apConfirm from './confirm.js';
 import apCronBuilder from './cron-builder.js';
 import apDnsRecord from './dns-record.js';
 import apLog from './log.js';
+import apMailAccount from './mail-account.js';
 import apModal from './modal.js';
 import apNameServers from './name-servers.js';
 import apNotifications from './notifications.js';
@@ -27,6 +28,7 @@ export const modules = {
 	apCronBuilder,
 	apDnsRecord,
 	apLog,
+	apMailAccount,
 	apModal,
 	apNameServers,
 	apNotifications,

@@ -7,6 +7,9 @@ $TAB = "MAIL";
 // Main include
 include $_SERVER["DOCUMENT_ROOT"] . "/inc/main.php";
 
+// ArcPanel: served by the panel app when ARCPANEL_APP_PAGES is on (inc/arcpanel-routes.php)
+arc_redirect_if_migrated("/edit/mail/", $_GET);
+
 // Check domain argument
 if (empty($_GET["domain"])) {
 	header("Location: /list/mail/");

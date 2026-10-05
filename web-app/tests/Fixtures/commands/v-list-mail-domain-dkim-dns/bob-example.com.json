@@ -1,0 +1,7 @@
+{
+
+	"mail._domainkey": {
+            "TTL": "3600",
+            "TXT": "'v=DKIM1; k=rsa; p=MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA8uepPZ6GNeJDbBrOCh2alQIDAQAB'"
+	}
+}

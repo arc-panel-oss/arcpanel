@@ -111,8 +111,10 @@ it('keeps palette results of a reseller to its tree and panel app pages', functi
 
     $groups = collect($this->getJson('/_palette?q=example')->assertOk()->json('groups'))->keyBy('label');
 
-    expect($groups)->toHaveKey('Web domains')
-        ->and($groups)->not->toHaveKeys(['DNS', 'Mail']);
+    // carol's zone is outside the tree; bob's mail account opens its panel app page (E7)
+    expect($groups)->toHaveKeys(['Web domains', 'Mail'])
+        ->and($groups)->not->toHaveKey('DNS')
+        ->and($groups['Mail']['items'][0]['url'])->toBe(route('mail.accounts.edit', ['user' => 'bob', 'domain' => 'example.com', 'account' => 'info']));
 
     $users = collect($this->getJson('/_palette?q=Carol')->json('groups'))->keyBy('label');
     expect($users)->not->toHaveKey('Users');

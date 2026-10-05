@@ -18,6 +18,10 @@ use App\Http\Controllers\Files\FileController;
 use App\Http\Controllers\Files\FilePageController;
 use App\Http\Controllers\Files\FileTransferController;
 use App\Http\Controllers\ImpersonationController;
+use App\Http\Controllers\Mail\MailAccountController;
+use App\Http\Controllers\Mail\MailActionController;
+use App\Http\Controllers\Mail\MailDomainController;
+use App\Http\Controllers\Mail\MailDomainEditController;
 use App\Http\Controllers\Node\NodeAppController;
 use App\Http\Controllers\Node\NodeAppPageController;
 use App\Http\Controllers\Node\NodeController;
@@ -58,6 +62,8 @@ Route::pattern('database', '[\w-]{1,64}');
 Route::pattern('job', '\d{1,9}');
 // DNS record ids (is_int_format_valid)
 Route::pattern('record', '\d{1,9}');
+// Mail account names (is_localpart_format_valid)
+Route::pattern('account', '[\w.-]{1,64}');
 
 Route::middleware('guest.arc')->group(function () {
     Route::get('/login', [LoginController::class, 'show'])->name('login');
@@ -335,6 +341,42 @@ Route::middleware('auth.arc')->group(function () {
                     Route::post('/{record}/suspend', [DnsActionController::class, 'suspendRecord'])->name('suspend');
                     Route::post('/{record}/unsuspend', [DnsActionController::class, 'unsuspendRecord'])->name('unsuspend');
                     Route::delete('/{record}', [DnsActionController::class, 'destroyRecord'])->name('destroy');
+                });
+            });
+        });
+    });
+
+    // Mail domains and accounts (E7 batch 1 spec §9)
+    Route::prefix('mail')->name('mail.')->group(function () {
+        Route::get('/', [MailDomainController::class, 'index'])->name('index');
+        Route::get('/create', [MailDomainController::class, 'create'])->name('create');
+        Route::post('/', [MailDomainController::class, 'store'])->middleware('not-readonly')->name('store');
+        Route::post('/bulk', [MailActionController::class, 'bulk'])->middleware('not-readonly')->name('bulk');
+
+        Route::middleware('effective-user')->prefix('{user}/{domain}')->group(function () {
+            Route::get('/edit', [MailDomainController::class, 'edit'])->name('edit');
+            Route::get('/dns', [MailDomainController::class, 'dns'])->name('dns');
+            Route::get('/accounts', [MailAccountController::class, 'index'])->name('accounts.index');
+            Route::get('/accounts/create', [MailAccountController::class, 'create'])->name('accounts.create');
+            Route::get('/accounts/{account}/edit', [MailAccountController::class, 'edit'])->name('accounts.edit');
+
+            Route::middleware('not-readonly')->group(function () {
+                foreach (['general', 'ssl', 'relay'] as $tab) {
+                    Route::post('/edit/'.$tab, [MailDomainEditController::class, $tab])->name('update.'.$tab);
+                }
+                Route::post('/suspend', [MailActionController::class, 'suspend'])->name('suspend');
+                Route::post('/unsuspend', [MailActionController::class, 'unsuspend'])->name('unsuspend');
+                Route::delete('/', [MailActionController::class, 'destroy'])->name('destroy');
+
+                Route::prefix('accounts')->name('accounts.')->group(function () {
+                    Route::post('/', [MailAccountController::class, 'store'])->name('store');
+                    Route::post('/bulk', [MailActionController::class, 'bulkAccounts'])->name('bulk');
+                    foreach (['general', 'forwarding', 'autoreply'] as $tab) {
+                        Route::post('/{account}/edit/'.$tab, [MailAccountController::class, $tab])->name('update.'.$tab);
+                    }
+                    Route::post('/{account}/suspend', [MailActionController::class, 'suspendAccount'])->name('suspend');
+                    Route::post('/{account}/unsuspend', [MailActionController::class, 'unsuspendAccount'])->name('unsuspend');
+                    Route::delete('/{account}', [MailActionController::class, 'destroyAccount'])->name('destroy');
                 });
             });
         });
