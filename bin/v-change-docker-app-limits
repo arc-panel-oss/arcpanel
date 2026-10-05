@@ -1,0 +1,70 @@
+#!/bin/bash
+# info: change the CPU and memory limits of a Docker app (E4)
+# options: USER NAME CPUS MEMORY
+#
+# example: v-change-docker-app-limits alice status 1 1024
+#
+# This function sets the CPUs (like 0.5) and the memory in MB of each
+# service of the Docker app NAME of USER, within DOCKER_CPUS, DOCKER_MEMORY
+# and MEMORY_LIMIT of the package and at least the memory the app needs. A
+# running app is started again with the new limits.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+user=$1
+name=$2
+cpus=$3
+memory=$4
+
+# Includes
+# shellcheck source=/etc/hestiacp/hestia.conf
+source /etc/hestiacp/hestia.conf
+# shellcheck source=/usr/local/hestia/func/main.sh
+source $HESTIA/func/main.sh
+# shellcheck source=/usr/local/hestia/func/tenancy.sh
+source $HESTIA/func/tenancy.sh
+# shellcheck source=/usr/local/hestia/func/ports.sh
+source $HESTIA/func/ports.sh
+# load config file
+source_conf "$HESTIA/conf/hestia.conf"
+# shellcheck source=/usr/local/hestia/func/docker.sh
+source $HESTIA/func/docker.sh
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '4' "$#" 'USER NAME CPUS MEMORY'
+is_format_valid 'user'
+is_object_valid 'user' 'USER' "$user"
+is_object_unsuspended 'user' 'USER' "$user"
+docker_check_system
+dockerapp_check_app "$user" "$name"
+dockerapp_check_no_task "$user" "$name"
+dockerapp_check_settled "$user" "$name"
+memory=$(docker_mb "$memory") || check_result "$E_INVALID" "invalid memory :: $4 (MB, or a size like 512M)"
+dockerapp_check_limits "$user" "$cpus" "$memory" \
+	"$(docker_manifest "$(dockerapp_get "$user" "$name" SLUG)" "$(dockerapp_get "$user" "$name" VERSION)")"
+
+# Perform verification if read-only mode is enabled
+check_hestia_demo_mode
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+dockerapp_lock "$user"
+dockerapp_set "$user" "$name" "CPUS=$cpus" "MEMORY=$memory"
+dockerapp_apply "$user" "$name"
+
+#----------------------------------------------------------#
+#                       Hestia                             #
+#----------------------------------------------------------#
+
+$BIN/v-log-action "$user" "Info" "Docker" "Docker app limits changed (Name: $name, CPUs: $cpus, Memory: $memory MB)."
+log_event "$OK" "$ARGUMENTS"
+
+exit

@@ -1,0 +1,82 @@
+#!/bin/bash
+# info: change the variables of a Docker app (E4)
+# options: USER NAME FILE
+#
+# example: v-change-docker-app-env alice status /tmp/vars
+#
+# This function sets variables of the Docker app NAME of USER from FILE
+# (NAME=value lines). Only variables of the app's manifest are accepted,
+# values are checked against their type, an empty value of a secret keeps
+# the stored one and immutable variables cannot change. A running app is
+# started again with the new values.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+user=$1
+name=$2
+file=$3
+
+# Includes
+# shellcheck source=/etc/hestiacp/hestia.conf
+source /etc/hestiacp/hestia.conf
+# shellcheck source=/usr/local/hestia/func/main.sh
+source $HESTIA/func/main.sh
+# shellcheck source=/usr/local/hestia/func/tenancy.sh
+source $HESTIA/func/tenancy.sh
+# shellcheck source=/usr/local/hestia/func/ports.sh
+source $HESTIA/func/ports.sh
+# load config file
+source_conf "$HESTIA/conf/hestia.conf"
+# shellcheck source=/usr/local/hestia/func/docker.sh
+source $HESTIA/func/docker.sh
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '3' "$#" 'USER NAME FILE'
+is_format_valid 'user'
+is_object_valid 'user' 'USER' "$user"
+is_object_unsuspended 'user' 'USER' "$user"
+docker_check_system
+dockerapp_check_app "$user" "$name"
+dockerapp_check_no_task "$user" "$name"
+dockerapp_check_settled "$user" "$name"
+if [ ! -f "$file" ] || [ -L "$file" ] || [ "$(stat -c %s "$file")" -gt 65536 ]; then
+	check_result "$E_NOTEXIST" "variables file $file does not exist or is too large"
+fi
+
+# Perform verification if read-only mode is enabled
+check_hestia_demo_mode
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+dockerapp_lock "$user"
+line=$(dockerapp_line "$user" "$name")
+rdir=$(dockerapp_rdir "$user" "$name")
+manifest=$(docker_manifest "$(nodeapp_field "$line" SLUG)" "$(nodeapp_field "$line" VERSION)")
+out=$(dockerapp_env_render "$manifest" "$user" "$name" "$(nodeapp_field "$line" DOMAIN)" "$file" "$rdir/.env" \
+	"$rdir/.env.new" change "$(dockerapp_ports_spec "$user" "$name")")
+rc=$?
+if [ "$rc" -ne 0 ]; then
+	rm -f "$rdir/.env.new"
+	check_result "$rc" "$out"
+fi
+mv -f "$rdir/.env.new" "$rdir/.env"
+dockerapp_copy_write "$user" "$name"
+dockerapp_apply "$user" "$name"
+
+#----------------------------------------------------------#
+#                       Hestia                             #
+#----------------------------------------------------------#
+
+# Logging (names only, never values)
+$BIN/v-log-action "$user" "Info" "Docker" "Docker app settings changed (Name: $name, Variables: $(grep -oE '^[A-Za-z_][A-Za-z0-9_]*=' "$file" | tr -d '=' | tr '\n' ' ' | sed 's/ $//'))."
+log_event "$OK" "$ARGUMENTS"
+
+exit

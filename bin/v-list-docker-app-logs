@@ -1,0 +1,98 @@
+#!/bin/bash
+# info: show the container logs of a Docker app (E4)
+# options: USER NAME [SERVICE] [SINCE] [LINES] [FORMAT]
+#
+# example: v-list-docker-app-logs alice status
+# example: v-list-docker-app-logs alice status app 2026-10-05T10:00:00.123456789Z 200 json
+#
+# This function prints the logs of the containers of the Docker app NAME of
+# USER (SERVICE, or "all"). Without SINCE, the last LINES lines (default 200,
+# at most 1000) of each service; with SINCE (the NEXT value of a previous
+# answer), only the lines written after it. Lines are TIME SERVICE TEXT,
+# oldest first; NEXT is the time of the last line.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+user=$1
+name=$2
+service=${3:-all}
+since=$4
+lines=${5:-200}
+format=${6-shell}
+
+# Includes
+# shellcheck source=/etc/hestiacp/hestia.conf
+source /etc/hestiacp/hestia.conf
+# shellcheck source=/usr/local/hestia/func/main.sh
+source $HESTIA/func/main.sh
+# shellcheck source=/usr/local/hestia/func/tenancy.sh
+source $HESTIA/func/tenancy.sh
+# shellcheck source=/usr/local/hestia/func/ports.sh
+source $HESTIA/func/ports.sh
+# load config file
+source_conf "$HESTIA/conf/hestia.conf"
+# shellcheck source=/usr/local/hestia/func/docker.sh
+source $HESTIA/func/docker.sh
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '2' "$#" 'USER NAME [SERVICE] [SINCE] [LINES] [FORMAT]'
+is_format_valid 'user'
+is_object_valid 'user' 'USER' "$user"
+docker_check_system
+dockerapp_check_app "$user" "$name" any
+if [ "$service" != 'all' ] && ! [[ "$service" =~ ^[a-z0-9][a-z0-9_.-]{0,62}$ ]]; then
+	check_result "$E_INVALID" "invalid service :: $service"
+fi
+if [ -n "$since" ] && ! [[ "$since" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\.[0-9]{1,9})?Z$ ]]; then
+	check_result "$E_INVALID" "invalid time :: $since (RFC 3339 in UTC)"
+fi
+if ! [[ "$lines" =~ ^[0-9]{1,4}$ ]] || [ "$lines" -lt 1 ] || [ "$lines" -gt 1000 ]; then
+	check_result "$E_INVALID" "invalid number of lines :: $lines (1 to 1000)"
+fi
+if [ ! -f "$(dockerapp_rdir "$user" "$name")/.env" ]; then
+	check_result "$E_NOTEXIST" "the Docker app $name has no project"
+fi
+services=$(dockerapp_dc "$user" "$name" config --services 2> /dev/null)
+if [ "$service" != 'all' ] && ! grep -qx -- "$service" <<< "$services"; then
+	check_result "$E_NOTEXIST" "the Docker app $name has no service $service"
+fi
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+args=(logs --no-color --timestamps --no-log-prefix)
+if [ -n "$since" ]; then
+	args+=(--since "$since")
+else
+	args+=(--tail "$lines")
+fi
+rows=$(
+	for svc in $services; do
+		if [ "$service" != 'all' ] && [ "$svc" != "$service" ]; then
+			continue
+		fi
+		dockerapp_dc "$user" "$name" "${args[@]}" "$svc" 2>&1 | tail -n 5000 | head -c 1048576 \
+			| jq -Rc --arg s "$svc" 'capture("^(?<t>[0-9]{4}-[0-9]{2}-[0-9]{2}T[^ ]+Z) ?(?<x>.*)$") // { t: "", x: . }
+				| { TIME: .t, SERVICE: $s, TEXT: .x }'
+	done | jq -sc --arg since "$since" --argjson n "$lines" '
+		map(select($since == "" or .TIME > $since)) | sort_by(.TIME) | .[-$n:]'
+)
+json=$(jq -c '{ LINES: ., NEXT: (map(.TIME) | max // "") }' <<< "${rows:-[]}")
+
+case "$format" in
+	json) printf '%s\n' "$json" | jq . ;;
+	*) printf '%s\n' "$json" | jq -r '.LINES[] | "\(.TIME) \(.SERVICE) \(.TEXT)"' ;;
+esac
+
+#----------------------------------------------------------#
+#                       Hestia                             #
+#----------------------------------------------------------#
+
+exit

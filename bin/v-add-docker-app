@@ -1,0 +1,238 @@
+#!/bin/bash
+# info: install a Docker app of the catalog for a user (E4)
+# options: USER SLUG NAME [DOMAIN] [VARS_FILE] [VERSION]
+#
+# example: v-add-docker-app alice uptime-kuma status status.example.com
+# example: v-add-docker-app alice redis cache '' /tmp/vars
+#
+# This function installs the catalog app SLUG (default: its latest VERSION)
+# as the app NAME of USER. An app with a web port needs one of the user's web
+# domains, which is switched to the docker-proxy template with the app's
+# port; deleting the app restores the previous template. VARS_FILE holds
+# NAME=value lines for the app's variables (secrets are generated when they
+# are left out). Ports come from the user's port pool. The images are pulled
+# and the app is started by a background task: the command prints its ID,
+# read with v-list-docker-app-task.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+user=$1
+slug=$2
+name=$3
+domain=$4
+vars_file=$5
+version=$6
+
+# Includes
+# shellcheck source=/etc/hestiacp/hestia.conf
+source /etc/hestiacp/hestia.conf
+# shellcheck source=/usr/local/hestia/func/main.sh
+source $HESTIA/func/main.sh
+# shellcheck source=/usr/local/hestia/func/tenancy.sh
+source $HESTIA/func/tenancy.sh
+# shellcheck source=/usr/local/hestia/func/ports.sh
+source $HESTIA/func/ports.sh
+# load config file
+source_conf "$HESTIA/conf/hestia.conf"
+# shellcheck source=/usr/local/hestia/func/docker.sh
+source $HESTIA/func/docker.sh
+
+# Additional argument formatting
+if [ -n "$domain" ]; then
+	format_domain
+fi
+
+# Undo what this run changed and exit with CODE and MESSAGE
+rollback() {
+	local code="$1" message="$2"
+	if [ "$recorded" = 'yes' ]; then
+		dockerapp_remove "$user" "$name"
+		rm -rf "$(dockerapp_rdir "$user" "$name")"
+		node_as_user "$user" rm -rf "$(dockerapp_home "$user" "$name")" 2> /dev/null
+	fi
+	if [ "$switched" = 'yes' ]; then
+		nodeapp_tpl_switch "$user" "$domain" "$prev_tpl" > /dev/null 2>&1
+		printf '%s\n' "$prev_vars" | arc_tplvars_write "$user" "$(arc_tplvars_file "$user" "$domain")"
+		"$BIN/v-rebuild-web-domain" "$user" "$domain" > /dev/null 2>&1
+	fi
+	if [ "$allocated" = 'yes' ]; then
+		dockerapp_ports_release "$user" "$name"
+	fi
+	check_result "$code" "$message"
+}
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '3' "$#" 'USER SLUG NAME [DOMAIN] [VARS_FILE] [VERSION]'
+is_format_valid 'user'
+is_object_valid 'user' 'USER' "$user"
+is_object_unsuspended 'user' 'USER' "$user"
+
+[ -z "$HOMEDIR" ] && check_result "$E_NOTEXIST" "ArcPanel environment vars not present"
+
+docker_check_system
+dockerapp_check_package "$user"
+if ! docker_slug_valid "$slug" || [ -z "$(docker_versions "$slug")" ]; then
+	check_result "$E_NOTEXIST" "app $slug is not in the catalog"
+fi
+if [ -z "$version" ] || [ "$version" = 'latest' ]; then
+	version=$(docker_latest_version "$slug")
+fi
+if ! docker_version_exists "$slug" "$version"; then
+	check_result "$E_NOTEXIST" "version $version of $slug is not in the catalog"
+fi
+manifest=$(docker_manifest "$slug" "$version")
+if [ -n "$(docker_manifest_errors "$manifest" "$slug" "$version")" ]; then
+	check_result "$E_PARSING" "the manifest of $slug $version is invalid (v-check-docker-catalog)"
+fi
+if [ "$(jq -r '.admin_only // false' "$manifest")" = 'true' ] && [ "$(tenancy_user_value "$user" ROLE)" != 'admin' ]; then
+	check_result "$E_FORBIDEN" "$slug can only be installed by an administrator"
+fi
+if ! jq -e --arg a "$(docker_arch)" '.arch | index($a) != null' "$manifest" > /dev/null; then
+	check_result "$E_FORBIDEN" "$slug is not available for $(docker_arch)"
+fi
+if ! dockerapp_name_valid "$name"; then
+	check_result "$E_INVALID" "invalid name :: $name (2 to 32 lowercase letters, digits and dashes)"
+fi
+if dockerapp_exists "$user" "$name"; then
+	check_result "$E_EXISTS" "$user already has a Docker app named $name"
+fi
+dockerapp_check_limit "$user"
+web=$(jq -r '.ports.web != null' "$manifest")
+if [ "$web" = 'true' ]; then
+	if [ -z "$domain" ]; then
+		check_result "$E_ARGS" "$slug needs a web domain"
+	fi
+	is_format_valid 'domain'
+	is_object_valid 'web' 'DOMAIN' "$domain"
+	is_object_unsuspended 'web' 'DOMAIN' "$domain"
+	dockerapp_check_domain "$user" "$domain"
+elif [ -n "$domain" ]; then
+	check_result "$E_INVALID" "$slug has no web port, it cannot use a domain"
+fi
+if [ -n "$vars_file" ]; then
+	if [ ! -f "$vars_file" ] || [ -L "$vars_file" ] || [ "$(stat -c %s "$vars_file")" -gt 65536 ]; then
+		check_result "$E_NOTEXIST" "variables file $vars_file does not exist or is too large"
+	fi
+fi
+read -r cpus memory <<< "$(dockerapp_default_limits "$user" "$manifest")"
+dockerapp_check_limits "$user" "$cpus" "$memory" "$manifest"
+need=$(docker_mb "$(jq -r .requirements.disk "$manifest")")
+for path in "$HOMEDIR/$user" "${DOCKER_DATA_ROOT:-/var/lib/docker}"; do
+	free=$(docker_free_mb "$path")
+	if [ -n "$free" ] && [ "$free" -lt "$need" ]; then
+		check_result "$E_DISK" "$slug needs $need MB of free disk, $path has $free MB"
+	fi
+done
+if [ -L "$HOMEDIR/$user/apps" ]; then
+	check_result "$E_FORBIDEN" "$HOMEDIR/$user/apps is a symbolic link"
+fi
+
+# The variables, checked before anything changes
+check_env=$(mktemp)
+out=$(dockerapp_env_render "$manifest" "$user" "$name" "$domain" "${vars_file:-/dev/null}" /dev/null "$check_env" install)
+rc=$?
+rm -f "$check_env"
+check_result "$rc" "$out"
+
+# Perform verification if read-only mode is enabled
+check_hestia_demo_mode
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+dockerapp_lock "$user"
+if dockerapp_exists "$user" "$name"; then
+	check_result "$E_EXISTS" "$user already has a Docker app named $name"
+fi
+dockerapp_check_limit "$user"
+if [ -n "$domain" ]; then
+	dockerapp_check_domain "$user" "$domain"
+fi
+
+recorded=no
+switched=no
+allocated=no
+
+# Ports: web first, then the extra ports
+spec=''
+web_port=''
+extra=''
+for pname in $(jq -r '(.ports // {}) | keys | (map(select(. == "web")) + map(select(. != "web")))[]' "$manifest"); do
+	out=$("$BIN/v-allocate-user-port" "$user" "$(dockerapp_port_app "$name" "$pname")" 2>&1)
+	rc=$?
+	if [ "$rc" -ne 0 ]; then
+		rollback "$rc" "${out#Error: }"
+	fi
+	allocated=yes
+	port=$(printf '%s\n' "$out" | tail -n1)
+	spec="$spec $pname:$port:no"
+	if [ "$pname" = 'web' ]; then
+		web_port=$port
+	else
+		extra="${extra:+$extra,}$pname:$port"
+	fi
+done
+
+# Record, folders and the rendered project
+prev_tpl=''
+if [ -n "$domain" ]; then
+	prev_tpl=$(arc_tpl_active "$user" "$domain")
+	prev_vars=$(arc_tplvars_read "$user" "$domain")
+fi
+rdir=$(dockerapp_rdir "$user" "$name")
+mkdir -p "$rdir"
+chmod 700 "$(dirname "$rdir")" "$rdir"
+node_as_user "$user" bash -c 'umask 022; mkdir -p "$1" && [ ! -L "$1" ] && chmod 711 "$1"' apps "$HOMEDIR/$user/apps"
+node_as_user "$user" bash -c 'umask 077; mkdir -p "$1/data" && [ ! -L "$1" ] && [ ! -L "$1/data" ]' app "$(dockerapp_home "$user" "$name")"
+dockerapp_set "$user" "$name" "SLUG=$slug" "VERSION=$version" "DOMAIN=$domain" "WEB_PORT=$web_port" \
+	"EXTRA_PORTS=$extra" STATE=running STATUS=installing REASON= SUSPENDED=no \
+	"TEMPLATE=$([ -n "$domain" ] && echo "$DOCKERAPP_TEMPLATE")" "PREV_TPL=$prev_tpl" PREV_VERSION= \
+	"CPUS=$cpus" "MEMORY=$memory" "TIME=$(date +'%T')" "DATE=$(date +'%F')"
+recorded=yes
+out=$(dockerapp_env_render "$manifest" "$user" "$name" "$domain" "${vars_file:-/dev/null}" /dev/null "$rdir/.env" install "$spec")
+rc=$?
+if [ "$rc" -ne 0 ]; then
+	rollback "$rc" "$out"
+fi
+dockerapp_copy_write "$user" "$name"
+out=$(dockerapp_render "$user" "$name")
+rc=$?
+if [ "$rc" -ne 0 ]; then
+	rollback "$rc" "$out"
+fi
+out=$(dockerapp_binds_check "$user" "$name")
+rc=$?
+if [ "$rc" -ne 0 ]; then
+	rollback "$rc" "$out"
+fi
+
+# The domain
+if [ -n "$domain" ]; then
+	switched=yes
+	out=$(dockerapp_domain_bind "$user" "$name" "$domain" "$web_port")
+	rc=$?
+	if [ "$rc" -ne 0 ]; then
+		rollback "$rc" "$out"
+	fi
+fi
+
+# Pull and start in the background
+id=$(dockerapp_task_start "$user" "$name" install)
+echo "$id"
+
+#----------------------------------------------------------#
+#                       Hestia                             #
+#----------------------------------------------------------#
+
+# Logging
+$BIN/v-log-action "$user" "Info" "Docker" "Docker app added (Name: $name, App: $slug $version${domain:+, Domain: $domain}${web_port:+, Port: $web_port})."
+log_event "$OK" "$ARGUMENTS"
+
+exit

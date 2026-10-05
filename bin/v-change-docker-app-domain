@@ -1,0 +1,98 @@
+#!/bin/bash
+# info: move a Docker app to another web domain (E4)
+# options: USER NAME DOMAIN
+#
+# example: v-change-docker-app-domain alice status uptime.example.com
+#
+# This function binds the Docker app NAME of USER to DOMAIN (docker-proxy
+# template with the app's port) and gives the previous domain its template
+# back. ARC_DOMAIN and ARC_URL of the app change with it; a running app is
+# started again.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+user=$1
+name=$2
+domain=$3
+
+# Includes
+# shellcheck source=/etc/hestiacp/hestia.conf
+source /etc/hestiacp/hestia.conf
+# shellcheck source=/usr/local/hestia/func/main.sh
+source $HESTIA/func/main.sh
+# shellcheck source=/usr/local/hestia/func/tenancy.sh
+source $HESTIA/func/tenancy.sh
+# shellcheck source=/usr/local/hestia/func/ports.sh
+source $HESTIA/func/ports.sh
+# load config file
+source_conf "$HESTIA/conf/hestia.conf"
+# shellcheck source=/usr/local/hestia/func/docker.sh
+source $HESTIA/func/docker.sh
+
+# Additional argument formatting
+format_domain
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '3' "$#" 'USER NAME DOMAIN'
+is_format_valid 'user' 'domain'
+is_object_valid 'user' 'USER' "$user"
+is_object_unsuspended 'user' 'USER' "$user"
+is_object_valid 'web' 'DOMAIN' "$domain"
+is_object_unsuspended 'web' 'DOMAIN' "$domain"
+docker_check_system
+dockerapp_check_app "$user" "$name"
+dockerapp_check_no_task "$user" "$name"
+dockerapp_check_settled "$user" "$name"
+if [ -z "$(dockerapp_get "$user" "$name" WEB_PORT)" ]; then
+	check_result "$E_INVALID" "the Docker app $name has no web port"
+fi
+old=$(dockerapp_get "$user" "$name" DOMAIN)
+if [ "$old" = "$domain" ]; then
+	check_result "$E_EXISTS" "the Docker app $name already uses $domain"
+fi
+dockerapp_check_domain "$user" "$domain" "$name"
+
+# Perform verification if read-only mode is enabled
+check_hestia_demo_mode
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+dockerapp_lock "$user"
+line=$(dockerapp_line "$user" "$name")
+port=$(nodeapp_field "$line" WEB_PORT)
+prev_tpl=$(arc_tpl_active "$user" "$domain")
+out=$(dockerapp_domain_bind "$user" "$name" "$domain" "$port")
+rc=$?
+if [ "$rc" -ne 0 ]; then
+	dockerapp_domain_unbind "$user" "$domain" "$prev_tpl"
+	check_result "$rc" "$out"
+fi
+if [ -n "$old" ]; then
+	dockerapp_domain_unbind "$user" "$old" "$(nodeapp_field "$line" PREV_TPL)"
+fi
+dockerapp_set "$user" "$name" "DOMAIN=$domain" "PREV_TPL=$prev_tpl" "TEMPLATE=$DOCKERAPP_TEMPLATE"
+
+# ARC_DOMAIN and ARC_URL
+rdir=$(dockerapp_rdir "$user" "$name")
+out=$(dockerapp_env_render "$(docker_manifest "$(nodeapp_field "$line" SLUG)" "$(nodeapp_field "$line" VERSION)")" \
+	"$user" "$name" "$domain" /dev/null "$rdir/.env" "$rdir/.env" keep "$(dockerapp_ports_spec "$user" "$name")")
+check_result $? "$out"
+dockerapp_copy_write "$user" "$name"
+dockerapp_apply "$user" "$name"
+
+#----------------------------------------------------------#
+#                       Hestia                             #
+#----------------------------------------------------------#
+
+$BIN/v-log-action "$user" "Info" "Docker" "Docker app moved (Name: $name, Domain: $domain${old:+, Previous: $old})."
+log_event "$OK" "$ARGUMENTS"
+
+exit

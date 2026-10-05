@@ -1,0 +1,114 @@
+#!/bin/bash
+# info: start a task of a Docker app in the background (E4)
+# options: USER NAME ACTION [VERSION]
+#
+# example: v-start-docker-app-task alice status install
+# example: v-start-docker-app-task alice status update 2.6.0
+# example: v-start-docker-app-task alice status rollback
+# example: v-start-docker-app-task alice status snapshot
+#
+# This function checks a long operation on the Docker app NAME of USER,
+# starts it detached from the caller and prints the task ID. ACTION is
+# install (pull, start and health check again after a failed installation),
+# update (to VERSION, default the latest of the catalog, with a snapshot of
+# the data and an automatic rollback), rollback (to the version before the
+# last update) or snapshot (the database dumps of the app now). An app runs
+# one task at a time; the state and the output are read with
+# v-list-docker-app-task.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+user=$1
+name=$2
+action=$3
+version=$4
+
+# Includes
+# shellcheck source=/etc/hestiacp/hestia.conf
+source /etc/hestiacp/hestia.conf
+# shellcheck source=/usr/local/hestia/func/main.sh
+source $HESTIA/func/main.sh
+# shellcheck source=/usr/local/hestia/func/tenancy.sh
+source $HESTIA/func/tenancy.sh
+# shellcheck source=/usr/local/hestia/func/ports.sh
+source $HESTIA/func/ports.sh
+# load config file
+source_conf "$HESTIA/conf/hestia.conf"
+# shellcheck source=/usr/local/hestia/func/docker.sh
+source $HESTIA/func/docker.sh
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '3' "$#" 'USER NAME ACTION [VERSION]'
+is_format_valid 'user'
+is_object_valid 'user' 'USER' "$user"
+is_object_unsuspended 'user' 'USER' "$user"
+docker_check_system
+dockerapp_check_app "$user" "$name"
+status=$(dockerapp_get "$user" "$name" STATUS)
+slug=$(dockerapp_get "$user" "$name" SLUG)
+current=$(dockerapp_get "$user" "$name" VERSION)
+case "$action" in
+	install)
+		if [ "$status" != 'installing' ] && [ "$status" != 'failed' ]; then
+			check_result "$E_EXISTS" "the Docker app $name is installed"
+		fi
+		version=''
+		;;
+	update)
+		dockerapp_check_package "$user"
+		if [ -z "$version" ] || [ "$version" = 'latest' ]; then
+			version=$(docker_latest_version "$slug")
+		fi
+		if ! docker_version_exists "$slug" "$version"; then
+			check_result "$E_NOTEXIST" "version $version of $slug is not in the catalog"
+		fi
+		if ! docker_version_newer "$version" "$current"; then
+			check_result "$E_INVALID" "$slug $version is not newer than the installed $current"
+		fi
+		if [ "$status" = 'installing' ]; then
+			check_result "$E_INUSE" "the Docker app $name is installing"
+		fi
+		;;
+	rollback)
+		prev=$(dockerapp_get "$user" "$name" PREV_VERSION)
+		if [ -z "$prev" ] || ! node_as_user "$user" test -f "$(dockerapp_home "$user" "$name")/.snapshots/$prev.tar.zst"; then
+			check_result "$E_NOTEXIST" "the Docker app $name has no previous version to roll back to"
+		fi
+		if ! docker_version_exists "$slug" "$prev"; then
+			check_result "$E_NOTEXIST" "version $prev of $slug is not in the catalog any more"
+		fi
+		version=''
+		;;
+	snapshot)
+		if [ "$(jq '(.dumps // []) | length' "$(docker_manifest "$slug" "$current")")" -eq 0 ]; then
+			check_result "$E_NOTEXIST" "$slug has no database to dump: its data folder is backed up as it is"
+		fi
+		version=''
+		;;
+	*)
+		check_result "$E_INVALID" "invalid action :: $action (install, update, rollback or snapshot)"
+		;;
+esac
+
+# Perform verification if read-only mode is enabled
+check_hestia_demo_mode
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+dockerapp_task_start "$user" "$name" "$action" "$version"
+
+#----------------------------------------------------------#
+#                       Hestia                             #
+#----------------------------------------------------------#
+
+log_event "$OK" "$ARGUMENTS"
+
+exit

@@ -1,0 +1,167 @@
+#!/bin/bash
+# info: check the Docker apps of all users (E4)
+# options: [MODE] [FORMAT]
+#
+# example: v-check-sys-docker
+# example: v-check-sys-docker repair json
+#
+# This function compares the Docker apps of every user with their records
+# and reports: import (an app.conf copy without a record, after a restore),
+# suspended-running (a suspended app with running containers),
+# domain-missing (the web domain of an app was deleted), stopped (an app
+# that should run has no running container), public-mismatch (a port was
+# made public or private in the registry), orphan (containers of ArcPanel
+# projects without a record or of deleted users) and disk (the data root is
+# more than 85 % full). MODE repair (run every 5 minutes from cron) fixes
+# them: rebuild, stop, delete the app of a missing domain (data kept), start,
+# render again, remove the orphan containers; it also prunes unused images
+# older than 7 days. The result is written to data/docker/report.json.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+mode=${1:-check}
+format=${2-shell}
+
+# Includes
+# shellcheck source=/etc/hestiacp/hestia.conf
+source /etc/hestiacp/hestia.conf
+# shellcheck source=/usr/local/hestia/func/main.sh
+source $HESTIA/func/main.sh
+# shellcheck source=/usr/local/hestia/func/tenancy.sh
+source $HESTIA/func/tenancy.sh
+# shellcheck source=/usr/local/hestia/func/ports.sh
+source $HESTIA/func/ports.sh
+# load config file
+source_conf "$HESTIA/conf/hestia.conf"
+# shellcheck source=/usr/local/hestia/func/docker.sh
+source $HESTIA/func/docker.sh
+
+findings='[]'
+finding() {
+	findings=$(jq -c --arg u "$1" --arg a "$2" --arg t "$3" --arg d "$4" --arg r "$5" \
+		'. + [{ USER: $u, APP: $a, TYPE: $t, DETAIL: $d, REPAIRED: $r }]' <<< "$findings")
+}
+
+# repair: run CMD, print yes or no
+fix() {
+	if [ "$mode" != 'repair' ]; then
+		echo ''
+	elif "$@" > /dev/null 2>&1; then
+		echo yes
+	else
+		echo no
+	fi
+}
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+if [ "$mode" != 'check' ] && [ "$mode" != 'repair' ]; then
+	check_result "$E_INVALID" "invalid mode :: $mode (check or repair)"
+fi
+if [ "$DOCKER_SYSTEM" != 'yes' ]; then
+	exit
+fi
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+exec {check_lock}> "$(docker_state_dir)/check.lock"
+if ! flock -n "$check_lock"; then
+	exit
+fi
+
+for user in $(tenancy_all_users); do
+	has_records=no
+	if [ "$(dockerapp_count "$user")" -gt 0 ]; then
+		has_records=yes
+	fi
+	# copies of restored apps
+	if [ -d "$HOMEDIR/$user/apps" ] && [ ! -L "$HOMEDIR/$user/apps" ]; then
+		for name in $(node_as_user "$user" find "$HOMEDIR/$user/apps" -mindepth 2 -maxdepth 2 -name app.conf -type f -printf '%h\n' 2> /dev/null \
+			| xargs -r -n1 basename | sort); do
+			if dockerapp_name_valid "$name" && ! dockerapp_exists "$user" "$name" && [ -n "$(dockerapp_copy_line "$user" "$name")" ]; then
+				finding "$user" "$name" import "app.conf without a record" "$(fix "$BIN/v-rebuild-docker-apps" "$user")"
+				has_records=yes
+				continue 2
+			fi
+		done
+	fi
+	if [ "$has_records" = 'no' ]; then
+		continue
+	fi
+	containers=$(dockerapp_containers_json "$user")
+	for name in $(dockerapp_names "$user"); do
+		line=$(dockerapp_line "$user" "$name")
+		state=$(dockerapp_docker_state "$containers" "$name")
+		domain=$(nodeapp_field "$line" DOMAIN)
+		if dockerapp_task_running "$user" "$name"; then
+			continue
+		fi
+		if [ "$(nodeapp_field "$line" SUSPENDED)" != 'no' ]; then
+			if [ "$state" = 'running' ] || [ "$state" = 'partial' ] || [ "$state" = 'restarting' ]; then
+				finding "$user" "$name" suspended-running "" "$(fix dockerapp_halt "$user" "$name")"
+			fi
+			continue
+		fi
+		if [ -n "$domain" ] && ! arc_tpl_domain_exists "$user" "$domain"; then
+			finding "$user" "$name" domain-missing "$domain" "$(fix "$BIN/v-delete-docker-app" "$user" "$name" keep-data)"
+			continue
+		fi
+		if dockerapp_should_run "$user" "$name" && { [ "$state" = 'exited' ] || [ "$state" = 'missing' ] || [ "$state" = 'partial' ]; }; then
+			repaired=$(fix dockerapp_up "$user" "$name")
+			if [ "$repaired" = 'yes' ]; then
+				dockerapp_update "$user" "$name" STATUS=running REASON=
+			fi
+			finding "$user" "$name" stopped "containers $state" "$repaired"
+			continue
+		fi
+		if [ "$state" = 'running' ] && dockerapp_public_mismatch "$user" "$name"; then
+			finding "$user" "$name" public-mismatch "" "$(fix dockerapp_up "$user" "$name")"
+		fi
+	done
+done
+
+# Containers of ArcPanel projects without a record
+while IFS='|' read -r id user app project; do
+	[ -n "$id" ] || continue
+	if [[ "$user" =~ ^[[:alnum:]][-|\.|_[:alnum:]]{0,28}[[:alnum:]]$ ]] && [ -f "$HESTIA/data/users/$user/user.conf" ] \
+		&& dockerapp_name_valid "$app" && dockerapp_exists "$user" "$app"; then
+		continue
+	fi
+	finding "$user" "$app" orphan "container $id of project $project" "$(fix docker_cmd rm -f "$id")"
+done < <(docker_cmd ps -a --filter "label=top.arcpanel.app" \
+	--format '{{.ID}}|{{.Label "top.arcpanel.user"}}|{{.Label "top.arcpanel.app"}}|{{.Label "com.docker.compose.project"}}' 2> /dev/null)
+if [ "$mode" = 'repair' ]; then
+	docker_cmd network prune -f --filter 'label=com.docker.compose.project' > /dev/null 2>&1
+	docker_cmd image prune -a -f --filter 'until=168h' > /dev/null 2>&1
+fi
+
+# Disk of the data root
+root=$(docker_cmd info --format '{{.DockerRootDir}}' 2> /dev/null)
+used=$(df -P "${root:-/var/lib/docker}" 2> /dev/null | awk 'NR == 2 { sub("%", "", $5); print $5 }')
+if [ -n "$used" ] && [ "$used" -gt 85 ]; then
+	finding "" "" disk "${root:-/var/lib/docker} is $used % full" ""
+fi
+
+json=$(jq -c --arg time "$(date +'%F %T')" --arg mode "$mode" \
+	'{ TIME: $time, MODE: $mode, FINDINGS: ., COUNT: (length | tostring) }' <<< "$findings")
+printf '%s\n' "$json" > "$(docker_state_dir)/report.json.tmp"
+chmod 640 "$(docker_state_dir)/report.json.tmp"
+mv -f "$(docker_state_dir)/report.json.tmp" "$(docker_state_dir)/report.json"
+
+case "$format" in
+	json) printf '%s\n' "$json" | jq . ;;
+	*) node_print shell "$json" '.FINDINGS' 'USER APP TYPE DETAIL REPAIRED' ;;
+esac
+
+#----------------------------------------------------------#
+#                       Hestia                             #
+#----------------------------------------------------------#
+
+exit

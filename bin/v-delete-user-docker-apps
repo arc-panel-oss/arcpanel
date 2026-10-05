@@ -1,0 +1,66 @@
+#!/bin/bash
+# info: delete the Docker apps of a user (E4)
+# options: USER
+#
+# example: v-delete-user-docker-apps alice
+#
+# This function deletes every Docker app of USER: containers, networks,
+# ports, records and rendered projects. The data folders stay in the home
+# directory (removed with it when the user is deleted). It is run by the
+# pre_delete_user hook.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+user=$1
+
+# Includes
+# shellcheck source=/etc/hestiacp/hestia.conf
+source /etc/hestiacp/hestia.conf
+# shellcheck source=/usr/local/hestia/func/main.sh
+source $HESTIA/func/main.sh
+# shellcheck source=/usr/local/hestia/func/tenancy.sh
+source $HESTIA/func/tenancy.sh
+# shellcheck source=/usr/local/hestia/func/ports.sh
+source $HESTIA/func/ports.sh
+# load config file
+source_conf "$HESTIA/conf/hestia.conf"
+# shellcheck source=/usr/local/hestia/func/docker.sh
+source $HESTIA/func/docker.sh
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '1' "$#" 'USER'
+is_format_valid 'user'
+is_object_valid 'user' 'USER' "$user"
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+if [ "$(dockerapp_count "$user")" -eq 0 ]; then
+	exit
+fi
+dockerapp_lock "$user"
+for name in $(dockerapp_names "$user"); do
+	# a running task is ended first: the account goes away
+	pid=$(dockerapp_task_get "$user" "$name" PID)
+	if [ "$(dockerapp_task_get "$user" "$name" STATUS)" = 'running' ] && docker_task_alive "$pid" v-run-docker-app-task; then
+		kill "$pid" 2> /dev/null
+		dockerapp_task_set "$user" "$name" STATUS=failed "END=$(date +'%F %T')"
+	fi
+	"$BIN/v-delete-docker-app" "$user" "$name" keep-data > /dev/null 2>&1
+done
+rm -rf "$HESTIA/data/users/$user/docker"
+
+#----------------------------------------------------------#
+#                       Hestia                             #
+#----------------------------------------------------------#
+
+log_event "$OK" "$ARGUMENTS"
+
+exit

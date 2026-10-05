@@ -1,0 +1,74 @@
+#!/bin/bash
+# info: restart a Docker app (E4)
+# options: USER NAME
+#
+# example: v-restart-docker-app alice status
+#
+# This function renders the Docker app NAME of USER again, checks it,
+# recreates the containers whose configuration changed and restarts the
+# others.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+user=$1
+name=$2
+
+# Includes
+# shellcheck source=/etc/hestiacp/hestia.conf
+source /etc/hestiacp/hestia.conf
+# shellcheck source=/usr/local/hestia/func/main.sh
+source $HESTIA/func/main.sh
+# shellcheck source=/usr/local/hestia/func/tenancy.sh
+source $HESTIA/func/tenancy.sh
+# shellcheck source=/usr/local/hestia/func/ports.sh
+source $HESTIA/func/ports.sh
+# load config file
+source_conf "$HESTIA/conf/hestia.conf"
+# shellcheck source=/usr/local/hestia/func/docker.sh
+source $HESTIA/func/docker.sh
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '2' "$#" 'USER NAME'
+is_format_valid 'user'
+is_object_valid 'user' 'USER' "$user"
+is_object_unsuspended 'user' 'USER' "$user"
+docker_check_system
+dockerapp_check_app "$user" "$name"
+dockerapp_check_no_task "$user" "$name"
+dockerapp_check_settled "$user" "$name"
+
+# Perform verification if read-only mode is enabled
+check_hestia_demo_mode
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+dockerapp_lock "$user"
+out=$(dockerapp_up "$user" "$name")
+rc=$?
+if [ "$rc" -eq 0 ]; then
+	out=$(dockerapp_dc "$user" "$name" restart --timeout 30 2>&1)
+	rc=$?
+	out=$(printf '%s\n' "$out" | tail -n1)
+fi
+if [ "$rc" -ne 0 ]; then
+	dockerapp_set "$user" "$name" STATUS=failed REASON=start
+	check_result "$rc" "$out"
+fi
+dockerapp_set "$user" "$name" STATE=running STATUS=running REASON=
+
+#----------------------------------------------------------#
+#                       Hestia                             #
+#----------------------------------------------------------#
+
+$BIN/v-log-action "$user" "Info" "Docker" "Docker app restarted (Name: $name)."
+log_event "$OK" "$ARGUMENTS"
+
+exit

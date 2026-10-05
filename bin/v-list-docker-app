@@ -1,0 +1,108 @@
+#!/bin/bash
+# info: show a Docker app of a user (E4)
+# options: USER NAME [FORMAT]
+#
+# example: v-list-docker-app alice status json
+#
+# This function prints the Docker app NAME of USER: the fields of
+# v-list-docker-apps, its services (image, state, health), its ports with
+# their container port and whether they are public, the catalog entry
+# (name, summary, homepage, changelog, icon), the rendered post-install note
+# and the state of its last task.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+user=$1
+name=$2
+format=${3-shell}
+
+# Includes
+# shellcheck source=/etc/hestiacp/hestia.conf
+source /etc/hestiacp/hestia.conf
+# shellcheck source=/usr/local/hestia/func/main.sh
+source $HESTIA/func/main.sh
+# shellcheck source=/usr/local/hestia/func/tenancy.sh
+source $HESTIA/func/tenancy.sh
+# shellcheck source=/usr/local/hestia/func/ports.sh
+source $HESTIA/func/ports.sh
+# load config file
+source_conf "$HESTIA/conf/hestia.conf"
+# shellcheck source=/usr/local/hestia/func/docker.sh
+source $HESTIA/func/docker.sh
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '2' "$#" 'USER NAME [FORMAT]'
+is_format_valid 'user'
+is_object_valid 'user' 'USER' "$user"
+dockerapp_check_app "$user" "$name" any
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+row=$(dockerapp_rows_json "$user" | jq -c --arg n "$name" '[.[] | select(.NAME == $n)][0]')
+slug=$(jq -r .SLUG <<< "$row")
+version=$(jq -r .VERSION <<< "$row")
+manifest=$(docker_manifest "$slug" "$version")
+catalog='{}'
+post=''
+if [ -f "$manifest" ]; then
+	catalog=$(docker_catalog_app_json "$slug" "$version" | jq -c '{ name, summary, description, homepage, changelog, license, icon,
+		dumps: ((.dumps // []) | length > 0), healthcheck: .healthcheck.type, ports: (.ports // {}) }')
+	post=$(docker_interpolate "$(jq -r '.post_install // ""' "$manifest")" "$user" "$(jq -r .DOMAIN <<< "$row")")
+fi
+
+# Services from Compose
+services='[]'
+if [ -f "$(dockerapp_rdir "$user" "$name")/.env" ] && command -v docker > /dev/null 2>&1; then
+	services=$(dockerapp_dc "$user" "$name" ps -a --format json 2> /dev/null | jq -sc 'flatten | map({
+		SERVICE: .Service, IMAGE: .Image, STATE: .State, HEALTH: (.Health // ""), STATUS: .Status })')
+fi
+
+# Ports with their registry state
+ports='[]'
+for pair in $(jq -r '"web:\(.WEB_PORT)", (.EXTRA_PORTS | split(",")[] | select(length > 0))' <<< "$row"); do
+	pname=${pair%%:*}
+	port=${pair#*:}
+	if [ -z "$port" ]; then
+		continue
+	fi
+	ports=$(jq -c --arg n "$pname" --arg p "$port" --arg public "$(dockerapp_port_public "$user" "$port")" --argjson c "$catalog" \
+		'. + [{ NAME: $n, PORT: $p, PUBLIC: $public, CONTAINER: (($c.ports[$n].container // "") | tostring),
+			DESCRIPTION: ($c.ports[$n].description // "") }]' <<< "$ports")
+done
+
+# Last task without its output
+task=$(docker_task_json "$(dockerapp_task_conf "$user" "$name")" /dev/null 0 | jq -c 'del(.LOG, .OFFSET)')
+snapshot=no
+prev=$(jq -r .PREV_VERSION <<< "$row")
+if [ -n "$prev" ] && node_as_user "$user" test -f "$(dockerapp_home "$user" "$name")/.snapshots/$prev.tar.zst"; then
+	snapshot=yes
+fi
+dumped=$(node_as_user "$user" cat "$(dockerapp_data_dir "$user" "$name")/.dumps/.last" 2> /dev/null | head -c 64)
+
+json=$(jq -c --argjson catalog "$catalog" --argjson services "$services" --argjson ports "$ports" --argjson task "$task" \
+	--arg post "$post" --arg snapshot "$snapshot" --arg dumped "$dumped" --arg user "$user" \
+	'. + { USER: $user, CATALOG: $catalog, SERVICES: $services, PORTS: $ports, POST_INSTALL: $post, TASK: $task,
+		ROLLBACK: $snapshot, LAST_DUMP: $dumped }' <<< "$row")
+
+case "$format" in
+	json) printf '%s\n' "$json" | jq . ;;
+	*)
+		printf '%s\n' "$json" | jq -r 'to_entries[] | select(.value | type == "string") | "\(.key): \(.value)"'
+		printf '%s\n' "$json" | jq -r '.SERVICES[] | "SERVICE: \(.SERVICE) \(.STATE) \(.HEALTH)"'
+		printf '%s\n' "$json" | jq -r '.PORTS[] | "PORT: \(.NAME) \(.PORT) -> \(.CONTAINER) public=\(.PUBLIC)"'
+		;;
+esac
+
+#----------------------------------------------------------#
+#                       Hestia                             #
+#----------------------------------------------------------#
+
+exit

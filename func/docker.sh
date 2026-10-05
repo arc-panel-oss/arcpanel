@@ -587,7 +587,7 @@ docker_env_read() {
 # Render the variables of manifest FILE for USER's app NAME on DOMAIN into
 # OUT (an .env file). INPUT holds NAME=value lines given by the caller,
 # CURRENT the current .env (both may be missing). MODE:
-#   install  given values, else defaults (secrets generated)
+#   install  given values, else defaults ({{random:N}} generates secrets)
 #   change   given values replace current ones (an empty secret keeps its
 #            value); unknown names and new values of immutable variables
 #            are refused; variables not given keep their values
@@ -637,9 +637,6 @@ dockerapp_env_render() {
 		if [ "$mode" = 'install' ] && [ -z "$value" ]; then
 			value=$(docker_interpolate "$(jq -r '.default // ""' <<< "$var")" "$user" "$domain")
 		fi
-		if [ -z "$value" ] && [ "$type" = 'password' ]; then
-			value=$(docker_random 24)
-		fi
 		if ! reason=$(docker_var_check "$var" "$value"); then
 			echo "$reason"
 			return "$E_INVALID"
@@ -676,7 +673,8 @@ docker_compose_in() {
 	if [ -f "$dir/compose.arcpanel.yaml" ]; then
 		files+=(-f "$dir/compose.arcpanel.yaml")
 	fi
-	"${DOCKER_ENV[@]}" docker compose -p "$project" --project-directory "$dir" "${files[@]}" --env-file "$dir/.env" "$@"
+	"${DOCKER_ENV[@]}" docker compose --ansi never --progress plain -p "$project" --project-directory "$dir" \
+		"${files[@]}" --env-file "$dir/.env" "$@"
 }
 
 # docker compose for USER's NAME
@@ -1226,14 +1224,14 @@ dockerapp_port_app() {
 	if [ "$2" = 'web' ]; then
 		echo "docker:$1"
 	else
-		echo "docker:$1:$2"
+		echo "docker:$1.$2"
 	fi
 }
 
 # Release every registry port of USER's NAME
 dockerapp_ports_release() {
 	local user="$1" name="$2" app
-	for app in $(ports_read "$user" | awk -F'|' -v n="docker:$name" '$4 == n || index($4, n ":") == 1 { print $4 }' | sort -u); do
+	for app in $(ports_read "$user" | awk -F'|' -v n="docker:$name" '$4 == n || index($4, n ".") == 1 { print $4 }' | sort -u); do
 		"$BIN/v-release-user-port" "$user" "$app" > /dev/null 2>&1
 	done
 	return 0
@@ -1268,4 +1266,488 @@ dockerapp_port_ensure() {
 		port=$(printf '%s\n' "$out" | tail -n1)
 	fi
 	echo "$port"
+}
+
+#----------------------------------------------------------#
+#                       Lifecycle                          #
+#----------------------------------------------------------#
+
+# dockerapp_set under the lock of USER's records (tasks, hooks): commands
+# that hold the lock already write directly
+dockerapp_update() {
+	local user="$1"
+	if [ "$ARC_DOCKERAPPS_LOCKED" = "$user" ]; then
+		dockerapp_set "$@"
+		return
+	fi
+	(
+		exec {fd}> "$HESTIA/data/users/$user/dockerapps.lock"
+		flock -w 120 "$fd" || exit "$E_LA"
+		dockerapp_set "$@"
+	)
+}
+
+# Exit unless USER has the app NAME, not suspended unless MODE is any
+dockerapp_check_app() {
+	if ! dockerapp_name_valid "$2" || ! dockerapp_exists "$1" "$2"; then
+		check_result "$E_NOTEXIST" "$1 has no Docker app $2"
+	fi
+	if [ "$3" != 'any' ] && [ "$(dockerapp_get "$1" "$2" SUSPENDED)" != 'no' ]; then
+		check_result "$E_SUSPENDED" "the Docker app $2 is suspended"
+	fi
+}
+
+# Exit while USER's NAME is installing or updating
+dockerapp_check_settled() {
+	local status
+	status=$(dockerapp_get "$1" "$2" STATUS)
+	if { [ "$status" = 'installing' ] || [ "$status" = 'updating' ]; } && [ "$ARC_DOCKER_TASK" != "$1/$2" ]; then
+		check_result "$E_INUSE" "the Docker app $2 is $status"
+	fi
+}
+
+# Render, check and start USER's NAME (containers recreated where their
+# configuration changed). Prints the reason on failure.
+dockerapp_up() {
+	local user="$1" name="$2" out
+	out=$(dockerapp_render "$user" "$name") || {
+		echo "$out"
+		return "$E_FORBIDEN"
+	}
+	out=$(dockerapp_binds_check "$user" "$name") || {
+		echo "$out"
+		return "$E_FORBIDEN"
+	}
+	out=$(dockerapp_dc "$user" "$name" up -d --remove-orphans --quiet-pull 2>&1) || {
+		printf '%s\n' "$out" | grep -v '^ *$' | tail -n 5
+		return "$E_RESTART"
+	}
+	return 0
+}
+
+# Re-apply a changed setting: start USER's NAME again when it runs, else
+# only render it
+dockerapp_apply() {
+	local user="$1" name="$2" out containers state
+	containers=$(dockerapp_containers_json "$user")
+	state=$(dockerapp_docker_state "$containers" "$name")
+	if [ "$state" != 'missing' ] && [ "$state" != 'exited' ]; then
+		out=$(dockerapp_up "$user" "$name")
+		check_result $? "$out"
+	else
+		out=$(dockerapp_render "$user" "$name")
+		check_result $? "$out"
+	fi
+}
+
+# Install task: pull, start and wait for the health check; output goes to
+# the task log
+dockerapp_task_install() {
+	local user="$1" name="$2" out post
+	dockerapp_update "$user" "$name" STATUS=installing REASON=
+	echo "== Checking the project"
+	if ! out=$(dockerapp_render "$user" "$name") || ! out=$(dockerapp_binds_check "$user" "$name"); then
+		echo "$out"
+		dockerapp_update "$user" "$name" STATUS=failed REASON=render
+		return "$E_FORBIDEN"
+	fi
+	echo "== Pulling the images"
+	if ! dockerapp_dc "$user" "$name" pull 2>&1; then
+		dockerapp_update "$user" "$name" STATUS=failed REASON=pull
+		return "$E_CONNECT"
+	fi
+	echo "== Starting the containers"
+	if ! dockerapp_dc "$user" "$name" up -d --remove-orphans 2>&1; then
+		dockerapp_update "$user" "$name" STATUS=failed REASON=start
+		return "$E_RESTART"
+	fi
+	echo "== Waiting for the health check"
+	if ! out=$(dockerapp_health "$user" "$name"); then
+		echo "$out"
+		echo "== Last log lines"
+		dockerapp_log_tail "$user" "$name" 50
+		dockerapp_update "$user" "$name" STATUS=failed REASON=health
+		return "$E_RESTART"
+	fi
+	dockerapp_update "$user" "$name" STATUS=running REASON=
+	post=$(jq -r '.post_install // ""' "$(docker_manifest "$(dockerapp_get "$user" "$name" SLUG)" "$(dockerapp_get "$user" "$name" VERSION)")")
+	post=$(docker_interpolate "$post" "$user" "$(dockerapp_get "$user" "$name" DOMAIN)")
+	"$BIN/v-add-user-notification" "$user" "Docker app $name is ready" \
+		"$(jq -r .name "$(docker_manifest "$(dockerapp_get "$user" "$name" SLUG)" "$(dockerapp_get "$user" "$name" VERSION)")") is running. $post" \
+		> /dev/null 2>&1
+	echo "== The app is running"
+	return 0
+}
+
+# Start a task of USER's NAME detached from the caller; prints the task ID
+dockerapp_task_start() {
+	local user="$1" name="$2" action="$3" arg="$4" lock id log
+	exec {lock}> "$(dockerapp_rdir "$user" "$name")/task.lock"
+	flock -x "$lock"
+	if dockerapp_task_running "$user" "$name"; then
+		flock -u "$lock"
+		check_result "$E_INUSE" "a task of the Docker app $name is running ($(dockerapp_task_get "$user" "$name" ACTION))"
+	fi
+	id="$(date +%s)$(printf '%04d' $((RANDOM % 10000)))"
+	log=$(dockerapp_task_log "$user" "$name")
+	: > "$log"
+	chmod 600 "$log"
+	dockerapp_task_set "$user" "$name" "ID=$id" "ACTION=$action" "ARGS=$arg" STATUS=running PID= EXIT= \
+		"START=$(date +'%F %T')" END=
+	# Detached: new session, no descriptor shared with the caller, so the
+	# panel's request returns at once and the task survives it; the lock of
+	# the records (held by v-add-docker-app) is not passed on
+	if [ -n "$DOCKERAPP_LOCK_FD" ]; then
+		setsid "$BIN/v-run-docker-app-task" "$id" "$user" "$name" "$action" $arg \
+			< /dev/null >> "$log" 2>&1 {lock}>&- {DOCKERAPP_LOCK_FD}>&- &
+	else
+		setsid "$BIN/v-run-docker-app-task" "$id" "$user" "$name" "$action" $arg \
+			< /dev/null >> "$log" 2>&1 {lock}>&- &
+	fi
+	dockerapp_task_set "$user" "$name" "PID=$!"
+	flock -u "$lock"
+	echo "$id"
+}
+
+#----------------------------------------------------------#
+#                         Output                           #
+#----------------------------------------------------------#
+
+# CPU (percent) and memory (MB) of every container of USER as a JSON array
+# of {id, cpu, memory}
+dockerapp_stats_json() {
+	local ids
+	ids=$(docker_cmd ps -q --filter "label=top.arcpanel.user=$1" 2> /dev/null)
+	if [ -z "$ids" ]; then
+		echo '[]'
+		return 0
+	fi
+	# shellcheck disable=SC2086
+	docker_cmd stats --no-stream --format '{{json .}}' $ids 2> /dev/null | jq -sc '
+		def mb: capture("^(?<n>[0-9.]+)(?<u>[A-Za-z]*)") as $m | ($m.n | tonumber)
+			* ({ "B": (1 / 1048576), "KiB": (1 / 1024), "kB": (1 / 1024), "MiB": 1, "MB": 1, "GiB": 1024, "GB": 1024 }[$m.u] // 1);
+		map({ id: .ID[0:12], cpu: (.CPUPerc | rtrimstr("%") | tonumber? // 0),
+			memory: ((.MemUsage | split(" / ")[0]) | mb? // 0) })'
+}
+
+# The apps of USER as a JSON array: records with the manifest name, the
+# latest version, Docker state, CPU and memory
+dockerapp_rows_json() {
+	local user="$1" containers stats name line slug version manifest latest app url ssl domain update
+	containers=$(dockerapp_containers_json "$user")
+	stats=$(dockerapp_stats_json "$user")
+	for name in $(dockerapp_names "$user"); do
+		line=$(dockerapp_line "$user" "$name")
+		slug=$(nodeapp_field "$line" SLUG)
+		version=$(nodeapp_field "$line" VERSION)
+		domain=$(nodeapp_field "$line" DOMAIN)
+		manifest=$(docker_manifest "$slug" "$version")
+		app=''
+		if [ -f "$manifest" ]; then
+			app=$(jq -r .name "$manifest")
+		fi
+		latest=$(docker_latest_version "$slug")
+		url=$(dockerapp_url "$user" "$domain")
+		ssl=$(arc_tpl_domain_value "$user" "$domain" SSL)
+		update=no
+		if [ -n "$latest" ] && docker_version_newer "$latest" "$version"; then
+			update=yes
+		fi
+		jq -nc --arg line "$line" --arg app "$app" --arg latest "$latest" --arg url "$url" --arg ssl "${ssl:-no}" \
+			--arg update "$update" \
+			--argjson containers "$containers" --argjson stats "$stats" '
+			($line | [scan("([A-Z_]+)='"'"'([^'"'"']*)'"'"'")] | map({ key: .[0], value: .[1] }) | from_entries) as $r
+			| [ $containers[] | select(.app == $r.NAME) ] as $c
+			| ([ $c[].id ]) as $ids
+			| ([ $stats[] | select(.id as $i | $ids | index($i)) ]) as $s
+			| (if ($c | length) == 0 then "missing"
+				elif ([ $c[] | select(.state == "restarting") ] | length) > 0 then "restarting"
+				elif ([ $c[] | select(.state == "running") ] | length) == ($c | length) then "running"
+				elif ([ $c[] | select(.state == "running") ] | length) > 0 then "partial"
+				else "exited" end) as $docker
+			| $r + {
+				APP_NAME: (if $app == "" then $r.SLUG else $app end),
+				LATEST: $latest,
+				UPDATE: $update,
+				URL: $url, SSL: $ssl, DOCKER_STATE: $docker,
+				STATUS: (if $r.SUSPENDED != "no" then "suspended"
+					elif $r.STATUS == "installing" or $r.STATUS == "updating" then $r.STATUS
+					elif $r.STATUS == "failed" and $docker != "running" then "failed"
+					elif $docker == "running" then "running"
+					elif $docker == "partial" then "degraded"
+					elif $docker == "restarting" then "restarting"
+					elif $r.STATE == "stopped" then "stopped"
+					else $docker end),
+				CONTAINERS: ($c | length | tostring),
+				RUNNING: ([ $c[] | select(.state == "running") ] | length | tostring),
+				CPU: ([ $s[].cpu ] | add // 0 | . * 100 | round / 100 | tostring),
+				MEM: ([ $s[].memory ] | add // 0 | round | tostring)
+			}'
+	done | jq -sc .
+}
+
+# Run a function or command with a time limit of SECONDS: TERM, then KILL
+# 30 seconds later. Returns 124 when the limit was reached.
+docker_with_timeout() {
+	local seconds="$1" pid watcher rc start
+	shift
+	start=$(date +%s)
+	"$@" &
+	pid=$!
+	(
+		sleep "$seconds"
+		kill -TERM "$pid" 2> /dev/null
+		sleep 30
+		kill -KILL "$pid" 2> /dev/null
+	) 2> /dev/null &
+	watcher=$!
+	wait "$pid"
+	rc=$?
+	pkill -P "$watcher" 2> /dev/null
+	kill "$watcher" 2> /dev/null
+	wait "$watcher" 2> /dev/null
+	if [ $(($(date +%s) - start)) -ge "$seconds" ]; then
+		return 124
+	fi
+	return "$rc"
+}
+
+#----------------------------------------------------------#
+#                  Updates and rollback                    #
+#----------------------------------------------------------#
+
+dockerapp_snapshot_file() {
+	echo "$(dockerapp_home "$1" "$2")/.snapshots/$3.tar.zst"
+}
+
+# Size of the data folder of USER's NAME in MB
+dockerapp_data_mb() {
+	node_as_user "$1" du -sm "$(dockerapp_data_dir "$1" "$2")" 2> /dev/null | awk '{ print $1 }'
+}
+
+# Replace the snapshots of USER's NAME with one of its data folder for
+# VERSION (as the user)
+dockerapp_snapshot_take() {
+	local user="$1" name="$2" version="$3" home
+	home=$(dockerapp_home "$user" "$name")
+	node_as_user "$user" bash -c 'umask 077; [ ! -L "$1" ] && [ ! -L "$1/.snapshots" ] && mkdir -p "$1/.snapshots" \
+		&& rm -f "$1"/.snapshots/*.tar.zst && tar -C "$1" --zstd -cf "$2.tmp" data && mv -f "$2.tmp" "$2"' \
+		snap "$home" "$(dockerapp_snapshot_file "$user" "$name" "$version")"
+}
+
+# Put the data folder of USER's NAME back from the snapshot of VERSION
+dockerapp_snapshot_restore() {
+	local user="$1" name="$2" version="$3" home
+	home=$(dockerapp_home "$user" "$name")
+	node_as_user "$user" bash -c '[ -f "$2" ] && [ ! -L "$2" ] && rm -rf "$1/data" && tar -C "$1" --zstd -xf "$2"' \
+		snap "$home" "$(dockerapp_snapshot_file "$user" "$name" "$version")"
+}
+
+# Render VERSION of USER's NAME (variables kept, new ones get their
+# defaults; the current .env is saved as .env.prev when SAVE is yes)
+dockerapp_render_version() {
+	local user="$1" name="$2" version="$3" save="$4" rdir line out
+	rdir=$(dockerapp_rdir "$user" "$name")
+	line=$(dockerapp_line "$user" "$name")
+	if [ "$save" = 'yes' ]; then
+		cp -p "$rdir/.env" "$rdir/.env.prev"
+	fi
+	out=$(dockerapp_env_render "$(docker_manifest "$(nodeapp_field "$line" SLUG)" "$version")" "$user" "$name" \
+		"$(nodeapp_field "$line" DOMAIN)" /dev/null "$rdir/.env" "$rdir/.env" keep "$(dockerapp_ports_spec "$user" "$name")") || {
+		echo "$out"
+		return "$E_INVALID"
+	}
+	dockerapp_update "$user" "$name" "VERSION=$version"
+	dockerapp_render "$user" "$name"
+}
+
+# Pull, start and check USER's NAME as rendered; output to the task log
+dockerapp_task_start_rendered() {
+	local user="$1" name="$2" out
+	out=$(dockerapp_binds_check "$user" "$name") || {
+		echo "$out"
+		return "$E_FORBIDEN"
+	}
+	echo "== Pulling the images"
+	dockerapp_dc "$user" "$name" pull 2>&1 || return "$E_CONNECT"
+	echo "== Starting the containers"
+	dockerapp_dc "$user" "$name" up -d --remove-orphans 2>&1 || return "$E_RESTART"
+	echo "== Waiting for the health check"
+	if ! out=$(dockerapp_health "$user" "$name"); then
+		echo "$out"
+		echo "== Last log lines"
+		dockerapp_log_tail "$user" "$name" 50
+		return "$E_RESTART"
+	fi
+	return 0
+}
+
+# Update task of USER's NAME to VERSION (spec D9)
+dockerapp_task_update() {
+	local user="$1" name="$2" version="$3" old status size free rc out
+	old=$(dockerapp_get "$user" "$name" VERSION)
+	status=$(dockerapp_get "$user" "$name" STATUS)
+	size=$(dockerapp_data_mb "$user" "$name")
+	free=$(docker_free_mb "$(dockerapp_home "$user" "$name")")
+	if [ -n "$free" ] && [ "$free" -lt $((${size:-0} * 2 + 64)) ]; then
+		echo "Not enough free disk for the snapshot: the data uses ${size} MB, $free MB are free"
+		return "$E_DISK"
+	fi
+	dockerapp_update "$user" "$name" STATUS=updating REASON=
+	echo "== Stopping $old"
+	dockerapp_dc "$user" "$name" stop --timeout 30 2>&1
+	echo "== Snapshot of the data (${size:-0} MB)"
+	if ! dockerapp_snapshot_take "$user" "$name" "$old"; then
+		echo "The snapshot failed; starting $old again"
+		dockerapp_dc "$user" "$name" up -d 2>&1
+		dockerapp_update "$user" "$name" "STATUS=$status" REASON=
+		return "$E_DISK"
+	fi
+	echo "== Rendering $version"
+	if out=$(dockerapp_render_version "$user" "$name" "$version" yes); then
+		dockerapp_task_start_rendered "$user" "$name"
+		rc=$?
+	else
+		echo "$out"
+		rc=$E_FORBIDEN
+	fi
+	if [ "$rc" -eq 0 ]; then
+		dockerapp_update "$user" "$name" STATUS=running REASON= "PREV_VERSION=$old"
+		echo "== $version is running; the data of $old is kept for a rollback"
+		return 0
+	fi
+	echo "== The update failed: rolling back to $old"
+	dockerapp_dc "$user" "$name" down --remove-orphans --timeout 30 2>&1
+	dockerapp_snapshot_restore "$user" "$name" "$old"
+	mv -f "$(dockerapp_rdir "$user" "$name")/.env.prev" "$(dockerapp_rdir "$user" "$name")/.env"
+	if dockerapp_render_version "$user" "$name" "$old" no && dockerapp_task_start_rendered "$user" "$name"; then
+		dockerapp_update "$user" "$name" STATUS=running REASON= PREV_VERSION=
+		echo "== $old is running again"
+	else
+		dockerapp_update "$user" "$name" STATUS=failed REASON=update PREV_VERSION=
+		echo "== $old did not start again"
+	fi
+	dockerapp_copy_write "$user" "$name"
+	return "$E_UPDATE"
+}
+
+# Rollback task of USER's NAME to PREV_VERSION with the data of its snapshot
+dockerapp_task_rollback() {
+	local user="$1" name="$2" prev current rdir
+	prev=$(dockerapp_get "$user" "$name" PREV_VERSION)
+	current=$(dockerapp_get "$user" "$name" VERSION)
+	rdir=$(dockerapp_rdir "$user" "$name")
+	dockerapp_update "$user" "$name" STATUS=updating REASON=
+	echo "== Removing the containers of $current"
+	dockerapp_dc "$user" "$name" down --remove-orphans --timeout 30 2>&1
+	echo "== Restoring the data of $prev"
+	if ! dockerapp_snapshot_restore "$user" "$name" "$prev"; then
+		echo "The snapshot could not be restored"
+		dockerapp_update "$user" "$name" STATUS=failed REASON=rollback
+		return "$E_UPDATE"
+	fi
+	if [ -f "$rdir/.env.prev" ]; then
+		mv -f "$rdir/.env.prev" "$rdir/.env"
+	fi
+	echo "== Rendering $prev"
+	if dockerapp_render_version "$user" "$name" "$prev" no && dockerapp_task_start_rendered "$user" "$name"; then
+		dockerapp_update "$user" "$name" STATUS=running REASON= PREV_VERSION=
+		node_as_user "$user" rm -f "$(dockerapp_snapshot_file "$user" "$name" "$prev")"
+		dockerapp_copy_write "$user" "$name"
+		echo "== $prev is running"
+		return 0
+	fi
+	dockerapp_update "$user" "$name" STATUS=failed REASON=rollback
+	return "$E_UPDATE"
+}
+
+#----------------------------------------------------------#
+#                         Dumps                            #
+#----------------------------------------------------------#
+
+# Run the dumps of the manifest of USER's NAME into data/.dumps/ (as the
+# user); prints one line per dump, returns E_DB when one failed
+dockerapp_dump() {
+	local user="$1" name="$2" manifest dir count i service command file failed=0 codes
+	manifest=$(docker_manifest "$(dockerapp_get "$user" "$name" SLUG)" "$(dockerapp_get "$user" "$name" VERSION)")
+	count=$(jq '(.dumps // []) | length' "$manifest" 2> /dev/null)
+	if [ "${count:-0}" -eq 0 ]; then
+		return 0
+	fi
+	dir="$(dockerapp_data_dir "$user" "$name")/.dumps"
+	node_as_user "$user" bash -c 'umask 077; [ ! -L "$1" ] && mkdir -p "$1" && [ ! -L "$1" ]' dumps "$dir" || return "$E_FORBIDEN"
+	for ((i = 0; i < count; i++)); do
+		service=$(jq -r ".dumps[$i].service" "$manifest")
+		command=$(jq -r ".dumps[$i].command" "$manifest")
+		file=$(jq -r ".dumps[$i].file" "$manifest")
+		dockerapp_dc "$user" "$name" exec -T "$service" sh -c "$command" 2> /dev/null \
+			| node_as_user "$user" bash -c 'umask 077; [ ! -L "$1.tmp" ] && cat > "$1.tmp"' dump "$dir/$file"
+		codes=("${PIPESTATUS[@]}")
+		if [ "${codes[0]}" -eq 0 ] && [ "${codes[1]}" -eq 0 ]; then
+			node_as_user "$user" mv -f "$dir/$file.tmp" "$dir/$file"
+			echo "$name: $service dumped to data/.dumps/$file ($(node_as_user "$user" stat -c %s "$dir/$file") bytes)"
+		else
+			node_as_user "$user" rm -f "$dir/$file.tmp"
+			echo "$name: the dump of $service failed"
+			failed=1
+		fi
+	done
+	if [ "$failed" -eq 0 ]; then
+		date +'%F %T' | node_as_user "$user" bash -c 'umask 077; [ ! -L "$1" ] && cat > "$1"' last "$dir/.last"
+		return 0
+	fi
+	return "$E_DB"
+}
+
+#----------------------------------------------------------#
+#                Suspension and convergence                #
+#----------------------------------------------------------#
+
+# Stop the containers of USER's NAME when Docker is there
+dockerapp_halt() {
+	if command -v docker > /dev/null 2>&1 && [ -f "$(dockerapp_rdir "$1" "$2")/.env" ]; then
+		dockerapp_dc "$1" "$2" stop --timeout 30 > /dev/null 2>&1
+	fi
+	return 0
+}
+
+# Bring USER's NAME to its wanted state after a change of SUSPENDED: start
+# it when it should run
+dockerapp_resume() {
+	local user="$1" name="$2" out
+	if dockerapp_should_run "$user" "$name" && command -v docker > /dev/null 2>&1; then
+		if out=$(dockerapp_up "$user" "$name"); then
+			dockerapp_update "$user" "$name" STATUS=running REASON=
+		else
+			dockerapp_update "$user" "$name" STATUS=failed REASON=start
+			echo "$out"
+			return "$E_RESTART"
+		fi
+	fi
+	return 0
+}
+
+# Published ports of the containers of USER's NAME as "host_ip:port" words
+dockerapp_published() {
+	docker_cmd ps --filter "label=top.arcpanel.user=$1" --filter "label=top.arcpanel.app=$2" --format '{{.Ports}}' 2> /dev/null \
+		| tr ',' '\n' | grep -oE '[0-9.]+:[0-9]+->' | sed 's/->//' | sort -u
+}
+
+# Whether the rendered bindings of USER's NAME differ from the public flags
+# of its ports in the registry
+dockerapp_public_mismatch() {
+	local user="$1" name="$2" word pname port public want published
+	published=$(dockerapp_published "$user" "$name")
+	[ -n "$published" ] || return 1
+	for word in $(dockerapp_ports_spec "$user" "$name"); do
+		IFS=: read -r pname port public <<< "$word"
+		want=127.0.0.1
+		if [ "$public" = 'yes' ]; then
+			want=0.0.0.0
+		fi
+		if ! grep -qx "$want:$port" <<< "$published"; then
+			return 0
+		fi
+	done
+	return 1
 }

@@ -1,0 +1,76 @@
+#!/bin/bash
+# info: show the current or last task of a Docker app (E4)
+# options: USER NAME [OFFSET] [FORMAT]
+#
+# example: v-list-docker-app-task alice status 0 json
+#
+# This function prints the task record of the Docker app NAME of USER (ID,
+# ACTION, ARGS, STATUS, EXIT, START, END) and its output after byte OFFSET
+# (default 0, at most 256 KB) with the next OFFSET. STATUS is running, done
+# or failed; a running task whose process is gone is reported, and stored,
+# as failed. Without a task, STATUS is empty.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+user=$1
+name=$2
+offset=${3:-0}
+format=${4-shell}
+
+# Includes
+# shellcheck source=/etc/hestiacp/hestia.conf
+source /etc/hestiacp/hestia.conf
+# shellcheck source=/usr/local/hestia/func/main.sh
+source $HESTIA/func/main.sh
+# shellcheck source=/usr/local/hestia/func/tenancy.sh
+source $HESTIA/func/tenancy.sh
+# shellcheck source=/usr/local/hestia/func/ports.sh
+source $HESTIA/func/ports.sh
+# load config file
+source_conf "$HESTIA/conf/hestia.conf"
+# shellcheck source=/usr/local/hestia/func/docker.sh
+source $HESTIA/func/docker.sh
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '2' "$#" 'USER NAME [OFFSET] [FORMAT]'
+is_format_valid 'user'
+is_object_valid 'user' 'USER' "$user"
+dockerapp_check_app "$user" "$name" any
+if ! [[ "$offset" =~ ^[0-9]{1,12}$ ]]; then
+	check_result "$E_INVALID" "invalid offset :: $offset"
+fi
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+if [ -f "$(dockerapp_task_conf "$user" "$name")" ]; then
+	exec {lock}> "$(dockerapp_rdir "$user" "$name")/task.lock"
+	flock -x "$lock"
+	dockerapp_task_reap "$user" "$name"
+	flock -u "$lock"
+fi
+
+json=$(docker_task_json "$(dockerapp_task_conf "$user" "$name")" "$(dockerapp_task_log "$user" "$name")" "$offset" \
+	| jq -c --arg user "$user" --arg name "$name" '{ USER: $user, NAME: $name } + .')
+
+case "$format" in
+	json) printf '%s\n' "$json" | jq . ;;
+	*)
+		printf '%s\n' "$json" | jq -r 'to_entries[] | select(.key != "LOG") | "\(.key): \(.value)"'
+		echo
+		printf '%s\n' "$json" | jq -r .LOG
+		;;
+esac
+
+#----------------------------------------------------------#
+#                       Hestia                             #
+#----------------------------------------------------------#
+
+exit

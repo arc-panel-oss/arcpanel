@@ -1,0 +1,222 @@
+#!/bin/bash
+# info: rebuild the Docker apps of a user from their records and copies (E4)
+# options: USER
+#
+# example: v-rebuild-docker-apps alice
+#
+# This function brings the Docker apps of USER back after a restore or a
+# move: app.conf copies in ~/apps/<name>/ without a record are imported
+# (every field is checked again; the recorded version must still be in the
+# catalog), ports are registered again (the recorded port when it is free,
+# kept ports first, then new ones), domains get the docker-proxy template
+# with their port, the projects are rendered again from the catalog and the
+# .env copies, and apps that should run are started.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+user=$1
+
+# Includes
+# shellcheck source=/etc/hestiacp/hestia.conf
+source /etc/hestiacp/hestia.conf
+# shellcheck source=/usr/local/hestia/func/main.sh
+source $HESTIA/func/main.sh
+# shellcheck source=/usr/local/hestia/func/tenancy.sh
+source $HESTIA/func/tenancy.sh
+# shellcheck source=/usr/local/hestia/func/ports.sh
+source $HESTIA/func/ports.sh
+# load config file
+source_conf "$HESTIA/conf/hestia.conf"
+# shellcheck source=/usr/local/hestia/func/docker.sh
+source $HESTIA/func/docker.sh
+
+note() {
+	echo "$1"
+	echo "$(date +'%F %T') v-rebuild-docker-apps $user: $1" >> "$HESTIA/log/system.log"
+}
+
+# Validate the copy LINE of NAME; prints the pairs to record, or the reason
+# and returns 1
+copy_check() {
+	local name="$1" line="$2" slug version domain cpus memory state pair port
+	slug=$(nodeapp_field "$line" SLUG)
+	version=$(nodeapp_field "$line" VERSION)
+	domain=$(nodeapp_field "$line" DOMAIN)
+	cpus=$(nodeapp_field "$line" CPUS)
+	memory=$(nodeapp_field "$line" MEMORY)
+	state=$(nodeapp_field "$line" STATE)
+	if ! docker_slug_valid "$slug" || ! docker_version_valid "$version"; then
+		echo "invalid app or version"
+		return 1
+	fi
+	if [ -n "$domain" ] && { ! [[ "$domain" =~ ^[a-z0-9][a-z0-9.-]{0,252}$ ]] || ! arc_tpl_domain_exists "$user" "$domain" \
+		|| nodeapp_exists "$user" "$domain" || [ -n "$(dockerapp_of_domain "$user" "$domain")" ]; }; then
+		domain=''
+	fi
+	docker_cpus_valid "$cpus" || cpus=0.5
+	if docker_cpus_gt "$cpus" "$(dockerapp_max_cpus "$user")"; then
+		cpus=$(dockerapp_max_cpus "$user")
+	fi
+	[[ "$memory" =~ ^[0-9]{2,7}$ ]] || memory=256
+	if [ "$memory" -gt "$(dockerapp_max_memory "$user")" ]; then
+		memory=$(dockerapp_max_memory "$user")
+	fi
+	[ "$state" = 'stopped' ] || state=running
+	port=$(nodeapp_field "$line" WEB_PORT)
+	[ -z "$port" ] || arc_tpl_valid_port "$port" || port=''
+	for pair in $(nodeapp_field "$line" EXTRA_PORTS | tr ',' ' '); do
+		if ! [[ "$pair" =~ ^[a-z][a-z0-9]{0,15}:[0-9]{1,5}$ ]]; then
+			echo "invalid extra port $pair"
+			return 1
+		fi
+	done
+	printf '%s\n' "SLUG=$slug" "VERSION=$version" "DOMAIN=$domain" "WEB_PORT=$port" \
+		"EXTRA_PORTS=$(nodeapp_field "$line" EXTRA_PORTS)" "STATE=$state" STATUS=installing REASON= SUSPENDED=no \
+		"TEMPLATE=$([ -n "$domain" ] && echo "$DOCKERAPP_TEMPLATE")" "PREV_TPL=$(nodeapp_field "$line" PREV_TPL)" \
+		PREV_VERSION= "CPUS=$cpus" "MEMORY=$memory" "TIME=$(nodeapp_field "$line" TIME)" "DATE=$(nodeapp_field "$line" DATE)"
+}
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '1' "$#" 'USER'
+is_format_valid 'user'
+is_object_valid 'user' 'USER' "$user"
+
+[ -z "$HOMEDIR" ] && check_result "$E_NOTEXIST" "ArcPanel environment vars not present"
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+dockerapp_lock "$user"
+
+# 1. Copies without a record
+if [ -d "$HOMEDIR/$user/apps" ] && [ ! -L "$HOMEDIR/$user/apps" ]; then
+	for name in $(node_as_user "$user" find "$HOMEDIR/$user/apps" -mindepth 2 -maxdepth 2 -name app.conf -type f -printf '%h\n' 2> /dev/null \
+		| xargs -r -n1 basename | sort); do
+		if ! dockerapp_name_valid "$name" || dockerapp_exists "$user" "$name"; then
+			continue
+		fi
+		line=$(dockerapp_copy_line "$user" "$name")
+		if [ -z "$line" ]; then
+			continue
+		fi
+		if [ "$(docker_pkg_key "$user" DOCKER)" != 'yes' ]; then
+			note "$name not imported: Docker apps are not in the package"
+			continue
+		fi
+		limit=$(dockerapp_limit "$user")
+		if [ "$limit" != 'unlimited' ] && [ "$(dockerapp_count "$user")" -ge "${limit:-0}" ]; then
+			note "$name not imported: DOCKER_APPS ($limit) reached"
+			continue
+		fi
+		if ! pairs=$(copy_check "$name" "$line"); then
+			note "$name not imported: $pairs"
+			continue
+		fi
+		mapfile -t fields <<< "$pairs"
+		rdir=$(dockerapp_rdir "$user" "$name")
+		mkdir -p "$rdir"
+		chmod 700 "$(dirname "$rdir")" "$rdir"
+		# the .env copy, read as the user and checked when rendered below
+		node_as_user "$user" bash -c '[ -f "$1" ] && [ ! -L "$1" ] && head -c 65536 "$1"' env "$(dockerapp_home "$user" "$name")/.env" \
+			2> /dev/null | grep -E "^[A-Z][A-Z0-9_]*='[^']*'$" | grep -v '^ARC_' > "$rdir/.env"
+		chmod 600 "$rdir/.env"
+		dockerapp_set "$user" "$name" "${fields[@]}"
+		slug=$(dockerapp_get "$user" "$name" SLUG)
+		version=$(dockerapp_get "$user" "$name" VERSION)
+		if ! docker_version_exists "$slug" "$version"; then
+			dockerapp_set "$user" "$name" STATUS=failed REASON=version-missing
+			note "$name imported: version $version of $slug is not in the catalog"
+		elif [ -n "$(jq -r '.ports.web // empty' "$(docker_manifest "$slug" "$version")")" ] && [ -z "$(dockerapp_get "$user" "$name" DOMAIN)" ]; then
+			dockerapp_set "$user" "$name" STATUS=failed REASON=domain-missing
+			note "$name imported without its domain"
+		else
+			note "$name imported"
+		fi
+	done
+fi
+
+# 2. Ports: keep every port that can be kept first, then give new ones
+for mode in keep new; do
+	for name in $(dockerapp_names "$user"); do
+		slug=$(dockerapp_get "$user" "$name" SLUG)
+		version=$(dockerapp_get "$user" "$name" VERSION)
+		manifest=$(docker_manifest "$slug" "$version")
+		[ -f "$manifest" ] || continue
+		if [ -n "$(jq -r '.ports.web // empty' "$manifest")" ]; then
+			if port=$(dockerapp_port_ensure "$user" "$name" web "$(dockerapp_get "$user" "$name" WEB_PORT)" "$mode"); then
+				dockerapp_set "$user" "$name" "WEB_PORT=$port"
+			elif [ "$mode" = 'new' ]; then
+				dockerapp_set "$user" "$name" STATUS=failed REASON=ports
+			fi
+		fi
+		extra=''
+		recorded=$(dockerapp_get "$user" "$name" EXTRA_PORTS)
+		for pname in $(jq -r '(.ports // {}) | keys[] | select(. != "web")' "$manifest"); do
+			old=$(tr ',' '\n' <<< "$recorded" | grep -m1 "^$pname:" | cut -d: -f2)
+			if port=$(dockerapp_port_ensure "$user" "$name" "$pname" "$old" "$mode"); then
+				extra="${extra:+$extra,}$pname:$port"
+			else
+				extra="${extra:+$extra,}$pname:$old"
+			fi
+		done
+		dockerapp_set "$user" "$name" "EXTRA_PORTS=$extra"
+	done
+done
+
+# 3. Domains, projects and containers
+for name in $(dockerapp_names "$user"); do
+	line=$(dockerapp_line "$user" "$name")
+	slug=$(nodeapp_field "$line" SLUG)
+	version=$(nodeapp_field "$line" VERSION)
+	domain=$(nodeapp_field "$line" DOMAIN)
+	if ! docker_version_exists "$slug" "$version" || [ "$(nodeapp_field "$line" REASON)" = 'ports' ]; then
+		continue
+	fi
+	if [ -n "$domain" ] && ! out=$(dockerapp_domain_bind "$user" "$name" "$domain" "$(nodeapp_field "$line" WEB_PORT)"); then
+		note "$name: $out"
+	fi
+	rdir=$(dockerapp_rdir "$user" "$name")
+	mkdir -p "$rdir"
+	if ! out=$(dockerapp_env_render "$(docker_manifest "$slug" "$version")" "$user" "$name" "$domain" /dev/null "$rdir/.env" \
+		"$rdir/.env" keep "$(dockerapp_ports_spec "$user" "$name")"); then
+		dockerapp_set "$user" "$name" STATUS=failed REASON=render
+		note "$name: $out"
+		continue
+	fi
+	dockerapp_copy_write "$user" "$name"
+	if ! out=$(dockerapp_render "$user" "$name"); then
+		dockerapp_set "$user" "$name" STATUS=failed REASON=render
+		note "$name: $out"
+		continue
+	fi
+	if [ "$(nodeapp_field "$line" REASON)" = 'domain-missing' ]; then
+		continue
+	fi
+	if dockerapp_should_run "$user" "$name" || [ "$(nodeapp_field "$line" STATUS)" = 'installing' ]; then
+		if [ "$(nodeapp_field "$line" STATE)" = 'running' ] && [ "$(nodeapp_field "$line" SUSPENDED)" = 'no' ] && [ "$DOCKER_SYSTEM" = 'yes' ]; then
+			if out=$(dockerapp_up "$user" "$name"); then
+				dockerapp_set "$user" "$name" STATUS=running REASON=
+			else
+				dockerapp_set "$user" "$name" STATUS=failed REASON=start
+				note "$name: $out"
+			fi
+		else
+			dockerapp_set "$user" "$name" STATUS=stopped REASON=
+		fi
+	fi
+done
+
+#----------------------------------------------------------#
+#                       Hestia                             #
+#----------------------------------------------------------#
+
+log_event "$OK" "$ARGUMENTS"
+
+exit

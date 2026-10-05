@@ -7,9 +7,13 @@
 # This function sets USERS (integer or unlimited), RESELLER_PACKAGES (comma
 # list of packages, or *), RESELLER_VISIBLE (yes or no), PORTS (integer
 # or unlimited), NODE (yes or no), NODE_VERSIONS and NODE_APPS (integer or
-# unlimited) or NODE_ALLOWED (lts, * or a comma list of majors) of a package.
-# PORTS, NODE_VERSIONS and NODE_APPS of a reseller's own package cannot be
-# above the reseller's, and its NODE cannot be yes when the reseller's is no.
+# unlimited), NODE_ALLOWED (lts, * or a comma list of majors), DOCKER (yes or
+# no), DOCKER_APPS (integer or unlimited), DOCKER_CPUS (CPUs per app, like
+# 0.5, or unlimited) or DOCKER_MEMORY (memory per app, like 512M, or
+# unlimited) of a package. PORTS, NODE_VERSIONS, NODE_APPS, DOCKER_APPS,
+# DOCKER_CPUS and DOCKER_MEMORY of a reseller's own package cannot be above
+# the reseller's, and its NODE and DOCKER cannot be yes when the reseller's
+# are no.
 
 #----------------------------------------------------------#
 #                Variables & Functions                     #
@@ -39,6 +43,7 @@ is_format_valid 'package'
 is_package_valid "$package"
 case "$key" in
 	USERS | RESELLER_PACKAGES | RESELLER_VISIBLE | PORTS | NODE | NODE_VERSIONS | NODE_APPS | NODE_ALLOWED) ;;
+	DOCKER | DOCKER_APPS | DOCKER_CPUS | DOCKER_MEMORY) ;;
 	*) check_result "$E_INVALID" "invalid key $key" ;;
 esac
 if ! tenancy_pkg_value_valid "$key" "$value"; then
@@ -47,16 +52,29 @@ fi
 reseller=$(tenancy_pkg_get "$package" RESELLER_OWNER)
 if [ -n "$reseller" ]; then
 	case "$key" in
-		PORTS | NODE_VERSIONS | NODE_APPS)
+		PORTS | NODE_VERSIONS | NODE_APPS | DOCKER_APPS)
 			limit=$(tenancy_pkg_get "$(tenancy_user_value "$reseller" PACKAGE)" "$key")
 			if [ "$limit" != 'unlimited' ] && { [ "$value" = 'unlimited' ] || [ "$value" -gt "$limit" ]; }; then
 				check_result "$E_LIMIT" "$key of $package cannot be above the reseller's $key ($limit)"
 			fi
 			;;
-		NODE)
-			limit=$(tenancy_pkg_get "$(tenancy_user_value "$reseller" PACKAGE)" NODE)
+		NODE | DOCKER)
+			limit=$(tenancy_pkg_get "$(tenancy_user_value "$reseller" PACKAGE)" "$key")
 			if [ "$value" = 'yes' ] && [ "$limit" != 'yes' ]; then
-				check_result "$E_LIMIT" "NODE of $package cannot be yes: the reseller's package has NODE='no'"
+				check_result "$E_LIMIT" "$key of $package cannot be yes: the reseller's package has $key='no'"
+			fi
+			;;
+		DOCKER_CPUS | DOCKER_MEMORY)
+			limit=$(tenancy_pkg_get "$(tenancy_user_value "$reseller" PACKAGE)" "$key")
+			if [ "$limit" != 'unlimited' ]; then
+				if [ "$key" = 'DOCKER_MEMORY' ]; then
+					above=$(awk -v v="$(tenancy_mb "$value")" -v l="$(tenancy_mb "$limit")" 'BEGIN { print (v == "" || v + 0 > l + 0) ? 1 : 0 }')
+				else
+					above=$(awk -v v="$value" -v l="$limit" 'BEGIN { print (v == "unlimited" || v + 0 > l + 0) ? 1 : 0 }')
+				fi
+				if [ "$above" = 1 ]; then
+					check_result "$E_LIMIT" "$key of $package cannot be above the reseller's $key ($limit)"
+				fi
 			fi
 			;;
 	esac

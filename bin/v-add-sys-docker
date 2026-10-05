@@ -115,6 +115,29 @@ done
 mkdir -p "$(docker_state_dir)"
 chmod 750 "$(docker_state_dir)"
 
+# Cron: the 5-minute check and the dumps 15 minutes before the nightly
+# backup (sed, not >>: fs.protected_regular forbids root to open another
+# user's file for appending in the sticky crontab directory)
+crontab="/var/spool/cron/crontabs/hestiaweb"
+if [ -f "$crontab" ]; then
+	if ! grep -q "v-check-sys-docker" "$crontab"; then
+		sed -i -e "\$a*/5 * * * * sudo /usr/local/hestia/bin/v-check-sys-docker repair > /dev/null 2>&1" "$crontab"
+	fi
+	if ! grep -q "v-backup-docker-apps" "$crontab"; then
+		backup=$(grep -m1 -E "^[0-9]+ [0-9]+ .*v-backup-users" "$crontab" | awk '{ print $1 * 1 + $2 * 60 }')
+		at=$(((${backup:-310} + 1440 - 15) % 1440))
+		sed -i -e "\$a$((at % 60)) $((at / 60)) * * * sudo /usr/local/hestia/bin/v-backup-docker-apps all > /dev/null 2>&1" "$crontab"
+	fi
+	chown hestiaweb:hestiaweb "$crontab"
+	chmod 600 "$crontab"
+fi
+
+# Docker apps of the developer package, for servers set up before E4
+if [ -f "$HESTIA/data/packages/developer.tenancy" ] && ! grep -q "^DOCKER=" "$HESTIA/data/packages/developer.tenancy"; then
+	tenancy_pkg_set developer DOCKER yes
+	tenancy_pkg_set developer DOCKER_APPS 3
+fi
+
 if [ "$DOCKER_SYSTEM" != 'yes' ]; then
 	"$BIN/v-change-sys-config-value" DOCKER_SYSTEM yes
 fi

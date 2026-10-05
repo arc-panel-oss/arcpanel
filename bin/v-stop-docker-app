@@ -1,0 +1,62 @@
+#!/bin/bash
+# info: stop a Docker app (E4)
+# options: USER NAME
+#
+# example: v-stop-docker-app alice status
+#
+# This function stops the containers of the Docker app NAME of USER. The app
+# stays stopped after a reboot until it is started again.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+user=$1
+name=$2
+
+# Includes
+# shellcheck source=/etc/hestiacp/hestia.conf
+source /etc/hestiacp/hestia.conf
+# shellcheck source=/usr/local/hestia/func/main.sh
+source $HESTIA/func/main.sh
+# shellcheck source=/usr/local/hestia/func/tenancy.sh
+source $HESTIA/func/tenancy.sh
+# shellcheck source=/usr/local/hestia/func/ports.sh
+source $HESTIA/func/ports.sh
+# load config file
+source_conf "$HESTIA/conf/hestia.conf"
+# shellcheck source=/usr/local/hestia/func/docker.sh
+source $HESTIA/func/docker.sh
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '2' "$#" 'USER NAME'
+is_format_valid 'user'
+is_object_valid 'user' 'USER' "$user"
+docker_check_system
+dockerapp_check_app "$user" "$name" any
+dockerapp_check_no_task "$user" "$name"
+
+# Perform verification if read-only mode is enabled
+check_hestia_demo_mode
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+dockerapp_lock "$user"
+out=$(dockerapp_dc "$user" "$name" stop --timeout 30 2>&1)
+check_result $? "the Docker app $name could not be stopped: $(printf '%s\n' "$out" | tail -n1)" "$E_RESTART"
+dockerapp_set "$user" "$name" STATE=stopped STATUS=stopped REASON=
+
+#----------------------------------------------------------#
+#                       Hestia                             #
+#----------------------------------------------------------#
+
+$BIN/v-log-action "$user" "Info" "Docker" "Docker app stopped (Name: $name)."
+log_event "$OK" "$ARGUMENTS"
+
+exit

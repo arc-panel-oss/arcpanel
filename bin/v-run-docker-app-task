@@ -1,0 +1,82 @@
+#!/bin/bash
+# info: run a Docker app task started by v-start-docker-app-task (E4)
+# options: ID USER NAME ACTION [VERSION]
+#
+# example: v-run-docker-app-task 17286400001234 alice status install
+#
+# This function is the background part of v-start-docker-app-task: it runs
+# the task and records its result. It refuses to run a task that
+# v-start-docker-app-task did not start.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+id=$1
+user=$2
+name=$3
+action=$4
+target=$5
+
+# Includes
+# shellcheck source=/etc/hestiacp/hestia.conf
+source /etc/hestiacp/hestia.conf
+# shellcheck source=/usr/local/hestia/func/main.sh
+source $HESTIA/func/main.sh
+# shellcheck source=/usr/local/hestia/func/tenancy.sh
+source $HESTIA/func/tenancy.sh
+# shellcheck source=/usr/local/hestia/func/ports.sh
+source $HESTIA/func/ports.sh
+# load config file
+source_conf "$HESTIA/conf/hestia.conf"
+# shellcheck source=/usr/local/hestia/func/docker.sh
+source $HESTIA/func/docker.sh
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+if [ -z "$action" ]; then
+	echo "Usage: v-run-docker-app-task ID USER NAME ACTION [VERSION]"
+	exit "$E_ARGS"
+fi
+is_format_valid 'user'
+is_object_valid 'user' 'USER' "$user"
+if ! dockerapp_name_valid "$name" || ! dockerapp_exists "$user" "$name" \
+	|| [ "$(dockerapp_task_get "$user" "$name" ID)" != "$id" ] \
+	|| [ "$(dockerapp_task_get "$user" "$name" STATUS)" != 'running' ]; then
+	check_result "$E_FORBIDEN" "task $id was not started by v-start-docker-app-task"
+fi
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+export ARC_DOCKER_TASK="$user/$name"
+echo "== $action of the Docker app $name ($(date +'%F %T'))"
+case "$action" in
+	install) docker_with_timeout 1800 dockerapp_task_install "$user" "$name" ;;
+	update) docker_with_timeout 1800 dockerapp_task_update "$user" "$name" "$target" ;;
+	rollback) docker_with_timeout 1800 dockerapp_task_rollback "$user" "$name" ;;
+	snapshot) "$BIN/v-backup-docker-apps" "$user" "$name" ;;
+	*) check_result "$E_INVALID" "invalid action :: $action" ;;
+esac
+rc=$?
+status=done
+if [ "$rc" -ne 0 ]; then
+	status=failed
+	echo "Exit code $rc"
+	if [ "$rc" -eq 124 ] && [ "$action" != 'snapshot' ]; then
+		echo "The task took more than 30 minutes"
+		dockerapp_update "$user" "$name" STATUS=failed REASON=timeout
+	fi
+fi
+
+dockerapp_task_set "$user" "$name" "STATUS=$status" "EXIT=$rc" "END=$(date +'%F %T')"
+
+#----------------------------------------------------------#
+#                       Hestia                             #
+#----------------------------------------------------------#
+
+exit "$rc"

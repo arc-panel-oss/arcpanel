@@ -1,0 +1,60 @@
+#!/bin/bash
+# info: list the Docker apps of a user (E4)
+# options: USER [FORMAT]
+#
+# example: v-list-docker-apps alice json
+#
+# This function lists the Docker apps of USER with their state: STATUS
+# (installing, updating, running, degraded, restarting, stopped, exited,
+# missing, failed or suspended), CPU (percent), MEM (MB), the latest catalog
+# version and UPDATE, plus the package limit DOCKER_APPS.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+user=$1
+format=${2-shell}
+
+# Includes
+# shellcheck source=/etc/hestiacp/hestia.conf
+source /etc/hestiacp/hestia.conf
+# shellcheck source=/usr/local/hestia/func/main.sh
+source $HESTIA/func/main.sh
+# shellcheck source=/usr/local/hestia/func/tenancy.sh
+source $HESTIA/func/tenancy.sh
+# shellcheck source=/usr/local/hestia/func/ports.sh
+source $HESTIA/func/ports.sh
+# load config file
+source_conf "$HESTIA/conf/hestia.conf"
+# shellcheck source=/usr/local/hestia/func/docker.sh
+source $HESTIA/func/docker.sh
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '1' "$#" 'USER [FORMAT]'
+is_format_valid 'user'
+is_object_valid 'user' 'USER' "$user"
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+rows='[]'
+if [ "$(dockerapp_count "$user")" -gt 0 ]; then
+	rows=$(dockerapp_rows_json "$user")
+fi
+json=$(jq -nc --arg user "$user" --arg docker "$(docker_pkg_key "$user" DOCKER)" --arg limit "$(dockerapp_limit "$user")" \
+	--arg system "${DOCKER_SYSTEM:-no}" --argjson rows "$rows" \
+	'{ USER: $user, SYSTEM: $system, DOCKER: $docker, LIMIT: $limit, COUNT: ($rows | length | tostring), APPS: $rows }')
+
+node_print "$format" "$json" '.APPS' 'NAME SLUG VERSION DOMAIN WEB_PORT STATUS CPU MEM UPDATE'
+
+#----------------------------------------------------------#
+#                       Hestia                             #
+#----------------------------------------------------------#
+
+exit

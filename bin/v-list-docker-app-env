@@ -1,0 +1,74 @@
+#!/bin/bash
+# info: list the variables of a Docker app (E4)
+# options: USER NAME [FORMAT]
+#
+# example: v-list-docker-app-env alice status json
+#
+# This function lists the variables that the catalog manifest of the Docker
+# app NAME of USER declares, with their label, type, options and current
+# value. Values of secret (password) variables are never printed: VALUE is
+# empty and SET tells whether one is stored.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+user=$1
+name=$2
+format=${3-shell}
+
+# Includes
+# shellcheck source=/etc/hestiacp/hestia.conf
+source /etc/hestiacp/hestia.conf
+# shellcheck source=/usr/local/hestia/func/main.sh
+source $HESTIA/func/main.sh
+# shellcheck source=/usr/local/hestia/func/tenancy.sh
+source $HESTIA/func/tenancy.sh
+# shellcheck source=/usr/local/hestia/func/ports.sh
+source $HESTIA/func/ports.sh
+# load config file
+source_conf "$HESTIA/conf/hestia.conf"
+# shellcheck source=/usr/local/hestia/func/docker.sh
+source $HESTIA/func/docker.sh
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '2' "$#" 'USER NAME [FORMAT]'
+is_format_valid 'user'
+is_object_valid 'user' 'USER' "$user"
+dockerapp_check_app "$user" "$name" any
+manifest=$(docker_manifest "$(dockerapp_get "$user" "$name" SLUG)" "$(dockerapp_get "$user" "$name" VERSION)")
+if [ ! -f "$manifest" ]; then
+	check_result "$E_NOTEXIST" "the catalog has no manifest for this app"
+fi
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+declare -A current=()
+docker_env_read "$(dockerapp_rdir "$user" "$name")/.env" current
+values='{}'
+for key in $(jq -r '(.variables // [])[].name' "$manifest"); do
+	values=$(jq -c --arg k "$key" --arg v "${current[$key]}" --arg set "${current[$key]+yes}" \
+		'. + { ($k): { value: $v, set: (if $set == "yes" then "yes" else "no" end) } }' <<< "$values")
+done
+json=$(jq -c --argjson values "$values" '{ VARIABLES: [ (.variables // [])[] | . as $v | {
+	NAME: .name, LABEL: .label, TYPE: .type, OPTIONS: (.options // []),
+	SECRET: (if .type == "password" then "yes" else "no" end),
+	IMMUTABLE: (if .immutable then "yes" else "no" end),
+	REQUIRED: (if .required then "yes" else "no" end),
+	PATTERN: (.pattern // ""),
+	SET: $values[.name].set,
+	VALUE: (if .type == "password" then "" else $values[.name].value end) } ] }' "$manifest")
+
+node_print "$format" "$json" '.VARIABLES' 'NAME TYPE SECRET IMMUTABLE VALUE'
+
+#----------------------------------------------------------#
+#                       Hestia                             #
+#----------------------------------------------------------#
+
+exit

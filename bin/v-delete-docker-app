@@ -1,0 +1,106 @@
+#!/bin/bash
+# info: delete a Docker app of a user (E4)
+# options: USER NAME [KEEP_DATA]
+#
+# example: v-delete-docker-app alice status
+# example: v-delete-docker-app alice status keep-data
+#
+# This function removes the containers and the network of the Docker app
+# NAME of USER, frees its ports, restores the previous template of its
+# domain and removes ~/apps/NAME. With KEEP_DATA (keep-data), the data
+# folder is moved to ~/apps/.removed/NAME-<date>/ instead.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+user=$1
+name=$2
+keep=$3
+
+# Includes
+# shellcheck source=/etc/hestiacp/hestia.conf
+source /etc/hestiacp/hestia.conf
+# shellcheck source=/usr/local/hestia/func/main.sh
+source $HESTIA/func/main.sh
+# shellcheck source=/usr/local/hestia/func/tenancy.sh
+source $HESTIA/func/tenancy.sh
+# shellcheck source=/usr/local/hestia/func/ports.sh
+source $HESTIA/func/ports.sh
+# load config file
+source_conf "$HESTIA/conf/hestia.conf"
+# shellcheck source=/usr/local/hestia/func/docker.sh
+source $HESTIA/func/docker.sh
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '2' "$#" 'USER NAME [KEEP_DATA]'
+is_format_valid 'user'
+is_object_valid 'user' 'USER' "$user"
+dockerapp_check_app "$user" "$name" any
+if [ -n "$keep" ] && [ "$keep" != 'keep-data' ]; then
+	check_result "$E_INVALID" "invalid option :: $keep (keep-data)"
+fi
+dockerapp_check_no_task "$user" "$name"
+
+[ -z "$HOMEDIR" ] && check_result "$E_NOTEXIST" "ArcPanel environment vars not present"
+
+# Perform verification if read-only mode is enabled
+check_hestia_demo_mode
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+dockerapp_lock "$user"
+line=$(dockerapp_line "$user" "$name")
+domain=$(nodeapp_field "$line" DOMAIN)
+manifest=$(docker_manifest "$(nodeapp_field "$line" SLUG)" "$(nodeapp_field "$line" VERSION)")
+rdir=$(dockerapp_rdir "$user" "$name")
+home=$(dockerapp_home "$user" "$name")
+
+# Containers, network and the images no other project uses
+if command -v docker > /dev/null 2>&1 && [ -f "$rdir/compose.yaml" ] && [ -f "$rdir/.env" ]; then
+	dockerapp_dc "$user" "$name" down --remove-orphans --timeout 30 > /dev/null 2>&1
+fi
+if command -v docker > /dev/null 2>&1; then
+	# leftovers of a broken project
+	for id in $(docker_cmd ps -aq --filter "label=com.docker.compose.project=$(dockerapp_project "$user" "$name")" 2> /dev/null); do
+		docker_cmd rm -f "$id" > /dev/null 2>&1
+	done
+	if [ -f "$manifest" ]; then
+		for image in $(jq -r '.images[]' "$manifest"); do
+			docker_cmd image rm "$image" > /dev/null 2>&1
+		done
+	fi
+fi
+
+# Domain and ports
+if [ -n "$domain" ] && [ "$(dockerapp_of_domain "$user" "$domain")" = "$name" ]; then
+	dockerapp_domain_unbind "$user" "$domain" "$(nodeapp_field "$line" PREV_TPL)"
+fi
+dockerapp_ports_release "$user" "$name"
+
+# Files
+rm -rf "$rdir"
+dockerapp_remove "$user" "$name"
+if [ -d "$home" ] && [ ! -L "$home" ]; then
+	if [ "$keep" = 'keep-data' ]; then
+		node_as_user "$user" bash -c 'umask 077; mkdir -p "$1" && [ ! -L "$1" ] && [ -d "$2" ] && [ ! -L "$2" ] && mv "$2" "$3"' keep \
+			"$HOMEDIR/$user/apps/.removed" "$home/data" "$HOMEDIR/$user/apps/.removed/$name-$(date +'%Y%m%d-%H%M%S')"
+	fi
+	node_as_user "$user" rm -rf "$home"
+fi
+
+#----------------------------------------------------------#
+#                       Hestia                             #
+#----------------------------------------------------------#
+
+# Logging
+$BIN/v-log-action "$user" "Info" "Docker" "Docker app deleted (Name: $name${domain:+, Domain: $domain}${keep:+, data kept})."
+log_event "$OK" "$ARGUMENTS"
+
+exit

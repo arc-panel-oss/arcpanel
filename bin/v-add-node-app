@@ -90,6 +90,9 @@ fi
 if nodeapp_exists "$user" "$domain"; then
 	check_result "$E_EXISTS" "$domain already has a Node.js app"
 fi
+if grep -q " DOMAIN='$domain' " "$HESTIA/data/users/$user/dockerapps.conf" 2> /dev/null; then
+	check_result "$E_EXISTS" "$domain has a Docker app"
+fi
 nodeapp_check_limit "$user"
 if ! nodeapp_relpath_valid "$cwd"; then
 	check_result "$E_INVALID" "invalid working directory :: $cwd"

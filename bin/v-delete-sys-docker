@@ -61,6 +61,11 @@ fi
 
 systemctl disable --now docker.socket docker > /dev/null 2>&1
 
+crontab="/var/spool/cron/crontabs/hestiaweb"
+if [ -f "$crontab" ]; then
+	sed -i -e '/v-check-sys-docker/d' -e '/v-backup-docker-apps/d' "$crontab"
+fi
+
 if [ "$purge" = 'purge' ]; then
 	DEBIAN_FRONTEND=noninteractive apt-get -y -qq purge docker-ce docker-ce-cli containerd.io \
 		docker-compose-plugin docker-buildx-plugin docker-ce-rootless-extras > /dev/null 2>&1

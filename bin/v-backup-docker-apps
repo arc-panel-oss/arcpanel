@@ -1,0 +1,88 @@
+#!/bin/bash
+# info: dump the databases of Docker apps before a backup (E4)
+# options: USER|all [NAME]
+#
+# example: v-backup-docker-apps all
+# example: v-backup-docker-apps alice miniflux
+#
+# This function runs the dump commands that the catalog manifests declare
+# (for example pg_dump) in the running Docker apps of USER, or of every user
+# with "all", and writes their output as the user to
+# ~/apps/<name>/data/.dumps/, so that the nightly backup holds a consistent
+# copy of each database. data/.dumps/.last records the time of the last
+# complete dump. It runs from cron 15 minutes before v-backup-users.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+target=$1
+only=$2
+
+# Includes
+# shellcheck source=/etc/hestiacp/hestia.conf
+source /etc/hestiacp/hestia.conf
+# shellcheck source=/usr/local/hestia/func/main.sh
+source $HESTIA/func/main.sh
+# shellcheck source=/usr/local/hestia/func/tenancy.sh
+source $HESTIA/func/tenancy.sh
+# shellcheck source=/usr/local/hestia/func/ports.sh
+source $HESTIA/func/ports.sh
+# load config file
+source_conf "$HESTIA/conf/hestia.conf"
+# shellcheck source=/usr/local/hestia/func/docker.sh
+source $HESTIA/func/docker.sh
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '1' "$#" 'USER|all [NAME]'
+if [ "$target" != 'all' ]; then
+	user=$target
+	is_format_valid 'user'
+	is_object_valid 'user' 'USER' "$user"
+	if [ -n "$only" ]; then
+		dockerapp_check_app "$user" "$only" any
+	fi
+fi
+docker_check_system
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+if [ "$target" = 'all' ]; then
+	users=$(dockerapp_users)
+else
+	users=$target
+fi
+failed=0
+for user in $users; do
+	containers=$(dockerapp_containers_json "$user")
+	for name in $(dockerapp_names "$user"); do
+		if [ -n "$only" ] && [ "$name" != "$only" ]; then
+			continue
+		fi
+		if [ "$(dockerapp_docker_state "$containers" "$name")" != 'running' ]; then
+			continue
+		fi
+		if ! dockerapp_dump "$user" "$name"; then
+			failed=$((failed + 1))
+		fi
+	done
+done
+
+#----------------------------------------------------------#
+#                       Hestia                             #
+#----------------------------------------------------------#
+
+if [ "$failed" -gt 0 ]; then
+	echo "$(date +'%F %T') $failed Docker app dumps failed (v-backup-docker-apps $target)" >> "$HESTIA/log/system.log"
+	log_event "$E_DB" "$ARGUMENTS"
+	exit "$E_DB"
+fi
+log_event "$OK" "$ARGUMENTS"
+
+exit

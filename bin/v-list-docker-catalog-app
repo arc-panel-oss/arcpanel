@@ -59,7 +59,8 @@ fi
 tz=$(docker_timezone)
 json=$(docker_catalog_app_json "$slug" "$version" | jq -c --arg tz "$tz" '
 	.variables = ((.variables // []) | map(
-		.default = ((.default // "")
+		.random = ((.default // "") | test("\\{\\{random:[0-9]+\\}\\}"))
+		| .default = ((.default // "")
 			| gsub("\\{\\{server\\.timezone\\}\\}"; $tz)
 			| if test("\\{\\{random:[0-9]+\\}\\}") then "" else . end)
 		| .secret = (.type == "password")))')

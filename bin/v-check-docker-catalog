@@ -111,7 +111,13 @@ for entry in "$(docker_catalog_dir)"/*; do
 				fi
 			done
 			memory=$(docker_mb "$(jq -r .limits.memory "$manifest")")
-			if ! errors=$(dockerapp_env_render "$manifest" "$check_user" "$slug" "$domain" /dev/null /dev/null "$rdir/.env" install "$spec"); then
+			# Values for the variables the user must give (no default)
+			jq -r '(.variables // [])[] | select((.default // "") == "") | "\(.name)=" + (
+				if .type == "password" then "Check-password-1" elif .type == "int" then "1"
+				elif .type == "bool" then "true" elif .type == "enum" then .options[0]
+				elif .type == "email" then "check@example.com" elif .type == "url" then "https://example.com"
+				else "check" end)' "$manifest" > "$rdir/vars"
+			if ! errors=$(dockerapp_env_render "$manifest" "$check_user" "$slug" "$domain" "$rdir/vars" /dev/null "$rdir/.env" install "$spec"); then
 				:
 			elif errors=$(docker_render "$rdir" "ap-check-$slug" "$check_user" "$slug" "$slug" "$version" \
 				"$(jq -r .limits.cpus "$manifest")" "$memory" "$spec"); then

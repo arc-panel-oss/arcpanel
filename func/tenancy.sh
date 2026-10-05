@@ -12,7 +12,9 @@
 #                                              RESELLER_OWNER, PORTS (E12), #
 #                                              NODE, NODE_VERSIONS,         #
 #                                              NODE_ALLOWED (E13),          #
-#                                              NODE_APPS (E14)              #
+#                                              NODE_APPS (E14), DOCKER,     #
+#                                              DOCKER_APPS, DOCKER_CPUS,    #
+#                                              DOCKER_MEMORY (E4)           #
 # See docs/features/specs/2026-10-05-003-e11-reseller-design.md.            #
 #                                                                           #
 #===========================================================================#
@@ -166,7 +168,9 @@ tenancy_pkg_get() {
 	if [ -z "$value" ]; then
 		case "$2" in
 			USERS | PORTS) value='0' ;;
-			RESELLER_VISIBLE | NODE) value='no' ;;
+			RESELLER_VISIBLE | NODE | DOCKER) value='no' ;;
+			DOCKER_APPS) value='0' ;;
+			DOCKER_CPUS | DOCKER_MEMORY) value='unlimited' ;;
 			NODE_VERSIONS | NODE_APPS) value='3' ;;
 			NODE_ALLOWED) value='lts' ;;
 		esac
@@ -179,6 +183,17 @@ tenancy_pkg_set() {
 	file=$(tenancy_package_file "$1")
 	tenancy_conf_set "$file" "$2" "$3" || return $?
 	chmod 644 "$file"
+}
+
+# Size like 512, 512M or 2G in MB; empty for unlimited (DOCKER_MEMORY)
+tenancy_mb() {
+	if [[ "$1" =~ ^([0-9]+)([MG]?)$ ]]; then
+		if [ "${BASH_REMATCH[2]}" = 'G' ]; then
+			echo $((BASH_REMATCH[1] * 1024))
+		else
+			echo "${BASH_REMATCH[1]}"
+		fi
+	fi
 }
 
 # Value of a limit in a package file
@@ -202,11 +217,17 @@ tenancy_pkg_value_valid() {
 		USERS | PORTS)
 			[ "$value" = 'unlimited' ] || [[ "$value" =~ ^[0-9]{1,5}$ ]]
 			;;
-		RESELLER_VISIBLE | NODE)
+		RESELLER_VISIBLE | NODE | DOCKER)
 			[ "$value" = 'yes' ] || [ "$value" = 'no' ]
 			;;
-		NODE_VERSIONS | NODE_APPS)
+		NODE_VERSIONS | NODE_APPS | DOCKER_APPS)
 			[ "$value" = 'unlimited' ] || [[ "$value" =~ ^[0-9]{1,3}$ ]]
+			;;
+		DOCKER_CPUS)
+			[ "$value" = 'unlimited' ] || [[ "$value" =~ ^[0-9]{1,3}(\.[0-9]{1,2})?$ ]]
+			;;
+		DOCKER_MEMORY)
+			[ "$value" = 'unlimited' ] || [[ "$value" =~ ^[0-9]{1,7}[MG]?$ ]]
 			;;
 		NODE_ALLOWED)
 			[ "$value" = 'lts' ] || [ "$value" = '*' ] || [[ "$value" =~ ^[0-9]{1,3}(,[0-9]{1,3})*$ ]]
@@ -417,6 +438,10 @@ tenancy_package_json() {
 		printf '        "NODE_VERSIONS": "%s",\n' "$(tenancy_json_escape "$(tenancy_pkg_get "$package" NODE_VERSIONS)")"
 		printf '        "NODE_ALLOWED": "%s",\n' "$(tenancy_json_escape "$(tenancy_pkg_get "$package" NODE_ALLOWED)")"
 		printf '        "NODE_APPS": "%s",\n' "$(tenancy_json_escape "$(tenancy_pkg_get "$package" NODE_APPS)")"
+		printf '        "DOCKER": "%s",\n' "$(tenancy_json_escape "$(tenancy_pkg_get "$package" DOCKER)")"
+		printf '        "DOCKER_APPS": "%s",\n' "$(tenancy_json_escape "$(tenancy_pkg_get "$package" DOCKER_APPS)")"
+		printf '        "DOCKER_CPUS": "%s",\n' "$(tenancy_json_escape "$(tenancy_pkg_get "$package" DOCKER_CPUS)")"
+		printf '        "DOCKER_MEMORY": "%s",\n' "$(tenancy_json_escape "$(tenancy_pkg_get "$package" DOCKER_MEMORY)")"
 		printf '        "RESELLER_OWNER": "%s"\n    }' "$(tenancy_json_escape "$(tenancy_pkg_get "$package" RESELLER_OWNER)")"
 	)
 }

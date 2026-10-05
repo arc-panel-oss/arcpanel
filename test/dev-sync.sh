@@ -69,6 +69,9 @@ sync_tree --exclude 'vendor/' --exclude '/fm/' "$SRC/web/" "$HESTIA/web/"
 sync_tree "$SRC/bin/" "$HESTIA/bin/"
 sync_tree "$SRC/func/" "$HESTIA/func/"
 sync_tree "$SRC/install/" "$HESTIA/install/"
+# The Docker app catalog (E4) mirrors the checkout: removed apps go away
+mkdir -p "$HESTIA/install/common/apps"
+sync_tree --delete "$SRC/install/common/apps/" "$HESTIA/install/common/apps/"
 chmod 755 "$HESTIA"/bin/* "$HESTIA/web-app/artisan" "$HESTIA/web/inc/mail-wrapper.php"
 find "$HESTIA/install" -name '*.sh' -exec chmod 755 {} +
 chmod 644 "$HESTIA"/install/*.sh
@@ -111,6 +114,9 @@ fi
 "$HESTIA/bin/v-add-sys-node"
 "$HESTIA/bin/v-add-sys-web-templates-meta"
 "$HESTIA/bin/v-add-sys-panel-files"
+if grep -q "^DOCKER_SYSTEM='yes'" "$HESTIA/conf/hestia.conf"; then
+	"$HESTIA/bin/v-add-sys-docker"
+fi
 
 if [ "$restart_step" = yes ]; then
 	"$HESTIA/nginx/sbin/hestia-nginx" -t -q
