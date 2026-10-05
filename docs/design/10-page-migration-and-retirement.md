@@ -1,6 +1,6 @@
 # 10 — Page Migration, Legacy Retirement and Branding
 
-**Epics:** E7, E8, E9 · **Status:** Draft v1 · **Depends on:** E1, E2, E11 (owner model) · **Unblocks:** 2.0 release, E26
+**Epics:** E7, E8, E9 · **Status:** Draft v1; modules 8–12 (Databases, DNS, Mail, Cron, Backups) implemented by the [E7 batch 1 spec](../features/specs/2026-10-06-001-e7-batch1-pages-design.md), which wins where it differs · **Depends on:** E1, E2, E11 (owner model) · **Unblocks:** 2.0 release, E26
 
 ---
 
@@ -33,11 +33,11 @@ Dependency order from the roadmap; each module = list + add + edit + single acti
 | 5   | Q2      | Ports                                               | — (new)                                                                                                          | E12 UI                                                                  |
 | 6   | Q2      | Files                                               | `/fm/`                                                                                                           | E3, implemented; menu switched by `ARCPANEL_APP_PAGES`, `/fm/` until E8 |
 | 7   | Q2      | Node (versions, apps)                               | — (new)                                                                                                          | E13/E14                                                                 |
-| 8   | Q3      | Databases                                           | `list/db`, `add/db`, `edit/db`, `bulk/db`                                                                        | phpMyAdmin/phpPgAdmin SSO links kept                                    |
-| 9   | Q3      | DNS                                                 | `list/dns`, `add/dns`, `edit/dns`, `bulk/dns`                                                                    | zones, records, DNSSEC public view (`v-list-dnssec-public-key`)         |
-| 10  | Q3      | Mail                                                | `list/mail`, `add/mail`, `edit/mail`, `bulk/mail`                                                                | domains, accounts, DKIM DNS hints                                       |
-| 11  | Q3      | Cron                                                | `list/cron`, `add/cron`, `edit/cron`, `bulk/cron`                                                                | `x-ap-cron-builder`                                                     |
-| 12  | Q3      | Backups                                             | `list/backup`, `edit/backup`, `bulk/backup`, `bulk/restore`, `schedule/*`, `download/backup`                     | standard + restic views                                                 |
+| 8   | Q3      | Databases                                           | `list/db`, `add/db`, `edit/db`, `bulk/db`                                                                        | E7 batch 1, implemented; phpMyAdmin SSO kept                            |
+| 9   | Q3      | DNS                                                 | `list/dns`, `add/dns`, `edit/dns`, `bulk/dns`                                                                    | E7 batch 1, implemented; zones, records, DNSSEC public view             |
+| 10  | Q3      | Mail                                                | `list/mail`, `add/mail`, `edit/mail`, `bulk/mail`                                                                | E7 batch 1, implemented; domains, accounts, DKIM DNS hints              |
+| 11  | Q3      | Cron                                                | `list/cron`, `add/cron`, `edit/cron`, `bulk/cron`                                                                | E7 batch 1, implemented; `x-ap-cron-builder`                            |
+| 12  | Q3      | Backups                                             | `list/backup`, `edit/backup`, `bulk/backup`, `bulk/restore`, `schedule/*`, `download/backup`                     | E7 batch 1, implemented; tar, restic, exclusions, snapshot browser      |
 | 13  | Q3      | Apps (Docker store)                                 | — (new)                                                                                                          | E4                                                                      |
 | 14  | Q4      | Firewall                                            | `list/firewall`, `add/firewall`, `edit/firewall`, `bulk/firewall`                                                | rules, ipset, bans                                                      |
 | 15  | Q4      | IP addresses                                        | `list/ip`, `add/ip`, `edit/ip`, `bulk/ip`                                                                        |                                                                         |
@@ -63,7 +63,7 @@ For every legacy module, in this order. The checklist is a PR template (`.github
 5. **FormRequests** — validation mirrors the legacy `index.php` checks (required fields, formats); authorization delegated to the policy; messages reuse existing translation strings.
 6. **Controller** — thin: FormRequest → service → flash → redirect. No `exec`, no `$_SESSION`.
 7. **Views** — Blade with `x-ap-*` components only ([05](./05-design-system-and-frontend.md) §5); row actions and bulk bar; owner column for admin/reseller lists; every legacy string kept verbatim so translations apply.
-8. **Bulk** — `POST <module>.bulk {action, ids[]}` → service loops the command, collects per-id results, flashes a summary (`n ok, m failed`); replaces `web/bulk/<x>`.
+8. **Bulk** — `POST <module>.bulk {action, ids[]}` → service loops the command, collects per-id results, flashes a summary (`n ok, m failed`); replaces `web/bulk/<x>`. _(E7 batch 1: every module uses the shared `App\Services\Support\BulkRunner`; controllers check every item with `ChecksBulkItems` first.)_
 9. **i18n** — new strings added to `web/locale/hestiacp.pot` by the extraction script; no hard-coded English outside `__()`.
 10. **Tests** — Pest feature tests per route × three principals (admin, reseller A, reseller B / user) with the fake; Playwright happy path per module; a11y gate.
 11. **Hand-off** — _(E1-S2: Web Domains uses the `ARCPANEL_APP_PAGES` switch and `302` redirects through `arc_redirect_if_migrated()` instead of 301 stubs; stubs and deletions move to E8.)_ add the entry to `web/inc/arcpanel-routes.php`; replace `web/<kind>/<x>/index.php` with the 301 stub:

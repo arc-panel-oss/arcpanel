@@ -14,7 +14,7 @@ ArcPanel is an open-source Linux hosting control panel based on **HestiaCP 1.10.
 
 Three roles exist: **admin** (server owner), **reseller** (owns a tree of customers inside its own package limits) and **user** (hosting customer). Every page and command is owner-scoped from the start.
 
-The current state of each epic is in [docs/roadmap.md](docs/roadmap.md). As of 2026-10-05, E1 (Laravel foundation, slices S1–S2), E9 (rebranding), E11 (resellers), E12 (port registry), E6 batch 1 (template metadata, per-domain template variables, ten new templates) E13 (Node.js runtimes and global packages per user), E14 (Node.js apps run by a per-user pm2 daemon), E3 (File Manager v2, every file operation run as the user) and E4 (Docker apps from a curated catalog, every container run as the hosting user) are implemented; the rest is design.
+The current state of each epic is in [docs/roadmap.md](docs/roadmap.md). As of 2026-10-06, E1 (Laravel foundation, slices S1–S2), E9 (rebranding), E11 (resellers), E12 (port registry), E6 batch 1 (template metadata, per-domain template variables, ten new templates) E13 (Node.js runtimes and global packages per user), E14 (Node.js apps run by a per-user pm2 daemon), E3 (File Manager v2, every file operation run as the user), E4 (Docker apps from a curated catalog, every container run as the hosting user) and E7 batch 1 (Databases, Cron, DNS, Mail and Backups pages on Laravel, with the restic snapshot browser) are implemented; the rest is design.
 
 ## 3. Read before changing anything
 

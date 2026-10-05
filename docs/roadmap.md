@@ -169,6 +169,8 @@ Every migrated page is built **reseller-aware from day one** (owner scoping from
 
 **Success metric:** 100% of routes served by Laravel; legacy `web/*/index.php` deleted. **Effort:** XL (spread over Q3–Q4). **Outcome:** O2.
 
+**Design:** [E7 batch 1 spec](./features/specs/2026-10-06-001-e7-batch1-pages-design.md) (Databases, Cron, DNS, Mail and Backups with restic snapshots, exclusion toggles for `~/.nvm` and Docker apps, the file manager's snapshot mode, six milestones). **Status:** batch 1 implemented 2026-10-06; Firewall, IPs, Server, Access keys, Logs, Statistics, Web Terminal, Quick Install Apps and the backup host settings follow in later batches.
+
 ### E8 — Legacy retirement and 2.0 release
 
 **Scope:** remove old `web/` pages and `web/inc/`, move Laravel to the root URL, update `install/` and `install/upgrade/` scripts, update `hestia` deb packaging, migration notes for custom themes, release notes, docs site update, upstream-diff CI check (fails if `bin/`/`func/`/`install/` contain non-additive changes).
