@@ -1,0 +1,72 @@
+#!/bin/bash
+# info: show the Docker engine task (E4)
+# options: [OFFSET] [FORMAT]
+#
+# example: v-list-sys-docker-task 0 json
+#
+# This function prints the record of the engine task (ID, ACTION, STATUS,
+# EXIT, START, END) and its output after byte OFFSET (default 0, at most
+# 256 KB) with the next OFFSET. STATUS is running, done or failed; a running
+# task whose process is gone is reported as failed. Without a task, STATUS
+# is empty.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+offset=${1:-0}
+format=${2-shell}
+
+# Includes
+# shellcheck source=/etc/hestiacp/hestia.conf
+source /etc/hestiacp/hestia.conf
+# shellcheck source=/usr/local/hestia/func/main.sh
+source $HESTIA/func/main.sh
+# shellcheck source=/usr/local/hestia/func/tenancy.sh
+source $HESTIA/func/tenancy.sh
+# shellcheck source=/usr/local/hestia/func/ports.sh
+source $HESTIA/func/ports.sh
+# load config file
+source_conf "$HESTIA/conf/hestia.conf"
+# shellcheck source=/usr/local/hestia/func/docker.sh
+source $HESTIA/func/docker.sh
+
+conf="$(docker_state_dir)/engine-task.state"
+log="$(docker_state_dir)/engine-task.log"
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+if ! [[ "$offset" =~ ^[0-9]{1,12}$ ]]; then
+	check_result "$E_INVALID" "invalid offset :: $offset"
+fi
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+if [ -f "$conf" ] && grep -q " STATUS='running'" "$conf"; then
+	pid=$(grep -oE " PID='[0-9]*'" "$conf" | cut -d\' -f2)
+	if ! docker_task_alive "$pid" v-run-sys-docker-task; then
+		sed -i -e "s/ STATUS='[^']*'/ STATUS='failed'/" -e "s/ END='[^']*'/ END='$(date +'%F %T')'/" "$conf"
+	fi
+fi
+
+json=$(docker_task_json "$conf" "$log" "$offset")
+
+case "$format" in
+	json) printf '%s\n' "$json" | jq . ;;
+	*)
+		printf '%s\n' "$json" | jq -r 'to_entries[] | select(.key != "LOG") | "\(.key): \(.value)"'
+		echo
+		printf '%s\n' "$json" | jq -r .LOG
+		;;
+esac
+
+#----------------------------------------------------------#
+#                       Hestia                             #
+#----------------------------------------------------------#
+
+exit

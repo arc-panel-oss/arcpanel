@@ -1,0 +1,77 @@
+#!/bin/bash
+# info: list the apps of the Docker app catalog (E4)
+# options: [CATEGORY] [FORMAT]
+#
+# example: v-list-docker-catalog
+# example: v-list-docker-catalog monitoring json
+#
+# This function lists the latest version of every catalog app: slug, name,
+# summary, category, version, versions, admin_only, arch, requirements,
+# homepage, licence, whether it has a web port, and the icon as a data URI
+# (json only). CATEGORY (or "all") filters the list. Apps whose manifest is
+# invalid are left out.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+category=${1:-all}
+format=${2-shell}
+
+# Includes
+# shellcheck source=/etc/hestiacp/hestia.conf
+source /etc/hestiacp/hestia.conf
+# shellcheck source=/usr/local/hestia/func/main.sh
+source $HESTIA/func/main.sh
+# shellcheck source=/usr/local/hestia/func/tenancy.sh
+source $HESTIA/func/tenancy.sh
+# shellcheck source=/usr/local/hestia/func/ports.sh
+source $HESTIA/func/ports.sh
+# load config file
+source_conf "$HESTIA/conf/hestia.conf"
+# shellcheck source=/usr/local/hestia/func/docker.sh
+source $HESTIA/func/docker.sh
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+if [ "$category" != 'all' ] && [[ " $DOCKER_CATEGORIES " != *" $category "* ]]; then
+	check_result "$E_INVALID" "invalid category :: $category ($DOCKER_CATEGORIES)"
+fi
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+apps=$(
+	for slug in $(docker_slugs); do
+		version=$(docker_latest_version "$slug")
+		if [ -n "$version" ] && [ -z "$(docker_manifest_errors "$(docker_manifest "$slug" "$version")" "$slug" "$version")" ]; then
+			docker_catalog_app_json "$slug" "$version"
+		fi
+	done | jq -sc --arg c "$category" '
+		map(select($c == "all" or .category == $c)
+			| { SLUG: .slug, NAME: .name, SUMMARY: .summary, CATEGORY: .category, VERSION: .version,
+				VERSIONS: .versions, ADMIN_ONLY: (.admin_only // false), ARCH: .arch, REQUIREMENTS: .requirements,
+				HOMEPAGE: (.homepage // ""), LICENSE: (.license // ""), WEB: (.ports.web != null), ICON: .icon })
+		| sort_by(.NAME | ascii_downcase)'
+)
+
+case "$format" in
+	json) jq . <<< "$apps" ;;
+	*)
+		{
+			echo "SLUG NAME VERSION CATEGORY WEB"
+			echo "---- ---- ------- -------- ---"
+			jq -r '.[] | [.SLUG, (.NAME | gsub(" "; "_")), .VERSION, .CATEGORY, (if .WEB then "yes" else "no" end)] | join(" ")' <<< "$apps"
+		} | column -t
+		;;
+esac
+
+#----------------------------------------------------------#
+#                       Hestia                             #
+#----------------------------------------------------------#
+
+exit

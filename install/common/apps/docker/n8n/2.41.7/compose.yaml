@@ -1,0 +1,19 @@
+services:
+  app:
+    image: n8nio/n8n:2.41.7@sha256:bcef56dd44014e09774219536a3f8cb07f1b553fcba94044bd9fc0f21f8676a3
+    environment:
+      TZ: ${TZ}
+      GENERIC_TIMEZONE: ${TZ}
+      HOME: /home/node
+      N8N_USER_FOLDER: /home/node
+      N8N_HOST: ${ARC_DOMAIN}
+      N8N_PORT: "5678"
+      N8N_PROTOCOL: https
+      N8N_PROXY_HOPS: "1"
+      WEBHOOK_URL: ${ARC_URL}/
+      N8N_EDITOR_BASE_URL: ${ARC_URL}/
+      N8N_ENCRYPTION_KEY: ${ENCRYPTION_KEY}
+      N8N_DIAGNOSTICS_ENABLED: "false"
+      N8N_PERSONALIZATION_ENABLED: "false"
+    volumes:
+      - ${ARC_DATA_DATA}:/home/node/.n8n

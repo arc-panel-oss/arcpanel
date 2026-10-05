@@ -1,0 +1,83 @@
+#!/bin/bash
+# info: install the Docker engine in the background (E4)
+# options: [DATA_ROOT]
+#
+# example: v-start-sys-docker-task
+#
+# This function starts v-add-sys-docker detached from the caller, for the
+# admin Docker page, and prints the task ID. The state and the output are
+# read with v-list-sys-docker-task. One engine task runs at a time.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+data_root=$1
+
+# Includes
+# shellcheck source=/etc/hestiacp/hestia.conf
+source /etc/hestiacp/hestia.conf
+# shellcheck source=/usr/local/hestia/func/main.sh
+source $HESTIA/func/main.sh
+# shellcheck source=/usr/local/hestia/func/tenancy.sh
+source $HESTIA/func/tenancy.sh
+# shellcheck source=/usr/local/hestia/func/ports.sh
+source $HESTIA/func/ports.sh
+# load config file
+source_conf "$HESTIA/conf/hestia.conf"
+# shellcheck source=/usr/local/hestia/func/docker.sh
+source $HESTIA/func/docker.sh
+
+conf="$(docker_state_dir)/engine-task.state"
+log="$(docker_state_dir)/engine-task.log"
+
+task_get() {
+	if [ -f "$conf" ]; then
+		grep -oE "(^| )$1='[^']*'" "$conf" | head -n1 | cut -d\' -f2
+	fi
+}
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+if [ -n "$data_root" ] && ! [[ "$data_root" =~ ^/[A-Za-z0-9._/-]+$ ]]; then
+	check_result "$E_INVALID" "invalid data root :: $data_root"
+fi
+
+# Perform verification if read-only mode is enabled
+check_hestia_demo_mode
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+mkdir -p "$(docker_state_dir)"
+chmod 750 "$(docker_state_dir)"
+exec {lock}> "$(docker_state_dir)/engine-task.lock"
+flock -x "$lock"
+
+if [ "$(task_get STATUS)" = 'running' ] && docker_task_alive "$(task_get PID)" v-run-sys-docker-task; then
+	check_result "$E_INUSE" "the Docker engine is being installed"
+fi
+
+id="$(date +%s)$(printf '%04d' $((RANDOM % 10000)))"
+: > "$log"
+chmod 640 "$log"
+echo "ID='$id' ACTION='install' ARGS='$data_root' STATUS='running' PID='' EXIT='' START='$(date +'%F %T')' END=''" > "$conf"
+chmod 640 "$conf"
+
+setsid "$BIN/v-run-sys-docker-task" "$id" $data_root < /dev/null >> "$log" 2>&1 {lock}>&- &
+sed -i "s/ PID='[^']*'/ PID='$!'/" "$conf"
+
+flock -u "$lock"
+echo "$id"
+
+#----------------------------------------------------------#
+#                       Hestia                             #
+#----------------------------------------------------------#
+
+log_event "$OK" "$ARGUMENTS"
+
+exit

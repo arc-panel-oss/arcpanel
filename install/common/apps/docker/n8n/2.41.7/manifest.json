@@ -1,0 +1,61 @@
+{
+	"schema": 1,
+	"slug": "n8n",
+	"version": "2.41.7",
+	"name": "n8n",
+	"summary": "Workflow automation that connects your apps and APIs, with a visual editor.",
+	"description": "n8n builds automations from more than 400 integrations, webhooks and code steps in a visual editor. Workflows and credentials are stored in a SQLite database in the app's data folder.\n\nThe first visit creates the owner account.",
+	"category": "automation",
+	"homepage": "https://n8n.io",
+	"changelog": "https://github.com/n8n-io/n8n/releases",
+	"license": "Sustainable Use License",
+	"admin_only": false,
+	"arch": ["amd64", "arm64"],
+	"images": [
+		"n8nio/n8n:2.41.7@sha256:bcef56dd44014e09774219536a3f8cb07f1b553fcba94044bd9fc0f21f8676a3"
+	],
+	"requirements": {
+		"memory": "512M",
+		"disk": "2G"
+	},
+	"limits": {
+		"memory": "1G",
+		"cpus": "1"
+	},
+	"ports": {
+		"web": {
+			"service": "app",
+			"container": 5678
+		}
+	},
+	"volumes": [
+		{
+			"name": "data"
+		}
+	],
+	"variables": [
+		{
+			"name": "TZ",
+			"label": "Time zone",
+			"type": "string",
+			"default": "{{server.timezone}}",
+			"required": true,
+			"pattern": "^[A-Za-z0-9_/+-]{1,64}$"
+		},
+		{
+			"name": "ENCRYPTION_KEY",
+			"label": "Encryption key of stored credentials",
+			"type": "password",
+			"default": "{{random:32}}",
+			"required": true,
+			"immutable": true
+		}
+	],
+	"healthcheck": {
+		"type": "http",
+		"path": "/healthz",
+		"expect": [200],
+		"timeout": 300
+	},
+	"post_install": "Open {{url}} now: the first visitor creates the owner account. Webhook URLs start with {{url}}/."
+}

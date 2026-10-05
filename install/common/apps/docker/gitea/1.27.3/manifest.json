@@ -1,0 +1,68 @@
+{
+	"schema": 1,
+	"slug": "gitea",
+	"version": "1.27.3",
+	"name": "Gitea",
+	"summary": "Lightweight Git hosting with issues, pull requests, packages and CI.",
+	"description": "Gitea hosts Git repositories with a web interface, issues, pull requests, wikis, a package registry and Actions. It uses SQLite in the app's data folder.\n\nGit over SSH uses the app's SSH port; it stays private until you make that port public on the Ports page.",
+	"category": "dev",
+	"homepage": "https://about.gitea.com",
+	"changelog": "https://github.com/go-gitea/gitea/releases",
+	"license": "MIT",
+	"admin_only": false,
+	"arch": ["amd64", "arm64"],
+	"images": [
+		"gitea/gitea:1.27.3-rootless@sha256:1c17ecaead42eb3b5391553d8708103a4beb0e86edf5b9ebc1eb269c318845f2"
+	],
+	"requirements": {
+		"memory": "256M",
+		"disk": "2G"
+	},
+	"limits": {
+		"memory": "768M",
+		"cpus": "1"
+	},
+	"ports": {
+		"web": {
+			"service": "app",
+			"container": 3000
+		},
+		"ssh": {
+			"service": "app",
+			"container": 2222,
+			"description": "Git over SSH"
+		}
+	},
+	"volumes": [
+		{
+			"name": "data"
+		},
+		{
+			"name": "config"
+		}
+	],
+	"variables": [
+		{
+			"name": "APP_NAME",
+			"label": "Site title",
+			"type": "string",
+			"default": "Gitea",
+			"required": true,
+			"pattern": "^[A-Za-z0-9 ._-]{1,64}$"
+		},
+		{
+			"name": "DISABLE_REGISTRATION",
+			"label": "Disable self-registration",
+			"type": "bool",
+			"default": "false",
+			"required": true
+		}
+	],
+	"healthcheck": {
+		"type": "http",
+		"path": "/api/healthz",
+		"expect": [200],
+		"timeout": 240
+	},
+	"post_install": "Open {{url}} now: the first visit shows the installation page, where you create the administrator account."
+}

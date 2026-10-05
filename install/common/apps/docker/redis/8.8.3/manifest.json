@@ -1,0 +1,59 @@
+{
+	"schema": 1,
+	"slug": "redis",
+	"version": "8.8.3",
+	"name": "Redis",
+	"summary": "In-memory data store for caches, queues and sessions of your apps.",
+	"description": "Redis runs for your own apps only: it listens on a private port of 127.0.0.1 (shown on the app page) and requires the password of the app. Data is saved to the app's data folder (append-only file).\n\nNode.js apps connect with redis://:PASSWORD@127.0.0.1:PORT.",
+	"category": "database",
+	"homepage": "https://redis.io",
+	"changelog": "https://github.com/redis/redis/releases",
+	"license": "AGPL-3.0",
+	"admin_only": false,
+	"arch": ["amd64", "arm64"],
+	"images": [
+		"redis:8.8.3-alpine@sha256:0b2b77d3ea5078274795e3177cdbdada8b96316684a38911d528534ed679b5ec"
+	],
+	"requirements": {
+		"memory": "64M",
+		"disk": "256M"
+	},
+	"limits": {
+		"memory": "256M",
+		"cpus": "0.5"
+	},
+	"ports": {
+		"redis": {
+			"service": "redis",
+			"container": 6379,
+			"description": "Redis for your apps on 127.0.0.1"
+		}
+	},
+	"volumes": [
+		{
+			"name": "data"
+		}
+	],
+	"variables": [
+		{
+			"name": "PASSWORD",
+			"label": "Password",
+			"type": "password",
+			"default": "{{random:32}}",
+			"required": true
+		},
+		{
+			"name": "MAXMEMORY_POLICY",
+			"label": "Eviction when memory is full",
+			"type": "enum",
+			"options": ["noeviction", "allkeys-lru", "volatile-lru", "allkeys-lfu"],
+			"default": "noeviction",
+			"required": true
+		}
+	],
+	"healthcheck": {
+		"type": "container",
+		"timeout": 60
+	},
+	"post_install": "Connect your apps to redis://:PASSWORD@127.0.0.1:PORT with the password and the port shown on the app page."
+}

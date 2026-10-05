@@ -1,0 +1,83 @@
+#!/bin/bash
+# info: stop the Docker engine of Docker apps (E4)
+# options: [PURGE]
+#
+# example: v-delete-sys-docker
+# example: v-delete-sys-docker purge
+#
+# This function stops and disables the Docker engine and sets
+# DOCKER_SYSTEM to no. It refuses while a user has Docker apps. With PURGE
+# (purge) it also removes the Docker packages, the repository and the data
+# root with every image.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+purge=$1
+
+# Includes
+# shellcheck source=/etc/hestiacp/hestia.conf
+source /etc/hestiacp/hestia.conf
+# shellcheck source=/usr/local/hestia/func/main.sh
+source $HESTIA/func/main.sh
+# shellcheck source=/usr/local/hestia/func/tenancy.sh
+source $HESTIA/func/tenancy.sh
+# shellcheck source=/usr/local/hestia/func/ports.sh
+source $HESTIA/func/ports.sh
+# load config file
+source_conf "$HESTIA/conf/hestia.conf"
+# shellcheck source=/usr/local/hestia/func/docker.sh
+source $HESTIA/func/docker.sh
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+if [ "$(id -u)" != '0' ]; then
+	echo "Error: v-delete-sys-docker can only be executed by the root user"
+	exit "$E_FORBIDEN"
+fi
+if [ -n "$purge" ] && [ "$purge" != 'purge' ]; then
+	check_result "$E_INVALID" "invalid option :: $purge (purge)"
+fi
+users=$(dockerapp_users | tr '\n' ' ')
+if [ -n "$users" ]; then
+	check_result "$E_INUSE" "these users have Docker apps: ${users% }"
+fi
+
+# Perform verification if read-only mode is enabled
+check_hestia_demo_mode
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+data_root=${DOCKER_DATA_ROOT:-/var/lib/docker}
+if [ -f "$DOCKER_DAEMON_JSON" ]; then
+	data_root=$(jq -r '."data-root" // "/var/lib/docker"' "$DOCKER_DAEMON_JSON" 2> /dev/null)
+fi
+
+systemctl disable --now docker.socket docker > /dev/null 2>&1
+
+if [ "$purge" = 'purge' ]; then
+	DEBIAN_FRONTEND=noninteractive apt-get -y -qq purge docker-ce docker-ce-cli containerd.io \
+		docker-compose-plugin docker-buildx-plugin docker-ce-rootless-extras > /dev/null 2>&1
+	rm -f /etc/apt/sources.list.d/docker.list "$DOCKER_KEYRING" "$DOCKER_DAEMON_JSON"
+	case "$data_root" in
+		/ | /home | /home/* | /etc | /usr | /var | "") ;;
+		*) rm -rf "$data_root" /var/lib/containerd ;;
+	esac
+fi
+
+"$BIN/v-change-sys-config-value" DOCKER_SYSTEM no
+
+#----------------------------------------------------------#
+#                       Hestia                             #
+#----------------------------------------------------------#
+
+$BIN/v-log-action "system" "Info" "Docker" "Docker engine stopped${purge:+ and removed}."
+log_event "$OK" "$ARGUMENTS"
+
+exit

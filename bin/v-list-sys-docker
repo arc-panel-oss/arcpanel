@@ -1,0 +1,87 @@
+#!/bin/bash
+# info: show the state of the Docker engine of Docker apps (E4)
+# options: [FORMAT]
+#
+# example: v-list-sys-docker json
+#
+# This function prints whether the engine is installed (SYSTEM) and running,
+# its versions, the data root with its used and free space in MB, the
+# numbers of images, containers, apps and users with apps, and the last
+# report of v-check-sys-docker (REPORT, JSON).
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+format=${1-shell}
+
+# Includes
+# shellcheck source=/etc/hestiacp/hestia.conf
+source /etc/hestiacp/hestia.conf
+# shellcheck source=/usr/local/hestia/func/main.sh
+source $HESTIA/func/main.sh
+# shellcheck source=/usr/local/hestia/func/tenancy.sh
+source $HESTIA/func/tenancy.sh
+# shellcheck source=/usr/local/hestia/func/ports.sh
+source $HESTIA/func/ports.sh
+# load config file
+source_conf "$HESTIA/conf/hestia.conf"
+# shellcheck source=/usr/local/hestia/func/docker.sh
+source $HESTIA/func/docker.sh
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+system=${DOCKER_SYSTEM:-no}
+running=no
+version=''
+compose=''
+images=0
+containers=0
+data_root=${DOCKER_DATA_ROOT:-/var/lib/docker}
+used=0
+free=0
+if command -v docker > /dev/null 2>&1; then
+	version=$(docker_cmd version --format '{{.Server.Version}}' 2> /dev/null)
+	if [ -n "$version" ]; then
+		running=yes
+		compose=$(docker_cmd compose version --short 2> /dev/null)
+		images=$(docker_cmd images -q 2> /dev/null | sort -u | grep -c .)
+		containers=$(docker_cmd ps -aq 2> /dev/null | grep -c .)
+		data_root=$(docker_cmd info --format '{{.DockerRootDir}}' 2> /dev/null || echo "$data_root")
+	fi
+fi
+if [ -d "$data_root" ]; then
+	used=$(du -sm "$data_root" 2> /dev/null | awk '{ print $1 }')
+	free=$(docker_free_mb "$data_root")
+fi
+apps=0
+users=0
+for user in $(dockerapp_users); do
+	users=$((users + 1))
+	apps=$((apps + $(dockerapp_count "$user")))
+done
+report='{}'
+if [ -s "$(docker_state_dir)/report.json" ]; then
+	report=$(jq -c . "$(docker_state_dir)/report.json" 2> /dev/null || echo '{}')
+fi
+
+json=$(jq -nc --arg system "$system" --arg running "$running" --arg version "$version" --arg compose "$compose" \
+	--arg root "$data_root" --arg used "${used:-0}" --arg free "${free:-0}" --arg images "$images" \
+	--arg containers "$containers" --arg apps "$apps" --arg users "$users" --argjson report "$report" '
+	{ SYSTEM: $system, RUNNING: $running, VERSION: $version, COMPOSE_VERSION: $compose, DATA_ROOT: $root,
+		DISK_USED: $used, DISK_FREE: $free, IMAGES: $images, CONTAINERS: $containers, APPS: $apps, USERS: $users,
+		REPORT: $report }')
+
+case "$format" in
+	json) printf '%s\n' "$json" | jq . ;;
+	*) printf '%s\n' "$json" | jq -r 'to_entries[] | select(.key != "REPORT") | "\(.key): \(.value)"' ;;
+esac
+
+#----------------------------------------------------------#
+#                       Hestia                             #
+#----------------------------------------------------------#
+
+exit

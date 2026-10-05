@@ -1,0 +1,62 @@
+#!/bin/bash
+# info: run the Docker engine task started by v-start-sys-docker-task (E4)
+# options: ID [DATA_ROOT]
+#
+# example: v-run-sys-docker-task 17286400001234
+#
+# This function is the background part of v-start-sys-docker-task: it runs
+# v-add-sys-docker and records the result. It refuses to run a task that
+# v-start-sys-docker-task did not start.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+id=$1
+data_root=$2
+
+# Includes
+# shellcheck source=/etc/hestiacp/hestia.conf
+source /etc/hestiacp/hestia.conf
+# shellcheck source=/usr/local/hestia/func/main.sh
+source $HESTIA/func/main.sh
+# load config file
+source_conf "$HESTIA/conf/hestia.conf"
+
+conf="$HESTIA/data/docker/engine-task.state"
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+if [ -z "$id" ] || ! grep -q "^ID='$id' .* STATUS='running'" "$conf" 2> /dev/null; then
+	check_result "$E_FORBIDEN" "task $id was not started by v-start-sys-docker-task"
+fi
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+echo "$ v-add-sys-docker $data_root"
+"$BIN/v-add-sys-docker" $data_root
+rc=$?
+status=done
+if [ "$rc" -ne 0 ]; then
+	status=failed
+	echo "Exit code $rc"
+fi
+
+exec {lock}> "$HESTIA/data/docker/engine-task.lock"
+flock -x "$lock"
+if grep -q "^ID='$id' " "$conf"; then
+	sed -i -e "s/ STATUS='[^']*'/ STATUS='$status'/" -e "s/ EXIT='[^']*'/ EXIT='$rc'/" \
+		-e "s/ END='[^']*'/ END='$(date +'%F %T')'/" "$conf"
+fi
+flock -u "$lock"
+
+#----------------------------------------------------------#
+#                       Hestia                             #
+#----------------------------------------------------------#
+
+exit "$rc"

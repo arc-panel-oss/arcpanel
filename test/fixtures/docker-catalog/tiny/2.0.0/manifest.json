@@ -1,0 +1,78 @@
+{
+	"schema": 1,
+	"slug": "tiny",
+	"version": "2.0.0",
+	"name": "Tiny",
+	"summary": "Test app: a static web server.",
+	"description": "Serves index.html with GREETING and the version mark.",
+	"category": "other",
+	"homepage": "https://example.com",
+	"license": "MIT",
+	"admin_only": false,
+	"arch": ["amd64", "arm64"],
+	"images": [
+		"busybox:1.37.0@sha256:bdf57e528e45e4433820e045b29b4597825a1c9e38353532d90a01445013f82e"
+	],
+	"requirements": {
+		"memory": "32M",
+		"disk": "16M"
+	},
+	"limits": {
+		"memory": "64M",
+		"cpus": "0.25"
+	},
+	"ports": {
+		"web": {
+			"service": "web",
+			"container": 8080
+		},
+		"extra": {
+			"service": "web",
+			"container": 8081,
+			"description": "Second port"
+		}
+	},
+	"volumes": [
+		{
+			"name": "www"
+		}
+	],
+	"variables": [
+		{
+			"name": "GREETING",
+			"label": "Greeting",
+			"type": "string",
+			"default": "hello",
+			"required": true,
+			"pattern": "^[A-Za-z0-9 ._-]{1,64}$"
+		},
+		{
+			"name": "SECRET",
+			"label": "Secret",
+			"type": "password",
+			"default": "{{random:16}}",
+			"required": true
+		},
+		{
+			"name": "SEED",
+			"label": "Seed",
+			"type": "string",
+			"default": "seed1",
+			"immutable": true
+		}
+	],
+	"healthcheck": {
+		"type": "http",
+		"path": "/",
+		"expect": [200],
+		"timeout": 30
+	},
+	"dumps": [
+		{
+			"service": "web",
+			"command": "cat /www/index.html",
+			"file": "index.txt"
+		}
+	],
+	"post_install": "Open {{url}}."
+}

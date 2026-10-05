@@ -1,0 +1,139 @@
+#!/bin/bash
+# info: check the Docker app catalog (E4)
+# options: [DIR] [FORMAT]
+#
+# example: v-check-docker-catalog
+# example: v-check-docker-catalog /root/my-catalog json
+#
+# This function validates every app of a catalog (default: the catalog
+# shipped with ArcPanel): the icon, each manifest.json against the rules of
+# the manifest schema, and each compose.yaml rendered with the default
+# variables and merged with the ArcPanel override, refused when it asks for
+# privileges, devices, host namespaces, the Docker socket, named volumes,
+# bind mounts outside the app's data folder, published ports of its own or
+# images that are not pinned in the manifest. It needs the Docker CLI with
+# the Compose plugin, not a running engine. Exits with E_INVALID when an app
+# is refused.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+dir=$1
+format=${2-shell}
+
+# Includes
+# shellcheck source=/etc/hestiacp/hestia.conf
+source /etc/hestiacp/hestia.conf
+# shellcheck source=/usr/local/hestia/func/main.sh
+source $HESTIA/func/main.sh
+# shellcheck source=/usr/local/hestia/func/tenancy.sh
+source $HESTIA/func/tenancy.sh
+# shellcheck source=/usr/local/hestia/func/ports.sh
+source $HESTIA/func/ports.sh
+# load config file
+source_conf "$HESTIA/conf/hestia.conf"
+# shellcheck source=/usr/local/hestia/func/docker.sh
+source $HESTIA/func/docker.sh
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+if [ -n "$dir" ]; then
+	if [ ! -d "$dir" ]; then
+		check_result "$E_NOTEXIST" "catalog $dir does not exist"
+	fi
+	export ARC_DOCKER_CATALOG
+	ARC_DOCKER_CATALOG=$(readlink -f "$dir")
+fi
+if ! docker_cmd compose version > /dev/null 2>&1; then
+	check_result "$E_NOTEXIST" "the Docker CLI with the Compose plugin is needed"
+fi
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+# A stand-in user: rendering needs a uid and a home directory, not an account
+export DOCKER_RENDER_UID=1000 DOCKER_RENDER_GID=1000
+check_user=catalog-check
+check_domain=app.example.com
+
+work=$(mktemp -d)
+trap 'rm -rf "$work"' EXIT
+results='[]'
+failed=0
+
+add_result() {
+	results=$(jq -c --arg slug "$1" --arg version "$2" --arg errors "$3" \
+		'. + [{ SLUG: $slug, VERSION: $version, STATUS: (if $errors == "" then "ok" else "invalid" end),
+			ERRORS: ($errors | split("\n") | map(select(length > 0))) }]' <<< "$results")
+	if [ -n "$3" ]; then
+		failed=$((failed + 1))
+	fi
+}
+
+for entry in "$(docker_catalog_dir)"/*; do
+	[ -d "$entry" ] || continue
+	slug=${entry##*/}
+	if ! docker_slug_valid "$slug"; then
+		add_result "$slug" "" "invalid app folder name"
+		continue
+	fi
+	versions=$(docker_versions "$slug")
+	if [ -z "$versions" ]; then
+		add_result "$slug" "" "no version folder with a manifest.json"
+		continue
+	fi
+	for version in $versions; do
+		manifest=$(docker_manifest "$slug" "$version")
+		errors=$(docker_manifest_errors "$manifest" "$slug" "$version")
+		if [ ! -s "$entry/icon.svg" ]; then
+			errors+=$'\n'"icon.svg is missing"
+		fi
+		if [ ! -s "$(docker_app_dir "$slug" "$version")/compose.yaml" ]; then
+			errors+=$'\n'"compose.yaml is missing"
+		fi
+		errors=$(printf '%s\n' "$errors" | grep .)
+		if [ -z "$errors" ]; then
+			rdir="$work/$slug-$version"
+			mkdir -p "$rdir"
+			domain=''
+			spec=''
+			port=30000
+			for pname in $(jq -r '(.ports // {}) | keys[]' "$manifest"); do
+				spec="$spec $pname:$port:no"
+				port=$((port + 1))
+				if [ "$pname" = 'web' ]; then
+					domain=$check_domain
+				fi
+			done
+			memory=$(docker_mb "$(jq -r .limits.memory "$manifest")")
+			if ! errors=$(dockerapp_env_render "$manifest" "$check_user" "$slug" "$domain" /dev/null /dev/null "$rdir/.env" install "$spec"); then
+				:
+			elif errors=$(docker_render "$rdir" "ap-check-$slug" "$check_user" "$slug" "$slug" "$version" \
+				"$(jq -r .limits.cpus "$manifest")" "$memory" "$spec"); then
+				errors=''
+			fi
+		fi
+		add_result "$slug" "$version" "$errors"
+	done
+done
+
+case "$format" in
+	json) jq . <<< "$results" ;;
+	*)
+		jq -r '.[] | if .STATUS == "ok" then "\(.SLUG) \(.VERSION): ok" else "\(.SLUG) \(.VERSION): " + (.ERRORS | join("\n    ")) end' <<< "$results"
+		;;
+esac
+
+#----------------------------------------------------------#
+#                       Hestia                             #
+#----------------------------------------------------------#
+
+if [ "$failed" -gt 0 ]; then
+	exit "$E_INVALID"
+fi
+exit

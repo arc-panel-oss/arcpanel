@@ -1,0 +1,18 @@
+services:
+  redis:
+    image: redis:8.8.3-alpine@sha256:0b2b77d3ea5078274795e3177cdbdada8b96316684a38911d528534ed679b5ec
+    # The password goes through standard input, not the command line, so
+    # that other users of the server cannot read it in the process list
+    command:
+      - sh
+      - -c
+      - printf 'requirepass %s\n' "$$REDIS_PASSWORD" | exec redis-server - --dir /data --appendonly yes --maxmemory-policy ${MAXMEMORY_POLICY}
+    environment:
+      REDIS_PASSWORD: ${PASSWORD}
+    volumes:
+      - ${ARC_DATA_DATA}:/data
+    healthcheck:
+      test: ["CMD-SHELL", 'redis-cli -a "$$REDIS_PASSWORD" --no-auth-warning ping | grep -q PONG']
+      interval: 10s
+      timeout: 5s
+      retries: 5

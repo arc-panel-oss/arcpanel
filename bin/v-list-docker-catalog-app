@@ -1,0 +1,81 @@
+#!/bin/bash
+# info: show an app of the Docker app catalog (E4)
+# options: SLUG [VERSION] [FORMAT]
+#
+# example: v-list-docker-catalog-app uptime-kuma
+# example: v-list-docker-catalog-app uptime-kuma 2.5.5 json
+#
+# This function prints the manifest of a catalog app (default: its latest
+# version) with the icon as a data URI and the list of versions. Variable
+# defaults that name the server time zone are rendered; defaults with
+# {{random:N}} are left empty (a value is generated at installation).
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+slug=$1
+version=$2
+format=${3-shell}
+
+# Includes
+# shellcheck source=/etc/hestiacp/hestia.conf
+source /etc/hestiacp/hestia.conf
+# shellcheck source=/usr/local/hestia/func/main.sh
+source $HESTIA/func/main.sh
+# shellcheck source=/usr/local/hestia/func/tenancy.sh
+source $HESTIA/func/tenancy.sh
+# shellcheck source=/usr/local/hestia/func/ports.sh
+source $HESTIA/func/ports.sh
+# load config file
+source_conf "$HESTIA/conf/hestia.conf"
+# shellcheck source=/usr/local/hestia/func/docker.sh
+source $HESTIA/func/docker.sh
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '1' "$#" 'SLUG [VERSION] [FORMAT]'
+if ! docker_slug_valid "$slug" || [ -z "$(docker_versions "$slug")" ]; then
+	check_result "$E_NOTEXIST" "app $slug is not in the catalog"
+fi
+if [ -z "$version" ] || [ "$version" = 'latest' ]; then
+	version=$(docker_latest_version "$slug")
+fi
+if ! docker_version_exists "$slug" "$version"; then
+	check_result "$E_NOTEXIST" "version $version of $slug is not in the catalog"
+fi
+errors=$(docker_manifest_errors "$(docker_manifest "$slug" "$version")" "$slug" "$version")
+if [ -n "$errors" ]; then
+	check_result "$E_PARSING" "the manifest of $slug $version is invalid: $(head -n1 <<< "$errors")"
+fi
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+tz=$(docker_timezone)
+json=$(docker_catalog_app_json "$slug" "$version" | jq -c --arg tz "$tz" '
+	.variables = ((.variables // []) | map(
+		.default = ((.default // "")
+			| gsub("\\{\\{server\\.timezone\\}\\}"; $tz)
+			| if test("\\{\\{random:[0-9]+\\}\\}") then "" else . end)
+		| .secret = (.type == "password")))')
+
+case "$format" in
+	json) jq . <<< "$json" ;;
+	*)
+		jq -r '"SLUG: \(.slug)", "NAME: \(.name)", "VERSION: \(.version)", "VERSIONS: \(.versions | join(" "))",
+			"CATEGORY: \(.category)", "SUMMARY: \(.summary)", "IMAGES: \(.images | join(" "))",
+			"PORTS: \((.ports // {}) | to_entries | map("\(.key)=\(.value.container)") | join(" "))",
+			"VARIABLES: \((.variables // []) | map(.name) | join(" "))"' <<< "$json"
+		;;
+esac
+
+#----------------------------------------------------------#
+#                       Hestia                             #
+#----------------------------------------------------------#
+
+exit

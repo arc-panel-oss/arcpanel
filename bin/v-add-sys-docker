@@ -1,0 +1,132 @@
+#!/bin/bash
+# info: install the Docker engine for Docker apps (E4)
+# options: [DATA_ROOT]
+#
+# example: v-add-sys-docker
+# example: v-add-sys-docker /srv/docker
+#
+# This function installs Docker Engine and the Compose plugin from Docker's
+# apt repository (key fingerprint checked), writes /etc/docker/daemon.json
+# when it does not exist (log limits, live restore, no userland proxy,
+# DATA_ROOT, address pools 172.30.0.0/16), enables the engine and records
+# DOCKER_SYSTEM and DOCKER_DATA_ROOT. No hosting user gets access to the
+# Docker socket: Docker apps are run by the v-*-docker-app commands only.
+# It is safe to run again. DOCKER_APT_URL in hestia.conf overrides the
+# repository location (mirrors).
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Includes
+# shellcheck source=/etc/hestiacp/hestia.conf
+source /etc/hestiacp/hestia.conf
+# shellcheck source=/usr/local/hestia/func/main.sh
+source $HESTIA/func/main.sh
+# shellcheck source=/usr/local/hestia/func/tenancy.sh
+source $HESTIA/func/tenancy.sh
+# shellcheck source=/usr/local/hestia/func/ports.sh
+source $HESTIA/func/ports.sh
+# load config file
+source_conf "$HESTIA/conf/hestia.conf"
+# shellcheck source=/usr/local/hestia/func/docker.sh
+source $HESTIA/func/docker.sh
+
+# Argument definition
+data_root=${1:-${DOCKER_DATA_ROOT:-/var/lib/docker}}
+data_root=${data_root%/}
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+if [ "$(id -u)" != '0' ]; then
+	echo "Error: v-add-sys-docker can only be executed by the root user"
+	exit "$E_FORBIDEN"
+fi
+if ! [[ "$data_root" =~ ^/[A-Za-z0-9._/-]+$ ]] || [[ "/$data_root/" == *"/../"* ]]; then
+	check_result "$E_INVALID" "invalid data root :: $data_root"
+fi
+case "$data_root/" in
+	/home/* | "$HESTIA"/* | /etc/* | /proc/* | /sys/* | /dev/* | /run/* | /tmp/*)
+		check_result "$E_FORBIDEN" "the data root cannot be in $data_root"
+		;;
+esac
+if [ -f "$DOCKER_DAEMON_JSON" ] && ! jq -e 'type == "object"' "$DOCKER_DAEMON_JSON" > /dev/null 2>&1; then
+	check_result "$E_PARSING" "$DOCKER_DAEMON_JSON is not valid JSON"
+fi
+
+# Perform verification if read-only mode is enabled
+check_hestia_demo_mode
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+# Packages
+if ! dpkg-query -W -f='${Status}' docker-ce 2> /dev/null | grep -q 'ok installed' \
+	|| ! dpkg-query -W -f='${Status}' docker-compose-plugin 2> /dev/null | grep -q 'ok installed'; then
+	os=$(docker_os_check)
+	check_result $? "${os:-Docker is not available for this system}" "$E_INVALID"
+	echo "Adding Docker's repository for $os"
+	out=$(docker_repo_add ${os})
+	check_result $? "$out"
+	echo "Installing Docker Engine and the Compose plugin"
+	apt-get -qq update > /dev/null 2>&1
+	DEBIAN_FRONTEND=noninteractive apt-get -y -qq -o Dpkg::Options::=--force-confold install \
+		docker-ce docker-ce-cli containerd.io docker-compose-plugin > /dev/null
+	check_result $? "Docker Engine could not be installed" "$E_UPDATE"
+fi
+
+# Engine configuration: an existing daemon.json belongs to the administrator
+restart=no
+if [ ! -f "$DOCKER_DAEMON_JSON" ]; then
+	mkdir -p /etc/docker "$data_root"
+	docker_daemon_json "$data_root" > "$DOCKER_DAEMON_JSON"
+	chmod 644 "$DOCKER_DAEMON_JSON"
+	restart=yes
+else
+	data_root=$(jq -r '."data-root" // "/var/lib/docker"' "$DOCKER_DAEMON_JSON")
+fi
+
+systemctl enable containerd docker > /dev/null 2>&1
+if [ "$restart" = 'yes' ]; then
+	systemctl restart docker
+else
+	systemctl start docker
+fi
+for _ in $(seq 1 30); do
+	if docker_cmd info > /dev/null 2>&1; then
+		break
+	fi
+	sleep 1
+done
+docker_cmd info > /dev/null 2>&1
+check_result $? "the Docker engine did not start (journalctl -u docker)" "$E_RESTART"
+
+# The socket stays root:docker 0660 and the docker group stays empty of
+# hosting users
+for member in $(getent group docker | cut -d: -f4 | tr ',' ' '); do
+	if [ -d "$HESTIA/data/users/$member" ]; then
+		gpasswd -d "$member" docker > /dev/null 2>&1
+	fi
+done
+
+mkdir -p "$(docker_state_dir)"
+chmod 750 "$(docker_state_dir)"
+
+if [ "$DOCKER_SYSTEM" != 'yes' ]; then
+	"$BIN/v-change-sys-config-value" DOCKER_SYSTEM yes
+fi
+if [ "$DOCKER_DATA_ROOT" != "$data_root" ]; then
+	"$BIN/v-change-sys-config-value" DOCKER_DATA_ROOT "$data_root"
+fi
+
+#----------------------------------------------------------#
+#                       Hestia                             #
+#----------------------------------------------------------#
+
+$BIN/v-log-action "system" "Info" "Docker" "Docker engine ready (Version: $(docker_cmd version --format '{{.Server.Version}}' 2> /dev/null), Data root: $data_root)."
+log_event "$OK" "$ARGUMENTS"
+
+exit

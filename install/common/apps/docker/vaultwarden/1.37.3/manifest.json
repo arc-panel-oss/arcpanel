@@ -1,0 +1,67 @@
+{
+	"schema": 1,
+	"slug": "vaultwarden",
+	"version": "1.37.3",
+	"name": "Vaultwarden",
+	"summary": "Password manager server compatible with the Bitwarden apps.",
+	"description": "Vaultwarden is a lightweight server for the Bitwarden browser extensions, desktop and mobile apps. Vaults are stored in a SQLite database in the app's data folder.\n\nThe Bitwarden apps need HTTPS: request a certificate for the domain before you create accounts.",
+	"category": "security",
+	"homepage": "https://github.com/dani-garcia/vaultwarden",
+	"changelog": "https://github.com/dani-garcia/vaultwarden/releases",
+	"license": "AGPL-3.0",
+	"admin_only": false,
+	"arch": ["amd64", "arm64"],
+	"images": [
+		"vaultwarden/server:1.37.3-alpine@sha256:9a905c5cf5df61bb827da3805e160170741c0b53b0c63bb07e1afd3d2e21b1c8"
+	],
+	"requirements": {
+		"memory": "64M",
+		"disk": "512M"
+	},
+	"limits": {
+		"memory": "256M",
+		"cpus": "0.5"
+	},
+	"ports": {
+		"web": {
+			"service": "app",
+			"container": 8080
+		}
+	},
+	"volumes": [
+		{
+			"name": "data"
+		}
+	],
+	"variables": [
+		{
+			"name": "TZ",
+			"label": "Time zone",
+			"type": "string",
+			"default": "{{server.timezone}}",
+			"required": true,
+			"pattern": "^[A-Za-z0-9_/+-]{1,64}$"
+		},
+		{
+			"name": "SIGNUPS_ALLOWED",
+			"label": "Allow new accounts",
+			"type": "bool",
+			"default": "true",
+			"required": true
+		},
+		{
+			"name": "ADMIN_TOKEN",
+			"label": "Token of the admin page (/admin)",
+			"type": "password",
+			"default": "{{random:40}}",
+			"required": true
+		}
+	],
+	"healthcheck": {
+		"type": "http",
+		"path": "/alive",
+		"expect": [200],
+		"timeout": 120
+	},
+	"post_install": "Open {{url}} to create your account, then turn off \"Allow new accounts\" in the app settings when everyone has one. The admin page is {{url}}/admin."
+}
