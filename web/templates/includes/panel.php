@@ -452,7 +452,7 @@
 						<li class="main-menu-item">
 							<a class="main-menu-item-link <?php if ($TAB == "BACKUP") {
        	echo "active";
-       } ?>" href="/list/backup/" title="<?= _("Backups") ?>: <?= $panel[$user]["U_BACKUPS"] ?>&#13;<?= _("Limit") ?>: <?= $panel[$user]["BACKUPS"] == "unlimited" ? "∞" : $panel[$user]["BACKUPS"] ?>">
+       } ?>" href="<?= tohtml(arc_route("/list/backup/")) ?>" title="<?= _("Backups") ?>: <?= $panel[$user]["U_BACKUPS"] ?>&#13;<?= _("Limit") ?>: <?= $panel[$user]["BACKUPS"] == "unlimited" ? "∞" : $panel[$user]["BACKUPS"] ?>">
 								<p class="main-menu-item-label"><?= _("BACKUP") ?><i class="fas fa-file-zipper"></i></p>
 								<ul class="main-menu-stats">
 									<li>

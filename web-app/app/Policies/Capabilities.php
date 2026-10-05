@@ -110,9 +110,15 @@ final class Capabilities
         // Rate limits of domains and accounts: administrators (web/edit/mail).
         'mail.rate.edit' => self::ADMIN,
 
+        // Backups (E7 batch 1 spec §5.1, D7): resellers for their tree
+        'backups.view' => self::ALL_ROLES,
+        'backups.create' => self::ALL_ROLES,
+        'backups.restore' => self::ALL_ROLES,
+        'backups.delete' => self::ALL_ROLES,
+        'backups.exclusions.edit' => self::ALL_ROLES,
+
         // Modules still served by the legacy pages: navigation only. A
         // reseller reaches them for its own account.
-        'backups.view' => self::OWN,
         'logs.view' => self::OWN,
         'stats.view' => self::OWN,
     ];

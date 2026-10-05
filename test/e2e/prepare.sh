@@ -12,7 +12,8 @@
 #                                 "echo e2e-cron" without e-mail reports, the
 #                                 DNS zone e2e-zone.example and the mail
 #                                 domain e2e-mail.example with the account
-#                                 info (E7)
+#                                 info (E7); arce2ebackup has a package with
+#                                 incremental backups (E7 Backups)
 #   prepare.sh cleanup            deletes them again
 #   prepare.sh ports RANGE        allocates RANGE to arce2euser (E6)
 #   prepare.sh listen PORT        serves "arce2e-app-PORT" on 127.0.0.1:PORT
@@ -24,11 +25,20 @@
 #   prepare.sh dockerapps         the Docker engine and a web domain with
 #                                 HTTPS for arce2edev (E4); dockerapps-clean
 #                                 removes its apps and the domain again
+#   prepare.sh backups            a local restic repository (when the server
+#                                 has none), a web domain, ~/tmp/e2e-note.txt,
+#                                 one tar backup and one snapshot for
+#                                 arce2ebackup (E7); backups-clear-queue,
+#                                 backups-change-file and backups-run-queue go
+#                                 with it
 set -euo pipefail
 
 HESTIA="${HESTIA:-/usr/local/hestia}"
 B="$HESTIA/bin"
-USERS="arce2eadmin arce2euser arce2ereseller arce2ecustomer arce2edev"
+USERS="arce2eadmin arce2euser arce2ereseller arce2ecustomer arce2edev arce2ebackup"
+BACKUP_PACKAGE=arce2e-backups
+RESTIC_REPO=/backup/restic-e2e
+RESTIC_STATE=/root/.arcpanel-e2e-restic
 PLAN=arce2e-plan
 STATE=/root/.arcpanel-e2e-debug-mode
 
@@ -46,6 +56,27 @@ delete_users() {
 	"$B/v-delete-user" arce2ereseller > /dev/null 2>&1 || true
 	"$B/v-delete-user-package" "$PLAN" > /dev/null 2>&1 || true
 	"$B/v-delete-package-tenancy" "$PLAN" > /dev/null 2>&1 || true
+	"$B/v-delete-user-package" "$BACKUP_PACKAGE" > /dev/null 2>&1 || true
+}
+
+# Backups spec (E7): restic repository, domain, file, one archive, one snapshot
+backups_prepare() {
+	local user=arce2ebackup
+	if [ ! -f "$HESTIA/conf/restic.conf" ]; then
+		mkdir -p "$RESTIC_REPO"
+		"$B/v-add-backup-host-restic" "$RESTIC_REPO" 5 -1 -1 -1 -1 > /dev/null
+		touch "$RESTIC_STATE"
+	fi
+	if ! "$B/v-list-web-domain" "$user" e2e-backup.example > /dev/null 2>&1; then
+		"$B/v-add-web-domain" "$user" e2e-backup.example > /dev/null
+	fi
+	runuser -u "$user" -- sh -c "mkdir -p /home/$user/tmp && echo original > /home/$user/tmp/e2e-note.txt"
+	sed -i "/'$user'/d; / $user /d" "$HESTIA/data/queue/backup.pipe" 2> /dev/null || true
+	for backup in $("$B/v-list-user-backups" "$user" plain | awk '{print $1}'); do
+		"$B/v-delete-user-backup" "$user" "$backup" > /dev/null 2>&1 || true
+	done
+	"$B/v-backup-user" "$user" > /dev/null 2>&1
+	"$B/v-backup-user-restic" "$user" > /dev/null 2>&1
 }
 
 stop_listeners() {
@@ -300,6 +331,27 @@ case "${1:-}" in
 			| grep -oE "WEB_PORT='[0-9]*'" | cut -d"'" -f2 || true
 		exit 0
 		;;
+	backups)
+		backups_prepare
+		exit 0
+		;;
+	backups-clear-queue)
+		sed -i "/'arce2ebackup'/d; / arce2ebackup /d" "$HESTIA/data/queue/backup.pipe" 2> /dev/null || true
+		exit 0
+		;;
+	backups-change-file)
+		runuser -u arce2ebackup -- sh -c 'echo changed > /home/arce2ebackup/tmp/e2e-note.txt'
+		exit 0
+		;;
+	backups-run-queue)
+		# The queued file restore of arce2ebackup, run as v-update-sys-queue would
+		file=$(mktemp)
+		grep "v-restore-file-restic 'arce2ebackup' " "$HESTIA/data/queue/backup.pipe" > "$file" || true
+		bash "$file" > /dev/null 2>&1 || true
+		rm -f "$file"
+		cat /home/arce2ebackup/tmp/e2e-note.txt
+		exit 0
+		;;
 	port-app)
 		# The registry app of PORT of arce2edev, empty when it is free
 		grep "^PORT='${2:?port}' " "$HESTIA/data/ports/arce2edev.conf" 2> /dev/null | grep -oE "APP='[^']*'" | cut -d"'" -f2 || true
@@ -310,6 +362,11 @@ esac
 if [ "${1:-}" = cleanup ]; then
 	stop_listeners
 	delete_users
+	if [ -f "$RESTIC_STATE" ]; then
+		"$B/v-delete-backup-host-restic" > /dev/null 2>&1 || rm -f "$HESTIA/conf/restic.conf"
+		"$B/v-change-sys-config-value" BACKUP_INCREMENTAL no > /dev/null 2>&1 || true
+		rm -rf "$RESTIC_REPO" "$RESTIC_STATE"
+	fi
 	if [ -f "$STATE" ]; then
 		"$B/v-change-sys-config-value" DEBUG_MODE "$(cat "$STATE")"
 		rm -f "$STATE"
@@ -331,6 +388,14 @@ fi
 # Port registry (E12): the reseller tree may hold 30 ports; every run starts
 # without ports, the ports spec allocates them through the UI.
 "$B/v-change-package-tenancy" "$PLAN" PORTS 30
+# Backups (E7): a package with incremental backups
+if ! "$B/v-list-user-package" "$BACKUP_PACKAGE" > /dev/null 2>&1; then
+	file="$(mktemp)"
+	sed "s/^BACKUPS_INCREMENTAL=.*/BACKUPS_INCREMENTAL='yes'/" "$HESTIA/data/packages/default.pkg" > "$file"
+	grep -q '^BACKUPS_INCREMENTAL=' "$file" || echo "BACKUPS_INCREMENTAL='yes'" >> "$file"
+	"$B/v-add-user-package" "$file" "$BACKUP_PACKAGE" > /dev/null
+	rm -f "$file"
+fi
 # Node.js manager (E13): the developer package
 "$B/v-add-sys-node" > /dev/null
 for user in $USERS; do
@@ -338,6 +403,7 @@ for user in $USERS; do
 		package=default
 		if [ "$user" = arce2ereseller ]; then package="$PLAN"; fi
 		if [ "$user" = arce2edev ]; then package=developer; fi
+		if [ "$user" = arce2ebackup ]; then package="$BACKUP_PACKAGE"; fi
 		"$B/v-add-user" "$user" "$password" "$user@example.invalid" "$package" > /dev/null
 	fi
 	file="$(mktemp)"

@@ -3,6 +3,9 @@
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\LogoutController;
 use App\Http\Controllers\Auth\TwoFactorController;
+use App\Http\Controllers\Backups\BackupController;
+use App\Http\Controllers\Backups\ExclusionController;
+use App\Http\Controllers\Backups\SnapshotController;
 use App\Http\Controllers\Cron\CronActionController;
 use App\Http\Controllers\Cron\CronController;
 use App\Http\Controllers\DashboardController;
@@ -17,6 +20,7 @@ use App\Http\Controllers\Docker\DockerEngineController;
 use App\Http\Controllers\Files\FileController;
 use App\Http\Controllers\Files\FilePageController;
 use App\Http\Controllers\Files\FileTransferController;
+use App\Http\Controllers\Files\SnapshotFileController;
 use App\Http\Controllers\ImpersonationController;
 use App\Http\Controllers\Mail\MailAccountController;
 use App\Http\Controllers\Mail\MailActionController;
@@ -64,6 +68,9 @@ Route::pattern('job', '\d{1,9}');
 Route::pattern('record', '\d{1,9}');
 // Mail account names (is_localpart_format_valid)
 Route::pattern('account', '[\w.-]{1,64}');
+// Backup archives (USER.DATE_TIME.tar…) and restic snapshot ids
+Route::pattern('backup', '[A-Za-z0-9][A-Za-z0-9_.-]{0,250}');
+Route::pattern('snapshot', '[0-9a-f]{8,64}');
 
 Route::middleware('guest.arc')->group(function () {
     Route::get('/login', [LoginController::class, 'show'])->name('login');
@@ -256,6 +263,9 @@ Route::middleware('auth.arc')->group(function () {
                 Route::get('/search', [FileController::class, 'search'])->name('search');
                 // A download changes nothing: read-only sessions may download
                 Route::post('/download', [FileTransferController::class, 'download'])->name('download');
+                // Snapshot mode (E7 batch 1 spec §10.3)
+                Route::get('/snapshots/{snapshot}/list', [SnapshotFileController::class, 'list'])->name('snapshots.list');
+                Route::post('/snapshots/{snapshot}/restore', [SnapshotFileController::class, 'restore'])->middleware('not-readonly')->name('snapshots.restore');
                 Route::middleware('not-readonly')->group(function () {
                     Route::put('/save', [FileController::class, 'save'])->name('save');
                     foreach (['mkdir', 'touch', 'rename', 'copy', 'move', 'delete', 'chmod', 'compress', 'extract'] as $action) {
@@ -268,6 +278,29 @@ Route::middleware('auth.arc')->group(function () {
                     Route::delete('/upload/{token}', [FileTransferController::class, 'cancel'])->where('token', '[a-f0-9]{32}')->name('upload.cancel');
                 });
             });
+        });
+    });
+
+    // Backups (E7 batch 1 spec §10)
+    Route::get('/backups', [BackupController::class, 'entry'])->name('backups.index');
+    Route::prefix('backups/{user}')->name('backups.')->middleware('effective-user')->group(function () {
+        Route::get('/', [BackupController::class, 'index'])->name('archives.index');
+        Route::get('/archives/{backup}', [BackupController::class, 'show'])->name('archives.show');
+        // A download changes nothing (web/download/backup)
+        Route::get('/archives/{backup}/download', [BackupController::class, 'download'])->name('archives.download');
+        Route::get('/snapshots', [SnapshotController::class, 'index'])->name('snapshots.index');
+        Route::get('/snapshots/{snapshot}', [SnapshotController::class, 'show'])->name('snapshots.show');
+        Route::get('/exclusions', [ExclusionController::class, 'edit'])->name('exclusions.edit');
+
+        Route::middleware('not-readonly')->group(function () {
+            Route::post('/', [BackupController::class, 'store'])->name('archives.store');
+            Route::post('/bulk', [BackupController::class, 'bulk'])->name('archives.bulk');
+            Route::post('/archives/{backup}/restore', [BackupController::class, 'restore'])->name('archives.restore');
+            Route::delete('/archives/{backup}', [BackupController::class, 'destroy'])->name('archives.destroy');
+            Route::post('/snapshots', [SnapshotController::class, 'store'])->name('snapshots.store');
+            Route::post('/snapshots/{snapshot}/restore', [SnapshotController::class, 'restore'])->name('snapshots.restore');
+            Route::delete('/snapshots/{snapshot}', [SnapshotController::class, 'destroy'])->name('snapshots.destroy');
+            Route::post('/exclusions', [ExclusionController::class, 'update'])->name('exclusions.update');
         });
     });
 

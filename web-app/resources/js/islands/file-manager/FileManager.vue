@@ -8,7 +8,7 @@ import { csrfToken } from '../../http.js';
 import ApDialog from '../shared/ApDialog.vue';
 import ApIcon from '../shared/ApIcon.vue';
 import { translator } from '../shared/strings.js';
-import { createApi } from './api.js';
+import { createApi, createSnapshotApi } from './api.js';
 import ConflictDialog from './ConflictDialog.vue';
 import ContextMenu from './ContextMenu.vue';
 import FileAside from './FileAside.vue';
@@ -43,8 +43,12 @@ const props = defineProps({
 });
 
 const t = translator(props.initial.strings);
-const api = createApi(props.initial.base, t);
-const manage = Boolean(props.initial.abilities?.manage) && !props.initial.readOnly;
+// Snapshot mode: a restic snapshot of the home directory, read-only, with
+// "Restore" (E7 batch 1 spec §10.3)
+const snapshot = props.initial.snapshot ?? null;
+const api = snapshot ? createSnapshotApi(props.initial.base, snapshot.id, t) : createApi(props.initial.base, t);
+const manage = Boolean(props.initial.abilities?.manage) && !props.initial.readOnly && !snapshot;
+const canRestore = Boolean(snapshot?.restore);
 const limits = props.initial.limits;
 
 const path = ref(props.initial.listing?.path ?? props.initial.path ?? '');
@@ -59,7 +63,7 @@ const selected = ref([]);
 const anchor = ref(null);
 const clipboard = ref(null);
 const treeVersion = ref(0);
-const editing = ref(props.initial.edit ?? null);
+const editing = ref(snapshot ? null : (props.initial.edit ?? null));
 const editor = ref(null);
 const list = ref(null);
 const quota = ref(props.initial.quota ?? { used: 0, quota: null });
@@ -73,6 +77,7 @@ const picking = reactive({ open: false, mode: 'copy', busy: false });
 const conflict = reactive({ open: false, names: [], busy: false, retry: null });
 const preview = reactive({ open: false, entry: null, kind: '', url: '' });
 const shortcutsOpen = ref(false);
+const restoring = reactive({ open: false, entry: null, busy: false });
 
 const uploadTick = ref(0);
 const showUploads = ref(false);
@@ -125,6 +130,7 @@ function pageUrl(folder, edit = null) {
 	const encode = (value) => segments(value).map(encodeURIComponent).join('/');
 	let url = props.initial.page;
 	const params = [];
+	if (snapshot) params.push(`snapshot=${encodeURIComponent(snapshot.id)}`);
 	if (folder !== '') params.push(`path=${encode(folder)}`);
 	if (edit) params.push(`edit=${encode(edit)}`);
 	if (params.length > 0) url += `?${params.join('&')}`;
@@ -277,6 +283,10 @@ function open(entry) {
 	}
 	if (entry.dir) {
 		navigate(full(entry));
+	} else if (snapshot) {
+		// Files of a snapshot are only selected, for Restore
+		selected.value = [entry.name];
+		anchor.value = entry.name;
 	} else if (isEditable(entry, limits.editMax)) {
 		edit(entry);
 	} else if (previewKind(entry)) {
@@ -331,6 +341,27 @@ async function download(items = selectedEntries.value) {
 		link.remove();
 	} catch (error) {
 		api.fail(error);
+	}
+}
+
+/* ---------- Snapshot mode ---------- */
+
+function askRestore(entry = selectedEntries.value[0]) {
+	if (canRestore && entry) {
+		Object.assign(restoring, { open: true, entry, busy: false });
+	}
+}
+
+async function confirmRestore() {
+	restoring.busy = true;
+	try {
+		const data = await api.restore(full(restoring.entry));
+		restoring.open = false;
+		api.toast('ok', data.message);
+	} catch (error) {
+		api.fail(error);
+	} finally {
+		restoring.busy = false;
 	}
 }
 
@@ -568,6 +599,12 @@ function menuItems(entry) {
 		];
 	}
 	const single = selectedEntries.value.length <= 1;
+	if (snapshot) {
+		return [
+			...(single && entry.dir ? [{ action: 'open', label: t('Open'), icon: 'folder', kbd: 'Enter' }] : []),
+			...(single && canRestore ? [{ action: 'restore', label: t('Restore'), icon: 'history' }] : []),
+		];
+	}
 	const items = [];
 	if (single) {
 		items.push({ action: 'open', label: entry.dir ? t('Open') : isEditable(entry, limits.editMax) ? (manage ? t('Edit') : t('View')) : previewKind(entry) ? t('Preview') : t('Download'), icon: entry.dir ? 'folder' : 'edit', kbd: 'Enter' });
@@ -619,6 +656,9 @@ function act(action) {
 			break;
 		case 'download':
 			download();
+			break;
+		case 'restore':
+			if (entry) askRestore(entry);
 			break;
 		case 'mkdir':
 		case 'touch':
@@ -788,7 +828,14 @@ onBeforeUnmount(() => {
 
 <template>
 	<div class="ap-stack">
-		<div v-if="initial.readOnly" class="ap-alert is-info" role="note">
+		<div v-if="snapshot" class="ap-alert is-info" role="note">
+			<ApIcon name="history" />
+			<div class="ap-alert-body">
+				<p>{{ t('Snapshot %s · %s · read-only', snapshot.id, snapshot.time) }}</p>
+				<p><a :href="snapshot.back">{{ t('Back to the backups') }}</a></p>
+			</div>
+		</div>
+		<div v-else-if="initial.readOnly" class="ap-alert is-info" role="note">
 			<ApIcon name="info" />
 			<div class="ap-alert-body"><p>{{ t('Read-only: changes are disabled.') }}</p></div>
 		</div>
@@ -809,7 +856,7 @@ onBeforeUnmount(() => {
 						</template>
 					</nav>
 					<div class="ap-topbar-spacer"></div>
-					<form class="ap-input-affix ap-toolbar-search" role="search" @submit.prevent="runSearch">
+					<form v-if="!snapshot" class="ap-input-affix ap-toolbar-search" role="search" @submit.prevent="runSearch">
 						<ApIcon name="search" size="sm" />
 						<input id="fm-search" v-model="search.query" class="ap-input" type="search" :placeholder="t('Search in this folder')" :aria-label="t('Search in this folder')" @keydown.esc="search.results = null" />
 					</form>
@@ -833,7 +880,8 @@ onBeforeUnmount(() => {
 						<button type="button" class="ap-btn ap-btn-icon ap-btn-ghost ap-btn-sm" :aria-label="t('Copy')" :disabled="selected.length === 0" @click="toClipboard('copy')"><ApIcon name="copy" /></button>
 						<button type="button" class="ap-btn ap-btn-icon ap-btn-ghost ap-btn-sm" :aria-label="t('Paste')" :disabled="!clipboard || !canWriteHere" @click="paste"><ApIcon name="clipboard" /></button>
 					</template>
-					<button type="button" class="ap-btn ap-btn-icon ap-btn-ghost ap-btn-sm" :aria-label="t('Download')" :disabled="selected.length === 0" @click="download()"><ApIcon name="download" /></button>
+					<button v-if="!snapshot" type="button" class="ap-btn ap-btn-icon ap-btn-ghost ap-btn-sm" :aria-label="t('Download')" :disabled="selected.length === 0" @click="download()"><ApIcon name="download" /></button>
+					<button v-if="canRestore" type="button" class="ap-btn ap-btn-primary ap-btn-sm" :disabled="selected.length !== 1" @click="askRestore()"><ApIcon name="history" />{{ t('Restore') }}</button>
 					<template v-if="manage">
 						<button type="button" class="ap-btn ap-btn-icon ap-btn-ghost ap-btn-sm" :aria-label="t('Compress to zip')" :disabled="selected.length === 0 || !canWriteHere" @click="askName('compress')"><ApIcon name="archive" /></button>
 						<button type="button" class="ap-btn ap-btn-icon ap-btn-ghost ap-btn-sm" :aria-label="t('Rename')" :disabled="selected.length !== 1" @click="askName('rename')"><ApIcon name="edit" /></button>
@@ -927,14 +975,15 @@ onBeforeUnmount(() => {
 						</template>
 					</div>
 
-					<FileAside :entries="selectedEntries" :path="path" :manage="manage" :edit-max="limits.editMax" :api="api" :t="t" @action="act" />
+					<FileAside v-if="!snapshot" :entries="selectedEntries" :path="path" :manage="manage" :edit-max="limits.editMax" :api="api" :t="t" @action="act" />
 				</div>
 
 				<div class="ap-fm-status">
 					<span>{{ t('%d items', total) }}<template v-if="selected.length > 0"> · {{ t('%d selected', selected.length) }} ({{ formatSize(selectionSize) }})</template></span>
 					<span v-if="!canWriteHere && manage" class="muted">{{ t('You cannot change this folder.') }}</span>
 					<div class="ap-topbar-spacer"></div>
-					<span v-if="disk.quota !== null">
+					<span v-if="snapshot"></span>
+					<span v-else-if="disk.quota !== null">
 						{{ t('Disk %s of %s', formatSize(disk.used * 1048576), formatSize(disk.quota * 1048576)) }}
 						<span class="ap-bar" role="meter" :aria-label="t('Disk used')" aria-valuemin="0" aria-valuemax="100" :aria-valuenow="disk.percent"><span :style="{ width: `${disk.percent}%` }"></span></span>
 					</span>
@@ -973,6 +1022,14 @@ onBeforeUnmount(() => {
 			<template #footer>
 				<button type="button" class="ap-btn ap-btn-ghost" data-autofocus @click="deleting.open = false">{{ t('Cancel') }}</button>
 				<button type="button" class="ap-btn ap-btn-danger" :disabled="deleting.busy" @click="confirmDelete">{{ t('Delete') }}</button>
+			</template>
+		</ApDialog>
+
+		<ApDialog :open="restoring.open" :title="t('Restore')" icon="history" @close="restoring.open = false">
+			<p>{{ t('Restore %s from the snapshot? The current file is overwritten.', restoring.entry?.name ?? '') }}</p>
+			<template #footer>
+				<button type="button" class="ap-btn ap-btn-ghost" data-autofocus @click="restoring.open = false">{{ t('Cancel') }}</button>
+				<button type="button" class="ap-btn ap-btn-primary" :disabled="restoring.busy" @click="confirmRestore">{{ t('Restore') }}</button>
 			</template>
 		</ApDialog>
 

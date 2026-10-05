@@ -428,7 +428,8 @@ test('the legacy menu opens the new page, /fm/ still works, and FILE_MANAGER swi
 	page,
 }) => {
 	await login(page, USER);
-	await page.goto('/list/dns/');
+	// A page that is still legacy (DNS moved to the panel app in E7)
+	await page.goto('/list/log/', { referer: new URL('/app/', page.url()).href });
 	await expect(page.locator('a.top-bar-menu-link[title="File manager"]')).toHaveAttribute(
 		'href',
 		'/app/files',

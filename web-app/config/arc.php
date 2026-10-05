@@ -31,6 +31,10 @@ return [
     // is_password_valid and is_hash_valid).
     'secret_dir' => env('ARC_SECRET_DIR', '/tmp'),
 
+    // Local backup archives, served by the internal /backup/ location of
+    // hestia-nginx (E7 Backups page; web/download/backup uses the same path).
+    'backup_dir' => env('ARC_BACKUP_DIR', '/backup'),
+
     // Default timeout of one v-* call, in seconds.
     'command_timeout' => (int) env('ARC_COMMAND_TIMEOUT', 60),
 

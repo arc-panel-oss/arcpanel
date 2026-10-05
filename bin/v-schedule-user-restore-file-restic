@@ -1,0 +1,92 @@
+#!/bin/bash
+# info: schedule the restore of a file or folder from a restic snapshot (E7)
+# options: USER SNAPSHOT PATH
+#
+# example: v-schedule-user-restore-file-restic alice 4f2a91c0 /home/alice/web/example.com/public_html/index.php
+#
+# This function queues v-restore-file-restic for one file or folder of a
+# snapshot of USER. PATH is absolute and inside /home/USER; it may hold
+# letters, digits and . _ @ + - only, because v-restore-file-restic passes it
+# to restic unquoted. The restore overwrites the current file. The queue line
+# removes itself when it has run (v-restore-file-restic cannot remove a line
+# whose path holds slashes); the restore is logged in the user's log.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+user=$1
+snapshot=$2
+path=$3
+
+# Includes
+# shellcheck source=/etc/hestiacp/hestia.conf
+source /etc/hestiacp/hestia.conf
+# shellcheck source=/usr/local/hestia/func/main.sh
+source $HESTIA/func/main.sh
+# load config file
+source_conf "$HESTIA/conf/hestia.conf"
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '3' "$#" 'USER SNAPSHOT PATH'
+is_format_valid 'user' 'snapshot'
+is_system_enabled "$BACKUP_SYSTEM" 'BACKUP_SYSTEM'
+is_object_valid 'user' 'USER' "$user"
+is_object_unsuspended 'user' 'USER' "$user"
+is_incremental_backup_enabled
+
+# The path: absolute, below the home directory, no "..", no character the
+# unquoted restic call or the queue line would interpret.
+home="/home/$user"
+path="${path%/}"
+if ! [[ "$path" =~ ^/[[:alnum:]._@+/-]+$ ]]; then
+	check_result "$E_INVALID" "invalid path format :: $path"
+fi
+if [[ "/$path/" == *"/../"* ]] || [[ "/$path/" == *"/./"* ]] || [[ "$path" == *"//"* ]]; then
+	check_result "$E_INVALID" "invalid path format :: $path"
+fi
+if [ "$path" = "$home" ] || [[ "$path" != "$home"/* ]]; then
+	check_result "$E_FORBIDEN" "the path is outside the home directory of $user"
+fi
+
+# One restore of the user at a time (is_backup_scheduled looks for unquoted
+# names only).
+is_backup_scheduled 'restore'
+if [ -e "$HESTIA/data/queue/backup.pipe" ] && grep -q "v-restore-[a-z-]*restic '$user' " "$HESTIA/data/queue/backup.pipe"; then
+	check_result "$E_EXISTS" "restore is already scheduled"
+fi
+
+# Perform verification if read-only mode is enabled
+check_hestia_demo_mode
+
+source_conf $HESTIA/conf/restic.conf
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+log=$HESTIA/log/restore.log
+
+# The snapshot must exist (as v-schedule-user-restore-restic checks it).
+if ! restic --repo "${REPO%/}/$user" --password-file "$USER_DATA/restic.conf" cat snapshot "$snapshot" > /dev/null 2>&1; then
+	check_result "$E_NOTEXIST" "snapshot $snapshot doesn't exist"
+fi
+
+# The queue runs backup.pipe with bash; the line ends with a marker that its
+# own sed call removes once the restore has run.
+marker="arcpanel-restore-file-$(date +%s)-$RANDOM"
+echo "$BIN/v-restore-file-restic '$user' '$snapshot' '$path' 'yes' >> $log 2>&1; sed -i '/$marker\$/d' $HESTIA/data/queue/backup.pipe # $marker" >> "$HESTIA/data/queue/backup.pipe"
+
+#----------------------------------------------------------#
+#                       Hestia                             #
+#----------------------------------------------------------#
+
+# Logging
+$BIN/v-log-action "$user" "Info" "Backup" "Restore of a file from a snapshot requested (Snapshot: $snapshot, Path: $path)."
+log_event "$OK" "$ARGUMENTS"
+
+exit

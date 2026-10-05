@@ -77,6 +77,30 @@ export function createApi(base, t) {
 	};
 }
 
+/**
+ * Snapshot mode (E7 batch 1 spec §10.3): folders of a restic snapshot and
+ * "Restore" through the backup queue; every other call is refused, so the
+ * read-only page cannot change anything by accident.
+ *
+ * @param {string} base  /files/{user}/api
+ * @param {string} snapshot  restic snapshot ID
+ * @param {(key: string, ...args: (string|number)[]) => string} t
+ */
+export function createSnapshotApi(base, snapshot, t) {
+	const root = `${base}/snapshots/${encodeURIComponent(snapshot)}`;
+	const refuse = () => Promise.reject(new Error(t('Read-only: changes are disabled.')));
+	const api = createApi(base, t);
+	for (const key of Object.keys(api)) {
+		if (typeof api[key] === 'function' && !['fail', 'toast'].includes(key)) {
+			api[key] = refuse;
+		}
+	}
+	api.list = (path) => call(`${root}/list${query({ path })}`);
+	api.restore = (path) => call(`${root}/restore`, { method: 'POST', body: { path } });
+
+	return api;
+}
+
 /** First message of each field of a 422 answer */
 export function fieldErrors(error) {
 	const errors = {};

@@ -6,6 +6,9 @@ $TAB = "BACKUP";
 
 include $_SERVER["DOCUMENT_ROOT"] . "/inc/main.php";
 
+// ArcPanel: served by the panel app when ARCPANEL_APP_PAGES is on (inc/arcpanel-routes.php)
+arc_redirect_if_migrated("/edit/backup/exclusions/", $_GET);
+
 // Edit as someone else?
 if ($_SESSION["userContext"] === "admin" && !empty($_GET["user"])) {
 	$user = quoteshellarg($_GET["user"]);

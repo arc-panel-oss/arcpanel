@@ -32,6 +32,7 @@ function arc_route(string $legacyPath): string {
 		"/add/dns/" => "/app/dns/create",
 		"/list/mail/" => "/app/mail",
 		"/add/mail/" => "/app/mail/create",
+		"/list/backup/" => "/app/backups",
 	];
 
 	return arc_app_pages() && isset($routes[$legacyPath]) ? $routes[$legacyPath] : $legacyPath;
@@ -168,6 +169,41 @@ function arc_redirect_if_migrated(string $legacyPath, array $query = []): void {
 			} else {
 				return;
 			}
+			break;
+		case "/list/backup/":
+			if ($owner === "") {
+				return;
+			}
+			$url = "/app/backups/" . $segment($owner);
+			$backup = isset($query["backup"]) ? (string) $query["backup"] : "";
+			if ($backup !== "") {
+				if (preg_match('/^[A-Za-z0-9][A-Za-z0-9_.-]{0,250}$/', $backup) !== 1) {
+					return;
+				}
+				$url .= "/archives/" . $segment($backup);
+			}
+			break;
+		case "/list/backup/incremental/":
+			if ($owner === "") {
+				return;
+			}
+			$snapshot = isset($query["snapshot"]) ? (string) $query["snapshot"] : "";
+			if ($snapshot === "") {
+				$url = "/app/backups/" . $segment($owner) . "/snapshots";
+			} elseif (preg_match('/^[0-9a-f]{8,64}$/', $snapshot) !== 1) {
+				return;
+			} elseif (!empty($query["browse"])) {
+				$url = "/app/files/" . $segment($owner) . "?snapshot=" . $snapshot;
+			} else {
+				$url = "/app/backups/" . $segment($owner) . "/snapshots/" . $snapshot;
+			}
+			break;
+		case "/list/backup/exclusions/":
+		case "/edit/backup/exclusions/":
+			if ($owner === "") {
+				return;
+			}
+			$url = "/app/backups/" . $segment($owner) . "/exclusions";
 			break;
 		default:
 			return;

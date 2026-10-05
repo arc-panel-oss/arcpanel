@@ -318,6 +318,43 @@ teardown_file() {
     v-change-sys-config-value ARCPANEL_APP_PAGES yes
 }
 
+@test "Legacy backup pages redirect to the panel app when ARCPANEL_APP_PAGES is yes" {
+    v-change-sys-config-value ARCPANEL_APP_PAGES yes
+    pages_login
+    run pages_get /list/backup/
+    assert_output "302 $PANEL/app/backups/$PAGES_USER"
+    run pages_get "/list/backup/?backup=$PAGES_USER.2026-10-06_05-10-00.tar"
+    assert_output "302 $PANEL/app/backups/$PAGES_USER/archives/$PAGES_USER.2026-10-06_05-10-00.tar"
+    run pages_get /list/backup/incremental/
+    assert_output "302 $PANEL/app/backups/$PAGES_USER/snapshots"
+    run pages_get "/list/backup/incremental/?snapshot=0123abcd"
+    assert_output "302 $PANEL/app/backups/$PAGES_USER/snapshots/0123abcd"
+    run pages_get "/list/backup/incremental/?snapshot=0123abcd&browse=yes"
+    assert_output "302 $PANEL/app/files/$PAGES_USER?snapshot=0123abcd"
+    run pages_get /edit/backup/exclusions/
+    assert_output "302 $PANEL/app/backups/$PAGES_USER/exclusions"
+    run pages_get /list/backup/exclusions/
+    assert_output "302 $PANEL/app/backups/$PAGES_USER/exclusions"
+    run pages_get "/app/backups/$PAGES_USER"
+    assert_output "200 "
+    run pages_get "/app/backups/$PAGES_USER/exclusions"
+    assert_output "200 "
+}
+
+@test "Legacy backup pages come back when ARCPANEL_APP_PAGES is no" {
+    v-change-sys-config-value ARCPANEL_APP_PAGES no
+    pages_login
+    run pages_get /list/backup/
+    assert_output "200 "
+    run pages_get /list/backup/exclusions/
+    assert_output "200 "
+    run pages_get /edit/backup/exclusions/
+    assert_output "200 "
+    run pages_get "/app/backups/$PAGES_USER"
+    assert_output "200 "
+    v-change-sys-config-value ARCPANEL_APP_PAGES yes
+}
+
 @test "Panel app build ships hashed assets and fonts" {
     run cat /usr/local/hestia/web-app/public/build/manifest.json
     assert_success
