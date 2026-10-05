@@ -9,10 +9,15 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\WebDomains\StoreWebDomainRequest;
 use App\Policies\Capabilities;
 use App\Policies\WebDomainPolicy;
+use App\Services\Ports\PortService;
 use App\Services\UserDirectory;
+use App\Services\WebDomains\BackendPorts;
 use App\Services\WebDomains\Input;
 use App\Services\WebDomains\Step;
 use App\Services\WebDomains\Tabs\AdvancedTab;
+use App\Services\WebDomains\Tabs\TemplateVarsTab;
+use App\Services\WebDomains\TemplateCatalog;
+use App\Services\WebDomains\TemplateForm;
 use App\Services\WebDomains\WebDomainService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -27,7 +32,7 @@ final class WebDomainController extends Controller
     /** Lists longer than this are paged on the server. */
     public const PAGE_SIZE = 500;
 
-    public function index(Request $request, Principal $principal, WebDomainPolicy $policy, OwnerScope $scope, WebDomainService $web, UserDirectory $directory): View
+    public function index(Request $request, Principal $principal, WebDomainPolicy $policy, OwnerScope $scope, WebDomainService $web, UserDirectory $directory, TemplateCatalog $catalog): View
     {
         abort_unless($policy->viewAny($principal), 403);
 
@@ -71,6 +76,11 @@ final class WebDomainController extends Controller
             'owner' => $owner,
             'ips' => $web->systemIps(),
             'systems' => $web->systems(),
+            // Template titles of the metadata (E6), the name when there is none
+            'templateTitles' => [
+                'web' => array_map(fn ($meta) => $meta->hasMeta ? __($meta->title) : $meta->name, $catalog->templates('web')),
+                'proxy' => array_map(fn ($meta) => $meta->hasMeta ? __($meta->title) : $meta->name, $catalog->templates('proxy')),
+            ],
             'canPurge' => $web->canPurgeCache(),
             'canCreate' => Capabilities::allows($role, 'web.create') && ! $principal->isReadOnly(),
             'canBulk' => ! $principal->isReadOnly(),
@@ -81,7 +91,7 @@ final class WebDomainController extends Controller
         ]);
     }
 
-    public function create(Request $request, Principal $principal, WebDomainPolicy $policy, OwnerScope $scope, WebDomainService $web, UserDirectory $directory): View
+    public function create(Request $request, Principal $principal, WebDomainPolicy $policy, OwnerScope $scope, WebDomainService $web, UserDirectory $directory, TemplateForm $form): View
     {
         $owner = $this->owner($request->query('owner'), $principal, $scope, $directory);
         abort_unless($policy->create($principal, $owner), 403);
@@ -89,24 +99,25 @@ final class WebDomainController extends Controller
         $userRecord = $directory->all()[$owner] ?? [];
         $canTemplates = $policy->updateTemplates($principal, $owner);
 
+        $defaults = [
+            'template' => $userRecord['WEB_TEMPLATE'] ?? 'default',
+            'backend_template' => $userRecord['BACKEND_TEMPLATE'] ?? 'default',
+            'proxy_template' => $userRecord['PROXY_TEMPLATE'] ?? 'default',
+        ];
+
         return view('web.create', [
             'owner' => $owner,
             'owners' => Capabilities::allows($principal->actingRole(), 'users.view') ? ($scope->visibleUsers() ?? $directory->names()) : null,
             'ips' => $this->ipOptions($web->userIps($owner)),
             'systems' => $web->systems(),
             'canTemplates' => $canTemplates,
-            'templates' => $canTemplates ? $web->webTemplates() : [],
             'backendTemplates' => $canTemplates ? $web->backendTemplates() : [],
-            'proxyTemplates' => $canTemplates ? $web->proxyTemplates() : [],
-            'defaults' => [
-                'template' => $userRecord['WEB_TEMPLATE'] ?? 'default',
-                'backend_template' => $userRecord['BACKEND_TEMPLATE'] ?? 'default',
-                'proxy_template' => $userRecord['PROXY_TEMPLATE'] ?? 'default',
-            ],
+            'defaults' => $defaults,
+            ...($canTemplates ? $form->data($owner, '', $defaults['template'], $defaults['proxy_template']) : []),
         ]);
     }
 
-    public function store(StoreWebDomainRequest $request, Principal $principal, WebDomainPolicy $policy, OwnerScope $scope, WebDomainService $web, UserDirectory $directory, AdvancedTab $advanced): RedirectResponse
+    public function store(StoreWebDomainRequest $request, Principal $principal, WebDomainPolicy $policy, OwnerScope $scope, WebDomainService $web, UserDirectory $directory, AdvancedTab $advanced, TemplateVarsTab $varsTab, TemplateCatalog $catalog, PortService $ports): RedirectResponse
     {
         $owner = $this->owner($request->input('owner'), $principal, $scope, $directory);
         abort_unless($policy->create($principal, $owner), 403);
@@ -118,6 +129,21 @@ final class WebDomainController extends Controller
         }
 
         $domain = (string) $request->input('domain');
+        $canTemplates = $policy->updateTemplates($principal, $owner);
+
+        // The backend port of a template that takes one is checked before the
+        // domain exists (E6 spec §7.2).
+        $kind = $catalog->activeKind();
+        $port = (string) $request->input('backend_port', '');
+        if ($canTemplates && $kind !== null) {
+            $field = $kind === 'web' ? 'template' : 'proxy_template';
+            $intended = trim((string) $request->input($field, '')) ?: 'default';
+            $meta = $catalog->find($kind, $intended);
+            if ($meta?->portVariable() !== null && $port !== '' && ! BackendPorts::accepts($ports->account($owner), $domain, '', $port)) {
+                throw ValidationException::withMessages(['backend_port' => __('Please select one of the ports of the list.')]);
+            }
+        }
+
         $steps = $web->planCreate($owner, $domain, $ip, $request->boolean('dns'), $request->boolean('mail'), $userIps);
         $aliases = Input::list($request->input('aliases'));
         if ($aliases !== []) {
@@ -136,7 +162,7 @@ final class WebDomainController extends Controller
         }
 
         // Template choices of an administrator (or with POLICY_USER_EDIT_WEB_TEMPLATES)
-        if ($policy->updateTemplates($principal, $owner)) {
+        if ($canTemplates) {
             $record = $web->find($owner, $domain);
             $templateSteps = $advanced->plan($record, [
                 'template' => $request->input('template'),
@@ -151,6 +177,17 @@ final class WebDomainController extends Controller
             if (! $result->ok()) {
                 return redirect()->route('web.domains.edit', ['user' => $owner, 'domain' => $domain])
                     ->with('error', sprintf(__('%s failed'), $result->failed->label))->with('error_detail', $result->error);
+            }
+
+            // Backend port of the new domain's template
+            $record = $web->find($owner, $domain);
+            $active = TemplateVarsTab::currentTemplate($kind, $record);
+            $meta = $active !== null ? $catalog->find((string) $kind, $active) : null;
+            $result = $web->apply($varsTab->plan($record, $meta, $port, [], true));
+            if (! $result->ok()) {
+                return redirect()->to(route('web.domains.edit', ['user' => $owner, 'domain' => $domain]).'#advanced')
+                    ->withErrors(['backend_port' => TemplateVarsTab::error($result->exitCode, $result->error, $owner)], 'advanced')
+                    ->with('error', sprintf(__('%s failed'), $result->failed->label));
             }
         }
 

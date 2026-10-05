@@ -1,0 +1,8 @@
+{
+    "DOMAIN": "example.com",
+    "ACTIVE_KIND": "proxy",
+    "ACTIVE_TEMPLATE": "default",
+    "VARIABLES": {},
+    "DECLARED": [],
+    "MISSING": []
+}

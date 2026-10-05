@@ -1,0 +1,17 @@
+{
+    "DOMAIN": "example.com",
+    "ACTIVE_KIND": "proxy",
+    "ACTIVE_TEMPLATE": "nodejs-proxy",
+    "VARIABLES": {
+        "BACKEND_PORT": "30001"
+    },
+    "DECLARED": [
+        {
+            "KEY": "BACKEND_PORT",
+            "TYPE": "port",
+            "REQUIRED": "yes",
+            "LABEL": "App port"
+        }
+    ],
+    "MISSING": []
+}

@@ -128,6 +128,24 @@ final class WebDomainService implements DomainProbe
             : $this->stringList($this->arc->json('v-list-web-templates-proxy', [], Options::allowFailure()));
     }
 
+    /**
+     * Template variables of a domain (`v-list-web-domain-tpl-vars`, E6 spec
+     * §5.2): the stored values and the required ones without a value.
+     *
+     * @return array{template: string, variables: array<string, string>, missing: list<string>}
+     */
+    public function templateVars(string $user, string $domain): array
+    {
+        $data = $this->arc->json('v-list-web-domain-tpl-vars', [$user, $domain], Options::allowFailure());
+        $variables = is_array($data['VARIABLES'] ?? null) ? array_map('strval', array_filter($data['VARIABLES'], 'is_scalar')) : [];
+
+        return [
+            'template' => is_string($data['ACTIVE_TEMPLATE'] ?? null) ? $data['ACTIVE_TEMPLATE'] : '',
+            'variables' => $variables,
+            'missing' => array_values(array_filter(is_array($data['MISSING'] ?? null) ? $data['MISSING'] : [], 'is_string')),
+        ];
+    }
+
     /** @return list<string> statistics engines, "none" first */
     public function statsEngines(): array
     {
@@ -199,7 +217,7 @@ final class WebDomainService implements DomainProbe
             try {
                 $this->arc->run($step->command, $step->args);
             } catch (ArcCommandException $e) {
-                return new ApplyResult($applied, $step, $e->userMessage());
+                return new ApplyResult($applied, $step, $e->userMessage(), $e->getCode());
             }
             $applied[] = $step;
             foreach ($step->restart as $service) {
@@ -247,6 +265,10 @@ final class WebDomainService implements DomainProbe
             $result = $this->arc->run($command, [$item['user'], $item['domain'], 'no'], Options::allowFailure());
             if ($result->ok()) {
                 $done[] = $item['domain'];
+                if ($action === 'delete') {
+                    // Ports the domain's template used go back to the pool (E6)
+                    $this->arc->run('v-delete-web-domain-tpl-vars', [$item['user'], $item['domain']], Options::allowFailure());
+                }
             } else {
                 $failed[$item['domain']] = $result->message() !== '' ? $result->message() : sprintf(__('Error code: %s'), $result->exitCode);
             }

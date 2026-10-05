@@ -13,8 +13,10 @@ use App\Http\Requests\WebDomains\SslRequest;
 use App\Http\Requests\WebDomains\StatsRequest;
 use App\Policies\WebDomainPolicy;
 use App\Services\Mail\CredentialsMailer;
+use App\Services\Ports\PortService;
 use App\Services\UserDirectory;
 use App\Services\WebDomains\ApplyResult;
+use App\Services\WebDomains\BackendPorts;
 use App\Services\WebDomains\Input;
 use App\Services\WebDomains\Step;
 use App\Services\WebDomains\Tabs\AdvancedTab;
@@ -23,6 +25,9 @@ use App\Services\WebDomains\Tabs\GeneralTab;
 use App\Services\WebDomains\Tabs\RedirectTab;
 use App\Services\WebDomains\Tabs\SslTab;
 use App\Services\WebDomains\Tabs\StatsTab;
+use App\Services\WebDomains\Tabs\TemplateVarsTab;
+use App\Services\WebDomains\TemplateCatalog;
+use App\Services\WebDomains\TemplateForm;
 use App\Services\WebDomains\WebDomainService;
 use App\View\Navigation;
 use Illuminate\Http\RedirectResponse;
@@ -35,9 +40,12 @@ use Illuminate\View\View;
  */
 final class WebDomainEditController extends Controller
 {
-    public function __construct(private readonly WebDomainService $web) {}
+    public function __construct(
+        private readonly WebDomainService $web,
+        private readonly TemplateCatalog $catalog,
+    ) {}
 
-    public function edit(string $user, string $domain, Principal $principal, WebDomainPolicy $policy, SysConfig $config, UserDirectory $directory): View
+    public function edit(string $user, string $domain, Principal $principal, WebDomainPolicy $policy, SysConfig $config, UserDirectory $directory, TemplateForm $form): View
     {
         abort_unless($policy->view($principal, $user), 403);
         $record = $this->web->find($user, $domain);
@@ -53,6 +61,13 @@ final class WebDomainEditController extends Controller
 
         $ownDomains = array_keys($this->web->forUser($user));
 
+        // Visitor-facing template and its backend port (E6)
+        $kind = $this->catalog->activeKind();
+        $active = TemplateVarsTab::currentTemplate($kind, $record);
+        $activeMeta = $active !== null ? $this->catalog->find((string) $kind, $active) : null;
+        $portKey = $activeMeta?->portVariable();
+        $currentPort = $portKey !== null ? ($this->web->templateVars($user, $domain)['variables'][$portKey] ?? '') : '';
+
         return view('web.edit', [
             'record' => $record,
             'ssl' => $record->ssl ? $this->web->ssl($user, $domain) : null,
@@ -63,9 +78,11 @@ final class WebDomainEditController extends Controller
             'domainOptions' => array_combine($ownDomains, $ownDomains),
             'docroot' => $record->customDocrootParts(),
             'redirectChoice' => RedirectTab::choice($record),
-            'templates' => $can['updateTemplates'] ? $this->web->webTemplates() : [],
             'backendTemplates' => $can['updateTemplates'] ? $this->web->backendTemplates() : [],
-            'proxyTemplates' => $can['updateTemplates'] ? $this->web->proxyTemplates() : [],
+            'activeTemplate' => $active !== null ? $this->catalog->title((string) $kind, $active) : $this->catalog->title('web', $record->template),
+            'activePort' => $currentPort,
+            'activePortMissing' => $portKey !== null && $currentPort === '',
+            ...($can['updateTemplates'] ? $form->data($user, $domain, $record->template, $record->proxyTemplate ?: 'default', $currentPort) : []),
             'statsEngines' => $this->web->statsEngines(),
             'canPurge' => $this->web->canPurgeCache(),
             'ftpPrefix' => $user.'_',
@@ -131,16 +148,16 @@ final class WebDomainEditController extends Controller
         return $this->finish($user, $domain, 'redirect', $this->web->apply($tab->plan($record, $request->values())));
     }
 
-    public function advanced(AdvancedRequest $request, string $user, string $domain, Principal $principal, WebDomainPolicy $policy, AdvancedTab $tab): RedirectResponse
+    public function advanced(AdvancedRequest $request, string $user, string $domain, Principal $principal, WebDomainPolicy $policy, AdvancedTab $tab, TemplateVarsTab $varsTab, PortService $ports): RedirectResponse
     {
         abort_unless($policy->updateTemplates($principal, $user), 403);
         $record = $this->web->find($user, $domain);
         $values = $request->values();
 
         $known = [
-            'template' => $this->web->webTemplates(),
+            'template' => $this->catalog->names('web'),
             'backend_template' => $this->web->backendTemplates(),
-            'proxy_template' => $this->web->proxyTemplates(),
+            'proxy_template' => $this->catalog->names('proxy'),
         ];
         foreach ($known as $field => $names) {
             if (($values[$field] ?? '') !== '' && $values[$field] !== null && ! in_array($values[$field], $names, true)) {
@@ -149,7 +166,30 @@ final class WebDomainEditController extends Controller
             }
         }
 
-        return $this->finish($user, $domain, 'advanced', $this->web->apply($tab->plan($record, $values, $this->web->systems())));
+        $steps = $tab->plan($record, $values, $this->web->systems());
+
+        // Backend port of the visitor-facing template (E6 spec §7.2)
+        $kind = $this->catalog->activeKind();
+        $active = TemplateVarsTab::activeTemplate($kind, $record, $values);
+        $meta = $active !== null ? $this->catalog->find((string) $kind, $active) : null;
+        $vars = $kind !== null ? $this->web->templateVars($user, $domain)['variables'] : [];
+        $port = (string) $request->input('backend_port', '');
+        $key = $meta?->portVariable();
+        if ($key !== null && $port !== '' && ! BackendPorts::accepts($ports->account($user), $domain, $vars[$key] ?? '', $port)) {
+            throw ValidationException::withMessages(['backend_port' => __('Please select one of the ports of the list.')])
+                ->errorBag('advanced')->redirectTo($this->tabUrl($user, $domain, 'advanced'));
+        }
+        $changed = $active !== TemplateVarsTab::currentTemplate($kind, $record);
+        $steps = [...$steps, ...$varsTab->plan($record, $meta, $port, $vars, $changed)];
+
+        $result = $this->web->apply($steps);
+        if (! $result->ok() && $result->failed?->command === TemplateVarsTab::COMMAND) {
+            return redirect()->to($this->tabUrl($user, $domain, 'advanced'))->withInput()
+                ->withErrors(['backend_port' => TemplateVarsTab::error($result->exitCode, $result->error, $user)], 'advanced')
+                ->with('error', sprintf(__('%s failed'), $result->failed->label));
+        }
+
+        return $this->finish($user, $domain, 'advanced', $result);
     }
 
     public function ftp(FtpRequest $request, string $user, string $domain, Principal $principal, WebDomainPolicy $policy, FtpTab $tab, CredentialsMailer $mailer, UserDirectory $directory): RedirectResponse

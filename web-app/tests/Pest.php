@@ -291,6 +291,11 @@ function fakeWebDomains(ArcCommandFake $fake): void
     $fake->on('v-list-web-templates-backend', ['json'])->returnsFixture('v-list-web-templates/backend.json');
     $fake->on('v-list-web-templates-proxy', ['json'])->returnsFixture('v-list-web-templates/proxy.json');
     $fake->on('v-list-web-stats', ['json'])->returnsFixture('v-list-web-templates/stats.json');
+    // Template metadata and domain variables (E6)
+    $fake->on('v-list-web-templates-meta', ['web', 'json'])->returnsFixture('v-list-web-templates-meta/web.json');
+    $fake->on('v-list-web-templates-meta', ['proxy', 'json'])->returnsFixture('v-list-web-templates-meta/proxy.json');
+    $fake->on('v-list-web-domain-tpl-vars')->returnsFixture('v-list-web-domain-tpl-vars/none.json');
+    $fake->on('v-delete-web-domain-tpl-vars')->returns();
 }
 
 /** Restart commands answer success. */

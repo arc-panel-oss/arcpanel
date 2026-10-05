@@ -7,6 +7,10 @@
 #                                 a self-signed certificate as JSON; the
 #                                 users start without ports (E12)
 #   prepare.sh cleanup            deletes them again
+#   prepare.sh ports RANGE        allocates RANGE to arce2euser (E6)
+#   prepare.sh listen PORT        serves "arce2e-app-PORT" on 127.0.0.1:PORT
+#   prepare.sh http DOMAIN        prints the HTTP status, then the start of
+#                                 the body, of arce2euser's DOMAIN
 set -euo pipefail
 
 HESTIA="${HESTIA:-/usr/local/hestia}"
@@ -31,7 +35,55 @@ delete_users() {
 	"$B/v-delete-package-tenancy" "$PLAN" > /dev/null 2>&1 || true
 }
 
+stop_listeners() {
+	pkill -f 'python3 -m http.server 399' > /dev/null 2>&1 || true
+	rm -rf /tmp/arce2e-listen-*
+}
+
+# Local address of arce2euser's DOMAIN: web.conf holds the NAT address when
+# the IP has one
+domain_ip() {
+	local ip
+	ip=$(grep "^DOMAIN='$1' " "$HESTIA/data/users/arce2euser/web.conf" | grep -o " IP='[^']*'" | cut -d"'" -f2)
+	if [ -f "$HESTIA/data/ips/$ip" ]; then
+		echo "$ip"
+	else
+		basename "$(grep -l "^NAT='$ip'" "$HESTIA"/data/ips/* | head -n1)"
+	fi
+}
+
+case "${1:-}" in
+	ports)
+		"$B/v-add-user-port" arce2euser "${2:?range}" > /dev/null
+		exit 0
+		;;
+	listen)
+		port="${2:?port}"
+		mkdir -p "/tmp/arce2e-listen-$port"
+		echo "arce2e-app-$port" > "/tmp/arce2e-listen-$port/index.html"
+		cd "/tmp/arce2e-listen-$port"
+		setsid nohup python3 -m http.server "$port" --bind 127.0.0.1 > /dev/null 2>&1 < /dev/null &
+		for _ in $(seq 1 25); do
+			if ss -Hltn "sport = :$port" | grep -q .; then
+				exit 0
+			fi
+			sleep 0.2
+		done
+		exit 1
+		;;
+	http)
+		domain="${2:?domain}"
+		body="$(mktemp)"
+		curl -s --noproxy '*' --max-time 10 -o "$body" -w '%{http_code}\n' \
+			--resolve "$domain:80:$(domain_ip "$domain")" "http://$domain/" || echo 000
+		head -c 200 "$body"
+		rm -f "$body"
+		exit 0
+		;;
+esac
+
 if [ "${1:-}" = cleanup ]; then
+	stop_listeners
 	delete_users
 	if [ -f "$STATE" ]; then
 		"$B/v-change-sys-config-value" DEBUG_MODE "$(cat "$STATE")"

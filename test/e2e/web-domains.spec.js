@@ -89,7 +89,9 @@ test('admin: dashboard, every owner in the list, edit a user’s domain', async 
 	await page.getByRole('link', { name: SITE }).click();
 	await expect(page.getByText(`Owner: ${USER}`, { exact: false })).toBeVisible();
 	await page.getByRole('tab', { name: 'Advanced' }).click();
-	await expect(page.locator('#advanced').getByLabel('Web Template')).toBeVisible();
+	await expect(
+		page.locator('#advanced').getByRole('group', { name: 'Web Template' }),
+	).toBeVisible();
 	await page.getByRole('tab', { name: 'Redirect' }).click();
 	await page
 		.locator('#redirect')

@@ -20,6 +20,7 @@ final class AdvancedRequest extends TabRequest
             'proxy' => ['nullable', 'boolean'],
             'proxy_template' => $name,
             'proxy_extensions' => ['nullable', 'string', 'max:4000', 'regex:/^[\w\s,.-]*$/'],
+            'backend_port' => ['nullable', 'string', 'regex:/^(auto|\d{1,5})$/'],
             'fastcgi_cache' => ['nullable', 'boolean'],
             'fastcgi_duration' => ['nullable', 'string', 'regex:/^\d+[smhd]$/'],
         ];

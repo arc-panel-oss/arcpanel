@@ -76,12 +76,12 @@
                             <td data-col="owner" data-label="{{ __('Owner') }}" class="muted">{{ $record->user }}</td>
                         @endif
                         <td data-col="ip" data-label="{{ __('IP Address') }}" class="mono">{{ $publicIp($record->ip) }}</td>
-                        <td data-col="template" data-label="{{ __('Web Template') }}" class="muted">{{ $record->template }}</td>
+                        <td data-col="template" data-label="{{ __('Web Template') }}" class="muted" title="{{ $record->template }}">{{ $templateTitles['web'][$record->template] ?? $record->template }}</td>
                         @if ($systems['backend'])
                             <td data-col="backend" data-label="{{ __('Backend Template') }}" class="muted">{{ $record->backendTemplate }}</td>
                         @endif
                         @if ($systems['proxy'])
-                            <td data-col="proxy" data-label="{{ __('Proxy Template') }}" class="muted">{{ $record->proxyTemplate ?: '—' }}</td>
+                            <td data-col="proxy" data-label="{{ __('Proxy Template') }}" class="muted" title="{{ $record->proxyTemplate }}">{{ $record->proxyTemplate !== '' ? ($templateTitles['proxy'][$record->proxyTemplate] ?? $record->proxyTemplate) : '—' }}</td>
                         @endif
                         <td data-col="ssl" data-label="{{ __('SSL') }}">
                             @if ($record->ssl)

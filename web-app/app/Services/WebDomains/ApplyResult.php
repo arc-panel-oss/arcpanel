@@ -13,6 +13,8 @@ final class ApplyResult
         public readonly array $applied,
         public readonly ?Step $failed = null,
         public readonly string $error = '',
+        /** exit code of the failed command, 0 when it did not run */
+        public readonly int $exitCode = 0,
     ) {}
 
     public function ok(): bool

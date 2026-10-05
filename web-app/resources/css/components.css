@@ -1882,6 +1882,36 @@
 	font-size: var(--ap-text-sm);
 	color: var(--ap-fg-muted);
 }
+.ap-pick-foot {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: var(--ap-space-2);
+	margin-top: auto;
+}
+.ap-pick-foot small {
+	color: var(--ap-fg-subtle);
+	font-size: 11px;
+}
+.ap-picker-tools {
+	display: flex;
+	flex-direction: column;
+	gap: var(--ap-space-2-5);
+	margin-bottom: var(--ap-space-3);
+}
+.ap-picker-chips {
+	flex-wrap: wrap;
+	gap: var(--ap-space-2);
+}
+.ap-picker-chips .ap-chip {
+	padding-inline: var(--ap-space-3);
+	cursor: pointer;
+}
+.ap-picker-scroll .ap-picker {
+	max-height: 440px;
+	overflow-y: auto;
+	padding: var(--ap-space-0-5);
+}
 
 /* ---------- Code, log ---------- */
 
@@ -2749,6 +2779,10 @@
 }
 .ap-advanced[open] > summary {
 	margin-bottom: var(--ap-space-3);
+}
+/* The content of <details> is not a flex item: space the template block */
+.ap-advanced > .ap-stack {
+	margin-bottom: var(--ap-space-4);
 }
 .ap-ftp-account {
 	display: flex;

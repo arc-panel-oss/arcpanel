@@ -32,7 +32,12 @@
                     @else
                         <x-ap-badge>{{ __('No SSL') }}</x-ap-badge>
                     @endif
-                    <x-ap-badge :mono="true">{{ $record->template }}</x-ap-badge>
+                    <x-ap-badge>{{ $activeTemplate }}</x-ap-badge>
+                    @if ($activePort !== '')
+                        <a class="ap-badge ap-badge-mono" href="{{ route('ports.index') }}" title="{{ __('App port') }}">{{ __('Port') }} {{ $activePort }}</a>
+                    @elseif ($activePortMissing)
+                        <x-ap-badge tone="warn">{{ __('App port not set') }}</x-ap-badge>
+                    @endif
                 </div>
             </div>
         </div>
@@ -155,17 +160,16 @@
             <x-ap-tab-panel name="advanced">
                 <x-ap-card :title="__('Advanced Options')" icon="layers">
                     <x-ap-form :action="route('web.domains.update.advanced', $params)">
-                        <div class="ap-form-grid">
-                            <x-ap-select name="template" :label="__('Web Template')" :options="array_combine($templates, $templates)" :value="$record->template" bag="advanced" />
-                            @if ($systems['backend'])
-                                <x-ap-select name="backend_template" :label="__('Backend Template')" :options="array_combine($backendTemplates, $backendTemplates)" :value="$record->backendTemplate" bag="advanced" />
-                            @endif
-                        </div>
                         @if ($systems['proxy'])
                             <div class="ap-settings">
                                 <x-ap-switch name="proxy" :label="__('Proxy Support')" :description="__('Serve static files through the proxy server.')" :checked="$record->hasProxy()" bag="advanced" />
                             </div>
-                            <x-ap-select name="proxy_template" :label="__('Proxy Template')" :options="array_combine($proxyTemplates, $proxyTemplates)" :value="$record->proxyTemplate ?: 'default'" bag="advanced" />
+                        @endif
+                        @include('web.partials.templates', [
+                            'values' => ['template' => $record->template, 'backend_template' => $record->backendTemplate, 'proxy_template' => $record->proxyTemplate ?: 'default'],
+                            'bag' => 'advanced',
+                        ])
+                        @if ($systems['proxy'])
                             <x-ap-textarea name="proxy_extensions" :label="__('Proxy Extensions')" :value="implode(', ', $record->proxyExtensions)" rows="3" mono bag="advanced" />
                         @endif
                         @if ($systems['nginx'])

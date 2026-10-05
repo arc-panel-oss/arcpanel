@@ -1,0 +1,86 @@
+[
+    {
+        "NAME": "caching",
+        "TITLE": "Caching proxy",
+        "DESCRIPTION": "Standard proxy that caches Apache responses for a few minutes.",
+        "CATEGORY": "general",
+        "RUNTIME": "php",
+        "INTERNAL": "no",
+        "VARIABLES": [],
+        "DOCS": "",
+        "HAS_META": "yes"
+    },
+    {
+        "NAME": "custom-tpl",
+        "TITLE": "custom-tpl",
+        "DESCRIPTION": "",
+        "CATEGORY": "other",
+        "RUNTIME": "none",
+        "INTERNAL": "no",
+        "VARIABLES": [],
+        "DOCS": "",
+        "HAS_META": "no"
+    },
+    {
+        "NAME": "default",
+        "TITLE": "Standard proxy",
+        "DESCRIPTION": "NGINX serves static files and passes everything else to Apache.",
+        "CATEGORY": "general",
+        "RUNTIME": "php",
+        "INTERNAL": "no",
+        "VARIABLES": [],
+        "DOCS": "",
+        "HAS_META": "yes"
+    },
+    {
+        "NAME": "hosting",
+        "TITLE": "Shared hosting proxy",
+        "DESCRIPTION": "Standard proxy that also refuses symlinks to files the user does not own.",
+        "CATEGORY": "general",
+        "RUNTIME": "php",
+        "INTERNAL": "no",
+        "VARIABLES": [],
+        "DOCS": "",
+        "HAS_META": "yes"
+    },
+    {
+        "NAME": "nodejs-proxy",
+        "TITLE": "Node.js app",
+        "DESCRIPTION": "Proxies the domain to a Node.js process listening on a port of your pool.",
+        "CATEGORY": "nodejs",
+        "RUNTIME": "node",
+        "INTERNAL": "no",
+        "VARIABLES": [
+            {
+                "KEY": "BACKEND_PORT",
+                "TYPE": "port",
+                "REQUIRED": "yes",
+                "LABEL": "App port"
+            }
+        ],
+        "DOCS": "",
+        "HAS_META": "yes"
+    },
+    {
+        "NAME": "static",
+        "TITLE": "Static site",
+        "DESCRIPTION": "Static files with long browser caching, gzip and security headers; PHP is never executed.",
+        "CATEGORY": "static",
+        "RUNTIME": "none",
+        "INTERNAL": "no",
+        "VARIABLES": [],
+        "DOCS": "",
+        "HAS_META": "yes"
+    },
+    {
+        "NAME": "suspended",
+        "TITLE": "Suspended",
+        "DESCRIPTION": "Page shown while the domain is suspended.",
+        "CATEGORY": "other",
+        "RUNTIME": "none",
+        "INTERNAL": "yes",
+        "VARIABLES": [],
+        "DOCS": "",
+        "HAS_META": "yes"
+    }
+]

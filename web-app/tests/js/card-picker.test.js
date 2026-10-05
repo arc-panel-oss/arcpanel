@@ -41,4 +41,26 @@ describe('apCardPicker', () => {
 		await tick();
 		expect(shown()).toEqual(['wordpress', 'laravel', 'static']);
 	});
+
+	it('filters cards by category and search together, and reports no match', async () => {
+		mount(
+			markup()
+				.replace('data-search="wordpress php"', 'data-category="php-cms" data-search="wordpress php"')
+				.replace('data-search="laravel php"', 'data-category="php-framework" data-search="laravel php"')
+				.replace('<label data-card>', '<label data-card data-category="static">'),
+		);
+		picker().category = 'php-framework';
+		await tick();
+		expect(shown()).toEqual(['laravel']);
+		expect(picker().empty).toBe(false);
+
+		picker().query = 'wordpress';
+		await tick();
+		expect(shown()).toEqual([]);
+		expect(picker().empty).toBe(true);
+
+		picker().category = '';
+		await tick();
+		expect(shown()).toEqual(['wordpress']);
+	});
 });

@@ -1,0 +1,24 @@
+[
+    {
+        "NAME": "default",
+        "TITLE": "PHP site",
+        "DESCRIPTION": "Standard PHP site with PHP run through PHP-FPM.",
+        "CATEGORY": "general",
+        "RUNTIME": "php",
+        "INTERNAL": "no",
+        "VARIABLES": [],
+        "DOCS": "",
+        "HAS_META": "yes"
+    },
+    {
+        "NAME": "wordpress",
+        "TITLE": "WordPress",
+        "DESCRIPTION": "WordPress with pretty permalinks and protected system files.",
+        "CATEGORY": "php-cms",
+        "RUNTIME": "php",
+        "INTERNAL": "no",
+        "VARIABLES": [],
+        "DOCS": "",
+        "HAS_META": "yes"
+    }
+]

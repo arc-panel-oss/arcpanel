@@ -29,17 +29,12 @@
             </div>
 
             @if ($canTemplates)
-                <details class="ap-advanced" @if ($errors->hasAny(['template', 'backend_template', 'proxy_template', 'proxy_extensions'])) open @endif>
+                <details class="ap-advanced" @if ($errors->hasAny(['template', 'backend_template', 'proxy_template', 'proxy_extensions', 'backend_port'])) open @endif>
                     <summary>{{ __('Advanced Options') }}</summary>
-                    <div class="ap-form-grid">
-                        <x-ap-select name="template" :label="__('Web Template')" :options="array_combine($templates, $templates)" :value="$defaults['template']" />
-                        @if ($systems['backend'])
-                            <x-ap-select name="backend_template" :label="__('Backend Template')" :options="array_combine($backendTemplates, $backendTemplates)" :value="$defaults['backend_template']" />
-                        @endif
-                        @if ($systems['proxy'])
-                            <x-ap-select name="proxy_template" :label="__('Proxy Template')" :options="array_combine($proxyTemplates, $proxyTemplates)" :value="$defaults['proxy_template']" />
-                        @endif
-                    </div>
+                    @include('web.partials.templates', [
+                        'values' => $defaults,
+                        'bag' => null,
+                    ])
                     @if ($systems['proxy'])
                         <x-ap-textarea name="proxy_extensions" :label="__('Proxy Extensions')" rows="2" mono :hint="__('Leave empty for the default list.')" />
                     @endif

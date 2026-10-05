@@ -38,6 +38,7 @@ final class StoreWebDomainRequest extends FormRequest
             'backend_template' => $name,
             'proxy_template' => $name,
             'proxy_extensions' => ['nullable', 'string', 'max:4000', 'regex:/^[\w\s,.-]*$/'],
+            'backend_port' => ['nullable', 'string', 'regex:/^(auto|\d{1,5})$/'],
         ];
     }
 
