@@ -106,6 +106,26 @@
                 @endif
             </x-ap-card>
         @endif
+
+        @if ($dockerApps !== null && ($dockerApps->allowed || $dockerApps->apps !== []))
+            <x-ap-card :title="__('Docker apps')" icon="container" :flush="$dockerApps->apps !== []">
+                <x-slot:actions>
+                    <x-ap-button :href="route('docker.apps.index', ['user' => $record->name])" variant="ghost" size="sm">{{ __('Docker apps') }}<x-ap-icon name="chevron-right" /></x-ap-button>
+                </x-slot:actions>
+                @if ($dockerApps->apps === [])
+                    <p class="muted">{{ __('No Docker app yet.') }}</p>
+                @else
+                    <ul class="ap-list">
+                        @foreach ($dockerApps->apps as $app)
+                            <li>
+                                <div class="ap-list-main"><a class="mono" href="{{ route('docker.apps.show', ['user' => $record->name, 'name' => $app->name]) }}">{{ $app->name }}</a><span>{{ $app->appName }} <span class="mono">{{ $app->version }}{{ $app->domain !== '' ? ' · '.$app->domain : '' }}</span></span></div>
+                                <x-ap-badge :tone="$app->isSuspended() ? 'warn' : ($app->running() ? 'ok' : ($app->busy() ? 'info' : 'danger'))">{{ $app->isSuspended() ? __('Suspended') : __($app->status) }}</x-ap-badge>
+                            </li>
+                        @endforeach
+                    </ul>
+                @endif
+            </x-ap-card>
+        @endif
     </div>
 
     @if ($isReseller)

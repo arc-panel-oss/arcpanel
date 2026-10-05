@@ -91,6 +91,27 @@
                 </x-ap-card>
             @endif
 
+            @if ($widgets['dockerApps'] ?? null)
+                <x-ap-card :title="__('Docker apps')" icon="container">
+                    @php($dockerApps = $widgets['dockerApps'])
+                    @if (! $dockerApps->ok())
+                        <x-ap-alert tone="danger">{{ $dockerApps->error }}</x-ap-alert>
+                    @elseif ($dockerApps->data->apps === [])
+                        <p class="muted">{{ __('No Docker app yet.') }}</p>
+                    @else
+                        @php($totals = $dockerApps->data->totals())
+                        <div class="ap-row">
+                            <x-ap-badge tone="ok">{{ sprintf(__('%d running'), $totals['running']) }}</x-ap-badge>
+                            @if ($totals['stopped'] > 0)<x-ap-badge>{{ sprintf(__('%d stopped'), $totals['stopped']) }}</x-ap-badge>@endif
+                            @if ($totals['failed'] > 0)<x-ap-badge tone="danger">{{ sprintf(__('%d failed'), $totals['failed']) }}</x-ap-badge>@endif
+                            @if ($totals['busy'] > 0)<x-ap-badge tone="info">{{ sprintf(__('%d installing or updating'), $totals['busy']) }}</x-ap-badge>@endif
+                            @if ($totals['suspended'] > 0)<x-ap-badge tone="warn">{{ sprintf(__('%d suspended'), $totals['suspended']) }}</x-ap-badge>@endif
+                        </div>
+                    @endif
+                    <x-slot:footer><a href="{{ $dockerAppsUrl }}">{{ __('All Docker apps') }}</a></x-slot:footer>
+                </x-ap-card>
+            @endif
+
             <x-ap-card :title="__('Last backup')" icon="archive">
                 @php($backup = $widgets['backups'])
                 @if (! $backup->ok())

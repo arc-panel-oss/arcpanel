@@ -109,7 +109,7 @@ Effort sizing for this team: **S** ≤ 2 weeks · **M** 3–5 weeks · **L** 6�
 
 **Success metric:** Upload-and-edit task time down 50% vs. FileGator; FileGator removed from the package. **Effort:** XL (split as above). **Outcome:** O1.
 
-**Design:** [E3 spec](./features/specs/2026-10-05-008-e3-file-manager-design.md) (milestones 1–3 of the scope above plus deep links, every read and write in the home run as the user, staging with a root hand-off, CodeMirror 6, five milestones). **Status:** implemented 2026-10-05; the restic snapshot browser moves to E7 (Backups page), FileGator removal stays with E8, Docker app links come with E4.
+**Design:** [E3 spec](./features/specs/2026-10-05-008-e3-file-manager-design.md) (milestones 1–3 of the scope above plus deep links, every read and write in the home run as the user, staging with a root hand-off, CodeMirror 6, five milestones). **Status:** implemented 2026-10-05; the restic snapshot browser moves to E7 (Backups page), FileGator removal stays with E8; Docker apps link their data folder since E4.
 
 ### E4 — App Store: Docker apps
 
@@ -125,6 +125,8 @@ Effort sizing for this team: **S** ≤ 2 weeks · **M** 3–5 weeks · **L** 6�
 6. **Initial catalog (8–10 apps):** Uptime Kuma, n8n, Gitea, Ghost, Umami or Plausible, Vaultwarden, MinIO, Redis, Portainer (admin only), Nextcloud (Docker variant).
 
 **Success metric:** A user installs an app from the catalog, gets HTTPS on a domain, and removes it cleanly, without SSH. **Effort:** XL (MVP = L in Q2, rest in Q3). **Outcome:** O3.
+
+**Design:** [E4 spec](./features/specs/2026-10-05-009-e4-docker-apps-design.md) (one root engine, every service as the hosting user without capabilities in the user's slice, six curated apps pinned by digest, updates with data snapshots and automatic rollback, database dumps before backups, convergence by a 5-minute check, store and app pages, five milestones). **Status:** implemented 2026-10-05; catalog refresh from a signed Git repository moves to E33, WebSocket log streaming to E18, the System tab to E5; Umami was replaced by Miniflux (see the spec's implementation notes).
 
 ### E5 — App Store: apt/snap system apps
 

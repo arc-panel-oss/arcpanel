@@ -99,6 +99,11 @@ fetch() {
     curl -s --noproxy '*' --max-time 10 --resolve "$2:80:$(web_ip "$1" "$2")" "http://$2${3:-/}"
 }
 
+# HTTP status of USER's DOMAIN
+fetch_status() {
+    curl -s -o /dev/null -w '%{http_code}' --noproxy '*' --max-time 10 --resolve "$2:80:$(web_ip "$1" "$2")" "http://$2/"
+}
+
 # Run CMD until it prints EXPECTED, at most 30 seconds; prints the last output
 eventually() {
     local expected="$1" out i
@@ -190,6 +195,10 @@ teardown_file() {
     run v-list-sys-docker json
     assert_success
     echo "$output" | jq -e '.SYSTEM == "yes" and .RUNNING == "yes" and (.VERSION | length > 0)'
+    # the panel reads the engine switch from v-list-sys-config
+    run v-list-sys-config json
+    assert_success
+    echo "$output" | jq -e '.config.DOCKER_SYSTEM == "yes" and (.config.DOCKER_DATA_ROOT | length > 0)'
 }
 
 @test "Engine: v-add-sys-docker is idempotent and keeps daemon.json" {
@@ -532,6 +541,8 @@ teardown_file() {
     assert_equal "$(app_field $U1 tiny PREV_TPL)" "$prev"
     grep -q "^ARC_URL='http://$DB'" "$HESTIA/data/users/$U1/docker/tiny/.env"
     assert_equal "$(eventually "changed v1" fetch $U1 $DB)" "changed v1"
+    # the old domain serves its own site again
+    assert_equal "$(eventually 200 fetch_status $U1 $DA)" "200"
 }
 
 @test "Delete: keep the data, free the ports and restore the template" {
@@ -541,6 +552,7 @@ teardown_file() {
     run v-delete-docker-app $U1 tiny keep-data
     assert_success
     assert_equal "$(tpl_of $U1 $DB)" "$prev"
+    assert_equal "$(eventually 200 fetch_status $U1 $DB)" "200"
     [ -z "$(port_app $U1 "$port")" ]
     [ -z "$(container_of $U1 tiny)" ]
     [ ! -d "/home/$U1/apps/tiny" ]

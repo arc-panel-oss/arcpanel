@@ -1,13 +1,14 @@
 // Vue island loader (docs/design/05 §5.2): <x-ap-island name="…"> renders
 // <div data-island="name" data-props="{…}">; the chunk is imported on demand
 // and exports mount(el, props). Islands register here as they are built
-// (node-manager in E13, node-apps in E14, file-manager in E3, app-store in E4/E5 …).
+// (node-manager in E13, node-apps in E14, file-manager in E3, docker-apps in E4 …).
 
 /** @type {Record<string, () => Promise<{mount: (el: HTMLElement, props: object) => void}>>} */
 export const islands = {
 	'node-manager': () => import('./node-manager/index.js'),
 	'node-apps': () => import('./node-apps/index.js'),
 	'file-manager': () => import('./file-manager/index.js'),
+	'docker-apps': () => import('./docker-apps/index.js'),
 };
 
 /** @param {ParentNode} root */

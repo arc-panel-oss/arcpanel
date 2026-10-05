@@ -4,6 +4,9 @@ use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\LogoutController;
 use App\Http\Controllers\Auth\TwoFactorController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\Docker\DockerAppController;
+use App\Http\Controllers\Docker\DockerAppPageController;
+use App\Http\Controllers\Docker\DockerEngineController;
 use App\Http\Controllers\Files\FileController;
 use App\Http\Controllers\Files\FilePageController;
 use App\Http\Controllers\Files\FileTransferController;
@@ -26,6 +29,7 @@ use App\Http\Controllers\WebDomains\WebDomainActionController;
 use App\Http\Controllers\WebDomains\WebDomainController;
 use App\Http\Controllers\WebDomains\WebDomainEditController;
 use App\Http\Controllers\WebDomains\WebDomainLogController;
+use App\Services\Docker\DockerAppService;
 use App\Services\Node\NodeAppService;
 use Illuminate\Support\Facades\Route;
 
@@ -38,6 +42,8 @@ Route::pattern('user', '[[:alnum:]][-.\w]{0,28}[[:alnum:]]');
 Route::pattern('domain', '[^/\s]{1,253}');
 Route::pattern('package', '[[:alnum:]][-.\w]{0,99}');
 Route::pattern('range', '\d{1,5}(-\d{1,5})?');
+Route::pattern('name', '[a-z][a-z0-9-]{0,30}[a-z0-9]');
+Route::pattern('slug', '[a-z][a-z0-9-]{1,31}');
 Route::pattern('version', '\d{1,3}\.\d{1,3}\.\d{1,3}');
 
 Route::middleware('guest.arc')->group(function () {
@@ -177,6 +183,42 @@ Route::middleware('auth.arc')->group(function () {
                         Route::put('/{domain}/env', [NodeAppController::class, 'saveEnv'])->name('env.update');
                     });
                 });
+            });
+        });
+    });
+
+    // Docker apps (E4 spec §6.3); the list of the effective account is at
+    // /docker-apps, the engine of the server at /server/docker
+    Route::get('/docker-apps', [DockerAppPageController::class, 'entry'])->name('docker-apps');
+    Route::get('/server/docker', [DockerEngineController::class, 'page'])->name('server.docker');
+    Route::prefix('server/docker/api')->name('server.docker.api.')->group(function () {
+        Route::get('/status', [DockerEngineController::class, 'status'])->name('status');
+        Route::get('/task', [DockerEngineController::class, 'task'])->name('task');
+        Route::post('/install', [DockerEngineController::class, 'install'])->middleware('not-readonly')->name('install');
+    });
+    Route::prefix('docker/{user}')->name('docker.')->middleware('effective-user')->group(function () {
+        Route::get('/apps', [DockerAppPageController::class, 'index'])->name('apps.index');
+        Route::get('/apps/{name}', [DockerAppPageController::class, 'show'])->name('apps.show');
+        Route::get('/store', [DockerAppPageController::class, 'store'])->name('store');
+        Route::get('/store/{slug}', [DockerAppPageController::class, 'detail'])->name('store.show');
+        Route::prefix('api')->name('api.')->group(function () {
+            Route::get('/catalog', [DockerAppController::class, 'catalog'])->name('catalog');
+            Route::get('/catalog/{slug}', [DockerAppController::class, 'catalogApp'])->name('catalog.show');
+            Route::get('/options', [DockerAppController::class, 'options'])->name('options');
+            Route::get('/apps', [DockerAppController::class, 'index'])->name('apps.index');
+            Route::get('/apps/{name}', [DockerAppController::class, 'show'])->name('apps.show');
+            Route::get('/apps/{name}/env', [DockerAppController::class, 'env'])->name('apps.env');
+            Route::get('/apps/{name}/logs', [DockerAppController::class, 'logs'])->name('apps.logs');
+            Route::get('/apps/{name}/task', [DockerAppController::class, 'task'])->name('apps.task');
+            Route::middleware('not-readonly')->group(function () {
+                Route::post('/apps', [DockerAppController::class, 'store'])->name('apps.store');
+                Route::delete('/apps/{name}', [DockerAppController::class, 'destroy'])->name('apps.destroy');
+                Route::post('/apps/{name}/tasks', [DockerAppController::class, 'startTask'])->name('apps.tasks');
+                Route::post('/apps/{name}/{action}', [DockerAppController::class, 'action'])
+                    ->whereIn('action', DockerAppService::ACTIONS)->name('apps.action');
+                Route::put('/apps/{name}/env', [DockerAppController::class, 'saveEnv'])->name('apps.env.update');
+                Route::put('/apps/{name}/limits', [DockerAppController::class, 'limits'])->name('apps.limits');
+                Route::put('/apps/{name}/domain', [DockerAppController::class, 'domain'])->name('apps.domain');
             });
         });
     });

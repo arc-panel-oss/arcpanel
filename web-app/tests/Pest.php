@@ -101,6 +101,8 @@ function fakeArc(array $config = []): ArcCommandFake
     // The user detail page and the dashboard list Node.js apps (E14); none by default.
     $fake->on('v-list-node-apps')->using(fn (array $args) => [0, (string) json_encode(nodeAppList($args[0]))]);
     $fake->on('v-delete-node-app')->returnsExit(ExitCode::NotExist);
+    // The same for Docker apps (E4)
+    $fake->on('v-list-docker-apps')->using(fn (array $args) => [0, (string) json_encode(dockerAppList($args[0]))]);
 
     return $fake;
 }
@@ -386,5 +388,65 @@ function nodeAppList(string $user, array $apps = [], array $overrides = []): arr
     return array_merge([
         'USER' => $user, 'NODE' => 'yes', 'LIMIT' => '3', 'COUNT' => (string) count($apps), 'DAEMON' => $apps === [] ? 'no' : 'yes',
         'PM2_RUNTIME' => $apps === [] ? '' : '24.21.0', 'MAX_INSTANCES' => '4', 'MEMORY_LIMIT' => '', 'APPS' => $apps,
+    ], $overrides);
+}
+
+/**
+ * One app of `v-list-docker-apps USER json` (E4 spec §5.5), running.
+ *
+ * @param  array<string, mixed>  $overrides
+ * @return array<string, mixed>
+ */
+function dockerApp(string $name, array $overrides = []): array
+{
+    return array_merge([
+        'NAME' => $name, 'SLUG' => 'uptime-kuma', 'VERSION' => '2.5.5', 'DOMAIN' => $name.'.example', 'WEB_PORT' => '30020',
+        'EXTRA_PORTS' => '', 'STATE' => 'running', 'STATUS' => 'running', 'REASON' => '', 'SUSPENDED' => 'no',
+        'TEMPLATE' => 'docker-proxy', 'PREV_TPL' => 'default', 'PREV_VERSION' => '', 'CPUS' => '0.5', 'MEMORY' => '512',
+        'TIME' => '10:00:00', 'DATE' => '2026-10-05', 'APP_NAME' => 'Uptime Kuma', 'LATEST' => '2.5.5', 'UPDATE' => 'no',
+        'URL' => 'http://'.$name.'.example', 'SSL' => 'no', 'DOCKER_STATE' => 'running', 'CONTAINERS' => '1', 'RUNNING' => '1',
+        'CPU' => '0.4', 'MEM' => '96',
+    ], $overrides);
+}
+
+/**
+ * `v-list-docker-apps USER json` (E4 spec §5.5).
+ *
+ * @param  list<array<string, mixed>>  $apps  from dockerApp()
+ * @param  array<string, string>  $overrides
+ * @return array<string, mixed>
+ */
+function dockerAppList(string $user, array $apps = [], array $overrides = []): array
+{
+    return array_merge([
+        'USER' => $user, 'SYSTEM' => 'yes', 'DOCKER' => 'yes', 'LIMIT' => '3', 'COUNT' => (string) count($apps), 'APPS' => $apps,
+    ], $overrides);
+}
+
+/**
+ * `v-list-docker-app-task USER NAME OFFSET json` or `v-list-sys-docker-task OFFSET json`.
+ *
+ * @param  array<string, string>  $overrides
+ * @return array<string, string>
+ */
+function dockerTask(array $overrides = []): array
+{
+    return array_merge([
+        'ID' => '', 'ACTION' => '', 'ARGS' => '', 'STATUS' => '', 'EXIT' => '', 'START' => '', 'END' => '', 'LOG' => '', 'OFFSET' => '0',
+    ], $overrides);
+}
+
+/**
+ * A row of `v-list-docker-catalog all json`.
+ *
+ * @param  array<string, mixed>  $overrides
+ * @return array<string, mixed>
+ */
+function dockerCatalogRow(string $slug, array $overrides = []): array
+{
+    return array_merge([
+        'SLUG' => $slug, 'NAME' => ucfirst($slug), 'SUMMARY' => 'An app.', 'CATEGORY' => 'monitoring', 'VERSION' => '1.0.0',
+        'VERSIONS' => ['1.0.0'], 'ADMIN_ONLY' => false, 'ARCH' => ['amd64'], 'REQUIREMENTS' => ['memory' => '256M', 'disk' => '1G'],
+        'HOMEPAGE' => 'https://example.com', 'LICENSE' => 'MIT', 'WEB' => true, 'ICON' => 'data:image/svg+xml;base64,PHN2Zy8+',
     ], $overrides);
 }

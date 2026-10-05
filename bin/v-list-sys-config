@@ -118,6 +118,8 @@ json_list() {
 		"PORT_RANGE_START": "'$PORT_RANGE_START'",
 		"PORT_RANGE_END": "'$PORT_RANGE_END'",
 		"PORT_REGISTRY": "'$PORT_REGISTRY'",
+		"DOCKER_SYSTEM": "'$DOCKER_SYSTEM'",
+		"DOCKER_DATA_ROOT": "'$DOCKER_DATA_ROOT'",
 		"WEBMAIL_ALIAS": "'$WEBMAIL_ALIAS'",
 		"WEBMAIL_SYSTEM": "'$WEBMAIL_SYSTEM'",
 		"WEB_BACKEND": "'$WEB_BACKEND'",
@@ -222,6 +224,9 @@ shell_list() {
 	fi
 	if [ -n "$PORT_REGISTRY" ]; then
 		echo "Port registry:                    $PORT_REGISTRY ($PORT_RANGE_START-$PORT_RANGE_END)"
+	fi
+	if [ -n "$DOCKER_SYSTEM" ]; then
+		echo "Docker apps engine:               $DOCKER_SYSTEM ($DOCKER_DATA_ROOT)"
 	fi
 	if [ -n "$DEMO_MODE" ]; then
 		echo "Demo Mode:                        $DEMO_MODE"

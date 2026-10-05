@@ -1,6 +1,6 @@
 # ADR-0003 — Docker: single root engine with per-user Compose projects
 
-**Status:** Proposed · **Date:** 2026-10-04 · **Epic:** E4
+**Status:** Accepted (2026-10-05, [E4 spec](../features/specs/2026-10-05-009-e4-docker-apps-design.md) D2, D3, D5, D12) · **Date:** 2026-10-04 · **Epic:** E4
 
 ## Context
 
@@ -33,3 +33,13 @@ Rootless mode (B) stays a post-2.0 option behind `v-add-sys-docker --rootless` o
 - Simple operations and backups; one engine to monitor and update (E33 keeps the previous image tag for rollback).
 - The security argument rests on container hardening and catalog curation rather than on kernel-level user separation; this is stated in the docs and the admin can disable the store per package (`DOCKER='no'`).
 - Admins who require rootless isolation wait for the post-2.0 option or do not enable the store.
+
+## Implementation (2026-10-05)
+
+The [E4 spec](../features/specs/2026-10-05-009-e4-docker-apps-design.md) implements option A with these details:
+
+- Every service of an app a user can install runs as the user's `uid:gid` with `cap_drop: [ALL]` and `no-new-privileges`; there is no `cap_add` from manifests and no image that needs root inside. A symlinked bind source then gives a container only what the user's own uid may do; bind sources are also checked before every `up` (spec D3).
+- What ArcPanel enforces lives in a generated `compose.arcpanel.yaml` next to the catalog's `compose.yaml`, and the merged result is checked by `v-check-docker-catalog` and before every start (spec §5.4).
+- `cgroup_parent: user-<uid>.slice` works with the systemd cgroup driver on cgroup v2: the containers count against the user's `MEMORY_LIMIT` and `CPU_QUOTA` on top of the per-service `cpus` and `mem_limit` (spec D12).
+- The Compose project is `ap-<uid>-<name>`, not `ap-<user>-<app>`: user names may contain dots and an app is an instance with its own name (spec D5).
+- The read-only root file system per manifest is not used yet.

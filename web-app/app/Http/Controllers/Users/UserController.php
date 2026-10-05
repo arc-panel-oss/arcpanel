@@ -12,6 +12,8 @@ use App\Http\Requests\Users\StoreUserRequest;
 use App\Policies\FilePolicy;
 use App\Policies\ImpersonationPolicy;
 use App\Policies\UserPolicy;
+use App\Services\Docker\DockerApps;
+use App\Services\Docker\DockerAppService;
 use App\Services\Mail\AccountMailer;
 use App\Services\Node\NodeApps;
 use App\Services\Node\NodeAppService;
@@ -83,7 +85,7 @@ final class UserController extends Controller
         ]);
     }
 
-    public function show(string $user, Principal $principal, UserPolicy $policy, ImpersonationPolicy $impersonation, WebDomainService $web, PortService $ports, NodeAppService $nodeApps, FilePolicy $files, SysConfig $config): View
+    public function show(string $user, Principal $principal, UserPolicy $policy, ImpersonationPolicy $impersonation, WebDomainService $web, PortService $ports, NodeAppService $nodeApps, FilePolicy $files, SysConfig $config, DockerAppService $dockerApps): View
     {
         abort_unless($policy->view($principal, $user), 404);
         $record = $this->users->find($user);
@@ -98,6 +100,7 @@ final class UserController extends Controller
             'customers' => $isReseller ? $this->users->only($this->tenancy->customersOf($user)) : [],
             'ports' => $ports->account($user),
             'nodeApps' => $this->nodeAppsOf($user, $nodeApps),
+            'dockerApps' => $config->is('DOCKER_SYSTEM') ? $this->dockerAppsOf($user, $dockerApps) : null,
             'packageLabel' => UserService::packageLabel($record->package(), $principal->actingRole() === Role::Reseller ? $principal->effectiveUser() : ''),
             // File manager (E3 spec §7.7)
             'filesUrl' => $config->is('FILE_MANAGER', 'true') && $files->view($principal, $user) ? route('files.show', ['user' => $user]) : null,
@@ -305,6 +308,16 @@ final class UserController extends Controller
         }
 
         return [...array_values($tree), ...$rest];
+    }
+
+    /** The Docker apps of the account for its detail page (E4), null when they cannot be read. */
+    private function dockerAppsOf(string $user, DockerAppService $dockerApps): ?DockerApps
+    {
+        try {
+            return $dockerApps->apps($user);
+        } catch (ArcCommandException) {
+            return null;
+        }
     }
 
     /** The Node.js apps of the account for its detail page (E14), null when they cannot be read. */

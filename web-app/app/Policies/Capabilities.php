@@ -66,6 +66,11 @@ final class Capabilities
         'node.apps.view' => self::ALL_ROLES,
         'node.apps.manage' => self::ALL_ROLES,
 
+        // Docker apps (E4 spec §6.2); DockerPolicy adds the engine and the package key
+        'docker.apps.view' => self::ALL_ROLES,
+        'docker.apps.manage' => self::ALL_ROLES,
+        'docker.engine.manage' => self::ADMIN,
+
         // File manager (E3 spec §6.4); FilePolicy adds suspension and read-only
         'files.view' => self::ALL_ROLES,
         'files.manage' => self::ALL_ROLES,

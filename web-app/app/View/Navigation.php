@@ -6,6 +6,7 @@ use App\Arc\SysConfig;
 use App\Auth\Principal;
 use App\Auth\Role;
 use App\Policies\Capabilities;
+use App\Services\Docker\DockerAccess;
 use App\Services\Node\NodeAccess;
 use Illuminate\Support\Facades\Route;
 
@@ -22,6 +23,8 @@ final class Navigation
     /**
      * requires: hestia.conf key that must be set ("KEY") or equal ("KEY=value").
      * node: only when the package of the account includes Node.js (E13),
+     * always for administrators.
+     * docker: only when the package of the account includes Docker apps (E4),
      * always for administrators.
      * labels: label per acting role, instead of label.
      */
@@ -53,6 +56,8 @@ final class Navigation
                 ['route' => 'ports.index', 'label' => 'Ports', 'icon' => 'plug', 'cap' => 'ports.mine', 'section' => 'ports.'],
                 ['route' => 'node.index', 'label' => 'Node.js', 'icon' => 'hexagon', 'cap' => 'node.view', 'node' => true, 'section' => 'node.show'],
                 ['route' => 'node-apps', 'label' => 'Node apps', 'icon' => 'layers', 'cap' => 'node.apps.view', 'node' => true, 'section' => 'node.apps.'],
+                ['route' => 'docker-apps', 'label' => 'Docker apps', 'icon' => 'container', 'cap' => 'docker.apps.view', 'docker' => true,
+                    'requires' => 'DOCKER_SYSTEM=yes', 'section' => 'docker.'],
             ],
         ],
         'server' => [
@@ -63,6 +68,7 @@ final class Navigation
                 ['route' => 'server.ips', 'label' => 'IP Addresses', 'icon' => 'hash', 'cap' => 'server.view'],
                 ['route' => 'server.firewall', 'label' => 'Firewall', 'icon' => 'shield', 'cap' => 'server.view', 'requires' => 'FIREWALL_SYSTEM'],
                 ['route' => 'server.ports', 'label' => 'Ports', 'icon' => 'plug', 'cap' => 'server.ports', 'section' => 'server.ports'],
+                ['route' => 'server.docker', 'label' => 'Docker', 'icon' => 'container', 'cap' => 'docker.engine.manage', 'section' => 'server.docker'],
                 ['route' => 'server.updates', 'label' => 'Updates', 'icon' => 'refresh', 'cap' => 'server.view'],
                 ['route' => 'server.rrd', 'label' => 'Task Monitor', 'icon' => 'chart', 'cap' => 'server.view'],
             ],
@@ -80,6 +86,7 @@ final class Navigation
     public function __construct(
         private readonly SysConfig $config,
         private readonly NodeAccess $node,
+        private readonly DockerAccess $docker,
     ) {}
 
     /**
@@ -130,6 +137,9 @@ final class Navigation
             return false;
         }
         if (($item['node'] ?? false) && $principal->actingRole() !== Role::Admin && ! $this->node->allowed($principal->effectiveUser())) {
+            return false;
+        }
+        if (($item['docker'] ?? false) && $principal->actingRole() !== Role::Admin && ! $this->docker->allowed($principal->effectiveUser())) {
             return false;
         }
         if (($item['writable'] ?? false) && $principal->isReadOnly()) {

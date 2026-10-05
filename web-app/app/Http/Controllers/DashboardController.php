@@ -48,6 +48,7 @@ final class DashboardController extends Controller
             'canCreate' => Capabilities::allows($principal->actingRole(), 'web.create') && ! $principal->isReadOnly(),
             'backupsUrl' => Navigation::url('backups.index'),
             'nodeAppsUrl' => route('node.apps.index', ['user' => $principal->effectiveUser()]),
+            'dockerAppsUrl' => route('docker.apps.index', ['user' => $principal->effectiveUser()]),
         ]);
     }
 }

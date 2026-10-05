@@ -41,6 +41,10 @@ final class PackageRequest extends FormRequest
             'node_versions' => ['nullable', 'integer', 'min:0', 'max:999'],
             'node_apps' => ['nullable', 'integer', 'min:0', 'max:999'],
             'node_allowed' => ['nullable', 'string', 'max:100', 'regex:/^(lts|\*|\d{1,3}(,\d{1,3})*)$/'],
+            'docker' => ['nullable', 'boolean'],
+            'docker_apps' => ['nullable', 'integer', 'min:0', 'max:999'],
+            'docker_cpus' => ['nullable', 'string', 'max:20', 'regex:/^(unlimited|\d{1,3}(\.\d{1,2})?)$/'],
+            'docker_memory' => ['nullable', 'string', 'max:20', 'regex:/^(unlimited|\d{1,7}[MG]?)$/'],
         ];
         foreach (PackageRecord::COUNTED as $key) {
             $rules[strtolower($key)] = ['nullable', 'required_without:'.strtolower($key).'_unlimited', 'integer', 'min:0', 'max:100000000'];
@@ -114,6 +118,23 @@ final class PackageRequest extends FormRequest
             'NODE_VERSIONS' => $this->boolean('node_versions_unlimited') ? 'unlimited' : (string) $this->integer('node_versions', 3),
             'NODE_ALLOWED' => (string) ($this->input('node_allowed') ?: 'lts'),
             'NODE_APPS' => $this->boolean('node_apps_unlimited') ? 'unlimited' : (string) $this->integer('node_apps', 3),
+        ];
+    }
+
+    /**
+     * Docker app keys of the package sidecar (E4): DOCKER, DOCKER_APPS (a
+     * number, or unlimited when ticked), DOCKER_CPUS and DOCKER_MEMORY (per
+     * app, or unlimited).
+     *
+     * @return array{DOCKER: string, DOCKER_APPS: string, DOCKER_CPUS: string, DOCKER_MEMORY: string}
+     */
+    public function dockerValues(): array
+    {
+        return [
+            'DOCKER' => $this->boolean('docker') ? 'yes' : 'no',
+            'DOCKER_APPS' => $this->boolean('docker_apps_unlimited') ? 'unlimited' : (string) $this->integer('docker_apps', 0),
+            'DOCKER_CPUS' => (string) ($this->input('docker_cpus') ?: 'unlimited'),
+            'DOCKER_MEMORY' => (string) ($this->input('docker_memory') ?: 'unlimited'),
         ];
     }
 

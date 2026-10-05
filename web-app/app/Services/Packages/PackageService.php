@@ -99,7 +99,7 @@ final class PackageService
      * @param  array{NODE: string, NODE_VERSIONS: string, NODE_ALLOWED: string, NODE_APPS: string}|null  $node  Node.js keys (E13), null to keep them
      * @return list<Step>
      */
-    public function planCreate(string $name, array $values, ?array $tenancy, string $reseller = '', string $ports = '0', ?array $node = null): array
+    public function planCreate(string $name, array $values, ?array $tenancy, string $reseller = '', string $ports = '0', ?array $node = null, ?array $docker = null): array
     {
         $file = Secret::file($this->file($values));
         if ($reseller !== '') {
@@ -107,6 +107,7 @@ final class PackageService
                 new Step(sprintf(__('Add package %s'), $name), 'v-add-reseller-package', [$reseller, $file, $name]),
                 ...$this->portsStep($reseller.'_'.$name, $ports, null),
                 ...$this->nodeSteps($reseller.'_'.$name, $node, null),
+                ...$this->dockerSteps($reseller.'_'.$name, $docker, null),
             ];
         }
 
@@ -115,6 +116,7 @@ final class PackageService
             ...$this->tenancySteps($name, $tenancy, null),
             ...$this->portsStep($name, $ports, null),
             ...$this->nodeSteps($name, $node, null),
+            ...$this->dockerSteps($name, $docker, null),
         ];
     }
 
@@ -125,7 +127,7 @@ final class PackageService
      * @param  array{NODE: string, NODE_VERSIONS: string, NODE_ALLOWED: string, NODE_APPS: string}|null  $node  Node.js keys (E13), null to keep them
      * @return list<Step>
      */
-    public function planUpdate(PackageRecord $current, string $newName, array $values, ?array $tenancy, string $reseller = '', ?string $ports = null, ?array $node = null): array
+    public function planUpdate(PackageRecord $current, string $newName, array $values, ?array $tenancy, string $reseller = '', ?string $ports = null, ?array $node = null, ?array $docker = null): array
     {
         $file = Secret::file($this->file($values));
         if ($reseller !== '') {
@@ -133,6 +135,7 @@ final class PackageService
                 new Step(__('Save the package'), 'v-change-reseller-package', [$reseller, $file, $current->name]),
                 ...$this->portsStep($current->name, $ports, $current),
                 ...$this->nodeSteps($current->name, $node, $current),
+                ...$this->dockerSteps($current->name, $docker, $current),
             ];
         }
 
@@ -142,6 +145,7 @@ final class PackageService
             ...$this->tenancySteps($current->name, $tenancy, $current),
             ...$this->portsStep($current->name, $ports, $current),
             ...$this->nodeSteps($current->name, $node, $current),
+            ...$this->dockerSteps($current->name, $docker, $current),
         ];
         if ($newName !== $current->name) {
             $steps[] = new Step(__('Rename the package'), 'v-rename-user-package', [$current->name, $newName]);
@@ -167,6 +171,12 @@ final class PackageService
                 'NODE_VERSIONS' => $current->get('NODE_VERSIONS', '3'),
                 'NODE_ALLOWED' => $current->get('NODE_ALLOWED', 'lts'),
                 'NODE_APPS' => $current->get('NODE_APPS', '3'),
+            ], null),
+            ...$this->dockerSteps($newName, [
+                'DOCKER' => $current->get('DOCKER', 'no'),
+                'DOCKER_APPS' => $current->get('DOCKER_APPS', '0'),
+                'DOCKER_CPUS' => $current->get('DOCKER_CPUS', 'unlimited'),
+                'DOCKER_MEMORY' => $current->get('DOCKER_MEMORY', 'unlimited'),
             ], null),
         ];
     }
@@ -227,6 +237,34 @@ final class PackageService
             $before = $current?->get($key, $defaults[$key]) ?? $defaults[$key];
             if ($node[$key] !== $before) {
                 $steps[] = new Step(sprintf(__('Set %s'), $key), 'v-change-package-tenancy', [$name, $key, $node[$key]]);
+            }
+        }
+
+        return $steps;
+    }
+
+    /**
+     * Docker app keys of the package sidecar (E4) that are set or changed;
+     * the limits before DOCKER, as for Node.js. The command checks a
+     * reseller's package against the reseller's keys.
+     *
+     * @param  array{DOCKER: string, DOCKER_APPS: string, DOCKER_CPUS: string, DOCKER_MEMORY: string}|null  $docker
+     * @return list<Step>
+     */
+    private function dockerSteps(string $name, ?array $docker, ?PackageRecord $current): array
+    {
+        if ($docker === null) {
+            return [];
+        }
+        $defaults = ['DOCKER' => 'no', 'DOCKER_APPS' => '0', 'DOCKER_CPUS' => 'unlimited', 'DOCKER_MEMORY' => 'unlimited'];
+        $steps = [];
+        foreach (['DOCKER_APPS', 'DOCKER_CPUS', 'DOCKER_MEMORY', 'DOCKER'] as $key) {
+            if (! isset($docker[$key])) {
+                continue;
+            }
+            $before = $current?->get($key, $defaults[$key]) ?? $defaults[$key];
+            if ($docker[$key] !== $before) {
+                $steps[] = new Step(sprintf(__('Set %s'), $key), 'v-change-package-tenancy', [$name, $key, $docker[$key]]);
             }
         }
 

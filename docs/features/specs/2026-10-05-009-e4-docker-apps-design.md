@@ -1,6 +1,6 @@
 # E4 — App Store: Docker apps — design
 
-**Status:** Approved (2026-10-05) · **Epic:** E4 · **Base design:** [08 App Store](../../design/08-app-store.md) §3–§5, §7–§8 · **Previous specs:** [E12](./2026-10-05-004-e12-port-registry-design.md), [E6 batch 1](./2026-10-05-005-e6-templates-batch1-design.md), [E13](./2026-10-05-006-e13-node-manager-design.md), [E14](./2026-10-05-007-e14-node-apps-design.md) · **ADRs:** [0003 Docker mode](../../adr/0003-docker-mode.md), [0001 view layer](../../adr/0001-view-layer.md) · **Roadmap:** [§3 E4](../../roadmap.md)
+**Status:** Implemented (2026-10-05, see §13) · **Epic:** E4 · **Base design:** [08 App Store](../../design/08-app-store.md) §3–§5, §7–§8 · **Previous specs:** [E12](./2026-10-05-004-e12-port-registry-design.md), [E6 batch 1](./2026-10-05-005-e6-templates-batch1-design.md), [E13](./2026-10-05-006-e13-node-manager-design.md), [E14](./2026-10-05-007-e14-node-apps-design.md) · **ADRs:** [0003 Docker mode](../../adr/0003-docker-mode.md), [0001 view layer](../../adr/0001-view-layer.md) · **Roadmap:** [§3 E4](../../roadmap.md)
 
 ## 1. Summary
 

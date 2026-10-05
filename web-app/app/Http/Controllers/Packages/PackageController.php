@@ -68,7 +68,8 @@ final class PackageController extends Controller
         $values = $this->checkedValues($request, [], $reseller);
         $tenancy = $policy->manageResellerSettings($principal) ? $request->tenancyValues() : null;
 
-        $result = $this->users->apply($this->packages->planCreate($name, $values, $tenancy, $reseller, $this->checkedPorts($request, $reseller), $this->checkedNode($request, $reseller)));
+        $result = $this->users->apply($this->packages->planCreate($name, $values, $tenancy, $reseller, $this->checkedPorts($request, $reseller),
+            $this->checkedNode($request, $reseller), $this->checkedDocker($request, $reseller)));
         if (! $result->ok()) {
             return $this->failed($request, $result);
         }
@@ -97,7 +98,8 @@ final class PackageController extends Controller
         $values = $this->checkedValues($request, $record->data, $reseller);
         $tenancy = $policy->manageResellerSettings($principal) ? $request->tenancyValues() : null;
 
-        $result = $this->users->apply($this->packages->planUpdate($record, $newName, $values, $tenancy, $reseller, $this->checkedPorts($request, $reseller), $this->checkedNode($request, $reseller)));
+        $result = $this->users->apply($this->packages->planUpdate($record, $newName, $values, $tenancy, $reseller, $this->checkedPorts($request, $reseller),
+            $this->checkedNode($request, $reseller), $this->checkedDocker($request, $reseller)));
         if (! $result->ok()) {
             return $this->failed($request, $result);
         }
@@ -148,6 +150,7 @@ final class PackageController extends Controller
             'NS' => (string) ($this->packages->all()['default']?->get('NS') ?? ''),
             'USERS' => '0', 'RESELLER_PACKAGES' => '', 'RESELLER_VISIBLE' => 'no', 'PORTS' => '0',
             'NODE' => 'no', 'NODE_VERSIONS' => '3', 'NODE_ALLOWED' => 'lts', 'NODE_APPS' => '3',
+            'DOCKER' => 'no', 'DOCKER_APPS' => '0', 'DOCKER_CPUS' => 'unlimited', 'DOCKER_MEMORY' => 'unlimited',
         ];
 
         return view('packages.form', [
@@ -161,6 +164,7 @@ final class PackageController extends Controller
             'ownLimits' => $reseller !== '' ? $this->users->find($reseller)->data : [],
             'ownPorts' => $reseller !== '' ? $this->ownPorts($reseller) : null,
             'ownNode' => $reseller !== '' ? $this->ownNode($reseller) : null,
+            'ownDocker' => $reseller !== '' ? $this->ownDocker($reseller) : null,
         ]);
     }
 
@@ -275,6 +279,57 @@ final class PackageController extends Controller
         }
 
         return $node;
+    }
+
+    /**
+     * Docker app keys of the reseller's own package (E4).
+     *
+     * @return array{DOCKER: string, DOCKER_APPS: string, DOCKER_CPUS: string, DOCKER_MEMORY: string}
+     */
+    private function ownDocker(string $reseller): array
+    {
+        $record = $this->packages->all()[$this->users->find($reseller)->package()] ?? null;
+
+        return [
+            'DOCKER' => $record?->get('DOCKER', 'no') ?? 'no',
+            'DOCKER_APPS' => $record?->get('DOCKER_APPS', '0') ?? '0',
+            'DOCKER_CPUS' => $record?->get('DOCKER_CPUS', 'unlimited') ?? 'unlimited',
+            'DOCKER_MEMORY' => $record?->get('DOCKER_MEMORY', 'unlimited') ?? 'unlimited',
+        ];
+    }
+
+    /**
+     * Docker app keys of the form; a reseller cannot give Docker apps it
+     * does not have, nor more apps, CPUs or memory than its own package.
+     *
+     * @return array{DOCKER: string, DOCKER_APPS: string, DOCKER_CPUS: string, DOCKER_MEMORY: string}
+     */
+    private function checkedDocker(PackageRequest $request, string $reseller): array
+    {
+        $docker = $request->dockerValues();
+        if ($reseller !== '') {
+            $own = $this->ownDocker($reseller);
+            $errors = [];
+            if ($docker['DOCKER'] === 'yes' && $own['DOCKER'] !== 'yes') {
+                $errors['docker'] = __('Docker apps are not included in your plan.');
+            }
+            $mb = fn (string $size) => preg_match('/^(\d+)([MG]?)$/', $size, $m) === 1 ? (int) $m[1] * ($m[2] === 'G' ? 1024 : 1) : PHP_INT_MAX;
+            $above = [
+                'DOCKER_APPS' => fn (string $value, string $limit) => $value === 'unlimited' || (int) $value > (int) $limit,
+                'DOCKER_CPUS' => fn (string $value, string $limit) => $value === 'unlimited' || (float) $value > (float) $limit,
+                'DOCKER_MEMORY' => fn (string $value, string $limit) => $mb($value) > $mb($limit),
+            ];
+            foreach ($above as $key => $check) {
+                if ($own[$key] !== 'unlimited' && $check($docker[$key], $own[$key])) {
+                    $errors[strtolower($key)] = sprintf(__('At most %s on your plan.'), $own[$key]);
+                }
+            }
+            if ($errors !== []) {
+                throw ValidationException::withMessages($errors);
+            }
+        }
+
+        return $docker;
     }
 
     /** PORTS of the form; a reseller may not go above its own. */

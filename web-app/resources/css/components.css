@@ -1896,6 +1896,39 @@
 	color: var(--ap-fg-subtle);
 	font-size: 11px;
 }
+/* Docker app store (E4): cards are links, logos are the app icons */
+.ap-store {
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+.ap-store > li {
+	display: flex;
+}
+a.ap-pick {
+	flex: 1;
+	color: inherit;
+	text-decoration: none;
+}
+a.ap-pick:hover {
+	border-color: var(--ap-accent);
+}
+a.ap-pick:focus-visible {
+	outline: none;
+	box-shadow: var(--ap-focus);
+}
+.ap-pick-logo img {
+	width: 100%;
+	height: 100%;
+	border-radius: inherit;
+	object-fit: cover;
+}
+.ap-card-title .ap-pick-logo {
+	flex: none;
+	width: 32px;
+	height: 32px;
+	overflow: hidden;
+}
 .ap-picker-tools {
 	display: flex;
 	flex-direction: column;

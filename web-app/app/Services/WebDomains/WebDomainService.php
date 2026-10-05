@@ -270,6 +270,8 @@ final class WebDomainService implements DomainProbe
                     $this->arc->run('v-delete-web-domain-tpl-vars', [$item['user'], $item['domain']], Options::allowFailure());
                     // Its Node.js app (E14): process, port and record; exit 3 when it has none
                     $this->arc->run('v-delete-node-app', [$item['user'], $item['domain']], Options::allowFailure());
+                    // Its Docker app (E4): containers, ports and record; the data folder is kept
+                    $this->deleteDockerApp($item['user'], $item['domain']);
                 }
             } else {
                 $failed[$item['domain']] = $result->message() !== '' ? $result->message() : sprintf(__('Error code: %s'), $result->exitCode);
@@ -306,5 +308,17 @@ final class WebDomainService implements DomainProbe
     private function stringList(array $data): array
     {
         return array_values(array_filter($data, 'is_string'));
+    }
+
+    /** Delete the Docker app bound to a deleted domain (E4 spec §4), keeping its data. */
+    private function deleteDockerApp(string $user, string $domain): void
+    {
+        $result = $this->arc->run('v-list-docker-apps', [$user, 'json'], Options::allowFailure());
+        $data = $result->ok() ? json_decode($result->stdout, true) : null;
+        foreach ((array) ($data['APPS'] ?? []) as $app) {
+            if (is_array($app) && ($app['DOMAIN'] ?? '') === $domain && is_string($app['NAME'] ?? null)) {
+                $this->arc->run('v-delete-docker-app', [$user, $app['NAME'], 'keep-data'], Options::allowFailure());
+            }
+        }
     }
 }

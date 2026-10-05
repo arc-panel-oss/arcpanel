@@ -5,6 +5,8 @@ namespace App\Services\Dashboard;
 use App\Arc\ArcCommand;
 use App\Arc\ArcCommandException;
 use App\Arc\Options;
+use App\Services\Docker\DockerAccess;
+use App\Services\Docker\DockerApps;
 use App\Services\Node\NodeAccess;
 use App\Services\Node\NodeApps;
 use App\Services\UserDirectory;
@@ -30,6 +32,7 @@ final class DashboardService
         private readonly TenancyDirectory $tenancy,
         private readonly UserService $accounts,
         private readonly NodeAccess $node,
+        private readonly DockerAccess $docker,
     ) {}
 
     /** @return array<string, Widget> */
@@ -57,6 +60,10 @@ final class DashboardService
             // Node.js apps (E14 spec §7): only for packages with Node.js
             'nodeApps' => $this->node->allowed($user)
                 ? $this->widget(fn () => NodeApps::from($this->arc->json('v-list-node-apps', [$user])))
+                : null,
+            // Docker apps (E4 spec §7): only with the engine and a package with Docker apps
+            'dockerApps' => $this->docker->available($user)
+                ? $this->widget(fn () => DockerApps::from($this->arc->json('v-list-docker-apps', [$user])))
                 : null,
         ];
     }

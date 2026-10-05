@@ -220,3 +220,27 @@ it('sets NODE_APPS of a package, within the reseller plan for a reseller (E14)',
     $this->post('/packages', packageInput(['node_apps_unlimited' => '1']))->assertSessionHasErrors('node_apps');
     $this->fake->assertNotRan('v-add-reseller-package');
 });
+
+it('sets the Docker keys of a package, within the reseller plan for a reseller (E4)', function () {
+    $this->fake->on('v-add-user-package')->returns();
+    $this->fake->on('v-add-reseller-package')->returns();
+    $this->fake->on('v-change-package-tenancy')->returns();
+
+    signIn('arcadmin', 'admin');
+    $this->get('/packages/create')->assertOk()->assertSee('name="docker_apps"', false)->assertSee('name="docker_memory"', false);
+    $this->post('/packages', packageInput(['docker' => '1', 'docker_apps' => '2', 'docker_cpus' => '1.5', 'docker_memory' => '1G']))
+        ->assertRedirect('/packages');
+    $steps = collect($this->fake->calls('v-change-package-tenancy'))->pluck('args')->all();
+    expect($steps)->toBe([
+        ['business', 'DOCKER_APPS', '2'], ['business', 'DOCKER_CPUS', '1.5'], ['business', 'DOCKER_MEMORY', '1G'], ['business', 'DOCKER', 'yes'],
+    ]);
+    $this->post('/packages', packageInput(['docker_cpus' => 'all']))->assertSessionHasErrors('docker_cpus');
+    $this->post('/packages', packageInput(['docker_memory' => '1T']))->assertSessionHasErrors('docker_memory');
+
+    // the reseller package has no Docker apps
+    signIn('hostco', 'reseller');
+    $this->get('/packages/create')->assertOk()->assertSee('Docker apps are not included in your plan.');
+    $this->post('/packages', packageInput(['docker' => '1']))->assertSessionHasErrors('docker');
+    $this->post('/packages', packageInput(['docker_apps' => '1']))->assertSessionHasErrors('docker_apps');
+    $this->fake->assertNotRan('v-add-reseller-package');
+});

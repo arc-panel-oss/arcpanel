@@ -16,6 +16,9 @@
 #   prepare.sh files              fixtures of the file manager spec (E3);
 #                                 files-stat FILE, files-config KEY VALUE,
 #                                 files-gc and files-clean go with it
+#   prepare.sh dockerapps         the Docker engine and a web domain with
+#                                 HTTPS for arce2edev (E4); dockerapps-clean
+#                                 removes its apps and the domain again
 set -euo pipefail
 
 HESTIA="${HESTIA:-/usr/local/hestia}"
@@ -74,6 +77,40 @@ nodeapps_reset() {
 	done
 	"$B/v-delete-user-nvm" arce2edev > /dev/null 2>&1 || true
 	rm -f "$HESTIA/data/users/arce2edev/node-task.conf" "$HESTIA/data/users/arce2edev/node-task.log"
+}
+
+# Docker apps (E4): the engine, and a web domain with HTTPS (self-signed) of
+# arce2edev (developer package: DOCKER='yes', DOCKER_APPS='3'); the spec
+# installs Uptime Kuma from the store.
+DOCKERAPP_DOMAINS="e2e-kuma.example"
+
+dockerapps_reset() {
+	if ! "$B/v-list-user" arce2edev > /dev/null 2>&1; then
+		return 0
+	fi
+	if [ -f "$HESTIA/data/users/arce2edev/dockerapps.conf" ]; then
+		for name in $(grep -oE "^NAME='[^']*'" "$HESTIA/data/users/arce2edev/dockerapps.conf" | cut -d"'" -f2); do
+			"$B/v-delete-docker-app" arce2edev "$name" > /dev/null 2>&1 || true
+		done
+	fi
+	for domain in $DOCKERAPP_DOMAINS; do
+		"$B/v-delete-web-domain" arce2edev "$domain" no > /dev/null 2>&1 || true
+	done
+	runuser -u arce2edev -- rm -rf /home/arce2edev/apps/.removed
+}
+
+dockerapps_prepare() {
+	local dir domain
+	"$B/v-add-sys-docker" > /dev/null
+	dir="$(mktemp -d)"
+	for domain in $DOCKERAPP_DOMAINS; do
+		"$B/v-add-web-domain" arce2edev "$domain" > /dev/null
+		openssl req -x509 -newkey rsa:2048 -nodes -days 30 -subj "/CN=$domain" \
+			-keyout "$dir/$domain.key" -out "$dir/$domain.crt" > /dev/null 2>&1
+		"$B/v-add-web-domain-ssl" arce2edev "$domain" "$dir" > /dev/null
+	done
+	rm -rf "$dir"
+	forget_config_cache
 }
 
 # Write FILE (relative to the domain's public_html) as arce2edev
@@ -243,6 +280,26 @@ case "${1:-}" in
 		nodeapps_reset
 		exit 0
 		;;
+	dockerapps)
+		dockerapps_reset
+		dockerapps_prepare
+		exit 0
+		;;
+	dockerapps-clean)
+		dockerapps_reset
+		exit 0
+		;;
+	dockerapp-port)
+		# The web port of arce2edev's app NAME, empty when it has none
+		grep "^NAME='${2:?name}' " "$HESTIA/data/users/arce2edev/dockerapps.conf" 2> /dev/null \
+			| grep -oE "WEB_PORT='[0-9]*'" | cut -d"'" -f2 || true
+		exit 0
+		;;
+	port-app)
+		# The registry app of PORT of arce2edev, empty when it is free
+		grep "^PORT='${2:?port}' " "$HESTIA/data/ports/arce2edev.conf" 2> /dev/null | grep -oE "APP='[^']*'" | cut -d"'" -f2 || true
+		exit 0
+		;;
 esac
 
 if [ "${1:-}" = cleanup ]; then
@@ -294,6 +351,7 @@ for user in arce2ecustomer arce2euser arce2ereseller; do
 	"$B/v-delete-user-ports" "$user" > /dev/null
 done
 nodeapps_reset
+dockerapps_reset
 "$B/v-add-web-domain" arce2euser e2e-site.example > /dev/null
 "$B/v-add-web-domain" arce2euser e2e-bulk.example > /dev/null
 

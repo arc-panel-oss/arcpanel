@@ -82,6 +82,24 @@
             </div>
         </x-ap-card>
 
+        <x-ap-card :title="__('Docker apps')" icon="container">
+            @if ($ownDocker !== null && $ownDocker['DOCKER'] !== 'yes')
+                <p class="muted">{{ __('Docker apps are not included in your plan.') }}</p>
+            @endif
+            <div class="ap-settings">
+                <x-ap-switch name="docker" :label="__('Docker apps')" :description="__('Users of this package may install apps of the Docker app store on their domains.')"
+                    :checked="($values['DOCKER'] ?? 'no') === 'yes'" :disabled="$ownDocker !== null && $ownDocker['DOCKER'] !== 'yes'" />
+            </div>
+            <div class="ap-form-grid">
+                <x-ap-unlimited-input name="docker_apps" :label="__('Docker apps')" :value="$values['DOCKER_APPS'] ?? '0'"
+                    :hint="$ownDocker !== null ? sprintf(__('Your plan: %s'), $ownDocker['DOCKER_APPS']) : __('Apps installed at the same time.')" />
+                <x-ap-input name="docker_cpus" :label="__('CPUs per app')" :value="$values['DOCKER_CPUS'] ?? 'unlimited'" mono
+                    :hint="$ownDocker !== null ? sprintf(__('Your plan: %s'), $ownDocker['DOCKER_CPUS']) : __('unlimited or a number such as 0.5 or 2')" />
+                <x-ap-input name="docker_memory" :label="__('Memory per app')" :value="$values['DOCKER_MEMORY'] ?? 'unlimited'" mono
+                    :hint="$ownDocker !== null ? sprintf(__('Your plan: %s'), $ownDocker['DOCKER_MEMORY']) : __('unlimited or a size, e.g. 512M; within the memory limit')" />
+            </div>
+        </x-ap-card>
+
         @if ($resellerSettings)
             <x-ap-card :title="__('Reseller')" icon="users">
                 <p class="muted">{{ __('A user on this package can resell hosting when the package allows customers.') }}</p>

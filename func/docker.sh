@@ -1120,7 +1120,8 @@ dockerapp_domain_unbind() {
 		prev=$(nodeapp_package_template "$user")
 	fi
 	if [ "$(arc_tpl_active "$user" "$domain")" != "$prev" ]; then
-		nodeapp_tpl_switch "$user" "$domain" "$prev" > /dev/null 2>&1
+		# reload now: nothing else restarts the web server after the switch
+		nodeapp_tpl_switch "$user" "$domain" "$prev" yes > /dev/null 2>&1
 	fi
 	return 0
 }
