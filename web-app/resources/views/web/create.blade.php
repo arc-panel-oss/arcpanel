@@ -2,14 +2,7 @@
 <x-ap-page :title="__('Add Web Domain')" :crumbs="[['label' => __('Web domains'), 'url' => route('web.domains.index')], ['label' => __('Add Web Domain')]]"
     :description="$owners !== null ? __('The domain belongs to the owner you choose.') : null">
 
-    @if ($owners !== null)
-        <x-ap-card>
-            <form method="get" action="{{ route('web.domains.create') }}" class="ap-row ap-owner-pick">
-                <x-ap-select name="owner" :label="__('Owner')" :options="array_combine($owners, $owners)" :value="$owner" id="pick-owner" />
-                <x-ap-button type="submit" size="sm">{{ __('Use this owner') }}</x-ap-button>
-            </form>
-        </x-ap-card>
-    @endif
+    <x-ap-owner-picker route="web.domains.create" :owners="$owners" :owner="$owner" />
 
     <x-ap-card :title="__('Domain')" icon="globe">
         <x-ap-form :action="route('web.domains.store')" :focus-first="true">

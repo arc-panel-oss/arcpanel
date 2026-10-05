@@ -14,7 +14,7 @@ final class Step
 {
     /**
      * @param  list<string|int|Secret>  $args
-     * @param  list<'web'|'proxy'|'dns'>  $restart
+     * @param  list<'web'|'proxy'|'dns'|'cron'|'mail'>  $restart
      */
     public function __construct(
         public readonly string $label,

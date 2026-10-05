@@ -7,6 +7,8 @@ use App\Arc\ArcCommandException;
 use App\Arc\ExitCode;
 use App\Arc\Options;
 use App\Arc\SysConfig;
+use App\Services\Support\BulkRunner;
+use App\Services\Support\PlanRunner;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
 /**
@@ -211,41 +213,7 @@ final class WebDomainService implements DomainProbe
      */
     public function apply(array $steps): ApplyResult
     {
-        $applied = [];
-        $restart = [];
-        foreach ($steps as $step) {
-            try {
-                $this->arc->run($step->command, $step->args);
-            } catch (ArcCommandException $e) {
-                return new ApplyResult($applied, $step, $e->userMessage(), $e->getCode());
-            }
-            $applied[] = $step;
-            foreach ($step->restart as $service) {
-                $restart[$service] = true;
-            }
-            if ($step->onSuccess !== null) {
-                ($step->onSuccess)();
-            }
-        }
-
-        $restarts = [
-            'web' => [__('Restart the web server'), 'v-restart-web'],
-            'proxy' => [__('Restart the proxy server'), 'v-restart-proxy'],
-            'dns' => [__('Restart the DNS server'), 'v-restart-dns'],
-        ];
-        foreach ($restarts as $service => [$label, $command]) {
-            if (! isset($restart[$service]) || ($service === 'proxy' && $this->config->get('PROXY_SYSTEM') === '')) {
-                continue;
-            }
-            $step = new Step($label, $command, []);
-            try {
-                $this->arc->run($command);
-            } catch (ArcCommandException $e) {
-                return new ApplyResult($applied, $step, $e->userMessage());
-            }
-        }
-
-        return new ApplyResult($applied);
+        return (new PlanRunner($this->arc, $this->config))->apply($steps);
     }
 
     /**
@@ -259,32 +227,20 @@ final class WebDomainService implements DomainProbe
     public function bulk(string $action, array $items): array
     {
         $command = self::BULK_COMMANDS[$action] ?? throw new \InvalidArgumentException("Unknown action {$action}");
-        $done = [];
-        $failed = [];
-        foreach ($items as $item) {
-            $result = $this->arc->run($command, [$item['user'], $item['domain'], 'no'], Options::allowFailure());
-            if ($result->ok()) {
-                $done[] = $item['domain'];
-                if ($action === 'delete') {
-                    // Ports the domain's template used go back to the pool (E6)
-                    $this->arc->run('v-delete-web-domain-tpl-vars', [$item['user'], $item['domain']], Options::allowFailure());
-                    // Its Node.js app (E14): process, port and record; exit 3 when it has none
-                    $this->arc->run('v-delete-node-app', [$item['user'], $item['domain']], Options::allowFailure());
-                    // Its Docker app (E4): containers, ports and record; the data folder is kept
-                    $this->deleteDockerApp($item['user'], $item['domain']);
-                }
-            } else {
-                $failed[$item['domain']] = $result->message() !== '' ? $result->message() : sprintf(__('Error code: %s'), $result->exitCode);
-            }
-        }
 
-        if ($items !== []) {
-            foreach (['v-restart-web', 'v-restart-proxy', 'v-restart-dns', 'v-restart-web-backend'] as $restart) {
-                $this->arc->run($restart, [], Options::allowFailure());
-            }
-        }
-
-        return ['done' => $done, 'failed' => $failed];
+        return (new BulkRunner($this->arc))->run(
+            $items,
+            fn (array $item) => [$item['domain'], $command, [$item['user'], $item['domain'], 'no']],
+            ['v-restart-web', 'v-restart-proxy', 'v-restart-dns', 'v-restart-web-backend'],
+            $action === 'delete' ? function (array $item): void {
+                // Ports the domain's template used go back to the pool (E6)
+                $this->arc->run('v-delete-web-domain-tpl-vars', [$item['user'], $item['domain']], Options::allowFailure());
+                // Its Node.js app (E14): process, port and record; exit 3 when it has none
+                $this->arc->run('v-delete-node-app', [$item['user'], $item['domain']], Options::allowFailure());
+                // Its Docker app (E4): containers, ports and record; the data folder is kept
+                $this->deleteDockerApp($item['user'], $item['domain']);
+            } : null,
+        )->toArray();
     }
 
     public const BULK_COMMANDS = [

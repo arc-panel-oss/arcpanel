@@ -37,22 +37,7 @@
             <x-ap-table id="web-domains" :columns="$columns" :selectable="$canBulk" :search-label="__('Search web domains')" :caption="__('Web domains')">
                 @if ($showOwner)
                     <x-slot:toolbar>
-                        <form method="get" action="{{ route('web.domains.index') }}" class="ap-owner-filter">
-                            <label class="sr-only" for="owner-filter">{{ __('Owner') }}</label>
-                            <div class="ap-select-wrap">
-                                <select class="ap-select ap-select-sm" id="owner-filter" name="owner" onchange="this.form.requestSubmit()">
-                                    <option value="">{{ __('All owners') }}</option>
-                                    @foreach ($owners as $name)
-                                        <option value="{{ $name }}" @selected($name === $owner)>{{ $name }}</option>
-                                    @endforeach
-                                </select>
-                                <x-ap-icon name="chevron-down" size="sm" />
-                            </div>
-                            <noscript><button type="submit" class="ap-btn ap-btn-sm">{{ __('Filter') }}</button></noscript>
-                        </form>
-                        @if ($owner !== '')
-                            <x-ap-chip :active="true" :remove-href="route('web.domains.index')" :remove-label="__('Clear owner filter')">{{ __('Owner') }}: {{ $owner }}</x-ap-chip>
-                        @endif
+                        <x-ap-owner-filter route="web.domains.index" :owners="$owners" :owner="$owner" />
                     </x-slot:toolbar>
                 @endif
 
