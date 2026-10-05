@@ -7,6 +7,8 @@ use App\Arc\Options;
 use App\Arc\SysConfig;
 use App\Auth\LegacySession;
 use App\Auth\Principal;
+use App\Auth\PrincipalResolver;
+use App\Auth\Role;
 use App\Policies\ImpersonationPolicy;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -15,6 +17,9 @@ use Illuminate\Http\Request;
  * "Login as": the same session keys and log lines as web/login/index.php
  * (?loginas=) and web/logout/index.php, so either app can end what the other
  * started. With ARCPANEL_APP_PAGES='yes' both directions land on /app/.
+ *
+ * Resellers (E11 spec D4) use their own key `arc_look`, which only the panel
+ * app reads: their "login as" works on /app pages only.
  */
 final class ImpersonationController extends Controller
 {
@@ -37,8 +42,14 @@ final class ImpersonationController extends Controller
         ], Options::allowFailure());
         $this->arc->run('v-log-action', [
             'system', 'Warning', 'Security',
-            "User impersonation session started (User: {$user}, Administrator: {$principal->loginUser})",
+            "User impersonation session started (User: {$user}, {$this->actor($principal)}: {$principal->loginUser})",
         ], Options::allowFailure());
+
+        if ($principal->loginRole === Role::Reseller) {
+            $this->legacy->write([PrincipalResolver::RESELLER_LOOK => $user]);
+
+            return redirect()->route('dashboard');
+        }
 
         // File Manager state belongs to the previous account
         $this->legacy->write(['look' => $user, '_sf2_attributes' => null, '_sf2_meta' => null]);
@@ -62,12 +73,22 @@ final class ImpersonationController extends Controller
         if ($principal->isImpersonating()) {
             $this->arc->run('v-log-action', [
                 'system', 'Warning', 'Security',
-                "User impersonation session ended (User: {$principal->impersonated}, Administrator: {$principal->loginUser})",
+                "User impersonation session ended (User: {$principal->impersonated}, {$this->actor($principal)}: {$principal->loginUser})",
             ], Options::allowFailure());
 
+            if ($principal->loginRole === Role::Reseller) {
+                $this->legacy->write([PrincipalResolver::RESELLER_LOOK => null]);
+
+                return redirect()->route('dashboard');
+            }
             $this->legacy->write(['look' => null, '_sf2_attributes' => null, '_sf2_meta' => null]);
         }
 
         return $this->config->is('ARCPANEL_APP_PAGES') ? redirect()->route('dashboard') : redirect()->away('/');
+    }
+
+    private function actor(Principal $principal): string
+    {
+        return $principal->loginRole === Role::Reseller ? 'Reseller' : 'Administrator';
     }
 }

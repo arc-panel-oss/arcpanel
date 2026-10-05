@@ -64,7 +64,9 @@ final class WebDomainController extends Controller
         return view('web.index', [
             'records' => $records,
             'abilities' => $abilities,
-            'showOwner' => $allUsers,
+            // Administrators and resellers (their customers' domains too)
+            'showOwner' => count($owners) > 1 || $allUsers,
+            'everyUser' => $allUsers,
             'owners' => $owners,
             'owner' => $owner,
             'ips' => $web->systemIps(),
@@ -89,7 +91,7 @@ final class WebDomainController extends Controller
 
         return view('web.create', [
             'owner' => $owner,
-            'owners' => $scope->visibleUsers() === null && Capabilities::allows($principal->actingRole(), 'users.view') ? $directory->names() : null,
+            'owners' => Capabilities::allows($principal->actingRole(), 'users.view') ? ($scope->visibleUsers() ?? $directory->names()) : null,
             'ips' => $this->ipOptions($web->userIps($owner)),
             'systems' => $web->systems(),
             'canTemplates' => $canTemplates,

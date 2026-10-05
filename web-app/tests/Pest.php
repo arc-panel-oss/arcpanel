@@ -112,11 +112,13 @@ function sessionOf(string $user, string $role, array $overrides = []): array
 
 /**
  * The users of the panel tests: administrator arcadmin and users bob and
- * carol. `v-list-user` and `v-list-users` answer for them.
+ * carol. `v-list-user`, `v-list-users` and `v-list-user-owners` answer for
+ * them. A record's OWNER key names its reseller (default: arcadmin).
  *
  * @param  array<string, array<string, string>>  $overrides  name => record keys
+ * @return array<string, array<string, string>> the users
  */
-function fakeServerUsers(ArcCommandFake $fake, array $overrides = []): void
+function fakeServerUsers(ArcCommandFake $fake, array $overrides = []): array
 {
     $users = [
         'arcadmin' => userRecord(['ROLE' => 'admin', 'NAME' => 'System Administrator']),
@@ -128,6 +130,58 @@ function fakeServerUsers(ArcCommandFake $fake, array $overrides = []): void
     }
     fakeUsers($fake, $users);
     $fake->on('v-list-users', ['json'])->returnsJson($users);
+    fakeOwners($fake, $users);
+
+    return $users;
+}
+
+/**
+ * `v-list-user-owners json` for these records, resolved as func/tenancy.sh
+ * does: administrators have no owner, users belong to the reseller in their
+ * OWNER key when it is a reseller, everyone else to arcadmin.
+ *
+ * @param  array<string, array<string, string>>  $users
+ */
+function fakeOwners(ArcCommandFake $fake, array $users): void
+{
+    $owners = [];
+    foreach ($users as $name => $record) {
+        $role = $record['ROLE'] ?? 'user';
+        $owner = $record['OWNER'] ?? '';
+        $owners[$name] = [
+            'ROLE' => $role,
+            'OWNER' => match (true) {
+                $role === 'admin' => '',
+                $role === 'user' && $owner !== '' && ($users[$owner]['ROLE'] ?? '') === 'reseller' => $owner,
+                default => 'arcadmin',
+            },
+            'SUSPENDED' => $record['SUSPENDED'] ?? 'no',
+        ];
+    }
+    $fake->on('v-list-user-owners', ['json'])->returnsJson($owners);
+}
+
+/**
+ * Two resellers on top of fakeServerUsers(): hostco owns bob, resb owns
+ * carol and dave (without domains).
+ *
+ * @param  array<string, array<string, string>>  $overrides
+ * @return array<string, array<string, string>>
+ */
+function fakeResellers(ArcCommandFake $fake, array $overrides = []): array
+{
+    $users = fakeServerUsers($fake, array_replace_recursive([
+        'hostco' => ['ROLE' => 'reseller', 'NAME' => 'Host Co', 'CONTACT' => 'sales@hostco.example', 'PACKAGE' => 'reseller'],
+        'resb' => ['ROLE' => 'reseller', 'NAME' => 'Reseller B', 'PACKAGE' => 'reseller'],
+        'bob' => ['OWNER' => 'hostco'],
+        'carol' => ['OWNER' => 'resb'],
+        'dave' => ['OWNER' => 'resb', 'NAME' => 'Dave'],
+    ], $overrides));
+    foreach (['hostco', 'resb', 'dave'] as $name) {
+        $fake->on('v-list-web-domains', [$name, 'json'])->returnsJson([]);
+    }
+
+    return $users;
 }
 
 /**

@@ -29,6 +29,9 @@ final class ResolvePrincipal
         if ($this->resolver->logoutMessage !== null) {
             $request->session()->flash('error', __($this->resolver->logoutMessage));
         }
+        if ($this->resolver->impersonationEnded) {
+            $request->session()->flash('error', __('You are back in your own account: that customer is no longer yours.'));
+        }
         View::share('principal', $principal);
 
         return $next($request);

@@ -10,34 +10,63 @@ use Closure;
  * and the role tests read it; a capability missing from the table, or a role
  * missing from a row, is denied.
  *
- * E1-S2 fills in admin and user. The reseller row denies everything until
- * E11 adds the tree scope.
+ * Roles are the role the panel acts with (Principal::actingRole()): a
+ * reseller or an administrator who logs in as a customer acts as a user.
  */
 final class Capabilities
 {
+    private const ALL_ROLES = ['admin' => Scope::All, 'reseller' => Scope::Tree, 'user' => Scope::Self];
+
+    private const MANAGERS = ['admin' => Scope::All, 'reseller' => Scope::Tree];
+
+    private const ADMIN = ['admin' => Scope::All];
+
+    /** Modules that resellers use for their own account only. */
+    private const OWN = ['admin' => Scope::All, 'reseller' => Scope::Self, 'user' => Scope::Self];
+
     /** @var array<string, array<string, Scope>> capability => [role => scope] */
     private const MATRIX = [
-        'dashboard.view' => ['admin' => Scope::All, 'user' => Scope::Self],
-        'server.view' => ['admin' => Scope::All],
-        'users.view' => ['admin' => Scope::All],
+        'dashboard.view' => self::ALL_ROLES,
+        'server.view' => self::ADMIN,
 
-        'web.view' => ['admin' => Scope::All, 'user' => Scope::Self],
-        'web.create' => ['admin' => Scope::All, 'user' => Scope::Self],
-        'web.update' => ['admin' => Scope::All, 'user' => Scope::Self],
-        'web.delete' => ['admin' => Scope::All, 'user' => Scope::Self],
-        // Users also need POLICY_USER_EDIT_WEB_TEMPLATES (WebDomainPolicy).
-        'web.templates.edit' => ['admin' => Scope::All, 'user' => Scope::Self],
+        // Users and customers (E11 spec §7)
+        'users.view' => self::MANAGERS,
+        'users.create' => self::MANAGERS,
+        'users.update' => self::MANAGERS,
+        'users.delete' => self::MANAGERS,
+        'users.suspend' => self::MANAGERS,
+        'users.change-package' => self::MANAGERS,
+        'users.change-owner' => self::ADMIN,
+        'users.change-role' => self::ADMIN,
+        // Shell, PHP CLI, login restrictions of other users
+        'users.admin-fields' => self::ADMIN,
+        'impersonate' => self::MANAGERS,
+        'account.view' => self::OWN,
+        'account.update' => self::OWN,
 
-        // Modules still served by the legacy pages: navigation only.
-        'dns.view' => ['admin' => Scope::All, 'user' => Scope::Self],
-        'mail.view' => ['admin' => Scope::All, 'user' => Scope::Self],
-        'db.view' => ['admin' => Scope::All, 'user' => Scope::Self],
-        'cron.view' => ['admin' => Scope::All, 'user' => Scope::Self],
-        'backups.view' => ['admin' => Scope::All, 'user' => Scope::Self],
-        'files.view' => ['admin' => Scope::All, 'user' => Scope::Self],
-        'logs.view' => ['admin' => Scope::All, 'user' => Scope::Self],
-        'stats.view' => ['admin' => Scope::All, 'user' => Scope::Self],
-        'account.view' => ['admin' => Scope::All, 'user' => Scope::Self],
+        // Packages (E11 spec §8); PackagePolicy adds the reseller rules
+        'packages.view' => self::MANAGERS,
+        'packages.create' => self::MANAGERS,
+        'packages.update' => self::MANAGERS,
+        'packages.delete' => self::MANAGERS,
+
+        'web.view' => self::ALL_ROLES,
+        'web.create' => self::ALL_ROLES,
+        'web.update' => self::ALL_ROLES,
+        'web.delete' => self::ALL_ROLES,
+        // Users and resellers also need POLICY_USER_EDIT_WEB_TEMPLATES (WebDomainPolicy).
+        'web.templates.edit' => self::ALL_ROLES,
+
+        // Modules still served by the legacy pages: navigation only. A
+        // reseller reaches them for its own account.
+        'dns.view' => self::OWN,
+        'mail.view' => self::OWN,
+        'db.view' => self::OWN,
+        'cron.view' => self::OWN,
+        'backups.view' => self::OWN,
+        'files.view' => self::OWN,
+        'logs.view' => self::OWN,
+        'stats.view' => self::OWN,
     ];
 
     /**

@@ -5,6 +5,7 @@ namespace App\Auth;
 use App\Arc\ArcCommand;
 use App\Arc\Options;
 use App\Arc\SysConfig;
+use App\Tenancy\TenancyDirectory;
 
 /**
  * Builds the Principal from the legacy session with the same checks, in the
@@ -16,13 +17,20 @@ final class PrincipalResolver
     /** Message of main.php when a session is ended for the user's sake. */
     public const LOGGED_OUT = 'You are logged out, please log in again.';
 
+    /** Session key of a reseller's "login as" (E11 spec D4); the legacy app never reads it. */
+    public const RESELLER_LOOK = 'arc_look';
+
     /** Set when the last resolve() ended a session and the user should be told. */
     public ?string $logoutMessage = null;
+
+    /** Set when the last resolve() dropped a reseller's "login as" that is no longer allowed. */
+    public bool $impersonationEnded = false;
 
     public function __construct(
         private readonly LegacySession $session,
         private readonly ArcCommand $arc,
         private readonly SysConfig $config,
+        private readonly TenancyDirectory $tenancy,
     ) {}
 
     /** Null when nobody is logged in (or the session was just ended). */
@@ -30,6 +38,7 @@ final class PrincipalResolver
     {
         $now ??= time();
         $this->logoutMessage = null;
+        $this->impersonationEnded = false;
 
         if (! $this->session->exists()) {
             return null;
@@ -61,9 +70,9 @@ final class PrincipalResolver
             return $this->end($user, $data, message: self::LOGGED_OUT);
         }
 
-        // 4. Admin demoted since login
+        // 4. Admin or reseller demoted since login
         $loginRole = Role::fromValue($data['userContext'] ?? '');
-        if ($loginRole === Role::Admin && ($record['ROLE'] ?? '') !== Role::Admin->value) {
+        if (in_array($loginRole, [Role::Admin, Role::Reseller], true) && ($record['ROLE'] ?? '') !== $loginRole->value) {
             return $this->end($user, $data);
         }
 
@@ -82,8 +91,21 @@ final class PrincipalResolver
             return $this->end($user, $data, logLogout: true);
         }
 
-        // 7. Refresh shell and role from the effective user
-        $look = is_string($data['look'] ?? null) && $data['look'] !== '' ? $data['look'] : null;
+        // 7. Refresh shell and role from the effective user. Administrators
+        // impersonate through the legacy key `look`, resellers through
+        // `arc_look`, checked again on every request.
+        $look = null;
+        $resellerLook = false;
+        if ($loginRole === Role::Admin) {
+            $look = self::nonEmpty($data['look'] ?? null);
+        } elseif ($loginRole === Role::Reseller && ($target = self::nonEmpty($data[self::RESELLER_LOOK] ?? null)) !== null) {
+            if ($this->tenancy->isCustomerOf($target, $user) && ! $this->config->is('POLICY_RESELLER_LOGIN_AS', 'no')) {
+                $look = $target;
+                $resellerLook = true;
+            } else {
+                $this->impersonationEnded = true;
+            }
+        }
         $effective = $record;
         if ($look !== null) {
             $effective = $this->userRecord($look) ?? $record;
@@ -93,14 +115,17 @@ final class PrincipalResolver
             ? $data['token']
             : bin2hex(random_bytes(16));
 
+        // The legacy app and the web terminal never see a reseller's "login
+        // as": they keep the reseller's own shell and role.
+        $legacyView = $resellerLook ? $record : $effective;
         $this->session->write(array_filter([
             'user_combined_ip' => $sessionIp === '' ? $clientIp : null,
-            'login_shell' => $effective['SHELL'] ?? '',
-            'role' => $effective['ROLE'] ?? '',
+            'login_shell' => $legacyView['SHELL'] ?? '',
+            'role' => $legacyView['ROLE'] ?? '',
             'token' => $token,
-            'look' => $look ?? '',
+            'look' => $resellerLook ? '' : ($look ?? ''),
             'LAST_ACTIVITY' => $now,
-        ], fn ($value) => $value !== null));
+        ], fn ($value) => $value !== null) + ($this->impersonationEnded ? [self::RESELLER_LOOK => null] : []));
 
         $effectiveRole = Role::fromValue($effective['ROLE'] ?? '');
 
@@ -135,6 +160,11 @@ final class PrincipalResolver
             && $look !== null
             && $look === $this->config->get('ROOT_USER')
             && $this->config->is('POLICY_SYSTEM_PROTECTED_ADMIN');
+    }
+
+    private static function nonEmpty(mixed $value): ?string
+    {
+        return is_string($value) && $value !== '' ? $value : null;
     }
 
     /** @return array<string, string>|null */

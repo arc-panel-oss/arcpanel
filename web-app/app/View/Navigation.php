@@ -4,6 +4,7 @@ namespace App\View;
 
 use App\Arc\SysConfig;
 use App\Auth\Principal;
+use App\Auth\Role;
 use App\Policies\Capabilities;
 use Illuminate\Support\Facades\Route;
 
@@ -11,11 +12,15 @@ use Illuminate\Support\Facades\Route;
  * The role-aware sidebar (docs/design/05 §4.1, 03 §9.1), generated from
  * Capabilities for the role the panel acts with. Items are route names; a
  * route the panel app does not have yet links to the legacy page.
+ *
+ * A reseller's "login as" works on panel app pages only (E11 spec D4), so
+ * legacy links are left out while a reseller acts as a customer.
  */
 final class Navigation
 {
     /**
      * requires: hestia.conf key that must be set ("KEY") or equal ("KEY=value").
+     * labels: label per acting role, instead of label.
      */
     private const GROUPS = [
         'main' => [
@@ -24,10 +29,16 @@ final class Navigation
                 ['route' => 'dashboard', 'label' => 'Dashboard', 'icon' => 'grid', 'cap' => 'dashboard.view'],
             ],
         ],
+        'accounts' => [
+            'label' => 'Accounts',
+            'items' => [
+                ['route' => 'users.index', 'label' => 'Users', 'labels' => ['reseller' => 'Customers'], 'icon' => 'users', 'cap' => 'users.view', 'section' => 'users.'],
+                ['route' => 'packages.index', 'label' => 'Packages', 'icon' => 'package', 'cap' => 'packages.view', 'section' => 'packages.'],
+            ],
+        ],
         'hosting' => [
             'label' => 'Hosting',
             'items' => [
-                ['route' => 'users.index', 'label' => 'Users', 'icon' => 'users', 'cap' => 'users.view'],
                 ['route' => 'web.domains.index', 'label' => 'Web', 'icon' => 'globe', 'cap' => 'web.view', 'requires' => 'WEB_SYSTEM', 'section' => 'web.'],
                 ['route' => 'dns.index', 'label' => 'DNS', 'icon' => 'dns', 'cap' => 'dns.view', 'requires' => 'DNS_SYSTEM'],
                 ['route' => 'mail.index', 'label' => 'Mail', 'icon' => 'mail', 'cap' => 'mail.view', 'requires' => 'MAIL_SYSTEM'],
@@ -45,7 +56,6 @@ final class Navigation
                 ['route' => 'server.services', 'label' => 'Services', 'icon' => 'activity', 'cap' => 'server.view', 'services' => true],
                 ['route' => 'server.ips', 'label' => 'IP Addresses', 'icon' => 'hash', 'cap' => 'server.view'],
                 ['route' => 'server.firewall', 'label' => 'Firewall', 'icon' => 'shield', 'cap' => 'server.view', 'requires' => 'FIREWALL_SYSTEM'],
-                ['route' => 'packages.index', 'label' => 'Packages', 'icon' => 'package', 'cap' => 'server.view'],
                 ['route' => 'server.updates', 'label' => 'Updates', 'icon' => 'refresh', 'cap' => 'server.view'],
                 ['route' => 'server.rrd', 'label' => 'Task Monitor', 'icon' => 'chart', 'cap' => 'server.view'],
             ],
@@ -55,7 +65,7 @@ final class Navigation
             'items' => [
                 ['route' => 'logs.index', 'label' => 'Logs', 'icon' => 'file', 'cap' => 'logs.view'],
                 ['route' => 'stats.index', 'label' => 'Statistics', 'icon' => 'trend', 'cap' => 'stats.view'],
-                ['route' => 'account.edit', 'label' => 'Edit User', 'icon' => 'user-circle', 'cap' => 'account.view'],
+                ['route' => 'account.edit', 'label' => 'My account', 'icon' => 'user-circle', 'cap' => 'account.view', 'section' => 'account.'],
             ],
         ],
     ];
@@ -75,12 +85,12 @@ final class Navigation
                     continue;
                 }
                 $url = $this->url($item['route']);
-                if ($url === null) {
+                if ($url === null || ($this->resellerActingAsCustomer($principal) && ! Route::has($item['route']))) {
                     continue;
                 }
                 $items[] = [
                     'key' => $item['route'],
-                    'label' => __($item['label']),
+                    'label' => __($item['labels'][$principal->actingRole()->value] ?? $item['label']),
                     'icon' => $item['icon'],
                     'url' => $url,
                     'active' => $this->isActive($item, $currentRoute),
@@ -121,6 +131,11 @@ final class Navigation
         }
 
         return true;
+    }
+
+    private function resellerActingAsCustomer(Principal $principal): bool
+    {
+        return $principal->loginRole === Role::Reseller && $principal->isImpersonating();
     }
 
     private function configAllows(string $requirement): bool

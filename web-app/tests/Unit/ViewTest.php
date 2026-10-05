@@ -42,8 +42,8 @@ it('builds the sidebar from the capabilities of the acting role', function () {
     $keys = collect($admin)->pluck('key')->all();
     $items = collect($admin)->flatMap(fn ($group) => $group['items'])->keyBy('key');
 
-    expect($keys)->toBe(['main', 'hosting', 'server', 'account'])
-        ->and($items)->toHaveKeys(['dashboard', 'users.index', 'web.domains.index', 'server.services'])
+    expect($keys)->toBe(['main', 'accounts', 'hosting', 'server', 'account'])
+        ->and($items)->toHaveKeys(['dashboard', 'users.index', 'packages.index', 'web.domains.index', 'server.services'])
         ->and($items)->not->toHaveKeys(['server.firewall', 'files.index'])
         ->and($items['web.domains.index']['active'])->toBeTrue()
         ->and($items['web.domains.index']['url'])->toBe(route('web.domains.index'))
@@ -55,6 +55,24 @@ it('builds the sidebar from the capabilities of the acting role', function () {
 
     $impersonating = collect($navigation->for(principal('arcadmin', Role::Admin, look: 'bob'), null))->flatMap(fn ($group) => $group['items'])->keyBy('key');
     expect($impersonating)->not->toHaveKey('users.index');
+});
+
+it('gives resellers customers, packages and their own hosting', function () {
+    fakeArc();
+    $navigation = app(Navigation::class);
+
+    $reseller = collect($navigation->for(principal('hostco', Role::Reseller), null))->flatMap(fn ($group) => $group['items'])->keyBy('key');
+    expect($reseller)->toHaveKeys(['dashboard', 'users.index', 'packages.index', 'web.domains.index', 'dns.index', 'account.edit'])
+        ->and($reseller)->not->toHaveKeys(['server.services', 'server.settings'])
+        ->and($reseller['users.index']['label'])->toBe('Customers');
+});
+
+it('keeps a reseller acting as a customer on panel app pages', function () {
+    fakeArc();
+    $items = collect(app(Navigation::class)->for(principal('hostco', Role::Reseller, look: 'bob'), null))->flatMap(fn ($group) => $group['items'])->keyBy('key');
+
+    expect($items)->toHaveKeys(['dashboard', 'web.domains.index'])
+        ->and($items)->not->toHaveKeys(['users.index', 'dns.index', 'mail.index', 'files.index']);
 });
 
 it('hides modules the server does not run', function () {

@@ -14,7 +14,8 @@ use Illuminate\Support\Facades\Route;
 
 /**
  * Results of the command palette (docs/design/05 §4.2): objects from
- * `v-search-object` (admin) or `v-search-user-object` (everyone else),
+ * `v-search-object` (admins and resellers) or `v-search-user-object`
+ * (everyone else),
  * filtered by OwnerScope, plus pages and actions from the navigation and a
  * static action list, filtered by Capabilities.
  */
@@ -70,7 +71,7 @@ final class PaletteSearch
             return [];
         }
         $role = $this->principal->actingRole();
-        $rows = $role === Role::Admin
+        $rows = in_array($role, [Role::Admin, Role::Reseller], true)
             ? $this->arc->json('v-search-object', [$query], Options::allowFailure())
             : $this->arc->json('v-search-user-object', [$this->principal->effectiveUser(), $query], Options::allowFailure());
 
@@ -86,6 +87,11 @@ final class PaletteSearch
             }
             [$label, $icon, $capability] = self::OBJECT_TYPES[$type];
             if (! Capabilities::allows($role, $capability) || $this->isProtectedAdmin($owner)) {
+                continue;
+            }
+            // Resellers open their customers' objects in the panel app only
+            // (E11 spec D4): legacy pages have no "login as" for them.
+            if ($role === Role::Reseller && $owner !== $this->principal->effectiveUser() && $type !== 'web') {
                 continue;
             }
             $groups[__($label)][] = [
@@ -145,13 +151,15 @@ final class PaletteSearch
         $items = [];
         foreach ($this->users->all() as $name => $record) {
             $haystack = $name.' '.($record['NAME'] ?? '').' '.($record['CONTACT'] ?? '');
-            if (mb_stripos($haystack, $query) === false || $this->isProtectedAdmin($name)) {
+            if (mb_stripos($haystack, $query) === false || $this->isProtectedAdmin($name) || ! $this->scope->canManageAccount($name)) {
                 continue;
             }
             $items[] = [
                 'label' => $name,
                 'meta' => (string) ($record['NAME'] ?? ''),
-                'url' => '/edit/user/?'.http_build_query(['user' => $name, 'token' => $this->principal->legacyToken]),
+                'url' => Route::has('users.show')
+                    ? route('users.show', ['user' => $name])
+                    : '/edit/user/?'.http_build_query(['user' => $name, 'token' => $this->principal->legacyToken]),
                 'icon' => 'user',
             ];
         }
@@ -173,8 +181,8 @@ final class PaletteSearch
         if (Capabilities::allows($role, 'web.create') && ! $this->principal->isReadOnly() && Route::has('web.domains.create')) {
             $items[] = ['label' => __('Add Web Domain'), 'meta' => __('Web'), 'url' => route('web.domains.create'), 'icon' => 'plus'];
         }
-        if (Capabilities::allows($role, 'users.view') && ! $this->principal->isReadOnly()) {
-            $items[] = ['label' => __('Add User'), 'meta' => __('Users'), 'url' => (string) Navigation::url('users.create'), 'icon' => 'user-plus'];
+        if (Capabilities::allows($role, 'users.create') && ! $this->principal->isReadOnly()) {
+            $items[] = ['label' => $role === Role::Reseller ? __('Add Customer') : __('Add User'), 'meta' => __('Users'), 'url' => (string) Navigation::url('users.create'), 'icon' => 'user-plus'];
         }
 
         return array_values(array_filter($items, fn (array $item) => mb_stripos($item['label'], $query) !== false));

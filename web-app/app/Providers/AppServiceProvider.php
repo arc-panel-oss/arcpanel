@@ -11,6 +11,7 @@ use App\Auth\OwnerScope;
 use App\Auth\Principal;
 use App\Services\Mail\CredentialsMailer;
 use App\Services\Mail\PanelCredentialsMailer;
+use App\Tenancy\TenancyDirectory;
 use App\View\AssetManifest;
 use App\View\ShellComposer;
 use Illuminate\Support\Facades\Blade;
@@ -44,8 +45,11 @@ class AppServiceProvider extends ServiceProvider
             cookies: $app->make('request')->cookies->all(),
         ));
 
+        // Owner tree, read once per request (E11)
+        $this->app->scoped(TenancyDirectory::class, fn ($app) => new TenancyDirectory($app->make(ArcCommand::class)));
+
         // The Principal is bound per request by ResolvePrincipal.
-        $this->app->bind(OwnerScope::class, fn ($app) => new OwnerScope($app->make(Principal::class)));
+        $this->app->bind(OwnerScope::class, fn ($app) => new OwnerScope($app->make(Principal::class), $app->make(TenancyDirectory::class)));
 
         $this->app->singleton(AssetManifest::class, fn () => new AssetManifest(public_path('build/manifest.json')));
 

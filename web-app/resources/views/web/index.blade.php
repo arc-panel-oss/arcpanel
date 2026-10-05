@@ -16,7 +16,7 @@
     $publicIp = fn (string $ip) => trim((string) ($ips[$ip]['NAT'] ?? '')) !== '' ? $ips[$ip]['NAT'] : $ip;
 @endphp
 <x-ap-page :title="__('Web domains')" :crumbs="[['label' => __('Web')], ['label' => __('Web domains')]]"
-    :description="$showOwner ? __('Web domains of every user on this server.') : __('Your websites and their settings.')">
+    :description="$everyUser ? __('Web domains of every user on this server.') : ($showOwner ? __('Your web domains and those of your customers.') : __('Your websites and their settings.'))">
     <x-slot:actions>
         @if ($canCreate)
             <x-ap-button :href="route('web.domains.create', array_filter(['owner' => $owner]))" variant="primary" icon="plus">{{ __('Add Web Domain') }}</x-ap-button>

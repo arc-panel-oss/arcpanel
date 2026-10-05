@@ -6,7 +6,9 @@ use App\Arc\SysConfig;
 use App\Auth\Principal;
 use App\Auth\Role;
 use App\Services\UserDirectory;
+use App\Tenancy\TenancyDirectory;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Route;
 use Illuminate\View\View;
 
 /**
@@ -21,6 +23,7 @@ final class ShellComposer
         private readonly Navigation $navigation,
         private readonly SysConfig $config,
         private readonly UserDirectory $users,
+        private readonly TenancyDirectory $tenancy,
         private readonly Request $request,
     ) {}
 
@@ -28,7 +31,12 @@ final class ShellComposer
     {
         $principal = app(Principal::class);
         $locale = app()->getLocale();
-        $canSwitch = $principal->loginRole === Role::Admin && ! $principal->isImpersonating();
+        $switchUsers = $principal->isImpersonating() ? [] : match ($principal->loginRole) {
+            Role::Admin => array_values(array_diff($this->users->names(), [$principal->loginUser])),
+            Role::Reseller => $this->config->is('POLICY_RESELLER_LOGIN_AS', 'no') ? [] : $this->tenancy->customersOf($principal->loginUser),
+            default => [],
+        };
+        $canSwitch = ! $principal->isImpersonating() && ($principal->loginRole === Role::Admin || $switchUsers !== []);
         $prefs = self::preferences($principal, $this->config, $this->request);
         $dir = in_array(explode('-', $locale)[0], self::RTL, true) ? 'rtl' : 'ltr';
 
@@ -60,14 +68,14 @@ final class ShellComposer
                 Role::Reseller => __('Reseller'),
                 default => __('User'),
             },
-            'accountUrl' => LegacyRoutes::url('account.edit').'?'.http_build_query([
-                'user' => $principal->effectiveUser(),
-                'token' => $principal->legacyToken,
-            ]),
+            'accountUrl' => Route::has('account.edit')
+                ? route('account.edit')
+                : LegacyRoutes::url('account.edit').'?'.http_build_query([
+                    'user' => $principal->effectiveUser(),
+                    'token' => $principal->legacyToken,
+                ]),
             'canSwitchUser' => $canSwitch,
-            'switchUsers' => $canSwitch
-                ? array_values(array_diff($this->users->names(), [$principal->loginUser]))
-                : [],
+            'switchUsers' => $switchUsers,
             'languages' => self::languages(),
         ]);
     }
