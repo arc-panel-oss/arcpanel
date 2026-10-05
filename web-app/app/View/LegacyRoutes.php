@@ -12,7 +12,6 @@ final class LegacyRoutes
         'users.index' => '/list/user/',
         'dns.index' => '/list/dns/',
         'mail.index' => '/list/mail/',
-        'cron.index' => '/list/cron/',
         'backups.index' => '/list/backup/',
         'terminal.index' => '/list/terminal/',
         'server.services' => '/list/server/',

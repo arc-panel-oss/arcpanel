@@ -2717,6 +2717,22 @@ a.ap-pick:focus-visible {
 	font: 500 15px/1 var(--ap-font-mono);
 	color: var(--ap-accent);
 }
+.ap-cron-fields {
+	grid-template-columns: repeat(auto-fit, minmax(min(120px, 100%), 1fr));
+}
+.ap-cron-generator {
+	display: grid;
+	justify-items: start;
+	gap: var(--ap-space-3);
+	margin-top: var(--ap-space-4);
+}
+.ap-cron-tab {
+	align-items: flex-end;
+	gap: var(--ap-space-3);
+}
+.ap-cron-tab .ap-field {
+	min-width: 96px;
+}
 
 /* Truncated mono cell */
 .ap-trunc {

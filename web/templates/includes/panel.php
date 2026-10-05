@@ -430,7 +430,7 @@
 						<li class="main-menu-item">
 							<a class="main-menu-item-link <?php if ($TAB == "CRON") {
        	echo "active";
-       } ?>" href="/list/cron/" title="<?= _("Jobs") ?>: <?= $panel[$user]["U_WEB_DOMAINS"] ?>&#13;<?= _("Limit") ?>: <?= $panel[$user]["CRON_JOBS"] == "unlimited"
+       } ?>" href="<?= tohtml(arc_route("/list/cron/")) ?>" title="<?= _("Jobs") ?>: <?= $panel[$user]["U_WEB_DOMAINS"] ?>&#13;<?= _("Limit") ?>: <?= $panel[$user]["CRON_JOBS"] == "unlimited"
 	? "∞"
 	: $panel[$user]["CRON_JOBS"] ?>&#13;<?= _("Suspended") ?>: <?= $panel[$user]["SUSPENDED_CRON"] ?>">
 								<p class="main-menu-item-label"><?= _("CRON") ?><i class="fas fa-clock"></i></p>

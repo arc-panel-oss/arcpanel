@@ -3,6 +3,8 @@
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\LogoutController;
 use App\Http\Controllers\Auth\TwoFactorController;
+use App\Http\Controllers\Cron\CronActionController;
+use App\Http\Controllers\Cron\CronController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\Databases\DatabaseActionController;
 use App\Http\Controllers\Databases\DatabaseController;
@@ -49,6 +51,8 @@ Route::pattern('slug', '[a-z][a-z0-9-]{1,31}');
 Route::pattern('version', '\d{1,3}\.\d{1,3}\.\d{1,3}');
 // Database names with the owner prefix (is_database_format_valid)
 Route::pattern('database', '[\w-]{1,64}');
+// Cron job ids (is_int_format_valid)
+Route::pattern('job', '\d{1,9}');
 
 Route::middleware('guest.arc')->group(function () {
     Route::get('/login', [LoginController::class, 'show'])->name('login');
@@ -273,6 +277,30 @@ Route::middleware('auth.arc')->group(function () {
                 Route::post('/download', [DatabaseActionController::class, 'download'])->name('download');
                 Route::post('/phpmyadmin', [DatabaseActionController::class, 'phpMyAdmin'])->name('phpmyadmin');
                 Route::delete('/', [DatabaseActionController::class, 'destroy'])->name('destroy');
+            });
+        });
+    });
+
+    // Cron jobs (E7 batch 1 spec §7)
+    Route::prefix('cron')->name('cron.')->group(function () {
+        Route::get('/', [CronController::class, 'index'])->name('index');
+        Route::get('/create', [CronController::class, 'create'])->name('create');
+        Route::post('/', [CronController::class, 'store'])->middleware('not-readonly')->name('store');
+        Route::post('/bulk', [CronActionController::class, 'bulk'])->middleware('not-readonly')->name('bulk');
+
+        Route::middleware(['effective-user', 'not-readonly'])->prefix('{user}/reports')->name('reports.')->group(function () {
+            Route::post('/', [CronActionController::class, 'enableReports'])->name('enable');
+            Route::delete('/', [CronActionController::class, 'disableReports'])->name('disable');
+        });
+
+        Route::middleware('effective-user')->prefix('{user}/{job}')->group(function () {
+            Route::get('/edit', [CronController::class, 'edit'])->name('edit');
+
+            Route::middleware('not-readonly')->group(function () {
+                Route::post('/edit', [CronController::class, 'update'])->name('update');
+                Route::post('/suspend', [CronActionController::class, 'suspend'])->name('suspend');
+                Route::post('/unsuspend', [CronActionController::class, 'unsuspend'])->name('unsuspend');
+                Route::delete('/', [CronActionController::class, 'destroy'])->name('destroy');
             });
         });
     });

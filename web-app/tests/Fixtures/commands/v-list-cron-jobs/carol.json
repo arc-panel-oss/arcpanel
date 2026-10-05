@@ -1,0 +1,14 @@
+{
+    "1": {
+        "MIN": "*/5",
+        "HOUR": "*",
+        "DAY": "*",
+        "MONTH": "*",
+        "WDAY": "*",
+        "CMD": "curl -s https://carol.example/tick",
+        "JOB": "1",
+        "SUSPENDED": "no",
+        "TIME": "09:00:00",
+        "DATE": "2026-09-30"
+    }
+}

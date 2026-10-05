@@ -1,0 +1,26 @@
+{
+    "1": {
+        "MIN": "0",
+        "HOUR": "*",
+        "DAY": "*",
+        "MONTH": "*",
+        "WDAY": "*",
+        "CMD": "php /home/bob/web/example.com/public_html/cron.php",
+        "JOB": "1",
+        "SUSPENDED": "no",
+        "TIME": "10:00:00",
+        "DATE": "2026-09-30"
+    },
+    "2": {
+        "MIN": "30",
+        "HOUR": "2",
+        "DAY": "*",
+        "MONTH": "*",
+        "WDAY": "0",
+        "CMD": "bash /home/bob/weekly-report.sh",
+        "JOB": "2",
+        "SUSPENDED": "yes",
+        "TIME": "10:05:00",
+        "DATE": "2026-09-30"
+    }
+}

@@ -342,6 +342,27 @@ function fakeDatabases(ArcCommandFake $fake): void
     $fake->on('v-list-database-hosts')->returnsFixture('v-list-database-hosts/default.json');
 }
 
+/**
+ * Cron jobs of the test users (E7): bob has job 1 and the suspended job 2,
+ * carol has job 1, everyone else none. `v-list-cron-job USER JOB json`
+ * answers from the same fixtures; `v-get-sys-timezone` answers UTC.
+ */
+function fakeCronJobs(ArcCommandFake $fake): void
+{
+    $list = function (string $user): array {
+        $file = base_path("tests/Fixtures/commands/v-list-cron-jobs/{$user}.json");
+
+        return is_file($file) ? commandFixture("v-list-cron-jobs/{$user}.json") : [];
+    };
+    $fake->on('v-list-cron-jobs')->using(fn (array $args) => [0, (string) json_encode((object) $list($args[0]))]);
+    $fake->on('v-list-cron-job')->using(function (array $args) use ($list) {
+        $row = $list($args[0])[$args[1]] ?? null;
+
+        return $row !== null ? [0, (string) json_encode([$args[1] => $row])] : [3, "Error: cron job {$args[1]} doesn't exist"];
+    });
+    $fake->on('v-get-sys-timezone')->returns("UTC\n");
+}
+
 /** Restart commands answer success. */
 function fakeRestarts(ArcCommandFake $fake): void
 {

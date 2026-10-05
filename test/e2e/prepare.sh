@@ -8,7 +8,8 @@
 #                                 users start without ports (E12);
 #                                 arce2edev on the developer package starts
 #                                 without Node.js (E13); arce2euser has the
-#                                 database arce2euser_e2edb (E7)
+#                                 database arce2euser_e2edb and one cron job
+#                                 "echo e2e-cron" without e-mail reports (E7)
 #   prepare.sh cleanup            deletes them again
 #   prepare.sh ports RANGE        allocates RANGE to arce2euser (E6)
 #   prepare.sh listen PORT        serves "arce2e-app-PORT" on 127.0.0.1:PORT
@@ -347,6 +348,12 @@ for user in $USERS; do
 	for database in $("$B/v-list-databases" "$user" plain | awk '{print $1}'); do
 		"$B/v-delete-database" "$user" "$database" > /dev/null
 	done
+	# ... and without cron jobs and cron e-mail reports (the reports command
+	# also restarts cron after the deletions with RESTART=no)
+	for job in $("$B/v-list-cron-jobs" "$user" plain | awk '{print $1}'); do
+		"$B/v-delete-cron-job" "$user" "$job" no > /dev/null
+	done
+	"$B/v-delete-cron-reports" "$user" > /dev/null
 done
 "$B/v-change-user-role" arce2eadmin admin > /dev/null
 "$B/v-change-user-role" arce2ereseller reseller > /dev/null
@@ -366,6 +373,8 @@ if [ -n "$(grep -o "^DB_SYSTEM='[^']\+'" "$HESTIA/conf/hestia.conf" || true)" ];
 	"$B/v-add-database" arce2euser e2edb e2edb "$file" > /dev/null
 	rm -f "$file"
 fi
+# Cron spec (E7): one known job
+"$B/v-add-cron-job" arce2euser 0 3 '*' '*' '*' 'echo e2e-cron' > /dev/null
 
 # The style guide is part of the accessibility run.
 if [ ! -f "$STATE" ]; then

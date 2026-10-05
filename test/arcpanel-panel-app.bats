@@ -113,6 +113,8 @@ setup_file() {
     v-add-web-domain "$PAGES_USER" "$PAGES_USER.example" > /dev/null
     # E7 batch 1: one object per migrated module
     v-add-database "$PAGES_USER" db db "$PAGES_PASS" > /dev/null
+    # job id 1 of a new user
+    v-add-cron-job "$PAGES_USER" 0 1 '*' '*' '*' 'echo arc' > /dev/null
 }
 
 teardown_file() {
@@ -190,6 +192,33 @@ teardown_file() {
     run pages_get "/edit/db/?database=${PAGES_USER}_db"
     assert_output "200 "
     run pages_get /app/db
+    assert_output "200 "
+    v-change-sys-config-value ARCPANEL_APP_PAGES yes
+}
+
+@test "Legacy cron pages redirect to the panel app when ARCPANEL_APP_PAGES is yes" {
+    v-change-sys-config-value ARCPANEL_APP_PAGES yes
+    pages_login
+    run pages_get /list/cron/
+    assert_output "302 $PANEL/app/cron"
+    run pages_get /add/cron/
+    assert_output "302 $PANEL/app/cron/create"
+    run pages_get "/edit/cron/?job=1"
+    assert_output "302 $PANEL/app/cron/$PAGES_USER/1/edit"
+    run pages_get "/app/cron/$PAGES_USER/1/edit"
+    assert_output "200 "
+}
+
+@test "Legacy cron pages come back when ARCPANEL_APP_PAGES is no" {
+    v-change-sys-config-value ARCPANEL_APP_PAGES no
+    pages_login
+    run pages_get /list/cron/
+    assert_output "200 "
+    run pages_get /add/cron/
+    assert_output "200 "
+    run pages_get "/edit/cron/?job=1"
+    assert_output "200 "
+    run pages_get /app/cron
     assert_output "200 "
     v-change-sys-config-value ARCPANEL_APP_PAGES yes
 }
