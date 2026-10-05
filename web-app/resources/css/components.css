@@ -2734,6 +2734,27 @@ a.ap-pick:focus-visible {
 	min-width: 96px;
 }
 
+/* DNS zone name servers and DNSSEC key */
+.ap-ns-list {
+	display: grid;
+	gap: var(--ap-space-2);
+	margin-bottom: var(--ap-space-2);
+}
+.ap-ns-row {
+	display: flex;
+	align-items: center;
+	gap: var(--ap-space-2);
+}
+.ap-ns-row > .ap-input {
+	flex: 1 1 auto;
+	min-width: 0;
+	max-width: 420px;
+}
+.ap-dnssec-value {
+	resize: vertical;
+	word-break: break-all;
+}
+
 /* Truncated mono cell */
 .ap-trunc {
 	display: block;

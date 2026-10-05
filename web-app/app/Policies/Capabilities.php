@@ -94,9 +94,16 @@ final class Capabilities
         'cron.update' => self::ALL_ROLES,
         'cron.delete' => self::ALL_ROLES,
 
+        // DNS zones and records (E7 batch 1 spec §5.1)
+        'dns.view' => self::ALL_ROLES,
+        'dns.create' => self::ALL_ROLES,
+        'dns.update' => self::ALL_ROLES,
+        'dns.delete' => self::ALL_ROLES,
+        // Users and resellers also need POLICY_USER_EDIT_DNS_TEMPLATES (DnsPolicy).
+        'dns.templates.edit' => self::ALL_ROLES,
+
         // Modules still served by the legacy pages: navigation only. A
         // reseller reaches them for its own account.
-        'dns.view' => self::OWN,
         'mail.view' => self::OWN,
         'backups.view' => self::OWN,
         'logs.view' => self::OWN,

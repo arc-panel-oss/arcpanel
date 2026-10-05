@@ -28,6 +28,8 @@ function arc_route(string $legacyPath): string {
 		"/add/db/" => "/app/db/create",
 		"/list/cron/" => "/app/cron",
 		"/add/cron/" => "/app/cron/create",
+		"/list/dns/" => "/app/dns",
+		"/add/dns/" => "/app/dns/create",
 	];
 
 	return arc_app_pages() && isset($routes[$legacyPath]) ? $routes[$legacyPath] : $legacyPath;
@@ -101,6 +103,37 @@ function arc_redirect_if_migrated(string $legacyPath, array $query = []): void {
 				return;
 			}
 			$url = "/app/cron/" . $segment($owner) . "/" . $job . "/edit";
+			break;
+		case "/list/dns/":
+			// ?domain= lists the zone's records, ?domain=&action= shows its DNSSEC key
+			if ($domain === "" || $owner === "") {
+				$url = "/app/dns";
+			} else {
+				$zone = "/app/dns/" . $segment($owner) . "/" . $segment($domain);
+				$url = $zone . (!empty($query["action"]) ? "/dnssec" : "/records");
+			}
+			break;
+		case "/add/dns/":
+			// ?domain= adds a record: the records page with the record drawer open
+			if ($domain === "" || $owner === "") {
+				$url = "/app/dns/create";
+			} else {
+				$url = "/app/dns/" . $segment($owner) . "/" . $segment($domain) . "/records?add=1";
+			}
+			break;
+		case "/edit/dns/":
+			if ($domain === "" || $owner === "") {
+				return;
+			}
+			$zone = "/app/dns/" . $segment($owner) . "/" . $segment($domain);
+			$record = isset($query["record_id"]) ? (string) $query["record_id"] : "";
+			if ($record === "") {
+				$url = $zone . "/edit";
+			} elseif (preg_match('/^\d{1,9}$/', $record) === 1) {
+				$url = $zone . "/records?edit=" . $record;
+			} else {
+				return;
+			}
 			break;
 		default:
 			return;

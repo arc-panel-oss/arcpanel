@@ -1,9 +1,10 @@
 {{--
     Dialog (apModal): focus trap, Esc, focus return. Open with
-    x-on:click="$dispatch('ap-modal', { id: '…' })". drawer renders a side panel.
+    x-on:click="$dispatch('ap-modal', { id: '…' })". drawer renders a side panel;
+    open shows it when the page loads.
 --}}
-@props(['id', 'title', 'description' => null, 'icon' => null, 'footer' => null, 'drawer' => false])
-<div x-data="apModal({ id: @js($id) })" x-on:keydown="open && onKeydown($event)">
+@props(['id', 'title', 'description' => null, 'icon' => null, 'footer' => null, 'drawer' => false, 'open' => false])
+<div x-data="apModal({ id: @js($id), open: @js((bool) $open) })" x-on:keydown="open && onKeydown($event)">
     <div class="ap-overlay{{ $drawer ? ' ap-overlay-drawer' : '' }}" x-show="open" x-cloak x-on:click.self="close()">
         <div {{ $attributes->merge(['class' => $drawer ? 'ap-drawer' : 'ap-modal']) }} role="dialog" aria-modal="true" x-ref="dialog"
             aria-labelledby="{{ $id }}-title" @if ($description) aria-describedby="{{ $id }}-desc" @endif tabindex="-1">

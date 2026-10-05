@@ -1,0 +1,10 @@
+{
+    "shop.example": {
+        "RECORD": "shop.example. IN DNSKEY 257 3 13 mdsswUyr3DPW132mOi8V9xESWE8jTo0dxCjjnopKl+GqJxpVXckHAeF+KkxLbxILfDLUT0rAK9iUzy1L53eKGQ==",
+        "KEYTAG": "2371",
+        "FLAG": "257",
+        "ALGORITHM": "13",
+        "KEY": "mdsswUyr3DPW132mOi8V9xESWE8jTo0dxCjjnopKl+GqJxpVXckHAeF+KkxLbxILfDLUT0rAK9iUzy1L53eKGQ==",
+        "DS": "shop.example. IN DS 2371 13 2 1F987CC6583E92DF0890718C42E3A9A2DE5C7C66E3D1A8C1C5B5C1A2B3C4D5E6"
+    }
+}

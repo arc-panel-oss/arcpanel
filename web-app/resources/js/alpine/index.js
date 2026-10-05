@@ -3,8 +3,10 @@ import apBulkBar from './bulk-bar.js';
 import apCardPicker from './card-picker.js';
 import apConfirm from './confirm.js';
 import apCronBuilder from './cron-builder.js';
+import apDnsRecord from './dns-record.js';
 import apLog from './log.js';
 import apModal from './modal.js';
+import apNameServers from './name-servers.js';
 import apNotifications from './notifications.js';
 import apPalette from './palette.js';
 import apPassword from './password.js';
@@ -23,8 +25,10 @@ export const modules = {
 	apCardPicker,
 	apConfirm,
 	apCronBuilder,
+	apDnsRecord,
 	apLog,
 	apModal,
+	apNameServers,
 	apNotifications,
 	apPalette,
 	apPassword,

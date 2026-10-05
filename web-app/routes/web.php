@@ -8,6 +8,9 @@ use App\Http\Controllers\Cron\CronController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\Databases\DatabaseActionController;
 use App\Http\Controllers\Databases\DatabaseController;
+use App\Http\Controllers\Dns\DnsActionController;
+use App\Http\Controllers\Dns\DnsController;
+use App\Http\Controllers\Dns\DnsRecordController;
 use App\Http\Controllers\Docker\DockerAppController;
 use App\Http\Controllers\Docker\DockerAppPageController;
 use App\Http\Controllers\Docker\DockerEngineController;
@@ -53,6 +56,8 @@ Route::pattern('version', '\d{1,3}\.\d{1,3}\.\d{1,3}');
 Route::pattern('database', '[\w-]{1,64}');
 // Cron job ids (is_int_format_valid)
 Route::pattern('job', '\d{1,9}');
+// DNS record ids (is_int_format_valid)
+Route::pattern('record', '\d{1,9}');
 
 Route::middleware('guest.arc')->group(function () {
     Route::get('/login', [LoginController::class, 'show'])->name('login');
@@ -301,6 +306,36 @@ Route::middleware('auth.arc')->group(function () {
                 Route::post('/suspend', [CronActionController::class, 'suspend'])->name('suspend');
                 Route::post('/unsuspend', [CronActionController::class, 'unsuspend'])->name('unsuspend');
                 Route::delete('/', [CronActionController::class, 'destroy'])->name('destroy');
+            });
+        });
+    });
+
+    // DNS zones and records (E7 batch 1 spec §8)
+    Route::prefix('dns')->name('dns.')->group(function () {
+        Route::get('/', [DnsController::class, 'index'])->name('index');
+        Route::get('/create', [DnsController::class, 'create'])->name('create');
+        Route::post('/', [DnsController::class, 'store'])->middleware('not-readonly')->name('store');
+        Route::post('/bulk', [DnsActionController::class, 'bulk'])->middleware('not-readonly')->name('bulk');
+
+        Route::middleware('effective-user')->prefix('{user}/{domain}')->group(function () {
+            Route::get('/edit', [DnsController::class, 'edit'])->name('edit');
+            Route::get('/dnssec', [DnsController::class, 'dnssec'])->name('dnssec');
+            Route::get('/records', [DnsRecordController::class, 'index'])->name('records.index');
+
+            Route::middleware('not-readonly')->group(function () {
+                Route::post('/edit', [DnsController::class, 'update'])->name('update');
+                Route::post('/suspend', [DnsActionController::class, 'suspend'])->name('suspend');
+                Route::post('/unsuspend', [DnsActionController::class, 'unsuspend'])->name('unsuspend');
+                Route::delete('/', [DnsActionController::class, 'destroy'])->name('destroy');
+
+                Route::prefix('records')->name('records.')->group(function () {
+                    Route::post('/', [DnsRecordController::class, 'store'])->name('store');
+                    Route::post('/bulk', [DnsActionController::class, 'bulkRecords'])->name('bulk');
+                    Route::post('/{record}', [DnsRecordController::class, 'update'])->name('update');
+                    Route::post('/{record}/suspend', [DnsActionController::class, 'suspendRecord'])->name('suspend');
+                    Route::post('/{record}/unsuspend', [DnsActionController::class, 'unsuspendRecord'])->name('unsuspend');
+                    Route::delete('/{record}', [DnsActionController::class, 'destroyRecord'])->name('destroy');
+                });
             });
         });
     });

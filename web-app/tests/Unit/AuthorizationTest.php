@@ -31,7 +31,8 @@ it('grants each role its capabilities from the matrix', function () {
         ->and(Capabilities::scopeOf(Role::Reseller, 'web.view'))->toBe(Scope::Tree)
         ->and(Capabilities::scopeOf(Role::User, 'web.view'))->toBe(Scope::Self)
         ->and(Capabilities::scopeOf(Role::Reseller, 'users.view'))->toBe(Scope::Tree)
-        ->and(Capabilities::scopeOf(Role::Reseller, 'dns.view'))->toBe(Scope::Self)
+        ->and(Capabilities::scopeOf(Role::Reseller, 'dns.view'))->toBe(Scope::Tree)
+        ->and(Capabilities::scopeOf(Role::Reseller, 'logs.view'))->toBe(Scope::Self)
         ->and(Capabilities::allows(Role::Admin, 'server.view'))->toBeTrue()
         ->and(Capabilities::allows(Role::User, 'server.view'))->toBeFalse()
         ->and(Capabilities::allows(Role::User, 'users.view'))->toBeFalse();

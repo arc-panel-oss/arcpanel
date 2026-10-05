@@ -363,6 +363,50 @@ function fakeCronJobs(ArcCommandFake $fake): void
     $fake->on('v-get-sys-timezone')->returns("UTC\n");
 }
 
+/**
+ * DNS zones of the test users (E7): bob has example.com (six records, the
+ * last one suspended) and the suspended shop.example with DNSSEC, carol has
+ * carol.example, everyone else none. `v-list-dns-domain`,
+ * `v-list-dns-records` and `v-list-dnssec-public-key` answer from the same
+ * fixtures; the users' IPs (bob's fixture) and name servers and the DNS
+ * templates come with them.
+ */
+function fakeDnsZones(ArcCommandFake $fake): void
+{
+    $list = function (string $user): array {
+        $file = base_path("tests/Fixtures/commands/v-list-dns-domains/{$user}.json");
+
+        return is_file($file) ? commandFixture("v-list-dns-domains/{$user}.json") : [];
+    };
+    $missing = fn (string $domain) => [3, "Error: dns domain {$domain} doesn't exist"];
+    $fake->on('v-list-dns-domains')->using(fn (array $args) => [0, (string) json_encode((object) $list($args[0]))]);
+    $fake->on('v-list-dns-domain')->using(function (array $args) use ($list, $missing) {
+        $row = $list($args[0])[$args[1]] ?? null;
+
+        return $row !== null ? [0, (string) json_encode([$args[1] => $row])] : $missing($args[1]);
+    });
+    $fake->on('v-list-dns-records')->using(function (array $args) use ($list, $missing) {
+        if (! isset($list($args[0])[$args[1]])) {
+            return $missing($args[1]);
+        }
+        $file = base_path("tests/Fixtures/commands/v-list-dns-records/{$args[0]}-{$args[1]}.json");
+
+        return [0, is_file($file) ? (string) file_get_contents($file) : '{}'];
+    });
+    $fake->on('v-list-dnssec-public-key')->using(function (array $args) use ($list, $missing) {
+        if (! isset($list($args[0])[$args[1]])) {
+            return $missing($args[1]);
+        }
+        $file = base_path("tests/Fixtures/commands/v-list-dnssec-public-key/{$args[0]}-{$args[1]}.json");
+        $empty = [$args[1] => ['RECORD' => '', 'KEYTAG' => '', 'FLAG' => '', 'ALGORITHM' => '', 'KEY' => '', 'DS' => '']];
+
+        return [0, is_file($file) ? (string) file_get_contents($file) : (string) json_encode($empty)];
+    });
+    $fake->on('v-list-dns-templates', ['json'])->returnsJson(['office365', 'child-ns', 'default', 'zoho', 'gmail', 'default-nomail']);
+    $fake->on('v-list-user-ns')->returnsJson(['ns1.example.net', 'ns2.example.net']);
+    $fake->on('v-list-user-ips')->returnsFixture('v-list-user-ips/bob.json');
+}
+
 /** Restart commands answer success. */
 function fakeRestarts(ArcCommandFake $fake): void
 {

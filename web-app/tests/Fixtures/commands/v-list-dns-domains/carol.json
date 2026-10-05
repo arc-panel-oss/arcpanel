@@ -1,0 +1,16 @@
+{
+    "carol.example": {
+        "IP": "10.0.0.10",
+        "TPL": "default",
+        "TTL": "14400",
+        "EXP": "2027-09-30",
+        "SOA": "ns1.example.net",
+        "SERIAL": "2026093001",
+        "DNSSEC": "no",
+        "SRC": "",
+        "RECORDS": "2",
+        "SUSPENDED": "no",
+        "TIME": "09:00:00",
+        "DATE": "2026-09-30"
+    }
+}

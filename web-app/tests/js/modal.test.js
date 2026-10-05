@@ -19,6 +19,12 @@ const key = (target, init) => {
 	return event;
 };
 
+// The dialog gets the focus a frame after it opens (x-show)
+const shown = async () => {
+	await tick();
+	await tick();
+};
+
 afterEach(() => unmount());
 
 describe('apModal', () => {
@@ -31,7 +37,7 @@ describe('apModal', () => {
 		expect(modal.open).toBe(false);
 
 		request({ id: 'delete' });
-		await tick();
+		await shown();
 		expect(modal.open).toBe(true);
 		expect(document.activeElement.id).toBe('first');
 	});
@@ -41,7 +47,7 @@ describe('apModal', () => {
 		const modal = data(document.getElementById('modal'));
 		document.getElementById('opener').focus();
 		request({ id: 'delete' });
-		await tick();
+		await shown();
 
 		const event = key(document.getElementById('first'), { key: 'Escape' });
 		expect(event.defaultPrevented).toBe(true);
@@ -53,16 +59,24 @@ describe('apModal', () => {
 		mount(markup);
 		const modal = data(document.getElementById('modal'));
 		request({ id: 'delete' });
-		await tick();
+		await shown();
 		request({ id: 'delete', open: false });
 		expect(modal.open).toBe(false);
 		expect(() => modal.close()).not.toThrow();
 	});
 
+	it('opens when the page loads with open: true', async () => {
+		mount(markup.replace("apModal({ id: 'delete' })", "apModal({ id: 'delete', open: true })"));
+		const modal = data(document.getElementById('modal'));
+		await shown();
+		expect(modal.open).toBe(true);
+		expect(document.activeElement.id).toBe('first');
+	});
+
 	it('keeps Tab inside the dialog', async () => {
 		mount(markup);
 		request({ id: 'delete' });
-		await tick();
+		await shown();
 
 		document.getElementById('last').focus();
 		const forward = key(document.getElementById('last'), { key: 'Tab' });

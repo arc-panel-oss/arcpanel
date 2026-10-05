@@ -1,0 +1,30 @@
+{
+    "example.com": {
+        "IP": "203.0.113.10",
+        "TPL": "default",
+        "TTL": "14400",
+        "EXP": "2027-10-06",
+        "SOA": "ns1.example.net",
+        "SERIAL": "2026100601",
+        "DNSSEC": "no",
+        "SRC": "",
+        "RECORDS": "6",
+        "SUSPENDED": "no",
+        "TIME": "10:00:00",
+        "DATE": "2026-10-06"
+    },
+    "shop.example": {
+        "IP": "10.0.0.20",
+        "TPL": "child-ns",
+        "TTL": "3600",
+        "EXP": "2027-01-31",
+        "SOA": "ns1.example.net",
+        "SERIAL": "2026100602",
+        "DNSSEC": "yes",
+        "SRC": "ns0.cluster.example",
+        "RECORDS": "0",
+        "SUSPENDED": "yes",
+        "TIME": "10:05:00",
+        "DATE": "2026-10-06"
+    }
+}

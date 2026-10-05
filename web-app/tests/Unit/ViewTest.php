@@ -47,7 +47,8 @@ it('builds the sidebar from the capabilities of the acting role', function () {
         ->and($items)->not->toHaveKeys(['server.firewall', 'files.index'])
         ->and($items['web.domains.index']['active'])->toBeTrue()
         ->and($items['web.domains.index']['url'])->toBe(route('web.domains.index'))
-        ->and($items['dns.index']['url'])->toBe('/list/dns/');
+        ->and($items['dns.index']['url'])->toBe(route('dns.index'))
+        ->and($items['mail.index']['url'])->toBe('/list/mail/');
 
     $user = collect($navigation->for(principal('bob', Role::User), null))->flatMap(fn ($group) => $group['items'])->keyBy('key');
     expect($user)->toHaveKeys(['dashboard', 'web.domains.index', 'dns.index', 'account.edit'])
@@ -71,9 +72,9 @@ it('keeps a reseller acting as a customer on panel app pages', function () {
     fakeArc();
     $items = collect(app(Navigation::class)->for(principal('hostco', Role::Reseller, look: 'bob'), null))->flatMap(fn ($group) => $group['items'])->keyBy('key');
 
-    // The file manager is a panel app page since E3
-    expect($items)->toHaveKeys(['dashboard', 'web.domains.index', 'files.index'])
-        ->and($items)->not->toHaveKeys(['users.index', 'dns.index', 'mail.index']);
+    // The file manager is a panel app page since E3, DNS since E7
+    expect($items)->toHaveKeys(['dashboard', 'web.domains.index', 'files.index', 'dns.index'])
+        ->and($items)->not->toHaveKeys(['users.index', 'mail.index']);
 });
 
 it('hides modules the server does not run', function () {

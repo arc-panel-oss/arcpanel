@@ -1,0 +1,68 @@
+{
+    "1": {
+        "RECORD": "@",
+        "TYPE": "NS",
+        "PRIORITY": "",
+        "VALUE": "ns1.example.net.",
+        "ID": "1",
+        "SUSPENDED": "no",
+        "TIME": "10:00:00",
+        "DATE": "2026-10-06",
+        "TTL": "14400"
+    },
+    "2": {
+        "RECORD": "@",
+        "TYPE": "A",
+        "PRIORITY": "",
+        "VALUE": "203.0.113.10",
+        "ID": "2",
+        "SUSPENDED": "no",
+        "TIME": "10:00:00",
+        "DATE": "2026-10-06",
+        "TTL": "14400"
+    },
+    "3": {
+        "RECORD": "www",
+        "TYPE": "CNAME",
+        "PRIORITY": "",
+        "VALUE": "example.com.",
+        "ID": "3",
+        "SUSPENDED": "no",
+        "TIME": "10:00:00",
+        "DATE": "2026-10-06",
+        "TTL": "14400"
+    },
+    "4": {
+        "RECORD": "@",
+        "TYPE": "MX",
+        "PRIORITY": "10",
+        "VALUE": "mail.example.com.",
+        "ID": "4",
+        "SUSPENDED": "no",
+        "TIME": "10:00:00",
+        "DATE": "2026-10-06",
+        "TTL": "14400"
+    },
+    "5": {
+        "RECORD": "@",
+        "TYPE": "TXT",
+        "PRIORITY": "",
+        "VALUE": "\"v=spf1 a mx ~all\"",
+        "ID": "5",
+        "SUSPENDED": "no",
+        "TIME": "10:00:00",
+        "DATE": "2026-10-06",
+        "TTL": ""
+    },
+    "12": {
+        "RECORD": "old",
+        "TYPE": "A",
+        "PRIORITY": "",
+        "VALUE": "198.51.100.7",
+        "ID": "12",
+        "SUSPENDED": "yes",
+        "TIME": "10:00:00",
+        "DATE": "2026-10-06",
+        "TTL": "600"
+    }
+}

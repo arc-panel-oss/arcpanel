@@ -8,8 +8,9 @@
 #                                 users start without ports (E12);
 #                                 arce2edev on the developer package starts
 #                                 without Node.js (E13); arce2euser has the
-#                                 database arce2euser_e2edb and one cron job
-#                                 "echo e2e-cron" without e-mail reports (E7)
+#                                 database arce2euser_e2edb, one cron job
+#                                 "echo e2e-cron" without e-mail reports and
+#                                 the DNS zone e2e-zone.example (E7)
 #   prepare.sh cleanup            deletes them again
 #   prepare.sh ports RANGE        allocates RANGE to arce2euser (E6)
 #   prepare.sh listen PORT        serves "arce2e-app-PORT" on 127.0.0.1:PORT
@@ -354,6 +355,10 @@ for user in $USERS; do
 		"$B/v-delete-cron-job" "$user" "$job" no > /dev/null
 	done
 	"$B/v-delete-cron-reports" "$user" > /dev/null
+	# ... and without DNS zones (DNS restarts when the known zone is added)
+	for domain in $("$B/v-list-dns-domains" "$user" plain | awk '{print $1}'); do
+		"$B/v-delete-dns-domain" "$user" "$domain" no > /dev/null
+	done
 done
 "$B/v-change-user-role" arce2eadmin admin > /dev/null
 "$B/v-change-user-role" arce2ereseller reseller > /dev/null
@@ -375,6 +380,10 @@ if [ -n "$(grep -o "^DB_SYSTEM='[^']\+'" "$HESTIA/conf/hestia.conf" || true)" ];
 fi
 # Cron spec (E7): one known job
 "$B/v-add-cron-job" arce2euser 0 3 '*' '*' '*' 'echo e2e-cron' > /dev/null
+# DNS spec (E7): one known zone on the address of e2e-site.example
+if [ -n "$(grep -o "^DNS_SYSTEM='[^']\+'" "$HESTIA/conf/hestia.conf" || true)" ]; then
+	"$B/v-add-dns-domain" arce2euser e2e-zone.example "$(domain_ip e2e-site.example)" > /dev/null
+fi
 
 # The style guide is part of the accessibility run.
 if [ ! -f "$STATE" ]; then

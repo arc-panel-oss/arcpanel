@@ -1,15 +1,21 @@
 // apModal: dialog with a focus trap; Esc and the backdrop close it and focus
 // returns to the element that opened it. Open with
 // $dispatch('ap-modal', { id: 'name' }); close with { id, open: false }.
+// { open: true } shows it once the page has loaded (a form the server sent
+// back with errors).
 import { focusFirst, trapFocus } from './focus.js';
 
-export default function apModal({ id = '' } = {}) {
+export default function apModal({ id = '', open: startOpen = false } = {}) {
 	return {
 		id,
 		open: false,
 		returnFocus: null,
 
 		init() {
+			if (startOpen) {
+				// After Alpine has set up the page, like an opening click
+				setTimeout(() => this.show());
+			}
 			this.onRequest = (event) => {
 				if (event.detail?.id !== this.id) {
 					return;
@@ -30,7 +36,16 @@ export default function apModal({ id = '' } = {}) {
 		show() {
 			this.returnFocus = document.activeElement;
 			this.open = true;
-			this.$nextTick(() => focusFirst(this.$refs.dialog ?? this.$root));
+			// x-show reveals the dialog on the next frame (setTimeout in a
+			// hidden tab); focus it once it is visible
+			const nextFrame = document.visibilityState === 'visible' ? requestAnimationFrame : setTimeout;
+			this.$nextTick(() =>
+				nextFrame(() => {
+					if (this.open) {
+						focusFirst(this.$refs.dialog ?? this.$root);
+					}
+				}),
+			);
 		},
 
 		close() {

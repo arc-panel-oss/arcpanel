@@ -115,6 +115,8 @@ setup_file() {
     v-add-database "$PAGES_USER" db db "$PAGES_PASS" > /dev/null
     # job id 1 of a new user
     v-add-cron-job "$PAGES_USER" 0 1 '*' '*' '*' 'echo arc' > /dev/null
+    # a zone with the records of the default template (record id 1 is its first NS)
+    v-add-dns-domain "$PAGES_USER" "$PAGES_USER.dns.example" 198.51.100.10 > /dev/null
 }
 
 teardown_file() {
@@ -219,6 +221,49 @@ teardown_file() {
     run pages_get "/edit/cron/?job=1"
     assert_output "200 "
     run pages_get /app/cron
+    assert_output "200 "
+    v-change-sys-config-value ARCPANEL_APP_PAGES yes
+}
+
+@test "Legacy DNS pages redirect to the panel app when ARCPANEL_APP_PAGES is yes" {
+    local zone="$PAGES_USER.dns.example"
+    v-change-sys-config-value ARCPANEL_APP_PAGES yes
+    pages_login
+    run pages_get /list/dns/
+    assert_output "302 $PANEL/app/dns"
+    run pages_get "/list/dns/?domain=$zone"
+    assert_output "302 $PANEL/app/dns/$PAGES_USER/$zone/records"
+    run pages_get "/list/dns/?domain=$zone&action=view"
+    assert_output "302 $PANEL/app/dns/$PAGES_USER/$zone/dnssec"
+    run pages_get /add/dns/
+    assert_output "302 $PANEL/app/dns/create"
+    run pages_get "/add/dns/?domain=$zone"
+    assert_output "302 $PANEL/app/dns/$PAGES_USER/$zone/records?add=1"
+    run pages_get "/edit/dns/?domain=$zone"
+    assert_output "302 $PANEL/app/dns/$PAGES_USER/$zone/edit"
+    run pages_get "/edit/dns/?domain=$zone&record_id=1"
+    assert_output "302 $PANEL/app/dns/$PAGES_USER/$zone/records?edit=1"
+    run pages_get "/app/dns/$PAGES_USER/$zone/records?edit=1"
+    assert_output "200 "
+    run pages_get "/app/dns/$PAGES_USER/$zone/edit"
+    assert_output "200 "
+}
+
+@test "Legacy DNS pages come back when ARCPANEL_APP_PAGES is no" {
+    local zone="$PAGES_USER.dns.example"
+    v-change-sys-config-value ARCPANEL_APP_PAGES no
+    pages_login
+    run pages_get /list/dns/
+    assert_output "200 "
+    run pages_get "/list/dns/?domain=$zone"
+    assert_output "200 "
+    run pages_get /add/dns/
+    assert_output "200 "
+    run pages_get "/edit/dns/?domain=$zone"
+    assert_output "200 "
+    run pages_get "/edit/dns/?domain=$zone&record_id=1"
+    assert_output "200 "
+    run pages_get /app/dns
     assert_output "200 "
     v-change-sys-config-value ARCPANEL_APP_PAGES yes
 }

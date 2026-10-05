@@ -10,7 +10,6 @@ final class LegacyRoutes
 {
     public const URLS = [
         'users.index' => '/list/user/',
-        'dns.index' => '/list/dns/',
         'mail.index' => '/list/mail/',
         'backups.index' => '/list/backup/',
         'terminal.index' => '/list/terminal/',
