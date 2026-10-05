@@ -30,6 +30,7 @@ Every design here follows the constraints the roadmap already fixed:
 | 12  | [Security model](./12-security-model.md) — trust boundaries, sudo, sessions, secrets, isolation                                           | all           | Draft  |
 | 13  | [Data model reference](./13-data-model-reference.md) — every new file, key and command introduced by the designs                          | all           | Draft  |
 | 14  | [Later backlog designs](./14-later-backlog.md) — Job Center, alerts, Doctor, audit log, WAF and the rest of E15–E33                       | E15–E33       | Sketch |
+| 15  | [Database schema and ERD](./15-database-schema-and-erd.md) — logical ERD of the flat-file model, SQLite schema, migrations, retention     | all, E15–E33  | Draft  |
 
 Architecture Decision Records live in [`docs/adr/`](../adr/README.md). The ADRs the roadmap asks for in Q1 are drafted there with a recommendation each.
 

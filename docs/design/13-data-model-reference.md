@@ -173,7 +173,7 @@ Hooks (E12 spec §6): `func/hooks.d/<event>/NN-name.sh`, run by `run_arcpanel_ho
 
 ## 6. SQLite (post-2.0, E15) — `data/arcpanel/arcpanel.sqlite`
 
-`hestiaweb:hestiaweb 0640`, WAL mode, Laravel migrations. **Panel-owned operational data only**; never hosting state.
+`hestiaweb:hestiaweb 0640`, WAL mode, Laravel migrations. **Panel-owned operational data only**; never hosting state. The ERD, the full column lists, indexes, retention and migration rules are in [15](./15-database-schema-and-erd.md); the DDL is `docs/design/schemas/arcpanel-sqlite.sql`.
 
 | Table                | Introduced by | Content                                                                                                                                    |
 | -------------------- | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
