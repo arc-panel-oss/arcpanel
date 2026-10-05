@@ -83,6 +83,7 @@ Then read the code the task touches. Design documents describe intent; the code 
 
 - Conventional Commits with the epic as scope: `feat(e12): add the Ports pages …`, `fix(e11): …`, `docs(e15): …`, `test(e12): …`, `chore: …`. One logical change per commit; a milestone of a spec is a natural commit.
 - Subject in English, imperative, under 72 characters; body explains why when it is not obvious.
+- Never add `Co-Authored-By`, `Claude-Session`, or any other agent-attribution trailer to a commit message. The message is the subject and an optional body only. If a tool would append them, strip them before the commit is created.
 
 ## 7. Workflow for a feature or an epic slice
 
