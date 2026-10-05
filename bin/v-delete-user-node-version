@@ -23,8 +23,8 @@ source /etc/hestiacp/hestia.conf
 source $HESTIA/func/main.sh
 # shellcheck source=/usr/local/hestia/func/tenancy.sh
 source $HESTIA/func/tenancy.sh
-# shellcheck source=/usr/local/hestia/func/node.sh
-source $HESTIA/func/node.sh
+# shellcheck source=/usr/local/hestia/func/nodeapp.sh
+source $HESTIA/func/nodeapp.sh
 # load config file
 source_conf "$HESTIA/conf/hestia.conf"
 
@@ -49,6 +49,15 @@ node_check_path "$user" "$dir"
 if node_task_running "$user"; then
 	check_result "$E_INUSE" "Another Node.js task is running for $user"
 fi
+# Runtimes of Node.js apps and of their pm2 daemon (E14)
+if [ "$(nodeapp_count "$user")" -gt 0 ] && [ "$(nodeapp_pm2_runtime "$user")" = "$version" ]; then
+	check_result "$E_INUSE" "Node.js v$version runs the pm2 daemon of the apps of $user"
+fi
+for app_domain in $(nodeapp_domains "$user"); do
+	if [ "$(nodeapp_runtime "$user" "$(nodeapp_get "$user" "$app_domain" NODE_VERSION)")" = "$version" ]; then
+		check_result "$E_INUSE" "Node.js v$version is used by the app of $app_domain"
+	fi
+done
 
 # Perform verification if read-only mode is enabled
 check_hestia_demo_mode

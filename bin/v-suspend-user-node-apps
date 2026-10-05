@@ -1,0 +1,64 @@
+#!/bin/bash
+# info: stop the Node.js apps of a suspended user (E14)
+# options: USER
+#
+# example: v-suspend-user-node-apps alice
+#
+# This function is run by the post_suspend_user hook: it marks every app
+# that is not suspended on its own as suspended with the user
+# (SUSPENDED='user') and stops and disables the user's pm2 daemon, so it
+# does not start at boot. Ports stay assigned.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+user=$1
+
+# Includes
+# shellcheck source=/etc/hestiacp/hestia.conf
+source /etc/hestiacp/hestia.conf
+# shellcheck source=/usr/local/hestia/func/main.sh
+source $HESTIA/func/main.sh
+# shellcheck source=/usr/local/hestia/func/tenancy.sh
+source $HESTIA/func/tenancy.sh
+# shellcheck source=/usr/local/hestia/func/nodeapp.sh
+source $HESTIA/func/nodeapp.sh
+# load config file
+source_conf "$HESTIA/conf/hestia.conf"
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '1' "$#" 'USER'
+is_format_valid 'user'
+is_object_valid 'user' 'USER' "$user"
+
+# Perform verification if read-only mode is enabled
+check_hestia_demo_mode
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+if [ "$(nodeapp_count "$user")" -eq 0 ]; then
+	exit
+fi
+
+nodeapp_lock "$user"
+for domain in $(nodeapp_domains "$user"); do
+	if [ "$(nodeapp_get "$user" "$domain" SUSPENDED)" = 'no' ]; then
+		nodeapp_set "$user" "$domain" SUSPENDED=user
+	fi
+done
+nodeapp_daemon_disable "$user"
+
+#----------------------------------------------------------#
+#                       Hestia                             #
+#----------------------------------------------------------#
+
+log_event "$OK" "$ARGUMENTS"
+
+exit

@@ -4,7 +4,8 @@
 #
 # example: v-stop-node-app alice api.example.com
 #
-# This function stops the app; it stays stopped after a reboot.
+# This function stops the app; it stays stopped after a reboot, a rebuild
+# and an unsuspend until it is started again.
 
 #----------------------------------------------------------#
 #                Variables & Functions                     #
@@ -47,6 +48,7 @@ check_hestia_demo_mode
 
 nodeapp_lock "$user"
 nodeapp_stop "$user" "$domain"
+nodeapp_set "$user" "$domain" STATE=stopped
 
 #----------------------------------------------------------#
 #                       Hestia                             #

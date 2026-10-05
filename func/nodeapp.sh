@@ -25,7 +25,7 @@ source "$HESTIA/func/arc-template.sh"
 # pm2 release installed when a user has none
 NODEAPP_PM2_VERSION="7.0.4"
 
-NODEAPP_KEYS="DOMAIN NAME START CWD NODE_VERSION PORT INSTANCES MAX_MEMORY TEMPLATE PREV_TPL SUSPENDED TIME DATE"
+NODEAPP_KEYS="DOMAIN NAME START CWD NODE_VERSION PORT INSTANCES MAX_MEMORY TEMPLATE PREV_TPL STATE SUSPENDED TIME DATE"
 NODEAPP_UNIT="arcpanel-pm2"
 NODEAPP_UNIT_SOURCE="$HESTIA/install/common/node/arcpanel-pm2.service"
 NODEAPP_DEFAULT_TEMPLATE="nodejs-proxy"
@@ -125,6 +125,18 @@ nodeapp_set() {
 	} > "$tmp"
 	chmod 640 "$tmp"
 	mv -f "$tmp" "$file"
+	nodeapp_copy_write "$user" "$domain"
+}
+
+# Refresh the app.conf copy of USER's DOMAIN when its folder exists
+nodeapp_copy_write() {
+	local dir
+	dir=$(nodeapp_dir "$1" "$2")
+	if [ -d "$dir" ] && [ ! -L "$dir" ]; then
+		nodeapp_line "$1" "$2" \
+			| node_as_user "$1" bash -c 'umask 027; [ ! -L "$1" ] && cat > "$1.tmp" && mv -f "$1.tmp" "$1"' conf "$dir/app.conf"
+	fi
+	return 0
 }
 
 nodeapp_remove() {
@@ -637,8 +649,7 @@ nodeapp_files_write() {
 		echo ""
 		echo "module.exports = { apps: [app] };"
 	} | node_as_user "$user" bash -c 'umask 027; cat > "$1.tmp" && mv -f "$1.tmp" "$1"' eco "$dir/ecosystem.config.cjs"
-	nodeapp_line "$user" "$domain" \
-		| node_as_user "$user" bash -c 'umask 027; cat > "$1.tmp" && mv -f "$1.tmp" "$1"' conf "$dir/app.conf"
+	nodeapp_copy_write "$user" "$domain"
 }
 
 # Per-user logrotate file for the logs of every app
@@ -809,6 +820,7 @@ nodeapp_launch() {
 		echo "pm2 could not start the app of $domain"
 		return "$E_RESTART"
 	fi
+	nodeapp_set "$user" "$domain" STATE=running
 	nodeapp_logrotate_write "$user"
 }
 
@@ -822,4 +834,183 @@ nodeapp_apply() {
 	else
 		nodeapp_files_write "$1" "$2"
 	fi
+}
+
+#----------------------------------------------------------#
+#                Persistence and convergence               #
+#----------------------------------------------------------#
+
+# Whether USER's DOMAIN should run: not suspended and not stopped by the user
+nodeapp_should_run() {
+	local line
+	line=$(nodeapp_line "$1" "$2")
+	[ "$(nodeapp_field "$line" SUSPENDED)" = 'no' ] && [ "$(nodeapp_field "$line" STATE)" != 'stopped' ]
+}
+
+# Bring the processes of USER in line with the records: apps that should
+# run are started, the others stopped. The daemon must be running.
+nodeapp_converge() {
+	local user="$1" jlist domain status name changed=no
+	jlist=$(nodeapp_jlist "$user")
+	for domain in $(nodeapp_domains "$user"); do
+		name=$(nodeapp_get "$user" "$domain" NAME)
+		status=$(nodeapp_status_of "$jlist" "$name")
+		if nodeapp_should_run "$user" "$domain"; then
+			if [ "$status" != 'online' ] && [ "$status" != 'launching' ]; then
+				nodeapp_launch "$user" "$domain" > /dev/null 2>&1 \
+					|| echo "$(date +'%F %T') Node.js app $domain of $user could not be started" >> "$HESTIA/log/system.log"
+			fi
+		elif [ "$status" = 'online' ] || [ "$status" = 'launching' ] || [ "$status" = 'errored' ]; then
+			nodeapp_pm2 "$user" stop "$name" > /dev/null 2>&1
+			changed=yes
+		fi
+	done
+	if [ "$changed" = 'yes' ]; then
+		nodeapp_pm2 "$user" save --force > /dev/null 2>&1
+	fi
+	return 0
+}
+
+# The app.conf copy of USER's DOMAIN (one record line), empty when there is
+# none. Read as the user: the folder belongs to the user.
+nodeapp_copy_line() {
+	local file
+	file="$(nodeapp_dir "$1" "$2")/app.conf"
+	node_as_user "$1" bash -c '[ -f "$1" ] && [ ! -L "$1" ] && head -c 4096 "$1"' conf "$file" 2> /dev/null \
+		| grep -m1 "^DOMAIN='$2' "
+}
+
+# Validate a copy LINE for USER's DOMAIN (D4). Prints the reason and returns
+# 1 when it cannot be imported; otherwise prints the record pairs to import.
+nodeapp_copy_check() {
+	local user="$1" domain="$2" line="$3" name start cwd version port instances memory template prev other limit
+	name=$(nodeapp_field "$line" NAME)
+	start=$(nodeapp_field "$line" START)
+	cwd=$(nodeapp_field "$line" CWD)
+	version=$(nodeapp_field "$line" NODE_VERSION)
+	port=$(nodeapp_field "$line" PORT)
+	instances=$(nodeapp_field "$line" INSTANCES)
+	memory=$(nodeapp_field "$line" MAX_MEMORY)
+	template=$(nodeapp_field "$line" TEMPLATE)
+	prev=$(nodeapp_field "$line" PREV_TPL)
+	nodeapp_name_valid "$name" || {
+		echo "invalid name"
+		return 1
+	}
+	for other in $(nodeapp_domains "$user"); do
+		if [ "$other" != "$domain" ] && [ "$(nodeapp_get "$user" "$other" NAME)" = "$name" ]; then
+			echo "name $name is taken"
+			return 1
+		fi
+	done
+	nodeapp_start_valid "$start" || {
+		echo "invalid start command"
+		return 1
+	}
+	nodeapp_relpath_valid "$cwd" || {
+		echo "invalid working directory"
+		return 1
+	}
+	(nodeapp_check_start "$user" "$domain" "$cwd" "$start") > /dev/null 2>&1 || {
+		echo "start command not found"
+		return 1
+	}
+	if [ "$version" != 'default' ] && [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+		echo "invalid version"
+		return 1
+	fi
+	if [ -n "$port" ] && ! arc_tpl_valid_port "$port"; then
+		echo "invalid port"
+		return 1
+	fi
+	[[ "$instances" =~ ^[0-9]{1,3}$ ]] && [ "$instances" -ge 1 ] || instances=1
+	if [ "$instances" -gt "$(nodeapp_max_instances)" ]; then
+		instances=$(nodeapp_max_instances)
+	fi
+	if [[ "$start" == npm:* ]]; then
+		instances=1
+	fi
+	limit=$(nodeapp_memory_limit "$user")
+	[[ "$memory" =~ ^[0-9]{2,6}$ ]] && [ "$memory" -ge 64 ] || memory=$(nodeapp_default_memory "$user")
+	if [ "$memory" -gt "${limit:-$NODEAPP_MAX_MEMORY}" ]; then
+		memory=${limit:-$NODEAPP_MAX_MEMORY}
+	fi
+	nodeapp_tpl_is_node "$template" || template=$NODEAPP_DEFAULT_TEMPLATE
+	if ! [[ "$prev" =~ ^[A-Za-z0-9_.-]{1,64}$ ]] || ! nodeapp_tpl_exists "$prev"; then
+		prev=$(nodeapp_package_template "$user")
+	fi
+	printf '%s\n' "NAME=$name" "START=$start" "CWD=$cwd" "NODE_VERSION=$version" "PORT=$port" \
+		"INSTANCES=$instances" "MAX_MEMORY=$memory" "TEMPLATE=$template" "PREV_TPL=$prev" \
+		"STATE=$(nodeapp_field "$line" STATE)" SUSPENDED=no \
+		"TIME=$(nodeapp_field "$line" TIME)" "DATE=$(nodeapp_field "$line" DATE)"
+}
+
+# Make the port of USER's DOMAIN a node:DOMAIN port of the user's pool and
+# the BACKEND_PORT of the domain: the recorded port when it is free (or
+# already the app's; a restored user gets it back from the server range),
+# else a new one. With MODE keep, returns 1 instead of taking a new port, so
+# that a first pass over all apps keeps every port that can be kept. Prints
+# the port.
+nodeapp_port_ensure() {
+	local user="$1" domain="$2" mode="$3" port app out
+	port=$(nodeapp_get "$user" "$domain" PORT)
+	if [ -n "$port" ]; then
+		app=$(ports_record "$user" "$port" | cut -d'|' -f4)
+		if [ "$app" != "node:$domain" ] && ! "$BIN/v-allocate-user-port" "$user" "node:$domain" tcp "$port" > /dev/null 2>&1; then
+			if ! "$BIN/v-add-user-port" "$user" "$port" no restored > /dev/null 2>&1 \
+				|| ! "$BIN/v-allocate-user-port" "$user" "node:$domain" tcp "$port" > /dev/null 2>&1; then
+				port=''
+			fi
+		fi
+	fi
+	if [ -z "$port" ] && [ "$mode" = 'keep' ]; then
+		return 1
+	fi
+	if [ -z "$port" ]; then
+		port=$(ports_read "$user" | awk -F'|' -v app="node:$domain" '$4 == app { print $1; exit }')
+	fi
+	if [ -z "$port" ]; then
+		out=$("$BIN/v-allocate-user-port" "$user" "node:$domain" 2>&1) || return "$E_LIMIT"
+		port=$(printf '%s\n' "$out" | tail -n1)
+	fi
+	nodeapp_set "$user" "$domain" "PORT=$port"
+	if [ "$(arc_tpl_active "$user" "$domain")" != "$(nodeapp_get "$user" "$domain" TEMPLATE)" ]; then
+		nodeapp_tpl_switch "$user" "$domain" "$(nodeapp_get "$user" "$domain" TEMPLATE)" > /dev/null 2>&1
+	fi
+	if [ "$(arc_tplvars_get "$user" "$domain" BACKEND_PORT)" != "$port" ]; then
+		"$BIN/v-change-web-domain-tpl-vars" "$user" "$domain" "BACKEND_PORT=$port" > /dev/null 2>&1 || return "$E_RESTART"
+	elif ! grep -q "127\.0\.0\.1:$port;" "$HOMEDIR/$user/conf/web/$domain/nginx.conf" 2> /dev/null; then
+		# Rendered before the port was registered again (a restore): the
+		# domain still serves the "not configured" page
+		"$BIN/v-rebuild-web-domain" "$user" "$domain" > /dev/null 2>&1 || return "$E_RESTART"
+	fi
+	echo "$port"
+}
+
+# Install a missing runtime of USER's DOMAIN from the cache when the package
+# allows it; returns 1 when the runtime is still missing
+nodeapp_runtime_ensure() {
+	local user="$1" domain="$2" version
+	version=$(nodeapp_get "$user" "$domain" NODE_VERSION)
+	if nodeapp_runtime "$user" "$version" > /dev/null; then
+		return 0
+	fi
+	if [ "$(node_pkg_key "$user" NODE)" != 'yes' ] || [ "$version" = 'default' ]; then
+		return 1
+	fi
+	if ! node_nvm_enabled "$user"; then
+		"$BIN/v-add-user-nvm" "$user" > /dev/null 2>&1 || return 1
+	fi
+	"$BIN/v-add-user-node-version" "$user" "$version" > /dev/null 2>&1
+	nodeapp_runtime "$user" "$version" > /dev/null
+}
+
+# Stop the daemon of USER and keep it from starting at boot (suspension)
+nodeapp_daemon_disable() {
+	local uid
+	uid=$(id -u "$1" 2> /dev/null) || return 0
+	if [ -S "/run/user/$uid/systemd/private" ]; then
+		nodeapp_systemctl "$1" disable --now "$NODEAPP_UNIT" > /dev/null 2>&1
+	fi
+	return 0
 }

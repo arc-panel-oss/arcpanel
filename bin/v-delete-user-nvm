@@ -21,8 +21,8 @@ source /etc/hestiacp/hestia.conf
 source $HESTIA/func/main.sh
 # shellcheck source=/usr/local/hestia/func/tenancy.sh
 source $HESTIA/func/tenancy.sh
-# shellcheck source=/usr/local/hestia/func/node.sh
-source $HESTIA/func/node.sh
+# shellcheck source=/usr/local/hestia/func/nodeapp.sh
+source $HESTIA/func/nodeapp.sh
 # load config file
 source_conf "$HESTIA/conf/hestia.conf"
 
@@ -43,6 +43,9 @@ if [ ! -e "$nvm_dir" ] && ! node_shell_block_present "$user"; then
 fi
 if node_task_running "$user"; then
 	check_result "$E_INUSE" "Another Node.js task is running for $user"
+fi
+if [ "$(nodeapp_count "$user")" -gt 0 ]; then
+	check_result "$E_INUSE" "$user has Node.js apps; delete them first"
 fi
 
 # Perform verification if read-only mode is enabled

@@ -1,0 +1,65 @@
+#!/bin/bash
+# info: suspend the Node.js app of a web domain (E14)
+# options: USER DOMAIN
+#
+# example: v-suspend-node-app alice api.example.com
+#
+# This function stops the app and marks it suspended: it is not started by
+# a reboot, a rebuild or the unsuspension of the user until
+# v-unsuspend-node-app. Its port stays assigned.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+user=$1
+domain=$2
+
+# Includes
+# shellcheck source=/etc/hestiacp/hestia.conf
+source /etc/hestiacp/hestia.conf
+# shellcheck source=/usr/local/hestia/func/main.sh
+source $HESTIA/func/main.sh
+# shellcheck source=/usr/local/hestia/func/tenancy.sh
+source $HESTIA/func/tenancy.sh
+# shellcheck source=/usr/local/hestia/func/nodeapp.sh
+source $HESTIA/func/nodeapp.sh
+# load config file
+source_conf "$HESTIA/conf/hestia.conf"
+
+# Additional argument formatting
+format_domain
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '2' "$#" 'USER DOMAIN'
+is_format_valid 'user' 'domain'
+is_object_valid 'user' 'USER' "$user"
+nodeapp_check_app "$user" "$domain" any
+if [ "$(nodeapp_get "$user" "$domain" SUSPENDED)" = 'yes' ]; then
+	check_result "$E_SUSPENDED" "the Node.js app of $domain is already suspended"
+fi
+
+# Perform verification if read-only mode is enabled
+check_hestia_demo_mode
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+nodeapp_lock "$user"
+nodeapp_stop "$user" "$domain"
+nodeapp_set "$user" "$domain" SUSPENDED=yes
+
+#----------------------------------------------------------#
+#                       Hestia                             #
+#----------------------------------------------------------#
+
+# Logging
+$BIN/v-log-action "$user" "Info" "Node.js" "Node.js app suspended (Domain: $domain)."
+log_event "$OK" "$ARGUMENTS"
+
+exit

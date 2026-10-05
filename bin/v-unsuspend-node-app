@@ -1,0 +1,68 @@
+#!/bin/bash
+# info: unsuspend the Node.js app of a web domain (E14)
+# options: USER DOMAIN
+#
+# example: v-unsuspend-node-app alice api.example.com
+#
+# This function clears the suspension of the app and starts it again,
+# unless it had been stopped before.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+user=$1
+domain=$2
+
+# Includes
+# shellcheck source=/etc/hestiacp/hestia.conf
+source /etc/hestiacp/hestia.conf
+# shellcheck source=/usr/local/hestia/func/main.sh
+source $HESTIA/func/main.sh
+# shellcheck source=/usr/local/hestia/func/tenancy.sh
+source $HESTIA/func/tenancy.sh
+# shellcheck source=/usr/local/hestia/func/nodeapp.sh
+source $HESTIA/func/nodeapp.sh
+# load config file
+source_conf "$HESTIA/conf/hestia.conf"
+
+# Additional argument formatting
+format_domain
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '2' "$#" 'USER DOMAIN'
+is_format_valid 'user' 'domain'
+is_object_valid 'user' 'USER' "$user"
+is_object_unsuspended 'user' 'USER' "$user"
+nodeapp_check_app "$user" "$domain" any
+if [ "$(nodeapp_get "$user" "$domain" SUSPENDED)" = 'no' ]; then
+	check_result "$E_UNSUSPENDED" "the Node.js app of $domain is not suspended"
+fi
+
+# Perform verification if read-only mode is enabled
+check_hestia_demo_mode
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+nodeapp_lock "$user"
+nodeapp_set "$user" "$domain" SUSPENDED=no
+if nodeapp_should_run "$user" "$domain"; then
+	out=$(nodeapp_launch "$user" "$domain")
+	check_result $? "$out"
+fi
+
+#----------------------------------------------------------#
+#                       Hestia                             #
+#----------------------------------------------------------#
+
+# Logging
+$BIN/v-log-action "$user" "Info" "Node.js" "Node.js app unsuspended (Domain: $domain)."
+log_event "$OK" "$ARGUMENTS"
+
+exit

@@ -1,0 +1,149 @@
+#!/bin/bash
+# info: rebuild the Node.js apps of a user (E14)
+# options: USER
+#
+# example: v-rebuild-node-apps alice
+#
+# This function brings the apps of the user back after a restore, a rebuild
+# or a reboot. The app.conf copies of domains without a record (a restored
+# backup) are checked and imported. For every app the port is registered
+# again (the same port when it is free, otherwise a new one that becomes
+# the domain's BACKEND_PORT), a missing runtime is installed from the cache,
+# the files and the pm2 daemon are rendered again and the apps that should
+# run are started. Records of domains that no longer exist are removed.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+user=$1
+
+# Includes
+# shellcheck source=/etc/hestiacp/hestia.conf
+source /etc/hestiacp/hestia.conf
+# shellcheck source=/usr/local/hestia/func/main.sh
+source $HESTIA/func/main.sh
+# shellcheck source=/usr/local/hestia/func/tenancy.sh
+source $HESTIA/func/tenancy.sh
+# shellcheck source=/usr/local/hestia/func/ports.sh
+source $HESTIA/func/ports.sh
+# shellcheck source=/usr/local/hestia/func/nodeapp.sh
+source $HESTIA/func/nodeapp.sh
+# load config file
+source_conf "$HESTIA/conf/hestia.conf"
+
+note() {
+	echo "$1"
+	echo "$(date +'%F %T') v-rebuild-node-apps $user: $1" >> "$HESTIA/log/system.log"
+}
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '1' "$#" 'USER'
+is_format_valid 'user'
+is_object_valid 'user' 'USER' "$user"
+
+[ -z "$HOMEDIR" ] && check_result "$E_NOTEXIST" "ArcPanel environment vars not present"
+
+# Perform verification if read-only mode is enabled
+check_hestia_demo_mode
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+nodeapp_lock "$user"
+web_domains=$(grep -oE "^DOMAIN='[^']*'" "$HESTIA/data/users/$user/web.conf" 2> /dev/null | cut -d\' -f2)
+
+# Import the copies of restored domains
+for domain in $web_domains; do
+	if nodeapp_exists "$user" "$domain"; then
+		continue
+	fi
+	line=$(nodeapp_copy_line "$user" "$domain")
+	if [ -z "$line" ]; then
+		continue
+	fi
+	limit=$(nodeapp_limit "$user")
+	if [ "$limit" != 'unlimited' ] && [ "$(nodeapp_count "$user")" -ge "$limit" ]; then
+		note "$domain not imported: NODE_APPS ($limit) reached"
+		continue
+	fi
+	if ! pairs=$(nodeapp_copy_check "$user" "$domain" "$line"); then
+		note "$domain not imported: $pairs"
+		continue
+	fi
+	mapfile -t values <<< "$pairs"
+	nodeapp_set "$user" "$domain" "${values[@]}"
+	note "$domain imported"
+done
+
+# Ports and templates: first keep every port that can be kept, then give
+# new ports to the others, so two restored apps never swap ports
+pending=''
+for domain in $(nodeapp_domains "$user"); do
+	if ! grep -qx "$domain" <<< "$web_domains"; then
+		"$BIN/v-release-user-port" "$user" "node:$domain" > /dev/null 2>&1
+		nodeapp_remove "$user" "$domain"
+		note "$domain removed: the web domain does not exist"
+		continue
+	fi
+	if ! nodeapp_port_ensure "$user" "$domain" keep > /dev/null; then
+		pending="$pending $domain"
+	fi
+done
+changed=''
+for domain in $pending; do
+	old=$(nodeapp_get "$user" "$domain" PORT)
+	if ! port=$(nodeapp_port_ensure "$user" "$domain"); then
+		note "$domain: no port could be assigned"
+	elif [ "$port" != "$old" ]; then
+		changed="$changed $domain"
+		note "$domain: port $old replaced by $port"
+	fi
+done
+
+# Runtimes
+for domain in $(nodeapp_domains "$user"); do
+	if ! nodeapp_runtime_ensure "$user" "$domain"; then
+		note "$domain: the runtime $(nodeapp_get "$user" "$domain" NODE_VERSION) is not installed"
+	fi
+done
+
+if [ "$(nodeapp_count "$user")" -eq 0 ]; then
+	nodeapp_daemon_retire "$user"
+	log_event "$OK" "$ARGUMENTS"
+	exit
+fi
+
+# Files, daemon and processes
+if [ "$(tenancy_user_value "$user" SUSPENDED)" = 'yes' ]; then
+	for domain in $(nodeapp_domains "$user"); do
+		nodeapp_files_write "$user" "$domain" > /dev/null 2>&1
+	done
+	nodeapp_daemon_disable "$user"
+else
+	out=$(nodeapp_daemon_ensure "$user" 2>&1)
+	check_result $? "$(printf '%s\n' "$out" | tail -n1)"
+	for domain in $(nodeapp_domains "$user"); do
+		nodeapp_files_write "$user" "$domain" > /dev/null 2>&1
+	done
+	for domain in $changed; do
+		if nodeapp_should_run "$user" "$domain"; then
+			nodeapp_launch "$user" "$domain" > /dev/null 2>&1
+		fi
+	done
+	nodeapp_converge "$user"
+fi
+nodeapp_logrotate_write "$user"
+
+#----------------------------------------------------------#
+#                       Hestia                             #
+#----------------------------------------------------------#
+
+log_event "$OK" "$ARGUMENTS"
+
+exit

@@ -1,0 +1,171 @@
+#!/bin/bash
+# info: check the Node.js apps and pm2 daemons of all users (E14)
+# options: [MODE] [FORMAT]
+#
+# example: v-check-sys-node
+# example: v-check-sys-node repair
+# example: v-check-sys-node check json
+#
+# This function looks for apps and daemons that do not match their records:
+# import (an app.conf copy without a record, after a restore), daemon-down
+# (apps should run but the user's daemon does not), app-missing (an app that
+# should run is not in pm2), daemon-suspended (a suspended user's daemon
+# runs), linger-orphan (daemon files of a user without apps),
+# runtime-missing (the runtime of an app is not installed) and over-limit
+# (more apps than NODE_APPS, reported only). MODE repair (run every 5
+# minutes from cron) fixes all but over-limit. The totals are the users with
+# apps, the running daemons, the apps and the memory of the daemons in MB.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+mode=${1:-check}
+format=${2-shell}
+
+# Includes
+# shellcheck source=/etc/hestiacp/hestia.conf
+source /etc/hestiacp/hestia.conf
+# shellcheck source=/usr/local/hestia/func/main.sh
+source $HESTIA/func/main.sh
+# shellcheck source=/usr/local/hestia/func/tenancy.sh
+source $HESTIA/func/tenancy.sh
+# shellcheck source=/usr/local/hestia/func/nodeapp.sh
+source $HESTIA/func/nodeapp.sh
+# load config file
+source_conf "$HESTIA/conf/hestia.conf"
+
+finding() {
+	findings="$findings$(jq -nc --arg u "$1" --arg t "$2" --arg d "$3" --arg x "$4" \
+		'{ USER: $u, TYPE: $t, DOMAIN: $d, DETAIL: $x }')"$'\n'
+}
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+case "$mode" in
+	check | repair) ;;
+	json | shell | plain | csv)
+		format=$mode
+		mode=check
+		;;
+	*) check_result "$E_INVALID" "invalid mode :: $mode (check or repair)" ;;
+esac
+if [ "$(id -u)" != '0' ]; then
+	check_result "$E_FORBIDEN" "v-check-sys-node can only be executed by the root user"
+fi
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+findings=''
+users=0
+daemons=0
+apps=0
+memory=0
+for user in $(tenancy_all_users); do
+	count=$(nodeapp_count "$user")
+	suspended=$(tenancy_user_value "$user" SUSPENDED)
+	home=$(node_home "$user")
+	own_files=no
+	if [ -f "$(nodeapp_pm2_conf "$user")" ] || [ -f "$home/.config/systemd/user/$NODEAPP_UNIT.service" ]; then
+		own_files=yes
+	fi
+	imports=''
+	for domain in $(grep -oE "^DOMAIN='[^']*'" "$HESTIA/data/users/$user/web.conf" 2> /dev/null | cut -d\' -f2); do
+		dir=$(nodeapp_dir "$user" "$domain")
+		if ! nodeapp_exists "$user" "$domain" && [ -f "$dir/app.conf" ] && [ ! -L "$dir/app.conf" ] && [ ! -L "$dir" ]; then
+			imports="$imports $domain"
+		fi
+	done
+	if [ "$count" -eq 0 ] && [ -z "$imports" ] && [ "$own_files" = 'no' ]; then
+		continue
+	fi
+
+	active=no
+	if nodeapp_daemon_active "$user"; then
+		active=yes
+		daemons=$((daemons + 1))
+		bytes=$(nodeapp_systemctl "$user" show -p MemoryCurrent --value "$NODEAPP_UNIT" 2> /dev/null)
+		if [[ "$bytes" =~ ^[0-9]+$ ]]; then
+			memory=$((memory + bytes / 1048576))
+		fi
+	fi
+	if [ "$count" -gt 0 ]; then
+		users=$((users + 1))
+		apps=$((apps + count))
+	fi
+
+	rebuild=no
+	for domain in $imports; do
+		finding "$user" import "$domain" "app.conf without a record"
+		rebuild=yes
+	done
+	if [ "$count" -eq 0 ] && [ -z "$imports" ]; then
+		finding "$user" linger-orphan "" "pm2 daemon files without apps"
+		if [ "$mode" = 'repair' ]; then
+			"$BIN/v-delete-user-node-apps" "$user" > /dev/null 2>&1
+		fi
+		continue
+	fi
+	if [ "$suspended" = 'yes' ]; then
+		if [ "$active" = 'yes' ]; then
+			finding "$user" daemon-suspended "" "the daemon of a suspended user runs"
+			if [ "$mode" = 'repair' ]; then
+				"$BIN/v-suspend-user-node-apps" "$user" > /dev/null 2>&1
+			fi
+		fi
+		continue
+	fi
+
+	limit=$(nodeapp_limit "$user")
+	if [ "$limit" != 'unlimited' ] && [ "$count" -gt "$limit" ]; then
+		finding "$user" over-limit "" "$count apps, NODE_APPS is $limit"
+	fi
+	jlist='[]'
+	if [ "$active" = 'yes' ]; then
+		jlist=$(nodeapp_jlist "$user")
+	fi
+	should=0
+	for domain in $(nodeapp_domains "$user"); do
+		if ! nodeapp_runtime "$user" "$(nodeapp_get "$user" "$domain" NODE_VERSION)" > /dev/null; then
+			finding "$user" runtime-missing "$domain" "Node.js $(nodeapp_get "$user" "$domain" NODE_VERSION) is not installed"
+			rebuild=yes
+			continue
+		fi
+		if ! nodeapp_should_run "$user" "$domain"; then
+			continue
+		fi
+		should=$((should + 1))
+		if [ "$active" = 'yes' ] && [ -z "$(nodeapp_status_of "$jlist" "$(nodeapp_get "$user" "$domain" NAME)")" ]; then
+			finding "$user" app-missing "$domain" "not in the pm2 list"
+			rebuild=yes
+		fi
+	done
+	if [ "$should" -gt 0 ] && [ "$active" = 'no' ]; then
+		finding "$user" daemon-down "" "$should apps should run"
+		rebuild=yes
+	fi
+	if [ "$mode" = 'repair' ] && [ "$rebuild" = 'yes' ]; then
+		"$BIN/v-rebuild-node-apps" "$user" > /dev/null 2>&1
+	fi
+done
+
+json=$(printf '%s' "$findings" | jq -sc --arg users "$users" --arg daemons "$daemons" --arg apps "$apps" \
+	--arg memory "$memory" --arg mode "$mode" '
+	{ MODE: $mode, USERS: $users, DAEMONS: $daemons, APPS: $apps, MEMORY: $memory, FINDINGS: . }')
+
+node_print "$format" "$json" '.FINDINGS' 'USER TYPE DOMAIN DETAIL'
+
+#----------------------------------------------------------#
+#                       Hestia                             #
+#----------------------------------------------------------#
+
+if [ "$mode" = 'repair' ]; then
+	log_event "$OK" "$ARGUMENTS"
+fi
+
+exit

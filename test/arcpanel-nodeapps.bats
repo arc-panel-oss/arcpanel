@@ -456,6 +456,165 @@ setup() {
 }
 
 #----------------------------------------------------------#
+#                Persistence and convergence               #
+#----------------------------------------------------------#
+
+user_systemctl() {
+    local user=$1
+    shift
+    XDG_RUNTIME_DIR=/run/user/$(id -u "$user") runuser -u "$user" -- systemctl --user "$@"
+}
+
+@test "Persistence: the daemon restarts with the running apps, a stopped app stays stopped" {
+    v-stop-node-app $U1 $DC
+    run user_systemctl $U1 restart arcpanel-pm2
+    assert_success
+    run eventually "online" app_status $U1 $DA
+    assert_output "online"
+    v-check-sys-node repair > /dev/null
+    run app_status $U1 $DC
+    assert_output "stopped"
+    run v-start-node-app $U1 $DC
+    assert_success
+    run user_systemctl $U1 is-enabled arcpanel-pm2
+    assert_output "enabled"
+}
+
+@test "Persistence: runtimes in use cannot be removed" {
+    run v-delete-user-node-version $U1 "$V24"
+    assert_failure 7
+    assert_output --partial "pm2"
+    v-change-node-app-version $U1 $DC "$V22"
+    run v-delete-user-node-version $U1 "$V22"
+    assert_failure 7
+    assert_output --partial "$DC"
+    v-change-node-app-version $U1 $DC default
+    run v-delete-user-nvm $U1
+    assert_failure 7
+}
+
+@test "Persistence: suspending the user stops and disables the daemon, unsuspending starts it" {
+    run v-suspend-user $U1
+    assert_success
+    run app_status $U1 $DA
+    assert_output "suspended"
+    assert_equal "$(app_field $U1 $DA SUSPENDED)" "user"
+    run user_systemctl $U1 is-active arcpanel-pm2
+    assert_failure
+    run user_systemctl $U1 is-enabled arcpanel-pm2
+    assert_output "disabled"
+    run pgrep -u $U1 -f "tna-a|server.js"
+    assert_failure
+    run v-check-sys-node json
+    assert_success
+    run v-unsuspend-user $U1
+    assert_success
+    run eventually "online" app_status $U1 $DA
+    assert_output "online"
+    run eventually "online" app_status $U1 $DC
+    assert_output "online"
+    assert_equal "$(app_field $U1 $DA SUSPENDED)" "no"
+}
+
+@test "Persistence: an app suspended on its own stays suspended with the user" {
+    run v-suspend-node-app $U1 $DC
+    assert_success
+    run app_status $U1 $DC
+    assert_output "suspended"
+    run v-start-node-app $U1 $DC
+    assert_failure 5
+    v-suspend-user $U1 > /dev/null
+    v-unsuspend-user $U1 > /dev/null
+    assert_equal "$(app_field $U1 $DC SUSPENDED)" "yes"
+    run eventually "online" app_status $U1 $DA
+    assert_output "online"
+    run v-unsuspend-node-app $U1 $DC
+    assert_success
+    run eventually "online" app_status $U1 $DC
+    assert_output "online"
+    run v-unsuspend-node-app $U1 $DC
+    assert_failure 6
+}
+
+@test "Persistence: v-rebuild-user keeps the apps on their ports" {
+    pa=$(app_field $U1 $DA PORT)
+    run v-rebuild-user $U1
+    assert_success
+    run v-rebuild-node-apps $U1
+    assert_success
+    run eventually "tna-a $pa hello world" fetch $U1 $DA
+    assert_output "tna-a $pa hello world"
+    assert_equal "$(app_field $U1 $DA PORT)" "$pa"
+}
+
+@test "Persistence: v-check-sys-node finds a stopped daemon and repairs it" {
+    user_systemctl $U1 stop arcpanel-pm2
+    run v-check-sys-node check json
+    assert_success
+    echo "$output" | jq -e --arg u "$U1" '[.FINDINGS[] | select(.USER == $u and .TYPE == "daemon-down")] | length == 1'
+    run v-check-sys-node repair json
+    assert_success
+    run eventually "online" app_status $U1 $DA
+    assert_output "online"
+    run v-check-sys-node json
+    echo "$output" | jq -e --arg u "$U1" '[.FINDINGS[] | select(.USER == $u)] | length == 0'
+    echo "$output" | jq -e '(.DAEMONS | tonumber) >= 1 and (.APPS | tonumber) >= 2'
+    grep -q "v-check-sys-node repair" /var/spool/cron/crontabs/hestiaweb
+}
+
+@test "Persistence: backup, delete and restore bring the apps back on their ports" {
+    pa=$(app_field $U1 $DA PORT)
+    pc=$(app_field $U1 $DC PORT)
+    run v-backup-user $U1
+    assert_success
+    backup=$(ls -t /backup/$U1.*.tar | head -n1)
+    run v-delete-user $U1
+    assert_success
+    assert_file_not_exists "/var/lib/systemd/linger/$U1"
+    assert_file_not_exists "/etc/logrotate.d/arcpanel-node-$U1"
+    run v-restore-user $U1 "$(basename "$backup")"
+    assert_success
+    run v-check-sys-node json
+    echo "$output" | jq -e --arg u "$U1" '[.FINDINGS[] | select(.USER == $u and .TYPE == "import")] | length == 2'
+    run v-check-sys-node repair
+    assert_success
+    run eventually "online" app_status $U1 $DA
+    assert_output "online"
+    run eventually "online" app_status $U1 $DC
+    assert_output "online"
+    assert_equal "$(app_field $U1 $DA PORT)" "$pa"
+    assert_equal "$(app_field $U1 $DC PORT)" "$pc"
+    assert_equal "$(port_app $U1 "$pa")" "node:$DA"
+    run eventually "tna-a $pa hello world" fetch $U1 $DA
+    assert_output "tna-a $pa hello world"
+    rm -f /backup/$U1.*.tar
+}
+
+@test "Persistence: a forged app.conf copy is not imported" {
+    other_port=$(app_field $U1 $DA PORT)
+    dir=/home/$U2/web/$DD/nodeapp
+    runuser -u $U2 -- mkdir -p "$dir"
+    printf "DOMAIN='%s' NAME='x' START='app.js' CWD='../../../../etc' NODE_VERSION='default' PORT='%s' INSTANCES='1' MAX_MEMORY='256' TEMPLATE='nodejs-proxy' PREV_TPL='default' STATE='running' SUSPENDED='no' TIME='' DATE=''\n" "$DD" "$other_port" \
+        | runuser -u $U2 -- tee "$dir/app.conf" > /dev/null
+    run v-rebuild-node-apps $U2
+    assert_success
+    assert_output --partial "not imported"
+    [ ! -f "$HESTIA/data/users/$U2/nodeapps.conf" ] || ! grep -q "$DD" "$HESTIA/data/users/$U2/nodeapps.conf"
+    printf "DOMAIN='%s' NAME='dd' START='app.js' CWD='public_html' NODE_VERSION='default' PORT='%s' INSTANCES='1' MAX_MEMORY='256' TEMPLATE='nodejs-proxy' PREV_TPL='default' STATE='running' SUSPENDED='no' TIME='' DATE=''\n" "$DD" "$other_port" \
+        | runuser -u $U2 -- tee "$dir/app.conf" > /dev/null
+    run v-rebuild-node-apps $U2
+    assert_success
+    port=$(app_field $U2 $DD PORT)
+    [ -n "$port" ]
+    [ "$port" != "$other_port" ]
+    assert_equal "$(port_app $U2 "$port")" "node:$DD"
+    run eventually "online" app_status $U2 $DD
+    assert_output "online"
+    run v-delete-node-app $U2 $DD
+    assert_success
+}
+
+#----------------------------------------------------------#
 #                        Last app                          #
 #----------------------------------------------------------#
 

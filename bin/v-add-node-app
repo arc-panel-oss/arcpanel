@@ -192,7 +192,7 @@ fi
 # Record, files and the process
 nodeapp_set "$user" "$domain" "NAME=$name" "START=$start" "CWD=$cwd" "NODE_VERSION=$version" \
 	"PORT=$port" "INSTANCES=$instances" "MAX_MEMORY=$memory" "TEMPLATE=$template" \
-	"PREV_TPL=$prev_tpl" SUSPENDED=no "TIME=$(date +'%T')" "DATE=$(date +'%F')"
+	"PREV_TPL=$prev_tpl" STATE=running SUSPENDED=no "TIME=$(date +'%T')" "DATE=$(date +'%F')"
 recorded=yes
 if ! nodeapp_files_write "$user" "$domain"; then
 	rollback "$E_FORBIDEN" "the files of the app could not be written in $(nodeapp_dir "$user" "$domain")"

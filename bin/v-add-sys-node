@@ -6,7 +6,8 @@
 #
 # This function prepares a server for per-user Node.js runtimes: the shared
 # download cache, the keyring of the Node.js releasers, the release index,
-# the daily refresh of the index and the "developer" package. It is safe to
+# the daily refresh of the index and the "developer" package, plus the
+# 5-minute v-check-sys-node repair job of Node.js apps (E14). It is safe to
 # run again and keeps packages an administrator has changed.
 # NODE_RELEASES_URL, NODE_SCHEDULE_URL and NODE_NVM_URL in hestia.conf
 # override the download locations (mirrors, tests).
@@ -30,6 +31,7 @@ source_conf "$HESTIA/conf/hestia.conf"
 COMMON_PACKAGES="$HESTIA/install/common/packages"
 CRONTAB="/var/spool/cron/crontabs/hestiaweb"
 CRON_LINE="25 04 * * * sudo /usr/local/hestia/bin/v-update-sys-node-releases"
+CHECK_LINE="*/5 * * * * sudo /usr/local/hestia/bin/v-check-sys-node repair > /dev/null 2>&1"
 
 #----------------------------------------------------------#
 #                    Verifications                         #
@@ -79,6 +81,13 @@ fi
 # file for appending in the sticky crontab directory)
 if [ -f "$CRONTAB" ] && ! grep -q "v-update-sys-node-releases" "$CRONTAB"; then
 	sed -i -e "\$a$CRON_LINE" "$CRONTAB"
+	chown hestiaweb:hestiaweb "$CRONTAB"
+	chmod 600 "$CRONTAB"
+fi
+
+# Node.js apps (E14): converge the daemons and apps every 5 minutes
+if [ -f "$CRONTAB" ] && ! grep -q "v-check-sys-node" "$CRONTAB"; then
+	sed -i -e "\$a$CHECK_LINE" "$CRONTAB"
 	chown hestiaweb:hestiaweb "$CRONTAB"
 	chmod 600 "$CRONTAB"
 fi

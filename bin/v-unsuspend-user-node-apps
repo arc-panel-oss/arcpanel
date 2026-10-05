@@ -1,0 +1,66 @@
+#!/bin/bash
+# info: start the Node.js apps of an unsuspended user again (E14)
+# options: USER
+#
+# example: v-unsuspend-user-node-apps alice
+#
+# This function is run by the post_unsuspend_user hook: apps suspended with
+# the user are unsuspended, the user's pm2 daemon is started and the apps
+# that should run are started. Apps suspended on their own stay suspended.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+user=$1
+
+# Includes
+# shellcheck source=/etc/hestiacp/hestia.conf
+source /etc/hestiacp/hestia.conf
+# shellcheck source=/usr/local/hestia/func/main.sh
+source $HESTIA/func/main.sh
+# shellcheck source=/usr/local/hestia/func/tenancy.sh
+source $HESTIA/func/tenancy.sh
+# shellcheck source=/usr/local/hestia/func/nodeapp.sh
+source $HESTIA/func/nodeapp.sh
+# load config file
+source_conf "$HESTIA/conf/hestia.conf"
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '1' "$#" 'USER'
+is_format_valid 'user'
+is_object_valid 'user' 'USER' "$user"
+is_object_unsuspended 'user' 'USER' "$user"
+
+# Perform verification if read-only mode is enabled
+check_hestia_demo_mode
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+if [ "$(nodeapp_count "$user")" -eq 0 ]; then
+	exit
+fi
+
+nodeapp_lock "$user"
+for domain in $(nodeapp_domains "$user"); do
+	if [ "$(nodeapp_get "$user" "$domain" SUSPENDED)" = 'user' ]; then
+		nodeapp_set "$user" "$domain" SUSPENDED=no
+	fi
+done
+out=$(nodeapp_daemon_ensure "$user" 2>&1)
+check_result $? "$(printf '%s\n' "$out" | tail -n1)"
+nodeapp_converge "$user"
+
+#----------------------------------------------------------#
+#                       Hestia                             #
+#----------------------------------------------------------#
+
+log_event "$OK" "$ARGUMENTS"
+
+exit

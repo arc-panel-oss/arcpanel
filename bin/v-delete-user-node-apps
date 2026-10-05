@@ -1,0 +1,60 @@
+#!/bin/bash
+# info: remove the Node.js apps of a user that is deleted (E14)
+# options: USER
+#
+# example: v-delete-user-node-apps alice
+#
+# This function is run by the pre_delete_user hook: it stops and removes the
+# user's pm2 daemon, its linger and logrotate file and the app records. The
+# home directory, the web domains and the ports are removed by
+# v-delete-user and its other hooks.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+user=$1
+
+# Includes
+# shellcheck source=/etc/hestiacp/hestia.conf
+source /etc/hestiacp/hestia.conf
+# shellcheck source=/usr/local/hestia/func/main.sh
+source $HESTIA/func/main.sh
+# shellcheck source=/usr/local/hestia/func/tenancy.sh
+source $HESTIA/func/tenancy.sh
+# shellcheck source=/usr/local/hestia/func/nodeapp.sh
+source $HESTIA/func/nodeapp.sh
+# load config file
+source_conf "$HESTIA/conf/hestia.conf"
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '1' "$#" 'USER'
+is_format_valid 'user'
+is_object_valid 'user' 'USER' "$user"
+
+# Perform verification if read-only mode is enabled
+check_hestia_demo_mode
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+if [ "$(nodeapp_count "$user")" -eq 0 ] && [ ! -f "$(nodeapp_pm2_conf "$user")" ]; then
+	exit
+fi
+
+nodeapp_lock "$user"
+nodeapp_daemon_retire "$user"
+rm -f "$(nodeapp_conf "$user")"
+
+#----------------------------------------------------------#
+#                       Hestia                             #
+#----------------------------------------------------------#
+
+log_event "$OK" "$ARGUMENTS"
+
+exit
