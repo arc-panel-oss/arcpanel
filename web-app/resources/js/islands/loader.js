@@ -7,6 +7,7 @@
 export const islands = {
 	'node-manager': () => import('./node-manager/index.js'),
 	'node-apps': () => import('./node-apps/index.js'),
+	'file-manager': () => import('./file-manager/index.js'),
 };
 
 /** @param {ParentNode} root */

@@ -71,8 +71,9 @@ it('keeps a reseller acting as a customer on panel app pages', function () {
     fakeArc();
     $items = collect(app(Navigation::class)->for(principal('hostco', Role::Reseller, look: 'bob'), null))->flatMap(fn ($group) => $group['items'])->keyBy('key');
 
-    expect($items)->toHaveKeys(['dashboard', 'web.domains.index'])
-        ->and($items)->not->toHaveKeys(['users.index', 'dns.index', 'mail.index', 'files.index']);
+    // The file manager is a panel app page since E3
+    expect($items)->toHaveKeys(['dashboard', 'web.domains.index', 'files.index'])
+        ->and($items)->not->toHaveKeys(['users.index', 'dns.index', 'mail.index']);
 });
 
 it('hides modules the server does not run', function () {

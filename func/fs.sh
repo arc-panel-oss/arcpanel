@@ -62,6 +62,17 @@ fs_check_path() {
 		check_result "$E_NOTEXIST" "home directory of $user doesn't exist"
 	fi
 	FS_REAL=$(fs_resolve "$path")
+	if [ -z "$FS_REAL" ] && [ "${path#/}" != "$path" ] && [ "$path" = "${path//$'\n'/}" ]; then
+		# Below a folder that does not exist: E_NOTEXIST when the part that
+		# exists is in the home directory
+		local ancestor=$path
+		while [ "$ancestor" != '/' ] && [ ! -e "$ancestor" ]; do
+			ancestor=$(dirname -- "$ancestor")
+		done
+		if fs_is_below "$home" "$(readlink -f -- "$ancestor")"; then
+			check_result "$E_NOTEXIST" "$path doesn't exist"
+		fi
+	fi
 	if ! fs_is_below "$home" "$FS_REAL"; then
 		check_result "$E_FORBIDEN" "invalid path $path"
 	fi

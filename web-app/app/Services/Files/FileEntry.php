@@ -41,7 +41,8 @@ final class FileEntry
             link: $string('LINK'),
             linkType: $string('LINK_TYPE'),
             linkInside: $string('LINK_INSIDE') === 'yes',
-            validName: $string('VALID_NAME') !== 'no',
+            // Names the panel cannot address: not UTF-8, or with control characters
+            validName: $string('VALID_NAME') !== 'no' && FilePath::validName($string('NAME')),
             mime: isset($row['MIME']) ? $string('MIME') : null,
             writable: isset($row['WRITABLE']) ? $string('WRITABLE') === 'yes' : null,
         );

@@ -262,3 +262,15 @@ it('serves a ticket only to the login user that created it, for an hour', functi
     expect(fn () => $tickets->resolve('bob', 'bob', $ticket['ticket']))->toThrow(NotFoundHttpException::class);
     expect(fn () => $tickets->resolve('hostco', 'bob', str_repeat('0', 32)))->toThrow(NotFoundHttpException::class);
 });
+
+it('names the type of files that `file` does not recognise after their extension', function () {
+    $this->fake->on('v-add-fs-download')->using(function (array $args) {
+        file_put_contents($this->staging.'/downloads/'.$args[1], 'x');
+
+        return [0, '{"NAME":"clip.mp4","SIZE":1,"MIME":"application/octet-stream"}'];
+    });
+    expect(app(DownloadTickets::class)->create('bob', 'bob', [FilePath::from('clip.mp4')])['mime'])->toBe('video/mp4');
+
+    $this->fake->on('v-add-fs-download')->returns('{"NAME":"blob.unknownext","SIZE":1,"MIME":"application/octet-stream"}');
+    expect(app(DownloadTickets::class)->create('bob', 'bob', [FilePath::from('blob.unknownext')])['mime'])->toBe('application/octet-stream');
+});

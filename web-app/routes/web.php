@@ -5,6 +5,7 @@ use App\Http\Controllers\Auth\LogoutController;
 use App\Http\Controllers\Auth\TwoFactorController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\Files\FileController;
+use App\Http\Controllers\Files\FilePageController;
 use App\Http\Controllers\Files\FileTransferController;
 use App\Http\Controllers\ImpersonationController;
 use App\Http\Controllers\Node\NodeAppController;
@@ -182,7 +183,9 @@ Route::middleware('auth.arc')->group(function () {
 
     // File manager (E3 spec §6.4)
     Route::prefix('files')->name('files.')->middleware('files.enabled')->group(function () {
+        Route::get('/', [FilePageController::class, 'entry'])->name('index');
         Route::middleware('effective-user')->prefix('{user}')->group(function () {
+            Route::get('/', [FilePageController::class, 'show'])->name('show');
             Route::get('/download/{ticket}', [FileTransferController::class, 'show'])->where('ticket', '[a-f0-9]{32}')->name('download');
             Route::prefix('api')->name('api.')->group(function () {
                 Route::get('/list', [FileController::class, 'list'])->name('list');

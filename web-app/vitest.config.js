@@ -1,10 +1,12 @@
-// Vitest for the panel app's Alpine modules (docs/design/05 §7, jsdom).
+// Vitest for the panel app's Alpine modules and Vue islands (docs/design/05 §7, jsdom).
 import { fileURLToPath } from 'node:url';
+import vue from '@vitejs/plugin-vue';
 import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
 	// npm run test:js runs from the repository root
 	root: fileURLToPath(new URL('.', import.meta.url)),
+	plugins: [vue()],
 	test: {
 		environment: 'jsdom',
 		include: ['tests/js/**/*.test.js'],

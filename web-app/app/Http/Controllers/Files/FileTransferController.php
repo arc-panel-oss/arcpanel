@@ -129,7 +129,9 @@ final class FileTransferController extends Controller
             'Content-Type' => $meta['mime'],
             'Content-Disposition' => sprintf('%s; filename="%s"; filename*=UTF-8\'\'%s', $inline ? 'inline' : 'attachment', $fallback, rawurlencode($meta['name'])),
             'X-Content-Type-Options' => 'nosniff',
-            'Content-Security-Policy' => "default-src 'none'; img-src 'self'; media-src 'self'; style-src 'unsafe-inline'; sandbox",
+            // Browsers refuse to show a PDF in a sandbox; their PDF viewer runs no page scripts
+            'Content-Security-Policy' => "default-src 'none'; img-src 'self'; media-src 'self'; style-src 'unsafe-inline'"
+                .($meta['mime'] === 'application/pdf' ? '' : '; sandbox'),
             'Cache-Control' => 'private, no-store',
         ]);
     }

@@ -36,9 +36,10 @@ describe('loadIslands', () => {
 	});
 
 	it('registers the islands of the panel app, loaded on demand', async () => {
-		expect(Object.keys(islands)).toEqual(['node-manager', 'node-apps']);
+		expect(Object.keys(islands)).toEqual(['node-manager', 'node-apps', 'file-manager']);
 		expect(typeof islands['node-manager']).toBe('function');
 		expect(typeof islands['node-apps']).toBe('function');
+		expect(typeof islands['file-manager']).toBe('function');
 		expect(await loadIslands(document)).toEqual([]);
 	});
 });

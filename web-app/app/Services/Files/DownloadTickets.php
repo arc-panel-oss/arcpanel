@@ -4,6 +4,7 @@ namespace App\Services\Files;
 
 use App\Arc\ArcCommandException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
+use Symfony\Component\Mime\MimeTypes;
 
 /**
  * Download tickets (E3 spec §6.3): v-add-fs-download writes the bytes into
@@ -34,6 +35,14 @@ final class DownloadTickets
             $info = $this->files->prepareDownload($user, $ticket, $paths);
         } catch (ArcCommandException $e) {
             throw UploadRefused::fromCommand($e);
+        }
+        // `file` names what it does not recognise application/octet-stream;
+        // the extension then tells the browser what it is (fonts, media)
+        if ($info['mime'] === 'application/octet-stream') {
+            $guesses = MimeTypes::getDefault()->getMimeTypes(strtolower(pathinfo($info['name'], PATHINFO_EXTENSION)));
+            // mp4 is application/mp4 first; the media types are what browsers play
+            $media = array_values(array_filter($guesses, fn (string $type) => preg_match('#^(video|audio|image|font)/#', $type) === 1));
+            $info['mime'] = $media[0] ?? $guesses[0] ?? $info['mime'];
         }
         $meta = ['login' => $login, 'user' => $user, 'created' => time(), ...$info];
         $sidecar = $this->staging->downloads().'/'.$ticket.'.json';

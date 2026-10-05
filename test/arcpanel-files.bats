@@ -127,7 +127,7 @@ stage() {
     echo secret > "/home/${U1}x/f"
     as_user ln -s /etc "$T/etc"
     staged=$(stage hello)
-    for path in "/home/$U2" "$H1/../$U2" "/home/${U1}x/f" "$T/etc/hostname" "t/relative" "/etc/passwd"; do
+    for path in "/home/$U2" "/home/$U2/missing/x" "$H1/../$U2" "/home/${U1}x/f" "$T/etc/hostname" "t/relative" "/etc/passwd"; do
         run v-list-fs-directory-json $U1 "$path"
         assert_failure 10
         run v-get-fs-file-info $U1 "$path"
@@ -160,6 +160,9 @@ stage() {
     run v-get-fs-file-info $U1 "$T/root.txt" json
     assert_equal "$(jq -r .WRITABLE <<< "$output")" "no"
     run v-get-fs-file-info $U1 "$T/missing"
+    assert_failure 3
+    # Below a folder that does not exist
+    run v-get-fs-file-info $U1 "$T/missing/deeper/x"
     assert_failure 3
 }
 
