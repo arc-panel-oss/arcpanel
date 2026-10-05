@@ -59,6 +59,18 @@
         </x-ap-card>
 
         <div class="ap-stack">
+            @if ($provider ?? null)
+                <x-ap-card :title="__('Your provider')" icon="lifebuoy">
+                    <dl class="ap-dl">
+                        <dt>{{ __('Name') }}</dt><dd>{{ $provider['name'] }}</dd>
+                        @if ($provider['email'] !== '')
+                            <dt>{{ __('Email') }}</dt><dd><a href="mailto:{{ $provider['email'] }}">{{ $provider['email'] }}</a></dd>
+                        @endif
+                    </dl>
+                    <p class="muted">{{ __('Contact your provider for help with your hosting or a bigger plan.') }}</p>
+                </x-ap-card>
+            @endif
+
             <x-ap-card :title="__('Last backup')" icon="archive">
                 @php($backup = $widgets['backups'])
                 @if (! $backup->ok())

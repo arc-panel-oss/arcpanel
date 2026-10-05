@@ -10,8 +10,9 @@ use App\View\Navigation;
 use Illuminate\View\View;
 
 /**
- * GET /app/ : the dashboard of the role the panel acts with (E1-S2 spec §7).
- * While impersonating, it is the user dashboard of the effective user.
+ * GET /app/ : the dashboard of the role the panel acts with (E1-S2 spec §7,
+ * E11 spec §9). While impersonating, it is the user dashboard of the
+ * effective user.
  */
 final class DashboardController extends Controller
 {
@@ -31,9 +32,19 @@ final class DashboardController extends Controller
             ]);
         }
 
+        if ($principal->actingRole() === Role::Reseller) {
+            return view('dashboard.reseller', [
+                'user' => $principal->effectiveUser(),
+                'widgets' => $dashboard->reseller($principal->effectiveUser()),
+                'canCreate' => ! $principal->isReadOnly(),
+                'backupsUrl' => Navigation::url('backups.index'),
+            ]);
+        }
+
         return view('dashboard.user', [
             'user' => $principal->effectiveUser(),
             'widgets' => $dashboard->user($principal->effectiveUser()),
+            'provider' => $dashboard->provider($principal->effectiveUser()),
             'canCreate' => Capabilities::allows($principal->actingRole(), 'web.create') && ! $principal->isReadOnly(),
             'backupsUrl' => Navigation::url('backups.index'),
         ]);

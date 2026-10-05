@@ -13,6 +13,8 @@ test('the command palette finds objects and pages from the keyboard', async ({ p
 	await expect(page).toHaveURL(new RegExp(`/app/web/domains/${USER}/${SITE}/edit`));
 
 	await page.keyboard.press('Control+k');
+	// The edit page has just loaded: type only once the search field has focus.
+	await expect(dialog.getByRole('combobox')).toBeFocused();
 	await page.keyboard.type('dash');
 	await expect(dialog.getByRole('option', { name: /Dashboard/ })).toBeVisible();
 	await page.keyboard.press('Escape');

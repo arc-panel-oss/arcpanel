@@ -1,25 +1,37 @@
 #!/bin/bash
 # Test data of the Playwright suite (test/e2e). Run as root on a test server,
 # never on production:
-#   prepare.sh prepare PASSWORD   creates arce2eadmin (admin) and arce2euser,
-#                                 their web domains, and prints a self-signed
-#                                 certificate as JSON
+#   prepare.sh prepare PASSWORD   creates arce2eadmin (admin), arce2euser, the
+#                                 reseller arce2ereseller with its customer
+#                                 arce2ecustomer, their web domains, and prints
+#                                 a self-signed certificate as JSON
 #   prepare.sh cleanup            deletes them again
 set -euo pipefail
 
 HESTIA="${HESTIA:-/usr/local/hestia}"
 B="$HESTIA/bin"
-USERS="arce2eadmin arce2euser"
+USERS="arce2eadmin arce2euser arce2ereseller arce2ecustomer"
+PLAN=arce2e-plan
 STATE=/root/.arcpanel-e2e-debug-mode
 
 forget_config_cache() {
 	runuser -u hestiaweb -- "$HESTIA/php/bin/php" "$HESTIA/web-app/artisan" cache:clear > /dev/null
 }
 
-if [ "${1:-}" = cleanup ]; then
-	for user in $USERS; do
-		"$B/v-delete-user" "$user" > /dev/null 2>&1 || true
+delete_users() {
+	# Customers first: a reseller is deleted after its tree
+	for user in $("$B/v-list-users" list | grep '^arce2e'); do
+		if [ "$user" != arce2ereseller ]; then
+			"$B/v-delete-user" "$user" > /dev/null 2>&1 || true
+		fi
 	done
+	"$B/v-delete-user" arce2ereseller > /dev/null 2>&1 || true
+	"$B/v-delete-user-package" "$PLAN" > /dev/null 2>&1 || true
+	"$B/v-delete-package-tenancy" "$PLAN" > /dev/null 2>&1 || true
+}
+
+if [ "${1:-}" = cleanup ]; then
+	delete_users
 	if [ -f "$STATE" ]; then
 		"$B/v-change-sys-config-value" DEBUG_MODE "$(cat "$STATE")"
 		rm -f "$STATE"
@@ -29,9 +41,20 @@ if [ "${1:-}" = cleanup ]; then
 fi
 
 password="${2:?password}"
+# Customers created by an earlier run of the onboarding spec
+for user in $("$B/v-list-users" list | grep '^arce2en'); do
+	"$B/v-delete-user" "$user" > /dev/null 2>&1 || true
+done
+if ! "$B/v-list-user-package" "$PLAN" > /dev/null 2>&1; then
+	"$B/v-copy-user-package" default "$PLAN" > /dev/null
+fi
+"$B/v-change-package-tenancy" "$PLAN" USERS 10
+"$B/v-change-package-tenancy" "$PLAN" RESELLER_PACKAGES default
 for user in $USERS; do
 	if ! "$B/v-list-user" "$user" > /dev/null 2>&1; then
-		"$B/v-add-user" "$user" "$password" "$user@example.invalid" default > /dev/null
+		package=default
+		if [ "$user" = arce2ereseller ]; then package="$PLAN"; fi
+		"$B/v-add-user" "$user" "$password" "$user@example.invalid" "$package" > /dev/null
 	fi
 	file="$(mktemp)"
 	printf '%s\n' "$password" > "$file"
@@ -42,6 +65,9 @@ for user in $USERS; do
 	done
 done
 "$B/v-change-user-role" arce2eadmin admin > /dev/null
+"$B/v-change-user-role" arce2ereseller reseller > /dev/null
+"$B/v-change-user-owner" arce2ecustomer arce2ereseller > /dev/null
+"$B/v-change-user-name" arce2ereseller 'E2E Reseller' > /dev/null
 "$B/v-add-web-domain" arce2euser e2e-site.example > /dev/null
 "$B/v-add-web-domain" arce2euser e2e-bulk.example > /dev/null
 

@@ -34,7 +34,7 @@
                 @if ($accounts->ok())
                     <div class="ap-stat">
                         <div class="ap-stat-value">{{ $accounts->data['total'] }} <small>{{ __('users') }}</small></div>
-                        <div class="ap-stat-meta"><span>{{ $accounts->data['webDomains'] }} {{ __('web domains') }}</span><span>{{ $accounts->data['admins'] }} {{ __('administrators') }}</span></div>
+                        <div class="ap-stat-meta"><span>{{ $accounts->data['webDomains'] }} {{ __('web domains') }}</span><span>{{ $accounts->data['admins'] }} {{ __('administrators') }}</span><span>{{ $accounts->data['resellers'] }} {{ __('resellers') }}</span></div>
                     </div>
                     <div class="ap-row">
                         @if ($accounts->data['suspended'] > 0)

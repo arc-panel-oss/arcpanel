@@ -7,6 +7,8 @@
 # Part 2 (E1 slice S2, ARCPANEL_APP_PAGES=yes): signs in, lands on the
 # dashboard, adds a web domain, installs a self-signed certificate, suspends,
 # unsuspends and deletes the domain, all through HTTP.
+# Part 3 (E11): a reseller signs in, creates a customer, logs in as it,
+# returns, and deletes it; other tenants answer 404.
 #
 # Run as root on a test server, never on production.
 
@@ -17,6 +19,9 @@ HESTIA="${HESTIA:-/usr/local/hestia}"
 SMOKE_USER="arcsmoke$RANDOM"
 SMOKE_PASS="$(head -c 18 /dev/urandom | base64 | tr -dc 'A-Za-z0-9' | head -c 20)Aa1"
 SMOKE_DOMAIN="$SMOKE_USER.example"
+SMOKE_RESELLER="arcsmr$RANDOM"
+SMOKE_CUSTOMER="arcsmc$RANDOM"
+SMOKE_PACKAGE="arcsmoke-plan"
 JAR="$(mktemp)"
 PAGE="$(mktemp)"
 CERT_DIR="$(mktemp -d)"
@@ -25,6 +30,10 @@ failures=0
 
 cleanup() {
 	"$HESTIA/bin/v-delete-user" "$SMOKE_USER" > /dev/null 2>&1 || true
+	"$HESTIA/bin/v-delete-user" "$SMOKE_CUSTOMER" > /dev/null 2>&1 || true
+	"$HESTIA/bin/v-delete-user" "$SMOKE_RESELLER" > /dev/null 2>&1 || true
+	"$HESTIA/bin/v-delete-user-package" "$SMOKE_PACKAGE" > /dev/null 2>&1 || true
+	"$HESTIA/bin/v-delete-package-tenancy" "$SMOKE_PACKAGE" > /dev/null 2>&1 || true
 	"$HESTIA/bin/v-change-sys-config-value" ARCPANEL_APP_PAGES "${PAGES_BEFORE:-yes}" > /dev/null 2>&1 || true
 	rm -rf "$JAR" "$PAGE" "$CERT_DIR"
 }
@@ -143,6 +152,51 @@ check "domain is gone from the server" "" \
 	"$("$HESTIA/bin/v-list-web-domains" "$SMOKE_USER" plain | awk '{print $1}' | grep -x "$SMOKE_DOMAIN" || true)"
 
 check "another user's domain answers 404" "404 " "$(request GET /app/web/domains/arcadmin/nope.example/edit)"
+
+# ---------- Part 3: resellers (E11) ----------
+"$HESTIA/bin/v-copy-user-package" default "$SMOKE_PACKAGE" > /dev/null
+"$HESTIA/bin/v-change-package-tenancy" "$SMOKE_PACKAGE" USERS 5
+"$HESTIA/bin/v-change-package-tenancy" "$SMOKE_PACKAGE" RESELLER_PACKAGES default
+"$HESTIA/bin/v-add-user" "$SMOKE_RESELLER" "$SMOKE_PASS" "$SMOKE_RESELLER@example.invalid" "$SMOKE_PACKAGE" > /dev/null
+"$HESTIA/bin/v-change-user-role" "$SMOKE_RESELLER" reseller
+rm -f "$JAR"
+
+request GET /app/login > /dev/null
+token="$(csrf_token)"
+check "reseller lands on the dashboard" "302 $PANEL/app/" \
+	"$(request POST /app/login --data-urlencode "_token=$token" --data-urlencode "user=$SMOKE_RESELLER" --data-urlencode "password=$SMOKE_PASS")"
+check "reseller dashboard renders" "200 " "$(request GET /app/)"
+if grep -q "Add Customer" "$PAGE"; then ok "reseller dashboard offers new customers"; else fail "reseller dashboard offers new customers"; fi
+check "packages page renders" "200 " "$(request GET /app/packages)"
+
+check "customer wizard renders" "200 " "$(request GET /app/users/create)"
+token="$(csrf_token)"
+check "customer is created" "302 $PANEL/app/users/$SMOKE_CUSTOMER" \
+	"$(request POST /app/users --data-urlencode "_token=$token" --data-urlencode "username=$SMOKE_CUSTOMER" \
+		--data-urlencode "password=$SMOKE_PASS" --data-urlencode "email=$SMOKE_CUSTOMER@example.invalid" --data-urlencode 'name=Smoke Customer' \
+		--data-urlencode 'language=en' --data-urlencode 'package=default')"
+check "customer belongs to the reseller" "$SMOKE_RESELLER" \
+	"$("$HESTIA/bin/v-list-user-owners" plain | awk -v u="$SMOKE_CUSTOMER" '$1 == u { print $3 }')"
+check "customer page renders" "200 " "$(request GET "/app/users/$SMOKE_CUSTOMER")"
+check "customers list renders" "200 " "$(request GET /app/users)"
+if grep -q "$SMOKE_CUSTOMER" "$PAGE" && ! grep -q ">$SMOKE_USER<" "$PAGE"; then ok "customers list shows only the tree"; else fail "customers list shows only the tree"; fi
+check "another tenant answers 404" "404 " "$(request GET "/app/users/$SMOKE_USER")"
+
+token="$(csrf_token)"
+check "reseller logs in as the customer" "302 $PANEL/app" "$(request POST "/app/impersonate/$SMOKE_CUSTOMER" --data-urlencode "_token=$token")"
+check "customer dashboard renders" "200 " "$(request GET /app/)"
+if grep -q "Welcome, $SMOKE_CUSTOMER" "$PAGE"; then ok "acts as the customer"; else fail "acts as the customer"; fi
+if grep -q "Your provider" "$PAGE"; then ok "customer sees its provider"; else fail "customer sees its provider"; fi
+token="$(csrf_token)"
+check "reseller returns" "302 $PANEL/app" "$(request POST /app/impersonate/stop --data-urlencode "_token=$token")"
+request GET /app/ > /dev/null
+if grep -q "Welcome, $SMOKE_RESELLER" "$PAGE"; then ok "back in the reseller account"; else fail "back in the reseller account"; fi
+
+request GET "/app/users/$SMOKE_CUSTOMER" > /dev/null
+token="$(csrf_token)"
+check "customer is deleted" "302 $PANEL/app/users" \
+	"$(request POST "/app/users/$SMOKE_CUSTOMER" --data-urlencode "_token=$token" --data-urlencode '_method=DELETE')"
+check "customer is gone from the server" "" "$("$HESTIA/bin/v-list-user-owners" plain | awk -v u="$SMOKE_CUSTOMER" '$1 == u')"
 
 if [ "$failures" -gt 0 ]; then
 	echo "$failures check(s) failed"

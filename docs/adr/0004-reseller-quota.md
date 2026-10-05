@@ -1,6 +1,6 @@
 # ADR-0004 — Reseller quota semantics
 
-**Status:** Proposed · **Date:** 2026-10-04 · **Epic:** E11
+**Status:** Accepted (2026-10-05) · **Date:** 2026-10-04 · **Epic:** E11
 
 ## Context
 
@@ -17,6 +17,8 @@ A reseller has its own package and owns sub-users, each with their own package. 
 ## Decision
 
 **Option A.** Allocation-time checks live in `v-check-reseller-quota` and `v-add-reseller-user` ([03](../design/03-tenancy-and-authorization.md) §4.3, §5); `unlimited` on either side skips that key. Runtime roll-ups (`R_*`) are informational: shown on the reseller dashboard, exported to the admin's Users page, and (E16) turned into alerts at 90 % and 100 %. An optional hard mode may be added later as `POLICY_RESELLER_HARD_QUOTA` without changing the data model.
+
+**Formula (E11 spec D7).** For each total key `WEB_DOMAINS`, `DNS_DOMAINS`, `MAIL_DOMAINS`, `MAIL_ACCOUNTS`, `DATABASES`, `CRON_JOBS`, `DISK_QUOTA` and `BANDWIDTH`: the reseller's own usage `U_X` plus the limit X of every customer's package plus X of the new package must not exceed the reseller's own limit X. A reseller limit of `unlimited` skips the key; a finite reseller limit refuses a package with `unlimited` for that key. The number of customers plus one must not exceed `USERS` of the reseller's package. Per-domain limits (`WEB_ALIASES`, `DNS_RECORDS`) are not totals and are not checked.
 
 ## Consequences
 

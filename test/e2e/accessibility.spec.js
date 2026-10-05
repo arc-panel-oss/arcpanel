@@ -1,12 +1,21 @@
 // axe on every panel app page for both roles and both themes, and Lighthouse
-// accessibility ≥ 90 on the dashboard and the Web Domains pages
+// accessibility ≥ 90 on the dashboard, Web Domains, Users and Packages pages
 // (E1-S2 spec §4 "Done when", docs/design/05 §6).
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { chromium, expect, test } from '@playwright/test';
 import lighthouse from 'lighthouse';
-import { ADMIN, BASE_URL, expectAccessible, login, SITE, USER } from './helpers.js';
+import {
+	ADMIN,
+	BASE_URL,
+	CUSTOMER,
+	expectAccessible,
+	login,
+	RESELLER,
+	SITE,
+	USER,
+} from './helpers.js';
 
 const pages = {
 	[USER]: [
@@ -22,6 +31,19 @@ const pages = {
 		'/app/web/domains/create',
 		`/app/web/domains/${USER}/${SITE}/edit`,
 		'/app/_styleguide',
+		'/app/users',
+		`/app/users/${RESELLER}`,
+		`/app/users/${CUSTOMER}/edit`,
+		'/app/packages',
+		'/app/packages/default/edit',
+	],
+	[RESELLER]: [
+		'/app/',
+		'/app/users',
+		'/app/users/create',
+		`/app/users/${CUSTOMER}`,
+		'/app/packages',
+		'/app/account',
 	],
 };
 

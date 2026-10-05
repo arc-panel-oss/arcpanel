@@ -6,7 +6,10 @@ use App\Arc\ArcCommand;
 use App\Arc\ArcCommandException;
 use App\Arc\Options;
 use App\Services\UserDirectory;
+use App\Services\Users\UserRecord;
+use App\Services\Users\UserService;
 use App\Services\WebDomains\WebDomainService;
+use App\Tenancy\TenancyDirectory;
 use Closure;
 use Illuminate\Contracts\Cache\Repository as Cache;
 
@@ -22,6 +25,8 @@ final class DashboardService
         private readonly Cache $cache,
         private readonly UserDirectory $users,
         private readonly WebDomainService $web,
+        private readonly TenancyDirectory $tenancy,
+        private readonly UserService $accounts,
     ) {}
 
     /** @return array<string, Widget> */
@@ -46,6 +51,84 @@ final class DashboardService
             'domains' => $this->widget(fn () => $this->domains($user)),
             'backups' => $this->widget(fn () => $this->lastBackup($user)),
             'notifications' => $this->widget(fn () => $this->notifications($user)),
+        ];
+    }
+
+    /**
+     * Reseller dashboard (E11 spec §9): its plan, its customers and their
+     * certificates, then the widgets of its own hosting.
+     *
+     * @return array<string, Widget>
+     */
+    public function reseller(string $reseller): array
+    {
+        return [
+            'plan' => $this->widget(fn () => $this->plan($reseller)),
+            'customers' => $this->widget(fn () => $this->customers($reseller)),
+            'ssl' => $this->widget(fn () => $this->cache->remember('arc.dash.ssl.'.$reseller, 300,
+                fn () => $this->expiringCertificates(14, [$reseller, ...$this->tenancy->customersOf($reseller)]))),
+            'usage' => $this->widget(fn () => $this->usage($reseller)),
+        ];
+    }
+
+    /**
+     * "Your provider" of a reseller's customer: the reseller's name and
+     * contact e-mail only; null for users of the administrator.
+     *
+     * @return array{name: string, email: string}|null
+     */
+    public function provider(string $user): ?array
+    {
+        try {
+            $owner = $this->tenancy->ownerOf($user);
+        } catch (ArcCommandException) {
+            return null;
+        }
+        if ($owner === '' || ! $this->tenancy->isReseller($owner)) {
+            return null;
+        }
+        $record = $this->arc->json('v-list-user', [$owner], Options::allowFailure())[$owner] ?? [];
+
+        return ['name' => (string) ($record['NAME'] ?? $owner), 'email' => (string) ($record['CONTACT'] ?? '')];
+    }
+
+    /**
+     * Allocation of the plan (spec D7) and usage of the tree (R_* = own
+     * U_* plus the customers').
+     *
+     * @return array{package: string, rows: array<string, array{allocated: int|null, limit: string, used: int}>}
+     */
+    public function plan(string $reseller): array
+    {
+        $record = $this->accounts->find($reseller);
+        $tree = [$record, ...array_values($this->accounts->only($this->tenancy->customersOf($reseller)))];
+        $rows = [];
+        foreach ($this->accounts->allocation($record) as $key => $row) {
+            $used = $key === 'USERS'
+                ? count($tree) - 1
+                : array_sum(array_map(fn (UserRecord $u) => (int) $u->get(UserRecord::USAGE[$key], '0'), $tree));
+            $rows[$key] = $row + ['used' => $used];
+        }
+
+        return ['package' => $record->package(), 'rows' => $rows];
+    }
+
+    /** @return array{total: int, suspended: int, recent: list<array{name: string, fullName: string, package: string, date: string, suspended: bool}>} */
+    public function customers(string $reseller): array
+    {
+        $customers = array_values($this->accounts->only($this->tenancy->customersOf($reseller)));
+        usort($customers, fn (UserRecord $a, UserRecord $b) => ($b->get('DATE').$b->get('TIME')) <=> ($a->get('DATE').$a->get('TIME')));
+
+        return [
+            'total' => count($customers),
+            'suspended' => count(array_filter($customers, fn (UserRecord $u) => $u->suspended())),
+            'recent' => array_map(fn (UserRecord $u) => [
+                'name' => $u->name,
+                'fullName' => $u->fullName(),
+                'package' => $u->package(),
+                'date' => $u->get('DATE'),
+                'suspended' => $u->suspended(),
+            ], array_slice($customers, 0, 5)),
         ];
     }
 
@@ -115,7 +198,7 @@ final class DashboardService
         return array_values(array_filter($graphs, fn ($g) => in_array($g['service'], ['la', 'mem'], true)));
     }
 
-    /** @return array{total: int, suspended: int, admins: int, webDomains: int} */
+    /** @return array{total: int, suspended: int, admins: int, resellers: int, webDomains: int} */
     public function accounts(): array
     {
         $users = $this->users->all();
@@ -124,6 +207,7 @@ final class DashboardService
             'total' => count($users),
             'suspended' => count(array_filter($users, fn ($u) => ($u['SUSPENDED'] ?? '') === 'yes')),
             'admins' => count(array_filter($users, fn ($u) => ($u['ROLE'] ?? '') === 'admin')),
+            'resellers' => count(array_filter($users, fn ($u) => ($u['ROLE'] ?? '') === 'reseller')),
             'webDomains' => array_sum(array_map(fn ($u) => (int) ($u['U_WEB_DOMAINS'] ?? 0), $users)),
         ];
     }
@@ -144,14 +228,16 @@ final class DashboardService
     }
 
     /**
-     * Certificates of every user expiring within 14 days: SSL domains only.
+     * Certificates of every user (or of $users) expiring within 14 days: SSL
+     * domains only.
      *
+     * @param  list<string>|null  $users
      * @return list<array{user: string, domain: string, expires: string, days: int}>
      */
-    public function expiringCertificates(int $withinDays = 14): array
+    public function expiringCertificates(int $withinDays = 14, ?array $users = null): array
     {
         $expiring = [];
-        foreach ($this->users->names() as $user) {
+        foreach ($users ?? $this->users->names() as $user) {
             foreach ($this->web->forUser($user) as $record) {
                 if (! $record->ssl) {
                     continue;

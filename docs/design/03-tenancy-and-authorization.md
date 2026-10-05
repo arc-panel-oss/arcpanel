@@ -1,6 +1,16 @@
 # 03 — Tenancy and Authorization (admin / reseller / user)
 
-**Epic:** E11 · **Status:** Draft v1 · **Depends on:** E1 · **Unblocks:** E7 (every migrated page), E12, E23, E30
+**Epic:** E11 · **Status:** Implemented 2026-10-05, see the [E11 spec](../features/specs/2026-10-05-003-e11-reseller-design.md) · **Depends on:** E1 · **Unblocks:** E7 (every migrated page), E12, E23, E30
+
+> **Implemented with these changes** (decisions of the [E11 spec](../features/specs/2026-10-05-003-e11-reseller-design.md)):
+>
+> - **Storage (D2):** `OWNER` and `R_*` live in `data/users/<user>/tenancy.conf`, the package keys in `data/packages/<package>.tenancy`. Upstream commands rewrite `user.conf` (`v-add-user`, `v-change-user-package`) and `.pkg` (`v-add-user-package`) with a fixed key list, so §4.1–4.2 keys there would be lost. Library `func/tenancy.sh`, not `func/reseller.sh`.
+> - **Commands (§5):** `v-list-user-owners` replaces `v-list-user-tree`; `v-check-reseller-quota RESELLER PACKAGE [USER]`; new `v-change-reseller-user-package`, `v-change-reseller-package`, `v-delete-reseller-package`, `v-list-package-tenancy`, `v-change-package-tenancy`, `v-delete-package-tenancy`, `v-rename-package-tenancy`, `v-add-sys-tenancy`.
+> - **Quota (§4.3):** own usage `U_X` + Σ customers' package limit X + new package's X ≤ reseller's X (D7).
+> - **`ROLE='reseller'`:** one-line change in `is_role_valid` (`func/main.sh`), no patch file (D10).
+> - **Pages (§9):** one Users module `/app/users` ("Customers" for resellers) and one Packages module `/app/packages`; no `/app/customers` (D3). Statistics, Backups and Logs per tree stay with E7.
+> - **Login as (§9.1):** resellers use the session key `arc_look`, checked on every request and never read by the legacy app; it works on `/app` pages only (D4).
+> - **API keys (§8):** deferred to the Laravel API (D6).
 
 ---
 
@@ -148,7 +158,7 @@ final class OwnerScope
     public function canSee(string $user): bool;          // admin: true; reseller: $user in tree; user: $user === self
     public function canManage(string $user): bool;       // same as canSee, minus the reseller itself for destructive actions on itself? (no: resellers may manage themselves as users)
     public function assertVisible(string $user): void;   // throws AuthorizationException → 404 (not 403) to avoid existence leaks
-    public function tree(string $reseller): array;       // v-list-reseller-users RESELLER json, memoized per request (E1-S2 ships OwnerScope without it; lands with E11)
+    public function tree(string $reseller): array;       // the reseller and its customers, from v-list-user-owners json read once per request (TenancyDirectory)
 }
 ```
 

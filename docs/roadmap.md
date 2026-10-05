@@ -240,6 +240,8 @@ Every migrated page is built **reseller-aware from day one** (owner scoping from
 
 **Success metric:** A reseller onboards a customer end-to-end (user, package, domain, mail, DB) with zero admin involvement; e2e tests prove no cross-tenant read via UI or API. **Effort:** L. **Outcome:** O6.
 
+**Design:** [E11 spec](./features/specs/2026-10-05-003-e11-reseller-design.md) (part 1 and part 2 in one spec, five milestones). **Status:** implemented 2026-10-05; API key scopes deferred to the Laravel API, per-tree Statistics/Backups/Logs to E7.
+
 ### E12 — Port registry (admin assigns ports to users)
 
 **Hypothesis:** We believe a central port registry, where admins allocate ports or ranges to users and every feature (Node apps, Docker apps, firewall) draws from it, will remove port collisions and accidental public exposure, because today nothing in the panel knows which ports a user may bind to.
