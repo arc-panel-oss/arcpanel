@@ -21,7 +21,10 @@ use Illuminate\Support\Facades\Route;
  */
 final class PaletteSearch
 {
-    private const LIMIT_PER_GROUP = 8;
+    /** Results per group in the palette; the search page asks for more (E7 batch 3 spec §12.1). */
+    public const LIMIT_PER_GROUP = 8;
+
+    public const PAGE_LIMIT = 50;
 
     /** v-search-* TYPE => [group label, icon, capability] */
     private const OBJECT_TYPES = [
@@ -42,7 +45,7 @@ final class PaletteSearch
     ) {}
 
     /** @return list<array{label: string, items: list<array{label: string, meta: string, url: string, icon: string}>}> */
-    public function search(string $query): array
+    public function search(string $query, int $limit = self::LIMIT_PER_GROUP): array
     {
         $query = trim($query);
         if (mb_strlen($query) < 2) {
@@ -51,10 +54,10 @@ final class PaletteSearch
 
         $groups = [];
         foreach ($this->objects($query) as $label => $items) {
-            $groups[] = ['label' => $label, 'items' => array_slice($items, 0, self::LIMIT_PER_GROUP)];
+            $groups[] = ['label' => $label, 'items' => array_slice($items, 0, $limit)];
         }
         if (($users = $this->matchingUsers($query)) !== []) {
-            $groups[] = ['label' => __('Users'), 'items' => array_slice($users, 0, self::LIMIT_PER_GROUP)];
+            $groups[] = ['label' => __('Users'), 'items' => array_slice($users, 0, $limit)];
         }
         if (($pages = $this->pages($query)) !== []) {
             $groups[] = ['label' => __('Pages and actions'), 'items' => $pages];

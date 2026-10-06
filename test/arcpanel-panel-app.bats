@@ -489,6 +489,17 @@ teardown_file() {
     assert_output "403 "
 }
 
+@test "Legacy search and CSR pages redirect to the panel app when ARCPANEL_APP_PAGES is yes" {
+    v-change-sys-config-value ARCPANEL_APP_PAGES yes
+    pages_login
+    run pages_get "/search/?q=$PAGES_USER"
+    assert_output "302 $PANEL/app/search?q=$PAGES_USER"
+    run pages_get "/generate/ssl/?domain=$PAGES_USER.example"
+    assert_output "302 $PANEL/app/web/domains/$PAGES_USER/$PAGES_USER.example/edit#ssl"
+    run pages_get "/app/search?q=$PAGES_USER"
+    assert_output "200 "
+}
+
 @test "Legacy reset pages redirect guests to the panel app when ARCPANEL_APP_PAGES is yes" {
     v-change-sys-config-value ARCPANEL_APP_PAGES yes
     guest_get() {

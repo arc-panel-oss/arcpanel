@@ -9,6 +9,7 @@ use App\Http\Controllers\Backups\ExclusionController;
 use App\Http\Controllers\Backups\SnapshotController;
 use App\Http\Controllers\Cron\CronActionController;
 use App\Http\Controllers\Cron\CronController;
+use App\Http\Controllers\CsrController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\Databases\DatabaseActionController;
 use App\Http\Controllers\Databases\DatabaseController;
@@ -41,6 +42,7 @@ use App\Http\Controllers\Node\NodeController;
 use App\Http\Controllers\Packages\PackageController;
 use App\Http\Controllers\Ports\PortController;
 use App\Http\Controllers\Ports\ServerPortController;
+use App\Http\Controllers\SearchController;
 use App\Http\Controllers\Server\RrdPageController;
 use App\Http\Controllers\Server\ServerSettingsController;
 use App\Http\Controllers\Server\ServiceConfigController;
@@ -116,6 +118,8 @@ Route::middleware('auth.arc')->group(function () {
 
     // Shell (docs/design/05 §4.2)
     Route::get('/_palette', PaletteController::class)->name('shell.palette');
+    // Search page (E7 batch 3 spec §12.1)
+    Route::get('/search', SearchController::class)->name('search');
     Route::get('/_notifications', [NotificationController::class, 'index'])->name('shell.notifications');
     Route::post('/_notifications/{id}/acknowledge', [NotificationController::class, 'acknowledge'])->whereNumber('id')->name('shell.notifications.acknowledge');
     Route::delete('/_notifications/{id}', [NotificationController::class, 'destroy'])->whereNumber('id')->name('shell.notifications.destroy');
@@ -270,6 +274,7 @@ Route::middleware('auth.arc')->group(function () {
             Route::post('/plugins/{plugin}', [ServerSettingsController::class, 'plugin'])
                 ->whereIn('plugin', array_keys(ServerSettings::PLUGINS))->name('plugin');
             Route::post('/white-label/logo', [ServerSettingsController::class, 'logo'])->name('logo');
+            Route::post('/ssl/csr', [CsrController::class, 'server'])->name('csr');
         });
     });
 
@@ -602,6 +607,8 @@ Route::middleware('auth.arc')->group(function () {
                 foreach (['general', 'ssl', 'redirect', 'advanced', 'ftp', 'stats'] as $tab) {
                     Route::post('/'.$tab, [WebDomainEditController::class, $tab])->name('update.'.$tab);
                 }
+                // CSR generator of the SSL tab (E7 batch 3 spec §12.2)
+                Route::post('/ssl/generate', [CsrController::class, 'webDomain'])->name('ssl.generate');
                 Route::post('/suspend', [WebDomainActionController::class, 'suspend'])->name('suspend');
                 Route::post('/unsuspend', [WebDomainActionController::class, 'unsuspend'])->name('unsuspend');
                 Route::post('/rebuild', [WebDomainActionController::class, 'rebuild'])->name('rebuild');

@@ -78,7 +78,7 @@
                     </form>
                 @endif
 
-                <div x-data="apPalette({ url: @js(route('shell.palette')) })" class="ap-palette-host">
+                <div x-data="apPalette({ url: @js(route('shell.palette')), searchUrl: @js(Route::has('search') ? route('search') : '') })" class="ap-palette-host">
                     <button type="button" class="ap-search-trigger" x-on:click="show()" x-cloak>
                         <x-ap-icon name="search" size="sm" /><span>{{ __('Search or jump to…') }}</span><span class="ap-kbd">Ctrl K</span>
                     </button>
@@ -111,6 +111,7 @@
                                 <p class="ap-error" x-show="error" x-text="error" role="alert"></p>
                             </div>
                             <div class="ap-palette-foot">
+                                <a class="ap-palette-all" x-show="allResultsUrl" x-bind:href="allResultsUrl">{{ __('View all results') }}</a>
                                 <span><span class="ap-kbd">↑</span><span class="ap-kbd">↓</span>{{ __('Move') }}</span>
                                 <span><span class="ap-kbd">Enter</span>{{ __('Open') }}</span>
                                 <span><span class="ap-kbd">Esc</span>{{ __('Close') }}</span>

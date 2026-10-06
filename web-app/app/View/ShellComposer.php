@@ -8,7 +8,6 @@ use App\Auth\Role;
 use App\Services\UserDirectory;
 use App\Tenancy\TenancyDirectory;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Route;
 use Illuminate\View\View;
 
 /**
@@ -68,12 +67,7 @@ final class ShellComposer
                 Role::Reseller => __('Reseller'),
                 default => __('User'),
             },
-            'accountUrl' => Route::has('account.edit')
-                ? route('account.edit')
-                : LegacyRoutes::url('account.edit').'?'.http_build_query([
-                    'user' => $principal->effectiveUser(),
-                    'token' => $principal->legacyToken,
-                ]),
+            'accountUrl' => route('account.edit'),
             'canSwitchUser' => $canSwitch,
             'switchUsers' => $switchUsers,
             'languages' => self::languages(),

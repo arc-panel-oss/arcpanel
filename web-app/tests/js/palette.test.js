@@ -174,6 +174,22 @@ describe('apPalette', () => {
 		expect(p.active).toBe(0);
 	});
 
+	it('opens the search page with Enter when nothing is listed (E7 batch 3 spec §12.1)', async () => {
+		mount(markup.replace("apPalette({ url: '/app/_palette' })", "apPalette({ url: '/app/_palette', searchUrl: '#search' })"));
+		const p = palette();
+		p.show();
+		await tick();
+		const input = document.getElementById('q');
+		p.query = 'x';
+		expect(p.allResultsUrl).toBe('');
+		expect(key(input, { key: 'Enter' }).defaultPrevented).toBe(false);
+
+		p.query = 'shop & co';
+		expect(p.allResultsUrl).toBe('#search?q=shop%20%26%20co');
+		expect(key(input, { key: 'Enter' }).defaultPrevented).toBe(true);
+		expect(window.location.hash).toBe('#search?q=shop%20%26%20co');
+	});
+
 	it('highlights the query in labels', () => {
 		mount(markup);
 		const p = palette();

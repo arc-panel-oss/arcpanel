@@ -384,6 +384,23 @@ function arc_redirect_if_migrated(string $legacyPath, array $query = []): void {
 		case "/reset2fa/":
 			$url = "/app/reset2fa";
 			break;
+		// E7 batch 3: search and the CSR generator (a dialog of the SSL forms)
+		case "/search/":
+			$url = "/app/search";
+			$q = isset($query["q"]) ? (string) $query["q"] : "";
+			if ($q !== "") {
+				$url .= "?" . http_build_query(["q" => $q]);
+			}
+			break;
+		case "/generate/ssl/":
+			if ($domain !== "" && ($_SESSION["userContext"] ?? "") === "admin" && $domain === gethostname()) {
+				$url = "/app/server/settings/ssl";
+			} elseif ($domain !== "" && $owner !== "") {
+				$url = "/app/web/domains/" . $segment($owner) . "/" . $segment($domain) . "/edit#ssl";
+			} else {
+				return;
+			}
+			break;
 		default:
 			return;
 	}

@@ -96,7 +96,7 @@
         {{-- SSL --}}
         <x-ap-tab-panel name="ssl">
             <x-ap-card :title="__('SSL')" icon="lock">
-                <x-ap-form :action="route('web.domains.update.ssl', $params)" x-data="{ ssl: {{ $record->ssl ? 'true' : 'false' }}, le: {{ $record->letsEncrypt ? 'true' : 'false' }} }">
+                <x-ap-form :action="route('web.domains.update.ssl', $params)" id="web-ssl-form" x-data="{ ssl: {{ $record->ssl ? 'true' : 'false' }}, le: {{ $record->letsEncrypt ? 'true' : 'false' }} }">
                     <fieldset class="ap-fieldset-plain" @disabled($locked)>
                         <div class="ap-settings">
                             <x-ap-switch name="ssl" :label="__('Enable SSL for this domain')" :description="__('Serve this domain over HTTPS.')" :checked="$record->ssl" bag="ssl" x-model="ssl" />
@@ -124,7 +124,10 @@
                         </dl>
                     @endif
                     @unless ($locked)
-                        <div class="ap-form-actions"><x-ap-button type="submit" variant="primary" icon="check">{{ __('Save') }}</x-ap-button></div>
+                        <div class="ap-form-actions">
+                            <x-ap-button type="submit" variant="primary" icon="check">{{ __('Save') }}</x-ap-button>
+                            <x-ap-csr-modal :action="route('web.domains.ssl.generate', $params)" form="web-ssl-form" :domain="$record->domain" :aliases="implode(', ', $record->aliases)" />
+                        </div>
                     @endunless
                 </x-ap-form>
             </x-ap-card>

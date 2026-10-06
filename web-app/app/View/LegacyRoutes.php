@@ -9,10 +9,6 @@ namespace App\View;
 final class LegacyRoutes
 {
     public const URLS = [
-        'users.index' => '/list/user/',
-        'packages.index' => '/list/package/',
-        'account.edit' => '/edit/user/',
-        'users.create' => '/add/user/',
         'web.logs.download' => '/download/web-log/',
     ];
 

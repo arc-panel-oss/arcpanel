@@ -4,8 +4,11 @@
     they can sit inside the SSL form; apCsr posts them to action and fills the
     certificate and key fields of the form with id `form`.
 --}}
-@props(['action', 'form', 'domain' => '', 'id' => 'csr'])
-@php($detached = $id.'-detached')
+@props(['action', 'form', 'domain' => '', 'aliases' => '', 'id' => 'csr'])
+@php
+    $detached = $id.'-detached';
+    $aliasLines = implode(PHP_EOL, array_filter(array_map('trim', explode(',', $aliases))));
+@endphp
 <div x-data="apCsr({ url: @js($action), form: @js($form) })" class="ap-inline">
     <x-ap-button icon="key" x-on:click="$dispatch('ap-modal', { id: '{{ $id }}' })">{{ __('Generate CSR') }}</x-ap-button>
     <x-ap-modal :id="$id" :title="__('Generate CSR')" :description="__('A self-signed certificate and a certificate signing request for a certificate authority.')" icon="key">
@@ -20,7 +23,7 @@
                 <x-ap-select name="key_algo" :id="$id.'-key-algo'" :label="__('Key algorithm')" value="ecdsa-256" :form="$detached"
                     :options="['ecdsa-256' => 'ECDSA P-256', 'ecdsa-384' => 'ECDSA P-384', 'rsa' => 'RSA 4096']" />
             </div>
-            <x-ap-textarea name="aliases" :id="$id.'-aliases'" :label="__('Aliases')" rows="2" mono :form="$detached" :hint="__('One per line')" />
+            <x-ap-textarea name="aliases" :id="$id.'-aliases'" :label="__('Aliases')" :value="$aliasLines" rows="2" mono :form="$detached" :hint="__('One per line')" />
             <p class="ap-error" x-show="error" x-text="error" role="alert"></p>
             <div class="ap-stack" x-show="csr" x-cloak>
                 <p>{{ __('The certificate and its key are in the form now. Save the form to use them.') }}</p>

@@ -1452,6 +1452,8 @@
 .ap-modal {
 	width: 100%;
 	max-width: 460px;
+	/* tall dialogs scroll their body, the head and the actions stay in view */
+	max-height: calc(100dvh - 2 * var(--ap-space-6));
 	display: flex;
 	flex-direction: column;
 	border-radius: var(--ap-radius-lg);
@@ -1486,6 +1488,8 @@
 	display: flex;
 	flex-direction: column;
 	gap: var(--ap-space-3-5);
+	min-height: 0;
+	overflow-y: auto;
 }
 .ap-modal-foot {
 	display: flex;
@@ -3816,4 +3820,8 @@ a.ap-pick:focus-visible {
 .ap-service-file-editor {
 	height: 60vh;
 	min-height: 320px;
+}
+.ap-palette-foot .ap-palette-all {
+	margin-inline-start: auto;
+	color: var(--ap-accent);
 }

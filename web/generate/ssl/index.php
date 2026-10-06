@@ -6,6 +6,9 @@ $TAB = "WEB";
 // Main include
 include $_SERVER["DOCUMENT_ROOT"] . "/inc/main.php";
 
+// ArcPanel: served by the panel app when ARCPANEL_APP_PAGES is on (inc/arcpanel-routes.php)
+arc_redirect_if_migrated("/generate/ssl/", $_GET);
+
 // Prepare values
 if (!empty($_GET["domain"])) {
 	$v_domain = $_GET["domain"];

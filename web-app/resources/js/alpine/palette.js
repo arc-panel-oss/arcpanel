@@ -4,9 +4,10 @@
 import { request } from '../http.js';
 import { focusFirst, trapFocus } from './focus.js';
 
-export default function apPalette({ url = '', delay = 150, minLength = 2 } = {}) {
+export default function apPalette({ url = '', searchUrl = '', delay = 150, minLength = 2 } = {}) {
 	return {
 		url,
+		searchUrl,
 		open: false,
 		query: '',
 		groups: [],
@@ -115,6 +116,12 @@ export default function apPalette({ url = '', delay = 150, minLength = 2 } = {})
 			}
 		},
 
+		/** The search page with every result of the query (E7 batch 3 spec §12.1). */
+		get allResultsUrl() {
+			const query = this.query.trim();
+			return this.searchUrl && query.length >= minLength ? `${this.searchUrl}?q=${encodeURIComponent(query)}` : '';
+		},
+
 		go(item = this.items[this.active]) {
 			if (item?.url) {
 				window.location.assign(item.url);
@@ -135,6 +142,9 @@ export default function apPalette({ url = '', delay = 150, minLength = 2 } = {})
 					if (this.items.length > 0) {
 						event.preventDefault();
 						this.go();
+					} else if (this.allResultsUrl) {
+						event.preventDefault();
+						window.location.assign(this.allResultsUrl);
 					}
 					break;
 				case 'Escape':
