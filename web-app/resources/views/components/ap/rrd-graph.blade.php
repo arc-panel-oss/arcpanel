@@ -1,6 +1,6 @@
 {{-- Server graph from v-export-rrd (apRrdGraph, chart.js on demand) with a period selector. --}}
 @props(['url', 'service' => 'la', 'title', 'period' => 'daily'])
-@php($periods = ['daily' => __('Daily'), 'weekly' => __('Weekly'), 'monthly' => __('Monthly'), 'yearly' => __('Yearly')])
+@php($periods = ['daily' => __('Daily'), 'weekly' => __('Weekly'), 'monthly' => __('Monthly'), 'yearly' => __('Yearly'), 'biennially' => __('Biennially'), 'triennially' => __('Triennially')])
 <div {{ $attributes->merge(['class' => 'ap-rrd']) }} x-data="apRrdGraph({ url: @js($url), service: @js($service), period: @js($period) })">
     <x-ap-card :title="$title" icon="activity">
         <x-slot:actions>

@@ -39,6 +39,8 @@ function arc_route(string $legacyPath): string {
 		"/list/access-key/" => "/app/access-keys",
 		"/list/key/" => "/app/ssh-keys",
 		"/list/log/" => "/app/logs",
+		"/list/stats/" => "/app/stats",
+		"/list/rrd/" => "/app/server/rrd",
 	];
 
 	return arc_app_pages() && isset($routes[$legacyPath]) ? $routes[$legacyPath] : $legacyPath;
@@ -295,6 +297,27 @@ function arc_redirect_if_migrated(string $legacyPath, array $query = []): void {
 				return;
 			}
 			$url = "/app/logs/" . $segment($owner) . "/auth";
+			break;
+		// E7 batch 2: statistics (an administrator may name the user) and server graphs
+		case "/list/stats/":
+			$url = "/app/stats";
+			if (
+				($_SESSION["userContext"] ?? "") === "admin" &&
+				empty($_SESSION["look"]) &&
+				!empty($query["user"])
+			) {
+				$url .= "?owner=" . rawurlencode((string) $query["user"]);
+			}
+			break;
+		case "/list/rrd/":
+			$period = isset($query["period"]) ? (string) $query["period"] : "";
+			$url = "/app/server/rrd";
+			if (
+				preg_match('/^(daily|weekly|monthly|yearly|biennially|triennially)$/', $period) ===
+				1
+			) {
+				$url .= "?period=" . $period;
+			}
 			break;
 		default:
 			return;

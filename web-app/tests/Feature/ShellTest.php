@@ -106,6 +106,7 @@ it('answers JSON errors for the shell routes', function () {
 });
 
 it('serves server graphs to admins only', function () {
+    $this->fake->on('v-list-sys-rrd')->returnsFixture('v-list-sys-rrd/default.json');
     $this->fake->on('v-export-rrd', ['la', 'weekly', 'json'])->returnsJson(['meta' => ['start' => 1, 'step' => 300, 'legend' => ['Load']], 'data' => [[0.4]]]);
 
     signIn('bob', 'user');

@@ -242,7 +242,7 @@
 							<li class="top-bar-menu-item">
 								<a title="<?= _("Statistics") ?>" class="top-bar-menu-link <?php if ($TAB == "STATS") {
 	echo "active";
-} ?>" href="/list/stats/">
+} ?>" href="<?= tohtml(arc_route("/list/stats/")) ?>">
 									<i class="fas fa-chart-line"></i>
 									<span class="top-bar-menu-link-label u-hide-desktop"><?= _("Statistics") ?></span>
 								</a>

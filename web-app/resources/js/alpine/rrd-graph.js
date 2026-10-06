@@ -2,7 +2,23 @@
 // chart.js is loaded on demand as a separate chunk.
 import { request } from '../http.js';
 
-export const PERIODS = ['daily', 'weekly', 'monthly', 'yearly'];
+export const PERIODS = ['daily', 'weekly', 'monthly', 'yearly', 'biennially', 'triennially'];
+
+/** toLocaleString() options of the x axis labels per period, as rrdCharts.js shows them. */
+export function labelFormat(period) {
+	switch (period) {
+		case 'daily':
+			return { hour: '2-digit', minute: '2-digit' };
+		case 'weekly':
+			return { weekday: 'short', day: 'numeric' };
+		case 'monthly':
+			return { month: 'short', day: 'numeric' };
+		case 'yearly':
+			return { month: 'long' };
+		default:
+			return { month: 'short', year: 'numeric' };
+	}
+}
 
 /** Chart.js data from the JSON of GET url?service=&period=. */
 export function chartData(rrd, colours) {
@@ -62,7 +78,7 @@ export default function apRrdGraph({ url = '', service = 'la', period = 'daily' 
 				const data = chartData(rrd, [cssVar('--ap-accent'), cssVar('--ap-ok'), cssVar('--ap-warn'), cssVar('--ap-info')]);
 				const text = cssVar('--ap-fg-muted');
 				const grid = cssVar('--ap-border');
-				const labels = this.period === 'daily' ? { hour: '2-digit', minute: '2-digit' } : { month: 'short', day: 'numeric' };
+				const labels = labelFormat(this.period);
 				this.chart?.destroy();
 				this.chart = new Chart(this.$refs.canvas, {
 					type: 'line',

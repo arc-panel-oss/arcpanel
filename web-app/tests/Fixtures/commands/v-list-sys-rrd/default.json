@@ -15,7 +15,7 @@
     },
     "3": {
         "TYPE": "net",
-        "RRD": "net_eth0",
+        "RRD": "eth0",
         "TITLE": "Bandwidth Usage eth0",
         "TIME": "10:00:00",
         "DATE": "2026-10-04"

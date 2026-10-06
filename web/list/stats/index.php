@@ -5,6 +5,9 @@ $TAB = "STATS";
 // Main include
 include $_SERVER["DOCUMENT_ROOT"] . "/inc/main.php";
 
+// ArcPanel: served by the panel app when ARCPANEL_APP_PAGES is on (inc/arcpanel-routes.php)
+arc_redirect_if_migrated("/list/stats/", $_GET);
+
 // Data
 if ($_SESSION["userContext"] === "admin" && $_SESSION["look"] == "") {
 	if (empty($_GET["user"])) {

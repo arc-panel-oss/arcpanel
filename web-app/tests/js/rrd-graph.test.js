@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { chartData, PERIODS } from '../../resources/js/alpine/rrd-graph.js';
+import { chartData, labelFormat, PERIODS } from '../../resources/js/alpine/rrd-graph.js';
 import { data, jsonResponse, mount, tick, unmount } from './helpers.js';
 
 const { Chart, charts } = vi.hoisted(() => {
@@ -87,6 +87,15 @@ describe('apRrdGraph', () => {
 		await graph.setPeriod('hourly');
 		expect(fetchMock).toHaveBeenCalledTimes(2);
 		expect(PERIODS).toContain('yearly');
+	});
+
+	it('knows the two- and three-year periods of the Task Monitor page', () => {
+		expect(PERIODS).toEqual(['daily', 'weekly', 'monthly', 'yearly', 'biennially', 'triennially']);
+		expect(labelFormat('daily')).toEqual({ hour: '2-digit', minute: '2-digit' });
+		expect(labelFormat('weekly')).toEqual({ weekday: 'short', day: 'numeric' });
+		expect(labelFormat('monthly')).toEqual({ month: 'short', day: 'numeric' });
+		expect(labelFormat('yearly')).toEqual({ month: 'long' });
+		expect(labelFormat('triennially')).toEqual({ month: 'short', year: 'numeric' });
 	});
 
 	it('shows the error when the data cannot be loaded', async () => {

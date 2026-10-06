@@ -1,0 +1,133 @@
+#!/bin/bash
+# info: list the monthly statistics of a reseller's tree (E7 batch 2)
+# options: RESELLER [FORMAT]
+#
+# example: v-list-reseller-users-stats agency json
+#
+# This function sums the monthly statistics (stats.log) of a reseller and
+# its customers, one row per month, in the columns of v-list-users-stats.
+# A limit (DISK_QUOTA, BANDWIDTH) is unlimited when one account of the
+# month has no limit. U_USERS counts the accounts with a row for the month.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+reseller=$1
+format=${2-shell}
+
+# Includes
+# shellcheck source=/etc/hestiacp/hestia.conf
+source /etc/hestiacp/hestia.conf
+# shellcheck source=/usr/local/hestia/func/main.sh
+source $HESTIA/func/main.sh
+# shellcheck source=/usr/local/hestia/func/tenancy.sh
+source $HESTIA/func/tenancy.sh
+# load config file
+source_conf "$HESTIA/conf/hestia.conf"
+
+COLUMNS_SUMMED="IP_OWNED DISK_QUOTA U_DISK U_DISK_DIRS U_DISK_WEB U_DISK_MAIL U_DISK_DB BANDWIDTH U_BANDWIDTH U_WEB_DOMAINS U_WEB_SSL U_WEB_ALIASES U_DNS_DOMAINS U_DNS_RECORDS U_MAIL_DOMAINS U_MAIL_DKIM U_MAIL_ACCOUNTS U_DATABASES U_CRON_JOBS U_BACKUPS"
+
+# One TSV row per month, oldest first: DATE TIME PACKAGE <summed columns> U_USERS
+sum_rows() {
+	local files=() user
+	for user in $reseller $(tenancy_customers "$reseller"); do
+		if [ -f "$HESTIA/data/users/$user/stats.log" ]; then
+			files+=("$HESTIA/data/users/$user/stats.log")
+		fi
+	done
+	[ "${#files[@]}" -eq 0 ] && return
+	awk -v columns="$COLUMNS_SUMMED" -v package="$package" '
+		BEGIN { n = split(columns, keys, " ") }
+		{
+			delete v
+			line = $0
+			while (match(line, /[A-Z_]+='\''[^'\'']*'\''/)) {
+				pair = substr(line, RSTART, RLENGTH)
+				eq = index(pair, "=")
+				v[substr(pair, 1, eq - 1)] = substr(pair, eq + 2, length(pair) - eq - 2)
+				line = substr(line, RSTART + RLENGTH)
+			}
+			date = v["DATE"]
+			if (date == "") next
+			if (!(date in users)) dates[++count] = date
+			users[date]++
+			if (v["TIME"] > time[date]) time[date] = v["TIME"]
+			for (i = 1; i <= n; i++) {
+				value = v[keys[i]]
+				if (value ~ /^[0-9]+$/) sum[date, keys[i]] += value
+				else if (value == "unlimited") unlimited[date, keys[i]] = 1
+			}
+		}
+		END {
+			# oldest month first, like v-list-users-stats
+			for (i = 1; i <= count; i++) for (j = i + 1; j <= count; j++) if (dates[j] < dates[i]) { t = dates[i]; dates[i] = dates[j]; dates[j] = t }
+			for (d = 1; d <= count; d++) {
+				date = dates[d]
+				row = date "\t" time[date] "\t" package
+				for (i = 1; i <= n; i++) row = row "\t" (((date, keys[i]) in unlimited) ? "unlimited" : sum[date, keys[i]] + 0)
+				print row "\t" users[date]
+			}
+		}' "${files[@]}"
+}
+
+# JSON list function
+json_list() {
+	local header="DATE TIME PACKAGE $COLUMNS_SUMMED U_USERS"
+	sum_rows | jq -R -s --arg header "$header" '
+		($header | split(" ")) as $keys
+		| [split("\n")[] | select(length > 0) | split("\t")]
+		| map({key: .[0], value: ([$keys[1:], .[1:]] | transpose | map({key: .[0], value: .[1]}) | from_entries)})
+		| from_entries'
+}
+
+# SHELL list function
+shell_list() {
+	echo "DATE USER WEB DNS MAIL DB BACKUPS IP DISK BW"
+	echo "---- ---- --- --- ---- -- ------- -- ---- --"
+	# columns of sum_rows: 1 DATE, 4 IP_OWNED, 6 U_DISK, 12 U_BANDWIDTH, 13 U_WEB_DOMAINS,
+	# 16 U_DNS_DOMAINS, 18 U_MAIL_DOMAINS, 21 U_DATABASES, 23 U_BACKUPS, 24 U_USERS
+	sum_rows | awk -F'\t' '{ print $1, $24, $13, $16, $18, $21, $23, $4, $6, $12 }'
+}
+
+# PLAIN list function
+plain_list() {
+	sum_rows
+}
+
+# CSV list function
+csv_list() {
+	echo "DATE,TIME,PACKAGE,${COLUMNS_SUMMED// /,},U_USERS"
+	sum_rows | tr '\t' ','
+}
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '1' "$#" 'RESELLER [FORMAT]'
+is_user_format_valid "$reseller" 'reseller'
+is_object_valid 'user' 'USER' "$reseller"
+if ! tenancy_is_reseller "$reseller"; then
+	check_result "$E_INVALID" "$reseller is not a reseller"
+fi
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+package=$(tenancy_user_value "$reseller" PACKAGE)
+
+case $format in
+	json) json_list ;;
+	plain) plain_list ;;
+	csv) csv_list ;;
+	shell) shell_list | column -t ;;
+esac
+
+#----------------------------------------------------------#
+#                       Hestia                             #
+#----------------------------------------------------------#
+
+exit

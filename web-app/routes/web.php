@@ -40,11 +40,13 @@ use App\Http\Controllers\Node\NodeController;
 use App\Http\Controllers\Packages\PackageController;
 use App\Http\Controllers\Ports\PortController;
 use App\Http\Controllers\Ports\ServerPortController;
+use App\Http\Controllers\Server\RrdPageController;
 use App\Http\Controllers\Shell\LanguageController;
 use App\Http\Controllers\Shell\NotificationController;
 use App\Http\Controllers\Shell\PaletteController;
 use App\Http\Controllers\Shell\RrdController;
 use App\Http\Controllers\Shell\StyleguideController;
+use App\Http\Controllers\Stats\StatsController;
 use App\Http\Controllers\Users\UserActionController;
 use App\Http\Controllers\Users\UserController;
 use App\Http\Controllers\Users\UserEditController;
@@ -226,6 +228,10 @@ Route::middleware('auth.arc')->group(function () {
             Route::delete('/auth', [LogController::class, 'destroyLogins'])->name('auth.destroy');
         });
     });
+
+    // Statistics and server graphs (E7 batch 2 spec §9.4, §9.5)
+    Route::get('/stats', StatsController::class)->name('stats.index');
+    Route::get('/server/rrd', RrdPageController::class)->name('server.rrd');
 
     // Port registry (E12 spec §7)
     Route::get('/server/ports', [ServerPortController::class, 'index'])->name('server.ports');
