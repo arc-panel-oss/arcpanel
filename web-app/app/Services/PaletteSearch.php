@@ -212,6 +212,7 @@ final class PaletteSearch
             ['dns.create', 'dns.create', 'Add DNS Domain', 'DNS'],
             ['mail.create', 'mail.create', 'Add Mail Domain', 'Mail'],
             ['server.firewall', 'server.firewall.create', 'Add Rule', 'Firewall'],
+            ['server.ips', 'server.ips.create', 'Add IP Address', 'IP Addresses'],
         ];
         foreach ($creates as [$capability, $route, $label, $meta]) {
             if (Capabilities::allows($role, $capability) && ! $this->principal->isReadOnly() && Route::has($route)) {

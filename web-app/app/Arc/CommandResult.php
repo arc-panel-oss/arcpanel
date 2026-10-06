@@ -41,4 +41,12 @@ final class CommandResult
 
         return trim($text);
     }
+
+    /** The message of a failed command, or its exit code when it printed nothing. */
+    public function errorMessage(): string
+    {
+        $message = $this->message();
+
+        return $message !== '' ? $message : sprintf(__('Error code: %s'), $this->exitCode);
+    }
 }

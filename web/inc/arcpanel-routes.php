@@ -35,6 +35,7 @@ function arc_route(string $legacyPath): string {
 		"/list/backup/" => "/app/backups",
 		// E7 batch 2 (docs/features/specs/2026-10-06-002-e7-batch2-pages-design.md §11)
 		"/list/firewall/" => "/app/server/firewall",
+		"/list/ip/" => "/app/server/ips",
 	];
 
 	return arc_app_pages() && isset($routes[$legacyPath]) ? $routes[$legacyPath] : $legacyPath;
@@ -237,6 +238,20 @@ function arc_redirect_if_migrated(string $legacyPath, array $query = []): void {
 			break;
 		case "/add/firewall/banlist/":
 			$url = "/app/server/firewall/bans/create";
+			break;
+		// E7 batch 2: IP addresses (administrators)
+		case "/list/ip/":
+			$url = "/app/server/ips";
+			break;
+		case "/add/ip/":
+			$url = "/app/server/ips/create";
+			break;
+		case "/edit/ip/":
+			$ip = isset($query["ip"]) ? (string) $query["ip"] : "";
+			if (preg_match('/^[0-9A-Fa-f:.]{2,45}$/', $ip) !== 1) {
+				return;
+			}
+			$url = "/app/server/ips/" . $ip . "/edit";
 			break;
 		default:
 			return;

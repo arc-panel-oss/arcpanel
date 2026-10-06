@@ -28,7 +28,7 @@ final class FirewallActionController extends Controller
         $result = $this->firewall->move($rule, $direction);
         $back = redirect()->route('server.firewall');
 
-        return $result->ok() ? $back : $back->with('error', FirewallController::message($result));
+        return $result->ok() ? $back : $back->with('error', $result->errorMessage());
     }
 
     public function suspend(string $rule, Principal $principal, FirewallPolicy $policy): RedirectResponse

@@ -47,7 +47,7 @@ final class FirewallBanController extends Controller
 
         $result = $this->firewall->createBan(trim($data['ip']), $data['chain']);
         if (! $result->ok()) {
-            return back()->withInput()->with('error', FirewallController::message($result));
+            return back()->withInput()->with('error', $result->errorMessage());
         }
 
         return redirect()->route('server.firewall.bans')->with('ok', __('IP address has been banned successfully.'));

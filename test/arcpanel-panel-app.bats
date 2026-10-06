@@ -388,6 +388,19 @@ teardown_file() {
     v-change-sys-config-value ARCPANEL_APP_PAGES yes
 }
 
+@test "Legacy IP pages redirect to the panel app when ARCPANEL_APP_PAGES is yes" {
+    v-change-sys-config-value ARCPANEL_APP_PAGES yes
+    pages_login
+    run pages_get /list/ip/
+    assert_output "302 $PANEL/app/server/ips"
+    run pages_get /add/ip/
+    assert_output "302 $PANEL/app/server/ips/create"
+    run pages_get "/edit/ip/?ip=10.0.0.10"
+    assert_output "302 $PANEL/app/server/ips/10.0.0.10/edit"
+    run pages_get /app/server/ips
+    assert_output "403 "
+}
+
 @test "Panel app build ships hashed assets and fonts" {
     run cat /usr/local/hestia/web-app/public/build/manifest.json
     assert_success

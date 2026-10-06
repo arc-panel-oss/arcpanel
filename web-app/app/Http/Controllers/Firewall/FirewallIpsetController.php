@@ -50,7 +50,7 @@ final class FirewallIpsetController extends Controller
 
         $result = $this->firewall->createIpset($data['name'], trim($data['source']), $data['version'], $data['autoupdate']);
         if (! $result->ok()) {
-            return back()->withInput()->with('error', FirewallController::message($result));
+            return back()->withInput()->with('error', $result->errorMessage());
         }
 
         return redirect()->route('server.firewall.ipsets')->with('ok', __('IP list has been created successfully.'));

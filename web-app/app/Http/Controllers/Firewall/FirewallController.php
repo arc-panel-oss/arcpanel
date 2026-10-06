@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers\Firewall;
 
-use App\Arc\CommandResult;
 use App\Arc\SysConfig;
 use App\Auth\Principal;
 use App\Http\Controllers\Controller;
@@ -54,7 +53,7 @@ final class FirewallController extends Controller
         $rule = $request->rule();
         $result = $this->firewall->create($rule['action'], $rule['ip'], $rule['port'], $rule['protocol'], $rule['comment']);
         if (! $result->ok()) {
-            return back()->withInput()->with('error', self::message($result));
+            return back()->withInput()->with('error', $result->errorMessage());
         }
 
         return redirect()->route('server.firewall')->with('ok', __('Rule has been created successfully.'));
@@ -82,14 +81,9 @@ final class FirewallController extends Controller
         $result = $this->firewall->update($rule, $values['action'], $values['ip'], $values['port'], $values['protocol'], $values['comment']);
         $back = redirect()->route('server.firewall.edit', ['rule' => $rule]);
         if (! $result->ok()) {
-            return $back->withInput()->with('error', self::message($result));
+            return $back->withInput()->with('error', $result->errorMessage());
         }
 
         return $back->with('ok', __('Changes have been saved.'));
-    }
-
-    public static function message(CommandResult $result): string
-    {
-        return $result->message() !== '' ? $result->message() : sprintf(__('Error code: %s'), $result->exitCode);
     }
 }

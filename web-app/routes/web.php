@@ -26,6 +26,7 @@ use App\Http\Controllers\Firewall\FirewallBanController;
 use App\Http\Controllers\Firewall\FirewallController;
 use App\Http\Controllers\Firewall\FirewallIpsetController;
 use App\Http\Controllers\ImpersonationController;
+use App\Http\Controllers\Ips\IpController;
 use App\Http\Controllers\Mail\MailAccountController;
 use App\Http\Controllers\Mail\MailActionController;
 use App\Http\Controllers\Mail\MailDomainController;
@@ -167,6 +168,22 @@ Route::middleware('auth.arc')->group(function () {
                     Route::post('/bans/bulk', [FirewallBanController::class, 'bulk'])->name('bans.bulk');
                     Route::delete('/bans', [FirewallBanController::class, 'destroy'])->name('bans.destroy');
                 });
+            });
+        });
+    });
+
+    // IP addresses (E7 batch 2 spec §7)
+    Route::prefix('server/ips')->group(function () {
+        Route::get('/', [IpController::class, 'index'])->name('server.ips');
+        Route::name('server.ips.')->group(function () {
+            Route::get('/create', [IpController::class, 'create'])->name('create');
+            Route::get('/{ip}/edit', [IpController::class, 'edit'])->where('ip', '[0-9A-Fa-f:.]{2,45}')->name('edit');
+            Route::middleware('not-readonly')->group(function () {
+                Route::post('/', [IpController::class, 'store'])->name('store');
+                Route::post('/bulk', [IpController::class, 'bulk'])->name('bulk');
+                Route::post('/refresh', [IpController::class, 'refresh'])->name('refresh');
+                Route::post('/{ip}/edit', [IpController::class, 'update'])->where('ip', '[0-9A-Fa-f:.]{2,45}')->name('update');
+                Route::delete('/{ip}', [IpController::class, 'destroy'])->where('ip', '[0-9A-Fa-f:.]{2,45}')->name('destroy');
             });
         });
     });
