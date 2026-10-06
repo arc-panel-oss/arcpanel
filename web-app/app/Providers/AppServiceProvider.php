@@ -16,6 +16,7 @@ use App\Services\Mail\HostingCredentialsMailer;
 use App\Services\Mail\PanelCredentialsMailer;
 use App\Services\Mail\PasswordResetMailer;
 use App\Services\Node\NodeAccess;
+use App\Services\Server\SystemPackages;
 use App\Tenancy\TenancyDirectory;
 use App\View\AssetManifest;
 use App\View\ShellComposer;
@@ -55,6 +56,9 @@ class AppServiceProvider extends ServiceProvider
 
         // Package key NODE per package, read once per request (E13)
         $this->app->scoped(NodeAccess::class);
+
+        // System package catalog, read once per request (E5)
+        $this->app->scoped(SystemPackages::class);
 
         // File manager staging tree (E3)
         $this->app->bind(FileStaging::class, fn () => FileStaging::fromConfig());

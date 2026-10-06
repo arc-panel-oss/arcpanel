@@ -49,6 +49,7 @@ use App\Http\Controllers\Server\RrdPageController;
 use App\Http\Controllers\Server\ServerSettingsController;
 use App\Http\Controllers\Server\ServiceConfigController;
 use App\Http\Controllers\Server\ServiceController;
+use App\Http\Controllers\Server\SystemPackageController;
 use App\Http\Controllers\Server\SystemTaskController;
 use App\Http\Controllers\Server\UpdateController;
 use App\Http\Controllers\Shell\LanguageController;
@@ -291,6 +292,11 @@ Route::middleware('auth.arc')->group(function () {
         Route::post('/autoupdate', [UpdateController::class, 'autoUpdate'])->name('autoupdate');
         Route::post('/notifications', [UpdateController::class, 'notifications'])->name('notifications');
     });
+
+    // System packages of the catalog (E5 spec 2026-10-06-006 §7)
+    Route::get('/server/packages', [SystemPackageController::class, 'index'])->name('server.packages');
+    Route::post('/server/packages/{slug}/{action}', [SystemPackageController::class, 'start'])->middleware('not-readonly')
+        ->where(['slug' => '[a-z][a-z0-9-]{1,31}', 'action' => 'add|delete'])->name('server.packages.start');
 
     // Services (E7 batch 3 spec §7)
     Route::prefix('server/services')->group(function () {

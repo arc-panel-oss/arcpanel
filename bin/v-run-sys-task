@@ -86,6 +86,13 @@ case "$kind" in
 			step v-update-sys-arcpanel-all
 		fi
 		;;
+	package)
+		if [ "${args[1]}" = 'add' ]; then
+			step v-add-sys-package "${args[0]}"
+		else
+			step v-delete-sys-package "${args[0]}"
+		fi
+		;;
 	*)
 		echo "Unknown task kind $kind"
 		rc=$E_INVALID

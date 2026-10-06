@@ -257,3 +257,46 @@ teardown_file() {
     assert_output --partial "security restrictions"
     ! hello_installed
 }
+
+#----------------------------------------------------------#
+#                     System task                          #
+#----------------------------------------------------------#
+
+@test "System packages: the package task kind checks its arguments before it starts" {
+    run v-start-sys-task package
+    assert_failure 1
+    run v-start-sys-task package arctest-hello install
+    assert_failure 2
+    run v-start-sys-task package arctest-unknown add
+    assert_failure 3
+    run v-start-sys-task package arctest-nowhere add
+    assert_failure 2
+    run v-start-sys-task package arctest-present add
+    assert_failure 4
+    run v-start-sys-task package arctest-present delete
+    assert_failure 10
+}
+
+@test "System packages: the package task installs and removes in the background" {
+    hello_installed && skip "hello is installed on this server"
+    # The runner's transient unit does not see this shell's environment: the
+    # entry goes into the shipped catalog for the length of the test
+    cp "$FIXTURES/arctest-hello.json" "$CATALOG/"
+    run env -u ARC_SYS_PACKAGES_CATALOG v-start-sys-task package arctest-hello add
+    assert_success
+    assert_output --regexp '^[0-9]+$'
+    run wait_task
+    assert_output "done"
+    hello_installed
+    run bash -c "v-list-sys-task 100 json | jq -r '.KIND + \" \" + .ARGS'"
+    assert_output "package arctest-hello add"
+    run bash -c "v-list-sys-task 100 json | jq -r .LOG"
+    assert_output --partial "\$ v-add-sys-package arctest-hello"
+
+    run env -u ARC_SYS_PACKAGES_CATALOG v-start-sys-task package arctest-hello delete
+    assert_success
+    run wait_task
+    assert_output "done"
+    ! hello_installed
+    rm -f "$CATALOG/arctest-hello.json"
+}

@@ -85,4 +85,14 @@ final class ServerPolicy
     {
         return $this->viewUpdates($principal) && ! $principal->isReadOnly();
     }
+
+    public function viewPackages(Principal $principal): bool
+    {
+        return Capabilities::allows($principal->actingRole(), 'server.packages');
+    }
+
+    public function managePackages(Principal $principal): bool
+    {
+        return $this->viewPackages($principal) && ! $principal->isReadOnly();
+    }
 }

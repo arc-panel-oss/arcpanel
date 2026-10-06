@@ -5,6 +5,7 @@
 # example: v-start-sys-task php 8.3,8.4 -
 # example: v-start-sys-task plugin web-terminal on
 # example: v-start-sys-task arcpanel-update arcpanel
+# example: v-start-sys-task package python add
 #
 # This function checks a system task and starts v-run-sys-task in a
 # transient systemd unit (arcpanel-sys-task-ID), so the task outlives a
@@ -16,6 +17,8 @@
 #   plugin NAME on|off        filemanager, web-terminal, quota, cgroups or
 #                             firewall: v-add-sys-NAME or v-delete-sys-NAME
 #   arcpanel-update [PACKAGE]   v-update-sys-arcpanel PACKAGE, or every package
+#   package SLUG add|delete   v-add-sys-package or v-delete-sys-package of a
+#                             system package of the catalog (E5)
 # The state and the output are read with v-list-sys-task.
 
 #----------------------------------------------------------#
@@ -32,6 +35,8 @@ source /etc/arcpanel/arcpanel.conf
 source $ARCPANEL/func/main.sh
 # shellcheck source=/usr/local/arcpanel/func/systask.sh
 source $ARCPANEL/func/systask.sh
+# shellcheck source=/usr/local/arcpanel/func/syspackages.sh
+source $ARCPANEL/func/syspackages.sh
 # load config file
 source_conf "$ARCPANEL/conf/arcpanel.conf"
 
@@ -105,8 +110,34 @@ case "$kind" in
 		fi
 		args="${2-}"
 		;;
+	package)
+		check_args '3' "$#" 'package SLUG add|delete'
+		sp_check_slug "$2"
+		case "$3" in
+			add)
+				if ! sp_available "$2"; then
+					check_result "$E_INVALID" "system package $2 is not available on $(sp_release)"
+				fi
+				if [ "$(sp_status "$2")" = 'installed' ]; then
+					check_result "$E_EXISTS" "system package $2 is already installed"
+				fi
+				;;
+			delete)
+				if ! sp_record_exists "$2"; then
+					check_result "$E_FORBIDEN" "system package $2 was not installed by ArcPanel"
+				fi
+				used=$(sp_used_by "$2" | tr '
+' ' ')
+				if [ -n "$used" ]; then
+					check_result "$E_FORBIDEN" "system package $2 is needed by web domains: ${used% }"
+				fi
+				;;
+			*) check_result "$E_INVALID" "invalid action :: $3 (add or delete)" ;;
+		esac
+		args="$2 $3"
+		;;
 	*)
-		check_result "$E_INVALID" "invalid task kind :: $kind (php, plugin, arcpanel-update)"
+		check_result "$E_INVALID" "invalid task kind :: $kind (php, plugin, arcpanel-update, package)"
 		;;
 esac
 

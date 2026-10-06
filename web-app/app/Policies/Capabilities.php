@@ -147,6 +147,9 @@ final class Capabilities
         'server.config' => self::ADMIN,
         'server.updates' => self::ADMIN,
 
+        // System packages of the catalog (E5 spec 2026-10-06-006 §7)
+        'server.packages' => self::ADMIN,
+
         // Search page and the CSR generator of a web domain (E7 batch 3 spec §5.1)
         'search.use' => self::ALL_ROLES,
         'web.ssl.generate' => self::ALL_ROLES,
