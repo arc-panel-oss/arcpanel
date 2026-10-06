@@ -41,6 +41,7 @@ use App\Http\Controllers\Packages\PackageController;
 use App\Http\Controllers\Ports\PortController;
 use App\Http\Controllers\Ports\ServerPortController;
 use App\Http\Controllers\Server\RrdPageController;
+use App\Http\Controllers\Server\ServiceController;
 use App\Http\Controllers\Shell\LanguageController;
 use App\Http\Controllers\Shell\NotificationController;
 use App\Http\Controllers\Shell\PaletteController;
@@ -234,6 +235,18 @@ Route::middleware('auth.arc')->group(function () {
     // Statistics and server graphs (E7 batch 2 spec §9.4, §9.5)
     Route::get('/stats', StatsController::class)->name('stats.index');
     Route::get('/server/rrd', RrdPageController::class)->name('server.rrd');
+
+    // Services (E7 batch 3 spec §7)
+    Route::prefix('server/services')->group(function () {
+        Route::get('/', [ServiceController::class, 'index'])->name('server.services');
+        Route::get('/status/{kind}', [ServiceController::class, 'status'])->where('kind', '[a-z]{2,4}')->name('server.services.status');
+        Route::middleware('not-readonly')->group(function () {
+            Route::post('/bulk', [ServiceController::class, 'bulk'])->name('server.services.bulk');
+            Route::post('/restart-server', [ServiceController::class, 'restartServer'])->name('server.services.restart-server');
+            Route::post('/{service}/{action}', [ServiceController::class, 'action'])
+                ->where(['service' => '[A-Za-z0-9][\w.@-]{0,63}', 'action' => 'start|stop|restart'])->name('server.services.action');
+        });
+    });
 
     // Web terminal (E7 batch 2 spec §10.4)
     Route::get('/terminal', TerminalController::class)->middleware('sys-config:WEB_TERMINAL=true')->name('terminal.index');

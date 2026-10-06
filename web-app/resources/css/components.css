@@ -1556,6 +1556,13 @@
 .ap-menu-item .ap-kbd {
 	margin-inline-start: auto;
 }
+.ap-menu-item.is-disabled {
+	cursor: not-allowed;
+	opacity: 0.55;
+}
+.ap-menu-item.is-disabled:hover {
+	background: none;
+}
 .ap-menu-sep {
 	height: 1px;
 	margin: var(--ap-space-1-5) var(--ap-space-1);

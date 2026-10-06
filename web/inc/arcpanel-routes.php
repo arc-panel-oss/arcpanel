@@ -42,6 +42,8 @@ function arc_route(string $legacyPath): string {
 		"/list/stats/" => "/app/stats",
 		"/list/rrd/" => "/app/server/rrd",
 		"/list/terminal/" => "/app/terminal",
+		// E7 batch 3 (docs/features/specs/2026-10-06-003-e7-batch3-pages-design.md §14)
+		"/list/server/" => "/app/server/services",
 	];
 
 	return arc_app_pages() && isset($routes[$legacyPath]) ? $routes[$legacyPath] : $legacyPath;
@@ -335,6 +337,17 @@ function arc_redirect_if_migrated(string $legacyPath, array $query = []): void {
 					return;
 				}
 				$url .= "/" . $app;
+			}
+			break;
+		// E7 batch 3: services and their status reports (administrators)
+		case "/list/server/":
+			$url = "/app/server/services";
+			$reports = ["cpu", "mem", "disk", "net", "web", "dns", "mail", "db"];
+			foreach ($reports as $kind) {
+				if (isset($query[$kind])) {
+					$url .= "/status/" . $kind;
+					break;
+				}
 			}
 			break;
 		default:

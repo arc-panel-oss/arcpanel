@@ -457,6 +457,21 @@ teardown_file() {
     assert_output "200 "
 }
 
+# E7 batch 3 (docs/features/specs/2026-10-06-003-e7-batch3-pages-design.md §4)
+
+@test "Legacy services pages redirect to the panel app when ARCPANEL_APP_PAGES is yes" {
+    v-change-sys-config-value ARCPANEL_APP_PAGES yes
+    pages_login
+    run pages_get /list/server/
+    assert_output "302 $PANEL/app/server/services"
+    run pages_get "/list/server/?cpu"
+    assert_output "302 $PANEL/app/server/services/status/cpu"
+    run pages_get "/list/server/?mem"
+    assert_output "302 $PANEL/app/server/services/status/mem"
+    run pages_get /app/server/services
+    assert_output "403 "
+}
+
 @test "Panel app build ships hashed assets and fonts" {
     run cat /usr/local/hestia/web-app/public/build/manifest.json
     assert_success

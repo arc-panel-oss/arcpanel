@@ -4,6 +4,9 @@ $TAB = "SERVER";
 // Main include
 include $_SERVER["DOCUMENT_ROOT"] . "/inc/main.php";
 
+// ArcPanel: served by the panel app when ARCPANEL_APP_PAGES is on (inc/arcpanel-routes.php)
+arc_redirect_if_migrated("/list/server/", $_GET);
+
 // Check user
 if ($_SESSION["userContext"] !== "admin") {
 	header("Location: /list/user/");
