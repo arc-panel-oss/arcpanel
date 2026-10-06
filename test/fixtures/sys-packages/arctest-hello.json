@@ -1,0 +1,11 @@
+{
+	"schema": 1,
+	"slug": "arctest-hello",
+	"name": "Test hello",
+	"summary": "GNU hello, a tiny package that the system package BATS suite installs and removes.",
+	"category": "tooling",
+	"packages": ["hello"],
+	"os": {},
+	"provides": ["python"],
+	"version_cmd": "hello --version | head -n1 | awk '{print $NF}'"
+}

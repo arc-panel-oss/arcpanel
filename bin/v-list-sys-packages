@@ -1,0 +1,77 @@
+#!/bin/bash
+# info: list the system packages of the catalog (E5)
+# options: [FORMAT]
+#
+# example: v-list-sys-packages
+# example: v-list-sys-packages json
+#
+# This function lists every entry of the system package catalog with its
+# state on this server: the packages it installs on this release, whether
+# it is available here, STATUS (installed, partial or missing), SOURCE
+# (arcpanel when ArcPanel installed it, system when it was there before,
+# "-" otherwise), the version, whether apt's local lists have an update
+# (UPGRADABLE) and the web domains whose template needs a runtime it
+# provides (DOMAINS, USED_BY).
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+format=${1-shell}
+
+# Includes
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# load config file
+source_conf "$ARCPANEL/conf/arcpanel.conf"
+# shellcheck source=/usr/local/arcpanel/func/syspackages.sh
+source $ARCPANEL/func/syspackages.sh
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+case "$format" in
+	json | plain | csv | shell) ;;
+	*) check_result "$E_INVALID" "invalid format :: $format (json, plain, csv, shell)" ;;
+esac
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+upgradable=$(sp_upgradable)
+map=$(sp_domain_runtimes)
+entries=$(
+	for slug in $(sp_slugs); do
+		if [ -z "$(sp_manifest_errors "$(sp_manifest "$slug")" "$slug")" ]; then
+			sp_entry_json "$slug" "$upgradable" "$map"
+		fi
+	done | jq -sc .
+)
+
+columns='[.SLUG, .NAME, .CATEGORY, .STATUS, .SOURCE, (if .VERSION == "" then "-" else .VERSION end), .AVAILABLE, .UPGRADABLE, (.USED_BY | tostring)]'
+case "$format" in
+	json) jq . <<< "$entries" ;;
+	plain) jq -r ".[] | $columns | @tsv" <<< "$entries" ;;
+	csv)
+		echo "SLUG,NAME,CATEGORY,STATUS,SOURCE,VERSION,AVAILABLE,UPGRADABLE,USED_BY"
+		jq -r ".[] | $columns | @csv" <<< "$entries"
+		;;
+	shell)
+		{
+			echo "SLUG NAME CATEGORY STATUS SOURCE VERSION AVAILABLE UPGRADABLE USED_BY"
+			echo "---- ---- -------- ------ ------ ------- --------- ---------- -------"
+			jq -r ".[] | $columns | map(gsub(\" \"; \"_\")) | join(\" \")" <<< "$entries"
+		} | column -t
+		;;
+esac
+
+#----------------------------------------------------------#
+#                         ArcPanel                         #
+#----------------------------------------------------------#
+
+exit

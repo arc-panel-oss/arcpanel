@@ -1,0 +1,78 @@
+#!/bin/bash
+# info: check the system package catalog (E5)
+# options: [DIR] [FORMAT]
+#
+# example: v-check-sys-packages
+# example: v-check-sys-packages /root/my-catalog json
+#
+# This function validates every manifest of a system package catalog
+# (default: the catalog shipped with ArcPanel) against the manifest format:
+# keys, slug equal to the file name, name, summary, category, package names,
+# release overrides and provided runtimes. Exits with E_INVALID when a
+# manifest is refused.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+dir=$1
+format=${2-shell}
+
+# Includes
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# load config file
+source_conf "$ARCPANEL/conf/arcpanel.conf"
+# shellcheck source=/usr/local/arcpanel/func/syspackages.sh
+source $ARCPANEL/func/syspackages.sh
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+if [ -n "$dir" ]; then
+	if [ ! -d "$dir" ]; then
+		check_result "$E_NOTEXIST" "catalog $dir does not exist"
+	fi
+	export ARC_SYS_PACKAGES_CATALOG
+	ARC_SYS_PACKAGES_CATALOG=$(readlink -f "$dir")
+fi
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+results='[]'
+failed=0
+for file in "$(sp_catalog_dir)"/*.json; do
+	[ -f "$file" ] || continue
+	slug=$(basename "$file" .json)
+	if sp_slug_valid "$slug"; then
+		errors=$(sp_manifest_errors "$file" "$slug")
+	else
+		errors="invalid file name (a slug of 2 to 32 lowercase letters, digits and dashes)"
+	fi
+	results=$(jq -c --arg slug "$slug" --arg errors "$errors" \
+		'. + [{ SLUG: $slug, STATUS: (if $errors == "" then "ok" else "invalid" end),
+			ERRORS: ($errors | split("\n") | map(select(length > 0))) }]' <<< "$results")
+	if [ -n "$errors" ]; then
+		failed=$((failed + 1))
+	fi
+done
+
+case "$format" in
+	json) jq . <<< "$results" ;;
+	*) jq -r '.[] | if .STATUS == "ok" then "\(.SLUG): ok" else "\(.SLUG): " + (.ERRORS | join("\n    ")) end' <<< "$results" ;;
+esac
+
+#----------------------------------------------------------#
+#                         ArcPanel                         #
+#----------------------------------------------------------#
+
+if [ "$failed" -gt 0 ]; then
+	exit "$E_INVALID"
+fi
+exit

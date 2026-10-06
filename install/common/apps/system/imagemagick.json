@@ -1,0 +1,10 @@
+{
+	"schema": 1,
+	"slug": "imagemagick",
+	"name": "ImageMagick",
+	"summary": "Image conversion tools (convert, identify), used by CMS and gallery apps.",
+	"category": "media",
+	"packages": ["imagemagick"],
+	"os": {},
+	"provides": []
+}

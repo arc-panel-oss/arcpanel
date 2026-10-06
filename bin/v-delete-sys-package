@@ -1,0 +1,86 @@
+#!/bin/bash
+# info: remove a system package of the catalog (E5)
+# options: SLUG [FORCE]
+#
+# example: v-delete-sys-package ruby
+# example: v-delete-sys-package python force
+#
+# This function removes the packages that v-add-sys-package installed for a
+# catalog entry (apt-get remove, no autoremove); packages that were on the
+# server before, and packages another entry recorded, stay. It refuses an
+# entry that ArcPanel did not install and, unless FORCE is "force", an entry
+# whose runtime is needed by the template of a web domain.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+slug=$1
+force=$2
+
+# Includes
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# load config file
+source_conf "$ARCPANEL/conf/arcpanel.conf"
+# shellcheck source=/usr/local/arcpanel/func/syspackages.sh
+source $ARCPANEL/func/syspackages.sh
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '1' "$#" 'SLUG [FORCE]'
+if [ "$(id -u)" != '0' ]; then
+	echo "Error: v-delete-sys-package can only be executed by the root user"
+	exit "$E_FORBIDEN"
+fi
+if [ -n "$force" ] && [ "$force" != 'force' ]; then
+	check_result "$E_INVALID" "invalid option :: $force (force)"
+fi
+sp_check_slug "$slug"
+if ! sp_record_exists "$slug"; then
+	check_result "$E_FORBIDEN" "system package $slug was not installed by ArcPanel"
+fi
+if [ "$force" != 'force' ]; then
+	used=$(sp_used_by "$slug" | tr '\n' ' ')
+	if [ -n "$used" ]; then
+		check_result "$E_FORBIDEN" "system package $slug is needed by web domains: ${used% }"
+	fi
+fi
+
+# Perform verification if read-only mode is enabled
+check_arcpanel_demo_mode
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+sp_lock
+others=$(sp_record_others "$slug")
+remove=()
+for pkg in $(sp_record_get "$slug"); do
+	if sp_pkg_installed "$pkg" && ! grep -qx "$pkg" <<< "$others"; then
+		remove+=("$pkg")
+	fi
+done
+if [ "${#remove[@]}" -gt 0 ]; then
+	echo "Removing ${remove[*]}"
+	sp_apt remove "${remove[@]}"
+	check_result $? "apt-get remove failed"
+fi
+sp_record_set "$slug" ''
+echo "$(jq -r .name "$(sp_manifest "$slug")") is removed"
+
+#----------------------------------------------------------#
+#                         ArcPanel                         #
+#----------------------------------------------------------#
+
+# Logging
+$BIN/v-log-action "system" "Info" "System" "System package removed (Package: $slug)."
+log_event "$OK" "$ARGUMENTS"
+
+exit

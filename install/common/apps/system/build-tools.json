@@ -1,0 +1,10 @@
+{
+	"schema": 1,
+	"slug": "build-tools",
+	"name": "Build tools",
+	"summary": "C and C++ compilers, make and pkg-config, to build native Python wheels, Ruby gems and Node modules.",
+	"category": "tooling",
+	"packages": ["build-essential", "pkg-config"],
+	"os": {},
+	"provides": []
+}

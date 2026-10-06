@@ -1,0 +1,11 @@
+{
+	"schema": 2,
+	"slug": "arctest-keys",
+	"name": "",
+	"summary": "Unknown key, wrong schema, empty name, bad category, bad package name, unknown release and runtime.",
+	"category": "games",
+	"packages": ["Bad Name"],
+	"os": { "debian-11": ["hello"] },
+	"provides": ["cobol"],
+	"source": "https://example.com"
+}

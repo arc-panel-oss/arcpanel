@@ -1,0 +1,9 @@
+{
+	"schema": 1,
+	"slug": "arctest-present",
+	"name": "Test present",
+	"summary": "Packages that every server has, so the entry is installed by the system.",
+	"category": "tooling",
+	"packages": ["bash", "coreutils"],
+	"provides": []
+}

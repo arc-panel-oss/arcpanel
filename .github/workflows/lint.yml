@@ -85,3 +85,47 @@ jobs:
 
       - name: Run Biome lint
         run: biome lint .
+
+  sys-packages:
+    name: System packages
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Check the system package catalog
+        run: |
+          sudo install -d /etc/arcpanel
+          echo "ARCPANEL='$GITHUB_WORKSPACE'" | sudo tee /etc/arcpanel/arcpanel.conf > /dev/null
+          mkdir -p conf log
+          touch conf/arcpanel.conf
+          bash bin/v-check-sys-packages
+
+  sys-packages-apt:
+    name: System packages on ${{ matrix.image }}
+    needs: sys-packages
+    runs-on: ubuntu-latest
+    container: ${{ matrix.image }}
+    strategy:
+      fail-fast: false
+      matrix:
+        image: ["debian:12", "debian:13", "ubuntu:22.04", "ubuntu:24.04", "ubuntu:26.04"]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Check that every package of the catalog exists
+        run: |
+          apt-get update -qq
+          apt-get install -y -qq jq > /dev/null
+          release=$(. /etc/os-release && echo "$ID-$VERSION_ID")
+          failed=0
+          for file in install/common/apps/system/*.json; do
+            for pkg in $(jq -r --arg r "$release" 'if (.os // {}) | has($r) then .os[$r] else .packages end | (. // [])[]' "$file"); do
+              if ! apt-cache show "$pkg" > /dev/null 2>&1; then
+                echo "$(basename "$file" .json): $pkg is not in the archive of $release"
+                failed=1
+              fi
+            done
+          done
+          exit "$failed"

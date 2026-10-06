@@ -1,0 +1,85 @@
+#!/bin/bash
+# info: install a system package of the catalog (E5)
+# options: SLUG
+#
+# example: v-add-sys-package python
+#
+# This function installs the packages of a catalog entry that are missing
+# on this server from the distribution's apt archive (apt-get update, then
+# apt-get install without recommends; apt waits up to 300 seconds for its
+# lock) and records them, so v-delete-sys-package removes only what ArcPanel
+# installed. An entry that is partly installed gets its missing packages.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+slug=$1
+
+# Includes
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# load config file
+source_conf "$ARCPANEL/conf/arcpanel.conf"
+# shellcheck source=/usr/local/arcpanel/func/syspackages.sh
+source $ARCPANEL/func/syspackages.sh
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '1' "$#" 'SLUG'
+if [ "$(id -u)" != '0' ]; then
+	echo "Error: v-add-sys-package can only be executed by the root user"
+	exit "$E_FORBIDEN"
+fi
+sp_check_slug "$slug"
+if ! sp_available "$slug"; then
+	check_result "$E_INVALID" "system package $slug is not available on $(sp_release)"
+fi
+if [ "$(sp_status "$slug")" = 'installed' ]; then
+	check_result "$E_EXISTS" "system package $slug is already installed"
+fi
+
+# Perform verification if read-only mode is enabled
+check_arcpanel_demo_mode
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+sp_lock
+mapfile -t missing < <(sp_missing "$slug")
+if [ "${#missing[@]}" -gt 0 ]; then
+	echo "Updating the package lists"
+	sp_apt update
+	check_result $? "apt-get update failed"
+	echo "Installing ${missing[*]}"
+	sp_apt install --no-install-recommends "${missing[@]}"
+	rc=$?
+	# Record what was installed, also when apt stopped half-way
+	installed=$(sp_record_get "$slug")
+	for pkg in "${missing[@]}"; do
+		if sp_pkg_installed "$pkg"; then
+			installed="$installed $pkg"
+		fi
+	done
+	installed=$(echo "$installed" | tr ' ' '\n' | grep . | sort -u | tr '\n' ' ')
+	sp_record_set "$slug" "${installed% }"
+	check_result "$rc" "apt-get install failed"
+fi
+version=$(sp_version "$slug")
+echo "$(jq -r .name "$(sp_manifest "$slug")") $version is installed"
+
+#----------------------------------------------------------#
+#                         ArcPanel                         #
+#----------------------------------------------------------#
+
+# Logging
+$BIN/v-log-action "system" "Info" "System" "System package installed (Package: $slug, Version: $version)."
+log_event "$OK" "$ARGUMENTS"
+
+exit

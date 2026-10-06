@@ -1,0 +1,8 @@
+{
+	"schema": 1,
+	"slug": "another-slug",
+	"name": "Wrong slug",
+	"summary": "The slug is not the file name.",
+	"category": "tooling",
+	"packages": ["hello"]
+}

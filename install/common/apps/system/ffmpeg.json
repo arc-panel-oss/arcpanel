@@ -1,0 +1,10 @@
+{
+	"schema": 1,
+	"slug": "ffmpeg",
+	"name": "FFmpeg",
+	"summary": "Audio and video conversion, used by media plugins of CMS and by video apps.",
+	"category": "media",
+	"packages": ["ffmpeg"],
+	"os": {},
+	"provides": []
+}

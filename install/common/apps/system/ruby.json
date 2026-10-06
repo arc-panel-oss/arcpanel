@@ -1,0 +1,11 @@
+{
+	"schema": 1,
+	"slug": "ruby",
+	"name": "Ruby",
+	"summary": "Ruby with the development headers and Bundler, for Rails and other Rack apps.",
+	"category": "runtime",
+	"packages": ["ruby", "ruby-dev", "ruby-bundler"],
+	"os": {},
+	"provides": ["ruby"],
+	"version_cmd": "ruby -e \"print RUBY_VERSION\""
+}

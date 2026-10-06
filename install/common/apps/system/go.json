@@ -1,0 +1,11 @@
+{
+	"schema": 1,
+	"slug": "go",
+	"name": "Go",
+	"summary": "The Go compiler and tools of the distribution, to build Go apps on the server.",
+	"category": "runtime",
+	"packages": ["golang-go"],
+	"os": {},
+	"provides": ["go"],
+	"version_cmd": "go version | cut -d\" \" -f3 | sed \"s/^go//\""
+}

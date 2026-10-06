@@ -1,0 +1,16 @@
+{
+	"schema": 1,
+	"slug": "arctest-nowhere",
+	"name": "Test nowhere",
+	"summary": "An entry that no supported release has.",
+	"category": "tooling",
+	"packages": ["hello"],
+	"os": {
+		"debian-12": null,
+		"debian-13": null,
+		"ubuntu-22.04": null,
+		"ubuntu-24.04": null,
+		"ubuntu-26.04": null
+	},
+	"provides": []
+}

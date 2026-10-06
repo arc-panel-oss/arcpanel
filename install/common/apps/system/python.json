@@ -1,0 +1,11 @@
+{
+	"schema": 1,
+	"slug": "python",
+	"name": "Python 3",
+	"summary": "Python 3 with venv, the development headers and pipx, for Django, Flask, FastAPI and other Python apps.",
+	"category": "runtime",
+	"packages": ["python3", "python3-venv", "python3-dev", "pipx"],
+	"os": {},
+	"provides": ["python"],
+	"version_cmd": "python3 --version | cut -d\" \" -f2"
+}
