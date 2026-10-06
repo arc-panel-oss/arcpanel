@@ -174,7 +174,7 @@ final class DashboardService
         return [
             'hostname' => (string) ($info['HOSTNAME'] ?? ''),
             'os' => trim(($info['OS'] ?? '').' '.($info['VERSION'] ?? '')),
-            'version' => (string) ($info['ARCPANEL'] ?? ($info['HESTIA'] ?? '')),
+            'version' => (string) ($info['ARCPANEL'] ?? ''),
             'uptimeMinutes' => (int) ($info['UPTIME'] ?? 0),
             'load' => array_map('trim', explode('/', (string) ($info['LOADAVERAGE'] ?? ''))),
             'cpu' => $cpu,

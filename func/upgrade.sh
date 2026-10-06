@@ -29,7 +29,7 @@ is_debug_build() {
 	fi
 
 	# Remove pre-release designation tags from display version
-	DISPLAY_VER=$(echo "${arcpanel_new_version:-$new_version}" | sed "s|~alpha||g" | sed "s|~beta||g")
+	DISPLAY_VER=$(echo "$new_version" | sed "s|~alpha||g" | sed "s|~beta||g")
 }
 
 upgrade_health_check() {
@@ -40,7 +40,7 @@ upgrade_health_check() {
 	# system variables exist and are set to expected defaults.
 
 	if [ -z "$VERSION" ]; then
-		export VERSION="1.1.0"
+		export VERSION="2.0.0"
 		$BIN/v-change-sys-config-value 'VERSION' "$VERSION"
 		echo
 		echo "[ ! ] Unable to detect installed version of ArcPanel."
@@ -92,8 +92,8 @@ upgrade_welcome_message_log() {
 	echo "============================================================================="
 	echo
 	echo "OPERATING SYSTEM:      $OS_TYPE ($OS_VERSION)"
-	echo "CURRENT VERSION:       ${ARCPANEL_VERSION:-$VERSION} (HestiaCP base $VERSION)"
-	echo "NEW VERSION:           ${arcpanel_new_version:-$new_version} (HestiaCP base $new_version)"
+	echo "CURRENT VERSION:       $VERSION"
+	echo "NEW VERSION:           $new_version"
 	echo "RELEASE BRANCH:        $RELEASE_BRANCH"
 	if [[ "$new_version" =~ "alpha" ]]; then
 		echo "BUILD TYPE:            Development snapshot"
@@ -148,7 +148,7 @@ upgrade_complete_message_log() {
 	echo "https://github.com/arc-panel-oss/arcpanel/issues                                  "
 	echo "============================================================================="
 	echo
-	$BIN/v-log-action "system" "Info" "Updates" "Update installed (Version: ${arcpanel_new_version:-$new_version}, HestiaCP base: $new_version)."
+	$BIN/v-log-action "system" "Info" "Updates" "Update installed (Version: $new_version)."
 }
 
 upgrade_cleanup_message() {
@@ -158,9 +158,16 @@ upgrade_cleanup_message() {
 }
 
 upgrade_get_version() {
-	# Upstream base version from install/upstream.conf, ArcPanel version from the arcpanel package (ADR-0006)
-	source $HESTIA/func/arcpanel-upgrade.sh
-	arcpanel_get_versions
+	# VERSION in hestia.conf is the installed ArcPanel version (kept as
+	# previous_version for the messages); new_version is the
+	# version of the installed arcpanel package without the Debian revision and
+	# distribution suffix: 2.0.1-1+ubuntu24.04 -> 2.0.1, 2.1.0-1~beta -> 2.1.0~beta
+	# (ADR-0007).
+	previous_version="$VERSION"
+	new_version="$(dpkg-query -W -f='${Version}' arcpanel 2> /dev/null | sed -E 's/-[0-9]+(\+[a-z0-9.]+)?//')"
+	if [ -z "$new_version" ]; then
+		new_version="$VERSION"
+	fi
 }
 
 upgrade_set_version() {
@@ -184,13 +191,13 @@ upgrade_send_notification_to_panel() {
 	# Add notification to panel if variable is set to true or is not set
 	if [[ "$new_version" =~ "alpha" ]]; then
 		# Send notifications for development releases
-		$BIN/v-add-user-notification "$ROOT_USER" 'Development snapshot installed' '<p><span class="u-text-bold">Version:</span> '${arcpanel_new_version:-$new_version}'<br><span class="u-text-bold">Code Branch:</span> '$RELEASE_BRANCH'</p><p>Please report any bugs by <a href="https://github.com/arc-panel-oss/arcpanel/issues" target="_blank">opening an issue on GitHub</a>.</p><p><i class="fas fa-heart icon-red"></i> The ArcPanel development team</p>'
+		$BIN/v-add-user-notification "$ROOT_USER" 'Development snapshot installed' '<p><span class="u-text-bold">Version:</span> '$new_version'<br><span class="u-text-bold">Code Branch:</span> '$RELEASE_BRANCH'</p><p>Please report any bugs by <a href="https://github.com/arc-panel-oss/arcpanel/issues" target="_blank">opening an issue on GitHub</a>.</p><p><i class="fas fa-heart icon-red"></i> The ArcPanel development team</p>'
 	elif [[ "$new_version" =~ "beta" ]]; then
 		# Send feedback notification for beta releases
-		$BIN/v-add-user-notification "$ROOT_USER" 'Thank you for testing ArcPanel '${arcpanel_new_version:-$new_version}'.' '<p>Found a bug? <a href="https://github.com/arc-panel-oss/arcpanel/issues" target="_blank">Open an issue on GitHub</a>!</p><p><i class="fas fa-heart icon-red"></i> The ArcPanel development team</p>'
+		$BIN/v-add-user-notification "$ROOT_USER" 'Thank you for testing ArcPanel '$new_version'.' '<p>Found a bug? <a href="https://github.com/arc-panel-oss/arcpanel/issues" target="_blank">Open an issue on GitHub</a>!</p><p><i class="fas fa-heart icon-red"></i> The ArcPanel development team</p>'
 	else
 		# Send normal upgrade complete notification for stable releases
-		$BIN/v-add-user-notification "$ROOT_USER" 'Upgrade complete' '<p>ArcPanel has been updated to <span class="u-text-bold">v'${arcpanel_new_version:-$new_version}'</span>.</p><p><a href="https://github.com/arc-panel-oss/arcpanel/blob/release/CHANGELOG.md" target="_blank">View release notes</a></p><p>Please report any bugs by <a href="https://github.com/arc-panel-oss/arcpanel/issues" target="_blank">opening an issue on GitHub</a>.</p><p class="u-text-bold">Have a wonderful day!</p><p><i class="fas fa-heart icon-red"></i> The ArcPanel development team</p>'
+		$BIN/v-add-user-notification "$ROOT_USER" 'Upgrade complete' '<p>ArcPanel has been updated to <span class="u-text-bold">v'$new_version'</span>.</p><p><a href="https://github.com/arc-panel-oss/arcpanel/blob/release/CHANGELOG.md" target="_blank">View release notes</a></p><p>Please report any bugs by <a href="https://github.com/arc-panel-oss/arcpanel/issues" target="_blank">opening an issue on GitHub</a>.</p><p class="u-text-bold">Have a wonderful day!</p><p><i class="fas fa-heart icon-red"></i> The ArcPanel development team</p>'
 	fi
 }
 
@@ -209,7 +216,7 @@ upgrade_send_notification_to_email() {
 		touch $message_tmp_file
 
 		# Write message to file
-		echo "$HOSTNAME has been upgraded from ArcPanel v${ARCPANEL_VERSION:-$VERSION} to v${arcpanel_new_version:-$new_version}." >> $message_tmp_file
+		echo "$HOSTNAME has been upgraded from ArcPanel v$previous_version to v$new_version." >> $message_tmp_file
 		echo "Installation log: $LOG" >> $message_tmp_file
 		echo "" >> $message_tmp_file
 
@@ -234,7 +241,7 @@ upgrade_send_notification_to_email() {
 		echo "The ArcPanel development team" >> $message_tmp_file
 
 		# Read back message from file and pass through to sendmail
-		cat $message_tmp_file | $send_mail -s "ArcPanel Update Installed - v${arcpanel_new_version:-$new_version}" $admin_email
+		cat $message_tmp_file | $send_mail -s "ArcPanel Update Installed - v$new_version" $admin_email
 		rm -f $message_tmp_file
 	fi
 }
@@ -243,7 +250,7 @@ upgrade_send_log_to_email() {
 	if [ "$UPGRADE_SEND_EMAIL_LOG" = "true" ]; then
 		admin_email=$($BIN/v-list-user $ROOT_USER json | grep "CONTACT" | cut -d'"' -f4)
 		send_mail="$HESTIA/lib/mail-wrapper.php"
-		cat $LOG | $send_mail -s "ArcPanel Update Installation Log - v${arcpanel_new_version:-$new_version}" $admin_email
+		cat $LOG | $send_mail -s "ArcPanel Update Installation Log - v$new_version" $admin_email
 	fi
 }
 
@@ -341,7 +348,7 @@ upgrade_init_logging() {
 	touch $LOG
 
 	# Add message to system log
-	$BIN/v-log-action "system" "Info" "Updates" "Started update installation (Latest: ${arcpanel_new_version:-$new_version}, Previous: ${ARCPANEL_VERSION:-$VERSION})."
+	$BIN/v-log-action "system" "Info" "Updates" "Started update installation (Latest: $new_version, Previous: $VERSION)."
 
 	# Add warnings for pre-release builds
 	if [[ "$new_version" =~ "alpha" ]]; then
@@ -494,44 +501,25 @@ upgrade_start_routine() {
 	# Parse version numbers for comparison
 	function check_version { echo "$@" | awk -F. '{ printf("%d%03d%03d%03d\n", $1,$2,$3,$4); }'; }
 
-	# Remove pre-release designation from version number for upgrade scripts
-	VERSION=$(echo "$VERSION" | sed "s/~\([a-zA-Z0-9].*\)//g")
+	# Remove pre-release designations from the version numbers
+	local current target script
+	current=$(echo "$VERSION" | sed "s/~\([a-zA-Z0-9].*\)//g")
+	target=$(echo "$new_version" | sed "s/~\([a-zA-Z0-9].*\)//g")
 
-	# Get list of all available version steps and create array
-	upgrade_steps=$(ls -v $HESTIA/install/upgrade/versions/*.sh)
-	for script in $upgrade_steps; do
-		declare -a available_versions
-		available_versions+=($(echo $script | sed "s|/usr/local/hestia/install/upgrade/versions/||g" | sed "s|.sh||g"))
+	# Run every install/upgrade/versions/<version>.sh newer than the installed
+	# version and not newer than the package (ADR-0007)
+	for script in $(ls -v "$HESTIA"/install/upgrade/versions/*.sh 2> /dev/null); do
+		version_step=$(basename "$script" .sh)
+		if [ "$(check_version "$version_step")" -gt "$(check_version "$current")" ] \
+			&& [ "$(check_version "$version_step")" -le "$(check_version "$target")" ]; then
+			upgrade_step_message
+			source "$script"
+		fi
 	done
 
-	# Define variables for accessing supported versions
-	# Sort version by -V due to issues with version numbers 1.4.10 and higher
-	all_versions=$(printf "%s\n" "${available_versions[@]}" | sort -V)
-	oldest_version=$(printf "%s\n" "$all_versions" | head -n1)
-	latest_version=$(printf "%s\n" "$all_versions" | sort -V | tail -n1)
-
-	# Check for supported versions and process necessary upgrade steps
-	if [ $(check_version $latest_version) -gt $(check_version $VERSION) ]; then
-		for version_step in "${available_versions[@]}"; do
-			if [ $(check_version $VERSION) -lt $(check_version "$version_step") ]; then
-				upgrade_step_message
-				source $HESTIA/install/upgrade/versions/$version_step.sh
-			fi
-		done
-		upgrade_set_version "$VERSION"
-		upgrade_refresh_config
-	else
-		echo ""
-		echo "[ ! ] No HestiaCP base upgrade steps to run (base version $VERSION)."
-		echo "      Verifying configuration..."
-		echo ""
-		if [ -e "$HESTIA/install/upgrade/versions/$VERSION.sh" ]; then
-			source $HESTIA/install/upgrade/versions/$VERSION.sh
-		fi
-		VERSION="$new_version"
-		upgrade_set_version "$VERSION"
-		upgrade_refresh_config
-	fi
+	VERSION="$new_version"
+	upgrade_set_version "$VERSION"
+	upgrade_refresh_config
 
 	#####################################################################
 	#######     End version-specific upgrade instruction sets     #######

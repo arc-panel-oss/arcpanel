@@ -31,19 +31,6 @@ jobs:
       - name: Check user-visible text for the old brand
         run: bash test/brand-check.sh
 
-  upstream-diff:
-    name: Upstream diff
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v7
-        with:
-          # test/upstream-base.txt names the commit that imported HestiaCP
-          fetch-depth: 0
-
-      - name: Check that upstream files change only by recorded exceptions
-        run: bash test/upstream-diff.sh
-
   template-meta:
     name: Template metadata
     runs-on: ubuntu-latest

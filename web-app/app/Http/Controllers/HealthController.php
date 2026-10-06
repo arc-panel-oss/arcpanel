@@ -24,7 +24,7 @@ final class HealthController extends Controller
 
         return response()->json([
             'status' => 'ok',
-            'version' => (string) ($config['ARCPANEL_VERSION'] ?? ''),
+            'version' => (string) ($config['VERSION'] ?? ''),
         ]);
     }
 }

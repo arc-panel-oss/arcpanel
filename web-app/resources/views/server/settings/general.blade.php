@@ -17,7 +17,7 @@
                 <x-ap-switch name="experimental" :label="__('Enable preview features')" :description="__('Features that are still being tested.')" :checked="($config['POLICY_SYSTEM_ENABLE_BACON'] ?? '') === 'true'" />
             </fieldset>
             <dl class="ap-dl">
-                <dt>{{ __('Version') }}</dt><dd class="mono">{{ $config['ARCPANEL_VERSION'] ?? '' }} ({{ $config['VERSION'] ?? '' }})</dd>
+                <dt>{{ __('Version') }}</dt><dd class="mono">{{ $config['VERSION'] ?? '' }}</dd>
                 @if (($config['RELEASE_BRANCH'] ?? 'release') !== 'release')
                     <dt>{{ __('Release') }}</dt><dd class="mono">{{ $config['RELEASE_BRANCH'] }}</dd>
                 @endif

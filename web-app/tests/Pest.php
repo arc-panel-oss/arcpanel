@@ -52,8 +52,7 @@ function sysConfig(array $overrides = []): array
 {
     return ['config' => array_merge([
         'APP_NAME' => 'ArcPanel',
-        'ARCPANEL_VERSION' => '1.0.0',
-        'VERSION' => '1.10.5',
+        'VERSION' => '2.0.0',
         'LANGUAGE' => 'en',
         'DISABLE_IP_CHECK' => 'no',
         'INACTIVE_SESSION_TIMEOUT' => '60',

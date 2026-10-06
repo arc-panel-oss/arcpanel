@@ -298,3 +298,23 @@ Pest and Vitest run on the workstation.
 | Upstream security fixes are missed after the hard fork                        | Release checklist item: read HestiaCP advisories and releases for each ArcPanel release                                      |
 | Third-party tools stop working                                                | CHANGELOG breaking-change note; the API keeps its request format, only the header name changes                               |
 | Long-lived broken state between M3 and M8                                     | Do M3 to M8 in one stretch on `develop` without other epics in between; no push until M8 passes, unless the maintainer asks  |
+
+## 14. Implementation notes (2026-10-06)
+
+These notes win over the sections above where they differ.
+
+1. **M0 baseline.** A new WSL distribution `arcpanel-m0` (Ubuntu 24.04.5, `wsl --install … --no-launch`) installed with `hst-install-ubuntu.sh --with-debs` from the debs built on `arcpanel-test` from `70481f9` (`hst_autocompile.sh --all --noinstall --keepbuild '~localsrc'`; `arcpanel-php` built anew, so `session.name` is `ARCPANELSID`), with the stand-in `apt.arcpanel.top` of the E8 notes. Added after the install: PHP 8.4 (`v-add-web-php 8.4`), Docker (`v-add-sys-docker`), the local Node mirror of `arcpanel-test` and the web terminal from the built deb (the installer default is `--webterminal no`).
+   - ArcPanel BATS, 16 suites: 271 of 273 cases. The two failures were not repeatable: `arcpanel-docker-catalog` 5 (the Miniflux image pull ran out of time) and `arcpanel-docker` 43 (`.ssh` of the restored user not unpacked); both passed in the two later runs on the same server.
+   - Upstream `test.bats`: 245 of 255 passed, 24 of them skipped. Failures: 26 (theme `dark` no longer exists since E8), 53–61 (seven IP cases; WSL has no `/run/sshd` and its own netplan), 148–149 (mail password change through `/reset/mail/`, see note 5).
+   - Smoke passed. Playwright: 91 passed, 1 failed, 5 did not run. The failure is the media preview of `files.spec.js` (an MP4 fixture served as `application/x-dosexec` on a fresh server); the five that did not run are the serial cases after it.
+2. **M1 deviations.**
+   - The `/usr/local/arcpanel` symlink, the second profile script and sudoers rule and `Alias=hestia.service` stay until M3: the panel app calls commands through `/usr/local/arcpanel/bin` and many commands restart the service `hestia`. M3 turns both names into one, and these lines go then.
+   - `Breaks: arcpanel-nginx (<< 1.30.5-2)` is dropped with `Provides` and `Replaces`: it only ordered the 1.x upgrade.
+   - The web-terminal package drops `Provides` and `Replaces` too (D9 named three control files; it has four).
+   - `upgrade_get_version` keeps the installed version as `previous_version`, so the upgrade e-mail names the old version after `VERSION` is set.
+   - `v-list-sys-info` keeps the `ARCPANEL` key (now `VERSION` of `hestia.conf`); its `HESTIA` key and column are gone in every format.
+   - `install/upgrade/versions/README.txt` keeps the directory in the package.
+   - The CHANGELOG lines of D3 and D5 are written in M1; the rest of §12 follows in M7.
+3. **M1 verification** on `arcpanel-m0`: the files that the M1 package no longer ships were deleted on the server (`dev-sync.sh` never deletes in `bin/`, `func/`, `install/`), `VERSION` was set to `2.0.0` and `ARCPANEL_VERSION` removed as the M1 installer writes them, then the working tree was synced. ArcPanel BATS 264 of 264 in 15 suites, smoke passed, Pest 795 passed, Vitest 231 passed.
+4. **M2.** `scripts/rename/test/apply.bats` lives under `scripts/rename/` so that the rename does not rewrite its fixtures; it runs without a server (`test/test_helper/bats-core/bin/bats scripts/rename/test/apply.bats`). A dry run after M1 has no guard, clash or doubled name: 73 renames, 942 edited files, 524 lines to review.
+5. **Found outside the rename: `/reset/mail/` is gone.** E8 deleted `web/reset/mail/index.php`, the endpoint the Roundcube password driver and the SnappyMail plugin post to; the E8 spec does not name it and nothing replaced it, so mail users cannot change their password from webmail in 2.0. It needs its own fix before M8, which checks the Roundcube password change.

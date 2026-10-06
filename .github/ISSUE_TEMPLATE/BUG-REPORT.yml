@@ -53,7 +53,7 @@ body:
     id: version
     attributes:
       label: ArcPanel Version
-      description: Shown on the About page, or run `grep ARCPANEL_VERSION /usr/local/hestia/conf/hestia.conf`.
+      description: Shown on the About page, or run `grep ^VERSION= /usr/local/hestia/conf/hestia.conf`.
       placeholder: 1.x.x
     validations:
       required: true

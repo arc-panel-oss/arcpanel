@@ -15,18 +15,14 @@ source /etc/hestiacp/hestia.conf
 source $HESTIA/func/main.sh
 # shellcheck source=/usr/local/hestia/func/upgrade.sh
 source $HESTIA/func/upgrade.sh
-# shellcheck source=/usr/local/hestia/func/arcpanel-upgrade.sh
-source $HESTIA/func/arcpanel-upgrade.sh
 source_conf "$HESTIA/conf/hestia.conf"
 
 ###############################################################
 #             Set new version numbers for packages            #
 ###############################################################
-# ArcPanel (ADR-0006):
-#   new_version          upstream HestiaCP base version from install/upstream.conf;
-#                        drives the upstream scripts in install/upgrade/versions/
-#   arcpanel_new_version version of the arcpanel package (1.0.0-1+debian12 -> 1.0.0)
-arcpanel_get_versions
+# VERSION in hestia.conf is the installed ArcPanel version, new_version the
+# version of this package (ADR-0007)
+upgrade_get_version
 
 ###############################################################
 #               Begin standard upgrade routines               #
@@ -64,9 +60,8 @@ upgrade_health_check | tee -a $LOG
 upgrade_replace_default_config | tee -a $LOG
 upgrade_refresh_config | tee -a $LOG
 
-# Execute version-specific upgrade scripts (upstream first, then ArcPanel)
+# Execute version-specific upgrade scripts
 upgrade_start_routine | tee -a $LOG
-arcpanel_upgrade_start_routine | tee -a $LOG
 
 # Run upgrades of dependencies
 source_conf "$HESTIA_BACKUP/upgrade.conf"
@@ -110,7 +105,6 @@ update_whitelabel_logo | tee -a $LOG
 # Set new version number in hestia.conf
 upgrade_set_version $new_version
 upgrade_set_branch $new_version
-arcpanel_set_version "$arcpanel_new_version"
 
 # Perform upgrade clean-up tasks (rebuild domains and users, restart services, delete temporary files)
 upgrade_cleanup_message | tee -a $LOG

@@ -74,7 +74,7 @@ it('refuses state changes in read-only mode', function () {
 });
 
 it('reports health without a session', function () {
-    $this->getJson('/_health')->assertOk()->assertExactJson(['status' => 'ok', 'version' => '1.0.0']);
+    $this->getJson('/_health')->assertOk()->assertExactJson(['status' => 'ok', 'version' => '2.0.0']);
 });
 
 it('reports an unhealthy server without details', function () {

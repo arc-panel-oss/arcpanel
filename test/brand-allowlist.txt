@@ -32,8 +32,5 @@ bin/v-update-firewall :: -N hestia
 # 'hestia' is the value of DNS_CLUSTER_SYSTEM, an identifier read by the DNS cluster commands.
 func/syshealth.sh :: DNS_CLUSTER_SYSTEM ('hestia')
 
-# Upstream upgrade steps for HestiaCP <= 1.10.5; they never run on a fresh ArcPanel install.
-install/upgrade/versions/* :: *
-
 # gettext source reference to a PHP class path, not a message.
 lib/locale/hestiacp.pot :: #: ../../web/src/app/System/HestiaApp.php

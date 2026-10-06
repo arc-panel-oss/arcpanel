@@ -10,8 +10,8 @@ beforeEach(function () {
     $this->fake = fakeArc();
     fakeServerUsers($this->fake);
     $this->fake->on('v-list-sys-info')->returnsJson(['sysinfo' => [
-        'HOSTNAME' => 'srv1.example.net', 'OS' => 'Ubuntu', 'VERSION' => '24.04', 'ARCH' => 'x86_64', 'HESTIA' => '1.10.5',
-        'ARCPANEL' => '1.0.0', 'RELEASE' => 'release', 'UPTIME' => '3000', 'LOADAVERAGE' => '0.28 / 0.10 / 0.07',
+        'HOSTNAME' => 'srv1.example.net', 'OS' => 'Ubuntu', 'VERSION' => '24.04', 'ARCH' => 'x86_64',
+        'ARCPANEL' => '2.0.0', 'RELEASE' => 'release', 'UPTIME' => '3000', 'LOADAVERAGE' => '0.28 / 0.10 / 0.07',
     ]]);
     $this->fake->on('v-list-sys-php')->returnsJson(['8.4', '8.5']);
     $service = fn (string $system, string $state = 'running', string $cpu = '0', string $mem = '10', string $rtime = '45') => [

@@ -31,11 +31,9 @@ HESTIA_COMMON_DIR="$HESTIA/install/common"
 VERBOSE='no'
 
 # Define software versions
-# ArcPanel version (what users see, the arcpanel package version) and the
-# HestiaCP base version it is built on (stored as VERSION), see ADR-0006.
+# ArcPanel version: the version of the arcpanel package, stored as VERSION
+# in hestia.conf (ADR-0007)
 ARCPANEL_INSTALL_VER='2.0.0'
-HESTIA_INSTALL_VER='1.10.5'
-UPSTREAM_DISPLAY_VER="${HESTIA_INSTALL_VER%%~*}"
 
 # Build the full Hestia version
 # Split base version (2.0.0) from channel suffix (~alpha / ~beta), if present
@@ -634,7 +632,7 @@ install_welcome_message() {
 	fi
 	echo "                                  ${DISPLAY_VER}                        "
 	echo "                              arcpanel.top                              "
-	echo "                         Based on HestiaCP $UPSTREAM_DISPLAY_VER                         "
+	echo "                           Based on HestiaCP                            "
 	echo
 	echo "========================================================================"
 	echo
@@ -1511,9 +1509,8 @@ write_config_value "THEME" "nocturne"
 write_config_value "INACTIVE_SESSION_TIMEOUT" "60"
 
 # Version & Release Branch
-# VERSION keeps the upstream HestiaCP base version; ARCPANEL_VERSION is shown to users (ADR-0006)
-write_config_value "VERSION" "${HESTIA_INSTALL_VER}"
-write_config_value "ARCPANEL_VERSION" "${ARCPANEL_INSTALL_VER}"
+# VERSION is the ArcPanel version (ADR-0007)
+write_config_value "VERSION" "${ARCPANEL_INSTALL_VER}"
 write_config_value "APP_NAME" "ArcPanel"
 write_config_value "RELEASE_BRANCH" "release"
 

@@ -7,9 +7,7 @@ Maintainer: ArcPanel <info@arcpanel.top>
 Homepage: https://arcpanel.top
 Architecture: amd64
 Depends: arcpanel
-Provides: hestia-nginx
 Conflicts: hestia-nginx
-Replaces: hestia-nginx
 Description: ArcPanel internal web server (nginx)
  ArcPanel is an open-source web hosting control panel for Debian and Ubuntu.
  It is based on HestiaCP, a fork of VestaCP. Thanks to both projects.

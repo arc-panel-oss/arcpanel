@@ -7,7 +7,7 @@ fi
 
 # Create a new Backup folder
 HESTIA_BACKUP="/root/hst_nginx_backups/$(date +%d%m%Y%H%M)"
-mkdir -p HESTIA_BACKUP
+mkdir -p "$HESTIA_BACKUP"
 
 # Create a backup of the current configuration
 cp -r /usr/local/hestia/nginx/conf/nginx.conf $HESTIA_BACKUP/nginx.conf

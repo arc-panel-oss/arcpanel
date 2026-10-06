@@ -1,10 +1,10 @@
 <?php
 
 /**
- * Hestia Control Panel Password Driver
+ * ArcPanel password driver, based on HestiaCP's driver
  *
  * @version 1.0
- * @author HestiaCP <info@arcpanel.top>
+ * @author ArcPanel <info@arcpanel.top>
  */
 class rcube_hestia_password {
 	public function save($curpass, $passwd) {

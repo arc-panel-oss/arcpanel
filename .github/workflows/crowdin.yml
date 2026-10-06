@@ -1,5 +1,5 @@
-# Inactive for ArcPanel: the jobs only run in hestiacp/hestiacp. Translations are paused
-# until ArcPanel has its own Crowdin project (see the rebranding spec, WP2).
+# Inactive for ArcPanel: translations are paused until ArcPanel has its own Crowdin
+# project (see the rebranding spec, WP2). Set the CROWDIN_PROJECT_ID variable to turn it on.
 name: Crowdin
 
 on:
@@ -15,10 +15,10 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v7
-        if: github.repository == 'hestiacp/hestiacp'
+        if: vars.CROWDIN_PROJECT_ID != ''
       - name: crowdin action
         uses: crowdin/github-action@v3
-        if: github.repository == 'hestiacp/hestiacp'
+        if: vars.CROWDIN_PROJECT_ID != ''
         with:
           upload_sources: true
           upload_translations: false

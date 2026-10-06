@@ -106,11 +106,6 @@ for dir in "$HESTIA/lib" "$HESTIA/lib/quickinstall"; do
 done
 
 "$HESTIA/bin/v-add-sys-arcpanel"
-
-# The 2.0 layout (E8): data out of web/, themes, no switches, no web/; it
-# runs again on every sync and changes nothing the second time.
-HESTIA="$HESTIA" bash "$HESTIA/install/upgrade/arcpanel/2.0.0.sh"
-
 "$HESTIA/bin/v-add-sys-tenancy"
 "$HESTIA/bin/v-add-sys-port-registry"
 "$HESTIA/bin/v-add-sys-node"

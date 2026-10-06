@@ -112,7 +112,6 @@ json_list() {
 		"UPGRADE_SEND_EMAIL_LOG": "'$UPGRADE_SEND_EMAIL_LOG'",
 		"USE_SERVER_SMTP": "'$USE_SERVER_SMTP'",
 		"VERSION": "'$VERSION'",
-		"ARCPANEL_VERSION": "'$ARCPANEL_VERSION'",
 		"PORT_RANGE_START": "'$PORT_RANGE_START'",
 		"PORT_RANGE_END": "'$PORT_RANGE_END'",
 		"PORT_REGISTRY": "'$PORT_REGISTRY'",
@@ -206,8 +205,7 @@ shell_list() {
 	if [ -n "$LANGUAGE" ] && [ "$LANGUAGE" != 'en' ]; then
 		echo "System Language:                  $LANGUAGE"
 	fi
-	echo "ArcPanel version:                 $ARCPANEL_VERSION"
-	echo "Version (HestiaCP base):          $VERSION"
+	echo "ArcPanel version:                 $VERSION"
 	if [ -n "$POLICY_RESELLER_CREATE_PACKAGES" ]; then
 		echo "Resellers create packages:        $POLICY_RESELLER_CREATE_PACKAGES"
 	fi

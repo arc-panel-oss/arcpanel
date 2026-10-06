@@ -48,7 +48,7 @@ app_key_hash() {
 @test "hestiaweb may run commands through the ArcPanel path" {
     run runuser -u hestiaweb -- sudo -n /usr/local/arcpanel/bin/v-list-sys-config json
     assert_success
-    assert_output --partial '"ARCPANEL_VERSION"'
+    assert_output --partial '"VERSION"'
 }
 
 @test "Panel nginx configuration is valid" {

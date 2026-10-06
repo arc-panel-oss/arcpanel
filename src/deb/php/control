@@ -7,9 +7,7 @@ Maintainer: ArcPanel <info@arcpanel.top>
 Homepage: https://arcpanel.top
 Architecture: amd64
 Depends: arcpanel, unzip, @LIBZIP_DEP@, @ONIG_DEP@
-Provides: hestia-php
 Conflicts: hestia-php
-Replaces: hestia-php
 Description: ArcPanel internal PHP interpreter (php-fpm)
  ArcPanel is an open-source web hosting control panel for Debian and Ubuntu.
  It is based on HestiaCP, a fork of VestaCP. Thanks to both projects.

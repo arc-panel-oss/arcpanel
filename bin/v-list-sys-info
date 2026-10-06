@@ -21,10 +21,10 @@ source $HESTIA/func/main.sh
 # load config file
 source_conf "$HESTIA/conf/hestia.conf"
 
-# Retrieve the panel version numbers (VERSION is the HestiaCP base, see ADR-0006)
-HESTIA_VERSION=$(grep "^VERSION=" $HESTIA/conf/hestia.conf | cut -d '=' -f2 | sed "s|'||g")
-ARCPANEL_VERSION=$(grep "^ARCPANEL_VERSION=" $HESTIA/conf/hestia.conf | cut -d '=' -f2 | sed "s|'||g")
-HESTIA_RELEASE=$(grep "^RELEASE_BRANCH=" $HESTIA/conf/hestia.conf | cut -d '=' -f2 | sed "s|'||g")
+# Retrieve the panel version (VERSION in hestia.conf, ADR-0007) and release
+# branch; VERSION below is the version of the operating system
+PANEL_VERSION=$(grep "^VERSION=" $HESTIA/conf/hestia.conf | cut -d '=' -f2 | sed "s|'||g")
+PANEL_RELEASE=$(grep "^RELEASE_BRANCH=" $HESTIA/conf/hestia.conf | cut -d '=' -f2 | sed "s|'||g")
 
 # JSON list function
 json_list() {
@@ -34,9 +34,8 @@ json_list() {
         "OS": "'$OS'",
         "VERSION": "'$VERSION'",
         "ARCH": "'$ARCH'",
-        "HESTIA": "'$HESTIA_VERSION'",
-        "ARCPANEL": "'$ARCPANEL_VERSION'",
-        "RELEASE": "'$HESTIA_RELEASE'",
+        "ARCPANEL": "'$PANEL_VERSION'",
+        "RELEASE": "'$PANEL_RELEASE'",
         "UPTIME": "'$UPTIME'",
         "LOADAVERAGE": "'$LOADAVERAGE'"
         }'
@@ -45,20 +44,20 @@ json_list() {
 
 # SHELL list function
 shell_list() {
-	echo "HOSTNAME   OS   VER   ARCH  ARCPANEL  HESTIA  RELEASE  UPTIME   LA"
-	echo "--------   --   ---   ----  --------  ------  -------  ------   --"
-	echo "$HOSTNAME $OS $VERSION $ARCH $ARCPANEL_VERSION $HESTIA_VERSION $HESTIA_RELEASE $UPTIME $LOADAVERAGE"
+	echo "HOSTNAME   OS   VER   ARCH  ARCPANEL  RELEASE  UPTIME   LA"
+	echo "--------   --   ---   ----  --------  -------  ------   --"
+	echo "$HOSTNAME $OS $VERSION $ARCH $PANEL_VERSION $PANEL_RELEASE $UPTIME $LOADAVERAGE"
 }
 
 # PLAIN list function
 plain_list() {
-	echo -e "$HOSTNAME\t$OS\t$VERSION\t$ARCH\t$HESTIA_VERSION\t$HESTIA_RELEASE\t$UPTIME\t$LOADAVERAGE\t$ARCPANEL_VERSION"
+	echo -e "$HOSTNAME\t$OS\t$VERSION\t$ARCH\t$PANEL_VERSION\t$PANEL_RELEASE\t$UPTIME\t$LOADAVERAGE"
 }
 
 # CSV list function
 csv_list() {
-	echo "HOSTNAME,OS,VERSION,ARCH,HESTIA,RELEASE,UPTIME,LOADAVERAGE,ARCPANEL"
-	echo "$HOSTNAME,$OS,$VERSION,$ARCH,$HESTIA_VERSION,$HESTIA_RELEASE,$UPTIME,$LOADAVERAGE,$ARCPANEL_VERSION"
+	echo "HOSTNAME,OS,VERSION,ARCH,ARCPANEL,RELEASE,UPTIME,LOADAVERAGE"
+	echo "$HOSTNAME,$OS,$VERSION,$ARCH,$PANEL_VERSION,$PANEL_RELEASE,$UPTIME,$LOADAVERAGE"
 }
 
 #----------------------------------------------------------#

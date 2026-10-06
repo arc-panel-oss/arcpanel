@@ -1,5 +1,6 @@
 #!/bin/sh
 
-# Changes made by HestiaCP due to https://github.com/arc-panel-oss/arcpanel/issues/3289
-# and https://github.com/arc-panel-oss/arcpanel/issues/5684
+# Statistics run from the update queue, see the upstream issues
+# https://github.com/hestiacp/hestiacp/issues/3289 and
+# https://github.com/hestiacp/hestiacp/issues/5684
 /usr/local/hestia/bin/v-update-sys-queue webstats || true
