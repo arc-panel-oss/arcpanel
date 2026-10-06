@@ -60,6 +60,14 @@ A theme is a file that assigns palette values to the semantic tokens under `[dat
 - RTL: `<html dir="rtl">` for `ar`, `fa`, `he` (from `Principal::$language`, [02](./02-laravel-foundation.md) §7); layout uses logical properties (`margin-inline-start`, `inset-inline-end`) so no RTL stylesheet is needed; icons that imply direction (`chevron`) are mirrored via `[dir="rtl"] .ap-icon--dir { transform: scaleX(-1) }`.
 - Density: `data-density="comfortable|compact"` on `<html>`, user preference stored in Laravel's own session (`arcpanel_session`) until a `PREF_UI_DENSITY` key is added to `user.conf` via `v-change-user-config-value`.
 
+> **UI pass (2026-10-06):** what the shell and tables do today.
+>
+> - From 768 px the sidebar stays in view while the page scrolls (it scrolls on its own when it is taller than the window). The menu button folds it to an icon rail (`--ap-rail-w`, labels as tooltips); the choice is `sidebar: "full" | "rail"` in the cookie `arc_ui` and rendered as `data-sidebar` on `<html>` by `UiPreferences`, so pages never flash. There is no automatic rail below 1200 px. Below 768 px the menu button opens the drawer over a dimmed page; a tap on the page or `Esc` closes it.
+> - Phones get a one-row top bar: menu, current page (the last crumb), then icon buttons for search, user switcher, notifications and the account.
+> - `<x-ap-table>`: the row-actions column is sticky at the inline end, so a table wider than its card scrolls without hiding the actions. Names, addresses and figures do not wrap. A column marked `hidden` is optional and left out until the viewer picks it in the column chooser. As cards (< 768 px) the first column is the card title, with the row actions beside it.
+> - Dropdowns from `<details class="ap-dropdown">` (`resources/js/dropdowns.js`): one open at a time, closed by a click outside or `Esc`; a row menu is placed with fixed coordinates so the table does not clip it, and opens upwards when the window has no room below.
+> - `.ap-reveal-group`: fields marked `.ap-reveal` show while the group's switch is on (CSS `:has()`, no script).
+
 ---
 
 ## 4. Shell and navigation
@@ -103,11 +111,11 @@ Each item is a **route name**; the renderer drops items whose route is not yet m
 
 ### 4.4 Dashboards
 
-| Role     | Content                                                                                                                                                                                                                |
-| -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| admin    | health widgets, users count/suspended, owner tree summary (resellers → customers), recent auth log, expiring SSL (next 14 days across all `v-list-web-domains`), quick actions (add user, add domain, open ports)      |
-| reseller | own package vs tree usage (`R_*`, [03](./03-tenancy-and-authorization.md) §4.1), customers count vs `USERS`, suspended customers, ports used/free, expiring SSL in tree, customer notifications, quick create customer |
-| user     | usage bars from `U_*` vs package, domains with SSL state, apps (Node/Docker) status, backups last run, notifications, "Your provider" card                                                                             |
+| Role     | Content                                                                                                                                                                                                                                                                   |
+| -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| admin    | health widgets, users count/suspended, owner tree summary (resellers → customers), recent auth log, expiring SSL (next 14 days across all `v-list-web-domains`), quick actions (add user, add domain, open ports)                                                         |
+| reseller | own package vs tree usage (`R_*`, [03](./03-tenancy-and-authorization.md) §4.1), customers count vs `USERS`, suspended customers, ports used/free, expiring SSL in tree, customer notifications, quick create customer                                                    |
+| user     | quick actions (the create pages of the hosting sections the sidebar shows, then the file manager; `Navigation::quickActions`), usage bars from `U_*` vs package, domains with SSL state, apps (Node/Docker) status, backups last run, notifications, "Your provider" card |
 
 Replaces `web/list/user/` (admin landing) and the per-user `web/list/web/` landing.
 
