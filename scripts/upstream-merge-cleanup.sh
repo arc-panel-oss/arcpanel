@@ -18,7 +18,7 @@ while read -r kind first second; do
 			;;
 		retire) retire+=("$first") ;;
 	esac
-done < <(grep -v '^#' .arcpanel/retired-paths)
+done < <(tr -d '\r' < .arcpanel/retired-paths | grep -v '^#')
 
 # moved_to PATH -> the ArcPanel place of an upstream path, or nothing
 moved_to() {
@@ -43,13 +43,19 @@ is_retired() {
 	return 1
 }
 
+unmerged="$(git diff --name-only --diff-filter=U)"
 pending=0
 # Paths of the merge result under retired globs: unmerged (modify/delete) or
 # brought back by the merge.
 while IFS= read -r path; do
 	is_retired "$path" || continue
 	target="$(moved_to "$path")"
-	if [ -n "$target" ]; then
+	if [ -n "$target" ] && [ ! -e "$target" ] && ! grep -qxF -- "$path" <<< "$unmerged"; then
+		# a new upstream file in a moved folder: it simply moves along
+		mkdir -p "$(dirname "$target")"
+		git mv -- "$path" "$target"
+		echo "moved: $path -> $target"
+	elif [ -n "$target" ]; then
 		echo "port by hand: $path -> $target"
 		pending=$((pending + 1))
 	else
@@ -58,7 +64,7 @@ while IFS= read -r path; do
 		echo "dropped: $path"
 	fi
 done < <({
-	git diff --name-only --diff-filter=U
+	echo "$unmerged"
 	git ls-files -- web install/deb/filemanager
 } | sort -u)
 

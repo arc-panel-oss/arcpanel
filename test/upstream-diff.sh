@@ -18,7 +18,8 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT" || exit 2
 
 EXCEPTIONS="test/upstream-exceptions.txt"
-BASE="${UPSTREAM_BASE:-$(grep -v '^#' test/upstream-base.txt | grep -m1 .)}"
+# tr: a Windows checkout has CRLF line endings
+BASE="${UPSTREAM_BASE:-$(tr -d '\r' < test/upstream-base.txt | grep -v '^#' | grep -m1 .)}"
 
 if ! git cat-file -e "${BASE}^{commit}" 2> /dev/null; then
 	echo "upstream-diff: base commit '$BASE' not found (shallow clone?)" >&2
@@ -29,7 +30,7 @@ declare -a globs=()
 while IFS= read -r line || [[ -n "$line" ]]; do
 	[[ -z "${line// /}" || "$line" == \#* ]] && continue
 	globs+=("$line")
-done < "$EXCEPTIONS"
+done < <(tr -d '\r' < "$EXCEPTIONS")
 
 listed() {
 	local glob
