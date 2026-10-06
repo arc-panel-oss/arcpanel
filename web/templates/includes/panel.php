@@ -222,7 +222,7 @@
 								<li class="top-bar-menu-item">
 									<a title="<?= _("Logs") ?>" class="top-bar-menu-link <?php if ($TAB == "LOG") {
 	echo "active";
-} ?>" href="/list/log/">
+} ?>" href="<?= tohtml(arc_route("/list/log/")) ?>">
 										<i class="fas fa-clock-rotate-left"></i>
 										<span class="top-bar-menu-link-label u-hide-desktop"><?= _("Logs") ?></span>
 									</a>

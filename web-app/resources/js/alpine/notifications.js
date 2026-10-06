@@ -1,6 +1,7 @@
 // apNotifications: the notification tray. Loads GET url (JSON), polls every
 // 60 s while the tab is visible, acknowledges with POST url/{id}/acknowledge
-// and deletes with DELETE url/{id}.
+// and deletes with DELETE url/{id}; POST url/acknowledge and DELETE url act on
+// every notification.
 import { request } from '../http.js';
 import { toast } from '../toast.js';
 
@@ -58,6 +59,26 @@ export default function apNotifications({ url = '', interval = 60000 } = {}) {
 			try {
 				await request(`${this.url}/${encodeURIComponent(item.id)}/acknowledge`, { method: 'POST' });
 				item.acknowledged = true;
+			} catch (error) {
+				toast('error', error.message);
+			}
+		},
+
+		async acknowledgeAll() {
+			try {
+				await request(`${this.url}/acknowledge`, { method: 'POST' });
+				for (const item of this.items) {
+					item.acknowledged = true;
+				}
+			} catch (error) {
+				toast('error', error.message);
+			}
+		},
+
+		async removeAll() {
+			try {
+				await request(this.url, { method: 'DELETE' });
+				this.items = [];
 			} catch (error) {
 				toast('error', error.message);
 			}

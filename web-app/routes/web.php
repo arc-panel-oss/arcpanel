@@ -29,6 +29,7 @@ use App\Http\Controllers\ImpersonationController;
 use App\Http\Controllers\Ips\IpController;
 use App\Http\Controllers\Keys\AccessKeyController;
 use App\Http\Controllers\Keys\SshKeyController;
+use App\Http\Controllers\Logs\LogController;
 use App\Http\Controllers\Mail\MailAccountController;
 use App\Http\Controllers\Mail\MailActionController;
 use App\Http\Controllers\Mail\MailDomainController;
@@ -98,6 +99,10 @@ Route::middleware('auth.arc')->group(function () {
     Route::get('/_notifications', [NotificationController::class, 'index'])->name('shell.notifications');
     Route::post('/_notifications/{id}/acknowledge', [NotificationController::class, 'acknowledge'])->whereNumber('id')->name('shell.notifications.acknowledge');
     Route::delete('/_notifications/{id}', [NotificationController::class, 'destroy'])->whereNumber('id')->name('shell.notifications.destroy');
+    Route::middleware('not-readonly')->group(function () {
+        Route::post('/_notifications/acknowledge', [NotificationController::class, 'acknowledgeAll'])->name('shell.notifications.acknowledge-all');
+        Route::delete('/_notifications', [NotificationController::class, 'destroyAll'])->name('shell.notifications.destroy-all');
+    });
     Route::post('/_language', LanguageController::class)->name('shell.language');
     Route::get('/_rrd', RrdController::class)->name('shell.rrd');
     Route::get('/_styleguide', StyleguideController::class)->name('styleguide');
@@ -208,6 +213,17 @@ Route::middleware('auth.arc')->group(function () {
         Route::middleware('not-readonly')->group(function () {
             Route::post('/', [SshKeyController::class, 'store'])->name('store');
             Route::delete('/{id}', [SshKeyController::class, 'destroy'])->where('id', '[^/]{1,255}')->name('destroy');
+        });
+    });
+
+    // Logs (E7 batch 2 spec §9.1)
+    Route::get('/logs', [LogController::class, 'entry'])->name('logs.index');
+    Route::prefix('logs/{user}')->name('logs.')->middleware('effective-user')->group(function () {
+        Route::get('/', [LogController::class, 'show'])->name('show');
+        Route::get('/auth', [LogController::class, 'logins'])->name('auth');
+        Route::middleware('not-readonly')->group(function () {
+            Route::delete('/', [LogController::class, 'destroy'])->name('destroy');
+            Route::delete('/auth', [LogController::class, 'destroyLogins'])->name('auth.destroy');
         });
     });
 

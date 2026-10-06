@@ -418,6 +418,19 @@ teardown_file() {
     assert_output "200 "
 }
 
+@test "Legacy log pages redirect to the panel app when ARCPANEL_APP_PAGES is yes" {
+    v-change-sys-config-value ARCPANEL_APP_PAGES yes
+    pages_login
+    run pages_get /list/log/
+    assert_output "302 $PANEL/app/logs/$PAGES_USER"
+    run pages_get /list/log/auth/
+    assert_output "302 $PANEL/app/logs/$PAGES_USER/auth"
+    run pages_get "/app/logs/$PAGES_USER"
+    assert_output "200 "
+    run pages_get "/app/logs/$PAGES_USER/auth"
+    assert_output "200 "
+}
+
 @test "Panel app build ships hashed assets and fonts" {
     run cat /usr/local/hestia/web-app/public/build/manifest.json
     assert_success

@@ -51,6 +51,22 @@ final class NotificationController extends Controller
         return response()->json(['ok' => true]);
     }
 
+    /** POST /_notifications/acknowledge: every notification (E7 batch 2 spec §9.3). */
+    public function acknowledgeAll(Principal $principal): JsonResponse
+    {
+        $this->arc->run('v-acknowledge-user-notification', [$principal->effectiveUser(), 'all']);
+
+        return response()->json(['ok' => true]);
+    }
+
+    /** DELETE /_notifications: every notification (E7 batch 2 spec §9.3). */
+    public function destroyAll(Principal $principal): JsonResponse
+    {
+        $this->arc->run('v-delete-user-notification', [$principal->effectiveUser(), 'all']);
+
+        return response()->json(['ok' => true]);
+    }
+
     /** Notices may hold HTML (links); the tray shows plain text. */
     private static function text(string $html): string
     {

@@ -38,6 +38,7 @@ function arc_route(string $legacyPath): string {
 		"/list/ip/" => "/app/server/ips",
 		"/list/access-key/" => "/app/access-keys",
 		"/list/key/" => "/app/ssh-keys",
+		"/list/log/" => "/app/logs",
 	];
 
 	return arc_app_pages() && isset($routes[$legacyPath]) ? $routes[$legacyPath] : $legacyPath;
@@ -281,6 +282,19 @@ function arc_redirect_if_migrated(string $legacyPath, array $query = []): void {
 				return;
 			}
 			$url = "/app/ssh-keys/" . $segment($owner);
+			break;
+		// E7 batch 2: action log and login history of the owner
+		case "/list/log/":
+			if ($owner === "" || $owner === "system") {
+				return;
+			}
+			$url = "/app/logs/" . $segment($owner);
+			break;
+		case "/list/log/auth/":
+			if ($owner === "") {
+				return;
+			}
+			$url = "/app/logs/" . $segment($owner) . "/auth";
 			break;
 		default:
 			return;

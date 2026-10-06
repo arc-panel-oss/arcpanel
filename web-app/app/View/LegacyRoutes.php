@@ -16,7 +16,6 @@ final class LegacyRoutes
         'server.updates' => '/list/updates/',
         'server.rrd' => '/list/rrd/',
         'packages.index' => '/list/package/',
-        'logs.index' => '/list/log/',
         'stats.index' => '/list/stats/',
         'account.edit' => '/edit/user/',
         'users.create' => '/add/user/',

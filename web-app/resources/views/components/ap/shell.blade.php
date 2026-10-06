@@ -143,7 +143,11 @@
                         <span class="ap-dot-count" x-show="unread > 0" x-text="unread" aria-hidden="true"></span>
                     </span>
                     <div class="ap-tray-panel ap-menu" id="ap-tray-panel" x-show="open" role="region" aria-label="{{ __('Notifications') }}">
-                        <span class="ap-menu-label eyebrow">{{ __('Notifications') }}</span>
+                        <div class="ap-row ap-tray-head">
+                            <span class="ap-menu-label eyebrow">{{ __('Notifications') }}</span>
+                            <button type="button" class="ap-btn ap-btn-ghost ap-btn-sm" x-show="unread > 0" x-on:click="acknowledgeAll()"><x-ap-icon name="check" />{{ __('Mark all read') }}</button>
+                            <button type="button" class="ap-btn ap-btn-ghost ap-btn-sm" x-show="items.length > 2" x-on:click="removeAll()"><x-ap-icon name="trash" />{{ __('Delete all notifications') }}</button>
+                        </div>
                         <template x-for="item in items" x-bind:key="item.id">
                             <article class="ap-notice" x-bind:class="{ 'is-unread': !item.acknowledged }">
                                 <div class="ap-notice-body"><b x-text="item.title"></b><p x-text="item.body"></p><span class="subtle" x-text="item.date + ' ' + item.time"></span></div>

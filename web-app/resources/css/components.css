@@ -3084,6 +3084,13 @@ a.ap-pick:focus-visible {
 .ap-user-panel {
 	min-width: 300px;
 }
+.ap-tray-head {
+	flex-wrap: wrap;
+	gap: var(--ap-space-1);
+}
+.ap-tray-head .ap-menu-label {
+	flex: 1 1 auto;
+}
 .ap-notice {
 	display: flex;
 	align-items: flex-start;

@@ -122,6 +122,39 @@ describe('apNotifications', () => {
 		expect(tray().items[0].acknowledged).toBe(false);
 	});
 
+	it('marks every notification as read with one POST', async () => {
+		mount(markup);
+		await vi.advanceTimersByTimeAsync(0);
+		await tray().acknowledgeAll();
+
+		const [url, options] = fetchMock.mock.calls.at(-1);
+		expect(url).toBe('/app/_notifications/acknowledge');
+		expect(options.method).toBe('POST');
+		expect(options.headers['X-CSRF-TOKEN']).toBe('csrf-123');
+		expect(tray().unread).toBe(0);
+		expect(tray().items).toHaveLength(3);
+	});
+
+	it('deletes every notification with one DELETE', async () => {
+		mount(markup);
+		await vi.advanceTimersByTimeAsync(0);
+		await tray().removeAll();
+
+		const [url, options] = fetchMock.mock.calls.at(-1);
+		expect(url).toBe('/app/_notifications');
+		expect(options.method).toBe('DELETE');
+		expect(tray().items).toEqual([]);
+	});
+
+	it('keeps the list when "delete all" fails', async () => {
+		mount(markup);
+		await vi.advanceTimersByTimeAsync(0);
+		fetchMock.mockResolvedValueOnce(jsonResponse({ error: { message: 'Read only' } }, 403));
+		await tray().removeAll();
+		expect(tray().items).toHaveLength(3);
+		expect(document.querySelector('[data-toast-region] .ap-toast b').textContent).toBe('Read only');
+	});
+
 	it('toggles and closes the tray', () => {
 		mount(markup);
 		tray().toggle();
