@@ -8,7 +8,7 @@
 
 Run a Laravel 13 application next to the legacy PHP app, on the same port, with the same login, talking to the same `v-*` backend, so that pages can move one at a time. Deliver Login, Dashboard and Web Domains (list/add/edit) on Laravel as proof, with 2FA, "login as", read-only mode and i18n working.
 
-Non-goals: a JSON-only API, a SPA, changing any `v-*` command, changing the `hestia-nginx` / `hestia-php` packages beyond one config file.
+Non-goals: a JSON-only API, a SPA, changing any `v-*` command, changing the `arcpanel-nginx` / `arcpanel-php` packages beyond one config file.
 
 ---
 
@@ -16,13 +16,13 @@ Non-goals: a JSON-only API, a SPA, changing any `v-*` command, changing the `hes
 
 _State of HestiaCP 1.10.5 before E1; the `web/` paths below are gone since 2.0._
 
-- `src/deb/nginx/nginx.conf`: one `server { listen 8083 ssl; root /usr/local/hestia/web; }` with `location ~ \.php$ → unix:/run/hestia-php.sock`, plus `/fm/` (FileGator), `/_shell/` (web terminal ws proxy), `/rrd/`, `/backup/` internal locations and a deny list for `/(inc|src|locale|templates)`.
+- `src/deb/nginx/nginx.conf`: one `server { listen 8083 ssl; root /usr/local/arcpanel/web; }` with `location ~ \.php$ → unix:/run/arcpanel-php.sock`, plus `/fm/` (FileGator), `/_shell/` (web terminal ws proxy), `/rrd/`, `/backup/` internal locations and a deny list for `/(inc|src|locale|templates)`.
 - `web/inc/main.php` is the bootstrap of every legacy page: `session_start()`, IP-binding check (`user_combined_ip`), inactivity timeout, user existence re-check via `v-list-user`, admin demotion check, suspended logout, `look` handling, CSRF token, `policies.php` (read-only computation), i18n.
-- Session: PHP `files` handler, cookie `HESTIASID` (renamed `ARCPANELSID` in E1-S1), path `/usr/local/hestia/data/sessions`. The web terminal (`web-terminal-session-auth.php`) already opens these files from another process by session id, which proves out-of-process reads work.
+- Session: PHP `files` handler, cookie `ARCPANELSID` (renamed `ARCPANELSID` in E1-S1), path `/usr/local/arcpanel/data/sessions`. The web terminal (`web-terminal-session-auth.php`) already opens these files from another process by session id, which proves out-of-process reads work.
 - Login (`web/login/index.php`): `v-check-user-password USER PASSWORD_FILE IP`, then `v-list-user USER json` to populate session (`userContext = ROLE`, `userTheme`, `userSortOrder`, `language`), `v-log-user-login` for the auth log; 2FA via `v-check-user-2fa USER CODE` with the password kept in `$_SESSION['login']` between steps; login-as via `?loginas=<user>` setting `$_SESSION['look']`.
-- Every mutation: `exec(HESTIA_CMD . "v-... " . quoteshellarg($arg), $output, $return_var)` then `check_return_code($return_var, $output)` which turns a non-zero exit into `$_SESSION['error_msg']`.
+- Every mutation: `exec(ARCPANEL_CMD . "v-... " . quoteshellarg($arg), $output, $return_var)` then `check_return_code($return_var, $output)` which turns a non-zero exit into `$_SESSION['error_msg']`.
 - Exit codes: `OK=0, E_ARGS=1, E_INVALID=2, E_NOTEXIST=3, E_EXISTS=4, E_SUSPENDED=5, E_UNSUSPENDED=6, E_INUSE=7, E_LIMIT=8, E_PASSWORD=9, E_FORBIDEN=10, E_DISABLED=11, E_PARSING=12, E_DISK=13, E_LA=14, E_CONNECT=15, E_FTP=16, E_DB=17, E_RRD=18, E_UPDATE=19, E_RESTART=20` (`func/main.sh:123-143`).
-- Translations: gettext. The repo holds `web/locale/hestiacp.pot` and compiled `web/locale/<lang>/LC_MESSAGES/hestiacp.mo`; `.po` files come from Crowdin (`crowdin.yml`).
+- Translations: gettext. The repo holds `web/locale/arcpanel.pot` and compiled `web/locale/<lang>/LC_MESSAGES/arcpanel.mo`; `.po` files come from Crowdin (`crowdin.yml`).
 
 ---
 
@@ -30,14 +30,14 @@ _State of HestiaCP 1.10.5 before E1; the `web/` paths below are gone since 2.0._
 
 ### 3.1 NGINX
 
-> **1.x.** Since 2.0 (E8) `src/deb/nginx/nginx.conf` has `root /usr/local/hestia/web-app/public`, `location /` → `index.php` with `SCRIPT_NAME=/index.php`, `/build/`, `/api/` → `lib/api/index.php`, `/images/` → `lib/images`, `/images/custom/` → `data/white-label`, `/error/` → `lib/error`, `/_shell/` and `/backup/`. The `/fm/` and `/rrd/` blocks are gone. The rest of this section is the 1.x layout.
+> **1.x.** Since 2.0 (E8) `src/deb/nginx/nginx.conf` has `root /usr/local/arcpanel/web-app/public`, `location /` → `index.php` with `SCRIPT_NAME=/index.php`, `/build/`, `/api/` → `lib/api/index.php`, `/images/` → `lib/images`, `/images/custom/` → `data/white-label`, `/error/` → `lib/error`, `/_shell/` and `/backup/`. The `/fm/` and `/rrd/` blocks are gone. The rest of this section is the 1.x layout.
 
 One `location` block is added to `src/deb/nginx/nginx.conf`, before the `\.php$` regex. `^~` makes the prefix match win over regex locations, so `/app/anything.php` never reaches the legacy handler.
 
 ```nginx
 # ArcPanel (Laravel) — strangler prefix, see docs/adr/0002-url-scheme.md
 location ^~ /app/ {
-	alias     /usr/local/hestia/web-app/public/;
+	alias     /usr/local/arcpanel/web-app/public/;
 	index     index.php;
 	try_files $uri @arcpanel;
 
@@ -51,10 +51,10 @@ location ^~ /app/ {
 location @arcpanel {
 	include              fastcgi_params;
 	fastcgi_param        HTTP_EARLY_DATA $rfc_early_data if_not_empty;
-	fastcgi_param        SCRIPT_FILENAME /usr/local/hestia/web-app/public/index.php;
+	fastcgi_param        SCRIPT_FILENAME /usr/local/arcpanel/web-app/public/index.php;
 	fastcgi_param        SCRIPT_NAME /app/index.php;
 	fastcgi_param        REQUEST_URI $request_uri;
-	fastcgi_pass         unix:/run/hestia-php.sock;
+	fastcgi_pass         unix:/run/arcpanel-php.sock;
 	fastcgi_read_timeout 600s;
 }
 ```
@@ -127,14 +127,14 @@ final class Options
 
 ### 4.2 Argument handling
 
-| Rule                                                                                                                                                                                                                                                                              | Reason                                                                            |
-| --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
-| `$command` must match `^v-[a-z0-9-]+$` **and** be in the generated allow-list `config/arc-commands.php` (built from `ls bin/` at package time)                                                                                                                                    | Prevents calling anything but a known script even if a caller is tricked          |
-| Each argument is a `string`, `int`, `Stringable`, or `Secret`; arrays are rejected                                                                                                                                                                                                | No accidental serialization                                                       |
-| Arguments are escaped with `escapeshellarg()` (same semantics as legacy `quoteshellarg`), and rejected if they contain `\0` or `\n`                                                                                                                                               | Shell safety; `v-*` scripts read arguments positionally                           |
-| Empty string arguments are passed as `''` explicitly                                                                                                                                                                                                                              | Positional CLI contract (e.g. `v-add-web-domain user domain '' no`)               |
-| `Secret` arguments are written to a `0600` temp file under `storage/tmp/` and the **path** is passed, when the target command accepts a file (documented per command in `config/arc-commands.php`); otherwise passed inline but masked in every log, exception and job record     | Mirrors the API's `v-make-tmp-file` pattern; keeps passwords out of `ps` and logs |
-| Process: `Symfony\Component\Process` with `['/usr/bin/sudo', '/usr/local/hestia/bin/'.$command, ...$args]` (argv form, no shell), `cwd=/`, env `['PATH' => '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin', 'HESTIA' => '/usr/local/hestia', 'LANG' => 'C.UTF-8']` | Same process user and sudo rule as legacy `exec()`, without a shell               |
+| Rule                                                                                                                                                                                                                                                                                    | Reason                                                                            |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| `$command` must match `^v-[a-z0-9-]+$` **and** be in the generated allow-list `config/arc-commands.php` (built from `ls bin/` at package time)                                                                                                                                          | Prevents calling anything but a known script even if a caller is tricked          |
+| Each argument is a `string`, `int`, `Stringable`, or `Secret`; arrays are rejected                                                                                                                                                                                                      | No accidental serialization                                                       |
+| Arguments are escaped with `escapeshellarg()` (same semantics as legacy `quoteshellarg`), and rejected if they contain `\0` or `\n`                                                                                                                                                     | Shell safety; `v-*` scripts read arguments positionally                           |
+| Empty string arguments are passed as `''` explicitly                                                                                                                                                                                                                                    | Positional CLI contract (e.g. `v-add-web-domain user domain '' no`)               |
+| `Secret` arguments are written to a `0600` temp file under `storage/tmp/` and the **path** is passed, when the target command accepts a file (documented per command in `config/arc-commands.php`); otherwise passed inline but masked in every log, exception and job record           | Mirrors the API's `v-make-tmp-file` pattern; keeps passwords out of `ps` and logs |
+| Process: `Symfony\Component\Process` with `['/usr/bin/sudo', '/usr/local/arcpanel/bin/'.$command, ...$args]` (argv form, no shell), `cwd=/`, env `['PATH' => '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin', 'ARCPANEL' => '/usr/local/arcpanel', 'LANG' => 'C.UTF-8']` | Same process user and sudo rule as legacy `exec()`, without a shell               |
 
 ### 4.3 Error mapping
 
@@ -244,9 +244,9 @@ These are unit-tested against fixtures of each session state (Pest), and e2e-tes
 
 ### 5.5 Login on Laravel
 
-**Superseded by the [E1-S1 spec](../features/specs/2026-10-05-001-e1-laravel-foundation-slice1-design.md) §6** (2026-10-05). The earlier text here described the legacy flow wrongly: legacy login is `v-get-user-salt` → hash computed in PHP per method (`v-check-user-password … yes` only for yescrypt) → `v-check-user-hash` with the hash in a temp file, plus the `LOGIN_DISABLED` and `LOGIN_USE_IPLIST` checks. `LegacySession::establish()` writes only identity keys; system configuration keys are not copied because `web/inc/main.php` calls `load_hestia_config()` on every request.
+**Superseded by the [E1-S1 spec](../features/specs/2026-10-05-001-e1-laravel-foundation-slice1-design.md) §6** (2026-10-05). The earlier text here described the legacy flow wrongly: legacy login is `v-get-user-salt` → hash computed in PHP per method (`v-check-user-password … yes` only for yescrypt) → `v-check-user-hash` with the hash in a temp file, plus the `LOGIN_DISABLED` and `LOGIN_USE_IPLIST` checks. `LegacySession::establish()` writes only identity keys; system configuration keys are not copied because `web/inc/main.php` calls `load_arcpanel_config()` on every request.
 
-In 1.x the cut-over was controlled by the `hestia.conf` key `ARCPANEL_APP_LOGIN` (`yes` by default): when `yes`, `web/login/index.php` redirected guests to `/app/login`; `no` restored the legacy form (spec §7). Password reset and 2FA reset moved to the panel in E7 batch 3. Since 2.0 (E8) the key is gone and `/login` is the only login.
+In 1.x the cut-over was controlled by the `arcpanel.conf` key `ARCPANEL_APP_LOGIN` (`yes` by default): when `yes`, `web/login/index.php` redirected guests to `/app/login`; `no` restored the legacy form (spec §7). Password reset and 2FA reset moved to the panel in E7 batch 3. Since 2.0 (E8) the key is gone and `/login` is the only login.
 
 ### 5.6 Read-only, demo and protected admin
 
@@ -255,7 +255,7 @@ In 1.x the cut-over was controlled by the `hestia.conf` key `ARCPANEL_APP_LOGIN`
 - effective role is `user`, effective user is `SUSPENDED='yes'` and `POLICY_USER_VIEW_SUSPENDED='yes'`; or
 - login role is `admin`, impersonating `ROOT_USER`, and `POLICY_SYSTEM_PROTECTED_ADMIN='yes'`.
 
-Demo mode (`v-change-sys-demo-mode`) is enforced by every `v-*` through `check_hestia_demo_mode`; the UI additionally reads `DEMO_MODE` from `SysConfig` to disable forms. Read-only never relies on the UI alone: a POST in read-only mode is rejected by the `NotReadOnly` middleware with 403 before any command runs.
+Demo mode (`v-change-sys-demo-mode`) is enforced by every `v-*` through `check_arcpanel_demo_mode`; the UI additionally reads `DEMO_MODE` from `SysConfig` to disable forms. Read-only never relies on the UI alone: a POST in read-only mode is rejected by the `NotReadOnly` middleware with 403 before any command runs.
 
 ### 5.7 Impersonation ("login as")
 
@@ -286,8 +286,8 @@ Defined fully in [03](./03-tenancy-and-authorization.md); E1 ships the skeleton:
 
 ## 7. Internationalisation
 
-- Source of truth stays gettext + Crowdin. `php artisan arcpanel:i18n-import` converts `lib/locale/<lang>/LC_MESSAGES/hestiacp.po` (`web/locale` before 2.0; fetched by Crowdin in CI; `.mo` parsed as fallback for local builds) into `web-app/lang/<lang>.json` — Laravel JSON translations keyed by the **English source string**, which is exactly how legacy code calls `_("Add Web Domain")`. Plural forms map to Laravel's `{0}|{1}|[2,*]` syntax.
-- Blade uses `{{ __('Add Web Domain') }}`; new strings are added to `hestiacp.pot` by the existing extraction script extended to scan `web-app/resources/views` and `web-app/resources/js`.
+- Source of truth stays gettext + Crowdin. `php artisan arcpanel:i18n-import` converts `lib/locale/<lang>/LC_MESSAGES/arcpanel.po` (`web/locale` before 2.0; fetched by Crowdin in CI; `.mo` parsed as fallback for local builds) into `web-app/lang/<lang>.json` — Laravel JSON translations keyed by the **English source string**, which is exactly how legacy code calls `_("Add Web Domain")`. Plural forms map to Laravel's `{0}|{1}|[2,*]` syntax.
+- Blade uses `{{ __('Add Web Domain') }}`; new strings are added to `arcpanel.pot` by the existing extraction script extended to scan `web-app/resources/views` and `web-app/resources/js`.
 - Language is `Principal::$language`; `SetLocale` middleware calls `app()->setLocale()`. RTL languages (`ar`, `fa`, `he`) set `dir="rtl"` in the layout (05 §3).
 - The import runs in CI and at package build; generated files are not committed.
 
@@ -307,9 +307,9 @@ Defined fully in [03](./03-tenancy-and-authorization.md); E1 ships the skeleton:
 
 ## 9. Packaging and configuration
 
-- `web-app/` is a standard Laravel 13 skeleton, PHP 8.5, `composer.json` with `"config": {"platform": {"php": "8.5"}}`; `vendor/` built in CI (`composer install --no-dev --prefer-dist --classmap-authoritative`) and shipped inside the `hestia` deb at `/usr/local/hestia/web-app/`.
-- Writable paths (`hestiaweb:hestiaweb 0750`; `uploads`/`downloads` `0700`): `web-app/storage/{framework/{cache,sessions,views},logs,tmp,uploads,downloads}`, `web-app/bootstrap/cache`. `uploads` and `downloads` are the File Manager staging areas ([06](./06-file-manager-v2.md) §6); `downloads` is exposed only through an `internal` NGINX location (`/_downloads/`, `X-Accel-Redirect`). Created by `install/hst-install-*.sh` and `install/upgrade/versions/<ver>.sh` (idempotent).
-- `/etc/arcpanel/arcpanel.env` (`root:hestiaweb 0640`): `APP_KEY`, `APP_ENV=production`, `APP_DEBUG` (from `DEBUG_MODE`). Generated once by `v-add-sys-arcpanel` (**new**; keeps an existing `APP_KEY`; no `storage:link` since assets are pre-built).
+- `web-app/` is a standard Laravel 13 skeleton, PHP 8.5, `composer.json` with `"config": {"platform": {"php": "8.5"}}`; `vendor/` built in CI (`composer install --no-dev --prefer-dist --classmap-authoritative`) and shipped inside the `arcpanel` deb at `/usr/local/arcpanel/web-app/`.
+- Writable paths (`arcpanelweb:arcpanelweb 0750`; `uploads`/`downloads` `0700`): `web-app/storage/{framework/{cache,sessions,views},logs,tmp,uploads,downloads}`, `web-app/bootstrap/cache`. `uploads` and `downloads` are the File Manager staging areas ([06](./06-file-manager-v2.md) §6); `downloads` is exposed only through an `internal` NGINX location (`/_downloads/`, `X-Accel-Redirect`). Created by `install/arcpanel-install-*.sh` and `install/upgrade/versions/<ver>.sh` (idempotent).
+- `/etc/arcpanel/arcpanel.env` (`root:arcpanelweb 0640`): `APP_KEY`, `APP_ENV=production`, `APP_DEBUG` (from `DEBUG_MODE`). Generated once by `v-add-sys-arcpanel` (**new**; keeps an existing `APP_KEY`; no `storage:link` since assets are pre-built).
 - `v-add-sys-arcpanel` builds the config, event and view caches, and since 2.0 the route cache (in 1.x the `/app` base URL ruled it out, E1-S1 spec §11); `optimize:clear` on downgrade.
 - Build artifacts (`public/build/*`) come from the repo's esbuild pipeline (05 §7); no Node at runtime.
 - Upstream-diff CI (11 §5) treats `web-app/` as ArcPanel-owned; `web/` was deleted in E8.
@@ -318,14 +318,14 @@ Defined fully in [03](./03-tenancy-and-authorization.md); E1 ships the skeleton:
 
 ## 10. Failure modes
 
-| Failure                                                    | Effect                                     | Mitigation                                                                                                                                                                                                                               |
-| ---------------------------------------------------------- | ------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Session file locked by a slow legacy request               | Laravel request waits on `session_start()` | Middleware closes the session as soon as `LAST_ACTIVITY` is written; metrics in debug panel; e2e timing test                                                                                                                             |
-| Session written by legacy with a key Laravel does not know | None (ignored)                             | Bridge copies only known keys; unknown keys are preserved untouched because the file is only patched, never rewritten from Laravel's model                                                                                               |
-| `v-list-user` slow on large servers                        | Every request pays it                      | Per-request memo; 60 s cache of `v-list-sys-config`; later, `v-list-user` output cached for 10 s keyed by file mtime of `user.conf` (read-only `stat` is allowed for `hestiaweb`? — no: data dir is root-only, so time-based cache only) |
-| `sudo` fails (`requiretty`, PATH)                          | All commands fail                          | Same sudoers line as legacy; `Defaults:root !requiretty` already present; `/_health` runs `v-list-sys-config` and reports                                                                                                                |
-| Laravel `vendor/` incompatible with bundled PHP 8.5        | Panel app fails to boot                    | CI builds the deb against `hestia-php`; `composer.json` platform pin; smoke test in the install VM                                                                                                                                       |
-| Prefix mismatch (`/app` vs root) after E8                  | Broken links                               | All links via route names; base URL from `SCRIPT_NAME`, a single switch; e2e crawls every nav link; `/app/*` redirects for one release                                                                                                   |
+| Failure                                                    | Effect                                     | Mitigation                                                                                                                                                                                                                                 |
+| ---------------------------------------------------------- | ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Session file locked by a slow legacy request               | Laravel request waits on `session_start()` | Middleware closes the session as soon as `LAST_ACTIVITY` is written; metrics in debug panel; e2e timing test                                                                                                                               |
+| Session written by legacy with a key Laravel does not know | None (ignored)                             | Bridge copies only known keys; unknown keys are preserved untouched because the file is only patched, never rewritten from Laravel's model                                                                                                 |
+| `v-list-user` slow on large servers                        | Every request pays it                      | Per-request memo; 60 s cache of `v-list-sys-config`; later, `v-list-user` output cached for 10 s keyed by file mtime of `user.conf` (read-only `stat` is allowed for `arcpanelweb`? — no: data dir is root-only, so time-based cache only) |
+| `sudo` fails (`requiretty`, PATH)                          | All commands fail                          | Same sudoers line as legacy; `Defaults:root !requiretty` already present; `/_health` runs `v-list-sys-config` and reports                                                                                                                  |
+| Laravel `vendor/` incompatible with bundled PHP 8.5        | Panel app fails to boot                    | CI builds the deb against `arcpanel-php`; `composer.json` platform pin; smoke test in the install VM                                                                                                                                       |
+| Prefix mismatch (`/app` vs root) after E8                  | Broken links                               | All links via route names; base URL from `SCRIPT_NAME`, a single switch; e2e crawls every nav link; `/app/*` redirects for one release                                                                                                     |
 
 ---
 
@@ -333,13 +333,13 @@ Defined fully in [03](./03-tenancy-and-authorization.md); E1 ships the skeleton:
 
 - **Pest unit:** `ArcCommand` escaping, allow-list, error mapping, `Secret` masking; `LegacySession` against fixture session files in every state of §5.4; `Principal` read-only matrix.
 - **Pest feature:** login (password, 2FA, disabled login, failed attempts), impersonation, logout, dashboard and web-domain pages with the fake; CSRF enforcement; read-only POST rejection.
-- **BATS:** `v-add-sys-arcpanel` idempotency; nginx config test (`hestia-nginx -t`) after install.
+- **BATS:** `v-add-sys-arcpanel` idempotency; nginx config test (`arcpanel-nginx -t`) after install.
 - **Playwright (E10):** in 1.x, login on Laravel → open legacy `/list/dns/` → back to `/app/web/domains` with no re-login; login-as from Laravel visible in legacy. Since 2.0: login, login-as, inactivity logout and the redirects of the 1.x URLs, on Debian 12 and Ubuntu 24.04.
 
 ---
 
 ## 12. Open questions
 
-1. ~~Should `LegacySession::establish()` write all `hestia.conf` keys into the session?~~ **Closed (2026-10-05):** no. Legacy `main.php:25` reloads them on every request.
+1. ~~Should `LegacySession::establish()` write all `arcpanel.conf` keys into the session?~~ **Closed (2026-10-05):** no. Legacy `main.php:25` reloads them on every request.
 2. `Secret` via temp file requires the target `v-*` to accept a file path; `v-check-user-password` and `v-add-user` do, `v-change-user-password` does not. Audit the list in `config/arc-commands.php` during E1 and prefer file-accepting commands; inline-with-masking is the fallback.
 3. Laravel session driver `file` vs `array` for the panel's own session: `file` is needed for flash messages across the redirect; keep `file`, 2-hour lifetime, garbage collection by Laravel's lottery.

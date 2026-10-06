@@ -1,4 +1,4 @@
--- ArcPanel panel database — $HESTIA/data/arcpanel/arcpanel.sqlite
+-- ArcPanel panel database — $ARCPANEL/data/arcpanel/arcpanel.sqlite
 --
 -- Reference DDL for docs/design/15-database-schema-and-erd.md §4.
 -- Panel-owned operational data only (E15–E33). Hosting state stays in the

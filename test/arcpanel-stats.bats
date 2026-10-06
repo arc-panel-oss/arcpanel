@@ -3,14 +3,14 @@
 # docs/features/specs/2026-10-06-002-e7-batch2-pages-design.md §9.4).
 # Run as root on a test server.
 
-if [ "${PATH#*/usr/local/hestia/bin*}" = "$PATH" ]; then
-    . /etc/profile.d/hestia.sh
+if [ "${PATH#*/usr/local/arcpanel/bin*}" = "$PATH" ]; then
+    . /etc/profile.d/arcpanel.sh
 fi
 
 load 'test_helper/bats-support/load'
 load 'test_helper/bats-assert/load'
 
-HESTIA=/usr/local/hestia
+ARCPANEL=/usr/local/arcpanel
 RESELLER=tsres
 PASS="Ts-$(date +%s)-Pass"
 
@@ -19,7 +19,7 @@ cleanup() {
         v-delete-user "$user" > /dev/null 2>&1 || true
     done
     v-delete-user-package ts-plan > /dev/null 2>&1 || true
-    rm -f "$HESTIA/data/packages/ts-plan.tenancy"
+    rm -f "$ARCPANEL/data/packages/ts-plan.tenancy"
 }
 
 # stats.log line of one month
@@ -43,14 +43,14 @@ setup_file() {
     {
         stats_line 2026-09-01 01:00:00 2000 100 1 10
         stats_line 2026-10-01 01:00:00 2000 150 2 20
-    } > "$HESTIA/data/users/$RESELLER/stats.log"
+    } > "$ARCPANEL/data/users/$RESELLER/stats.log"
     {
         stats_line 2026-09-01 01:05:00 500 7 1 3
         stats_line 2026-10-01 01:05:00 unlimited 8 1 4
-    } > "$HESTIA/data/users/tsc1/stats.log"
-    stats_line 2026-10-01 01:10:00 300 20 3 5 > "$HESTIA/data/users/tsc2/stats.log"
+    } > "$ARCPANEL/data/users/tsc1/stats.log"
+    stats_line 2026-10-01 01:10:00 300 20 3 5 > "$ARCPANEL/data/users/tsc2/stats.log"
     # not in the tree
-    stats_line 2026-10-01 01:15:00 999 999 99 99 > "$HESTIA/data/users/tsother/stats.log"
+    stats_line 2026-10-01 01:15:00 999 999 99 99 > "$ARCPANEL/data/users/tsother/stats.log"
 }
 
 teardown_file() {
@@ -85,7 +85,7 @@ teardown_file() {
 }
 
 @test "v-list-reseller-users-stats answers an empty object without statistics" {
-    rm -f "$HESTIA"/data/users/{"$RESELLER",tsc1,tsc2}/stats.log
+    rm -f "$ARCPANEL"/data/users/{"$RESELLER",tsc1,tsc2}/stats.log
     run v-list-reseller-users-stats "$RESELLER" json
     assert_success
     assert_output '{}'

@@ -4,16 +4,16 @@
 # Run as root on a test server with internet access (the PHP test installs
 # and removes PHP 8.3 from the PHP package repository).
 
-if [ "${PATH#*/usr/local/hestia/bin*}" = "$PATH" ]; then
-    . /etc/profile.d/hestia.sh
+if [ "${PATH#*/usr/local/arcpanel/bin*}" = "$PATH" ]; then
+    . /etc/profile.d/arcpanel.sh
 fi
 
 load 'test_helper/bats-support/load'
 load 'test_helper/bats-assert/load'
 load 'test_helper/bats-file/load'
 
-HESTIA=/usr/local/hestia
-ST_DIR=$HESTIA/data/sys-task
+ARCPANEL=/usr/local/arcpanel
+ST_DIR=$ARCPANEL/data/sys-task
 PHP_TEST=8.3
 
 # Wait until the system task is no longer running; print its status
@@ -62,7 +62,7 @@ setup_file() {
     assert_failure 2
     run v-start-sys-task plugin quota maybe
     assert_failure 2
-    run v-start-sys-task hestia-update bash
+    run v-start-sys-task arcpanel-update bash
     assert_failure 2
 }
 
@@ -87,7 +87,7 @@ setup_file() {
 
 @test "System task: a plugin task runs in a transient unit and records the result" {
     # FIREWALL_SYSTEM is iptables on the test server: v-add-sys-firewall is a no-op
-    grep -q "^FIREWALL_SYSTEM='iptables'" "$HESTIA/conf/hestia.conf" || skip "firewall not enabled"
+    grep -q "^FIREWALL_SYSTEM='iptables'" "$ARCPANEL/conf/arcpanel.conf" || skip "firewall not enabled"
     run v-start-sys-task plugin firewall on
     assert_success
     assert_output --regexp '^[0-9]{14}$'
@@ -144,9 +144,9 @@ setup_file() {
     run v-start-sys-task php "$PHP_TEST" -
     assert_success
     id=$output
-    # the panel restarts (as a hestia package update does) while the task runs
+    # the panel restarts (as a arcpanel package update does) while the task runs
     sleep 5
-    systemctl restart hestia
+    systemctl restart arcpanel
     run systemctl is-active "arcpanel-sys-task-$id.service"
     [ "$output" = active ] || [ "$(v-list-sys-task 10 json | jq -r .STATUS)" = done ]
     run wait_task 600

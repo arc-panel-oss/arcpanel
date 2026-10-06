@@ -25,7 +25,7 @@ Non-goals (post-2.0): reseller White Label, reseller billing, collaborators (E30
 ## 2. Current state (verified in code)
 
 - `user.conf` has `ROLE='user'|'admin'|'dns-cluster'`; `v-change-user-role USER ROLE` validates the role with `is_format_valid 'role'` and writes it. No owner field is written by `v-add-user`.
-- `func/main.sh:get_user_owner()` reads `OWNER` from `user.conf` when `RESELLER_KEY` is set in `hestia.conf` — a dormant hook from VestaCP's reseller plugin. The key name `OWNER` is therefore upstream-compatible.
+- `func/main.sh:get_user_owner()` reads `OWNER` from `user.conf` when `RESELLER_KEY` is set in `arcpanel.conf` — a dormant hook from VestaCP's reseller plugin. The key name `OWNER` is therefore upstream-compatible.
 - `is_package_full` (`func/main.sh:270-295`) checks a user's own counters against its own package; nothing aggregates across users.
 - Admin checks in the legacy UI are `$_SESSION['userContext'] === 'admin'`; `look` switches the effective user. A non-admin cannot impersonate (`web/login/index.php:107`).
 - API keys: `v-check-access-key KEY SECRET CMD IP json` returns `USER` and `USER_ARG_POSITION`; permission sets in `install/common/api/<name>` have `ROLE='admin'|'user'` and `COMMANDS='…'`. For a non-root key, `web/api/index.php` enforces that the user argument equals the key's user.
@@ -89,7 +89,7 @@ Two interpretations exist; the ADR recommends **soft nested quota**:
 
 Hard nested quota (suspend the tree when the reseller is over) is rejected for 2.0 because it needs a new enforcement loop in cron and a new user-facing failure mode; it can be added later as a policy toggle.
 
-### 4.4 `hestia.conf`
+### 4.4 `arcpanel.conf`
 
 | Key                               | Values                 | Meaning                                                         |
 | --------------------------------- | ---------------------- | --------------------------------------------------------------- |
@@ -114,7 +114,7 @@ Hard nested quota (suspend the tree when the reseller is over) is rejected for 2
 
 Suspend/unsuspend/delete of a reseller: `v-suspend-user RESELLER` already suspends only that account. The Laravel service exposes "suspend reseller **and** tree" as an explicit bulk action that loops `v-suspend-user` over `v-list-reseller-users`; deleting a reseller requires the tree to be empty or re-owned (`v-change-user-owner`) first — enforced in the service and documented for the CLI.
 
-Existing commands that must stay correct with a reseller in the tree: `v-change-user-package` (Laravel pre-checks quota; the CLI is not modified), `v-delete-user` (triggers `v-update-reseller-counters` through the existing `/etc/hestiacp/hooks/` mechanism — an additive hook script `post_delete_user.sh` — if upstream lacks a hook here, the counters converge at the next scheduled recompute, which is acceptable).
+Existing commands that must stay correct with a reseller in the tree: `v-change-user-package` (Laravel pre-checks quota; the CLI is not modified), `v-delete-user` (triggers `v-update-reseller-counters` through the existing `/etc/arcpanel/hooks/` mechanism — an additive hook script `post_delete_user.sh` — if upstream lacks a hook here, the counters converge at the next scheduled recompute, which is acceptable).
 
 ---
 
@@ -150,7 +150,7 @@ The matrix is encoded once in `web-app/app/Policies/Capabilities.php` as data (`
 ```php
 final class OwnerScope
 {
-    public function __construct(private ArcCommand $hestia, private Principal $principal) {}
+    public function __construct(private ArcCommand $arcpanel, private Principal $principal) {}
 
     /** Usernames the principal may act on, or null for "all" (admin). */
     public function visibleUsers(): ?array;
@@ -174,18 +174,18 @@ Rules:
 One policy class per object type (`UserPolicy`, `PackagePolicy`, `WebDomainPolicy`, `DnsDomainPolicy`, `MailDomainPolicy`, `DatabasePolicy`, `CronJobPolicy`, `BackupPolicy`, `PortPolicy`, `NodeAppPolicy`, `DockerAppPolicy`, `ServerPolicy`, `ImpersonationPolicy`, `AccessKeyPolicy`). Each method is three lines: look up the capability in `Capabilities`, resolve the scope with `OwnerScope`, apply read-only. Example:
 
 ```php
-final class UserPolicy
-{
-    public function update(Principal $p, UserRecord $target): bool
-    {
-        return Capabilities::allows($p->loginRole, 'users.update', fn () => $this->scope->canManage($target->name))
-            && !$p->isReadOnly();
-    }
-    public function changePackage(Principal $p, UserRecord $target, string $package): bool
-    {
-        return $this->update($p, $target)
-            && ($p->loginRole !== Role::Reseller || $this->resellers->canAssign($p->loginUser, $package));
-    }
+final class UserPolicy {
+	public function update(Principal $p, UserRecord $target): bool {
+		return Capabilities::allows(
+			$p->loginRole,
+			"users.update",
+			fn() => $this->scope->canManage($target->name),
+		) && !$p->isReadOnly();
+	}
+	public function changePackage(Principal $p, UserRecord $target, string $package): bool {
+		return $this->update($p, $target) &&
+			($p->loginRole !== Role::Reseller || $this->resellers->canAssign($p->loginUser, $package));
+	}
 }
 ```
 

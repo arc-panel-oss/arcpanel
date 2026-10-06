@@ -4,15 +4,15 @@
 # Run as root on a test server with internet access (DokuWiki is
 # downloaded from dokuwiki.org).
 
-if [ "${PATH#*/usr/local/hestia/bin*}" = "$PATH" ]; then
-    . /etc/profile.d/hestia.sh
+if [ "${PATH#*/usr/local/arcpanel/bin*}" = "$PATH" ]; then
+    . /etc/profile.d/arcpanel.sh
 fi
 
 load 'test_helper/bats-support/load'
 load 'test_helper/bats-assert/load'
 load 'test_helper/bats-file/load'
 
-HESTIA=/usr/local/hestia
+ARCPANEL=/usr/local/arcpanel
 QI_USER=tqiuser
 QI_OTHER=tqiother
 QI_DOMAIN=tqi-wiki.example
@@ -21,11 +21,11 @@ SECRET_PASS="Qi-$(date +%s)-NeverLogged"
 # Local address of the domain (web.conf may hold the NAT address)
 web_ip() {
     local ip
-    ip=$(grep "^DOMAIN='$2' " "$HESTIA/data/users/$1/web.conf" | grep -o " IP='[^']*'" | cut -d"'" -f2)
-    if [ -f "$HESTIA/data/ips/$ip" ]; then
+    ip=$(grep "^DOMAIN='$2' " "$ARCPANEL/data/users/$1/web.conf" | grep -o " IP='[^']*'" | cut -d"'" -f2)
+    if [ -f "$ARCPANEL/data/ips/$ip" ]; then
         echo "$ip"
     else
-        basename "$(grep -l "^NAT='$ip'" "$HESTIA"/data/ips/* | head -n1)"
+        basename "$(grep -l "^NAT='$ip'" "$ARCPANEL"/data/ips/* | head -n1)"
     fi
 }
 
@@ -125,7 +125,7 @@ teardown_file() {
     run v-list-user-quick-install-task "$QI_USER" 100 json
     assert_output --partial 'Missing required field: wiki_name'
     refute_output --partial "$SECRET_PASS"
-    assert_file_not_exists "$HESTIA/data/users/$QI_USER/quick-install.options"
+    assert_file_not_exists "$ARCPANEL/data/users/$QI_USER/quick-install.options"
 }
 
 @test "DokuWiki installs in the background, one install at a time" {
@@ -143,8 +143,8 @@ teardown_file() {
     run v-list-user-quick-install-task "$QI_USER" 100 json
     assert_output --partial 'DokuWiki installed successfully.'
     refute_output --partial "$SECRET_PASS"
-    assert_file_not_exists "$HESTIA/data/users/$QI_USER/quick-install.options"
-    run grep -c "$SECRET_PASS" "$HESTIA/log/system.log" "$HESTIA/data/users/$QI_USER/history.log"
+    assert_file_not_exists "$ARCPANEL/data/users/$QI_USER/quick-install.options"
+    run grep -c "$SECRET_PASS" "$ARCPANEL/log/system.log" "$ARCPANEL/data/users/$QI_USER/history.log"
     refute_output --regexp ':[1-9]'
 
     run curl -s --noproxy '*' --max-time 10 --resolve "$QI_DOMAIN:80:$(web_ip "$QI_USER" "$QI_DOMAIN")" "http://$QI_DOMAIN/doku.php"

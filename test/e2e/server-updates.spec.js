@@ -35,7 +35,7 @@ test('admin: update every package in the background and see the task end', async
 	await expectToast(page, 'The packages are being updated.');
 	await expect(page.getByRole('button', { name: 'Update all' })).toBeDisabled();
 	await expect(page.getByRole('log', { name: 'Task output' })).toContainText(
-		'$ v-update-sys-hestia-all',
+		'$ v-update-sys-arcpanel-all',
 	);
 
 	// The page reloads once the task has ended and shows it as the last task

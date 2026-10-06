@@ -10,7 +10,7 @@ Instructions for AI coding agents (Claude Code, Codex, Cursor and others) that w
 
 ## 2. What ArcPanel is
 
-ArcPanel is an open-source Linux hosting control panel based on **HestiaCP 1.10.5**. It keeps the HestiaCP internals (`/usr/local/hestia`, `/etc/hestiacp`, the `v-*` commands, the REST API, the flat-file data model) and replaces the user-facing side: a Laravel 13 panel app (`web-app/`) took over the legacy PHP pages one page at a time (strangler migration) and, since 2.0, serves the root URL with the HestiaCP web interface removed, while new capabilities (resellers, port registry, Node and Docker apps, template metadata, file manager) are added as **new** `v-*` commands and shell libraries.
+ArcPanel is an open-source Linux hosting control panel based on **HestiaCP 1.10.5** and, since 2.0, a hard fork of it ([ADR-0007](docs/adr/0007-full-rename-and-hard-fork.md)): no upstream merges, every internal name is ArcPanel's (`/usr/local/arcpanel`, `/etc/arcpanel/arcpanel.conf`, `arcpanelweb`, the `v-*` commands), and 2.0 is installed fresh only. It keeps the HestiaCP architecture (the `v-*` commands, the REST API, the flat-file data model) and replaces the user-facing side: a Laravel 13 panel app (`web-app/`) took over the legacy PHP pages one page at a time (strangler migration) and, since 2.0, serves the root URL with the HestiaCP web interface removed, while new capabilities (resellers, port registry, Node and Docker apps, template metadata, file manager) are added as **new** `v-*` commands and shell libraries.
 
 Three roles exist: **admin** (server owner), **reseller** (owns a tree of customers inside its own package limits) and **user** (hosting customer). Every page and command is owner-scoped from the start.
 
@@ -23,6 +23,7 @@ The current state of each epic is in [docs/roadmap.md](docs/roadmap.md). As of 2
 - E3 (File Manager v2, every file operation run as the user) and E4 (Docker apps from a curated catalog, every container run as the hosting user).
 - E7 batch 1 (Databases, Cron, DNS, Mail and Backups, with the restic snapshot browser), batch 2 (Firewall, IPs, access and SSH keys, logs, statistics and graphs, web terminal, Quick Install run in the background) and batch 3 (Services, Server settings, config editors, Updates, password and 2FA reset, Search, CSR generator).
 - E8 (legacy retirement, [spec](docs/features/specs/2026-10-06-004-e8-legacy-retirement-design.md)): the panel app at the root URL, `web/` deleted and its still-used pieces in `lib/`, FileGator removed, version 2.0.0. Publishing the release waits for the E9 release infrastructure.
+- E9 R5 (full rename and hard fork, [spec](docs/features/specs/2026-10-06-005-e9-full-rename-design.md)): in progress; `develop` installs again when its milestone M8 passes.
 
 The rest is design.
 
@@ -45,9 +46,9 @@ Then read the code the task touches. Design documents describe intent; the code 
 | Path                       | What it is                                                                                                                                                                                                                                                                                              | Owned by            |
 | -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------- |
 | `bin/v-*`                  | CLI commands, one script each; **the API of the system**. Upstream commands plus ArcPanel additions                                                                                                                                                                                                     | upstream + ArcPanel |
-| `func/*.sh`                | Shell libraries sourced by the commands. ArcPanel adds `tenancy.sh`, `ports.sh`, `hooks.sh` + `hooks.d/`, `arc-template.sh`, `node.sh`, `nodeapp.sh`, `fs.sh`, `docker.sh`, `quickinstall.sh` + `.php`, `arcpanel-upgrade.sh`                                                                           | upstream + ArcPanel |
-| `install/`                 | Installers (`hst-install-*.sh`), packages, templates, upgrade steps (`upgrade/arcpanel/<ver>.sh`)                                                                                                                                                                                                       | upstream + ArcPanel |
-| `src/deb/`                 | Debian packaging of `hestia`, `hestia-nginx`, `hestia-php`, web terminal                                                                                                                                                                                                                                | upstream + ArcPanel |
+| `func/*.sh`                | Shell libraries sourced by the commands. ArcPanel adds `tenancy.sh`, `ports.sh`, `hooks.sh` + `hooks.d/`, `arc-template.sh`, `node.sh`, `nodeapp.sh`, `fs.sh`, `docker.sh`, `quickinstall.sh` + `.php`                                                                                                  | upstream + ArcPanel |
+| `install/`                 | Installers (`arcpanel-install-*.sh`), packages, templates, upgrade steps (`upgrade/versions/<ver>.sh`)                                                                                                                                                                                                  | upstream + ArcPanel |
+| `src/deb/`                 | Debian packaging of `arcpanel`, `arcpanel-nginx`, `arcpanel-php`, web terminal                                                                                                                                                                                                                          | upstream + ArcPanel |
 | `lib/`                     | Libraries of the commands, moved from the legacy `web/` in 2.0 (E8): Quick Install installers (`lib/quickinstall`), 2FA helpers, the mail wrapper (`$SENDMAIL`), the REST API script (`/api/`), gettext catalogues, logos, nginx error pages                                                            | upstream + ArcPanel |
 | `web-app/`                 | **Panel app** (Laravel 13, PHP 8.5): `app/Arc` (ArcCommand), `app/Auth`, `app/Policies`, `app/Services`, `app/Tenancy`, `app/View` (navigation, legacy URL redirects in `LegacyUrls`), Blade views, Alpine modules (`resources/js/alpine`), Vue islands (`resources/js/islands`), Pest and Vitest tests | ArcPanel            |
 | `test/`                    | BATS suites (`arcpanel-*.bats` are ours), smoke script, Playwright e2e (`test/e2e/`), `dev-sync.sh`, `brand-check.sh`                                                                                                                                                                                   | ArcPanel + upstream |
@@ -57,12 +58,12 @@ Then read the code the task touches. Design documents describe intent; the code 
 
 ## 5. Architecture rules (non-negotiable)
 
-1. **The CLI is the system of record.** Every state change goes through a `v-*` command. The panel app never writes under `/usr/local/hestia/data`, `conf/` or a user's home; it calls commands through `ArcCommand` and reads `v-list-* … json`. No business logic in the web layer that the CLI does not have.
-2. **Additive changes only** in `bin/`, `func/`, `install/`, `src/`: new commands, new libraries, new keys, new files, new installer steps. Existing upstream files are not modified. The recorded exceptions are `is_role_valid` in `func/main.sh` (E11 D10) and the two hook lines in `v-add-user`, `v-change-user-package`, `v-suspend-user`, `v-unsuspend-user`, `v-delete-user` (E12 D4). Two more kinds of change to upstream files are recorded: the user-visible rebranding of ADR-0006 (E9: strings, URLs, installers, packaging) and output-only additions to `bin/v-list-sys-config` for the `hestia.conf` keys the panel reads (E1, E11, E12, E4 specs). E8 adds the path changes of `web/` to `lib/` and `data/`, the toggle-only file manager commands and the deletion of `web/` and `install/deb/filemanager/`. Every changed upstream file is listed in `test/upstream-exceptions.txt`, which the `Upstream diff` CI job (`test/upstream-diff.sh`) enforces. Any further exception needs a spec decision, a line in that file and a line in `docs/design/01-architecture-overview.md` §3.2. After an upstream merge, run `scripts/upstream-merge-cleanup.sh`.
-3. **Hosting state stays in Hestia flat files** (one object per line, `KEY='value'`). Keys that upstream commands would overwrite go into a sidecar (`tenancy.conf`, `<package>.tenancy`, `<web_system>.conf.tplvars`). The only database is the panel-owned SQLite file (E15+, `docs/design/15-database-schema-and-erd.md`): operational data, never hosting state.
+1. **The CLI is the system of record.** Every state change goes through a `v-*` command. The panel app never writes under `/usr/local/arcpanel/data`, `conf/` or a user's home; it calls commands through `ArcCommand` and reads `v-list-* … json`. No business logic in the web layer that the CLI does not have.
+2. **ArcPanel owns every file.** ArcPanel is a hard fork (ADR-0007): there are no upstream merges, so a change may touch any file, inherited or not. Keep the conventions of the inherited code (the `v-*` command shape of §6, flat files, exit codes), prefer a new command or library over a large rewrite of an inherited one, and port HestiaCP security fixes by hand (the release checklist names the advisories to read).
+3. **Hosting state stays in the flat files** (one object per line, `KEY='value'`). Keys that inherited commands would overwrite go into a sidecar (`tenancy.conf`, `<package>.tenancy`, `<web_system>.conf.tplvars`). The only database is the panel-owned SQLite file (E15+, `docs/design/15-database-schema-and-erd.md`): operational data, never hosting state.
 4. **Owner-scoped everywhere.** `OwnerScope` / `TenancyDirectory` decide what a principal may see. Objects outside the tree answer **404**, refusals inside the tree **403**. Blade templates, Alpine modules and `ArcCommand` contain no role or owner checks.
-5. **Privilege boundary is unchanged.** `hestiaweb` runs `sudo /usr/local/hestia/bin/v-*` and nothing else. Commands validate their own arguments (`is_format_valid`, `is_object_valid`, `check_hestia_demo_mode`). Do not add sudoers lines, setuid helpers or socket access.
-6. **Internal names stay Hestia; visible names say ArcPanel** (ADR-0006). Never rename `/usr/local/hestia`, `/etc/hestiacp`, `HESTIA_*`, `hestiaweb`, shell functions, PHP classes or the gettext domain. `test/brand-check.sh` fails on user-visible "Hestia".
+5. **Privilege boundary is unchanged.** `arcpanelweb` runs `sudo /usr/local/arcpanel/bin/v-*` and nothing else. Commands validate their own arguments (`is_format_valid`, `is_object_valid`, `check_arcpanel_demo_mode`). Do not add sudoers lines, setuid helpers or socket access.
+6. **One name: ArcPanel** (ADR-0007). Paths, files, keys, variables, functions, commands, packages, users, services, namespaces and identifiers use ArcPanel names; no old name and no compatibility alias comes back. The exceptions (attribution, upstream links, names owned by third parties, the HestiaCP and VestaCP backup formats that restores read) are listed with a reason in `scripts/rename/keep.txt`, and `test/brand-check.sh` fails on any other "hestia".
 7. **Secrets never touch logs, output, commits or chat.** Passwords go to commands through `Secret` temp files; `ArcCommand` masks them. Do not open `/root/admin-pass`, `.env*`, `auth.json`, `*secrets*`, `data/secrets/` or session files; checking that they exist is the limit.
 
 ## 6. Conventions
@@ -73,8 +74,8 @@ Then read the code the task touches. Design documents describe intent; the code 
 - `json` output must parse with `jq`; follow the column names of the nearest upstream `v-list-*`.
 - Tabs for indentation, `shellcheck` clean at severity `error`, Prettier (`prettier-plugin-sh`) formatting.
 - Writers of a shared file take the file's `flock` (see `func/ports.sh`). Idempotent setup commands (`v-add-sys-*`) can run on every upgrade.
-- A new `hestia.conf` key that the panel reads is set with `v-change-sys-config-value` and must also be printed by `v-list-sys-config` (it lists its keys explicitly, in `json` and `shell`). Check it in BATS: the Pest fake answers any key, so only BATS or e2e catch a missing one.
-- Upgrade steps for ArcPanel features go into `install/upgrade/arcpanel/<version>.sh` (see its `README.txt`); upstream steps stay in `install/upgrade/versions/`.
+- A new `arcpanel.conf` key that the panel reads is set with `v-change-sys-config-value` and must also be printed by `v-list-sys-config` (it lists its keys explicitly, in `json` and `shell`). Check it in BATS: the Pest fake answers any key, so only BATS or e2e catch a missing one.
+- Upgrade steps of a release go into `install/upgrade/versions/<version>.sh` (see its `README.txt`); `func/upgrade.sh` runs the steps between the installed `VERSION` and the package version.
 
 ### Panel app (`web-app/`)
 
@@ -91,7 +92,7 @@ Then read the code the task touches. Design documents describe intent; the code 
 - Design documents: `docs/design/NN-<slug>.md`, same shape (Goal → Current state → Design → Failure modes → Testing → Open questions). Specs: `docs/features/specs/YYYY-MM-DD-NNN-<epic>-<slug>-design.md` with a decisions table, milestones, scope, "Done when", and an "Implementation notes" section appended when the work lands. ADRs: `docs/adr/NNNN-<slug>.md` in the format of `docs/adr/README.md`.
 - When a change adds a file, key or command: update **13** (data model reference); when it adds an entity or a table: update **15** and `docs/design/schemas/arcpanel-sqlite.sql`; update the roadmap status line of the epic; mark the design document's status.
 - Markdown follows `.markdownlint-cli2.cjs` and Prettier; tables are aligned by Prettier, so run it rather than aligning by hand.
-- Code references in prose use the repository path (`bin/v-add-user`); runtime paths use `$HESTIA` (`/usr/local/hestia`).
+- Code references in prose use the repository path (`bin/v-add-user`); runtime paths use `$ARCPANEL` (`/usr/local/arcpanel`).
 
 ### Commits
 
@@ -114,20 +115,20 @@ Do not narrow the scope silently. If part of a milestone is blocked, finish the 
 
 Run from the repository root unless noted. The panel's PHP suites need PHP 8.5 and Composer; the shell suites need a test server.
 
-| Purpose                              | Command                                                                                                                                |
-| ------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------- |
-| Install tooling, pre-commit hooks    | `npm ci` (Node LTS, npm 11)                                                                                                            |
-| Lint everything the CI lints         | `npm run lint` (Prettier, Biome, markdownlint) · `bash test/shellcheck.sh` · `bash test/brand-check.sh` · `bash test/upstream-diff.sh` |
-| Format                               | `npm run format` · `cd web-app && vendor/bin/pint`                                                                                     |
-| Build assets                         | `npm run build` (watch: `npm run dev`)                                                                                                 |
-| Panel unit + feature tests           | `cd web-app && composer install && vendor/bin/pest`                                                                                    |
-| Alpine module and Vue island tests   | `npm run test:js`                                                                                                                      |
-| CLI tests (on the test server, root) | `bats test/arcpanel-*.bats` (all ArcPanel suites) or one suite, for example `bats test/arcpanel-ports.bats`                            |
-| HTTP smoke test (test server, root)  | `bash test/arcpanel-login-smoke.sh`                                                                                                    |
-| Browser e2e (from the workstation)   | `bash test/e2e/prepare.sh prepare <password>` on the server, then `E2E_BASE_URL=https://<server>:8083 npm run test:e2e`                |
-| Sync the checkout to a test server   | `bash test/dev-sync.sh [--no-composer] [--no-restart]` as root on the server                                                           |
+| Purpose                              | Command                                                                                                                 |
+| ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------- |
+| Install tooling, pre-commit hooks    | `npm ci` (Node LTS, npm 11)                                                                                             |
+| Lint everything the CI lints         | `npm run lint` (Prettier, Biome, markdownlint) · `bash test/shellcheck.sh` · `bash test/brand-check.sh`                 |
+| Format                               | `npm run format` · `cd web-app && vendor/bin/pint`                                                                      |
+| Build assets                         | `npm run build` (watch: `npm run dev`)                                                                                  |
+| Panel unit + feature tests           | `cd web-app && composer install && vendor/bin/pest`                                                                     |
+| Alpine module and Vue island tests   | `npm run test:js`                                                                                                       |
+| CLI tests (on the test server, root) | `bats test/arcpanel-*.bats` (all ArcPanel suites) or one suite, for example `bats test/arcpanel-ports.bats`             |
+| HTTP smoke test (test server, root)  | `bash test/arcpanel-login-smoke.sh`                                                                                     |
+| Browser e2e (from the workstation)   | `bash test/e2e/prepare.sh prepare <password>` on the server, then `E2E_BASE_URL=https://<server>:8083 npm run test:e2e` |
+| Sync the checkout to a test server   | `bash test/dev-sync.sh [--no-composer] [--no-restart]` as root on the server                                            |
 
-Local test server used by the maintainer: WSL distribution `arcpanel-test` (Ubuntu 24.04) with ArcPanel at `/usr/local/hestia`. From Windows: `MSYS_NO_PATHCONV=1 wsl.exe -d arcpanel-test -u root -- bash /mnt/d/project/arcpanel/test/dev-sync.sh`. Known pitfalls: the Windows checkout is CRLF and reports uid 1000, so copy only through `dev-sync.sh`; `wsl.exe … bash -c` expands `$VAR` before bash sees it, so put scripts in files; keep a `wsl.exe -d arcpanel-test -u root -- sleep 5400` session open while Playwright runs, otherwise the distribution stops. Pest on the server runs with `/usr/local/hestia/php/bin/php vendor/bin/pest`; Pint with the system `php`.
+Local test server used by the maintainer: WSL distribution `arcpanel-test` (Ubuntu 24.04) with ArcPanel at `/usr/local/arcpanel`. From Windows: `MSYS_NO_PATHCONV=1 wsl.exe -d arcpanel-test -u root -- bash /mnt/d/project/arcpanel/test/dev-sync.sh`. Known pitfalls: the Windows checkout is CRLF and reports uid 1000, so copy only through `dev-sync.sh`; `wsl.exe … bash -c` expands `$VAR` before bash sees it, so put scripts in files; keep a `wsl.exe -d arcpanel-test -u root -- sleep 5400` session open while Playwright runs, otherwise the distribution stops. Pest on the server runs with `/usr/local/arcpanel/php/bin/php vendor/bin/pest`; Pint with the system `php`.
 
 A change is verified when the suites it touches pass **and** the smoke or e2e flow that exercises the page passes on the test server. Report failures with the output; do not call something done that was not run.
 
@@ -154,5 +155,5 @@ A change is verified when the suites it touches pass **and** the smoke or e2e fl
 - [ ] New routes: policy + `Capabilities` entry, `effective-user` / `not-readonly` middleware where applicable, Pest feature test for admin, reseller A, reseller B and user.
 - [ ] Owner scoping proven: cross-tenant access returns 404 in a test.
 - [ ] Documentation updated: design doc status, **13**, **15** (if data changed), roadmap status line, spec implementation notes.
-- [ ] `npm run lint`, `test/shellcheck.sh`, `test/brand-check.sh`, `test/upstream-diff.sh`, Pest, Vitest green; BATS and smoke green on the test server; e2e for new pages.
+- [ ] `npm run lint`, `test/shellcheck.sh`, `test/brand-check.sh`, Pest, Vitest green; BATS and smoke green on the test server; e2e for new pages.
 - [ ] Commit message follows §6; secrets and generated files are not in the diff.

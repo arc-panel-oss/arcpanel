@@ -16,11 +16,11 @@ Non-goals: performance benchmarking in CI (measured manually per release), fuzzi
 
 - `.github/workflows/lint.yml`: markdownlint (`*.md`, `docs/**/*.md`), ShellCheck (severity `error`), Prettier (`npx prettier --check .`), Biome (`biome lint .`). ArcPanel added the jobs Brand check (`test/brand-check.sh`), Upstream diff (`test/upstream-diff.sh`, §5) and Template metadata (`scripts/check-template-meta.js`).
 - `.github/workflows/test.yml` ran Vitest for the VitePress docs site only (`npm run docs:test`); the docs site and the workflow are removed in 2.0.
-- `.github/workflows/pr-docker-bats.yml`: builds a privileged systemd Ubuntu container from `.github/docker/hestia-ci.Dockerfile`, compiles the `hestia` deb from the working tree (`src/hst_autocompile.sh --hestia --noinstall --keepbuild "~localsrc"`), installs with `install/hst-install-ubuntu.sh --with-debs … --clamav no --spamassassin no`, runs `bats test/test.bats`, collects `journalctl` and the install log on failure. Timeout 120 min.
+- `.github/workflows/pr-docker-bats.yml`: builds a privileged systemd Ubuntu container from `.github/docker/arcpanel-ci.Dockerfile`, compiles the `arcpanel` deb from the working tree (`src/arcpanel-build.sh --arcpanel --noinstall --keepbuild "~localsrc"`), installs with `install/arcpanel-install-ubuntu.sh --with-debs … --clamav no --spamassassin no`, runs `bats test/test.bats`, collects `journalctl` and the install log on failure. Timeout 120 min.
 - `test/`: `test.bats` (main CLI suite), `api.bats`, `restore.bats`, `letsencrypt.bats`, `wildcard.bats`, `checks.bats`, `config-tests.bats`; helpers as submodules (`bats-core`, `bats-assert`, `bats-support`, `bats-file`); `shellcheck.sh` (every `#!/bin/(ba)sh` file, severity error); `lint_script.sh` (dev-mode single-script lint).
 - `renovate.json`: weekly grouped dependency updates, linters auto-merged (upstream configuration; removed in 2.0, see §6.5).
-- `src/hst_autocompile.sh` flags: `--all | --nginx | --php | --hestia`, `--noinstall`, `--keepbuild`, `--release`, `--pkgrev`, `--cross`, `--dontinstalldeps`.
-- No PHP tests, no e2e, no accessibility check, no build of `hestia-nginx` / `hestia-php` in CI.
+- `src/arcpanel-build.sh` flags: `--all | --nginx | --php | --arcpanel`, `--noinstall`, `--keepbuild`, `--release`, `--pkgrev`, `--cross`, `--dontinstalldeps`.
+- No PHP tests, no e2e, no accessibility check, no build of `arcpanel-nginx` / `arcpanel-php` in CI.
 
 ---
 
@@ -31,7 +31,7 @@ flowchart TB
   e2e[Playwright e2e + Lighthouse<br/>disposable VM, 3 OS, nightly + release<br/>minutes: 25–40]
   bats[BATS — bin/ and func/<br/>systemd container, per PR<br/>minutes: 30–60]
   feature[Pest feature — controllers, policies, pages<br/>ArcCommandFake, per PR<br/>minutes: 2–4]
-  unit[Pest unit · Vitest · PHPStan · lint · upstream-diff<br/>per PR<br/>minutes: 1–3]
+  unit[Pest unit · Vitest · PHPStan · lint · brand check<br/>per PR<br/>minutes: 1–3]
   unit --> feature --> bats --> e2e
 ```
 
@@ -63,7 +63,7 @@ cust-b1            OWNER=reseller-b   same objects
 plain-user         OWNER=admin        same objects + Node enabled (developer package)
 ```
 
-Ports: a block of 10 to each reseller (`v-add-user-port RESELLER 30100-30109`), two sub-allocated to `cust-a1`. Access keys: one `billing` key for admin, one `reseller-billing` key for each reseller, one `purge-nginx-cache` key for `plain-user`. Passwords are generated and written to `/tmp/arcpanel-e2e-env.sh` (never committed), mirroring `test/api.bats`'s `/tmp/hestia-api-env.sh`.
+Ports: a block of 10 to each reseller (`v-add-user-port RESELLER 30100-30109`), two sub-allocated to `cust-a1`. Access keys: one `billing` key for admin, one `reseller-billing` key for each reseller, one `purge-nginx-cache` key for `plain-user`. Passwords are generated and written to `/tmp/arcpanel-e2e-env.sh` (never committed), mirroring `test/api.bats`'s `/tmp/arcpanel-api-env.sh`.
 
 ### 4.2 Matrix
 
@@ -95,16 +95,16 @@ One long spec: reseller-a logs in → Customers → create-customer wizard (user
 
 Referenced by [01](./01-architecture-overview.md) §3.2, [02](./02-laravel-foundation.md) §9 and [10](./10-page-migration-and-retirement.md).
 
-> **Implemented (E8, [spec](../features/specs/2026-10-06-004-e8-legacy-retirement-design.md) §10.2)** in a simpler form than §5.1–§5.3: `test/upstream-diff.sh` compares `bin/`, `func/`, `install/` and `src/` with the commit that imported HestiaCP (`test/upstream-base.txt`) and fails on any modified, deleted or renamed upstream file not listed in `test/upstream-exceptions.txt`, and on code that references the removed `web/` directory. There are no stored patches; `web/` is no longer exempt because it no longer exists. The job is Upstream diff in `lint.yml`.
+> **Removed (ADR-0007, 2026-10-06).** ArcPanel is a hard fork since 2.0: there are no upstream merges, so the upstream diff check of E8 (`test/upstream-diff.sh`, `test/upstream-exceptions.txt`, `test/upstream-base.txt`) and the merge procedure below are gone. The `Brand check` job (`test/brand-check.sh`, exceptions in `scripts/rename/keep.txt`) fails on any HestiaCP name instead. §5.1–§5.4 describe the 1.x design.
 
 ### 5.1 Rule
 
-`bin/`, `func/`, `install/` may only **add** files relative to the pinned upstream HestiaCP release. An existing upstream file may differ only if it is listed in `install/upgrade/patch/ALLOWLIST`, and then only by the patch stored next to it. `web/` is exempt (ArcPanel replaces it), as are `src/deb/nginx/nginx.conf` (one Laravel `location`, see [02](./02-laravel-foundation.md) §3.1) and `src/deb/hestia/control` (dependencies), both listed in the allow-list with their patches.
+`bin/`, `func/`, `install/` may only **add** files relative to the pinned upstream HestiaCP release. An existing upstream file may differ only if it is listed in `install/upgrade/patch/ALLOWLIST`, and then only by the patch stored next to it. `web/` is exempt (ArcPanel replaces it), as are `src/deb/nginx/nginx.conf` (one Laravel `location`, see [02](./02-laravel-foundation.md) §3.1) and `src/deb/arcpanel/control` (dependencies), both listed in the allow-list with their patches.
 
 ### 5.2 Files
 
 ```text
-install/upstream.version            # e.g. "1.10.5" — the tag of hestiacp/hestiacp this tree is based on
+install/upstream.version            # e.g. "1.10.5" — the tag of arcpanel/arcpanel this tree is based on
 install/upgrade/patch/ALLOWLIST     # one path per line; comments with '#'
 install/upgrade/patch/<path-with-dashes>.patch   # unified diff applied by the upgrade script and verified by CI
 ```
@@ -114,7 +114,7 @@ Initial `ALLOWLIST`:
 ```text
 bin/v-change-user-role                 # accept 'reseller' (upstream PR #TBD)
 src/deb/nginx/nginx.conf               # location of the Laravel app (/app/ in 1.x, the root URL since 2.0)
-src/deb/hestia/control                 # Depends: adds nothing new today; placeholder for php extensions if needed
+src/deb/arcpanel/control                 # Depends: adds nothing new today; placeholder for php extensions if needed
 ```
 
 ### 5.3 Script `test/upstream-diff.sh` (**new**)
@@ -141,7 +141,7 @@ src/deb/hestia/control                 # Depends: adds nothing new today; placeh
 - One file per ArcPanel area, next to the upstream files: `test/arcpanel-reseller.bats`, `test/arcpanel-ports.bats`, `test/arcpanel-node.bats`, `test/arcpanel-docker.bats`, `test/arcpanel-templates.bats`, `test/arcpanel-fs.bats`, `test/arcpanel-upgrade.bats` (patch application, `v-add-sys-arcpanel` idempotency, `nginx -t`).
 - Convention per command: happy path; each `is_format_valid` refusal (`E_INVALID`); object-not-found (`E_NOTEXIST`); limit (`E_LIMIT`); suspended (`E_SUSPENDED`); demo mode (`E_FORBIDEN`); `json` output parses with `jq`; `v-log-action` entry written; idempotent re-run behaviour stated in the test name.
 - Teardown always deletes created users (`v-delete-user`) so the suite can run twice in one container; `test/test.bats` already follows this pattern.
-- `pr-docker-bats.yml` becomes a matrix: `{ubuntu-24.04, debian-12, debian-13}` images (three Dockerfiles under `.github/docker/`), `--all` build (nginx, php, hestia) once per PR touching `src/deb/nginx|php`, otherwise `--hestia` only; built debs uploaded as artifacts and reused by the e2e job. Path filters: BATS runs on changes to `bin/`, `func/`, `install/`, `src/`, `test/`, `web-app/` (Laravel ships in the deb) — but not on `docs/`-only PRs.
+- `pr-docker-bats.yml` becomes a matrix: `{ubuntu-24.04, debian-12, debian-13}` images (three Dockerfiles under `.github/docker/`), `--all` build (nginx, php, arcpanel) once per PR touching `src/deb/nginx|php`, otherwise `--arcpanel` only; built debs uploaded as artifacts and reused by the e2e job. Path filters: BATS runs on changes to `bin/`, `func/`, `install/`, `src/`, `test/`, `web-app/` (Laravel ships in the deb) — but not on `docs/`-only PRs.
 - Docker-in-Docker for E4 tests: the CI container is already `--privileged` with host cgroups, so `v-add-sys-docker` can start the daemon inside it; E4 BATS tests are tagged `# bats test_tags=docker` and skipped where the runner lacks nested virtualisation.
 
 ### 6.2 Pest for `web-app/`
@@ -163,8 +163,8 @@ src/deb/hestia/control                 # Depends: adds nothing new today; placeh
 
 #### VM build in GitHub Actions
 
-1. Job `build-debs` (matrix OS): `src/hst_autocompile.sh --all --noinstall --keepbuild '~localsrc'` (+ `composer install --no-dev` and the esbuild step for `web-app/` before packaging; see [02](./02-laravel-foundation.md) §9). Cache key: hash of `src/`, `web-app/composer.lock`, `package-lock.json`; `hestia-nginx`/`hestia-php` debs are cached across PRs because they change rarely; `hestia` is rebuilt each time (≈ 3 min).
-2. Job `e2e` (matrix OS): start the same systemd container image as BATS (LXC/`incus` is used on the nightly self-hosted runner for a real kernel when Docker-in-Docker tests are required; GitHub-hosted runners use the privileged container). Install with `install/hst-install-<os>.sh --with-debs <artifacts> --interactive no --force --port 8083 --clamav no --spamassassin no --webterminal yes`, then `test/e2e/seed.sh`.
+1. Job `build-debs` (matrix OS): `src/arcpanel-build.sh --all --noinstall --keepbuild '~localsrc'` (+ `composer install --no-dev` and the esbuild step for `web-app/` before packaging; see [02](./02-laravel-foundation.md) §9). Cache key: hash of `src/`, `web-app/composer.lock`, `package-lock.json`; `arcpanel-nginx`/`arcpanel-php` debs are cached across PRs because they change rarely; `arcpanel` is rebuilt each time (≈ 3 min).
+2. Job `e2e` (matrix OS): start the same systemd container image as BATS (LXC/`incus` is used on the nightly self-hosted runner for a real kernel when Docker-in-Docker tests are required; GitHub-hosted runners use the privileged container). Install with `install/arcpanel-install-<os>.sh --with-debs <artifacts> --interactive no --force --port 8083 --clamav no --spamassassin no --webterminal yes`, then `test/e2e/seed.sh`.
 3. Run `npx playwright test` from `test/e2e/` against `https://127.0.0.1:8083` (`ignoreHTTPSErrors`), Chromium only on PRs, Chromium + Firefox + WebKit nightly. Traces, screenshots and videos kept on failure; the install log and `journalctl` collected as today.
 4. Lighthouse: `@playwright/test` fixture runs `lighthouse` (Chromium) on every route in `matrix.json` as admin, reseller and user; asserts `accessibility ≥ 90` (roadmap O1 metric); results published as a job summary table. Performance scores are recorded but not gated.
 
@@ -197,10 +197,10 @@ src/deb/hestia/control                 # Depends: adds nothing new today; placeh
 | Check                                                           | Job                                                                    | Budget |
 | --------------------------------------------------------------- | ---------------------------------------------------------------------- | ------ |
 | Lint (Prettier, Biome, markdownlint, ShellCheck)                | `lint.yml`                                                             | 3 min  |
-| `upstream-diff`                                                 | `lint.yml`                                                             | 1 min  |
+| `brand-check`                                                   | `lint.yml`                                                             | 1 min  |
 | PHPStan + Pest (unit + feature) + coverage gate                 | `test.yml` / `php`                                                     | 4 min  |
 | Vitest (web-app)                                                | `test.yml` / `js`                                                      | 2 min  |
-| Deb build (`--hestia`, cached nginx/php)                        | `build.yml`                                                            | 5 min  |
+| Deb build (`--arcpanel`, cached nginx/php)                      | `build.yml`                                                            | 5 min  |
 | BATS (path-filtered, Ubuntu 24.04 only on PR)                   | `pr-docker-bats.yml`                                                   | 45 min |
 | Playwright smoke (`session/`, `roles/`, Chromium, Ubuntu 24.04) | `e2e.yml` with `if: label e2e OR paths web-app/** OR src/deb/nginx/**` | 25 min |
 
@@ -213,8 +213,8 @@ Full matrix: BATS on three OS, Playwright full groups on three browsers, Lightho
 ### 7.3 Release (`push: tags: v*`)
 
 1. All PR checks + nightly groups on the tag.
-2. `hst_autocompile.sh --all --release` for each OS; sign debs; smoke-install on each OS from the produced apt repo layout (`install/hst-install.sh` default path, no `--with-debs`), then `session/` specs.
-3. Publish to the ArcPanel apt repository and GitHub Release with the upstream-diff "additions" table and `CHANGELOG.md` section.
+2. `arcpanel-build.sh --all --release` for each OS; sign debs; smoke-install on each OS from the produced apt repo layout (`install/arcpanel-install.sh` default path, no `--with-debs`), then `session/` specs.
+3. Publish to the ArcPanel apt repository and GitHub Release with the `CHANGELOG.md` section.
 4. Docs site build (`npm run docs:build`) and deploy.
 
 ---

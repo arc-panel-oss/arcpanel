@@ -4,18 +4,18 @@
 # Run as root on a server installed with the ArcPanel installer, with the
 # iptables firewall on. Uses ports 38000-38399 of the server range.
 
-if [ "${PATH#*/usr/local/hestia/bin*}" = "$PATH" ]; then
-    . /etc/profile.d/hestia.sh
+if [ "${PATH#*/usr/local/arcpanel/bin*}" = "$PATH" ]; then
+    . /etc/profile.d/arcpanel.sh
 fi
 
 load 'test_helper/bats-support/load'
 load 'test_helper/bats-assert/load'
 load 'test_helper/bats-file/load'
 
-HESTIA=/usr/local/hestia
-PKG_DIR=$HESTIA/data/packages
-PORTS_DIR=$HESTIA/data/ports
-RULES=$HESTIA/data/firewall/rules.conf
+ARCPANEL=/usr/local/arcpanel
+PKG_DIR=$ARCPANEL/data/packages
+PORTS_DIR=$ARCPANEL/data/ports
+RULES=$ARCPANEL/data/firewall/rules.conf
 PASS="Tp-$(date +%s)-Pass"
 USERS="tpu1 tpu2 tpu3 tpu4 tpu5"
 
@@ -87,13 +87,13 @@ teardown_file() {
     assert_success
     run v-add-sys-port-registry
     assert_success
-    run grep -c "^PORT_RANGE_START=" "$HESTIA/conf/hestia.conf"
+    run grep -c "^PORT_RANGE_START=" "$ARCPANEL/conf/arcpanel.conf"
     assert_output "1"
     run grep "^PORT='8083' .*APP='system'" "$PORTS_DIR/.reserved.conf"
     assert_success
     run v-list-sys-config json
     assert_output --partial '"PORT_REGISTRY": "yes"'
-    run grep -c "v-check-sys-ports notify" /var/spool/cron/crontabs/hestiaweb
+    run grep -c "v-check-sys-ports notify" /var/spool/cron/crontabs/arcpanelweb
     assert_output "1"
 }
 
@@ -437,12 +437,12 @@ teardown_file() {
 }
 
 @test "Hook: a failing hook is logged and does not fail the command" {
-    hook=$HESTIA/func/hooks.d/post_suspend_user/99-tp-fail.sh
+    hook=$ARCPANEL/func/hooks.d/post_suspend_user/99-tp-fail.sh
     echo 'exit 3' > "$hook"
     run v-suspend-user tph1
     rm -f "$hook"
     assert_success
-    run grep "hook post_suspend_user/99-tp-fail.sh failed with code 3 (tph1)" "$HESTIA/log/system.log"
+    run grep "hook post_suspend_user/99-tp-fail.sh failed with code 3 (tph1)" "$ARCPANEL/log/system.log"
     assert_success
     v-unsuspend-user tph1
 }

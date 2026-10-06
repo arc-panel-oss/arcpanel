@@ -1,7 +1,7 @@
 #!/usr/bin/env bats
 
-if [ "${PATH#*/usr/local/hestia/bin*}" = "$PATH" ]; then
-    . /etc/profile.d/hestia.sh
+if [ "${PATH#*/usr/local/arcpanel/bin*}" = "$PATH" ]; then
+    . /etc/profile.d/arcpanel.sh
 fi
 
 load 'test_helper/bats-support/load'
@@ -15,24 +15,24 @@ head /dev/urandom | tr -dc 0-9 | head -c$1
 function setup() {
     # echo "# Setup_file" > &3
     if [ $BATS_TEST_NUMBER = 1 ]; then
-        echo 'user=test-5285' > /tmp/hestia-test-env.sh
-        echo 'user2=test-5286' >> /tmp/hestia-test-env.sh
-        echo 'userbk=testbk-5285' >> /tmp/hestia-test-env.sh
-        echo 'userpass1=test-5285' >> /tmp/hestia-test-env.sh
-        echo 'userpass2=t3st-p4ssw0rd' >> /tmp/hestia-test-env.sh
-        echo 'HESTIA=/usr/local/hestia' >> /tmp/hestia-test-env.sh
-        echo 'domain=test-5285.hestiacp.com' >> /tmp/hestia-test-env.sh
-        echo 'domainuk=test-5285.hestiacp.com.uk' >> /tmp/hestia-test-env.sh
-        echo 'rootdomain=testhestiacp.com' >> /tmp/hestia-test-env.sh
-        echo 'subdomain=cdn.testhestiacp.com' >> /tmp/hestia-test-env.sh
-        echo 'database=test-5285_database' >> /tmp/hestia-test-env.sh
-        echo 'dbuser=test-5285_dbuser' >> /tmp/hestia-test-env.sh
+        echo 'user=test-5285' > /tmp/arcpanel-test-env.sh
+        echo 'user2=test-5286' >> /tmp/arcpanel-test-env.sh
+        echo 'userbk=testbk-5285' >> /tmp/arcpanel-test-env.sh
+        echo 'userpass1=test-5285' >> /tmp/arcpanel-test-env.sh
+        echo 'userpass2=t3st-p4ssw0rd' >> /tmp/arcpanel-test-env.sh
+        echo 'ARCPANEL=/usr/local/arcpanel' >> /tmp/arcpanel-test-env.sh
+        echo 'domain=test-5285.hestiacp.com' >> /tmp/arcpanel-test-env.sh
+        echo 'domainuk=test-5285.hestiacp.com.uk' >> /tmp/arcpanel-test-env.sh
+        echo 'rootdomain=testhestiacp.com' >> /tmp/arcpanel-test-env.sh
+        echo 'subdomain=cdn.testhestiacp.com' >> /tmp/arcpanel-test-env.sh
+        echo 'database=test-5285_database' >> /tmp/arcpanel-test-env.sh
+        echo 'dbuser=test-5285_dbuser' >> /tmp/arcpanel-test-env.sh
     fi
 
-    source /tmp/hestia-test-env.sh
-    source $HESTIA/func/main.sh
-    source $HESTIA/conf/hestia.conf
-    source $HESTIA/func/ip.sh
+    source /tmp/arcpanel-test-env.sh
+    source $ARCPANEL/func/main.sh
+    source $ARCPANEL/conf/arcpanel.conf
+    source $ARCPANEL/func/ip.sh
 }
 
 
@@ -48,12 +48,12 @@ function validate_web_domain() {
     refute [ -z "$domain" ]
     refute [ -z "$webproof" ]
 
-    source $HESTIA/func/ip.sh
+    source $ARCPANEL/func/ip.sh
 
     run v-list-web-domain $user $domain
     assert_success
 
-    USER_DATA=$HESTIA/data/users/$user
+    USER_DATA=$ARCPANEL/data/users/$user
     local domain_ip=$(get_object_value 'web' 'DOMAIN' "$domain" '$IP')
     SSL=$(get_object_value 'web' 'DOMAIN' "$domain" '$SSL')
     domain_ip=$(get_real_ip "$domain_ip")

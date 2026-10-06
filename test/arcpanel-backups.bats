@@ -4,16 +4,16 @@
 # Run as root on a test server with restic installed. Uses a local restic
 # repository below /backup when the server has none, and removes it again.
 
-if [ "${PATH#*/usr/local/hestia/bin*}" = "$PATH" ]; then
-    . /etc/profile.d/hestia.sh
+if [ "${PATH#*/usr/local/arcpanel/bin*}" = "$PATH" ]; then
+    . /etc/profile.d/arcpanel.sh
 fi
 
 load 'test_helper/bats-support/load'
 load 'test_helper/bats-assert/load'
 load 'test_helper/bats-file/load'
 
-HESTIA=/usr/local/hestia
-PIPE=$HESTIA/data/queue/backup.pipe
+ARCPANEL=/usr/local/arcpanel
+PIPE=$ARCPANEL/data/queue/backup.pipe
 BK_USER=arcbatsbk
 BK_PLAIN=arcbatsbk2
 BK_PACKAGE=arcbats-incremental
@@ -26,7 +26,7 @@ setup_file() {
     v-delete-user "$BK_USER" > /dev/null 2>&1 || true
     v-delete-user "$BK_PLAIN" > /dev/null 2>&1 || true
     rm -rf "$REPO_DIR/$BK_USER"
-    if [ -f "$HESTIA/conf/restic.conf" ]; then
+    if [ -f "$ARCPANEL/conf/restic.conf" ]; then
         echo existing > "$STATE"
     else
         echo created > "$STATE"
@@ -34,7 +34,7 @@ setup_file() {
         v-add-backup-host-restic "$REPO_DIR" 5 -1 -1 -1 -1 > /dev/null
     fi
     tmp=$(mktemp)
-    sed "s/^BACKUPS_INCREMENTAL=.*/BACKUPS_INCREMENTAL='yes'/" "$HESTIA/data/packages/default.pkg" > "$tmp"
+    sed "s/^BACKUPS_INCREMENTAL=.*/BACKUPS_INCREMENTAL='yes'/" "$ARCPANEL/data/packages/default.pkg" > "$tmp"
     grep -q "^BACKUPS_INCREMENTAL=" "$tmp" || echo "BACKUPS_INCREMENTAL='yes'" >> "$tmp"
     v-add-user-package "$tmp" "$BK_PACKAGE" yes > /dev/null 2>&1 || v-add-user-package "$tmp" "$BK_PACKAGE" > /dev/null
     rm -f "$tmp"
@@ -51,7 +51,7 @@ teardown_file() {
     v-delete-user "$BK_PLAIN" > /dev/null 2>&1 || true
     v-delete-user-package "$BK_PACKAGE" > /dev/null 2>&1 || true
     if [ "$(cat "$STATE" 2> /dev/null)" = created ]; then
-        v-delete-backup-host-restic > /dev/null 2>&1 || rm -f "$HESTIA/conf/restic.conf"
+        v-delete-backup-host-restic > /dev/null 2>&1 || rm -f "$ARCPANEL/conf/restic.conf"
         v-change-sys-config-value BACKUP_INCREMENTAL no > /dev/null 2>&1 || true
         rm -rf "$REPO_DIR"
     fi
@@ -131,7 +131,7 @@ snapshot_id() {
     # Demo mode also blocks v-change-sys-config-value, so it is switched in the file.
     v-change-sys-config-value DEMO_MODE yes
     run v-schedule-user-restore-file-restic "$BK_USER" "$snapshot" "/home/$BK_USER/tmp/notes/a.txt"
-    sed -i "s/^DEMO_MODE='yes'/DEMO_MODE='no'/" "$HESTIA/conf/hestia.conf"
+    sed -i "s/^DEMO_MODE='yes'/DEMO_MODE='no'/" "$ARCPANEL/conf/arcpanel.conf"
     assert_failure 1
     assert_output --partial 'security restrictions'
 }

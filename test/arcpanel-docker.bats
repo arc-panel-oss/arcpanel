@@ -6,18 +6,18 @@
 # apps come from the fixture catalog test/fixtures/docker-catalog (busybox
 # image, pulled once from Docker Hub).
 
-if [ "${PATH#*/usr/local/hestia/bin*}" = "$PATH" ]; then
-    . /etc/profile.d/hestia.sh
+if [ "${PATH#*/usr/local/arcpanel/bin*}" = "$PATH" ]; then
+    . /etc/profile.d/arcpanel.sh
 fi
 
 load 'test_helper/bats-support/load'
 load 'test_helper/bats-assert/load'
 load 'test_helper/bats-file/load'
 
-HESTIA=/usr/local/hestia
-PKG_DIR=$HESTIA/data/packages
-PORTS_DIR=$HESTIA/data/ports
-CONF=$HESTIA/conf/hestia.conf
+ARCPANEL=/usr/local/arcpanel
+PKG_DIR=$ARCPANEL/data/packages
+PORTS_DIR=$ARCPANEL/data/ports
+CONF=$ARCPANEL/conf/arcpanel.conf
 FIXTURES="$BATS_TEST_DIRNAME/fixtures/docker-catalog"
 export ARC_DOCKER_CATALOG="$FIXTURES"
 
@@ -67,9 +67,9 @@ source_value() {
     grep "^$1=" "$CONF" | tail -n1 | cut -d"'" -f2
 }
 if [ "$(source_value WEB_SYSTEM)" = 'nginx' ]; then
-    tpl_of() { grep "^DOMAIN='$2' " "$HESTIA/data/users/$1/web.conf" | grep -o " TPL='[^']*'" | cut -d"'" -f2; }
+    tpl_of() { grep "^DOMAIN='$2' " "$ARCPANEL/data/users/$1/web.conf" | grep -o " TPL='[^']*'" | cut -d"'" -f2; }
 else
-    tpl_of() { grep "^DOMAIN='$2' " "$HESTIA/data/users/$1/web.conf" | grep -o " PROXY='[^']*'" | cut -d"'" -f2; }
+    tpl_of() { grep "^DOMAIN='$2' " "$ARCPANEL/data/users/$1/web.conf" | grep -o " PROXY='[^']*'" | cut -d"'" -f2; }
 fi
 
 make_package() {
@@ -87,11 +87,11 @@ make_package() {
 # Local address of the domain (web.conf may hold the NAT address)
 web_ip() {
     local ip
-    ip=$(grep "^DOMAIN='$2' " "$HESTIA/data/users/$1/web.conf" | grep -o " IP='[^']*'" | cut -d"'" -f2)
-    if [ -f "$HESTIA/data/ips/$ip" ]; then
+    ip=$(grep "^DOMAIN='$2' " "$ARCPANEL/data/users/$1/web.conf" | grep -o " IP='[^']*'" | cut -d"'" -f2)
+    if [ -f "$ARCPANEL/data/ips/$ip" ]; then
         echo "$ip"
     else
-        basename "$(grep -l "^NAT='$ip'" "$HESTIA"/data/ips/* | head -n1)"
+        basename "$(grep -l "^NAT='$ip'" "$ARCPANEL"/data/ips/* | head -n1)"
     fi
 }
 
@@ -119,7 +119,7 @@ eventually() {
 }
 
 app_field() {
-    grep "^NAME='$2' " "$HESTIA/data/users/$1/dockerapps.conf" | grep -oE "(^| )$3='[^']*'" | cut -d"'" -f2
+    grep "^NAME='$2' " "$ARCPANEL/data/users/$1/dockerapps.conf" | grep -oE "(^| )$3='[^']*'" | cut -d"'" -f2
 }
 
 port_app() {
@@ -154,7 +154,7 @@ container_of() {
 cleanup() {
     local user name
     for user in $USERS; do
-        for name in $(grep -oE "^NAME='[^']*'" "$HESTIA/data/users/$user/dockerapps.conf" 2> /dev/null | cut -d"'" -f2); do
+        for name in $(grep -oE "^NAME='[^']*'" "$ARCPANEL/data/users/$user/dockerapps.conf" 2> /dev/null | cut -d"'" -f2); do
             v-delete-docker-app "$user" "$name" > /dev/null 2>&1 || true
         done
         v-delete-user "$user" > /dev/null 2>&1 || true
@@ -320,8 +320,8 @@ teardown_file() {
 @test "Checks: the override runs every service as the user without capabilities" {
     dir=$(mktemp -d)
     DOCKER_RENDER_UID=4321 DOCKER_RENDER_GID=4321 bash -c '
-        source /etc/hestiacp/hestia.conf; source $HESTIA/func/main.sh; source $HESTIA/func/tenancy.sh
-        source $HESTIA/func/ports.sh; source_conf $HESTIA/conf/hestia.conf; source $HESTIA/func/docker.sh
+        source /etc/arcpanel/arcpanel.conf; source $ARCPANEL/func/main.sh; source $ARCPANEL/func/tenancy.sh
+        source $ARCPANEL/func/ports.sh; source_conf $ARCPANEL/conf/arcpanel.conf; source $ARCPANEL/func/docker.sh
         m=$(docker_manifest tiny 1.0.0)
         dockerapp_env_render "$m" someone tiny app.example.com /dev/null /dev/null "$1/.env" install "web:30100:no extra:30101:yes"
         docker_render "$1" ap-4321-tiny someone tiny tiny 1.0.0 0.25 64 "web:30100:no extra:30101:yes"
@@ -373,7 +373,7 @@ teardown_file() {
     assert_failure 2
     assert_output --partial "unknown variable NOPE"
     rm -f /tmp/tdk-vars
-    [ ! -s "$HESTIA/data/users/$U1/dockerapps.conf" ]
+    [ ! -s "$ARCPANEL/data/users/$U1/dockerapps.conf" ]
     [ ! -d "/home/$U1/apps/tiny" ]
 }
 
@@ -418,9 +418,9 @@ teardown_file() {
     grep -q "^GREETING='hi-there'" "/home/$U1/apps/tiny/.env"
     run grep -c '^ARC_' "/home/$U1/apps/tiny/.env"
     assert_output "0"
-    run grep -c 'SECRET' "$HESTIA/data/users/$U1/dockerapps.conf"
+    run grep -c 'SECRET' "$ARCPANEL/data/users/$U1/dockerapps.conf"
     assert_output "0"
-    assert_equal "$(stat -c '%U %a' "$HESTIA/data/users/$U1/docker/tiny/.env")" "root 600"
+    assert_equal "$(stat -c '%U %a' "$ARCPANEL/data/users/$U1/docker/tiny/.env")" "root 600"
 }
 
 @test "Install: names, domains and the package limit" {
@@ -458,11 +458,11 @@ teardown_file() {
     assert_success
     echo "$output" | jq -e '[.VARIABLES[] | select(.NAME == "SECRET")][0] | .VALUE == "" and .SET == "yes" and .SECRET == "yes"'
     echo "$output" | jq -e '[.VARIABLES[] | select(.NAME == "GREETING")][0].VALUE == "hi-there"'
-    secret=$(grep "^SECRET=" "$HESTIA/data/users/$U1/docker/tiny/.env")
+    secret=$(grep "^SECRET=" "$ARCPANEL/data/users/$U1/docker/tiny/.env")
     printf 'GREETING=changed\nSECRET=\n' > /tmp/tdk-vars
     run v-change-docker-app-env $U1 tiny /tmp/tdk-vars
     assert_success
-    assert_equal "$(grep "^SECRET=" "$HESTIA/data/users/$U1/docker/tiny/.env")" "$secret"
+    assert_equal "$(grep "^SECRET=" "$ARCPANEL/data/users/$U1/docker/tiny/.env")" "$secret"
     assert_equal "$(eventually "changed v1" fetch $U1 $DA)" "changed v1"
     echo "SEED=other" > /tmp/tdk-vars
     run v-change-docker-app-env $U1 tiny /tmp/tdk-vars
@@ -539,7 +539,7 @@ teardown_file() {
     [ "$(tpl_of $U1 $DA)" != "docker-proxy" ]
     assert_equal "$(app_field $U1 tiny DOMAIN)" "$DB"
     assert_equal "$(app_field $U1 tiny PREV_TPL)" "$prev"
-    grep -q "^ARC_URL='http://$DB'" "$HESTIA/data/users/$U1/docker/tiny/.env"
+    grep -q "^ARC_URL='http://$DB'" "$ARCPANEL/data/users/$U1/docker/tiny/.env"
     assert_equal "$(eventually "changed v1" fetch $U1 $DB)" "changed v1"
     # the old domain serves its own site again
     assert_equal "$(eventually 200 fetch_status $U1 $DA)" "200"
@@ -556,12 +556,12 @@ teardown_file() {
     [ -z "$(port_app $U1 "$port")" ]
     [ -z "$(container_of $U1 tiny)" ]
     [ ! -d "/home/$U1/apps/tiny" ]
-    [ ! -d "$HESTIA/data/users/$U1/docker/tiny" ]
+    [ ! -d "$ARCPANEL/data/users/$U1/docker/tiny" ]
     ls /home/$U1/apps/.removed/tiny-*/www/keep.txt
     run v-delete-docker-app $U1 worker
     assert_success
     [ ! -d "/home/$U1/apps/worker" ]
-    [ ! -s "$HESTIA/data/users/$U1/dockerapps.conf" ]
+    [ ! -s "$ARCPANEL/data/users/$U1/dockerapps.conf" ]
 }
 
 #----------------------------------------------------------#
@@ -569,9 +569,9 @@ teardown_file() {
 #----------------------------------------------------------#
 
 @test "Cron: the check and the dumps 15 minutes before the backup" {
-    grep -q "^\*/5 \* \* \* \* sudo /usr/local/hestia/bin/v-check-sys-docker repair" /var/spool/cron/crontabs/hestiaweb
-    backup=$(grep -m1 -E "^[0-9]+ [0-9]+ .*v-backup-users" /var/spool/cron/crontabs/hestiaweb | awk '{ print $1 * 1 + $2 * 60 }')
-    dumps=$(grep -m1 "v-backup-docker-apps all" /var/spool/cron/crontabs/hestiaweb | awk '{ print $1 * 1 + $2 * 60 }')
+    grep -q "^\*/5 \* \* \* \* sudo /usr/local/arcpanel/bin/v-check-sys-docker repair" /var/spool/cron/crontabs/arcpanelweb
+    backup=$(grep -m1 -E "^[0-9]+ [0-9]+ .*v-backup-users" /var/spool/cron/crontabs/arcpanelweb | awk '{ print $1 * 1 + $2 * 60 }')
+    dumps=$(grep -m1 "v-backup-docker-apps all" /var/spool/cron/crontabs/arcpanelweb | awk '{ print $1 * 1 + $2 * 60 }')
     assert_equal "$(((backup - dumps + 1440) % 1440))" "15"
 }
 
@@ -669,7 +669,7 @@ teardown_file() {
     assert_success
     assert_equal "$(eventually "hello v1" fetch $U1 $DA)" "hello v1"
     [ -z "$(docker ps -aq --filter label=top.arcpanel.app=ghost)" ]
-    jq -e '.MODE == "repair"' "$HESTIA/data/docker/report.json"
+    jq -e '.MODE == "repair"' "$ARCPANEL/data/docker/report.json"
     extra=$(app_field $U1 upd EXTRA_PORTS)
     port=${extra#extra:}
     v-change-user-port-public-ok $U1 "$port" yes > /dev/null
@@ -743,6 +743,6 @@ teardown_file() {
     run v-delete-user $U2
     assert_success
     [ -z "$(docker ps -aq --filter label=top.arcpanel.user=$U2)" ]
-    [ ! -d "$HESTIA/data/users/$U2" ]
+    [ ! -d "$ARCPANEL/data/users/$U2" ]
     v-add-user $U2 "$PASS" "$U2@example.invalid" tdk-dev > /dev/null
 }

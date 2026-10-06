@@ -3,20 +3,20 @@
 # docs/features/specs/2026-10-05-003-e11-reseller-design.md).
 # Run as root on a server installed with the ArcPanel installer.
 
-if [ "${PATH#*/usr/local/hestia/bin*}" = "$PATH" ]; then
-    . /etc/profile.d/hestia.sh
+if [ "${PATH#*/usr/local/arcpanel/bin*}" = "$PATH" ]; then
+    . /etc/profile.d/arcpanel.sh
 fi
 
 load 'test_helper/bats-support/load'
 load 'test_helper/bats-assert/load'
 load 'test_helper/bats-file/load'
 
-HESTIA=/usr/local/hestia
-PKG_DIR=$HESTIA/data/packages
+ARCPANEL=/usr/local/arcpanel
+PKG_DIR=$ARCPANEL/data/packages
 RESELLER=tnres
 RESELLER2=tnres2
 PASS="Tn-$(date +%s)-Pass"
-ROOT_USER=$(grep "^ROOT_USER=" "$HESTIA/conf/hestia.conf" | cut -d"'" -f2)
+ROOT_USER=$(grep "^ROOT_USER=" "$ARCPANEL/conf/arcpanel.conf" | cut -d"'" -f2)
 
 # A package with every quota key finite
 make_package() {
@@ -63,7 +63,7 @@ teardown_file() {
     assert_success
     run v-change-user-role "$RESELLER2" reseller
     assert_success
-    run grep "^ROLE='reseller'" "$HESTIA/data/users/$RESELLER/user.conf"
+    run grep "^ROLE='reseller'" "$ARCPANEL/data/users/$RESELLER/user.conf"
     assert_success
 }
 
@@ -102,7 +102,7 @@ teardown_file() {
 @test "Reseller adds a customer with an assignable package" {
     run v-add-reseller-user "$RESELLER" tnc1 "$PASS" tnc1@example.invalid tn-small
     assert_success
-    run cat "$HESTIA/data/users/tnc1/tenancy.conf"
+    run cat "$ARCPANEL/data/users/tnc1/tenancy.conf"
     assert_output --partial "OWNER='$RESELLER'"
 }
 
@@ -155,7 +155,7 @@ teardown_file() {
 @test "Counters sum the tree" {
     run v-update-reseller-counters "$RESELLER"
     assert_success
-    run grep "^R_USERS=" "$HESTIA/data/users/$RESELLER/tenancy.conf"
+    run grep "^R_USERS=" "$ARCPANEL/data/users/$RESELLER/tenancy.conf"
     assert_output "R_USERS='2'"
 }
 
@@ -173,7 +173,7 @@ teardown_file() {
     assert_success
     run v-rebuild-user tnc1
     assert_success
-    run grep "^OWNER=" "$HESTIA/data/users/tnc1/tenancy.conf"
+    run grep "^OWNER=" "$ARCPANEL/data/users/tnc1/tenancy.conf"
     assert_output "OWNER='$RESELLER'"
 }
 
@@ -192,7 +192,7 @@ teardown_file() {
     assert_success
     run v-list-reseller-users "$RESELLER2" plain
     assert_line --partial "tnc2"
-    run grep "^R_USERS=" "$HESTIA/data/users/$RESELLER/tenancy.conf"
+    run grep "^R_USERS=" "$ARCPANEL/data/users/$RESELLER/tenancy.conf"
     assert_output "R_USERS='1'"
     run v-change-user-owner tnc2 "$ROOT_USER"
     assert_success
@@ -257,6 +257,6 @@ teardown_file() {
     run v-add-sys-tenancy
     assert_success
     assert_file_exists "$PKG_DIR/reseller.pkg"
-    run grep -c "v-update-reseller-counters" /var/spool/cron/crontabs/hestiaweb
+    run grep -c "v-update-reseller-counters" /var/spool/cron/crontabs/arcpanelweb
     assert_output "1"
 }

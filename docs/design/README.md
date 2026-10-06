@@ -26,7 +26,7 @@ Every design here follows the constraints the roadmap already fixed:
 | 08  | [App Store](./08-app-store.md) — Docker engine, catalog format, lifecycle, system packages                                                | E4, E5        | Draft  |
 | 09  | [Web templates with metadata](./09-web-templates-metadata.md) — sidecar format, new templates, picker                                     | E6            | Draft  |
 | 10  | [Page migration and legacy retirement](./10-page-migration-and-retirement.md) — module order, page recipe, 2.0 cut-over, branding         | E7, E8, E9    | Draft  |
-| 11  | [Testing and CI](./11-testing-and-ci.md) — Pest, Playwright, BATS, upstream-diff check                                                    | E10           | Draft  |
+| 11  | [Testing and CI](./11-testing-and-ci.md) — Pest, Playwright, BATS, brand check                                                            | E10           | Draft  |
 | 12  | [Security model](./12-security-model.md) — trust boundaries, sudo, sessions, secrets, isolation                                           | all           | Draft  |
 | 13  | [Data model reference](./13-data-model-reference.md) — every new file, key and command introduced by the designs                          | all           | Draft  |
 | 14  | [Later backlog designs](./14-later-backlog.md) — Job Center, alerts, Doctor, audit log, WAF and the rest of E15–E33                       | E15–E33       | Sketch |
@@ -38,16 +38,16 @@ Architecture Decision Records live in [`docs/adr/`](../adr/README.md). The ADRs 
 
 - Start with **01** for the big picture, then **02** and **03**: everything else is built on the session bridge, `ArcCommand` and the policy layer defined there.
 - Each epic document has the same shape: _Goal_ → _Current state in the code_ → _Design_ (data, commands, services, UI) → _Failure modes_ → _Testing_ → _Open questions_.
-- Paths such as `bin/v-add-user` refer to this repository; runtime paths such as `/usr/local/hestia/data/users/<user>/user.conf` refer to an installed server (`$HESTIA` = `/usr/local/hestia`).
+- Paths such as `bin/v-add-user` refer to this repository; runtime paths such as `/usr/local/arcpanel/data/users/<user>/user.conf` refer to an installed server (`$ARCPANEL` = `/usr/local/arcpanel`).
 - Commands written as `v-*` are shell scripts in `bin/`. New ones proposed by a design are marked **new**; everything else already exists in 1.10.5.
 
 ## Conventions used in the designs
 
 | Term               | Meaning                                                                                                                                                                                      |
 | ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Legacy app**     | The PHP pages under `web/` served by `hestia-nginx` + `hestia-php` on port 8083                                                                                                              |
+| **Legacy app**     | The PHP pages under `web/` served by `arcpanel-nginx` + `arcpanel-php` on port 8083                                                                                                          |
 | **Panel app**      | The Laravel application introduced in E1 (repository path `web-app/`)                                                                                                                        |
-| **`ArcCommand`**   | The single service through which the panel app runs `sudo /usr/local/hestia/bin/v-*`                                                                                                         |
+| **`ArcCommand`**   | The single service through which the panel app runs `sudo /usr/local/arcpanel/bin/v-*`                                                                                                       |
 | **Principal**      | Whoever is acting: a logged-in user, an impersonated user ("login as"), or an API access key                                                                                                 |
 | **Effective user** | The Hestia user whose objects are being read or changed (the impersonated user when "login as" is active)                                                                                    |
 | **Owner**          | For a user: the reseller that manages it, or the root admin (`ROOT_USER`)                                                                                                                    |

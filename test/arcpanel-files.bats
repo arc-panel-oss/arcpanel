@@ -5,19 +5,19 @@
 # cases mount a small tmpfs and a loop ext4 image with user quotas inside the
 # test user's home.
 
-if [ "${PATH#*/usr/local/hestia/bin*}" = "$PATH" ]; then
-    . /etc/profile.d/hestia.sh
+if [ "${PATH#*/usr/local/arcpanel/bin*}" = "$PATH" ]; then
+    . /etc/profile.d/arcpanel.sh
 fi
 
 load 'test_helper/bats-support/load'
 load 'test_helper/bats-assert/load'
 load 'test_helper/bats-file/load'
 
-HESTIA=/usr/local/hestia
-STAGING=$HESTIA/web-app/storage/app/files
+ARCPANEL=/usr/local/arcpanel
+STAGING=$ARCPANEL/web-app/storage/app/files
 UPLOADS=$STAGING/uploads
 DOWNLOADS=$STAGING/downloads
-CRONTAB=/var/spool/cron/crontabs/hestiaweb
+CRONTAB=/var/spool/cron/crontabs/arcpanelweb
 PASS="Tf-$(date +%s)-Pass"
 U1=tfu1
 U2=tfu2
@@ -69,13 +69,13 @@ token() {
 # prints the staged path
 stage() {
     local dir="$UPLOADS/$(token)"
-    install -d -o hestiaweb -g hestiaweb -m 700 "$dir"
+    install -d -o arcpanelweb -g arcpanelweb -m 700 "$dir"
     if [ "$1" = "--size" ]; then
         head -c "$2" /dev/urandom > "$dir/file"
     else
         printf '%s' "$1" > "$dir/file"
     fi
-    chown hestiaweb:hestiaweb "$dir/file"
+    chown arcpanelweb:arcpanelweb "$dir/file"
     chmod 600 "$dir/file"
     echo "$dir/file"
 }
@@ -84,10 +84,10 @@ stage() {
     run v-add-sys-panel-files
     assert_success
     for dir in "$STAGING" "$UPLOADS" "$DOWNLOADS"; do
-        assert_equal "$(stat -c '%U:%G %a' "$dir")" "hestiaweb:hestiaweb 700"
+        assert_equal "$(stat -c '%U:%G %a' "$dir")" "arcpanelweb:arcpanelweb 700"
     done
     assert_equal "$(grep -c 'artisan schedule:run' "$CRONTAB")" "1"
-    assert_equal "$(stat -c '%U %a' "$CRONTAB")" "hestiaweb 600"
+    assert_equal "$(stat -c '%U %a' "$CRONTAB")" "arcpanelweb 600"
 }
 
 @test "Listing: JSON, folders first, hidden, paging, sort, symlinks, odd names" {
@@ -304,7 +304,7 @@ stage() {
     run v-add-fs-download $U1 "$ticket" "$T/my site/a b.txt"
     assert_success
     assert_equal "$(jq -r '"\(.NAME) \(.SIZE) \(.MIME)"' <<< "$output")" "a b.txt 5 text/plain"
-    assert_equal "$(stat -c '%U %a' "$DOWNLOADS/$ticket")" "hestiaweb 600"
+    assert_equal "$(stat -c '%U %a' "$DOWNLOADS/$ticket")" "arcpanelweb 600"
     assert_equal "$(cat "$DOWNLOADS/$ticket")" "hello"
     run v-add-fs-download $U1 "$ticket" "$T/my site/a b.txt"
     assert_failure 4

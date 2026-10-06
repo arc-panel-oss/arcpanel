@@ -2,9 +2,11 @@
 # Apply the rename rules of mapping.tsv to the tracked files of the
 # current repository (full rename, ADR-0007, spec 2026-10-06-005 §8).
 #
-# Usage: scripts/rename/apply.sh [--dry-run] [--review FILE] [PATH...]
+# Usage: scripts/rename/apply.sh [--dry-run | --check] [--review FILE] [PATH...]
 #
 #   --dry-run      list every rename and edit, change nothing
+#   --check        report old names that keep.txt does not allow and doubled
+#                  names, change nothing (test/brand-check.sh)
 #   --review FILE  write every changed line that holds sed, grep, awk,
 #                  perl or a regular expression to FILE (spec §13)
 #   PATH           limit the run to these paths (default: whole tree)
@@ -15,7 +17,8 @@
 # still matches, a rename target exists or a rewrite produces a doubled
 # name such as "arcpanelcp".
 #
-# Exit codes: 0 done, 1 refused (guard, collision, doubled name), 2 usage.
+# Exit codes: 0 done, 1 refused (guard, collision, doubled name) or, with
+# --check, old names found, 2 usage.
 
 set -euo pipefail
 
@@ -29,6 +32,9 @@ while [ $# -gt 0 ]; do
 		--dry-run)
 			dry_run=1
 			;;
+		--check)
+			dry_run=check
+			;;
 		--review)
 			[ $# -ge 2 ] || {
 				echo "apply.sh: --review needs a file" >&2
@@ -38,7 +44,7 @@ while [ $# -gt 0 ]; do
 			shift
 			;;
 		-h | --help)
-			sed -n '2,18p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+			sed -n '2,21p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
 			exit 0
 			;;
 		--)
@@ -169,7 +175,31 @@ sub slurp {
 }
 
 my $refused = 0;
+my $doubled = qr/arcpanel_?cp|arcpanel_?arcpanel|arcpanel-arcpanel|ArcPanelCP|ARCPANELCP|ARCPANEL_?ARCPANEL/;
 
+# --- Check: old names outside keep.txt, and doubled names
+if ($dry eq "check") {
+	my $found = 0;
+	for my $f (@files) {
+		my $p = $f->{path};
+		next if $f->{link} || kept_file($p) || ! -e $p || -B $p;
+		my $c = slurp($p);
+		for my $k (@keep_masks) {
+			next unless in_scope($k->{scope}, $p);
+			$c =~ s/$k->{re}/\x00/g;
+		}
+		my $n = 0;
+		for my $line (split /\n/, $c) {
+			$n++;
+			next unless $line =~ /hestia|\bhst[_-]/i || $line =~ $doubled;
+			(my $shown = $line) =~ s/\r\z//;
+			$shown =~ s/\x00/…/g;
+			print "$p:$n: $shown\n";
+			$found++;
+		}
+	}
+	exit($found ? 1 : 0);
+}
 # --- Guards
 for my $g (@guards) {
 	for my $f (@files) {
@@ -214,7 +244,6 @@ for my $f (@files) {
 # --- Text rewrites, computed in memory first
 my $review_re = qr/\b(?:sed|grep|egrep|awk|perl)\b|preg_\w+|=~|\bs([|#\/,]).+\1/;
 my (%content_of, @review_lines);
-my $doubled = qr/arcpanel_?cp|arcpanel_?arcpanel|arcpanel-arcpanel|ArcPanelCP|ARCPANELCP|ARCPANEL_?ARCPANEL/;
 for my $f (@files) {
 	my $old = $f->{path};
 	my $path = exists $target_of{$old} ? $target_of{$old} : $old;

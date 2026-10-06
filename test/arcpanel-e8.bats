@@ -3,8 +3,8 @@
 # docs/features/specs/2026-10-06-004-e8-legacy-retirement-design.md).
 # Run as root on a server installed with the ArcPanel installer.
 
-if [ "${PATH#*/usr/local/hestia/bin*}" = "$PATH" ]; then
-	. /etc/profile.d/hestia.sh
+if [ "${PATH#*/usr/local/arcpanel/bin*}" = "$PATH" ]; then
+	. /etc/profile.d/arcpanel.sh
 fi
 
 load 'test_helper/bats-support/load'
@@ -109,7 +109,7 @@ teardown_file() {
 }
 
 @test "The ARCPANEL_APP_* switches are gone" {
-	run grep -c "^ARCPANEL_APP_" /usr/local/hestia/conf/hestia.conf
+	run grep -c "^ARCPANEL_APP_" /usr/local/arcpanel/conf/arcpanel.conf
 	assert_output "0"
 	run v-list-sys-config json
 	assert_success
@@ -119,20 +119,20 @@ teardown_file() {
 }
 
 @test "The panel nginx configuration is valid" {
-	run /usr/local/hestia/nginx/sbin/hestia-nginx -t
+	run /usr/local/arcpanel/nginx/sbin/arcpanel-nginx -t
 	assert_success
 }
 
 # M2: lib/ and the deletion of web/ (spec §6)
 
-HESTIA_DIR="/usr/local/hestia"
+ARCPANEL_DIR="/usr/local/arcpanel"
 
 @test "web/ is gone and lib/ holds the libraries" {
-	assert_not_exists "$HESTIA_DIR/web"
-	assert_file_exists "$HESTIA_DIR/lib/vendor/autoload.php"
-	assert_file_exists "$HESTIA_DIR/lib/quickinstall/vendor/autoload.php"
-	assert_file_executable "$HESTIA_DIR/lib/mail-wrapper.php"
-	run grep -c "web/rrd\|web/inc\|web/css" "$HESTIA_DIR/func/main.sh"
+	assert_not_exists "$ARCPANEL_DIR/web"
+	assert_file_exists "$ARCPANEL_DIR/lib/vendor/autoload.php"
+	assert_file_exists "$ARCPANEL_DIR/lib/quickinstall/vendor/autoload.php"
+	assert_file_executable "$ARCPANEL_DIR/lib/mail-wrapper.php"
+	run grep -c "web/rrd\|web/inc\|web/css" "$ARCPANEL_DIR/func/main.sh"
 	assert_output "0"
 }
 
@@ -141,7 +141,7 @@ HESTIA_DIR="/usr/local/hestia"
 	assert_success
 	secret="$(v-list-user "$E8_USER" json | jq -r ".\"$E8_USER\".TWOFA")"
 	assert [ -n "$secret" ]
-	code="$("$HESTIA_DIR/php/bin/php" -r 'require "/usr/local/hestia/lib/vendor/autoload.php"; $t = new RobThree\Auth\TwoFactorAuth(new RobThree\Auth\Providers\Qr\QRServerProvider(), "ArcPanel"); echo $t->getCode($argv[1]);' "$secret")"
+	code="$("$ARCPANEL_DIR/php/bin/php" -r 'require "/usr/local/arcpanel/lib/vendor/autoload.php"; $t = new RobThree\Auth\TwoFactorAuth(new RobThree\Auth\Providers\Qr\QRServerProvider(), "ArcPanel"); echo $t->getCode($argv[1]);' "$secret")"
 	run v-check-user-2fa "$E8_USER" "$code"
 	assert_success
 	run v-check-user-2fa "$E8_USER" 000000
@@ -169,19 +169,19 @@ HESTIA_DIR="/usr/local/hestia"
 }
 
 @test "White Label logos come from data/white-label and are served under /images/custom/" {
-	cp "$HESTIA_DIR/lib/images/logo-header.svg" "$BATS_FILE_TMPDIR/default-header.svg"
-	mkdir -p "$HESTIA_DIR/data/white-label"
-	printf '<svg xmlns="http://www.w3.org/2000/svg"><title>e8</title></svg>\n' > "$HESTIA_DIR/data/white-label/logo-header.svg"
+	cp "$ARCPANEL_DIR/lib/images/logo-header.svg" "$BATS_FILE_TMPDIR/default-header.svg"
+	mkdir -p "$ARCPANEL_DIR/data/white-label"
+	printf '<svg xmlns="http://www.w3.org/2000/svg"><title>e8</title></svg>\n' > "$ARCPANEL_DIR/data/white-label/logo-header.svg"
 	run v-update-white-label-logo
 	assert_success
-	run cat "$HESTIA_DIR/lib/images/logo-header.svg"
+	run cat "$ARCPANEL_DIR/lib/images/logo-header.svg"
 	assert_output --partial '<title>e8</title>'
 	run curl -sk "$PANEL/images/custom/logo-header.svg"
 	assert_output --partial '<title>e8</title>'
 	run curl -sk -o /dev/null -w '%{http_code}' "$PANEL/images/logo.svg"
 	assert_output "200"
-	rm -f "$HESTIA_DIR/data/white-label/logo-header.svg"
-	cp "$BATS_FILE_TMPDIR/default-header.svg" "$HESTIA_DIR/lib/images/logo-header.svg"
+	rm -f "$ARCPANEL_DIR/data/white-label/logo-header.svg"
+	cp "$BATS_FILE_TMPDIR/default-header.svg" "$ARCPANEL_DIR/lib/images/logo-header.svg"
 }
 
 @test "The API script answers from lib/api" {
@@ -231,7 +231,7 @@ e8_api_says() {
 
 @test "v-change-sys-api enables and disables the API in lib/api" {
 	local key
-	if grep -q '^die("Error: Disabled");' "$HESTIA_DIR/lib/api/index.php"; then
+	if grep -q '^die("Error: Disabled");' "$ARCPANEL_DIR/lib/api/index.php"; then
 		e8_restore_later "v-change-sys-api disable"
 	else
 		e8_restore_later "v-change-sys-api enable api"
@@ -249,7 +249,7 @@ e8_api_says() {
 	assert_success
 	v-change-sys-config-value API_ALLOWED_IP allow-all
 	assert_equal "$(e8_sys_config API_SYSTEM)" "1"
-	run grep -c '^//die("Error: Disabled");' "$HESTIA_DIR/lib/api/index.php"
+	run grep -c '^//die("Error: Disabled");' "$ARCPANEL_DIR/lib/api/index.php"
 	assert_output "1"
 	run e8_api_says '"sysinfo"'
 	assert_success
@@ -259,7 +259,7 @@ e8_api_says() {
 	run v-change-sys-api disable
 	assert_success
 	assert_equal "$(e8_sys_config API_SYSTEM)" "0"
-	run grep -c '^die("Error: Disabled");' "$HESTIA_DIR/lib/api/index.php"
+	run grep -c '^die("Error: Disabled");' "$ARCPANEL_DIR/lib/api/index.php"
 	assert_output "1"
 	run e8_api_says "Error: Disabled"
 	assert_success
@@ -269,30 +269,30 @@ e8_api_says() {
 
 @test "The file manager commands only toggle FILE_MANAGER" {
 	e8_restore_later "v-change-sys-config-value FILE_MANAGER '$(e8_sys_config FILE_MANAGER)'"
-	if [ ! -d "$HESTIA_DIR/web" ]; then
-		e8_restore_later "rm -rf '$HESTIA_DIR/web'"
+	if [ ! -d "$ARCPANEL_DIR/web" ]; then
+		e8_restore_later "rm -rf '$ARCPANEL_DIR/web'"
 	fi
 	# A FileGator leftover of 1.x
-	mkdir -p "$HESTIA_DIR/web/fm"
-	touch "$HESTIA_DIR/web/fm/index.php"
+	mkdir -p "$ARCPANEL_DIR/web/fm"
+	touch "$ARCPANEL_DIR/web/fm/index.php"
 
 	run v-delete-sys-filemanager quiet
 	assert_success
 	assert_equal "$(e8_sys_config FILE_MANAGER)" "false"
-	assert_not_exists "$HESTIA_DIR/web/fm"
+	assert_not_exists "$ARCPANEL_DIR/web/fm"
 
 	run v-add-sys-filemanager quiet
 	assert_success
 	assert_equal "$(e8_sys_config FILE_MANAGER)" "true"
-	assert_not_exists "$HESTIA_DIR/web/fm"
-	run grep -rl "filegator" "$HESTIA_DIR/conf" "$HESTIA_DIR/nginx/conf"
+	assert_not_exists "$ARCPANEL_DIR/web/fm"
+	run grep -rl "filegator" "$ARCPANEL_DIR/conf" "$ARCPANEL_DIR/nginx/conf"
 	assert_output ""
 }
 
 @test "RRD data is written under data/rrd" {
 	run v-update-sys-rrd
 	assert_success
-	assert_file_exists "$HESTIA_DIR/data/rrd/la/la.rrd"
+	assert_file_exists "$ARCPANEL_DIR/data/rrd/la/la.rrd"
 	run v-export-rrd la daily
 	assert_success
 }
@@ -312,8 +312,8 @@ FAKE
 	e8_fake_sendmail
 	app_name="$(v-list-sys-config json | jq -r .config.APP_NAME)"
 	from="$(v-list-sys-config json | jq -r .config.FROM_EMAIL)"
-	printf 'Line one\nLine <b>two</b> & three\n' | "$HESTIA_DIR/php/bin/php" -d sendmail_path="$BATS_FILE_TMPDIR/sendmail -t -i" \
-		"$HESTIA_DIR/lib/mail-wrapper.php" -s "E8 subject" e8@example.invalid
+	printf 'Line one\nLine <b>two</b> & three\n' | "$ARCPANEL_DIR/php/bin/php" -d sendmail_path="$BATS_FILE_TMPDIR/sendmail -t -i" \
+		"$ARCPANEL_DIR/lib/mail-wrapper.php" -s "E8 subject" e8@example.invalid
 	run cat "$BATS_FILE_TMPDIR/mail/message"
 	assert_output --partial "To: e8@example.invalid"
 	assert_output --partial "Subject: E8 subject"
@@ -327,10 +327,10 @@ FAKE
 
 @test "The mail wrapper skips NOTIFY=no and checks its arguments" {
 	e8_fake_sendmail
-	echo body | "$HESTIA_DIR/php/bin/php" -d sendmail_path="$BATS_FILE_TMPDIR/sendmail -t -i" \
-		"$HESTIA_DIR/lib/mail-wrapper.php" -s "E8 subject" e8@example.invalid no
+	echo body | "$ARCPANEL_DIR/php/bin/php" -d sendmail_path="$BATS_FILE_TMPDIR/sendmail -t -i" \
+		"$ARCPANEL_DIR/lib/mail-wrapper.php" -s "E8 subject" e8@example.invalid no
 	assert_not_exists "$BATS_FILE_TMPDIR/mail/message"
-	run "$HESTIA_DIR/lib/mail-wrapper.php"
+	run "$ARCPANEL_DIR/lib/mail-wrapper.php"
 	assert_equal "$status" 3
 	assert_output --partial "USAGE: mail-wrapper.php -s SUBJECT EMAIL [NOTIFY]"
 }

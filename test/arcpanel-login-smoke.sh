@@ -13,7 +13,7 @@
 set -euo pipefail
 
 PANEL="${PANEL:-https://127.0.0.1:8083}"
-HESTIA="${HESTIA:-/usr/local/hestia}"
+ARCPANEL="${ARCPANEL:-/usr/local/arcpanel}"
 SMOKE_USER="arcsmoke$RANDOM"
 SMOKE_PASS="$(head -c 18 /dev/urandom | base64 | tr -dc 'A-Za-z0-9' | head -c 20)Aa1"
 SMOKE_DOMAIN="$SMOKE_USER.example"
@@ -26,11 +26,11 @@ CERT_DIR="$(mktemp -d)"
 failures=0
 
 cleanup() {
-	"$HESTIA/bin/v-delete-user" "$SMOKE_USER" > /dev/null 2>&1 || true
-	"$HESTIA/bin/v-delete-user" "$SMOKE_CUSTOMER" > /dev/null 2>&1 || true
-	"$HESTIA/bin/v-delete-user" "$SMOKE_RESELLER" > /dev/null 2>&1 || true
-	"$HESTIA/bin/v-delete-user-package" "$SMOKE_PACKAGE" > /dev/null 2>&1 || true
-	"$HESTIA/bin/v-delete-package-tenancy" "$SMOKE_PACKAGE" > /dev/null 2>&1 || true
+	"$ARCPANEL/bin/v-delete-user" "$SMOKE_USER" > /dev/null 2>&1 || true
+	"$ARCPANEL/bin/v-delete-user" "$SMOKE_CUSTOMER" > /dev/null 2>&1 || true
+	"$ARCPANEL/bin/v-delete-user" "$SMOKE_RESELLER" > /dev/null 2>&1 || true
+	"$ARCPANEL/bin/v-delete-user-package" "$SMOKE_PACKAGE" > /dev/null 2>&1 || true
+	"$ARCPANEL/bin/v-delete-package-tenancy" "$SMOKE_PACKAGE" > /dev/null 2>&1 || true
 	rm -rf "$JAR" "$PAGE" "$CERT_DIR"
 }
 trap cleanup EXIT
@@ -59,10 +59,10 @@ csrf_token() {
 
 # domain_value KEY -> value of KEY in `v-list-web-domain USER DOMAIN shell`
 domain_value() {
-	"$HESTIA/bin/v-list-web-domain" "$SMOKE_USER" "$SMOKE_DOMAIN" shell 2> /dev/null | awk -v key="$1:" '$1 == key { print $2 }'
+	"$ARCPANEL/bin/v-list-web-domain" "$SMOKE_USER" "$SMOKE_DOMAIN" shell 2> /dev/null | awk -v key="$1:" '$1 == key { print $2 }'
 }
 
-"$HESTIA/bin/v-add-user" "$SMOKE_USER" "$SMOKE_PASS" "$SMOKE_USER@example.invalid" default > /dev/null
+"$ARCPANEL/bin/v-add-user" "$SMOKE_USER" "$SMOKE_PASS" "$SMOKE_USER@example.invalid" default > /dev/null
 
 # ---------- Part 1: login and logout ----------
 check "root URL sends guests to the login page" "302 $PANEL/login" "$(request GET /)"
@@ -83,7 +83,7 @@ token="$(csrf_token)"
 check "logout ends the session" "302 $PANEL/login" "$(request POST /logout --data-urlencode "_token=$token")"
 check "the user is a guest again" "302 $PANEL/login" "$(request GET /)"
 
-if grep -q "$SMOKE_USER" "$HESTIA/log/auth.log"; then ok "logins are in the auth log"; else fail "logins are in the auth log"; fi
+if grep -q "$SMOKE_USER" "$ARCPANEL/log/auth.log"; then ok "logins are in the auth log"; else fail "logins are in the auth log"; fi
 
 # ---------- Part 2: dashboard and web domains (S2) ----------
 rm -f "$JAR"
@@ -102,7 +102,7 @@ ip="$(grep -o '<option value="[0-9.]*"' "$PAGE" | head -n1 | sed 's/.*value="\([
 check "domain is added" "302 $PANEL/web/domains/$SMOKE_USER/$SMOKE_DOMAIN/edit" \
 	"$(request POST /web/domains --data-urlencode "_token=$token" --data-urlencode "domain=$SMOKE_DOMAIN" --data-urlencode "ip=$ip")"
 check "domain exists on the server" "$SMOKE_DOMAIN" \
-	"$("$HESTIA/bin/v-list-web-domains" "$SMOKE_USER" plain | awk '{print $1}' | grep -x "$SMOKE_DOMAIN" || true)"
+	"$("$ARCPANEL/bin/v-list-web-domains" "$SMOKE_USER" plain | awk '{print $1}' | grep -x "$SMOKE_DOMAIN" || true)"
 
 openssl req -x509 -newkey rsa:2048 -nodes -days 30 -subj "/CN=$SMOKE_DOMAIN" \
 	-keyout "$CERT_DIR/key.pem" -out "$CERT_DIR/crt.pem" > /dev/null 2>&1
@@ -124,16 +124,16 @@ check "domain is unsuspended" "no" "$(domain_value SUSPENDED)"
 check "domain is deleted" "302 $PANEL/web/domains" \
 	"$(request POST "/web/domains/$SMOKE_USER/$SMOKE_DOMAIN" --data-urlencode "_token=$token" --data-urlencode '_method=DELETE')"
 check "domain is gone from the server" "" \
-	"$("$HESTIA/bin/v-list-web-domains" "$SMOKE_USER" plain | awk '{print $1}' | grep -x "$SMOKE_DOMAIN" || true)"
+	"$("$ARCPANEL/bin/v-list-web-domains" "$SMOKE_USER" plain | awk '{print $1}' | grep -x "$SMOKE_DOMAIN" || true)"
 
 check "another user's domain answers 404" "404 " "$(request GET /web/domains/arcadmin/nope.example/edit)"
 
 # ---------- Part 3: resellers (E11) ----------
-"$HESTIA/bin/v-copy-user-package" default "$SMOKE_PACKAGE" > /dev/null
-"$HESTIA/bin/v-change-package-tenancy" "$SMOKE_PACKAGE" USERS 5
-"$HESTIA/bin/v-change-package-tenancy" "$SMOKE_PACKAGE" RESELLER_PACKAGES default
-"$HESTIA/bin/v-add-user" "$SMOKE_RESELLER" "$SMOKE_PASS" "$SMOKE_RESELLER@example.invalid" "$SMOKE_PACKAGE" > /dev/null
-"$HESTIA/bin/v-change-user-role" "$SMOKE_RESELLER" reseller
+"$ARCPANEL/bin/v-copy-user-package" default "$SMOKE_PACKAGE" > /dev/null
+"$ARCPANEL/bin/v-change-package-tenancy" "$SMOKE_PACKAGE" USERS 5
+"$ARCPANEL/bin/v-change-package-tenancy" "$SMOKE_PACKAGE" RESELLER_PACKAGES default
+"$ARCPANEL/bin/v-add-user" "$SMOKE_RESELLER" "$SMOKE_PASS" "$SMOKE_RESELLER@example.invalid" "$SMOKE_PACKAGE" > /dev/null
+"$ARCPANEL/bin/v-change-user-role" "$SMOKE_RESELLER" reseller
 rm -f "$JAR"
 
 request GET /login > /dev/null
@@ -151,7 +151,7 @@ check "customer is created" "302 $PANEL/users/$SMOKE_CUSTOMER" \
 		--data-urlencode "password=$SMOKE_PASS" --data-urlencode "email=$SMOKE_CUSTOMER@example.invalid" --data-urlencode 'name=Smoke Customer' \
 		--data-urlencode 'language=en' --data-urlencode 'package=default')"
 check "customer belongs to the reseller" "$SMOKE_RESELLER" \
-	"$("$HESTIA/bin/v-list-user-owners" plain | awk -v u="$SMOKE_CUSTOMER" '$1 == u { print $3 }')"
+	"$("$ARCPANEL/bin/v-list-user-owners" plain | awk -v u="$SMOKE_CUSTOMER" '$1 == u { print $3 }')"
 check "customer page renders" "200 " "$(request GET "/users/$SMOKE_CUSTOMER")"
 check "customers list renders" "200 " "$(request GET /users)"
 if grep -q "$SMOKE_CUSTOMER" "$PAGE" && ! grep -q ">$SMOKE_USER<" "$PAGE"; then ok "customers list shows only the tree"; else fail "customers list shows only the tree"; fi
@@ -171,7 +171,7 @@ request GET "/users/$SMOKE_CUSTOMER" > /dev/null
 token="$(csrf_token)"
 check "customer is deleted" "302 $PANEL/users" \
 	"$(request POST "/users/$SMOKE_CUSTOMER" --data-urlencode "_token=$token" --data-urlencode '_method=DELETE')"
-check "customer is gone from the server" "" "$("$HESTIA/bin/v-list-user-owners" plain | awk -v u="$SMOKE_CUSTOMER" '$1 == u')"
+check "customer is gone from the server" "" "$("$ARCPANEL/bin/v-list-user-owners" plain | awk -v u="$SMOKE_CUSTOMER" '$1 == u')"
 
 if [ "$failures" -gt 0 ]; then
 	echo "$failures check(s) failed"

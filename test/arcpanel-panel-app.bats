@@ -3,8 +3,8 @@
 # docs/features/specs/2026-10-05-001-e1-laravel-foundation-slice1-design.md).
 # Run as root on a server installed with the ArcPanel installer.
 
-if [ "${PATH#*/usr/local/hestia/bin*}" = "$PATH" ]; then
-    . /etc/profile.d/hestia.sh
+if [ "${PATH#*/usr/local/arcpanel/bin*}" = "$PATH" ]; then
+    . /etc/profile.d/arcpanel.sh
 fi
 
 load 'test_helper/bats-support/load'
@@ -22,7 +22,7 @@ app_key_hash() {
     assert_success
     assert_file_exists /etc/arcpanel/arcpanel.env
     run stat -c '%a %U:%G' /etc/arcpanel/arcpanel.env
-    assert_output "640 root:hestiaweb"
+    assert_output "640 root:arcpanelweb"
     run grep -c '^APP_KEY=base64:' /etc/arcpanel/arcpanel.env
     assert_output "1"
 }
@@ -34,25 +34,25 @@ app_key_hash() {
     assert_equal "$(app_key_hash)" "$before"
 }
 
-@test "Panel app storage is writable by hestiaweb only" {
-    run stat -c '%a %U' /usr/local/hestia/web-app/storage/logs /usr/local/hestia/web-app/bootstrap/cache
-    assert_output "750 hestiaweb
-750 hestiaweb"
+@test "Panel app storage is writable by arcpanelweb only" {
+    run stat -c '%a %U' /usr/local/arcpanel/web-app/storage/logs /usr/local/arcpanel/web-app/bootstrap/cache
+    assert_output "750 arcpanelweb
+750 arcpanelweb"
 }
 
 @test "Command allow-list is generated from the installed scripts" {
-    run grep -c "'v-list-user'" /usr/local/hestia/web-app/config/arc-commands.php
+    run grep -c "'v-list-user'" /usr/local/arcpanel/web-app/config/arc-commands.php
     assert_output "1"
 }
 
-@test "hestiaweb may run commands through the ArcPanel path" {
-    run runuser -u hestiaweb -- sudo -n /usr/local/arcpanel/bin/v-list-sys-config json
+@test "arcpanelweb may run commands through the ArcPanel path" {
+    run runuser -u arcpanelweb -- sudo -n /usr/local/arcpanel/bin/v-list-sys-config json
     assert_success
     assert_output --partial '"VERSION"'
 }
 
 @test "Panel nginx configuration is valid" {
-    run /usr/local/hestia/nginx/sbin/hestia-nginx -t
+    run /usr/local/arcpanel/nginx/sbin/arcpanel-nginx -t
     assert_success
 }
 
@@ -354,9 +354,9 @@ teardown_file() {
 }
 
 @test "Legacy reset pages redirect guests to the panel app" {
-    policy="$(grep -o "^POLICY_SYSTEM_PASSWORD_RESET='[a-z]*'" /usr/local/hestia/conf/hestia.conf | cut -d"'" -f2 || true)"
+    policy="$(grep -o "^POLICY_SYSTEM_PASSWORD_RESET='[a-z]*'" /usr/local/arcpanel/conf/arcpanel.conf | cut -d"'" -f2 || true)"
     v-change-sys-config-value POLICY_SYSTEM_PASSWORD_RESET yes
-    runuser -u hestiaweb -- /usr/local/hestia/php/bin/php /usr/local/hestia/web-app/artisan cache:forget arc.sys-config > /dev/null
+    runuser -u arcpanelweb -- /usr/local/arcpanel/php/bin/php /usr/local/arcpanel/web-app/artisan cache:forget arc.sys-config > /dev/null
     guest_get() {
         # the 1.x reset paths with a trailing slash are the panel pages
         curl -sk -o /dev/null -w '%{http_code} %{redirect_url}' "$PANEL$1"
@@ -371,13 +371,13 @@ teardown_file() {
     assert_output "200 "
     run guest_get /reset2fa
     v-change-sys-config-value POLICY_SYSTEM_PASSWORD_RESET "${policy:-yes}"
-    runuser -u hestiaweb -- /usr/local/hestia/php/bin/php /usr/local/hestia/web-app/artisan cache:forget arc.sys-config > /dev/null
+    runuser -u arcpanelweb -- /usr/local/arcpanel/php/bin/php /usr/local/arcpanel/web-app/artisan cache:forget arc.sys-config > /dev/null
     assert_output "200 "
 }
 
 @test "Panel app build ships hashed assets and fonts" {
-    run cat /usr/local/hestia/web-app/public/build/manifest.json
+    run cat /usr/local/arcpanel/web-app/public/build/manifest.json
     assert_success
     assert_output --regexp '"app.css": "app\.[0-9a-f]{10}\.css"'
-    assert_file_exists /usr/local/hestia/web-app/public/build/fonts/inter-latin-400-normal.woff2
+    assert_file_exists /usr/local/arcpanel/web-app/public/build/fonts/inter-latin-400-normal.woff2
 }

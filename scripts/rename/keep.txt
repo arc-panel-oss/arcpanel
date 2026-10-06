@@ -30,9 +30,8 @@ file	test/restore.bats
 # Suites that check the old names are gone and the old backup formats restore
 file	test/arcpanel-names.bats
 file	test/arcpanel-backup-formats.bats
-# Replaced by the inverted brand check in M7
+# The brand check describes the old names it looks for
 file	test/brand-check.sh
-file	test/brand-allowlist.txt
 
 # --- Attribution (GPLv3, ADR-0007 decision 6)
 text	Based on HestiaCP	*
@@ -43,6 +42,10 @@ text	Thanks to the HestiaCP and VestaCP communities	*
 regex	https?://(?:[A-Za-z0-9-]+\.)*hestiacp\.com[^\s'"<>)\]]*	*
 regex	https?://(?:www\.)?github\.com/hestiacp/[^\s'"<>)\]]*	*
 regex	https?://raw\.githubusercontent\.com/hestiacp/[^\s'"<>)\]]*	*
+
+# --- The upstream projects named in prose: history, origin and credits in the
+# documents (paths and identifiers in them are renamed)
+regex	\b(?:HestiaCP|VestaCP|Hestia)\b(?!-Exit-Code)	*.md,docs/**,.github/**/*.md
 
 # --- Names owned by third parties (§5.10)
 # SnappyMail plugin and its configuration keys
@@ -67,5 +70,12 @@ text	backup_system="hestia"	bin/v-restore-user
 text	(/usr/local/hestia/bin/v-update-sys-hestia-all and the like)	bin/v-restore-user
 
 # --- Old names that tests assert are gone
+# The panel app must not name a hestia path (spec §11)
+text	names no hestia path or user in config/arc.php	web-app/tests/Feature/ConfigPathsTest.php
+text	->not->toMatch('/hestia/i')	web-app/tests/Feature/ConfigPathsTest.php
+# The agent guide names what the brand check looks for
+text	fails on any other "hestia"	AGENTS.md
+# Security reports are coordinated with the upstream project
+text	If the vulnerability also affects HestiaCP	SECURITY.md
 # The 1.x session cookie must not come back (E1-S1)
 text	HESTIASID	test/**

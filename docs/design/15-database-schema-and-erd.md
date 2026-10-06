@@ -10,10 +10,10 @@ This document is the entity–relationship view of ArcPanel's data and the physi
 
 ArcPanel has no relational database for hosting state and will not get one (roadmap §1, [01](./01-architecture-overview.md) §3.1). The data model therefore has two tiers with different rules:
 
-| Tier                                | Storage                                                                                                     | Owner / writer                                | Read by the panel through | Backed up by                                              |
-| ----------------------------------- | ----------------------------------------------------------------------------------------------------------- | --------------------------------------------- | ------------------------- | --------------------------------------------------------- |
-| **Hosting state** (tier 1)          | Hestia flat files: one object per line, `KEY='value'` pairs, under `$HESTIA/data/`, `$HESTIA/conf/` and `~` | root, only through `v-*` commands             | `v-list-* … json`         | `v-backup-user` (per user), config snapshot (E33, server) |
-| **Panel operational data** (tier 2) | SQLite `$HESTIA/data/arcpanel/arcpanel.sqlite` (`hestiaweb:hestiaweb 0640`, WAL)                            | `hestiaweb` (Laravel migrations, worker, web) | Eloquent / query builder  | config snapshot (E33); never part of a user backup        |
+| Tier                                | Storage                                                                                                         | Owner / writer                                  | Read by the panel through | Backed up by                                              |
+| ----------------------------------- | --------------------------------------------------------------------------------------------------------------- | ----------------------------------------------- | ------------------------- | --------------------------------------------------------- |
+| **Hosting state** (tier 1)          | Hestia flat files: one object per line, `KEY='value'` pairs, under `$ARCPANEL/data/`, `$ARCPANEL/conf/` and `~` | root, only through `v-*` commands               | `v-list-* … json`         | `v-backup-user` (per user), config snapshot (E33, server) |
+| **Panel operational data** (tier 2) | SQLite `$ARCPANEL/data/arcpanel/arcpanel.sqlite` (`arcpanelweb:arcpanelweb 0640`, WAL)                          | `arcpanelweb` (Laravel migrations, worker, web) | Eloquent / query builder  | config snapshot (E33); never part of a user backup        |
 
 Rules that follow from the split:
 
@@ -158,7 +158,7 @@ erDiagram
     string key "line of ~/.ssh/authorized_keys"
   }
   SYS_CONFIG {
-    string key PK "hestia.conf"
+    string key PK "arcpanel.conf"
     string value
   }
 
@@ -370,7 +370,7 @@ Reading notes:
 - Object identity is **scoped by user**: `DOMAIN` is unique per `web.conf`, and the panel never addresses a domain without its user (`effective-user` middleware). Server-wide uniqueness of a domain name is enforced by `v-add-web-domain` through `is_domain_new`, not by the file format.
 - Several attributes are comma lists (`ALIAS`, `FTP_USER`, `FWD`, `WEB` in backups): a deliberate 1NF trade-off of the upstream format. The panel splits them in DTOs; it never writes them.
 - `WEB_TPLVARS` ([09](./09-web-templates-metadata.md) §5) is the only ArcPanel-added per-domain record; it is keyed by the variable names the template sidecar declares.
-- `DATABASE_HOST` and `SYS_IP` are server entities that users reference; they live in `$HESTIA/conf/` and `data/ips/`, written by admin commands only.
+- `DATABASE_HOST` and `SYS_IP` are server entities that users reference; they live in `$ARCPANEL/conf/` and `data/ips/`, written by admin commands only.
 
 ### 3.3 Ports and firewall (E12, implemented)
 
@@ -652,7 +652,7 @@ erDiagram
 | `CRON_JOB`           | `data/users/<user>/cron.conf`                             | `user`, `JOB`               | `v-add-cron-job`                              | `SUSPENDED TIME DATE`  |
 | `BACKUP`             | `data/users/<user>/backup.conf`                           | `user`, `BACKUP`            | `v-backup-user`                               | `TIME DATE`            |
 | `SYS_IP`             | `data/ips/<ip>`                                           | `ip`                        | `v-add-sys-ip`                                | `TIME DATE`            |
-| `SYS_CONFIG`         | `conf/hestia.conf`                                        | `key`                       | `v-change-sys-config-value`, installers       | —                      |
+| `SYS_CONFIG`         | `conf/arcpanel.conf`                                      | `key`                       | `v-change-sys-config-value`, installers       | —                      |
 | `WEB_TEMPLATE`       | `data/templates/web/<system>/[<backend>/]<name>.tpl`      | `system`, `backend`, `name` | `v-update-web-templates`                      | —                      |
 | `TEMPLATE_META`      | `… /<name>.json`                                          | same                        | shipped with templates                        | `deprecated`           |
 | `PORT_ENTRY`         | `data/ports/<user>.conf`                                  | `PORT` (server-wide)        | `func/ports.sh`                               | `SUSPENDED TIME DATE`  |
@@ -674,19 +674,19 @@ erDiagram
 
 ### 4.1 Connection and conventions
 
-| Item            | Decision                                                                                                                                                                                             |
-| --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| File            | `$HESTIA/data/arcpanel/arcpanel.sqlite`, `hestiaweb:hestiaweb 0640`; directory `0750`; created by `v-add-sys-arcpanel` (E15 step), migrated by `php artisan migrate --force` from the upgrade script |
-| Pragmas         | `journal_mode=WAL`, `synchronous=NORMAL`, `foreign_keys=ON`, `busy_timeout=5000`; set by the Laravel `sqlite` connection options                                                                     |
-| Writers         | web requests (FPM, `hestiaweb`), the queue worker (`arcpanel-worker.service`, `hestiaweb`) and artisan maintenance commands. Root never writes; `v-*` commands never open the file                   |
-| Primary keys    | `INTEGER PRIMARY KEY` (rowid) for high-volume append tables; `TEXT` ULID for `jobs_log` and `audit_index` so the id is the same in logs, URLs and the audit files                                    |
-| Timestamps      | `TEXT` in `YYYY-MM-DD HH:MM:SS` UTC (Laravel default); every mutable table has `created_at` and `updated_at`; append-only tables have `created_at` only                                              |
-| Tenancy columns | `user TEXT NOT NULL` and `owner TEXT NOT NULL` on every table that belongs to a hosting user (§2); `owner` is denormalised at write time so reseller queries need no join and no tier-1 lookup       |
-| Booleans        | `INTEGER NOT NULL CHECK (x IN (0, 1))`                                                                                                                                                               |
-| Enumerations    | `TEXT` with a `CHECK (… IN (…))`; the PHP enum is the source of the list, the CHECK is the safety net                                                                                                |
-| JSON            | `TEXT` with `CHECK (json_valid(col))`; used only for lists that are never filtered on (`events`, `channels`, `filter`)                                                                               |
-| Secrets         | never stored. Tables hold a `secret_ref` path under `data/secrets/` ([12](./12-security-model.md) §6.2); command lines and arguments are stored **masked** by `ArcCommand`                           |
-| Naming          | snake_case tables and columns; indexes `idx_<table>_<cols>`; unique indexes `uq_<table>_<cols>`                                                                                                      |
+| Item            | Decision                                                                                                                                                                                                   |
+| --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| File            | `$ARCPANEL/data/arcpanel/arcpanel.sqlite`, `arcpanelweb:arcpanelweb 0640`; directory `0750`; created by `v-add-sys-arcpanel` (E15 step), migrated by `php artisan migrate --force` from the upgrade script |
+| Pragmas         | `journal_mode=WAL`, `synchronous=NORMAL`, `foreign_keys=ON`, `busy_timeout=5000`; set by the Laravel `sqlite` connection options                                                                           |
+| Writers         | web requests (FPM, `arcpanelweb`), the queue worker (`arcpanel-worker.service`, `arcpanelweb`) and artisan maintenance commands. Root never writes; `v-*` commands never open the file                     |
+| Primary keys    | `INTEGER PRIMARY KEY` (rowid) for high-volume append tables; `TEXT` ULID for `jobs_log` and `audit_index` so the id is the same in logs, URLs and the audit files                                          |
+| Timestamps      | `TEXT` in `YYYY-MM-DD HH:MM:SS` UTC (Laravel default); every mutable table has `created_at` and `updated_at`; append-only tables have `created_at` only                                                    |
+| Tenancy columns | `user TEXT NOT NULL` and `owner TEXT NOT NULL` on every table that belongs to a hosting user (§2); `owner` is denormalised at write time so reseller queries need no join and no tier-1 lookup             |
+| Booleans        | `INTEGER NOT NULL CHECK (x IN (0, 1))`                                                                                                                                                                     |
+| Enumerations    | `TEXT` with a `CHECK (… IN (…))`; the PHP enum is the source of the list, the CHECK is the safety net                                                                                                      |
+| JSON            | `TEXT` with `CHECK (json_valid(col))`; used only for lists that are never filtered on (`events`, `channels`, `filter`)                                                                                     |
+| Secrets         | never stored. Tables hold a `secret_ref` path under `data/secrets/` ([12](./12-security-model.md) §6.2); command lines and arguments are stored **masked** by `ArcCommand`                                 |
+| Naming          | snake_case tables and columns; indexes `idx_<table>_<cols>`; unique indexes `uq_<table>_<cols>`                                                                                                            |
 
 ### 4.2 Tables by epic
 
@@ -934,14 +934,14 @@ Tier 2 is in 3NF with two deliberate denormalisations: `owner` on every tenant t
 
 ## 6. Data lifecycle and integrity across tiers
 
-| Event (tier 1)             | Tier-2 effect                                                                                                                                                                                                                          | Mechanism                                                                                                                                                              |
-| -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `v-delete-user`            | rows with `user = <u>` in `jobs_log`, `alerts_history`, `webhooks` (+ deliveries), `waf_events`, `mail_index`, `saved_filters`, `ai_usage` are deleted; `audit_index` rows are **kept** (history of a deleted tenant is still history) | `pre_delete_user` hook calls `v-run-arcpanel-prune USER` → `php artisan arcpanel:prune --user=<u>` as `hestiaweb`; nightly prune catches CLI deletions the hook missed |
-| `v-change-user-owner`      | `owner` is rewritten on the user's rows                                                                                                                                                                                                | same hook path (`post_change_user_owner`, E15)                                                                                                                         |
-| `v-delete-web-domain`      | `waf_events`, `mail_index` rows for the domain are deleted                                                                                                                                                                             | nightly prune compares with `v-list-web-domains` / `v-list-mail-domains`                                                                                               |
-| Reseller demoted / deleted | its customers' `owner` becomes `ROOT_USER` (`v-update-reseller-counters all` reports orphans)                                                                                                                                          | nightly prune rewrites `owner` from `v-list-user-owners json`                                                                                                          |
-| Panel package downgrade    | `php artisan migrate:rollback --step=N` from the upgrade script (each migration has `down()`)                                                                                                                                          | [02](./02-laravel-foundation.md) §9                                                                                                                                    |
-| Config snapshot (E33)      | `arcpanel.sqlite` is included (`sqlite3 .backup` into the snapshot, consistent under WAL); `jobs/*.log` excluded                                                                                                                       | `v-add-sys-snapshot config`                                                                                                                                            |
+| Event (tier 1)             | Tier-2 effect                                                                                                                                                                                                                          | Mechanism                                                                                                                                                                |
+| -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `v-delete-user`            | rows with `user = <u>` in `jobs_log`, `alerts_history`, `webhooks` (+ deliveries), `waf_events`, `mail_index`, `saved_filters`, `ai_usage` are deleted; `audit_index` rows are **kept** (history of a deleted tenant is still history) | `pre_delete_user` hook calls `v-run-arcpanel-prune USER` → `php artisan arcpanel:prune --user=<u>` as `arcpanelweb`; nightly prune catches CLI deletions the hook missed |
+| `v-change-user-owner`      | `owner` is rewritten on the user's rows                                                                                                                                                                                                | same hook path (`post_change_user_owner`, E15)                                                                                                                           |
+| `v-delete-web-domain`      | `waf_events`, `mail_index` rows for the domain are deleted                                                                                                                                                                             | nightly prune compares with `v-list-web-domains` / `v-list-mail-domains`                                                                                                 |
+| Reseller demoted / deleted | its customers' `owner` becomes `ROOT_USER` (`v-update-reseller-counters all` reports orphans)                                                                                                                                          | nightly prune rewrites `owner` from `v-list-user-owners json`                                                                                                            |
+| Panel package downgrade    | `php artisan migrate:rollback --step=N` from the upgrade script (each migration has `down()`)                                                                                                                                          | [02](./02-laravel-foundation.md) §9                                                                                                                                      |
+| Config snapshot (E33)      | `arcpanel.sqlite` is included (`sqlite3 .backup` into the snapshot, consistent under WAL); `jobs/*.log` excluded                                                                                                                       | `v-add-sys-snapshot config`                                                                                                                                              |
 
 Rules:
 
@@ -976,15 +976,15 @@ The DDL file [`schemas/arcpanel-sqlite.sql`](./schemas/arcpanel-sqlite.sql) is t
 
 1. **Every migration is reversible.** `down()` drops the table or index; data-changing migrations keep a copy table until the next release.
 2. **Additive first.** New columns are added nullable or with a default; a `NOT NULL` without default is never added to an existing table (SQLite would need a table rebuild). Renames go through add → backfill → switch readers → switch writers → drop, across two releases.
-3. **Run from the upgrade script**, not on web requests: `install/upgrade/arcpanel/<ver>.sh` runs `runuser -u hestiaweb -- php artisan migrate --force` after the package files are in place and before `hestia-php` is restarted. A failed migration aborts the upgrade step with the message on the console; the panel keeps serving the previous schema because the code is only switched after migration success (`optimize` runs last).
+3. **Run from the upgrade script**, not on web requests: `install/upgrade/versions/<ver>.sh` runs `runuser -u arcpanelweb -- php artisan migrate --force` after the package files are in place and before `arcpanel-php` is restarted. A failed migration aborts the upgrade step with the message on the console; the panel keeps serving the previous schema because the code is only switched after migration success (`optimize` runs last).
 4. **The worker is stopped during migration** (`systemctl stop arcpanel-worker` → migrate → start) so no job writes under a changing schema.
 5. **No migration touches tier 1.** Seeding example data is a test concern (`test/e2e/prepare.sh`), never a migration.
 
 ### 7.3 First migration (E15) — creating the file
 
-`v-add-sys-arcpanel` (E15 step) creates `data/arcpanel/` (`hestiaweb:hestiaweb 0750`) and `jobs/`; `php artisan migrate --force` creates the file with the pragmas of §4.1. Fresh installs and upgrades use the same path. The health route `/_health` reports `db: ok | missing | locked` from a one-row read so E33 and the e2e suite can detect a broken file.
+`v-add-sys-arcpanel` (E15 step) creates `data/arcpanel/` (`arcpanelweb:arcpanelweb 0750`) and `jobs/`; `php artisan migrate --force` creates the file with the pragmas of §4.1. Fresh installs and upgrades use the same path. The health route `/_health` reports `db: ok | missing | locked` from a one-row read so E33 and the e2e suite can detect a broken file.
 
-### 7.4 Maintenance commands (artisan, `hestiaweb`)
+### 7.4 Maintenance commands (artisan, `arcpanelweb`)
 
 | Command                                  | Schedule                                              | Effect                                                                                               |
 | ---------------------------------------- | ----------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |

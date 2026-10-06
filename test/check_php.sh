@@ -5,7 +5,7 @@ error=false
 current=$1
 
 if [ -z "$current" ]; then
-	current="/usr/local/hestia/lib/"
+	current="/usr/local/arcpanel/lib/"
 fi
 
 if [ ! -d $current ] && [ ! -f $current ]; then

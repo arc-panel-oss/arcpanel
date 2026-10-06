@@ -4,7 +4,7 @@ This document lists every feature the panel currently provides. It is based on t
 
 - CLI commands in `bin/` (524 `v-*` scripts)
 - Web UI pages in `web/` and `web/templates/pages/`
-- Installer options in `install/hst-install-*.sh`
+- Installer options in `install/arcpanel-install-*.sh`
 - Templates in `install/common/templates/` and `install/deb/templates/`
 
 Each section names the CLI commands that implement the feature, so you can check the details in the code.
@@ -21,7 +21,7 @@ Each section names the CLI commands that implement the feature, so you can check
 - Ubuntu 26.04 LTS, 24.04 LTS and 22.04 LTS.
 - 64-bit only. KVM or LXC virtualization is recommended; OpenVZ 7 or older may cause DNS and firewall problems.
 
-### Installer (`install/hst-install.sh`)
+### Installer (`install/arcpanel-install.sh`)
 
 You can install in interactive or unattended mode. Each component can be turned on or off:
 
@@ -52,10 +52,10 @@ You can install in interactive or unattended mode. Each component can be turned 
 
 ### Updates and maintenance
 
-- Automatic updates for the panel, which you can turn on or off (`v-add-cron-hestia-autoupdate`, `v-delete-cron-hestia-autoupdate`)
-- Manual update from apt or from a Git branch (`v-update-sys-hestia`, `v-update-sys-hestia-all`, `v-update-sys-hestia-git`)
+- Automatic updates for the panel, which you can turn on or off (`v-add-cron-arcpanel-autoupdate`, `v-delete-cron-arcpanel-autoupdate`)
+- Manual update from apt or from a Git branch (`v-update-sys-arcpanel`, `v-update-sys-arcpanel-all`, `v-update-sys-arcpanel-git`)
 - Release branch selection (`v-change-sys-release`)
-- An **Updates** page that lists the panel packages and shows whether each one has an update (`v-list-sys-hestia-updates`)
+- An **Updates** page that lists the panel packages and shows whether each one has an update (`v-list-sys-arcpanel-updates`)
 - Optional email when an update is installed, with the install log attached
 - Version-to-version upgrade scripts in `install/upgrade/`
 - Full system rebuild and config repair (`v-rebuild-all`, `v-repair-sys-config`, `v-update-sys-defaults`)
@@ -330,7 +330,7 @@ Castopod, ClassicPress, Concrete CMS, DokuWiki, Dolibarr, Drupal, Flarum, Grav, 
 - Mail server settings: anti-virus, spam filter, webmail alias and global SMTP relay
 - Database settings: MySQL and PostgreSQL support, phpMyAdmin and phpPgAdmin aliases, SSO and access limits
 - Backup settings: local and remote targets and incremental (Restic) backups
-- The panel's own SSL certificate: Let's Encrypt, uploaded or self-signed (`v-change-sys-hestia-ssl`, `v-add-letsencrypt-host`)
+- The panel's own SSL certificate: Let's Encrypt, uploaded or self-signed (`v-change-sys-arcpanel-ssl`, `v-add-letsencrypt-host`)
 - Change the panel port (`v-change-sys-port`)
 - **Policies**, which control what users may do:
   - Edit their account details

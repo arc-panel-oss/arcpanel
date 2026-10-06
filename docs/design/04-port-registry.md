@@ -16,7 +16,7 @@ Non-goals: enforcing binds at the kernel level for arbitrary user processes (a u
 
 ## 2. Current state (verified in code)
 
-- Nothing in the panel tracks high ports. Web/mail/DNS/DB/FTP ports are fixed in `hestia.conf` (`BACKEND_PORT=8083`, `WEB_PORT`, `WEB_SSL_PORT`, `PROXY_PORT`, `PROXY_SSL_PORT`, `WEB_TERMINAL_PORT`) or in service configs; the FTP passive range lives in the vsftpd/proftpd config.
+- Nothing in the panel tracks high ports. Web/mail/DNS/DB/FTP ports are fixed in `arcpanel.conf` (`BACKEND_PORT=8083`, `WEB_PORT`, `WEB_SSL_PORT`, `PROXY_PORT`, `PROXY_SSL_PORT`, `WEB_TERMINAL_PORT`) or in service configs; the FTP passive range lives in the vsftpd/proftpd config.
 - Firewall rules are objects in `data/firewall/rules.conf` managed by `v-add-firewall-rule ACTION IP PORT [PROTOCOL] [COMMENT] [RULE]`; `v-list-firewall-rules`, `v-delete-firewall-rule RULE`.
 - `v-list-sys-ips json` lists public IPs; `v-list-sys-services json` lists service state. `ss -ltn`/`-lun` is available on every supported OS.
 - Users have no notion of "my ports"; the web terminal and SSH users can bind anything > 1024.
@@ -27,7 +27,7 @@ Non-goals: enforcing binds at the kernel level for arbitrary user processes (a u
 
 | Term               | Definition                                                                                                                                                                                                                                  |
 | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Server range**   | `PORT_RANGE_START`–`PORT_RANGE_END` in `hestia.conf` (default `30000`–`39999`): the only range the registry allocates from                                                                                                                  |
+| **Server range**   | `PORT_RANGE_START`–`PORT_RANGE_END` in `arcpanel.conf` (default `30000`–`39999`): the only range the registry allocates from                                                                                                                |
 | **Reserved ports** | ports the registry never hands out: `BACKEND_PORT`, `WEB_TERMINAL_PORT`, SSH, 25/465/587/110/143/993/995, 53, 3306/5432, 21 + FTP passive range, 80/443/8080/8443, anything currently listening that is not in the registry at install time |
 | **Pool**           | the set of ports allocated to a user (explicit list and/or ranges). A reseller's pool is what it may sub-allocate                                                                                                                           |
 | **Allocation**     | one registry entry: port, protocol, owner user, consuming app, public or private, comment, date                                                                                                                                             |
@@ -38,7 +38,7 @@ Non-goals: enforcing binds at the kernel level for arbitrary user processes (a u
 
 ## 4. Data model (additive)
 
-### 4.1 `/usr/local/hestia/data/ports/<user>.conf` (**new**)
+### 4.1 `/usr/local/arcpanel/data/ports/<user>.conf` (**new**)
 
 One object per line, Hestia style, so `v-list-*` helpers in `func/main.sh` (`parse_object_kv_list`, `is_object_valid 'ports/<user>' 'PORT' …`) work unchanged:
 
@@ -53,9 +53,9 @@ PORT='30010-30019' PROTO='tcp' APP='' PUBLIC='no' PUBLIC_OK='yes' COMMENT='reser
 - A range entry (`PORT='a-b'`) is a block owned by the user; single ports inside it are split out when consumed (`v-allocate-user-port` rewrites the block as `a-(p-1)` + `p` + `(p+1)-b`).
 - Files are `root:root 0640` like other `data/` files. The panel reads them only through `v-list-user-ports`.
 
-### 4.2 `/usr/local/hestia/data/ports/.reserved.conf` (**new**)
+### 4.2 `/usr/local/arcpanel/data/ports/.reserved.conf` (**new**)
 
-Same format, owner-less, written at install/upgrade by `v-update-sys-ports-reserved` from `hestia.conf` and service configs; admins may add entries. Used by every allocation check.
+Same format, owner-less, written at install/upgrade by `v-update-sys-ports-reserved` from `arcpanel.conf` and service configs; admins may add entries. Used by every allocation check.
 
 ### 4.3 `user.conf`
 
@@ -69,7 +69,7 @@ Same format, owner-less, written at install/upgrade by `v-update-sys-ports-reser
 | ------- | ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `PORTS` | integer · `unlimited` · `0` (default) | size of the pool automatically allocated on user creation, by the `post_add_user` hook (`v-add-user-port-pool`) and otherwise lazily on the first `v-allocate-user-port` call for that user. `unlimited` disables the pool check (admin-trusted). Stored in the package sidecar `data/packages/<package>.tenancy` (E12 spec D5) |
 
-### 4.5 `hestia.conf`
+### 4.5 `arcpanel.conf`
 
 | Key                                   | Default           | Meaning                                                                                                             |
 | ------------------------------------- | ----------------- | ------------------------------------------------------------------------------------------------------------------- |
@@ -97,7 +97,7 @@ Same format, owner-less, written at install/upgrade by `v-update-sys-ports-reser
 
 Suspend/delete integration: `v-suspend-user` and `v-delete-user` are unchanged. The follow-ups (`v-change-user-port-public USER PORT no` for every public port on suspend; deleting `data/ports/<user>.conf` and the tagged firewall rules on delete) run from the proposed hook points `post_suspend_user.sh` / `post_delete_user.sh` once upstream has them, and from the panel's `UserService` until then ([01](./01-architecture-overview.md) §3.2). For CLI/API-driven changes the nightly `v-check-sys-ports` removes firewall rules for non-existent or suspended users (fail-safe direction: closing ports).
 
-Locking: all writers take `flock /usr/local/hestia/data/ports/.lock` so two concurrent allocations cannot hand out the same port.
+Locking: all writers take `flock /usr/local/arcpanel/data/ports/.lock` so two concurrent allocations cannot hand out the same port.
 
 ---
 

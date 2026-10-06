@@ -111,7 +111,7 @@ Each item is a **route name**; the renderer drops items whose route does not exi
 | CPU / memory / disk / load | `v-list-sys-info json`, `v-list-sys-cpu-status`, `v-list-sys-memory-status`, `v-list-sys-disk-status` | `<x-ap-usage-bar>` tiles                                                    |
 | Services                   | `v-list-sys-services json`                                                                            | status chips with restart action (admin)                                    |
 | Graphs                     | `v-list-sys-rrd json` + images from `/rrd/` (internal nginx location, unchanged)                      | `<x-ap-rrd-graph>` wraps the existing `rrdCharts.js` logic; period selector |
-| Updates                    | `v-list-sys-hestia-updates json`                                                                      | badge                                                                       |
+| Updates                    | `v-list-sys-arcpanel-updates json`                                                                    | badge                                                                       |
 
 ### 4.4 Dashboards
 
@@ -185,10 +185,10 @@ Extend `build.js`; no second toolchain.
 | Manifest                | all of the above                                                     | `public/build/manifest.json` → `@apAsset('app.js')` Blade directive resolves hashed names; `Cache-Control: immutable` from the nginx block in [02](./02-laravel-foundation.md) §3.1                                           |
 | i18n for JS             | `web-app/lang/<lang>.json`                                           | strings a script needs are declared in `resources/js/i18n-keys.json`; `<x-ap-i18n>` in the layout emits `window.__ap.i18n = {...}` for the current locale; JS calls `__('Delete')`. No full catalog is shipped to the browser |
 
-- `npm run build` runs all of it; `npm run dev` adds `--watch` (esbuild) — no dev server, files are served by the VM's `hestia-nginx`.
+- `npm run build` runs all of it; `npm run dev` adds `--watch` (esbuild) — no dev server, files are served by the VM's `arcpanel-nginx`.
 - Tests: Vitest + `@testing-library/vue` for islands and shared Vue pieces; Alpine components get Vitest DOM tests with `alpinejs` loaded in jsdom; snapshot tests for Blade components via Pest (`view()->render()`).
 - Lint stays Prettier + Biome; `biome.json` gains the `web-app/resources/js` path.
-- Package build: `npm ci && npm run build` runs in CI before `src/hst_autocompile.sh` so the deb ships `public/build/`; `public/build/` is git-ignored.
+- Package build: `npm ci && npm run build` runs in CI before `src/arcpanel-build.sh` so the deb ships `public/build/`; `public/build/` is git-ignored.
 
 ---
 
@@ -217,7 +217,7 @@ Controller passes already owner-filtered rows and a `can` map; the view contains
 | Island chunk fails to load (cache, CSP)               | `<x-ap-island>` renders a server-side fallback slot (read-only table or "open legacy page" link) and logs to console; CSP allows `'self'` scripts only |
 | Large lists (10k DNS records) slow in Alpine          | `x-ap-table` switches to server-side paging above 500 rows via query string; islands use virtual scrolling                                             |
 | JS disabled                                           | CRUD pages still submit; only palette, bulk selection and islands degrade                                                                              |
-| Translation missing for a new string                  | `__()` falls back to English; CI extracts strings to `hestiacp.pot` and fails if a view uses a string not in the template                              |
+| Translation missing for a new string                  | `__()` falls back to English; CI extracts strings to `arcpanel.pot` and fails if a view uses a string not in the template                              |
 
 ---
 

@@ -1,11 +1,11 @@
 #!/usr/bin/env bats
 # ArcPanel versioning (ADR-0007, spec 2026-10-06-005 D5 and §7): VERSION in
-# hestia.conf is the ArcPanel version and selects the upgrade steps in
+# arcpanel.conf is the ArcPanel version and selects the upgrade steps in
 # install/upgrade/versions/.
 # Run on a server installed with the ArcPanel installer.
 
-if [ "${PATH#*/usr/local/hestia/bin*}" = "$PATH" ]; then
-    . /etc/profile.d/hestia.sh
+if [ "${PATH#*/usr/local/arcpanel/bin*}" = "$PATH" ]; then
+    . /etc/profile.d/arcpanel.sh
 fi
 
 load 'test_helper/bats-support/load'
@@ -13,9 +13,9 @@ load 'test_helper/bats-assert/load'
 load 'test_helper/bats-file/load'
 
 setup() {
-    source "$HESTIA/func/main.sh"
-    source_conf "$HESTIA/conf/hestia.conf"
-    STEP_DIR="$HESTIA/install/upgrade/versions"
+    source "$ARCPANEL/func/main.sh"
+    source_conf "$ARCPANEL/conf/arcpanel.conf"
+    STEP_DIR="$ARCPANEL/install/upgrade/versions"
     MARKER="/tmp/arcpanel-version-test.log"
     rm -f "$MARKER"
 }
@@ -23,7 +23,7 @@ setup() {
 teardown() {
     rm -f "$STEP_DIR/1.9.9.sh" "$STEP_DIR/90.0.1.sh" "$STEP_DIR/90.0.2.sh" "$STEP_DIR/99.0.0.sh" "$MARKER"
     if [ -n "${SAVED_VERSION:-}" ]; then
-        "$HESTIA/bin/v-change-sys-config-value" "VERSION" "$SAVED_VERSION"
+        "$ARCPANEL/bin/v-change-sys-config-value" "VERSION" "$SAVED_VERSION"
     fi
 }
 
@@ -32,11 +32,11 @@ teardown() {
     assert_equal "$VERSION" "$package_version"
 }
 
-@test "hestia.conf has no second version key" {
-    run grep -c "^ARCPANEL_VERSION=" "$HESTIA/conf/hestia.conf"
+@test "arcpanel.conf has no second version key" {
+    run grep -c "^ARCPANEL_VERSION=" "$ARCPANEL/conf/arcpanel.conf"
     assert_output "0"
-    assert_not_exists "$HESTIA/install/upstream.conf"
-    assert_not_exists "$HESTIA/install/upgrade/arcpanel"
+    assert_not_exists "$ARCPANEL/install/upstream.conf"
+    assert_not_exists "$ARCPANEL/install/upgrade/arcpanel"
 }
 
 @test "v-list-sys-config shows VERSION only" {
@@ -47,15 +47,18 @@ teardown() {
 }
 
 @test "v-list-sys-info shows VERSION as the ArcPanel version" {
-    run bash -c "v-list-sys-info json | jq -r '.sysinfo.ARCPANEL + \" \" + (.sysinfo | has(\"HESTIA\") | tostring)'"
+    run bash -c "v-list-sys-info json | jq -r '.sysinfo.ARCPANEL'"
     assert_success
-    assert_output "$VERSION false"
+    assert_output "$VERSION"
+    # the base-version key of 1.x is gone
+    run bash -c "v-list-sys-info json | jq -r '.sysinfo | keys | join(\",\")'"
+    assert_output "ARCH,ARCPANEL,HOSTNAME,LOADAVERAGE,OS,RELEASE,UPTIME,VERSION"
     run v-list-sys-info csv
     assert_line --index 0 "HOSTNAME,OS,VERSION,ARCH,ARCPANEL,RELEASE,UPTIME,LOADAVERAGE"
 }
 
 @test "upgrade_get_version strips the Debian revision and keeps the channel" {
-    source "$HESTIA/func/upgrade.sh"
+    source "$ARCPANEL/func/upgrade.sh"
     dpkg-query() { echo "$FAKE_PACKAGE_VERSION"; }
     VERSION="2.0.0"
 
@@ -75,8 +78,8 @@ teardown() {
 
 @test "Upgrade runs only steps newer than VERSION and not newer than the package, then sets VERSION" {
     SAVED_VERSION="$VERSION"
-    source "$HESTIA/func/upgrade.sh"
-    BIN="$HESTIA/bin"
+    source "$ARCPANEL/func/upgrade.sh"
+    BIN="$ARCPANEL/bin"
     mkdir -p "$STEP_DIR"
     for v in 1.9.9 90.0.1 90.0.2 99.0.0; do
         echo "echo $v >> $MARKER" > "$STEP_DIR/$v.sh"
@@ -90,20 +93,20 @@ teardown() {
 
     run cat "$MARKER"
     assert_output "$(printf '90.0.1\n90.0.2')"
-    run grep "^VERSION=" "$HESTIA/conf/hestia.conf"
+    run grep "^VERSION=" "$ARCPANEL/conf/arcpanel.conf"
     assert_output "VERSION='90.0.2~beta'"
 }
 
 @test "Upgrade with no newer step only sets VERSION" {
     SAVED_VERSION="$VERSION"
-    source "$HESTIA/func/upgrade.sh"
-    BIN="$HESTIA/bin"
+    source "$ARCPANEL/func/upgrade.sh"
+    BIN="$ARCPANEL/bin"
 
     VERSION="$SAVED_VERSION"
     new_version="$SAVED_VERSION"
     run upgrade_start_routine
     assert_success
     assert_not_exists "$MARKER"
-    run grep "^VERSION=" "$HESTIA/conf/hestia.conf"
+    run grep "^VERSION=" "$ARCPANEL/conf/arcpanel.conf"
     assert_output "VERSION='$SAVED_VERSION'"
 }

@@ -20,15 +20,15 @@ flowchart LR
     INET[Internet traffic<br/>to hosted sites and apps]
   end
 
-  subgraph hw["Boundary 1 — hestiaweb (unprivileged)"]
-    N[hestia-nginx :8083]
+  subgraph hw["Boundary 1 — arcpanelweb (unprivileged)"]
+    N[arcpanel-nginx :8083]
     L[Laravel panel app]
     LEG[Legacy web/ pages<br/>until E8]
     APIv1[lib/api/index.php]
   end
 
   subgraph root["Boundary 2 — root"]
-    S[sudo<br/>hestiaweb → /usr/local/hestia/bin/*]
+    S[sudo<br/>arcpanelweb → /usr/local/arcpanel/bin/*]
     V[v-* scripts<br/>argument validation]
     D[(data/ conf/ 0640 root)]
     WT[web terminal server.js<br/>root, spawns as user]
@@ -60,45 +60,45 @@ flowchart LR
   NG -. 127.0.0.1:port .-> DK
 ```
 
-| Boundary                          | Crossed by                                                     | Control                                                                                                                  |
-| --------------------------------- | -------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
-| Internet → `hestiaweb`            | HTTPS requests to the panel                                    | TLS (panel certificate), session and CSRF rules (§4, §5), rate limiting on login (§4.5), Fail2Ban `hestia` jail (exists) |
-| `hestiaweb` → root                | `sudo /usr/local/hestia/bin/<cmd> args`                        | sudoers rule unchanged; `ArcCommand` allow-list and argv execution (§3); `v-*` validation is the real boundary           |
-| root → hosting user               | `user_exec`, `systemctl --user`, `docker compose` as user, pm2 | commands always drop privileges for user workloads; path confinement to `$HOMEDIR/$user` (§7)                            |
-| hosting user → other users / host | process, filesystem, network                                   | `hestia-users` group ACLs (exist), cgroup slice, private ports, no Docker socket, no host network (§8, §9)               |
-| Internet → user runtime           | HTTP via domain proxy templates                                | only through NGINX; direct ports only when `PUBLIC='yes'` with a tagged firewall rule ([04](./04-port-registry.md) §7)   |
+| Boundary                          | Crossed by                                                     | Control                                                                                                                    |
+| --------------------------------- | -------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| Internet → `arcpanelweb`          | HTTPS requests to the panel                                    | TLS (panel certificate), session and CSRF rules (§4, §5), rate limiting on login (§4.5), Fail2Ban `arcpanel` jail (exists) |
+| `arcpanelweb` → root              | `sudo /usr/local/arcpanel/bin/<cmd> args`                      | sudoers rule unchanged; `ArcCommand` allow-list and argv execution (§3); `v-*` validation is the real boundary             |
+| root → hosting user               | `user_exec`, `systemctl --user`, `docker compose` as user, pm2 | commands always drop privileges for user workloads; path confinement to `$HOMEDIR/$user` (§7)                              |
+| hosting user → other users / host | process, filesystem, network                                   | `arcpanel-users` group ACLs (exist), cgroup slice, private ports, no Docker socket, no host network (§8, §9)               |
+| Internet → user runtime           | HTTP via domain proxy templates                                | only through NGINX; direct ports only when `PUBLIC='yes'` with a tagged firewall rule ([04](./04-port-registry.md) §7)     |
 
 ---
 
 ## 3. Privilege boundary: `sudo` and `v-*`
 
-Unchanged from upstream: `install/common/sudo/hestiaweb` grants `hestiaweb ALL=NOPASSWD:/usr/local/hestia/bin/*`. Consequences and rules:
+Unchanged from upstream: `install/common/sudo/arcpanelweb` grants `arcpanelweb ALL=NOPASSWD:/usr/local/arcpanel/bin/*`. Consequences and rules:
 
 1. **Every `v-*` is an attack surface.** New commands validate every argument with `is_format_valid` / `is_object_valid` before acting, never interpolate arguments into `eval`, `bash -c` or SQL without the existing quoting helpers, and resolve every user-supplied path with `readlink -f` + prefix check against `$HOMEDIR/$user` (pattern in `bin/v-add-fs-file:41`, `bin/v-add-user-composer`).
-2. **No new sudoers lines, no setuid binaries, no world-writable data.** Docker (E4) and Node (E13/E14) are driven by `v-*` scripts, not by giving `hestiaweb` or users direct access to `docker.sock`.
+2. **No new sudoers lines, no setuid binaries, no world-writable data.** Docker (E4) and Node (E13/E14) are driven by `v-*` scripts, not by giving `arcpanelweb` or users direct access to `docker.sock`.
 3. **`ArcCommand`** ([02](./02-laravel-foundation.md) §4) is the only caller in the panel app: allow-list of command names generated from `bin/`, argv execution via Symfony Process (no shell), argument type checks, `\0`/`\n` rejection. A Pest architecture test forbids `exec`, `shell_exec`, `system`, `passthru`, `proc_open` and backticks outside `App\Arc`.
 4. **The CLI is the second line.** A bug in a Laravel policy may expose a UI action, but the action still has to pass the command's own checks; owner-aware commands (`v-add-reseller-user`, `v-check-access-key-scope`, port pool rules) exist for this reason.
-5. **Demo and read-only mode** are enforced in `v-*` (`check_hestia_demo_mode`) and only mirrored in the UI.
+5. **Demo and read-only mode** are enforced in `v-*` (`check_arcpanel_demo_mode`) and only mirrored in the UI.
 
 ---
 
 ## 4. Sessions
 
-| Property                  | Design                                                                                                                                                                                                                                                                                                                                                                                                                   |
-| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Identity                  | One PHP session file (`ARCPANELSID`, `files` handler, `/usr/local/hestia/data/sessions`, dir `0700 hestiaweb`) shared by Laravel and the web terminal (and the legacy app in 1.x) ([02](./02-laravel-foundation.md) §5)                                                                                                                                                                                                  |
-| Second cookie             | `arcpanel_session` (Laravel `file` driver) carries only flash, CSRF and transient UI state — never identity                                                                                                                                                                                                                                                                                                              |
-| Cookie flags              | `Secure`, `HttpOnly`, `SameSite=Lax` for both; `SameSite=Strict` would break deep links from mail. Set from one place (`src/deb/php/php.ini` for `ARCPANELSID`, `config/session.php` for Laravel) and asserted by an e2e test                                                                                                                                                                                            |
-| Fixation                  | `LoginController` calls `session_regenerate_id(true)` on the legacy session **and** `Session::regenerate()` on the Laravel session after a successful password/2FA check, before writing identity keys                                                                                                                                                                                                                   |
-| IP binding                | `user_combined_ip` check retained (`DISABLE_IP_CHECK` honoured)                                                                                                                                                                                                                                                                                                                                                          |
-| Inactivity                | `INACTIVE_SESSION_TIMEOUT` enforced by both apps identically; expiry logs `v-log-user-logout`                                                                                                                                                                                                                                                                                                                            |
-| Logout                    | Destroys the legacy file (`destroy_sessions()` equivalent) and invalidates the Laravel session; "sign out other sessions" (E26) deletes every file under `data/sessions/` whose payload has `user=<name>` — a `v-delete-user-sessions USER` (**new**, E26) owned by root because the directory is only readable by `hestiaweb` within the panel; until then an admin can `rm` the directory to force re-login everywhere |
-| Suspended / demoted users | Re-checked on every request from `v-list-user`, not from the session, as today                                                                                                                                                                                                                                                                                                                                           |
-| Session content           | Only the keys listed in [02](./02-laravel-foundation.md) §5.5 — no passwords (legacy stored the password during 2FA; Laravel stores a `pending_2fa_user` marker with a 5-minute expiry instead)                                                                                                                                                                                                                          |
+| Property                  | Design                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Identity                  | One PHP session file (`ARCPANELSID`, `files` handler, `/usr/local/arcpanel/data/sessions`, dir `0700 arcpanelweb`) shared by Laravel and the web terminal (and the legacy app in 1.x) ([02](./02-laravel-foundation.md) §5)                                                                                                                                                                                                |
+| Second cookie             | `arcpanel_session` (Laravel `file` driver) carries only flash, CSRF and transient UI state — never identity                                                                                                                                                                                                                                                                                                                |
+| Cookie flags              | `Secure`, `HttpOnly`, `SameSite=Lax` for both; `SameSite=Strict` would break deep links from mail. Set from one place (`src/deb/php/php.ini` for `ARCPANELSID`, `config/session.php` for Laravel) and asserted by an e2e test                                                                                                                                                                                              |
+| Fixation                  | `LoginController` calls `session_regenerate_id(true)` on the legacy session **and** `Session::regenerate()` on the Laravel session after a successful password/2FA check, before writing identity keys                                                                                                                                                                                                                     |
+| IP binding                | `user_combined_ip` check retained (`DISABLE_IP_CHECK` honoured)                                                                                                                                                                                                                                                                                                                                                            |
+| Inactivity                | `INACTIVE_SESSION_TIMEOUT` enforced by both apps identically; expiry logs `v-log-user-logout`                                                                                                                                                                                                                                                                                                                              |
+| Logout                    | Destroys the legacy file (`destroy_sessions()` equivalent) and invalidates the Laravel session; "sign out other sessions" (E26) deletes every file under `data/sessions/` whose payload has `user=<name>` — a `v-delete-user-sessions USER` (**new**, E26) owned by root because the directory is only readable by `arcpanelweb` within the panel; until then an admin can `rm` the directory to force re-login everywhere |
+| Suspended / demoted users | Re-checked on every request from `v-list-user`, not from the session, as today                                                                                                                                                                                                                                                                                                                                             |
+| Session content           | Only the keys listed in [02](./02-laravel-foundation.md) §5.5 — no passwords (legacy stored the password during 2FA; Laravel stores a `pending_2fa_user` marker with a 5-minute expiry instead)                                                                                                                                                                                                                            |
 
 ### 4.5 Login rate limiting
 
-Laravel `ThrottleRequests` on `/login` (10 attempts / 5 minutes per IP + username pair) in addition to the existing Fail2Ban `hestia` jail reading `v-log-user-login` failures. 2FA attempts: 3 failures invalidate the pending marker (legacy parity).
+Laravel `ThrottleRequests` on `/login` (10 attempts / 5 minutes per IP + username pair) in addition to the existing Fail2Ban `arcpanel` jail reading `v-log-user-login` failures. 2FA attempts: 3 failures invalidate the pending marker (legacy parity).
 
 ---
 
@@ -118,13 +118,13 @@ Referenced by [02](./02-laravel-foundation.md) §4.2 and §4.6.
 ### 6.1 In the panel app
 
 - `Secret` value object wraps any password, token, key or connection string entering a controller. `__toString` is disabled; `reveal()` is the only accessor; `var_export`/`dump`/`json_encode` render `"[secret]"`.
-- `ArcCommand` writes a `Secret` to a temp file (`web-app/storage/tmp/`, `0600`, owner `hestiaweb`, deleted in `finally`) and passes the path when `config/arc-commands.php` marks the command as file-accepting (`v-check-user-password`, `v-add-user`, `v-add-mail-account`, `v-add-database`, …); otherwise inline, masked in every log line, exception message, job record ([14](./14-later-backlog.md) E15) and audit event (E23). The masking is by argument **position** declared in the config, not by pattern matching.
-- Laravel's own `.env` equivalent `/etc/arcpanel/arcpanel.env` (`root:hestiaweb 0640`) holds only `APP_KEY` and flags. `APP_KEY` encrypts the `arcpanel_session` cookie and nothing persistent, so rotating it only logs everyone out of flash state.
+- `ArcCommand` writes a `Secret` to a temp file (`web-app/storage/tmp/`, `0600`, owner `arcpanelweb`, deleted in `finally`) and passes the path when `config/arc-commands.php` marks the command as file-accepting (`v-check-user-password`, `v-add-user`, `v-add-mail-account`, `v-add-database`, …); otherwise inline, masked in every log line, exception message, job record ([14](./14-later-backlog.md) E15) and audit event (E23). The masking is by argument **position** declared in the config, not by pattern matching.
+- Laravel's own `.env` equivalent `/etc/arcpanel/arcpanel.env` (`root:arcpanelweb 0640`) holds only `APP_KEY` and flags. `APP_KEY` encrypts the `arcpanel_session` cookie and nothing persistent, so rotating it only logs everyone out of flash state.
 - Never in URLs, never in flash messages, never in Blade (`{{ }}` escaping is not the point — the value must not reach the template at all).
 
 ### 6.2 Third-party credentials (Cloudflare tokens, deploy keys, webhook secrets, SMTP relay passwords, AI keys)
 
-- Stored by `v-*` commands under `/usr/local/hestia/data/secrets/<user>/<kind>/<name>` (**new** directory; `root:root 0700` dir, `0600` files). The panel never reads them; commands that need them read them as root. Server-wide channel secrets (E16) live in `data/secrets/system/`.
+- Stored by `v-*` commands under `/usr/local/arcpanel/data/secrets/<user>/<kind>/<name>` (**new** directory; `root:root 0700` dir, `0600` files). The panel never reads them; commands that need them read them as root. Server-wide channel secrets (E16) live in `data/secrets/system/`.
 - **Write-only in the UI:** after saving, the UI shows only a fingerprint (last 4 characters or a SHA-256 prefix) and "Replace" / "Delete". `v-list-*` commands for these objects never print the value.
 - Deleted with the user: `v-delete-user` hook removes `data/secrets/<user>/`; nightly `v-check-sys-ports`-style reconciliation (E17 Doctor) reports secrets of non-existent users.
 - Included in backups? **No** by default (`v-backup-user` is unchanged; the directory is outside the user's tree). E4 app `.env` files inside `/home/<user>/apps/` are backed up with the app; documented.
@@ -150,12 +150,12 @@ Admins and resellers acting on another user go through the same resolution for t
 
 The mechanism is defined in [06](./06-file-manager-v2.md) §4.2 and §6.2; the security properties it must keep:
 
-- Chunks are staged in `web-app/storage/uploads/<token>/` (`hestiaweb:hestiaweb 0700`), which is **not** under any web root and is on the panel's filesystem, never in a user's home. `hestiaweb` never writes inside `/home/<user>/` directly — it cannot (the `g:hestia-users:---` ACL set by `v-add-user` keeps homes closed to it).
-- Assembly happens in Laravel; the hand-off into the home is one root-side command, `v-add-fs-upload USER STAGED_FILE DST_PATH` (**new**, E3), which verifies that the staged file is inside the staging directory and owned by `hestiaweb`, that the destination resolves inside the user's home and that the parent is writable **by the user** (`user_exec test -w`), then `install -o USER -g USER -m MODE` + atomic rename, and deletes the staged file. The same command reports `E_DISK` when the user's quota or the disk is full. `v-save-fs-file` (editor) is the same hand-off with an `mtime` precondition.
+- Chunks are staged in `web-app/storage/uploads/<token>/` (`arcpanelweb:arcpanelweb 0700`), which is **not** under any web root and is on the panel's filesystem, never in a user's home. `arcpanelweb` never writes inside `/home/<user>/` directly — it cannot (the `g:arcpanel-users:---` ACL set by `v-add-user` keeps homes closed to it).
+- Assembly happens in Laravel; the hand-off into the home is one root-side command, `v-add-fs-upload USER STAGED_FILE DST_PATH` (**new**, E3), which verifies that the staged file is inside the staging directory and owned by `arcpanelweb`, that the destination resolves inside the user's home and that the parent is writable **by the user** (`user_exec test -w`), then `install -o USER -g USER -m MODE` + atomic rename, and deletes the staged file. The same command reports `E_DISK` when the user's quota or the disk is full. `v-save-fs-file` (editor) is the same hand-off with an `mtime` precondition.
 - No execution from staging: nothing serves `web-app/storage/`, and the panel's PHP pool never includes files from it. Staged files that are never finished are removed after 24 h.
 - Optional ClamAV scan at `finish` (`clamdscan --fdpass`, only when `ANTIVIRUS_SYSTEM` is set), result shown as a warning; mandatory quarantine arrives with E25.
 - Size limits: `client_max_body_size` for `/files/{user}/api/upload/…` set to the chunk size (8 MiB) so one request cannot exhaust disk; staging free space is checked at `init`; the total is pre-checked against `U_DISK`/`DISK_QUOTA` and finally enforced by `v-add-fs-upload`.
-- Downloads are the hand-off in reverse: `v-add-fs-download USER PATH TICKET` (**new**) copies the file as root into `web-app/storage/downloads/<ticket>` (`hestiaweb 0600`), and NGINX serves it through an `internal` location via `X-Accel-Redirect` — the panel never gains read access to user homes.
+- Downloads are the hand-off in reverse: `v-add-fs-download USER PATH TICKET` (**new**) copies the file as root into `web-app/storage/downloads/<ticket>` (`arcpanelweb 0600`), and NGINX serves it through an `internal` location via `X-Accel-Redirect` — the panel never gains read access to user homes.
 
 ---
 
@@ -163,7 +163,7 @@ The mechanism is defined in [06](./06-file-manager-v2.md) §4.2 and §6.2; the s
 
 | Control           | Mechanism                                                                                                                                                                                |
 | ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Process ownership | pm2 daemon under `systemd --user` of the hosting user (`loginctl enable-linger`); never root, never `hestiaweb`                                                                          |
+| Process ownership | pm2 daemon under `systemd --user` of the hosting user (`loginctl enable-linger`); never root, never `arcpanelweb`                                                                        |
 | Resources         | inherits `user-<uid>.slice` limits written by `v-update-user-cgroup` from the package (`CPU_QUOTA`, `MEMORY_LIMIT`, `SWAP_LIMIT`); pm2 `max_memory_restart` derived from the same values |
 | Network           | apps bind `127.0.0.1:<port>` from the registry; `PUBLIC='yes'` is an explicit, firewall-tagged exception ([04](./04-port-registry.md) §7)                                                |
 | Filesystem        | app dir inside `~/web/<domain>/nodeapp`; nvm in `~/.nvm`; jailed shells keep working because the home is bind-mounted by bubblewrap (`install/common/bubblewrap`)                        |
@@ -199,7 +199,7 @@ Decided in ADR-0003 (rootless vs. group mode); the controls below hold in both m
 
 ## 11. Browser hardening (Laravel app)
 
-- Headers from `hestia-nginx` already: `X-Content-Type-Options`, `X-Frame-Options SAMEORIGIN`; Laravel adds `Referrer-Policy: same-origin`, `Permissions-Policy` (camera/microphone/geolocation off), `Cross-Origin-Opener-Policy: same-origin`.
+- Headers from `arcpanel-nginx` already: `X-Content-Type-Options`, `X-Frame-Options SAMEORIGIN`; Laravel adds `Referrer-Policy: same-origin`, `Permissions-Policy` (camera/microphone/geolocation off), `Cross-Origin-Opener-Policy: same-origin`.
 - **CSP:** `default-src 'self'; script-src 'self' 'nonce-<per-request>'; style-src 'self' 'nonce-…'; img-src 'self' data: blob:; connect-src 'self' wss://<host>:8083; frame-ancestors 'self'; object-src 'none'; base-uri 'self'`. Alpine.js evaluates expressions with `new Function` and needs `'unsafe-eval'` — the design uses the **Alpine CSP build** (`@alpinejs/csp`), which forbids inline expressions and requires component logic in `Alpine.data()` modules; this also matches the testable-module convention in [11](./11-testing-and-ci.md) §6.3. Vue islands are compiled (no runtime template compilation), so they need no exception. Chart.js, CodeMirror and xterm are bundled locally. The legacy app is exempt (deleted in E8).
 - No inline event handlers or inline `<script>` without nonce; `@vite`-style helper replaced by a `@assets` Blade directive that emits nonced tags for the esbuild outputs.
 - Uploaded files are never served from the panel origin (File Manager preview uses `v-open-fs-file` content returned as `Content-Disposition: attachment` or rendered in a sandboxed `<iframe sandbox>` with a `blob:` URL).
@@ -217,24 +217,24 @@ Decided in ADR-0003 (rootless vs. group mode); the controls below hold in both m
 
 ## 13. Threat model
 
-| #   | Threat (STRIDE)                                   | Vector                                                      | Mitigation                                                                                                              | Doc                                                                      |
-| --- | ------------------------------------------------- | ----------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
-| T1  | Spoofing — session theft                          | stolen `ARCPANELSID` cookie                                 | TLS only, `HttpOnly`/`Secure`, IP binding, inactivity timeout, logout invalidation                                      | §4                                                                       |
-| T2  | Spoofing — login brute force                      | password guessing, 2FA guessing                             | throttle + Fail2Ban, 3-strike 2FA, generic errors                                                                       | §4.5                                                                     |
-| T3  | Tampering — command injection                     | crafted form values reaching `v-*`                          | argv exec, escaping, `\0`/`\n` rejection, `is_format_valid` in every command                                            | §3, [02](./02-laravel-foundation.md) §4.2                                |
-| T4  | Tampering — path traversal                        | File Manager, Node entry file, Docker volume paths          | double path confinement, `user_exec`, 404 on violation                                                                  | §7                                                                       |
-| T5  | Elevation — reseller reads/changes another tenant | list pages, direct URLs, API keys                           | `OwnerScope` server-side filtering, 404, `v-check-access-key-scope`, role e2e suite                                     | [03](./03-tenancy-and-authorization.md), [11](./11-testing-and-ci.md) §4 |
-| T6  | Elevation — reseller impersonates admin           | `/impersonate/admin`, legacy `?loginas=` (1.x)              | `ImpersonationPolicy` requires tree + `ROLE='user'`; legacy path admin-only (1.x)                                       | §12                                                                      |
-| T7  | Elevation — user escapes runtime                  | Node/Docker process to host                                 | user-owned processes, cgroups, no socket, no privileged compose, pinned images                                          | §8, §9                                                                   |
-| T8  | Information disclosure — secrets in logs          | command logging, job output, audit                          | positional masking, `Secret` type, write-only credentials                                                               | §6                                                                       |
-| T9  | Information disclosure — hashes to the browser    | `v-list-user` JSON forwarded to views                       | `UserRepository` strips `MD5`, `RKEY`, `TWOFA`, `QRCODE`                                                                | §6.3                                                                     |
-| T10 | Repudiation — "who did this?" during login-as     | admin or reseller acting as a customer                      | both usernames logged now; E23 audit event with actor + effective user                                                  | §12, [14](./14-later-backlog.md) E23                                     |
-| T11 | Denial of service — upload or log fills disk      | chunked uploads, container logs                             | chunk size limit, quota check on finish, Docker log rotation, `BACKUP_DISK_LIMIT`-style guards                          | §7.2, §9                                                                 |
-| T12 | Denial of service — port exhaustion / collisions  | many apps per user                                          | pool size per package, `flock`, nightly reconciliation                                                                  | [04](./04-port-registry.md)                                              |
-| T13 | Tampering — malicious catalog update              | compromised catalog Git URL                                 | catalog signed (minisign) and pinned; `compose_lint` rejects dangerous keys; admin approves catalog refresh             | §9, [08](./08-app-store.md)                                              |
-| T14 | Spoofing — CSRF on panel actions                  | cross-site POST                                             | Laravel token, SameSite, legacy strictness policy, ws Origin check                                                      | §5                                                                       |
-| T15 | Tampering — XSS in panel                          | user-controlled strings (domain names, comments, log lines) | Blade escaping, Vue text binding, nonce CSP, Alpine CSP build, logs rendered as text                                    | §11                                                                      |
-| T16 | Elevation — `sudo` rule abuse                     | any file dropped into `bin/`                                | `bin/` is `root` `0755`, written only by the deb and `v-update-sys-hestia*`; `ArcCommand` allow-list generated at build | §3                                                                       |
+| #   | Threat (STRIDE)                                   | Vector                                                      | Mitigation                                                                                                                | Doc                                                                      |
+| --- | ------------------------------------------------- | ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| T1  | Spoofing — session theft                          | stolen `ARCPANELSID` cookie                                 | TLS only, `HttpOnly`/`Secure`, IP binding, inactivity timeout, logout invalidation                                        | §4                                                                       |
+| T2  | Spoofing — login brute force                      | password guessing, 2FA guessing                             | throttle + Fail2Ban, 3-strike 2FA, generic errors                                                                         | §4.5                                                                     |
+| T3  | Tampering — command injection                     | crafted form values reaching `v-*`                          | argv exec, escaping, `\0`/`\n` rejection, `is_format_valid` in every command                                              | §3, [02](./02-laravel-foundation.md) §4.2                                |
+| T4  | Tampering — path traversal                        | File Manager, Node entry file, Docker volume paths          | double path confinement, `user_exec`, 404 on violation                                                                    | §7                                                                       |
+| T5  | Elevation — reseller reads/changes another tenant | list pages, direct URLs, API keys                           | `OwnerScope` server-side filtering, 404, `v-check-access-key-scope`, role e2e suite                                       | [03](./03-tenancy-and-authorization.md), [11](./11-testing-and-ci.md) §4 |
+| T6  | Elevation — reseller impersonates admin           | `/impersonate/admin`, legacy `?loginas=` (1.x)              | `ImpersonationPolicy` requires tree + `ROLE='user'`; legacy path admin-only (1.x)                                         | §12                                                                      |
+| T7  | Elevation — user escapes runtime                  | Node/Docker process to host                                 | user-owned processes, cgroups, no socket, no privileged compose, pinned images                                            | §8, §9                                                                   |
+| T8  | Information disclosure — secrets in logs          | command logging, job output, audit                          | positional masking, `Secret` type, write-only credentials                                                                 | §6                                                                       |
+| T9  | Information disclosure — hashes to the browser    | `v-list-user` JSON forwarded to views                       | `UserRepository` strips `MD5`, `RKEY`, `TWOFA`, `QRCODE`                                                                  | §6.3                                                                     |
+| T10 | Repudiation — "who did this?" during login-as     | admin or reseller acting as a customer                      | both usernames logged now; E23 audit event with actor + effective user                                                    | §12, [14](./14-later-backlog.md) E23                                     |
+| T11 | Denial of service — upload or log fills disk      | chunked uploads, container logs                             | chunk size limit, quota check on finish, Docker log rotation, `BACKUP_DISK_LIMIT`-style guards                            | §7.2, §9                                                                 |
+| T12 | Denial of service — port exhaustion / collisions  | many apps per user                                          | pool size per package, `flock`, nightly reconciliation                                                                    | [04](./04-port-registry.md)                                              |
+| T13 | Tampering — malicious catalog update              | compromised catalog Git URL                                 | catalog signed (minisign) and pinned; `compose_lint` rejects dangerous keys; admin approves catalog refresh               | §9, [08](./08-app-store.md)                                              |
+| T14 | Spoofing — CSRF on panel actions                  | cross-site POST                                             | Laravel token, SameSite, legacy strictness policy, ws Origin check                                                        | §5                                                                       |
+| T15 | Tampering — XSS in panel                          | user-controlled strings (domain names, comments, log lines) | Blade escaping, Vue text binding, nonce CSP, Alpine CSP build, logs rendered as text                                      | §11                                                                      |
+| T16 | Elevation — `sudo` rule abuse                     | any file dropped into `bin/`                                | `bin/` is `root` `0755`, written only by the deb and `v-update-sys-arcpanel*`; `ArcCommand` allow-list generated at build | §3                                                                       |
 
 ---
 
@@ -250,35 +250,35 @@ Decided in ADR-0003 (rootless vs. group mode); the controls below hold in both m
 
 ## 15. Logging and audit (today → E23)
 
-- Today: `v-log-action USER LEVEL CATEGORY DETAILS` writes per-user `history.log` (`v-list-user-log`), `v-log-user-login` writes the auth log, every `v-*` writes `log_event` to `$HESTIA/log/system.log`/`error.log`. `ArcCommand` adds `storage/logs/arc-command.log` (masked).
+- Today: `v-log-action USER LEVEL CATEGORY DETAILS` writes per-user `history.log` (`v-list-user-log`), `v-log-user-login` writes the auth log, every `v-*` writes `log_event` to `$ARCPANEL/log/system.log`/`error.log`. `ArcCommand` adds `storage/logs/arc-command.log` (masked).
 - Gap: no record of the real actor during impersonation, no cross-tenant view, no integrity. E23 adds the append-only audit stream with actor/effective user/role/IP/action/object/result and a daily hash chain ([14](./14-later-backlog.md) E23). Until then, the Laravel request log line includes `login_user`, `effective_user`, route name and result code so the information exists in logs.
-- Log files under `web-app/storage/logs` are `0640 hestiaweb`, rotated daily, 14 days; nothing from `/home/<user>` is copied into panel logs.
+- Log files under `web-app/storage/logs` are `0640 arcpanelweb`, rotated daily, 14 days; nothing from `/home/<user>` is copied into panel logs.
 
 ---
 
 ## 16. Security review checklist (per epic PR)
 
-1. New `v-*` commands: every argument validated; paths confined; `user_exec` for user-space actions; `check_hestia_demo_mode`; `v-log-action` entry; BATS negative tests.
+1. New `v-*` commands: every argument validated; paths confined; `user_exec` for user-space actions; `check_arcpanel_demo_mode`; `v-log-action` entry; BATS negative tests.
 2. New routes: policy method with a `Capabilities` entry; row in the role e2e matrix; `NotReadOnly` on mutations; FormRequest validation.
 3. Secrets: enter as `Secret`; file-based passing where possible; masking position declared; stored under `data/secrets/` if persistent; write-only UI.
 4. Frontend: no inline scripts/expressions outside Alpine CSP modules; user strings rendered as text; new third-party library bundled locally and reviewed.
-5. Processes: anything long-running runs as the hosting user or root `v-*` — never as `hestiaweb` in the background.
+5. Processes: anything long-running runs as the hosting user or root `v-*` — never as `arcpanelweb` in the background.
 6. Network: ports only via the registry; firewall rules only via `v-add-user-port`.
-7. Upgrade: new files/dirs created with explicit owner/mode in the upgrade script; `upstream-diff` green.
+7. Upgrade: new files/dirs created with explicit owner/mode in the upgrade script; brand check green.
 8. Docs: threat table row added if a new vector exists.
 
 ---
 
 ## 17. Incident response notes
 
-| Situation                                              | Action                                                                                                                                                                 |
-| ------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Panel session compromise suspected                     | `rm -f /usr/local/hestia/data/sessions/sess_*` (all users re-login); rotate `APP_KEY` in `arcpanel.env` and run `php artisan optimize` (only flash/CSRF state is lost) |
-| Access key leaked                                      | `v-delete-access-key USER KEY`; review `v-list-user-log` and the API lines in the auth log; from E23 search the audit stream by key id                                 |
-| Third-party credential leaked (Cloudflare, SMTP relay) | delete via the owning command (`v-delete-dns-provider`, `v-delete-sys-smtp-relay`) and revoke at the provider; the panel never cached it                               |
-| Malicious Docker app or runaway Node app               | `v-change-sys-docker-status off` / `v-stop-node-app`, then `v-suspend-user` (hook closes public ports and stops pm2)                                                   |
-| Suspected modified `bin/`                              | `dpkg --verify hestia`; reinstall the package; `test/upstream-diff.sh` offline against the shipped tarball                                                             |
-| Vulnerability report                                   | `SECURITY.md` process (exists); fixes shipped as a patch release through the release pipeline with upstream notification when the issue is in shared code              |
+| Situation                                              | Action                                                                                                                                                                   |
+| ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Panel session compromise suspected                     | `rm -f /usr/local/arcpanel/data/sessions/sess_*` (all users re-login); rotate `APP_KEY` in `arcpanel.env` and run `php artisan optimize` (only flash/CSRF state is lost) |
+| Access key leaked                                      | `v-delete-access-key USER KEY`; review `v-list-user-log` and the API lines in the auth log; from E23 search the audit stream by key id                                   |
+| Third-party credential leaked (Cloudflare, SMTP relay) | delete via the owning command (`v-delete-dns-provider`, `v-delete-sys-smtp-relay`) and revoke at the provider; the panel never cached it                                 |
+| Malicious Docker app or runaway Node app               | `v-change-sys-docker-status off` / `v-stop-node-app`, then `v-suspend-user` (hook closes public ports and stops pm2)                                                     |
+| Suspected modified `bin/`                              | `dpkg --verify arcpanel`; reinstall the package; compare with the files of the shipped packageball                                                                       |
+| Vulnerability report                                   | `SECURITY.md` process (exists); fixes shipped as a patch release through the release pipeline with upstream notification when the issue is in shared code                |
 
 ---
 
@@ -286,4 +286,4 @@ Decided in ADR-0003 (rootless vs. group mode); the controls below hold in both m
 
 1. Alpine CSP build is stricter than the Alpine used by the legacy app; the design system (05) must adopt the `Alpine.data()` convention from the first component. Confirm no third-party Alpine plugin in use requires `unsafe-eval` (`@alpinejs/collapse` is fine).
 2. Rootless Docker places containers in the user's cgroup for free but complicates `127.0.0.1` port publishing (slirp4netns/pasta) — the port-binding requirement in §9 must be validated in the ADR-0003 spike.
-3. Whether `data/sessions` should move from `files` to a root-owned helper for E26 "sign out other sessions"; alternative is a `hestiaweb`-owned small index file keyed by user, maintained by `LegacySession::establish()`.
+3. Whether `data/sessions` should move from `files` to a root-owned helper for E26 "sign out other sessions"; alternative is a `arcpanelweb`-owned small index file keyed by user, maintained by `LegacySession::establish()`.

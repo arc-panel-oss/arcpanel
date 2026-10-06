@@ -6,18 +6,18 @@
 # (/root/arcpanel-node-mirror) and points NODE_RELEASES_URL at it; later
 # runs work offline. Package tests need the npm registry.
 
-if [ "${PATH#*/usr/local/hestia/bin*}" = "$PATH" ]; then
-    . /etc/profile.d/hestia.sh
+if [ "${PATH#*/usr/local/arcpanel/bin*}" = "$PATH" ]; then
+    . /etc/profile.d/arcpanel.sh
 fi
 
 load 'test_helper/bats-support/load'
 load 'test_helper/bats-assert/load'
 load 'test_helper/bats-file/load'
 
-HESTIA=/usr/local/hestia
-PKG_DIR=$HESTIA/data/packages
-CACHE=$HESTIA/data/cache/node
-CONF=$HESTIA/conf/hestia.conf
+ARCPANEL=/usr/local/arcpanel
+PKG_DIR=$ARCPANEL/data/packages
+CACHE=$ARCPANEL/data/cache/node
+CONF=$ARCPANEL/conf/arcpanel.conf
 MIRROR=/root/arcpanel-node-mirror
 BAD_MIRROR=/root/arcpanel-node-mirror-bad
 PASS="Tn-$(date +%s)-Pass"
@@ -138,7 +138,7 @@ setup() {
     assert_success
     assert_file_exists "$CACHE/release-keys.gpg"
     assert_file_exists "$PKG_DIR/developer.pkg"
-    run grep -c "v-update-sys-node-releases" /var/spool/cron/crontabs/hestiaweb
+    run grep -c "v-update-sys-node-releases" /var/spool/cron/crontabs/arcpanelweb
     assert_output "1"
     run v-list-package-tenancy developer json
     assert_success
@@ -488,7 +488,7 @@ wait_task() {
 @test "Tasks: one task at a time; a task whose process died is failed" {
     bash -c 'exec -a v-run-user-node-task sleep 60' &
     pid=$!
-    conf=$HESTIA/data/users/tnu1/node-task.conf
+    conf=$ARCPANEL/data/users/tnu1/node-task.conf
     echo "ID='1' ACTION='add-version' ARGS='lts' STATUS='running' PID='$pid' EXIT='' START='' END=''" > "$conf"
     run v-start-user-node-task tnu1 add-version lts
     assert_failure 7

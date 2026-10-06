@@ -14,7 +14,7 @@ Non-goals: editing templates in the browser (custom templates stay files), chang
 
 ## 2. Current state (verified in code)
 
-- Templates live in `install/deb/templates/web/<web_system>/[<backend>/]<name>.tpl|.stpl` and are copied to `$WEBTPL` (`/usr/local/hestia/data/templates/web`) at install. Today: ~60 `nginx/php-fpm/*` app templates, `nginx/{default,hosting,caching,suspended}` proxy templates, `apache2/{default,hosting,phpcgi,phpfcgid,www-data}` and `apache2/php-fpm/default`.
+- Templates live in `install/deb/templates/web/<web_system>/[<backend>/]<name>.tpl|.stpl` and are copied to `$WEBTPL` (`/usr/local/arcpanel/data/templates/web`) at install. Today: ~60 `nginx/php-fpm/*` app templates, `nginx/{default,hosting,caching,suspended}` proxy templates, `apache2/{default,hosting,phpcgi,phpfcgid,www-data}` and `apache2/php-fpm/default`.
 - `func/domain.sh:add_web_config()` renders a template with one `sed` pass over a fixed variable list (`%ip% %domain% %domain_idn% %alias% %alias_idn% %alias_string% %email% %web_system% %web_port% %web_ssl_port% %backend_lsnr% %rgroups% %proxy_system% %proxy_port% %proxy_ssl_port% %proxy_extensions% %user% %group% %home% %docroot% %sdocroot% %ssl_crt% %ssl_key% %ssl_pem% %ssl_ca_str% %ssl_ca%`), writes `~/conf/web/<domain>/<web_system>[.ssl].conf`, symlinks it into `/etc/<web_system>/conf.d/domains/`, and **then runs `<name>.sh` if it exists** with `user domain ip homedir docroot` (`domain.sh:329-335`). `caching.sh`, `hosting.sh`, `phpcgi.sh`, `wordpress-*-http3.sh` use this hook today.
 - `v-list-web-templates` is `ls $WEBTPL/$WEB_SYSTEM/$WEB_BACKEND | grep '\.tpl' | sed 's/\.tpl$//'`: file names only, no description. `v-list-web-templates-proxy` / `-backend` are the same for proxy and PHP-FPM pools.
 - Every generated vhost includes `~/conf/web/<domain>/nginx.conf_*` (and `nginx.ssl.conf_*`), so extra directives per domain are drop-in files.
@@ -64,46 +64,46 @@ This is **the canonical mechanism** for template variables in ArcPanel. [07](./0
 
 ```jsonc
 {
-  "$schema": "https://arcpanel.dev/schemas/web-template/v1",
-  "name": "nodejs-proxy", // must equal the file name
-  "title": "Node.js (reverse proxy)",
-  "description": "Proxies the domain to a Node.js process listening on a private port. Static files are served by NGINX when present in public_html.",
-  "category": "runtime", // php | cms | framework | runtime | static | proxy | docker | utility | hardened
-  "stack": "nginx", // nginx | nginx-proxy | apache2 (which template family this file belongs to)
-  "kind": "web", // web | proxy | backend — matches v-list-web-templates / -proxy / -backend
-  "requires": {
-    // optional; shown as badges, checked by the picker
-    "runtime": ["node"], // node (E13 per-user) | python3 | go | java | ruby | redis | memcached | ffmpeg … (E5 system packages)
-    "features": ["proxy"], // proxy | ssl | websocket | http3
-    "min_version": {}, // e.g. { "nginx": "1.25" }
-  },
-  "variables": [
-    {
-      "name": "node_port", // placeholder %node_port%
-      "label": "Application port",
-      "type": "port", // port | string | int | bool | enum | path | url
-      "source": "registry-port", // registry-port | literal | domain-conf-key
-      "app_kind": "node", // for registry-port: APP prefix used in v-allocate-user-port (04 §5)
-      "default": null,
-      "required": true,
-      "validation": "^[0-9]{2,5}$", // regex for literal input
-      "help": "Allocated automatically from your port pool.",
-    },
-    {
-      "name": "node_host",
-      "label": "Bind address",
-      "type": "string",
-      "source": "literal",
-      "default": "127.0.0.1",
-      "required": false,
-      "enum": ["127.0.0.1", "[::1]"],
-    },
-  ],
-  "docs_url": "https://docs.arcpanel.dev/templates/nodejs-proxy",
-  "since": "2.0",
-  "deprecated": null, // or { "since": "2.1", "replaced_by": "nodejs-proxy-ws" }
-  "hidden": false, // true for internal templates (suspended, proxy_ip)
-  "icon": "fa-node-js",
+	"$schema": "https://arcpanel.dev/schemas/web-template/v1",
+	"name": "nodejs-proxy", // must equal the file name
+	"title": "Node.js (reverse proxy)",
+	"description": "Proxies the domain to a Node.js process listening on a private port. Static files are served by NGINX when present in public_html.",
+	"category": "runtime", // php | cms | framework | runtime | static | proxy | docker | utility | hardened
+	"stack": "nginx", // nginx | nginx-proxy | apache2 (which template family this file belongs to)
+	"kind": "web", // web | proxy | backend — matches v-list-web-templates / -proxy / -backend
+	"requires": {
+		// optional; shown as badges, checked by the picker
+		"runtime": ["node"], // node (E13 per-user) | python3 | go | java | ruby | redis | memcached | ffmpeg … (E5 system packages)
+		"features": ["proxy"], // proxy | ssl | websocket | http3
+		"min_version": {}, // e.g. { "nginx": "1.25" }
+	},
+	"variables": [
+		{
+			"name": "node_port", // placeholder %node_port%
+			"label": "Application port",
+			"type": "port", // port | string | int | bool | enum | path | url
+			"source": "registry-port", // registry-port | literal | domain-conf-key
+			"app_kind": "node", // for registry-port: APP prefix used in v-allocate-user-port (04 §5)
+			"default": null,
+			"required": true,
+			"validation": "^[0-9]{2,5}$", // regex for literal input
+			"help": "Allocated automatically from your port pool.",
+		},
+		{
+			"name": "node_host",
+			"label": "Bind address",
+			"type": "string",
+			"source": "literal",
+			"default": "127.0.0.1",
+			"required": false,
+			"enum": ["127.0.0.1", "[::1]"],
+		},
+	],
+	"docs_url": "https://docs.arcpanel.dev/templates/nodejs-proxy",
+	"since": "2.0",
+	"deprecated": null, // or { "since": "2.1", "replaced_by": "nodejs-proxy-ws" }
+	"hidden": false, // true for internal templates (suspended, proxy_ip)
+	"icon": "fa-node-js",
 }
 ```
 
@@ -143,7 +143,7 @@ Library `func/tplmeta.sh` (**new**):
 # pointing at the "maintenance" template rendering (see §9) instead of a broken
 # config that would stop nginx -t.
 apply_template_vars() { ...; }
-read_template_vars() { ...; }   # KEY=VALUE pairs for a domain
+read_template_vars() { ...; }     # KEY=VALUE pairs for a domain
 template_declared_vars() { ...; } # from the sidecar(s) of the domain's templates
 ```
 
@@ -181,7 +181,7 @@ The order "set vars, then switch template" matters only for the first render; la
 
 ## 7. Template catalogue
 
-All new templates ship `.tpl`, `.stpl`, `.json`, and `.sh` (the `.sh` is a one-liner `source $HESTIA/func/tplmeta.sh; apply_template_vars "$1" "$2"` plus any template-specific step). `%var%` placeholders beyond the upstream list are declared in the sidecar. Variables shown in parentheses.
+All new templates ship `.tpl`, `.stpl`, `.json`, and `.sh` (the `.sh` is a one-liner `source $ARCPANEL/func/tplmeta.sh; apply_template_vars "$1" "$2"` plus any template-specific step). `%var%` placeholders beyond the upstream list are declared in the sidecar. Variables shown in parentheses.
 
 ### 7.1 Batch 1 — Q1 (unblocks E4/E14)
 
@@ -232,7 +232,7 @@ Each ships matching `.stpl` SSL files. The `nginx/php-fpm` originals of `nodejs-
 
 ## 8. Documentation generator and upgrades
 
-- `src/hst_generate_tpldocs.sh` (**new**, next to `hst_generate_clidocs.sh`) renders `docs/docs/server-administration/web-templates/<name>.md` from each sidecar (title, description, category, requirements, variables table, rendered example for `example.com`) and an index page. Run in CI; output committed like the CLI docs.
+- `src/arc_generate_tpldocs.sh` (**new**, next to `arcpanel-clidocs.sh`) renders `docs/docs/server-administration/web-templates/<name>.md` from each sidecar (title, description, category, requirements, variables table, rendered example for `example.com`) and an index page. Run in CI; output committed like the CLI docs.
 - `v-update-web-templates` already copies the tree; the 2.0 upgrade script additionally runs `v-check-web-template-meta` and, for domains using a template that now declares a required variable without a value, logs them and leaves them untouched (existing rendered configs are not re-rendered on upgrade unless upstream does so).
 - Custom templates (`$WEBTPL/.../custom/` or admin-added files) may add a `.json`; `v-check-web-template-meta` warns but does not fail for custom templates.
 
@@ -260,7 +260,7 @@ Blade + Alpine (no Vue): the picker is a filterable card grid inside the Web Dom
 - Selecting a template with `literal` variables reveals a small form generated from `variables[]` (label, help, default, validation client-side mirrored server-side in the FormRequest). `registry-port` variables show "allocated automatically" and the current value when editing. `domain-conf-key` variables are not shown.
 - Save: `WebDomainService::setTemplate()` calls `v-change-web-domain-tplvar` for each literal value (and `v-allocate-user-port` for registry ports not yet allocated), then `v-change-web-domain-tpl` / `-proxy-tpl` with `RESTART=no`, then one `v-restart-web`/`v-restart-proxy` via the restart queue (existing `restart.pipe`).
 - Edit page shows the current template card and a "Template variables" section (`v-list-web-domain-tplvars`).
-- Policies: `WebDomainPolicy::changeTemplate` honours the existing `POLICY_USER_CHANGE_THEME`-style policy `POLICY_USER_EDIT_WEB_TEMPLATES` (already in `hestia.conf`); resellers follow their tree ([03](./03-tenancy-and-authorization.md) §6).
+- Policies: `WebDomainPolicy::changeTemplate` honours the existing `POLICY_USER_CHANGE_THEME`-style policy `POLICY_USER_EDIT_WEB_TEMPLATES` (already in `arcpanel.conf`); resellers follow their tree ([03](./03-tenancy-and-authorization.md) §6).
 
 ---
 

@@ -17,7 +17,7 @@ if [ "$(id -u)" -ne 0 ]; then
 fi
 
 SRC="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-HESTIA="${HESTIA:-/usr/local/hestia}"
+ARCPANEL="${ARCPANEL:-/usr/local/arcpanel}"
 composer_step=yes
 restart_step=yes
 for arg in "$@"; do
@@ -31,14 +31,14 @@ for arg in "$@"; do
 	esac
 done
 
-echo "dev-sync: $SRC -> $HESTIA"
+echo "dev-sync: $SRC -> $ARCPANEL"
 
 CHANGED=$(mktemp)
 trap 'rm -f "$CHANGED"' EXIT
 
 # Copy without the owner, group and modes of the source: a Windows checkout
-# (/mnt/<drive>) reports uid 1000, which is hestiaweb on a test server, and
-# hestiaweb must never own files that root runs. Changed paths are recorded so
+# (/mnt/<drive>) reports uid 1000, which is arcpanelweb on a test server, and
+# arcpanelweb must never own files that root runs. Changed paths are recorded so
 # CRLF line endings of a Windows checkout can be removed afterwards.
 sync_tree() {
 	local dest="${*: -1}"
@@ -51,7 +51,7 @@ copy_file() {
 }
 
 # Panel app: mirror the source, keep runtime state and installed dependencies.
-mkdir -p "$HESTIA/web-app"
+mkdir -p "$ARCPANEL/web-app"
 sync_tree --delete \
 	--exclude '/vendor/' \
 	--exclude '/storage/' \
@@ -60,31 +60,31 @@ sync_tree --delete \
 	--exclude '/config/arc-commands.php' \
 	--exclude '/.env' \
 	--exclude '/.phpunit.cache/' \
-	"$SRC/web-app/" "$HESTIA/web-app/"
-sync_tree --ignore-existing "$SRC/web-app/storage/" "$HESTIA/web-app/storage/"
+	"$SRC/web-app/" "$ARCPANEL/web-app/"
+sync_tree --ignore-existing "$SRC/web-app/storage/" "$ARCPANEL/web-app/storage/"
 
 # Libraries of the commands (E8): mirror the source, keep the vendor
 # directories that Composer installs on the server.
-mkdir -p "$HESTIA/lib"
-sync_tree --delete --exclude '/vendor/' --exclude '/quickinstall/vendor/' "$SRC/lib/" "$HESTIA/lib/"
+mkdir -p "$ARCPANEL/lib"
+sync_tree --delete --exclude '/vendor/' --exclude '/quickinstall/vendor/' "$SRC/lib/" "$ARCPANEL/lib/"
 # CLI and installer files: overwrite, never delete.
-sync_tree "$SRC/bin/" "$HESTIA/bin/"
-sync_tree "$SRC/func/" "$HESTIA/func/"
-sync_tree "$SRC/install/" "$HESTIA/install/"
+sync_tree "$SRC/bin/" "$ARCPANEL/bin/"
+sync_tree "$SRC/func/" "$ARCPANEL/func/"
+sync_tree "$SRC/install/" "$ARCPANEL/install/"
 # The Docker app catalog (E4) mirrors the checkout: removed apps go away
-mkdir -p "$HESTIA/install/common/apps"
-sync_tree --delete "$SRC/install/common/apps/" "$HESTIA/install/common/apps/"
-chmod 755 "$HESTIA"/bin/* "$HESTIA/web-app/artisan" "$HESTIA/lib/mail-wrapper.php"
-find "$HESTIA/install" -name '*.sh' -exec chmod 755 {} +
-chmod 644 "$HESTIA"/install/*.sh
+mkdir -p "$ARCPANEL/install/common/apps"
+sync_tree --delete "$SRC/install/common/apps/" "$ARCPANEL/install/common/apps/"
+chmod 755 "$ARCPANEL"/bin/* "$ARCPANEL/web-app/artisan" "$ARCPANEL/lib/mail-wrapper.php"
+find "$ARCPANEL/install" -name '*.sh' -exec chmod 755 {} +
+chmod 644 "$ARCPANEL"/install/*.sh
 
 # Packaged configuration
-copy_file 0644 "$SRC/src/deb/nginx/nginx.conf" "$HESTIA/nginx/conf/nginx.conf"
-copy_file 0644 "$SRC/src/deb/php/php.ini" "$HESTIA/php/lib/php.ini"
-if [ -d "$HESTIA/web-terminal" ]; then
-	copy_file 0644 "$SRC/src/deb/web-terminal/server.js" "$HESTIA/web-terminal/server.js"
+copy_file 0644 "$SRC/src/deb/nginx/nginx.conf" "$ARCPANEL/nginx/conf/nginx.conf"
+copy_file 0644 "$SRC/src/deb/php/php.ini" "$ARCPANEL/php/lib/php.ini"
+if [ -d "$ARCPANEL/web-terminal" ]; then
+	copy_file 0644 "$SRC/src/deb/web-terminal/server.js" "$ARCPANEL/web-terminal/server.js"
 	copy_file 0755 "$SRC/src/deb/web-terminal/web-terminal-session-auth.php" \
-		"$HESTIA/web-terminal/web-terminal-session-auth.php"
+		"$ARCPANEL/web-terminal/web-terminal-session-auth.php"
 fi
 
 # Line endings: the repository stores LF only
@@ -97,26 +97,26 @@ done < "$CHANGED"
 if [ "$composer_step" = yes ]; then
 	export COMPOSER_ALLOW_SUPERUSER=1
 	# Dev dependencies are kept so the test suite can run on the server.
-	composer install --working-dir="$HESTIA/web-app" --no-interaction --no-progress --quiet
+	composer install --working-dir="$ARCPANEL/web-app" --no-interaction --no-progress --quiet
 fi
-for dir in "$HESTIA/lib" "$HESTIA/lib/quickinstall"; do
+for dir in "$ARCPANEL/lib" "$ARCPANEL/lib/quickinstall"; do
 	if [ "$composer_step" = yes ] || [ ! -d "$dir/vendor" ]; then
 		COMPOSER_ALLOW_SUPERUSER=1 composer install --working-dir="$dir" --no-dev --no-interaction --no-progress --quiet
 	fi
 done
 
-"$HESTIA/bin/v-add-sys-arcpanel"
-"$HESTIA/bin/v-add-sys-tenancy"
-"$HESTIA/bin/v-add-sys-port-registry"
-"$HESTIA/bin/v-add-sys-node"
-"$HESTIA/bin/v-add-sys-web-templates-meta"
-"$HESTIA/bin/v-add-sys-panel-files"
-if grep -q "^DOCKER_SYSTEM='yes'" "$HESTIA/conf/hestia.conf"; then
-	"$HESTIA/bin/v-add-sys-docker"
+"$ARCPANEL/bin/v-add-sys-arcpanel"
+"$ARCPANEL/bin/v-add-sys-tenancy"
+"$ARCPANEL/bin/v-add-sys-port-registry"
+"$ARCPANEL/bin/v-add-sys-node"
+"$ARCPANEL/bin/v-add-sys-web-templates-meta"
+"$ARCPANEL/bin/v-add-sys-panel-files"
+if grep -q "^DOCKER_SYSTEM='yes'" "$ARCPANEL/conf/arcpanel.conf"; then
+	"$ARCPANEL/bin/v-add-sys-docker"
 fi
 
 if [ "$restart_step" = yes ]; then
-	"$HESTIA/nginx/sbin/hestia-nginx" -t -q
+	"$ARCPANEL/nginx/sbin/arcpanel-nginx" -t -q
 	systemctl restart arcpanel
 	if systemctl list-unit-files arcpanel-web-terminal.service > /dev/null 2>&1; then
 		systemctl try-restart arcpanel-web-terminal.service || true

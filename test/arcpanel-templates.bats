@@ -5,17 +5,17 @@
 # front of Apache or as the web server. Uses ports 38500-38599 of the server
 # range and 127.0.0.1:385xx listeners.
 
-if [ "${PATH#*/usr/local/hestia/bin*}" = "$PATH" ]; then
-    . /etc/profile.d/hestia.sh
+if [ "${PATH#*/usr/local/arcpanel/bin*}" = "$PATH" ]; then
+    . /etc/profile.d/arcpanel.sh
 fi
 
 load 'test_helper/bats-support/load'
 load 'test_helper/bats-assert/load'
 load 'test_helper/bats-file/load'
 
-HESTIA=/usr/local/hestia
-WEBTPL=$HESTIA/data/templates/web
-PORTS_DIR=$HESTIA/data/ports
+ARCPANEL=/usr/local/arcpanel
+WEBTPL=$ARCPANEL/data/templates/web
+PORTS_DIR=$ARCPANEL/data/ports
 PASS="Tt-$(date +%s)-Pass"
 U1=e6tu1
 U2=e6tu2
@@ -28,7 +28,7 @@ TEST_TPL=arctest-port
 LISTEN_DIR=$(mktemp -d)
 
 source_value() {
-    grep "^$1=" "$HESTIA/conf/hestia.conf" | tail -n1 | cut -d"'" -f2
+    grep "^$1=" "$ARCPANEL/conf/arcpanel.conf" | tail -n1 | cut -d"'" -f2
 }
 PROXY_SYSTEM=$(source_value PROXY_SYSTEM)
 WEB_SYSTEM=$(source_value WEB_SYSTEM)
@@ -54,11 +54,11 @@ conf_of() {
 # has one
 web_ip() {
     local ip
-    ip=$(grep "^DOMAIN='$2' " "$HESTIA/data/users/$1/web.conf" | grep -o " IP='[^']*'" | cut -d"'" -f2)
-    if [ -f "$HESTIA/data/ips/$ip" ]; then
+    ip=$(grep "^DOMAIN='$2' " "$ARCPANEL/data/users/$1/web.conf" | grep -o " IP='[^']*'" | cut -d"'" -f2)
+    if [ -f "$ARCPANEL/data/ips/$ip" ]; then
         echo "$ip"
     else
-        basename "$(grep -l "^NAT='$ip'" "$HESTIA"/data/ips/* | head -n1)"
+        basename "$(grep -l "^NAT='$ip'" "$ARCPANEL"/data/ips/* | head -n1)"
     fi
 }
 
@@ -130,7 +130,7 @@ server {
 }
 EOF
     done
-    printf '#!/bin/bash\nsource /usr/local/hestia/func/arc-template.sh\narc_apply_tpl_vars "$1" "$2" "$4"\n' > "$TPL_DIR/$TEST_TPL.sh"
+    printf '#!/bin/bash\nsource /usr/local/arcpanel/func/arc-template.sh\narc_apply_tpl_vars "$1" "$2" "$4"\n' > "$TPL_DIR/$TEST_TPL.sh"
     chmod 755 "$TPL_DIR/$TEST_TPL.sh"
     mkdir -p "$WEBTPL/meta/$TPL_KIND"
     cat > "$WEBTPL/meta/$TPL_KIND/$TEST_TPL.json" << 'EOF'
@@ -421,7 +421,7 @@ status_path() {
 
 @test "Every template file of both stacks keeps its tokens inside the app block" {
     local dir name ext file
-    for dir in "$HESTIA/install/deb/templates/web/nginx" "$HESTIA/install/deb/templates/web/nginx/php-fpm"; do
+    for dir in "$ARCPANEL/install/deb/templates/web/nginx" "$ARCPANEL/install/deb/templates/web/nginx/php-fpm"; do
         for name in $ARC_TEMPLATES; do
             for ext in tpl stpl; do
                 file="$dir/$name.$ext"
@@ -441,9 +441,9 @@ status_path() {
 @test "The templates of the other stack pass nginx -t when rendered" {
     local dir name ext file out
     if [ "$TPL_KIND" = proxy ]; then
-        dir="$HESTIA/install/deb/templates/web/nginx/php-fpm"
+        dir="$ARCPANEL/install/deb/templates/web/nginx/php-fpm"
     else
-        dir="$HESTIA/install/deb/templates/web/nginx"
+        dir="$ARCPANEL/install/deb/templates/web/nginx"
     fi
     mkdir -p /tmp/e6render
     for name in $ARC_TEMPLATES; do
@@ -454,7 +454,7 @@ status_path() {
                 -e "s|%domain_idn%|$name-$ext.e6render.example|g" -e "s|%domain%|$name-$ext.e6render.example|g" \
                 -e "s|%alias_idn%||g" -e "s|%home%|/home|g" -e "s|%user%|$U1|g" \
                 -e "s|%docroot%|/tmp/e6render|g" -e "s|%sdocroot%|/tmp/e6render|g" \
-                -e "s|%ssl_pem%|$HESTIA/ssl/certificate.crt|g" -e "s|%ssl_key%|$HESTIA/ssl/certificate.key|g" \
+                -e "s|%ssl_pem%|$ARCPANEL/ssl/certificate.crt|g" -e "s|%ssl_key%|$ARCPANEL/ssl/certificate.key|g" \
                 -e "s|%arc_backend_port%|38599|g" "$dir/$name.$ext" > "$out"
         done
     done

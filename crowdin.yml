@@ -1,7 +1,7 @@
-# Inactive: this config pointed at the HestiaCP translation project. Translations are
+# Inactive: this config pointed at the upstream translation project. Translations are
 # paused until ArcPanel has its own Crowdin project (see the rebranding spec, WP2).
 files:
-  - source: /lib/locale/hestiacp.pot
-    translation: /lib/locale/%two_letters_code%/LC_MESSAGES/hestiacp.po
+  - source: /lib/locale/arcpanel.pot
+    translation: /lib/locale/%two_letters_code%/LC_MESSAGES/arcpanel.po
 project_id_env: CROWDIN_PROJECT_ID
 api_token_env: CROWDIN_PERSONAL_TOKEN

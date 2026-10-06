@@ -4,11 +4,11 @@
 
 ArcPanel is an open-source control panel for Linux web servers. From one dashboard and one command line it manages web domains, DNS zones, mail, databases, cron jobs, backups, firewall and SSL on a single host, and it adds what a modern hosting stack needs: resellers, a port registry, per-user Node.js and Docker apps, template metadata and a first-party file manager.
 
-ArcPanel is based on [HestiaCP](https://github.com/hestiacp/hestiacp) 1.10.5 and keeps its internals (`/usr/local/hestia`, the `v-*` commands, the REST API, the flat-file data model), so scripts and integrations written for HestiaCP keep working.
+ArcPanel is based on [HestiaCP](https://github.com/hestiacp/hestiacp) 1.10.5 and, since 2.0, a hard fork of it ([ADR-0007](docs/adr/0007-full-rename-and-hard-fork.md)). It keeps the architecture (the `v-*` commands, the REST API, the flat-file data model) under ArcPanel names: `/usr/local/arcpanel`, `/etc/arcpanel/arcpanel.conf`, `arcpanelweb`, `v-*-arcpanel-*`. Scripts and integrations written for HestiaCP need these names, and API clients read the `ArcPanel-Exit-Code` header.
 
 | Item            | Value                                                                                        |
 | --------------- | -------------------------------------------------------------------------------------------- |
-| Current release | ArcPanel 1.0.0 (in development), upstream base HestiaCP 1.10.5                               |
+| Current release | ArcPanel 2.0.0 (in development), based on HestiaCP 1.10.5                                    |
 | Target          | ArcPanel 2.0: the whole web UI on Laravel, legacy pages retired ([roadmap](docs/roadmap.md)) |
 | Platforms       | Debian 12 / 13, Ubuntu 22.04 / 24.04 / 26.04 LTS, amd64 and arm64 (no 32-bit)                |
 | License         | [GPL-3.0-or-later](LICENSE)                                                                  |
@@ -34,7 +34,7 @@ From the HestiaCP baseline; see [current features](docs/current-features.md).
 
 | Area                                             | Status (2026-10-06)                                                                                                                                   | Where to read                                                                                                                                                                            |
 | ------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Rebranding and packaging                         | Implemented; release infrastructure open                                                                                                              | [ADR-0006](docs/adr/0006-rebranding-depth.md)                                                                                                                                            |
+| Rebranding and packaging                         | Implemented; full rename in progress (ADR-0007); release infrastructure open                                                                          | [ADR-0007](docs/adr/0007-full-rename-and-hard-fork.md)                                                                                                                                   |
 | Laravel panel app at the root URL                | Implemented: every page of the panel (E7); since 2.0 (E8) at the root URL, the HestiaCP web interface removed and old URLs redirected for one release | [02 Laravel foundation](docs/design/02-laravel-foundation.md), [10 Page migration](docs/design/10-page-migration-and-retirement.md)                                                      |
 | Reseller role                                    | Implemented: Users, Packages, quotas, login-as                                                                                                        | [03 Tenancy](docs/design/03-tenancy-and-authorization.md), [E11 spec](docs/features/specs/2026-10-05-003-e11-reseller-design.md)                                                         |
 | Port registry                                    | Implemented: allocation, sub-allocation, public ports, firewall link                                                                                  | [04 Port registry](docs/design/04-port-registry.md), [E12 spec](docs/features/specs/2026-10-05-004-e12-port-registry-design.md)                                                          |
@@ -50,13 +50,13 @@ From the HestiaCP baseline; see [current features](docs/current-features.md).
 ## Architecture at a glance
 
 ```text
-Browser ── HTTPS :8083 ──► hestia-nginx ──► hestia-php (FPM, user hestiaweb)
+Browser ── HTTPS :8083 ──► arcpanel-nginx ──► arcpanel-php (FPM, user arcpanelweb)
                                               ├── web-app/   Laravel 13 panel app (/)        ─┐
                                               └── lib/api/   REST API script (/api/)         ─┤
                                                                                                │ sudo
                                                                  bin/v-* commands (root) ◄─────┘
                                                                  func/*.sh libraries
-                                                                 flat files under /usr/local/hestia/data
+                                                                 flat files under /usr/local/arcpanel/data
                                                                  managed services: nginx, apache2, php-fpm,
                                                                  bind, exim, dovecot, mariadb, postgresql, iptables
 ```
@@ -64,7 +64,7 @@ Browser ── HTTPS :8083 ──► hestia-nginx ──► hestia-php (FPM, use
 - **The CLI is the API.** The panel app and the REST API call `v-*` commands through `sudo`; the commands validate arguments, write the flat files and configure the services. The panel never writes hosting state itself.
 - **Strangler migration.** In 1.x the Laravel app and the legacy app shared one port and one session, and pages moved to Laravel one module at a time; 2.0 removed the legacy app.
 - **Owner model.** Admin, reseller and user roles with a one-level ownership tree; every page and command is scoped by owner.
-- **Additive changes to upstream.** New commands, libraries, keys and files only, so HestiaCP releases keep merging.
+- **Hard fork.** No upstream merges since 2.0; HestiaCP security fixes are read and ported by hand ([ADR-0007](docs/adr/0007-full-rename-and-hard-fork.md)).
 
 Full description: [01 Architecture overview](docs/design/01-architecture-overview.md). Data model: [13 Data model reference](docs/design/13-data-model-reference.md) and [15 Database schema and ERD](docs/design/15-database-schema-and-erd.md).
 
@@ -93,9 +93,9 @@ ArcPanel installs on a **fresh** operating system only. Upgrading an existing He
 
 To choose components or run unattended, pass flags (`sudo bash install.sh -h` lists them): for example `--apache no --phpfpm yes --multiphp yes --named yes --mariadb yes --postgresql no --exim yes --dovecot yes --clamav no --spamassassin no --iptables yes --fail2ban yes --webterminal yes --port 8083 --hostname panel.example.com --email admin@example.com --interactive no`. Locally built packages install with `--with-debs <dir>`.
 
-**Upgrading:** automatic updates are on by default (Server settings → Updates). Manually: `apt-get update && apt-get upgrade`. Upgrade steps for ArcPanel features live in `install/upgrade/arcpanel/<version>.sh` and run from the package.
+**Upgrading:** automatic updates are on by default (Server settings → Updates). Manually: `apt-get update && apt-get upgrade`. Upgrade steps of a release live in `install/upgrade/versions/<version>.sh` and run from the package.
 
-**Compatibility names.** ArcPanel names exist next to the original ones and both work: `/usr/local/arcpanel` → `/usr/local/hestia`, `$ARCPANEL` → `$HESTIA`, `v-update-sys-arcpanel` → `v-update-sys-hestia`, `systemctl restart arcpanel` → `systemctl restart hestia`.
+**Names.** Since 2.0 every internal name is ArcPanel's; the HestiaCP names and the 1.x aliases are gone (see the [CHANGELOG](CHANGELOG.md)).
 
 ---
 
@@ -105,7 +105,7 @@ To choose components or run unattended, pass flags (`sudo bash install.sh -h` li
 bin/            v-* commands (upstream + ArcPanel additions): the system's API
 func/           shell libraries; ArcPanel adds tenancy.sh, ports.sh, hooks.sh, node.sh, nodeapp.sh, fs.sh, docker.sh, …
 install/        installers, default packages, templates, API permission sets, upgrade steps
-src/deb/        Debian packaging of the panel stack (hestia, hestia-nginx, hestia-php, web terminal)
+src/deb/        Debian packaging of the panel stack (arcpanel, arcpanel-nginx, arcpanel-php, web terminal)
 lib/            libraries of the commands: Quick Install, 2FA, mail wrapper, API script, locales, logos (moved from web/ in 2.0)
 web-app/        Laravel 13 panel app: ArcCommand, auth bridge, policies, services, Blade + Alpine, Vue islands, Pest and Vitest tests
 test/           BATS suites, smoke script, Playwright e2e, dev-sync.sh (deploy a checkout to a test server)
@@ -172,7 +172,7 @@ The scripts create and delete their own users (`arce2e*`, `arcsmoke*`); never ru
 
 ### Building packages
 
-`src/hst_autocompile.sh --hestia --noinstall --keepbuild '~localsrc'` builds the `arcpanel` package from the working tree (the CI workflow `pr-docker-bats.yml` does the same inside a systemd container and installs it with `--with-debs`). `--all` also builds `arcpanel-nginx` and `arcpanel-php`.
+`src/arcpanel-build.sh --arcpanel --noinstall --keepbuild '~localsrc'` builds the `arcpanel` package from the working tree (the CI workflow `pr-docker-bats.yml` does the same inside a systemd container and installs it with `--with-debs`). `--all` also builds `arcpanel-nginx` and `arcpanel-php`.
 
 ---
 
@@ -193,7 +193,7 @@ The scripts create and delete their own users (`arce2e*`, `arcsmoke*`); never ru
 ## Contributing
 
 - Development happens on the `develop` branch; `master` holds releases (`vX.Y.Z`, betas as `vX.Y.Z-beta.N`).
-- Keep upstream merges cheap: do not rename HestiaCP internals, add new `v-*` commands and libraries instead of editing existing ones, and keep the original copyright headers ([ADR-0006](docs/adr/0006-rebranding-depth.md)).
+- ArcPanel owns every file: keep the conventions of the inherited code, use ArcPanel names only (`test/brand-check.sh`), and keep the original copyright headers ([ADR-0007](docs/adr/0007-full-rename-and-hard-fork.md)).
 - Every change comes with tests at the right layer (BATS for commands, Pest for the panel app, Vitest for Alpine modules, Playwright for flows) and with the documentation updates the design calls for.
 - Commit messages follow Conventional Commits with the epic as scope, for example `feat(e12): add the Ports pages`.
 - Bugs and feature requests: [GitHub issues](https://github.com/arc-panel-oss/arcpanel/issues). Vulnerabilities: see [SECURITY.md](SECURITY.md), never a public issue.

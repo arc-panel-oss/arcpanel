@@ -17,7 +17,7 @@ Non-goals: arbitrary `docker run`, user access to the Docker socket, Kubernetes,
 - No Docker support anywhere in `bin/`, `func/` or the installer. `nodejs` is installed system-wide only for the web terminal.
 - Per-user resource limits exist as systemd slices (`v-update-user-cgroup`: `CPUQuota`, `MemoryHigh`, `MemorySwapMax` on `user-<uid>.slice`).
 - `v-backup-user` has **no hook points**: it archives `~/web`, DNS, mail, databases, cron and then every other directory in the user's home (`ls -a | egrep -v "^conf$|^web$|^dns$|^tmp$|^mail$"`) as `user_dir/<dir>.tar.{gz,zst}`, honouring `USER=` exclusions from `backup-excludes.conf`. `v-restore-user … UDIR` restores those directories. Only `user.conf`, `ssl/`, `stats.log`, `history.log` and `backup-excludes.conf` are copied from `$USER_DATA`.
-- Long operations are queued through `data/queue/*.pipe` and run by `v-update-sys-queue <pipe>` from the `hestiaweb` crontab (`*/2` for restart, `*/5` for backup).
+- Long operations are queued through `data/queue/*.pipe` and run by `v-update-sys-queue <pipe>` from the `arcpanelweb` crontab (`*/2` for restart, `*/5` for backup).
 - Quick Install Apps (`web/src/app/WebApp/Installers/*`) are PHP installers into `public_html`; they are unrelated to Docker and are migrated in E7 ([10](./10-page-migration-and-retirement.md)).
 
 ---
@@ -58,27 +58,27 @@ Why the trade-off is acceptable: users never run `docker` themselves (no socket,
 
 | Location                                                                                       | Content                                                                                                                                                                                                 | Owner          |
 | ---------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------- |
-| `install/common/apps/docker/<slug>/manifest.yaml`, `compose.yaml.tpl`, `icon.svg`, `README.md` | catalog source, copied to `/usr/local/hestia/data/apps/catalog/docker/` at install/upgrade and by `v-update-docker-catalog`                                                                             | root           |
-| `/usr/local/hestia/data/apps/catalog/.meta`                                                    | catalog version, source URL, commit sha, signature status, refresh time                                                                                                                                 | root           |
+| `install/common/apps/docker/<slug>/manifest.yaml`, `compose.yaml.tpl`, `icon.svg`, `README.md` | catalog source, copied to `/usr/local/arcpanel/data/apps/catalog/docker/` at install/upgrade and by `v-update-docker-catalog`                                                                           | root           |
+| `/usr/local/arcpanel/data/apps/catalog/.meta`                                                  | catalog version, source URL, commit sha, signature status, refresh time                                                                                                                                 | root           |
 | `/home/<user>/apps/<slug>/`                                                                    | project dir: `compose.yaml` (rendered, `root:user 0640`), `.env` (`root:user 0640`, contains secrets), `app.conf` (**authoritative** record, `root:user 0640`), `data/` (volumes, `user:user`), `logs/` | mixed          |
 | `/home/<user>/apps/<slug>/app.conf`                                                            | `SLUG VERSION IMAGE_DIGEST DOMAIN WEB_PORT EXTRA_PORTS STATUS TEMPLATE SUSPENDED TIME DATE` + `VAR_<NAME>='…'` for non-secret variables                                                                 | root:user      |
-| `/usr/local/hestia/data/users/<user>/apps.conf` (**new**)                                      | index for listing, rebuilt from `app.conf` files by `v-rebuild-docker-apps`                                                                                                                             | root:user 0640 |
+| `/usr/local/arcpanel/data/users/<user>/apps.conf` (**new**)                                    | index for listing, rebuilt from `app.conf` files by `v-rebuild-docker-apps`                                                                                                                             | root:user 0640 |
 | `~/conf/web/<domain>/nginx.conf.tplvars`                                                       | `docker_port='30002'` via `v-change-web-domain-tplvar` ([09](./09-web-templates-metadata.md) §5)                                                                                                        | root:user      |
-| `/usr/local/hestia/data/ports/<user>.conf`                                                     | `APP='docker:<slug>'` entries ([04](./04-port-registry.md))                                                                                                                                             | root           |
-| `/usr/local/hestia/data/queue/apps.pipe` (**new**)                                             | queued installs/updates (`v-update-sys-queue apps`, cron `*/1`)                                                                                                                                         | root           |
+| `/usr/local/arcpanel/data/ports/<user>.conf`                                                   | `APP='docker:<slug>'` entries ([04](./04-port-registry.md))                                                                                                                                             | root           |
+| `/usr/local/arcpanel/data/queue/apps.pipe` (**new**)                                           | queued installs/updates (`v-update-sys-queue apps`, cron `*/1`)                                                                                                                                         | root           |
 
 Why `~/apps/` and not `~/web/<domain>/`: an app may later be re-bound to another domain, and upstream `v-backup-user` already archives every extra home directory, so `apps/` is backed up with **zero changes** to upstream (§5.6).
 
 ### 5.2 Package keys and server settings
 
-| Key                                        | Where         | Values                           | Meaning                                                  |
-| ------------------------------------------ | ------------- | -------------------------------- | -------------------------------------------------------- |
-| `DOCKER`                                   | `.pkg`        | `yes` · `no` (default)           | user may install catalog apps                            |
-| `DOCKER_APPS`                              | `.pkg`        | integer · `unlimited`            | max apps                                                 |
-| `DOCKER_CPUS`, `DOCKER_MEMORY`             | `.pkg`        | e.g. `1.0`, `1G`                 | per-app defaults, capped by `CPU_QUOTA` / `MEMORY_LIMIT` |
-| `DOCKER_SYSTEM`                            | `hestia.conf` | `yes` · `no`                     | engine installed (`v-add-sys-docker`)                    |
-| `DOCKER_CATALOG_URL`, `DOCKER_CATALOG_KEY` | `hestia.conf` | Git URL, minisign/age public key | catalog refresh source                                   |
-| `DOCKER_DATA_ROOT`                         | `hestia.conf` | default `/var/lib/docker`        | admin may move images to a bigger disk                   |
+| Key                                        | Where           | Values                           | Meaning                                                  |
+| ------------------------------------------ | --------------- | -------------------------------- | -------------------------------------------------------- |
+| `DOCKER`                                   | `.pkg`          | `yes` · `no` (default)           | user may install catalog apps                            |
+| `DOCKER_APPS`                              | `.pkg`          | integer · `unlimited`            | max apps                                                 |
+| `DOCKER_CPUS`, `DOCKER_MEMORY`             | `.pkg`          | e.g. `1.0`, `1G`                 | per-app defaults, capped by `CPU_QUOTA` / `MEMORY_LIMIT` |
+| `DOCKER_SYSTEM`                            | `arcpanel.conf` | `yes` · `no`                     | engine installed (`v-add-sys-docker`)                    |
+| `DOCKER_CATALOG_URL`, `DOCKER_CATALOG_KEY` | `arcpanel.conf` | Git URL, minisign/age public key | catalog refresh source                                   |
+| `DOCKER_DATA_ROOT`                         | `arcpanel.conf` | default `/var/lib/docker`        | admin may move images to a bigger disk                   |
 
 `developer.pkg` ([07](./07-node-platform.md) §4.2) ships `DOCKER='yes' DOCKER_APPS='3'`.
 
@@ -195,7 +195,7 @@ sequenceDiagram
 
 `v-backup-user` already archives `~/apps/` as a user directory. What ArcPanel adds:
 
-- **Consistency:** an additive cron line runs `v-backup-docker-apps all` 15 minutes before the daily `v-backup-users` run (both times are in the `hestiaweb` crontab, so the upgrade script places it relative to the existing line). For UI-triggered backups, `BackupService::schedule()` calls `v-backup-docker-apps USER` before `v-schedule-user-backup`. `pre_backup` hooks dump databases into `data/.dumps/`; apps without a hook are paused for the copy window (seconds). The marker `data/.backup-ok` carries the timestamp so restores can tell a consistent snapshot from a crash-consistent one. Known limitation until E15: the CLI `v-backup-user` alone yields a crash-consistent copy — documented, and `v-check-sys-docker` warns if the marker is older than the last backup.
+- **Consistency:** an additive cron line runs `v-backup-docker-apps all` 15 minutes before the daily `v-backup-users` run (both times are in the `arcpanelweb` crontab, so the upgrade script places it relative to the existing line). For UI-triggered backups, `BackupService::schedule()` calls `v-backup-docker-apps USER` before `v-schedule-user-backup`. `pre_backup` hooks dump databases into `data/.dumps/`; apps without a hook are paused for the copy window (seconds). The marker `data/.backup-ok` carries the timestamp so restores can tell a consistent snapshot from a crash-consistent one. Known limitation until E15: the CLI `v-backup-user` alone yields a crash-consistent copy — documented, and `v-check-sys-docker` warns if the marker is older than the last backup.
 - **Exclusions:** the Backup Exclusions page gets a "Docker apps" section listing apps; excluding one writes `USER='apps/<slug>'` (upstream's `USER=` accepts paths and excludes directories with `--exclude=path/*`, as the code shows).
 - **Restore:** `v-restore-user … UDIR` brings `~/apps/` back; a hook `post_restore_user.sh` (or the Laravel `BackupService::restore()` after the upstream call, when no hook exists) runs `v-rebuild-docker-apps USER`, which re-reads each `app.conf`, re-allocates ports (same port if free), re-renders Compose for the **recorded** `VERSION`/digest (so a restore does not silently upgrade), runs `post_restore` hooks (import dumps), and starts the apps. Partial restore of one app: `v-restore-docker-app USER BACKUP SLUG` (**new**) extracts only `apps/<slug>` from the `user_dir/apps.tar.*` member.
 - **Restic (incremental):** `~/apps` is inside the home snapshot; `v-list-user-files-restic` lets File Manager v2 browse it; per-app restore uses the same rebuild path.
@@ -253,7 +253,7 @@ post_remove: hooks/redis-remove.sh
 version_cmd: "redis-server --version | awk '{print $3}' | cut -d= -f2"
 ```
 
-- `/usr/local/hestia/data/apps/system.conf` (**new**): installed slugs with version, provider, `TIME DATE`.
+- `/usr/local/arcpanel/data/apps/system.conf` (**new**): installed slugs with version, provider, `TIME DATE`.
 
 ### 6.2 Commands (**new**, library `func/apps.sh`)
 
@@ -283,7 +283,7 @@ Reuses the web terminal WebSocket `tail` control frame defined in [07](./07-node
 | ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `docker:<slug>`                                        | `docker compose logs -f --no-color --timestamps` is **not** run as the user (no socket access); instead `v-run-docker-app-install`/lifecycle commands tee container logs into `/home/<user>/apps/<slug>/logs/app.log` through a root-side `docker compose logs -f` writer started by the lifecycle commands (one per running app, `logrotate`d). The ws server tails that file as the user — same ownership check as Node logs |
 | `docker-task:<slug>:<task>` (task = install or update) | `~/apps/<slug>/logs/install.log` / `update.log`                                                                                                                                                                                                                                                                                                                                                                                |
-| `system:<slug>`                                        | `/usr/local/hestia/data/apps/logs/<slug>.log`, allowed only when the effective user is `ROOT_USER` (the server already knows `ROOT_USER` from `v-list-sys-config`)                                                                                                                                                                                                                                                             |
+| `system:<slug>`                                        | `/usr/local/arcpanel/data/apps/logs/<slug>.log`, allowed only when the effective user is `ROOT_USER` (the server already knows `ROOT_USER` from `v-list-sys-config`)                                                                                                                                                                                                                                                           |
 
 Fallback without the web terminal: poll `v-list-docker-app-logs USER SLUG 200` every 3 s.
 

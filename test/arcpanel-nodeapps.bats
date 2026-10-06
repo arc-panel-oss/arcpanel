@@ -6,18 +6,18 @@
 # (/root/arcpanel-node-mirror). The first app of each user installs pm2 from
 # the npm registry.
 
-if [ "${PATH#*/usr/local/hestia/bin*}" = "$PATH" ]; then
-    . /etc/profile.d/hestia.sh
+if [ "${PATH#*/usr/local/arcpanel/bin*}" = "$PATH" ]; then
+    . /etc/profile.d/arcpanel.sh
 fi
 
 load 'test_helper/bats-support/load'
 load 'test_helper/bats-assert/load'
 load 'test_helper/bats-file/load'
 
-HESTIA=/usr/local/hestia
-PKG_DIR=$HESTIA/data/packages
-PORTS_DIR=$HESTIA/data/ports
-CONF=$HESTIA/conf/hestia.conf
+ARCPANEL=/usr/local/arcpanel
+PKG_DIR=$ARCPANEL/data/packages
+PORTS_DIR=$ARCPANEL/data/ports
+CONF=$ARCPANEL/conf/arcpanel.conf
 MIRROR=/root/arcpanel-node-mirror
 PASS="Tna-$(date +%s)-Pass"
 USERS="tna1 tna2 tnaoff"
@@ -32,9 +32,9 @@ source_value() {
     grep "^$1=" "$CONF" | tail -n1 | cut -d"'" -f2
 }
 if [ "$(source_value WEB_SYSTEM)" = 'nginx' ]; then
-    tpl_of() { grep "^DOMAIN='$2' " "$HESTIA/data/users/$1/web.conf" | grep -o " TPL='[^']*'" | cut -d"'" -f2; }
+    tpl_of() { grep "^DOMAIN='$2' " "$ARCPANEL/data/users/$1/web.conf" | grep -o " TPL='[^']*'" | cut -d"'" -f2; }
 else
-    tpl_of() { grep "^DOMAIN='$2' " "$HESTIA/data/users/$1/web.conf" | grep -o " PROXY='[^']*'" | cut -d"'" -f2; }
+    tpl_of() { grep "^DOMAIN='$2' " "$ARCPANEL/data/users/$1/web.conf" | grep -o " PROXY='[^']*'" | cut -d"'" -f2; }
 fi
 
 latest_of() {
@@ -57,11 +57,11 @@ make_package() {
 # Local address of the domain (web.conf may hold the NAT address)
 web_ip() {
     local ip
-    ip=$(grep "^DOMAIN='$2' " "$HESTIA/data/users/$1/web.conf" | grep -o " IP='[^']*'" | cut -d"'" -f2)
-    if [ -f "$HESTIA/data/ips/$ip" ]; then
+    ip=$(grep "^DOMAIN='$2' " "$ARCPANEL/data/users/$1/web.conf" | grep -o " IP='[^']*'" | cut -d"'" -f2)
+    if [ -f "$ARCPANEL/data/ips/$ip" ]; then
         echo "$ip"
     else
-        basename "$(grep -l "^NAT='$ip'" "$HESTIA"/data/ips/* | head -n1)"
+        basename "$(grep -l "^NAT='$ip'" "$ARCPANEL"/data/ips/* | head -n1)"
     fi
 }
 
@@ -106,7 +106,7 @@ write_package_json() {
 }
 
 app_field() {
-    grep "^DOMAIN='$2' " "$HESTIA/data/users/$1/nodeapps.conf" | grep -oE "(^| )$3='[^']*'" | cut -d"'" -f2
+    grep "^DOMAIN='$2' " "$ARCPANEL/data/users/$1/nodeapps.conf" | grep -oE "(^| )$3='[^']*'" | cut -d"'" -f2
 }
 
 port_app() {
@@ -279,7 +279,7 @@ setup() {
     assert_failure 7
     assert_output --partial "python3"
     assert_equal "$(tpl_of $U2 $DD)" "$prev"
-    [ ! -f "$HESTIA/data/users/$U2/nodeapps.conf" ] || ! grep -q "$DD" "$HESTIA/data/users/$U2/nodeapps.conf"
+    [ ! -f "$ARCPANEL/data/users/$U2/nodeapps.conf" ] || ! grep -q "$DD" "$ARCPANEL/data/users/$U2/nodeapps.conf"
     assert_file_not_exists "/var/lib/systemd/linger/$U2"
 }
 
@@ -352,7 +352,7 @@ setup() {
     assert_success
     echo "$output" | jq -e '.VARS == [{"KEY": "GREETING", "VALUE": "hello world"}, {"KEY": "API_KEY", "VALUE": "abc=def"}]'
     assert_equal "$(stat -c %a "/home/$U1/web/$DA/nodeapp/.env")" "600"
-    run grep -c "abc=def" "$HESTIA/log/system.log"
+    run grep -c "abc=def" "$ARCPANEL/log/system.log"
     assert_output "0"
     printf 'PORT=1234\n' > "$env"
     run v-change-node-app-env $U1 $DA "$env"
@@ -559,7 +559,7 @@ user_systemctl() {
     run v-check-sys-node json
     echo "$output" | jq -e --arg u "$U1" '[.FINDINGS[] | select(.USER == $u)] | length == 0'
     echo "$output" | jq -e '(.DAEMONS | tonumber) >= 1 and (.APPS | tonumber) >= 2'
-    grep -q "v-check-sys-node repair" /var/spool/cron/crontabs/hestiaweb
+    grep -q "v-check-sys-node repair" /var/spool/cron/crontabs/arcpanelweb
 }
 
 @test "Persistence: backup, delete and restore bring the apps back on their ports" {
@@ -599,7 +599,7 @@ user_systemctl() {
     run v-rebuild-node-apps $U2
     assert_success
     assert_output --partial "not imported"
-    [ ! -f "$HESTIA/data/users/$U2/nodeapps.conf" ] || ! grep -q "$DD" "$HESTIA/data/users/$U2/nodeapps.conf"
+    [ ! -f "$ARCPANEL/data/users/$U2/nodeapps.conf" ] || ! grep -q "$DD" "$ARCPANEL/data/users/$U2/nodeapps.conf"
     printf "DOMAIN='%s' NAME='dd' START='app.js' CWD='public_html' NODE_VERSION='default' PORT='%s' INSTANCES='1' MAX_MEMORY='256' TEMPLATE='nodejs-proxy' PREV_TPL='default' STATE='running' SUSPENDED='no' TIME='' DATE=''\n" "$DD" "$other_port" \
         | runuser -u $U2 -- tee "$dir/app.conf" > /dev/null
     run v-rebuild-node-apps $U2
@@ -627,7 +627,7 @@ user_systemctl() {
     echo "$output" | jq -e --arg u "$U2" --arg d "$de" '[.FINDINGS[] | select(.USER == $u and .TYPE == "domain-missing" and .DOMAIN == $d)] | length == 1'
     run v-check-sys-node repair
     assert_success
-    [ ! -f "$HESTIA/data/users/$U2/nodeapps.conf" ] || ! grep -q "$de" "$HESTIA/data/users/$U2/nodeapps.conf"
+    [ ! -f "$ARCPANEL/data/users/$U2/nodeapps.conf" ] || ! grep -q "$de" "$ARCPANEL/data/users/$U2/nodeapps.conf"
     assert_equal "$(port_app $U2 "$port")" ""
     run pgrep -u $U2 -f "tna-e|$de"
     assert_failure
@@ -647,7 +647,7 @@ user_systemctl() {
     assert_file_not_exists "/home/$U1/.config/systemd/user/arcpanel-pm2.service"
     assert_file_not_exists "/var/lib/systemd/linger/$U1"
     assert_file_not_exists "/etc/logrotate.d/arcpanel-node-$U1"
-    assert_file_not_exists "$HESTIA/data/users/$U1/pm2.conf"
+    assert_file_not_exists "$ARCPANEL/data/users/$U1/pm2.conf"
     run pgrep -u $U1 -f "PM2"
     assert_failure
 }

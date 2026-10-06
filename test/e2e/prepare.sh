@@ -50,8 +50,8 @@
 #                                 reset mail, reset-clean deletes both
 set -euo pipefail
 
-HESTIA="${HESTIA:-/usr/local/hestia}"
-B="$HESTIA/bin"
+ARCPANEL="${ARCPANEL:-/usr/local/arcpanel}"
+B="$ARCPANEL/bin"
 USERS="arce2eadmin arce2euser arce2ereseller arce2ecustomer arce2edev arce2ebackup"
 BACKUP_PACKAGE=arce2e-backups
 RESTIC_REPO=/backup/restic-e2e
@@ -60,7 +60,7 @@ PLAN=arce2e-plan
 STATE=/root/.arcpanel-e2e-debug-mode
 
 forget_config_cache() {
-	runuser -u hestiaweb -- "$HESTIA/php/bin/php" "$HESTIA/web-app/artisan" cache:clear > /dev/null
+	runuser -u arcpanelweb -- "$ARCPANEL/php/bin/php" "$ARCPANEL/web-app/artisan" cache:clear > /dev/null
 }
 
 delete_users() {
@@ -79,7 +79,7 @@ delete_users() {
 # Backups spec (E7): restic repository, domain, file, one archive, one snapshot
 backups_prepare() {
 	local user=arce2ebackup
-	if [ ! -f "$HESTIA/conf/restic.conf" ]; then
+	if [ ! -f "$ARCPANEL/conf/restic.conf" ]; then
 		mkdir -p "$RESTIC_REPO"
 		"$B/v-add-backup-host-restic" "$RESTIC_REPO" 5 -1 -1 -1 -1 > /dev/null
 		touch "$RESTIC_STATE"
@@ -88,7 +88,7 @@ backups_prepare() {
 		"$B/v-add-web-domain" "$user" e2e-backup.example > /dev/null
 	fi
 	runuser -u "$user" -- sh -c "mkdir -p /home/$user/tmp && echo original > /home/$user/tmp/e2e-note.txt"
-	sed -i "/'$user'/d; / $user /d" "$HESTIA/data/queue/backup.pipe" 2> /dev/null || true
+	sed -i "/'$user'/d; / $user /d" "$ARCPANEL/data/queue/backup.pipe" 2> /dev/null || true
 	for backup in $("$B/v-list-user-backups" "$user" plain | awk '{print $1}'); do
 		"$B/v-delete-user-backup" "$user" "$backup" > /dev/null 2>&1 || true
 	done
@@ -105,11 +105,11 @@ stop_listeners() {
 # NAT address when the IP has one
 domain_ip() {
 	local ip
-	ip=$(grep "^DOMAIN='$1' " "$HESTIA/data/users/${2:-arce2euser}/web.conf" | grep -o " IP='[^']*'" | cut -d"'" -f2)
-	if [ -f "$HESTIA/data/ips/$ip" ]; then
+	ip=$(grep "^DOMAIN='$1' " "$ARCPANEL/data/users/${2:-arce2euser}/web.conf" | grep -o " IP='[^']*'" | cut -d"'" -f2)
+	if [ -f "$ARCPANEL/data/ips/$ip" ]; then
 		echo "$ip"
 	else
-		basename "$(grep -l "^NAT='$ip'" "$HESTIA"/data/ips/* | head -n1)"
+		basename "$(grep -l "^NAT='$ip'" "$ARCPANEL"/data/ips/* | head -n1)"
 	fi
 }
 
@@ -129,7 +129,7 @@ nodeapps_reset() {
 		"$B/v-delete-web-domain" arce2edev "$domain" no > /dev/null 2>&1 || true
 	done
 	"$B/v-delete-user-nvm" arce2edev > /dev/null 2>&1 || true
-	rm -f "$HESTIA/data/users/arce2edev/node-task.conf" "$HESTIA/data/users/arce2edev/node-task.log"
+	rm -f "$ARCPANEL/data/users/arce2edev/node-task.conf" "$ARCPANEL/data/users/arce2edev/node-task.log"
 }
 
 # Docker apps (E4): the engine, and a web domain with HTTPS (self-signed) of
@@ -141,8 +141,8 @@ dockerapps_reset() {
 	if ! "$B/v-list-user" arce2edev > /dev/null 2>&1; then
 		return 0
 	fi
-	if [ -f "$HESTIA/data/users/arce2edev/dockerapps.conf" ]; then
-		for name in $(grep -oE "^NAME='[^']*'" "$HESTIA/data/users/arce2edev/dockerapps.conf" | cut -d"'" -f2); do
+	if [ -f "$ARCPANEL/data/users/arce2edev/dockerapps.conf" ]; then
+		for name in $(grep -oE "^NAME='[^']*'" "$ARCPANEL/data/users/arce2edev/dockerapps.conf" | cut -d"'" -f2); do
 			"$B/v-delete-docker-app" arce2edev "$name" > /dev/null 2>&1 || true
 		done
 	fi
@@ -298,7 +298,7 @@ reset_clean() {
 # POLICY_SYSTEM_PASSWORD_RESET=yes while the reset spec runs; reset_clean restores it
 reset_enable() {
 	if [ ! -f "$RESET_STATE" ]; then
-		grep -o "^POLICY_SYSTEM_PASSWORD_RESET='[a-z]*'" "$HESTIA/conf/hestia.conf" | cut -d"'" -f2 > "$RESET_STATE" || echo yes > "$RESET_STATE"
+		grep -o "^POLICY_SYSTEM_PASSWORD_RESET='[a-z]*'" "$ARCPANEL/conf/arcpanel.conf" | cut -d"'" -f2 > "$RESET_STATE" || echo yes > "$RESET_STATE"
 	fi
 	"$B/v-change-sys-config-value" POLICY_SYSTEM_PASSWORD_RESET yes
 	forget_config_cache
@@ -307,7 +307,7 @@ reset_enable() {
 case "${1:-}" in
 	terminal-on)
 		if [ ! -f "$TERMINAL_STATE" ]; then
-			grep -o "^WEB_TERMINAL='[a-z]*'" "$HESTIA/conf/hestia.conf" | cut -d"'" -f2 > "$TERMINAL_STATE" || echo false > "$TERMINAL_STATE"
+			grep -o "^WEB_TERMINAL='[a-z]*'" "$ARCPANEL/conf/arcpanel.conf" | cut -d"'" -f2 > "$TERMINAL_STATE" || echo false > "$TERMINAL_STATE"
 		fi
 		"$B/v-change-sys-config-value" WEB_TERMINAL true
 		"$B/v-change-user-shell" arce2euser bash > /dev/null
@@ -379,14 +379,14 @@ case "${1:-}" in
 	files-gc)
 		# An upload session older than 24 h and a ticket older than an hour,
 		# then the scheduler's clean-up; prints what is left of them
-		staging="$HESTIA/web-app/storage/app/files"
+		staging="$ARCPANEL/web-app/storage/app/files"
 		token=e2e0000000000000000000000000beef
-		install -d -o hestiaweb -g hestiaweb -m 700 "$staging/uploads/$token" "$staging/uploads/$token/chunks"
+		install -d -o arcpanelweb -g arcpanelweb -m 700 "$staging/uploads/$token" "$staging/uploads/$token/chunks"
 		printf '{"created":%s}' "$(($(date +%s) - 90000))" > "$staging/uploads/$token/meta.json"
 		touch "$staging/downloads/$token" "$staging/downloads/$token.json"
-		chown hestiaweb:hestiaweb "$staging/uploads/$token/meta.json" "$staging/downloads/$token" "$staging/downloads/$token.json"
+		chown arcpanelweb:arcpanelweb "$staging/uploads/$token/meta.json" "$staging/downloads/$token" "$staging/downloads/$token.json"
 		touch -d '2 hours ago' "$staging/downloads/$token" "$staging/downloads/$token.json"
-		runuser -u hestiaweb -- "$HESTIA/php/bin/php" "$HESTIA/web-app/artisan" files:gc > /dev/null
+		runuser -u arcpanelweb -- "$ARCPANEL/php/bin/php" "$ARCPANEL/web-app/artisan" files:gc > /dev/null
 		find "$staging" -name "$token*" | wc -l
 		exit 0
 		;;
@@ -446,7 +446,7 @@ case "${1:-}" in
 		;;
 	dockerapp-port)
 		# The web port of arce2edev's app NAME, empty when it has none
-		grep "^NAME='${2:?name}' " "$HESTIA/data/users/arce2edev/dockerapps.conf" 2> /dev/null \
+		grep "^NAME='${2:?name}' " "$ARCPANEL/data/users/arce2edev/dockerapps.conf" 2> /dev/null \
 			| grep -oE "WEB_PORT='[0-9]*'" | cut -d"'" -f2 || true
 		exit 0
 		;;
@@ -455,7 +455,7 @@ case "${1:-}" in
 		exit 0
 		;;
 	backups-clear-queue)
-		sed -i "/'arce2ebackup'/d; / arce2ebackup /d" "$HESTIA/data/queue/backup.pipe" 2> /dev/null || true
+		sed -i "/'arce2ebackup'/d; / arce2ebackup /d" "$ARCPANEL/data/queue/backup.pipe" 2> /dev/null || true
 		exit 0
 		;;
 	backups-change-file)
@@ -465,7 +465,7 @@ case "${1:-}" in
 	backups-run-queue)
 		# The queued file restore of arce2ebackup, run as v-update-sys-queue would
 		file=$(mktemp)
-		grep "v-restore-file-restic 'arce2ebackup' " "$HESTIA/data/queue/backup.pipe" > "$file" || true
+		grep "v-restore-file-restic 'arce2ebackup' " "$ARCPANEL/data/queue/backup.pipe" > "$file" || true
 		bash "$file" > /dev/null 2>&1 || true
 		rm -f "$file"
 		cat /home/arce2ebackup/tmp/e2e-note.txt
@@ -473,7 +473,7 @@ case "${1:-}" in
 		;;
 	port-app)
 		# The registry app of PORT of arce2edev, empty when it is free
-		grep "^PORT='${2:?port}' " "$HESTIA/data/ports/arce2edev.conf" 2> /dev/null | grep -oE "APP='[^']*'" | cut -d"'" -f2 || true
+		grep "^PORT='${2:?port}' " "$ARCPANEL/data/ports/arce2edev.conf" 2> /dev/null | grep -oE "APP='[^']*'" | cut -d"'" -f2 || true
 		exit 0
 		;;
 	reset-user)
@@ -492,7 +492,7 @@ case "${1:-}" in
 		# The reset code of the newest mail in the reset mailbox (empty until it arrives)
 		latest=$(ls -t "$RESET_MAILDIR"/new/* "$RESET_MAILDIR"/cur/* 2> /dev/null | head -n1 || true)
 		if [ -n "$latest" ]; then
-			"$HESTIA/php/bin/php" -r 'echo quoted_printable_decode(file_get_contents($argv[1]));' "$latest" \
+			"$ARCPANEL/php/bin/php" -r 'echo quoted_printable_decode(file_get_contents($argv[1]));' "$latest" \
 				| grep -oE 'code=[A-Za-z0-9]{12}' | tail -n1 | cut -d= -f2 || true
 		fi
 		exit 0
@@ -513,12 +513,12 @@ if [ "${1:-}" = cleanup ]; then
 		rm -f "$API_STATE"
 	fi
 	delete_users
-	if [ -n "$(grep -o "^FIREWALL_SYSTEM='[^']\+'" "$HESTIA/conf/hestia.conf" || true)" ]; then
+	if [ -n "$(grep -o "^FIREWALL_SYSTEM='[^']\+'" "$ARCPANEL/conf/arcpanel.conf" || true)" ]; then
 		firewall_reset
 		rm -f "$FIREWALL_IPSET_FILE"
 	fi
 	if [ -f "$RESTIC_STATE" ]; then
-		"$B/v-delete-backup-host-restic" > /dev/null 2>&1 || rm -f "$HESTIA/conf/restic.conf"
+		"$B/v-delete-backup-host-restic" > /dev/null 2>&1 || rm -f "$ARCPANEL/conf/restic.conf"
 		"$B/v-change-sys-config-value" BACKUP_INCREMENTAL no > /dev/null 2>&1 || true
 		rm -rf "$RESTIC_REPO" "$RESTIC_STATE"
 	fi
@@ -546,7 +546,7 @@ fi
 # Backups (E7): a package with incremental backups
 if ! "$B/v-list-user-package" "$BACKUP_PACKAGE" > /dev/null 2>&1; then
 	file="$(mktemp)"
-	sed "s/^BACKUPS_INCREMENTAL=.*/BACKUPS_INCREMENTAL='yes'/" "$HESTIA/data/packages/default.pkg" > "$file"
+	sed "s/^BACKUPS_INCREMENTAL=.*/BACKUPS_INCREMENTAL='yes'/" "$ARCPANEL/data/packages/default.pkg" > "$file"
 	grep -q '^BACKUPS_INCREMENTAL=' "$file" || echo "BACKUPS_INCREMENTAL='yes'" >> "$file"
 	"$B/v-add-user-package" "$file" "$BACKUP_PACKAGE" > /dev/null
 	rm -f "$file"
@@ -599,7 +599,7 @@ dockerapps_reset
 "$B/v-add-web-domain" arce2euser e2e-site.example > /dev/null
 "$B/v-add-web-domain" arce2euser e2e-bulk.example > /dev/null
 # Databases spec (E7): arce2euser_e2edb
-if [ -n "$(grep -o "^DB_SYSTEM='[^']\+'" "$HESTIA/conf/hestia.conf" || true)" ]; then
+if [ -n "$(grep -o "^DB_SYSTEM='[^']\+'" "$ARCPANEL/conf/arcpanel.conf" || true)" ]; then
 	file="$(mktemp)"
 	printf '%s\n' "$password" > "$file"
 	"$B/v-add-database" arce2euser e2edb e2edb "$file" > /dev/null
@@ -608,11 +608,11 @@ fi
 # Cron spec (E7): one known job
 "$B/v-add-cron-job" arce2euser 0 3 '*' '*' '*' 'echo e2e-cron' > /dev/null
 # DNS spec (E7): one known zone on the address of e2e-site.example
-if [ -n "$(grep -o "^DNS_SYSTEM='[^']\+'" "$HESTIA/conf/hestia.conf" || true)" ]; then
+if [ -n "$(grep -o "^DNS_SYSTEM='[^']\+'" "$ARCPANEL/conf/arcpanel.conf" || true)" ]; then
 	"$B/v-add-dns-domain" arce2euser e2e-zone.example "$(domain_ip e2e-site.example)" > /dev/null
 fi
 # Mail spec (E7): one known domain with the account info
-if [ -n "$(grep -o "^MAIL_SYSTEM='[^']\+'" "$HESTIA/conf/hestia.conf" || true)" ]; then
+if [ -n "$(grep -o "^MAIL_SYSTEM='[^']\+'" "$ARCPANEL/conf/arcpanel.conf" || true)" ]; then
 	"$B/v-add-mail-domain" arce2euser e2e-mail.example > /dev/null
 	file="$(mktemp)"
 	printf '%s\n' "$password" > "$file"
@@ -623,18 +623,18 @@ fi
 # Keys spec (E7 batch 2)
 keys_reset
 if [ ! -f "$API_STATE" ]; then
-	grep -o "^API_SYSTEM='[0-9]*'" "$HESTIA/conf/hestia.conf" | cut -d"'" -f2 > "$API_STATE" || echo 0 > "$API_STATE"
+	grep -o "^API_SYSTEM='[0-9]*'" "$ARCPANEL/conf/arcpanel.conf" | cut -d"'" -f2 > "$API_STATE" || echo 0 > "$API_STATE"
 fi
 "$B/v-change-sys-config-value" API_SYSTEM 2
 
 # Firewall spec (E7 batch 2)
-if [ -n "$(grep -o "^FIREWALL_SYSTEM='[^']\+'" "$HESTIA/conf/hestia.conf" || true)" ]; then
+if [ -n "$(grep -o "^FIREWALL_SYSTEM='[^']\+'" "$ARCPANEL/conf/arcpanel.conf" || true)" ]; then
 	firewall_reset
 fi
 
 # The style guide is part of the accessibility run.
 if [ ! -f "$STATE" ]; then
-	grep -o "^DEBUG_MODE='[a-z]*'" "$HESTIA/conf/hestia.conf" | cut -d"'" -f2 > "$STATE" || echo false > "$STATE"
+	grep -o "^DEBUG_MODE='[a-z]*'" "$ARCPANEL/conf/arcpanel.conf" | cut -d"'" -f2 > "$STATE" || echo false > "$STATE"
 fi
 "$B/v-change-sys-config-value" DEBUG_MODE true
 forget_config_cache
@@ -642,6 +642,6 @@ forget_config_cache
 dir="$(mktemp -d)"
 openssl req -x509 -newkey rsa:2048 -nodes -days 30 -subj "/CN=e2e-site.example" \
 	-keyout "$dir/key.pem" -out "$dir/crt.pem" > /dev/null 2>&1
-"$HESTIA/php/bin/php" -r 'echo json_encode(["certificate" => file_get_contents($argv[1]), "key" => file_get_contents($argv[2])]);' \
+"$ARCPANEL/php/bin/php" -r 'echo json_encode(["certificate" => file_get_contents($argv[1]), "key" => file_get_contents($argv[2])]);' \
 	"$dir/crt.pem" "$dir/key.pem"
 rm -rf "$dir"

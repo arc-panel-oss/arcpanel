@@ -4,27 +4,27 @@
 # user without capabilities. Slow: pulls the real images from Docker Hub
 # and GHCR. Run as root after test/arcpanel-docker.bats (engine installed).
 
-if [ "${PATH#*/usr/local/hestia/bin*}" = "$PATH" ]; then
-    . /etc/profile.d/hestia.sh
+if [ "${PATH#*/usr/local/arcpanel/bin*}" = "$PATH" ]; then
+    . /etc/profile.d/arcpanel.sh
 fi
 
 load 'test_helper/bats-support/load'
 load 'test_helper/bats-assert/load'
 load 'test_helper/bats-file/load'
 
-HESTIA=/usr/local/hestia
-PKG_DIR=$HESTIA/data/packages
+ARCPANEL=/usr/local/arcpanel
+PKG_DIR=$ARCPANEL/data/packages
 PASS="Tdc-$(date +%s)-Pass"
 U=tdcat
 APPS="uptime-kuma n8n gitea vaultwarden miniflux redis"
 
 web_ip() {
     local ip
-    ip=$(grep "^DOMAIN='$2' " "$HESTIA/data/users/$1/web.conf" | grep -o " IP='[^']*'" | cut -d"'" -f2)
-    if [ -f "$HESTIA/data/ips/$ip" ]; then
+    ip=$(grep "^DOMAIN='$2' " "$ARCPANEL/data/users/$1/web.conf" | grep -o " IP='[^']*'" | cut -d"'" -f2)
+    if [ -f "$ARCPANEL/data/ips/$ip" ]; then
         echo "$ip"
     else
-        basename "$(grep -l "^NAT='$ip'" "$HESTIA"/data/ips/* | head -n1)"
+        basename "$(grep -l "^NAT='$ip'" "$ARCPANEL"/data/ips/* | head -n1)"
     fi
 }
 
@@ -48,7 +48,7 @@ wait_task() {
 
 cleanup() {
     local name
-    for name in $(grep -oE "^NAME='[^']*'" "$HESTIA/data/users/$U/dockerapps.conf" 2> /dev/null | cut -d"'" -f2); do
+    for name in $(grep -oE "^NAME='[^']*'" "$ARCPANEL/data/users/$U/dockerapps.conf" 2> /dev/null | cut -d"'" -f2); do
         v-delete-docker-app "$U" "$name" > /dev/null 2>&1 || true
     done
     v-delete-user "$U" > /dev/null 2>&1 || true
@@ -57,7 +57,7 @@ cleanup() {
 }
 
 setup_file() {
-    [ "$(grep "^DOCKER_SYSTEM=" "$HESTIA/conf/hestia.conf" | cut -d"'" -f2)" = 'yes' ] || skip "run test/arcpanel-docker.bats first"
+    [ "$(grep "^DOCKER_SYSTEM=" "$ARCPANEL/conf/arcpanel.conf" | cut -d"'" -f2)" = 'yes' ] || skip "run test/arcpanel-docker.bats first"
     cleanup
     local tmp dir slug
     tmp=$(mktemp)
@@ -137,9 +137,9 @@ install_app() {
 
 @test "Redis answers on its private port with the password" {
     install_app redis ''
-    port=$(grep "^NAME='redis' " "$HESTIA/data/users/$U/dockerapps.conf" | grep -oE "EXTRA_PORTS='[^']*'" | cut -d"'" -f2)
+    port=$(grep "^NAME='redis' " "$ARCPANEL/data/users/$U/dockerapps.conf" | grep -oE "EXTRA_PORTS='[^']*'" | cut -d"'" -f2)
     port=${port#redis:}
-    password=$(grep "^PASSWORD=" "$HESTIA/data/users/$U/docker/redis/.env" | cut -d"'" -f2)
+    password=$(grep "^PASSWORD=" "$ARCPANEL/data/users/$U/docker/redis/.env" | cut -d"'" -f2)
     run bash -c "printf 'AUTH %s\r\nPING\r\n' '$password' | timeout 5 nc 127.0.0.1 $port"
     assert_output --partial 'PONG'
     run bash -c "printf 'PING\r\n' | timeout 5 nc 127.0.0.1 $port"

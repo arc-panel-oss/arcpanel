@@ -208,3 +208,26 @@ EOF
     assert_line 'bin/v-review:3: grep -q arcpanel file'
     refute_line --partial 'bin/v-review:2:'
 }
+
+@test "--check reports old names outside keep.txt and changes nothing" {
+    echo 'source /usr/local/hestia/func/main.sh' > bin/v-old
+    echo '# ArcPanel · Based on HestiaCP' > bin/v-kept
+    echo 'name=arcpanelcp' > bin/v-doubled
+    commit_fixtures
+    apply --check
+    assert_failure 1
+    assert_line 'bin/v-old:1: source /usr/local/hestia/func/main.sh'
+    assert_line 'bin/v-doubled:1: name=arcpanelcp'
+    refute_output --partial 'bin/v-kept'
+    run git status --porcelain
+    assert_output ''
+}
+
+@test "--check passes on a tree with ArcPanel names only" {
+    echo 'source /usr/local/arcpanel/func/main.sh' > bin/v-new
+    echo 'hestia' > install/deb/pga/phppgadmin/vendored.php
+    commit_fixtures
+    apply --check
+    assert_success
+    assert_output ''
+}
