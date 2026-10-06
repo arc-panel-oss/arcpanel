@@ -8,12 +8,12 @@
 #----------------------------------------------------------#
 
 # Includes
-# shellcheck source=/etc/hestiacp/hestia.conf
-source /etc/hestiacp/hestia.conf
-# shellcheck source=/usr/local/hestia/func/main.sh
-source $HESTIA/func/main.sh
-# shellcheck source=/usr/local/hestia/conf/hestia.conf
-source $HESTIA/conf/hestia.conf
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/conf/arcpanel.conf
+source $ARCPANEL/conf/arcpanel.conf
 
 #----------------------------------------------------------#
 #                    Verifications                         #
@@ -34,31 +34,31 @@ fi
 #----------------------------------------------------------#
 
 # Remove apache2 from config
-sed -i "/^WEB_PORT/d" $HESTIA/conf/hestia.conf $HESTIA/conf/defaults/hestia.conf
-sed -i "/^WEB_SSL/d" $HESTIA/conf/hestia.conf $HESTIA/conf/defaults/hestia.conf
-sed -i "/^WEB_SSL_PORT/d" $HESTIA/conf/hestia.conf $HESTIA/conf/defaults/hestia.conf
-sed -i "/^WEB_RGROUPS/d" $HESTIA/conf/hestia.conf $HESTIA/conf/defaults/hestia.conf
-sed -i "/^WEB_SYSTEM/d" $HESTIA/conf/hestia.conf $HESTIA/conf/defaults/hestia.conf
+sed -i "/^WEB_PORT/d" $ARCPANEL/conf/arcpanel.conf $ARCPANEL/conf/defaults/arcpanel.conf
+sed -i "/^WEB_SSL/d" $ARCPANEL/conf/arcpanel.conf $ARCPANEL/conf/defaults/arcpanel.conf
+sed -i "/^WEB_SSL_PORT/d" $ARCPANEL/conf/arcpanel.conf $ARCPANEL/conf/defaults/arcpanel.conf
+sed -i "/^WEB_RGROUPS/d" $ARCPANEL/conf/arcpanel.conf $ARCPANEL/conf/defaults/arcpanel.conf
+sed -i "/^WEB_SYSTEM/d" $ARCPANEL/conf/arcpanel.conf $ARCPANEL/conf/defaults/arcpanel.conf
 
 # Remove nginx (proxy) from config
-sed -i "/^PROXY_PORT/d" $HESTIA/conf/hestia.conf $HESTIA/conf/defaults/hestia.conf
-sed -i "/^PROXY_SSL_PORT/d" $HESTIA/conf/hestia.conf $HESTIA/conf/defaults/hestia.conf
-sed -i "/^PROXY_SYSTEM/d" $HESTIA/conf/hestia.conf $HESTIA/conf/defaults/hestia.conf
+sed -i "/^PROXY_PORT/d" $ARCPANEL/conf/arcpanel.conf $ARCPANEL/conf/defaults/arcpanel.conf
+sed -i "/^PROXY_SSL_PORT/d" $ARCPANEL/conf/arcpanel.conf $ARCPANEL/conf/defaults/arcpanel.conf
+sed -i "/^PROXY_SYSTEM/d" $ARCPANEL/conf/arcpanel.conf $ARCPANEL/conf/defaults/arcpanel.conf
 
 # Add Nginx settings to config
-echo "WEB_PORT='80'" >> $HESTIA/conf/hestia.conf
-echo "WEB_SSL='openssl'" >> $HESTIA/conf/hestia.conf
-echo "WEB_SSL_PORT='443'" >> $HESTIA/conf/hestia.conf
-echo "WEB_SYSTEM='nginx'" >> $HESTIA/conf/hestia.conf
+echo "WEB_PORT='80'" >> $ARCPANEL/conf/arcpanel.conf
+echo "WEB_SSL='openssl'" >> $ARCPANEL/conf/arcpanel.conf
+echo "WEB_SSL_PORT='443'" >> $ARCPANEL/conf/arcpanel.conf
+echo "WEB_SYSTEM='nginx'" >> $ARCPANEL/conf/arcpanel.conf
 
 # Add Nginx settings to config
-echo "WEB_PORT='80'" >> $HESTIA/conf/defaults/hestia.conf
-echo "WEB_SSL='openssl'" >> $HESTIA/conf/defaults/hestia.conf
-echo "WEB_SSL_PORT='443'" >> $HESTIA/conf/defaults/hestia.conf
-echo "WEB_SYSTEM='nginx'" >> $HESTIA/conf/defaults/hestia.conf
+echo "WEB_PORT='80'" >> $ARCPANEL/conf/defaults/arcpanel.conf
+echo "WEB_SSL='openssl'" >> $ARCPANEL/conf/defaults/arcpanel.conf
+echo "WEB_SSL_PORT='443'" >> $ARCPANEL/conf/defaults/arcpanel.conf
+echo "WEB_SYSTEM='nginx'" >> $ARCPANEL/conf/defaults/arcpanel.conf
 
-rm $HESTIA/conf/defaults/hestia.conf
-cp $HESTIA/conf/hestia.conf $HESTIA/conf/defaults/hestia.conf
+rm $ARCPANEL/conf/defaults/arcpanel.conf
+cp $ARCPANEL/conf/arcpanel.conf $ARCPANEL/conf/defaults/arcpanel.conf
 
 # Rebuild web config
 

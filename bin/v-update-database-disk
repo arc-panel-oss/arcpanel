@@ -15,14 +15,14 @@ user=$1
 database=$2
 
 # Includes
-# shellcheck source=/etc/hestiacp/hestia.conf
-source /etc/hestiacp/hestia.conf
-# shellcheck source=/usr/local/hestia/func/main.sh
-source $HESTIA/func/main.sh
-# shellcheck source=/usr/local/hestia/func/db.sh
-source $HESTIA/func/db.sh
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/db.sh
+source $ARCPANEL/func/db.sh
 # load config file
-source_conf "$HESTIA/conf/hestia.conf"
+source_conf "$ARCPANEL/conf/arcpanel.conf"
 
 #----------------------------------------------------------#
 #                    Verifications                         #
@@ -48,7 +48,7 @@ case $TYPE in
 esac
 
 #----------------------------------------------------------#
-#                       Hestia                             #
+#                         ArcPanel                         #
 #----------------------------------------------------------#
 
 # Updating disk usage

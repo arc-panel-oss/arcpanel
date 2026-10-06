@@ -8,17 +8,17 @@
 # which is the only state: nothing about them is stored under data/users.   #
 # Root downloads official release tarballs into a shared cache, checks the  #
 # release signature and the checksum, and the user unpacks them.            #
-#   $HESTIA/data/cache/node/                 nvm archive, vX.Y.Z/ tarballs, #
+#   $ARCPANEL/data/cache/node/                 nvm archive, vX.Y.Z/ tarballs, #
 #                                            index.json, schedule.json,     #
 #                                            release-keys.gpg               #
-#   $HESTIA/data/users/<user>/node-task.*    background task of the panel   #
+#   $ARCPANEL/data/users/<user>/node-task.*    background task of the panel   #
 # See docs/features/specs/2026-10-05-006-e13-node-manager-design.md.        #
 #                                                                           #
 #===========================================================================#
 
-NODE_CACHE="$HESTIA/data/cache/node"
+NODE_CACHE="$ARCPANEL/data/cache/node"
 NODE_KEYRING="$NODE_CACHE/release-keys.gpg"
-NODE_KEYS_SOURCE="$HESTIA/install/common/node/release-keys.asc"
+NODE_KEYS_SOURCE="$ARCPANEL/install/common/node/release-keys.asc"
 
 # nvm release installed for the shell (`nvm use`); the panel never runs nvm
 NODE_NVM_VERSION="0.40.8"
@@ -553,7 +553,7 @@ node_packages_lines() {
 }
 
 node_outdated_file() {
-	echo "$HESTIA/data/users/$1/node-outdated-$2.json"
+	echo "$ARCPANEL/data/users/$1/node-outdated-$2.json"
 }
 
 # The `npm outdated` result of VERSION when younger than NODE_OUTDATED_TTL
@@ -576,11 +576,11 @@ node_outdated_clear() {
 #----------------------------------------------------------#
 
 node_task_conf() {
-	echo "$HESTIA/data/users/$1/node-task.conf"
+	echo "$ARCPANEL/data/users/$1/node-task.conf"
 }
 
 node_task_log() {
-	echo "$HESTIA/data/users/$1/node-task.log"
+	echo "$ARCPANEL/data/users/$1/node-task.log"
 }
 
 # Value of KEY in the task record of USER

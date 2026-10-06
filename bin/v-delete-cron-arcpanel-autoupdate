@@ -1,20 +1,20 @@
 #!/bin/bash
-# info: delete hestia autoupdate cron job
+# info: delete arcpanel autoupdate cron job
 # options: NONE
 #
-# This function deletes hestia autoupdate cron job.
+# This function deletes arcpanel autoupdate cron job.
 
 #----------------------------------------------------------#
 #                Variables & Functions                     #
 #----------------------------------------------------------#
 
 # Includes
-# shellcheck source=/etc/hestiacp/hestia.conf
-source /etc/hestiacp/hestia.conf
-# shellcheck source=/usr/local/hestia/func/main.sh
-source $HESTIA/func/main.sh
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
 # load config file
-source_conf "$HESTIA/conf/hestia.conf"
+source_conf "$ARCPANEL/conf/arcpanel.conf"
 
 #----------------------------------------------------------#
 #                    Verifications                         #
@@ -23,17 +23,17 @@ source_conf "$HESTIA/conf/hestia.conf"
 is_system_enabled "$CRON_SYSTEM" 'CRON_SYSTEM'
 
 # Perform verification if read-only mode is enabled
-check_hestia_demo_mode
+check_arcpanel_demo_mode
 
 #----------------------------------------------------------#
 #                       Action                             #
 #----------------------------------------------------------#
 
-sed -i "/v-update-sys-hestia-all/d" "/var/spool/cron/crontabs/hestiaweb"
-sed -i "/v-update-sys-hestia-git/d" "/var/spool/cron/crontabs/hestiaweb"
+sed -i "/v-update-sys-arcpanel-all/d" "/var/spool/cron/crontabs/arcpanelweb"
+sed -i "/v-update-sys-arcpanel-git/d" "/var/spool/cron/crontabs/arcpanelweb"
 
 #----------------------------------------------------------#
-#                       Hestia                             #
+#                         ArcPanel                         #
 #----------------------------------------------------------#
 
 # Restarting crond

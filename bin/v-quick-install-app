@@ -1,14 +1,14 @@
-#!/usr/local/hestia/php/bin/php
+#!/usr/local/arcpanel/php/bin/php
 <?php
 //# info: Install Quick Install Web App via CLI
 //# options: action [user] [domain] [app] [options ...]
 //#
-//# example: v-quick-install-app install admin domain.com WordPress email="info@hestiacp" password="123456" username="admin" site_name="HestiaCP Demo" install_directory="/" language="nl_NL" php_version="8.2" database_create="true"
+//# example: v-quick-install-app install admin domain.com WordPress email="info@arcpanel" password="123456" username="admin" site_name="ArcPanel Demo" install_directory="/" language="nl_NL" php_version="8.2" database_create="true"
 //# example: v-quick-install-app app
 //# example: v-quick-install-app options admin domain.com WordPress
 //#
-//# - The v-quick-install-app install command is used to automate the installation of web applications on a server managed by Hestia Control Panel.
-//# - The v-quick-install-app app command is used to retrieve a list of web applications that can be quickly installed through the v-quick-install-app install command in the Hestia Control Panel. This command provides a convenient overview of supported applications and their versions, allowing users to choose which application they would like to deploy on their server. The names of the applications are case sensitive.
+//# - The v-quick-install-app install command is used to automate the installation of web applications on a server managed by ArcPanel Control Panel.
+//# - The v-quick-install-app app command is used to retrieve a list of web applications that can be quickly installed through the v-quick-install-app install command in the ArcPanel Control Panel. This command provides a convenient overview of supported applications and their versions, allowing users to choose which application they would like to deploy on their server. The names of the applications are case sensitive.
 //# - v-quick-install-app options admin domain.com WordPress list all the options available for the specified web application. This command provides a list of all the required and optional fields that need to be filled in when installing the application. The command also provides the default values for each field, if available.
 
 use Symfony\Component\Console\Application;
@@ -18,17 +18,17 @@ use Symfony\Component\Console\Output\ConsoleOutput;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
 
-use Hestiacp\quoteshellarg\quoteshellarg;
+use ArcPanel\quoteshellarg\quoteshellarg;
 
 session_start();
 require_once __DIR__ . "/../lib/vendor/autoload.php";
 require_once __DIR__ . "/../lib/quickinstall/init.php";
 
-define("HESTIA_DIR_BIN", "/usr/local/hestia/bin/");
-define("HESTIA_CMD", "/usr/bin/sudo /usr/local/hestia/bin/");
+define("ARCPANEL_DIR_BIN", "/usr/local/arcpanel/bin/");
+define("ARCPANEL_CMD", "/usr/bin/sudo /usr/local/arcpanel/bin/");
 define("DEFAULT_PHP_VERSION", "php-" . exec('php -r "echo substr(phpversion(),0,3);"'));
 
-exec(HESTIA_CMD . "v-list-sys-config json", $output, $return_var);
+exec(ARCPANEL_CMD . "v-list-sys-config json", $output, $return_var);
 $data = json_decode(implode("", $output), true);
 $sys_arr = $data["config"];
 foreach ($sys_arr as $key => $value) {
@@ -55,16 +55,16 @@ $application
 			$o = explode("=", $option);
 			$data["webapp_" . $o[0]] = $o[1];
 		}
-		$hestia = new \Hestia\System\HestiaApp();
-		if (class_exists("\Hestia\WebApp\Installers\\" . $app . "\\" . $app . "Setup") === false) {
+		$arcpanel = new \ArcPanel\System\ArcPanelApp();
+		if (class_exists("\ArcPanel\WebApp\Installers\\" . $app . "\\" . $app . "Setup") === false) {
 			$output->writeln("App not found");
 			return Command::FAILURE;
 		}
-		$app_installer_class = "\Hestia\WebApp\Installers\\" . $app . "\\" . $app . "Setup";
-		$app_installer = new $app_installer_class($hestia);
+		$app_installer_class = "\ArcPanel\WebApp\Installers\\" . $app . "\\" . $app . "Setup";
+		$app_installer = new $app_installer_class($arcpanel);
 
 		// check for default fields
-		$WebappInstaller = new \Hestia\WebApp\AppWizard($app_installer, $v_domain, $hestia);
+		$WebappInstaller = new \ArcPanel\WebApp\AppWizard($app_installer, $v_domain, $arcpanel);
 		$fields = $WebappInstaller->getOptions();
 		$array = [];
 		foreach ($fields as $key => $field) {
@@ -101,7 +101,7 @@ $application
 			return Command::FAILURE;
 		}
 
-		$installer = new \Hestia\WebApp\AppWizard($app_installer, $v_domain, $hestia);
+		$installer = new \ArcPanel\WebApp\AppWizard($app_installer, $v_domain, $arcpanel);
 		$installer->execute($data);
 		return Command::SUCCESS;
 	});
@@ -115,7 +115,7 @@ $application
 		$output->writeln("---------------------------------");
 		foreach ($appInstallers as $appInstaller) {
 			$app = basename(dirname($appInstaller));
-			$hestia = new \Hestia\System\HestiaApp();
+			$arcpanel = new \ArcPanel\System\ArcPanelApp();
 			$domain = "demo.arcpanel.top";
 			if (
 				!file_exists(
@@ -129,8 +129,8 @@ $application
 			) {
 				continue;
 			}
-			$app_installer_class = "\Hestia\WebApp\Installers\\" . $app . "\\" . $app . "Setup";
-			$app_installer = new $app_installer_class($domain, $hestia);
+			$app_installer_class = "\ArcPanel\WebApp\Installers\\" . $app . "\\" . $app . "Setup";
+			$app_installer = new $app_installer_class($domain, $arcpanel);
 			$info = $app_installer->info();
 			$output->writeln($info["name"] . " - " . $info["version"]);
 		}
@@ -151,15 +151,15 @@ $application
 		$_SESSION["user"] = $user;
 		$v_domain = $input->getArgument("domain");
 		$app = $input->getArgument("app");
-		$hestia = new \Hestia\System\HestiaApp();
+		$arcpanel = new \ArcPanel\System\ArcPanelApp();
 
-		if (class_exists("\Hestia\WebApp\Installers\\" . $app . "\\" . $app . "Setup") === false) {
+		if (class_exists("\ArcPanel\WebApp\Installers\\" . $app . "\\" . $app . "Setup") === false) {
 			$output->writeln("App not found");
 			return Command::FAILURE;
 		}
-		$app_installer_class = "\Hestia\WebApp\Installers\\" . $app . "\\" . $app . "Setup";
-		$app_installer = new $app_installer_class($v_domain, $hestia);
-		$WebappInstaller = new \Hestia\WebApp\AppWizard($app_installer, $v_domain, $hestia);
+		$app_installer_class = "\ArcPanel\WebApp\Installers\\" . $app . "\\" . $app . "Setup";
+		$app_installer = new $app_installer_class($v_domain, $arcpanel);
+		$WebappInstaller = new \ArcPanel\WebApp\AppWizard($app_installer, $v_domain, $arcpanel);
 		$output->writeln("To install " . $app . " use the following command:");
 		$output->writeln(
 			"v-quick-install-app install " .
@@ -168,7 +168,7 @@ $application
 				$v_domain .
 				" " .
 				$app .
-				' email="info@hestiacp" password="12346"',
+				' email="info@arcpanel" password="12346"',
 		);
 		$output->writeln("---------------------------------");
 		$output->writeln("Options for " . $app);

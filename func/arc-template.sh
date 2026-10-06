@@ -5,20 +5,20 @@
 # ArcPanel web template metadata and per-domain variables (E6)              #
 #                                                                           #
 # Metadata: $WEBTPL/meta/[<kind>/]<name>.json, kind web, proxy or backend.  #
-# Variables: $HESTIA/data/users/<user>/web-tplvars/<domain>.conf, one       #
+# Variables: $ARCPANEL/data/users/<user>/web-tplvars/<domain>.conf, one       #
 #   KEY='value' per line. The trigger <template>.sh of a template that      #
 #   declares variables calls arc_apply_tpl_vars, which replaces the         #
 #   %arc_<key>% tokens of the generated NGINX configs, or serves a 503 page #
 #   from the "# arc:app-begin" / "# arc:app-end" block when a value is      #
 #   missing.                                                                #
 # The trigger sources this file without func/main.sh: functions used there  #
-# only rely on HESTIA.                                                      #
+# only rely on ARCPANEL.                                                      #
 # See docs/features/specs/2026-10-05-005-e6-templates-batch1-design.md.     #
 #                                                                           #
 #===========================================================================#
 
-HESTIA="${HESTIA:-/usr/local/hestia}"
-ARC_TPL_ROOT="$HESTIA/data/templates/web"
+ARCPANEL="${ARCPANEL:-/usr/local/arcpanel}"
+ARC_TPL_ROOT="$ARCPANEL/data/templates/web"
 ARC_TPL_META="$ARC_TPL_ROOT/meta"
 ARC_TPL_CATEGORIES="php-cms php-framework ecommerce nodejs python static proxy general other"
 # Templates ArcPanel ships in nginx/ and nginx/php-fpm/ (E6 batch 1)
@@ -138,7 +138,7 @@ arc_tpl_categories_json() {
 arc_tpl_log_invalid() {
 	if [[ " $ARC_TPL_LOGGED " != *" $1 "* ]]; then
 		ARC_TPL_LOGGED="$ARC_TPL_LOGGED $1"
-		echo "$(date '+%F %T') arc-template: invalid metadata $1" >> "$HESTIA/log/system.log" 2> /dev/null
+		echo "$(date '+%F %T') arc-template: invalid metadata $1" >> "$ARCPANEL/log/system.log" 2> /dev/null
 	fi
 	return 0
 }
@@ -155,14 +155,14 @@ arc_tpl_variables() {
 # Value of KEY in the web.conf line of USER's DOMAIN
 arc_tpl_domain_value() {
 	local line
-	line=$(grep "^DOMAIN='$2' " "$HESTIA/data/users/$1/web.conf" 2> /dev/null)
+	line=$(grep "^DOMAIN='$2' " "$ARCPANEL/data/users/$1/web.conf" 2> /dev/null)
 	if [[ "$line" =~ (^| )$3=\'([^\']*)\' ]]; then
 		echo "${BASH_REMATCH[2]}"
 	fi
 }
 
 arc_tpl_domain_exists() {
-	grep -q "^DOMAIN='$2' " "$HESTIA/data/users/$1/web.conf" 2> /dev/null
+	grep -q "^DOMAIN='$2' " "$ARCPANEL/data/users/$1/web.conf" 2> /dev/null
 }
 
 # Name of the client-facing template of USER's DOMAIN
@@ -225,7 +225,7 @@ arc_tpl_valid_port() {
 # another user.
 arc_tpl_port_owned() {
 	local user="$1" port="$2" registry
-	registry=$(sed -n "s/^PORT_REGISTRY='\([^']*\)'.*/\1/p" "$HESTIA/conf/hestia.conf" 2> /dev/null | tail -n1)
+	registry=$(sed -n "s/^PORT_REGISTRY='\([^']*\)'.*/\1/p" "$ARCPANEL/conf/arcpanel.conf" 2> /dev/null | tail -n1)
 	if [ "$registry" = 'no' ]; then
 		return 0
 	fi
@@ -236,7 +236,7 @@ arc_tpl_port_owned() {
 			if (index(v, "-")) { s = substr(v, 1, index(v, "-") - 1); e = substr(v, index(v, "-") + 1) }
 			if (p >= s + 0 && p <= e + 0) { found = 1; exit }
 		}
-		END { exit found ? 0 : 1 }' "$HESTIA/data/ports/$user.conf" 2> /dev/null
+		END { exit found ? 0 : 1 }' "$ARCPANEL/data/ports/$user.conf" 2> /dev/null
 }
 
 #----------------------------------------------------------#

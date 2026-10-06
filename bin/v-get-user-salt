@@ -16,14 +16,14 @@ ip46=${2-127.0.0.1}
 format=${3-shell}
 
 # Includes
-# shellcheck source=/etc/hestiacp/hestia.conf
-source /etc/hestiacp/hestia.conf
-# shellcheck source=/usr/local/hestia/func/main.sh
-source $HESTIA/func/main.sh
-# shellcheck source=/usr/local/hestia/conf/hestia.conf
-source $HESTIA/conf/hestia.conf
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/conf/arcpanel.conf
+source $ARCPANEL/conf/arcpanel.conf
 # load config file
-source_conf "$HESTIA/conf/hestia.conf"
+source_conf "$ARCPANEL/conf/arcpanel.conf"
 
 time_n_date=$(date +'%T %F')
 time=$(echo "$time_n_date" | cut -f 1 -d \ )
@@ -66,9 +66,9 @@ check_args '1' "$#" 'USER [IP] [FORMAT]'
 is_format_valid 'user' 'ip46'
 
 # Checking user
-if [ ! -d "$HESTIA/data/users/$user" ]; then
+if [ ! -d "$ARCPANEL/data/users/$user" ]; then
 	echo "Error: password missmatch"
-	echo "$date $time $user $ip46 failed to login" >> $HESTIA/log/auth.log
+	echo "$date $time $user $ip46 failed to login" >> $ARCPANEL/log/auth.log
 	exit 9
 fi
 
@@ -91,12 +91,12 @@ if echo "$shadow" | grep -qE '^\$[0-9a-z]+\$[^\$]+\$'; then
 		method='sha-512'
 	else
 		echo "Error: password missmatch"
-		echo "$date $time $user $ip46 failed to login" >> $HESTIA/log/auth.log
+		echo "$date $time $user $ip46 failed to login" >> $ARCPANEL/log/auth.log
 		exit 9
 	fi
 elif [[ "$shadow" =~ ! ]]; then
 	echo "Error: Account has been suspended"
-	echo "$date $time $user $ip46 has been suspended" >> $HESTIA/log/auth.log
+	echo "$date $time $user $ip46 has been suspended" >> $ARCPANEL/log/auth.log
 	exit 5
 else
 	salt=${shadow:0:2}
@@ -105,7 +105,7 @@ fi
 
 if [ -z "$salt" ]; then
 	echo "Error: password missmatch"
-	echo "$date $time $user $ip46 failed to login" >> $HESTIA/log/auth.log
+	echo "$date $time $user $ip46 failed to login" >> $ARCPANEL/log/auth.log
 	exit 9
 fi
 
@@ -118,7 +118,7 @@ case $format in
 esac
 
 #----------------------------------------------------------#
-#                       Hestia                             #
+#                         ArcPanel                         #
 #----------------------------------------------------------#
 
 exit

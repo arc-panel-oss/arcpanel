@@ -34,18 +34,18 @@ ip_name="$6"
 nat_ip="$7"
 
 # Includes
-# shellcheck source=/etc/hestiacp/hestia.conf
-source /etc/hestiacp/hestia.conf
-# shellcheck source=/usr/local/hestia/func/main.sh
-source $HESTIA/func/main.sh
-# shellcheck source=/usr/local/hestia/func/ip.sh
-source $HESTIA/func/ip.sh
-# shellcheck source=/usr/local/hestia/func/domain.sh
-source $HESTIA/func/domain.sh
-# shellcheck source=/usr/local/hestia/func/syshealth.sh
-source "$HESTIA/func/syshealth.sh"
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/ip.sh
+source $ARCPANEL/func/ip.sh
+# shellcheck source=/usr/local/arcpanel/func/domain.sh
+source $ARCPANEL/func/domain.sh
+# shellcheck source=/usr/local/arcpanel/func/syshealth.sh
+source "$ARCPANEL/func/syshealth.sh"
 # load config file
-source_conf "$HESTIA/conf/hestia.conf"
+source_conf "$ARCPANEL/conf/arcpanel.conf"
 
 if [ -z "$4" ]; then
 	user="$ROOT_USER"
@@ -71,7 +71,7 @@ if [ "$user" != "$ROOT_USER" ]; then
 fi
 
 # Perform verification if read-only mode is enabled
-check_hestia_demo_mode
+check_arcpanel_demo_mode
 
 #----------------------------------------------------------#
 #                       Action                             #
@@ -93,7 +93,7 @@ if [ -z "$sys_ip_check" ]; then
 	fi
 
 	if [ "$netplan" = "true" ]; then
-		netplan_file="/etc/netplan/60-hestia.yaml"
+		netplan_file="/etc/netplan/60-arcpanel.yaml"
 		if [ -f "$netplan_file" ]; then
 			netplan_file_exists="true"
 		else
@@ -129,7 +129,7 @@ fi
 # Generating timestamp
 new_timestamp
 
-# Adding Hestia IP
+# Adding ArcPanel IP
 echo "OWNER='$user'
 STATUS='$ip_status'
 NAME='$ip_name'
@@ -139,8 +139,8 @@ INTERFACE='$iface'
 NETMASK='$netmask'
 NAT='$nat_ip'
 TIME='$time'
-DATE='$date'" > $HESTIA/data/ips/$ip
-chmod 660 $HESTIA/data/ips/$ip
+DATE='$date'" > $ARCPANEL/data/ips/$ip
+chmod 660 $ARCPANEL/data/ips/$ip
 
 # WEB support
 if [ -n "$WEB_SYSTEM" ]; then
@@ -152,12 +152,12 @@ if [ -n "$WEB_SYSTEM" ]; then
 			echo "NameVirtualHost $ip:$WEB_PORT" > "$web_conf"
 		fi
 		echo "Listen $ip:$WEB_PORT" >> "$web_conf"
-		cat $HESTIA_INSTALL_DIR/apache2/unassigned.conf >> "$web_conf"
+		cat $ARCPANEL_INSTALL_DIR/apache2/unassigned.conf >> "$web_conf"
 		sed -i 's/directIP/'$ip'/g' "$web_conf"
 		sed -i 's/directPORT/'$WEB_PORT'/g' "$web_conf"
 
 	elif [ "$WEB_SYSTEM" = 'nginx' ]; then
-		cp -f $HESTIA_INSTALL_DIR/nginx/unassigned.inc "$web_conf"
+		cp -f $ARCPANEL_INSTALL_DIR/nginx/unassigned.inc "$web_conf"
 		sed -i 's/directIP/'$ip'/g' "$web_conf"
 		process_http2_directive "$web_conf"
 	fi
@@ -207,20 +207,20 @@ if [ -n "$PROXY_SYSTEM" ]; then
 	fi
 fi
 
-# Adapt Port Listing in HESTIA NGINX Backend
-syshealth_adapt_hestia_nginx_listen_ports
+# Adapt Port Listing in ARCPANEL NGINX Backend
+syshealth_adapt_arcpanel_nginx_listen_ports
 # Also update resolver
 syshealth_adapt_nginx_resolver
 #----------------------------------------------------------#
-#                       Hestia                             #
+#                         ArcPanel                         #
 #----------------------------------------------------------#
 
 # Updating user counters
 increase_user_value "$user" '$IP_OWNED'
 if [ "$user" = $ROOT_USER ]; then
 	if [ "$ip_status" = 'shared' ]; then
-		for hestia_user in $("$BIN/v-list-users" list); do
-			increase_user_value "$hestia_user" '$IP_AVAIL'
+		for arcpanel_user in $("$BIN/v-list-users" list); do
+			increase_user_value "$arcpanel_user" '$IP_AVAIL'
 		done
 	else
 		increase_user_value $ROOT_USER '$IP_AVAIL'
@@ -245,9 +245,9 @@ if [ -n "$FIREWALL_SYSTEM" ]; then
 	$BIN/v-update-firewall
 fi
 
-# Restarting hestia service if nginx backend config was changed
-if [ "$NGINX_BCONF_CHANGED" = "yes" -a -f "/etc/init.d/hestia" ]; then
-	systemctl restart hestia > /dev/null 2>&1
+# Restarting arcpanel service if nginx backend config was changed
+if [ "$NGINX_BCONF_CHANGED" = "yes" -a -f "/etc/init.d/arcpanel" ]; then
+	systemctl restart arcpanel > /dev/null 2>&1
 	check_result $? "ArcPanel backend restart failed" > /dev/null
 fi
 

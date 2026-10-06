@@ -19,16 +19,16 @@ range=$2
 force=${3-}
 
 # Includes
-# shellcheck source=/etc/hestiacp/hestia.conf
-source /etc/hestiacp/hestia.conf
-# shellcheck source=/usr/local/hestia/func/main.sh
-source $HESTIA/func/main.sh
-# shellcheck source=/usr/local/hestia/func/tenancy.sh
-source $HESTIA/func/tenancy.sh
-# shellcheck source=/usr/local/hestia/func/ports.sh
-source $HESTIA/func/ports.sh
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/tenancy.sh
+source $ARCPANEL/func/tenancy.sh
+# shellcheck source=/usr/local/arcpanel/func/ports.sh
+source $ARCPANEL/func/ports.sh
 # load config file
-source_conf "$HESTIA/conf/hestia.conf"
+source_conf "$ARCPANEL/conf/arcpanel.conf"
 
 #----------------------------------------------------------#
 #                    Verifications                         #
@@ -43,7 +43,7 @@ if [ -n "$force" ] && [ "$force" != 'force' ]; then
 fi
 
 # Perform verification if read-only mode is enabled
-check_hestia_demo_mode
+check_arcpanel_demo_mode
 
 #----------------------------------------------------------#
 #                       Action                             #
@@ -62,7 +62,7 @@ fi
 ports_return_to_owner "$user" "$PSTART" "$PEND"
 
 #----------------------------------------------------------#
-#                       Hestia                             #
+#                         ArcPanel                         #
 #----------------------------------------------------------#
 
 $BIN/v-log-action "system" "Info" "Ports" "Ports deleted (User: $user, Ports: $range)."

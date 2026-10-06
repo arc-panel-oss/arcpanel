@@ -1,5 +1,5 @@
 <?php
-use function Hestiacp\quoteshellarg\quoteshellarg;
+use function ArcPanel\quoteshellarg\quoteshellarg;
 
 try {
 	require_once __DIR__ . "/../vendor/autoload.php";
@@ -13,8 +13,8 @@ try {
 }
 
 //die("Error: Disabled");
-define("HESTIA_DIR_BIN", "/usr/local/hestia/bin/");
-define("HESTIA_CMD", "/usr/bin/sudo /usr/local/hestia/bin/");
+define("ARCPANEL_DIR_BIN", "/usr/local/arcpanel/bin/");
+define("ARCPANEL_CMD", "/usr/bin/sudo /usr/local/arcpanel/bin/");
 
 include __DIR__ . "/helpers.php";
 
@@ -27,20 +27,20 @@ include __DIR__ . "/helpers.php";
  * @param string $user
  * @return void
  */
-function api_error($exit_code, $message, $hst_return, bool $add_log = false, $user = "system") {
+function api_error($exit_code, $message, $arc_return, bool $add_log = false, $user = "system") {
 	$message = trim(is_array($message) ? implode("\n", $message) : $message);
 
 	// Add log
 	if ($add_log) {
 		$v_real_user_ip = get_real_user_ip();
-		hst_add_history_log("[$v_real_user_ip] $message", "API", "Error", $user);
+		arc_add_history_log("[$v_real_user_ip] $message", "API", "Error", $user);
 	}
 
 	// Print the message with http_code and exit_code
 	$http_code = $exit_code >= 100 ? $exit_code : exit_code_to_http_code($exit_code);
-	header("Hestia-Exit-Code: $exit_code");
+	header("ArcPanel-Exit-Code: $exit_code");
 	http_response_code($http_code);
-	if ($hst_return == "code") {
+	if ($arc_return == "code") {
 		echo $exit_code;
 	} else {
 		echo !preg_match("/^Error:/", $message) ? "Error: $message" : $message;
@@ -56,42 +56,46 @@ function api_error($exit_code, $message, $hst_return, bool $add_log = false, $us
  * @return void
  */
 function api_legacy(array $request_data) {
-	$hst_return = ($request_data["returncode"] ?? "no") === "yes" ? "code" : "data";
-	exec(HESTIA_CMD . "v-list-sys-config json", $output, $return_var);
+	$arc_return = ($request_data["returncode"] ?? "no") === "yes" ? "code" : "data";
+	exec(ARCPANEL_CMD . "v-list-sys-config json", $output, $return_var);
 	$settings = json_decode(implode("", $output), true);
 	unset($output);
 
 	if ($settings["config"]["API"] != "yes") {
 		echo "Error: API has been disabled";
-		api_error(E_DISABLED, "Error: API Disabled", $hst_return);
+		api_error(E_DISABLED, "Error: API Disabled", $arc_return);
 	}
 
 	if ($settings["config"]["API_ALLOWED_IP"] != "allow-all") {
 		$ip_list = explode(",", $settings["config"]["API_ALLOWED_IP"]);
 		$ip_list[] = "";
 		if (!in_array(get_real_user_ip(), $ip_list)) {
-			api_error(E_FORBIDDEN, "Error: IP is not allowed to connect with API", $hst_return);
+			api_error(E_FORBIDDEN, "Error: IP is not allowed to connect with API", $arc_return);
 		}
 	}
 
 	//This exists, so native JSON can be used without the repeating the code twice, so future code changes are easier and don't need to be replicated twice
 	// Authentication
 	if (empty($request_data["hash"])) {
-		exec(HESTIA_CMD . "v-list-sys-config json", $output, $return_var);
+		exec(ARCPANEL_CMD . "v-list-sys-config json", $output, $return_var);
 		$data = json_decode(implode("", $output), true);
 		$root_user = $data["config"]["ROOT_USER"];
 
 		if ($request_data["user"] != "$root_user") {
-			api_error(E_FORBIDDEN, "Error: authentication failed", $hst_return);
+			api_error(E_FORBIDDEN, "Error: authentication failed", $arc_return);
 		}
 		$password = $request_data["password"];
 		if (!isset($password)) {
-			api_error(E_PASSWORD, "Error: authentication failed", $hst_return);
+			api_error(E_PASSWORD, "Error: authentication failed", $arc_return);
 		}
 		$v_ip = quoteshellarg(get_real_user_ip());
 		$user = quoteshellarg($root_user);
 		unset($output);
-		exec(HESTIA_CMD . "v-get-user-salt " . $user . " " . $v_ip . " json", $output, $return_var);
+		exec(
+			ARCPANEL_CMD . "v-get-user-salt " . $user . " " . $v_ip . " json",
+			$output,
+			$return_var,
+		);
 		$pam = json_decode(implode("", $output), true);
 		$salt = $pam[$root_user]["SALT"];
 		$method = $pam[$root_user]["METHOD"];
@@ -109,7 +113,7 @@ function api_legacy(array $request_data) {
 			fwrite($fp, $password . "\n");
 			unset($output);
 			exec(
-				HESTIA_CMD .
+				ARCPANEL_CMD .
 					"v-check-user-password " .
 					quoteshellarg($root_user) .
 					" " .
@@ -136,7 +140,7 @@ function api_legacy(array $request_data) {
 
 		// Check user hash
 		exec(
-			HESTIA_CMD . "v-check-user-hash " . $user . " " . $v_hash . " " . $v_ip,
+			ARCPANEL_CMD . "v-check-user-hash " . $user . " " . $v_hash . " " . $v_ip,
 			$output,
 			$return_var,
 		);
@@ -147,50 +151,50 @@ function api_legacy(array $request_data) {
 
 		// Check API answer
 		if ($return_var > 0) {
-			api_error(E_PASSWORD, "Error: authentication failed", $hst_return);
+			api_error(E_PASSWORD, "Error: authentication failed", $arc_return);
 		}
 	} else {
-		$key = "/usr/local/hestia/data/keys/" . basename($request_data["hash"]);
+		$key = "/usr/local/arcpanel/data/keys/" . basename($request_data["hash"]);
 		$v_ip = quoteshellarg(get_real_user_ip());
 		exec(
-			HESTIA_CMD . "v-check-api-key " . quoteshellarg($key) . " " . $v_ip,
+			ARCPANEL_CMD . "v-check-api-key " . quoteshellarg($key) . " " . $v_ip,
 			$output,
 			$return_var,
 		);
 		unset($output);
 		// Check API answer
 		if ($return_var > 0) {
-			api_error(E_PASSWORD, "Error: authentication failed", $hst_return);
+			api_error(E_PASSWORD, "Error: authentication failed", $arc_return);
 		}
 	}
 
-	$hst_cmd = trim($request_data["cmd"] ?? "");
-	$hst_cmd_args = [];
+	$arc_cmd = trim($request_data["cmd"] ?? "");
+	$arc_cmd_args = [];
 	for ($i = 1; $i <= 13; $i++) {
 		if (isset($request_data["arg{$i}"])) {
-			$hst_cmd_args["arg{$i}"] = trim($request_data["arg{$i}"]);
+			$arc_cmd_args["arg{$i}"] = trim($request_data["arg{$i}"]);
 		}
 	}
 
-	if (empty($hst_cmd)) {
-		api_error(E_INVALID, "Command not provided", $hst_return);
-	} elseif (!preg_match('/^[a-zA-Z0-9_-]+$/', $hst_cmd)) {
-		api_error(E_INVALID, "$hst_cmd command invalid", $hst_return);
+	if (empty($arc_cmd)) {
+		api_error(E_INVALID, "Command not provided", $arc_return);
+	} elseif (!preg_match('/^[a-zA-Z0-9_-]+$/', $arc_cmd)) {
+		api_error(E_INVALID, "$arc_cmd command invalid", $arc_return);
 	}
 
 	// Check command
-	if ($hst_cmd == "v-make-tmp-file") {
+	if ($arc_cmd == "v-make-tmp-file") {
 		// Used in DNS Cluster
-		$fp = fopen("/tmp/" . basename(escapeshellcmd($hst_cmd_args["arg2"])), "w");
-		fwrite($fp, $hst_cmd_args["arg1"] . "\n");
+		$fp = fopen("/tmp/" . basename(escapeshellcmd($arc_cmd_args["arg2"])), "w");
+		fwrite($fp, $arc_cmd_args["arg1"] . "\n");
 		fclose($fp);
 		$return_var = 0;
 	} else {
 		// Prepare command
-		$cmdquery = HESTIA_CMD . escapeshellcmd($hst_cmd);
+		$cmdquery = ARCPANEL_CMD . escapeshellcmd($arc_cmd);
 
 		// Prepare arguments
-		foreach ($hst_cmd_args as $cmd_arg) {
+		foreach ($arc_cmd_args as $cmd_arg) {
 			$cmdquery .= " " . quoteshellarg($cmd_arg);
 		}
 
@@ -198,7 +202,7 @@ function api_legacy(array $request_data) {
 		exec($cmdquery, $output, $cmd_exit_code);
 	}
 
-	if (!empty($hst_return) && $hst_return == "code") {
+	if (!empty($arc_return) && $arc_return == "code") {
 		echo $cmd_exit_code;
 	} else {
 		if ($return_var == 0 && empty($output)) {
@@ -218,10 +222,10 @@ function api_legacy(array $request_data) {
  * @return void
  */
 function api_connection(array $request_data) {
-	$hst_return = ($request_data["returncode"] ?? "no") === "yes" ? "code" : "data";
+	$arc_return = ($request_data["returncode"] ?? "no") === "yes" ? "code" : "data";
 	$v_real_user_ip = get_real_user_ip();
 
-	exec(HESTIA_CMD . "v-list-sys-config json", $output, $return_var);
+	exec(ARCPANEL_CMD . "v-list-sys-config json", $output, $return_var);
 	$settings = json_decode(implode("", $output), true);
 	unset($output, $return_var);
 	$root_user = $settings["config"]["ROOT_USER"];
@@ -232,7 +236,7 @@ function api_connection(array $request_data) {
 			: 0;
 	if ($api_status == 0) {
 		// Check if API is disabled for all users
-		api_error(E_DISABLED, "API has been disabled", $hst_return);
+		api_error(E_DISABLED, "API has been disabled", $arc_return);
 	}
 
 	// Check if API access is enabled for the user
@@ -240,40 +244,40 @@ function api_connection(array $request_data) {
 		$ip_list = explode(",", $settings["config"]["API_ALLOWED_IP"]);
 		$ip_list[] = "";
 		if (!in_array($v_real_user_ip, $ip_list) && !in_array("0.0.0.0", $ip_list)) {
-			api_error(E_FORBIDDEN, "IP is not allowed to connect with API", $hst_return);
+			api_error(E_FORBIDDEN, "IP is not allowed to connect with API", $arc_return);
 		}
 	}
 
 	// Get POST Params
-	$hst_access_key_id = trim($request_data["access_key"] ?? "");
-	$hst_secret_access_key = trim($request_data["secret_key"] ?? "");
-	$hst_cmd = trim($request_data["cmd"] ?? "");
-	$hst_cmd_args = [];
+	$arc_access_key_id = trim($request_data["access_key"] ?? "");
+	$arc_secret_access_key = trim($request_data["secret_key"] ?? "");
+	$arc_cmd = trim($request_data["cmd"] ?? "");
+	$arc_cmd_args = [];
 	for ($i = 1; $i <= 13; $i++) {
 		if (isset($request_data["arg{$i}"])) {
-			$hst_cmd_args["arg{$i}"] = trim($request_data["arg{$i}"]);
+			$arc_cmd_args["arg{$i}"] = trim($request_data["arg{$i}"]);
 		}
 	}
 
-	if (empty($hst_cmd)) {
-		api_error(E_INVALID, "Command not provided", $hst_return);
-	} elseif (!preg_match('/^[a-zA-Z0-9_-]+$/', $hst_cmd)) {
-		api_error(E_INVALID, "$hst_cmd command invalid", $hst_return);
+	if (empty($arc_cmd)) {
+		api_error(E_INVALID, "Command not provided", $arc_return);
+	} elseif (!preg_match('/^[a-zA-Z0-9_-]+$/', $arc_cmd)) {
+		api_error(E_INVALID, "$arc_cmd command invalid", $arc_return);
 	}
 
-	if (empty($hst_access_key_id) || empty($hst_secret_access_key)) {
-		api_error(E_PASSWORD, "Authentication failed", $hst_return);
+	if (empty($arc_access_key_id) || empty($arc_secret_access_key)) {
+		api_error(E_PASSWORD, "Authentication failed", $arc_return);
 	}
 
 	// Authenticates the key and checks permission to run the script
 	exec(
-		HESTIA_CMD .
+		ARCPANEL_CMD .
 			"v-check-access-key " .
-			quoteshellarg($hst_access_key_id) .
+			quoteshellarg($arc_access_key_id) .
 			" " .
-			quoteshellarg($hst_secret_access_key) .
+			quoteshellarg($arc_secret_access_key) .
 			" " .
-			quoteshellarg($hst_cmd) .
+			quoteshellarg($arc_cmd) .
 			" " .
 			quoteshellarg($v_real_user_ip) .
 			" json",
@@ -281,8 +285,8 @@ function api_connection(array $request_data) {
 		$return_var,
 	);
 	if ($return_var > 0) {
-		//api_error($return_var, "Key $hst_access_key_id - authentication failed", $hst_return);
-		api_error($return_var, $output, $hst_return);
+		//api_error($return_var, "Key $arc_access_key_id - authentication failed", $arc_return);
+		api_error($return_var, $output, $arc_return);
 	}
 	$key_data = json_decode(implode("", $output), true) ?? [];
 	unset($output, $return_var);
@@ -295,34 +299,34 @@ function api_connection(array $request_data) {
 
 	# Check if API access is enabled for nonadmin users
 	if ($key_user != $root_user && $api_status < 2) {
-		api_error(E_API_DISABLED, "API has been disabled", $hst_return);
+		api_error(E_API_DISABLED, "API has been disabled", $arc_return);
 	}
 
 	// Checks if the value entered in the "user" argument matches the user of the key
 	if (
 		$key_user != $root_user &&
 		$user_arg_position > 0 &&
-		$hst_cmd_args["arg{$user_arg_position}"] != $key_user
+		$arc_cmd_args["arg{$user_arg_position}"] != $key_user
 	) {
 		api_error(
 			E_FORBIDDEN,
-			"Key $hst_access_key_id - the \"user\" argument doesn\'t match the key\'s user",
-			$hst_return,
+			"Key $arc_access_key_id - the \"user\" argument doesn\'t match the key\'s user",
+			$arc_return,
 		);
 	}
 
 	// Prepare command
-	$cmdquery = HESTIA_CMD . escapeshellcmd($hst_cmd);
+	$cmdquery = ARCPANEL_CMD . escapeshellcmd($arc_cmd);
 
 	// Prepare arguments
-	foreach ($hst_cmd_args as $cmd_arg) {
+	foreach ($arc_cmd_args as $cmd_arg) {
 		$cmdquery .= " " . quoteshellarg($cmd_arg);
 	}
 
 	# v-make-temp files is manodory other wise some functions will break
-	if ($hst_cmd == "v-make-tmp-file") {
-		$fp = fopen("/tmp/" . basename($hst_cmd_args["arg2"]), "w");
-		fwrite($fp, $hst_cmd_args["arg1"] . "\n");
+	if ($arc_cmd == "v-make-tmp-file") {
+		$fp = fopen("/tmp/" . basename($arc_cmd_args["arg2"]), "w");
+		fwrite($fp, $arc_cmd_args["arg1"] . "\n");
 		fclose($fp);
 		$cmd_exit_code = 0;
 	} else {
@@ -332,9 +336,9 @@ function api_connection(array $request_data) {
 		unset($output);
 	}
 
-	header("Hestia-Exit-Code: $cmd_exit_code");
+	header("ArcPanel-Exit-Code: $cmd_exit_code");
 
-	if ($hst_return == "code") {
+	if ($arc_return == "code") {
 		echo $cmd_exit_code;
 	} else {
 		if ($cmd_exit_code > 0) {

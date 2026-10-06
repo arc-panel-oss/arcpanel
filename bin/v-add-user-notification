@@ -15,16 +15,16 @@ type=$4
 priority=$5
 
 # Includes
-# shellcheck source=/etc/hestiacp/hestia.conf
-source /etc/hestiacp/hestia.conf
-# shellcheck source=/usr/local/hestia/func/main.sh
-source $HESTIA/func/main.sh
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
 # load config file
-source_conf "$HESTIA/conf/hestia.conf"
+source_conf "$ARCPANEL/conf/arcpanel.conf"
 
 # NOTICE is rendered client-side as raw HTML, so it's run through an
 # allow-list sanitizer before anything else touches it.
-notice=$("$HESTIA_PHP" "$HESTIA/func/internal/sanitize_html.php" "$3" | sed "s/'/%quote%/g")
+notice=$("$ARCPANEL_PHP" "$ARCPANEL/func/internal/sanitize_html.php" "$3" | sed "s/'/%quote%/g")
 
 #----------------------------------------------------------#
 #                    Verifications                         #
@@ -36,7 +36,7 @@ is_object_valid 'user' 'USER' "$user"
 is_common_format_valid "$type"
 
 # Perform verification if read-only mode is enabled
-check_hestia_demo_mode
+check_arcpanel_demo_mode
 
 #----------------------------------------------------------#
 #                       Action                             #
@@ -71,7 +71,7 @@ echo "$str" >> $USER_DATA/notifications.conf
 chmod 660 $USER_DATA/notifications.conf
 
 #----------------------------------------------------------#
-#                       Hestia                             #
+#                         ArcPanel                         #
 #----------------------------------------------------------#
 
 # Updating notification counter

@@ -13,12 +13,12 @@ user=$1
 ttl=$2
 
 # Includes
-# shellcheck source=/etc/hestiacp/hestia.conf
-source /etc/hestiacp/hestia.conf
-# shellcheck source=/usr/local/hestia/func/main.sh
-source $HESTIA/func/main.sh
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
 # load config file
-source_conf "$HESTIA/conf/hestia.conf"
+source_conf "$ARCPANEL/conf/arcpanel.conf"
 
 #----------------------------------------------------------#
 #                    Verifications                         #
@@ -29,14 +29,14 @@ is_format_valid 'user' 'ttl'
 is_object_valid 'user' 'USER' "$user"
 
 # Perform verification if read-only mode is enabled
-check_hestia_demo_mode
+check_arcpanel_demo_mode
 
 #----------------------------------------------------------#
 #                       Action                             #
 #----------------------------------------------------------#
 
-PRVKEY_FILE="$HOMEDIR/$user/.ssh/hst-filemanager-key"
-PUBKEY_FILE="$HOMEDIR/$user/.ssh/hst-filemanager-key.pub"
+PRVKEY_FILE="$HOMEDIR/$user/.ssh/arcpanel-filemanager-key"
+PUBKEY_FILE="$HOMEDIR/$user/.ssh/arcpanel-filemanager-key.pub"
 AUTHKEY_FILE="$HOMEDIR/$user/.ssh/authorized_keys"
 SSH_DIR="$HOMEDIR/$user/.ssh"
 
@@ -71,19 +71,19 @@ fi
 
 #
 chown ${user}: "${AUTHKEY_FILE}"
-chown "hestiaweb": "${PRVKEY_FILE}"
+chown "arcpanelweb": "${PRVKEY_FILE}"
 
 # Ensure file manager service account can traverse user's .ssh folder
 # to read the dedicated private key.
 if command -v setfacl > /dev/null 2>&1; then
-	setfacl -m u:hestiaweb:--x "${SSH_DIR}" > /dev/null 2>&1
+	setfacl -m u:arcpanelweb:--x "${SSH_DIR}" > /dev/null 2>&1
 else
 	echo "Error: 'setfacl' is not available."
 	exit 1
 fi
 
 #----------------------------------------------------------#
-#                       Hestia                             #
+#                         ArcPanel                         #
 #----------------------------------------------------------#
 
 # Logging

@@ -26,18 +26,18 @@ arg1=$3
 arg2=$4
 
 # Includes
-# shellcheck source=/etc/hestiacp/hestia.conf
-source /etc/hestiacp/hestia.conf
-# shellcheck source=/usr/local/hestia/func/main.sh
-source $HESTIA/func/main.sh
-# shellcheck source=/usr/local/hestia/func/tenancy.sh
-source $HESTIA/func/tenancy.sh
-# shellcheck source=/usr/local/hestia/func/node.sh
-source $HESTIA/func/node.sh
-# shellcheck source=/usr/local/hestia/func/nodeapp.sh
-source $HESTIA/func/nodeapp.sh
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/tenancy.sh
+source $ARCPANEL/func/tenancy.sh
+# shellcheck source=/usr/local/arcpanel/func/node.sh
+source $ARCPANEL/func/node.sh
+# shellcheck source=/usr/local/arcpanel/func/nodeapp.sh
+source $ARCPANEL/func/nodeapp.sh
 # load config file
-source_conf "$HESTIA/conf/hestia.conf"
+source_conf "$ARCPANEL/conf/arcpanel.conf"
 
 check_installed_version() {
 	if [[ ! "$1" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
@@ -104,13 +104,13 @@ case "$action" in
 esac
 
 # Perform verification if read-only mode is enabled
-check_hestia_demo_mode
+check_arcpanel_demo_mode
 
 #----------------------------------------------------------#
 #                       Action                             #
 #----------------------------------------------------------#
 
-exec {lock}> "$HESTIA/data/users/$user/node-task.lock"
+exec {lock}> "$ARCPANEL/data/users/$user/node-task.lock"
 flock -x "$lock"
 
 if node_task_running "$user"; then
@@ -134,7 +134,7 @@ flock -u "$lock"
 echo "$id"
 
 #----------------------------------------------------------#
-#                       Hestia                             #
+#                         ArcPanel                         #
 #----------------------------------------------------------#
 
 log_event "$OK" "$ARGUMENTS"

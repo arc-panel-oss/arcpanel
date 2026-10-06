@@ -5,9 +5,9 @@
 # ArcPanel Docker app functions: curated Compose apps of the catalog, run   #
 # by the root Docker Engine for hosting users (E4)                          #
 #                                                                           #
-#   $HESTIA/install/common/apps/docker/<slug>/<version>/  the catalog       #
-#   $HESTIA/data/users/<user>/dockerapps.conf  the app records              #
-#   $HESTIA/data/users/<user>/docker/<name>/   compose.yaml (catalog copy), #
+#   $ARCPANEL/install/common/apps/docker/<slug>/<version>/  the catalog       #
+#   $ARCPANEL/data/users/<user>/dockerapps.conf  the app records              #
+#   $ARCPANEL/data/users/<user>/docker/<name>/   compose.yaml (catalog copy), #
 #                                              compose.arcpanel.yaml,       #
 #                                              .env, task.*, root only      #
 #   ~/apps/<name>/                             data/, app.conf and .env     #
@@ -19,8 +19,8 @@
 #                                                                           #
 #===========================================================================#
 
-# shellcheck source=/usr/local/hestia/func/nodeapp.sh
-source "$HESTIA/func/nodeapp.sh"
+# shellcheck source=/usr/local/arcpanel/func/nodeapp.sh
+source "$ARCPANEL/func/nodeapp.sh"
 
 DOCKERAPP_KEYS="NAME SLUG VERSION DOMAIN WEB_PORT EXTRA_PORTS STATE STATUS REASON SUSPENDED TEMPLATE PREV_TPL PREV_VERSION CPUS MEMORY TIME DATE"
 DOCKERAPP_TEMPLATE="docker-proxy"
@@ -38,11 +38,11 @@ DOCKER_DAEMON_JSON="/etc/docker/daemon.json"
 DOCKER_ENV=(env -i PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin HOME=/root LANG=C.UTF-8)
 
 docker_catalog_dir() {
-	echo "${ARC_DOCKER_CATALOG:-$HESTIA/install/common/apps/docker}"
+	echo "${ARC_DOCKER_CATALOG:-$ARCPANEL/install/common/apps/docker}"
 }
 
 docker_state_dir() {
-	echo "$HESTIA/data/docker"
+	echo "$ARCPANEL/data/docker"
 }
 
 # Exit with E_DISABLED unless the engine was installed with v-add-sys-docker
@@ -132,7 +132,7 @@ docker_daemon_json() {
 #----------------------------------------------------------#
 
 dockerapp_conf() {
-	echo "$HESTIA/data/users/$1/dockerapps.conf"
+	echo "$ARCPANEL/data/users/$1/dockerapps.conf"
 }
 
 # Serialise the writers of USER's records. Nested commands run inside the
@@ -141,7 +141,7 @@ dockerapp_lock() {
 	if [ "$ARC_DOCKERAPPS_LOCKED" = "$1" ]; then
 		return 0
 	fi
-	exec {DOCKERAPP_LOCK_FD}> "$HESTIA/data/users/$1/dockerapps.lock"
+	exec {DOCKERAPP_LOCK_FD}> "$ARCPANEL/data/users/$1/dockerapps.lock"
 	if ! flock -w 120 "$DOCKERAPP_LOCK_FD"; then
 		check_result "$E_LA" "the Docker apps of $1 are locked by another command"
 	fi
@@ -189,7 +189,7 @@ dockerapp_of_domain() {
 # Users with records
 dockerapp_users() {
 	local file
-	for file in "$HESTIA"/data/users/*/dockerapps.conf; do
+	for file in "$ARCPANEL"/data/users/*/dockerapps.conf; do
 		if [ -s "$file" ]; then
 			basename "$(dirname "$file")"
 		fi
@@ -255,7 +255,7 @@ dockerapp_remove() {
 
 # Rendered project of USER's NAME (root only)
 dockerapp_rdir() {
-	echo "$HESTIA/data/users/$1/docker/$2"
+	echo "$ARCPANEL/data/users/$1/docker/$2"
 }
 
 # Folder of USER's NAME in the home directory
@@ -507,7 +507,7 @@ docker_interpolate() {
 	text=${text//\{\{url\}\}/$(dockerapp_url "$user" "$domain")}
 	text=${text//\{\{user\}\}/$user}
 	if [[ "$text" == *"{{user.email}}"* ]]; then
-		email=$(grep -m1 "^CONTACT=" "$HESTIA/data/users/$user/user.conf" 2> /dev/null | cut -d\' -f2)
+		email=$(grep -m1 "^CONTACT=" "$ARCPANEL/data/users/$user/user.conf" 2> /dev/null | cut -d\' -f2)
 		text=${text//\{\{user.email\}\}/$email}
 	fi
 	while [[ "$text" =~ \{\{random:([0-9]{1,3})\}\} ]]; do
@@ -1282,7 +1282,7 @@ dockerapp_update() {
 		return
 	fi
 	(
-		exec {fd}> "$HESTIA/data/users/$user/dockerapps.lock"
+		exec {fd}> "$ARCPANEL/data/users/$user/dockerapps.lock"
 		flock -w 120 "$fd" || exit "$E_LA"
 		dockerapp_set "$@"
 	)

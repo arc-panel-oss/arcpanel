@@ -14,12 +14,12 @@
 rule=$1
 
 # Includes
-# shellcheck source=/etc/hestiacp/hestia.conf
-source /etc/hestiacp/hestia.conf
-# shellcheck source=/usr/local/hestia/func/main.sh
-source $HESTIA/func/main.sh
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
 # load config file
-source_conf "$HESTIA/conf/hestia.conf"
+source_conf "$ARCPANEL/conf/arcpanel.conf"
 
 #----------------------------------------------------------#
 #                    Verifications                         #
@@ -31,17 +31,17 @@ is_system_enabled "$FIREWALL_SYSTEM" 'FIREWALL_SYSTEM'
 is_object_valid '../../../data/firewall/rules' 'RULE' "$rule"
 
 # Perform verification if read-only mode is enabled
-check_hestia_demo_mode
+check_arcpanel_demo_mode
 
 #----------------------------------------------------------#
 #                       Action                             #
 #----------------------------------------------------------#
 
 # Deleting rule
-sed -i "/RULE='$rule' /d" $HESTIA/data/firewall/rules.conf
+sed -i "/RULE='$rule' /d" $ARCPANEL/data/firewall/rules.conf
 
 # Reorder firewall rules
-rulesf="$HESTIA/data/firewall/rules.conf"
+rulesf="$ARCPANEL/data/firewall/rules.conf"
 
 if [[ ! -f "$rulesf" ]]; then
 	echo "Error: $rulesf not found" >&2
@@ -67,7 +67,7 @@ mv "$rules_tmp" "$rulesf"
 $BIN/v-update-firewall
 
 #----------------------------------------------------------#
-#                       Hestia                             #
+#                         ArcPanel                         #
 #----------------------------------------------------------#
 
 # Logging

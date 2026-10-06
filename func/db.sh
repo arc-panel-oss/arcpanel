@@ -2,7 +2,7 @@
 
 #===========================================================================#
 #                                                                           #
-# Hestia Control Panel - Domain Function Library                            #
+# ArcPanel Control Panel - Domain Function Library                            #
 #                                                                           #
 #===========================================================================#
 
@@ -37,7 +37,7 @@ database_set_default_ports() {
 # MySQL
 mysql_connect() {
 	unset PORT
-	host_str=$(grep "HOST='$1'" $HESTIA/conf/mysql.conf)
+	host_str=$(grep "HOST='$1'" $ARCPANEL/conf/mysql.conf)
 	parse_object_kv_list "$host_str"
 	if [ -z $PORT ]; then PORT=3306; fi
 	if [ -z $HOST ] || [ -z $USER ] || [ -z $PASSWORD ]; then
@@ -45,7 +45,7 @@ mysql_connect() {
 		log_event "$E_PARSING" "$ARGUMENTS"
 		exit $E_PARSING
 	fi
-	mycnf="$HESTIA/conf/.mysql.$HOST"
+	mycnf="$ARCPANEL/conf/.mysql.$HOST"
 	if [ ! -e "$mycnf" ]; then
 		echo "[client]" > $mycnf
 		echo "host='$HOST'" >> $mycnf
@@ -72,7 +72,7 @@ mysql_connect() {
 	fi
 	if [ '0' -ne "$?" ]; then
 		if [ "$notify" != 'no' ]; then
-			email=$(grep CONTACT "$HESTIA/data/users/$ROOT_USER/user.conf" | cut -f 2 -d \')
+			email=$(grep CONTACT "$ARCPANEL/data/users/$ROOT_USER/user.conf" | cut -f 2 -d \')
 			subj="MySQL connection error on $(hostname)"
 			echo -e "Can't connect to MySQL $HOST:$PORT\n$(cat $mysql_out)" \
 				| $SENDMAIL -s "$subj" $email
@@ -152,7 +152,7 @@ mysql_dump() {
 		if [ '0' -ne "$?" ]; then
 			rm -rf $tmpdir
 			if [ "$notify" != 'no' ]; then
-				email=$(grep CONTACT "$HESTIA/data/users/$ROOT_USER/user.conf" | cut -f 2 -d \')
+				email=$(grep CONTACT "$ARCPANEL/data/users/$ROOT_USER/user.conf" | cut -f 2 -d \')
 				subj="MySQL error on $(hostname)"
 				echo -e "Can't dump database $database\n$(cat $err)" \
 					| $SENDMAIL -s "$subj" $email
@@ -167,7 +167,7 @@ mysql_dump() {
 # PostgreSQL
 psql_connect() {
 	unset PORT
-	host_str=$(grep "HOST='$1'" $HESTIA/conf/pgsql.conf)
+	host_str=$(grep "HOST='$1'" $ARCPANEL/conf/pgsql.conf)
 	parse_object_kv_list "$host_str"
 	export PGPASSWORD="$PASSWORD"
 	if [ -z $PORT ]; then PORT=5432; fi
@@ -180,7 +180,7 @@ psql_connect() {
 	psql -h $HOST -U $USER -p $PORT -c "SELECT VERSION()" > /dev/null 2> /tmp/e.psql
 	if [ '0' -ne "$?" ]; then
 		if [ "$notify" != 'no' ]; then
-			email=$(grep CONTACT "$HESTIA/data/users/$ROOT_USER/user.conf" | cut -f 2 -d \')
+			email=$(grep CONTACT "$ARCPANEL/data/users/$ROOT_USER/user.conf" | cut -f 2 -d \')
 			subj="PostgreSQL connection error on $(hostname)"
 			echo -e "Can't connect to PostgreSQL $HOST:$PORT\n$(cat /tmp/e.psql)" \
 				| $SENDMAIL -s "$subj" $email
@@ -203,7 +203,7 @@ psql_dump() {
 	if [ '0' -ne "$?" ]; then
 		rm -rf $tmpdir
 		if [ "$notify" != 'no' ]; then
-			email=$(grep CONTACT "$HESTIA/data/users/$ROOT_USER/user.conf" | cut -f 2 -d \')
+			email=$(grep CONTACT "$ARCPANEL/data/users/$ROOT_USER/user.conf" | cut -f 2 -d \')
 			subj="PostgreSQL error on $(hostname)"
 			echo -e "Can't dump database $database\n$(cat /tmp/e.psql)" \
 				| $SENDMAIL -s "$subj" $email
@@ -219,7 +219,7 @@ get_next_dbhost() {
 	if [ -z "$host" ] || [ "$host" == 'default' ]; then
 		IFS=$'\n'
 		host='EMPTY_DB_HOST'
-		config="$HESTIA/conf/$type.conf"
+		config="$ARCPANEL/conf/$type.conf"
 		host_str=$(grep "SUSPENDED='no'" $config)
 		check_row=$(echo "$host_str" | wc -l)
 
@@ -248,7 +248,7 @@ get_next_dbhost() {
 
 # Database charset validation
 is_charset_valid() {
-	host_str=$(grep "HOST='$host'" $HESTIA/conf/$type.conf)
+	host_str=$(grep "HOST='$host'" $ARCPANEL/conf/$type.conf)
 	parse_object_kv_list "$host_str"
 
 	if [ -z "$(echo $CHARSETS | grep -wi $charset)" ]; then
@@ -260,7 +260,7 @@ is_charset_valid() {
 
 # Increase database host value
 increase_dbhost_values() {
-	host_str=$(grep "HOST='$host'" $HESTIA/conf/$type.conf)
+	host_str=$(grep "HOST='$host'" $ARCPANEL/conf/$type.conf)
 	parse_object_kv_list "$host_str"
 
 	old_dbbases="U_DB_BASES='$U_DB_BASES'"
@@ -277,13 +277,13 @@ increase_dbhost_values() {
 		fi
 	fi
 
-	sed -i "s/$old_dbbases/$new_dbbases/g" $HESTIA/conf/$type.conf
-	sed -i "s/$old_users/$new_users/g" $HESTIA/conf/$type.conf
+	sed -i "s/$old_dbbases/$new_dbbases/g" $ARCPANEL/conf/$type.conf
+	sed -i "s/$old_users/$new_users/g" $ARCPANEL/conf/$type.conf
 }
 
 # Decrease database host value
 decrease_dbhost_values() {
-	host_str=$(grep "HOST='$HOST'" $HESTIA/conf/$TYPE.conf)
+	host_str=$(grep "HOST='$HOST'" $ARCPANEL/conf/$TYPE.conf)
 	parse_object_kv_list "$host_str"
 
 	old_dbbases="U_DB_BASES='$U_DB_BASES'"
@@ -296,8 +296,8 @@ decrease_dbhost_values() {
 		| sed ':a;N;$!ba;s/\n/,/g')
 	new_users="U_SYS_USERS='$U_SYS_USERS'"
 
-	sed -i "s/$old_dbbases/$new_dbbases/g" $HESTIA/conf/$TYPE.conf
-	sed -i "s/$old_users/$new_users/g" $HESTIA/conf/$TYPE.conf
+	sed -i "s/$old_dbbases/$new_dbbases/g" $ARCPANEL/conf/$TYPE.conf
+	sed -i "s/$old_users/$new_users/g" $ARCPANEL/conf/$TYPE.conf
 }
 
 # Create MySQL database
@@ -428,8 +428,8 @@ delete_mysql_database_temp_user() {
 
 # Check if database host do not exist in config
 is_dbhost_new() {
-	if [ -e "$HESTIA/conf/$type.conf" ]; then
-		check_host=$(grep "HOST='$host'" $HESTIA/conf/$type.conf)
+	if [ -e "$ARCPANEL/conf/$type.conf" ]; then
+		check_host=$(grep "HOST='$host'" $ARCPANEL/conf/$type.conf)
 		if [ "$check_host" ]; then
 			echo "Error: db host exist"
 			log_event "$E_EXISTS" "$ARGUMENTS"
@@ -593,7 +593,7 @@ dump_pgsql_database() {
 
 # Check if database server is in use
 is_dbhost_free() {
-	host_str=$(grep "HOST='$host'" $HESTIA/conf/$type.conf)
+	host_str=$(grep "HOST='$host'" $ARCPANEL/conf/$type.conf)
 	parse_object_kv_list "$host_str"
 	if [ 0 -ne "$U_DB_BASES" ]; then
 		echo "Error: host $HOST is used"

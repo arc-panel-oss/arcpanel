@@ -16,18 +16,18 @@
 data_root=$1
 
 # Includes
-# shellcheck source=/etc/hestiacp/hestia.conf
-source /etc/hestiacp/hestia.conf
-# shellcheck source=/usr/local/hestia/func/main.sh
-source $HESTIA/func/main.sh
-# shellcheck source=/usr/local/hestia/func/tenancy.sh
-source $HESTIA/func/tenancy.sh
-# shellcheck source=/usr/local/hestia/func/ports.sh
-source $HESTIA/func/ports.sh
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/tenancy.sh
+source $ARCPANEL/func/tenancy.sh
+# shellcheck source=/usr/local/arcpanel/func/ports.sh
+source $ARCPANEL/func/ports.sh
 # load config file
-source_conf "$HESTIA/conf/hestia.conf"
-# shellcheck source=/usr/local/hestia/func/docker.sh
-source $HESTIA/func/docker.sh
+source_conf "$ARCPANEL/conf/arcpanel.conf"
+# shellcheck source=/usr/local/arcpanel/func/docker.sh
+source $ARCPANEL/func/docker.sh
 
 conf="$(docker_state_dir)/engine-task.state"
 log="$(docker_state_dir)/engine-task.log"
@@ -47,7 +47,7 @@ if [ -n "$data_root" ] && ! [[ "$data_root" =~ ^/[A-Za-z0-9._/-]+$ ]]; then
 fi
 
 # Perform verification if read-only mode is enabled
-check_hestia_demo_mode
+check_arcpanel_demo_mode
 
 #----------------------------------------------------------#
 #                       Action                             #
@@ -75,7 +75,7 @@ flock -u "$lock"
 echo "$id"
 
 #----------------------------------------------------------#
-#                       Hestia                             #
+#                         ArcPanel                         #
 #----------------------------------------------------------#
 
 log_event "$OK" "$ARGUMENTS"

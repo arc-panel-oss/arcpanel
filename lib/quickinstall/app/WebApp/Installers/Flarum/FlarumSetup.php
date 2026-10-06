@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace Hestia\WebApp\Installers\Flarum;
+namespace ArcPanel\WebApp\Installers\Flarum;
 
-use Hestia\System\Util;
-use Hestia\WebApp\BaseSetup;
-use Hestia\WebApp\InstallationTarget\InstallationTarget;
+use ArcPanel\System\Util;
+use ArcPanel\WebApp\BaseSetup;
+use ArcPanel\WebApp\InstallationTarget\InstallationTarget;
 
 class FlarumSetup extends BaseSetup
 {

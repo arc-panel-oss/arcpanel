@@ -15,16 +15,16 @@
 ip="$1"
 
 # Includes
-# shellcheck source=/etc/hestiacp/hestia.conf
-source /etc/hestiacp/hestia.conf
-# shellcheck source=/usr/local/hestia/func/main.sh
-source $HESTIA/func/main.sh
-# shellcheck source=/usr/local/hestia/func/ip.sh
-source $HESTIA/func/ip.sh
-# shellcheck source=/usr/local/hestia/func/domain.sh
-source $HESTIA/func/domain.sh
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/ip.sh
+source $ARCPANEL/func/ip.sh
+# shellcheck source=/usr/local/arcpanel/func/domain.sh
+source $ARCPANEL/func/domain.sh
 # load config file
-source_conf "$HESTIA/conf/hestia.conf"
+source_conf "$ARCPANEL/conf/arcpanel.conf"
 
 #----------------------------------------------------------#
 #                    Verifications                         #
@@ -37,14 +37,14 @@ is_ip_key_empty '$U_WEB_DOMAINS'
 is_ip_key_empty '$U_SYS_USERS'
 
 # Perform verification if read-only mode is enabled
-check_hestia_demo_mode
+check_arcpanel_demo_mode
 
 #----------------------------------------------------------#
 #                       Action                             #
 #----------------------------------------------------------#
 
 # Import IP variables
-source "$HESTIA/data/ips/$ip"
+source "$ARCPANEL/data/ips/$ip"
 cidr="$(convert_netmask "$NETMASK")"
 
 # Get primary IP
@@ -70,10 +70,10 @@ if [ -n "$interface" ]; then
 fi
 
 # Deleting startup conf on Debian/Ubuntu
-if [ -f "/etc/netplan/60-hestia.yaml" ]; then
-	sed -i "/$ip\//d" /etc/netplan/60-hestia.yaml
-	if ! grep -q '-' /etc/netplan/60-hestia.yaml; then
-		rm /etc/netplan/60-hestia.yaml
+if [ -f "/etc/netplan/60-arcpanel.yaml" ]; then
+	sed -i "/$ip\//d" /etc/netplan/60-arcpanel.yaml
+	if ! grep -q '-' /etc/netplan/60-arcpanel.yaml; then
+		rm /etc/netplan/60-arcpanel.yaml
 	fi
 elif [ -e "/etc/network/interfaces" ]; then
 	ip_str="$(grep -n "$ip$" /etc/network/interfaces | cut -f1 -d:)"
@@ -84,8 +84,8 @@ elif [ -e "/etc/network/interfaces" ]; then
 	fi
 fi
 
-# Deleting Hestia IP
-rm -f $HESTIA/data/ips/$ip
+# Deleting ArcPanel IP
+rm -f $ARCPANEL/data/ips/$ip
 
 # Deleting web config
 if [ -n "$WEB_SYSTEM" ]; then
@@ -123,7 +123,7 @@ if [ -n "$PROXY_SYSTEM" ]; then
 fi
 
 #----------------------------------------------------------#
-#                       Hestia                             #
+#                         ArcPanel                         #
 #----------------------------------------------------------#
 
 # Updating user conf
@@ -133,8 +133,8 @@ fi
 
 if [ "$OWNER" = "$ROOT_USER" ]; then
 	if [ "$STATUS" = 'shared' ]; then
-		for hestia_user in $("$BIN/v-list-users" list); do
-			decrease_user_value "$hestia_user" '$IP_AVAIL'
+		for arcpanel_user in $("$BIN/v-list-users" list); do
+			decrease_user_value "$arcpanel_user" '$IP_AVAIL'
 		done
 	else
 		decrease_user_value "$OWNER" '$IP_AVAIL'

@@ -16,14 +16,14 @@ reseller=$1
 format=${2-shell}
 
 # Includes
-# shellcheck source=/etc/hestiacp/hestia.conf
-source /etc/hestiacp/hestia.conf
-# shellcheck source=/usr/local/hestia/func/main.sh
-source $HESTIA/func/main.sh
-# shellcheck source=/usr/local/hestia/func/tenancy.sh
-source $HESTIA/func/tenancy.sh
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/tenancy.sh
+source $ARCPANEL/func/tenancy.sh
 # load config file
-source_conf "$HESTIA/conf/hestia.conf"
+source_conf "$ARCPANEL/conf/arcpanel.conf"
 
 # JSON list function
 json_list() {
@@ -44,7 +44,7 @@ shell_list() {
 	echo "----   ---   ---   ---   ----   --   ----   --   ----   ----"
 	for customer in $customer_list; do
 		(
-			source_conf "$HESTIA/data/users/$customer/user.conf"
+			source_conf "$ARCPANEL/data/users/$customer/user.conf"
 			echo "$customer $PACKAGE $U_WEB_DOMAINS $U_DNS_DOMAINS $U_MAIL_DOMAINS $U_DATABASES $U_DISK $U_BANDWIDTH $SUSPENDED $DATE"
 		)
 	done
@@ -54,7 +54,7 @@ shell_list() {
 plain_list() {
 	for customer in $customer_list; do
 		(
-			source_conf "$HESTIA/data/users/$customer/user.conf"
+			source_conf "$ARCPANEL/data/users/$customer/user.conf"
 			echo -e "$customer\t$NAME\t$CONTACT\t$PACKAGE\t$SUSPENDED\t$U_DISK\t$U_BANDWIDTH\t$U_WEB_DOMAINS\t$DATE"
 		)
 	done
@@ -65,7 +65,7 @@ csv_list() {
 	echo "USER,NAME,CONTACT,PACKAGE,SUSPENDED,U_DISK,U_BANDWIDTH,U_WEB_DOMAINS,DATE"
 	for customer in $customer_list; do
 		(
-			source_conf "$HESTIA/data/users/$customer/user.conf"
+			source_conf "$ARCPANEL/data/users/$customer/user.conf"
 			echo "$customer,\"$NAME\",$CONTACT,$PACKAGE,$SUSPENDED,$U_DISK,$U_BANDWIDTH,$U_WEB_DOMAINS,$DATE"
 		)
 	done
@@ -93,7 +93,7 @@ case $format in
 esac
 
 #----------------------------------------------------------#
-#                       Hestia                             #
+#                         ArcPanel                         #
 #----------------------------------------------------------#
 
 exit

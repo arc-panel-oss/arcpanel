@@ -12,17 +12,17 @@
 #----------------------------------------------------------#
 
 # Includes
-# shellcheck source=/etc/hestiacp/hestia.conf
-source /etc/hestiacp/hestia.conf
-# shellcheck source=/usr/local/hestia/func/main.sh
-source $HESTIA/func/main.sh
-# shellcheck source=/usr/local/hestia/func/domain.sh
-source $HESTIA/func/domain.sh
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/domain.sh
+source $ARCPANEL/func/domain.sh
 # load config file
-source_conf "$HESTIA/conf/hestia.conf"
+source_conf "$ARCPANEL/conf/arcpanel.conf"
 
 # Perform verification if read-only mode is enabled
-check_hestia_demo_mode
+check_arcpanel_demo_mode
 
 # Argument definition
 domain=$(hostname -f)
@@ -32,7 +32,7 @@ fi
 user="$($BIN/v-search-domain-owner "$domain" web)"
 [[ -z "$user" ]] && user="$ROOT_USER"
 
-USER_DATA=$HESTIA/data/users/$user
+USER_DATA=$ARCPANEL/data/users/$user
 
 #----------------------------------------------------------#
 #                    Verifications                         #
@@ -92,7 +92,7 @@ $BIN/v-add-web-domain-ssl-force "$user" "$domain" > /dev/null 2>&1
 $BIN/v-add-web-domain-ssl-hsts "$user" "$domain" > /dev/null 2>&1
 
 #----------------------------------------------------------#
-#                        Hestia                            #
+#                         ArcPanel                         #
 #----------------------------------------------------------#
 
 exit

@@ -1,6 +1,6 @@
 <?php
 use Divinity76\CloudflareIpValidator\CloudflareIpValidator;
-use function Hestiacp\quoteshellarg\quoteshellarg;
+use function ArcPanel\quoteshellarg\quoteshellarg;
 
 # Return codes
 const E_ARGS = 1;
@@ -124,10 +124,10 @@ function get_real_user_ip() {
  * @param string $message The message for log.
  * @param string $category A category for log. Ex: Auth, Firewall, API...
  * @param string $level Info|Warning|Error.
- * @param string $user A username for save in the user history ou 'system' to save in Hestia history.
+ * @param string $user A username for save in the user history ou 'system' to save in ArcPanel history.
  * @return int The script result code.
  */
-function hst_add_history_log($message, $category = "System", $level = "Info", $user = "system") {
+function arc_add_history_log($message, $category = "System", $level = "Info", $user = "system") {
 	//$message = ucfirst($message);
 	//$message = str_replace("'", "`", $message);
 	$category = ucfirst(strtolower($category));
@@ -141,7 +141,7 @@ function hst_add_history_log($message, $category = "System", $level = "Info", $u
 		quoteshellarg($category) .
 		" " .
 		quoteshellarg($message);
-	exec(HESTIA_CMD . "v-log-action " . $command_args, $output, $return_var);
+	exec(ARCPANEL_CMD . "v-log-action " . $command_args, $output, $return_var);
 	unset($output);
 
 	return $return_var;

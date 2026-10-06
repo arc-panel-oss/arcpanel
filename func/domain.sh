@@ -2,7 +2,7 @@
 
 #===========================================================================#
 #                                                                           #
-# Hestia Control Panel - Domain Function Library                            #
+# ArcPanel Control Panel - Domain Function Library                            #
 #                                                                           #
 #===========================================================================#
 
@@ -43,7 +43,7 @@ is_backend_template_valid() {
 
 # Web domain existence check
 is_web_domain_new() {
-	web=$(grep -F -H "DOMAIN='$1'" $HESTIA/data/users/*/web.conf)
+	web=$(grep -F -H "DOMAIN='$1'" $ARCPANEL/data/users/*/web.conf)
 	if [ -n "$web" ]; then
 		if [ "$type" == 'web' ]; then
 			check_result "$E_EXISTS" "Web domain $1 exists"
@@ -57,7 +57,7 @@ is_web_domain_new() {
 
 # Web alias existence check
 is_web_alias_new() {
-	grep -wH "$1" $HESTIA/data/users/*/web.conf | while read -r line; do
+	grep -wH "$1" $ARCPANEL/data/users/*/web.conf | while read -r line; do
 		user=$(echo $line | cut -f 7 -d /)
 		string=$(echo $line | cut -f 2- -d ':')
 		parse_object_kv_list $string
@@ -222,8 +222,8 @@ prepare_web_domain_values() {
 	fi
 
 	if [ "$SUSPENDED" = 'yes' ]; then
-		docroot="$HESTIA/data/templates/web/suspend"
-		sdocroot="$HESTIA/data/templates/web/suspend"
+		docroot="$ARCPANEL/data/templates/web/suspend"
+		sdocroot="$ARCPANEL/data/templates/web/suspend"
 		if [ "$PROXY_SYSTEM" == "nginx" ]; then
 			PROXY="suspended"
 		else
@@ -396,7 +396,7 @@ del_web_config() {
 		rm -f $legacyconf
 
 		# Remove old global includes file
-		rm -f /etc/$1/conf.d/hestia.conf
+		rm -f /etc/$1/conf.d/arcpanel.conf
 	fi
 
 	# Remove domain configuration files and clean up symbolic links
@@ -473,7 +473,7 @@ is_dns_template_valid() {
 
 # DNS domain existence check
 is_dns_domain_new() {
-	dns=$(ls $HESTIA/data/users/*/dns/$1.conf 2> /dev/null)
+	dns=$(ls $ARCPANEL/data/users/*/dns/$1.conf 2> /dev/null)
 	if [ -n "$dns" ]; then
 		if [ "$2" == 'dns' ]; then
 			check_result "$E_EXISTS" "DNS domain $1 exists"
@@ -491,7 +491,7 @@ parse_dns_record_line() {
 	local json
 
 	json=$(
-		$HESTIA_PHP -- "$line" << 'EOPHP'
+		$ARCPANEL_PHP -- "$line" << 'EOPHP'
 <?php
 $line = $argv[1];
 $allowed_keys = array('ID','RECORD','TYPE','PRIORITY','VALUE','SUSPENDED','TIME','DATE','TTL');
@@ -734,7 +734,7 @@ is_dns_nameserver_valid() {
 
 # Mail domain existence check
 is_mail_domain_new() {
-	mail=$(ls $HESTIA/data/users/*/mail/$1.conf 2> /dev/null)
+	mail=$(ls $ARCPANEL/data/users/*/mail/$1.conf 2> /dev/null)
 	if [ -n "$mail" ]; then
 		if [ "$2" == 'mail' ]; then
 			check_result $E_EXISTS "Mail domain $1 exists"
@@ -747,12 +747,12 @@ is_mail_domain_new() {
 	mail_sub=$(echo "$1" | cut -f 1 -d .)
 	mail_nosub=$(echo "$1" | cut -f 1 -d . --complement)
 	for mail_reserved in $(echo "mail $WEBMAIL_ALIAS"); do
-		if [ -n "$(ls $HESTIA/data/users/*/mail/$mail_reserved.$1.conf 2> /dev/null)" ]; then
+		if [ -n "$(ls $ARCPANEL/data/users/*/mail/$mail_reserved.$1.conf 2> /dev/null)" ]; then
 			if [ "$2" == 'mail' ]; then
 				check_result "$E_EXISTS" "Required subdomain \"$mail_reserved.$1\" already exists"
 			fi
 		fi
-		if [ -n "$(ls $HESTIA/data/users/*/mail/$mail_nosub.conf 2> /dev/null)" ] && [ "$mail_sub" = "$mail_reserved" ]; then
+		if [ -n "$(ls $ARCPANEL/data/users/*/mail/$mail_nosub.conf 2> /dev/null)" ] && [ "$mail_sub" = "$mail_reserved" ]; then
 			if [ "$2" == 'mail' ]; then
 				check_result "$E_INVALID" "The subdomain \"$mail_sub.\" is reserved by \"$mail_nosub\""
 			fi
@@ -784,15 +784,15 @@ add_mail_ssl_config() {
 		mkdir -p $HOMEDIR/$user/conf/mail/$domain/ssl/
 	fi
 
-	if [ ! -d "$HESTIA/ssl/mail" ]; then
-		mkdir -p $HESTIA/ssl/mail
+	if [ ! -d "$ARCPANEL/ssl/mail" ]; then
+		mkdir -p $ARCPANEL/ssl/mail
 	fi
 
 	if [ ! -d /etc/dovecot/conf.d/domains ]; then
 		mkdir -p /etc/dovecot/conf.d/domains
 	fi
 
-	# Add certificate to Hestia user configuration data directory
+	# Add certificate to ArcPanel user configuration data directory
 	if [ -f "$ssl_dir/$domain.crt" ]; then
 		cp -f $ssl_dir/$domain.crt $USER_DATA/ssl/mail.$domain.crt
 		cp -f $ssl_dir/$domain.key $USER_DATA/ssl/mail.$domain.key
@@ -840,8 +840,8 @@ add_mail_ssl_config() {
 			echo "}" >> /etc/dovecot/conf.d/domains/$domain.conf
 		fi
 		# Add domain SSL configuration to exim4
-		ln -s $HOMEDIR/$user/conf/mail/$domain/ssl/$domain.pem $HESTIA/ssl/mail/$domain.crt
-		ln -s $HOMEDIR/$user/conf/mail/$domain/ssl/$domain.key $HESTIA/ssl/mail/$domain.key
+		ln -s $HOMEDIR/$user/conf/mail/$domain/ssl/$domain.pem $ARCPANEL/ssl/mail/$domain.crt
+		ln -s $HOMEDIR/$user/conf/mail/$domain/ssl/$domain.key $ARCPANEL/ssl/mail/$domain.key
 	fi
 
 	# Add domain SSL configuration to dovecot
@@ -861,16 +861,16 @@ add_mail_ssl_config() {
 	fi
 
 	# Add domain SSL configuration to exim4
-	ln -s $HOMEDIR/$user/conf/mail/$domain/ssl/$domain.pem $HESTIA/ssl/mail/mail.$domain.crt
-	ln -s $HOMEDIR/$user/conf/mail/$domain/ssl/$domain.key $HESTIA/ssl/mail/mail.$domain.key
+	ln -s $HOMEDIR/$user/conf/mail/$domain/ssl/$domain.pem $ARCPANEL/ssl/mail/mail.$domain.crt
+	ln -s $HOMEDIR/$user/conf/mail/$domain/ssl/$domain.key $ARCPANEL/ssl/mail/mail.$domain.key
 
 	# Set correct permissions on certificates
 	chmod 0750 $HOMEDIR/$user/conf/mail/$domain/ssl
 	chown -R $MAIL_USER:mail $HOMEDIR/$user/conf/mail/$domain/ssl
 	chmod 0644 $HOMEDIR/$user/conf/mail/$domain/ssl/*
 	chown -h $user:mail $HOMEDIR/$user/conf/mail/$domain/ssl/*
-	chmod -R 0644 $HESTIA/ssl/mail/*
-	chown -h $user:mail $HESTIA/ssl/mail/*
+	chmod -R 0644 $ARCPANEL/ssl/mail/*
+	chown -h $user:mail $ARCPANEL/ssl/mail/*
 }
 
 # Delete SSL support for mail domain
@@ -893,9 +893,9 @@ del_mail_ssl_config() {
 	# Remove SSL certificates
 	rm -f $HOMEDIR/$user/conf/mail/$domain/ssl/*
 	if [ -n "$mail_cert_match" ]; then
-		rm -f $HESTIA/ssl/mail/$domain.crt $HESTIA/ssl/mail/$domain.key
+		rm -f $ARCPANEL/ssl/mail/$domain.crt $ARCPANEL/ssl/mail/$domain.key
 	fi
-	rm -f $HESTIA/ssl/mail/mail.$domain.crt $HESTIA/ssl/mail/mail.$domain.key
+	rm -f $ARCPANEL/ssl/mail/mail.$domain.crt $ARCPANEL/ssl/mail/mail.$domain.key
 }
 
 # Delete generated certificates from user configuration data directory
@@ -1063,59 +1063,59 @@ get_domain_values() {
 is_valid_extension() {
 	local psl
 	psl="https://publicsuffix.org/list/public_suffix_list.dat"
-	if [ ! -e "$HESTIA/data/extensions/public_suffix_list.dat" ]; then
-		mkdir -p "$HESTIA/data/extensions/"
-		chmod 750 "$HESTIA/data/extensions/"
-		if /usr/bin/wget --tries=3 --timeout=15 --read-timeout=15 --waitretry=3 --no-dns-cache --quiet -O "$HESTIA/data/extensions/public_suffix_list.dat.tmp" "$psl"; then
-			mv "$HESTIA/data/extensions/public_suffix_list.dat.tmp" "$HESTIA/data/extensions/public_suffix_list.dat"
+	if [ ! -e "$ARCPANEL/data/extensions/public_suffix_list.dat" ]; then
+		mkdir -p "$ARCPANEL/data/extensions/"
+		chmod 750 "$ARCPANEL/data/extensions/"
+		if /usr/bin/wget --tries=3 --timeout=15 --read-timeout=15 --waitretry=3 --no-dns-cache --quiet -O "$ARCPANEL/data/extensions/public_suffix_list.dat.tmp" "$psl"; then
+			mv "$ARCPANEL/data/extensions/public_suffix_list.dat.tmp" "$ARCPANEL/data/extensions/public_suffix_list.dat"
 		else
-			rm -f "$HESTIA/data/extensions/public_suffix_list.dat.tmp"
+			rm -f "$ARCPANEL/data/extensions/public_suffix_list.dat.tmp"
 		fi
-	elif find "$HESTIA/data/extensions/public_suffix_list.dat" -mtime +7 2> /dev/null | grep -q .; then
-		mv "$HESTIA/data/extensions/public_suffix_list.dat" "$HESTIA/data/extensions/public_suffix_list.dat.save"
-		if /usr/bin/wget --tries=3 --timeout=15 --read-timeout=15 --waitretry=3 --no-dns-cache --quiet -O "$HESTIA/data/extensions/public_suffix_list.dat.tmp" "$psl"; then
-			mv "$HESTIA/data/extensions/public_suffix_list.dat.tmp" "$HESTIA/data/extensions/public_suffix_list.dat"
-			rm -f "$HESTIA/data/extensions/public_suffix_list.dat.save"
+	elif find "$ARCPANEL/data/extensions/public_suffix_list.dat" -mtime +7 2> /dev/null | grep -q .; then
+		mv "$ARCPANEL/data/extensions/public_suffix_list.dat" "$ARCPANEL/data/extensions/public_suffix_list.dat.save"
+		if /usr/bin/wget --tries=3 --timeout=15 --read-timeout=15 --waitretry=3 --no-dns-cache --quiet -O "$ARCPANEL/data/extensions/public_suffix_list.dat.tmp" "$psl"; then
+			mv "$ARCPANEL/data/extensions/public_suffix_list.dat.tmp" "$ARCPANEL/data/extensions/public_suffix_list.dat"
+			rm -f "$ARCPANEL/data/extensions/public_suffix_list.dat.save"
 		else
-			rm -f "$HESTIA/data/extensions/public_suffix_list.dat.tmp"
-			mv "$HESTIA/data/extensions/public_suffix_list.dat.save" "$HESTIA/data/extensions/public_suffix_list.dat"
+			rm -f "$ARCPANEL/data/extensions/public_suffix_list.dat.tmp"
+			mv "$ARCPANEL/data/extensions/public_suffix_list.dat.save" "$ARCPANEL/data/extensions/public_suffix_list.dat"
 		fi
 	fi
-	if [ ! -e "$HESTIA/data/extensions/public_suffix_list.dat" ]; then
+	if [ ! -e "$ARCPANEL/data/extensions/public_suffix_list.dat" ]; then
 		check_result "$E_NOTEXIST" "public_suffix_list.dat not found"
 	fi
 	test_domain=$(idn2 -d "$1")
 	extension="${test_domain##*.}"
-	exten=$(grep -Fx "$extension" "$HESTIA/data/extensions/public_suffix_list.dat")
+	exten=$(grep -Fx "$extension" "$ARCPANEL/data/extensions/public_suffix_list.dat")
 }
 
 is_valid_2_part_extension() {
 	local psl
 	psl="https://publicsuffix.org/list/public_suffix_list.dat"
-	if [ ! -e "$HESTIA/data/extensions/public_suffix_list.dat" ]; then
-		mkdir -p "$HESTIA/data/extensions/"
-		chmod 750 "$HESTIA/data/extensions/"
-		if /usr/bin/wget --tries=3 --timeout=15 --read-timeout=15 --waitretry=3 --no-dns-cache --quiet -O "$HESTIA/data/extensions/public_suffix_list.dat.tmp" "$psl"; then
-			mv "$HESTIA/data/extensions/public_suffix_list.dat.tmp" "$HESTIA/data/extensions/public_suffix_list.dat"
+	if [ ! -e "$ARCPANEL/data/extensions/public_suffix_list.dat" ]; then
+		mkdir -p "$ARCPANEL/data/extensions/"
+		chmod 750 "$ARCPANEL/data/extensions/"
+		if /usr/bin/wget --tries=3 --timeout=15 --read-timeout=15 --waitretry=3 --no-dns-cache --quiet -O "$ARCPANEL/data/extensions/public_suffix_list.dat.tmp" "$psl"; then
+			mv "$ARCPANEL/data/extensions/public_suffix_list.dat.tmp" "$ARCPANEL/data/extensions/public_suffix_list.dat"
 		else
-			rm -f "$HESTIA/data/extensions/public_suffix_list.dat.tmp"
+			rm -f "$ARCPANEL/data/extensions/public_suffix_list.dat.tmp"
 		fi
-	elif find "$HESTIA/data/extensions/public_suffix_list.dat" -mtime +7 2> /dev/null | grep -q .; then
-		mv "$HESTIA/data/extensions/public_suffix_list.dat" "$HESTIA/data/extensions/public_suffix_list.dat.save"
-		if /usr/bin/wget --tries=3 --timeout=15 --read-timeout=15 --waitretry=3 --no-dns-cache --quiet -O "$HESTIA/data/extensions/public_suffix_list.dat.tmp" "$psl"; then
-			mv "$HESTIA/data/extensions/public_suffix_list.dat.tmp" "$HESTIA/data/extensions/public_suffix_list.dat"
-			rm -f "$HESTIA/data/extensions/public_suffix_list.dat.save"
+	elif find "$ARCPANEL/data/extensions/public_suffix_list.dat" -mtime +7 2> /dev/null | grep -q .; then
+		mv "$ARCPANEL/data/extensions/public_suffix_list.dat" "$ARCPANEL/data/extensions/public_suffix_list.dat.save"
+		if /usr/bin/wget --tries=3 --timeout=15 --read-timeout=15 --waitretry=3 --no-dns-cache --quiet -O "$ARCPANEL/data/extensions/public_suffix_list.dat.tmp" "$psl"; then
+			mv "$ARCPANEL/data/extensions/public_suffix_list.dat.tmp" "$ARCPANEL/data/extensions/public_suffix_list.dat"
+			rm -f "$ARCPANEL/data/extensions/public_suffix_list.dat.save"
 		else
-			rm -f "$HESTIA/data/extensions/public_suffix_list.dat.tmp"
-			mv "$HESTIA/data/extensions/public_suffix_list.dat.save" "$HESTIA/data/extensions/public_suffix_list.dat"
+			rm -f "$ARCPANEL/data/extensions/public_suffix_list.dat.tmp"
+			mv "$ARCPANEL/data/extensions/public_suffix_list.dat.save" "$ARCPANEL/data/extensions/public_suffix_list.dat"
 		fi
 	fi
-	if [ ! -e "$HESTIA/data/extensions/public_suffix_list.dat" ]; then
+	if [ ! -e "$ARCPANEL/data/extensions/public_suffix_list.dat" ]; then
 		check_result "$E_NOTEXIST" "public_suffix_list.dat not found"
 	fi
 	test_domain=$(idn2 -d "$1")
 	extension=$(/bin/echo "${test_domain}" | awk -F. '{print $(NF-1)"."$NF}')
-	exten=$(grep -Fx "$extension" "$HESTIA/data/extensions/public_suffix_list.dat")
+	exten=$(grep -Fx "$extension" "$ARCPANEL/data/extensions/public_suffix_list.dat")
 }
 
 get_base_domain() {
@@ -1139,7 +1139,7 @@ is_base_domain_owner() {
 	for object in ${1//,/ }; do
 		if [ "$object" != "none" ]; then
 			get_base_domain $object
-			web=$(grep -F -H -h "DOMAIN='$basedomain'" $HESTIA/data/users/*/web.conf)
+			web=$(grep -F -H -h "DOMAIN='$basedomain'" $ARCPANEL/data/users/*/web.conf)
 			if [ "$ENFORCE_SUBDOMAIN_OWNERSHIP" = "yes" ]; then
 				if [ -n "$web" ]; then
 					parse_object_kv_list "$web"

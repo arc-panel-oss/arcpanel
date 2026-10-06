@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace Hestia\WebApp\Installers\NamelessMC;
+namespace ArcPanel\WebApp\Installers\NamelessMC;
 
-use Hestia\WebApp\BaseSetup;
-use Hestia\WebApp\InstallationTarget\InstallationTarget;
+use ArcPanel\WebApp\BaseSetup;
+use ArcPanel\WebApp\InstallationTarget\InstallationTarget;
 
 class NamelessMCSetup extends BaseSetup {
     protected array $info = [

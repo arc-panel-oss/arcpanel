@@ -15,16 +15,16 @@
 user=$1
 
 # Includes
-# shellcheck source=/etc/hestiacp/hestia.conf
-source /etc/hestiacp/hestia.conf
-# shellcheck source=/usr/local/hestia/func/main.sh
-source $HESTIA/func/main.sh
-# shellcheck source=/usr/local/hestia/func/tenancy.sh
-source $HESTIA/func/tenancy.sh
-# shellcheck source=/usr/local/hestia/func/nodeapp.sh
-source $HESTIA/func/nodeapp.sh
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/tenancy.sh
+source $ARCPANEL/func/tenancy.sh
+# shellcheck source=/usr/local/arcpanel/func/nodeapp.sh
+source $ARCPANEL/func/nodeapp.sh
 # load config file
-source_conf "$HESTIA/conf/hestia.conf"
+source_conf "$ARCPANEL/conf/arcpanel.conf"
 
 #----------------------------------------------------------#
 #                    Verifications                         #
@@ -49,7 +49,7 @@ if [ "$(nodeapp_count "$user")" -gt 0 ]; then
 fi
 
 # Perform verification if read-only mode is enabled
-check_hestia_demo_mode
+check_arcpanel_demo_mode
 
 #----------------------------------------------------------#
 #                       Action                             #
@@ -60,10 +60,10 @@ if [ -e "$nvm_dir" ]; then
 	node_as_user "$user" rm -rf -- "$nvm_dir"
 	check_result $? "$nvm_dir could not be removed"
 fi
-rm -f "$HESTIA/data/users/$user"/node-outdated-*.json
+rm -f "$ARCPANEL/data/users/$user"/node-outdated-*.json
 
 #----------------------------------------------------------#
-#                       Hestia                             #
+#                         ArcPanel                         #
 #----------------------------------------------------------#
 
 # Logging

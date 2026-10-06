@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace Hestia\WebApp\Installers\DokuWiki;
+namespace ArcPanel\WebApp\Installers\DokuWiki;
 
-use Hestia\WebApp\BaseSetup;
-use Hestia\WebApp\InstallationTarget\InstallationTarget;
+use ArcPanel\WebApp\BaseSetup;
+use ArcPanel\WebApp\InstallationTarget\InstallationTarget;
 use function var_dump;
 
 class DokuWikiSetup extends BaseSetup

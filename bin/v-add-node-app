@@ -30,18 +30,18 @@ template=${8:-nodejs-proxy}
 name=$9
 
 # Includes
-# shellcheck source=/etc/hestiacp/hestia.conf
-source /etc/hestiacp/hestia.conf
-# shellcheck source=/usr/local/hestia/func/main.sh
-source $HESTIA/func/main.sh
-# shellcheck source=/usr/local/hestia/func/tenancy.sh
-source $HESTIA/func/tenancy.sh
-# shellcheck source=/usr/local/hestia/func/ports.sh
-source $HESTIA/func/ports.sh
-# shellcheck source=/usr/local/hestia/func/nodeapp.sh
-source $HESTIA/func/nodeapp.sh
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/tenancy.sh
+source $ARCPANEL/func/tenancy.sh
+# shellcheck source=/usr/local/arcpanel/func/ports.sh
+source $ARCPANEL/func/ports.sh
+# shellcheck source=/usr/local/arcpanel/func/nodeapp.sh
+source $ARCPANEL/func/nodeapp.sh
 # load config file
-source_conf "$HESTIA/conf/hestia.conf"
+source_conf "$ARCPANEL/conf/arcpanel.conf"
 
 # Additional argument formatting
 format_domain
@@ -90,7 +90,7 @@ fi
 if nodeapp_exists "$user" "$domain"; then
 	check_result "$E_EXISTS" "$domain already has a Node.js app"
 fi
-if grep -q " DOMAIN='$domain' " "$HESTIA/data/users/$user/dockerapps.conf" 2> /dev/null; then
+if grep -q " DOMAIN='$domain' " "$ARCPANEL/data/users/$user/dockerapps.conf" 2> /dev/null; then
 	check_result "$E_EXISTS" "$domain has a Docker app"
 fi
 nodeapp_check_limit "$user"
@@ -140,7 +140,7 @@ for other in $(nodeapp_domains "$user"); do
 done
 
 # Perform verification if read-only mode is enabled
-check_hestia_demo_mode
+check_arcpanel_demo_mode
 
 #----------------------------------------------------------#
 #                       Action                             #
@@ -211,7 +211,7 @@ fi
 nodeapp_logrotate_write "$user"
 
 #----------------------------------------------------------#
-#                       Hestia                             #
+#                         ArcPanel                         #
 #----------------------------------------------------------#
 
 # Logging

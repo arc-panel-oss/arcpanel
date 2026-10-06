@@ -15,12 +15,12 @@ user=$1
 restart=$2
 
 # Includes
-# shellcheck source=/etc/hestiacp/hestia.conf
-source /etc/hestiacp/hestia.conf
-# shellcheck source=/usr/local/hestia/func/main.sh
-source $HESTIA/func/main.sh
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
 # load config file
-source_conf "$HESTIA/conf/hestia.conf"
+source_conf "$ARCPANEL/conf/arcpanel.conf"
 
 #----------------------------------------------------------#
 #                    Verifications                         #
@@ -41,12 +41,12 @@ if [ -z "$user_str" ]; then
 fi
 
 # Check whether SFTP jail is enabled before adding a user jail
-if ! grep -A1 '^# Hestia SFTP Chroot$' /etc/ssh/sshd_config | grep -q '^Match User' &> /dev/null; then
+if ! grep -A1 '^# ArcPanel SFTP Chroot$' /etc/ssh/sshd_config | grep -q '^Match User' &> /dev/null; then
 	exit 0
 fi
 
 # Get current users and split into array
-ssh_users=$(grep -A1 "^# Hestia SFTP Chroot" /etc/ssh/sshd_config | sed -n 2p | sed 's/Match User //')
+ssh_users=$(grep -A1 "^# ArcPanel SFTP Chroot" /etc/ssh/sshd_config | sed -n 2p | sed 's/Match User //')
 IFS=',' read -r -a users <<< "$ssh_users"
 
 # Check if jail exist
@@ -59,7 +59,7 @@ if [[ "$match_string" =~ ,$user, ]]; then
 fi
 
 # Perform verification if read-only mode is enabled
-check_hestia_demo_mode
+check_arcpanel_demo_mode
 
 #----------------------------------------------------------#
 #                       Action                             #
@@ -83,7 +83,7 @@ fi
 add_chroot_jail "$user"
 
 #----------------------------------------------------------#
-#                       Hestia                             #
+#                         ArcPanel                         #
 #----------------------------------------------------------#
 
 # Restart ssh service

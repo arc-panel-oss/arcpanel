@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace Hestia\System;
+namespace ArcPanel\System;
 
 use function json_decode;
 
-class HestiaCommandResult
+class ArcPanelCommandResult
 {
     public function __construct(
         public readonly string $command,

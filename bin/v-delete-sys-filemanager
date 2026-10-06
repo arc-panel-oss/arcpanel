@@ -14,12 +14,12 @@
 MODE=$1
 
 # Includes
-# shellcheck source=/etc/hestiacp/hestia.conf
-source /etc/hestiacp/hestia.conf
-# shellcheck source=/usr/local/hestia/func/main.sh
-source $HESTIA/func/main.sh
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
 # load config file
-source_conf "$HESTIA/conf/hestia.conf"
+source_conf "$ARCPANEL/conf/arcpanel.conf"
 
 #----------------------------------------------------------#
 #                    Verifications                         #
@@ -31,20 +31,20 @@ if [ "x$(id -u)" != 'x0' ]; then
 	exit 10
 fi
 
-# Ensure that $HESTIA (/usr/local/hestia/) and other variables are valid.
-if [ -z "$HESTIA" ]; then
-	HESTIA="/usr/local/hestia"
+# Ensure that $ARCPANEL (/usr/local/arcpanel/) and other variables are valid.
+if [ -z "$ARCPANEL" ]; then
+	ARCPANEL="/usr/local/arcpanel"
 fi
 
 # Perform verification if read-only mode is enabled
-check_hestia_demo_mode
+check_arcpanel_demo_mode
 
 #----------------------------------------------------------#
 #                       Action                             #
 #----------------------------------------------------------#
 
 # FileGator of 1.x
-rm --recursive --force "$HESTIA/web/fm"
+rm --recursive --force "$ARCPANEL/web/fm"
 $BIN/v-change-sys-config-value 'FILE_MANAGER' 'false'
 
 if [ "$MODE" != "quiet" ]; then

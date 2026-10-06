@@ -25,16 +25,16 @@ port=$6
 arch=$(arch)
 
 # Includes
-# shellcheck source=/etc/hestiacp/hestia.conf
-source /etc/hestiacp/hestia.conf
-# shellcheck source=/usr/local/hestia/func/main.sh
-source $HESTIA/func/main.sh
-# shellcheck source=/usr/local/hestia/func/backup.sh
-source $HESTIA/func/backup.sh
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/backup.sh
+source $ARCPANEL/func/backup.sh
 # load config file
-source_conf "$HESTIA/conf/hestia.conf"
+source_conf "$ARCPANEL/conf/arcpanel.conf"
 # Fetch current verison B2 CLI tool
-source_conf "$HESTIA/install/upgrade/upgrade.conf"
+source_conf "$ARCPANEL/install/upgrade/upgrade.conf"
 
 # Paths
 b2cli="/usr/local/bin/b2"
@@ -75,7 +75,7 @@ if [ "$type" != 'local' ]; then
 fi
 
 # Perform verification if read-only mode is enabled
-check_hestia_demo_mode
+check_arcpanel_demo_mode
 
 #----------------------------------------------------------#
 #                       Action                             #
@@ -188,14 +188,14 @@ if [ "$type" = 'rclone' ]; then
 	curl -s https://rclone.org/install.sh | bash /dev/null > /dev/null 2>&1
 	# Verify account exists
 	if [ ! -z "$(cat /root/.config/rclone/rclone.conf | grep "\[$host\]")" ]; then
-		echo "test" > /tmp/hestia-backup.txt
+		echo "test" > /tmp/arcpanel-backup.txt
 		# Try to upload a single file
 		if [ -z "$path" ]; then
-			rclone copy /tmp/hestia-backup.txt $host:/hestia-backup.txt
-			rclone delete $host:/hestia-backup.txt
+			rclone copy /tmp/arcpanel-backup.txt $host:/arcpanel-backup.txt
+			rclone delete $host:/arcpanel-backup.txt
 		else
-			rclone copy /tmp/hestia-backup.txt $host:$path/hestia-backup.txt
-			rclone delete $host:$path/hestia-backup.txt
+			rclone copy /tmp/arcpanel-backup.txt $host:$path/arcpanel-backup.txt
+			rclone delete $host:$path/arcpanel-backup.txt
 		fi
 	else
 		check_result "$E_CONNECT" "Rclone config does not exist"
@@ -207,35 +207,35 @@ if [ $type == 'ftp' ] || [ $type = 'sftp' ]; then
 	new_timestamp
 	str="HOST='$host'\nUSERNAME='$user'\nPASSWORD='$password'\nPRIVATEKEY='$privatekey'"
 	str="$str\nBPATH='$path'\nPORT='$port'\nTIME='$time'\nDATE='$date'"
-	echo -e "$str" > $HESTIA/conf/$type.backup.conf
-	chmod 660 $HESTIA/conf/$type.backup.conf
+	echo -e "$str" > $ARCPANEL/conf/$type.backup.conf
+	chmod 660 $ARCPANEL/conf/$type.backup.conf
 elif [ $type == 'b2' ]; then
 	new_timestamp
 	str="BUCKET='$host'\nB2_KEYID='$user'\nB2_KEY='$password'"
 	str="$str\nTIME='$time'\nDATE='$date'"
-	echo -e "$str" > $HESTIA/conf/$type.backup.conf
-	chmod 660 $HESTIA/conf/$type.backup.conf
+	echo -e "$str" > $ARCPANEL/conf/$type.backup.conf
+	chmod 660 $ARCPANEL/conf/$type.backup.conf
 elif [ $type == "rclone" ]; then
 	new_timestamp
 	str="HOST='$host'\nBPATH='$path'"
 	str="$str\nTIME='$time'\nDATE='$date'"
-	echo -e "$str" > $HESTIA/conf/$type.backup.conf
+	echo -e "$str" > $ARCPANEL/conf/$type.backup.conf
 fi
 
 #----------------------------------------------------------#
-#                       Hestia                             #
+#                         ArcPanel                         #
 #----------------------------------------------------------#
 
-# Update hestia.conf
-if [ -z "$(grep BACKUP_SYSTEM $HESTIA/conf/hestia.conf)" ]; then
-	echo "BACKUP_SYSTEM='$type'" >> $HESTIA/conf/hestia.conf
+# Update arcpanel.conf
+if [ -z "$(grep BACKUP_SYSTEM $ARCPANEL/conf/arcpanel.conf)" ]; then
+	echo "BACKUP_SYSTEM='$type'" >> $ARCPANEL/conf/arcpanel.conf
 else
 	bckp=$(echo "$BACKUP_SYSTEM,$type" \
 		| sed "s/,/\n/g" \
 		| sort -r -u \
 		| sed "/^$/d" \
 		| sed ':a;N;$!ba;s/\n/,/g')
-	sed -i "s/BACKUP_SYSTEM=.*/BACKUP_SYSTEM='$bckp'/g" $HESTIA/conf/hestia.conf
+	sed -i "s/BACKUP_SYSTEM=.*/BACKUP_SYSTEM='$bckp'/g" $ARCPANEL/conf/arcpanel.conf
 fi
 
 # Logging

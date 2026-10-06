@@ -1,5 +1,5 @@
 #!/bin/bash
-# info: Configure sudoers, SSH, Bind, Dovecot and Exim to work with Hestia on Ubuntu 26.04
+# info: Configure sudoers, SSH, Bind, Dovecot and Exim to work with ArcPanel on Ubuntu 26.04
 
 #----------------------------------------------------------#
 #                    Variables & Functions                 #
@@ -10,9 +10,9 @@
 	exit 1
 }
 
-source /etc/hestiacp/hestia.conf
-source "$HESTIA/conf/hestia.conf"
-source "$HESTIA/func/main.sh"
+source /etc/arcpanel/arcpanel.conf
+source "$ARCPANEL/conf/arcpanel.conf"
+source "$ARCPANEL/func/main.sh"
 
 [[ -f /etc/os-release ]] && source /etc/os-release
 
@@ -26,11 +26,11 @@ fi
 #----------------------------------------------------------#
 
 echo "[ * ] Checking sudoers config:"
-if [[ -f /etc/sudoers.d/hestiaweb ]] && grep -q '^Defaults:root !requiretty$' /etc/sudoers.d/hestiaweb &> /dev/null; then
+if [[ -f /etc/sudoers.d/arcpanelweb ]] && grep -q '^Defaults:root !requiretty$' /etc/sudoers.d/arcpanelweb &> /dev/null; then
 	echo "[ + ] Configuring sudoers to remove unsupported requiretty option"
-	chmod 640 /etc/sudoers.d/hestiaweb
-	sed -i '/^Defaults:root !requiretty$/d' /etc/sudoers.d/hestiaweb
-	chmod 440 /etc/sudoers.d/hestiaweb
+	chmod 640 /etc/sudoers.d/arcpanelweb
+	sed -i '/^Defaults:root !requiretty$/d' /etc/sudoers.d/arcpanelweb
+	chmod 440 /etc/sudoers.d/arcpanelweb
 else
 	echo "[ - ] sudoers already configured, nothing to do"
 fi
@@ -40,7 +40,7 @@ echo
 #                    SSH configuration                     #
 #----------------------------------------------------------#
 
-_KEX_CONF="/etc/ssh/sshd_config.d/hestia-kex.conf"
+_KEX_CONF="/etc/ssh/sshd_config.d/arcpanel-kex.conf"
 _KEX_LINE="KexAlgorithms +diffie-hellman-group-exchange-sha256"
 
 echo "[ * ] Checking SSH KexAlgorithms config:"
@@ -65,11 +65,11 @@ fi
 
 echo "[ * ] Checking Dovecot configuration:"
 if [[ "$dovecot_version" = "2.4" ]]; then
-	if ! grep -q 'modified by Hestia' /etc/dovecot/dovecot.conf \
-		|| ! grep -q 'ssl_server_cert_file = /usr/local/hestia' /etc/dovecot/conf.d/10-ssl.conf; then
+	if ! grep -q 'modified by ArcPanel' /etc/dovecot/dovecot.conf \
+		|| ! grep -q 'ssl_server_cert_file = /usr/local/arcpanel' /etc/dovecot/conf.d/10-ssl.conf; then
 		echo "[ + ] Updating Dovecot $dovecot_version configuration"
-		cp -f "$HESTIA_COMMON_DIR"/dovecot/2.4/dovecot.conf /etc/dovecot/
-		cp -f "$HESTIA_COMMON_DIR"/dovecot/2.4/conf.d/* /etc/dovecot/conf.d/
+		cp -f "$ARCPANEL_COMMON_DIR"/dovecot/2.4/dovecot.conf /etc/dovecot/
+		cp -f "$ARCPANEL_COMMON_DIR"/dovecot/2.4/conf.d/* /etc/dovecot/conf.d/
 
 		if [[ -n "$MAIL_SYSTEM" ]]; then
 			echo "[ + ] Rebuilding mail domains"
@@ -91,7 +91,7 @@ if [[ "$dovecot_version" = "2.4" ]]; then
 				|| sed -i '/^protocol lda {$/a\  mail_plugins = mail_compress quota sieve' /etc/dovecot/conf.d/15-lda.conf
 			grep -q 'imap_quota imap_sieve' /etc/dovecot/conf.d/20-imap.conf \
 				|| sed -i "s/quota imap_quota/quota imap_quota imap_sieve/g" /etc/dovecot/conf.d/20-imap.conf
-			cp -f "$HESTIA_COMMON_DIR"/dovecot/2.4/sieve/* /etc/dovecot/conf.d
+			cp -f "$ARCPANEL_COMMON_DIR"/dovecot/2.4/sieve/* /etc/dovecot/conf.d
 		fi
 
 		chown -R root:root /etc/dovecot/
@@ -200,7 +200,7 @@ if [[ "$FTP_SYSTEM" =~ proftpd ]]; then
 	if [[ -f /etc/proftpd/modules.conf.proftpd-new ]] && [[ -f /etc/proftpd/modules.conf ]] && ! grep -qE "^[[:space:]]*LoadModule[[:space:]]+mod_xfer\.c" /etc/proftpd/modules.conf; then
 		echo "[ + ] Ensuring xfer module is enabled"
 		if grep -qE "^[[:space:]]*LoadModule[[:space:]]+mod_xfer\.c" /etc/proftpd/modules.conf.proftpd-new; then
-			cp /etc/proftpd/modules.conf "/etc/proftpd/modules.conf.hestia-backup-$(date +%Y-%m-%d)"
+			cp /etc/proftpd/modules.conf "/etc/proftpd/modules.conf.arcpanel-backup-$(date +%Y-%m-%d)"
 			cp /etc/proftpd/modules.conf.proftpd-new /etc/proftpd/modules.conf
 			restart_proftpd=true
 		else
@@ -222,19 +222,19 @@ if [[ "$FTP_SYSTEM" =~ proftpd ]]; then
 	if [[ ! -f /etc/apparmor.d/local/proftpd ]]; then
 		echo "[ + ] Updating AppArmor rules for ProFTPd"
 		cat > /etc/apparmor.d/local/proftpd << 'EOF'
-# Configuration added by Hestia
-/usr/local/hestia/ssl/certificate.crt r,
-/usr/local/hestia/ssl/certificate.key r,
+# Configuration added by ArcPanel
+/usr/local/arcpanel/ssl/certificate.crt r,
+/usr/local/arcpanel/ssl/certificate.key r,
 /run/proftpd.sock rw,
 EOF
 		apparmor_parser -r /etc/apparmor.d/proftpd 2> /dev/null
 		restart_proftpd=true
-	elif ! grep -qF "# Configuration added by Hestia" /etc/apparmor.d/local/proftpd; then
+	elif ! grep -qF "# Configuration added by ArcPanel" /etc/apparmor.d/local/proftpd; then
 		echo "[ + ] Updating AppArmor rules for ProFTPd"
 		cat >> /etc/apparmor.d/local/proftpd << 'EOF'
-# Configuration added by Hestia
-/usr/local/hestia/ssl/certificate.crt r,
-/usr/local/hestia/ssl/certificate.key r,
+# Configuration added by ArcPanel
+/usr/local/arcpanel/ssl/certificate.crt r,
+/usr/local/arcpanel/ssl/certificate.key r,
 /run/proftpd.sock rw,
 EOF
 		apparmor_parser -r /etc/apparmor.d/proftpd 2> /dev/null

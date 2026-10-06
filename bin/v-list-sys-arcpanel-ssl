@@ -1,10 +1,10 @@
 #!/bin/bash
-# info: list hestia ssl certificate
+# info: list arcpanel ssl certificate
 # options: [FORMAT]
 #
-# example: v-list-sys-hestia-ssl
+# example: v-list-sys-arcpanel-ssl
 #
-# This function of obtaining hestia ssl files.
+# This function of obtaining arcpanel ssl files.
 
 #----------------------------------------------------------#
 #                Variables & Functions                     #
@@ -14,15 +14,15 @@
 format=${1-shell}
 
 # Includes
-# shellcheck source=/etc/hestiacp/hestia.conf
-source /etc/hestiacp/hestia.conf
-# shellcheck source=/usr/local/hestia/func/main.sh
-source $HESTIA/func/main.sh
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
 # load config file
-source_conf "$HESTIA/conf/hestia.conf"
+source_conf "$ARCPANEL/conf/arcpanel.conf"
 
 # Perform verification if read-only mode is enabled
-check_hestia_demo_mode
+check_arcpanel_demo_mode
 
 # JSON list function
 json_list() {
@@ -30,7 +30,7 @@ json_list() {
 		echo -n "$1" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g'
 	}
 	echo '{'
-	echo -e "\t\"HESTIA\": {"
+	echo -e "\t\"ARCPANEL\": {"
 	echo "        \"CRT\": \"$crt\","
 	echo "        \"KEY\": \"$key\","
 	echo "        \"CA\": \"$ca\","
@@ -103,15 +103,15 @@ csv_list() {
 #----------------------------------------------------------#
 
 # Parsing SSL certificate
-crt=$(cat $HESTIA/ssl/certificate.crt | sed ':a;N;$!ba;s/\n/\\n/g')
-key=$(cat $HESTIA/ssl/certificate.key | sed ':a;N;$!ba;s/\n/\\n/g')
-if [ -e "$HESTIA/ssl/certificate.ca" ]; then
-	ca=$(cat $HESTIA/ssl/certificate.ca | sed ':a;N;$!ba;s/\n/\\n/g')
+crt=$(cat $ARCPANEL/ssl/certificate.crt | sed ':a;N;$!ba;s/\n/\\n/g')
+key=$(cat $ARCPANEL/ssl/certificate.key | sed ':a;N;$!ba;s/\n/\\n/g')
+if [ -e "$ARCPANEL/ssl/certificate.ca" ]; then
+	ca=$(cat $ARCPANEL/ssl/certificate.ca | sed ':a;N;$!ba;s/\n/\\n/g')
 fi
 
 # Parsing SSL certificate details without CA
-info=$(openssl x509 -text -in $HESTIA/ssl/certificate.crt)
-subj=$(openssl x509 -noout -nameopt multiline -subject -in $HESTIA/ssl/certificate.crt | sed -n 's/^ *commonName *= //p')
+info=$(openssl x509 -text -in $ARCPANEL/ssl/certificate.crt)
+subj=$(openssl x509 -noout -nameopt multiline -subject -in $ARCPANEL/ssl/certificate.crt | sed -n 's/^ *commonName *= //p')
 before=$(echo "$info" | grep Before: | sed -e "s/.*Before: //")
 after=$(echo "$info" | grep "After :" | sed -e "s/.*After : //")
 signature=$(echo "$info" | grep "Algorithm:" | head -n1)
@@ -131,7 +131,7 @@ case $format in
 esac
 
 #----------------------------------------------------------#
-#                       Hestia                             #
+#                         ArcPanel                         #
 #----------------------------------------------------------#
 
 exit

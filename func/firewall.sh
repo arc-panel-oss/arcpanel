@@ -2,7 +2,7 @@
 
 #===========================================================================#
 #                                                                           #
-# Hestia Control Panel - Firewall Function Library                          #
+# ArcPanel Control Panel - Firewall Function Library                          #
 #                                                                           #
 #===========================================================================#
 

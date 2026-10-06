@@ -17,14 +17,14 @@
 reseller=$1
 
 # Includes
-# shellcheck source=/etc/hestiacp/hestia.conf
-source /etc/hestiacp/hestia.conf
-# shellcheck source=/usr/local/hestia/func/main.sh
-source $HESTIA/func/main.sh
-# shellcheck source=/usr/local/hestia/func/tenancy.sh
-source $HESTIA/func/tenancy.sh
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/tenancy.sh
+source $ARCPANEL/func/tenancy.sh
 # load config file
-source_conf "$HESTIA/conf/hestia.conf"
+source_conf "$ARCPANEL/conf/arcpanel.conf"
 
 #----------------------------------------------------------#
 #                    Verifications                         #
@@ -60,7 +60,7 @@ while read -r user; do
 	fi
 done < <(tenancy_all_users)
 
-for file in "$HESTIA"/data/packages/*.tenancy; do
+for file in "$ARCPANEL"/data/packages/*.tenancy; do
 	if [ -f "$file" ] && [ ! -f "${file%.tenancy}.pkg" ]; then
 		echo "Orphan: $(basename "$file") has no package"
 		log_event "$E_NOTEXIST" "$(basename "$file") has no package"
@@ -68,7 +68,7 @@ for file in "$HESTIA"/data/packages/*.tenancy; do
 done
 
 #----------------------------------------------------------#
-#                       Hestia                             #
+#                         ArcPanel                         #
 #----------------------------------------------------------#
 
 exit

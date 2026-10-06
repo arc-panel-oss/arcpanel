@@ -11,15 +11,15 @@
 #----------------------------------------------------------#
 
 # Includes
-# shellcheck source=/etc/hestiacp/hestia.conf
-source /etc/hestiacp/hestia.conf
-# shellcheck source=/usr/local/hestia/func/main.sh
-source $HESTIA/func/main.sh
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
 # load config file
-source_conf "$HESTIA/conf/hestia.conf"
+source_conf "$ARCPANEL/conf/arcpanel.conf"
 
 # Perform verification if read-only mode is enabled
-check_hestia_demo_mode
+check_arcpanel_demo_mode
 
 #----------------------------------------------------------#
 #                       Action                             #
@@ -33,14 +33,14 @@ if [ "$BACKUP_INCREMENTAL" != "yes" ]; then
 fi
 
 for user in $($BIN/v-list-sys-users plain); do
-	check_suspend=$(grep "SUSPENDED='no'" $HESTIA/data/users/$user/user.conf)
-	log=$HESTIA/log/backup.log
-	if [ ! -f "$HESTIA/data/users/$user/user.conf" ]; then
+	check_suspend=$(grep "SUSPENDED='no'" $ARCPANEL/data/users/$user/user.conf)
+	log=$ARCPANEL/log/backup.log
+	if [ ! -f "$ARCPANEL/data/users/$user/user.conf" ]; then
 		continue
 	fi
 	check_backup_conditions
-	check_suspend=$(grep "SUSPENDED='no'" $HESTIA/data/users/$user/user.conf)
-	log=$HESTIA/log/backup.log
+	check_suspend=$(grep "SUSPENDED='no'" $ARCPANEL/data/users/$user/user.conf)
+	log=$ARCPANEL/log/backup.log
 	if [ -n "$check_suspend" ]; then
 		echo -e "================================" >> $log
 		echo -e "$user" >> $log
@@ -51,7 +51,7 @@ for user in $($BIN/v-list-sys-users plain); do
 done
 
 #----------------------------------------------------------#
-#                       Hestia                             #
+#                         ArcPanel                         #
 #----------------------------------------------------------#
 
 exit

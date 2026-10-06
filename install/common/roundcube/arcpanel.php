@@ -6,18 +6,18 @@
  * @version 1.0
  * @author ArcPanel <info@arcpanel.top>
  */
-class rcube_hestia_password {
+class rcube_arcpanel_password {
 	public function save($curpass, $passwd) {
 		$rcmail = rcmail::get_instance();
-		$hestia_host = $rcmail->config->get("password_hestia_host");
+		$arcpanel_host = $rcmail->config->get("password_arcpanel_host");
 
-		if (empty($hestia_host)) {
-			$hestia_host = "localhost";
+		if (empty($arcpanel_host)) {
+			$arcpanel_host = "localhost";
 		}
 
-		$hestia_port = $rcmail->config->get("password_hestia_port");
-		if (empty($hestia_port)) {
-			$hestia_port = "8083";
+		$arcpanel_port = $rcmail->config->get("password_arcpanel_port");
+		if (empty($arcpanel_port)) {
+			$arcpanel_port = "8083";
 		}
 
 		$postvars = [
@@ -25,7 +25,7 @@ class rcube_hestia_password {
 			"password" => $curpass,
 			"new" => $passwd,
 		];
-		$url = "https://{$hestia_host}:{$hestia_port}/reset/mail/";
+		$url = "https://{$arcpanel_host}:{$arcpanel_port}/reset/mail/";
 		$ch = curl_init();
 		if (
 			false ===

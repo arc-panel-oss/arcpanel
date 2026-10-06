@@ -65,7 +65,7 @@ if (!file_exists($sFile)) {
 
 $oConfig->Save();
 
-$sFile = APP_PRIVATE_DATA . "domains/hestia.json";
+$sFile = APP_PRIVATE_DATA . "domains/arcpanel.json";
 if (!file_exists($sFile)) {
 	$config = json_decode(file_get_contents(APP_PRIVATE_DATA . "domains/default.json"), true);
 	$config["IMAP"]["shortLogin"] = true;

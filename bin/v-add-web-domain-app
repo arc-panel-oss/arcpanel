@@ -1,4 +1,4 @@
-#!/usr/local/hestia/php/bin/php
+#!/usr/local/arcpanel/php/bin/php
 <?php
 //# info: install a Quick Install application on a web domain (E7 batch 2)
 //# options: USER DOMAIN APP OPTIONS_FILE
@@ -18,7 +18,7 @@ if ($file === "") {
 	echo "Usage: v-add-web-domain-app USER DOMAIN APP OPTIONS_FILE\n";
 	exit(QI_E_ARGS);
 }
-if (!qi_valid_user($user) || !is_dir("/usr/local/hestia/data/users/$user")) {
+if (!qi_valid_user($user) || !is_dir("/usr/local/arcpanel/data/users/$user")) {
 	qi_fail(QI_E_NOTEXIST, "user $user does not exist");
 }
 if (!qi_valid_domain($domain)) {
@@ -37,13 +37,13 @@ if (!is_array($given) || array_is_list($given) && $given !== []) {
 
 qi_session($user);
 qi_quiet_errors();
-$hestia = new QiHestiaApp();
-$installer = qi_installer($app, $hestia);
+$arcpanel = new QiArcPanelApp();
+$installer = qi_installer($app, $arcpanel);
 if (!$installer->getInfo()->isInstallable()) {
 	qi_fail(QI_E_INVALID, "Unable to install $app, required php version is not available.");
 }
 try {
-	$wizard = new \Hestia\WebApp\AppWizard($installer, $domain, $hestia);
+	$wizard = new \ArcPanel\WebApp\AppWizard($installer, $domain, $arcpanel);
 } catch (\Throwable) {
 	qi_fail(QI_E_NOTEXIST, "web domain $domain does not exist for $user");
 }
@@ -87,6 +87,6 @@ try {
 	qi_fail(QI_E_INVALID, "Unable to install $app: " . $e->getMessage());
 }
 
-exec(HESTIA_CMD . "v-log-action " . escapeshellarg($user) . " Info Web " . escapeshellarg("Installed $app on $domain."), $output);
+exec(ARCPANEL_CMD . "v-log-action " . escapeshellarg($user) . " Info Web " . escapeshellarg("Installed $app on $domain."), $output);
 echo "$app installed successfully.\n";
 exit(0);

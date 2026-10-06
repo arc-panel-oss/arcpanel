@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace Hestia\WebApp\Installers\OpenCart;
+namespace ArcPanel\WebApp\Installers\OpenCart;
 
-use Hestia\WebApp\BaseSetup;
-use Hestia\WebApp\InstallationTarget\InstallationTarget;
+use ArcPanel\WebApp\BaseSetup;
+use ArcPanel\WebApp\InstallationTarget\InstallationTarget;
 
 class OpenCartSetup extends BaseSetup {
     protected array $info = [

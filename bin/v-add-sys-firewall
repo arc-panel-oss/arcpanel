@@ -11,12 +11,12 @@
 #----------------------------------------------------------#
 
 # Includes
-# shellcheck source=/etc/hestiacp/hestia.conf
-source /etc/hestiacp/hestia.conf
-# shellcheck source=/usr/local/hestia/func/main.sh
-source $HESTIA/func/main.sh
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
 # load config file
-source_conf "$HESTIA/conf/hestia.conf"
+source_conf "$ARCPANEL/conf/arcpanel.conf"
 
 #----------------------------------------------------------#
 #                    Verifications                         #
@@ -27,16 +27,16 @@ if [ "$FIREWALL_SYSTEM" = 'iptables' ]; then
 fi
 
 # Perform verification if read-only mode is enabled
-check_hestia_demo_mode
+check_arcpanel_demo_mode
 
 #----------------------------------------------------------#
 #                       Action                             #
 #----------------------------------------------------------#
 
 # Adding default ruleset
-if [ -z "$(ls -A $HESTIA/data/firewall 2> /dev/null)" ]; then
-	cp -rf $HESTIA_COMMON_DIR/firewall $HESTIA/data/
-	rm -f $HESTIA/data/firewall/ipset/blacklist.sh $HESTIA/data/firewall/ipset/blacklist.ipv6.sh
+if [ -z "$(ls -A $ARCPANEL/data/firewall 2> /dev/null)" ]; then
+	cp -rf $ARCPANEL_COMMON_DIR/firewall $ARCPANEL/data/
+	rm -f $ARCPANEL/data/firewall/ipset/blacklist.sh $ARCPANEL/data/firewall/ipset/blacklist.ipv6.sh
 fi
 
 # Updating FIREWAL_SYSTEM value
@@ -46,7 +46,7 @@ $BIN/v-change-sys-config-value "FIREWALL_SYSTEM" "iptables"
 $BIN/v-update-firewall
 
 #----------------------------------------------------------#
-#                       Hestia                             #
+#                         ArcPanel                         #
 #----------------------------------------------------------#
 
 # Logging

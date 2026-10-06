@@ -2,7 +2,7 @@
 
 # ======================================================== #
 #
-# Hestia Control Panel Installer for Debian
+# ArcPanel Control Panel Installer for Debian
 # https://arcpanel.top/
 #
 # Currently Supported Versions:
@@ -17,31 +17,31 @@ export PATH=$PATH:/sbin
 export DEBIAN_FRONTEND=noninteractive
 RHOST='apt.arcpanel.top'
 VERSION='debian'
-HESTIA='/usr/local/hestia'
-LOG="/root/hst_install_backups/hst_install-$(date +%d%m%Y%H%M).log"
+ARCPANEL='/usr/local/arcpanel'
+LOG="/root/arcpanel_install_backups/arc_install-$(date +%d%m%Y%H%M).log"
 memory=$(grep 'MemTotal' /proc/meminfo | tr ' ' '\n' | grep [0-9])
-hst_backups="/root/hst_install_backups/$(date +%d%m%Y%H%M)"
+arcpanel_backups="/root/arcpanel_install_backups/$(date +%d%m%Y%H%M)"
 spinner="/-\|"
 os='debian'
 release="$(cat /etc/debian_version | tr "." "\n" | head -n1)"
 codename="$(cat /etc/os-release | grep VERSION= | cut -f 2 -d \( | cut -f 1 -d \))"
 architecture="$(arch)"
-HESTIA_INSTALL_DIR="$HESTIA/install/deb"
-HESTIA_COMMON_DIR="$HESTIA/install/common"
+ARCPANEL_INSTALL_DIR="$ARCPANEL/install/deb"
+ARCPANEL_COMMON_DIR="$ARCPANEL/install/common"
 VERBOSE='no'
 
 # Define software versions
 # ArcPanel version: the version of the arcpanel package, stored as VERSION
-# in hestia.conf (ADR-0007)
+# in arcpanel.conf (ADR-0007)
 ARCPANEL_INSTALL_VER='2.0.0'
 
-# Build the full Hestia version
+# Build the full ArcPanel version
 # Split base version (2.0.0) from channel suffix (~alpha / ~beta), if present
 ARCPANEL_BASE_VER="${ARCPANEL_INSTALL_VER%%~*}"
 if [[ "$ARCPANEL_INSTALL_VER" == *"~"* ]]; then
-	HESTIA_CHANNEL="~${ARCPANEL_INSTALL_VER#*~}"
+	ARCPANEL_CHANNEL="~${ARCPANEL_INSTALL_VER#*~}"
 else
-	HESTIA_CHANNEL=""
+	ARCPANEL_CHANNEL=""
 fi
 # Build the distro identifier
 case "$os" in
@@ -57,9 +57,9 @@ case "$os" in
 		;;
 esac
 # Final version string, e.g.: 1.10.0-1+deb13~alpha / 1.10.0-1+ubuntu26.04
-ARCPANEL_INSTALL_BUILD="${ARCPANEL_BASE_VER}-1+${os_id}${HESTIA_CHANNEL}"
+ARCPANEL_INSTALL_BUILD="${ARCPANEL_BASE_VER}-1+${os_id}${ARCPANEL_CHANNEL}"
 # Pre-release packages are published in the beta repository
-if [ -n "$HESTIA_CHANNEL" ]; then
+if [ -n "$ARCPANEL_CHANNEL" ]; then
 	RPATH='beta/'
 else
 	RPATH=''
@@ -195,25 +195,25 @@ set_default_port() {
 	fi
 }
 
-# Write configuration KEY/VALUE pair to $HESTIA/conf/hestia.conf
+# Write configuration KEY/VALUE pair to $ARCPANEL/conf/arcpanel.conf
 write_config_value() {
 	local key="$1"
 	local value="$2"
-	echo "$key='$value'" >> $HESTIA/conf/hestia.conf
+	echo "$key='$value'" >> $ARCPANEL/conf/arcpanel.conf
 }
 
 # Sort configuration file values
-# Write final copy to $HESTIA/conf/hestia.conf for active usage
-# Duplicate file to $HESTIA/conf/defaults/hestia.conf to restore known good installation values
+# Write final copy to $ARCPANEL/conf/arcpanel.conf for active usage
+# Duplicate file to $ARCPANEL/conf/defaults/arcpanel.conf to restore known good installation values
 sort_config_file() {
-	sort $HESTIA/conf/hestia.conf -o /tmp/updconf
-	mv $HESTIA/conf/hestia.conf $HESTIA/conf/hestia.conf.bak
-	mv /tmp/updconf $HESTIA/conf/hestia.conf
-	rm -f $HESTIA/conf/hestia.conf.bak
-	if [ ! -d "$HESTIA/conf/defaults/" ]; then
-		mkdir -p "$HESTIA/conf/defaults/"
+	sort $ARCPANEL/conf/arcpanel.conf -o /tmp/updconf
+	mv $ARCPANEL/conf/arcpanel.conf $ARCPANEL/conf/arcpanel.conf.bak
+	mv /tmp/updconf $ARCPANEL/conf/arcpanel.conf
+	rm -f $ARCPANEL/conf/arcpanel.conf.bak
+	if [ ! -d "$ARCPANEL/conf/defaults/" ]; then
+		mkdir -p "$ARCPANEL/conf/defaults/"
 	fi
-	cp $HESTIA/conf/hestia.conf $HESTIA/conf/defaults/hestia.conf
+	cp $ARCPANEL/conf/arcpanel.conf $ARCPANEL/conf/defaults/arcpanel.conf
 }
 
 # todo add check for usernames that are blocked
@@ -455,13 +455,13 @@ if [ "x$(id -u)" != 'x0' ]; then
 	check_result 1 "Script can be run executed only by root"
 fi
 
-if [ -d "/usr/local/hestia" ]; then
+if [ -d "/usr/local/arcpanel" ]; then
 	check_result 1 "ArcPanel install detected. Unable to continue"
 fi
 
 type=$(grep "^ID=" /etc/os-release | cut -f 2 -d '=')
 if [ "$type" = "ubuntu" ]; then
-	check_result 1 "You are running the wrong installer for Ubuntu. Please run hst-install.sh or hst-install-ubuntu.sh instead."
+	check_result 1 "You are running the wrong installer for Ubuntu. Please run arcpanel-install.sh or arcpanel-install-ubuntu.sh instead."
 elif [ "$type" != "debian" ]; then
 	check_result 1 "You are running an unsupported OS."
 fi
@@ -484,7 +484,7 @@ echo
 apt-get -qq update
 
 # Creating backup directory
-mkdir -p "$hst_backups"
+mkdir -p "$arcpanel_backups"
 
 # Pre-install packages
 echo "[ * ] Installing dependencies..."
@@ -587,8 +587,8 @@ if [ -z "$withdebs" ] || [ ! -d "$withdebs" ]; then
 		echo -e "\e[33mhttps://arcpanel.top/install.sh\e[0m"
 		echo ""
 		echo -e "\e[33mTo test pre-release versions, build the .deb packages and re-run the installer:\e[0m"
-		echo -e "  \e[33m./hst_autocompile.sh \e[1m--hestia branchname no\e[21m\e[0m"
-		echo -e "  \e[33m./hst-install.sh .. \e[1m--with-debs /tmp/hestiacp-src/deb\e[21m\e[0m"
+		echo -e "  \e[33m./arcpanel-build.sh \e[1m--arcpanel branchname no\e[21m\e[0m"
+		echo -e "  \e[33m./arcpanel-install.sh .. \e[1m--with-debs /tmp/arcpanel-src/deb\e[21m\e[0m"
 		echo ""
 		check_result 1 "Installation aborted"
 	fi
@@ -836,7 +836,7 @@ if [[ -z "$email" ]]; then
 fi
 
 # Defining backup directory
-echo -e "Installation backup directory: $hst_backups"
+echo -e "Installation backup directory: $arcpanel_backups"
 
 # Print Log File Path
 echo "Installation log file: $LOG"
@@ -913,7 +913,7 @@ fi
 
 # Installing ArcPanel repo
 echo "[ * ] ArcPanel"
-rm -f $apt/hestia.list
+rm -f $apt/arcpanel.list
 echo "deb [arch=$ARCH signed-by=/usr/share/keyrings/arcpanel-keyring.gpg] https://$RHOST/${RPATH} $codename main" > $apt/arcpanel.list
 curl -s "https://$RHOST/arcpanel.gpg" | gpg --dearmor | tee /usr/share/keyrings/arcpanel-keyring.gpg > /dev/null 2>&1
 
@@ -960,68 +960,68 @@ check_result $? 'apt-get upgrade failed'
 #----------------------------------------------------------#
 
 # Creating backup directory tree
-mkdir -p $hst_backups
-cd $hst_backups
+mkdir -p $arcpanel_backups
+cd $arcpanel_backups
 mkdir nginx apache2 php vsftpd proftpd bind exim4 dovecot clamd
-mkdir spamassassin mysql postgresql openssl hestia
+mkdir spamassassin mysql postgresql openssl arcpanel
 
 # Backup OpenSSL configuration
-cp /etc/ssl/openssl.cnf $hst_backups/openssl > /dev/null 2>&1
+cp /etc/ssl/openssl.cnf $arcpanel_backups/openssl > /dev/null 2>&1
 
 # Backup nginx configuration
 systemctl stop nginx > /dev/null 2>&1
-cp -r /etc/nginx/* $hst_backups/nginx > /dev/null 2>&1
+cp -r /etc/nginx/* $arcpanel_backups/nginx > /dev/null 2>&1
 
 # Backup Apache configuration
 systemctl stop apache2 > /dev/null 2>&1
-cp -r /etc/apache2/* $hst_backups/apache2 > /dev/null 2>&1
+cp -r /etc/apache2/* $arcpanel_backups/apache2 > /dev/null 2>&1
 rm -f /etc/apache2/conf.d/* > /dev/null 2>&1
 
 # Backup PHP-FPM configuration
 systemctl stop php*-fpm > /dev/null 2>&1
-cp -r /etc/php/* $hst_backups/php > /dev/null 2>&1
+cp -r /etc/php/* $arcpanel_backups/php > /dev/null 2>&1
 
 # Backup Bind configuration
 systemctl stop bind9 > /dev/null 2>&1
-cp -r /etc/bind/* $hst_backups/bind > /dev/null 2>&1
+cp -r /etc/bind/* $arcpanel_backups/bind > /dev/null 2>&1
 
 # Backup Vsftpd configuration
 systemctl stop vsftpd > /dev/null 2>&1
-cp /etc/vsftpd.conf $hst_backups/vsftpd > /dev/null 2>&1
+cp /etc/vsftpd.conf $arcpanel_backups/vsftpd > /dev/null 2>&1
 
 # Backup ProFTPD configuration
 systemctl stop proftpd > /dev/null 2>&1
-cp /etc/proftpd/* $hst_backups/proftpd > /dev/null 2>&1
+cp /etc/proftpd/* $arcpanel_backups/proftpd > /dev/null 2>&1
 
 # Backup Exim configuration
 systemctl stop exim4 > /dev/null 2>&1
-cp -r /etc/exim4/* $hst_backups/exim4 > /dev/null 2>&1
+cp -r /etc/exim4/* $arcpanel_backups/exim4 > /dev/null 2>&1
 
 # Backup ClamAV configuration
 systemctl stop clamav-daemon > /dev/null 2>&1
-cp -r /etc/clamav/* $hst_backups/clamav > /dev/null 2>&1
+cp -r /etc/clamav/* $arcpanel_backups/clamav > /dev/null 2>&1
 
 # Backup SpamAssassin configuration
 systemctl stop spamassassin > /dev/null 2>&1
-cp -r /etc/spamassassin/* $hst_backups/spamassassin > /dev/null 2>&1
+cp -r /etc/spamassassin/* $arcpanel_backups/spamassassin > /dev/null 2>&1
 
 # Backup Dovecot configuration
 systemctl stop dovecot > /dev/null 2>&1
-cp /etc/dovecot.conf $hst_backups/dovecot > /dev/null 2>&1
-cp -r /etc/dovecot/* $hst_backups/dovecot > /dev/null 2>&1
+cp /etc/dovecot.conf $arcpanel_backups/dovecot > /dev/null 2>&1
+cp -r /etc/dovecot/* $arcpanel_backups/dovecot > /dev/null 2>&1
 
 # Backup MySQL/MariaDB configuration and data
 systemctl stop mysql > /dev/null 2>&1
 killall -9 mysqld > /dev/null 2>&1
-mv /var/lib/mysql $hst_backups/mysql/mysql_datadir > /dev/null 2>&1
-cp -r /etc/mysql/* $hst_backups/mysql > /dev/null 2>&1
-mv -f /root/.my.cnf $hst_backups/mysql > /dev/null 2>&1
+mv /var/lib/mysql $arcpanel_backups/mysql/mysql_datadir > /dev/null 2>&1
+cp -r /etc/mysql/* $arcpanel_backups/mysql > /dev/null 2>&1
+mv -f /root/.my.cnf $arcpanel_backups/mysql > /dev/null 2>&1
 
-# Backup Hestia
-systemctl stop arcpanel hestia > /dev/null 2>&1
-cp -r $HESTIA/* $hst_backups/hestia > /dev/null 2>&1
-apt-get -y purge arcpanel arcpanel-nginx arcpanel-php hestia hestia-nginx hestia-php > /dev/null 2>&1
-rm -rf $HESTIA > /dev/null 2>&1
+# Backup ArcPanel
+systemctl stop arcpanel > /dev/null 2>&1
+cp -r $ARCPANEL/* $arcpanel_backups/arcpanel > /dev/null 2>&1
+apt-get -y purge arcpanel arcpanel-nginx arcpanel-php > /dev/null 2>&1
+rm -rf $ARCPANEL > /dev/null 2>&1
 
 #----------------------------------------------------------#
 #                     Package Includes                     #
@@ -1171,7 +1171,7 @@ echo
 echo "========================================================================"
 echo
 
-# Install Hestia packages from local folder
+# Install ArcPanel packages from local folder
 if [ -n "$withdebs" ] && [ -d "$withdebs" ]; then
 	echo "[ * ] Installing local package files..."
 	echo "    - arcpanel core package"
@@ -1215,20 +1215,20 @@ echo "[ * ] Configuring system settings..."
 
 # Generate a random password
 random_password=$(gen_pass '32')
-# Create the new hestiaweb user
-/usr/sbin/useradd "hestiaweb" -c "$email" --no-create-home
-# do not allow login into hestiaweb user
-echo hestiaweb:$random_password | sudo chpasswd -e
+# Create the new arcpanelweb user
+/usr/sbin/useradd "arcpanelweb" -c "$email" --no-create-home
+# do not allow login into arcpanelweb user
+echo arcpanelweb:$random_password | sudo chpasswd -e
 
-# Add a general group for normal users created by Hestia
-if [ -z "$(grep ^hestia-users: /etc/group)" ]; then
-	groupadd --system "hestia-users"
+# Add a general group for normal users created by ArcPanel
+if [ -z "$(grep ^arcpanel-users: /etc/group)" ]; then
+	groupadd --system "arcpanel-users"
 fi
 
 # Create user for php-fpm configs
-/usr/sbin/useradd "hestiamail" -c "$email" --no-create-home
-# Ensures proper permissions for Hestia service interactions.
-/usr/sbin/adduser hestiamail hestia-users
+/usr/sbin/useradd "arcpanelmail" -c "$email" --no-create-home
+# Ensures proper permissions for ArcPanel service interactions.
+/usr/sbin/adduser arcpanelmail arcpanel-users
 
 # Enable SFTP subsystem for SSH
 sftp_subsys_enabled=$(grep -iE "^#?.*subsystem.+(sftp )?sftp-server" /etc/ssh/sshd_config)
@@ -1255,7 +1255,7 @@ systemctl restart ssh
 # Disable AWStats cron
 rm -f /etc/cron.d/awstats
 # Replace AWStats function
-cp -f $HESTIA_INSTALL_DIR/logrotate/httpd-prerotate/* /etc/logrotate.d/httpd-prerotate/
+cp -f $ARCPANEL_INSTALL_DIR/logrotate/httpd-prerotate/* /etc/logrotate.d/httpd-prerotate/
 
 # Set directory color
 if [ -z "$(grep 'LS_COLORS="$LS_COLORS:di=00;33"' /etc/profile)" ]; then
@@ -1287,65 +1287,59 @@ mount -o remount,defaults,hidepid=2 /proc > /dev/null 2>&1
 if [ $? -ne 0 ]; then
 	echo "Info: Cannot remount /proc (LXC containers require additional perm added to host apparmor profile)"
 else
-	echo "@reboot root sleep 5 && mount -o remount,defaults,hidepid=2 /proc" > /etc/cron.d/hestia-proc
+	echo "@reboot root sleep 5 && mount -o remount,defaults,hidepid=2 /proc" > /etc/cron.d/arcpanel-proc
 fi
 
 #----------------------------------------------------------#
-#                     Configure Hestia                     #
+#                     Configure ArcPanel                     #
 #----------------------------------------------------------#
 
 echo "[ * ] Configuring ArcPanel..."
 # Installing sudo configuration
 mkdir -p /etc/sudoers.d
-cp -f $HESTIA_COMMON_DIR/sudo/hestiaweb /etc/sudoers.d/
-chmod 440 /etc/sudoers.d/hestiaweb
+cp -f $ARCPANEL_COMMON_DIR/sudo/arcpanelweb /etc/sudoers.d/
+chmod 440 /etc/sudoers.d/arcpanelweb
 
-# Add Hestia global config
-if [[ ! -e /etc/hestiacp/hestia.conf ]]; then
-	mkdir -p /etc/hestiacp
-	echo -e "# Do not edit this file, will get overwritten on next upgrade, use /etc/hestiacp/local.conf instead\n\nexport HESTIA='/usr/local/hestia'\n\n[[ -f /etc/hestiacp/local.conf ]] && source /etc/hestiacp/local.conf" > /etc/hestiacp/hestia.conf
+# Add ArcPanel global config
+if [[ ! -e /etc/arcpanel/arcpanel.conf ]]; then
+	mkdir -p /etc/arcpanel
+	echo -e "# Do not edit this file, will get overwritten on next upgrade, use /etc/arcpanel/local.conf instead\n\nexport ARCPANEL='/usr/local/arcpanel'\n\n[[ -f /etc/arcpanel/local.conf ]] && source /etc/arcpanel/local.conf" > /etc/arcpanel/arcpanel.conf
 fi
 
 # Configuring system env
-echo "export HESTIA='$HESTIA'" > /etc/profile.d/hestia.sh
-echo 'PATH=$PATH:'$HESTIA'/bin' >> /etc/profile.d/hestia.sh
-echo 'export PATH' >> /etc/profile.d/hestia.sh
-chmod 755 /etc/profile.d/hestia.sh
-# ArcPanel names for the same paths (compatibility layer, ADR-0006)
-echo "export ARCPANEL='$HESTIA'" > /etc/profile.d/arcpanel.sh
-echo "export HESTIA='$HESTIA'" >> /etc/profile.d/arcpanel.sh
+echo "export ARCPANEL='$ARCPANEL'" > /etc/profile.d/arcpanel.sh
+echo 'PATH=$PATH:'$ARCPANEL'/bin' >> /etc/profile.d/arcpanel.sh
+echo 'export PATH' >> /etc/profile.d/arcpanel.sh
 chmod 755 /etc/profile.d/arcpanel.sh
-ln -sfn $HESTIA /usr/local/arcpanel
-source /etc/profile.d/hestia.sh
 source /etc/profile.d/arcpanel.sh
 
-# Configuring logrotate for Hestia logs
-cp -f $HESTIA_INSTALL_DIR/logrotate/hestia /etc/logrotate.d/hestia
+# Configuring logrotate for ArcPanel logs
+cp -f $ARCPANEL_INSTALL_DIR/logrotate/arcpanel /etc/logrotate.d/arcpanel
 
 # Create log path and symbolic link
-rm -f /var/log/hestia
-mkdir -p /var/log/hestia
-ln -s /var/log/hestia $HESTIA/log
+rm -f /var/log/arcpanel
+mkdir -p /var/log/arcpanel
+ln -s /var/log/arcpanel $ARCPANEL/log
 
-# Building directory tree and creating some blank files for Hestia
-mkdir -p $HESTIA/conf $HESTIA/ssl $HESTIA/data/ips \
-	$HESTIA/data/queue $HESTIA/data/users $HESTIA/data/firewall \
-	$HESTIA/data/sessions
-touch $HESTIA/data/queue/backup.pipe $HESTIA/data/queue/disk.pipe \
-	$HESTIA/data/queue/webstats.pipe $HESTIA/data/queue/restart.pipe \
-	$HESTIA/data/queue/traffic.pipe $HESTIA/data/queue/daily.pipe $HESTIA/log/system.log \
-	$HESTIA/log/nginx-error.log $HESTIA/log/auth.log $HESTIA/log/backup.log
-chmod 750 $HESTIA/conf $HESTIA/data/users $HESTIA/data/ips $HESTIA/log
-chmod -R 750 $HESTIA/data/queue
-chmod 660 /var/log/hestia/*
-chmod 770 $HESTIA/data/sessions
+# Building directory tree and creating some blank files for ArcPanel
+mkdir -p $ARCPANEL/conf $ARCPANEL/ssl $ARCPANEL/data/ips \
+	$ARCPANEL/data/queue $ARCPANEL/data/users $ARCPANEL/data/firewall \
+	$ARCPANEL/data/sessions
+touch $ARCPANEL/data/queue/backup.pipe $ARCPANEL/data/queue/disk.pipe \
+	$ARCPANEL/data/queue/webstats.pipe $ARCPANEL/data/queue/restart.pipe \
+	$ARCPANEL/data/queue/traffic.pipe $ARCPANEL/data/queue/daily.pipe $ARCPANEL/log/system.log \
+	$ARCPANEL/log/nginx-error.log $ARCPANEL/log/auth.log $ARCPANEL/log/backup.log
+chmod 750 $ARCPANEL/conf $ARCPANEL/data/users $ARCPANEL/data/ips $ARCPANEL/log
+chmod -R 750 $ARCPANEL/data/queue
+chmod 660 /var/log/arcpanel/*
+chmod 770 $ARCPANEL/data/sessions
 
-# Generating Hestia configuration
-rm -f $HESTIA/conf/hestia.conf > /dev/null 2>&1
-touch $HESTIA/conf/hestia.conf
-chmod 660 $HESTIA/conf/hestia.conf
+# Generating ArcPanel configuration
+rm -f $ARCPANEL/conf/arcpanel.conf > /dev/null 2>&1
+touch $ARCPANEL/conf/arcpanel.conf
+chmod 660 $ARCPANEL/conf/arcpanel.conf
 
-# Write default port value to hestia.conf
+# Write default port value to arcpanel.conf
 # If a custom port is specified it will be set at the end of the installation process
 write_config_value "BACKEND_PORT" "8083"
 
@@ -1476,55 +1470,55 @@ write_config_value "UPGRADE_SEND_EMAIL_LOG" "false"
 write_config_value "ROOT_USER" "$username"
 
 # Installing hosting packages
-cp -rf $HESTIA_COMMON_DIR/packages $HESTIA/data/
+cp -rf $ARCPANEL_COMMON_DIR/packages $ARCPANEL/data/
 
 # Update nameservers in hosting package
 IFS='.' read -r -a domain_elements <<< "$servername"
 if [ -n "${domain_elements[-2]}" ] && [ -n "${domain_elements[-1]}" ]; then
 	serverdomain="${domain_elements[-2]}.${domain_elements[-1]}"
-	sed -i s/"domain.tld"/"$serverdomain"/g $HESTIA/data/packages/*.pkg
+	sed -i s/"domain.tld"/"$serverdomain"/g $ARCPANEL/data/packages/*.pkg
 fi
 
 # Installing templates
-cp -rf $HESTIA_INSTALL_DIR/templates $HESTIA/data/
-cp -rf $HESTIA_COMMON_DIR/templates/web/ $HESTIA/data/templates
-cp -rf $HESTIA_COMMON_DIR/templates/dns/ $HESTIA/data/templates
+cp -rf $ARCPANEL_INSTALL_DIR/templates $ARCPANEL/data/
+cp -rf $ARCPANEL_COMMON_DIR/templates/web/ $ARCPANEL/data/templates
+cp -rf $ARCPANEL_COMMON_DIR/templates/dns/ $ARCPANEL/data/templates
 
 mkdir -p /var/www/html
 mkdir -p /var/www/document_errors
 
 # Install default success page
-cp -rf $HESTIA_COMMON_DIR/templates/web/unassigned/index.html /var/www/html/
-cp -rf $HESTIA_COMMON_DIR/templates/web/skel/document_errors/* /var/www/document_errors/
+cp -rf $ARCPANEL_COMMON_DIR/templates/web/unassigned/index.html /var/www/html/
+cp -rf $ARCPANEL_COMMON_DIR/templates/web/skel/document_errors/* /var/www/document_errors/
 
 # Installing firewall rules
-cp -rf $HESTIA_COMMON_DIR/firewall $HESTIA/data/
-rm -f $HESTIA/data/firewall/ipset/blacklist.sh $HESTIA/data/firewall/ipset/blacklist.ipv6.sh
+cp -rf $ARCPANEL_COMMON_DIR/firewall $ARCPANEL/data/
+rm -f $ARCPANEL/data/firewall/ipset/blacklist.sh $ARCPANEL/data/firewall/ipset/blacklist.ipv6.sh
 
 # Delete rules for services that are not installed
 if [ "$vsftpd" = "no" ] && [ "$proftpd" = "no" ]; then
 	# Remove FTP
-	sed -i "/COMMENT='FTP'/d" $HESTIA/data/firewall/rules.conf
+	sed -i "/COMMENT='FTP'/d" $ARCPANEL/data/firewall/rules.conf
 fi
 if [ "$exim" = "no" ]; then
 	# Remove SMTP
-	sed -i "/COMMENT='SMTP'/d" $HESTIA/data/firewall/rules.conf
+	sed -i "/COMMENT='SMTP'/d" $ARCPANEL/data/firewall/rules.conf
 fi
 if [ "$dovecot" = "no" ]; then
 	# Remove IMAP / Dovecot
-	sed -i "/COMMENT='IMAP'/d" $HESTIA/data/firewall/rules.conf
-	sed -i "/COMMENT='POP3'/d" $HESTIA/data/firewall/rules.conf
+	sed -i "/COMMENT='IMAP'/d" $ARCPANEL/data/firewall/rules.conf
+	sed -i "/COMMENT='POP3'/d" $ARCPANEL/data/firewall/rules.conf
 fi
 if [ "$named" = "no" ]; then
 	# Remove IMAP / Dovecot
-	sed -i "/COMMENT='DNS'/d" $HESTIA/data/firewall/rules.conf
+	sed -i "/COMMENT='DNS'/d" $ARCPANEL/data/firewall/rules.conf
 fi
 
 # Installing API
-cp -rf $HESTIA_COMMON_DIR/api $HESTIA/data/
+cp -rf $ARCPANEL_COMMON_DIR/api $ARCPANEL/data/
 
 # Configuring server hostname
-$HESTIA/bin/v-change-sys-hostname $servername > /dev/null 2>&1
+$ARCPANEL/bin/v-change-sys-hostname $servername > /dev/null 2>&1
 
 # Configuring global OpenSSL options
 echo "[ * ] Configuring OpenSSL to improve TLS performance..."
@@ -1533,14 +1527,14 @@ if ! grep -qw "^ssl_conf = ssl_sect$" /etc/ssl/openssl.cnf 2> /dev/null; then
 	sed -i '/providers = provider_sect$/a ssl_conf = ssl_sect' /etc/ssl/openssl.cnf
 fi
 if ! grep -qw "^[ssl_sect]$" /etc/ssl/openssl.cnf 2> /dev/null; then
-	sed -i '$a \\n[ssl_sect]\nsystem_default = hestia_openssl_sect\n\n[hestia_openssl_sect]\nCiphersuites = '"$tls13_ciphers"'\nOptions = PrioritizeChaCha' /etc/ssl/openssl.cnf
+	sed -i '$a \\n[ssl_sect]\nsystem_default = arcpanel_openssl_sect\n\n[arcpanel_openssl_sect]\nCiphersuites = '"$tls13_ciphers"'\nOptions = PrioritizeChaCha' /etc/ssl/openssl.cnf
 elif grep -qw "^system_default = system_default_sect$" /etc/ssl/openssl.cnf 2> /dev/null; then
-	sed -i '/^system_default = system_default_sect$/a system_default = hestia_openssl_sect\n\n[hestia_openssl_sect]\nCiphersuites = '"$tls13_ciphers"'\nOptions = PrioritizeChaCha' /etc/ssl/openssl.cnf
+	sed -i '/^system_default = system_default_sect$/a system_default = arcpanel_openssl_sect\n\n[arcpanel_openssl_sect]\nCiphersuites = '"$tls13_ciphers"'\nOptions = PrioritizeChaCha' /etc/ssl/openssl.cnf
 fi
 
 # Generating SSL certificate
 echo "[ * ] Generating default self-signed SSL certificate..."
-$HESTIA/bin/v-generate-ssl-cert $(hostname) '' 'US' 'California' \
+$ARCPANEL/bin/v-generate-ssl-cert $(hostname) '' 'US' 'California' \
 	'San Francisco' 'ArcPanel' 'IT' > /tmp/hst.pem
 
 crt_end=$(grep -n "END CERTIFICATE-" /tmp/hst.pem | head -n1 | cut -f 1 -d:)
@@ -1558,34 +1552,34 @@ check_result $(
 
 # Adding SSL certificate
 echo "[ * ] Adding SSL certificate to ArcPanel..."
-cd $HESTIA/ssl
+cd $ARCPANEL/ssl
 sed -n "1,${crt_end}p" /tmp/hst.pem > certificate.crt
 sed -n "$key_start,${key_end}p" /tmp/hst.pem > certificate.key
-chown root:mail $HESTIA/ssl/*
-chmod 660 $HESTIA/ssl/*
+chown root:mail $ARCPANEL/ssl/*
+chmod 660 $ARCPANEL/ssl/*
 rm /tmp/hst.pem
 
 # Install dhparam.pem
-cp -f $HESTIA_INSTALL_DIR/ssl/dhparam.pem /etc/ssl
+cp -f $ARCPANEL_INSTALL_DIR/ssl/dhparam.pem /etc/ssl
 
 # Enable SFTP jail
 echo "[ * ] Enabling SFTP jail..."
-$HESTIA/bin/v-add-sys-sftp-jail > /dev/null 2>&1
+$ARCPANEL/bin/v-add-sys-sftp-jail > /dev/null 2>&1
 check_result $? "can't enable sftp jail"
 
 # Enable SSH jail
 echo "[ * ] Enabling SSH jail..."
-$HESTIA/bin/v-add-sys-ssh-jail > /dev/null 2>&1
+$ARCPANEL/bin/v-add-sys-ssh-jail > /dev/null 2>&1
 check_result $? "can't enable ssh jail"
 
-# Adding Hestia admin account
+# Adding ArcPanel admin account
 echo "[ * ] Creating default admin account..."
-$HESTIA/bin/v-add-user "$username" "$vpass" "$email" "default" "System Administrator"
+$ARCPANEL/bin/v-add-user "$username" "$vpass" "$email" "default" "System Administrator"
 check_result $? "can't create admin user"
-$HESTIA/bin/v-change-user-shell "$username" nologin
-$HESTIA/bin/v-change-user-role "$username" admin
-$HESTIA/bin/v-change-user-language "$username" "$lang"
-$HESTIA/bin/v-change-sys-config-value 'POLICY_SYSTEM_PROTECTED_ADMIN' 'yes'
+$ARCPANEL/bin/v-change-user-shell "$username" nologin
+$ARCPANEL/bin/v-change-user-role "$username" admin
+$ARCPANEL/bin/v-change-user-language "$username" "$lang"
+$ARCPANEL/bin/v-change-sys-config-value 'POLICY_SYSTEM_PROTECTED_ADMIN' 'yes'
 
 #----------------------------------------------------------#
 #                     Configure Nginx                      #
@@ -1593,15 +1587,15 @@ $HESTIA/bin/v-change-sys-config-value 'POLICY_SYSTEM_PROTECTED_ADMIN' 'yes'
 
 echo "[ * ] Configuring NGINX..."
 rm -f /etc/nginx/conf.d/*.conf
-cp -f $HESTIA_INSTALL_DIR/nginx/nginx.conf /etc/nginx/
-cp -f $HESTIA_INSTALL_DIR/nginx/status.conf /etc/nginx/conf.d/
-cp -f $HESTIA_INSTALL_DIR/nginx/0rtt-anti-replay.conf /etc/nginx/conf.d/
-cp -f $HESTIA_INSTALL_DIR/nginx/agents.conf /etc/nginx/conf.d/
+cp -f $ARCPANEL_INSTALL_DIR/nginx/nginx.conf /etc/nginx/
+cp -f $ARCPANEL_INSTALL_DIR/nginx/status.conf /etc/nginx/conf.d/
+cp -f $ARCPANEL_INSTALL_DIR/nginx/0rtt-anti-replay.conf /etc/nginx/conf.d/
+cp -f $ARCPANEL_INSTALL_DIR/nginx/agents.conf /etc/nginx/conf.d/
 # Copy over cloudflare.inc incase in the next step there are connection issues with CF
-cp -f $HESTIA_INSTALL_DIR/nginx/cloudflare.inc /etc/nginx/conf.d/
-cp -f $HESTIA_INSTALL_DIR/nginx/phpmyadmin.inc /etc/nginx/conf.d/
-cp -f $HESTIA_INSTALL_DIR/nginx/phppgadmin.inc /etc/nginx/conf.d/
-cp -f $HESTIA_INSTALL_DIR/logrotate/nginx /etc/logrotate.d/
+cp -f $ARCPANEL_INSTALL_DIR/nginx/cloudflare.inc /etc/nginx/conf.d/
+cp -f $ARCPANEL_INSTALL_DIR/nginx/phpmyadmin.inc /etc/nginx/conf.d/
+cp -f $ARCPANEL_INSTALL_DIR/nginx/phppgadmin.inc /etc/nginx/conf.d/
+cp -f $ARCPANEL_INSTALL_DIR/logrotate/nginx /etc/logrotate.d/
 mkdir -p /etc/nginx/conf.d/domains
 mkdir -p /etc/nginx/conf.d/main
 mkdir -p /etc/nginx/modules-enabled
@@ -1658,10 +1652,10 @@ if [ "$apache" = 'yes' ]; then
 	mkdir -p /etc/apache2/conf.d/domains
 
 	# Copy configuration files
-	cp -f $HESTIA_INSTALL_DIR/apache2/apache2.conf /etc/apache2/
-	cp -f $HESTIA_INSTALL_DIR/apache2/status.conf /etc/apache2/mods-available/hestia-status.conf
-	cp -f /etc/apache2/mods-available/status.load /etc/apache2/mods-available/hestia-status.load
-	cp -f $HESTIA_INSTALL_DIR/logrotate/apache2 /etc/logrotate.d/
+	cp -f $ARCPANEL_INSTALL_DIR/apache2/apache2.conf /etc/apache2/
+	cp -f $ARCPANEL_INSTALL_DIR/apache2/status.conf /etc/apache2/mods-available/arcpanel-status.conf
+	cp -f /etc/apache2/mods-available/status.load /etc/apache2/mods-available/arcpanel-status.load
+	cp -f $ARCPANEL_INSTALL_DIR/logrotate/apache2 /etc/logrotate.d/
 
 	# Enable needed modules
 	a2enmod rewrite > /dev/null 2>&1
@@ -1670,7 +1664,7 @@ if [ "$apache" = 'yes' ]; then
 	a2enmod actions > /dev/null 2>&1
 	a2enmod headers > /dev/null 2>&1
 	a2dismod --quiet status > /dev/null 2>&1
-	a2enmod --quiet hestia-status > /dev/null 2>&1
+	a2enmod --quiet arcpanel-status > /dev/null 2>&1
 
 	# Enable mod_ruid/mpm_itk or mpm_event
 	if [ "$phpfpm" = 'yes' ]; then
@@ -1678,7 +1672,7 @@ if [ "$apache" = 'yes' ]; then
 		a2dismod php$fpm_v > /dev/null 2>&1
 		a2dismod mpm_prefork > /dev/null 2>&1
 		a2enmod mpm_event > /dev/null 2>&1
-		cp -f $HESTIA_INSTALL_DIR/apache2/hestia-event.conf /etc/apache2/conf.d/
+		cp -f $ARCPANEL_INSTALL_DIR/apache2/arcpanel-event.conf /etc/apache2/conf.d/
 	else
 		a2enmod mpm_itk > /dev/null 2>&1
 	fi
@@ -1694,7 +1688,7 @@ if [ "$apache" = 'yes' ]; then
 	chmod 751 /var/log/apache2/domains
 
 	# Prevent remote access to server-status page
-	sed -i '/Allow from all/d' /etc/apache2/mods-available/hestia-status.conf
+	sed -i '/Allow from all/d' /etc/apache2/mods-available/arcpanel-status.conf
 
 	update-rc.d apache2 defaults > /dev/null 2>&1
 	systemctl start apache2 >> $LOG
@@ -1712,16 +1706,16 @@ if [ "$phpfpm" = "yes" ]; then
 	if [ "$multiphp" = 'yes' ]; then
 		for v in "${multiphp_v[@]}"; do
 			echo "[ * ] Installing PHP $v..."
-			$HESTIA/bin/v-add-web-php "$v" > /dev/null 2>&1
+			$ARCPANEL/bin/v-add-web-php "$v" > /dev/null 2>&1
 		done
 	else
 		echo "[ * ] Installing PHP $fpm_v..."
-		$HESTIA/bin/v-add-web-php "$fpm_v" > /dev/null 2>&1
+		$ARCPANEL/bin/v-add-web-php "$fpm_v" > /dev/null 2>&1
 	fi
 
 	echo "[ * ] Configuring PHP-FPM $fpm_v..."
 	# Create www.conf for webmail and php(*)admin
-	cp -f $HESTIA_INSTALL_DIR/php-fpm/www.conf /etc/php/$fpm_v/fpm/pool.d/www.conf
+	cp -f $ARCPANEL_INSTALL_DIR/php-fpm/www.conf /etc/php/$fpm_v/fpm/pool.d/www.conf
 	update-rc.d php$fpm_v-fpm defaults > /dev/null 2>&1
 	systemctl start php$fpm_v-fpm >> $LOG
 	check_result $? "php-fpm start failed"
@@ -1746,7 +1740,7 @@ done
 # Cleanup php session files not changed in the last 7 days (60*24*7 minutes)
 echo '#!/bin/sh' > /etc/cron.daily/php-session-cleanup
 echo "find -O3 /home/*/tmp/ -ignore_readdir_race -depth -mindepth 1 -name 'sess_*' -type f -cmin '+10080' -delete > /dev/null 2>&1" >> /etc/cron.daily/php-session-cleanup
-echo "find -O3 $HESTIA/data/sessions/ -ignore_readdir_race -depth -mindepth 1 -name 'sess_*' -type f -cmin '+10080' -delete > /dev/null 2>&1" >> /etc/cron.daily/php-session-cleanup
+echo "find -O3 $ARCPANEL/data/sessions/ -ignore_readdir_race -depth -mindepth 1 -name 'sess_*' -type f -cmin '+10080' -delete > /dev/null 2>&1" >> /etc/cron.daily/php-session-cleanup
 chmod 755 /etc/cron.daily/php-session-cleanup
 
 #----------------------------------------------------------#
@@ -1755,7 +1749,7 @@ chmod 755 /etc/cron.daily/php-session-cleanup
 
 if [ "$vsftpd" = 'yes' ]; then
 	echo "[ * ] Configuring Vsftpd server..."
-	cp -f $HESTIA_INSTALL_DIR/vsftpd/vsftpd.conf /etc/
+	cp -f $ARCPANEL_INSTALL_DIR/vsftpd/vsftpd.conf /etc/
 	touch /var/log/vsftpd.log
 	chown root:adm /var/log/vsftpd.log
 	chmod 640 /var/log/vsftpd.log
@@ -1777,8 +1771,8 @@ fi
 if [ "$proftpd" = 'yes' ]; then
 	echo "[ * ] Configuring ProFTPD server..."
 	echo "127.0.0.1 $servername" >> /etc/hosts
-	cp -f $HESTIA_INSTALL_DIR/proftpd/proftpd.conf /etc/proftpd/
-	cp -f $HESTIA_INSTALL_DIR/proftpd/tls.conf /etc/proftpd/
+	cp -f $ARCPANEL_INSTALL_DIR/proftpd/proftpd.conf /etc/proftpd/
+	cp -f $ARCPANEL_INSTALL_DIR/proftpd/tls.conf /etc/proftpd/
 	# In Debian 13 we need to add modules.conf to proftpd.conf so tls mod is loaded
 	if [[ $release -ge 13 ]]; then
 		if [[ -f /etc/proftpd/modules.conf ]] && grep -qF "Include /etc/proftpd/tls.conf" /etc/proftpd/proftpd.conf; then
@@ -1818,7 +1812,7 @@ if [ "$mysql" = 'yes' ] || [ "$mysql8" = 'yes' ]; then
 	# Remove symbolic link
 	rm -f /etc/mysql/my.cnf
 	# Configuring MariaDB
-	cp -f $HESTIA_INSTALL_DIR/mysql/$mycnf /etc/mysql/my.cnf
+	cp -f $ARCPANEL_INSTALL_DIR/mysql/$mycnf /etc/mysql/my.cnf
 
 	# Switch MariaDB inclusions to the MySQL
 	if [ "$mysql_type" = 'MySQL' ]; then
@@ -1875,8 +1869,8 @@ fi
 #----------------------------------------------------------#
 
 # Source upgrade.conf with phpmyadmin versions
-# shellcheck source=/usr/local/hestia/install/upgrade/upgrade.conf
-source $HESTIA/install/upgrade/upgrade.conf
+# shellcheck source=/usr/local/arcpanel/install/upgrade/upgrade.conf
+source $ARCPANEL/install/upgrade/upgrade.conf
 
 if [ "$mysql" = 'yes' ] || [ "$mysql8" = 'yes' ]; then
 	# Display upgrade information
@@ -1903,7 +1897,7 @@ if [ "$mysql" = 'yes' ] || [ "$mysql8" = 'yes' ]; then
 	cp -rf phpMyAdmin-$pma_v-all-languages/* /usr/share/phpmyadmin
 
 	# Create copy of config file
-	cp -f $HESTIA_INSTALL_DIR/phpmyadmin/config.inc.php /etc/phpmyadmin/
+	cp -f $ARCPANEL_INSTALL_DIR/phpmyadmin/config.inc.php /etc/phpmyadmin/
 
 	# Set config and log directory
 	sed -i "s|'configFile' => ROOT_PATH . 'config.inc.php',|'configFile' => '/etc/phpmyadmin/config.inc.php',|g" /usr/share/phpmyadmin/libraries/vendor_config.php
@@ -1911,7 +1905,7 @@ if [ "$mysql" = 'yes' ] || [ "$mysql8" = 'yes' ]; then
 	# Create temporary folder and change permission
 	mkdir -p /var/lib/phpmyadmin/tmp
 	chmod 770 /var/lib/phpmyadmin/tmp
-	chown -R hestiamail:www-data /usr/share/phpmyadmin/tmp/
+	chown -R arcpanelmail:www-data /usr/share/phpmyadmin/tmp/
 
 	# Generate blow fish
 	blowfish=$(head /dev/urandom | tr -dc A-Za-z0-9 | head -c 32)
@@ -1922,15 +1916,15 @@ if [ "$mysql" = 'yes' ] || [ "$mysql8" = 'yes' ]; then
 	rm -f phpMyAdmin-$pma_v-all-languages.tar.gz
 
 	write_config_value "DB_PMA_ALIAS" "phpmyadmin"
-	$HESTIA/bin/v-change-sys-db-alias 'pma' "phpmyadmin"
+	$ARCPANEL/bin/v-change-sys-db-alias 'pma' "phpmyadmin"
 
 	# Special thanks to Pavel Galkin (https://skurudo.ru)
 	# https://github.com/skurudo/phpmyadmin-fixer
-	# shellcheck source=/usr/local/hestia/install/deb/phpmyadmin/pma.sh
-	source $HESTIA_INSTALL_DIR/phpmyadmin/pma.sh > /dev/null 2>&1
+	# shellcheck source=/usr/local/arcpanel/install/deb/phpmyadmin/pma.sh
+	source $ARCPANEL_INSTALL_DIR/phpmyadmin/pma.sh > /dev/null 2>&1
 
 	# Limit access to /etc/phpmyadmin/
-	chown -R root:hestiamail /etc/phpmyadmin/
+	chown -R root:arcpanelmail /etc/phpmyadmin/
 	chmod 640 /etc/phpmyadmin/config.inc.php
 	chmod 750 /etc/phpmyadmin/conf.d/
 fi
@@ -1942,7 +1936,7 @@ fi
 if [ "$postgresql" = 'yes' ]; then
 	echo "[ * ] Configuring PostgreSQL database server..."
 	ppass=$(gen_pass)
-	cp -f $HESTIA_INSTALL_DIR/postgresql/pg_hba.conf /etc/postgresql/*/main/
+	cp -f $ARCPANEL_INSTALL_DIR/postgresql/pg_hba.conf /etc/postgresql/*/main/
 	systemctl restart postgresql
 	sudo -iu postgres psql -c "ALTER USER postgres WITH PASSWORD '$ppass'" > /dev/null 2>&1
 
@@ -1950,22 +1944,22 @@ if [ "$postgresql" = 'yes' ]; then
 	mkdir -p /usr/share/phppgadmin/
 
 	# phpPgAdmin $pga_v ships with ArcPanel (install/deb/pga/phppgadmin)
-	cp -a "$HESTIA_INSTALL_DIR/pga/phppgadmin/." /usr/share/phppgadmin/
+	cp -a "$ARCPANEL_INSTALL_DIR/pga/phppgadmin/." /usr/share/phppgadmin/
 
-	cp -f $HESTIA_INSTALL_DIR/pga/config.inc.php /etc/phppgadmin/
+	cp -f $ARCPANEL_INSTALL_DIR/pga/config.inc.php /etc/phppgadmin/
 
 	ln -s /etc/phppgadmin/config.inc.php /usr/share/phppgadmin/conf/
 
 	# Configuring phpPgAdmin
 	if [ "$apache" = 'yes' ]; then
-		cp -f $HESTIA_INSTALL_DIR/pga/phppgadmin.conf /etc/apache2/conf.d/phppgadmin.inc
+		cp -f $ARCPANEL_INSTALL_DIR/pga/phppgadmin.conf /etc/apache2/conf.d/phppgadmin.inc
 	fi
 
 	write_config_value "DB_PGA_ALIAS" "phppgadmin"
-	$HESTIA/bin/v-change-sys-db-alias 'pga' "phppgadmin"
+	$ARCPANEL/bin/v-change-sys-db-alias 'pga' "phppgadmin"
 
 	# Limit access to /etc/phppgadmin/
-	chown -R root:hestiamail /etc/phppgadmin/
+	chown -R root:arcpanelmail /etc/phppgadmin/
 	chmod 640 /etc/phppgadmin/config.inc.php
 fi
 
@@ -1975,8 +1969,8 @@ fi
 
 if [ "$named" = 'yes' ]; then
 	echo "[ * ] Configuring Bind DNS server..."
-	cp -f $HESTIA_INSTALL_DIR/bind/named.conf /etc/bind/
-	cp -f $HESTIA_INSTALL_DIR/bind/named.conf.options /etc/bind/
+	cp -f $ARCPANEL_INSTALL_DIR/bind/named.conf /etc/bind/
+	cp -f $ARCPANEL_INSTALL_DIR/bind/named.conf.options /etc/bind/
 	chown root:bind /etc/bind/named.conf
 	chown root:bind /etc/bind/named.conf.options
 	chown bind:bind /var/cache/bind
@@ -2021,12 +2015,12 @@ if [ "$exim" = 'yes' ]; then
 	exim_version=$(exim4 --version | head -1 | awk '{print $3}' | cut -f -2 -d .)
 	# if Exim version > 4.9.4 or greater!
 	if ! version_ge "4.95" "$exim_version"; then
-		cp -f $HESTIA_INSTALL_DIR/exim/exim4.conf.4.95.template /etc/exim4/exim4.conf.template
+		cp -f $ARCPANEL_INSTALL_DIR/exim/exim4.conf.4.95.template /etc/exim4/exim4.conf.template
 	else
 		if ! version_ge "4.93" "$exim_version"; then
-			cp -f $HESTIA_INSTALL_DIR/exim/exim4.conf.4.94.template /etc/exim4/exim4.conf.template
+			cp -f $ARCPANEL_INSTALL_DIR/exim/exim4.conf.4.94.template /etc/exim4/exim4.conf.template
 		else
-			cp -f $HESTIA_INSTALL_DIR/exim/exim4.conf.template /etc/exim4/
+			cp -f $ARCPANEL_INSTALL_DIR/exim/exim4.conf.template /etc/exim4/
 		fi
 	fi
 	# If Dovecot 2.4, modify the local delivery directives"
@@ -2041,10 +2035,10 @@ s#  quota_directory = "${extract{5}{:}{${lookup{$local_part}lsearch{/etc/exim4/d
 ' /etc/exim4/exim4.conf.template
 	fi
 
-	cp -f $HESTIA_INSTALL_DIR/exim/dnsbl.conf /etc/exim4/
-	cp -f $HESTIA_INSTALL_DIR/exim/spam-blocks.conf /etc/exim4/
-	cp -f $HESTIA_INSTALL_DIR/exim/limit.conf /etc/exim4/
-	cp -f $HESTIA_INSTALL_DIR/exim/system.filter /etc/exim4/
+	cp -f $ARCPANEL_INSTALL_DIR/exim/dnsbl.conf /etc/exim4/
+	cp -f $ARCPANEL_INSTALL_DIR/exim/spam-blocks.conf /etc/exim4/
+	cp -f $ARCPANEL_INSTALL_DIR/exim/limit.conf /etc/exim4/
+	cp -f $ARCPANEL_INSTALL_DIR/exim/system.filter /etc/exim4/
 	touch /etc/exim4/white-blocks.conf
 
 	if [ "$spamd" = 'yes' ]; then
@@ -2085,14 +2079,14 @@ if [ "$dovecot" = 'yes' ]; then
 	gpasswd -a dovecot mail > /dev/null 2>&1
 	mkdir -p /etc/dovecot/conf.d/
 	if [[ "$dovecot_version" = "2.4" ]]; then
-		cp -f $HESTIA_COMMON_DIR/dovecot/2.4/dovecot.conf /etc/dovecot/
-		cp -f $HESTIA_COMMON_DIR/dovecot/2.4/conf.d/* /etc/dovecot/conf.d/
+		cp -f $ARCPANEL_COMMON_DIR/dovecot/2.4/dovecot.conf /etc/dovecot/
+		cp -f $ARCPANEL_COMMON_DIR/dovecot/2.4/conf.d/* /etc/dovecot/conf.d/
 	else
-		cp -f $HESTIA_COMMON_DIR/dovecot/2.3/dovecot.conf /etc/dovecot/
-		cp -f $HESTIA_COMMON_DIR/dovecot/2.3/conf.d/* /etc/dovecot/conf.d/
+		cp -f $ARCPANEL_COMMON_DIR/dovecot/2.3/dovecot.conf /etc/dovecot/
+		cp -f $ARCPANEL_COMMON_DIR/dovecot/2.3/conf.d/* /etc/dovecot/conf.d/
 		rm -f /etc/dovecot/conf.d/15-mailboxes.conf
 	fi
-	cp -f $HESTIA_INSTALL_DIR/logrotate/dovecot /etc/logrotate.d/
+	cp -f $ARCPANEL_INSTALL_DIR/logrotate/dovecot /etc/logrotate.d/
 	chown -R root:root /etc/dovecot*
 	touch /var/log/dovecot.log
 	chown -R dovecot:mail /var/log/dovecot.log
@@ -2116,7 +2110,7 @@ fi
 if [ "$clamd" = 'yes' ]; then
 	gpasswd -a clamav mail > /dev/null 2>&1
 	gpasswd -a clamav Debian-exim > /dev/null 2>&1
-	cp -f $HESTIA_INSTALL_DIR/clamav/clamd.conf /etc/clamav/
+	cp -f $ARCPANEL_INSTALL_DIR/clamav/clamd.conf /etc/clamav/
 	update-rc.d clamav-daemon defaults
 	if [ ! -d "/run/clamav" ]; then
 		mkdir /run/clamav
@@ -2167,7 +2161,7 @@ fi
 
 if [ "$fail2ban" = 'yes' ]; then
 	echo "[ * ] Configuring fail2ban access monitor..."
-	cp -rf $HESTIA_INSTALL_DIR/fail2ban /etc/
+	cp -rf $ARCPANEL_INSTALL_DIR/fail2ban /etc/
 	if [ "$dovecot" = 'no' ]; then
 		fline=$(cat /etc/fail2ban/jail.local | grep -n dovecot-iptables -A 2)
 		fline=$(echo "$fline" | grep enabled | tail -n1 | cut -f 1 -d -)
@@ -2204,12 +2198,12 @@ fi
 
 # Configuring MariaDB/MySQL host
 if [ "$mysql" = 'yes' ] || [ "$mysql8" = 'yes' ]; then
-	$HESTIA/bin/v-add-database-host mysql localhost root $mpass
+	$ARCPANEL/bin/v-add-database-host mysql localhost root $mpass
 fi
 
 # Configuring PostgreSQL host
 if [ "$postgresql" = 'yes' ]; then
-	$HESTIA/bin/v-add-database-host pgsql localhost postgres $ppass
+	$ARCPANEL/bin/v-add-database-host pgsql localhost postgres $ppass
 fi
 
 #----------------------------------------------------------#
@@ -2219,7 +2213,7 @@ fi
 # Min requirements Dovecot + Exim + Mysql
 if ([ "$mysql" == 'yes' ] || [ "$mysql8" == 'yes' ]) && [ "$dovecot" == "yes" ]; then
 	echo "[ * ] Installing Roundcube..."
-	$HESTIA/bin/v-add-sys-roundcube
+	$ARCPANEL/bin/v-add-sys-roundcube
 	write_config_value "WEBMAIL_ALIAS" "webmail"
 else
 	write_config_value "WEBMAIL_ALIAS" ""
@@ -2250,7 +2244,7 @@ if [ "$sieve" = 'yes' ]; then
 		#  20-imap.conf
 		sed -i "s/quota imap_quota/quota imap_quota imap_sieve/g" /etc/dovecot/conf.d/20-imap.conf
 		# replace dovecot-sieve config files
-		cp -f "$HESTIA_COMMON_DIR"/dovecot/2.4/sieve/* /etc/dovecot/conf.d
+		cp -f "$ARCPANEL_COMMON_DIR"/dovecot/2.4/sieve/* /etc/dovecot/conf.d
 
 	else
 		# dovecot.conf install
@@ -2265,7 +2259,7 @@ if [ "$sieve" = 'yes' ]; then
 		sed -i "s/mail_plugins = quota imap_quota/mail_plugins = quota imap_quota imap_sieve/g" /etc/dovecot/conf.d/20-imap.conf
 
 		# Replace dovecot-sieve config files
-		cp -f $HESTIA_COMMON_DIR/dovecot/2.3/sieve/* /etc/dovecot/conf.d
+		cp -f $ARCPANEL_COMMON_DIR/dovecot/2.3/sieve/* /etc/dovecot/conf.d
 	fi
 
 	# Dovecot default file install
@@ -2284,9 +2278,9 @@ if [ "$sieve" = 'yes' ]; then
 	if [ -d "/var/lib/roundcube" ]; then
 		# Modify Roundcube config
 		mkdir -p $RC_CONFIG_DIR/plugins/managesieve
-		cp -f $HESTIA_COMMON_DIR/roundcube/plugins/config_managesieve.inc.php $RC_CONFIG_DIR/plugins/managesieve/config.inc.php
+		cp -f $ARCPANEL_COMMON_DIR/roundcube/plugins/config_managesieve.inc.php $RC_CONFIG_DIR/plugins/managesieve/config.inc.php
 		ln -s $RC_CONFIG_DIR/plugins/managesieve/config.inc.php $RC_INSTALL_DIR/plugins/managesieve/config.inc.php
-		chown -R hestiamail:www-data $RC_CONFIG_DIR/
+		chown -R arcpanelmail:www-data $RC_CONFIG_DIR/
 		chmod 751 -R $RC_CONFIG_DIR
 		chmod 644 $RC_CONFIG_DIR/*.php
 		chmod 644 $RC_CONFIG_DIR/plugins/managesieve/config.inc.php
@@ -2312,7 +2306,7 @@ else
 	write_config_value "API" "no"
 	write_config_value "API_SYSTEM" "0"
 	write_config_value "API_ALLOWED_IP" ""
-	$HESTIA/bin/v-change-sys-api disable
+	$ARCPANEL/bin/v-change-sys-api disable
 fi
 
 #----------------------------------------------------------#
@@ -2323,8 +2317,8 @@ fi
 if [ "$webterminal" = 'yes' ]; then
 	write_config_value "WEB_TERMINAL" "true"
 	systemctl daemon-reload > /dev/null 2>&1
-	systemctl enable hestia-web-terminal > /dev/null 2>&1
-	systemctl restart hestia-web-terminal > /dev/null 2>&1
+	systemctl enable arcpanel-web-terminal > /dev/null 2>&1
+	systemctl restart arcpanel-web-terminal > /dev/null 2>&1
 else
 	write_config_value "WEB_TERMINAL" "false"
 fi
@@ -2334,16 +2328,16 @@ fi
 #----------------------------------------------------------#
 
 echo "[ * ] Configuring File Manager..."
-$HESTIA/bin/v-add-sys-filemanager quiet
+$ARCPANEL/bin/v-add-sys-filemanager quiet
 
 #----------------------------------------------------------#
 #                  Configure panel app                     #
 #----------------------------------------------------------#
 
 echo "[ * ] Configuring the ArcPanel panel app..."
-$HESTIA/bin/v-add-sys-arcpanel
+$ARCPANEL/bin/v-add-sys-arcpanel
 if [[ $release -ge 13 ]]; then
-	echo 'KexAlgorithms +diffie-hellman-group-exchange-sha256' > /etc/ssh/sshd_config.d/hestia-kex.conf
+	echo 'KexAlgorithms +diffie-hellman-group-exchange-sha256' > /etc/ssh/sshd_config.d/arcpanel-kex.conf
 fi
 
 #----------------------------------------------------------#
@@ -2351,7 +2345,7 @@ fi
 #----------------------------------------------------------#
 
 echo "[ * ] Configuring PHP dependencies..."
-$HESTIA/bin/v-add-sys-dependencies quiet
+$ARCPANEL/bin/v-add-sys-dependencies quiet
 
 echo "[ * ] Installing Rclone & Update Restic ..."
 curl -s https://rclone.org/install.sh | bash > /dev/null 2>&1
@@ -2363,7 +2357,7 @@ restic self-update > /dev/null 2>&1
 
 # Configuring system IPs
 echo "[ * ] Configuring System IP..."
-$HESTIA/bin/v-update-sys-ip > /dev/null 2>&1
+$ARCPANEL/bin/v-update-sys-ip > /dev/null 2>&1
 
 # Get primary IP
 default_nic="$(ip -d -j route show | jq -r '.[] | if .dst == "default" then .dev else empty end')"
@@ -2376,7 +2370,7 @@ local_ip="$primary_ipv4"
 
 # Configuring firewall
 if [ "$iptables" = 'yes' ]; then
-	$HESTIA/bin/v-update-firewall
+	$ARCPANEL/bin/v-update-firewall
 fi
 
 # Get public IP
@@ -2397,13 +2391,13 @@ if [ -n "$pub_ipv4" ] && [ "$pub_ipv4" != "$ip" ]; then
 	check_pve=$(uname -r | grep pve)
 	if [ ! -z "$check_pve" ]; then
 		echo 'hostname=$(hostname --fqdn)' >> /etc/rc.local
-		echo ""$HESTIA/bin/v-change-sys-hostname" "'"$hostname"'"" >> /etc/rc.local
+		echo ""$ARCPANEL/bin/v-change-sys-hostname" "'"$hostname"'"" >> /etc/rc.local
 	fi
-	echo "$HESTIA/bin/v-update-sys-ip" >> /etc/rc.local
+	echo "$ARCPANEL/bin/v-update-sys-ip" >> /etc/rc.local
 	echo "exit 0" >> /etc/rc.local
 	chmod +x /etc/rc.local
 	systemctl enable rc-local > /dev/null 2>&1
-	$HESTIA/bin/v-change-sys-ip-nat "$ip" "$pub_ipv4" > /dev/null 2>&1
+	$ARCPANEL/bin/v-change-sys-ip-nat "$ip" "$pub_ipv4" > /dev/null 2>&1
 	ip="$pub_ipv4"
 fi
 
@@ -2428,7 +2422,7 @@ if [ "$apache" = 'yes' ] && [ "$nginx" = 'yes' ]; then
 fi
 
 # Adding default domain
-$HESTIA/bin/v-add-web-domain "$username" "$servername" "$ip"
+$ARCPANEL/bin/v-add-web-domain "$username" "$servername" "$ip"
 check_result $? "can't create $servername domain"
 
 # Adding cron jobs
@@ -2436,48 +2430,48 @@ export SCHEDULED_RESTART="yes"
 
 min=$(gen_pass '012345' '2')
 hour=$(gen_pass '1234567' '1')
-echo "MAILTO=\"\"" > /var/spool/cron/crontabs/hestiaweb
-echo "CONTENT_TYPE=\"text/plain; charset=utf-8\"" >> /var/spool/cron/crontabs/hestiaweb
-echo "*/2 * * * * sudo /usr/local/hestia/bin/v-update-sys-queue restart" >> /var/spool/cron/crontabs/hestiaweb
-echo "10 00 * * * sudo /usr/local/hestia/bin/v-update-sys-queue daily" >> /var/spool/cron/crontabs/hestiaweb
-echo "15 02 * * * sudo /usr/local/hestia/bin/v-update-sys-queue disk" >> /var/spool/cron/crontabs/hestiaweb
-echo "10 00 * * * sudo /usr/local/hestia/bin/v-update-sys-queue traffic" >> /var/spool/cron/crontabs/hestiaweb
-echo "30 03 * * * sudo /usr/local/hestia/bin/v-update-sys-queue webstats" >> /var/spool/cron/crontabs/hestiaweb
-echo "*/5 * * * * sudo /usr/local/hestia/bin/v-update-sys-queue backup" >> /var/spool/cron/crontabs/hestiaweb
-echo "10 05 * * * sudo /usr/local/hestia/bin/v-backup-users" >> /var/spool/cron/crontabs/hestiaweb
-echo "20 00 * * * sudo /usr/local/hestia/bin/v-update-user-stats" >> /var/spool/cron/crontabs/hestiaweb
-echo "*/5 * * * * sudo /usr/local/hestia/bin/v-update-sys-rrd" >> /var/spool/cron/crontabs/hestiaweb
-echo "$min $hour * * * sudo /usr/local/hestia/bin/v-update-letsencrypt-ssl" >> /var/spool/cron/crontabs/hestiaweb
-echo "41 4 * * * sudo /usr/local/hestia/bin/v-update-sys-hestia-all" >> /var/spool/cron/crontabs/hestiaweb
+echo "MAILTO=\"\"" > /var/spool/cron/crontabs/arcpanelweb
+echo "CONTENT_TYPE=\"text/plain; charset=utf-8\"" >> /var/spool/cron/crontabs/arcpanelweb
+echo "*/2 * * * * sudo /usr/local/arcpanel/bin/v-update-sys-queue restart" >> /var/spool/cron/crontabs/arcpanelweb
+echo "10 00 * * * sudo /usr/local/arcpanel/bin/v-update-sys-queue daily" >> /var/spool/cron/crontabs/arcpanelweb
+echo "15 02 * * * sudo /usr/local/arcpanel/bin/v-update-sys-queue disk" >> /var/spool/cron/crontabs/arcpanelweb
+echo "10 00 * * * sudo /usr/local/arcpanel/bin/v-update-sys-queue traffic" >> /var/spool/cron/crontabs/arcpanelweb
+echo "30 03 * * * sudo /usr/local/arcpanel/bin/v-update-sys-queue webstats" >> /var/spool/cron/crontabs/arcpanelweb
+echo "*/5 * * * * sudo /usr/local/arcpanel/bin/v-update-sys-queue backup" >> /var/spool/cron/crontabs/arcpanelweb
+echo "10 05 * * * sudo /usr/local/arcpanel/bin/v-backup-users" >> /var/spool/cron/crontabs/arcpanelweb
+echo "20 00 * * * sudo /usr/local/arcpanel/bin/v-update-user-stats" >> /var/spool/cron/crontabs/arcpanelweb
+echo "*/5 * * * * sudo /usr/local/arcpanel/bin/v-update-sys-rrd" >> /var/spool/cron/crontabs/arcpanelweb
+echo "$min $hour * * * sudo /usr/local/arcpanel/bin/v-update-letsencrypt-ssl" >> /var/spool/cron/crontabs/arcpanelweb
+echo "41 4 * * * sudo /usr/local/arcpanel/bin/v-update-sys-arcpanel-all" >> /var/spool/cron/crontabs/arcpanelweb
 # Reseller usage totals and policies (E11)
-$HESTIA/bin/v-add-sys-tenancy
+$ARCPANEL/bin/v-add-sys-tenancy
 # Port registry: server range, reserved ports, nightly check (E12)
-$HESTIA/bin/v-add-sys-port-registry
+$ARCPANEL/bin/v-add-sys-port-registry
 # Node.js manager: download cache, release keys, developer package (E13)
-$HESTIA/bin/v-add-sys-node
+$ARCPANEL/bin/v-add-sys-node
 # File manager staging tree and the panel app's scheduler (E3)
-$HESTIA/bin/v-add-sys-panel-files
+$ARCPANEL/bin/v-add-sys-panel-files
 
-chmod 600 /var/spool/cron/crontabs/hestiaweb
-chown hestiaweb:hestiaweb /var/spool/cron/crontabs/hestiaweb
+chmod 600 /var/spool/cron/crontabs/arcpanelweb
+chown arcpanelweb:arcpanelweb /var/spool/cron/crontabs/arcpanelweb
 
 # Enable automatic updates
-$HESTIA/bin/v-add-cron-hestia-autoupdate apt
+$ARCPANEL/bin/v-add-cron-arcpanel-autoupdate apt
 
 # Building initial rrd images
-$HESTIA/bin/v-update-sys-rrd
+$ARCPANEL/bin/v-update-sys-rrd
 
 # Enabling file system quota
 if [ "$quota" = 'yes' ]; then
 	echo "[ * ] Configuring quota..."
-	$HESTIA/bin/v-add-sys-quota
+	$ARCPANEL/bin/v-add-sys-quota
 fi
 
 # Set backend port
-$HESTIA/bin/v-change-sys-port $port > /dev/null 2>&1
+$ARCPANEL/bin/v-change-sys-port $port > /dev/null 2>&1
 
 # Create default configuration files
-$HESTIA/bin/v-update-sys-defaults
+$ARCPANEL/bin/v-update-sys-defaults
 
 # Update remaining packages since repositories have changed
 echo -ne "[ * ] Installing remaining software updates..."
@@ -2486,47 +2480,47 @@ apt-get -y upgrade >> $LOG &
 BACK_PID=$!
 echo
 
-# Starting ArcPanel service (arcpanel.service wraps /etc/init.d/hestia, alias hestia.service)
+# Starting ArcPanel service (arcpanel.service wraps /etc/init.d/arcpanel, alias arcpanel.service)
 systemctl daemon-reload
 if [ -f /lib/systemd/system/arcpanel.service ]; then
 	systemctl enable arcpanel > /dev/null 2>&1
 	systemctl start arcpanel
 else
-	update-rc.d hestia defaults
-	systemctl start hestia
+	update-rc.d arcpanel defaults
+	systemctl start arcpanel
 fi
 check_result $? "arcpanel start failed"
-chown hestiaweb:hestiaweb $HESTIA/data/sessions
+chown arcpanelweb:arcpanelweb $ARCPANEL/data/sessions
 
 # Create backup folder and set correct permission
 mkdir -p /backup/
 chmod 755 /backup/
 
 # Create cronjob to generate ssl
-echo "@reboot root sleep 10 && rm /etc/cron.d/hestia-ssl && PATH='/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:' && /usr/local/hestia/bin/v-add-letsencrypt-host" > /etc/cron.d/hestia-ssl
+echo "@reboot root sleep 10 && rm /etc/cron.d/arcpanel-ssl && PATH='/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:' && /usr/local/arcpanel/bin/v-add-letsencrypt-host" > /etc/cron.d/arcpanel-ssl
 
 #----------------------------------------------------------#
-#              Set hestia.conf default values              #
+#              Set arcpanel.conf default values              #
 #----------------------------------------------------------#
 
 echo "[ * ] Updating configuration files..."
 
-BIN="$HESTIA/bin"
-source $HESTIA/func/syshealth.sh
+BIN="$ARCPANEL/bin"
+source $ARCPANEL/func/syshealth.sh
 syshealth_repair_system_config
 
-# Add /usr/local/hestia/bin/ to PATH variable in .bashrc if it exists
-[[ -f /root/.bashrc ]] && echo 'if [ "${PATH#*/usr/local/hestia/bin*}" = "$PATH" ]; then
-    . /etc/profile.d/hestia.sh
+# Add /usr/local/arcpanel/bin/ to PATH variable in .bashrc if it exists
+[[ -f /root/.bashrc ]] && echo 'if [ "${PATH#*/usr/local/arcpanel/bin*}" = "$PATH" ]; then
+    . /etc/profile.d/arcpanel.sh
 fi' >> /root/.bashrc
 
-# Add /usr/local/hestia/bin/ to PATH variable in .zshrc if it exists
-[[ -f /root/.zshrc ]] && echo 'if [ "${PATH#*/usr/local/hestia/bin*}" = "$PATH" ]; then
-    . /etc/profile.d/hestia.sh
+# Add /usr/local/arcpanel/bin/ to PATH variable in .zshrc if it exists
+[[ -f /root/.zshrc ]] && echo 'if [ "${PATH#*/usr/local/arcpanel/bin*}" = "$PATH" ]; then
+    . /etc/profile.d/arcpanel.sh
 fi' >> /root/.zshrc
 
 #----------------------------------------------------------#
-#                   Hestia Access Info                     #
+#                   ArcPanel Access Info                     #
 #----------------------------------------------------------#
 
 # Comparing hostname and IP
@@ -2573,7 +2567,7 @@ The ArcPanel development team
 
 " >> $tmpfile
 
-send_mail="$HESTIA/lib/mail-wrapper.php"
+send_mail="$ARCPANEL/lib/mail-wrapper.php"
 cat $tmpfile | $send_mail -s "ArcPanel" $email
 
 # Congrats
@@ -2582,7 +2576,7 @@ cat $tmpfile
 rm -f $tmpfile
 
 # Add welcome message to notification panel
-$HESTIA/bin/v-add-user-notification "$username" 'Welcome to ArcPanel!' '<p>You are now ready to begin adding <a href="/users/create">user accounts</a> and <a href="/web/domains/create">domains</a>. For help and assistance, <a href="https://docs.arcpanel.top/docs/" target="_blank">view the documentation</a>.</p><p>Please <a href="https://github.com/arc-panel-oss/arcpanel/issues" target="_blank">report any issues via GitHub</a>.</p><p class="u-text-bold">Have a wonderful day!</p><p><i class="fas fa-heart icon-red"></i> The ArcPanel development team</p>'
+$ARCPANEL/bin/v-add-user-notification "$username" 'Welcome to ArcPanel!' '<p>You are now ready to begin adding <a href="/users/create">user accounts</a> and <a href="/web/domains/create">domains</a>. For help and assistance, <a href="https://docs.arcpanel.top/docs/" target="_blank">view the documentation</a>.</p><p>Please <a href="https://github.com/arc-panel-oss/arcpanel/issues" target="_blank">report any issues via GitHub</a>.</p><p class="u-text-bold">Have a wonderful day!</p><p><i class="fas fa-heart icon-red"></i> The ArcPanel development team</p>'
 
 # Clean-up
 # Sort final configuration file

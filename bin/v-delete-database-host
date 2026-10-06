@@ -4,7 +4,7 @@
 #
 # example: v-delete-database-host pgsql localhost
 #
-# This function for deleting the database host from hestia configuration. It will
+# This function for deleting the database host from arcpanel configuration. It will
 # be deleted if there are no databases created on it only.
 
 #----------------------------------------------------------#
@@ -16,14 +16,14 @@ type=$1
 host=$2
 
 # Includes
-# shellcheck source=/etc/hestiacp/hestia.conf
-source /etc/hestiacp/hestia.conf
-# shellcheck source=/usr/local/hestia/func/main.sh
-source $HESTIA/func/main.sh
-# shellcheck source=/usr/local/hestia/func/db.sh
-source $HESTIA/func/db.sh
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/db.sh
+source $ARCPANEL/func/db.sh
 # load config file
-source_conf "$HESTIA/conf/hestia.conf"
+source_conf "$ARCPANEL/conf/arcpanel.conf"
 
 #----------------------------------------------------------#
 #                    Verifications                         #
@@ -37,20 +37,20 @@ is_object_valid "../../../conf/$type" 'HOST' "$host"
 is_dbhost_free
 
 # Perform verification if read-only mode is enabled
-check_hestia_demo_mode
+check_arcpanel_demo_mode
 
 #----------------------------------------------------------#
 #                       Action                             #
 #----------------------------------------------------------#
 
 # Deleting server
-sed -i "/HOST='$host' /d" "$HESTIA/conf/$type.conf"
+sed -i "/HOST='$host' /d" "$ARCPANEL/conf/$type.conf"
 # Delete RRD database
 rm -fr "$RRD/db/"$type'_'$host'.rrd'
 rm -fr "$RRD/db/"*-$type'_'$host'.*'
 
 #----------------------------------------------------------#
-#                       Hestia                             #
+#                         ArcPanel                         #
 #----------------------------------------------------------#
 
 # Logging

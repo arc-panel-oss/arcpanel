@@ -2,7 +2,7 @@
 # info: deletes temp database user
 # options: USER DBUSER [TYPE] [HOST]
 #
-# example: v-delete-database-temp-user wordpress hestia_sso_user mysql
+# example: v-delete-database-temp-user wordpress arcpanel_sso_user mysql
 #
 # Revokes "temp user" access to a database and removes the user
 # To be used in combination with v-add-database-temp-user
@@ -19,14 +19,14 @@ type=${4-mysql}
 host=$5
 
 # Includes
-# shellcheck source=/etc/hestiacp/hestia.conf
-source /etc/hestiacp/hestia.conf
-# shellcheck source=/usr/local/hestia/func/main.sh
-source $HESTIA/func/main.sh
-# shellcheck source=/usr/local/hestia/func/db.sh
-source $HESTIA/func/db.sh
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/db.sh
+source $ARCPANEL/func/db.sh
 # load config file
-source_conf "$HESTIA/conf/hestia.conf"
+source_conf "$ARCPANEL/conf/arcpanel.conf"
 
 #----------------------------------------------------------#
 #                    Verifications                         #
@@ -41,13 +41,13 @@ is_object_valid 'db' 'DB' "$database"
 is_object_unsuspended 'db' 'DB' "$database"
 get_next_dbhost
 
-if [[ $dbuser != *"hestia_sso"* ]]; then
+if [[ $dbuser != *"arcpanel_sso"* ]]; then
 	echo "DBUSER is invalid SSO user"
 	exit "$E_INVALID"
 fi
 
 # Perform verification if read-only mode is enabled
-check_hestia_demo_mode
+check_arcpanel_demo_mode
 
 #----------------------------------------------------------#
 #                       Action                             #
@@ -59,7 +59,7 @@ get_database_values
 delete_mysql_database_temp_user
 
 #----------------------------------------------------------#
-#                       Hestia                             #
+#                         ArcPanel                         #
 #----------------------------------------------------------#
 
 # Logging

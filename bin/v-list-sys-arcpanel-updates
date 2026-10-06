@@ -2,9 +2,9 @@
 # info: list system updates
 # options: [FORMAT]
 #
-# example: v-list-sys-hestia-updates
+# example: v-list-sys-arcpanel-updates
 #
-# This function checks available updates for hestia packages.
+# This function checks available updates for arcpanel packages.
 
 #----------------------------------------------------------#
 #                Variables & Functions                     #
@@ -14,12 +14,12 @@
 format=${1-shell}
 
 # Includes
-# shellcheck source=/etc/hestiacp/hestia.conf
-source /etc/hestiacp/hestia.conf
-# shellcheck source=/usr/local/hestia/func/main.sh
-source $HESTIA/func/main.sh
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
 # load config file
-source_conf "$HESTIA/conf/hestia.conf"
+source_conf "$ARCPANEL/conf/arcpanel.conf"
 
 fields="\$NAME \$VERSION \$ARCH \$UPDATED \$DESCR \$TIME \$DATE"
 
@@ -75,22 +75,22 @@ shell_list() {
 #----------------------------------------------------------#
 
 # Checking official latest version
-hestia_v=$(apt-cache policy arcpanel | grep Candidate | cut -d ':' -f 2 | xargs)
+arcpanel_v=$(apt-cache policy arcpanel | grep Candidate | cut -d ':' -f 2 | xargs)
 nginx_v=$(apt-cache policy arcpanel-nginx | grep Candidate | cut -d ':' -f 2 | xargs)
 php_v=$(apt-cache policy arcpanel-php | grep Candidate | cut -d ':' -f 2 | xargs)
 
-# Checking installed hestia version
+# Checking installed arcpanel version
 check_installed_deb arcpanel
 
 UPDATED='yes'
-if [ -n "$hestia_v" ] && [ "$hestia_v" \> "$VERSION" ]; then
+if [ -n "$arcpanel_v" ] && [ "$arcpanel_v" \> "$VERSION" ]; then
 	UPDATED='no'
 fi
 
 data="NAME='arcpanel' VERSION='$VERSION' ARCH='$ARCH'"
 data="$data UPDATED='$UPDATED' DESCR='ArcPanel core package' TIME='$TIME' DATE='$DATE'"
 
-# Checking installed hestia-php version
+# Checking installed arcpanel-php version
 check_installed_deb arcpanel-php
 
 UPDATED='yes'
@@ -102,7 +102,7 @@ data="$data\nNAME='arcpanel-php' VERSION='$VERSION'"
 data="$data ARCH='$ARCH' UPDATED='$UPDATED' DESCR='ArcPanel internal php interpreter'"
 data="$data TIME='$TIME' DATE='$DATE'"
 
-# Checking installed hestia-nginx version
+# Checking installed arcpanel-nginx version
 check_installed_deb arcpanel-nginx
 
 UPDATED='yes'
@@ -123,7 +123,7 @@ case $format in
 esac
 
 #----------------------------------------------------------#
-#                       Hestia                             #
+#                         ArcPanel                         #
 #----------------------------------------------------------#
 
 exit

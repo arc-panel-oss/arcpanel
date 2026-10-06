@@ -11,19 +11,19 @@
 #----------------------------------------------------------#
 
 qi_task_conf() {
-	echo "$HESTIA/data/users/$1/quick-install-task.conf"
+	echo "$ARCPANEL/data/users/$1/quick-install-task.conf"
 }
 
 qi_task_log() {
-	echo "$HESTIA/data/users/$1/quick-install-task.log"
+	echo "$ARCPANEL/data/users/$1/quick-install-task.log"
 }
 
 qi_task_lock() {
-	echo "$HESTIA/data/users/$1/quick-install-task.lock"
+	echo "$ARCPANEL/data/users/$1/quick-install-task.lock"
 }
 
 qi_task_options() {
-	echo "$HESTIA/data/users/$1/quick-install.options"
+	echo "$ARCPANEL/data/users/$1/quick-install.options"
 }
 
 # Value of KEY in the task record of USER
@@ -84,5 +84,5 @@ qi_task_running() {
 # Installer names: lib/quickinstall/app/WebApp/Installers/<APP>/<APP>Setup.php
 qi_app_exists() {
 	[[ "$1" =~ ^[A-Za-z][A-Za-z0-9]{0,63}$ ]] \
-		&& [ -f "$HESTIA/lib/quickinstall/app/WebApp/Installers/$1/$1Setup.php" ]
+		&& [ -f "$ARCPANEL/lib/quickinstall/app/WebApp/Installers/$1/$1Setup.php" ]
 }

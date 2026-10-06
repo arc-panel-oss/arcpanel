@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace Hestia\WebApp;
+namespace ArcPanel\WebApp;
 
-use Hestia\WebApp\InstallationTarget\TargetDatabase;
-use Hestia\WebApp\InstallationTarget\TargetDomain;
+use ArcPanel\WebApp\InstallationTarget\TargetDatabase;
+use ArcPanel\WebApp\InstallationTarget\TargetDomain;
 
 class InstallerInfo
 {

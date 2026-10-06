@@ -1,0 +1,4 @@
+Defaults:root !requiretty
+
+# sudo is limited to arcpanel scripts
+arcpanelweb   ALL=NOPASSWD:/usr/local/arcpanel/bin/*

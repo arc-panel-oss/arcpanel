@@ -3,7 +3,7 @@
 # options: [RESTART]
 #
 # This function for changing the release branch for the
-# Hestia Control Panel. This allows the user to switch between
+# ArcPanel Control Panel. This allows the user to switch between
 # stable and pre-release builds which will automatically update
 # based on the appropriate release schedule if auto-update is
 # turned on.
@@ -16,19 +16,19 @@
 branch=$1
 
 # Includes
-# shellcheck source=/etc/hestiacp/hestia.conf
-source /etc/hestiacp/hestia.conf
-# shellcheck source=/usr/local/hestia/func/main.sh
-source $HESTIA/func/main.sh
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
 # load config file
-source_conf "$HESTIA/conf/hestia.conf"
+source_conf "$ARCPANEL/conf/arcpanel.conf"
 
 #----------------------------------------------------------#
 #                    Verifications                         #
 #----------------------------------------------------------#
 
 # Perform verification if read-only mode is enabled
-check_hestia_demo_mode
+check_arcpanel_demo_mode
 
 #----------------------------------------------------------#
 #                       Action                             #
@@ -56,15 +56,15 @@ else
 	fi
 
 	# Remove old branch variable
-	sed -i "/RELEASE_BRANCH/d" $HESTIA/conf/hestia.conf
+	sed -i "/RELEASE_BRANCH/d" $ARCPANEL/conf/arcpanel.conf
 
 	# Set new branch variable
-	echo "RELEASE_BRANCH='$branch'" >> $HESTIA/conf/hestia.conf
+	echo "RELEASE_BRANCH='$branch'" >> $ARCPANEL/conf/arcpanel.conf
 	echo "Updated system to update from Git using branch: $branch"
 fi
 
 #----------------------------------------------------------#
-#                       Hestia                             #
+#                         ArcPanel                         #
 #----------------------------------------------------------#
 
 $BIN/v-log-action "system" "Info" "System" "Update branch changed (Value: $branch)."

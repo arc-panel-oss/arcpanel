@@ -11,12 +11,12 @@
 #----------------------------------------------------------#
 
 # Includes
-# shellcheck source=/etc/hestiacp/hestia.conf
-source /etc/hestiacp/hestia.conf
-# shellcheck source=/usr/local/hestia/func/main.sh
-source $HESTIA/func/main.sh
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
 # load config file
-source_conf "$HESTIA/conf/hestia.conf"
+source_conf "$ARCPANEL/conf/arcpanel.conf"
 
 #----------------------------------------------------------#
 #                    Verifications                         #
@@ -27,7 +27,7 @@ if [ "$WEB_TERMINAL" = 'true' ]; then
 fi
 
 # Perform verification if read-only mode is enabled
-check_hestia_demo_mode
+check_arcpanel_demo_mode
 
 #----------------------------------------------------------#
 #                       Action                             #
@@ -59,17 +59,17 @@ else
 	fi
 fi
 
-if [ ! -f "$HESTIA/web-terminal/server.js" ]; then
+if [ ! -f "$ARCPANEL/web-terminal/server.js" ]; then
 	apt-get -qq update
 	apt-get -qq install arcpanel-web-terminal -y
 else
 	# Starting web terminal websocket server
-	$BIN/v-start-service "hestia-web-terminal"
-	systemctl enable hestia-web-terminal
+	$BIN/v-start-service "arcpanel-web-terminal"
+	systemctl enable arcpanel-web-terminal
 fi
 
 #----------------------------------------------------------#
-#                       Hestia                             #
+#                         ArcPanel                         #
 #----------------------------------------------------------#
 
 # Logging

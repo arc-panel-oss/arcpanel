@@ -4,7 +4,7 @@
 #
 # example: v-update-mail-templates
 #
-# This function for obtaining updated webmail templates from Hestia package.
+# This function for obtaining updated webmail templates from ArcPanel package.
 
 #----------------------------------------------------------#
 #                Variables & Functions                     #
@@ -15,12 +15,12 @@ restart=$1
 skip=$2
 
 # Includes
-# shellcheck source=/etc/hestiacp/hestia.conf
-source /etc/hestiacp/hestia.conf
-# shellcheck source=/usr/local/hestia/func/main.sh
-source $HESTIA/func/main.sh
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
 # load config file
-source_conf "$HESTIA/conf/hestia.conf"
+source_conf "$ARCPANEL/conf/arcpanel.conf"
 
 #----------------------------------------------------------#
 #                       Action                             #
@@ -30,7 +30,7 @@ check_args '1' "$#" '[RESTART]' '[SKIP]'
 is_format_valid 'restart'
 
 # Update templates
-cp -rf $HESTIA_INSTALL_DIR/templates/mail $HESTIA/data/templates/
+cp -rf $ARCPANEL_INSTALL_DIR/templates/mail $ARCPANEL/data/templates/
 
 # Rebuild mail domains if mail services are enabled
 if [ -z "$skip" ]; then
@@ -41,7 +41,7 @@ if [ -z "$skip" ]; then
 	fi
 fi
 #----------------------------------------------------------#
-#                       Hestia                             #
+#                         ArcPanel                         #
 #----------------------------------------------------------#
 
 if [ -n "$restart" ] || [ "$restart" == "yes" ]; then

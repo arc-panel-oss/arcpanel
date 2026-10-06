@@ -20,22 +20,22 @@ notify=${4-no}
 new_user=${5-no}
 
 # Includes
-# shellcheck source=/etc/hestiacp/hestia.conf
-source /etc/hestiacp/hestia.conf
-# shellcheck source=/usr/local/hestia/func/main.sh
-source $HESTIA/func/main.sh
-# shellcheck source=/usr/local/hestia/func/domain.sh
-source $HESTIA/func/domain.sh
-# shellcheck source=/usr/local/hestia/func/ip.sh
-source $HESTIA/func/ip.sh
-# shellcheck source=/usr/local/hestia/func/rebuild.sh
-source $HESTIA/func/rebuild.sh
-# shellcheck source=/usr/local/hestia/func/syshealth.sh
-source $HESTIA/func/syshealth.sh
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/domain.sh
+source $ARCPANEL/func/domain.sh
+# shellcheck source=/usr/local/arcpanel/func/ip.sh
+source $ARCPANEL/func/ip.sh
+# shellcheck source=/usr/local/arcpanel/func/rebuild.sh
+source $ARCPANEL/func/rebuild.sh
+# shellcheck source=/usr/local/arcpanel/func/syshealth.sh
+source $ARCPANEL/func/syshealth.sh
 # load config file
-source_conf "$HESTIA/conf/hestia.conf"
+source_conf "$ARCPANEL/conf/arcpanel.conf"
 
-source_conf $HESTIA/conf/restic.conf
+source_conf $ARCPANEL/conf/restic.conf
 
 #----------------------------------------------------------#
 #                    Verifications                         #
@@ -46,7 +46,7 @@ check_args '3' "$#" "$args_usage"
 is_format_valid 'user'
 is_object_valid 'user' 'USER' "$user"
 
-source_conf $HESTIA/conf/restic.conf
+source_conf $ARCPANEL/conf/restic.conf
 
 #----------------------------------------------------------#
 #                       Action                             #
@@ -78,7 +78,7 @@ for domain in "${domains[@]}"; do
 				rm -rf $tmpdir
 				error="$domain belongs to another user"
 				echo "$error" | $SENDMAIL -s "$subj" $email $notify
-				sed -i "/ $user /d" $HESTIA/data/queue/backup.pipe
+				sed -i "/ $user /d" $ARCPANEL/data/queue/backup.pipe
 				check_result "$E_PARSING" "$error"
 			fi
 		fi
@@ -89,7 +89,7 @@ for domain in "${domains[@]}"; do
 
 		# Restoring web.conf
 		if [ -z "$check_config" ]; then
-			parse_object_kv_list $(cat $tmpdir/home/$user/backup/web/$domain/hestia/web.conf)
+			parse_object_kv_list $(cat $tmpdir/home/$user/backup/web/$domain/arcpanel/web.conf)
 
 			# Deleting conflicting aliases
 			for dom_alias in ${ALIAS//,/ }; do
@@ -145,16 +145,16 @@ for domain in "${domains[@]}"; do
 			# Copying SSL certificates
 			if [ "$SSL" = 'yes' ]; then
 
-				if [ -f "$tmpdir/home/$user/backup/web/$domain/hestia/$domain.crt" ]; then
-					cp -f "$tmpdir/home/$user/backup/web/$domain/hestia/$domain.crt" "$USER_DATA/ssl/"
-					if [ -f "$tmpdir/home/$user/backup/web/$domain/hestia/$domain.ca" ]; then
-						cp -f "$tmpdir/home/$user/backup/web/$domain/hestia/$domain.ca" "$USER_DATA/ssl/"
+				if [ -f "$tmpdir/home/$user/backup/web/$domain/arcpanel/$domain.crt" ]; then
+					cp -f "$tmpdir/home/$user/backup/web/$domain/arcpanel/$domain.crt" "$USER_DATA/ssl/"
+					if [ -f "$tmpdir/home/$user/backup/web/$domain/arcpanel/$domain.ca" ]; then
+						cp -f "$tmpdir/home/$user/backup/web/$domain/arcpanel/$domain.ca" "$USER_DATA/ssl/"
 					fi
-					if [ -f "$tmpdir/home/$user/backup/web/$domain/hestia/$domain.pem" ]; then
-						cp -f "$tmpdir/home/$user/backup/web/$domain/hestia/$domain.pem" "$USER_DATA/ssl/"
+					if [ -f "$tmpdir/home/$user/backup/web/$domain/arcpanel/$domain.pem" ]; then
+						cp -f "$tmpdir/home/$user/backup/web/$domain/arcpanel/$domain.pem" "$USER_DATA/ssl/"
 					fi
-					if [ -f "$tmpdir/home/$user/backup/web/$domain/hestia/$domain.key" ]; then
-						cp -f "$tmpdir/home/$user/backup/web/$domain/hestia/$domain.key" "$USER_DATA/ssl/"
+					if [ -f "$tmpdir/home/$user/backup/web/$domain/arcpanel/$domain.key" ]; then
+						cp -f "$tmpdir/home/$user/backup/web/$domain/arcpanel/$domain.key" "$USER_DATA/ssl/"
 					fi
 				fi
 			fi
@@ -232,7 +232,7 @@ for domain in "${domains[@]}"; do
 	fi
 done
 #----------------------------------------------------------#
-#                       Hestia                             #
+#                         ArcPanel                         #
 #----------------------------------------------------------#
 if [ "$new_user" = "yes" ]; then
 	rebuild_user_conf
@@ -244,7 +244,7 @@ $BIN/v-update-user-counters $user
 $BIN/v-update-user-counters "$ROOT_USER"
 $BIN/v-update-sys-ip-counters
 
-sed -i "/v-restore-web-domain-restic '$user' '$snapshot' '$web' /d" $HESTIA/data/queue/backup.pipe
+sed -i "/v-restore-web-domain-restic '$user' '$snapshot' '$web' /d" $ARCPANEL/data/queue/backup.pipe
 
 # Logging
 $BIN/v-log-action "system" "Info" "Backup" "Web domain successfully restored (User: $user, Snapshot: $snapshot, Databse: $database)."

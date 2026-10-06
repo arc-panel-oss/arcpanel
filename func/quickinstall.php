@@ -12,11 +12,11 @@ declare(strict_types=1);
 require_once __DIR__ . "/../lib/vendor/autoload.php";
 require_once __DIR__ . "/../lib/quickinstall/init.php";
 
-if (!defined("HESTIA_DIR_BIN")) {
-	define("HESTIA_DIR_BIN", "/usr/local/hestia/bin/");
+if (!defined("ARCPANEL_DIR_BIN")) {
+	define("ARCPANEL_DIR_BIN", "/usr/local/arcpanel/bin/");
 }
-if (!defined("HESTIA_CMD")) {
-	define("HESTIA_CMD", "/usr/bin/sudo /usr/local/hestia/bin/");
+if (!defined("ARCPANEL_CMD")) {
+	define("ARCPANEL_CMD", "/usr/bin/sudo /usr/local/arcpanel/bin/");
 }
 
 const QI_E_ARGS = 1;
@@ -36,13 +36,13 @@ function qi_fail(int $code, string $message): never {
 }
 
 /**
- * The session keys the installer classes read: hestia.conf (WEB_SYSTEM,
+ * The session keys the installer classes read: arcpanel.conf (WEB_SYSTEM,
  * WEB_BACKEND …) and the user the commands act for. Never the panel's own
  * session.
  */
 function qi_session(string $user = ""): void {
 	$_SESSION = [];
-	exec(HESTIA_CMD . "v-list-sys-config json", $output, $code);
+	exec(ARCPANEL_CMD . "v-list-sys-config json", $output, $code);
 	$config = $code === 0 ? json_decode(implode("", $output), true) : null;
 	foreach ((array) ($config["config"] ?? []) as $key => $value) {
 		$_SESSION[$key] = $value;
@@ -104,12 +104,12 @@ function qi_apps(): array {
  * public address, which the server itself may not reach: the local address
  * that NAT maps to is used instead (spec §15, implementation notes).
  */
-final class QiHestiaApp extends \Hestia\System\HestiaApp {
-	public function getWebDomain(string $domainName): \Hestia\System\WebDomain {
+final class QiArcPanelApp extends \ArcPanel\System\ArcPanelApp {
+	public function getWebDomain(string $domainName): \ArcPanel\System\WebDomain {
 		$domain = parent::getWebDomain($domainName);
 		$ip = $domain->ipAddress;
-		if ($ip !== "" && !is_file("/usr/local/hestia/data/ips/$ip")) {
-			foreach (glob("/usr/local/hestia/data/ips/*") ?: [] as $file) {
+		if ($ip !== "" && !is_file("/usr/local/arcpanel/data/ips/$ip")) {
+			foreach (glob("/usr/local/arcpanel/data/ips/*") ?: [] as $file) {
 				if (
 					preg_match(
 						"/^NAT='" . preg_quote($ip, "/") . "'/m",
@@ -122,7 +122,7 @@ final class QiHestiaApp extends \Hestia\System\HestiaApp {
 			}
 		}
 
-		return new \Hestia\System\WebDomain(
+		return new \ArcPanel\System\WebDomain(
 			$domain->domainName,
 			$domain->domainPath,
 			$ip,
@@ -131,12 +131,15 @@ final class QiHestiaApp extends \Hestia\System\HestiaApp {
 	}
 }
 
-function qi_installer(string $app, \Hestia\System\HestiaApp $hestia): \Hestia\WebApp\BaseSetup {
-	$class = "\\Hestia\\WebApp\\Installers\\$app\\{$app}Setup";
+function qi_installer(
+	string $app,
+	\ArcPanel\System\ArcPanelApp $arcpanel,
+): \ArcPanel\WebApp\BaseSetup {
+	$class = "\\ArcPanel\\WebApp\\Installers\\$app\\{$app}Setup";
 	if (!class_exists($class)) {
 		qi_fail(QI_E_NOTEXIST, "installer $app does not exist");
 	}
-	return new $class($hestia);
+	return new $class($arcpanel);
 }
 
 /**

@@ -10,7 +10,7 @@ set -euo pipefail
 	--ro-bind-try /lib64 /lib64 \
 	--tmpfs /usr/lib/modules \
 	--tmpfs /usr/lib/systemd \
-	--tmpfs /usr/local/hestia \
+	--tmpfs /usr/local/arcpanel \
 	--tmpfs /usr/share \
 	--ro-bind-try /usr/share/zoneinfo /usr/share/zoneinfo \
 	--ro-bind-try /usr/share/php /usr/share/php \

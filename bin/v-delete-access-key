@@ -4,19 +4,19 @@
 #
 # example: v-delete-access-key mykey
 #
-# This function removes a key from in $HESTIA/data/access-keys/
+# This function removes a key from in $ARCPANEL/data/access-keys/
 
 #----------------------------------------------------------#
 #                Variables & Functions                     #
 #----------------------------------------------------------#
 
 # Includes
-# shellcheck source=/etc/hestiacp/hestia.conf
-source /etc/hestiacp/hestia.conf
-# shellcheck source=/usr/local/hestia/func/main.sh
-source $HESTIA/func/main.sh
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
 # load config file
-source_conf "$HESTIA/conf/hestia.conf"
+source_conf "$ARCPANEL/conf/arcpanel.conf"
 
 #----------------------------------------------------------#
 #                Variables & Functions                     #
@@ -29,25 +29,25 @@ is_format_valid 'access_key_id'
 is_object_valid 'key' 'KEY' "$access_key_id"
 
 # Perform verification if read-only mode is enabled
-check_hestia_demo_mode
+check_arcpanel_demo_mode
 
 #----------------------------------------------------------#
 #                       Action                             #
 #----------------------------------------------------------#
 
-if [ ! -d "$HESTIA/data/access-keys/" ]; then
+if [ ! -d "$ARCPANEL/data/access-keys/" ]; then
 	exit "$E_NOTEXIST"
 fi
 
-if [[ -e "${HESTIA}/data/access-keys/${access_key_id}" ]]; then
-	source_conf "${HESTIA}/data/access-keys/${access_key_id}"
-	rm "${HESTIA}/data/access-keys/${access_key_id}"
+if [[ -e "${ARCPANEL}/data/access-keys/${access_key_id}" ]]; then
+	source_conf "${ARCPANEL}/data/access-keys/${access_key_id}"
+	rm "${ARCPANEL}/data/access-keys/${access_key_id}"
 else
 	exit "$E_NOTEXIST"
 fi
 
 #----------------------------------------------------------#
-#                       Hestia                             #
+#                         ArcPanel                         #
 #----------------------------------------------------------#
 
 # Logging

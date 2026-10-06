@@ -35,16 +35,16 @@ if [[ "$domain" =~ .*\.$ ]]; then
 fi
 
 # Includes
-# shellcheck source=/etc/hestiacp/hestia.conf
-source /etc/hestiacp/hestia.conf
-# shellcheck source=/usr/local/hestia/func/main.sh
-source $HESTIA/func/main.sh
-# shellcheck source=/usr/local/hestia/func/domain.sh
-source $HESTIA/func/domain.sh
-# shellcheck source=/usr/local/hestia/func/ip.sh
-source $HESTIA/func/ip.sh
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/domain.sh
+source $ARCPANEL/func/domain.sh
+# shellcheck source=/usr/local/arcpanel/func/ip.sh
+source $ARCPANEL/func/ip.sh
 # load config file
-source_conf "$HESTIA/conf/hestia.conf"
+source_conf "$ARCPANEL/conf/arcpanel.conf"
 
 # Additional argument formatting
 format_domain
@@ -71,7 +71,7 @@ is_object_valid 'mail' 'DOMAIN' "$domain"
 is_object_unsuspended 'mail' 'DOMAIN' "$domain"
 
 # Perform verification if read-only mode is enabled
-check_hestia_demo_mode
+check_arcpanel_demo_mode
 
 #----------------------------------------------------------#
 #                       Action                             #
@@ -96,7 +96,7 @@ fi
 if [ -z "$WEBMAIL_ALIAS" ]; then
 	$BIN/v-change-sys-config-value 'WEBMAIL_ALIAS' "webmail"
 else
-	# Ensure DNS record exists if Hestia is hosting DNS zones
+	# Ensure DNS record exists if ArcPanel is hosting DNS zones
 	if [ -n "$DNS_SYSTEM" ]; then
 		dns_domain=$($BIN/v-list-dns-domains $user | grep $domain | cut -d' ' -f1)
 		if [ "$dns_domain" = "$domain" ]; then
@@ -128,7 +128,7 @@ else
 		if [ "$WEB_SYSTEM" = "nginx" ]; then
 			WEBMAIL_TEMPLATE="web_system"
 		fi
-	elif [ -f "$HESTIA/data/templates/mail/$WEB_SYSTEM/$webmail.tpl" ]; then
+	elif [ -f "$ARCPANEL/data/templates/mail/$WEB_SYSTEM/$webmail.tpl" ]; then
 		WEBMAIL_TEMPLATE="$webmail"
 		if [ -n "$PROXY_SYSTEM" ]; then
 			PROXY_TEMPLATE="default_$webmail"
@@ -165,7 +165,7 @@ fi
 update_object_value 'mail' 'DOMAIN' "$domain" '$WEBMAIL' "$webmail"
 
 #----------------------------------------------------------#
-#                       Hestia                             #
+#                         ArcPanel                         #
 #----------------------------------------------------------#
 
 if [ "$restart" = 'yes' ]; then

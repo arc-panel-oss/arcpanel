@@ -16,15 +16,15 @@ modprobe="/sbin/modprobe"
 sysctl="/sbin/sysctl"
 
 # Includes
-source /etc/profile.d/hestia.sh
-# shellcheck source=/etc/hestiacp/hestia.conf
-source /etc/hestiacp/hestia.conf
-# shellcheck source=/usr/local/hestia/func/main.sh
-source "$HESTIA/func/main.sh"
-# shellcheck source=/usr/local/hestia/func/firewall.sh
-source "$HESTIA/func/firewall.sh"
+source /etc/profile.d/arcpanel.sh
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source "$ARCPANEL/func/main.sh"
+# shellcheck source=/usr/local/arcpanel/func/firewall.sh
+source "$ARCPANEL/func/firewall.sh"
 # load config file
-source_conf "$HESTIA/conf/hestia.conf"
+source_conf "$ARCPANEL/conf/arcpanel.conf"
 
 #----------------------------------------------------------#
 #                    Verifications                         #
@@ -34,12 +34,12 @@ is_system_enabled "$FIREWALL_SYSTEM" 'FIREWALL_SYSTEM'
 
 # Acquire firewall lock to serialize concurrent firewall state modifications
 # (fail2ban ban/unban, rule changes, etc.)
-if [ -z "${HESTIA_FIREWALL_LOCK_HELD:-}" ]; then
-	exec 9> /run/hestia-firewall.lock
+if [ -z "${ARCPANEL_FIREWALL_LOCK_HELD:-}" ]; then
+	exec 9> /run/arcpanel-firewall.lock
 	check_result $? "Unable to create firewall lock file"
 	flock -w 30 9
 	check_result $? "Unable to acquire firewall lock (timeout after 30s)"
-	export HESTIA_FIREWALL_LOCK_HELD=1
+	export ARCPANEL_FIREWALL_LOCK_HELD=1
 fi
 
 #----------------------------------------------------------#
@@ -50,7 +50,7 @@ fi
 heal_iptables_links
 
 # Checking local IPv4 rules
-rules="$HESTIA/data/firewall/rules.conf"
+rules="$ARCPANEL/data/firewall/rules.conf"
 
 if [ ! -e "$rules" ]; then
 	exit
@@ -70,8 +70,8 @@ if [ $? -ne 0 ]; then
 	conntrack_ftp='no'
 fi
 
-chains="$HESTIA/data/firewall/chains.conf"
-banlist="$HESTIA/data/firewall/banlist.conf"
+chains="$ARCPANEL/data/firewall/chains.conf"
+banlist="$ARCPANEL/data/firewall/banlist.conf"
 
 # Detect custom OpenSSH port(s) and update SSH chain
 sshport=$("$BIN/v-list-sys-sshd-port" plain | paste -sd ',' -)
@@ -84,7 +84,7 @@ if [[ "$sshport" =~ ^[0-9]+(,[0-9]+)*$ ]]; then
 	fi
 fi
 
-# Load ipset lists before adding Hestia iptables rules
+# Load ipset lists before adding ArcPanel iptables rules
 "$BIN/v-update-firewall-ipset" load
 
 # Creating temporary file
@@ -96,7 +96,7 @@ echo "$iptables -F INPUT" >> "$tmp"
 
 # Handling local traffic
 echo "$iptables -A INPUT -i lo -j ACCEPT" >> "$tmp"
-ips="$(ls $HESTIA/data/ips)"
+ips="$(ls $ARCPANEL/data/ips)"
 for ip in $ips; do
 	echo "$iptables -A INPUT -s $ip -j ACCEPT" >> "$tmp"
 done
@@ -182,16 +182,16 @@ done
 # Switching chain policy to DROP
 echo "$iptables -P INPUT DROP" >> "$tmp"
 
-# Adding hestia chain
-echo "$iptables -N hestia" >> "$tmp"
+# Adding arcpanel chain
+echo "$iptables -N arcpanel" >> "$tmp"
 # Applying rules
 bash "$tmp" 2> /dev/null
 # Deleting temporary file
 rm -f "$tmp"
 
 # Checking custom trigger
-if [ -x "$HESTIA/data/firewall/custom.sh" ]; then
-	bash "$HESTIA/data/firewall/custom.sh"
+if [ -x "$ARCPANEL/data/firewall/custom.sh" ]; then
+	bash "$ARCPANEL/data/firewall/custom.sh"
 fi
 
 # Clean up and saving rules to the master iptables file
@@ -200,7 +200,7 @@ if [ -d "/etc/sysconfig" ]; then
 else
 	/sbin/iptables-save | sed -e 's/[[0-9]\+:[0-9]\+]/[0:0]/g' -e '/^-A fail2ban-[A-Z]\+ -s .\+$/d' > /etc/iptables.rules
 	iptablesversion="$(iptables --version | head -1 | awk '{print $2}' | cut -f -2 -d .)"
-	sd_unit="/lib/systemd/system/hestia-iptables.service"
+	sd_unit="/lib/systemd/system/arcpanel-iptables.service"
 	if [ ! -e "$sd_unit" ]; then
 		echo "[Unit]" >> $sd_unit
 		echo "Description=Loading ArcPanel firewall rules" >> $sd_unit
@@ -212,7 +212,7 @@ else
 		echo "[Service]" >> $sd_unit
 		echo "Type=oneshot" >> $sd_unit
 		echo "RemainAfterExit=yes" >> $sd_unit
-		echo "ExecStartPre=-${HESTIA}/bin/v-update-firewall-ipset load" >> $sd_unit
+		echo "ExecStartPre=-${ARCPANEL}/bin/v-update-firewall-ipset load" >> $sd_unit
 		if [ "$iptablesversion" = "v1.6" ]; then
 			echo "ExecStart=/sbin/iptables-restore /etc/iptables.rules" >> $sd_unit
 		else
@@ -223,11 +223,11 @@ else
 		echo "WantedBy=multi-user.target" >> $sd_unit
 		systemctl -q daemon-reload
 	fi
-	systemctl -q is-enabled hestia-iptables 2> /dev/null || systemctl -q enable hestia-iptables
+	systemctl -q is-enabled arcpanel-iptables 2> /dev/null || systemctl -q enable arcpanel-iptables
 fi
 
 #----------------------------------------------------------#
-#                       Hestia                             #
+#                         ArcPanel                         #
 #----------------------------------------------------------#
 
 exit

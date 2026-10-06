@@ -5,9 +5,9 @@
 # ArcPanel port registry functions (E12)                                    #
 #                                                                           #
 # Every port of the server range belongs to at most one user:               #
-#   $HESTIA/data/ports/<user>.conf      the user's entries                  #
-#   $HESTIA/data/ports/.reserved.conf   ports the registry never hands out  #
-# One entry per line, Hestia style:                                         #
+#   $ARCPANEL/data/ports/<user>.conf      the user's entries                  #
+#   $ARCPANEL/data/ports/.reserved.conf   ports the registry never hands out  #
+# One entry per line, ArcPanel style:                                         #
 #   PORT='30001' or '30010-30019', PROTO, APP, PUBLIC, PUBLIC_OK, COMMENT,  #
 #   SUSPENDED, TIME, DATE                                                   #
 # A port number belongs to its user for both protocols; PROTO names the     #
@@ -20,7 +20,7 @@
 #                                                                           #
 #===========================================================================#
 
-PORTS_DIR="$HESTIA/data/ports"
+PORTS_DIR="$ARCPANEL/data/ports"
 PORTS_RESERVED="$PORTS_DIR/.reserved.conf"
 PORTS_FW_TAG="arcpanel-port"
 
@@ -391,7 +391,7 @@ ports_quota_check() {
 		return "$E_LIMIT"
 	fi
 	used=$(ports_tree_used "$reseller")
-	if [ -n "$customer" ] && [ -f "$HESTIA/data/users/$customer/user.conf" ]; then
+	if [ -n "$customer" ] && [ -f "$ARCPANEL/data/users/$customer/user.conf" ]; then
 		held=$(ports_count "$customer")
 		if [ "$(tenancy_raw_owner "$customer")" = "$reseller" ]; then
 			used=$((used - held))
@@ -410,7 +410,7 @@ ports_quota_check() {
 #----------------------------------------------------------#
 
 ports_fw_rules_file() {
-	echo "$HESTIA/data/firewall/rules.conf"
+	echo "$ARCPANEL/data/firewall/rules.conf"
 }
 
 ports_fw_tag() {
@@ -639,7 +639,7 @@ ports_listen_state() {
 
 # Findings (spec §5.4): TYPE|USER|PORT|PROTO|RULE|DETAIL
 ports_findings() {
-	local live records rules users_dir="$HESTIA/data/users" user limit used owner
+	local live records rules users_dir="$ARCPANEL/data/users" user limit used owner
 	live=$(ports_live)
 	records=$(ports_all_records)
 	rules=$(awk -v q="'" '
@@ -703,9 +703,9 @@ ports_findings() {
 	done
 
 	# Ports of web domains whose template no longer uses them (E6)
-	if [ -f "$HESTIA/func/arc-template.sh" ]; then
-		# shellcheck source=/usr/local/hestia/func/arc-template.sh
-		source "$HESTIA/func/arc-template.sh"
+	if [ -f "$ARCPANEL/func/arc-template.sh" ]; then
+		# shellcheck source=/usr/local/arcpanel/func/arc-template.sh
+		source "$ARCPANEL/func/arc-template.sh"
 		arc_tpl_port_findings "$records"
 	fi
 

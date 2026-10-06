@@ -26,16 +26,16 @@ mode=${1:-check}
 format=${2-shell}
 
 # Includes
-# shellcheck source=/etc/hestiacp/hestia.conf
-source /etc/hestiacp/hestia.conf
-# shellcheck source=/usr/local/hestia/func/main.sh
-source $HESTIA/func/main.sh
-# shellcheck source=/usr/local/hestia/func/tenancy.sh
-source $HESTIA/func/tenancy.sh
-# shellcheck source=/usr/local/hestia/func/nodeapp.sh
-source $HESTIA/func/nodeapp.sh
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/tenancy.sh
+source $ARCPANEL/func/tenancy.sh
+# shellcheck source=/usr/local/arcpanel/func/nodeapp.sh
+source $ARCPANEL/func/nodeapp.sh
 # load config file
-source_conf "$HESTIA/conf/hestia.conf"
+source_conf "$ARCPANEL/conf/arcpanel.conf"
 
 finding() {
 	findings="$findings$(jq -nc --arg u "$1" --arg t "$2" --arg d "$3" --arg x "$4" \
@@ -76,7 +76,7 @@ for user in $(tenancy_all_users); do
 		own_files=yes
 	fi
 	imports=''
-	for domain in $(grep -oE "^DOMAIN='[^']*'" "$HESTIA/data/users/$user/web.conf" 2> /dev/null | cut -d\' -f2); do
+	for domain in $(grep -oE "^DOMAIN='[^']*'" "$ARCPANEL/data/users/$user/web.conf" 2> /dev/null | cut -d\' -f2); do
 		dir=$(nodeapp_dir "$user" "$domain")
 		if ! nodeapp_exists "$user" "$domain" && [ -f "$dir/app.conf" ] && [ ! -L "$dir/app.conf" ] && [ ! -L "$dir" ]; then
 			imports="$imports $domain"
@@ -167,7 +167,7 @@ json=$(printf '%s' "$findings" | jq -sc --arg users "$users" --arg daemons "$dae
 node_print "$format" "$json" '.FINDINGS' 'USER TYPE DOMAIN DETAIL'
 
 #----------------------------------------------------------#
-#                       Hestia                             #
+#                         ArcPanel                         #
 #----------------------------------------------------------#
 
 if [ "$mode" = 'repair' ]; then

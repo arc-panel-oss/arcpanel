@@ -17,14 +17,14 @@
 id=$1
 
 # Includes
-# shellcheck source=/etc/hestiacp/hestia.conf
-source /etc/hestiacp/hestia.conf
-# shellcheck source=/usr/local/hestia/func/main.sh
-source $HESTIA/func/main.sh
-# shellcheck source=/usr/local/hestia/func/systask.sh
-source $HESTIA/func/systask.sh
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/systask.sh
+source $ARCPANEL/func/systask.sh
 # load config file
-source_conf "$HESTIA/conf/hestia.conf"
+source_conf "$ARCPANEL/conf/arcpanel.conf"
 
 # Run one step; remember the exit code of the first failure
 rc=0
@@ -79,11 +79,11 @@ case "$kind" in
 			step "v-delete-sys-${args[0]}"
 		fi
 		;;
-	hestia-update)
+	arcpanel-update)
 		if [ -n "${args[0]}" ]; then
-			step v-update-sys-hestia "${args[0]}"
+			step v-update-sys-arcpanel "${args[0]}"
 		else
-			step v-update-sys-hestia-all
+			step v-update-sys-arcpanel-all
 		fi
 		;;
 	*)
@@ -106,7 +106,7 @@ fi
 flock -u "$lock"
 
 #----------------------------------------------------------#
-#                       Hestia                             #
+#                         ArcPanel                         #
 #----------------------------------------------------------#
 
 if [ "$status" = 'done' ]; then

@@ -14,16 +14,16 @@
 #----------------------------------------------------------#
 
 # Includes
-# shellcheck source=/etc/hestiacp/hestia.conf
-source /etc/hestiacp/hestia.conf
-# shellcheck source=/usr/local/hestia/func/main.sh
-source $HESTIA/func/main.sh
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
 # load config file
-source_conf "$HESTIA/conf/hestia.conf"
+source_conf "$ARCPANEL/conf/arcpanel.conf"
 
-COMMON_PACKAGES="$HESTIA/install/common/packages"
-CRONTAB="/var/spool/cron/crontabs/hestiaweb"
-CRON_LINE="40 02 * * * sudo /usr/local/hestia/bin/v-update-reseller-counters all"
+COMMON_PACKAGES="$ARCPANEL/install/common/packages"
+CRONTAB="/var/spool/cron/crontabs/arcpanelweb"
+CRON_LINE="40 02 * * * sudo /usr/local/arcpanel/bin/v-update-reseller-counters all"
 
 #----------------------------------------------------------#
 #                    Verifications                         #
@@ -35,29 +35,29 @@ if [ "$(id -u)" != '0' ]; then
 fi
 
 # Perform verification if read-only mode is enabled
-check_hestia_demo_mode
+check_arcpanel_demo_mode
 
 #----------------------------------------------------------#
 #                       Action                             #
 #----------------------------------------------------------#
 
 # Policies
-if ! grep -q "^POLICY_RESELLER_CREATE_PACKAGES=" "$HESTIA/conf/hestia.conf"; then
+if ! grep -q "^POLICY_RESELLER_CREATE_PACKAGES=" "$ARCPANEL/conf/arcpanel.conf"; then
 	$BIN/v-change-sys-config-value POLICY_RESELLER_CREATE_PACKAGES no
 fi
-if ! grep -q "^POLICY_RESELLER_LOGIN_AS=" "$HESTIA/conf/hestia.conf"; then
+if ! grep -q "^POLICY_RESELLER_LOGIN_AS=" "$ARCPANEL/conf/arcpanel.conf"; then
 	$BIN/v-change-sys-config-value POLICY_RESELLER_LOGIN_AS yes
 fi
 
 # Example reseller package
-if [ ! -f "$HESTIA/data/packages/reseller.pkg" ] && [ -f "$COMMON_PACKAGES/reseller.pkg" ]; then
-	install -m 644 "$COMMON_PACKAGES/reseller.pkg" "$HESTIA/data/packages/reseller.pkg"
-	install -m 644 "$COMMON_PACKAGES/reseller.tenancy" "$HESTIA/data/packages/reseller.tenancy"
-	sed -i 's/\r$//' "$HESTIA/data/packages/reseller.pkg" "$HESTIA/data/packages/reseller.tenancy"
+if [ ! -f "$ARCPANEL/data/packages/reseller.pkg" ] && [ -f "$COMMON_PACKAGES/reseller.pkg" ]; then
+	install -m 644 "$COMMON_PACKAGES/reseller.pkg" "$ARCPANEL/data/packages/reseller.pkg"
+	install -m 644 "$COMMON_PACKAGES/reseller.tenancy" "$ARCPANEL/data/packages/reseller.tenancy"
+	sed -i 's/\r$//' "$ARCPANEL/data/packages/reseller.pkg" "$ARCPANEL/data/packages/reseller.tenancy"
 	# Same nameservers as the default package
-	ns=$(grep -m1 "^NS=" "$HESTIA/data/packages/default.pkg" 2> /dev/null)
+	ns=$(grep -m1 "^NS=" "$ARCPANEL/data/packages/default.pkg" 2> /dev/null)
 	if [ -n "$ns" ]; then
-		sed -i "s/^NS=.*/$ns/" "$HESTIA/data/packages/reseller.pkg"
+		sed -i "s/^NS=.*/$ns/" "$ARCPANEL/data/packages/reseller.pkg"
 	fi
 fi
 
@@ -66,12 +66,12 @@ fi
 # file for appending in the sticky crontab directory)
 if [ -f "$CRONTAB" ] && ! grep -q "v-update-reseller-counters" "$CRONTAB"; then
 	sed -i -e "\$a$CRON_LINE" "$CRONTAB"
-	chown hestiaweb:hestiaweb "$CRONTAB"
+	chown arcpanelweb:arcpanelweb "$CRONTAB"
 	chmod 600 "$CRONTAB"
 fi
 
 #----------------------------------------------------------#
-#                       Hestia                             #
+#                         ArcPanel                         #
 #----------------------------------------------------------#
 
 log_event "$OK" "$ARGUMENTS"

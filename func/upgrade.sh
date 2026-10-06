@@ -2,24 +2,24 @@
 
 #===========================================================================#
 #                                                                           #
-# Hestia Control Panel - Upgrade Function Library                           #
+# ArcPanel Control Panel - Upgrade Function Library                           #
 #                                                                           #
 #===========================================================================#
 
 # Import system health check and repair library
-# shellcheck source=/usr/local/hestia/func/syshealth.sh
-source $HESTIA/func/syshealth.sh
+# shellcheck source=/usr/local/arcpanel/func/syshealth.sh
+source $ARCPANEL/func/syshealth.sh
 
 #####################################################################
 #######                Functions & Initialization             #######
 #####################################################################
 
 add_upgrade_message() {
-	if [ -f "$HESTIA_BACKUP/message.log" ]; then
-		echo -e $1 >> $HESTIA_BACKUP/message.log
-		echo -e "\n\n" >> $HESTIA_BACKUP/message.log
+	if [ -f "$ARCPANEL_BACKUP/message.log" ]; then
+		echo -e $1 >> $ARCPANEL_BACKUP/message.log
+		echo -e "\n\n" >> $ARCPANEL_BACKUP/message.log
 	else
-		echo -e $1 > $HESTIA_BACKUP/message.log
+		echo -e $1 > $ARCPANEL_BACKUP/message.log
 	fi
 }
 
@@ -36,7 +36,7 @@ upgrade_health_check() {
 
 	echo "============================================================================="
 	echo "[ ! ] Performing system health check before proceeding with installation...  "
-	# Perform basic health check against hestia.conf to ensure that
+	# Perform basic health check against arcpanel.conf to ensure that
 	# system variables exist and are set to expected defaults.
 
 	if [ -z "$VERSION" ]; then
@@ -82,7 +82,7 @@ upgrade_welcome_message() {
 	echo "Default configuration files and templates may be modified or replaced        "
 	echo "during the upgrade process. You may restore these files from:                "
 	echo ""
-	echo "Backup directory: $HESTIA_BACKUP/"
+	echo "Backup directory: $ARCPANEL_BACKUP/"
 	echo "Installation log: $LOG"
 }
 
@@ -158,7 +158,7 @@ upgrade_cleanup_message() {
 }
 
 upgrade_get_version() {
-	# VERSION in hestia.conf is the installed ArcPanel version (kept as
+	# VERSION in arcpanel.conf is the installed ArcPanel version (kept as
 	# previous_version for the messages); new_version is the
 	# version of the installed arcpanel package without the Debian revision and
 	# distribution suffix: 2.0.1-1+ubuntu24.04 -> 2.0.1, 2.1.0-1~beta -> 2.1.0~beta
@@ -171,12 +171,12 @@ upgrade_get_version() {
 }
 
 upgrade_set_version() {
-	# Set new version number in hestia.conf
+	# Set new version number in arcpanel.conf
 	$BIN/v-change-sys-config-value "VERSION" "$@"
 }
 
 upgrade_set_branch() {
-	# Set branch in hestia.conf
+	# Set branch in arcpanel.conf
 	DISPLAY_VER=$(echo "$1" | sed "s|~alpha||g" | sed "s|~beta||g")
 	if [ "$DISPLAY_VER" = "$1" ]; then
 		$BIN/v-change-sys-config-value "RELEASE_BRANCH" "release"
@@ -209,8 +209,8 @@ upgrade_send_notification_to_email() {
 	if [ "$UPGRADE_SEND_EMAIL" = "true" ]; then
 		# Retrieve admin email address, sendmail path, and message temp file path
 		admin_email=$($BIN/v-list-user "$ROOT_USER" json | grep "CONTACT" | cut -d'"' -f4)
-		send_mail="$HESTIA/lib/mail-wrapper.php"
-		message_tmp_file="/tmp/hestia-upgrade-complete.txt"
+		send_mail="$ARCPANEL/lib/mail-wrapper.php"
+		message_tmp_file="/tmp/arcpanel-upgrade-complete.txt"
 
 		# Create temporary file
 		touch $message_tmp_file
@@ -221,11 +221,11 @@ upgrade_send_notification_to_email() {
 		echo "" >> $message_tmp_file
 
 		# Check for additional upgrade notes from update scripts.
-		if [[ -f "$HESTIA_BACKUP/message.log" ]]; then
+		if [[ -f "$ARCPANEL_BACKUP/message.log" ]]; then
 			echo "===================================================" >> $message_tmp_file
 			echo "The upgrade script has generated additional notifications, which must be heeded urgently:" >> $message_tmp_file
 			echo "" >> $message_tmp_file
-			cat $HESTIA_BACKUP/message.log >> $message_tmp_file
+			cat $ARCPANEL_BACKUP/message.log >> $message_tmp_file
 			echo "" >> $message_tmp_file
 			echo "===================================================" >> $message_tmp_file
 			echo "" >> $message_tmp_file
@@ -249,100 +249,100 @@ upgrade_send_notification_to_email() {
 upgrade_send_log_to_email() {
 	if [ "$UPGRADE_SEND_EMAIL_LOG" = "true" ]; then
 		admin_email=$($BIN/v-list-user $ROOT_USER json | grep "CONTACT" | cut -d'"' -f4)
-		send_mail="$HESTIA/lib/mail-wrapper.php"
+		send_mail="$ARCPANEL/lib/mail-wrapper.php"
 		cat $LOG | $send_mail -s "ArcPanel Update Installation Log - v$new_version" $admin_email
 	fi
 }
 
 upgrade_config_set_value() {
-	if [ -f "$HESTIA_BACKUP/upgrade.conf" ]; then
+	if [ -f "$ARCPANEL_BACKUP/upgrade.conf" ]; then
 		if [ "$2" = "true" ]; then
-			sed -i "s/$1='false'/$1='true'/g" $HESTIA_BACKUP/upgrade.conf
+			sed -i "s/$1='false'/$1='true'/g" $ARCPANEL_BACKUP/upgrade.conf
 		fi
 	fi
 }
 
 prepare_upgrade_config() {
-	mkdir -p $HESTIA_BACKUP
-	touch $HESTIA_BACKUP/upgrade.conf
+	mkdir -p $ARCPANEL_BACKUP
+	touch $ARCPANEL_BACKUP/upgrade.conf
 	while IFS='= ' read -r lhs rhs; do
 		if [[ ! $lhs =~ ^\ *# && -n $lhs ]]; then
 			rhs="${rhs%%\#*}"  # Del in line right comments
 			rhs="${rhs%%*( )}" # Del trailing spaces
 			rhs="${rhs%\'*}"   # Del opening string quotes
 			rhs="${rhs#\'*}"   # Del closing string quotes
-			echo "$lhs='$rhs'" >> $HESTIA_BACKUP/upgrade.conf
+			echo "$lhs='$rhs'" >> $ARCPANEL_BACKUP/upgrade.conf
 		fi
-	done < "$HESTIA/install/upgrade/upgrade.conf"
+	done < "$ARCPANEL/install/upgrade/upgrade.conf"
 }
 
 upgrade_init_backup() {
 	# Ensure that backup directories are created
-	# Hestia Control Panel configuration files
-	mkdir -p $HESTIA_BACKUP/conf/hestia/
+	# ArcPanel Control Panel configuration files
+	mkdir -p $ARCPANEL_BACKUP/conf/arcpanel/
 
 	# OpenSSL configuration files
-	mkdir -p $HESTIA_BACKUP/conf/openssl/
+	mkdir -p $ARCPANEL_BACKUP/conf/openssl/
 
 	# Hosting Packages
-	mkdir -p $HESTIA_BACKUP/packages/
+	mkdir -p $ARCPANEL_BACKUP/packages/
 
 	# Domain template files
-	mkdir -p $HESTIA_BACKUP/templates/
+	mkdir -p $ARCPANEL_BACKUP/templates/
 
 	# System services (apache2, nginx, bind9, vsftpd, etc).
 	if [ -n "$WEB_SYSTEM" ]; then
-		mkdir -p $HESTIA_BACKUP/conf/$WEB_SYSTEM/
+		mkdir -p $ARCPANEL_BACKUP/conf/$WEB_SYSTEM/
 	fi
 	if [ -n "$IMAP_SYSTEM" ]; then
-		mkdir -p $HESTIA_BACKUP/conf/$IMAP_SYSTEM/
+		mkdir -p $ARCPANEL_BACKUP/conf/$IMAP_SYSTEM/
 	fi
 	if [ -n "$MAIL_SYSTEM" ]; then
-		mkdir -p $HESTIA_BACKUP/conf/$MAIL_SYSTEM/
+		mkdir -p $ARCPANEL_BACKUP/conf/$MAIL_SYSTEM/
 	fi
 	if [ -n "$DNS_SYSTEM" ]; then
-		mkdir -p $HESTIA_BACKUP/conf/$DNS_SYSTEM/
+		mkdir -p $ARCPANEL_BACKUP/conf/$DNS_SYSTEM/
 	fi
 	if [ -n "$PROXY_SYSTEM" ]; then
-		mkdir -p $HESTIA_BACKUP/conf/$PROXY_SYSTEM/
+		mkdir -p $ARCPANEL_BACKUP/conf/$PROXY_SYSTEM/
 	fi
 	if [ -n "$DB_SYSTEM" ]; then
 		if [[ "$DB_SYSTEM" =~ "mysql" ]]; then
-			mkdir -p $HESTIA_BACKUP/conf/mysql/
+			mkdir -p $ARCPANEL_BACKUP/conf/mysql/
 		fi
 		if [[ "$DB_SYSTEM" =~ "pgsql" ]]; then
-			mkdir -p $HESTIA_BACKUP/conf/pgsql/
+			mkdir -p $ARCPANEL_BACKUP/conf/pgsql/
 		fi
 	fi
 	if [ -n "$FTP_SYSTEM" ]; then
-		mkdir -p $HESTIA_BACKUP/conf/$FTP_SYSTEM/
+		mkdir -p $ARCPANEL_BACKUP/conf/$FTP_SYSTEM/
 	fi
 	if [ -n "$FIREWALL_SYSTEM" ]; then
-		mkdir -p $HESTIA_BACKUP/conf/$FIREWALL_SYSTEM/
+		mkdir -p $ARCPANEL_BACKUP/conf/$FIREWALL_SYSTEM/
 	fi
 	if [ -n "$FIREWALL_EXTENSION" ]; then
-		mkdir -p $HESTIA_BACKUP/conf/$FIREWALL_EXTENSION/
+		mkdir -p $ARCPANEL_BACKUP/conf/$FIREWALL_EXTENSION/
 	fi
 	if [ -e "/etc/ssh/sshd_config" ]; then
-		mkdir -p $HESTIA_BACKUP/conf/ssh/
+		mkdir -p $ARCPANEL_BACKUP/conf/ssh/
 	fi
 	if [ -d "/etc/roundcube/" ]; then
-		mkdir -p $HESTIA_BACKUP/conf/roundcube/
+		mkdir -p $ARCPANEL_BACKUP/conf/roundcube/
 	fi
 	if [ -d "/var/lib/snappymail/" ]; then
-		mkdir -p $HESTIA_BACKUP/conf/snappymail/
+		mkdir -p $ARCPANEL_BACKUP/conf/snappymail/
 	fi
 	if [ -d "/etc/phpmyadmin/" ]; then
-		mkdir -p $HESTIA_BACKUP/conf/phpmyadmin/
+		mkdir -p $ARCPANEL_BACKUP/conf/phpmyadmin/
 	fi
 	if [ -d "/etc/phppgadmin/" ]; then
-		mkdir -p $HESTIA_BACKUP/conf/phppgadmin/
+		mkdir -p $ARCPANEL_BACKUP/conf/phppgadmin/
 	fi
 }
 
 upgrade_init_logging() {
 	# Set log file path
-	LOG="$HESTIA_BACKUP/hst-upgrade-$(date +%d%m%Y%H%M).log"
+	LOG="$ARCPANEL_BACKUP/arcpanel-upgrade-$(date +%d%m%Y%H%M).log"
 
 	# Create log file
 	touch $LOG
@@ -365,60 +365,60 @@ upgrade_start_backup() {
 	if [ "$DEBUG_MODE" = "true" ]; then
 		echo "      - Packages"
 	fi
-	cp -fr $HESTIA/data/packages/* $HESTIA_BACKUP/packages/
+	cp -fr $ARCPANEL/data/packages/* $ARCPANEL_BACKUP/packages/
 
 	if [ "$DEBUG_MODE" = "true" ]; then
 		echo "      - Templates"
 	fi
-	cp -fr $HESTIA/data/templates/* $HESTIA_BACKUP/templates/
+	cp -fr $ARCPANEL/data/templates/* $ARCPANEL_BACKUP/templates/
 
 	if [ "$DEBUG_MODE" = "true" ]; then
 		echo "      - Configuration files:"
 	fi
 
-	# Hestia Control Panel configuration files
+	# ArcPanel Control Panel configuration files
 	if [ "$DEBUG_MODE" = "true" ]; then
 		echo "      ---- ArcPanel"
 	fi
-	cp -fr $HESTIA/conf/* $HESTIA_BACKUP/conf/hestia/
+	cp -fr $ARCPANEL/conf/* $ARCPANEL_BACKUP/conf/arcpanel/
 
 	# OpenSSL configuration files
 	if [ "$DEBUG_MODE" = "true" ]; then
 		echo "      ---- openssl"
 	fi
-	cp -f /etc/ssl/*.cnf $HESTIA_BACKUP/conf/openssl/
+	cp -f /etc/ssl/*.cnf $ARCPANEL_BACKUP/conf/openssl/
 
 	# System service configuration files (apache2, nginx, bind9, vsftpd, etc).
 	if [ -n "$WEB_SYSTEM" ]; then
 		if [ "$DEBUG_MODE" = "true" ]; then
 			echo "      ---- $WEB_SYSTEM"
 		fi
-		cp -fr /etc/$WEB_SYSTEM/* $HESTIA_BACKUP/conf/$WEB_SYSTEM/
+		cp -fr /etc/$WEB_SYSTEM/* $ARCPANEL_BACKUP/conf/$WEB_SYSTEM/
 	fi
 	if [ -n "$PROXY_SYSTEM" ]; then
 		if [ "$DEBUG_MODE" = "true" ]; then
 			echo "      ---- $PROXY_SYSTEM"
 		fi
-		cp -fr /etc/$PROXY_SYSTEM/* $HESTIA_BACKUP/conf/$PROXY_SYSTEM/
+		cp -fr /etc/$PROXY_SYSTEM/* $ARCPANEL_BACKUP/conf/$PROXY_SYSTEM/
 	fi
 	if [ -n "$IMAP_SYSTEM" ]; then
 		if [ "$DEBUG_MODE" = "true" ]; then
 			echo "      ---- $IMAP_SYSTEM"
 		fi
-		cp -fr /etc/$IMAP_SYSTEM/* $HESTIA_BACKUP/conf/$IMAP_SYSTEM/
+		cp -fr /etc/$IMAP_SYSTEM/* $ARCPANEL_BACKUP/conf/$IMAP_SYSTEM/
 	fi
 	if [ -n "$MAIL_SYSTEM" ]; then
 		if [ "$DEBUG_MODE" = "true" ]; then
 			echo "      ---- $MAIL_SYSTEM"
 		fi
-		cp -fr /etc/$MAIL_SYSTEM/* $HESTIA_BACKUP/conf/$MAIL_SYSTEM/
+		cp -fr /etc/$MAIL_SYSTEM/* $ARCPANEL_BACKUP/conf/$MAIL_SYSTEM/
 	fi
 	if [ -n "$DNS_SYSTEM" ]; then
 		if [ "$DNS_SYSTEM" = "bind9" ]; then
 			if [ "$DEBUG_MODE" = "true" ]; then
 				echo "      ---- $DNS_SYSTEM"
 			fi
-			cp -fr /etc/bind/* $HESTIA_BACKUP/conf/$DNS_SYSTEM/
+			cp -fr /etc/bind/* $ARCPANEL_BACKUP/conf/$DNS_SYSTEM/
 		fi
 	fi
 	if [ -n "$DB_SYSTEM" ]; then
@@ -426,14 +426,14 @@ upgrade_start_backup() {
 			if [ "$DEBUG_MODE" = "true" ]; then
 				echo "      ---- mysql"
 			fi
-			cp -fr /etc/mysql/* $HESTIA_BACKUP/conf/mysql/
+			cp -fr /etc/mysql/* $ARCPANEL_BACKUP/conf/mysql/
 		fi
 		if [[ "$DB_SYSTEM" =~ "pgsql" ]]; then
 			if [ "$DEBUG_MODE" = "true" ]; then
 				echo "      ---- pgsql"
 			fi
 			# config for postgresql is stored in /etc/postgresql/version/main/
-			cp -fr /etc/postgresql/* $HESTIA_BACKUP/conf/pgsql/
+			cp -fr /etc/postgresql/* $ARCPANEL_BACKUP/conf/pgsql/
 		fi
 	fi
 	if [ -n "$FTP_SYSTEM" ]; then
@@ -441,60 +441,60 @@ upgrade_start_backup() {
 			echo "      ---- $FTP_SYSTEM"
 		fi
 		if [ "$FTP_SYSTEM" = "vsftpd" ]; then
-			cp -f /etc/$FTP_SYSTEM.conf $HESTIA_BACKUP/conf/$FTP_SYSTEM/
+			cp -f /etc/$FTP_SYSTEM.conf $ARCPANEL_BACKUP/conf/$FTP_SYSTEM/
 		fi
 		if [ "$FTP_SYSTEM" = "proftpd" ]; then
-			cp -f /etc/proftpd/proftpd.conf $HESTIA_BACKUP/conf/$FTP_SYSTEM/
+			cp -f /etc/proftpd/proftpd.conf $ARCPANEL_BACKUP/conf/$FTP_SYSTEM/
 		fi
 	fi
 	if [ -n "$FIREWALL_SYSTEM" ]; then
 		if [ "$DEBUG_MODE" = "true" ]; then
 			echo "      ---- $FIREWALL_SYSTEM"
 		fi
-		[ -e "/etc/sysconfig/iptables" ] && cp -f /etc/sysconfig/iptables $HESTIA_BACKUP/conf/$FIREWALL_SYSTEM/
-		[ -e "/etc/iptables.rules" ] && cp -f /etc/iptables.rules $HESTIA_BACKUP/conf/$FIREWALL_SYSTEM/
+		[ -e "/etc/sysconfig/iptables" ] && cp -f /etc/sysconfig/iptables $ARCPANEL_BACKUP/conf/$FIREWALL_SYSTEM/
+		[ -e "/etc/iptables.rules" ] && cp -f /etc/iptables.rules $ARCPANEL_BACKUP/conf/$FIREWALL_SYSTEM/
 	fi
 	if [ -n "$FIREWALL_EXTENSION" ]; then
 		if [ "$DEBUG_MODE" = "true" ]; then
 			echo "      ---- $FIREWALL_EXTENSION"
 		fi
-		cp -f /etc/$FIREWALL_EXTENSION/*.conf $HESTIA_BACKUP/conf/$FIREWALL_EXTENSION/
-		cp -f /etc/$FIREWALL_EXTENSION/*.local $HESTIA_BACKUP/conf/$FIREWALL_EXTENSION/
+		cp -f /etc/$FIREWALL_EXTENSION/*.conf $ARCPANEL_BACKUP/conf/$FIREWALL_EXTENSION/
+		cp -f /etc/$FIREWALL_EXTENSION/*.local $ARCPANEL_BACKUP/conf/$FIREWALL_EXTENSION/
 	fi
 	if [ -e "/etc/ssh/sshd_config" ]; then
 		if [ "$DEBUG_MODE" = "true" ]; then
 			echo "      ---- sshd"
 		fi
-		cp -fr /etc/ssh/* $HESTIA_BACKUP/conf/ssh/
+		cp -fr /etc/ssh/* $ARCPANEL_BACKUP/conf/ssh/
 	fi
 	if [ -d "/etc/roundcube" ]; then
 		if [ "$DEBUG_MODE" = "true" ]; then
 			echo "      ---- Roundcube"
 		fi
-		cp -fr /etc/roundcube/* $HESTIA_BACKUP/conf/roundcube
+		cp -fr /etc/roundcube/* $ARCPANEL_BACKUP/conf/roundcube
 	fi
 	if [ -d "/var/lib/snappymail" ]; then
 		if [ "$DEBUG_MODE" = "true" ]; then
 			echo "      ---- SnappyMail"
 		fi
-		cp -fr /var/lib/snappymail/* $HESTIA_BACKUP/conf/snappymail
+		cp -fr /var/lib/snappymail/* $ARCPANEL_BACKUP/conf/snappymail
 	fi
 	if [ -d "/etc/phpmyadmin" ]; then
 		if [ "$DEBUG_MODE" = "true" ]; then
 			echo "      ---- phpMyAdmin"
 		fi
-		cp -fr /etc/phpmyadmin/* $HESTIA_BACKUP/conf/phpmyadmin
+		cp -fr /etc/phpmyadmin/* $ARCPANEL_BACKUP/conf/phpmyadmin
 	fi
 	if [ -d "/etc/phppgadmin" ]; then
 		if [ "$DEBUG_MODE" = "true" ]; then
 			echo "      ---- phppgadmin"
 		fi
-		cp -fr /etc/phppgadmin/* $HESTIA_BACKUP/conf/phppgadmin
+		cp -fr /etc/phppgadmin/* $ARCPANEL_BACKUP/conf/phppgadmin
 	fi
 }
 
 upgrade_refresh_config() {
-	source_conf "/usr/local/hestia/conf/hestia.conf"
+	source_conf "/usr/local/arcpanel/conf/arcpanel.conf"
 }
 
 upgrade_start_routine() {
@@ -508,7 +508,7 @@ upgrade_start_routine() {
 
 	# Run every install/upgrade/versions/<version>.sh newer than the installed
 	# version and not newer than the package (ADR-0007)
-	for script in $(ls -v "$HESTIA"/install/upgrade/versions/*.sh 2> /dev/null); do
+	for script in $(ls -v "$ARCPANEL"/install/upgrade/versions/*.sh 2> /dev/null); do
 		version_step=$(basename "$script" .sh)
 		if [ "$(check_version "$version_step")" -gt "$(check_version "$current")" ] \
 			&& [ "$(check_version "$version_step")" -le "$(check_version "$target")" ]; then
@@ -581,10 +581,10 @@ upgrade_phppgadmin() {
 			echo "[ * ] Upgrading phppgadmin to version $pga_v..."
 			[ -d /usr/share/phppgadmin ] || mkdir -p /usr/share/phppgadmin
 			# phpPgAdmin $pga_v ships with ArcPanel (install/deb/pga/phppgadmin)
-			cp -a "$HESTIA_INSTALL_DIR/pga/phppgadmin/." /usr/share/phppgadmin/
+			cp -a "$ARCPANEL_INSTALL_DIR/pga/phppgadmin/." /usr/share/phppgadmin/
 
 			if ! version_ge "$pga_release" "7.14.0"; then
-				cp -f $HESTIA_INSTALL_DIR/pga/config.inc.php /etc/phppgadmin/
+				cp -f $ARCPANEL_INSTALL_DIR/pga/config.inc.php /etc/phppgadmin/
 			fi
 			if [ ! -L /usr/share/phppgadmin/conf/config.inc.php ]; then
 				ln -s /etc/phppgadmin/config.inc.php /usr/share/phppgadmin/conf
@@ -602,11 +602,11 @@ upgrade_phpmyadmin() {
 			echo "[ * ] phpMyAdmin is up to date (${pma_version})..."
 			# Update permissions
 			if [ -e /var/lib/phpmyadmin/blowfish_secret.inc.php ]; then
-				chown root:hestiamail /var/lib/phpmyadmin/blowfish_secret.inc.php
+				chown root:arcpanelmail /var/lib/phpmyadmin/blowfish_secret.inc.php
 				chmod 0640 /var/lib/phpmyadmin/blowfish_secret.inc.php
 			fi
-			chown hestiamail:hestiamail /usr/share/phpmyadmin/tmp
-			chown -R root:hestiamail /etc/phpmyadmin/
+			chown arcpanelmail:arcpanelmail /usr/share/phpmyadmin/tmp
+			chown -R root:arcpanelmail /etc/phpmyadmin/
 
 			chmod 0770 /usr/share/phpmyadmin/tmp
 		else
@@ -632,18 +632,18 @@ upgrade_phpmyadmin() {
 			# Create temporary folder and change permissions
 			if [ ! -d /usr/share/phpmyadmin/tmp ]; then
 				mkdir /usr/share/phpmyadmin/tmp
-				chown hestiamail:hestiamail /usr/share/phpmyadmin/tmp
+				chown arcpanelmail:arcpanelmail /usr/share/phpmyadmin/tmp
 				chmod 0770 /usr/share/phpmyadmin/tmp
 
 			fi
 
 			if [ -e /var/lib/phpmyadmin/blowfish_secret.inc.php ]; then
-				chown root:hestiamail /var/lib/phpmyadmin/blowfish_secret.inc.php
+				chown root:arcpanelmail /var/lib/phpmyadmin/blowfish_secret.inc.php
 				chmod 0640 /var/lib/phpmyadmin/blowfish_secret.inc.php
 			fi
 
 			# Make sure to give it the correct permissions
-			chown -R root:hestiamail /etc/phpmyadmin/
+			chown -R root:arcpanelmail /etc/phpmyadmin/
 
 			# Clean up source files
 			rm -fr phpMyAdmin-$pma_v-all-languages
@@ -662,7 +662,7 @@ upgrade_roundcube() {
 	if [ -n "$(echo "$WEBMAIL_SYSTEM" | grep -w 'roundcube')" ]; then
 		if [ -d "/usr/share/roundcube" ]; then
 			echo "[ ! ] Roundcube: Updates are currently managed using the apt package manager"
-			echo "      To upgrade to the latest version of Roundcube directly from upstream, from please run the command migrate_roundcube.sh located in: /usr/local/hestia/install/upgrade/manual/"
+			echo "      To upgrade to the latest version of Roundcube directly from upstream, from please run the command migrate_roundcube.sh located in: /usr/local/arcpanel/install/upgrade/manual/"
 		else
 			if [[ -f "/var/lib/roundcube/program/include/iniset.php" ]]; then
 				rc_version="$(grep RCMAIL_VERSION /var/lib/roundcube/program/include/iniset.php | cut -d "'" -f 4)"
@@ -775,8 +775,8 @@ upgrade_replace_default_config() {
 	syshealth_update_user_config_format
 
 	# Protect custom Exim DNSBL entries during package upgrades
-	if [ -f "$HESTIA/conf/dnsbl.conf" ]; then
-		cp -f "$HESTIA/conf/dnsbl.conf" /etc/exim4/dnsbl.conf
+	if [ -f "$ARCPANEL/conf/dnsbl.conf" ]; then
+		cp -f "$ARCPANEL/conf/dnsbl.conf" /etc/exim4/dnsbl.conf
 	fi
 }
 
@@ -837,9 +837,9 @@ upgrade_restart_services() {
 		fi
 		if [ "$WEB_TERMINAL" = "true" ]; then
 			if [ "$DEBUG_MODE" = "true" ]; then
-				echo "      - hestia-web-terminal"
+				echo "      - arcpanel-web-terminal"
 			fi
-			$BIN/v-restart-service "hestia-web-terminal"
+			$BIN/v-restart-service "arcpanel-web-terminal"
 		fi
 		# Restart SSH daemon service
 		if [ "$DEBUG_MODE" = "true" ]; then
@@ -848,9 +848,9 @@ upgrade_restart_services() {
 		$BIN/v-restart-service ssh
 	fi
 
-	# Always restart the Hestia Control Panel service
+	# Always restart the ArcPanel Control Panel service
 	if [ "$DEBUG_MODE" = "true" ]; then
 		echo "      - ArcPanel"
 	fi
-	$BIN/v-restart-service hestia
+	$BIN/v-restart-service arcpanel
 }

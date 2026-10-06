@@ -1,6 +1,6 @@
 # ArcPanel: pm2 daemon of this user (E14). Rendered into
 # ~/.config/systemd/user/ by v-add-node-app and v-rebuild-node-apps from
-# $HESTIA/install/common/node/arcpanel-pm2.service; changes are overwritten.
+# $ARCPANEL/install/common/node/arcpanel-pm2.service; changes are overwritten.
 [Unit]
 Description=pm2 process manager (ArcPanel)
 Documentation=https://pm2.keymetrics.io/

@@ -17,18 +17,18 @@
 user=$1
 
 # Includes
-# shellcheck source=/etc/hestiacp/hestia.conf
-source /etc/hestiacp/hestia.conf
-# shellcheck source=/usr/local/hestia/func/main.sh
-source $HESTIA/func/main.sh
-# shellcheck source=/usr/local/hestia/func/tenancy.sh
-source $HESTIA/func/tenancy.sh
-# shellcheck source=/usr/local/hestia/func/ports.sh
-source $HESTIA/func/ports.sh
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/tenancy.sh
+source $ARCPANEL/func/tenancy.sh
+# shellcheck source=/usr/local/arcpanel/func/ports.sh
+source $ARCPANEL/func/ports.sh
 # load config file
-source_conf "$HESTIA/conf/hestia.conf"
-# shellcheck source=/usr/local/hestia/func/docker.sh
-source $HESTIA/func/docker.sh
+source_conf "$ARCPANEL/conf/arcpanel.conf"
+# shellcheck source=/usr/local/arcpanel/func/docker.sh
+source $ARCPANEL/func/docker.sh
 
 #----------------------------------------------------------#
 #                    Verifications                         #
@@ -56,11 +56,11 @@ for name in $(dockerapp_names "$user"); do
 	fi
 done
 if [ -n "$failed" ]; then
-	echo "$(date +'%F %T') Docker apps of $user could not be started:$failed" >> "$HESTIA/log/system.log"
+	echo "$(date +'%F %T') Docker apps of $user could not be started:$failed" >> "$ARCPANEL/log/system.log"
 fi
 
 #----------------------------------------------------------#
-#                       Hestia                             #
+#                         ArcPanel                         #
 #----------------------------------------------------------#
 
 log_event "$OK" "$ARGUMENTS"

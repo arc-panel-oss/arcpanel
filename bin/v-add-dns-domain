@@ -30,16 +30,16 @@ restart=${12}
 dnssec=${13}
 
 # Includes
-# shellcheck source=/etc/hestiacp/hestia.conf
-source /etc/hestiacp/hestia.conf
-# shellcheck source=/usr/local/hestia/func/main.sh
-source $HESTIA/func/main.sh
-# shellcheck source=/usr/local/hestia/func/domain.sh
-source $HESTIA/func/domain.sh
-# shellcheck source=/usr/local/hestia/func/rebuild.sh
-source $HESTIA/func/rebuild.sh
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/domain.sh
+source $ARCPANEL/func/domain.sh
+# shellcheck source=/usr/local/arcpanel/func/rebuild.sh
+source $ARCPANEL/func/rebuild.sh
 # load config file
-source_conf "$HESTIA/conf/hestia.conf"
+source_conf "$ARCPANEL/conf/arcpanel.conf"
 
 # Additional argument formatting
 format_domain
@@ -118,7 +118,7 @@ if [ -n "$ns8" ]; then
 fi
 
 # Perform verification if read-only mode is enabled
-check_hestia_demo_mode
+check_arcpanel_demo_mode
 
 #----------------------------------------------------------#
 #                       Action                             #
@@ -201,11 +201,11 @@ rebuild_dns_domain_conf
 # Updating dns-cluster queue
 if [ "$DNS_CLUSTER" = "yes" ]; then
 	cmd="$BIN/v-add-remote-dns-domain $user $domain yes"
-	echo "$cmd" >> $HESTIA/data/queue/dns-cluster.pipe
+	echo "$cmd" >> $ARCPANEL/data/queue/dns-cluster.pipe
 fi
 
 #----------------------------------------------------------#
-#                       Hestia                             #
+#                         ArcPanel                         #
 #----------------------------------------------------------#
 
 # Increasing domain value

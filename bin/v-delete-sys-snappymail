@@ -7,14 +7,14 @@
 #                Variables & Functions                     #
 #----------------------------------------------------------#
 # Includes
-# shellcheck source=/etc/hestiacp/hestia.conf
-source /etc/hestiacp/hestia.conf
-# shellcheck source=/usr/local/hestia/func/main.sh
-source $HESTIA/func/main.sh
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
 # load config file
-source_conf "$HESTIA/conf/hestia.conf"
+source_conf "$ARCPANEL/conf/arcpanel.conf"
 # upgrade config file
-source "$HESTIA/install/upgrade/upgrade.conf"
+source "$ARCPANEL/install/upgrade/upgrade.conf"
 # Folder paths
 SM_INSTALL_DIR="/var/lib/snappymail"
 SM_LOG="/var/log/snappymail"
@@ -26,11 +26,11 @@ if [ "x$(id -u)" != 'x0' ]; then
 	echo "ERROR: v-delete-sys-snappymail can only be executed by the root user"
 	exit 10
 fi
-# Ensure that $HESTIA (/usr/local/hestia/) and other variables are valid.
-if [ -z "$HESTIA" ]; then
-	HESTIA="/usr/local/hestia"
+# Ensure that $ARCPANEL (/usr/local/arcpanel/) and other variables are valid.
+if [ -z "$ARCPANEL" ]; then
+	ARCPANEL="/usr/local/arcpanel"
 fi
-if [ -z "$HOMEDIR" ] || [ -z "$HESTIA_INSTALL_DIR" ]; then
+if [ -z "$HOMEDIR" ] || [ -z "$ARCPANEL_INSTALL_DIR" ]; then
 	echo "ERROR: Environment variables not present, uninstallation aborted."
 	exit 2
 fi
@@ -46,7 +46,7 @@ else
 	exit 2
 fi
 # Perform verification if read-only mode is enabled
-check_hestia_demo_mode
+check_arcpanel_demo_mode
 #----------------------------------------------------------#
 #                       Action                             #
 #----------------------------------------------------------#
@@ -59,13 +59,13 @@ else
 	mysql -e "DROP DATABASE snappymail" 2>&1
 	mysql -e "DROP USER snappymail@localhost"
 fi
-# Updating hestia.conf
+# Updating arcpanel.conf
 if [ -z "$(echo "$WEBMAIL_SYSTEM" | grep -w 'snappymail')" ]; then
 	# remove snappymail from webmail list and make sure the string doesn't start with a comma
 	$BIN/v-change-sys-config-value 'WEBMAIL_SYSTEM' "$(echo "$WEBMAIL_SYSTEM" | sed "s/snappymail//g" | sed 's/^,//g')"
 fi
 #----------------------------------------------------------#
-#                       Hestia                             #
+#                         ArcPanel                         #
 #----------------------------------------------------------#
 $BIN/v-log-action "system" "Info" "Plugins" "SnappyMail removed (Version: $version)."
 log_event "$OK" "$ARGUMENTS"

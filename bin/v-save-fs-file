@@ -2,7 +2,7 @@
 # info: save the editor content into a file of a user's home (E3)
 # options: USER STAGED_FILE DST_PATH [EXPECTED_HASH]
 #
-# example: v-save-fs-file alice /usr/local/hestia/web-app/storage/app/files/uploads/0123…/file /home/alice/web/example.com/public_html/index.php 9f86d0…
+# example: v-save-fs-file alice /usr/local/arcpanel/web-app/storage/app/files/uploads/0123…/file /home/alice/web/example.com/public_html/index.php 9f86d0…
 #
 # This function writes STAGED_FILE (staged by the panel) into DST_PATH as the
 # user. An existing file must still have the SHA-256 EXPECTED_HASH that
@@ -22,14 +22,14 @@ dst=$3
 expected=$4
 
 # Includes
-# shellcheck source=/etc/hestiacp/hestia.conf
-source /etc/hestiacp/hestia.conf
-# shellcheck source=/usr/local/hestia/func/main.sh
-source $HESTIA/func/main.sh
-# shellcheck source=/usr/local/hestia/func/fs.sh
-source $HESTIA/func/fs.sh
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/fs.sh
+source $ARCPANEL/func/fs.sh
 # load config file
-source_conf "$HESTIA/conf/hestia.conf"
+source_conf "$ARCPANEL/conf/arcpanel.conf"
 
 #----------------------------------------------------------#
 #                    Verifications                         #
@@ -44,7 +44,7 @@ fi
 trap 'rm -f -- "$staged"' EXIT
 
 # Perform verification if read-only mode is enabled
-check_hestia_demo_mode
+check_arcpanel_demo_mode
 
 if [ -n "$expected" ] && ! [[ "$expected" =~ ^[a-f0-9]{64}$ ]]; then
 	check_result "$E_INVALID" "invalid hash $expected"
@@ -117,7 +117,7 @@ fi
 fs_header_json "$staged" "$real"
 
 #----------------------------------------------------------#
-#                       Hestia                             #
+#                         ArcPanel                         #
 #----------------------------------------------------------#
 
 log_event "$OK" "$ARGUMENTS"

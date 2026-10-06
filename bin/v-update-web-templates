@@ -4,7 +4,7 @@
 #
 # example: v-update-web-templates
 #
-# This function for obtaining updated web (Nginx/Apache2/PHP) templates from the Hestia package.
+# This function for obtaining updated web (Nginx/Apache2/PHP) templates from the ArcPanel package.
 
 #----------------------------------------------------------#
 #                Variables & Functions                     #
@@ -15,12 +15,12 @@ restart=$1
 skip=$2
 
 # Includes
-# shellcheck source=/etc/hestiacp/hestia.conf
-source /etc/hestiacp/hestia.conf
-# shellcheck source=/usr/local/hestia/func/main.sh
-source $HESTIA/func/main.sh
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
 # load config file
-source_conf "$HESTIA/conf/hestia.conf"
+source_conf "$ARCPANEL/conf/arcpanel.conf"
 
 #----------------------------------------------------------#
 #                       Action                             #
@@ -29,7 +29,7 @@ source_conf "$HESTIA/conf/hestia.conf"
 is_format_valid 'restart'
 
 # Check if /install/upgrade/manual/install_awstats_geoip.sh has been applied
-awstats_patch=$(cat $HESTIA/data/templates/web/awstats/awstats.tpl | grep "LoadPlugin=\"geoip GEOIP_STANDARD /usr/share/GeoIP/GeoIP.dat\"")
+awstats_patch=$(cat $ARCPANEL/data/templates/web/awstats/awstats.tpl | grep "LoadPlugin=\"geoip GEOIP_STANDARD /usr/share/GeoIP/GeoIP.dat\"")
 
 # Skeleton, Unassinged and Suspended
 if [ "$POLICY_SYNC_SKELETON" != "no" ]; then
@@ -37,7 +37,7 @@ if [ "$POLICY_SYNC_SKELETON" != "no" ]; then
 	rm -rf "${WEBTPL}/suspend" 2> /dev/null
 	rm -rf "${WEBTPL}/unassigned" 2> /dev/null
 
-	for webtpl_folder in $(ls $HESTIA_COMMON_DIR/templates/web/* -d 2> /dev/null); do
+	for webtpl_folder in $(ls $ARCPANEL_COMMON_DIR/templates/web/* -d 2> /dev/null); do
 		cp -rf "${webtpl_folder}" "${WEBTPL}/"
 	done
 fi
@@ -45,10 +45,10 @@ fi
 [ -d "${WEBTPL}/nginx" ] || mkdir -p "${WEBTPL}/nginx"
 
 if [ "$PROXY_SYSTEM" = 'nginx' ] || [ "$WEB_BACKEND" = "php-fpm" ]; then
-	cp -rf "${HESTIA_INSTALL_DIR}/templates/web/nginx" "${WEBTPL}/"
+	cp -rf "${ARCPANEL_INSTALL_DIR}/templates/web/nginx" "${WEBTPL}/"
 fi
 
-for webtpl_folder in $(ls $HESTIA_INSTALL_DIR/templates/web/* -d 2> /dev/null | egrep -v '/(nginx)$'); do
+for webtpl_folder in $(ls $ARCPANEL_INSTALL_DIR/templates/web/* -d 2> /dev/null | egrep -v '/(nginx)$'); do
 	cp -rf "${webtpl_folder}" "${WEBTPL}/"
 done
 
@@ -56,12 +56,12 @@ versions_list=$(ls -d /etc/php/*)
 for php_ver in $versions_list; do
 	version=$(echo $php_ver | sed 's/.*\///')
 	[ ! -d "/etc/php/$version/fpm/pool.d/" ] && continue
-	cp -f $HESTIA_INSTALL_DIR/php-fpm/multiphp.tpl ${WEBTPL}/php-fpm/PHP-${version/\./_}.tpl
+	cp -f $ARCPANEL_INSTALL_DIR/php-fpm/multiphp.tpl ${WEBTPL}/php-fpm/PHP-${version/\./_}.tpl
 done
 
 if [ -n "$awstats_patch" ]; then
 	# restore LoadPlugin variable
-	echo "LoadPlugin=\"geoip GEOIP_STANDARD /usr/share/GeoIP/GeoIP.dat\"" >> $HESTIA/data/templates/web/awstats/awstats.tpl
+	echo "LoadPlugin=\"geoip GEOIP_STANDARD /usr/share/GeoIP/GeoIP.dat\"" >> $ARCPANEL/data/templates/web/awstats/awstats.tpl
 fi
 
 # Rebuilding web domains
@@ -72,7 +72,7 @@ if [ -z "$skip" ]; then
 fi
 
 #----------------------------------------------------------#
-#                       Hestia                             #
+#                         ArcPanel                         #
 #----------------------------------------------------------#
 
 # Restarting web server

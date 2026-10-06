@@ -15,14 +15,14 @@ domain=$1
 user=$2
 
 # Includes
-# shellcheck source=/etc/hestiacp/hestia.conf
-source /etc/hestiacp/hestia.conf
-# shellcheck source=/usr/local/hestia/func/main.sh
-source $HESTIA/func/main.sh
-# shellcheck source=/usr/local/hestia/func/ip.sh
-source $HESTIA/func/ip.sh
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/ip.sh
+source $ARCPANEL/func/ip.sh
 # load config file
-source_conf "$HESTIA/conf/hestia.conf"
+source_conf "$ARCPANEL/conf/arcpanel.conf"
 
 #----------------------------------------------------------#
 #                    Verifications                         #
@@ -42,7 +42,7 @@ if [ "$owner" = "$user" ]; then
 fi
 
 # Perform verification if read-only mode is enabled
-check_hestia_demo_mode
+check_arcpanel_demo_mode
 
 #----------------------------------------------------------#
 #                       Action                             #
@@ -51,7 +51,7 @@ check_hestia_demo_mode
 echo "Moving $domain from $owner to $user, please wait..."
 
 # WEB domain
-web_data=$(grep "DOMAIN='$domain'" $HESTIA/data/users/$owner/web.conf)
+web_data=$(grep "DOMAIN='$domain'" $ARCPANEL/data/users/$owner/web.conf)
 if [ -n "$web_data" ]; then
 	echo "[*] Moving web domain..."
 	$BIN/v-suspend-web-domain "$owner" "$domain" >> /dev/null 2>&1
@@ -94,14 +94,14 @@ if [ -n "$web_data" ]; then
 
 	# Check SSL
 	if [ "$SSL" = 'yes' ]; then
-		ssl_crt=$HESTIA/data/users/$owner/ssl/$domain.crt
-		ssl_key=$HESTIA/data/users/$owner/ssl/$domain.key
-		ssl_ca=$HESTIA/data/users/$owner/ssl/$domain.ca
-		ssl_pem=$HESTIA/data/users/$owner/ssl/$domain.pem
-		cp $ssl_crt $HESTIA/data/users/$user/ssl/
-		cp $ssl_key $HESTIA/data/users/$user/ssl/
-		cp $ssl_ca $HESTIA/data/users/$user/ssl/ >> /dev/null 2>&1
-		cp $ssl_pem $HESTIA/data/users/$user/ssl/ >> /dev/null 2>&1
+		ssl_crt=$ARCPANEL/data/users/$owner/ssl/$domain.crt
+		ssl_key=$ARCPANEL/data/users/$owner/ssl/$domain.key
+		ssl_ca=$ARCPANEL/data/users/$owner/ssl/$domain.ca
+		ssl_pem=$ARCPANEL/data/users/$owner/ssl/$domain.pem
+		cp $ssl_crt $ARCPANEL/data/users/$user/ssl/
+		cp $ssl_key $ARCPANEL/data/users/$user/ssl/
+		cp $ssl_ca $ARCPANEL/data/users/$user/ssl/ >> /dev/null 2>&1
+		cp $ssl_pem $ARCPANEL/data/users/$user/ssl/ >> /dev/null 2>&1
 	fi
 
 	# Check ftp user account
@@ -113,8 +113,8 @@ if [ -n "$web_data" ]; then
 	fi
 
 	# Move config
-	sed -i "/DOMAIN='$domain'/d" $HESTIA/data/users/$owner/web.conf
-	echo "$web_data" >> $HESTIA/data/users/$user/web.conf
+	sed -i "/DOMAIN='$domain'/d" $ARCPANEL/data/users/$owner/web.conf
+	echo "$web_data" >> $ARCPANEL/data/users/$user/web.conf
 
 	# Move data
 	mv $HOMEDIR/$owner/web/$domain $HOMEDIR/$user/web/
@@ -142,7 +142,7 @@ if [ -n "$web_data" ]; then
 fi
 
 # DNS domain
-dns_data=$(grep "DOMAIN='$domain'" $HESTIA/data/users/$owner/dns.conf)
+dns_data=$(grep "DOMAIN='$domain'" $ARCPANEL/data/users/$owner/dns.conf)
 if [ -n "$dns_data" ]; then
 	echo "[*] Moving DNS zone and records..."
 	parse_object_kv_list "$dns_data"
@@ -150,16 +150,16 @@ if [ -n "$dns_data" ]; then
 	# Change IP
 	if [ -n "$ip" ]; then
 		dns_data=$(echo "$dns_data" | sed "s/IP='$IP'/IP='$ip'/")
-		sed -i "s/$IP/$ip/g" $HESTIA/data/users/$owner/dns/$domain.conf
+		sed -i "s/$IP/$ip/g" $ARCPANEL/data/users/$owner/dns/$domain.conf
 	fi
 
 	# Move config
-	sed -i "/DOMAIN='$domain'/d" $HESTIA/data/users/$owner/dns.conf
-	echo "$dns_data" >> $HESTIA/data/users/$user/dns.conf
+	sed -i "/DOMAIN='$domain'/d" $ARCPANEL/data/users/$owner/dns.conf
+	echo "$dns_data" >> $ARCPANEL/data/users/$user/dns.conf
 
 	# Move dns records
-	mv $HESTIA/data/users/$owner/dns/$domain.conf \
-		$HESTIA/data/users/$user/dns/
+	mv $ARCPANEL/data/users/$owner/dns/$domain.conf \
+		$ARCPANEL/data/users/$user/dns/
 
 	# Rebuild config
 	$BIN/v-unsuspend-dns-domain "$user" "$domain" no >> /dev/null 2>&1
@@ -176,7 +176,7 @@ if [ -n "$dns_data" ]; then
 fi
 
 # MAIL domain
-mail_data=$(grep "DOMAIN='$domain'" $HESTIA/data/users/$owner/mail.conf)
+mail_data=$(grep "DOMAIN='$domain'" $ARCPANEL/data/users/$owner/mail.conf)
 if [ -n "$mail_data" ]; then
 	$BIN/v-suspend-mail-domain "$owner" "$domain" >> /dev/null 2>&1
 	echo "[*] Moving mail domain and accounts..."
@@ -189,41 +189,41 @@ if [ -n "$mail_data" ]; then
 	fi
 
 	# Move config
-	sed -i "/DOMAIN='$domain'/d" $HESTIA/data/users/$owner/mail.conf
+	sed -i "/DOMAIN='$domain'/d" $ARCPANEL/data/users/$owner/mail.conf
 	mail_data=$(echo "$mail_data" | sed "s/SUSPENDED='no'/SUSPENDED='yes'/")
-	echo "$mail_data" >> $HESTIA/data/users/$user/mail.conf
-	mv -f $HESTIA/data/users/$owner/mail/$domain.conf \
-		$HESTIA/data/users/$user/mail/
+	echo "$mail_data" >> $ARCPANEL/data/users/$user/mail.conf
+	mv -f $ARCPANEL/data/users/$owner/mail/$domain.conf \
+		$ARCPANEL/data/users/$user/mail/
 
 	# Move DKIM
-	if [ -e "$HESTIA/data/users/$owner/mail/$domain.pem" ]; then
-		mv -f $HESTIA/data/users/$owner/mail/$domain.pem \
-			$HESTIA/data/users/$user/mail/
-		mv -f $HESTIA/data/users/$owner/mail/$domain.pub \
-			$HESTIA/data/users/$user/mail/
+	if [ -e "$ARCPANEL/data/users/$owner/mail/$domain.pem" ]; then
+		mv -f $ARCPANEL/data/users/$owner/mail/$domain.pem \
+			$ARCPANEL/data/users/$user/mail/
+		mv -f $ARCPANEL/data/users/$owner/mail/$domain.pub \
+			$ARCPANEL/data/users/$user/mail/
 	fi
 
 	# Move SSL certificates
 	if [ "$SSL" = 'yes' ]; then
 		# Ensure that SSL directory exists and move certificates
-		mkdir -p $HESTIA/data/users/$user/ssl/
+		mkdir -p $ARCPANEL/data/users/$user/ssl/
 		mkdir -p $HOMEDIR/$user/conf/mail/$domain/ssl/
 
-		ssl_crt=$HESTIA/data/users/$owner/ssl/mail.$domain.crt
-		ssl_key=$HESTIA/data/users/$owner/ssl/mail.$domain.key
-		ssl_ca=$HESTIA/data/users/$owner/ssl/mail.$domain.ca
-		ssl_pem=$HESTIA/data/users/$owner/ssl/mail.$domain.pem
-		mv $ssl_crt $HESTIA/data/users/$user/ssl/
-		mv $ssl_key $HESTIA/data/users/$user/ssl/
-		mv $ssl_ca $HESTIA/data/users/$user/ssl/ >> /dev/null 2>&1
-		mv $ssl_pem $HESTIA/data/users/$user/ssl/ >> /dev/null 2>&1
+		ssl_crt=$ARCPANEL/data/users/$owner/ssl/mail.$domain.crt
+		ssl_key=$ARCPANEL/data/users/$owner/ssl/mail.$domain.key
+		ssl_ca=$ARCPANEL/data/users/$owner/ssl/mail.$domain.ca
+		ssl_pem=$ARCPANEL/data/users/$owner/ssl/mail.$domain.pem
+		mv $ssl_crt $ARCPANEL/data/users/$user/ssl/
+		mv $ssl_key $ARCPANEL/data/users/$user/ssl/
+		mv $ssl_ca $ARCPANEL/data/users/$user/ssl/ >> /dev/null 2>&1
+		mv $ssl_pem $ARCPANEL/data/users/$user/ssl/ >> /dev/null 2>&1
 
 		# Add certificate to user home directory
-		cp -f $HESTIA/data/users/$user/ssl/mail.$domain.crt $HOMEDIR/$user/conf/mail/$domain/ssl/$domain.crt
-		cp -f $HESTIA/data/users/$user/ssl/mail.$domain.key $HOMEDIR/$user/conf/mail/$domain/ssl/$domain.key
-		cp -f $HESTIA/data/users/$user/ssl/mail.$domain.pem $HOMEDIR/$user/conf/mail/$domain/ssl/$domain.pem
-		if [ -e "$HESTIA/data/users/$user/ssl/mail.$domain.ca" ]; then
-			cp -f $HESTIA/data/users/$user/ssl/mail.$domain.ca $HOMEDIR/$user/conf/mail/$domain/ssl/$domain.ca
+		cp -f $ARCPANEL/data/users/$user/ssl/mail.$domain.crt $HOMEDIR/$user/conf/mail/$domain/ssl/$domain.crt
+		cp -f $ARCPANEL/data/users/$user/ssl/mail.$domain.key $HOMEDIR/$user/conf/mail/$domain/ssl/$domain.key
+		cp -f $ARCPANEL/data/users/$user/ssl/mail.$domain.pem $HOMEDIR/$user/conf/mail/$domain/ssl/$domain.pem
+		if [ -e "$ARCPANEL/data/users/$user/ssl/mail.$domain.ca" ]; then
+			cp -f $ARCPANEL/data/users/$user/ssl/mail.$domain.ca $HOMEDIR/$user/conf/mail/$domain/ssl/$domain.ca
 		fi
 
 		# Add domain SSL configuration to dovecot
@@ -248,18 +248,18 @@ if [ -n "$mail_data" ]; then
 
 		# Add domain SSL configuration to exim4
 		# Cleanup symlinks
-		find /usr/local/hestia/ssl/mail -xtype l -delete
+		find /usr/local/arcpanel/ssl/mail -xtype l -delete
 
-		ln -s -f $HOMEDIR/$user/conf/mail/$domain/ssl/$domain.pem /usr/local/hestia/ssl/mail/mail.$domain.crt
-		ln -s -f $HOMEDIR/$user/conf/mail/$domain/ssl/$domain.key /usr/local/hestia/ssl/mail/mail.$domain.key
+		ln -s -f $HOMEDIR/$user/conf/mail/$domain/ssl/$domain.pem /usr/local/arcpanel/ssl/mail/mail.$domain.crt
+		ln -s -f $HOMEDIR/$user/conf/mail/$domain/ssl/$domain.key /usr/local/arcpanel/ssl/mail/mail.$domain.key
 
 		# Set correct permissions on certificates
 		chmod 750 $HOMEDIR/$user/conf/mail/$domain/ssl
 		chown -R $MAIL_USER:mail $HOMEDIR/$user/conf/mail/$domain/ssl
 		chmod 0644 $HOMEDIR/$user/conf/mail/$domain/ssl/*
 		chown -h $user:mail $HOMEDIR/$user/conf/mail/$domain/ssl/*
-		chmod -R 0644 /usr/local/hestia/ssl/mail/*
-		chown -h $user:mail /usr/local/hestia/ssl/mail/*
+		chmod -R 0644 /usr/local/arcpanel/ssl/mail/*
+		chown -h $user:mail /usr/local/arcpanel/ssl/mail/*
 	fi
 
 	# Move data
@@ -290,8 +290,8 @@ if [ -n "$mail_data" ]; then
 	if [ -e "$HOMEDIR/$owner/conf/mail/$domain" ]; then
 		rm -rf "$HOMEDIR/$owner/conf/mail/$domain"
 	fi
-	if [ -e "$HESTIA/data/users/$owner/mail/$domain.conf" ]; then
-		rm -f "$HESTIA/data/users/$owner/mail/$domain.conf"
+	if [ -e "$ARCPANEL/data/users/$owner/mail/$domain.conf" ]; then
+		rm -f "$ARCPANEL/data/users/$owner/mail/$domain.conf"
 	fi
 
 	# Rebuild config
@@ -322,7 +322,7 @@ if [ -n "$web_data" ] || [ -n "$dns_data" ] || [ -n "$mail_data" ]; then
 fi
 
 #----------------------------------------------------------#
-#                       Hestia                             #
+#                         ArcPanel                         #
 #----------------------------------------------------------#
 
 # Logging

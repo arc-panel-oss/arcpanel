@@ -9,12 +9,12 @@
 #----------------------------------------------------------#
 
 # Includes
-# shellcheck source=/etc/hestiacp/hestia.conf
-source /etc/hestiacp/hestia.conf
-# shellcheck source=/usr/local/hestia/func/main.sh
-source $HESTIA/func/main.sh
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
 # load config file
-source_conf "$HESTIA/conf/hestia.conf"
+source_conf "$ARCPANEL/conf/arcpanel.conf"
 
 # Argument definition
 user="$1"
@@ -25,11 +25,11 @@ json_list() {
 	echo -n '{'
 	local quote=''
 	local PERMISSIONS_ARR ACCESS_KEY_ID
-	for key_file in $HESTIA/data/access-keys/*; do
+	for key_file in $ARCPANEL/data/access-keys/*; do
 		key_file="$(basename -- "$key_file")"
 		if [[ "$key_file" =~ ^[[:alnum:]]{20}$ ]]; then
 			USER="$ROOT_USER" SECRET_ACCESS_KEY="" PERMISSIONS="" DATE="" TIME="" COMMENT=""
-			source_conf "$HESTIA/data/access-keys/$key_file"
+			source_conf "$ARCPANEL/data/access-keys/$key_file"
 			if [ "$user" = "$USER" ] || [ -z "$user" ]; then
 				PERMISSIONS_ARR='[]'
 				if [[ -n "$PERMISSIONS" ]]; then
@@ -61,11 +61,11 @@ shell_list() {
 	list="ID\tUSER\tPERMISSIONS\tCOMMENT\tTIME\tDATE\n"
 	list+="--\t------\t----\t-----------\t-------\t----\t----\n"
 
-	for key_file in $HESTIA/data/access-keys/*; do
+	for key_file in $ARCPANEL/data/access-keys/*; do
 		key_file="$(basename -- "$key_file")"
 		if [[ "$key_file" =~ ^[[:alnum:]]{20}$ ]]; then
 			USER="$ROOT_USER" SECRET_ACCESS_KEY="" PERMISSIONS="" DATE="" TIME="" COMMENT=""
-			source_conf "$HESTIA/data/access-keys/$key_file"
+			source_conf "$ARCPANEL/data/access-keys/$key_file"
 			if [ "$user" = "$USER" ] || [ -z "$user" ]; then
 				ACCESS_KEY_ID="$(basename "$key_file")"
 				list+="${ACCESS_KEY_ID}\t${USER}\t${PERMISSIONS:--}\t${COMMENT:--}\t${TIME}\t${DATE}\n"
@@ -87,7 +87,7 @@ case $format in
 esac
 
 #----------------------------------------------------------#
-#                       Hestia                             #
+#                         ArcPanel                         #
 #----------------------------------------------------------#
 
 exit

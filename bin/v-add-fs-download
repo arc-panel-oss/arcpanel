@@ -5,7 +5,7 @@
 # example: v-add-fs-download alice 0123456789abcdef0123456789abcdef /home/alice/web/example.com/public_html
 #
 # This function writes the download ticket TICKET into the panel's staging
-# tree for hestia-nginx to serve: one regular file is copied as read by the
+# tree for arcpanel-nginx to serve: one regular file is copied as read by the
 # user; several paths or a folder are zipped as the user (symlinks stored as
 # links, never followed). All paths of a zip must share one parent folder.
 # Prints {NAME, SIZE, MIME}.
@@ -21,14 +21,14 @@ ticket=$2
 paths=("${@:3}")
 
 # Includes
-# shellcheck source=/etc/hestiacp/hestia.conf
-source /etc/hestiacp/hestia.conf
-# shellcheck source=/usr/local/hestia/func/main.sh
-source $HESTIA/func/main.sh
-# shellcheck source=/usr/local/hestia/func/fs.sh
-source $HESTIA/func/fs.sh
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/fs.sh
+source $ARCPANEL/func/fs.sh
 # load config file
-source_conf "$HESTIA/conf/hestia.conf"
+source_conf "$ARCPANEL/conf/arcpanel.conf"
 
 #----------------------------------------------------------#
 #                    Verifications                         #
@@ -114,7 +114,7 @@ jq -cn --arg name "$name" --argjson size "$(stat -c %s -- "$target")" --arg mime
 	'{NAME: $name, SIZE: $size, MIME: $mime}'
 
 #----------------------------------------------------------#
-#                       Hestia                             #
+#                         ArcPanel                         #
 #----------------------------------------------------------#
 
 exit

@@ -7,7 +7,7 @@
 # Original Version by Pavel Galkin (https://skurudo.ru)
 # https://github.com/skurudo/phpmyadmin-fixer
 #
-# Changed some lines to fit to Hestia Configuration.
+# Changed some lines to fit to ArcPanel Configuration.
 #
 
 PASS=$(gen_pass)
@@ -48,7 +48,7 @@ phpmyadmin_tempdir_conf="/etc/phpmyadmin/conf.d/99-tempdir.php"
 phpmyadmin_tmp="/var/lib/phpmyadmin/tmp"
 
 mkdir -p "$phpmyadmin_tmp"
-chown -R hestiamail:www-data "$phpmyadmin_tmp"
+chown -R arcpanelmail:www-data "$phpmyadmin_tmp"
 echo "<?php" > "$phpmyadmin_tempdir_conf"
 echo "\$cfg['TempDir'] = '$phpmyadmin_tmp';" >> "$phpmyadmin_tempdir_conf"
 
@@ -109,4 +109,4 @@ else
 fi
 
 #MYSQL DB and TABLES ADDITION
-$mysql_server -uroot < "$HESTIA_INSTALL_DIR/phpmyadmin/create_tables.sql"
+$mysql_server -uroot < "$ARCPANEL_INSTALL_DIR/phpmyadmin/create_tables.sql"

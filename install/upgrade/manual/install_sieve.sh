@@ -8,13 +8,13 @@
 #----------------------------------------------------------#
 
 # Includes
-# shellcheck source=/etc/hestiacp/hestia.conf
-source /etc/hestiacp/hestia.conf
-# shellcheck source=/usr/local/hestia/func/main.sh
-source "$HESTIA"/func/main.sh
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source "$ARCPANEL"/func/main.sh
 # load config file
-source_conf "$HESTIA"/conf/hestia.conf
-source_conf "$HESTIA"/install/upgrade/upgrade.conf
+source_conf "$ARCPANEL"/conf/arcpanel.conf
+source_conf "$ARCPANEL"/install/upgrade/upgrade.conf
 remove="$1"
 
 #----------------------------------------------------------#
@@ -57,7 +57,7 @@ if [ "$HAS_DOVECOT_SIEVE_INSTALLED" = "0" ]; then
 		#  20-imap.conf
 		sed -i "s/quota imap_quota/quota imap_quota imap_sieve/g" /etc/dovecot/conf.d/20-imap.conf
 		# replace dovecot-sieve config files
-		cp -f "$HESTIA_COMMON_DIR"/dovecot/2.4/sieve/* /etc/dovecot/conf.d
+		cp -f "$ARCPANEL_COMMON_DIR"/dovecot/2.4/sieve/* /etc/dovecot/conf.d
 	else
 		# dovecot.conf install
 		sed -i "s/namespace/service stats \{\n  unix_listener stats-writer \{\n    group = mail\n    mode = 0660\n    user = dovecot\n  \}\n\}\n\nnamespace/g" /etc/dovecot/dovecot.conf
@@ -69,7 +69,7 @@ if [ "$HAS_DOVECOT_SIEVE_INSTALLED" = "0" ]; then
 		#  20-imap.conf
 		sed -i "s/mail_plugins = quota imap_quota/mail_plugins = quota imap_quota imap_sieve/g" /etc/dovecot/conf.d/20-imap.conf
 		# replace dovecot-sieve config files
-		cp -f "$HESTIA_COMMON_DIR"/dovecot/2.3/sieve/* /etc/dovecot/conf.d
+		cp -f "$ARCPANEL_COMMON_DIR"/dovecot/2.3/sieve/* /etc/dovecot/conf.d
 	fi
 
 	# dovecot default file install
@@ -83,14 +83,14 @@ if [ "$HAS_DOVECOT_SIEVE_INSTALLED" = "0" ]; then
 	# roundcube install
 	mkdir -p "$RC_CONFIG_DIR"/plugins/managesieve
 
-	cp -f "$HESTIA_COMMON_DIR"/roundcube/plugins/config_managesieve.inc.php "$RC_CONFIG_DIR"/plugins/managesieve/config.inc.php
+	cp -f "$ARCPANEL_COMMON_DIR"/roundcube/plugins/config_managesieve.inc.php "$RC_CONFIG_DIR"/plugins/managesieve/config.inc.php
 	ln -s "$RC_CONFIG_DIR"/plugins/managesieve/config.inc.php "$RC_INSTALL_DIR"/plugins/managesieve/config.inc.php
 
 	# permission changes
 	chown -R dovecot:mail /var/log/dovecot.log
 	chmod 660 /var/log/dovecot.log
 
-	chown -R hestiamail:www-data "$RC_CONFIG_DIR"/
+	chown -R arcpanelmail:www-data "$RC_CONFIG_DIR"/
 	chmod 751 -R $RC_CONFIG_DIR
 
 	chmod 644 $RC_CONFIG_DIR/plugins/managesieve/config.inc.php

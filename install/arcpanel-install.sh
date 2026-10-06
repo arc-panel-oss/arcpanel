@@ -2,7 +2,7 @@
 
 # ======================================================== #
 #
-# Hestia Control Panel Installation Routine
+# ArcPanel Control Panel Installation Routine
 # Automatic OS detection wrapper
 # https://arcpanel.top/
 #
@@ -103,12 +103,12 @@ ensure_utf8_locale
 check_wget_curl() {
 	# Check wget
 	if [ -e '/usr/bin/wget' ]; then
-		wget -q https://raw.githubusercontent.com/arc-panel-oss/arcpanel/release/install/hst-install-$type.sh -O hst-install-$type.sh
+		wget -q https://raw.githubusercontent.com/arc-panel-oss/arcpanel/release/install/arcpanel-install-$type.sh -O arcpanel-install-$type.sh
 		if [ "$?" -eq '0' ]; then
-			bash hst-install-$type.sh "$@"
+			bash arcpanel-install-$type.sh "$@"
 			exit
 		else
-			echo "Error: hst-install-$type.sh download failed."
+			echo "Error: arcpanel-install-$type.sh download failed."
 			exit 1
 		fi
 		# fi
@@ -116,12 +116,12 @@ check_wget_curl() {
 
 	# Check curl
 	if [ -e '/usr/bin/curl' ]; then
-		curl -s -O https://raw.githubusercontent.com/arc-panel-oss/arcpanel/release/install/hst-install-$type.sh
+		curl -s -O https://raw.githubusercontent.com/arc-panel-oss/arcpanel/release/install/arcpanel-install-$type.sh
 		if [ "$?" -eq '0' ]; then
-			bash hst-install-$type.sh "$@"
+			bash arcpanel-install-$type.sh "$@"
 			exit
 		else
-			echo "Error: hst-install-$type.sh download failed."
+			echo "Error: arcpanel-install-$type.sh download failed."
 			exit 1
 		fi
 		# fi

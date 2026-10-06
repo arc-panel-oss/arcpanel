@@ -21,12 +21,12 @@ snapshot=$2
 path=$3
 
 # Includes
-# shellcheck source=/etc/hestiacp/hestia.conf
-source /etc/hestiacp/hestia.conf
-# shellcheck source=/usr/local/hestia/func/main.sh
-source $HESTIA/func/main.sh
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
 # load config file
-source_conf "$HESTIA/conf/hestia.conf"
+source_conf "$ARCPANEL/conf/arcpanel.conf"
 
 #----------------------------------------------------------#
 #                    Verifications                         #
@@ -56,20 +56,20 @@ fi
 # One restore of the user at a time (is_backup_scheduled looks for unquoted
 # names only).
 is_backup_scheduled 'restore'
-if [ -e "$HESTIA/data/queue/backup.pipe" ] && grep -q "v-restore-[a-z-]*restic '$user' " "$HESTIA/data/queue/backup.pipe"; then
+if [ -e "$ARCPANEL/data/queue/backup.pipe" ] && grep -q "v-restore-[a-z-]*restic '$user' " "$ARCPANEL/data/queue/backup.pipe"; then
 	check_result "$E_EXISTS" "restore is already scheduled"
 fi
 
 # Perform verification if read-only mode is enabled
-check_hestia_demo_mode
+check_arcpanel_demo_mode
 
-source_conf $HESTIA/conf/restic.conf
+source_conf $ARCPANEL/conf/restic.conf
 
 #----------------------------------------------------------#
 #                       Action                             #
 #----------------------------------------------------------#
 
-log=$HESTIA/log/restore.log
+log=$ARCPANEL/log/restore.log
 
 # The snapshot must exist (as v-schedule-user-restore-restic checks it).
 if ! restic --repo "${REPO%/}/$user" --password-file "$USER_DATA/restic.conf" cat snapshot "$snapshot" > /dev/null 2>&1; then
@@ -79,10 +79,10 @@ fi
 # The queue runs backup.pipe with bash; the line ends with a marker that its
 # own sed call removes once the restore has run.
 marker="arcpanel-restore-file-$(date +%s)-$RANDOM"
-echo "$BIN/v-restore-file-restic '$user' '$snapshot' '$path' 'yes' >> $log 2>&1; sed -i '/$marker\$/d' $HESTIA/data/queue/backup.pipe # $marker" >> "$HESTIA/data/queue/backup.pipe"
+echo "$BIN/v-restore-file-restic '$user' '$snapshot' '$path' 'yes' >> $log 2>&1; sed -i '/$marker\$/d' $ARCPANEL/data/queue/backup.pipe # $marker" >> "$ARCPANEL/data/queue/backup.pipe"
 
 #----------------------------------------------------------#
-#                       Hestia                             #
+#                         ArcPanel                         #
 #----------------------------------------------------------#
 
 # Logging

@@ -14,16 +14,16 @@
 #----------------------------------------------------------#
 
 # Includes
-# shellcheck source=/etc/hestiacp/hestia.conf
-source /etc/hestiacp/hestia.conf
-# shellcheck source=/usr/local/hestia/func/main.sh
-source $HESTIA/func/main.sh
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
 # load config file
-source_conf "$HESTIA/conf/hestia.conf"
+source_conf "$ARCPANEL/conf/arcpanel.conf"
 
-PORTS_DIR="$HESTIA/data/ports"
-CRONTAB="/var/spool/cron/crontabs/hestiaweb"
-CRON_LINE="10 03 * * * sudo /usr/local/hestia/bin/v-check-sys-ports notify"
+PORTS_DIR="$ARCPANEL/data/ports"
+CRONTAB="/var/spool/cron/crontabs/arcpanelweb"
+CRON_LINE="10 03 * * * sudo /usr/local/arcpanel/bin/v-check-sys-ports notify"
 
 #----------------------------------------------------------#
 #                    Verifications                         #
@@ -35,20 +35,20 @@ if [ "$(id -u)" != '0' ]; then
 fi
 
 # Perform verification if read-only mode is enabled
-check_hestia_demo_mode
+check_arcpanel_demo_mode
 
 #----------------------------------------------------------#
 #                       Action                             #
 #----------------------------------------------------------#
 
 # Server range and switch
-if ! grep -q "^PORT_RANGE_START=" "$HESTIA/conf/hestia.conf"; then
+if ! grep -q "^PORT_RANGE_START=" "$ARCPANEL/conf/arcpanel.conf"; then
 	$BIN/v-change-sys-config-value PORT_RANGE_START 30000
 fi
-if ! grep -q "^PORT_RANGE_END=" "$HESTIA/conf/hestia.conf"; then
+if ! grep -q "^PORT_RANGE_END=" "$ARCPANEL/conf/arcpanel.conf"; then
 	$BIN/v-change-sys-config-value PORT_RANGE_END 39999
 fi
-if ! grep -q "^PORT_REGISTRY=" "$HESTIA/conf/hestia.conf"; then
+if ! grep -q "^PORT_REGISTRY=" "$ARCPANEL/conf/arcpanel.conf"; then
 	$BIN/v-change-sys-config-value PORT_REGISTRY yes
 fi
 
@@ -70,12 +70,12 @@ fi
 # file for appending in the sticky crontab directory)
 if [ -f "$CRONTAB" ] && ! grep -q "v-check-sys-ports" "$CRONTAB"; then
 	sed -i -e "\$a$CRON_LINE" "$CRONTAB"
-	chown hestiaweb:hestiaweb "$CRONTAB"
+	chown arcpanelweb:arcpanelweb "$CRONTAB"
 	chmod 600 "$CRONTAB"
 fi
 
 #----------------------------------------------------------#
-#                       Hestia                             #
+#                         ArcPanel                         #
 #----------------------------------------------------------#
 
 log_event "$OK" "$ARGUMENTS"

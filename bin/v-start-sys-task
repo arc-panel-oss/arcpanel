@@ -4,7 +4,7 @@
 #
 # example: v-start-sys-task php 8.3,8.4 -
 # example: v-start-sys-task plugin web-terminal on
-# example: v-start-sys-task hestia-update arcpanel
+# example: v-start-sys-task arcpanel-update arcpanel
 #
 # This function checks a system task and starts v-run-sys-task in a
 # transient systemd unit (arcpanel-sys-task-ID), so the task outlives a
@@ -15,7 +15,7 @@
 #                             or the system default is not removed
 #   plugin NAME on|off        filemanager, web-terminal, quota, cgroups or
 #                             firewall: v-add-sys-NAME or v-delete-sys-NAME
-#   hestia-update [PACKAGE]   v-update-sys-hestia PACKAGE, or every package
+#   arcpanel-update [PACKAGE]   v-update-sys-arcpanel PACKAGE, or every package
 # The state and the output are read with v-list-sys-task.
 
 #----------------------------------------------------------#
@@ -26,14 +26,14 @@
 kind=$1
 
 # Includes
-# shellcheck source=/etc/hestiacp/hestia.conf
-source /etc/hestiacp/hestia.conf
-# shellcheck source=/usr/local/hestia/func/main.sh
-source $HESTIA/func/main.sh
-# shellcheck source=/usr/local/hestia/func/systask.sh
-source $HESTIA/func/systask.sh
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/systask.sh
+source $ARCPANEL/func/systask.sh
 # load config file
-source_conf "$HESTIA/conf/hestia.conf"
+source_conf "$ARCPANEL/conf/arcpanel.conf"
 
 # A comma list of PHP versions, or "-" for none
 php_list() {
@@ -96,22 +96,22 @@ case "$kind" in
 		fi
 		args="$2 $3"
 		;;
-	hestia-update)
+	arcpanel-update)
 		if [ -n "$2" ]; then
 			case "$2" in
-				arcpanel | arcpanel-nginx | arcpanel-php | hestia | hestia-nginx | hestia-php) ;;
+				arcpanel | arcpanel-nginx | arcpanel-php) ;;
 				*) check_result "$E_INVALID" "invalid package :: $2" ;;
 			esac
 		fi
 		args="${2-}"
 		;;
 	*)
-		check_result "$E_INVALID" "invalid task kind :: $kind (php, plugin, hestia-update)"
+		check_result "$E_INVALID" "invalid task kind :: $kind (php, plugin, arcpanel-update)"
 		;;
 esac
 
 # Perform verification if read-only mode is enabled
-check_hestia_demo_mode
+check_arcpanel_demo_mode
 
 #----------------------------------------------------------#
 #                       Action                             #
@@ -133,7 +133,7 @@ st_task_set "ID=$id" "KIND=$kind" "ARGS=$args" STATUS=running PID= UNIT= EXIT= \
 	"START=$(date +'%F %T')" END=
 
 if st_has_systemd; then
-	# A transient unit outside hestia.service: a restart of the panel during
+	# A transient unit outside arcpanel.service: a restart of the panel during
 	# a package update does not stop it
 	unit="arcpanel-sys-task-$id"
 	if ! systemd-run --unit="$unit" --collect --quiet \
@@ -152,7 +152,7 @@ flock -u "$lock"
 echo "$id"
 
 #----------------------------------------------------------#
-#                       Hestia                             #
+#                         ArcPanel                         #
 #----------------------------------------------------------#
 
 $BIN/v-log-action "system" "Info" "System" "System task started (Task: $kind $args)."

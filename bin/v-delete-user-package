@@ -17,16 +17,16 @@
 package=$1
 
 # Includes
-# shellcheck source=/etc/hestiacp/hestia.conf
-source /etc/hestiacp/hestia.conf
-# shellcheck source=/usr/local/hestia/func/main.sh
-source $HESTIA/func/main.sh
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
 # load config file
-source_conf "$HESTIA/conf/hestia.conf"
+source_conf "$ARCPANEL/conf/arcpanel.conf"
 
 # Functions
 is_package_in_use() {
-	check_package=$(grep "PACKAGE='$package" $HESTIA/data/users/*/user.conf | cut -d'/' -f7)
+	check_package=$(grep "PACKAGE='$package" $ARCPANEL/data/users/*/user.conf | cut -d'/' -f7)
 	if [ -n "$check_package" ]; then
 		for user in $check_package; do
 			$BIN/v-change-user-package "$user" 'default'
@@ -44,17 +44,17 @@ is_package_valid
 is_package_in_use
 
 # Perform verification if read-only mode is enabled
-check_hestia_demo_mode
+check_arcpanel_demo_mode
 
 #----------------------------------------------------------#
 #                       Action                             #
 #----------------------------------------------------------#
 
 # Deleting user package
-rm -f "$HESTIA/data/packages/$package.pkg"
+rm -f "$ARCPANEL/data/packages/$package.pkg"
 
 #----------------------------------------------------------#
-#                       Hestia                             #
+#                         ArcPanel                         #
 #----------------------------------------------------------#
 
 $BIN/v-log-action "system" "Info" "System" "Deleted package (Name: $package)."

@@ -3,4 +3,4 @@
 # deleted and give its ports back. Runs before the deletion because the
 # owner is read from tenancy.conf, which goes with the user directory.
 
-"$HESTIA/bin/v-delete-user-ports" "$1"
+"$ARCPANEL/bin/v-delete-user-ports" "$1"

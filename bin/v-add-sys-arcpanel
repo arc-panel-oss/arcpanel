@@ -14,21 +14,19 @@
 #----------------------------------------------------------#
 
 # Includes
-# shellcheck source=/etc/hestiacp/hestia.conf
-source /etc/hestiacp/hestia.conf
-# shellcheck source=/usr/local/hestia/func/main.sh
-source $HESTIA/func/main.sh
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
 # load config file
-source_conf "$HESTIA/conf/hestia.conf"
+source_conf "$ARCPANEL/conf/arcpanel.conf"
 
-APP_DIR="$HESTIA/web-app"
-# /usr/local/hestia/conf is root-only (0750), so the file lives in /etc
+APP_DIR="$ARCPANEL/web-app"
+# /usr/local/arcpanel/conf is root-only (0750), so the file lives in /etc
 ENV_DIR="/etc/arcpanel"
 ENV_FILE="$ENV_DIR/arcpanel.env"
-SUDOERS_SOURCE="$HESTIA/install/common/sudo/arcpanel"
-SUDOERS_FILE="/etc/sudoers.d/arcpanel"
-PHP_BIN="$HESTIA/php/bin/php"
-WEB_USER="hestiaweb"
+PHP_BIN="$ARCPANEL/php/bin/php"
+WEB_USER="arcpanelweb"
 
 #----------------------------------------------------------#
 #                    Verifications                         #
@@ -48,7 +46,7 @@ if [ ! -x "$PHP_BIN" ]; then
 fi
 
 # Perform verification if read-only mode is enabled
-check_hestia_demo_mode
+check_arcpanel_demo_mode
 
 #----------------------------------------------------------#
 #                       Action                             #
@@ -89,16 +87,6 @@ chown "root:$WEB_USER" "$tmp_env"
 chmod 640 "$tmp_env"
 mv -f "$tmp_env" "$ENV_FILE"
 
-# sudo rule for the command path the panel app uses (/usr/local/arcpanel/bin)
-if [ -f "$SUDOERS_SOURCE" ]; then
-	install -m 0440 -o root -g root "$SUDOERS_SOURCE" "$SUDOERS_FILE.new"
-	if command -v visudo > /dev/null 2>&1 && ! visudo -cqf "$SUDOERS_FILE.new" > /dev/null 2>&1; then
-		rm -f "$SUDOERS_FILE.new"
-		check_result "$E_INVALID" "invalid sudoers file $SUDOERS_SOURCE"
-	fi
-	mv -f "$SUDOERS_FILE.new" "$SUDOERS_FILE"
-fi
-
 # Framework caches of the previous version may name service providers that
 # the new vendor/ no longer has (artisan would not boot); they are rebuilt
 # below. dpkg leaves these generated files in place on upgrades.
@@ -106,9 +94,9 @@ rm -f "$APP_DIR"/bootstrap/cache/*.php
 
 # Command allow-list from the installed v-* scripts, and translations from the
 # installed gettext catalogues (both generated, never shipped)
-"$PHP_BIN" "$APP_DIR/artisan" arcpanel:allow-list --bin="$HESTIA/bin" > /dev/null
+"$PHP_BIN" "$APP_DIR/artisan" arcpanel:allow-list --bin="$ARCPANEL/bin" > /dev/null
 check_result $? "panel app allow-list failed"
-"$PHP_BIN" "$APP_DIR/artisan" arcpanel:i18n-import --locale-dir="$HESTIA/lib/locale" > /dev/null
+"$PHP_BIN" "$APP_DIR/artisan" arcpanel:i18n-import --locale-dir="$ARCPANEL/lib/locale" > /dev/null
 check_result $? "panel app translations failed"
 chown -R "$WEB_USER:$WEB_USER" "$APP_DIR/storage" "$APP_DIR/bootstrap/cache"
 
@@ -122,7 +110,7 @@ for cache in config:cache event:cache route:cache view:cache; do
 done
 
 #----------------------------------------------------------#
-#                       Hestia                             #
+#                         ArcPanel                         #
 #----------------------------------------------------------#
 
 $BIN/v-log-action "system" "Info" "System" "Panel app configured."

@@ -5,8 +5,8 @@
 # ArcPanel Node.js app functions: apps bound to web domains, run by a pm2   #
 # daemon of each user under systemd --user (E14)                            #
 #                                                                           #
-#   $HESTIA/data/users/<user>/nodeapps.conf  the app records (one per line) #
-#   $HESTIA/data/users/<user>/pm2.conf       runtime and version of pm2     #
+#   $ARCPANEL/data/users/<user>/nodeapps.conf  the app records (one per line) #
+#   $ARCPANEL/data/users/<user>/pm2.conf       runtime and version of pm2     #
 #   ~/web/<domain>/nodeapp/                  app.conf (copy for backups),   #
 #                                            ecosystem.config.cjs, .env,    #
 #                                            logs/                          #
@@ -17,17 +17,17 @@
 #                                                                           #
 #===========================================================================#
 
-# shellcheck source=/usr/local/hestia/func/node.sh
-source "$HESTIA/func/node.sh"
-# shellcheck source=/usr/local/hestia/func/arc-template.sh
-source "$HESTIA/func/arc-template.sh"
+# shellcheck source=/usr/local/arcpanel/func/node.sh
+source "$ARCPANEL/func/node.sh"
+# shellcheck source=/usr/local/arcpanel/func/arc-template.sh
+source "$ARCPANEL/func/arc-template.sh"
 
 # pm2 release installed when a user has none
 NODEAPP_PM2_VERSION="7.0.4"
 
 NODEAPP_KEYS="DOMAIN NAME START CWD NODE_VERSION PORT INSTANCES MAX_MEMORY TEMPLATE PREV_TPL STATE SUSPENDED TIME DATE"
 NODEAPP_UNIT="arcpanel-pm2"
-NODEAPP_UNIT_SOURCE="$HESTIA/install/common/node/arcpanel-pm2.service"
+NODEAPP_UNIT_SOURCE="$ARCPANEL/install/common/node/arcpanel-pm2.service"
 NODEAPP_DEFAULT_TEMPLATE="nodejs-proxy"
 NODEAPP_DEFAULT_CWD="public_html"
 
@@ -40,7 +40,7 @@ NODEAPP_MAX_MEMORY=8192
 #----------------------------------------------------------#
 
 nodeapp_conf() {
-	echo "$HESTIA/data/users/$1/nodeapps.conf"
+	echo "$ARCPANEL/data/users/$1/nodeapps.conf"
 }
 
 # Serialise the writers of USER's records. Nested commands (hooks, internal
@@ -49,7 +49,7 @@ nodeapp_lock() {
 	if [ "$ARC_NODEAPPS_LOCKED" = "$1" ]; then
 		return 0
 	fi
-	exec {NODEAPP_LOCK_FD}> "$HESTIA/data/users/$1/nodeapps.lock"
+	exec {NODEAPP_LOCK_FD}> "$ARCPANEL/data/users/$1/nodeapps.lock"
 	if ! flock -w 120 "$NODEAPP_LOCK_FD"; then
 		check_result "$E_LA" "the Node.js apps of $1 are locked by another command"
 	fi
@@ -398,7 +398,7 @@ nodeapp_tpl_switch() {
 #----------------------------------------------------------#
 
 nodeapp_pm2_conf() {
-	echo "$HESTIA/data/users/$1/pm2.conf"
+	echo "$ARCPANEL/data/users/$1/pm2.conf"
 }
 
 nodeapp_pm2_runtime() {
@@ -858,7 +858,7 @@ nodeapp_converge() {
 		if nodeapp_should_run "$user" "$domain"; then
 			if [ "$status" != 'online' ] && [ "$status" != 'launching' ]; then
 				nodeapp_launch "$user" "$domain" > /dev/null 2>&1 \
-					|| echo "$(date +'%F %T') Node.js app $domain of $user could not be started" >> "$HESTIA/log/system.log"
+					|| echo "$(date +'%F %T') Node.js app $domain of $user could not be started" >> "$ARCPANEL/log/system.log"
 			fi
 		elif [ "$status" = 'online' ] || [ "$status" = 'launching' ] || [ "$status" = 'errored' ]; then
 			nodeapp_pm2 "$user" stop "$name" > /dev/null 2>&1

@@ -16,12 +16,12 @@ status=$1
 version=$2
 
 # Includes
-# shellcheck source=/etc/hestiacp/hestia.conf
-source /etc/hestiacp/hestia.conf
-# shellcheck source=/usr/local/hestia/func/main.sh
-source $HESTIA/func/main.sh
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
 # load config file
-source_conf "$HESTIA/conf/hestia.conf"
+source_conf "$ARCPANEL/conf/arcpanel.conf"
 
 #----------------------------------------------------------#
 #                Variables & Functions                     #
@@ -30,28 +30,28 @@ source_conf "$HESTIA/conf/hestia.conf"
 check_args '1' "$#" "STATUS" "VERSION"
 is_type_valid "enable,disable,remove" "$status"
 # Perform verification if read-only mode is enabled
-check_hestia_demo_mode
+check_arcpanel_demo_mode
 
 #----------------------------------------------------------#
 #                       Action                             #
 #----------------------------------------------------------#
 
 if [ "$status" = "enable" ]; then
-	if [ ! -f "$HESTIA/lib/api/index.php" ]; then
-		wget -q https://raw.githubusercontent.com/arc-panel-oss/arcpanel/$RELEASE_BRANCH/lib/api/index.php -O $HESTIA/lib/api/index.php
-		if [ ! -s "$HESTIA/lib/api/index.php" ]; then
-			wget -q https://raw.githubusercontent.com/arc-panel-oss/arcpanel/release/lib/api/index.php -O $HESTIA/lib/api/index.php
-			if [ ! -s "$HESTIA/lib/api/index.php" ]; then
+	if [ ! -f "$ARCPANEL/lib/api/index.php" ]; then
+		wget -q https://raw.githubusercontent.com/arc-panel-oss/arcpanel/$RELEASE_BRANCH/lib/api/index.php -O $ARCPANEL/lib/api/index.php
+		if [ ! -s "$ARCPANEL/lib/api/index.php" ]; then
+			wget -q https://raw.githubusercontent.com/arc-panel-oss/arcpanel/release/lib/api/index.php -O $ARCPANEL/lib/api/index.php
+			if [ ! -s "$ARCPANEL/lib/api/index.php" ]; then
 				# Throw error message to user
 				echo "ERROR: API installation failed."
 				# Remove empty file created by wget output
-				rm -f "$HESTIA/lib/api/index.php"
+				rm -f "$ARCPANEL/lib/api/index.php"
 				exit 1
 			fi
 		fi
 	else
-		sed -i 's|die("Error: Disabled");|//die("Error: Disabled");|g' $HESTIA/lib/api/index.php
-		sed -i 's|////|//|g' $HESTIA/lib/api/index.php
+		sed -i 's|die("Error: Disabled");|//die("Error: Disabled");|g' $ARCPANEL/lib/api/index.php
+		sed -i 's|////|//|g' $ARCPANEL/lib/api/index.php
 	fi
 	if [ "$version" = "legacy" ] || [ "$version" = "all" ]; then $BIN/v-change-sys-config-value "API" "yes"; fi
 	if [ "$version" = "api" ] || [ "$version" = "all" ]; then $BIN/v-change-sys-config-value "API_SYSTEM" "1"; fi
@@ -60,21 +60,21 @@ else
 	$BIN/v-change-sys-config-value "API_ALLOWED_IP" ""
 	$BIN/v-change-sys-config-value "API_SYSTEM" "0"
 	if [ "$status" != "remove" ]; then
-		sed -i 's|//die("Error: Disabled");|die("Error: Disabled");|g' $HESTIA/lib/api/index.php
+		sed -i 's|//die("Error: Disabled");|die("Error: Disabled");|g' $ARCPANEL/lib/api/index.php
 	fi
 fi
 
 if [ "$status" = "remove" ]; then
-	if [ ! -f "$HESTIA/lib/api/index.php" ]; then
+	if [ ! -f "$ARCPANEL/lib/api/index.php" ]; then
 		echo "ERROR: API is not installed."
 		exit 1
 	else
-		rm -f "$HESTIA/lib/api/index.php"
+		rm -f "$ARCPANEL/lib/api/index.php"
 	fi
 fi
 
 #----------------------------------------------------------#
-#                       Hestia                             #
+#                         ArcPanel                         #
 #----------------------------------------------------------#
 
 # Logging

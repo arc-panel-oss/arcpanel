@@ -1,4 +1,4 @@
-#!/usr/local/hestia/php/bin/php
+#!/usr/local/arcpanel/php/bin/php
 <?php
 /**
  * Mail wrapper of the commands ($SENDMAIL in func/main.sh):
@@ -28,7 +28,7 @@ require_once __DIR__ . "/vendor/autoload.php";
 
 /** The server configuration, as the 1.x bootstrap read it. */
 function mail_wrapper_config(): array {
-	exec("/usr/bin/sudo /usr/local/hestia/bin/v-list-sys-config json", $output, $code);
+	exec("/usr/bin/sudo /usr/local/arcpanel/bin/v-list-sys-config json", $output, $code);
 	$data = $code === 0 ? json_decode(implode("", $output), true) : null;
 
 	return is_array($data["config"] ?? null) ? $data["config"] : [];

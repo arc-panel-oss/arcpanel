@@ -12,12 +12,12 @@
 # - Importing certificates fails at the moment. Due to format changes of CPanel side
 # - It doesn't update DKIM
 
-# shellcheck source=/usr/local/hestia/func/main.sh
-source $HESTIA/func/main.sh
-# shellcheck source=/etc/hestiacp/hestia.conf
-source /etc/hestiacp/hestia.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
 # load config file
-source_conf "$HESTIA/conf/hestia.conf"
+source_conf "$ARCPANEL/conf/arcpanel.conf"
 
 if [ $# -lt 1 ]; then
 	echo "usage: bash $0 cpanel-backup.tar.gz"
@@ -88,7 +88,7 @@ main_domain1=$(grep main_domain userdata/main | cut -d " " -f2)
 new_user=$(grep "^user:" userdata/${main_domain1} | cut -d " " -f2)
 echo "Get User: $new_user"
 check_sysuser=$(cut -f 1 -d : /etc/passwd | grep "^$new_user$")
-if [ -n "$check_sysuser" ] || [ -e "$HESTIA/data/users/$new_user" ]; then
+if [ -n "$check_sysuser" ] || [ -e "$ARCPANEL/data/users/$new_user" ]; then
 	check_result "$E_EXISTS" "user $new_user exists"
 	echo "User allready exists"
 	exit 2
@@ -96,22 +96,22 @@ fi
 
 # Extract cPanel package name
 cpanel_package_name=$(cat ./cp/$new_user | grep 'PLAN=' | cut -f2 -d'=')
-if /usr/local/hestia/bin/v-list-user-packages | grep -qw "$cpanel_package_name"; then
-	hestia_package="$cpanel_package_name"
-	echo "Package $hestia_package will be used for the user."
+if /usr/local/arcpanel/bin/v-list-user-packages | grep -qw "$cpanel_package_name"; then
+	arcpanel_package="$cpanel_package_name"
+	echo "Package $arcpanel_package will be used for the user."
 else
-	hestia_package="default" # Replace "default" with your default Hestia package name
-	echo "Default package $hestia_package will be used for the user."
+	arcpanel_package="default" # Replace "default" with your default ArcPanel package name
+	echo "Default package $arcpanel_package will be used for the user."
 fi
 
 # Create a new user
 tmp_passwd=$(generate_password)
 email=$(cat ./cp/$new_user | grep CONTACTEMAIL= | cut -f2 -d'=')
 if [ -z "$email" ]; then
-	# Hestia does not like email to be set to an empty string
+	# ArcPanel does not like email to be set to an empty string
 	email="info@"$(hostname)
 fi
-$BIN/v-add-user "$new_user" "$tmp_passwd" "$email" "$hestia_package"
+$BIN/v-add-user "$new_user" "$tmp_passwd" "$email" "$arcpanel_package"
 if [ "$?" -ne 0 ]; then
 	echo "Unable to create user"
 	exit 1
@@ -158,14 +158,14 @@ cat uni_u_db | while read db userdb; do
 		# default cpanel user has all database privileges
 		# if you use default user in your config files to connect with database
 		# you will need remove && [ "$userdb" != "$sk_cp_user" ] to restore main user, but
-		# this will cause database duplication in db.conf and will interfer with hestiacp backups
+		# this will cause database duplication in db.conf and will interfer with arcpanel backups
 		if [ "$userdb" == "$user" ] && [ "$userdb" != "$new_user" ]; then
-			echo "DB='$db' DBUSER='$userdb' MD5='$end_user_pass' HOST='localhost' TYPE='mysql' CHARSET='UTF8' U_DISK='0' SUSPENDED='no' TIME='$time' DATE='$data'" >> /usr/local/hestia/data/users/$new_user/db.conf
+			echo "DB='$db' DBUSER='$userdb' MD5='$end_user_pass' HOST='localhost' TYPE='mysql' CHARSET='UTF8' U_DISK='0' SUSPENDED='no' TIME='$time' DATE='$data'" >> /usr/local/arcpanel/data/users/$new_user/db.conf
 		fi
 	done
 done
 
-# Leave hestia restore passwords and create users
+# Leave arcpanel restore passwords and create users
 tput setaf 2
 echo "Rebuild databases files for $new_user"
 tput sgr0
@@ -175,17 +175,17 @@ $BIN/v-rebuild-databases $new_user
 addon_domains=$(cat addons | cut -d "=" -f1)
 sed -i 's/_/./g; s/=/ /g' addons
 echo "Converting addons domains, subdomains and some other fun"
-cp sds hst_sds
-cp sds2 hst_sds2
-sed -i 's/_/./g' hst_sds
+cp sds arc_sds
+cp sds2 arc_sds2
+sed -i 's/_/./g' arc_sds
 cat addons | while read addon_domain addon_sub; do
 	echo "Converting default subdomain: $addon_sub in domain: $addon_domain"
-	sed -i -e "s/$addon_sub/$addon_domain/g" hst_sds
-	sed -i -e "s/$addon_sub/$addon_domain/g" hst_sds2
+	sed -i -e "s/$addon_sub/$addon_domain/g" arc_sds
+	sed -i -e "s/$addon_sub/$addon_domain/g" arc_sds2
 	mv userdata/$addon_sub userdata/${addon_domain}
 	mv apache_tls/$addon_sub apache_tls/${addon_domain}
 done
-sed -i 's/public_html/public@html/g; s/_/./g; s/public@html/public_html/g; s/=/ /g' hst_sds2
+sed -i 's/public_html/public@html/g; s/_/./g; s/public@html/public_html/g; s/=/ /g' arc_sds2
 
 tput setaf 2
 echo "Start restoring domains"
@@ -214,7 +214,7 @@ function get_domain_path() {
 		fi
 	done
 }
-get_domain_path < hst_sds2
+get_domain_path < arc_sds2
 
 echo $main_domain1
 $BIN/v-add-domain $new_user $main_domain1
@@ -246,21 +246,21 @@ PHP_VERSION_LINE=$(grep -r "phpversion:" userdata/$main_domain1)
 CPANEL_PHP_VERSION=${PHP_VERSION_LINE#*: }
 if [ -n "$CPANEL_PHP_VERSION" ]; then
 	CPANEL_PHP_VERSION=$(echo $CPANEL_PHP_VERSION | grep -oP '(?<=php)\d+')
-	HESTIA_PHP_VERSION="PHP-${CPANEL_PHP_VERSION:0:1}_${CPANEL_PHP_VERSION:1}"
+	ARCPANEL_PHP_VERSION="PHP-${CPANEL_PHP_VERSION:0:1}_${CPANEL_PHP_VERSION:1}"
 
-	if $BIN/v-list-web-templates-backend | grep -qw "$HESTIA_PHP_VERSION"; then
-		echo "Setting PHP version to $HESTIA_PHP_VERSION for $main_domain1 under user $new_user"
-		$BIN/v-change-web-domain-backend-tpl $new_user $main_domain1 $HESTIA_PHP_VERSION
+	if $BIN/v-list-web-templates-backend | grep -qw "$ARCPANEL_PHP_VERSION"; then
+		echo "Setting PHP version to $ARCPANEL_PHP_VERSION for $main_domain1 under user $new_user"
+		$BIN/v-change-web-domain-backend-tpl $new_user $main_domain1 $ARCPANEL_PHP_VERSION
 		if [ $? -ne 0 ]; then
 			tput setaf 1
 			echo "ERROR!! Failed to set same PHP version for $main_domain1 setting default, please check this to avoid errors."
 			tput sgr0
 		else
-			echo "PHP version for $main_domain1 set to $HESTIA_PHP_VERSION"
+			echo "PHP version for $main_domain1 set to $ARCPANEL_PHP_VERSION"
 		fi
 	else
 		tput setaf 1
-		echo "PHP version $HESTIA_PHP_VERSION is not installed on ArcPanel."
+		echo "PHP version $ARCPANEL_PHP_VERSION is not installed on ArcPanel."
 		echo "Please install and set it to avoid errors in website."
 		echo "The restoration will continue but the website may not work as expected"
 		tput sgr0
@@ -376,7 +376,7 @@ for folder in *; do
 						escaped=$(printf '%s\n' "$newline" | sed -e 's/[\/&]/\\&/g')
 						escaped2=$(printf '%s\n' "$newline2" | sed -e 's/[\/&]/\\&/g')
 						sed -i "s/^${mail_account}:.*/$escaped/g" /home/${new_user}/conf/mail/${folder}/passwd
-						sed -i "s/^ACCOUNT='${mail_account}.*/$escaped2/g" /usr/local/hestia/data/users/${new_user}/mail/${folder}.conf
+						sed -i "s/^ACCOUNT='${mail_account}.*/$escaped2/g" /usr/local/arcpanel/data/users/${new_user}/mail/${folder}.conf
 					else
 						echo "Warning: Password for $mail_account@$folder not found in shadow file."
 					fi
@@ -394,7 +394,7 @@ if [ "$mx" = 'yes' ]; then
 	cd $main_dir/dnszones
 	for domain in $($BIN/v-list-mail-domains $new_user plain | awk '{ print  $1 }'); do
 		echo "Replace MX record for $domain"
-		mx_id=$(grep MX $HESTIA/data/users/${new_user}/dns/${domain}.conf | tr "'" " " | cut -d " " -f 2)
+		mx_id=$(grep MX $ARCPANEL/data/users/${new_user}/dns/${domain}.conf | tr "'" " " | cut -d " " -f 2)
 		$BIN/v-delete-dns-record $new_user $domain $mx_id
 		grep MX ${domain}.db | awk '{for(sk=NF;sk>=1;sk--) printf "%s ", $sk;print ""}' | while read value pri ns rest; do
 			if [ "$ns" = "MX" ]; then
@@ -430,12 +430,12 @@ if [ -f "$CRON_FILE" ] && [ -s "$CRON_FILE" ]; then
 		month=$(echo "$cron_job" | awk '{print $4}')
 		dow=$(echo "$cron_job" | awk '{print $5}')
 		cmd=$(echo "$cron_job" | awk '{for (i=6; i<=NF; i++) printf $i " "; print ""}')
-		#This try fix PHP crons converting cpanel paths to hestia paths
+		#This try fix PHP crons converting cpanel paths to arcpanel paths
 		if [[ $cmd =~ "ea-php" ]]; then
 			EAPHP=$(echo $cmd | awk '{ print $1 }')
 			# /opt/cpanel/ea-php70/root/bin/php
 			# /usr/local/bin/ea-php70
-			# default hestia /usr/bin/php
+			# default arcpanel /usr/bin/php
 			DEFAULT_PHP="/usr/bin/php"
 			vPHP="ea-php71 ea-php72 ea-php73 ea-php74 ea-php80 ea-php81 ea-php82 ea-php83"
 			EAOPT="opt/cpanel/ea-php"

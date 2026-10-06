@@ -4,19 +4,19 @@
 #
 # example: v-revoke-api-key mykey
 #
-# This function removes a key from in $HESTIA/data/keys/
+# This function removes a key from in $ARCPANEL/data/keys/
 
 #----------------------------------------------------------#
 #                Variables & Functions                     #
 #----------------------------------------------------------#
 
 # Includes
-# shellcheck source=/etc/hestiacp/hestia.conf
-source /etc/hestiacp/hestia.conf
-# shellcheck source=/usr/local/hestia/func/main.sh
-source $HESTIA/func/main.sh
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
 # load config file
-source_conf "$HESTIA/conf/hestia.conf"
+source_conf "$ARCPANEL/conf/arcpanel.conf"
 
 #----------------------------------------------------------#
 #                Variables & Functions                     #
@@ -29,24 +29,24 @@ check_args '1' "$#" "$args_usage"
 is_format_valid 'hash'
 
 # Perform verification if read-only mode is enabled
-check_hestia_demo_mode
+check_arcpanel_demo_mode
 
 #----------------------------------------------------------#
 #                       Action                             #
 #----------------------------------------------------------#
 
-if [ ! -d "$HESTIA/data/keys/" ]; then
+if [ ! -d "$ARCPANEL/data/keys/" ]; then
 	exit "$E_NOTEXIST"
 fi
 
-if [[ -e "$HESTIA/data/keys/$hash" ]]; then
-	rm $HESTIA/data/keys/$hash
+if [[ -e "$ARCPANEL/data/keys/$hash" ]]; then
+	rm $ARCPANEL/data/keys/$hash
 else
 	exit "$E_NOTEXIST"
 fi
 
 #----------------------------------------------------------#
-#                       Hestia                             #
+#                         ArcPanel                         #
 #----------------------------------------------------------#
 
 # Logging

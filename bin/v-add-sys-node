@@ -9,7 +9,7 @@
 # the daily refresh of the index and the "developer" package, plus the
 # 5-minute v-check-sys-node repair job of Node.js apps (E14). It is safe to
 # run again and keeps packages an administrator has changed.
-# NODE_RELEASES_URL, NODE_SCHEDULE_URL and NODE_NVM_URL in hestia.conf
+# NODE_RELEASES_URL, NODE_SCHEDULE_URL and NODE_NVM_URL in arcpanel.conf
 # override the download locations (mirrors, tests).
 
 #----------------------------------------------------------#
@@ -17,21 +17,21 @@
 #----------------------------------------------------------#
 
 # Includes
-# shellcheck source=/etc/hestiacp/hestia.conf
-source /etc/hestiacp/hestia.conf
-# shellcheck source=/usr/local/hestia/func/main.sh
-source $HESTIA/func/main.sh
-# shellcheck source=/usr/local/hestia/func/tenancy.sh
-source $HESTIA/func/tenancy.sh
-# shellcheck source=/usr/local/hestia/func/node.sh
-source $HESTIA/func/node.sh
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/tenancy.sh
+source $ARCPANEL/func/tenancy.sh
+# shellcheck source=/usr/local/arcpanel/func/node.sh
+source $ARCPANEL/func/node.sh
 # load config file
-source_conf "$HESTIA/conf/hestia.conf"
+source_conf "$ARCPANEL/conf/arcpanel.conf"
 
-COMMON_PACKAGES="$HESTIA/install/common/packages"
-CRONTAB="/var/spool/cron/crontabs/hestiaweb"
-CRON_LINE="25 04 * * * sudo /usr/local/hestia/bin/v-update-sys-node-releases"
-CHECK_LINE="*/5 * * * * sudo /usr/local/hestia/bin/v-check-sys-node repair > /dev/null 2>&1"
+COMMON_PACKAGES="$ARCPANEL/install/common/packages"
+CRONTAB="/var/spool/cron/crontabs/arcpanelweb"
+CRON_LINE="25 04 * * * sudo /usr/local/arcpanel/bin/v-update-sys-node-releases"
+CHECK_LINE="*/5 * * * * sudo /usr/local/arcpanel/bin/v-check-sys-node repair > /dev/null 2>&1"
 
 #----------------------------------------------------------#
 #                    Verifications                         #
@@ -43,7 +43,7 @@ if [ "$(id -u)" != '0' ]; then
 fi
 
 # Perform verification if read-only mode is enabled
-check_hestia_demo_mode
+check_arcpanel_demo_mode
 
 #----------------------------------------------------------#
 #                       Action                             #
@@ -61,18 +61,18 @@ if [ ! -s "$NODE_CACHE/index.json" ]; then
 fi
 
 # Developer package
-if [ ! -f "$HESTIA/data/packages/developer.pkg" ] && [ -f "$COMMON_PACKAGES/developer.pkg" ]; then
-	install -m 644 "$COMMON_PACKAGES/developer.pkg" "$HESTIA/data/packages/developer.pkg"
-	install -m 644 "$COMMON_PACKAGES/developer.tenancy" "$HESTIA/data/packages/developer.tenancy"
-	sed -i 's/\r$//' "$HESTIA/data/packages/developer.pkg" "$HESTIA/data/packages/developer.tenancy"
+if [ ! -f "$ARCPANEL/data/packages/developer.pkg" ] && [ -f "$COMMON_PACKAGES/developer.pkg" ]; then
+	install -m 644 "$COMMON_PACKAGES/developer.pkg" "$ARCPANEL/data/packages/developer.pkg"
+	install -m 644 "$COMMON_PACKAGES/developer.tenancy" "$ARCPANEL/data/packages/developer.tenancy"
+	sed -i 's/\r$//' "$ARCPANEL/data/packages/developer.pkg" "$ARCPANEL/data/packages/developer.tenancy"
 	# Same nameservers as the default package
-	ns=$(grep -m1 "^NS=" "$HESTIA/data/packages/default.pkg" 2> /dev/null)
+	ns=$(grep -m1 "^NS=" "$ARCPANEL/data/packages/default.pkg" 2> /dev/null)
 	if [ -n "$ns" ]; then
-		sed -i "s/^NS=.*/$ns/" "$HESTIA/data/packages/developer.pkg"
+		sed -i "s/^NS=.*/$ns/" "$ARCPANEL/data/packages/developer.pkg"
 	fi
 fi
 # Node.js apps of the developer package (E14), for servers set up before it
-if [ -f "$HESTIA/data/packages/developer.tenancy" ] && ! grep -q "^NODE_APPS=" "$HESTIA/data/packages/developer.tenancy"; then
+if [ -f "$ARCPANEL/data/packages/developer.tenancy" ] && ! grep -q "^NODE_APPS=" "$ARCPANEL/data/packages/developer.tenancy"; then
 	tenancy_pkg_set developer NODE_APPS 10
 fi
 
@@ -81,19 +81,19 @@ fi
 # file for appending in the sticky crontab directory)
 if [ -f "$CRONTAB" ] && ! grep -q "v-update-sys-node-releases" "$CRONTAB"; then
 	sed -i -e "\$a$CRON_LINE" "$CRONTAB"
-	chown hestiaweb:hestiaweb "$CRONTAB"
+	chown arcpanelweb:arcpanelweb "$CRONTAB"
 	chmod 600 "$CRONTAB"
 fi
 
 # Node.js apps (E14): converge the daemons and apps every 5 minutes
 if [ -f "$CRONTAB" ] && ! grep -q "v-check-sys-node" "$CRONTAB"; then
 	sed -i -e "\$a$CHECK_LINE" "$CRONTAB"
-	chown hestiaweb:hestiaweb "$CRONTAB"
+	chown arcpanelweb:arcpanelweb "$CRONTAB"
 	chmod 600 "$CRONTAB"
 fi
 
 #----------------------------------------------------------#
-#                       Hestia                             #
+#                         ArcPanel                         #
 #----------------------------------------------------------#
 
 log_event "$OK" "$ARGUMENTS"

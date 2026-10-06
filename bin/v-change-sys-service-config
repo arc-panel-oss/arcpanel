@@ -16,12 +16,12 @@ service=$2
 restart=$3
 
 # Includes
-# shellcheck source=/etc/hestiacp/hestia.conf
-source /etc/hestiacp/hestia.conf
-# shellcheck source=/usr/local/hestia/func/main.sh
-source $HESTIA/func/main.sh
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
 # load config file
-source_conf "$HESTIA/conf/hestia.conf"
+source_conf "$ARCPANEL/conf/arcpanel.conf"
 
 #----------------------------------------------------------#
 #                    Verifications                         #
@@ -35,7 +35,7 @@ if [ ! -e "$src" ]; then
 fi
 
 # Perform verification if read-only mode is enabled
-check_hestia_demo_mode
+check_arcpanel_demo_mode
 
 #----------------------------------------------------------#
 #                       Action                             #
@@ -73,7 +73,7 @@ case $service in
 	clamd) dst=$($BIN/v-list-sys-clamd-config plain) ;;
 	fail2ban) dst='/etc/fail2ban/jail.local' ;;
 	ssh) dst='/etc/ssh/sshd_config' ;;
-	hestiaweb) dst='/var/spool/cron/crontabs/hestiaweb' ;;
+	arcpanelweb) dst='/var/spool/cron/crontabs/arcpanelweb' ;;
 	*) check_result $E_NOTEXIST "service $service doesn't exist" ;;
 esac
 
@@ -109,7 +109,7 @@ if [ "$update" = 'yes' ] && [ "$restart" != 'no' ]; then
 		fi
 	fi
 
-	if [[ "$service" != "hestiaweb" ]]; then
+	if [[ "$service" != "arcpanelweb" ]]; then
 		$BIN/v-restart-service "$service" > /dev/null 2>&1
 		if [ $? -ne 0 ]; then
 			for config in $dst; do
@@ -124,7 +124,7 @@ if [ "$update" = 'yes' ] && [ "$restart" != 'no' ]; then
 fi
 
 #----------------------------------------------------------#
-#                       Hestia                             #
+#                         ArcPanel                         #
 #----------------------------------------------------------#
 
 # Logging

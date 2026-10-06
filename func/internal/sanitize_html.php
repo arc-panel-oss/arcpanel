@@ -10,7 +10,7 @@ if (isset($argv[1])) {
 		->allowSafeElements() // sane default allowlist
 		->allowRelativeLinks()
 		->forceHttpsUrls()
-		// Hestia's own notifications style headings/labels via this class
+		// ArcPanel's own notifications style headings/labels via this class
 		->allowAttribute("class", ["p", "span"]);
 
 	echo (new HtmlSanitizer($config))->sanitize($html);

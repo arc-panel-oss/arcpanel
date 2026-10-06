@@ -14,18 +14,18 @@
 user=$1
 
 # Includes
-# shellcheck source=/etc/hestiacp/hestia.conf
-source /etc/hestiacp/hestia.conf
-# shellcheck source=/usr/local/hestia/func/main.sh
-source $HESTIA/func/main.sh
-# shellcheck source=/usr/local/hestia/func/domain.sh
-source $HESTIA/func/domain.sh
-# shellcheck source=/usr/local/hestia/func/db.sh
-source $HESTIA/func/db.sh
-# shellcheck source=/usr/local/hestia/func/backup.sh
-source $HESTIA/func/backup.sh
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/domain.sh
+source $ARCPANEL/func/domain.sh
+# shellcheck source=/usr/local/arcpanel/func/db.sh
+source $ARCPANEL/func/db.sh
+# shellcheck source=/usr/local/arcpanel/func/backup.sh
+source $ARCPANEL/func/backup.sh
 # load config file
-source_conf "$HESTIA/conf/hestia.conf"
+source_conf "$ARCPANEL/conf/arcpanel.conf"
 
 #----------------------------------------------------------#
 #                    Verifications                         #
@@ -37,7 +37,7 @@ is_object_valid 'user' 'USER' "$user"
 is_object_unsuspended 'user' 'USER' "$user"
 
 # Perform verification if read-only mode is enabled
-check_hestia_demo_mode
+check_arcpanel_demo_mode
 
 #----------------------------------------------------------#
 #                       Action                             #
@@ -54,25 +54,25 @@ mkdir -p "$tmpdir"
 
 # Backup sys configs
 echo "-- SYSTEM --" | tee $BACKUP/$user.log
-mkdir -p $tmpdir/hestia
+mkdir -p $tmpdir/arcpanel
 
 echo -e "$(date "+%F %T") $user.conf" | tee -a $BACKUP/$user.log
-cp -r $USER_DATA/user.conf $tmpdir/hestia/
-cp -r $USER_DATA/ssl $tmpdir/hestia/
+cp -r $USER_DATA/user.conf $tmpdir/arcpanel/
+cp -r $USER_DATA/ssl $tmpdir/arcpanel/
 
 if [ -e "$USER_DATA/stats.log" ]; then
 	echo -e "$(date "+%F %T") stats.log" | tee -a $BACKUP/$user.log
-	cp -r $USER_DATA/stats.log $tmpdir/hestia/
+	cp -r $USER_DATA/stats.log $tmpdir/arcpanel/
 fi
 
 if [ -e "$USER_DATA/history.log" ]; then
 	echo -e "$(date "+%F %T") history.log" | tee -a $BACKUP/$user.log
-	cp -r $USER_DATA/history.log $tmpdir/hestia/
+	cp -r $USER_DATA/history.log $tmpdir/arcpanel/
 fi
 
 if [ -e "$USER_DATA/backup-excludes.conf" ]; then
 	echo -e "$(date "+%F %T") backup-excludes.conf" | tee -a $BACKUP/$user.log
-	cp -r $USER_DATA/backup-excludes.conf $tmpdir/hestia/
+	cp -r $USER_DATA/backup-excludes.conf $tmpdir/arcpanel/
 fi
 
 # Backup PAM
@@ -112,7 +112,7 @@ if [ -n "$WEB_SYSTEM" ] && [ "$WEB" != '*' ]; then
 		((i++))
 		echo -e "$(date "+%F %T") $domain" | tee -a $BACKUP/$user.log
 		mkdir -p -p $tmpdir/web/$domain/conf
-		mkdir -p -p $tmpdir/web/$domain/hestia
+		mkdir -p -p $tmpdir/web/$domain/arcpanel
 
 		# Get domain variables
 		domain_idn=$domain
@@ -122,7 +122,7 @@ if [ -n "$WEB_SYSTEM" ] && [ "$WEB" != '*' ]; then
 		# Backup web.conf
 		cd $tmpdir/web/$domain/
 		conf="$USER_DATA/web.conf"
-		grep "DOMAIN='$domain'" $conf > hestia/web.conf
+		grep "DOMAIN='$domain'" $conf > arcpanel/web.conf
 
 		# Backup vhost config
 		if [ -e "$HOMEDIR/$user/conf/web/$domain/$WEB_SYSTEM.conf" ]; then
@@ -189,23 +189,23 @@ if [ -n "$WEB_SYSTEM" ] && [ "$WEB" != '*' ]; then
 		mkdir -p template/php-fpm/
 
 		if [ $WEB_BACKEND == 'php-fpm' ]; then
-			cp $HESTIA/data/templates/web/$WEB_SYSTEM/php-fpm/$TPL.tpl template/$WEB_SYSTEM/
-			cp $HESTIA/data/templates/web/$WEB_SYSTEM/php-fpm/$TPL.stpl template/$WEB_SYSTEM/
-			cp $HESTIA/data/templates/web/php-fpm/$BACKEND.tpl template/php-fpm/
+			cp $ARCPANEL/data/templates/web/$WEB_SYSTEM/php-fpm/$TPL.tpl template/$WEB_SYSTEM/
+			cp $ARCPANEL/data/templates/web/$WEB_SYSTEM/php-fpm/$TPL.stpl template/$WEB_SYSTEM/
+			cp $ARCPANEL/data/templates/web/php-fpm/$BACKEND.tpl template/php-fpm/
 		else
-			cp $HESTIA/data/templates/web/$WEB_SYSTEM/$TPL.tpl template/$WEB_SYSTEM/
-			cp $HESTIA/data/templates/web/$WEB_SYSTEM/$TPL.stpl template/$WEB_SYSTEM/
+			cp $ARCPANEL/data/templates/web/$WEB_SYSTEM/$TPL.tpl template/$WEB_SYSTEM/
+			cp $ARCPANEL/data/templates/web/$WEB_SYSTEM/$TPL.stpl template/$WEB_SYSTEM/
 		fi
 		if [ -n "$PROXY_SYSTEM" ] && [ -n "$PROXY" ]; then
 			mkdir -p template/$PROXY_SYSTEM
-			cp $HESTIA/data/templates/web/$PROXY_SYSTEM/$PROXY.tpl template/$PROXY_SYSTEM/
-			cp $HESTIA/data/templates/web/$PROXY_SYSTEM/$PROXY.stpl template/$PROXY_SYSTEM/
+			cp $ARCPANEL/data/templates/web/$PROXY_SYSTEM/$PROXY.tpl template/$PROXY_SYSTEM/
+			cp $ARCPANEL/data/templates/web/$PROXY_SYSTEM/$PROXY.stpl template/$PROXY_SYSTEM/
 		fi
 
 		# Backup ssl certificates
 		if [ "$SSL" = 'yes' ]; then
 			cp $HOMEDIR/$user/conf/web/$domain/ssl/$domain.* conf/
-			cp $USER_DATA/ssl/$domain.* hestia/
+			cp $USER_DATA/ssl/$domain.* arcpanel/
 		fi
 	done
 
@@ -242,15 +242,15 @@ if [ -n "$DNS_SYSTEM" ] && [ "$DNS" != '*' ]; then
 		# Building directory tree
 		mkdir -p $tmpdir/dns/$domain/conf
 		mkdir -p $tmpdir/dns/$domain/conf/keys
-		mkdir -p $tmpdir/dns/$domain/hestia
+		mkdir -p $tmpdir/dns/$domain/arcpanel
 
 		# Backup dns.conf
 		cd $tmpdir/dns/$domain/
 		conf="$USER_DATA/dns.conf"
-		grep "DOMAIN='$domain'" $conf > hestia/dns.conf
+		grep "DOMAIN='$domain'" $conf > arcpanel/dns.conf
 
 		# Backup dns recods
-		cp $USER_DATA/dns/$domain.conf hestia/$domain.conf
+		cp $USER_DATA/dns/$domain.conf arcpanel/$domain.conf
 		if [ "$DNS_SYSTEM" != 'remote' ]; then
 			cp $HOMEDIR/$user/conf/dns/$domain.db conf/$domain.db
 		fi
@@ -293,7 +293,7 @@ if [ -n "$MAIL_SYSTEM" ] && [ "$MAIL" != '*' ]; then
 		((i++))
 		echo -e "$(date "+%F %T") $domain" | tee -a $BACKUP/$user.log
 		mkdir -p $tmpdir/mail/$domain/conf
-		mkdir -p $tmpdir/mail/$domain/hestia
+		mkdir -p $tmpdir/mail/$domain/arcpanel
 		domain_idn=$domain
 		format_domain_idn
 
@@ -305,10 +305,10 @@ if [ -n "$MAIL_SYSTEM" ] && [ "$MAIL" != '*' ]; then
 
 		# Backup mail.conf
 		conf="$USER_DATA/mail.conf"
-		grep "DOMAIN='$domain'" $conf > hestia/mail.conf
-		cp $USER_DATA/mail/$domain.* hestia/
+		grep "DOMAIN='$domain'" $conf > arcpanel/mail.conf
+		cp $USER_DATA/mail/$domain.* arcpanel/
 		if [ -n "$(ls $USER_DATA/mail/ | grep *@$domain)" ]; then
-			cp $USER_DATA/mail/*@$domain.* hestia/
+			cp $USER_DATA/mail/*@$domain.* arcpanel/
 		fi
 	done
 
@@ -346,10 +346,10 @@ if [ -n "$DB_SYSTEM" ] && [ "$DB" != '*' ]; then
 
 		echo -e "$(date "+%F %T") $database ($TYPE)" | tee -a $BACKUP/$user.log
 		mkdir -p $tmpdir/db/$database/conf
-		mkdir -p $tmpdir/db/$database/hestia
+		mkdir -p $tmpdir/db/$database/arcpanel
 
 		cd $tmpdir/db/$database/
-		grep "DB='$database'" $conf > hestia/db.conf
+		grep "DB='$database'" $conf > arcpanel/db.conf
 
 		dump="$tmpdir/db/$database/$database.$TYPE.sql"
 		if [ "$BACKUP_MODE" = 'zstd' ]; then
@@ -443,7 +443,7 @@ date=$(echo "$time_n_date" | cut -f 2 -d \ )
 echo "$(date "+%F %T") Runtime: $run_time $min" | tee -a $BACKUP/$user.log
 
 #----------------------------------------------------------#
-#                       Hestia                             #
+#                         ArcPanel                         #
 #----------------------------------------------------------#
 
 # Registering new backup

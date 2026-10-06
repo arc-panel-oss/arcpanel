@@ -11,7 +11,7 @@
 # DATA_ROOT, address pools 172.30.0.0/16), enables the engine and records
 # DOCKER_SYSTEM and DOCKER_DATA_ROOT. No hosting user gets access to the
 # Docker socket: Docker apps are run by the v-*-docker-app commands only.
-# It is safe to run again. DOCKER_APT_URL in hestia.conf overrides the
+# It is safe to run again. DOCKER_APT_URL in arcpanel.conf overrides the
 # repository location (mirrors).
 
 #----------------------------------------------------------#
@@ -19,18 +19,18 @@
 #----------------------------------------------------------#
 
 # Includes
-# shellcheck source=/etc/hestiacp/hestia.conf
-source /etc/hestiacp/hestia.conf
-# shellcheck source=/usr/local/hestia/func/main.sh
-source $HESTIA/func/main.sh
-# shellcheck source=/usr/local/hestia/func/tenancy.sh
-source $HESTIA/func/tenancy.sh
-# shellcheck source=/usr/local/hestia/func/ports.sh
-source $HESTIA/func/ports.sh
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/tenancy.sh
+source $ARCPANEL/func/tenancy.sh
+# shellcheck source=/usr/local/arcpanel/func/ports.sh
+source $ARCPANEL/func/ports.sh
 # load config file
-source_conf "$HESTIA/conf/hestia.conf"
-# shellcheck source=/usr/local/hestia/func/docker.sh
-source $HESTIA/func/docker.sh
+source_conf "$ARCPANEL/conf/arcpanel.conf"
+# shellcheck source=/usr/local/arcpanel/func/docker.sh
+source $ARCPANEL/func/docker.sh
 
 # Argument definition
 data_root=${1:-${DOCKER_DATA_ROOT:-/var/lib/docker}}
@@ -48,7 +48,7 @@ if ! [[ "$data_root" =~ ^/[A-Za-z0-9._/-]+$ ]] || [[ "/$data_root/" == *"/../"* 
 	check_result "$E_INVALID" "invalid data root :: $data_root"
 fi
 case "$data_root/" in
-	/home/* | "$HESTIA"/* | /etc/* | /proc/* | /sys/* | /dev/* | /run/* | /tmp/*)
+	/home/* | "$ARCPANEL"/* | /etc/* | /proc/* | /sys/* | /dev/* | /run/* | /tmp/*)
 		check_result "$E_FORBIDEN" "the data root cannot be in $data_root"
 		;;
 esac
@@ -57,7 +57,7 @@ if [ -f "$DOCKER_DAEMON_JSON" ] && ! jq -e 'type == "object"' "$DOCKER_DAEMON_JS
 fi
 
 # Perform verification if read-only mode is enabled
-check_hestia_demo_mode
+check_arcpanel_demo_mode
 
 #----------------------------------------------------------#
 #                       Action                             #
@@ -107,7 +107,7 @@ check_result $? "the Docker engine did not start (journalctl -u docker)" "$E_RES
 # The socket stays root:docker 0660 and the docker group stays empty of
 # hosting users
 for member in $(getent group docker | cut -d: -f4 | tr ',' ' '); do
-	if [ -d "$HESTIA/data/users/$member" ]; then
+	if [ -d "$ARCPANEL/data/users/$member" ]; then
 		gpasswd -d "$member" docker > /dev/null 2>&1
 	fi
 done
@@ -118,22 +118,22 @@ chmod 750 "$(docker_state_dir)"
 # Cron: the 5-minute check and the dumps 15 minutes before the nightly
 # backup (sed, not >>: fs.protected_regular forbids root to open another
 # user's file for appending in the sticky crontab directory)
-crontab="/var/spool/cron/crontabs/hestiaweb"
+crontab="/var/spool/cron/crontabs/arcpanelweb"
 if [ -f "$crontab" ]; then
 	if ! grep -q "v-check-sys-docker" "$crontab"; then
-		sed -i -e "\$a*/5 * * * * sudo /usr/local/hestia/bin/v-check-sys-docker repair > /dev/null 2>&1" "$crontab"
+		sed -i -e "\$a*/5 * * * * sudo /usr/local/arcpanel/bin/v-check-sys-docker repair > /dev/null 2>&1" "$crontab"
 	fi
 	if ! grep -q "v-backup-docker-apps" "$crontab"; then
 		backup=$(grep -m1 -E "^[0-9]+ [0-9]+ .*v-backup-users" "$crontab" | awk '{ print $1 * 1 + $2 * 60 }')
 		at=$(((${backup:-310} + 1440 - 15) % 1440))
-		sed -i -e "\$a$((at % 60)) $((at / 60)) * * * sudo /usr/local/hestia/bin/v-backup-docker-apps all > /dev/null 2>&1" "$crontab"
+		sed -i -e "\$a$((at % 60)) $((at / 60)) * * * sudo /usr/local/arcpanel/bin/v-backup-docker-apps all > /dev/null 2>&1" "$crontab"
 	fi
-	chown hestiaweb:hestiaweb "$crontab"
+	chown arcpanelweb:arcpanelweb "$crontab"
 	chmod 600 "$crontab"
 fi
 
 # Docker apps of the developer package, for servers set up before E4
-if [ -f "$HESTIA/data/packages/developer.tenancy" ] && ! grep -q "^DOCKER=" "$HESTIA/data/packages/developer.tenancy"; then
+if [ -f "$ARCPANEL/data/packages/developer.tenancy" ] && ! grep -q "^DOCKER=" "$ARCPANEL/data/packages/developer.tenancy"; then
 	tenancy_pkg_set developer DOCKER yes
 	tenancy_pkg_set developer DOCKER_APPS 3
 fi
@@ -146,7 +146,7 @@ if [ "$DOCKER_DATA_ROOT" != "$data_root" ]; then
 fi
 
 #----------------------------------------------------------#
-#                       Hestia                             #
+#                         ArcPanel                         #
 #----------------------------------------------------------#
 
 $BIN/v-log-action "system" "Info" "Docker" "Docker engine ready (Version: $(docker_cmd version --format '{{.Server.Version}}' 2> /dev/null), Data root: $data_root)."

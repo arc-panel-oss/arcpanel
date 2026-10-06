@@ -19,18 +19,18 @@ database=$3
 notify=${4-no}
 
 # Includes
-# shellcheck source=/etc/hestiacp/hestia.conf
-source /etc/hestiacp/hestia.conf
-# shellcheck source=/usr/local/hestia/func/main.sh
-source $HESTIA/func/main.sh
-# shellcheck source=/usr/local/hestia/func/db.sh
-source $HESTIA/func/db.sh
-# shellcheck source=/usr/local/hestia/func/rebuild.sh
-source $HESTIA/func/rebuild.sh
-# shellcheck source=/usr/local/hestia/func/syshealth.sh
-source $HESTIA/func/syshealth.sh
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/db.sh
+source $ARCPANEL/func/db.sh
+# shellcheck source=/usr/local/arcpanel/func/rebuild.sh
+source $ARCPANEL/func/rebuild.sh
+# shellcheck source=/usr/local/arcpanel/func/syshealth.sh
+source $ARCPANEL/func/syshealth.sh
 # load config file
-source_conf "$HESTIA/conf/hestia.conf"
+source_conf "$ARCPANEL/conf/arcpanel.conf"
 
 #----------------------------------------------------------#
 #                    Verifications                         #
@@ -41,7 +41,7 @@ check_args '3' "$#" "$args_usage"
 is_format_valid 'user'
 is_object_valid 'user' 'USER' "$user"
 
-source_conf $HESTIA/conf/restic.conf
+source_conf $ARCPANEL/conf/restic.conf
 
 #----------------------------------------------------------#
 #                       Action                             #
@@ -63,7 +63,7 @@ for db in "${databases[@]}"; do
 	if [[ ",$database," == *",$db,"* || "$database" = '*' ]]; then
 		check_config=$(grep "DB='$db'" $USER_DATA/db.conf)
 		if [ -z "$check_config" ]; then
-			restic --repo "${REPO%/}/$user" --password-file "$USER_DATA/restic.conf" --json dump "$snapshot" "/home/$user/backup/db/$db/hestia/db.conf" > "$tmpdir/db.conf"
+			restic --repo "${REPO%/}/$user" --password-file "$USER_DATA/restic.conf" --json dump "$snapshot" "/home/$user/backup/db/$db/arcpanel/db.conf" > "$tmpdir/db.conf"
 			if [ "$?" -ne 0 ]; then
 				check_result "$E_NOTEXIST" "Unable to download user data"
 			fi
@@ -112,7 +112,7 @@ done
 
 rm -fr $tmpdir
 #----------------------------------------------------------#
-#                       Hestia                             #
+#                         ArcPanel                         #
 #----------------------------------------------------------#
 
 # Update user counters
@@ -120,7 +120,7 @@ $BIN/v-update-user-counters $user
 $BIN/v-update-user-counters "$ROOT_USER"
 $BIN/v-update-sys-ip-counters
 
-sed -i "/v-restore-database-restic '$user' '$snapshot' '$database' /d" $HESTIA/data/queue/backup.pipe
+sed -i "/v-restore-database-restic '$user' '$snapshot' '$database' /d" $ARCPANEL/data/queue/backup.pipe
 
 # Logging
 $BIN/v-log-action "system" "Info" "Backup" "Database successfully restored (User: $user, Snapshot: $snapshot, Databse: $database)."

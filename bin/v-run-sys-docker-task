@@ -17,14 +17,14 @@ id=$1
 data_root=$2
 
 # Includes
-# shellcheck source=/etc/hestiacp/hestia.conf
-source /etc/hestiacp/hestia.conf
-# shellcheck source=/usr/local/hestia/func/main.sh
-source $HESTIA/func/main.sh
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
 # load config file
-source_conf "$HESTIA/conf/hestia.conf"
+source_conf "$ARCPANEL/conf/arcpanel.conf"
 
-conf="$HESTIA/data/docker/engine-task.state"
+conf="$ARCPANEL/data/docker/engine-task.state"
 
 #----------------------------------------------------------#
 #                    Verifications                         #
@@ -47,7 +47,7 @@ if [ "$rc" -ne 0 ]; then
 	echo "Exit code $rc"
 fi
 
-exec {lock}> "$HESTIA/data/docker/engine-task.lock"
+exec {lock}> "$ARCPANEL/data/docker/engine-task.lock"
 flock -x "$lock"
 if grep -q "^ID='$id' " "$conf"; then
 	sed -i -e "s/ STATUS='[^']*'/ STATUS='$status'/" -e "s/ EXIT='[^']*'/ EXIT='$rc'/" \
@@ -56,7 +56,7 @@ fi
 flock -u "$lock"
 
 #----------------------------------------------------------#
-#                       Hestia                             #
+#                         ArcPanel                         #
 #----------------------------------------------------------#
 
 exit "$rc"

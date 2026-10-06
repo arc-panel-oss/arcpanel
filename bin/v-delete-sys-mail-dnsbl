@@ -15,12 +15,12 @@ host=$1
 restart=${2:-yes}
 
 # Includes
-# shellcheck source=/etc/hestiacp/hestia.conf
-source /etc/hestiacp/hestia.conf
-# shellcheck source=/usr/local/hestia/func/main.sh
-source $HESTIA/func/main.sh
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
 # load config file
-source_conf "$HESTIA/conf/hestia.conf"
+source_conf "$ARCPANEL/conf/arcpanel.conf"
 
 #----------------------------------------------------------#
 #                    Verifications                         #
@@ -32,45 +32,45 @@ if [[ ! "$host" =~ ^[a-zA-Z0-9.-]+(!=[0-9.,]+)?$ ]]; then
 fi
 
 # Perform verification if read-only mode is enabled
-check_hestia_demo_mode
+check_arcpanel_demo_mode
 
 #----------------------------------------------------------#
 #                       Action                             #
 #----------------------------------------------------------#
 
-if [ ! -f "$HESTIA/conf/dnsbl.conf" ]; then
+if [ ! -f "$ARCPANEL/conf/dnsbl.conf" ]; then
 	# Custom file doesn't exist, cannot remove from it directly
 	# To properly support removing from stock list, we copy stock first
 	if [ -f "/etc/exim4/dnsbl.conf" ]; then
-		cp /etc/exim4/dnsbl.conf "$HESTIA/conf/dnsbl.conf"
+		cp /etc/exim4/dnsbl.conf "$ARCPANEL/conf/dnsbl.conf"
 	fi
 fi
 
-if [ -f "$HESTIA/conf/dnsbl.conf" ]; then
+if [ -f "$ARCPANEL/conf/dnsbl.conf" ]; then
 	# Ensure entry exists before trying to remove
-	if ! grep -q -x "$host" "$HESTIA/conf/dnsbl.conf"; then
+	if ! grep -q -x "$host" "$ARCPANEL/conf/dnsbl.conf"; then
 		check_result "$E_NOTEXIST" "DNSBL $host doesn't exist"
 	fi
 
 	# Remove the entry
-	sed -i "\|^$host$|d" "$HESTIA/conf/dnsbl.conf"
+	sed -i "\|^$host$|d" "$ARCPANEL/conf/dnsbl.conf"
 
 	# Check if matches default
-	if cmp -s <(sort "$HESTIA/conf/dnsbl.conf") <(sort "$HESTIA_INSTALL_DIR/exim/dnsbl.conf"); then
-		rm -f "$HESTIA/conf/dnsbl.conf"
-		if [ -f "$HESTIA_INSTALL_DIR/exim/dnsbl.conf" ]; then
-			cp -f "$HESTIA_INSTALL_DIR/exim/dnsbl.conf" /etc/exim4/dnsbl.conf
+	if cmp -s <(sort "$ARCPANEL/conf/dnsbl.conf") <(sort "$ARCPANEL_INSTALL_DIR/exim/dnsbl.conf"); then
+		rm -f "$ARCPANEL/conf/dnsbl.conf"
+		if [ -f "$ARCPANEL_INSTALL_DIR/exim/dnsbl.conf" ]; then
+			cp -f "$ARCPANEL_INSTALL_DIR/exim/dnsbl.conf" /etc/exim4/dnsbl.conf
 		else
 			# fallback if missing for some reason
 			> /etc/exim4/dnsbl.conf
 		fi
 	else
-		cp -f "$HESTIA/conf/dnsbl.conf" /etc/exim4/dnsbl.conf
+		cp -f "$ARCPANEL/conf/dnsbl.conf" /etc/exim4/dnsbl.conf
 	fi
 fi
 
 #----------------------------------------------------------#
-#                       Hestia                             #
+#                         ArcPanel                         #
 #----------------------------------------------------------#
 
 # Logging

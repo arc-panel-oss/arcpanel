@@ -12,11 +12,11 @@
 #----------------------------------------------------------#
 
 # Includes
-source /etc/hestiacp/hestia.conf
-# shellcheck source=/usr/local/hestia/func/main.sh
-source "$HESTIA"/func/main.sh
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source "$ARCPANEL"/func/main.sh
 # load config file
-source_conf "$HESTIA/conf/hestia.conf"
+source_conf "$ARCPANEL/conf/arcpanel.conf"
 
 #----------------------------------------------------------#
 #                    Install packages                      #
@@ -30,7 +30,7 @@ if ! type -P quota &> /dev/null; then
 fi
 
 # Perform verification if read-only mode is enabled
-check_hestia_demo_mode
+check_arcpanel_demo_mode
 
 #----------------------------------------------------------#
 #                       Action                             #
@@ -341,7 +341,7 @@ if quotaon -pa | grep " $mnt " | grep -E 'user|group' | grep -q 'is off'; then
 	check_result $? "quota can't be enabled in $mnt" "$E_DISK"
 fi
 
-# Updating hestia.conf value
+# Updating arcpanel.conf value
 "$BIN"/v-change-sys-config-value "DISK_QUOTA" "yes"
 
 # Rebuilding user quota (only if reboot is not required)
@@ -352,30 +352,30 @@ if [ "$reboot_req" != "Y" ]; then
 	log_history "User quotas updated successfully."
 else
 	# Create a one-time script to update quotas after reboot
-	cat > /usr/local/hestia/bin/v-update-quotas-after-reboot.sh << 'EOF'
+	cat > /usr/local/arcpanel/bin/v-update-quotas-after-reboot.sh << 'EOF'
 #!/bin/bash
-BIN=/usr/local/hestia/bin
+BIN=/usr/local/arcpanel/bin
 for user in $("$BIN/v-list-users" list); do
         "$BIN/v-update-user-quota" "$user"
 done
 # Self-delete after execution
-rm -f /usr/local/hestia/bin/v-update-quotas-after-reboot.sh
-rm -f /etc/cron.d/hestia-quota-reboot
+rm -f /usr/local/arcpanel/bin/v-update-quotas-after-reboot.sh
+rm -f /etc/cron.d/arcpanel-quota-reboot
 EOF
-	chmod +x /usr/local/hestia/bin/v-update-quotas-after-reboot.sh
+	chmod +x /usr/local/arcpanel/bin/v-update-quotas-after-reboot.sh
 
 	# Create one-time cron job
-	cat > /etc/cron.d/hestia-quota-reboot << EOF
-@reboot root sleep 30 && /usr/local/hestia/bin/v-update-quotas-after-reboot.sh
+	cat > /etc/cron.d/arcpanel-quota-reboot << EOF
+@reboot root sleep 30 && /usr/local/arcpanel/bin/v-update-quotas-after-reboot.sh
 EOF
-	chmod 644 /etc/cron.d/hestia-quota-reboot
+	chmod 644 /etc/cron.d/arcpanel-quota-reboot
 
 	log_history "Created one-time job to update user quotas after reboot."
 	echo "[ ! ] Note: User quotas will be automatically updated after the system reboots."
 fi
 
 #----------------------------------------------------------#
-#                       Hestia                             #
+#                         ArcPanel                         #
 #----------------------------------------------------------#
 
 # Logging

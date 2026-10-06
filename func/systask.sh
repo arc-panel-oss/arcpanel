@@ -5,13 +5,13 @@
 # One long server operation at a time (PHP versions, plugin installs, package
 # updates), run in the background like the Quick Install task of E7 batch 2.
 # The runner lives in a transient systemd unit, so a restart of the panel
-# (hestia.service) during a package update does not end it.
+# (arcpanel.service) during a package update does not end it.
 
 #----------------------------------------------------------#
 #                          Task                            #
 #----------------------------------------------------------#
 
-ST_DIR="$HESTIA/data/sys-task"
+ST_DIR="$ARCPANEL/data/sys-task"
 
 st_task_conf() {
 	echo "$ST_DIR/task.conf"
@@ -105,14 +105,14 @@ st_has_systemd() {
 # Versions v-add-web-php accepts (install/upgrade/upgrade.conf)
 st_php_supported() {
 	local multiphp_v=()
-	# shellcheck source=/usr/local/hestia/install/upgrade/upgrade.conf
-	source "$HESTIA/install/upgrade/upgrade.conf"
+	# shellcheck source=/usr/local/arcpanel/install/upgrade/upgrade.conf
+	source "$ARCPANEL/install/upgrade/upgrade.conf"
 	printf '%s\n' "${multiphp_v[@]}"
 }
 
 # Whether a PHP version is installed, as v-add-web-php checks it
 st_php_installed() {
-	[ -f "/etc/init.d/php$1-fpm" ] && [ -f "$HESTIA/data/templates/web/php-fpm/PHP-${1/\./_}.tpl" ]
+	[ -f "/etc/init.d/php$1-fpm" ] && [ -f "$ARCPANEL/data/templates/web/php-fpm/PHP-${1/\./_}.tpl" ]
 }
 
 # The PHP version of the system php binary (web/inc/main.php DEFAULT_PHP_VERSION)
@@ -127,7 +127,7 @@ st_php_used_by() {
 	local version="$1" tpl conf user default
 	tpl="PHP-${version/\./_}"
 	default=$(st_php_default)
-	for conf in "$HESTIA"/data/users/*/web.conf; do
+	for conf in "$ARCPANEL"/data/users/*/web.conf; do
 		[ -f "$conf" ] || continue
 		user=$(basename "$(dirname "$conf")")
 		while IFS= read -r line; do

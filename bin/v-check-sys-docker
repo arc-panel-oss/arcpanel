@@ -26,18 +26,18 @@ mode=${1:-check}
 format=${2-shell}
 
 # Includes
-# shellcheck source=/etc/hestiacp/hestia.conf
-source /etc/hestiacp/hestia.conf
-# shellcheck source=/usr/local/hestia/func/main.sh
-source $HESTIA/func/main.sh
-# shellcheck source=/usr/local/hestia/func/tenancy.sh
-source $HESTIA/func/tenancy.sh
-# shellcheck source=/usr/local/hestia/func/ports.sh
-source $HESTIA/func/ports.sh
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/tenancy.sh
+source $ARCPANEL/func/tenancy.sh
+# shellcheck source=/usr/local/arcpanel/func/ports.sh
+source $ARCPANEL/func/ports.sh
 # load config file
-source_conf "$HESTIA/conf/hestia.conf"
-# shellcheck source=/usr/local/hestia/func/docker.sh
-source $HESTIA/func/docker.sh
+source_conf "$ARCPANEL/conf/arcpanel.conf"
+# shellcheck source=/usr/local/arcpanel/func/docker.sh
+source $ARCPANEL/func/docker.sh
 
 findings='[]'
 finding() {
@@ -130,7 +130,7 @@ done
 # Containers of ArcPanel projects without a record
 while IFS='|' read -r id user app project; do
 	[ -n "$id" ] || continue
-	if [[ "$user" =~ ^[[:alnum:]][-|\.|_[:alnum:]]{0,28}[[:alnum:]]$ ]] && [ -f "$HESTIA/data/users/$user/user.conf" ] \
+	if [[ "$user" =~ ^[[:alnum:]][-|\.|_[:alnum:]]{0,28}[[:alnum:]]$ ]] && [ -f "$ARCPANEL/data/users/$user/user.conf" ] \
 		&& dockerapp_name_valid "$app" && dockerapp_exists "$user" "$app"; then
 		continue
 	fi
@@ -161,7 +161,7 @@ case "$format" in
 esac
 
 #----------------------------------------------------------#
-#                       Hestia                             #
+#                         ArcPanel                         #
 #----------------------------------------------------------#
 
 exit

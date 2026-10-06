@@ -25,14 +25,14 @@ deleted_redirect=0
 deleted_force_ssl=0
 
 # Includes
-# shellcheck source=/etc/hestiacp/hestia.conf
-source /etc/hestiacp/hestia.conf
-# shellcheck source=/usr/local/hestia/func/main.sh
-source $HESTIA/func/main.sh
-# shellcheck source=/usr/local/hestia/func/domain.sh
-source $HESTIA/func/domain.sh
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/domain.sh
+source $ARCPANEL/func/domain.sh
 # load config file
-source_conf "$HESTIA/conf/hestia.conf"
+source_conf "$ARCPANEL/conf/arcpanel.conf"
 
 # LE API
 LE_API='https://acme-v02.api.letsencrypt.org'
@@ -42,8 +42,8 @@ if [[ "$LE_STAGING" = 'yes' ]]; then
 fi
 
 # LE Pre-Hook
-if [ -x "/etc/hestiacp/hooks/le_pre.sh" ]; then
-	/etc/hestiacp/hooks/le_pre.sh "$user" "$domain" "$aliases" "$mail"
+if [ -x "/etc/arcpanel/hooks/le_pre.sh" ]; then
+	/etc/arcpanel/hooks/le_pre.sh "$user" "$domain" "$aliases" "$mail"
 fi
 
 # encode base64
@@ -141,7 +141,7 @@ debug_log() {
 }
 
 # Perform verification if read-only mode is enabled
-check_hestia_demo_mode
+check_arcpanel_demo_mode
 
 #----------------------------------------------------------#
 #                       Action                             #
@@ -172,7 +172,7 @@ else
 	fi
 fi
 
-log_file="/var/log/hestia/LE-${user}-${domain}.log"
+log_file="/var/log/arcpanel/LE-${user}-${domain}.log"
 touch "$log_file"
 chmod 600 "$log_file"
 
@@ -187,8 +187,8 @@ domain: ${domain}
 # Registering LetsEncrypt user account
 $BIN/v-add-letsencrypt-user $user
 if [ "$?" -ne 0 ]; then
-	touch $HESTIA/data/queue/letsencrypt.pipe
-	sed -i "/ $domain /d" $HESTIA/data/queue/letsencrypt.pipe
+	touch $ARCPANEL/data/queue/letsencrypt.pipe
+	sed -i "/ $domain /d" $ARCPANEL/data/queue/letsencrypt.pipe
 	send_notice "LETSENCRYPT" "Account registration failed ($user)"
 	check_result "$E_CONNECT" "LE account registration ($user)" > /dev/null
 fi
@@ -200,7 +200,7 @@ source $USER_DATA/ssl/le.conf
 if [ "$aliases" = "*.$domain" ]; then
 	wildcard='yes'
 	proto="dns-01"
-	if [ ! -e "$HESTIA/data/users/$user/dns/$domain.conf" ]; then
+	if [ ! -e "$ARCPANEL/data/users/$user/dns/$domain.conf" ]; then
 		check_result "$E_NOTEXIST" "DNS domain $domain doesn't exist"
 	fi
 else
@@ -608,17 +608,17 @@ fi
 
 if [ "$?" -ne '0' ]; then
 	[ -d "$ssl_dir" ] && rm -rf "$ssl_dir"
-	touch $HESTIA/data/queue/letsencrypt.pipe
-	sed -i "/ $domain /d" $HESTIA/data/queue/letsencrypt.pipe
+	touch $ARCPANEL/data/queue/letsencrypt.pipe
+	sed -i "/ $domain /d" $ARCPANEL/data/queue/letsencrypt.pipe
 	send_notice 'LETSENCRYPT' "$domain certificate installation failed ($domain)"
 	check_result $? "SSL install" > /dev/null
 fi
 
 # Adding LE autorenew cronjob
-if [ -z "$(grep $BIN/v-update-letsencrypt-ssl "/var/spool/cron/crontabs/hestiaweb")" ]; then
+if [ -z "$(grep $BIN/v-update-letsencrypt-ssl "/var/spool/cron/crontabs/arcpanelweb")" ]; then
 	min=$(generate_password '012345' '2')
 	hour=$(generate_password '1234567' '1')
-	sed -i -e "\$a*/5 * * * * sudo $BIN/v-update-letsencrypt-ssl" "/var/spool/cron/crontabs/hestiaweb"
+	sed -i -e "\$a*/5 * * * * sudo $BIN/v-update-letsencrypt-ssl" "/var/spool/cron/crontabs/arcpanelweb"
 fi
 
 # Updating letsencrypt key
@@ -661,8 +661,8 @@ else
 fi
 
 # LE Post-Hook
-if [ -x "/etc/hestiacp/hooks/le_post.sh" ]; then
-	/etc/hestiacp/hooks/le_post.sh "$user" "$domain" "$aliases" "$mail"
+if [ -x "/etc/arcpanel/hooks/le_post.sh" ]; then
+	/etc/arcpanel/hooks/le_post.sh "$user" "$domain" "$aliases" "$mail"
 fi
 
 # Remove challenge folder if exist
@@ -674,12 +674,12 @@ fi
 [ -d "$ssl_dir" ] && rm -rf "$ssl_dir"
 
 #----------------------------------------------------------#
-#                        Hestia                            #
+#                         ArcPanel                         #
 #----------------------------------------------------------#
 
 # Deleting task from queue
-touch $HESTIA/data/queue/letsencrypt.pipe
-sed -i "/ $domain /d" $HESTIA/data/queue/letsencrypt.pipe
+touch $ARCPANEL/data/queue/letsencrypt.pipe
+sed -i "/ $domain /d" $ARCPANEL/data/queue/letsencrypt.pipe
 
 # Notifying user
 send_notice 'LETSENCRYPT' "$domain SSL has been installed successfully"

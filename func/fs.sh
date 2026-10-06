@@ -6,18 +6,18 @@
 #                                                                           #
 # Every read and write of a user's file runs as that user (user_exec), so   #
 # the user's permissions and disk quota apply as they do over SSH. Root     #
-# only opens files in the panel's staging tree, which hestiaweb owns:       #
-#   $HESTIA/web-app/storage/app/files/uploads/<token>/   upload sessions,   #
+# only opens files in the panel's staging tree, which arcpanelweb owns:       #
+#   $ARCPANEL/web-app/storage/app/files/uploads/<token>/   upload sessions,   #
 #                                                        editor saves       #
-#   $HESTIA/web-app/storage/app/files/downloads/<ticket> download tickets   #
+#   $ARCPANEL/web-app/storage/app/files/downloads/<ticket> download tickets   #
 # See docs/features/specs/2026-10-05-008-e3-file-manager-design.md.         #
 #                                                                           #
 #===========================================================================#
 
-FS_STAGING="$HESTIA/web-app/storage/app/files"
+FS_STAGING="$ARCPANEL/web-app/storage/app/files"
 FS_UPLOADS="$FS_STAGING/uploads"
 FS_DOWNLOADS="$FS_STAGING/downloads"
-FS_STAGING_OWNER="hestiaweb"
+FS_STAGING_OWNER="arcpanelweb"
 
 # Entries returned by one v-list-fs-directory-json call at most
 FS_LIST_MAX=5000
@@ -98,7 +98,7 @@ fs_mode_valid() {
 #----------------------------------------------------------#
 
 # A staged file: a regular file (not a symlink) below the uploads directory,
-# owned by hestiaweb
+# owned by arcpanelweb
 fs_staged_valid() {
 	local file=$1 real uploads
 	[ -n "$file" ] && [ ! -L "$file" ] || return 1

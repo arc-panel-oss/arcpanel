@@ -17,20 +17,20 @@ dns=$3
 notify=${4-no}
 
 # Includes
-# shellcheck source=/etc/hestiacp/hestia.conf
-source /etc/hestiacp/hestia.conf
-# shellcheck source=/usr/local/hestia/func/main.sh
-source $HESTIA/func/main.sh
-# shellcheck source=/usr/local/hestia/func/domain.sh
-source $HESTIA/func/domain.sh
-# shellcheck source=/usr/local/hestia/func/ip.sh
-source $HESTIA/func/ip.sh
-# shellcheck source=/usr/local/hestia/func/rebuild.sh
-source $HESTIA/func/rebuild.sh
-# shellcheck source=/usr/local/hestia/func/syshealth.sh
-source $HESTIA/func/syshealth.sh
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/domain.sh
+source $ARCPANEL/func/domain.sh
+# shellcheck source=/usr/local/arcpanel/func/ip.sh
+source $ARCPANEL/func/ip.sh
+# shellcheck source=/usr/local/arcpanel/func/rebuild.sh
+source $ARCPANEL/func/rebuild.sh
+# shellcheck source=/usr/local/arcpanel/func/syshealth.sh
+source $ARCPANEL/func/syshealth.sh
 # load config file
-source_conf "$HESTIA/conf/hestia.conf"
+source_conf "$ARCPANEL/conf/arcpanel.conf"
 
 #----------------------------------------------------------#
 #                    Verifications                         #
@@ -41,7 +41,7 @@ check_args '3' "$#" "$args_usage"
 is_format_valid 'user'
 is_object_valid 'user' 'USER' "$user"
 
-source_conf $HESTIA/conf/restic.conf
+source_conf $ARCPANEL/conf/restic.conf
 
 #----------------------------------------------------------#
 #                       Action                             #
@@ -70,7 +70,7 @@ for domain in "${domains[@]}"; do
 				rm -rf $tmpdir
 				error="$domain belongs to another user"
 				echo "$error" | $SENDMAIL -s "$subj" "$email" "$notify"
-				sed -i "/ $user /d" $HESTIA/data/queue/backup.pipe
+				sed -i "/ $user /d" $ARCPANEL/data/queue/backup.pipe
 				check_result "$E_PARSING" "$error"
 			fi
 		fi
@@ -81,7 +81,7 @@ for domain in "${domains[@]}"; do
 
 		# Restoring dns.conf
 		if [ -z "$check_config" ]; then
-			parse_object_kv_list $(cat $tmpdir/home/$user/backup/dns/$domain/hestia/dns.conf)
+			parse_object_kv_list $(cat $tmpdir/home/$user/backup/dns/$domain/arcpanel/dns.conf)
 
 			# Checking IP address
 			check_ip=$(is_ip_valid $IP $user)
@@ -114,7 +114,7 @@ for domain in "${domains[@]}"; do
 		fi
 
 		# Restoring DNS records
-		cp -f "$tmpdir/home/$user/backup/dns/$domain/hestia/$domain.conf" "$USER_DATA/dns/"
+		cp -f "$tmpdir/home/$user/backup/dns/$domain/arcpanel/$domain.conf" "$USER_DATA/dns/"
 
 		# Update IP in records
 		if [ -n "$old_ip" ]; then
@@ -127,13 +127,13 @@ for domain in "${domains[@]}"; do
 		# Updating dns-cluster queue
 		if [ -n "$DNS_CLUSTER" ]; then
 			cmd="$BIN/v-add-remote-dns-domain $user $domain yes"
-			echo "$cmd" >> $HESTIA/data/queue/dns-cluster.pipe
+			echo "$cmd" >> $ARCPANEL/data/queue/dns-cluster.pipe
 		fi
 
 	fi
 done
 #----------------------------------------------------------#
-#                       Hestia                             #
+#                         ArcPanel                         #
 #----------------------------------------------------------#
 
 rm -fr $tmpdir
@@ -143,7 +143,7 @@ $BIN/v-update-user-counters $user
 $BIN/v-update-user-counters "$ROOT_USER"
 $BIN/v-update-sys-ip-counters
 
-sed -i "/v-restore-dns-domain-restic '$user' '$snapshot' '$dns' /d" $HESTIA/data/queue/backup.pipe
+sed -i "/v-restore-dns-domain-restic '$user' '$snapshot' '$dns' /d" $ARCPANEL/data/queue/backup.pipe
 
 # Logging
 $BIN/v-log-action "system" "Info" "Backup" "DNS Domain successfully restored (User: $user, Snapshot: $snapshot, Databse: $database)."

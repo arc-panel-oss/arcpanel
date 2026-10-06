@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace Hestia\WebApp;
+namespace ArcPanel\WebApp;
 
-use Hestia\WebApp\InstallationTarget\InstallationTarget;
+use ArcPanel\WebApp\InstallationTarget\InstallationTarget;
 
 interface InstallerInterface
 {

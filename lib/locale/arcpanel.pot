@@ -236,7 +236,7 @@ msgstr ""
 msgid "Inactive session timeout can not lower than 1 minute."
 msgstr ""
 
-#: ../../web/edit/server/hestiaweb/index.php:34
+#: ../../web/edit/server/arcpanelweb/index.php:34
 #: ../../web/templates/pages/edit_server.php:15
 msgid "Panel Cronjobs"
 msgstr ""
@@ -1162,7 +1162,7 @@ msgstr ""
 msgid "Cron job email reporting has been successfully enabled."
 msgstr ""
 
-#: ../../web/update/hestia/index.php:20
+#: ../../web/update/arcpanel/index.php:20
 #, php-format
 msgid "Error: %s update failed."
 msgstr ""
@@ -2884,7 +2884,7 @@ msgid "SSH"
 msgstr ""
 
 #: ../../web/templates/pages/add_firewall_banlist.php:42
-msgid "HESTIA"
+msgid "ARCPANEL"
 msgstr ""
 
 #: ../../web/templates/pages/list_server_info.php:19
@@ -5018,7 +5018,7 @@ msgstr ""
 msgid "BACKUP"
 msgstr ""
 
-#: ../../web/src/app/System/HestiaApp.php:218
+#: ../../web/src/app/System/ArcPanelApp.php:218
 msgid "Unable to add database!"
 msgstr ""
 
@@ -5030,15 +5030,15 @@ msgstr ""
 msgid "NGINX cache has been purged successfully."
 msgstr ""
 
-#: ../../bin/v-list-sys-hestia-updates:110
+#: ../../bin/v-list-sys-arcpanel-updates:110
 msgid "ArcPanel core package"
 msgstr ""
 
-#: ../../bin/v-list-sys-hestia-updates:125
+#: ../../bin/v-list-sys-arcpanel-updates:125
 msgid "ArcPanel internal php interpreter"
 msgstr ""
 
-#: ../../bin/v-list-sys-hestia-updates:141
+#: ../../bin/v-list-sys-arcpanel-updates:141
 msgid "ArcPanel internal web server"
 msgstr ""
 

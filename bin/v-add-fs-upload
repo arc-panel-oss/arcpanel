@@ -2,7 +2,7 @@
 # info: move an uploaded file into a user's home (E3)
 # options: USER STAGED_FILE DST_PATH [MODE] [ON_CONFLICT]
 #
-# example: v-add-fs-upload alice /usr/local/hestia/web-app/storage/app/files/uploads/0123…/file /home/alice/web/example.com/public_html/logo.png 0644 rename
+# example: v-add-fs-upload alice /usr/local/arcpanel/web-app/storage/app/files/uploads/0123…/file /home/alice/web/example.com/public_html/logo.png 0644 rename
 #
 # This function writes STAGED_FILE (assembled by the panel) into DST_PATH as
 # the user, so the user's quota applies, with MODE (default 0644). An
@@ -22,14 +22,14 @@ mode=${4:-0644}
 on_conflict=${5:-fail}
 
 # Includes
-# shellcheck source=/etc/hestiacp/hestia.conf
-source /etc/hestiacp/hestia.conf
-# shellcheck source=/usr/local/hestia/func/main.sh
-source $HESTIA/func/main.sh
-# shellcheck source=/usr/local/hestia/func/fs.sh
-source $HESTIA/func/fs.sh
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/fs.sh
+source $ARCPANEL/func/fs.sh
 # load config file
-source_conf "$HESTIA/conf/hestia.conf"
+source_conf "$ARCPANEL/conf/arcpanel.conf"
 
 #----------------------------------------------------------#
 #                    Verifications                         #
@@ -44,7 +44,7 @@ fi
 trap 'rm -f -- "$staged"' EXIT
 
 # Perform verification if read-only mode is enabled
-check_hestia_demo_mode
+check_arcpanel_demo_mode
 
 if ! fs_mode_valid "$mode"; then
 	check_result "$E_INVALID" "invalid mode $mode"
@@ -108,7 +108,7 @@ fi
 echo "$final"
 
 #----------------------------------------------------------#
-#                       Hestia                             #
+#                         ArcPanel                         #
 #----------------------------------------------------------#
 
 log_event "$OK" "$ARGUMENTS"

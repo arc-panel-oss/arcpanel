@@ -6,8 +6,8 @@
 #                                                                           #
 # Upstream commands rewrite user.conf and *.pkg with a fixed list of keys,  #
 # so tenancy data lives in sidecar files that they never touch:             #
-#   $HESTIA/data/users/<user>/tenancy.conf     OWNER, R_* (resellers)       #
-#   $HESTIA/data/packages/<package>.tenancy    USERS, RESELLER_PACKAGES,    #
+#   $ARCPANEL/data/users/<user>/tenancy.conf     OWNER, R_* (resellers)       #
+#   $ARCPANEL/data/packages/<package>.tenancy    USERS, RESELLER_PACKAGES,    #
 #                                              RESELLER_VISIBLE,            #
 #                                              RESELLER_OWNER, PORTS (E12), #
 #                                              NODE, NODE_VERSIONS,         #
@@ -39,11 +39,11 @@ tenancy_usage_key() {
 #----------------------------------------------------------#
 
 tenancy_user_file() {
-	echo "$HESTIA/data/users/$1/tenancy.conf"
+	echo "$ARCPANEL/data/users/$1/tenancy.conf"
 }
 
 tenancy_package_file() {
-	echo "$HESTIA/data/packages/$1.tenancy"
+	echo "$ARCPANEL/data/packages/$1.tenancy"
 }
 
 # Value of KEY in FILE, empty when the file or the key is missing
@@ -90,7 +90,7 @@ tenancy_json_escape() {
 # Every panel user, one per line
 tenancy_all_users() {
 	local dir
-	for dir in "$HESTIA"/data/users/*/; do
+	for dir in "$ARCPANEL"/data/users/*/; do
 		dir="${dir%/}"
 		if [ -f "$dir/user.conf" ]; then
 			basename "$dir"
@@ -99,7 +99,7 @@ tenancy_all_users() {
 }
 
 tenancy_user_value() {
-	grep -m1 "^$2='" "$HESTIA/data/users/$1/user.conf" 2> /dev/null | cut -f 2 -d \'
+	grep -m1 "^$2='" "$ARCPANEL/data/users/$1/user.conf" 2> /dev/null | cut -f 2 -d \'
 }
 
 tenancy_role() {
@@ -107,7 +107,7 @@ tenancy_role() {
 }
 
 tenancy_is_reseller() {
-	[ -n "$1" ] && [ -f "$HESTIA/data/users/$1/user.conf" ] && [ "$(tenancy_role "$1")" = 'reseller' ]
+	[ -n "$1" ] && [ -f "$ARCPANEL/data/users/$1/user.conf" ] && [ "$(tenancy_role "$1")" = 'reseller' ]
 }
 
 # OWNER as written in the sidecar, without any resolution
@@ -198,12 +198,12 @@ tenancy_mb() {
 
 # Value of a limit in a package file
 tenancy_pkg_limit() {
-	grep -m1 "^$2='" "$HESTIA/data/packages/$1.pkg" 2> /dev/null | cut -f 2 -d \'
+	grep -m1 "^$2='" "$ARCPANEL/data/packages/$1.pkg" 2> /dev/null | cut -f 2 -d \'
 }
 
 tenancy_all_packages() {
 	local file
-	for file in "$HESTIA"/data/packages/*.pkg; do
+	for file in "$ARCPANEL"/data/packages/*.pkg; do
 		if [ -f "$file" ]; then
 			basename "$file" .pkg
 		fi
@@ -334,9 +334,9 @@ tenancy_check_quota() {
 	done
 
 	# Ports of the package (E12)
-	if ! declare -F ports_quota_check > /dev/null && [ -f "$HESTIA/func/ports.sh" ]; then
-		# shellcheck source=/usr/local/hestia/func/ports.sh
-		source "$HESTIA/func/ports.sh"
+	if ! declare -F ports_quota_check > /dev/null && [ -f "$ARCPANEL/func/ports.sh" ]; then
+		# shellcheck source=/usr/local/arcpanel/func/ports.sh
+		source "$ARCPANEL/func/ports.sh"
 	fi
 	if declare -F ports_quota_check > /dev/null; then
 		ports_quota_check "$reseller" "$package" "$except" || return $?
@@ -409,7 +409,7 @@ TENANCY_USER_JSON_KEYS="NAME PACKAGE WEB_TEMPLATE BACKEND_TEMPLATE PROXY_TEMPLAT
 tenancy_user_json() {
 	(
 		local user="$1" key sep=''
-		source_conf "$HESTIA/data/users/$user/user.conf"
+		source_conf "$ARCPANEL/data/users/$user/user.conf"
 		printf '    "%s": {\n' "$(tenancy_json_escape "$user")"
 		for key in $TENANCY_USER_JSON_KEYS; do
 			printf '%s        "%s": "%s"' "$sep" "$key" "$(tenancy_json_escape "${!key}")"
@@ -425,7 +425,7 @@ TENANCY_PACKAGE_JSON_KEYS="WEB_TEMPLATE BACKEND_TEMPLATE PROXY_TEMPLATE DNS_TEMP
 tenancy_package_json() {
 	(
 		local package="$1" key
-		source_conf "$HESTIA/data/packages/$package.pkg"
+		source_conf "$ARCPANEL/data/packages/$package.pkg"
 		printf '    "%s": {\n' "$(tenancy_json_escape "$package")"
 		for key in $TENANCY_PACKAGE_JSON_KEYS; do
 			printf '        "%s": "%s",\n' "$key" "$(tenancy_json_escape "${!key}")"

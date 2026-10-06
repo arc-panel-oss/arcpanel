@@ -14,12 +14,12 @@
 user=$1
 
 # Includes
-# shellcheck source=/etc/hestiacp/hestia.conf
-source /etc/hestiacp/hestia.conf
-# shellcheck source=/usr/local/hestia/func/main.sh
-source $HESTIA/func/main.sh
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
 # load config file
-source_conf "$HESTIA/conf/hestia.conf"
+source_conf "$ARCPANEL/conf/arcpanel.conf"
 
 # LE API
 LE_API='https://acme-v02.api.letsencrypt.org'
@@ -78,7 +78,7 @@ if [ -n "$KID" ]; then
 fi
 
 # Perform verification if read-only mode is enabled
-check_hestia_demo_mode
+check_arcpanel_demo_mode
 
 #----------------------------------------------------------#
 #                       Action                             #
@@ -136,7 +136,7 @@ if [[ "${status:0:2}" -ne "20" ]]; then
 fi
 
 #----------------------------------------------------------#
-#                        Hestia                            #
+#                         ArcPanel                         #
 #----------------------------------------------------------#
 
 # Adding le.conf

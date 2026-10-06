@@ -12,15 +12,15 @@
 
 # Argument definition
 PORT=$1
-NGINX_CONFIG="$HESTIA/nginx/conf/nginx.conf"
+NGINX_CONFIG="$ARCPANEL/nginx/conf/nginx.conf"
 
 # Includes
-# shellcheck source=/etc/hestiacp/hestia.conf
-source /etc/hestiacp/hestia.conf
-# shellcheck source=/usr/local/hestia/func/main.sh
-source "$HESTIA/func/main.sh"
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source "$ARCPANEL/func/main.sh"
 # load config file
-source_conf "$HESTIA/conf/hestia.conf"
+source_conf "$ARCPANEL/conf/arcpanel.conf"
 
 # Functions
 is_port_valid() {
@@ -48,7 +48,7 @@ check_args '1' "$#" 'PORT'
 is_port_valid
 
 # Perform verification if read-only mode is enabled
-check_hestia_demo_mode
+check_arcpanel_demo_mode
 
 #----------------------------------------------------------#
 #                       Action                             #
@@ -68,18 +68,18 @@ else
 	# Replace port in config files.
 	sed -i "s/\(listen[ \t]*.*[: \t]\)[0-9][0-9]*\([^0-9]*ssl\;$\)/\1$PORT\2/" "$NGINX_CONFIG"
 	if [ -d /etc/roundcube/ ]; then
-		sed -i "/password_hestia_port/c\$rcmail_config['password_hestia_port'] = '$PORT';" /etc/roundcube/plugins/password/config.inc.php
+		sed -i "/password_arcpanel_port/c\$rcmail_config['password_arcpanel_port'] = '$PORT';" /etc/roundcube/plugins/password/config.inc.php
 	fi
 	if [ -d /var/lib/snappymail/ ]; then
 		sed -i "/\"hestia_port\":/c\\        \"hestia_port\": $PORT" /var/lib/snappymail/data/_data_/_default_/configs/plugin-change-password.json
 	fi
 
-	if [ -f "$HESTIA/data/firewall/rules.conf" ]; then
-		sed -i "/COMMENT='HESTIA'/c\RULE='2' ACTION='ACCEPT' PROTOCOL='TCP' PORT='$PORT' IP='0.0.0.0/0' COMMENT='HESTIA' SUSPENDED='no' TIME='07:40:16' DATE='2014-05-25'" "$HESTIA/data/firewall/rules.conf"
+	if [ -f "$ARCPANEL/data/firewall/rules.conf" ]; then
+		sed -i "/COMMENT='ARCPANEL'/c\RULE='2' ACTION='ACCEPT' PROTOCOL='TCP' PORT='$PORT' IP='0.0.0.0/0' COMMENT='ARCPANEL' SUSPENDED='no' TIME='07:40:16' DATE='2014-05-25'" "$ARCPANEL/data/firewall/rules.conf"
 	fi
 
-	if [ -f "$HESTIA/data/firewall/chains.conf" ]; then
-		sed -i "/CHAIN='HESTIA'/c\CHAIN='HESTIA' PORT='$PORT' PROTOCOL='TCP'" "$HESTIA/data/firewall/chains.conf"
+	if [ -f "$ARCPANEL/data/firewall/chains.conf" ]; then
+		sed -i "/CHAIN='ARCPANEL'/c\CHAIN='ARCPANEL' PORT='$PORT' PROTOCOL='TCP'" "$ARCPANEL/data/firewall/chains.conf"
 	fi
 
 	# Restart services
@@ -87,14 +87,14 @@ else
 		"$BIN/v-restart-service" iptables
 	fi
 
-	# Check if Hestia is running
-	if [[ $(ps -eaf | grep -i hestia | sed '/^$/d' | wc -l) -gt 1 ]]; then
-		"$BIN/v-restart-service" hestia
+	# Check if ArcPanel is running
+	if [[ $(ps -eaf | grep -i arcpanel | sed '/^$/d' | wc -l) -gt 1 ]]; then
+		"$BIN/v-restart-service" arcpanel
 	fi
 fi
 
 #----------------------------------------------------------#
-#                       Hestia                             #
+#                         ArcPanel                         #
 #----------------------------------------------------------#
 
 # Logging

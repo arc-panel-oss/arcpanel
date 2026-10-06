@@ -64,6 +64,12 @@ text	Hestiacp	ArcPanel	*
 text	HESTIACP	ARCPANEL	*
 text	hestiacp	arcpanel	*
 
+# --- Text: the 60-column section banners keep their width (ArcPanel is two
+# characters longer than Hestia)
+text	#                       Hestia                             #	#                         ArcPanel                         #	*
+text	#                        Hestia                            #	#                         ArcPanel                         #	*
+text	#                       Hestia                              #	#                         ArcPanel                         #	*
+
 # --- Text: every other use, case kept (§5.2-§5.8). hestia-nginx,
 # hestiaweb, hestia_openssl_sect, HESTIA_*, check_hestia_demo_mode and
 # Hestia-Exit-Code all follow from these three rules.

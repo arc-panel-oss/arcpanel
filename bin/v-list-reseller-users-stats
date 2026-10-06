@@ -18,14 +18,14 @@ reseller=$1
 format=${2-shell}
 
 # Includes
-# shellcheck source=/etc/hestiacp/hestia.conf
-source /etc/hestiacp/hestia.conf
-# shellcheck source=/usr/local/hestia/func/main.sh
-source $HESTIA/func/main.sh
-# shellcheck source=/usr/local/hestia/func/tenancy.sh
-source $HESTIA/func/tenancy.sh
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/tenancy.sh
+source $ARCPANEL/func/tenancy.sh
 # load config file
-source_conf "$HESTIA/conf/hestia.conf"
+source_conf "$ARCPANEL/conf/arcpanel.conf"
 
 COLUMNS_SUMMED="IP_OWNED DISK_QUOTA U_DISK U_DISK_DIRS U_DISK_WEB U_DISK_MAIL U_DISK_DB BANDWIDTH U_BANDWIDTH U_WEB_DOMAINS U_WEB_SSL U_WEB_ALIASES U_DNS_DOMAINS U_DNS_RECORDS U_MAIL_DOMAINS U_MAIL_DKIM U_MAIL_ACCOUNTS U_DATABASES U_CRON_JOBS U_BACKUPS"
 
@@ -33,8 +33,8 @@ COLUMNS_SUMMED="IP_OWNED DISK_QUOTA U_DISK U_DISK_DIRS U_DISK_WEB U_DISK_MAIL U_
 sum_rows() {
 	local files=() user
 	for user in $reseller $(tenancy_customers "$reseller"); do
-		if [ -f "$HESTIA/data/users/$user/stats.log" ]; then
-			files+=("$HESTIA/data/users/$user/stats.log")
+		if [ -f "$ARCPANEL/data/users/$user/stats.log" ]; then
+			files+=("$ARCPANEL/data/users/$user/stats.log")
 		fi
 	done
 	[ "${#files[@]}" -eq 0 ] && return
@@ -127,7 +127,7 @@ case $format in
 esac
 
 #----------------------------------------------------------#
-#                       Hestia                             #
+#                         ArcPanel                         #
 #----------------------------------------------------------#
 
 exit

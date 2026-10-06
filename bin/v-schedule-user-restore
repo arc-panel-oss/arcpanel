@@ -21,12 +21,12 @@ cron=$7
 udir=$8
 
 # Includes
-# shellcheck source=/etc/hestiacp/hestia.conf
-source /etc/hestiacp/hestia.conf
-# shellcheck source=/usr/local/hestia/func/main.sh
-source $HESTIA/func/main.sh
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
 # load config file
-source_conf "$HESTIA/conf/hestia.conf"
+source_conf "$ARCPANEL/conf/arcpanel.conf"
 
 #----------------------------------------------------------#
 #                    Verifications                         #
@@ -41,15 +41,15 @@ is_backup_enabled
 is_backup_scheduled 'restore'
 
 # Perform verification if read-only mode is enabled
-check_hestia_demo_mode
+check_arcpanel_demo_mode
 
 #----------------------------------------------------------#
 #                       Action                             #
 #----------------------------------------------------------#
 
 # Adding restore task to  the queue
-log="$HESTIA/log/restore.log"
-queue_file="$HESTIA/data/queue/backup.pipe"
+log="$ARCPANEL/log/restore.log"
+queue_file="$ARCPANEL/data/queue/backup.pipe"
 # Store a safely serialized command line for the legacy Bash queue consumer.
 printf 'nice -n 19 ionice -c 3 %q %q %q %q %q %q %q %q %q yes >> %q 2>&1\n' \
 	"$BIN/v-restore-user" \
@@ -64,7 +64,7 @@ printf 'nice -n 19 ionice -c 3 %q %q %q %q %q %q %q %q %q yes >> %q 2>&1\n' \
 	"$log" >> "$queue_file"
 
 #----------------------------------------------------------#
-#                       Hestia                             #
+#                         ArcPanel                         #
 #----------------------------------------------------------#
 
 # Logging

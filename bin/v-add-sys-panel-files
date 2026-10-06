@@ -6,8 +6,8 @@
 #
 # This function creates the staging tree of the file manager below the
 # panel app's storage directory (uploads, editor saves and download tickets,
-# owned by hestiaweb, mode 0700) and adds the panel app's scheduler to the
-# hestiaweb crontab; the scheduler removes stale uploads and tickets.
+# owned by arcpanelweb, mode 0700) and adds the panel app's scheduler to the
+# arcpanelweb crontab; the scheduler removes stale uploads and tickets.
 # It is idempotent and runs on every upgrade.
 
 #----------------------------------------------------------#
@@ -15,17 +15,17 @@
 #----------------------------------------------------------#
 
 # Includes
-# shellcheck source=/etc/hestiacp/hestia.conf
-source /etc/hestiacp/hestia.conf
-# shellcheck source=/usr/local/hestia/func/main.sh
-source $HESTIA/func/main.sh
-# shellcheck source=/usr/local/hestia/func/fs.sh
-source $HESTIA/func/fs.sh
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/fs.sh
+source $ARCPANEL/func/fs.sh
 # load config file
-source_conf "$HESTIA/conf/hestia.conf"
+source_conf "$ARCPANEL/conf/arcpanel.conf"
 
-CRONTAB="/var/spool/cron/crontabs/hestiaweb"
-SCHEDULE_LINE="* * * * * $HESTIA/php/bin/php $HESTIA/web-app/artisan schedule:run > /dev/null 2>&1"
+CRONTAB="/var/spool/cron/crontabs/arcpanelweb"
+SCHEDULE_LINE="* * * * * $ARCPANEL/php/bin/php $ARCPANEL/web-app/artisan schedule:run > /dev/null 2>&1"
 
 #----------------------------------------------------------#
 #                    Verifications                         #
@@ -37,9 +37,9 @@ if [ "$(id -u)" != '0' ]; then
 fi
 
 # Perform verification if read-only mode is enabled
-check_hestia_demo_mode
+check_arcpanel_demo_mode
 
-if [ ! -d "$HESTIA/web-app/storage" ]; then
+if [ ! -d "$ARCPANEL/web-app/storage" ]; then
 	check_result "$E_NOTEXIST" "the panel app is not installed"
 fi
 if ! id "$FS_STAGING_OWNER" > /dev/null 2>&1; then
@@ -51,14 +51,14 @@ fi
 #----------------------------------------------------------#
 
 # Staging tree; storage/app may not exist on servers set up before E3
-for dir in "$HESTIA/web-app/storage/app" "$FS_STAGING" "$FS_UPLOADS" "$FS_DOWNLOADS"; do
+for dir in "$ARCPANEL/web-app/storage/app" "$FS_STAGING" "$FS_UPLOADS" "$FS_DOWNLOADS"; do
 	if [ -L "$dir" ]; then
 		rm -f "$dir"
 	fi
 	mkdir -p "$dir"
 	chown "$FS_STAGING_OWNER:$FS_STAGING_OWNER" "$dir"
 done
-chmod 750 "$HESTIA/web-app/storage/app"
+chmod 750 "$ARCPANEL/web-app/storage/app"
 chmod 700 "$FS_STAGING" "$FS_UPLOADS" "$FS_DOWNLOADS"
 
 # Scheduler of the panel app
@@ -66,12 +66,12 @@ chmod 700 "$FS_STAGING" "$FS_UPLOADS" "$FS_DOWNLOADS"
 # file for appending in the sticky crontab directory)
 if [ -f "$CRONTAB" ] && ! grep -q "artisan schedule:run" "$CRONTAB"; then
 	sed -i -e "\$a$SCHEDULE_LINE" "$CRONTAB"
-	chown hestiaweb:hestiaweb "$CRONTAB"
+	chown arcpanelweb:arcpanelweb "$CRONTAB"
 	chmod 600 "$CRONTAB"
 fi
 
 #----------------------------------------------------------#
-#                       Hestia                             #
+#                         ArcPanel                         #
 #----------------------------------------------------------#
 
 log_event "$OK" "$ARGUMENTS"

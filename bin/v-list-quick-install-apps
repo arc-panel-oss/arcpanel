@@ -1,4 +1,4 @@
-#!/usr/local/hestia/php/bin/php
+#!/usr/local/arcpanel/php/bin/php
 <?php
 //# info: list the Quick Install applications (E7 batch 2)
 //# options: [FORMAT]
@@ -19,11 +19,11 @@ if (!in_array($format, ["json", "shell", "plain"], true)) {
 
 qi_session();
 qi_quiet_errors();
-$hestia = new QiHestiaApp();
+$arcpanel = new QiArcPanelApp();
 
 $apps = [];
 foreach (qi_apps() as $app) {
-	$info = qi_installer($app, $hestia)->getInfo();
+	$info = qi_installer($app, $arcpanel)->getInfo();
 	$apps[$app] = [
 		"NAME" => $info->name,
 		"GROUP" => $info->group,

@@ -15,20 +15,20 @@
 
 access_key_id="$(basename "$1")"
 secret_access_key=$2
-hst_command=$3
+arc_command=$3
 ip46=${4-127.0.0.1}
 format=${5-shell}
 
 # Includes
-# shellcheck source=/etc/hestiacp/hestia.conf
-source /etc/hestiacp/hestia.conf
-# shellcheck source=/usr/local/hestia/func/main.sh
-source $HESTIA/func/main.sh
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
 # load config file
-source_conf "$HESTIA/conf/hestia.conf"
+source_conf "$ARCPANEL/conf/arcpanel.conf"
 
 # Perform verification if read-only mode is enabled
-check_hestia_demo_mode
+check_arcpanel_demo_mode
 
 time_n_date=$(date +'%T %F')
 time=$(echo "$time_n_date" | cut -f 1 -d \ )
@@ -56,7 +56,7 @@ shell_list() {
 # Callback to intercept invalid result validation
 abort_missmatch() {
 	echo "Error: $2"
-	echo "$date $time ${access_key_id:-api} $ip46 failed to login" >> $HESTIA/log/auth.log
+	echo "$date $time ${access_key_id:-api} $ip46 failed to login" >> $ARCPANEL/log/auth.log
 
 	# Add a log for user
 	if [[ "$1" == "$E_PASSWORD" && -n "$user" ]]; then
@@ -82,12 +82,12 @@ is_format_valid 'access_key_id' 'ip46' 'command'
 is_object_valid 'key' 'KEY' "$access_key_id"
 is_format_valid 'secret_access_key'
 check_access_key_secret "$access_key_id" "$secret_access_key" user
-check_access_key_cmd "$access_key_id" "$hst_command" user_arg_pos
+check_access_key_cmd "$access_key_id" "$arc_command" user_arg_pos
 
 # Check if key owner is active
 is_format_valid 'user'
 is_object_valid 'user' 'USER' "$user"
-export USER_DATA=$HESTIA/data/users/$user
+export USER_DATA=$ARCPANEL/data/users/$user
 is_object_unsuspended 'user' 'USER' "$user"
 
 # Remove the check_result callback
@@ -104,11 +104,11 @@ case $format in
 esac
 
 #----------------------------------------------------------#
-#                       Hestia                             #
+#                         ArcPanel                         #
 #----------------------------------------------------------#
 
 # Logging
-log_history "[$ip46] Access key $access_key_id successfully launched with command $hst_command" "Info" "$user" "API"
-echo "$date $time $access_key_id $ip46 $hst_command successfully launched" >> $HESTIA/log/auth.log
+log_history "[$ip46] Access key $access_key_id successfully launched with command $arc_command" "Info" "$user" "API"
+echo "$date $time $access_key_id $ip46 $arc_command successfully launched" >> $ARCPANEL/log/auth.log
 
 exit

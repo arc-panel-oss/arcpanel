@@ -15,12 +15,12 @@ language=$1
 update_users=$2
 
 # Includes
-# shellcheck source=/etc/hestiacp/hestia.conf
-source /etc/hestiacp/hestia.conf
-# shellcheck source=/usr/local/hestia/func/main.sh
-source $HESTIA/func/main.sh
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
 # load config file
-source_conf "$HESTIA/conf/hestia.conf"
+source_conf "$ARCPANEL/conf/arcpanel.conf"
 
 is_language_valid() {
 	# English is always allowed
@@ -30,7 +30,7 @@ is_language_valid() {
 			log_event "$E_INVALID" "$ARGUMENTS"
 			exit $E_INVALID
 		fi
-		if [ ! -d "$HESTIA/lib/locale/$1" ]; then
+		if [ ! -d "$ARCPANEL/lib/locale/$1" ]; then
 			echo "Error: language $1 doesn't exist"
 			log_event "$E_NOTEXIST" "$ARGUMENTS"
 			exit $E_NOTEXIST
@@ -47,17 +47,17 @@ is_format_valid 'language'
 is_language_valid "$language"
 
 # Perform verification if read-only mode is enabled
-check_hestia_demo_mode
+check_arcpanel_demo_mode
 
 #----------------------------------------------------------#
 #                       Action                             #
 #----------------------------------------------------------#
 
 # Change language
-if [ -z "$(grep LANGUAGE $HESTIA/conf/hestia.conf)" ]; then
-	echo "LANGUAGE='$language'" >> $HESTIA/conf/hestia.conf
+if [ -z "$(grep LANGUAGE $ARCPANEL/conf/arcpanel.conf)" ]; then
+	echo "LANGUAGE='$language'" >> $ARCPANEL/conf/arcpanel.conf
 else
-	sed -i "s/LANGUAGE=.*/LANGUAGE='$language'/g" $HESTIA/conf/hestia.conf
+	sed -i "s/LANGUAGE=.*/LANGUAGE='$language'/g" $ARCPANEL/conf/arcpanel.conf
 fi
 
 # Update language for all existing users if specified
@@ -68,7 +68,7 @@ if [ "$update_users" = "yes" ]; then
 fi
 
 #----------------------------------------------------------#
-#                       Hestia                             #
+#                         ArcPanel                         #
 #----------------------------------------------------------#
 
 # Logging

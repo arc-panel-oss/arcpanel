@@ -6,4 +6,4 @@
 if [ -n "$ARC_PORTS_DEFER" ]; then
 	exit 0
 fi
-"$HESTIA/bin/v-add-user-port-pool" "$1"
+"$ARCPANEL/bin/v-add-user-port-pool" "$1"
