@@ -1,6 +1,6 @@
 # 02 — Laravel Foundation (Strangler)
 
-**Epic:** E1 · **Status:** Draft v1.1 (2026-10-05: Laravel 13, `ArcCommand` names, login flow corrected — see the [E1-S1 spec](../features/specs/2026-10-05-001-e1-laravel-foundation-slice1-design.md)) · **Depends on:** nothing · **Unblocks:** everything else
+**Epic:** E1 · **Status:** Draft v1.1 (2026-10-05: Laravel 13, `ArcCommand` names, login flow corrected — see the [E1-S1 spec](../features/specs/2026-10-05-001-e1-laravel-foundation-slice1-design.md)); implemented. Since 2.0 (E8, [spec](../features/specs/2026-10-06-004-e8-legacy-retirement-design.md)) the panel app serves the root URL and the legacy app is gone, so the two-app parts (§3.1, §3.3, the legacy side of §5) describe 1.x · **Depends on:** nothing · **Unblocks:** everything else
 
 ---
 
@@ -13,6 +13,8 @@ Non-goals: a JSON-only API, a SPA, changing any `v-*` command, changing the `hes
 ---
 
 ## 2. Current state (verified in code)
+
+_State of HestiaCP 1.10.5 before E1; the `web/` paths below are gone since 2.0._
 
 - `src/deb/nginx/nginx.conf`: one `server { listen 8083 ssl; root /usr/local/hestia/web; }` with `location ~ \.php$ → unix:/run/hestia-php.sock`, plus `/fm/` (FileGator), `/_shell/` (web terminal ws proxy), `/rrd/`, `/backup/` internal locations and a deny list for `/(inc|src|locale|templates)`.
 - `web/inc/main.php` is the bootstrap of every legacy page: `session_start()`, IP-binding check (`user_combined_ip`), inactivity timeout, user existence re-check via `v-list-user`, admin demotion check, suspended logout, `look` handling, CSRF token, `policies.php` (read-only computation), i18n.
@@ -27,6 +29,8 @@ Non-goals: a JSON-only API, a SPA, changing any `v-*` command, changing the `hes
 ## 3. Routing: two apps, one port
 
 ### 3.1 NGINX
+
+> **1.x.** Since 2.0 (E8) `src/deb/nginx/nginx.conf` has `root /usr/local/hestia/web-app/public`, `location /` → `index.php` with `SCRIPT_NAME=/index.php`, `/build/`, `/api/` → `lib/api/index.php`, `/images/` → `lib/images`, `/images/custom/` → `data/white-label`, `/error/` → `lib/error`, `/_shell/` and `/backup/`. The `/fm/` and `/rrd/` blocks are gone. The rest of this section is the 1.x layout.
 
 One `location` block is added to `src/deb/nginx/nginx.conf`, before the `\.php$` regex. `^~` makes the prefix match win over regex locations, so `/app/anything.php` never reaches the legacy handler.
 
@@ -57,21 +61,23 @@ location @arcpanel {
 
 Laravel derives its `/app` base URL from `SCRIPT_NAME=/app/index.php`, which nginx passes, so routes carry no prefix (E1-S1 spec §11). In E8 `location /` points at `web-app/public/` with `SCRIPT_NAME=/index.php` and the legacy `root` disappears (10 §6).
 
-`/api/`, `/fm/`, `/_shell/`, `/rrd/`, `/backup/` keep their current blocks throughout the migration.
+`/api/`, `/fm/`, `/_shell/`, `/rrd/`, `/backup/` kept their blocks throughout the migration. E8 removed `/fm/` (FileGator; the 1.x URL redirects to the file manager) and `/rrd/` (graphs come from `v-export-rrd`).
 
 ### 3.2 Laravel routes
 
 ```text
-/app/login, /app/login/2fa, /app/logout          guest + pending-2fa
-/app/                                            dashboard (role-aware)
-/app/web/domains[/{domain}/edit|/create]         E1 proof pages
-/app/impersonate/{user}, /app/impersonate/stop   "login as"
-/app/_health                                     200 + version, used by E33 health check and e2e
+/login, /login/2fa, /logout                      guest + pending-2fa
+/                                                dashboard (role-aware)
+/web/domains[/{domain}/edit|/create]             E1 proof pages
+/impersonate/{user}, /impersonate/stop           "login as"
+/_health                                         200 + version, used by E33 health check and e2e
 ```
 
-Every later epic adds routes under `/app/<module>/…`. Route names follow `<module>.<action>` (`web.domains.index`) so Blade links never hard-code URLs and the E8 prefix removal is a config change.
+Every later epic adds routes under `/<module>/…`. Until E8 the panel app lived under the `/app/` prefix (1.x); route names follow `<module>.<action>` (`web.domains.index`) so Blade links never hard-code URLs and the E8 prefix removal was a config change. In 2.0, `/app/*` and the 1.x page paths redirect for one release (`LegacyRedirectController`, map in `App\View\LegacyUrls`); the redirects go away in 2.1.
 
 ### 3.3 Navigation hand-off
+
+> **1.x.** The hand-off map and `web/inc/arcpanel-routes.php` were removed with `web/` in E8; the 1.x page URLs are now mapped by `App\View\LegacyUrls`.
 
 The legacy top panel (`web/templates/includes/panel.php`) gets its link targets from a small map in `web/inc/arcpanel-routes.php` (**new**, legacy side): `['list/web' => '/app/web/domains', …]`. When a module is migrated, its entry is added, and the legacy `web/list/web/index.php` is replaced by a 3-line 301 stub. Removing the stub is part of E8.
 
@@ -215,7 +221,7 @@ final class Principal
     public readonly string $loginShell;
     public readonly string $language;
     public readonly ?string $theme;
-    public readonly string $csrfTokenLegacy; // $_SESSION['token'] — for links into legacy pages
+    public readonly string $legacyToken;    // $_SESSION['token'] — login fingerprint, passed to v-log-user-logout
     public function effectiveUser(): string;  // impersonated ?? loginUser
     public function isImpersonating(): bool;
     public function isReadOnly(SysConfig $cfg, UserRecord $effective): bool; // §5.6
@@ -226,7 +232,7 @@ final class Principal
 
 The middleware performs, in this order, exactly the legacy checks so that behaviour is identical whichever app serves the page:
 
-1. `user_combined_ip` mismatch and `DISABLE_IP_CHECK != 'yes'` → `v-log-user-logout`, destroy, redirect `/app/login`.
+1. `user_combined_ip` mismatch and `DISABLE_IP_CHECK != 'yes'` → `v-log-user-logout`, destroy, redirect `/login`.
 2. Missing `VERSION` or `user` → destroy, redirect to login (except guest routes).
 3. `v-list-user <user> json` fails → destroy, redirect (user deleted).
 4. `userContext === 'admin'` but current `ROLE !== 'admin'` → destroy (demotion). E11 adds the same for `reseller`.
@@ -240,7 +246,7 @@ These are unit-tested against fixtures of each session state (Pest), and e2e-tes
 
 **Superseded by the [E1-S1 spec](../features/specs/2026-10-05-001-e1-laravel-foundation-slice1-design.md) §6** (2026-10-05). The earlier text here described the legacy flow wrongly: legacy login is `v-get-user-salt` → hash computed in PHP per method (`v-check-user-password … yes` only for yescrypt) → `v-check-user-hash` with the hash in a temp file, plus the `LOGIN_DISABLED` and `LOGIN_USE_IPLIST` checks. `LegacySession::establish()` writes only identity keys; system configuration keys are not copied because `web/inc/main.php` calls `load_hestia_config()` on every request.
 
-The cut-over is controlled by the `hestia.conf` key `ARCPANEL_APP_LOGIN` (`yes` by default): when `yes`, `web/login/index.php` redirects guests to `/app/login`; `no` restores the legacy form (spec §7). Password reset (`web/reset/`) and 2FA reset (`web/reset2fa/`) stay legacy until E7.
+In 1.x the cut-over was controlled by the `hestia.conf` key `ARCPANEL_APP_LOGIN` (`yes` by default): when `yes`, `web/login/index.php` redirected guests to `/app/login`; `no` restored the legacy form (spec §7). Password reset and 2FA reset moved to the panel in E7 batch 3. Since 2.0 (E8) the key is gone and `/login` is the only login.
 
 ### 5.6 Read-only, demo and protected admin
 
@@ -253,11 +259,11 @@ Demo mode (`v-change-sys-demo-mode`) is enforced by every `v-*` through `check_h
 
 ### 5.7 Impersonation ("login as")
 
-`POST /app/impersonate/{user}` → `ImpersonationPolicy` (admin: any; reseller: own tree — 03 §6) → `LegacySession::write(['look' => $user])`, plus `v-log-user-login` entries as legacy does for impersonator and target. `POST /app/impersonate/stop` clears `look`. Legacy pages read `look` natively, so an admin can switch in Laravel and continue in a legacy page without re-login.
+`POST /impersonate/{user}` → `ImpersonationPolicy` (admin: any; reseller: own tree — 03 §6) → `LegacySession::write(['look' => $user])`, plus `v-log-user-login` entries as legacy does for impersonator and target. `POST /impersonate/stop` clears `look`. In 1.x legacy pages read `look` natively, so an admin could switch in Laravel and continue in a legacy page without re-login.
 
 ### 5.8 Logout
 
-`POST /app/logout` → `v-log-user-logout USER TOKEN` → `LegacySession::destroy()` → Laravel session invalidate → redirect `/app/login`. Legacy `/logout/` keeps working and destroys the same file.
+`POST /logout` → `v-log-user-logout USER TOKEN` → `LegacySession::destroy()` → Laravel session invalidate → redirect `/login`. The 1.x `/logout/` URL redirects to the login page for one release (2.0).
 
 ### 5.9 After E8
 
@@ -274,13 +280,13 @@ Defined fully in [03](./03-tenancy-and-authorization.md); E1 ships the skeleton:
 - `Role` enum (`admin`, `reseller`, `user`, `dnsCluster`) read from `userContext` / `ROLE`.
 - Middleware aliases: `auth.arc` (Principal present), `role:admin`, `role:admin,reseller`, `not-readonly`, `effective-user` (resolves `{user}` route parameter to the effective user and authorizes visibility).
 - Policies per object type registered in `AuthServiceProvider`, all delegating owner questions to `OwnerScope`. E1 implements `WebDomainPolicy`, `UserPolicy` (for impersonation) and `DashboardPolicy`.
-- CSRF: Laravel's `VerifyCsrfToken` for all Laravel forms. Links from Laravel into legacy pages that need `?token=` append `Principal::$csrfTokenLegacy`. `POLICY_CSRF_STRICTNESS` (legacy referer check) is also honoured by a `LegacyCsrfStrictness` middleware so admins see one behaviour.
+- CSRF: Laravel's `VerifyCsrfToken` for all Laravel forms. In 1.x, links from Laravel into legacy pages that needed `?token=` appended the session `token`; no legacy page remains since 2.0. `POLICY_CSRF_STRICTNESS` (legacy referer check) is also honoured by a `LegacyCsrfStrictness` middleware so admins see one behaviour.
 
 ---
 
 ## 7. Internationalisation
 
-- Source of truth stays gettext + Crowdin. `php artisan arcpanel:i18n-import` converts `web/locale/<lang>/LC_MESSAGES/hestiacp.po` (fetched by Crowdin in CI; `.mo` parsed as fallback for local builds) into `web-app/lang/<lang>.json` — Laravel JSON translations keyed by the **English source string**, which is exactly how legacy code calls `_("Add Web Domain")`. Plural forms map to Laravel's `{0}|{1}|[2,*]` syntax.
+- Source of truth stays gettext + Crowdin. `php artisan arcpanel:i18n-import` converts `lib/locale/<lang>/LC_MESSAGES/hestiacp.po` (`web/locale` before 2.0; fetched by Crowdin in CI; `.mo` parsed as fallback for local builds) into `web-app/lang/<lang>.json` — Laravel JSON translations keyed by the **English source string**, which is exactly how legacy code calls `_("Add Web Domain")`. Plural forms map to Laravel's `{0}|{1}|[2,*]` syntax.
 - Blade uses `{{ __('Add Web Domain') }}`; new strings are added to `hestiacp.pot` by the existing extraction script extended to scan `web-app/resources/views` and `web-app/resources/js`.
 - Language is `Principal::$language`; `SetLocale` middleware calls `app()->setLocale()`. RTL languages (`ar`, `fa`, `he`) set `dir="rtl"` in the layout (05 §3).
 - The import runs in CI and at package build; generated files are not committed.
@@ -289,13 +295,13 @@ Defined fully in [03](./03-tenancy-and-authorization.md); E1 ships the skeleton:
 
 ## 8. Error handling and UX parity
 
-| Situation                  | Legacy                                        | Panel app                                                                                                 |
-| -------------------------- | --------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
-| `v-*` fails                | `$_SESSION['error_msg']` shown in a top alert | `ArcCommandException` → flash `error` → same alert component (05)                                         |
-| `v-*` succeeds             | `$_SESSION['ok_msg']`                         | flash `ok` → toast                                                                                        |
-| Validation (missing field) | inline `$_SESSION['error_msg']`               | Laravel FormRequest → inline field errors (05 form component)                                             |
-| Unknown exception          | PHP error page                                | Laravel handler: 500 page from `web/error/50x.html` styling; stack trace only when `DEBUG_MODE='true'`    |
-| `DEBUG_MODE='true'`        | debug panel (`debug_panel.php`)               | Laravel debug bar is **not** installed; a small `x-debug-panel` shows the last `ArcCommand` calls instead |
+| Situation                  | Legacy                                        | Panel app                                                                                                                       |
+| -------------------------- | --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `v-*` fails                | `$_SESSION['error_msg']` shown in a top alert | `ArcCommandException` → flash `error` → same alert component (05)                                                               |
+| `v-*` succeeds             | `$_SESSION['ok_msg']`                         | flash `ok` → toast                                                                                                              |
+| Validation (missing field) | inline `$_SESSION['error_msg']`               | Laravel FormRequest → inline field errors (05 form component)                                                                   |
+| Unknown exception          | PHP error page                                | Laravel handler: 500 page from `lib/error/50x.html` styling (`web/error` before 2.0); stack trace only when `DEBUG_MODE='true'` |
+| `DEBUG_MODE='true'`        | debug panel (`debug_panel.php`)               | Laravel debug bar is **not** installed; a small `x-debug-panel` shows the last `ArcCommand` calls instead                       |
 
 ---
 
@@ -304,9 +310,9 @@ Defined fully in [03](./03-tenancy-and-authorization.md); E1 ships the skeleton:
 - `web-app/` is a standard Laravel 13 skeleton, PHP 8.5, `composer.json` with `"config": {"platform": {"php": "8.5"}}`; `vendor/` built in CI (`composer install --no-dev --prefer-dist --classmap-authoritative`) and shipped inside the `hestia` deb at `/usr/local/hestia/web-app/`.
 - Writable paths (`hestiaweb:hestiaweb 0750`; `uploads`/`downloads` `0700`): `web-app/storage/{framework/{cache,sessions,views},logs,tmp,uploads,downloads}`, `web-app/bootstrap/cache`. `uploads` and `downloads` are the File Manager staging areas ([06](./06-file-manager-v2.md) §6); `downloads` is exposed only through an `internal` NGINX location (`/_downloads/`, `X-Accel-Redirect`). Created by `install/hst-install-*.sh` and `install/upgrade/versions/<ver>.sh` (idempotent).
 - `/etc/arcpanel/arcpanel.env` (`root:hestiaweb 0640`): `APP_KEY`, `APP_ENV=production`, `APP_DEBUG` (from `DEBUG_MODE`). Generated once by `v-add-sys-arcpanel` (**new**; keeps an existing `APP_KEY`; no `storage:link` since assets are pre-built).
-- `v-add-sys-arcpanel` builds the config, event and view caches (not the route cache, see E1-S1 spec §11); `optimize:clear` on downgrade.
+- `v-add-sys-arcpanel` builds the config, event and view caches, and since 2.0 the route cache (in 1.x the `/app` base URL ruled it out, E1-S1 spec §11); `optimize:clear` on downgrade.
 - Build artifacts (`public/build/*`) come from the repo's esbuild pipeline (05 §7); no Node at runtime.
-- Upstream-diff CI (11 §5) treats `web-app/` as ArcPanel-owned; `web/` diffs are allowed (it is being deleted).
+- Upstream-diff CI (11 §5) treats `web-app/` as ArcPanel-owned; `web/` was deleted in E8.
 
 ---
 
@@ -317,9 +323,9 @@ Defined fully in [03](./03-tenancy-and-authorization.md); E1 ships the skeleton:
 | Session file locked by a slow legacy request               | Laravel request waits on `session_start()` | Middleware closes the session as soon as `LAST_ACTIVITY` is written; metrics in debug panel; e2e timing test                                                                                                                             |
 | Session written by legacy with a key Laravel does not know | None (ignored)                             | Bridge copies only known keys; unknown keys are preserved untouched because the file is only patched, never rewritten from Laravel's model                                                                                               |
 | `v-list-user` slow on large servers                        | Every request pays it                      | Per-request memo; 60 s cache of `v-list-sys-config`; later, `v-list-user` output cached for 10 s keyed by file mtime of `user.conf` (read-only `stat` is allowed for `hestiaweb`? — no: data dir is root-only, so time-based cache only) |
-| `sudo` fails (`requiretty`, PATH)                          | All commands fail                          | Same sudoers line as legacy; `Defaults:root !requiretty` already present; `/app/_health` runs `v-list-sys-config` and reports                                                                                                            |
+| `sudo` fails (`requiretty`, PATH)                          | All commands fail                          | Same sudoers line as legacy; `Defaults:root !requiretty` already present; `/_health` runs `v-list-sys-config` and reports                                                                                                                |
 | Laravel `vendor/` incompatible with bundled PHP 8.5        | Panel app fails to boot                    | CI builds the deb against `hestia-php`; `composer.json` platform pin; smoke test in the install VM                                                                                                                                       |
-| Prefix mismatch (`/app` vs root) after E8                  | Broken links                               | All links via route names; base URL from `SCRIPT_NAME`, a single switch; e2e crawls every nav link                                                                                                                                       |
+| Prefix mismatch (`/app` vs root) after E8                  | Broken links                               | All links via route names; base URL from `SCRIPT_NAME`, a single switch; e2e crawls every nav link; `/app/*` redirects for one release                                                                                                   |
 
 ---
 
@@ -328,7 +334,7 @@ Defined fully in [03](./03-tenancy-and-authorization.md); E1 ships the skeleton:
 - **Pest unit:** `ArcCommand` escaping, allow-list, error mapping, `Secret` masking; `LegacySession` against fixture session files in every state of §5.4; `Principal` read-only matrix.
 - **Pest feature:** login (password, 2FA, disabled login, failed attempts), impersonation, logout, dashboard and web-domain pages with the fake; CSRF enforcement; read-only POST rejection.
 - **BATS:** `v-add-sys-arcpanel` idempotency; nginx config test (`hestia-nginx -t`) after install.
-- **Playwright (E10):** login on Laravel → open legacy `/list/dns/` → back to `/app/web/domains` with no re-login; login-as from Laravel visible in legacy; inactivity logout; both apps on Debian 12 and Ubuntu 24.04.
+- **Playwright (E10):** in 1.x, login on Laravel → open legacy `/list/dns/` → back to `/app/web/domains` with no re-login; login-as from Laravel visible in legacy. Since 2.0: login, login-as, inactivity logout and the redirects of the 1.x URLs, on Debian 12 and Ubuntu 24.04.
 
 ---
 

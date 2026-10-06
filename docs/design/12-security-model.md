@@ -24,7 +24,7 @@ flowchart LR
     N[hestia-nginx :8083]
     L[Laravel panel app]
     LEG[Legacy web/ pages<br/>until E8]
-    APIv1[web/api/index.php]
+    APIv1[lib/api/index.php]
   end
 
   subgraph root["Boundary 2 — root"]
@@ -86,7 +86,7 @@ Unchanged from upstream: `install/common/sudo/hestiaweb` grants `hestiaweb ALL=N
 
 | Property                  | Design                                                                                                                                                                                                                                                                                                                                                                                                                   |
 | ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Identity                  | One PHP session file (`ARCPANELSID`, `files` handler, `/usr/local/hestia/data/sessions`, dir `0700 hestiaweb`) shared by legacy and Laravel ([02](./02-laravel-foundation.md) §5)                                                                                                                                                                                                                                        |
+| Identity                  | One PHP session file (`ARCPANELSID`, `files` handler, `/usr/local/hestia/data/sessions`, dir `0700 hestiaweb`) shared by Laravel and the web terminal (and the legacy app in 1.x) ([02](./02-laravel-foundation.md) §5)                                                                                                                                                                                                  |
 | Second cookie             | `arcpanel_session` (Laravel `file` driver) carries only flash, CSRF and transient UI state — never identity                                                                                                                                                                                                                                                                                                              |
 | Cookie flags              | `Secure`, `HttpOnly`, `SameSite=Lax` for both; `SameSite=Strict` would break deep links from mail. Set from one place (`src/deb/php/php.ini` for `ARCPANELSID`, `config/session.php` for Laravel) and asserted by an e2e test                                                                                                                                                                                            |
 | Fixation                  | `LoginController` calls `session_regenerate_id(true)` on the legacy session **and** `Session::regenerate()` on the Laravel session after a successful password/2FA check, before writing identity keys                                                                                                                                                                                                                   |
@@ -98,14 +98,14 @@ Unchanged from upstream: `install/common/sudo/hestiaweb` grants `hestiaweb ALL=N
 
 ### 4.5 Login rate limiting
 
-Laravel `ThrottleRequests` on `/app/login` (10 attempts / 5 minutes per IP + username pair) in addition to the existing Fail2Ban `hestia` jail reading `v-log-user-login` failures. 2FA attempts: 3 failures invalidate the pending marker (legacy parity).
+Laravel `ThrottleRequests` on `/login` (10 attempts / 5 minutes per IP + username pair) in addition to the existing Fail2Ban `hestia` jail reading `v-log-user-login` failures. 2FA attempts: 3 failures invalidate the pending marker (legacy parity).
 
 ---
 
 ## 5. CSRF
 
 - All Laravel forms and Vue island mutations send the Laravel `_token` (meta tag / `X-CSRF-TOKEN`), verified by `VerifyCsrfToken`. No GET endpoint changes state.
-- Legacy pages keep `web/inc/prevent_csrf.php` (origin/referer check with `POLICY_CSRF_STRICTNESS`) and the `?token=` parameter on action links. Laravel appends `Principal::$csrfTokenLegacy` when linking into a legacy action URL (none remain after E8).
+- In 1.x, legacy pages kept `web/inc/prevent_csrf.php` (origin/referer check with `POLICY_CSRF_STRICTNESS`) and the `?token=` parameter on action links, and Laravel appended the session `token` when linking into a legacy action URL. None remain since 2.0 (E8).
 - `LegacyCsrfStrictness` middleware applies the same origin/referer policy to Laravel POSTs so admins who set strictness `2` get one behaviour across both apps.
 - The web terminal WebSocket verifies `Origin` against the hostname and server IPs (`server.js`), which doubles as its CSRF control; log streaming (E14/E4) reuses that server and therefore that check.
 
@@ -154,7 +154,7 @@ The mechanism is defined in [06](./06-file-manager-v2.md) §4.2 and §6.2; the s
 - Assembly happens in Laravel; the hand-off into the home is one root-side command, `v-add-fs-upload USER STAGED_FILE DST_PATH` (**new**, E3), which verifies that the staged file is inside the staging directory and owned by `hestiaweb`, that the destination resolves inside the user's home and that the parent is writable **by the user** (`user_exec test -w`), then `install -o USER -g USER -m MODE` + atomic rename, and deletes the staged file. The same command reports `E_DISK` when the user's quota or the disk is full. `v-save-fs-file` (editor) is the same hand-off with an `mtime` precondition.
 - No execution from staging: nothing serves `web-app/storage/`, and the panel's PHP pool never includes files from it. Staged files that are never finished are removed after 24 h.
 - Optional ClamAV scan at `finish` (`clamdscan --fdpass`, only when `ANTIVIRUS_SYSTEM` is set), result shown as a warning; mandatory quarantine arrives with E25.
-- Size limits: `client_max_body_size` for `/app/files/api/upload/` set to the chunk size (8 MiB) so one request cannot exhaust disk; staging free space is checked at `init`; the total is pre-checked against `U_DISK`/`DISK_QUOTA` and finally enforced by `v-add-fs-upload`.
+- Size limits: `client_max_body_size` for `/files/{user}/api/upload/…` set to the chunk size (8 MiB) so one request cannot exhaust disk; staging free space is checked at `init`; the total is pre-checked against `U_DISK`/`DISK_QUOTA` and finally enforced by `v-add-fs-upload`.
 - Downloads are the hand-off in reverse: `v-add-fs-download USER PATH TICKET` (**new**) copies the file as root into `web-app/storage/downloads/<ticket>` (`hestiaweb 0600`), and NGINX serves it through an `internal` location via `X-Accel-Redirect` — the panel never gains read access to user homes.
 
 ---
@@ -209,7 +209,7 @@ Decided in ADR-0003 (rootless vs. group mode); the controls below hold in both m
 ## 12. Authorization controls summary
 
 - Policies + `OwnerScope` ([03](./03-tenancy-and-authorization.md) §7): 404 for objects outside the principal's tree, deny-by-default `Capabilities` table, no checks in templates.
-- Impersonation: only via `ImpersonationPolicy`; the legacy `?loginas=` path stays admin-only; every impersonation start/stop is logged with both usernames via `v-log-user-login` today and as an explicit audit event from E23.
+- Impersonation: only via `ImpersonationPolicy`; the legacy `?loginas=` path was admin-only and is gone since 2.0; every impersonation start/stop is logged with both usernames via `v-log-user-login` today and as an explicit audit event from E23.
 - API keys: permission sets with `ROLE` and `SCOPE`; `v-check-access-key-scope` after `v-check-access-key`; reseller keys cannot carry admin sets ([03](./03-tenancy-and-authorization.md) §8). `API_ALLOWED_IP` and `API_SYSTEM` levels unchanged.
 - Admin protections unchanged: `POLICY_SYSTEM_PROTECTED_ADMIN`, hidden admin, restricted server settings.
 
@@ -224,7 +224,7 @@ Decided in ADR-0003 (rootless vs. group mode); the controls below hold in both m
 | T3  | Tampering — command injection                     | crafted form values reaching `v-*`                          | argv exec, escaping, `\0`/`\n` rejection, `is_format_valid` in every command                                            | §3, [02](./02-laravel-foundation.md) §4.2                                |
 | T4  | Tampering — path traversal                        | File Manager, Node entry file, Docker volume paths          | double path confinement, `user_exec`, 404 on violation                                                                  | §7                                                                       |
 | T5  | Elevation — reseller reads/changes another tenant | list pages, direct URLs, API keys                           | `OwnerScope` server-side filtering, 404, `v-check-access-key-scope`, role e2e suite                                     | [03](./03-tenancy-and-authorization.md), [11](./11-testing-and-ci.md) §4 |
-| T6  | Elevation — reseller impersonates admin           | `/app/impersonate/admin`, legacy `?loginas=`                | `ImpersonationPolicy` requires tree + `ROLE='user'`; legacy path admin-only                                             | §12                                                                      |
+| T6  | Elevation — reseller impersonates admin           | `/impersonate/admin`, legacy `?loginas=` (1.x)              | `ImpersonationPolicy` requires tree + `ROLE='user'`; legacy path admin-only (1.x)                                       | §12                                                                      |
 | T7  | Elevation — user escapes runtime                  | Node/Docker process to host                                 | user-owned processes, cgroups, no socket, no privileged compose, pinned images                                          | §8, §9                                                                   |
 | T8  | Information disclosure — secrets in logs          | command logging, job output, audit                          | positional masking, `Secret` type, write-only credentials                                                               | §6                                                                       |
 | T9  | Information disclosure — hashes to the browser    | `v-list-user` JSON forwarded to views                       | `UserRepository` strips `MD5`, `RKEY`, `TWOFA`, `QRCODE`                                                                | §6.3                                                                     |
@@ -240,7 +240,7 @@ Decided in ADR-0003 (rootless vs. group mode); the controls below hold in both m
 
 ## 14. Dependency and supply-chain policy
 
-- Renovate (weekly, grouped) extended to `web-app/composer.json`, `test/e2e/package.json`; security advisories trigger out-of-band PRs.
+- Dependency updates are made by the maintainer (no Renovate since 2.0); security advisories trigger out-of-band updates.
 - `composer audit` / `npm audit` block PRs above `high` without an expiring exception ([11](./11-testing-and-ci.md) §6.5).
 - Laravel: stay on the current major with security support; the bundled PHP 8.5 pins the floor.
 - Docker catalog images: pinned digests, refreshed by a reviewed catalog PR, never auto-updated on servers without the E33 policy.

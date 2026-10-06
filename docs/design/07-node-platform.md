@@ -81,7 +81,7 @@ A new `install/common/packages/developer.pkg` ships with `NODE='yes' NODE_VERSIO
 
 All user-side work runs through `user_exec` (`setpriv`/`runuser` as in upstream) with `HOME`, `NVM_DIR`, `PATH` set explicitly and `umask 027`. Path-escape checks as in `v-add-user-composer` guard `~/.nvm`, `~/.cache`, `~/.npm`.
 
-### 4.4 UI — "Node.js" page (Vue island, `/app/node`)
+### 4.4 UI — "Node.js" page (Vue island, `/node`)
 
 - Header: enabled/disabled by package; "Enable Node.js" calls `v-add-user-nvm`.
 - Installed runtimes table: version, LTS codename, default badge, package manager, size, apps using it, actions (set default, change PM, uninstall).
@@ -171,9 +171,9 @@ flowchart LR
 
 ### 6.2 Node Apps pages (Vue island)
 
-- **List** `/app/node/apps`: table (domain, name, runtime, status pill, CPU, memory, restarts, uptime, HTTPS state), bulk start/stop/restart, "Create app".
+- **List** `/node/apps`: table (domain, name, runtime, status pill, CPU, memory, restarts, uptime, HTTPS state), bulk start/stop/restart, "Create app".
 - **Create wizard**: domain (owned, not yet a Node app, dropdown from `v-list-web-domains`) → entry file (file picker over `v-list-fs-directory` under `~/web/<domain>/`, default `app.js`/`server.js`/`package.json` `main`) → runtime (installed, default pre-selected; "install LTS now" shortcut) → port (auto; advanced: pick from "My ports") → template (`nodejs-proxy` default, `-ws`/`nextjs`/`nuxt` detected from `package.json` dependencies) → create; then offers "Install dependencies" and "Run build".
-- **App page** `/app/node/apps/{domain}`: overview (URL with SSL badge from `v-list-web-domain`, port, runtime, pm2 stats), **Logs** tab (live, §6.4, out/err toggle, download via `v-list-node-app-logs`), **Environment** tab (key/value editor → temp file → `v-change-node-app-env`; secrets masked after save), **Settings** (entry, cwd, runtime, instances, memory, template variant), **Deploy** (Git URL/branch, deploy key display, "Deploy now", history from `deploy.log`), **Danger zone** (delete, keep files).
+- **App page** `/node/apps/{domain}`: overview (URL with SSL badge from `v-list-web-domain`, port, runtime, pm2 stats), **Logs** tab (live, §6.4, out/err toggle, download via `v-list-node-app-logs`), **Environment** tab (key/value editor → temp file → `v-change-node-app-env`; secrets masked after save), **Settings** (entry, cwd, runtime, instances, memory, template variant), **Deploy** (Git URL/branch, deploy key display, "Deploy now", history from `deploy.log`), **Danger zone** (delete, keep files).
 - Reseller "Customer detail → Node & Docker apps" tab reuses the list component with a fixed effective user ([03](./03-tenancy-and-authorization.md) §9.2).
 
 ### 6.3 Dashboard widgets

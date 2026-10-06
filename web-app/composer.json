@@ -2,7 +2,7 @@
     "$schema": "https://getcomposer.org/schema.json",
     "name": "arcpanel/web-app",
     "type": "project",
-    "description": "ArcPanel panel app (Laravel), served under /app/ next to the legacy web/ app.",
+    "description": "ArcPanel panel app (Laravel), served at the root URL of the panel.",
     "license": "GPL-3.0-or-later",
     "require": {
         "php": "^8.5",

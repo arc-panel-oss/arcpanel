@@ -54,6 +54,8 @@ Dependency order from the roadmap; each module = list + add + edit + single acti
 
 ## 4. The page recipe
 
+> **History (E7).** Every module is migrated. Step 11 (hand-off) existed only in 1.x: E8 removed `web/inc/arcpanel-routes.php`, the `ARCPANEL_APP_PAGES` switch and the stubs, and the 1.x URLs now redirect through `App\View\LegacyUrls` for one release.
+
 For every legacy module, in this order. The checklist is a PR template (`.github/PULL_REQUEST_TEMPLATE/migration.md`).
 
 1. **Inventory** — grep the legacy dir for `v-` to list the commands and their argument order; list the `$_SESSION` policy keys and `$read_only` uses; note bulk actions in `web/bulk/<x>/index.php`.
@@ -118,15 +120,19 @@ New ArcPanel modules (Ports, Node, Apps, Templates) have their inventories in [0
 
 ### 5.2 Web Terminal page
 
-`/app/terminal` renders `<div class="js-web-terminal">` and loads the existing xterm bundles; the WebSocket stays `wss://host/_shell/` → `127.0.0.1:8085`, authenticated by the `ARCPANELSID` cookie — nothing changes on the server. Shown only when `WEB_TERMINAL='true'` and the effective user has a login shell (`Principal::$loginShell !== 'nologin'`). The same transport is extended for log streaming by [07](./07-node-platform.md) §6.4.
+`/terminal` renders `<div class="js-web-terminal">` and loads the existing xterm bundles; the WebSocket stays `wss://host/_shell/` → `127.0.0.1:8085`, authenticated by the `ARCPANELSID` cookie — nothing changes on the server. Shown only when `WEB_TERMINAL='true'` and the effective user has a login shell (`Principal::$loginShell !== 'nologin'`). The same transport is extended for log streaming by [07](./07-node-platform.md) §6.4.
 
 ### 5.3 Quick Install Apps
 
+> **E8:** the installers live in `lib/quickinstall` (moved from `web/src`); see the [E7 batch 2 spec](../features/specs/2026-10-06-002-e7-batch2-pages-design.md) and the [E8 spec](../features/specs/2026-10-06-004-e8-legacy-retirement-design.md), which win over this section.
+
 - `web/src/app/WebApp/` moves to `web-app/app/QuickInstall/` (namespace `App\QuickInstall`), classes unchanged except namespace and the `HESTIA_CMD` calls inside `BaseSetup`/`InstallationTarget`, which are rewritten to use `ArcCommand`. `web/src/composer.json` dependencies merge into `web-app/composer.json`.
 - `bin/v-quick-install-app` keeps working: it invokes PHP with the installer classes; its include path is updated to the new location by the 2.0 upgrade script (this is an ArcPanel-owned legacy bridge; the command's interface is unchanged).
-- UI: `/app/web/domains/{domain}/install` → `x-ap-card-picker` of installers (`InstallerInfo` icons served from `public/build/quick-install/`), options form generated from `getConfig('form')`, submit runs the installer; long installs run via the queue (`apps.pipe`) until E15.
+- UI: `/web/domains/{domain}/install` → `x-ap-card-picker` of installers (`InstallerInfo` icons served from `public/build/quick-install/`), options form generated from `getConfig('form')`, submit runs the installer; long installs run via the queue (`apps.pipe`) until E15.
 
 ### 5.4 Statistics and RRD
+
+> **E8:** the internal `/rrd/` location is gone; the RRD files live in `data/rrd/` and the panel gets graphs from `v-export-rrd`. The paragraph below is the original design.
 
 RRD PNGs continue to be served from the internal `/rrd/` location via `X-Accel-Redirect` from a Laravel route that applies the policy (admin only for server graphs). Statistics pages render `v-list-users-stats`/`v-list-user-stats` with `x-ap-usage-bar`; reseller view aggregates the tree ([03](./03-tenancy-and-authorization.md) §9.2).
 
@@ -165,9 +171,9 @@ Preconditions: every module in §3 migrated (metric = 100 %), FileGator removed 
 
 ## 7. Branding (E9)
 
-- **White Label first:** `v-update-white-label-logo` and the custom images dir (`web/images/custom/`) are kept; the installer places ArcPanel's logo set there by default (`logo.svg`, `logo-header.svg`, `logo.png`, `favicon.*`), so an admin can still override. App name, page title, sender name/address/subject come from the existing `hestia.conf` White Label keys shown on the Server → White Label tab; defaults set to "ArcPanel" by the installer.
+- **White Label first:** `v-update-white-label-logo` and the custom images dir (`web/images/custom/`; `data/white-label/` since 2.0, still served under `/images/custom/`) are kept; the installer places ArcPanel's logo set there by default (`logo.svg`, `logo-header.svg`, `logo.png`, `favicon.*`), so an admin can still override. App name, page title, sender name/address/subject come from the existing `hestia.conf` White Label keys shown on the Server → White Label tab; defaults set to "ArcPanel" by the installer.
 - New icon set (sidebar SVG sprite, [05](./05-design-system-and-frontend.md) §11) and login page artwork.
-- `README.md`, `docs/` site title/logo (`docs/.vitepress/config.js`), installer banner (`install/hst-install.sh` welcome text), `web/error/*.html`.
+- `README.md`, `docs/` site title/logo (`docs/.vitepress/config.js`; the VitePress site is removed in 2.0), installer banner (`install/hst-install.sh` welcome text), `web/error/*.html` (`lib/error/` since 2.0).
 - **No rename** of `HESTIA_*` constants, `/usr/local/hestia`, `hestia-*` packages or `v-*` names (roadmap §7, O5). Upstream attribution and GPL notices retained; "Hestia Control Panel"/"HestiaCP" names are not used for the product (upstream trademark rules in README).
 
 ---
@@ -203,6 +209,6 @@ Pest per module (three principals), Playwright per module, upgrade-path e2e (1.1
 
 ## 11. Open questions
 
-1. Keep `web/api/index.php` as a script (recommended) or port to a controller before 2.0? Script; revisit with E29.
+1. Keep `web/api/index.php` as a script (recommended) or port to a controller before 2.0? Script; revisit with E29. Resolved by E8: the script is `lib/api/index.php`, still at `/api/`.
 2. Should 2.0 ship `/app/*` → `/*` redirects at all, given `/app` only ever existed in pre-releases? Yes, cheap, one release.
-3. Single-action GET endpoints (`web/delete/web/?domain=…&token=…`) are linked from emails in a few places (backup download). Audit email templates in `install/common/templates/email/` during Q4 and point them at the new POST-less download routes (`/app/backups/{file}/download` with signed URLs).
+3. Single-action GET endpoints (`web/delete/web/?domain=…&token=…`) are linked from emails in a few places (backup download). Audit email templates in `install/common/templates/email/` during Q4 and point them at the new POST-less download routes (`/backups/{user}/archives/{backup}/download` with signed URLs).

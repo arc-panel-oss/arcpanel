@@ -14,11 +14,11 @@ Non-goals: performance benchmarking in CI (measured manually per release), fuzzi
 
 ## 2. Current state (verified in code)
 
-- `.github/workflows/lint.yml`: markdownlint (`*.md`, `docs/**/*.md`), ShellCheck (severity `error`), Prettier (`npx prettier --check .`), Biome (`biome lint .`).
-- `.github/workflows/test.yml`: Vitest for the docs site only (`npm run docs:test`).
+- `.github/workflows/lint.yml`: markdownlint (`*.md`, `docs/**/*.md`), ShellCheck (severity `error`), Prettier (`npx prettier --check .`), Biome (`biome lint .`). ArcPanel added the jobs Brand check (`test/brand-check.sh`), Upstream diff (`test/upstream-diff.sh`, §5) and Template metadata (`scripts/check-template-meta.js`).
+- `.github/workflows/test.yml` ran Vitest for the VitePress docs site only (`npm run docs:test`); the docs site and the workflow are removed in 2.0.
 - `.github/workflows/pr-docker-bats.yml`: builds a privileged systemd Ubuntu container from `.github/docker/hestia-ci.Dockerfile`, compiles the `hestia` deb from the working tree (`src/hst_autocompile.sh --hestia --noinstall --keepbuild "~localsrc"`), installs with `install/hst-install-ubuntu.sh --with-debs … --clamav no --spamassassin no`, runs `bats test/test.bats`, collects `journalctl` and the install log on failure. Timeout 120 min.
 - `test/`: `test.bats` (main CLI suite), `api.bats`, `restore.bats`, `letsencrypt.bats`, `wildcard.bats`, `checks.bats`, `config-tests.bats`; helpers as submodules (`bats-core`, `bats-assert`, `bats-support`, `bats-file`); `shellcheck.sh` (every `#!/bin/(ba)sh` file, severity error); `lint_script.sh` (dev-mode single-script lint).
-- `renovate.json`: weekly grouped dependency updates, linters auto-merged.
+- `renovate.json`: weekly grouped dependency updates, linters auto-merged (upstream configuration; removed in 2.0, see §6.5).
 - `src/hst_autocompile.sh` flags: `--all | --nginx | --php | --hestia`, `--noinstall`, `--keepbuild`, `--release`, `--pkgrev`, `--cross`, `--dontinstalldeps`.
 - No PHP tests, no e2e, no accessibility check, no build of `hestia-nginx` / `hestia-php` in CI.
 
@@ -71,13 +71,13 @@ Ports: a block of 10 to each reseller (`v-add-user-port RESELLER 30100-30109`), 
 
 | Probe                                                              | admin                   | reseller-a       | reseller-b           | plain-user        |
 | ------------------------------------------------------------------ | ----------------------- | ---------------- | -------------------- | ----------------- |
-| `GET /app/customers` lists cust-a1                                 | 200 + row               | 200 + row        | 200, row absent      | 404               |
-| `GET /app/customers/cust-a1`                                       | 200                     | 200              | **404**              | **404**           |
-| `GET /app/web/domains?user=cust-a1`                                | 200                     | 200              | **404**              | **404**           |
-| `POST /app/impersonate/cust-a1`                                    | 303 → acting as cust-a1 | 303              | **404**              | **403**           |
-| `POST /app/impersonate/admin`                                      | n/a                     | **403**          | **403**              | **403**           |
-| `GET /app/server/settings`                                         | 200                     | **404**          | **404**              | **404**           |
-| `GET /app/ports` shows block 30100-30109 of reseller-a             | 200 (all)               | 200              | 200 (own block only) | own ports only    |
+| `GET /users` lists cust-a1                                         | 200 + row               | 200 + row        | 200, row absent      | 404               |
+| `GET /users/cust-a1`                                               | 200                     | 200              | **404**              | **404**           |
+| `GET /web/domains?user=cust-a1`                                    | 200                     | 200              | **404**              | **404**           |
+| `POST /impersonate/cust-a1`                                        | 303 → acting as cust-a1 | 303              | **404**              | **403**           |
+| `POST /impersonate/admin`                                          | n/a                     | **403**          | **403**              | **403**           |
+| `GET /server/settings`                                             | 200                     | **404**          | **404**              | **404**           |
+| `GET /ports` shows block 30100-30109 of reseller-a                 | 200 (all)               | 200              | 200 (own block only) | own ports only    |
 | API `v-list-user cust-a1` with reseller-b's `reseller-billing` key | —                       | —                | `E_FORBIDEN`         | —                 |
 | API `v-add-reseller-user reseller-a x …` with reseller-b's key     | —                       | —                | `E_FORBIDEN`         | —                 |
 | API `v-list-users` with `plain-user` key                           | —                       | —                | —                    | permission denied |
@@ -95,6 +95,8 @@ One long spec: reseller-a logs in → Customers → create-customer wizard (user
 
 Referenced by [01](./01-architecture-overview.md) §3.2, [02](./02-laravel-foundation.md) §9 and [10](./10-page-migration-and-retirement.md).
 
+> **Implemented (E8, [spec](../features/specs/2026-10-06-004-e8-legacy-retirement-design.md) §10.2)** in a simpler form than §5.1–§5.3: `test/upstream-diff.sh` compares `bin/`, `func/`, `install/` and `src/` with the commit that imported HestiaCP (`test/upstream-base.txt`) and fails on any modified, deleted or renamed upstream file not listed in `test/upstream-exceptions.txt`, and on code that references the removed `web/` directory. There are no stored patches; `web/` is no longer exempt because it no longer exists. The job is Upstream diff in `lint.yml`.
+
 ### 5.1 Rule
 
 `bin/`, `func/`, `install/` may only **add** files relative to the pinned upstream HestiaCP release. An existing upstream file may differ only if it is listed in `install/upgrade/patch/ALLOWLIST`, and then only by the patch stored next to it. `web/` is exempt (ArcPanel replaces it), as are `src/deb/nginx/nginx.conf` (one Laravel `location`, see [02](./02-laravel-foundation.md) §3.1) and `src/deb/hestia/control` (dependencies), both listed in the allow-list with their patches.
@@ -111,7 +113,7 @@ Initial `ALLOWLIST`:
 
 ```text
 bin/v-change-user-role                 # accept 'reseller' (upstream PR #TBD)
-src/deb/nginx/nginx.conf               # /app/ location for the Laravel app
+src/deb/nginx/nginx.conf               # location of the Laravel app (/app/ in 1.x, the root URL since 2.0)
 src/deb/hestia/control                 # Depends: adds nothing new today; placeholder for php extensions if needed
 ```
 
@@ -183,7 +185,7 @@ src/deb/hestia/control                 # Depends: adds nothing new today; placeh
 ### 6.5 Static and supply chain
 
 - `npm audit --audit-level=high` and `composer audit` in `lint.yml`; failures block unless an `audit-exceptions.json` entry with an expiry date exists.
-- Renovate stays weekly; `web-app/composer.json` added to its managers; Playwright and Lighthouse versions pinned and grouped.
+- No Renovate: the upstream `renovate.json` was removed in 2.0. Dependency updates are a maintainer task until ArcPanel picks its own update bot; Playwright and Lighthouse versions stay pinned.
 - `deb` build artifacts are signed in the release pipeline only (key in GitHub secrets, never in PR jobs).
 
 ---
@@ -197,7 +199,7 @@ src/deb/hestia/control                 # Depends: adds nothing new today; placeh
 | Lint (Prettier, Biome, markdownlint, ShellCheck)                | `lint.yml`                                                             | 3 min  |
 | `upstream-diff`                                                 | `lint.yml`                                                             | 1 min  |
 | PHPStan + Pest (unit + feature) + coverage gate                 | `test.yml` / `php`                                                     | 4 min  |
-| Vitest (docs + web-app)                                         | `test.yml` / `js`                                                      | 2 min  |
+| Vitest (web-app)                                                | `test.yml` / `js`                                                      | 2 min  |
 | Deb build (`--hestia`, cached nginx/php)                        | `build.yml`                                                            | 5 min  |
 | BATS (path-filtered, Ubuntu 24.04 only on PR)                   | `pr-docker-bats.yml`                                                   | 45 min |
 | Playwright smoke (`session/`, `roles/`, Chromium, Ubuntu 24.04) | `e2e.yml` with `if: label e2e OR paths web-app/** OR src/deb/nginx/**` | 25 min |

@@ -16,6 +16,8 @@ Non-goals: a SPA, SSR, a Vite dev server in production, a third-party UI kit.
 
 ## 2. Current state (grounding)
 
+_State of HestiaCP 1.10.5 before E2. Since 2.0 (E8) `web/`, its bundle and its CSS themes are gone and `build.js` builds only the panel assets._
+
 - Legacy pages hand-write markup in `web/templates/pages/*.php` (78 files) with a shared `header.php`/`footer.php`; behaviour lives in ~30 small Alpine/vanilla modules in `web/js/src/*.js` (`listSorting`, `confirmAction`, `formSubmit`, `cronGenerator`, `rrdCharts`, `webTerminal`, …).
 - `build.js` bundles `web/js/src/index.js` → `web/js/dist/main.min.js` with esbuild and compiles `web/css/src/themes/{default,dark,flat,vestia}.css` with Lightning CSS. Four themes, chosen per user (`v-change-user-theme`, `v-list-sys-themes`, custom themes in `web/css/themes/custom/`).
 - Dependencies already present: `alpinejs`, `@alpinejs/collapse`, `chart.js`, `@xterm/xterm`, `@fortawesome/fontawesome-free`, `vue` (devDependency for the docs site), `vitest`, `@testing-library/vue`.
@@ -40,18 +42,20 @@ All visual decisions are CSS custom properties defined once in `web-app/resource
 ### 3.2 Themes
 
 > **E1-S2 (2026-10-05):** the panel app ships the themes `nocturne` (dark, default), `light` and `auto`. The choice is kept in the cookie `arc_ui`, with defaults mapped from the legacy `THEME`; see the [E1-S2 spec](../features/specs/2026-10-05-002-e1-s2-dashboard-web-domains-design.md) §5.2.
+>
+> **E8 (2.0):** the CSS themes of the legacy interface are gone. `THEME` holds a panel theme (`nocturne`, `light` or `auto`) and the 2.0.0 upgrade step maps the 1.x names as in the table below; see the [E8 spec](../features/specs/2026-10-06-004-e8-legacy-retirement-design.md) D11.
 
 A theme is a file that assigns palette values to the semantic tokens under `[data-theme="<name>"]`. Light and dark are first-class; the user's choice is stored exactly as today (`THEME` in `user.conf` via `v-change-user-theme`; `POLICY_USER_CHANGE_THEME` respected).
 
-| Legacy theme                           | 2.0 mapping                                                                                                                                                                           |
-| -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `default`                              | `light` (new palette, same brand accent)                                                                                                                                              |
-| `dark`                                 | `dark`                                                                                                                                                                                |
-| `flat`                                 | `light` + `data-density="compact"` — flat was mostly a density/border variant                                                                                                         |
-| `vestia`                               | `light` with `--ap-accent` set to the Vestia green; shipped as `vestia.css` theme file for continuity                                                                                 |
-| custom (`web/css/themes/custom/*.css`) | still listed by `v-list-sys-themes`; loaded after tokens so overrides keep working; migration note in [10](./10-page-migration-and-retirement.md) §6 explains which selectors changed |
+| 1.x theme                              | 2.0 value (set by `install/upgrade/arcpanel/2.0.0.sh`)                          |
+| -------------------------------------- | ------------------------------------------------------------------------------- |
+| `default`                              | `light`                                                                         |
+| `dark`                                 | `nocturne`                                                                      |
+| `flat`                                 | `light` (a `flat` value not yet upgraded also selects `data-density="compact"`) |
+| `vestia`                               | `light`                                                                         |
+| custom (`web/css/themes/custom/*.css`) | `nocturne`; custom CSS themes are not supported since 2.0                       |
 
-`auto` (follow `prefers-color-scheme`) is added as a theme value; `v-change-user-theme USER auto` works because the CLI only validates against `v-list-sys-themes`, which lists built files, and `auto.min.css` is shipped as an (empty) theme file.
+`auto` (follow `prefers-color-scheme`) is a theme value; `v-change-user-theme USER auto` works because the CLI validates against `v-list-sys-themes`, which lists `auto`, `light` and `nocturne` since 2.0.
 
 ### 3.3 Layout
 
@@ -87,7 +91,7 @@ return [
 ];
 ```
 
-Each item is a **route name**; the renderer drops items whose route is not yet migrated (so the sidebar grows as E7 progresses) and links legacy fallbacks through `web/inc/arcpanel-routes.php` ([02](./02-laravel-foundation.md) §3.3). The three resulting sidebars match the table in [03](./03-tenancy-and-authorization.md) §9.1.
+Each item is a **route name**; the renderer drops items whose route does not exist (in 1.x the sidebar grew as E7 progressed, with legacy fallbacks linked through `web/inc/arcpanel-routes.php`, [02](./02-laravel-foundation.md) §3.3; every page is in the panel app since 2.0). The three resulting sidebars match the table in [03](./03-tenancy-and-authorization.md) §9.1.
 
 ### 4.2 Top bar
 
@@ -123,7 +127,7 @@ Replaces `web/list/user/` (admin landing) and the per-user `web/list/web/` landi
 
 ## 5. Component library
 
-Blade components live in `web-app/resources/views/components/ap/` and are used as `<x-ap-*>`. Every component: tokens only, keyboard operable, labelled, documented in a living style guide at `/app/_styleguide` (disabled in production unless `DEBUG_MODE='true'`).
+Blade components live in `web-app/resources/views/components/ap/` and are used as `<x-ap-*>`. Every component: tokens only, keyboard operable, labelled, documented in a living style guide at `/_styleguide` (disabled in production unless `DEBUG_MODE='true'`).
 
 | Component                                                                                                                                                                                                        | Purpose                              | Key props / behaviour                                                                                                                                                                                                                                   |
 | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -152,7 +156,7 @@ Blade components live in `web-app/resources/views/components/ap/` and are used a
 ### 5.2 Vue islands
 
 - One island = one entry point in `web-app/resources/js/islands/<name>/main.ts`, exporting `mount(el, props)`; the loader in `app.js` scans `[data-island]`, dynamically imports the chunk and mounts.
-- Islands talk to Laravel through JSON routes under `/app/<module>/api/*` (CSRF via `X-XSRF-TOKEN` cookie), and to streaming endpoints through the WebSocket transport.
+- Islands talk to Laravel through JSON routes under `/<module>/…/api/*`, for example `/files/{user}/api/list` (CSRF via `X-XSRF-TOKEN` cookie), and to streaming endpoints through the WebSocket transport.
 - Shared Vue pieces (table, dialog, toast, code editor wrapper) in `resources/js/islands/_shared/` use the same tokens as the Blade components; Vue never renders navigation or anything owner-scoped on its own.
 - Islands planned: `file-manager` (E3), `app-store` (E4/E5), `node-apps` (E14), `service-editor` (E7; CodeMirror), `log-viewer` (E7/E18), `rrd` is **not** an island (Alpine + chart.js suffices).
 
@@ -174,7 +178,7 @@ Extend `build.js`; no second toolchain.
 
 | Step                    | Input                                                                | Output                                                                                                                                                                                                                        |
 | ----------------------- | -------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Tokens + components CSS | `web-app/resources/css/{tokens,base,components}.css`, `themes/*.css` | `web-app/public/build/app.[hash].css`, `themes/<name>.[hash].css`; legacy `web/css/themes/*.min.css` keep building until E8                                                                                                   |
+| Tokens + components CSS | `web-app/resources/css/{tokens,base,components}.css`, `themes/*.css` | `web-app/public/build/app.[hash].css`, `themes/<name>.[hash].css`; the legacy `web/css/themes/*.min.css` were built until E8                                                                                                  |
 | App JS (Alpine)         | `web-app/resources/js/app.js`                                        | `public/build/app.[hash].js` (esbuild, `format: esm`, `splitting: true`)                                                                                                                                                      |
 | Islands                 | `resources/js/islands/*/main.ts` (one entry each)                    | `public/build/islands/<name>.[hash].js` + shared chunks; Vue in a shared vendor chunk; `vue` moves from devDependencies to dependencies                                                                                       |
 | Externals               | `chart.js/auto`, `@xterm/*`, `alpinejs`                              | unchanged separate bundles (as today)                                                                                                                                                                                         |

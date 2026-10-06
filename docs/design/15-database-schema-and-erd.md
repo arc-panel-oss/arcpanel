@@ -982,7 +982,7 @@ The DDL file [`schemas/arcpanel-sqlite.sql`](./schemas/arcpanel-sqlite.sql) is t
 
 ### 7.3 First migration (E15) — creating the file
 
-`v-add-sys-arcpanel` (E15 step) creates `data/arcpanel/` (`hestiaweb:hestiaweb 0750`) and `jobs/`; `php artisan migrate --force` creates the file with the pragmas of §4.1. Fresh installs and upgrades use the same path. The health route `/app/_health` reports `db: ok | missing | locked` from a one-row read so E33 and the e2e suite can detect a broken file.
+`v-add-sys-arcpanel` (E15 step) creates `data/arcpanel/` (`hestiaweb:hestiaweb 0750`) and `jobs/`; `php artisan migrate --force` creates the file with the pragmas of §4.1. Fresh installs and upgrades use the same path. The health route `/_health` reports `db: ok | missing | locked` from a one-row read so E33 and the e2e suite can detect a broken file.
 
 ### 7.4 Maintenance commands (artisan, `hestiaweb`)
 

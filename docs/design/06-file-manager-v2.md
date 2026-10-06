@@ -1,6 +1,6 @@
 # 06 — File Manager v2
 
-**Epic:** E3 · **Status:** §3–§6 implemented by the [E3 spec](../features/specs/2026-10-05-008-e3-file-manager-design.md), which wins where it differs (`/app/files/{user}?path=` instead of `?user=`; every read and write in the home runs as the user, so quotas apply; a SHA-256 guard instead of the mtime; `v-add-fs-zip` for Compress; downloads stream a zip from the user straight into the ticket; no editing of `~/conf/web` and no restart button; staging below `storage/app/files/`; the restic browser moves to E7); the restic snapshot browser is implemented by the [E7 batch 1 spec](../features/specs/2026-10-06-001-e7-batch1-pages-design.md) §10.3 (`/app/files/{user}?snapshot=<id>&path=`, read-only, Restore through `v-schedule-user-restore-file-restic`); §7 (FileGator removal) stays with E8 · **Depends on:** E1, E2 · **Unblocks:** E8 (FileGator removal), deep links from E4/E14/backups
+**Epic:** E3 · **Status:** §3–§6 implemented by the [E3 spec](../features/specs/2026-10-05-008-e3-file-manager-design.md), which wins where it differs (`/files/{user}?path=` instead of `?user=`; every read and write in the home runs as the user, so quotas apply; a SHA-256 guard instead of the mtime; `v-add-fs-zip` for Compress; downloads stream a zip from the user straight into the ticket; no editing of `~/conf/web` and no restart button; staging below `storage/files/`; the restic browser moves to E7); the restic snapshot browser is implemented by the [E7 batch 1 spec](../features/specs/2026-10-06-001-e7-batch1-pages-design.md) §10.3 (`/files/{user}?snapshot=<id>&path=`, read-only, Restore through `v-schedule-user-restore-file-restic`); §7 (FileGator removal) is implemented by the [E8 spec](../features/specs/2026-10-06-004-e8-legacy-retirement-design.md), which also dropped the `/app` prefix of the routes below · **Depends on:** E1, E2 · **Unblocks:** E8 (FileGator removal), deep links from E4/E14/backups
 
 ---
 
@@ -30,7 +30,7 @@ flowchart LR
     up[Uploader<br/>chunked, resumable]
     ed[Editor<br/>CodeMirror 6]
   end
-  subgraph laravel[Laravel — FileService + /app/files/api/*]
+  subgraph laravel[Laravel — FileService + /files/api/*]
     api[JSON controllers]
     stage[(Staging<br/>web-app/storage/uploads/&lt;token&gt;)]
     acc[X-Accel-Redirect<br/>downloads]
@@ -110,11 +110,11 @@ final class FileService
 - Symlinks: listed with their target; following a symlink that leaves the home is refused by the CLI (`readlink -f`), so the UI shows it as "outside home, not accessible".
 - Hidden files: shown by default (hosting users need `.htaccess`, `.env`); toggle persisted in localStorage.
 
-### 5.3 Routes (`/app/files`, island page) and JSON API (`/app/files/api/*`)
+### 5.3 Routes (`/files`, island page) and JSON API (`/files/api/*`)
 
 | Method / route                                                                                                | Purpose                                                                                            |
 | ------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
-| `GET /app/files[?path=&user=]`                                                                                | island page; `user` only honoured for admin/reseller within `OwnerScope` (deep links)              |
+| `GET /files[?path=&user=]`                                                                                    | island page; `user` only honoured for admin/reseller within `OwnerScope` (deep links)              |
 | `GET api/list?path=&offset=&limit=&sort=&hidden=`                                                             | listing                                                                                            |
 | `GET api/info?path=`                                                                                          | file info                                                                                          |
 | `GET api/read?path=`                                                                                          | editor content + mtime                                                                             |
@@ -125,7 +125,7 @@ final class FileService
 | `POST api/upload/{token}/finish`                                                                              | assemble + `v-add-fs-upload`                                                                       |
 | `DELETE api/upload/{token}`                                                                                   | cancel                                                                                             |
 | `POST api/download` `{paths[]}` → `{url}`                                                                     | single file or zip ticket                                                                          |
-| `GET /app/files/dl/{token}`                                                                                   | streams via `X-Accel-Redirect`                                                                     |
+| `GET /files/dl/{token}`                                                                                       | streams via `X-Accel-Redirect`                                                                     |
 | `GET api/snapshots?user=`, `api/snapshots/{id}/list?path=`, `POST api/snapshots/{id}/restore`                 | restic browser (`v-list-user-backups-restic`, `v-list-user-files-restic`, `v-restore-file-restic`) |
 
 All routes: `auth.arc`, `effective-user`, `FilePolicy` (`view` = owner scope; `write` = owner scope ∧ `!isReadOnly()`), CSRF on mutations, `files.enabled` middleware (checks `FILE_MANAGER='true'` in `SysConfig`, i.e. the plugin toggle `v-add-sys-filemanager` / `v-delete-sys-filemanager`).
@@ -191,22 +191,22 @@ Octal + rwx grid, recursive option (`v-change-fs-file-permission` per entry; rec
 
 ### 6.7 Deep links
 
-| From                                    | Link                                                                                       |
-| --------------------------------------- | ------------------------------------------------------------------------------------------ |
-| Web Domains edit                        | "Open document root" → `/app/files?path=web/<domain>/public_html`                          |
-| Node Apps ([07](./07-node-platform.md)) | `/app/files?path=web/<domain>/nodeapp` + `.env` edit                                       |
-| Docker apps ([08](./08-app-store.md))   | `/app/files?path=apps/<app>`                                                               |
-| Backups (restic)                        | `/app/files?snapshot=<id>&path=…` opens the read-only snapshot browser with "Restore here" |
-| Admin / reseller                        | `&user=<customer>` within `OwnerScope`; banner "Browsing files of **user**"                |
+| From                                    | Link                                                                                   |
+| --------------------------------------- | -------------------------------------------------------------------------------------- |
+| Web Domains edit                        | "Open document root" → `/files?path=web/<domain>/public_html`                          |
+| Node Apps ([07](./07-node-platform.md)) | `/files?path=web/<domain>/nodeapp` + `.env` edit                                       |
+| Docker apps ([08](./08-app-store.md))   | `/files?path=apps/<app>`                                                               |
+| Backups (restic)                        | `/files?snapshot=<id>&path=…` opens the read-only snapshot browser with "Restore here" |
+| Admin / reseller                        | `&user=<customer>` within `OwnerScope`; banner "Browsing files of **user**"            |
 
 ---
 
-## 7. FileGator removal (milestone 5, lands with E8)
+## 7. FileGator removal (milestone 5, landed with E8)
 
 1. `v-add-sys-filemanager` keeps its name and the `FILE_MANAGER` config key; from 2.0 it only sets the key and no longer installs FileGator (`v-delete-sys-filemanager` likewise). Upstream installer/upgrade scripts calling it keep working.
-2. `install/deb/filemanager/` deleted; `web/fm/` removed by `install/upgrade/versions/2.0.0.sh`; the `/fm/` nginx block removed from `src/deb/nginx/nginx.conf`; `/fm/*` returns 301 → `/app/files`.
+2. `install/deb/filemanager/` deleted; `web/fm/` removed with the rest of `web/` by `install/upgrade/arcpanel/2.0.0.sh` (`v-delete-sys-filemanager` also removes a leftover `web/fm`); the `/fm/` nginx block removed from `src/deb/nginx/nginx.conf`; `/fm/` answers 301 → `/files` for one release (`App\View\LegacyUrls`).
 3. `HestiaAuth.php`/`HestiaZipArchiver.php` are gone; nothing else referenced them.
-4. Until then (Q2–Q3) both coexist: the new manager is the nav target; `/fm/` remains reachable for users who bookmarked it.
+4. Until E8 (Q2–Q3) both coexisted: the new manager was the nav target; `/fm/` remained reachable for users who bookmarked it.
 
 ---
 

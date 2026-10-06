@@ -9,6 +9,8 @@ This document lists every feature the panel currently provides. It is based on t
 
 Each section names the CLI commands that implement the feature, so you can check the details in the code.
 
+> **Baseline.** This document describes the HestiaCP 1.10.5 baseline. ArcPanel 2.0 replaced its web interface: the panel app (`web-app/`) serves every page at the root URL, `web/` is removed (what the commands still use moved to `lib/`), FileGator is removed in favour of the panel's file manager, and the CSS themes are replaced by the panel themes `nocturne`, `light` and `auto`. See [CHANGELOG.md](../CHANGELOG.md) (2.0.0) and the [roadmap](roadmap.md) for what ArcPanel adds.
+
 ---
 
 ## 1. Platform and Installation

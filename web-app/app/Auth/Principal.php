@@ -20,7 +20,7 @@ final class Principal
         public readonly string $loginShell,
         public readonly string $language,
         public readonly ?string $theme,
-        /** $_SESSION['token']: CSRF token of legacy pages, also the auth log fingerprint */
+        /** $_SESSION['token']: the login fingerprint of v-log-user-login, passed to v-log-user-logout */
         public readonly string $legacyToken,
         /** web/inc/policies.php */
         public readonly bool $readOnly,

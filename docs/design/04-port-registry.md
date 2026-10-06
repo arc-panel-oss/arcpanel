@@ -149,9 +149,9 @@ flowchart LR
 - `PortService` (`web-app/app/Services/Ports/`): `allocate(user, app)`, `release(user, app)`, `listForUser(user)`, `listSystem()`, `makePublic(user, port, ip)`, `subAllocate(reseller, user, range)`. All methods call the commands above through `ArcCommand`.
 - `PortPolicy`: `viewAny` (admin), `viewOwn` (self/tree), `allocate` (admin any; reseller tree from own pool), `makePublic` (admin; owner-flagged), `changeServerRange` (admin).
 - Pages:
-  - **Admin → Server → Ports** (`/app/server/ports`): allocation table (user, ports, used/free, public count), live usage from `v-list-sys-ports`, conflicts/orphans panel with "Register to user" and "Close firewall rule" actions, server range editor (refuses to shrink below allocated ports), reserved list.
-  - **User → My ports** (`/app/ports`): read-only table of own entries with app, public flag and live state; "Request more ports" → notification to `OWNER`.
-  - **Reseller → Ports** (`/app/ports`): own pool, sub-allocation (type a range or pick a block), per-customer usage, requests from customers.
+  - **Admin → Server → Ports** (`/server/ports`): allocation table (user, ports, used/free, public count), live usage from `v-list-sys-ports`, conflicts/orphans panel with "Register to user" and "Close firewall rule" actions, server range editor (refuses to shrink below allocated ports), reserved list.
+  - **User → My ports** (`/ports`): read-only table of own entries with app, public flag and live state; "Request more ports" → notification to `OWNER`.
+  - **Reseller → Ports** (`/ports`): own pool, sub-allocation (type a range or pick a block), per-customer usage, requests from customers.
 - The data table component (05) renders ports; no custom JS beyond the range picker.
 
 ---

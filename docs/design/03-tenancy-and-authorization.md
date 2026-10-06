@@ -8,8 +8,8 @@
 > - **Commands (§5):** `v-list-user-owners` replaces `v-list-user-tree`; `v-check-reseller-quota RESELLER PACKAGE [USER]`; new `v-change-reseller-user-package`, `v-change-reseller-package`, `v-delete-reseller-package`, `v-list-package-tenancy`, `v-change-package-tenancy`, `v-delete-package-tenancy`, `v-rename-package-tenancy`, `v-add-sys-tenancy`.
 > - **Quota (§4.3):** own usage `U_X` + Σ customers' package limit X + new package's X ≤ reseller's X (D7).
 > - **`ROLE='reseller'`:** one-line change in `is_role_valid` (`func/main.sh`), no patch file (D10).
-> - **Pages (§9):** one Users module `/app/users` ("Customers" for resellers) and one Packages module `/app/packages`; no `/app/customers` (D3). Statistics, Backups and Logs per tree stay with E7.
-> - **Login as (§9.1):** resellers use the session key `arc_look`, checked on every request and never read by the legacy app; it works on `/app` pages only (D4).
+> - **Pages (§9):** one Users module `/users` ("Customers" for resellers) and one Packages module `/packages`; no `/customers` (D3). Statistics, Backups and Logs per tree stay with E7.
+> - **Login as (§9.1):** resellers use the session key `arc_look`, checked on every request and never read by the legacy app; it works on panel pages only (D4).
 > - **API keys (§8):** deferred to the Laravel API (D6).
 
 ---
@@ -204,7 +204,7 @@ Policies decide; the CLI still validates. A policy bug can only ever **widen** U
 - Permission set files gain an optional `SCOPE='self|tree|all'` line (default: `all` for `ROLE='admin'`, `self` for `ROLE='user'`), read by `v-check-access-key` through an **additive** helper in `func/reseller.sh` — the existing command is not changed; instead a new `v-check-access-key-scope KEY CMD USER_ARG` is called by the API layer after `v-check-access-key` succeeds, and refuses when the user argument is outside the key owner's scope.
 - New permission set `install/common/api/reseller-billing`: `ROLE='reseller'`, `SCOPE='tree'`, `COMMANDS='v-add-reseller-user,v-suspend-user,v-unsuspend-user,v-delete-user,v-change-user-package,v-list-reseller-users,v-list-user,v-change-user-password,v-make-tmp-file'`.
 - `v-add-access-key` already stores `USER`; a reseller may create keys only with sets whose `ROLE` is `reseller` or `user`. The Laravel `AccessKeyPolicy` enforces this; `v-add-access-key` is additionally wrapped by `v-add-reseller-access-key` (**new**) that validates the set for CLI/API callers.
-- `web/api/index.php` is modified only by inserting the scope call (it is legacy `web/`, which ArcPanel owns).
+- `web/api/index.php` (`lib/api/index.php` since 2.0) is modified only by inserting the scope call (it was legacy `web/`, which ArcPanel owns).
 
 ---
 
@@ -226,14 +226,14 @@ An "Acting as reseller" / "Logged in as <customer>" badge sits in the top bar wi
 
 ### 9.2 Reseller pages
 
-| Page                        | Route                   | Data                                                                                                                                                                 | Actions                                                                                                                                                                                                                                                                                          |
-| --------------------------- | ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Dashboard                   | `/app/`                 | `v-list-user RESELLER` (`R_*` vs package), `v-list-reseller-users`, `v-list-user-ports` (E12), expiring SSL across tree (`v-list-web-domains` per user, `SSL` dates) | quick create customer, switch to customer                                                                                                                                                                                                                                                        |
-| Customers                   | `/app/customers`        | `v-list-reseller-users json`                                                                                                                                         | login-as, suspend/unsuspend, change package, reset password, delete (if no Node/Docker apps running — else confirm), bulk actions; **create-customer wizard**: username, contact, package (from `v-list-reseller-packages`), optional first domain + mail + DB via `v-add-domain`, welcome email |
-| Customer detail             | `/app/customers/{user}` | tabs reuse E7 module views with `EffectiveUser` fixed                                                                                                                | all module actions, "open as customer"                                                                                                                                                                                                                                                           |
-| Packages                    | `/app/packages`         | `v-list-reseller-packages`, own package                                                                                                                              | create (if policy) with live `v-check-reseller-quota`                                                                                                                                                                                                                                            |
-| Ports                       | `/app/ports`            | E12                                                                                                                                                                  | sub-allocate to customers                                                                                                                                                                                                                                                                        |
-| Statistics / Backups / Logs | E7 pages                | filtered by `visibleUsers()`                                                                                                                                         | aggregate + per-customer selector                                                                                                                                                                                                                                                                |
+| Page                        | Route               | Data                                                                                                                                                                 | Actions                                                                                                                                                                                                                                                                                          |
+| --------------------------- | ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Dashboard                   | `/`                 | `v-list-user RESELLER` (`R_*` vs package), `v-list-reseller-users`, `v-list-user-ports` (E12), expiring SSL across tree (`v-list-web-domains` per user, `SSL` dates) | quick create customer, switch to customer                                                                                                                                                                                                                                                        |
+| Customers                   | `/customers`        | `v-list-reseller-users json`                                                                                                                                         | login-as, suspend/unsuspend, change package, reset password, delete (if no Node/Docker apps running — else confirm), bulk actions; **create-customer wizard**: username, contact, package (from `v-list-reseller-packages`), optional first domain + mail + DB via `v-add-domain`, welcome email |
+| Customer detail             | `/customers/{user}` | tabs reuse E7 module views with `EffectiveUser` fixed                                                                                                                | all module actions, "open as customer"                                                                                                                                                                                                                                                           |
+| Packages                    | `/packages`         | `v-list-reseller-packages`, own package                                                                                                                              | create (if policy) with live `v-check-reseller-quota`                                                                                                                                                                                                                                            |
+| Ports                       | `/ports`            | E12                                                                                                                                                                  | sub-allocate to customers                                                                                                                                                                                                                                                                        |
+| Statistics / Backups / Logs | E7 pages            | filtered by `visibleUsers()`                                                                                                                                         | aggregate + per-customer selector                                                                                                                                                                                                                                                                |
 
 ### 9.3 Admin additions
 
@@ -255,7 +255,7 @@ sequenceDiagram
   participant H as ArcCommand
   participant C as v-add-reseller-user (root)
 
-  R->>L: POST /app/customers {user, email, package, domain?}
+  R->>L: POST /customers {user, email, package, domain?}
   L->>P: authorize('create', User) → role reseller, users.create = tree
   L->>H: v-check-reseller-quota reseller package
   H-->>L: 0 (fits) | E_LIMIT "WEB_DOMAINS"
@@ -265,7 +265,7 @@ sequenceDiagram
   opt first domain
     L->>H: v-add-domain user domain
   end
-  L-->>R: 303 → /app/customers/{user} (toast, welcome email queued via v-add-user-notification / mail-wrapper)
+  L-->>R: 303 → /customers/{user} (toast, welcome email queued via v-add-user-notification / mail-wrapper)
 ```
 
 ---

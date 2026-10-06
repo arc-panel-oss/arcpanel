@@ -277,4 +277,4 @@ Blade + Alpine (no Vue): the picker is a filterable card grid inside the Web Dom
 
 1. Should `registry-port` variables be allocatable directly from the picker (manual Node process managed by the user over SSH), or only through Node/Docker app commands? Recommendation: yes from the picker, via `v-add-user-port … APP=manual` ([04](./04-port-registry.md) §12.2) — it is the SSH-user story.
 2. Backend (PHP-FPM pool) templates: variables are useful there too (E19 per-domain PHP settings), but pools are rendered by `prepare_web_backend`, not `add_web_config`, and have no `.sh` hook. Keep backend sidecars metadata-only in 2.0; revisit with E19.
-3. Per-template documentation language: generated pages are English only; Crowdin coverage of sidecar `title`/`description` through `web/locale` keys is possible (`__()` on the strings) but doubles translation volume — decide at the Q2 review.
+3. Per-template documentation language: generated pages are English only; Crowdin coverage of sidecar `title`/`description` through `lib/locale` keys is possible (`__()` on the strings) but doubles translation volume — decide at the Q2 review.

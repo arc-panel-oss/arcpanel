@@ -61,8 +61,8 @@ Browser ── HTTPS :8083 ──► hestia-nginx ──► hestia-php (FPM, use
                                                                  bind, exim, dovecot, mariadb, postgresql, iptables
 ```
 
-- **The CLI is the API.** Both web apps and the REST API call `v-*` commands through `sudo`; the commands validate arguments, write the flat files and configure the services. The panel never writes hosting state itself.
-- **Strangler migration.** The Laravel app and the legacy app share one port and one session. Pages move to Laravel one module at a time; the legacy app disappears at 2.0.
+- **The CLI is the API.** The panel app and the REST API call `v-*` commands through `sudo`; the commands validate arguments, write the flat files and configure the services. The panel never writes hosting state itself.
+- **Strangler migration.** In 1.x the Laravel app and the legacy app shared one port and one session, and pages moved to Laravel one module at a time; 2.0 removed the legacy app.
 - **Owner model.** Admin, reseller and user roles with a one-level ownership tree; every page and command is scoped by owner.
 - **Additive changes to upstream.** New commands, libraries, keys and files only, so HestiaCP releases keep merging.
 

@@ -175,7 +175,7 @@ sequenceDiagram
   participant Q as apps.pipe / v-run-docker-app-install
   participant D as docker compose
 
-  B->>L: POST /app/apps/install {slug, domain, vars}
+  B->>L: POST /apps/install {slug, domain, vars}
   L->>L: DockerAppPolicy: package DOCKER=yes, DOCKER_APPS, admin_only, domain in scope
   L->>A: v-add-docker-app user uptime-kuma status.example.com --vars-file <secret tmp>
   A->>P: v-allocate-user-port user docker:uptime-kuma
@@ -217,11 +217,11 @@ sequenceDiagram
 
 Shipped manifests are signed with the ArcPanel release key; `v-update-docker-catalog` pulls newer versions from `DOCKER_CATALOG_URL` (default: the ArcPanel catalog repo) so new app versions do not wait for a panel release.
 
-### 5.8 UI (Vue island, `/app/apps`)
+### 5.8 UI (Vue island, `/apps`)
 
 - **Store**: card grid from `v-list-docker-catalog` (icon, name, summary, category, "installed" / "update available" badges, `admin_only` hidden for non-admins), search and category tabs; "System" tab for admins (§6).
 - **App detail / install**: description (Markdown), requirements vs. package (memory/disk/CPU), domain picker (owned domains without an app; "create domain" shortcut via `v-add-web-domain`), generated form from `variables[]` (passwords with "generate", secrets never pre-filled when editing), extra-ports section (private by default; "make public" only if `PortPolicy::makePublic`), install button → 202 → "My apps" entry with live install log (§6.5).
-- **My apps** (`/app/apps/mine`): table (name, domain + SSL badge, version, status pill, CPU/mem, update badge), actions start/stop/restart/update/rollback/delete (with "keep data" option), bulk operations.
+- **My apps** (`/apps/mine`): table (name, domain + SSL badge, version, status pill, CPU/mem, update badge), actions start/stop/restart/update/rollback/delete (with "keep data" option), bulk operations.
 - **App page**: Overview (URL, ports, health, image digest), **Logs** (live stream, per service), **Settings** (variables editor → temp file → `v-change-docker-app-env`; limits; domain change), **Updates** (catalog version, changelog link, "Update now", "Rollback to previous"), **Backups** (last consistent marker, "Snapshot now" → `v-backup-docker-apps`), **Danger zone**.
 - **Admin**: Server → Docker (engine status, data root usage, catalog source/version/last refresh, "Refresh catalog", nightly report, orphan cleanup actions) and the "Docker" section of package edit (`DOCKER`, `DOCKER_APPS`, `DOCKER_CPUS`, `DOCKER_MEMORY`).
 - Scoping through `DockerAppPolicy` + `OwnerScope` ([03](./03-tenancy-and-authorization.md) §7): resellers see customers' apps in Customer detail; users see their own.

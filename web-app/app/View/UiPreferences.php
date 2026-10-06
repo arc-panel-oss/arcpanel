@@ -4,8 +4,8 @@ namespace App\View;
 
 /**
  * Theme, density and sidebar layout of the panel app (D8 of the E1-S2 spec):
- * the cookie arc_ui, else derived from the legacy THEME. Rendered on <html>
- * by the server so pages never flash.
+ * the cookie arc_ui, else derived from THEME (the user's, else the server's).
+ * Rendered on <html> by the server so pages never flash.
  */
 final class UiPreferences
 {

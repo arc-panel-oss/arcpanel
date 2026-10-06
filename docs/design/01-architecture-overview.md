@@ -137,7 +137,7 @@ Hooks into existing flows use mechanisms upstream already provides: queue pipes,
 
 Earlier plan, kept for the remaining events: upstream `/etc/hestiacp/hooks/` today exposes only `pre_install.sh`, `post_install.sh`, `le_pre.sh` and `le_post.sh`. Several designs (03, 04, 07, 08, 12) want to react to `v-add-user`, `v-suspend-user`, `v-unsuspend-user`, `v-delete-user`, `v-rebuild-user` and `v-restore-web-domain`. The plan is: (1) propose the hook points upstream as one PR (`post_add_user.sh`, `post_suspend_user.sh`, `post_unsuspend_user.sh`, `post_delete_user.sh`, `post_rebuild_user.sh`, `post_restore_web_domain.sh`, each called with the user/domain as arguments, as `le_pre.sh` is today); (2) until merged, the panel's `UserService` calls the ArcPanel follow-up commands itself after the upstream command returns, and a nightly reconciliation (`v-check-sys-ports`, `v-check-sys-node`, `v-check-sys-docker`, `v-update-reseller-counters all`) converges state for users created, suspended or deleted from the CLI/API. Every reconciler fails safe (closes ports, stops daemons) rather than open.
 
-**Recorded exceptions.** `test/upstream-exceptions.txt` lists every upstream file under `bin/`, `func/`, `install/` and `src/` that ArcPanel changes, grouped by the decision that allows it: E9 rebranding and packaging (ADR-0006), `is_role_valid` in `func/main.sh` (E11 D10), the hook lines of the five user commands (E12 D4), output-only keys of `v-list-sys-config`, and the 2.0 cut-over (E8, [spec](../features/specs/2026-10-06-004-e8-legacy-retirement-design.md) §11): the path changes of `web/` to `lib/` and `data/` in `func/main.sh`, `func/upgrade.sh`, `func/internal/sanitize_html.php`, the 2FA, Quick Install, dependency, API, language, theme, White Label, statistics and git-update commands, `v-change-sys-config-value`, both installers, `src/hst_autocompile.sh` and `src/deb/nginx/nginx.conf`; the rewrite of `v-add-sys-filemanager` and `v-delete-sys-filemanager` to toggles of `FILE_MANAGER`; and the deletion of `web/` and `install/deb/filemanager/`. `.arcpanel/retired-paths` and `scripts/upstream-merge-cleanup.sh` keep upstream merges cheap after the deletion.
+**Recorded exceptions.** `test/upstream-exceptions.txt` lists every upstream file under `bin/`, `func/`, `install/` and `src/` that ArcPanel changes, grouped by the decision that allows it: E9 rebranding and packaging (ADR-0006), `is_role_valid` in `func/main.sh` (E11 D10), the hook lines of the five user commands (E12 D4), output-only keys of `v-list-sys-config`, and the 2.0 cut-over (E8, [spec](../features/specs/2026-10-06-004-e8-legacy-retirement-design.md) §11): the path changes of `web/` to `lib/` and `data/` in `func/main.sh`, `func/upgrade.sh`, `func/internal/sanitize_html.php`, the 2FA, Quick Install, dependency, API, language, theme, White Label, statistics and git-update commands, the RRD clean-up of `v-delete-database-host`, `v-change-sys-config-value`, both installers, `src/hst_autocompile.sh` and `src/deb/nginx/nginx.conf`; the rewrite of `v-add-sys-filemanager` and `v-delete-sys-filemanager` to toggles of `FILE_MANAGER`; and the deletion of `web/` and `install/deb/filemanager/`. `.arcpanel/retired-paths` and `scripts/upstream-merge-cleanup.sh` keep upstream merges cheap after the deletion.
 
 A CI job (`upstream-diff`, see 11 §5, `test/upstream-diff.sh`) fails if `bin/`, `func/`, `install/` or `src/` contain a change to an existing upstream file that the list does not record, or if code references the removed `web/` directory.
 
@@ -151,6 +151,8 @@ Both apps share one login because both read the same PHP session file. A URL pre
 4. deleting the stub in E8.
 
 No feature freeze and no big-bang cut-over.
+
+> **History (1.x).** The migration is complete. From E1-S2 to E7 the old URLs answered 302 behind the `ARCPANEL_APP_PAGES` switch (`arc_redirect_if_migrated()`) instead of 301 stubs. E8 deleted `web/` and the switch; the panel app serves the root URL, and the 1.x URLs redirect through `App\View\LegacyUrls` for one release (removed in 2.1).
 
 ### 3.4 Owner scoping is central, not per page
 
@@ -194,7 +196,7 @@ sequenceDiagram
   participant V as v-add-web-domain (root)
   participant Q as queue / nginx
 
-  B->>N: POST /app/web/domains (CSRF token, ARCPANELSID cookie)
+  B->>N: POST /web/domains (CSRF token, ARCPANELSID cookie)
   N->>L: fastcgi → web-app/public/index.php
   L->>L: SessionBridge: load PHP session → Principal(user, look, role)
   L->>P: authorize('create', WebDomain, effectiveUser)
@@ -206,10 +208,10 @@ sequenceDiagram
   V->>Q: write vhost from template; echo restart → restart.pipe
   V-->>H: exit 0 / stdout
   H-->>L: CommandResult(ok, output) or ArcCommandException(code, message)
-  L-->>B: 303 → /app/web/domains?ok=1 (toast)
+  L-->>B: 303 → /web/domains?ok=1 (toast)
 ```
 
-The legacy app performs the same steps with `exec()`; the only new elements are the explicit `Principal`, the policy call and the typed result.
+The legacy app of 1.x performed the same steps with `exec()`; the only new elements are the explicit `Principal`, the policy call and the typed result.
 
 ### 4.3 Request flow — an API call
 
@@ -254,7 +256,7 @@ web-app/                Laravel 13 panel app (E1)
   public/               index.php + built assets
 src/deb/                hestia, hestia-nginx, hestia-php, web-terminal packaging (+ Laravel vendor in hestia)
 test/                   BATS (bin/) + e2e/ Playwright (E10)
-docs/                   VitePress site, roadmap, current-features, design/, adr/
+docs/                   roadmap, current-features, design/, specs, adr/
 ```
 
 ---
@@ -302,7 +304,7 @@ See [10-page-migration-and-retirement.md](./10-page-migration-and-retirement.md)
 
 1. **URL prefix during migration** — `/app/*` (recommended) vs. a second port. Decided in ADR-0002.
 2. **Web terminal as log transport** — decided: reuse `server.js` with a backwards-compatible `tail` control frame; one authenticated WebSocket endpoint is easier to secure. See [07](./07-node-platform.md) §6.4.
-3. **Where API v1 lives after E8** — keep `web/api/index.php` as a standalone script under the Laravel `public/` directory (zero-risk) vs. port to a controller. Recommendation: keep the script, route `/api/` to it from `hestia-nginx`, and build OpenAPI (E29) on top; revisit when webhooks need shared code.
+3. **Where API v1 lives after E8** — resolved by E8: the API stays a plain script, `lib/api/index.php`, still served at `/api/` by `hestia-nginx`; a port to a controller belongs to E29 (webhooks and OpenAPI). The original question: keep `web/api/index.php` as a standalone script under the Laravel `public/` directory (zero-risk) vs. port to a controller. Recommendation: keep the script, route `/api/` to it from `hestia-nginx`, and build OpenAPI (E29) on top; revisit when webhooks need shared code.
 
 ---
 
