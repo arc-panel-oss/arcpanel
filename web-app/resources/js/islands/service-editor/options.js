@@ -29,11 +29,11 @@ export const OPTION_KEYS = {
 	mysql: ['max_connections', 'max_user_connections', 'wait_timeout', 'interactive_timeout', 'max_allowed_packet'],
 };
 
-const escape = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const escapeRegExp = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 /** nginx: `key value;` · ini (php, mysql): `key = value` */
 function pattern(kind, key) {
-	const name = escape(key);
+	const name = escapeRegExp(key);
 	if (kind === 'nginx') {
 		return new RegExp(`^([ \\t]*${name}[ \\t]+)([^;#\\r\\n]*?)([ \\t]*;)`, 'm');
 	}
