@@ -25,15 +25,15 @@ jobs:
       - name: Build CI container
         run: |
           docker build \
-            -f .github/docker/hestia-ci.Dockerfile \
-            -t hestia-ci:${{ github.sha }} \
+            -f .github/docker/arcpanel-ci.Dockerfile \
+            -t arcpanel-ci:${{ github.sha }} \
             .
 
       - name: Start CI container
         run: |
           docker run -d \
-            --name hestia-ci \
-            --hostname hestia-dev.local \
+            --name arcpanel-ci \
+            --hostname arcpanel-dev.local \
             --privileged \
             --cgroupns=host \
             --tmpfs /run \
@@ -47,44 +47,44 @@ jobs:
             -e LANG=en_US.UTF-8 \
             -e LC_ALL=en_US.UTF-8 \
             -v /sys/fs/cgroup:/sys/fs/cgroup:rw \
-            -v "${GITHUB_WORKSPACE}:/hestiacp-git" \
-            -w /hestiacp-git \
-            hestia-ci:${{ github.sha }}
+            -v "${GITHUB_WORKSPACE}:/arcpanel-git" \
+            -w /arcpanel-git \
+            arcpanel-ci:${{ github.sha }}
           for _ in {1..100}; do
-            docker exec hestia-ci bash -lc 'systemctl is-system-running 2>/dev/null | grep -Eq "running|degraded"' && break
+            docker exec arcpanel-ci bash -lc 'systemctl is-system-running 2>/dev/null | grep -Eq "running|degraded"' && break
             sleep 0.1
           done
 
-      - name: Install Hestia from local git
+      - name: Install ArcPanel from local git
         run: |
-          docker exec hestia-ci bash -lc '
+          docker exec arcpanel-ci bash -lc '
             set -euxo pipefail
             export TERM=xterm
-            cd /hestiacp-git/src
-            bash ./hst_autocompile.sh --hestia --noinstall --keepbuild "~localsrc"
+            cd /arcpanel-git/src
+            bash ./arcpanel-build.sh --arcpanel --noinstall --keepbuild "~localsrc"
             DEB_PATH=""
-            if [[ -f "/tmp/hestiacp-src/deb" ]]; then
-              pkg="$(dpkg-deb -f /tmp/hestiacp-src/deb Package)"
-              ver="$(dpkg-deb -f /tmp/hestiacp-src/deb Version)"
-              arch="$(dpkg-deb -f /tmp/hestiacp-src/deb Architecture)"
-              DEB_PATH="/tmp/hestiacp-src/debs"
+            if [[ -f "/tmp/arcpanel-src/deb" ]]; then
+              pkg="$(dpkg-deb -f /tmp/arcpanel-src/deb Package)"
+              ver="$(dpkg-deb -f /tmp/arcpanel-src/deb Version)"
+              arch="$(dpkg-deb -f /tmp/arcpanel-src/deb Architecture)"
+              DEB_PATH="/tmp/arcpanel-src/debs"
               mkdir -p "${DEB_PATH}"
-              cp /tmp/hestiacp-src/deb "${DEB_PATH}/${pkg}_${ver}_${arch}.deb"
+              cp /tmp/arcpanel-src/deb "${DEB_PATH}/${pkg}_${ver}_${arch}.deb"
             fi
-            if compgen -G "/tmp/hestiacp-src/deb/arcpanel_*.deb" >/dev/null; then
-              DEB_PATH="/tmp/hestiacp-src/deb"
-            elif compgen -G "/tmp/hestiacp-src/debs/hestia_*.deb" >/dev/null; then
-              DEB_PATH="/tmp/hestiacp-src/debs"
+            if compgen -G "/tmp/arcpanel-src/deb/arcpanel_*.deb" >/dev/null; then
+              DEB_PATH="/tmp/arcpanel-src/deb"
+            elif compgen -G "/tmp/arcpanel-src/debs/arcpanel_*.deb" >/dev/null; then
+              DEB_PATH="/tmp/arcpanel-src/debs"
             else
-              echo "No local hestia debs found under /tmp/hestiacp-src/{deb,debs}"
-              ls -la /tmp/hestiacp-src || true
-              ls -la /tmp/hestiacp-src/deb || true
-              ls -la /tmp/hestiacp-src/debs || true
+              echo "No local arcpanel debs found under /tmp/arcpanel-src/{deb,debs}"
+              ls -la /tmp/arcpanel-src || true
+              ls -la /tmp/arcpanel-src/deb || true
+              ls -la /tmp/arcpanel-src/debs || true
               exit 1
             fi
-            cd /hestiacp-git
-            bash install/hst-install-ubuntu.sh \
-              --hostname hestia.local.test \
+            cd /arcpanel-git
+            bash install/arcpanel-install-ubuntu.sh \
+              --hostname arcpanel.local.test \
               --email admin@example.com \
               --username admin \
               --password Password123 \
@@ -97,18 +97,18 @@ jobs:
 
       - name: Check the shipped panel nginx configuration
         run: |
-          docker exec hestia-ci bash -lc '
+          docker exec arcpanel-ci bash -lc '
             set -euxo pipefail
-            install -m 0644 /hestiacp-git/src/deb/nginx/nginx.conf /usr/local/hestia/nginx/conf/nginx-ci.conf
-            /usr/local/hestia/nginx/sbin/hestia-nginx -t -c /usr/local/hestia/nginx/conf/nginx-ci.conf
-            rm -f /usr/local/hestia/nginx/conf/nginx-ci.conf
+            install -m 0644 /arcpanel-git/src/deb/nginx/nginx.conf /usr/local/arcpanel/nginx/conf/nginx-ci.conf
+            /usr/local/arcpanel/nginx/sbin/arcpanel-nginx -t -c /usr/local/arcpanel/nginx/conf/nginx-ci.conf
+            rm -f /usr/local/arcpanel/nginx/conf/nginx-ci.conf
           '
 
       - name: Run BATS test suite
         run: |
-          docker exec hestia-ci bash -lc '
+          docker exec arcpanel-ci bash -lc '
             set -euxo pipefail
-            cd /hestiacp-git
+            cd /arcpanel-git
             if ! command -v bats >/dev/null 2>&1; then
               test/test_helper/bats-core/install.sh /usr/local
             fi
@@ -118,11 +118,11 @@ jobs:
       - name: Collect logs on failure
         if: failure()
         run: |
-          docker exec hestia-ci bash -lc 'journalctl --no-pager -n 500' || true
-          docker exec hestia-ci bash -lc 'ls -la /root/hst_install_backups || true' || true
-          docker exec hestia-ci bash -lc 'tail -n 500 /root/hst_install_backups/hst_install-*.log || true' || true
+          docker exec arcpanel-ci bash -lc 'journalctl --no-pager -n 500' || true
+          docker exec arcpanel-ci bash -lc 'ls -la /root/arcpanel_install_backups || true' || true
+          docker exec arcpanel-ci bash -lc 'tail -n 500 /root/arcpanel_install_backups/arc_install-*.log || true' || true
 
       - name: Cleanup container
         if: always()
         run: |
-          docker rm -f hestia-ci || true
+          docker rm -f arcpanel-ci || true

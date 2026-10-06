@@ -1,35 +1,35 @@
 #!/bin/sh
 
 ### BEGIN INIT INFO
-# Provides:       hestia
+# Provides:       arcpanel
 #                 internal nginx
 #                 internal php-fpm
 # Required-Start:    $local_fs $remote_fs $network $syslog
 # Required-Stop:     $local_fs $remote_fs $network $syslog
 # Default-Start:     2 3 4 5
 # Default-Stop:      0 1 6
-# Short-Description: starts the hestia control panel
+# Short-Description: starts the arcpanel control panel
 # Description:       starts nginx and php-fpm using start-stop-daemon
 ### END INIT INFO
 
 PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
-NGINX_DAEMON=/usr/local/hestia/nginx/sbin/hestia-nginx
-NGINX_NAME=hestia-nginx
-NGINX_DESC=hestia-nginx
-NGINX_PID=/run/hestia-nginx.pid
-NGINX_CONF=/usr/local/hestia/nginx/conf/nginx.conf
+NGINX_DAEMON=/usr/local/arcpanel/nginx/sbin/arcpanel-nginx
+NGINX_NAME=arcpanel-nginx
+NGINX_DESC=arcpanel-nginx
+NGINX_PID=/run/arcpanel-nginx.pid
+NGINX_CONF=/usr/local/arcpanel/nginx/conf/nginx.conf
 
-PHP_DAEMON=/usr/local/hestia/php/sbin/hestia-php
-PHP_NAME=hestia-php
-PHP_DESC=hestia-php
-PHP_PID=/run/hestia-php.pid
-PHP_CONF=/usr/local/hestia/php/etc/php-fpm.conf
+PHP_DAEMON=/usr/local/arcpanel/php/sbin/arcpanel-php
+PHP_NAME=arcpanel-php
+PHP_DESC=arcpanel-php
+PHP_PID=/run/arcpanel-php.pid
+PHP_CONF=/usr/local/arcpanel/php/etc/php-fpm.conf
 
 set -e
 
 . /lib/lsb/init-functions
 
-. /etc/profile.d/hestia.sh
+. /etc/profile.d/arcpanel.sh
 
 start_nginx() {
 	start-stop-daemon --start --quiet --pidfile $NGINX_PID \
@@ -83,12 +83,12 @@ case "$1" in
 		;;
 
 	status)
-		status_of_proc -p $NGINX_PID "$NGINX_DAEMON" hestia-nginx
-		status_of_proc -p $PHP_PID "$PHP_DAEMON" hestia-php
+		status_of_proc -p $NGINX_PID "$NGINX_DAEMON" arcpanel-nginx
+		status_of_proc -p $PHP_PID "$PHP_DAEMON" arcpanel-php
 		;;
 
 	*)
-		echo "Usage: hestia {start|stop|restart|status}" >&2
+		echo "Usage: arcpanel {start|stop|restart|status}" >&2
 		exit 1
 		;;
 esac

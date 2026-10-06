@@ -5,10 +5,10 @@ After=network.target
 
 [Service]
 User=root
-Group=hestia-users
+Group=arcpanel-users
 Environment=NODE_ENV=production
-Environment=HESTIA=/usr/local/hestia
-ExecStart=/usr/local/hestia/web-terminal/server.js
+Environment=ARCPANEL=/usr/local/arcpanel
+ExecStart=/usr/local/arcpanel/web-terminal/server.js
 ExecStop=/bin/kill -s TERM $MAINPID
 Restart=on-failure
 

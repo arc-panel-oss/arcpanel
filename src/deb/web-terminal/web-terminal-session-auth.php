@@ -1,4 +1,4 @@
-#!/usr/local/hestia/php/bin/php
+#!/usr/local/arcpanel/php/bin/php
 <?php
 declare(strict_types=1);
 
@@ -20,13 +20,13 @@ if ($sessionId === "" || preg_match('/^[A-Za-z0-9,-]+$/', $sessionId) !== 1) {
 	deny("invalid session id");
 }
 
-$hestia = getenv("HESTIA");
-if (!is_string($hestia) || $hestia === "") {
-	deny("missing HESTIA env");
+$arcpanel = getenv("ARCPANEL");
+if (!is_string($arcpanel) || $arcpanel === "") {
+	deny("missing ARCPANEL env");
 }
 
 session_name("ARCPANELSID");
-session_save_path($hestia . "/data/sessions");
+session_save_path($arcpanel . "/data/sessions");
 session_id($sessionId);
 
 if (!@session_start()) {

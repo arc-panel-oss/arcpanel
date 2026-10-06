@@ -2,15 +2,15 @@
 
 #
 # Orchestrates cross-architecture multi-OS (--all-os) builds of
-# Hestia packages on a single machine. hst_autocompile.sh only ever builds for
+# ArcPanel packages on a single machine. arcpanel-build.sh only ever builds for
 # the environment it's actually running in; this script is what spins up the
 # *other* environments needed for --cross/--all-os, using QEMU-emulated
 # chroots (debootstrap + qemu-user-static), and runs the unmodified
-# hst_autocompile.sh inside each one. The combination matching the host's own
+# arcpanel-build.sh inside each one. The combination matching the host's own
 # OS/release/architecture is built directly, no chroot needed.
 #
 # Usage:
-#   ./chroot_build_all.sh (--all|--hestia|--nginx|--php|--web-terminal) \
+#   ./chroot_build_all.sh (--all|--arcpanel|--nginx|--php|--web-terminal) \
 #   [--debug] [branch]
 #
 # Examples:
@@ -19,8 +19,8 @@
 
 __DIR__="$(cd "$(dirname "${BASH_SOURCE[0]}")" > /dev/null 2>&1 && pwd)"
 REPO_DIR="$(cd "$__DIR__/.." && pwd)"
-BUILD_DIR="${BUILD_DIR:-/tmp/hestiacp-src}"
-CHROOT_BASE_DIR='/var/lib/hestiacp-build-chroot'
+BUILD_DIR="${BUILD_DIR:-/tmp/arcpanel-src}"
+CHROOT_BASE_DIR='/var/lib/arcpanel-build-chroot'
 ACTIVE_CHROOTS=()
 
 # Supported OS releases for --all-os, as "distro codename" pairs.
@@ -42,10 +42,10 @@ fi
 
 usage() {
 	echo "Usage:"
-	echo "    $0 (--all|--hestia|--nginx|--php|--web-terminal) [--debug] [branch]"
+	echo "    $0 (--all|--arcpanel|--nginx|--php|--web-terminal) [--debug] [branch]"
 	echo ""
 	echo "    --all           Build all ArcPanel packages."
-	echo "    --hestia        Build only the Control Panel package."
+	echo "    --arcpanel        Build only the Control Panel package."
 	echo "    --nginx         Build only the backend nginx engine package."
 	echo "    --php           Build only the backend php engine package"
 	echo "    --web-terminal  Build only the backend web terminal websocket package"
@@ -202,7 +202,7 @@ prepare_chroot() {
 	# Use our own marker rather than e.g. "-d $chroot_dir/usr" to decide
 	# whether bootstrapping is done: a chroot left behind by a failed stage-2
 	# run already has /usr populated but is not actually usable.
-	if [ ! -f "$chroot_dir/.hestiacp-chroot-ready" ]; then
+	if [ ! -f "$chroot_dir/.arcpanel-chroot-ready" ]; then
 		echo >&2 "Bootstrapping $distro/$release/$target_arch chroot at $chroot_dir (first run only, this can take a while)..."
 		# A previous run may have left this mounted (e.g. an interrupted
 		# build, or an older version of this script); rm -rf can't remove
@@ -269,7 +269,7 @@ prepare_chroot() {
 			fi
 		fi
 
-		touch "$chroot_dir/.hestiacp-chroot-ready"
+		touch "$chroot_dir/.arcpanel-chroot-ready"
 	fi
 
 	if [ "$target_arch" != "$HOST_ARCH" ]; then
@@ -311,7 +311,7 @@ prepare_chroot() {
 	mountpoint -q "$chroot_dir/sys" || mount --bind /sys "$chroot_dir/sys"
 
 	# Each combo gets its own host-side build directory bind-mounted onto the
-	# same in-chroot path ($BUILD_DIR, e.g. /tmp/hestiacp-src). They must NOT
+	# same in-chroot path ($BUILD_DIR, e.g. /tmp/arcpanel-src). They must NOT
 	# share one physical directory: with --keepbuild forced on every chroot
 	# leg, a later combo would otherwise reuse an earlier combo's configured
 	# source tree (e.g. PHP's) as-is, including its already-built, wrong-
@@ -323,7 +323,7 @@ prepare_chroot() {
 
 	# debootstrap doesn't populate a resolver config, so without this DNS
 	# resolution fails inside the chroot and apt-get update/install fail
-	# silently (errors get redirected away in hst_autocompile.sh), which then
+	# silently (errors get redirected away in arcpanel-build.sh), which then
 	# surfaces much later as confusing "command not found" errors. Refresh it
 	# on every prepare, not just first bootstrap, in case the host's own
 	# resolv.conf changed since (e.g. a new DHCP lease).
@@ -353,7 +353,7 @@ run_cross_build() {
 	local deb_dir_export="export DEB_DIR='$target_deb_dir'; "
 
 	# /proc is bind-mounted from the host (see prepare_chroot), so
-	# hst_autocompile.sh's own cpu-core detection would see the host's full
+	# arcpanel-build.sh's own cpu-core detection would see the host's full
 	# core count. Under QEMU user-mode emulation each cc1 process uses far
 	# more memory than native, so building with that many parallel jobs
 	# reliably triggers the OOM killer ("Killed signal terminated program
@@ -363,7 +363,7 @@ run_cross_build() {
 	fi
 
 	echo "Cross-building $distro/$release/$target_arch inside $chroot_dir..."
-	chroot "$chroot_dir" /bin/bash -c "${deb_dir_export}cd '$REPO_DIR/src' && DEBIAN_FRONTEND=noninteractive ./hst_autocompile.sh $* --noinstall --keepbuild"
+	chroot "$chroot_dir" /bin/bash -c "${deb_dir_export}cd '$REPO_DIR/src' && DEBIAN_FRONTEND=noninteractive ./arcpanel-build.sh $* --noinstall --keepbuild"
 	if [ $? -ne 0 ]; then
 		echo >&2 "[!] Cross build for $distro/$release/$target_arch failed"
 		exit 1
@@ -374,7 +374,7 @@ run_cross_build() {
 	# loop finishes: the private /dev tmpfs and (for foreign
 	# arches) the qemu-user interpreter emulating the target both hold real
 	# RAM, and that adds up fast across a dozen combos. The bootstrapped
-	# rootfs itself is left on disk (see .hestiacp-chroot-ready in
+	# rootfs itself is left on disk (see .arcpanel-chroot-ready in
 	# prepare_chroot) so a later run can reuse it without re-debootstrapping.
 	unmount_chroot_dir "$chroot_dir"
 	local i
@@ -391,7 +391,7 @@ while [ $# -gt 0 ]; do
 			NGINX_B='true'
 			PHP_B='true'
 			WEB_TERMINAL_B='true'
-			HESTIA_B='true'
+			ARCPANEL_B='true'
 			;;
 		--nginx)
 			NGINX_B='true'
@@ -402,11 +402,11 @@ while [ $# -gt 0 ]; do
 		--web-terminal)
 			WEB_TERMINAL_B='true'
 			;;
-		--hestia)
-			HESTIA_B='true'
+		--arcpanel)
+			ARCPANEL_B='true'
 			;;
 		--debug)
-			HESTIA_DEBUG='true'
+			ARCPANEL_DEBUG='true'
 			;;
 
 		--release)
@@ -446,8 +446,8 @@ mkdir -p "$NATIVE_DEB_DIR"
 # Build every other (distro, release, arch) combination via chroot.
 PKG_FLAGS=""
 NEEDS_CHROOT_BUILD='false'
-if [ "$HESTIA_B" = "true" ]; then
-	PKG_FLAGS="$PKG_FLAGS --hestia"
+if [ "$ARCPANEL_B" = "true" ]; then
+	PKG_FLAGS="$PKG_FLAGS --arcpanel"
 	NEEDS_CHROOT_BUILD='true'
 fi
 if [ "$NGINX_B" = "true" ]; then
@@ -462,7 +462,7 @@ if [ "$WEB_TERMINAL_B" = "true" ]; then
 	PKG_FLAGS="$PKG_FLAGS --web-terminal"
 	NEEDS_CHROOT_BUILD='true'
 fi
-[ "$HESTIA_DEBUG" = "true" ] && PKG_FLAGS="$PKG_FLAGS --debug"
+[ "$ARCPANEL_DEBUG" = "true" ] && PKG_FLAGS="$PKG_FLAGS --debug"
 [ -n "$release_tag" ] && PKG_FLAGS="$PKG_FLAGS --release $release_tag"
 [ -n "$pkg_rev" ] && PKG_FLAGS="$PKG_FLAGS --pkgrev $pkg_rev"
 
@@ -485,7 +485,7 @@ if [ "$NEEDS_CHROOT_BUILD" = "true" ]; then
 	done
 fi
 
-# When done move all build packages located in /tmp/hestiacp-src-{os}-{release}-{arch}/deb to /tmp/hestiacp-src/deb/ to have all packages in one place
+# When done move all build packages located in /tmp/arcpanel-src-{os}-{release}-{arch}/deb to /tmp/arcpanel-src/deb/ to have all packages in one place
 
 for dr in "${ALLOS_DISTRO_RELEASES[@]}"; do
 	distro="${dr%% *}"

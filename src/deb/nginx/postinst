@@ -7,64 +7,64 @@ if [ "$1" != "configure" ]; then
 fi
 
 # Run triggers only on updates
-if [ ! -e "/usr/local/hestia/data/users/" ]; then
+if [ ! -e "/usr/local/arcpanel/data/users/" ]; then
 	exit
 fi
 
-# Prevent running and causes issues with outdated hestia version
-if ! id "hestiaweb" &> /dev/null; then
+# Prevent running and causes issues with outdated arcpanel version
+if ! id "arcpanelweb" &> /dev/null; then
 	exit
 fi
 
 # Touch and set permisions on default log files on installation
-update-rc.d hestia defaults > /dev/null
+update-rc.d arcpanel defaults > /dev/null
 if [ -f /lib/systemd/system/arcpanel.service ]; then
 	systemctl daemon-reload > /dev/null 2>&1 || true
 	systemctl enable arcpanel > /dev/null 2>&1 || true
 fi
-invoke-rc.d hestia start || true
+invoke-rc.d arcpanel start || true
 
-# Adapt Port Listing in HESTIA NGINX Backend
-source /usr/local/hestia/func/syshealth.sh # Load syshealth functions
+# Adapt Port Listing in ARCPANEL NGINX Backend
+source /usr/local/arcpanel/func/syshealth.sh # Load syshealth functions
 
-# Check if the function syshealth_adapt_hestia_nginx_listen_ports exists
-if ! declare -f syshealth_adapt_hestia_nginx_listen_ports > /dev/null; then
+# Check if the function syshealth_adapt_arcpanel_nginx_listen_ports exists
+if ! declare -f syshealth_adapt_arcpanel_nginx_listen_ports > /dev/null; then
 	exit
 fi
-syshealth_adapt_hestia_nginx_listen_ports # Adapt port listing
+syshealth_adapt_arcpanel_nginx_listen_ports # Adapt port listing
 syshealth_adapt_nginx_resolver
 
 ###############################################################
 #                Initialize functions/variables               #
 ###############################################################
 
-if [ -z "$HESTIA" ]; then
-	export HESTIA='/usr/local/hestia'
-	PATH=$PATH:/usr/local/hestia/bin
+if [ -z "$ARCPANEL" ]; then
+	export ARCPANEL='/usr/local/arcpanel'
+	PATH=$PATH:/usr/local/arcpanel/bin
 	export PATH
 fi
 
 # Check if preinstall hook exists
-if [ -e "/etc/hestiacp/hooks/nginx/pre_install.sh" ]; then
-	/etc/hestiacp/hooks/nginx/pre_install.sh
+if [ -e "/etc/arcpanel/hooks/nginx/pre_install.sh" ]; then
+	/etc/arcpanel/hooks/nginx/pre_install.sh
 fi
 
 # Load upgrade functions and variables
-source /usr/local/hestia/func/main.sh
-source /usr/local/hestia/func/upgrade.sh
-source /usr/local/hestia/conf/hestia.conf
-source /usr/local/hestia/install/upgrade/upgrade.conf
+source /usr/local/arcpanel/func/main.sh
+source /usr/local/arcpanel/func/upgrade.sh
+source /usr/local/arcpanel/conf/arcpanel.conf
+source /usr/local/arcpanel/install/upgrade/upgrade.conf
 
 # Reset backend port
 if [ -n "$BACKEND_PORT" ]; then
-	/usr/local/hestia/bin/v-change-sys-port $BACKEND_PORT
+	/usr/local/arcpanel/bin/v-change-sys-port $BACKEND_PORT
 fi
 
-if [ -e "/etc/hestiacp/hooks/nginx/post_install.sh" ]; then
-	/etc/hestiacp/hooks/nginx/post_install.sh
+if [ -e "/etc/arcpanel/hooks/nginx/post_install.sh" ]; then
+	/etc/arcpanel/hooks/nginx/post_install.sh
 fi
 
-# Restart hestia service
-if [ -f "/etc/init.d/hestia" ]; then
-	systemctl restart hestia > /dev/null 2>&1
+# Restart arcpanel service
+if [ -f "/etc/init.d/arcpanel" ]; then
+	systemctl restart arcpanel > /dev/null 2>&1
 fi

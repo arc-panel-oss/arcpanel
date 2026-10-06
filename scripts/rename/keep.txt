@@ -48,6 +48,8 @@ text	driver_hestia_	*
 regex	(?<![\w$])hestia_(?:host|port)\b	bin/v-change-sys-hostname,bin/v-change-sys-port,install/common/snappymail/**
 # Legacy Rainloop plugin configuration file
 text	plugin-hestia-change-password	*
+# The packages conflict with the HestiaCP packages (D9)
+regex	(?m)^Conflicts: hestia[\w-]*	src/deb/*/control
 # The installers refuse a server that has HestiaCP packages (D9)
 text	nginx hestia arcpanel	install/arcpanel-install-*.sh
 # Version string of the vendored phpPgAdmin

@@ -1,12 +1,12 @@
 #!/bin/bash
 
 # set -e
-# Autocompile Script for HestiaCP package Files.
+# Autocompile Script for ArcPanel package Files.
 # For building from local source folder use "~localsrc" keyword as hesia branch name,
 #   and the script will not try to download the arhive from github, since '~' char is
 #   not accepted in branch name.
-# Compile but dont install -> ./hst_autocompile.sh --hestia --noinstall --keepbuild '~localsrc'
-# Compile and install -> ./hst_autocompile.sh --hestia --install '~localsrc'
+# Compile but dont install -> ./arcpanel-build.sh --arcpanel --noinstall --keepbuild '~localsrc'
+# Compile and install -> ./arcpanel-build.sh --arcpanel --install '~localsrc'
 
 # Clear previous screen output
 clear
@@ -23,7 +23,7 @@ download_file() {
 		apt-get -qq install -y wget
 	fi
 
-	[ "$HESTIA_DEBUG" ] && echo >&2 DEBUG: Downloading file "$url" to "$destination"
+	[ "$ARCPANEL_DEBUG" ] && echo >&2 DEBUG: Downloading file "$url" to "$destination"
 
 	# Default destination is the current working directory
 	local dstopt=""
@@ -54,7 +54,7 @@ download_file() {
 	fi
 
 	if [ ! -f "$ARCHIVE_DIR/$filename" ]; then
-		[ "$HESTIA_DEBUG" ] && echo >&2 DEBUG: wget $url -q $dstopt --show-progress --progress=bar:force --limit-rate=3m
+		[ "$ARCPANEL_DEBUG" ] && echo >&2 DEBUG: wget $url -q $dstopt --show-progress --progress=bar:force --limit-rate=3m
 		wget $url -q $dstopt --show-progress --progress=bar:force --limit-rate=3m
 		if [ $? -ne 0 ]; then
 			echo >&2 "[!] Archive $ARCHIVE_DIR/$filename is corrupted and exit script"
@@ -75,13 +75,13 @@ download_file() {
 get_branch_file() {
 	local filename=$1
 	local destination=$2
-	[ "$HESTIA_DEBUG" ] && echo >&2 DEBUG: Get branch file "$filename" to "$destination"
+	[ "$ARCPANEL_DEBUG" ] && echo >&2 DEBUG: Get branch file "$filename" to "$destination"
 	if [ "$use_src_folder" == 'true' ]; then
 		if [ -z "$destination" ]; then
-			[ "$HESTIA_DEBUG" ] && echo >&2 DEBUG: cp -f "$SRC_DIR/$filename" ./
+			[ "$ARCPANEL_DEBUG" ] && echo >&2 DEBUG: cp -f "$SRC_DIR/$filename" ./
 			cp -f "$SRC_DIR/$filename" ./
 		else
-			[ "$HESTIA_DEBUG" ] && echo >&2 DEBUG: cp -f "$SRC_DIR/$filename" "$destination"
+			[ "$ARCPANEL_DEBUG" ] && echo >&2 DEBUG: cp -f "$SRC_DIR/$filename" "$destination"
 			cp -f "$SRC_DIR/$filename" "$destination"
 		fi
 	else
@@ -91,10 +91,10 @@ get_branch_file() {
 
 usage() {
 	echo "Usage:"
-	echo "    $0 (--all|--hestia|--nginx|--php|--web-terminal) [options] [branch] [Y]"
+	echo "    $0 (--all|--arcpanel|--nginx|--php|--web-terminal) [options] [branch] [Y]"
 	echo ""
 	echo "    --all           Build all ArcPanel packages."
-	echo "    --hestia        Build only the Control Panel package."
+	echo "    --arcpanel        Build only the Control Panel package."
 	echo "    --nginx         Build only the backend nginx engine package."
 	echo "    --php           Build only the backend php engine package"
 	echo "    --web-terminal  Build only the backend web terminal websocket package"
@@ -120,7 +120,7 @@ usage() {
 	echo "after one of the above flags. To install the packages, specify 'Y'"
 	echo "following the branch name."
 	echo ""
-	echo "Example: bash hst_autocompile.sh --hestia develop Y"
+	echo "Example: bash arcpanel-build.sh --arcpanel develop Y"
 	echo "This would install an ArcPanel package compiled with the"
 	echo "develop branch code."
 	echo ""
@@ -168,7 +168,7 @@ apply_distro_version() {
 	#   - With    a release id : -<pkgrev>+<distro_suffix>~<BUILD_RELEASE> (e.g. -1+debian12~myci1)
 	# BUILD_RELEASE here may come from:
 	#   1) the --release command line option (explicit user choice), or
-	#   2) the '~<tag>' suffix auto-detected from the hestia control file's Version,
+	#   2) the '~<tag>' suffix auto-detected from the arcpanel control file's Version,
 	#      when --release was NOT specified (see detection right after BUILD_VER is read).
 	local pkg_rev="${BUILD_PKG_REV:-1}"
 	local release_suffix="-${pkg_rev}+${distro_suffix}"
@@ -179,7 +179,7 @@ apply_distro_version() {
 	sed -i "s/^Version: \(.*\)/Version: ${base_version}${release_suffix}/" "$control_file"
 }
 
-# Detects the package that provides a shared library required by hestia-php
+# Detects the package that provides a shared library required by arcpanel-php
 detect_pkg_from_elf() {
 	local bin="$1"
 	local lib_pattern="$2"
@@ -215,8 +215,8 @@ detect_pkg_from_elf() {
 
 # Set compiling directory
 REPO='arc-panel-oss/arcpanel'
-BUILD_DIR="${BUILD_DIR:-/tmp/hestiacp-src}"
-INSTALL_DIR='/usr/local/hestia'
+BUILD_DIR="${BUILD_DIR:-/tmp/arcpanel-src}"
+INSTALL_DIR='/usr/local/arcpanel'
 SRC_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 ARCHIVE_DIR="$SRC_DIR/src/archive/"
 architecture="$(arch)"
@@ -235,7 +235,7 @@ for i in $*; do
 			NGINX_B='true'
 			PHP_B='true'
 			WEB_TERMINAL_B='true'
-			HESTIA_B='true'
+			ARCPANEL_B='true'
 			;;
 		--nginx)
 			NGINX_B='true'
@@ -246,11 +246,11 @@ for i in $*; do
 		--web-terminal)
 			WEB_TERMINAL_B='true'
 			;;
-		--hestia)
-			HESTIA_B='true'
+		--arcpanel)
+			ARCPANEL_B='true'
 			;;
 		--debug)
-			HESTIA_DEBUG='true'
+			ARCPANEL_DEBUG='true'
 			;;
 		--install | Y)
 			install='true'
@@ -340,10 +340,10 @@ if [ -z "$BUILD_VER" ]; then
 	exit 1
 fi
 
-# Auto-detect a '~<tag>' pre-release suffix (e.g. ~alpha, ~beta, ~rc1) from the hestia
+# Auto-detect a '~<tag>' pre-release suffix (e.g. ~alpha, ~beta, ~rc1) from the arcpanel
 # control file's Version. If the user did NOT explicitly pass --release on the command
 # line, this detected tag becomes BUILD_RELEASE and will be propagated to ALL packages
-# (nginx, php, web-terminal, hestia), even though those individual package versions
+# (nginx, php, web-terminal, arcpanel), even though those individual package versions
 # don't carry the '~tag' themselves. If --release WAS explicitly given, it takes
 # precedence and the detected tag is discarded (replaced) instead.
 if echo "$BUILD_VER" | grep -qE '~'; then
@@ -358,8 +358,8 @@ if [[ -n "$BUILD_RELEASE" ]]; then
 fi
 echo "Build version ${BUILD_VER}${_build_release}, with Nginx version $NGINX_V, PHP version $PHP_V and Web Terminal version $WEB_TERMINAL_V"
 
-HESTIA_V="${BUILD_VER}_${BUILD_ARCH}"
-# List of supported OS releases for Hestia used for crossbuilding.
+ARCPANEL_V="${BUILD_VER}_${BUILD_ARCH}"
+# List of supported OS releases for ArcPanel used for crossbuilding.
 supported_os="debian11 debian12 debian13 ubuntu22.04 ubuntu24.04 ubuntu26.04"
 OPENSSL_V='3.5.9'
 PCRE_V='10.49'
@@ -449,7 +449,7 @@ fi
 # host's real core count, not a safe parallelism level for emulated compiles.
 NUM_CPUS="${NUM_CPUS:-$(grep "^cpu cores" /proc/cpuinfo | uniq | awk '{print $4}')}"
 
-if [ "$HESTIA_DEBUG" ]; then
+if [ "$ARCPANEL_DEBUG" ]; then
 	echo "OS type          : Debian / Ubuntu"
 	echo "Branch           : $branch"
 	echo "Install          : $install"
@@ -458,13 +458,13 @@ if [ "$HESTIA_DEBUG" ]; then
 	echo "PHP version      : $PHP_V"
 	echo "Web Term version : $WEB_TERMINAL_V"
 	echo "Architecture     : $BUILD_ARCH"
-	echo "Debug mode       : $HESTIA_DEBUG"
+	echo "Debug mode       : $ARCPANEL_DEBUG"
 	echo "Source directory : $SRC_DIR"
 	echo "Build release    : $BUILD_RELEASE"
 fi
 
 # Generate Links for sourcecode
-HESTIA_ARCHIVE_LINK='https://github.com/arc-panel-oss/arcpanel/archive/'$branch'.tar.gz'
+ARCPANEL_ARCHIVE_LINK='https://github.com/arc-panel-oss/arcpanel/archive/'$branch'.tar.gz'
 if [[ $NGINX_V =~ - ]]; then
 	NGINX='https://nginx.org/download/nginx-'$(echo $NGINX_V | cut -d"-" -f1)'.tar.gz'
 else
@@ -486,7 +486,7 @@ branch_dash=$(echo "$branch" | sed 's/\//-/g')
 
 #################################################################################
 #
-# Building hestia-nginx
+# Building arcpanel-nginx
 #
 #################################################################################
 
@@ -500,22 +500,22 @@ if [ "$NGINX_B" = true ]; then
 	# Change to build directory
 	cd $BUILD_DIR
 
-	BUILD_DIR_HESTIANGINX=$BUILD_DIR/hestia-nginx_$NGINX_V
+	BUILD_DIR_ARCPANELNGINX=$BUILD_DIR/arcpanel-nginx_$NGINX_V
 	if [[ $NGINX_V =~ - ]]; then
 		BUILD_DIR_NGINX=$BUILD_DIR/nginx-$(echo $NGINX_V | cut -d"-" -f1)
 	else
 		BUILD_DIR_NGINX=$BUILD_DIR/nginx-$(echo $NGINX_V | cut -d"~" -f1)
 	fi
 
-	if [ "$KEEPBUILD" != 'true' ] || [ ! -d "$BUILD_DIR_HESTIANGINX" ] || [ ! -f "$BUILD_DIR_NGINX/Makefile" ]; then
+	if [ "$KEEPBUILD" != 'true' ] || [ ! -d "$BUILD_DIR_ARCPANELNGINX" ] || [ ! -f "$BUILD_DIR_NGINX/Makefile" ]; then
 		# Check if target directory exist
-		if [ -d "$BUILD_DIR_HESTIANGINX" ]; then
-			#mv $BUILD_DIR/hestia-nginx_$NGINX_V $BUILD_DIR/hestia-nginx_$NGINX_V-$(timestamp)
-			rm -r "$BUILD_DIR_HESTIANGINX"
+		if [ -d "$BUILD_DIR_ARCPANELNGINX" ]; then
+			#mv $BUILD_DIR/arcpanel-nginx_$NGINX_V $BUILD_DIR/arcpanel-nginx_$NGINX_V-$(timestamp)
+			rm -r "$BUILD_DIR_ARCPANELNGINX"
 		fi
 
 		# Create directory
-		mkdir -p $BUILD_DIR_HESTIANGINX
+		mkdir -p $BUILD_DIR_ARCPANELNGINX
 
 		# Download and unpack source files
 		download_file $NGINX '-' | tar xz
@@ -527,7 +527,7 @@ if [ "$NGINX_B" = true ]; then
 		cd $BUILD_DIR_NGINX
 
 		# configure nginx
-		./configure --prefix=/usr/local/hestia/nginx \
+		./configure --prefix=/usr/local/arcpanel/nginx \
 			--with-http_v2_module \
 			--with-http_ssl_module \
 			--with-openssl=../openssl-$OPENSSL_V \
@@ -548,7 +548,7 @@ if [ "$NGINX_B" = true ]; then
 		rm -r "$BUILD_DIR$INSTALL_DIR"
 	fi
 
-	# Copy local hestia source files
+	# Copy local arcpanel source files
 	if [ "$use_src_folder" == 'true' ] && [ -d $SRC_DIR ]; then
 		cp -rf "$SRC_DIR/" $BUILD_DIR/arcpanel-$branch_dash
 	fi
@@ -560,56 +560,56 @@ if [ "$NGINX_B" = true ]; then
 	if [ "$KEEPBUILD" != 'true' ]; then
 		rm -r $BUILD_DIR_NGINX $BUILD_DIR/openssl-$OPENSSL_V $BUILD_DIR/pcre2-$PCRE_V $BUILD_DIR/zlib-$ZLIB_V
 	fi
-	cd $BUILD_DIR_HESTIANGINX
+	cd $BUILD_DIR_ARCPANELNGINX
 
 	# Move nginx directory
-	mkdir -p $BUILD_DIR_HESTIANGINX/usr/local/hestia
-	rm -rf $BUILD_DIR_HESTIANGINX/usr/local/hestia/nginx
-	mv $BUILD_DIR/usr/local/hestia/nginx $BUILD_DIR_HESTIANGINX/usr/local/hestia/
+	mkdir -p $BUILD_DIR_ARCPANELNGINX/usr/local/arcpanel
+	rm -rf $BUILD_DIR_ARCPANELNGINX/usr/local/arcpanel/nginx
+	mv $BUILD_DIR/usr/local/arcpanel/nginx $BUILD_DIR_ARCPANELNGINX/usr/local/arcpanel/
 
 	# Remove original nginx.conf (will use custom)
-	rm -f $BUILD_DIR_HESTIANGINX/usr/local/hestia/nginx/conf/nginx.conf
+	rm -f $BUILD_DIR_ARCPANELNGINX/usr/local/arcpanel/nginx/conf/nginx.conf
 
 	# copy binary
-	mv $BUILD_DIR_HESTIANGINX/usr/local/hestia/nginx/sbin/nginx $BUILD_DIR_HESTIANGINX/usr/local/hestia/nginx/sbin/hestia-nginx
+	mv $BUILD_DIR_ARCPANELNGINX/usr/local/arcpanel/nginx/sbin/nginx $BUILD_DIR_ARCPANELNGINX/usr/local/arcpanel/nginx/sbin/arcpanel-nginx
 
 	# change permission and build the package
 	cd $BUILD_DIR
-	chown -R root:root $BUILD_DIR_HESTIANGINX
+	chown -R root:root $BUILD_DIR_ARCPANELNGINX
 	# Get Debian package files
-	mkdir -p $BUILD_DIR_HESTIANGINX/DEBIAN
-	get_branch_file 'src/deb/nginx/control' "$BUILD_DIR_HESTIANGINX/DEBIAN/control"
+	mkdir -p $BUILD_DIR_ARCPANELNGINX/DEBIAN
+	get_branch_file 'src/deb/nginx/control' "$BUILD_DIR_ARCPANELNGINX/DEBIAN/control"
 	if [ "$BUILD_ARCH" != "amd64" ]; then
-		sed -i "s/amd64/${BUILD_ARCH}/g" "$BUILD_DIR_HESTIANGINX/DEBIAN/control"
+		sed -i "s/amd64/${BUILD_ARCH}/g" "$BUILD_DIR_ARCPANELNGINX/DEBIAN/control"
 	fi
-	apply_distro_version "$BUILD_DIR_HESTIANGINX/DEBIAN/control"
-	get_branch_file 'src/deb/nginx/copyright' "$BUILD_DIR_HESTIANGINX/DEBIAN/copyright"
-	get_branch_file 'src/deb/nginx/postinst' "$BUILD_DIR_HESTIANGINX/DEBIAN/postinst"
-	get_branch_file 'src/deb/nginx/postrm' "$BUILD_DIR_HESTIANGINX/DEBIAN/portrm"
-	chmod +x "$BUILD_DIR_HESTIANGINX/DEBIAN/postinst"
-	chmod +x "$BUILD_DIR_HESTIANGINX/DEBIAN/portrm"
+	apply_distro_version "$BUILD_DIR_ARCPANELNGINX/DEBIAN/control"
+	get_branch_file 'src/deb/nginx/copyright' "$BUILD_DIR_ARCPANELNGINX/DEBIAN/copyright"
+	get_branch_file 'src/deb/nginx/postinst' "$BUILD_DIR_ARCPANELNGINX/DEBIAN/postinst"
+	get_branch_file 'src/deb/nginx/postrm' "$BUILD_DIR_ARCPANELNGINX/DEBIAN/portrm"
+	chmod +x "$BUILD_DIR_ARCPANELNGINX/DEBIAN/postinst"
+	chmod +x "$BUILD_DIR_ARCPANELNGINX/DEBIAN/portrm"
 
 	# Init file
-	mkdir -p $BUILD_DIR_HESTIANGINX/etc/init.d
-	get_branch_file 'src/deb/nginx/hestia' "$BUILD_DIR_HESTIANGINX/etc/init.d/hestia"
-	chmod +x "$BUILD_DIR_HESTIANGINX/etc/init.d/hestia"
+	mkdir -p $BUILD_DIR_ARCPANELNGINX/etc/init.d
+	get_branch_file 'src/deb/nginx/arcpanel' "$BUILD_DIR_ARCPANELNGINX/etc/init.d/arcpanel"
+	chmod +x "$BUILD_DIR_ARCPANELNGINX/etc/init.d/arcpanel"
 
-	# systemd unit: arcpanel.service with Alias=hestia.service (ADR-0006)
-	mkdir -p $BUILD_DIR_HESTIANGINX/lib/systemd/system
-	get_branch_file 'src/deb/nginx/arcpanel.service' "$BUILD_DIR_HESTIANGINX/lib/systemd/system/arcpanel.service"
+	# systemd unit: arcpanel.service runs /etc/init.d/arcpanel
+	mkdir -p $BUILD_DIR_ARCPANELNGINX/lib/systemd/system
+	get_branch_file 'src/deb/nginx/arcpanel.service' "$BUILD_DIR_ARCPANELNGINX/lib/systemd/system/arcpanel.service"
 
 	# Custom config
-	get_branch_file 'src/deb/nginx/nginx.conf' "${BUILD_DIR_HESTIANGINX}/usr/local/hestia/nginx/conf/nginx.conf"
+	get_branch_file 'src/deb/nginx/nginx.conf' "${BUILD_DIR_ARCPANELNGINX}/usr/local/arcpanel/nginx/conf/nginx.conf"
 
 	# Build the package
 	echo Building Nginx DEB
-	dpkg-deb -Zxz --build $BUILD_DIR_HESTIANGINX $DEB_DIR
+	dpkg-deb -Zxz --build $BUILD_DIR_ARCPANELNGINX $DEB_DIR
 
 	rm -r $BUILD_DIR/usr
 
 	if [ "$KEEPBUILD" != 'true' ]; then
 		# Clean up the source folder
-		rm -r hestia- nginx_$NGINX_V
+		rm -r arcpanel- nginx_$NGINX_V
 		rm -rf $BUILD_DIR/rpmbuild
 		if [ "$use_src_folder" == 'true' ] && [ -d $BUILD_DIR/arcpanel-$branch_dash ]; then
 			rm -r $BUILD_DIR/arcpanel-$branch_dash
@@ -619,7 +619,7 @@ fi
 
 #################################################################################
 #
-# Building hestia-php
+# Building arcpanel-php
 #
 #################################################################################
 
@@ -630,7 +630,7 @@ if [ "$PHP_B" = true ]; then
 		exit 1
 	fi
 
-	BUILD_DIR_HESTIAPHP=$BUILD_DIR/hestia-php_$PHP_V
+	BUILD_DIR_ARCPANELPHP=$BUILD_DIR/arcpanel-php_$PHP_V
 
 	BUILD_DIR_PHP=$BUILD_DIR/php-$(echo $PHP_V | cut -d"~" -f1)
 
@@ -640,14 +640,14 @@ if [ "$PHP_B" = true ]; then
 		BUILD_DIR_PHP=$BUILD_DIR/php-$(echo $PHP_V | cut -d"~" -f1)
 	fi
 
-	if [ "$KEEPBUILD" != 'true' ] || [ ! -d "$BUILD_DIR_HESTIAPHP" ] || [ ! -f "$BUILD_DIR_PHP/Makefile" ]; then
+	if [ "$KEEPBUILD" != 'true' ] || [ ! -d "$BUILD_DIR_ARCPANELPHP" ] || [ ! -f "$BUILD_DIR_PHP/Makefile" ]; then
 		# Check if target directory exist
-		if [ -d $BUILD_DIR_HESTIAPHP ]; then
-			rm -r $BUILD_DIR_HESTIAPHP
+		if [ -d $BUILD_DIR_ARCPANELPHP ]; then
+			rm -r $BUILD_DIR_ARCPANELPHP
 		fi
 
 		# Create directory
-		mkdir -p $BUILD_DIR_HESTIAPHP
+		mkdir -p $BUILD_DIR_ARCPANELPHP
 
 		# Download and unpack source files
 		cd $BUILD_DIR
@@ -657,7 +657,7 @@ if [ "$PHP_B" = true ]; then
 		cd $BUILD_DIR_PHP
 
 		# Configure PHP
-		./configure --prefix=/usr/local/hestia/php \
+		./configure --prefix=/usr/local/arcpanel/php \
 			--with-libdir=lib/$(arch)-linux-gnu \
 			--enable-fpm --with-fpm-user=admin --with-fpm-group=admin \
 			--with-openssl \
@@ -674,65 +674,65 @@ if [ "$PHP_B" = true ]; then
 	# Create the files and install them
 	make -j $NUM_CPUS && make INSTALL_ROOT=$BUILD_DIR install
 
-	# Copy local hestia source files
+	# Copy local arcpanel source files
 	if [ "$use_src_folder" == 'true' ] && [ -d $SRC_DIR ]; then
-		[ "$HESTIA_DEBUG" ] && echo DEBUG: cp -rf "$SRC_DIR/" $BUILD_DIR/arcpanel-$branch_dash
+		[ "$ARCPANEL_DEBUG" ] && echo DEBUG: cp -rf "$SRC_DIR/" $BUILD_DIR/arcpanel-$branch_dash
 		cp -rf "$SRC_DIR/" $BUILD_DIR/arcpanel-$branch_dash
 	fi
 	# Move php directory
-	[ "$HESTIA_DEBUG" ] && echo DEBUG: mkdir -p $BUILD_DIR_HESTIAPHP/usr/local/hestia
-	mkdir -p $BUILD_DIR_HESTIAPHP/usr/local/hestia
+	[ "$ARCPANEL_DEBUG" ] && echo DEBUG: mkdir -p $BUILD_DIR_ARCPANELPHP/usr/local/arcpanel
+	mkdir -p $BUILD_DIR_ARCPANELPHP/usr/local/arcpanel
 
-	[ "$HESTIA_DEBUG" ] && echo DEBUG: rm -r $BUILD_DIR_HESTIAPHP/usr/local/hestia/php
-	if [ -d $BUILD_DIR_HESTIAPHP/usr/local/hestia/php ]; then
-		rm -r $BUILD_DIR_HESTIAPHP/usr/local/hestia/php
+	[ "$ARCPANEL_DEBUG" ] && echo DEBUG: rm -r $BUILD_DIR_ARCPANELPHP/usr/local/arcpanel/php
+	if [ -d $BUILD_DIR_ARCPANELPHP/usr/local/arcpanel/php ]; then
+		rm -r $BUILD_DIR_ARCPANELPHP/usr/local/arcpanel/php
 	fi
 
-	[ "$HESTIA_DEBUG" ] && echo DEBUG: mv ${BUILD_DIR}/usr/local/hestia/php ${BUILD_DIR_HESTIAPHP}/usr/local/hestia/
-	mv ${BUILD_DIR}/usr/local/hestia/php ${BUILD_DIR_HESTIAPHP}/usr/local/hestia/
+	[ "$ARCPANEL_DEBUG" ] && echo DEBUG: mv ${BUILD_DIR}/usr/local/arcpanel/php ${BUILD_DIR_ARCPANELPHP}/usr/local/arcpanel/
+	mv ${BUILD_DIR}/usr/local/arcpanel/php ${BUILD_DIR_ARCPANELPHP}/usr/local/arcpanel/
 
 	# copy binary
-	[ "$HESTIA_DEBUG" ] && echo DEBUG: cp $BUILD_DIR_HESTIAPHP/usr/local/hestia/php/sbin/php-fpm $BUILD_DIR_HESTIAPHP/usr/local/hestia/php/sbin/hestia-php
-	cp $BUILD_DIR_HESTIAPHP/usr/local/hestia/php/sbin/php-fpm $BUILD_DIR_HESTIAPHP/usr/local/hestia/php/sbin/hestia-php
+	[ "$ARCPANEL_DEBUG" ] && echo DEBUG: cp $BUILD_DIR_ARCPANELPHP/usr/local/arcpanel/php/sbin/php-fpm $BUILD_DIR_ARCPANELPHP/usr/local/arcpanel/php/sbin/arcpanel-php
+	cp $BUILD_DIR_ARCPANELPHP/usr/local/arcpanel/php/sbin/php-fpm $BUILD_DIR_ARCPANELPHP/usr/local/arcpanel/php/sbin/arcpanel-php
 
 	# Change permissions and build the package
-	chown -R root:root $BUILD_DIR_HESTIAPHP
+	chown -R root:root $BUILD_DIR_ARCPANELPHP
 	# Get Debian package files
-	[ "$HESTIA_DEBUG" ] && echo DEBUG: mkdir -p $BUILD_DIR_HESTIAPHP/DEBIAN
-	mkdir -p $BUILD_DIR_HESTIAPHP/DEBIAN
-	get_branch_file 'src/deb/php/control' "$BUILD_DIR_HESTIAPHP/DEBIAN/control"
+	[ "$ARCPANEL_DEBUG" ] && echo DEBUG: mkdir -p $BUILD_DIR_ARCPANELPHP/DEBIAN
+	mkdir -p $BUILD_DIR_ARCPANELPHP/DEBIAN
+	get_branch_file 'src/deb/php/control' "$BUILD_DIR_ARCPANELPHP/DEBIAN/control"
 	if [ "$BUILD_ARCH" != "amd64" ]; then
-		sed -i "s/amd64/${BUILD_ARCH}/g" "$BUILD_DIR_HESTIAPHP/DEBIAN/control"
+		sed -i "s/amd64/${BUILD_ARCH}/g" "$BUILD_DIR_ARCPANELPHP/DEBIAN/control"
 	fi
-	apply_distro_version "$BUILD_DIR_HESTIAPHP/DEBIAN/control"
+	apply_distro_version "$BUILD_DIR_ARCPANELPHP/DEBIAN/control"
 
 	# Extract correct libs as depends
-	PHP_BIN="$BUILD_DIR_HESTIAPHP/usr/local/hestia/php/sbin/hestia-php"
+	PHP_BIN="$BUILD_DIR_ARCPANELPHP/usr/local/arcpanel/php/sbin/arcpanel-php"
 	LIBZIP_DEP=$(detect_pkg_from_elf "$PHP_BIN" "libzip")
 	ONIG_DEP=$(detect_pkg_from_elf "$PHP_BIN" "libonig")
 	sed -i \
 		-e "s/@LIBZIP_DEP@/${LIBZIP_DEP}/g" \
 		-e "s/@ONIG_DEP@/${ONIG_DEP}/g" \
-		"$BUILD_DIR_HESTIAPHP/DEBIAN/control"
+		"$BUILD_DIR_ARCPANELPHP/DEBIAN/control"
 
-	get_branch_file 'src/deb/php/copyright' "$BUILD_DIR_HESTIAPHP/DEBIAN/copyright"
-	get_branch_file 'src/deb/php/postinst' "$BUILD_DIR_HESTIAPHP/DEBIAN/postinst"
-	chmod +x $BUILD_DIR_HESTIAPHP/DEBIAN/postinst
+	get_branch_file 'src/deb/php/copyright' "$BUILD_DIR_ARCPANELPHP/DEBIAN/copyright"
+	get_branch_file 'src/deb/php/postinst' "$BUILD_DIR_ARCPANELPHP/DEBIAN/postinst"
+	chmod +x $BUILD_DIR_ARCPANELPHP/DEBIAN/postinst
 	# Get custom config
-	get_branch_file 'src/deb/php/php-fpm.conf' "${BUILD_DIR_HESTIAPHP}/usr/local/hestia/php/etc/php-fpm.conf"
-	get_branch_file 'src/deb/php/php.ini' "${BUILD_DIR_HESTIAPHP}/usr/local/hestia/php/lib/php.ini"
+	get_branch_file 'src/deb/php/php-fpm.conf' "${BUILD_DIR_ARCPANELPHP}/usr/local/arcpanel/php/etc/php-fpm.conf"
+	get_branch_file 'src/deb/php/php.ini' "${BUILD_DIR_ARCPANELPHP}/usr/local/arcpanel/php/lib/php.ini"
 
 	# Build the package
 	echo Building PHP DEB
-	[ "$HESTIA_DEBUG" ] && echo DEBUG: dpkg-deb -Zxz --build $BUILD_DIR_HESTIAPHP $DEB_DIR
-	dpkg-deb -Zxz --build $BUILD_DIR_HESTIAPHP $DEB_DIR
+	[ "$ARCPANEL_DEBUG" ] && echo DEBUG: dpkg-deb -Zxz --build $BUILD_DIR_ARCPANELPHP $DEB_DIR
+	dpkg-deb -Zxz --build $BUILD_DIR_ARCPANELPHP $DEB_DIR
 
 	rm -r $BUILD_DIR/usr
 
 	# clear up the source folder
 	if [ "$KEEPBUILD" != 'true' ]; then
 		rm -r $BUILD_DIR/php-$(echo $PHP_V | cut -d"~" -f1)
-		rm -r $BUILD_DIR_HESTIAPHP
+		rm -r $BUILD_DIR_ARCPANELPHP
 		if [ "$use_src_folder" == 'true' ] && [ -d $BUILD_DIR/arcpanel-$branch_dash ]; then
 			rm -r $BUILD_DIR/arcpanel-$branch_dash
 		fi
@@ -741,7 +741,7 @@ fi
 
 #################################################################################
 #
-# Building hestia-web-terminal
+# Building arcpanel-web-terminal
 #
 #################################################################################
 
@@ -752,55 +752,55 @@ if [ "$WEB_TERMINAL_B" = true ]; then
 		exit 1
 	fi
 
-	BUILD_DIR_HESTIA_TERMINAL=$BUILD_DIR/hestia-web-terminal_$WEB_TERMINAL_V
+	BUILD_DIR_ARCPANEL_TERMINAL=$BUILD_DIR/arcpanel-web-terminal_$WEB_TERMINAL_V
 
 	# Check if target directory exist
-	if [ -d $BUILD_DIR_HESTIA_TERMINAL ]; then
-		rm -r $BUILD_DIR_HESTIA_TERMINAL
+	if [ -d $BUILD_DIR_ARCPANEL_TERMINAL ]; then
+		rm -r $BUILD_DIR_ARCPANEL_TERMINAL
 	fi
 
 	# Create directory
-	mkdir -p $BUILD_DIR_HESTIA_TERMINAL
-	chown -R root:root $BUILD_DIR_HESTIA_TERMINAL
+	mkdir -p $BUILD_DIR_ARCPANEL_TERMINAL
+	chown -R root:root $BUILD_DIR_ARCPANEL_TERMINAL
 
 	# Get Debian package files
-	[ "$HESTIA_DEBUG" ] && echo DEBUG: mkdir -p $BUILD_DIR_HESTIA_TERMINAL/DEBIAN
-	mkdir -p $BUILD_DIR_HESTIA_TERMINAL/DEBIAN
-	get_branch_file 'src/deb/web-terminal/control' "$BUILD_DIR_HESTIA_TERMINAL/DEBIAN/control"
+	[ "$ARCPANEL_DEBUG" ] && echo DEBUG: mkdir -p $BUILD_DIR_ARCPANEL_TERMINAL/DEBIAN
+	mkdir -p $BUILD_DIR_ARCPANEL_TERMINAL/DEBIAN
+	get_branch_file 'src/deb/web-terminal/control' "$BUILD_DIR_ARCPANEL_TERMINAL/DEBIAN/control"
 	if [ "$BUILD_ARCH" != "amd64" ]; then
-		sed -i "s/amd64/${BUILD_ARCH}/g" "$BUILD_DIR_HESTIA_TERMINAL/DEBIAN/control"
+		sed -i "s/amd64/${BUILD_ARCH}/g" "$BUILD_DIR_ARCPANEL_TERMINAL/DEBIAN/control"
 	fi
-	apply_distro_version "$BUILD_DIR_HESTIA_TERMINAL/DEBIAN/control"
-	get_branch_file 'src/deb/web-terminal/copyright' "$BUILD_DIR_HESTIA_TERMINAL/DEBIAN/copyright"
-	get_branch_file 'src/deb/web-terminal/postinst' "$BUILD_DIR_HESTIA_TERMINAL/DEBIAN/postinst"
-	chmod +x $BUILD_DIR_HESTIA_TERMINAL/DEBIAN/postinst
+	apply_distro_version "$BUILD_DIR_ARCPANEL_TERMINAL/DEBIAN/control"
+	get_branch_file 'src/deb/web-terminal/copyright' "$BUILD_DIR_ARCPANEL_TERMINAL/DEBIAN/copyright"
+	get_branch_file 'src/deb/web-terminal/postinst' "$BUILD_DIR_ARCPANEL_TERMINAL/DEBIAN/postinst"
+	chmod +x $BUILD_DIR_ARCPANEL_TERMINAL/DEBIAN/postinst
 
 	# Get server files
-	[ "$HESTIA_DEBUG" ] && echo DEBUG: mkdir -p "${BUILD_DIR_HESTIA_TERMINAL}/usr/local/hestia/web-terminal"
-	mkdir -p "${BUILD_DIR_HESTIA_TERMINAL}/usr/local/hestia/web-terminal"
-	get_branch_file 'src/deb/web-terminal/package.json' "${BUILD_DIR_HESTIA_TERMINAL}/usr/local/hestia/web-terminal/package.json"
-	get_branch_file 'src/deb/web-terminal/package-lock.json' "${BUILD_DIR_HESTIA_TERMINAL}/usr/local/hestia/web-terminal/package-lock.json"
-	get_branch_file 'src/deb/web-terminal/server.js' "${BUILD_DIR_HESTIA_TERMINAL}/usr/local/hestia/web-terminal/server.js"
-	get_branch_file 'src/deb/web-terminal/web-terminal-session-auth.php' "${BUILD_DIR_HESTIA_TERMINAL}/usr/local/hestia/web-terminal/web-terminal-session-auth.php"
-	chmod +x "${BUILD_DIR_HESTIA_TERMINAL}/usr/local/hestia/web-terminal/server.js"
-	chmod +x "${BUILD_DIR_HESTIA_TERMINAL}/usr/local/hestia/web-terminal/web-terminal-session-auth.php"
+	[ "$ARCPANEL_DEBUG" ] && echo DEBUG: mkdir -p "${BUILD_DIR_ARCPANEL_TERMINAL}/usr/local/arcpanel/web-terminal"
+	mkdir -p "${BUILD_DIR_ARCPANEL_TERMINAL}/usr/local/arcpanel/web-terminal"
+	get_branch_file 'src/deb/web-terminal/package.json' "${BUILD_DIR_ARCPANEL_TERMINAL}/usr/local/arcpanel/web-terminal/package.json"
+	get_branch_file 'src/deb/web-terminal/package-lock.json' "${BUILD_DIR_ARCPANEL_TERMINAL}/usr/local/arcpanel/web-terminal/package-lock.json"
+	get_branch_file 'src/deb/web-terminal/server.js' "${BUILD_DIR_ARCPANEL_TERMINAL}/usr/local/arcpanel/web-terminal/server.js"
+	get_branch_file 'src/deb/web-terminal/web-terminal-session-auth.php' "${BUILD_DIR_ARCPANEL_TERMINAL}/usr/local/arcpanel/web-terminal/web-terminal-session-auth.php"
+	chmod +x "${BUILD_DIR_ARCPANEL_TERMINAL}/usr/local/arcpanel/web-terminal/server.js"
+	chmod +x "${BUILD_DIR_ARCPANEL_TERMINAL}/usr/local/arcpanel/web-terminal/web-terminal-session-auth.php"
 
-	cd $BUILD_DIR_HESTIA_TERMINAL/usr/local/hestia/web-terminal
+	cd $BUILD_DIR_ARCPANEL_TERMINAL/usr/local/arcpanel/web-terminal
 	npm ci --omit=dev
 
 	# Systemd service
-	[ "$HESTIA_DEBUG" ] && echo DEBUG: mkdir -p $BUILD_DIR_HESTIA_TERMINAL/etc/systemd/system
-	mkdir -p $BUILD_DIR_HESTIA_TERMINAL/etc/systemd/system
-	get_branch_file 'src/deb/web-terminal/hestia-web-terminal.service' "$BUILD_DIR_HESTIA_TERMINAL/etc/systemd/system/hestia-web-terminal.service"
+	[ "$ARCPANEL_DEBUG" ] && echo DEBUG: mkdir -p $BUILD_DIR_ARCPANEL_TERMINAL/etc/systemd/system
+	mkdir -p $BUILD_DIR_ARCPANEL_TERMINAL/etc/systemd/system
+	get_branch_file 'src/deb/web-terminal/arcpanel-web-terminal.service' "$BUILD_DIR_ARCPANEL_TERMINAL/etc/systemd/system/arcpanel-web-terminal.service"
 
 	# Build the package
 	echo Building Web Terminal DEB
-	[ "$HESTIA_DEBUG" ] && echo DEBUG: dpkg-deb -Zxz --build $BUILD_DIR_HESTIA_TERMINAL $DEB_DIR
-	dpkg-deb -Zxz --build $BUILD_DIR_HESTIA_TERMINAL $DEB_DIR
+	[ "$ARCPANEL_DEBUG" ] && echo DEBUG: dpkg-deb -Zxz --build $BUILD_DIR_ARCPANEL_TERMINAL $DEB_DIR
+	dpkg-deb -Zxz --build $BUILD_DIR_ARCPANEL_TERMINAL $DEB_DIR
 
 	# clear up the source folder
 	if [ "$KEEPBUILD" != 'true' ]; then
-		rm -r $BUILD_DIR_HESTIA_TERMINAL
+		rm -r $BUILD_DIR_ARCPANEL_TERMINAL
 		if [ "$use_src_folder" == 'true' ] && [ -d $BUILD_DIR/arcpanel-$branch_dash ]; then
 			rm -r $BUILD_DIR/arcpanel-$branch_dash
 		fi
@@ -809,13 +809,13 @@ fi
 
 #################################################################################
 #
-# Building hestia
+# Building arcpanel
 #
 #################################################################################
 
 arch="$BUILD_ARCH"
 
-if [ "$HESTIA_B" = true ]; then
+if [ "$ARCPANEL_B" = true ]; then
 	if [ "$CROSS" = "true" ]; then
 		arch="amd64 arm64"
 	else
@@ -825,32 +825,32 @@ if [ "$HESTIA_B" = true ]; then
 
 	echo "Building ArcPanel package..."
 
-	BUILD_DIR_HESTIA=$BUILD_DIR/hestia_$HESTIA_V
+	BUILD_DIR_ARCPANEL=$BUILD_DIR/arcpanel_$ARCPANEL_V
 
 	# Change to build directory
 	cd $BUILD_DIR
 
-	if [ "$KEEPBUILD" != 'true' ] || [ ! -d "$BUILD_DIR_HESTIA" ]; then
+	if [ "$KEEPBUILD" != 'true' ] || [ ! -d "$BUILD_DIR_ARCPANEL" ]; then
 		# Check if target directory exist
-		if [ -d $BUILD_DIR_HESTIA ]; then
-			rm -r $BUILD_DIR_HESTIA
+		if [ -d $BUILD_DIR_ARCPANEL ]; then
+			rm -r $BUILD_DIR_ARCPANEL
 		fi
 
 		# Create directory
-		mkdir -p $BUILD_DIR_HESTIA
+		mkdir -p $BUILD_DIR_ARCPANEL
 	fi
 
 	cd $BUILD_DIR
 	rm -rf $BUILD_DIR/arcpanel-$branch_dash
 	# Download and unpack source files
 	if [ "$use_src_folder" == 'true' ]; then
-		[ "$HESTIA_DEBUG" ] && echo DEBUG: cp -rf "$SRC_DIR/" $BUILD_DIR/arcpanel-$branch_dash
+		[ "$ARCPANEL_DEBUG" ] && echo DEBUG: cp -rf "$SRC_DIR/" $BUILD_DIR/arcpanel-$branch_dash
 		cp -rf "$SRC_DIR/" $BUILD_DIR/arcpanel-$branch_dash
 	elif [ -d $SRC_DIR ]; then
-		download_file $HESTIA_ARCHIVE_LINK '-' 'fresh' | tar xz
+		download_file $ARCPANEL_ARCHIVE_LINK '-' 'fresh' | tar xz
 	fi
 
-	mkdir -p $BUILD_DIR_HESTIA/usr/local/hestia
+	mkdir -p $BUILD_DIR_ARCPANEL/usr/local/arcpanel
 
 	# Build web and move needed directories
 	cd $BUILD_DIR/arcpanel-$branch_dash
@@ -869,38 +869,38 @@ if [ "$HESTIA_B" = true ]; then
 	rm -rf web-app/storage/logs/* web-app/bootstrap/cache/*.php
 	for BUILD_ARCH in $arch; do
 		for os in $supported_os; do
-			mkdir -p $BUILD_DIR_HESTIA/usr/local/hestia
-			cp -rf bin func install lib web-app $BUILD_DIR_HESTIA/usr/local/hestia/
+			mkdir -p $BUILD_DIR_ARCPANEL/usr/local/arcpanel
+			cp -rf bin func install lib web-app $BUILD_DIR_ARCPANEL/usr/local/arcpanel/
 
 			# Set permissions
-			find $BUILD_DIR_HESTIA/usr/local/hestia/ -type f -exec chmod -x {} \;
+			find $BUILD_DIR_ARCPANEL/usr/local/arcpanel/ -type f -exec chmod -x {} \;
 
-			# Allow send email via /usr/local/hestia/lib/mail-wrapper.php via cli
-			chmod +x $BUILD_DIR_HESTIA/usr/local/hestia/lib/mail-wrapper.php
+			# Allow send email via /usr/local/arcpanel/lib/mail-wrapper.php via cli
+			chmod +x $BUILD_DIR_ARCPANEL/usr/local/arcpanel/lib/mail-wrapper.php
 			# Allow the executable to be executed
-			chmod +x $BUILD_DIR_HESTIA/usr/local/hestia/bin/*
-			find $BUILD_DIR_HESTIA/usr/local/hestia/install/ \( -name '*.sh' \) -exec chmod +x {} \;
-			chmod -x $BUILD_DIR_HESTIA/usr/local/hestia/install/*.sh
-			chown -R root:root $BUILD_DIR_HESTIA
+			chmod +x $BUILD_DIR_ARCPANEL/usr/local/arcpanel/bin/*
+			find $BUILD_DIR_ARCPANEL/usr/local/arcpanel/install/ \( -name '*.sh' \) -exec chmod +x {} \;
+			chmod -x $BUILD_DIR_ARCPANEL/usr/local/arcpanel/install/*.sh
+			chown -R root:root $BUILD_DIR_ARCPANEL
 			# Get Debian package files
-			mkdir -p $BUILD_DIR_HESTIA/DEBIAN
-			get_branch_file 'src/deb/arcpanel/control' "$BUILD_DIR_HESTIA/DEBIAN/control"
+			mkdir -p $BUILD_DIR_ARCPANEL/DEBIAN
+			get_branch_file 'src/deb/arcpanel/control' "$BUILD_DIR_ARCPANEL/DEBIAN/control"
 			if [ "$BUILD_ARCH" != "amd64" ]; then
-				sed -i "s/amd64/${BUILD_ARCH}/g" "$BUILD_DIR_HESTIA/DEBIAN/control"
+				sed -i "s/amd64/${BUILD_ARCH}/g" "$BUILD_DIR_ARCPANEL/DEBIAN/control"
 			fi
-			apply_distro_version "$BUILD_DIR_HESTIA/DEBIAN/control" "$os"
-			get_branch_file 'src/deb/arcpanel/copyright' "$BUILD_DIR_HESTIA/DEBIAN/copyright"
-			get_branch_file 'src/deb/arcpanel/preinst' "$BUILD_DIR_HESTIA/DEBIAN/preinst"
-			get_branch_file 'src/deb/arcpanel/postinst' "$BUILD_DIR_HESTIA/DEBIAN/postinst"
-			chmod +x $BUILD_DIR_HESTIA/DEBIAN/postinst
-			chmod +x $BUILD_DIR_HESTIA/DEBIAN/preinst
+			apply_distro_version "$BUILD_DIR_ARCPANEL/DEBIAN/control" "$os"
+			get_branch_file 'src/deb/arcpanel/copyright' "$BUILD_DIR_ARCPANEL/DEBIAN/copyright"
+			get_branch_file 'src/deb/arcpanel/preinst' "$BUILD_DIR_ARCPANEL/DEBIAN/preinst"
+			get_branch_file 'src/deb/arcpanel/postinst' "$BUILD_DIR_ARCPANEL/DEBIAN/postinst"
+			chmod +x $BUILD_DIR_ARCPANEL/DEBIAN/postinst
+			chmod +x $BUILD_DIR_ARCPANEL/DEBIAN/preinst
 
 			echo Building ArcPanel DEB
-			dpkg-deb -Zxz --build $BUILD_DIR_HESTIA $DEB_DIR
+			dpkg-deb -Zxz --build $BUILD_DIR_ARCPANEL $DEB_DIR
 
 			# clear up the source folder
 			if [ "$KEEPBUILD" != 'true' ]; then
-				rm -r $BUILD_DIR_HESTIA
+				rm -r $BUILD_DIR_ARCPANEL
 				rm -rf arcpanel-$branch_dash
 			fi
 			cd $BUILD_DIR/arcpanel-$branch_dash

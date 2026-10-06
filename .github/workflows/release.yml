@@ -45,7 +45,7 @@ jobs:
             echo "::error::Tag ${GITHUB_REF_NAME} does not match src/deb/arcpanel/control Version ${pkg_ver} (expected ${expected_tag})"
             exit 1
           fi
-          for installer in install/hst-install-debian.sh install/hst-install-ubuntu.sh; do
+          for installer in install/arcpanel-install-debian.sh install/arcpanel-install-ubuntu.sh; do
             inst_ver="$(grep "^ARCPANEL_INSTALL_VER=" "$installer" | cut -d"'" -f2)"
             if [ "${inst_ver}" != "${pkg_ver}" ]; then
               echo "::error::${installer} ARCPANEL_INSTALL_VER=${inst_ver} does not match package Version ${pkg_ver}"
@@ -80,14 +80,14 @@ jobs:
 
       - name: Build packages
         working-directory: src
-        run: bash ./hst_autocompile.sh --all --noinstall --keepbuild '~localsrc'
+        run: bash ./arcpanel-build.sh --all --noinstall --keepbuild '~localsrc'
 
       - name: Collect packages by distribution codename
         run: |
           set -euo pipefail
           . /etc/os-release
           mkdir -p "out/${VERSION_CODENAME}"
-          cp /tmp/hestiacp-src/deb/*.deb "out/${VERSION_CODENAME}/"
+          cp /tmp/arcpanel-src/deb/*.deb "out/${VERSION_CODENAME}/"
           ls -l "out/${VERSION_CODENAME}"
           echo "ARTIFACT_NAME=debs-${VERSION_CODENAME}-${{ matrix.arch }}" >> "$GITHUB_ENV"
 
