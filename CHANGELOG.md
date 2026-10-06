@@ -43,3 +43,7 @@ Users whose theme was mapped see the `nocturne` theme on 1.x until they pick ano
 - `test/upstream-diff.sh` and the `Upstream diff` CI job: upstream files change only by the exceptions recorded in `test/upstream-exceptions.txt`, and no code references the removed `web/` directory.
 - `.arcpanel/retired-paths` and `scripts/upstream-merge-cleanup.sh` for upstream merges after the removal of `web/`.
 - Download of the last 5000 lines of a web domain log from the log page.
+
+### Changed
+
+- phpPgAdmin 7.14.6 (`install/deb/pga/phppgadmin`) and the `quoteshellarg` helper (`lib/quoteshellarg`) ship with ArcPanel. Installs and upgrades no longer download them from the HestiaCP GitHub organisation.

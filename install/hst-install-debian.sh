@@ -1952,8 +1952,8 @@ if [ "$postgresql" = 'yes' ]; then
 	mkdir -p /etc/phppgadmin/
 	mkdir -p /usr/share/phppgadmin/
 
-	wget --retry-connrefused --quiet https://github.com/hestiacp/phppgadmin/releases/download/v$pga_v/phppgadmin-v$pga_v.tar.gz
-	tar xzf phppgadmin-v$pga_v.tar.gz -C /usr/share/phppgadmin/
+	# phpPgAdmin $pga_v ships with ArcPanel (install/deb/pga/phppgadmin)
+	cp -a "$HESTIA_INSTALL_DIR/pga/phppgadmin/." /usr/share/phppgadmin/
 
 	cp -f $HESTIA_INSTALL_DIR/pga/config.inc.php /etc/phppgadmin/
 
@@ -1964,7 +1964,6 @@ if [ "$postgresql" = 'yes' ]; then
 		cp -f $HESTIA_INSTALL_DIR/pga/phppgadmin.conf /etc/apache2/conf.d/phppgadmin.inc
 	fi
 
-	rm phppgadmin-v$pga_v.tar.gz
 	write_config_value "DB_PGA_ALIAS" "phppgadmin"
 	$HESTIA/bin/v-change-sys-db-alias 'pga' "phppgadmin"
 

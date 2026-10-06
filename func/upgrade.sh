@@ -592,9 +592,8 @@ upgrade_phppgadmin() {
 			# Display upgrade information
 			echo "[ * ] Upgrading phppgadmin to version $pga_v..."
 			[ -d /usr/share/phppgadmin ] || mkdir -p /usr/share/phppgadmin
-			# Download latest phpMyAdmin release
-			wget --retry-connrefused --quiet https://github.com/hestiacp/phppgadmin/releases/download/v$pga_v/phppgadmin-v$pga_v.tar.gz
-			tar xzf phppgadmin-v$pga_v.tar.gz -C /usr/share/phppgadmin/
+			# phpPgAdmin $pga_v ships with ArcPanel (install/deb/pga/phppgadmin)
+			cp -a "$HESTIA_INSTALL_DIR/pga/phppgadmin/." /usr/share/phppgadmin/
 
 			if ! version_ge "$pga_release" "7.14.0"; then
 				cp -f $HESTIA_INSTALL_DIR/pga/config.inc.php /etc/phppgadmin/
@@ -603,7 +602,6 @@ upgrade_phppgadmin() {
 				ln -s /etc/phppgadmin/config.inc.php /usr/share/phppgadmin/conf
 			fi
 
-			rm -f phppgadmin-v$pga_v.tar.gz
 		fi
 	fi
 }

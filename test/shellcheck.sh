@@ -26,7 +26,8 @@ shellcheck --version
 
 i=0
 f=0
-files=$(grep -rlE '#!/bin/(bash|sh)' ./ | grep -vE '\.(git|j2$|md$)')
+# install/deb/pga/phppgadmin is vendored phpPgAdmin (install/deb/pga/README.txt)
+files=$(grep -rlE '#!/bin/(bash|sh)' ./ | grep -vE '\.(git|j2$|md$)' | grep -v '^\./install/deb/pga/phppgadmin/')
 for file in $files; do
 	i=$(($i + 1))
 	shellcheck -x "$file" --severity="error"

@@ -55,3 +55,9 @@ lerna-debug.log*
 
 # npm lock file
 package-lock.json
+
+# Vendored quoteshellarg (upstream formatting)
+lib/quoteshellarg/
+
+# Vendored phpPgAdmin (upstream formatting)
+install/deb/pga/phppgadmin/

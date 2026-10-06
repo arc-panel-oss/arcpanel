@@ -65,6 +65,8 @@ jobs:
         uses: ludeeus/action-shellcheck@master
         with:
           severity: error
+          # vendored phpPgAdmin (install/deb/pga/README.txt)
+          ignore_paths: install/deb/pga/phppgadmin
 
   prettier:
     name: Prettier

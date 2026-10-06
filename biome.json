@@ -15,6 +15,7 @@
 			"!**/node_modules",
 			"!**/test-results",
 			"!**/test/test_helper",
+			"!**/install/deb/pga/phppgadmin",
 			"!**/email/examples/*.html",
 			"!**/*.bats",
 			"!**/*.min.css",
