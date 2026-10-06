@@ -32,18 +32,18 @@ From the HestiaCP baseline; see [current features](docs/current-features.md).
 
 ### What ArcPanel adds
 
-| Area                                             | Status (2026-10-05)                                                  | Where to read                                                                                                                    |
-| ------------------------------------------------ | -------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| Rebranding and packaging                         | Implemented                                                          | [ADR-0006](docs/adr/0006-rebranding-depth.md)                                                                                    |
-| Laravel panel app at `/app`                      | Implemented: login, 2FA, dashboard, Web Domains                      | [02 Laravel foundation](docs/design/02-laravel-foundation.md)                                                                    |
-| Reseller role                                    | Implemented: Users, Packages, quotas, login-as                       | [03 Tenancy](docs/design/03-tenancy-and-authorization.md), [E11 spec](docs/features/specs/2026-10-05-003-e11-reseller-design.md) |
-| Port registry                                    | Implemented: allocation, sub-allocation, public ports, firewall link | [04 Port registry](docs/design/04-port-registry.md), [E12 spec](docs/features/specs/2026-10-05-004-e12-port-registry-design.md)  |
-| Design system and new shell                      | Designed                                                             | [05](docs/design/05-design-system-and-frontend.md)                                                                               |
-| File Manager v2                                  | Designed                                                             | [06](docs/design/06-file-manager-v2.md)                                                                                          |
-| Node.js runtimes and apps                        | Designed                                                             | [07](docs/design/07-node-platform.md)                                                                                            |
-| App Store (Docker, apt)                          | Designed                                                             | [08](docs/design/08-app-store.md)                                                                                                |
-| Web templates with metadata                      | Designed                                                             | [09](docs/design/09-web-templates-metadata.md)                                                                                   |
-| Job Center, alerts, audit, WAF, Update Center, … | Sketched (post-2.0)                                                  | [14 Later backlog](docs/design/14-later-backlog.md)                                                                              |
+| Area                                             | Status (2026-10-06)                                                                                                                                                                                                                             | Where to read                                                                                                                                                                            |
+| ------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Rebranding and packaging                         | Implemented; release infrastructure open                                                                                                                                                                                                        | [ADR-0006](docs/adr/0006-rebranding-depth.md)                                                                                                                                            |
+| Laravel panel app at `/app`                      | Implemented: login, 2FA, dashboard, Web Domains, Databases, Cron, DNS, Mail, Backups, Firewall, IPs, access and SSH keys, logs, statistics, web terminal, Quick Install. Server pages (services, settings, config editors, updates) in progress | [02 Laravel foundation](docs/design/02-laravel-foundation.md), [10 Page migration](docs/design/10-page-migration-and-retirement.md)                                                      |
+| Reseller role                                    | Implemented: Users, Packages, quotas, login-as                                                                                                                                                                                                  | [03 Tenancy](docs/design/03-tenancy-and-authorization.md), [E11 spec](docs/features/specs/2026-10-05-003-e11-reseller-design.md)                                                         |
+| Port registry                                    | Implemented: allocation, sub-allocation, public ports, firewall link                                                                                                                                                                            | [04 Port registry](docs/design/04-port-registry.md), [E12 spec](docs/features/specs/2026-10-05-004-e12-port-registry-design.md)                                                          |
+| Design system and new shell                      | Implemented: component library, role-aware shell, command palette, notification tray                                                                                                                                                            | [05](docs/design/05-design-system-and-frontend.md), [E1-S2 spec](docs/features/specs/2026-10-05-002-e1-s2-dashboard-web-domains-design.md)                                               |
+| File Manager v2                                  | Implemented: every file operation run as the user, uploads, code editor, restic snapshot browsing; FileGator is removed at 2.0                                                                                                                  | [06](docs/design/06-file-manager-v2.md), [E3 spec](docs/features/specs/2026-10-05-008-e3-file-manager-design.md)                                                                         |
+| Node.js runtimes and apps                        | Implemented: per-user runtimes and global packages, apps run by a per-user pm2 daemon                                                                                                                                                           | [07](docs/design/07-node-platform.md), [E13 spec](docs/features/specs/2026-10-05-006-e13-node-manager-design.md), [E14 spec](docs/features/specs/2026-10-05-007-e14-node-apps-design.md) |
+| App Store (Docker, apt)                          | Docker apps implemented: curated catalog, containers run as the hosting user, updates with rollback. apt/snap system apps designed                                                                                                              | [08](docs/design/08-app-store.md), [E4 spec](docs/features/specs/2026-10-05-009-e4-docker-apps-design.md)                                                                                |
+| Web templates with metadata                      | Batch 1 implemented: metadata, per-domain variables, ten new templates, template picker                                                                                                                                                         | [09](docs/design/09-web-templates-metadata.md), [E6 spec](docs/features/specs/2026-10-05-005-e6-templates-batch1-design.md)                                                              |
+| Job Center, alerts, audit, WAF, Update Center, … | Sketched (post-2.0)                                                                                                                                                                                                                             | [14 Later backlog](docs/design/14-later-backlog.md)                                                                                                                                      |
 
 ---
 
@@ -103,11 +103,11 @@ To choose components or run unattended, pass flags (`sudo bash install.sh -h` li
 
 ```text
 bin/            v-* commands (upstream + ArcPanel additions): the system's API
-func/           shell libraries; ArcPanel adds tenancy.sh, ports.sh, hooks.sh, hooks.d/
+func/           shell libraries; ArcPanel adds tenancy.sh, ports.sh, hooks.sh, node.sh, nodeapp.sh, fs.sh, docker.sh, …
 install/        installers, default packages, templates, API permission sets, upgrade steps
 src/deb/        Debian packaging of the panel stack (hestia, hestia-nginx, hestia-php, web terminal)
 web/            legacy PHP web UI (reference only, being retired)
-web-app/        Laravel 13 panel app: ArcCommand, auth bridge, policies, services, Blade + Alpine, Pest tests
+web-app/        Laravel 13 panel app: ArcCommand, auth bridge, policies, services, Blade + Alpine, Vue islands, Pest and Vitest tests
 test/           BATS suites, smoke script, Playwright e2e, dev-sync.sh (deploy a checkout to a test server)
 docs/           roadmap, current features, design documents, specs, ADRs, schemas
 build.js        esbuild + Lightning CSS build of the frontend assets
@@ -142,7 +142,7 @@ cd web-app && composer install && cd ..
 npm run lint             # Prettier --check, Biome, markdownlint
 bash test/shellcheck.sh  # every shell script, severity error
 bash test/brand-check.sh # user-visible text must say ArcPanel
-npm run test:js          # Vitest: Alpine modules of the panel app
+npm run test:js          # Vitest: Alpine modules and Vue islands of the panel app
 cd web-app && vendor/bin/pint --test && vendor/bin/pest
 ```
 
@@ -157,15 +157,15 @@ sudo bash test/dev-sync.sh # on the server; --no-composer / --no-restart to skip
 On the server, as root:
 
 ```bash
-bats test/arcpanel-tenancy.bats test/arcpanel-ports.bats test/arcpanel-panel-app.bats
-bash test/arcpanel-login-smoke.sh             # HTTP smoke test of login, web domains and resellers
+bats test/arcpanel-*.bats                     # every ArcPanel suite (or one, e.g. test/arcpanel-ports.bats)
+bash test/arcpanel-login-smoke.sh             # HTTP smoke test: shared session, web domains, resellers
 bash test/e2e/prepare.sh prepare '<password>' # seed users for the browser suite
 ```
 
 From the workstation:
 
 ```bash
-E2E_BASE_URL=https:// < server > :8083 npm run test:e2e # Playwright + axe + Lighthouse accessibility
+E2E_BASE_URL='https://<server>:8083' npm run test:e2e # Playwright + axe + Lighthouse accessibility
 ```
 
 The scripts create and delete their own users (`arce2e*`, `arcsmoke*`); never run them against a production server. Windows users with a WSL test distribution can run the sync step with `wsl.exe -d <distro> -u root -- bash /mnt/<drive>/.../test/dev-sync.sh`; see [AGENTS.md](AGENTS.md) §8 for the known pitfalls.

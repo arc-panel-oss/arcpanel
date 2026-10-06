@@ -14,7 +14,16 @@ ArcPanel is an open-source Linux hosting control panel based on **HestiaCP 1.10.
 
 Three roles exist: **admin** (server owner), **reseller** (owns a tree of customers inside its own package limits) and **user** (hosting customer). Every page and command is owner-scoped from the start.
 
-The current state of each epic is in [docs/roadmap.md](docs/roadmap.md). As of 2026-10-06, E1 (Laravel foundation, slices S1–S2), E9 (rebranding), E11 (resellers), E12 (port registry), E6 batch 1 (template metadata, per-domain template variables, ten new templates) E13 (Node.js runtimes and global packages per user), E14 (Node.js apps run by a per-user pm2 daemon), E3 (File Manager v2, every file operation run as the user), E4 (Docker apps from a curated catalog, every container run as the hosting user) E7 batch 1 (Databases, Cron, DNS, Mail and Backups pages on Laravel, with the restic snapshot browser) and E7 batch 2 (Firewall, IPs, access and SSH keys, logs, statistics and graphs, web terminal, Quick Install run in the background) are implemented; the rest is design.
+The current state of each epic is in [docs/roadmap.md](docs/roadmap.md). As of 2026-10-06 these are implemented:
+
+- E1 (Laravel foundation, slices S1–S2, which also deliver the E2 design system and shell) and E9 (rebranding; the release infrastructure is still open).
+- E11 (resellers) and E12 (port registry).
+- E6 batch 1 (template metadata, per-domain template variables, ten new templates).
+- E13 (Node.js runtimes and global packages per user) and E14 (Node.js apps run by a per-user pm2 daemon).
+- E3 (File Manager v2, every file operation run as the user) and E4 (Docker apps from a curated catalog, every container run as the hosting user).
+- E7 batch 1 (Databases, Cron, DNS, Mail and Backups, with the restic snapshot browser) and E7 batch 2 (Firewall, IPs, access and SSH keys, logs, statistics and graphs, web terminal, Quick Install run in the background).
+
+E7 batch 3 (Services, Server settings, config editors, Updates, password and 2FA reset, Search, CSR generator; [spec](docs/features/specs/2026-10-06-003-e7-batch3-pages-design.md)) is in progress. It is the last page batch; E8 (legacy retirement, 2.0) follows. The rest is design.
 
 ## 3. Read before changing anything
 
@@ -32,23 +41,23 @@ Then read the code the task touches. Design documents describe intent; the code 
 
 ## 4. Repository map
 
-| Path                       | What it is                                                                                                                                                      | Owned by            |
-| -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------- |
-| `bin/v-*`                  | CLI commands, one script each; **the API of the system**. Upstream commands plus ArcPanel additions                                                             | upstream + ArcPanel |
-| `func/*.sh`                | Shell libraries sourced by the commands. ArcPanel adds `tenancy.sh`, `ports.sh`, `hooks.sh`, `hooks.d/`                                                         | upstream + ArcPanel |
-| `install/`                 | Installers (`hst-install-*.sh`), packages, templates, upgrade steps (`upgrade/arcpanel/<ver>.sh`)                                                               | upstream + ArcPanel |
-| `src/deb/`                 | Debian packaging of `hestia`, `hestia-nginx`, `hestia-php`, web terminal                                                                                        | upstream + ArcPanel |
-| `web/`                     | **Legacy** PHP app. Reference only; being retired. Do not add features here                                                                                     | being deleted       |
-| `web-app/`                 | **Panel app** (Laravel 13, PHP 8.5): `app/Arc` (ArcCommand), `app/Auth`, `app/Policies`, `app/Services`, `app/Tenancy`, Blade views, Alpine modules, Pest tests | ArcPanel            |
-| `test/`                    | BATS suites (`arcpanel-*.bats` are ours), smoke script, Playwright e2e (`test/e2e/`), `dev-sync.sh`, `brand-check.sh`                                           | ArcPanel + upstream |
-| `docs/`                    | Roadmap, current features, design documents, specs, ADRs, schemas                                                                                               | ArcPanel            |
-| `build.js`, `package.json` | esbuild + Lightning CSS pipeline for the legacy bundle and the panel assets; lint and test scripts                                                              | ArcPanel            |
-| `ai-manifest.yaml`         | Project members and roles (who may ask for a push)                                                                                                              | ArcPanel            |
+| Path                       | What it is                                                                                                                                                                                                                                                                       | Owned by            |
+| -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------- |
+| `bin/v-*`                  | CLI commands, one script each; **the API of the system**. Upstream commands plus ArcPanel additions                                                                                                                                                                              | upstream + ArcPanel |
+| `func/*.sh`                | Shell libraries sourced by the commands. ArcPanel adds `tenancy.sh`, `ports.sh`, `hooks.sh` + `hooks.d/`, `arc-template.sh`, `node.sh`, `nodeapp.sh`, `fs.sh`, `docker.sh`, `quickinstall.sh` + `.php`, `arcpanel-upgrade.sh`                                                    | upstream + ArcPanel |
+| `install/`                 | Installers (`hst-install-*.sh`), packages, templates, upgrade steps (`upgrade/arcpanel/<ver>.sh`)                                                                                                                                                                                | upstream + ArcPanel |
+| `src/deb/`                 | Debian packaging of `hestia`, `hestia-nginx`, `hestia-php`, web terminal                                                                                                                                                                                                         | upstream + ArcPanel |
+| `web/`                     | **Legacy** PHP app. Reference only; being retired. Do not add features here; only the hand-off glue (`web/inc/arcpanel-routes.php`, menu links) changes                                                                                                                          | being deleted       |
+| `web-app/`                 | **Panel app** (Laravel 13, PHP 8.5): `app/Arc` (ArcCommand), `app/Auth`, `app/Policies`, `app/Services`, `app/Tenancy`, `app/View` (navigation, legacy routes), Blade views, Alpine modules (`resources/js/alpine`), Vue islands (`resources/js/islands`), Pest and Vitest tests | ArcPanel            |
+| `test/`                    | BATS suites (`arcpanel-*.bats` are ours), smoke script, Playwright e2e (`test/e2e/`), `dev-sync.sh`, `brand-check.sh`                                                                                                                                                            | ArcPanel + upstream |
+| `docs/`                    | Roadmap, current features, design documents, specs, ADRs, schemas                                                                                                                                                                                                                | ArcPanel            |
+| `build.js`, `package.json` | esbuild + Lightning CSS pipeline for the legacy bundle and the panel assets; lint and test scripts                                                                                                                                                                               | ArcPanel            |
+| `ai-manifest.yaml`         | Project members and roles (who may ask for a push)                                                                                                                                                                                                                               | ArcPanel            |
 
 ## 5. Architecture rules (non-negotiable)
 
 1. **The CLI is the system of record.** Every state change goes through a `v-*` command. The panel app never writes under `/usr/local/hestia/data`, `conf/` or a user's home; it calls commands through `ArcCommand` and reads `v-list-* … json`. No business logic in the web layer that the CLI does not have.
-2. **Additive changes only** in `bin/`, `func/`, `install/`, `src/`: new commands, new libraries, new keys, new files, new installer steps. Existing upstream files are not modified. The recorded exceptions are `is_role_valid` in `func/main.sh` (E11 D10) and the two hook lines in `v-add-user`, `v-change-user-package`, `v-suspend-user`, `v-unsuspend-user`, `v-delete-user` (E12 D4). Any further exception needs a spec decision and a line in `docs/design/01-architecture-overview.md` §3.2.
+2. **Additive changes only** in `bin/`, `func/`, `install/`, `src/`: new commands, new libraries, new keys, new files, new installer steps. Existing upstream files are not modified. The recorded exceptions are `is_role_valid` in `func/main.sh` (E11 D10) and the two hook lines in `v-add-user`, `v-change-user-package`, `v-suspend-user`, `v-unsuspend-user`, `v-delete-user` (E12 D4). Two more kinds of change to upstream files are recorded: the user-visible rebranding of ADR-0006 (E9: strings, URLs, installers, packaging) and output-only additions to `bin/v-list-sys-config` for the `hestia.conf` keys the panel reads (E1, E11, E12, E4 specs). Any further exception needs a spec decision and a line in `docs/design/01-architecture-overview.md` §3.2.
 3. **Hosting state stays in Hestia flat files** (one object per line, `KEY='value'`). Keys that upstream commands would overwrite go into a sidecar (`tenancy.conf`, `<package>.tenancy`, `<web_system>.conf.tplvars`). The only database is the panel-owned SQLite file (E15+, `docs/design/15-database-schema-and-erd.md`): operational data, never hosting state.
 4. **Owner-scoped everywhere.** `OwnerScope` / `TenancyDirectory` decide what a principal may see. Objects outside the tree answer **404**, refusals inside the tree **403**. Blade templates, Alpine modules and `ArcCommand` contain no role or owner checks.
 5. **Privilege boundary is unchanged.** `hestiaweb` runs `sudo /usr/local/hestia/bin/v-*` and nothing else. Commands validate their own arguments (`is_format_valid`, `is_object_valid`, `check_hestia_demo_mode`). Do not add sudoers lines, setuid helpers or socket access.
@@ -63,13 +72,17 @@ Then read the code the task touches. Design documents describe intent; the code 
 - `json` output must parse with `jq`; follow the column names of the nearest upstream `v-list-*`.
 - Tabs for indentation, `shellcheck` clean at severity `error`, Prettier (`prettier-plugin-sh`) formatting.
 - Writers of a shared file take the file's `flock` (see `func/ports.sh`). Idempotent setup commands (`v-add-sys-*`) can run on every upgrade.
+- A new `hestia.conf` key that the panel reads is set with `v-change-sys-config-value` and must also be printed by `v-list-sys-config` (it lists its keys explicitly, in `json` and `shell`). Check it in BATS: the Pest fake answers any key, so only BATS or e2e catch a missing one.
+- Upgrade steps for ArcPanel features go into `install/upgrade/arcpanel/<version>.sh` (see its `README.txt`); upstream steps stay in `install/upgrade/versions/`.
 
 ### Panel app (`web-app/`)
 
 - Controllers are thin: validate (FormRequest) → authorize (policy) → service → redirect or JSON. Services call commands through `ArcCommand` only; one method per command, `Step` lists for multi-command actions.
 - Policies are three lines: capability lookup in `Capabilities`, scope from `OwnerScope`, read-only check. Add a `Capabilities` entry for every new route; a Pest test enforces it.
 - Routes: `/app/<module>/…` until E8, names `<module>.<action>`; Blade components `<x-ap-*>`; Vue islands `data-island="<name>"`; capabilities and audit actions `<module>.<object>.<action>`.
-- Style: Laravel Pint (PSR-12), 4 spaces. Tests: Pest (`tests/Unit`, `tests/Feature` with `ArcCommandFake` and fixtures under `tests/Fixtures/commands/<command>/<case>.json`), Vitest for Alpine modules (`tests/js`).
+- Style: Laravel Pint (PSR-12), 4 spaces. Tests: Pest (`tests/Unit`, `tests/Feature` with `ArcCommandFake` and fixtures under `tests/Fixtures/commands/<command>/<case>.json`), Vitest for Alpine modules and Vue islands (`tests/js`).
+- Long operations run as background tasks: a command starts the task, the page polls its status (`apTask`). Follow the task pattern of the E13 and E7 batch 2 specs.
+- Moving a legacy page (E7): add the route to `Navigation` and the command palette, map the legacy URL in `web/inc/arcpanel-routes.php` (`arc_route()` for menu links, `arc_redirect_if_migrated()` for the 302 behind `ARCPANEL_APP_PAGES`), and remove the entry from `App\View\LegacyRoutes`. BATS proves 302 with `yes` and 200 with `no`.
 - Cache nothing that the CLI owns beyond what `02` allows (`v-list-sys-config` 60 s; `v-list-user` per request).
 
 ### Documentation
@@ -107,8 +120,8 @@ Run from the repository root unless noted. The panel's PHP suites need PHP 8.5 a
 | Format                               | `npm run format` · `cd web-app && vendor/bin/pint`                                                                      |
 | Build assets                         | `npm run build` (watch: `npm run dev`)                                                                                  |
 | Panel unit + feature tests           | `cd web-app && composer install && vendor/bin/pest`                                                                     |
-| Alpine module tests                  | `npm run test:js`                                                                                                       |
-| CLI tests (on the test server, root) | `bats test/arcpanel-tenancy.bats test/arcpanel-ports.bats test/arcpanel-panel-app.bats …`                               |
+| Alpine module and Vue island tests   | `npm run test:js`                                                                                                       |
+| CLI tests (on the test server, root) | `bats test/arcpanel-*.bats` (all ArcPanel suites) or one suite, for example `bats test/arcpanel-ports.bats`             |
 | HTTP smoke test (test server, root)  | `bash test/arcpanel-login-smoke.sh`                                                                                     |
 | Browser e2e (from the workstation)   | `bash test/e2e/prepare.sh prepare <password>` on the server, then `E2E_BASE_URL=https://<server>:8083 npm run test:e2e` |
 | Sync the checkout to a test server   | `bash test/dev-sync.sh [--no-composer] [--no-restart]` as root on the server                                            |
