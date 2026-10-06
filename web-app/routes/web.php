@@ -41,7 +41,9 @@ use App\Http\Controllers\Packages\PackageController;
 use App\Http\Controllers\Ports\PortController;
 use App\Http\Controllers\Ports\ServerPortController;
 use App\Http\Controllers\Server\RrdPageController;
+use App\Http\Controllers\Server\ServerSettingsController;
 use App\Http\Controllers\Server\ServiceController;
+use App\Http\Controllers\Server\SystemTaskController;
 use App\Http\Controllers\Shell\LanguageController;
 use App\Http\Controllers\Shell\NotificationController;
 use App\Http\Controllers\Shell\PaletteController;
@@ -59,6 +61,7 @@ use App\Http\Controllers\WebDomains\WebDomainEditController;
 use App\Http\Controllers\WebDomains\WebDomainLogController;
 use App\Services\Docker\DockerAppService;
 use App\Services\Node\NodeAppService;
+use App\Services\Server\ServerSettings;
 use Illuminate\Support\Facades\Route;
 
 // Served under /app/ (ADR-0002). Link with route names only, so the prefix
@@ -235,6 +238,28 @@ Route::middleware('auth.arc')->group(function () {
     // Statistics and server graphs (E7 batch 2 spec §9.4, §9.5)
     Route::get('/stats', StatsController::class)->name('stats.index');
     Route::get('/server/rrd', RrdPageController::class)->name('server.rrd');
+
+    // System task of the server settings and updates (E7 batch 3 spec §6.2)
+    Route::get('/server/task', SystemTaskController::class)->name('server.task');
+
+    // Server settings (E7 batch 3 spec §8)
+    Route::prefix('server/settings')->group(function () {
+        Route::get('/', [ServerSettingsController::class, 'index'])->name('server.settings');
+        Route::get('/{tab}', [ServerSettingsController::class, 'show'])
+            ->whereIn('tab', ServerSettings::TABS)->name('server.settings.tab');
+        Route::middleware('not-readonly')->name('server.settings.')->group(function () {
+            foreach (['general', 'web', 'mail', 'databases', 'backups', 'ssl', 'security', 'plugins'] as $tab) {
+                Route::post('/'.$tab, [ServerSettingsController::class, $tab])->name('update.'.$tab);
+            }
+            Route::post('/white-label', [ServerSettingsController::class, 'whiteLabel'])->name('update.white-label');
+            Route::post('/web/php', [ServerSettingsController::class, 'php'])->name('php');
+            Route::post('/databases/hosts/{type}/{host}/password', [ServerSettingsController::class, 'databaseHostPassword'])
+                ->where(['type' => 'mysql|pgsql', 'host' => '[A-Za-z0-9][A-Za-z0-9.:_-]{0,252}'])->name('dbhost');
+            Route::post('/plugins/{plugin}', [ServerSettingsController::class, 'plugin'])
+                ->whereIn('plugin', array_keys(ServerSettings::PLUGINS))->name('plugin');
+            Route::post('/white-label/logo', [ServerSettingsController::class, 'logo'])->name('logo');
+        });
+    });
 
     // Services (E7 batch 3 spec §7)
     Route::prefix('server/services')->group(function () {

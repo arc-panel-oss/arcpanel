@@ -3779,3 +3779,22 @@ a.ap-pick:focus-visible {
 .ap-terminal-screen {
 	min-height: 60vh;
 }
+
+/* Server settings (E7 batch 3): checkbox grids and the last system task */
+.ap-check-grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr));
+	gap: var(--ap-space-2) var(--ap-space-4);
+}
+.ap-task-last > summary {
+	cursor: pointer;
+	list-style: none;
+	flex-wrap: wrap;
+	gap: var(--ap-space-2) var(--ap-space-4);
+}
+.ap-task-last > summary::-webkit-details-marker {
+	display: none;
+}
+.ap-task-last > .ap-log {
+	margin-top: var(--ap-space-3);
+}

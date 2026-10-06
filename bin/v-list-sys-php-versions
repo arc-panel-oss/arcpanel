@@ -1,0 +1,65 @@
+#!/bin/bash
+# info: list the PHP versions the server supports and their state (E7 batch 3)
+# options: [FORMAT]
+#
+# example: v-list-sys-php-versions json
+#
+# This function lists every PHP version that v-add-web-php accepts with
+# INSTALLED (yes or no), DEFAULT (yes for the version of the system php
+# binary) and USED_BY (the USER/DOMAIN web domains whose backend template
+# uses it, comma-separated). The server settings page locks a version that
+# is the default or in use, as v-start-sys-task does.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+format=${1-shell}
+
+# Includes
+# shellcheck source=/etc/hestiacp/hestia.conf
+source /etc/hestiacp/hestia.conf
+# shellcheck source=/usr/local/hestia/func/main.sh
+source $HESTIA/func/main.sh
+# shellcheck source=/usr/local/hestia/func/systask.sh
+source $HESTIA/func/systask.sh
+# load config file
+source_conf "$HESTIA/conf/hestia.conf"
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+default=$(st_php_default)
+json='{}'
+while IFS= read -r version; do
+	[ -n "$version" ] || continue
+	installed=no
+	if st_php_installed "$version"; then
+		installed=yes
+	fi
+	is_default=no
+	if [ "$version" = "$default" ]; then
+		is_default=yes
+	fi
+	used_by=$(st_php_used_by "$version" | paste -sd, -)
+	json=$(jq -c --arg v "$version" --arg i "$installed" --arg d "$is_default" --arg u "$used_by" \
+		'. + {($v): {INSTALLED: $i, DEFAULT: $d, USED_BY: $u}}' <<< "$json")
+done <<< "$(st_php_supported)"
+
+case "$format" in
+	json) jq . <<< "$json" ;;
+	plain) jq -r 'to_entries[] | "\(.key)\t\(.value.INSTALLED)\t\(.value.DEFAULT)\t\(.value.USED_BY)"' <<< "$json" ;;
+	*)
+		echo "VERSION INSTALLED DEFAULT USED_BY"
+		echo "------- --------- ------- -------"
+		jq -r 'to_entries[] | "\(.key) \(.value.INSTALLED) \(.value.DEFAULT) \(.value.USED_BY)"' <<< "$json"
+		;;
+esac
+
+#----------------------------------------------------------#
+#                       Hestia                             #
+#----------------------------------------------------------#
+
+exit

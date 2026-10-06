@@ -82,4 +82,29 @@ describe('apTask', () => {
 		await vi.advanceTimersByTimeAsync(10000);
 		expect(fetchMock).toHaveBeenCalledTimes(2);
 	});
+
+	it('keeps polling through a panel restart: network errors and answers without a task', async () => {
+		mount(markup(running));
+		fetchMock.mockRejectedValueOnce(new TypeError('Failed to fetch'));
+		fetchMock.mockResolvedValueOnce(new Response('<html>502 Bad Gateway</html>', { status: 502 }));
+		fetchMock.mockResolvedValueOnce(new Response('<html>login</html>', { status: 200 }));
+		await vi.advanceTimersByTimeAsync(6000);
+		expect(task().running).toBe(true);
+
+		fetchMock.mockResolvedValueOnce(jsonResponse({ task: { ...running, status: 'done' } }));
+		await vi.advanceTimersByTimeAsync(2000);
+		expect(task().running).toBe(false);
+		expect(fetchMock).toHaveBeenCalledTimes(4);
+	});
+
+	it('reloads the page once the task has ended when asked to', async () => {
+		const reload = vi.fn();
+		vi.stubGlobal('location', { ...window.location, reload });
+		mount(markup(running).replace("failMessage: 'Unable to install DokuWiki.'", "failMessage: 'Unable to install DokuWiki.', reloadOnEnd: true"));
+		fetchMock.mockResolvedValueOnce(jsonResponse({ task: { ...running, status: 'failed' } }));
+		await vi.advanceTimersByTimeAsync(2000);
+		expect(reload).not.toHaveBeenCalled();
+		await vi.advanceTimersByTimeAsync(1500);
+		expect(reload).toHaveBeenCalledTimes(1);
+	});
 });

@@ -1,0 +1,118 @@
+#!/bin/bash
+# info: run a system task started by v-start-sys-task (E7 batch 3)
+# options: ID
+#
+# example: v-run-sys-task 17286400001234
+#
+# This function is the background part of v-start-sys-task: it runs the
+# steps of the task, prints "$ COMMAND" before each, stops at the first
+# failure and records the result. It refuses to run a task that
+# v-start-sys-task did not start.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+id=$1
+
+# Includes
+# shellcheck source=/etc/hestiacp/hestia.conf
+source /etc/hestiacp/hestia.conf
+# shellcheck source=/usr/local/hestia/func/main.sh
+source $HESTIA/func/main.sh
+# shellcheck source=/usr/local/hestia/func/systask.sh
+source $HESTIA/func/systask.sh
+# load config file
+source_conf "$HESTIA/conf/hestia.conf"
+
+# Run one step; remember the exit code of the first failure
+rc=0
+step() {
+	if [ "$rc" -ne 0 ]; then
+		return
+	fi
+	echo "\$ $*"
+	"$BIN/$1" "${@:2}"
+	rc=$?
+	if [ "$rc" -ne 0 ]; then
+		echo "Exit code $rc"
+	fi
+}
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+if [ -z "$id" ]; then
+	echo "Usage: v-run-sys-task ID"
+	exit "$E_ARGS"
+fi
+if [ "$(st_task_get ID)" != "$id" ] || [ "$(st_task_get STATUS)" != 'running' ]; then
+	check_result "$E_FORBIDEN" "task $id was not started by v-start-sys-task"
+fi
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+kind=$(st_task_get KIND)
+read -r -a args <<< "$(st_task_get ARGS)"
+
+case "$kind" in
+	php)
+		if [ "${args[0]}" != '-' ]; then
+			for version in ${args[0]//,/ }; do
+				step v-add-web-php "$version"
+			done
+		fi
+		if [ "${args[1]}" != '-' ]; then
+			for version in ${args[1]//,/ }; do
+				step v-delete-web-php "$version"
+			done
+		fi
+		;;
+	plugin)
+		if [ "${args[1]}" = 'on' ]; then
+			step "v-add-sys-${args[0]}"
+		else
+			step "v-delete-sys-${args[0]}"
+		fi
+		;;
+	hestia-update)
+		if [ -n "${args[0]}" ]; then
+			step v-update-sys-hestia "${args[0]}"
+		else
+			step v-update-sys-hestia-all
+		fi
+		;;
+	*)
+		echo "Unknown task kind $kind"
+		rc=$E_INVALID
+		;;
+esac
+
+if [ "$rc" -eq 0 ]; then
+	status='done'
+else
+	status=failed
+fi
+
+exec {lock}> "$(st_task_lock)"
+flock -x "$lock"
+if [ "$(st_task_get ID)" = "$id" ]; then
+	st_task_set "STATUS=$status" "EXIT=$rc" "END=$(date +'%F %T')"
+fi
+flock -u "$lock"
+
+#----------------------------------------------------------#
+#                       Hestia                             #
+#----------------------------------------------------------#
+
+if [ "$status" = 'done' ]; then
+	$BIN/v-log-action "system" "Info" "System" "System task finished (Task: $kind ${args[*]})."
+else
+	$BIN/v-log-action "system" "Error" "System" "System task failed (Task: $kind ${args[*]}, exit code $rc)."
+fi
+
+exit "$rc"

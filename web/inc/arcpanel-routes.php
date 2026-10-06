@@ -44,6 +44,7 @@ function arc_route(string $legacyPath): string {
 		"/list/terminal/" => "/app/terminal",
 		// E7 batch 3 (docs/features/specs/2026-10-06-003-e7-batch3-pages-design.md §14)
 		"/list/server/" => "/app/server/services",
+		"/edit/server/" => "/app/server/settings",
 	];
 
 	return arc_app_pages() && isset($routes[$legacyPath]) ? $routes[$legacyPath] : $legacyPath;
@@ -349,6 +350,13 @@ function arc_redirect_if_migrated(string $legacyPath, array $query = []): void {
 					break;
 				}
 			}
+			break;
+		// E7 batch 3: server settings (administrators)
+		case "/edit/server/":
+			$url = "/app/server/settings";
+			break;
+		case "/edit/server/whitelabel/":
+			$url = "/app/server/settings/white-label";
 			break;
 		default:
 			return;

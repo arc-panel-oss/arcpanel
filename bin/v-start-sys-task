@@ -1,0 +1,161 @@
+#!/bin/bash
+# info: start a long server operation in the background (E7 batch 3)
+# options: KIND [ARG...]
+#
+# example: v-start-sys-task php 8.3,8.4 -
+# example: v-start-sys-task plugin web-terminal on
+# example: v-start-sys-task hestia-update arcpanel
+#
+# This function checks a system task and starts v-run-sys-task in a
+# transient systemd unit (arcpanel-sys-task-ID), so the task outlives a
+# restart of the panel, and prints the task ID. One task runs at a time.
+# Kinds and arguments:
+#   php ADD DELETE            PHP versions to install and to remove, comma
+#                             lists or "-"; a version in use by a web domain
+#                             or the system default is not removed
+#   plugin NAME on|off        filemanager, web-terminal, quota, cgroups or
+#                             firewall: v-add-sys-NAME or v-delete-sys-NAME
+#   hestia-update [PACKAGE]   v-update-sys-hestia PACKAGE, or every package
+# The state and the output are read with v-list-sys-task.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+kind=$1
+
+# Includes
+# shellcheck source=/etc/hestiacp/hestia.conf
+source /etc/hestiacp/hestia.conf
+# shellcheck source=/usr/local/hestia/func/main.sh
+source $HESTIA/func/main.sh
+# shellcheck source=/usr/local/hestia/func/systask.sh
+source $HESTIA/func/systask.sh
+# load config file
+source_conf "$HESTIA/conf/hestia.conf"
+
+# A comma list of PHP versions, or "-" for none
+php_list() {
+	if [ "$1" = '-' ]; then
+		return
+	fi
+	if [[ ! "$1" =~ ^[0-9]\.[0-9](,[0-9]\.[0-9])*$ ]]; then
+		check_result "$E_INVALID" "invalid PHP version list :: $1"
+	fi
+	echo "${1//,/ }"
+}
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '1' "$#" 'KIND [ARG...]'
+
+case "$kind" in
+	php)
+		check_args '3' "$#" 'php ADD DELETE'
+		add=$(php_list "$2")
+		delete=$(php_list "$3")
+		if [ -z "$add$delete" ]; then
+			check_result "$E_ARGS" "no PHP version to install or remove"
+		fi
+		if [ -z "$WEB_BACKEND" ]; then
+			check_result "$E_DISABLED" "multiple PHP versions need a PHP-FPM backend"
+		fi
+		supported=$(st_php_supported)
+		for version in $add; do
+			if ! grep -qx "$version" <<< "$supported"; then
+				check_result "$E_INVALID" "PHP $version is not supported"
+			fi
+			if st_php_installed "$version"; then
+				check_result "$E_EXISTS" "PHP $version is already installed"
+			fi
+		done
+		for version in $delete; do
+			if ! st_php_installed "$version"; then
+				check_result "$E_NOTEXIST" "PHP $version is not installed"
+			fi
+			if [ "$version" = "$(st_php_default)" ]; then
+				check_result "$E_FORBIDEN" "PHP $version is the default version"
+			fi
+			if [ -n "$(st_php_used_by "$version")" ]; then
+				check_result "$E_FORBIDEN" "PHP $version is used by web domains"
+			fi
+		done
+		args="$2 $3"
+		;;
+	plugin)
+		check_args '3' "$#" 'plugin NAME on|off'
+		case "$2" in
+			filemanager | web-terminal | quota | cgroups | firewall) ;;
+			*) check_result "$E_INVALID" "invalid plugin :: $2" ;;
+		esac
+		if [ "$3" != 'on' ] && [ "$3" != 'off' ]; then
+			check_result "$E_INVALID" "invalid plugin state :: $3 (on or off)"
+		fi
+		args="$2 $3"
+		;;
+	hestia-update)
+		if [ -n "$2" ]; then
+			case "$2" in
+				arcpanel | arcpanel-nginx | arcpanel-php | hestia | hestia-nginx | hestia-php) ;;
+				*) check_result "$E_INVALID" "invalid package :: $2" ;;
+			esac
+		fi
+		args="${2-}"
+		;;
+	*)
+		check_result "$E_INVALID" "invalid task kind :: $kind (php, plugin, hestia-update)"
+		;;
+esac
+
+# Perform verification if read-only mode is enabled
+check_hestia_demo_mode
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+st_task_dir
+exec {lock}> "$(st_task_lock)"
+flock -x "$lock"
+
+if st_task_running; then
+	check_result "$E_INUSE" "Another system task is running"
+fi
+
+id="$(date +%s)$(printf '%04d' $((RANDOM % 10000)))"
+log=$(st_task_log)
+: > "$log"
+chmod 640 "$log"
+st_task_set "ID=$id" "KIND=$kind" "ARGS=$args" STATUS=running PID= UNIT= EXIT= \
+	"START=$(date +'%F %T')" END=
+
+if st_has_systemd; then
+	# A transient unit outside hestia.service: a restart of the panel during
+	# a package update does not stop it
+	unit="arcpanel-sys-task-$id"
+	if ! systemd-run --unit="$unit" --collect --quiet \
+		--property="StandardOutput=append:$log" --property="StandardError=append:$log" \
+		"$BIN/v-run-sys-task" "$id" {lock}>&-; then
+		st_task_set STATUS=failed EXIT=1 "END=$(date +'%F %T')"
+		check_result "$E_UPDATE" "the task could not be started"
+	fi
+	st_task_set "UNIT=$unit"
+else
+	setsid "$BIN/v-run-sys-task" "$id" < /dev/null >> "$log" 2>&1 {lock}>&- &
+	st_task_set "PID=$!"
+fi
+
+flock -u "$lock"
+echo "$id"
+
+#----------------------------------------------------------#
+#                       Hestia                             #
+#----------------------------------------------------------#
+
+$BIN/v-log-action "system" "Info" "System" "System task started (Task: $kind $args)."
+log_event "$OK" "$ARGUMENTS"
+
+exit

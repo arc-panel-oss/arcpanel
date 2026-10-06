@@ -15,11 +15,17 @@ test('admin: list the services, read the reports and restart cron', async ({ pag
 	await expectAccessible(page);
 
 	// Status reports
-	await page.getByRole('navigation', { name: 'Status reports' }).getByRole('link', { name: 'CPU' }).click();
+	await page
+		.getByRole('navigation', { name: 'Status reports' })
+		.getByRole('link', { name: 'CPU' })
+		.click();
 	await expect(page).toHaveURL(/\/app\/server\/services\/status\/cpu$/);
 	await expect(page.locator('.ap-code')).toContainText('load average');
 	await expectAccessible(page);
-	await page.getByRole('navigation', { name: 'Status reports' }).getByRole('link', { name: 'Disk' }).click();
+	await page
+		.getByRole('navigation', { name: 'Status reports' })
+		.getByRole('link', { name: 'Disk' })
+		.click();
 	await expect(page.locator('.ap-code')).toContainText('Filesystem');
 
 	// Restart cron from its row menu
@@ -34,8 +40,13 @@ test('admin: list the services, read the reports and restart cron', async ({ pag
 	// The restart dialog asks for the host name
 	await page.getByRole('button', { name: 'Restart server' }).click();
 	await expect(page.getByRole('dialog', { name: 'Restart server' })).toBeVisible();
-	await expect(page.getByRole('dialog', { name: 'Restart server' }).getByRole('textbox')).toBeVisible();
-	await page.getByRole('dialog', { name: 'Restart server' }).getByRole('button', { name: 'Cancel' }).click();
+	await expect(
+		page.getByRole('dialog', { name: 'Restart server' }).getByRole('textbox'),
+	).toBeVisible();
+	await page
+		.getByRole('dialog', { name: 'Restart server' })
+		.getByRole('button', { name: 'Cancel' })
+		.click();
 });
 
 test('user: no services in the menu, 403 on the page', async ({ page }) => {
