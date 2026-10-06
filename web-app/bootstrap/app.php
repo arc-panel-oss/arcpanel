@@ -7,6 +7,7 @@ use App\Http\Middleware\FilesEnabled;
 use App\Http\Middleware\NotReadOnly;
 use App\Http\Middleware\RedirectIfLoggedIn;
 use App\Http\Middleware\RequirePrincipal;
+use App\Http\Middleware\RequireSysConfig;
 use App\Http\Middleware\ResolvePrincipal;
 use App\Http\Middleware\SetLocale;
 use App\View\UiPreferences;
@@ -43,6 +44,7 @@ $app = Application::configure(basePath: dirname(__DIR__))
             'not-readonly' => NotReadOnly::class,
             'effective-user' => BindEffectiveUser::class,
             'files.enabled' => FilesEnabled::class,
+            'sys-config' => RequireSysConfig::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

@@ -20,6 +20,8 @@ final class LegacyRoutes
         'packages.index' => '/list/package/',
         'logs.index' => '/list/log/',
         'stats.index' => '/list/stats/',
+        'access-keys.index' => '/list/access-key/',
+        'ssh-keys.index' => '/list/key/',
         'account.edit' => '/edit/user/',
         'users.create' => '/add/user/',
         'web.apps.install' => '/add/webapp/',

@@ -1,5 +1,6 @@
 <?php
 
+use App\Auth\Principal;
 use App\Auth\Role;
 use App\View\AssetManifest;
 use App\View\LogLine;
@@ -66,6 +67,34 @@ it('gives resellers customers, packages and their own hosting', function () {
     expect($reseller)->toHaveKeys(['dashboard', 'users.index', 'packages.index', 'web.domains.index', 'dns.index', 'account.edit'])
         ->and($reseller)->not->toHaveKeys(['server.services', 'server.settings'])
         ->and($reseller['users.index']['label'])->toBe('Customers');
+});
+
+it('shows the batch 2 pages by capability, API_SYSTEM and log policy', function () {
+    $fake = fakeArc(['API_SYSTEM' => '1', 'POLICY_USER_VIEW_LOGS' => 'no']);
+    $items = fn (Principal $principal) => collect(app(Navigation::class)->for($principal, null))->flatMap(fn ($group) => $group['items'])->keyBy('key');
+
+    $admin = $items(principal('arcadmin', Role::Admin));
+    expect($admin)->toHaveKeys(['server.ips', 'server.firewall', 'server.rrd', 'logs.index', 'stats.index', 'access-keys.index', 'ssh-keys.index']);
+
+    // API_SYSTEM=1: only the ROOT_USER has access keys; the log policy hides Logs for users
+    $user = $items(principal('bob', Role::User));
+    expect($user)->toHaveKeys(['stats.index', 'ssh-keys.index'])
+        ->and($user)->not->toHaveKeys(['server.ips', 'server.firewall', 'server.rrd', 'access-keys.index', 'logs.index']);
+
+    withSysConfig($fake, ['API_SYSTEM' => '2']);
+    expect($items(principal('hostco', Role::Reseller)))->toHaveKeys(['access-keys.index', 'ssh-keys.index', 'logs.index', 'stats.index']);
+});
+
+it('hides the web terminal while a reseller acts as a customer', function () {
+    fakeArc(['WEB_TERMINAL' => 'true']);
+    $withShell = fn (string $user, Role $role, ?string $look = null) => new Principal(
+        $user, $look, $role, $look !== null ? Role::User : $role, 'bash', 'en', null, str_repeat('e', 32), false);
+    $items = fn (Principal $principal) => collect(app(Navigation::class)->for($principal, null))->flatMap(fn ($group) => $group['items'])->keyBy('key');
+
+    expect($items($withShell('bob', Role::User)))->toHaveKey('terminal.index')
+        ->and($items($withShell('arcadmin', Role::Admin, 'bob')))->toHaveKey('terminal.index')
+        ->and($items($withShell('hostco', Role::Reseller, 'bob')))->not->toHaveKey('terminal.index')
+        ->and($items(principal('bob', Role::User)))->not->toHaveKey('terminal.index');
 });
 
 it('keeps a reseller acting as a customer on panel app pages', function () {

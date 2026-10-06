@@ -117,10 +117,29 @@ final class Capabilities
         'backups.delete' => self::ALL_ROLES,
         'backups.exclusions.edit' => self::ALL_ROLES,
 
-        // Modules still served by the legacy pages: navigation only. A
-        // reseller reaches them for its own account.
-        'logs.view' => self::OWN,
-        'stats.view' => self::OWN,
+        // Server pages of E7 batch 2 (spec §5.1)
+        'server.firewall' => self::ADMIN,
+        'server.ips' => self::ADMIN,
+        'server.rrd' => self::ADMIN,
+
+        // Logs and statistics (E7 batch 2 spec D4, D5); LogPolicy and
+        // StatsPolicy add the hestia.conf policies and the reseller rules
+        'logs.view' => self::ALL_ROLES,
+        'logs.delete' => self::ALL_ROLES,
+        'stats.view' => self::ALL_ROLES,
+
+        // Access keys and SSH keys (E7 batch 2 spec D7, D8): own account,
+        // administrators any; AccessKeyPolicy adds API_SYSTEM
+        'access-keys.view' => self::OWN,
+        'access-keys.manage' => self::OWN,
+        'ssh-keys.view' => self::OWN,
+        'ssh-keys.manage' => self::OWN,
+
+        // Web terminal (E7 batch 2 spec D11); TerminalPolicy adds the shell
+        'terminal.use' => self::ALL_ROLES,
+
+        // Quick Install on a web domain (E7 batch 2 spec §10)
+        'web.apps.install' => self::ALL_ROLES,
     ];
 
     /**

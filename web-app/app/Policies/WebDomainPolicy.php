@@ -52,6 +52,13 @@ final class WebDomainPolicy
             && ($principal->loginRole === Role::Admin || $this->config->is('POLICY_USER_EDIT_WEB_TEMPLATES'));
     }
 
+    /** Quick Install of an application on the owner's domain (E7 batch 2 spec §10). */
+    public function installApp(Principal $principal, string $owner): bool
+    {
+        return Capabilities::allows($principal->actingRole(), 'web.apps.install', fn () => $this->scope->canManage($owner))
+            && ! $principal->isReadOnly();
+    }
+
     public function delete(Principal $principal, string $owner): bool
     {
         return Capabilities::allows($principal->actingRole(), 'web.delete', fn () => $this->scope->canManage($owner))

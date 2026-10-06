@@ -5,6 +5,7 @@ namespace App\View;
 use App\Arc\SysConfig;
 use App\Auth\Principal;
 use App\Auth\Role;
+use App\Policies\AccessKeyPolicy;
 use App\Policies\Capabilities;
 use App\Services\Docker\DockerAccess;
 use App\Services\Node\NodeAccess;
@@ -27,6 +28,11 @@ final class Navigation
      * docker: only when the package of the account includes Docker apps (E4),
      * always for administrators.
      * labels: label per acting role, instead of label.
+     * own: left out while a reseller acts as a customer, also as a panel app
+     * page (the web terminal keeps the reseller's own shell).
+     * policy: hestia.conf policy that hides the item for everyone but
+     * administrators when it is 'no'.
+     * api: only when the account may have access keys (API_SYSTEM).
      */
     private const GROUPS = [
         'main' => [
@@ -52,7 +58,8 @@ final class Navigation
                 ['route' => 'cron.index', 'label' => 'Cron Jobs', 'icon' => 'clock', 'cap' => 'cron.view', 'requires' => 'CRON_SYSTEM', 'section' => 'cron.'],
                 ['route' => 'backups.index', 'label' => 'Backups', 'icon' => 'archive', 'cap' => 'backups.view', 'requires' => 'BACKUP_SYSTEM', 'section' => 'backups.'],
                 ['route' => 'files.index', 'label' => 'File manager', 'icon' => 'folder', 'cap' => 'files.view', 'requires' => 'FILE_MANAGER=true', 'writable' => true],
-                ['route' => 'terminal.index', 'label' => 'Web terminal', 'icon' => 'terminal', 'cap' => 'files.view', 'requires' => 'WEB_TERMINAL=true', 'writable' => true, 'shell' => true],
+                ['route' => 'terminal.index', 'label' => 'Web terminal', 'icon' => 'terminal', 'cap' => 'terminal.use', 'requires' => 'WEB_TERMINAL=true', 'writable' => true, 'shell' => true,
+                    'own' => true, 'section' => 'terminal.'],
                 ['route' => 'ports.index', 'label' => 'Ports', 'icon' => 'plug', 'cap' => 'ports.mine', 'section' => 'ports.'],
                 ['route' => 'node.index', 'label' => 'Node.js', 'icon' => 'hexagon', 'cap' => 'node.view', 'node' => true, 'section' => 'node.show'],
                 ['route' => 'node-apps', 'label' => 'Node apps', 'icon' => 'layers', 'cap' => 'node.apps.view', 'node' => true, 'section' => 'node.apps.'],
@@ -65,19 +72,21 @@ final class Navigation
             'items' => [
                 ['route' => 'server.settings', 'label' => 'Configure', 'icon' => 'sliders', 'cap' => 'server.view'],
                 ['route' => 'server.services', 'label' => 'Services', 'icon' => 'activity', 'cap' => 'server.view', 'services' => true],
-                ['route' => 'server.ips', 'label' => 'IP Addresses', 'icon' => 'hash', 'cap' => 'server.view'],
-                ['route' => 'server.firewall', 'label' => 'Firewall', 'icon' => 'shield', 'cap' => 'server.view', 'requires' => 'FIREWALL_SYSTEM'],
+                ['route' => 'server.ips', 'label' => 'IP Addresses', 'icon' => 'hash', 'cap' => 'server.ips', 'section' => 'server.ips'],
+                ['route' => 'server.firewall', 'label' => 'Firewall', 'icon' => 'shield', 'cap' => 'server.firewall', 'requires' => 'FIREWALL_SYSTEM', 'section' => 'server.firewall'],
                 ['route' => 'server.ports', 'label' => 'Ports', 'icon' => 'plug', 'cap' => 'server.ports', 'section' => 'server.ports'],
                 ['route' => 'server.docker', 'label' => 'Docker', 'icon' => 'container', 'cap' => 'docker.engine.manage', 'section' => 'server.docker'],
                 ['route' => 'server.updates', 'label' => 'Updates', 'icon' => 'refresh', 'cap' => 'server.view'],
-                ['route' => 'server.rrd', 'label' => 'Task Monitor', 'icon' => 'chart', 'cap' => 'server.view'],
+                ['route' => 'server.rrd', 'label' => 'Task Monitor', 'icon' => 'chart', 'cap' => 'server.rrd', 'section' => 'server.rrd'],
             ],
         ],
         'account' => [
             'label' => 'Account',
             'items' => [
-                ['route' => 'logs.index', 'label' => 'Logs', 'icon' => 'file', 'cap' => 'logs.view'],
-                ['route' => 'stats.index', 'label' => 'Statistics', 'icon' => 'trend', 'cap' => 'stats.view'],
+                ['route' => 'logs.index', 'label' => 'Logs', 'icon' => 'file', 'cap' => 'logs.view', 'policy' => 'POLICY_USER_VIEW_LOGS', 'section' => 'logs.'],
+                ['route' => 'stats.index', 'label' => 'Statistics', 'icon' => 'trend', 'cap' => 'stats.view', 'section' => 'stats.'],
+                ['route' => 'access-keys.index', 'label' => 'Access keys', 'icon' => 'key', 'cap' => 'access-keys.view', 'api' => true, 'section' => 'access-keys.'],
+                ['route' => 'ssh-keys.index', 'label' => 'SSH keys', 'icon' => 'lock', 'cap' => 'ssh-keys.view', 'section' => 'ssh-keys.'],
                 ['route' => 'account.edit', 'label' => 'My account', 'icon' => 'user-circle', 'cap' => 'account.view', 'section' => 'account.'],
             ],
         ],
@@ -146,6 +155,15 @@ final class Navigation
             return false;
         }
         if (($item['shell'] ?? false) && $principal->loginShell === 'nologin') {
+            return false;
+        }
+        if (($item['own'] ?? false) && $this->resellerActingAsCustomer($principal)) {
+            return false;
+        }
+        if (isset($item['policy']) && $principal->loginRole !== Role::Admin && $this->config->is($item['policy'], 'no')) {
+            return false;
+        }
+        if (($item['api'] ?? false) && ! AccessKeyPolicy::apiAvailable($this->config, $principal->effectiveUser())) {
             return false;
         }
         if (($item['services'] ?? false) && $this->config->is('POLICY_SYSTEM_HIDE_SERVICES')
