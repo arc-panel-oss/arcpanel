@@ -1,6 +1,6 @@
 # E7 batch 3 — Server settings, services, config editors, updates, guest flows and search — design
 
-**Status:** Approved (2026-10-06) · **Epic:** E7 · **Base design:** [10 Page migration](../../design/10-page-migration-and-retirement.md) §3 (modules 16, 22, 23), §5.1, §5.7 · **Previous specs:** [E7 batch 1](./2026-10-06-001-e7-batch1-pages-design.md) (runners, hand-off), [E7 batch 2](./2026-10-06-002-e7-batch2-pages-design.md) (task pattern, `sys-config` middleware, `apTask`), [E3](./2026-10-05-008-e3-file-manager-design.md) (CodeMirror 6 editor) · **Roadmap:** [§3 E7](../../roadmap.md)
+**Status:** Implemented (2026-10-06, see §18) · **Epic:** E7 · **Base design:** [10 Page migration](../../design/10-page-migration-and-retirement.md) §3 (modules 16, 22, 23), §5.1, §5.7 · **Previous specs:** [E7 batch 1](./2026-10-06-001-e7-batch1-pages-design.md) (runners, hand-off), [E7 batch 2](./2026-10-06-002-e7-batch2-pages-design.md) (task pattern, `sys-config` middleware, `apTask`), [E3](./2026-10-05-008-e3-file-manager-design.md) (CodeMirror 6 editor) · **Roadmap:** [§3 E7](../../roadmap.md)
 
 ## 1. Summary
 
@@ -306,3 +306,41 @@ The `x-ap-csr-modal` component asks for Domain (prefilled), Aliases, Email, Coun
 | Secrets (SMTP relay, backup hosts, database hosts, restic) leak            | `Secret` files; `ArcCommand` masks; no stored secret is sent back to a form; Pest asserts the arguments are `Secret`s                   |
 | Account enumeration through the reset page                                 | One answer for every case, rate limits, single-use codes                                                                                |
 | A partially applied settings tab                                           | One tab per save, steps in a fixed order, the applied steps listed                                                                      |
+
+## 18. Implementation notes (2026-10-06)
+
+These notes win over the sections above where they differ.
+
+1. **Commits.** Spec `82f6504`, M0 `2bad0a3`, M1 services `9db1aca`, M2 settings and system task `cbf616a`, M3 config editors `e7491ae` (and the lint fix `3d11181`), M4 updates `5f2122b`, M5 guest flows `98293d8`, M6 search, CSR and hand-off `ac87a0f`, then these notes.
+2. **System task (M2).**
+   - A fourth command, `v-list-sys-php-versions [FORMAT]`, lists every version of `multiphp_v` with `INSTALLED`, `DEFAULT` (the version of the system `php` binary, as legacy `DEFAULT_PHP_VERSION`) and `USED_BY` (`USER/DOMAIN` of web domains on `PHP-X_Y`, a custom template ending in it, or `default`). The panel reads the locks from it, and `v-start-sys-task` enforces the same locks, so the web layer holds no rule of its own.
+   - `v-start-sys-task php` refuses an installed version with `E_EXISTS`, a missing one with `E_NOTEXIST`, and the default or a used one with `E_FORBIDEN`; the task never starts for them. The BATS case of a failing runner therefore uses a hand-written task record with an unknown kind.
+   - `hestia-update` accepts the packages `v-update-sys-hestia` accepts (`arcpanel`, `arcpanel-nginx`, `arcpanel-php` and the `hestia*` aliases); without a package it runs `v-update-sys-hestia-all`.
+   - The runner is a transient unit (`systemd-run --unit arcpanel-sys-task-<ID> --collect`, output appended to the log). BATS installed PHP 8.3 while `hestia` restarted and removed it again; the Playwright "Update all" run started the task from the panel through `sudo`.
+   - `apTask` already kept polling through failed requests and answers without a task; it gained `reloadOnEnd`. The `x-ap-task-panel` component shows the running task and, collapsed, the last one.
+3. **Services (M1).** The status reports are pages (`/server/services/status/{kind}`) with a segment of the eight kinds, not a drawer; `mem` and `net` run `v-list-sys-memory-status` and `v-list-sys-network-status`. The firewall service restarts with `v-update-firewall` and stops with `v-stop-firewall` in single and bulk actions (legacy bulk called `v-stop-service iptables`). `v-list-sys-services` does not list `hestia` on the test server; the protection of D5 stays for servers that do.
+4. **Server settings (M2).**
+   - Routes are one POST per tab, named `server.settings.update.<tab>`; the extra actions are `server.settings.php`, `server.settings.plugin`, `server.settings.dbhost`, `server.settings.logo` and `server.settings.csr`. The FormRequests extend `ServerSettingsRequest`, which authorizes, so non-administrators get 403 and not field errors.
+   - The host name accepts single-label names (the test server is `DESKTOP-…`) and keeps its case, so an unchanged name never runs `v-change-sys-hostname`.
+   - `v-change-sys-api disable` runs when `API_SYSTEM` becomes 0 **and** the legacy API is off (the command turns both off); any other API change runs `enable` and then the changed keys.
+   - gzip always stores level 9, as legacy. The restic repository travels as `Secret::inline` (masked in every log; the command takes it as an argument).
+   - `x-logo` renders `/images/custom/logo-header.svg` when that file exists (`App\View\WhiteLabel`).
+5. **Config editors (M3).**
+   - Upstream `v-open-fs-config` does not source `func/main.sh`, so its last line (`$BIN/v-log-action`) fails under `sudo` and it exits 127 after printing the whole file. `ServiceConfigs` accepts exactly that failure (exit 127 and the `v-log-action` error on stderr); any other failure leaves the file out.
+   - `v-list-sys-php-config` lists the `php.ini` of every installed version; the editor shows the first, and the upstream save copies the content into every `php.ini` it finds, as legacy does. The e2e therefore edits nginx (`client_max_body_size` without restart, then restores it), not PHP.
+   - The basic options change the first active line of a key in place and do not add a missing key (legacy `toggleAdvanced.js` behaviour; §9.2 said they would add it).
+   - Each changed file is saved with its own request; the controller reads the content from the raw JSON body, because `TrimStrings` would drop the final line break.
+6. **Updates (M4).** The automatic update switch runs `v-add-cron-hestia-autoupdate` and `v-delete-cron-hestia-autoupdate` (not `-sys-`, as §10 said). On the test server the APT host is unreachable; apt keeps the cached packages and `v-update-sys-hestia-all` ends with 0 in a few seconds.
+7. **Guest flows (M5).**
+   - After a successful reset, `v-change-user-rkey USER` stores a random value instead of the used hash; it is the only command that changes `RKEY`, so the action log also shows "Password reset requested" for that step.
+   - A second request within 15 minutes is ignored silently (deviation 13.8). Rate limits use the Laravel cache with the keys `reset:ip:<ip>` and `reset:user:<name>`.
+   - The reset mail keeps the template link `/reset/?action=confirm…`; `arc_redirect_if_migrated()` sends it to `/app/reset/confirm`. Legacy `web/reset2fa` checks the referrer (`prevent_csrf.php`) before the redirect runs; the login page link sends one.
+   - `POLICY_SYSTEM_PASSWORD_RESET` is `no` on the test server; `prepare.sh reset-user` turns it on for the reset spec and `reset-clean` restores it. The reset mail reaches a mailbox on the e2e mail domain, and `reset-code` reads the code from it.
+8. **Search and CSR (M6).** The panel shell has no search form; the palette gained "View all results" and Enter without results opens the search page. The CSR fields belong to no form (`form="<id>-detached"`), so the dialog can sit inside the SSL forms. Dialogs taller than the window now scroll their body (`.ap-modal` max height), which every `x-ap-modal` benefits from. `LegacyRoutes` keeps only `web.logs.download`.
+9. **Tests.** On `arcpanel-test`:
+   - Pest: 768 passed.
+   - Vitest: 217 tests; `modal.test.js` "opens when the page loads with open: true" fails about one run in three, also when run alone. Neither the module nor the test changed since batch 2.
+   - BATS: 260/260 over the fifteen `arcpanel-*.bats` suites, among them `arcpanel-sys-task.bats` 8 (PHP 8.3 installed through a `hestia` restart and removed again) and `arcpanel-panel-app.bats` 36 (the legacy redirects of §4 "Done when" 1, guests included).
+   - `test/arcpanel-login-smoke.sh`: all checks passed.
+   - Playwright: `server-services`, `server-settings`, `server-config`, `server-updates` (a real "Update all" task), `reset` (the code read from the mailbox) and `search` (with the CSR dialog) pass, each run on its own. The full suite was started once and stopped: the test distribution was being exported (`wsl --export`) and went down; the full run is still open.
+   - `test/brand-check.sh` and `shellcheck -S error` on the new shell files: clean.
