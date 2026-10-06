@@ -1,6 +1,6 @@
 # E7 batch 2 — Firewall, IPs, keys, logs, statistics, terminal and Quick Install pages — design
 
-**Status:** Approved (2026-10-06) · **Epic:** E7 · **Base design:** [10 Page migration](../../design/10-page-migration-and-retirement.md) §3 (modules 14, 15, 17–21), §5.2–§5.6 · **Previous specs:** [E7 batch 1](./2026-10-06-001-e7-batch1-pages-design.md) (shared runners, owner helpers, hand-off), [E11](./2026-10-05-003-e11-reseller-design.md) (owner scoping, D6 access keys), [E12](./2026-10-05-004-e12-port-registry-design.md) (port firewall rules), [E13](./2026-10-05-006-e13-node-manager-design.md) (task runner pattern) · **Roadmap:** [§3 E7](../../roadmap.md)
+**Status:** Implemented (2026-10-06, see §16) · **Epic:** E7 · **Base design:** [10 Page migration](../../design/10-page-migration-and-retirement.md) §3 (modules 14, 15, 17–21), §5.2–§5.6 · **Previous specs:** [E7 batch 1](./2026-10-06-001-e7-batch1-pages-design.md) (shared runners, owner helpers, hand-off), [E11](./2026-10-05-003-e11-reseller-design.md) (owner scoping, D6 access keys), [E12](./2026-10-05-004-e12-port-registry-design.md) (port firewall rules), [E13](./2026-10-05-006-e13-node-manager-design.md) (task runner pattern) · **Roadmap:** [§3 E7](../../roadmap.md)
 
 ## 1. Summary
 
@@ -317,3 +317,36 @@ The page renders the terminal container and loads an `apTerminal` module that im
 | Deleting a managed firewall rule from the Firewall page breaks `FW_RULE` | `FirewallPolicy::change` refuses it in single and bulk actions; Pest proves it                                                                         |
 | The terminal opens for the wrong account during "login as"               | `TerminalPolicy` hides it for resellers acting as customers; administrators keep the legacy behaviour                                                  |
 | `API_SYSTEM` semantics differ between list, add and delete in legacy     | One `AccessKeyPolicy::available` rule for every access key route                                                                                       |
+
+## 16. Implementation notes (2026-10-06)
+
+These notes win over the sections above where they differ.
+
+1. **Commits.** M0 `dac9399`, M1 Firewall `e509986`, M2 IPs `f73165e`, M3 keys `0e2350b`, M4 logs `9c65047`, M5 statistics and graphs `1093c8b`, M6 terminal and Quick Install `8d8b393`, then these notes.
+2. **Shared code.** Route middleware `sys-config` (`App\Http\Middleware\RequireSysConfig`); the trait `App\Policies\Concerns\ReachesOwner`, which makes the `Self` scope of `OWN` capabilities effective for owners other than the effective user (access keys, SSH keys); `CommandResult::errorMessage()`; the Blade component `x-ap-owner-switch`, the owner picker of pages that belong to one account (keys, logs, statistics); the Alpine modules `apTask` and `apTerminal`.
+3. **Firewall (M1).** The rule list is ordered by position. Managed rules in a bulk selection are reported as failed items ("Managed by Ports") instead of refusing the whole request. Single suspend, unsuspend and delete get the toasts "Rule has been suspended.", "Rule has been unsuspended." and "Rule has been deleted." (legacy showed none). `v-add-firewall-ipset` ignores lists with fewer than five entries; the e2e list file therefore holds five addresses.
+4. **IP addresses (M2).** The e2e edits the assigned domain and refreshes the list; it does not change the NAT address, because the test server has one IP and its web domains use that NAT address. Pest covers the NAT step.
+5. **Access keys (M3).** `v-list-access-key` prints the secret; `AccessKeyService` drops it from every record but the one `v-add-access-key` returns. The page shown after creation is sent with `Cache-Control: no-store`.
+6. **SSH keys (M3).** `v-list-user-ssh-key` prints the key comment as `ID` and the fingerprint as `KEY`. The duplicate check compares IDs and also compares the key body with the fingerprints, as legacy does; the body never matches a fingerprint. A user without `authorized_keys` gets no output, which the page reads as no keys. After a refused add the drawer opens again with the key.
+7. **Logs (M4).** An administrator acting as a user keeps the administrator's log rights, as legacy does through `userContext`. The tray actions use the `not-readonly` middleware.
+8. **Statistics and graphs (M5).** Statistics live on one route, `stats.index?owner=`. A reseller acting as a customer sees the customer's months. The `v-list-sys-rrd` fixture used `RRD: net_eth0`; the server prints `RRD: eth0` with `TYPE: net`, and the fixture now matches that. `shell.rrd` needs `server.rrd` and answers 404 for services that `v-list-sys-rrd` does not list. The period links are a segment of links (`.ap-segment a`).
+9. **Quick Install (M6).**
+   - `func/quickinstall.php` loads `web/inc/vendor` and `web/src`.
+   - Its context class `QiHestiaApp` maps a NAT address back to the local address. Installers that post their setup form to the domain (DokuWiki, WordPress …) then reach the server; on `arcpanel-test` the domain's only IP has a NAT address the server cannot reach.
+   - The installer classes report failed sub-commands with `trigger_error()` and the whole command line; those lines are dropped and only the command name is printed. `ProcessFailedException` is reported by command name as well.
+   - An installer without a fitting PHP version makes the options and add commands exit 2 with the legacy message; the picker shows the app disabled.
+   - Exit codes: `E_INUSE` is 7, `E_FORBIDEN` is 10.
+   - When "database create" is unchecked, the database name, user and password become required. The legacy check had this condition inverted.
+   - `build.js` copies the installer logos to `public/build/quick-install/<App>/`.
+   - An empty optional password is left out, so the installer generates one.
+   - The three PHP commands are in `.prettierignore`, like `v-quick-install-app`.
+   - `arcpanel-test` had PHP 8.5 only, and DokuWiki supports up to 8.4. `v-add-web-php 8.4` was run on the test server. The BATS suite skips when DokuWiki cannot be installed.
+10. **Web terminal (M6).** xterm.js and its WebGL addon are chunks of the panel bundle. The stylesheet arrives as text (esbuild loader `.css: text`) and is added to the page once. `arcpanel-test` has no terminal service, so the e2e checks that xterm draws, and reads the legacy "Connection error." from the terminal buffer.
+11. **Spec of E11.** `resellers.spec.js` expected no "Logs" link while a reseller acts as a customer (a legacy page then); Logs is a panel app page now and the link is shown.
+12. **Test data.** `test/e2e/prepare.sh` gained: the firewall reset and the IP list file; `API_SYSTEM=2` with access key clean-up, restored by `cleanup`; `ssh-key`; `terminal-on` and `terminal-off`; `quickinstall`, `quickinstall-http` and `quickinstall-clean`.
+13. **Tests.** On `arcpanel-test`:
+    - Pest: 702 passed.
+    - Vitest: 207 passed (34 files).
+    - BATS: 43/43 (`arcpanel-panel-app.bats` 32, `arcpanel-stats.bats` 4, `arcpanel-quick-install.bats` 7, which installs DokuWiki and finds the wiki over HTTP).
+    - `test/arcpanel-login-smoke.sh`: all checks passed.
+    - Playwright: `firewall`, `ips`, `keys`, `logs`, `stats`, `quick-install`, `shell`, `web-domains`, `resellers` and `accessibility` (axe and Lighthouse ≥ 90) pass. Three tests failed in the first full run and pass after fixes to the specs themselves: the drawer close in `keys`, the tray locator in `logs`, and the expectation above in `resellers`.

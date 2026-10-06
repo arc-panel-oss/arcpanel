@@ -169,7 +169,7 @@ Every migrated page is built **reseller-aware from day one** (owner scoping from
 
 **Success metric:** 100% of routes served by Laravel; legacy `web/*/index.php` deleted. **Effort:** XL (spread over Q3–Q4). **Outcome:** O2.
 
-**Design:** [E7 batch 1 spec](./features/specs/2026-10-06-001-e7-batch1-pages-design.md) (Databases, Cron, DNS, Mail and Backups with restic snapshots, exclusion toggles for `~/.nvm` and Docker apps, the file manager's snapshot mode, six milestones). **Status:** batch 1 implemented 2026-10-06; Firewall, IPs, Server, Access keys, Logs, Statistics, Web Terminal, Quick Install Apps and the backup host settings follow in later batches.
+**Design:** [E7 batch 1 spec](./features/specs/2026-10-06-001-e7-batch1-pages-design.md) (Databases, Cron, DNS, Mail and Backups with restic snapshots, exclusion toggles for `~/.nvm` and Docker apps, the file manager's snapshot mode, six milestones). **Status:** batch 1 implemented 2026-10-06; batch 2 ([spec](./features/specs/2026-10-06-002-e7-batch2-pages-design.md): Firewall, IPs, Access keys and SSH keys, Logs, Statistics and Task Monitor, Web Terminal, Quick Install Apps run in the background, seven milestones) implemented 2026-10-06; Server settings, services, config editors, updates, the backup host settings and the guest flows follow in batch 3.
 
 ### E8 — Legacy retirement and 2.0 release
 
