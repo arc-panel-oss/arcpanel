@@ -188,8 +188,105 @@ HESTIA_DIR="/usr/local/hestia"
 	run curl -sk -X POST "$PANEL/api/"
 	refute_output --partial "404 Not Found"
 	assert_output --partial "Error"
-	run curl -sk -o /dev/null -w '%{http_code}' "$PANEL/api/helpers.php"
-	refute_output "200"
+	# every /api/ path runs lib/api/index.php: helpers.php never runs or leaks
+	run curl -sk "$PANEL/api/helpers.php"
+	refute_output --partial "<?php"
+	refute_output --partial "function tohtml"
+}
+
+e8_sys_config() {
+	v-list-sys-config json | jq -r ".config.$1"
+}
+
+# Commands that put back what a case changed; teardown runs them even when
+# the case fails half-way.
+e8_restore_later() {
+	printf '%s\n' "$*" >> "$BATS_TEST_TMPDIR/restore"
+}
+
+teardown() {
+	if [ -f "$BATS_TEST_TMPDIR/restore" ]; then
+		bash "$BATS_TEST_TMPDIR/restore" > /dev/null 2>&1 || true
+		rm -f "$BATS_TEST_TMPDIR/restore"
+	fi
+}
+
+# POST to the API with the access key of the test; prints the response body
+e8_api_call() {
+	curl -sk -X POST --data-urlencode "access_key=$E8_KEY_ID" --data-urlencode "secret_key=$E8_KEY_SECRET" \
+		--data-urlencode "returncode=no" --data-urlencode "cmd=v-list-sys-info" --data-urlencode "arg1=json" \
+		"$PANEL/api/index.php"
+}
+
+# Waits until the API answer contains the text. PHP-FPM keeps the compiled
+# lib/api/index.php until OPcache revalidates it (opcache.revalidate_freq).
+e8_api_says() {
+	local i
+	for i in $(seq 1 10); do
+		e8_api_call | grep -qF "$1" && return 0
+		sleep 1
+	done
+	return 1
+}
+
+@test "v-change-sys-api enables and disables the API in lib/api" {
+	local key
+	if grep -q '^die("Error: Disabled");' "$HESTIA_DIR/lib/api/index.php"; then
+		e8_restore_later "v-change-sys-api disable"
+	else
+		e8_restore_later "v-change-sys-api enable api"
+	fi
+	e8_restore_later "v-change-sys-config-value API '$(e8_sys_config API)'"
+	e8_restore_later "v-change-sys-config-value API_SYSTEM '$(e8_sys_config API_SYSTEM)'"
+	e8_restore_later "v-change-sys-config-value API_ALLOWED_IP '$(e8_sys_config API_ALLOWED_IP)'"
+	# No permission sets: a key of the root user may run every command
+	key="$(v-add-access-key "$(e8_sys_config ROOT_USER)" "" e8-bats json)"
+	E8_KEY_ID="$(echo "$key" | jq -r .ACCESS_KEY_ID)"
+	E8_KEY_SECRET="$(echo "$key" | jq -r .SECRET_ACCESS_KEY)"
+	e8_restore_later "v-delete-access-key '$E8_KEY_ID'"
+
+	run v-change-sys-api enable api
+	assert_success
+	v-change-sys-config-value API_ALLOWED_IP allow-all
+	assert_equal "$(e8_sys_config API_SYSTEM)" "1"
+	run grep -c '^//die("Error: Disabled");' "$HESTIA_DIR/lib/api/index.php"
+	assert_output "1"
+	run e8_api_says '"sysinfo"'
+	assert_success
+	run e8_api_call
+	assert_output --partial '"ARCPANEL"'
+
+	run v-change-sys-api disable
+	assert_success
+	assert_equal "$(e8_sys_config API_SYSTEM)" "0"
+	run grep -c '^die("Error: Disabled");' "$HESTIA_DIR/lib/api/index.php"
+	assert_output "1"
+	run e8_api_says "Error: Disabled"
+	assert_success
+	run e8_api_call
+	refute_output --partial '"sysinfo"'
+}
+
+@test "The file manager commands only toggle FILE_MANAGER" {
+	e8_restore_later "v-change-sys-config-value FILE_MANAGER '$(e8_sys_config FILE_MANAGER)'"
+	if [ ! -d "$HESTIA_DIR/web" ]; then
+		e8_restore_later "rm -rf '$HESTIA_DIR/web'"
+	fi
+	# A FileGator leftover of 1.x
+	mkdir -p "$HESTIA_DIR/web/fm"
+	touch "$HESTIA_DIR/web/fm/index.php"
+
+	run v-delete-sys-filemanager quiet
+	assert_success
+	assert_equal "$(e8_sys_config FILE_MANAGER)" "false"
+	assert_not_exists "$HESTIA_DIR/web/fm"
+
+	run v-add-sys-filemanager quiet
+	assert_success
+	assert_equal "$(e8_sys_config FILE_MANAGER)" "true"
+	assert_not_exists "$HESTIA_DIR/web/fm"
+	run grep -rl "filegator" "$HESTIA_DIR/conf" "$HESTIA_DIR/nginx/conf"
+	assert_output ""
 }
 
 @test "RRD data is written under data/rrd" {
