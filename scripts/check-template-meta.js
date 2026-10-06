@@ -23,12 +23,14 @@ const categories = [
 	'ecommerce',
 	'nodejs',
 	'python',
+	'go',
+	'ruby',
 	'static',
 	'proxy',
 	'general',
 	'other',
 ];
-const runtimes = ['php', 'node', 'python', 'docker', 'none'];
+const runtimes = ['php', 'node', 'python', 'go', 'ruby', 'docker', 'none'];
 const patternFiles = ['backend/PHP-x_y.json'];
 
 const isString = (value) => typeof value === 'string';

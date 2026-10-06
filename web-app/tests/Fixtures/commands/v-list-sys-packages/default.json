@@ -1,0 +1,47 @@
+[
+    {
+        "SLUG": "go",
+        "NAME": "Go",
+        "SUMMARY": "The Go compiler and tools of the distribution, to build Go apps on the server.",
+        "CATEGORY": "runtime",
+        "PROVIDES": ["go"],
+        "PACKAGES": ["golang-go"],
+        "AVAILABLE": "yes",
+        "STATUS": "missing",
+        "SOURCE": "-",
+        "VERSION": "",
+        "UPGRADABLE": "no",
+        "DOMAINS": [],
+        "USED_BY": 0
+    },
+    {
+        "SLUG": "python",
+        "NAME": "Python 3",
+        "SUMMARY": "Python 3 with venv, the development headers and pipx, for Django, Flask, FastAPI and other Python apps.",
+        "CATEGORY": "runtime",
+        "PROVIDES": ["python"],
+        "PACKAGES": ["python3", "python3-venv", "python3-dev", "pipx"],
+        "AVAILABLE": "yes",
+        "STATUS": "installed",
+        "SOURCE": "arcpanel",
+        "VERSION": "3.12.3",
+        "UPGRADABLE": "no",
+        "DOMAINS": [],
+        "USED_BY": 0
+    },
+    {
+        "SLUG": "ruby",
+        "NAME": "Ruby",
+        "SUMMARY": "Ruby with the development headers and Bundler, for Rails and other Rack apps.",
+        "CATEGORY": "runtime",
+        "PROVIDES": ["ruby"],
+        "PACKAGES": ["ruby", "ruby-dev", "ruby-bundler"],
+        "AVAILABLE": "yes",
+        "STATUS": "partial",
+        "SOURCE": "arcpanel",
+        "VERSION": "3.2.3",
+        "UPGRADABLE": "no",
+        "DOMAINS": [],
+        "USED_BY": 0
+    }
+]

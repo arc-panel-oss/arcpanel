@@ -20,7 +20,7 @@
 ARCPANEL="${ARCPANEL:-/usr/local/arcpanel}"
 ARC_TPL_ROOT="$ARCPANEL/data/templates/web"
 ARC_TPL_META="$ARC_TPL_ROOT/meta"
-ARC_TPL_CATEGORIES="php-cms php-framework ecommerce nodejs python static proxy general other"
+ARC_TPL_CATEGORIES="php-cms php-framework ecommerce nodejs python go ruby static proxy general other"
 # Templates ArcPanel ships in nginx/ and nginx/php-fpm/ (E6 batch 1)
 ARC_TPL_ARCPANEL="static spa nodejs-proxy nodejs-proxy-ws docker-proxy python-gunicorn nextjs nuxt ghost strapi"
 ARC_TPL_PORT_MIN=1024
@@ -90,7 +90,7 @@ ARC_TPL_JQ='
 	if (str(.title) and (.title | length) > 0 and (.title | length) <= 60
 		and str(.description) and (.description | length) > 0 and (.description | length) <= 160
 		and str(.category) and (.category as $c | $cats | index($c) != null)
-		and ((.runtime // "none") as $r | ["php", "node", "python", "docker", "none"] | index($r) != null)
+		and ((.runtime // "none") as $r | ["php", "node", "python", "go", "ruby", "docker", "none"] | index($r) != null)
 		and ((.internal // false) | type) == "boolean"
 		and ((.variables // []) | type) == "array"
 		and all((.variables // [])[]; str(.key) and (.key | test("^[A-Z][A-Z0-9_]*$")) and .type == "port"

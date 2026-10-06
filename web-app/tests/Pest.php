@@ -318,6 +318,9 @@ function fakeWebDomains(ArcCommandFake $fake): void
     $fake->on('v-list-web-templates-meta', ['proxy', 'json'])->returnsFixture('v-list-web-templates-meta/proxy.json');
     $fake->on('v-list-web-domain-tpl-vars')->returnsFixture('v-list-web-domain-tpl-vars/none.json');
     $fake->on('v-delete-web-domain-tpl-vars')->returns();
+    // Runtimes of the template badges (E5): no Node.js runtime, Python only
+    $fake->on('v-list-user-node-versions')->returnsJson(['ENABLED' => 'no', 'VERSIONS' => []]);
+    $fake->on('v-list-sys-packages')->returnsFixture('v-list-sys-packages/default.json');
 }
 
 /**

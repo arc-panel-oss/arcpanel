@@ -179,3 +179,33 @@ it('does not release ports when the delete failed', function () {
     $this->delete('/web/domains/bob/example.com');
     $this->fake->assertNotRan('v-delete-web-domain-tpl-vars');
 });
+
+// Runtime badges (E5 spec 2026-10-06-006 §8)
+
+it('marks a template whose runtime is missing for the owner and links administrators to the packages page', function () {
+    signIn('arcadmin', 'admin');
+    bobPorts($this->fake);
+
+    $this->get('/web/domains/create?owner=bob')->assertOk()
+        ->assertSee('<span class="ap-badge is-danger"><span class="dot"></span>Node.js</span>', false)
+        ->assertSee('<span class="ap-badge is-ok"><span class="dot"></span>PHP</span>', false)
+        ->assertSee('Node.js is not installed on this server.')
+        ->assertSee('href="'.route('server.packages').'"', false)->assertSee('Install it on the System packages page.');
+    $this->fake->assertRan('v-list-user-node-versions', fn ($a) => $a[0] === 'bob', times: 1);
+});
+
+it('asks users to contact their provider and turns the badge green when the runtime is there', function () {
+    signIn('bob', 'user');
+    bobPorts($this->fake);
+    withSysConfig($this->fake, ['POLICY_USER_EDIT_WEB_TEMPLATES' => 'yes']);
+
+    $this->get('/web/domains/create')->assertOk()
+        ->assertSee('Node.js is not installed on this server.')
+        ->assertSee('Ask your provider to install it.')
+        ->assertDontSee('href="'.route('server.packages').'"', false);
+
+    $this->fake->on('v-list-user-node-versions')->returnsJson(['ENABLED' => 'yes', 'VERSIONS' => [['VERSION' => '22.11.0', 'MAJOR' => '22']]]);
+    $this->get('/web/domains/create')->assertOk()
+        ->assertSee('<span class="ap-badge is-ok"><span class="dot"></span>Node.js</span>', false)
+        ->assertDontSee('Node.js is not installed on this server.');
+});

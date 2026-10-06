@@ -167,3 +167,14 @@ it('lists at most fifty free ports and knows an exhausted pool', function () {
         ->and(BackendPorts::poolExhausted(portPool([], ['LIMIT' => '0'])))->toBeTrue()
         ->and(BackendPorts::poolExhausted(portPool([], ['LIMIT' => 'unlimited'])))->toBeFalse();
 });
+
+it('colours the runtime badge and adds a note when the runtime is missing (E5)', function () {
+    [, $catalog] = templateCatalog();
+
+    $options = $catalog->pickerOptions('proxy', null, fn (string $runtime): ?bool => $runtime === 'php');
+    expect($options['nodejs-proxy'])->toMatchArray(['badge' => 'Node.js', 'badgeTone' => 'danger', 'note' => 'Node.js is not installed on this server.'])
+        ->and($options['default'])->toMatchArray(['badgeTone' => 'ok', 'note' => null])
+        ->and($options['static'])->toMatchArray(['badge' => null, 'badgeTone' => null, 'note' => null])
+        ->and($catalog->pickerOptions('proxy')['nodejs-proxy'])->toMatchArray(['badgeTone' => null, 'note' => null])
+        ->and($catalog->categories())->toHaveKeys(['go', 'ruby']);
+});

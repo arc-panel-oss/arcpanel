@@ -5,6 +5,7 @@ namespace App\Services\WebDomains;
 use App\Arc\ArcCommand;
 use App\Arc\Options;
 use App\Arc\SysConfig;
+use Closure;
 use Illuminate\Contracts\Cache\Repository as Cache;
 
 /**
@@ -75,22 +76,32 @@ final class TemplateCatalog
 
     /**
      * Options of x-ap-card-picker: internal templates are left out unless
-     * they are the current one.
+     * they are the current one. With $available (runtime => ?bool, E5 spec
+     * D13), the runtime badge is green or red and a missing runtime adds a
+     * note.
      *
-     * @return array<string, array{title: string, description: string, category: string, badge: ?string, meta: string}>
+     * @param  (Closure(string): ?bool)|null  $available
+     * @return array<string, array{title: string, description: string, category: string, badge: ?string, badgeTone: ?string, note: ?string, meta: string}>
      */
-    public function pickerOptions(string $kind, ?string $current = null): array
+    public function pickerOptions(string $kind, ?string $current = null, ?Closure $available = null): array
     {
         $options = [];
         foreach ($this->templates($kind) as $name => $meta) {
             if ($meta->internal && $name !== $current) {
                 continue;
             }
+            $state = $available !== null && $meta->runtime !== 'none' ? $available($meta->runtime) : null;
             $options[$name] = [
                 'title' => $meta->hasMeta ? __($meta->title) : $meta->title,
                 'description' => $meta->description !== '' ? __($meta->description) : '',
                 'category' => $meta->category,
                 'badge' => $meta->runtime !== 'none' ? $this->runtimeLabel($meta->runtime) : null,
+                'badgeTone' => match ($state) {
+                    true => 'ok',
+                    false => 'danger',
+                    null => null,
+                },
+                'note' => $state === false ? sprintf(__('%s is not installed on this server.'), $this->runtimeLabel($meta->runtime)) : null,
                 'meta' => $name,
             ];
         }
@@ -117,6 +128,8 @@ final class TemplateCatalog
             'ecommerce' => __('E-commerce'),
             'nodejs' => __('Node.js'),
             'python' => __('Python'),
+            'go' => __('Go'),
+            'ruby' => __('Ruby'),
             'static' => __('Static'),
             'proxy' => __('Proxy and containers'),
             'other' => __('Other'),
@@ -137,6 +150,8 @@ final class TemplateCatalog
             'php' => 'PHP',
             'node' => 'Node.js',
             'python' => 'Python',
+            'go' => 'Go',
+            'ruby' => 'Ruby',
             'docker' => 'Docker',
             default => $runtime,
         };
