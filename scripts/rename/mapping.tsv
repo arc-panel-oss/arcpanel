@@ -1,0 +1,72 @@
+# Rename rules of the full rename (ADR-0007, spec 2026-10-06-005 §5 and §8).
+#
+# One rule per line, tab separated: kind, old, new, scope.
+#   kind   path  - substring of a tracked file path, renamed with git mv
+#          text  - fixed string in file content, replaced in place
+#          guard - fixed string that must be gone before apply.sh runs
+#                  (collisions fixed by hand, spec §8.2 rule 2); new is "-"
+#   scope  comma separated globs on the (new) path; "*" is every file;
+#          "**" crosses directories, "*" does not
+#
+# Rules run in file order. Longer names come before their prefixes
+# (§8.2 rule 1) and every case is a rule of its own (§8.2 rule 3).
+# Strings and files that keep the old names are in keep.txt.
+
+# --- Guards: collisions to resolve by hand first (§5.2, §5.6, D5, D9)
+# HESTIA_VERSION and ARCPANEL_VERSION become VERSION
+guard	HESTIA_VERSION	-	*
+# HESTIA_INSTALL_VER and ARCPANEL_INSTALL_VER become ARCPANEL_INSTALL_VER
+guard	HESTIA_INSTALL_VER	-	*
+# The base-version key of v-list-sys-info is removed, ARCPANEL stays
+guard	"HESTIA":	-	bin/v-list-sys-info
+# D9: Conflicts stays, Provides and Replaces go
+guard	Provides: hestia	-	src/deb/**
+guard	Replaces: hestia	-	src/deb/**
+
+# --- Paths: repository scripts with new names (§5.3)
+path	install/hst-install	install/arcpanel-install	install/**
+path	src/hst_autocompile.sh	src/arcpanel-build.sh	src/**
+path	src/hst_bootstrap_install.sh	src/arcpanel-bootstrap-install.sh	src/**
+path	src/hst_generate_clidocs.sh	src/arcpanel-clidocs.sh	src/**
+path	lib/locale/hst_scan_i18n.sh	lib/locale/arc-scan-i18n.sh	lib/locale/**
+path	lib/locale/hst_convert_po2mo.sh	lib/locale/arc-convert-po2mo.sh	lib/locale/**
+# --- Paths: everything else keeps its shape (§5.1, §5.4, §5.5)
+# gettext catalogues hestiacp.pot and */LC_MESSAGES/hestiacp.mo
+path	hestiacp	arcpanel	*
+path	Hestia	ArcPanel	*
+path	hestia	arcpanel	*
+
+# --- Text: server paths and files (§5.1)
+text	/etc/hestiacp/hestia.conf	/etc/arcpanel/arcpanel.conf	*
+text	/etc/hestiacp	/etc/arcpanel	*
+text	hst_install_backups	arcpanel_install_backups	*
+text	hst_nginx_backups	arcpanel_nginx_backups	*
+text	hst_backups	arcpanel_backups	*
+text	hst-filemanager-key	arcpanel-filemanager-key	*
+
+# --- Text: repository scripts (§5.3)
+text	hst-install	arcpanel-install	*
+text	hst_autocompile	arcpanel-build	*
+text	hst_bootstrap_install	arcpanel-bootstrap-install	*
+text	hst_generate_clidocs	arcpanel-clidocs	*
+text	hst_scan_i18n	arc-scan-i18n	*
+text	hst_convert_po2mo	arc-convert-po2mo	*
+# Remaining hst- names: debug and upgrade logs, LXD container names
+text	hst-	arcpanel-	*
+
+# --- Text: lower-case hst_ variables and PHP helpers (§5.2, §5.3)
+text	hst_	arc_	*
+
+# --- Text: the product name with the CP suffix, before the plain name
+# Hestiacp\quoteshellarg becomes ArcPanel\quoteshellarg (§5.5)
+text	HestiaCP	ArcPanel	*
+text	Hestiacp	ArcPanel	*
+text	HESTIACP	ARCPANEL	*
+text	hestiacp	arcpanel	*
+
+# --- Text: every other use, case kept (§5.2-§5.8). hestia-nginx,
+# hestiaweb, hestia_openssl_sect, HESTIA_*, check_hestia_demo_mode and
+# Hestia-Exit-Code all follow from these three rules.
+text	HESTIA	ARCPANEL	*
+text	Hestia	ArcPanel	*
+text	hestia	arcpanel	*

@@ -1,0 +1,68 @@
+# Names that keep "hestia" through the full rename (spec 2026-10-06-005
+# §5.9, §5.10, ADR-0007 decision 6). apply.sh reads this file; the
+# inverted brand check reads it after M7.
+#
+# One entry per line, tab separated: kind, value, scope.
+#   kind   file  - glob of files that apply.sh leaves alone (value only)
+#          text  - fixed string that is not rewritten
+#          regex - Perl regular expression whose matches are not rewritten
+#   scope  comma separated globs, "*" is every file (text and regex only)
+# Every entry needs a reason in the comment above it.
+
+# --- Files
+# This tooling names the old names on purpose
+file	scripts/rename/**
+# Vendored phpPgAdmin, upstream code (install/deb/pga/README.txt)
+file	install/deb/pga/phppgadmin/**
+# Decision records and specs are history; they are not rewritten
+file	docs/adr/**
+file	docs/features/specs/**
+# Release history and the licence
+file	CHANGELOG.md
+file	LICENSE
+# Copyright notices of the Debian packages (GPLv3 attribution)
+file	src/deb/*/copyright
+# Test helpers are git submodules
+file	test/test_helper/**
+# The restore suite names the users and domains inside the HestiaCP and
+# VestaCP sample archives on storage.arcpanel.top (§5.9); M6 edits it by hand
+file	test/restore.bats
+# Removed in M1 (spec §6); listed so a dry run before M1 stays readable
+file	install/upgrade/versions/**
+file	install/upgrade/arcpanel/**
+file	install/upstream.conf
+file	test/upstream-diff.sh
+file	test/upstream-exceptions.txt
+file	test/upstream-base.txt
+file	test/arcpanel-compat.bats
+file	.arcpanel/retired-paths
+file	scripts/upstream-merge-cleanup.sh
+# Replaced by the inverted brand check in M7
+file	test/brand-check.sh
+file	test/brand-allowlist.txt
+
+# --- Attribution (GPLv3, ADR-0007 decision 6)
+text	Based on HestiaCP	*
+text	based on HestiaCP	*
+text	Thanks to the HestiaCP and VestaCP communities	*
+
+# --- Links to the upstream project, its issues and its documentation
+regex	https?://(?:[A-Za-z0-9-]+\.)*hestiacp\.com[^\s'"<>)\]]*	*
+regex	https?://(?:www\.)?github\.com/hestiacp/[^\s'"<>)\]]*	*
+regex	https?://raw\.githubusercontent\.com/hestiacp/[^\s'"<>)\]]*	*
+
+# --- Names owned by third parties (§5.10)
+# SnappyMail plugin and its configuration keys
+text	change-password-hestia	*
+text	driver_hestia_	*
+regex	(?<![\w$])hestia_(?:host|port)\b	bin/v-change-sys-hostname,bin/v-change-sys-port,install/common/snappymail/**
+# Legacy Rainloop plugin configuration file
+text	plugin-hestia-change-password	*
+# Version string of the vendored phpPgAdmin
+text	7.14.6-hestiacp	*
+# Download parameter of PrestaShop
+text	source=hestiacp	*
+
+# --- Old names that tests assert are gone
+# The 1.x session cookie must not come back (E1-S1)
+text	HESTIASID	test/**
