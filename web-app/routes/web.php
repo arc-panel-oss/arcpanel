@@ -27,6 +27,8 @@ use App\Http\Controllers\Firewall\FirewallController;
 use App\Http\Controllers\Firewall\FirewallIpsetController;
 use App\Http\Controllers\ImpersonationController;
 use App\Http\Controllers\Ips\IpController;
+use App\Http\Controllers\Keys\AccessKeyController;
+use App\Http\Controllers\Keys\SshKeyController;
 use App\Http\Controllers\Mail\MailAccountController;
 use App\Http\Controllers\Mail\MailActionController;
 use App\Http\Controllers\Mail\MailDomainController;
@@ -185,6 +187,27 @@ Route::middleware('auth.arc')->group(function () {
                 Route::post('/{ip}/edit', [IpController::class, 'update'])->where('ip', '[0-9A-Fa-f:.]{2,45}')->name('update');
                 Route::delete('/{ip}', [IpController::class, 'destroy'])->where('ip', '[0-9A-Fa-f:.]{2,45}')->name('destroy');
             });
+        });
+    });
+
+    // Access keys and SSH keys (E7 batch 2 spec §8)
+    Route::get('/access-keys', [AccessKeyController::class, 'entry'])->name('access-keys.index');
+    Route::prefix('access-keys/{user}')->name('access-keys.')->middleware('effective-user')->group(function () {
+        Route::get('/', [AccessKeyController::class, 'index'])->name('list');
+        Route::get('/create', [AccessKeyController::class, 'create'])->name('create');
+        Route::get('/{key}', [AccessKeyController::class, 'show'])->where('key', '[A-Za-z0-9]{20}')->name('show');
+        Route::middleware('not-readonly')->group(function () {
+            Route::post('/', [AccessKeyController::class, 'store'])->name('store');
+            Route::post('/bulk', [AccessKeyController::class, 'bulk'])->name('bulk');
+            Route::delete('/{key}', [AccessKeyController::class, 'destroy'])->where('key', '[A-Za-z0-9]{20}')->name('destroy');
+        });
+    });
+    Route::get('/ssh-keys', [SshKeyController::class, 'entry'])->name('ssh-keys.index');
+    Route::prefix('ssh-keys/{user}')->name('ssh-keys.')->middleware('effective-user')->group(function () {
+        Route::get('/', [SshKeyController::class, 'index'])->name('list');
+        Route::middleware('not-readonly')->group(function () {
+            Route::post('/', [SshKeyController::class, 'store'])->name('store');
+            Route::delete('/{id}', [SshKeyController::class, 'destroy'])->where('id', '[^/]{1,255}')->name('destroy');
         });
     });
 

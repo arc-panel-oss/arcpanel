@@ -36,6 +36,8 @@ function arc_route(string $legacyPath): string {
 		// E7 batch 2 (docs/features/specs/2026-10-06-002-e7-batch2-pages-design.md §11)
 		"/list/firewall/" => "/app/server/firewall",
 		"/list/ip/" => "/app/server/ips",
+		"/list/access-key/" => "/app/access-keys",
+		"/list/key/" => "/app/ssh-keys",
 	];
 
 	return arc_app_pages() && isset($routes[$legacyPath]) ? $routes[$legacyPath] : $legacyPath;
@@ -252,6 +254,33 @@ function arc_redirect_if_migrated(string $legacyPath, array $query = []): void {
 				return;
 			}
 			$url = "/app/server/ips/" . $ip . "/edit";
+			break;
+		// E7 batch 2: access keys and SSH keys of the owner
+		case "/list/access-key/":
+			if ($owner === "") {
+				return;
+			}
+			$url = "/app/access-keys/" . $segment($owner);
+			$key = isset($query["key"]) ? (string) $query["key"] : "";
+			if ($key !== "") {
+				if (preg_match('/^[A-Za-z0-9]{20}$/', $key) !== 1) {
+					return;
+				}
+				$url .= "/" . $key;
+			}
+			break;
+		case "/add/access-key/":
+			if ($owner === "") {
+				return;
+			}
+			$url = "/app/access-keys/" . $segment($owner) . "/create";
+			break;
+		case "/list/key/":
+		case "/add/key/":
+			if ($owner === "") {
+				return;
+			}
+			$url = "/app/ssh-keys/" . $segment($owner);
 			break;
 		default:
 			return;

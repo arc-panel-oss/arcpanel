@@ -17,8 +17,11 @@
 #                                 rules "e2e-fw*", IP lists "arce2e*" and the
 #                                 ban of 198.51.100.77 are removed, and
 #                                 /root/arce2e-ipset.txt is written (E7
-#                                 batch 2 Firewall)
-#   prepare.sh cleanup            deletes them again
+#                                 batch 2 Firewall); API_SYSTEM is 2 and the
+#                                 test users have no access keys (E7 batch 2
+#                                 Keys)
+#   prepare.sh cleanup            deletes them again and restores API_SYSTEM
+#   prepare.sh ssh-key            prints a fresh public SSH key
 #   prepare.sh ports RANGE        allocates RANGE to arce2euser (E6)
 #   prepare.sh listen PORT        serves "arce2e-app-PORT" on 127.0.0.1:PORT
 #   prepare.sh http DOMAIN        prints the HTTP status, then the start of
@@ -241,7 +244,28 @@ firewall_reset() {
 	printf '198.51.100.%s\n' 81 82 83 84 85 > "$FIREWALL_IPSET_FILE"
 }
 
+# Keys spec (E7 batch 2): API_SYSTEM=2 while the suite runs (every account
+# may have access keys), restored by cleanup; no access key of a test user
+API_STATE=/root/.arcpanel-e2e-api-system
+keys_reset() {
+	local key user
+	for user in $USERS; do
+		for key in $("$B/v-list-access-keys" "$user" json 2> /dev/null | jq -r 'keys[]' 2> /dev/null); do
+			"$B/v-delete-access-key" "$key" > /dev/null 2>&1 || true
+		done
+	done
+	"$B/v-delete-user-ssh-key" arce2euser e2e-key@arcpanel > /dev/null 2>&1 || true
+}
+
 case "${1:-}" in
+	ssh-key)
+		# A fresh public key with the comment e2e-key@arcpanel
+		dir="$(mktemp -d)"
+		ssh-keygen -q -t ed25519 -N '' -C e2e-key@arcpanel -f "$dir/key"
+		cat "$dir/key.pub"
+		rm -rf "$dir"
+		exit 0
+		;;
 	files)
 		files_prepare
 		exit 0
@@ -381,6 +405,11 @@ esac
 
 if [ "${1:-}" = cleanup ]; then
 	stop_listeners
+	keys_reset
+	if [ -f "$API_STATE" ]; then
+		"$B/v-change-sys-config-value" API_SYSTEM "$(cat "$API_STATE")"
+		rm -f "$API_STATE"
+	fi
 	delete_users
 	if [ -n "$(grep -o "^FIREWALL_SYSTEM='[^']\+'" "$HESTIA/conf/hestia.conf" || true)" ]; then
 		firewall_reset
@@ -488,6 +517,13 @@ if [ -n "$(grep -o "^MAIL_SYSTEM='[^']\+'" "$HESTIA/conf/hestia.conf" || true)" 
 	"$B/v-add-mail-account" arce2euser e2e-mail.example info "$file" > /dev/null
 	rm -f "$file"
 fi
+
+# Keys spec (E7 batch 2)
+keys_reset
+if [ ! -f "$API_STATE" ]; then
+	grep -o "^API_SYSTEM='[0-9]*'" "$HESTIA/conf/hestia.conf" | cut -d"'" -f2 > "$API_STATE" || echo 0 > "$API_STATE"
+fi
+"$B/v-change-sys-config-value" API_SYSTEM 2
 
 # Firewall spec (E7 batch 2)
 if [ -n "$(grep -o "^FIREWALL_SYSTEM='[^']\+'" "$HESTIA/conf/hestia.conf" || true)" ]; then
