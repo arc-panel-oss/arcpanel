@@ -10,6 +10,7 @@ func/upgrade.sh
 func/internal/sanitize_html.php
 bin/v-add-sys-filemanager
 bin/v-delete-sys-filemanager
+bin/v-delete-database-host
 bin/v-add-user-2fa
 bin/v-check-user-2fa
 bin/v-quick-install-app
@@ -68,6 +69,7 @@ bin/v-update-sys-ip
 func/remote.sh
 func/syshealth.sh
 install/common/roundcube/hestia.php
+install/common/templates/web/skel/public_html/robots.txt
 install/deb/logrotate/httpd-prerotate/awstats
 install/deb/php-fpm/dummy.conf
 install/deb/php-fpm/multiphp.tpl
@@ -202,6 +204,7 @@ install/hst-install.sh
 install/upgrade/manual/migrate_conf_to_debian_13.sh
 install/upgrade/manual/migrate_conf_to_ubuntu_26.04.sh
 install/upgrade/manual/remove-mail-stack.sh
+src/chroot_build_all.sh
 src/deb/hestia/control
 src/deb/hestia/copyright
 src/deb/hestia/postinst

@@ -262,8 +262,8 @@ function syshealth_repair_system_config() {
 
 	# Theme
 	if [[ -z $(check_key_exists 'THEME') ]]; then
-		echo "[ ! ] Adding missing variable to hestia.conf: THEME ('dark')"
-		$BIN/v-change-sys-config-value 'THEME' 'dark'
+		echo "[ ! ] Adding missing variable to hestia.conf: THEME ('nocturne')"
+		$BIN/v-change-sys-config-value 'THEME' 'nocturne'
 	fi
 
 	# Default language

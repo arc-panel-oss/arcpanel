@@ -54,7 +54,9 @@ done < <(git -c core.quotePath=false diff --name-status -M "$BASE" -- bin func i
 # The 1.x web/ directory. Ignored: upstream upgrade steps for versions up to
 # 1.10.5, source references of the gettext catalogues, the flag check of
 # v-restart-proxy (a file nothing creates), and the clean-up of 1.x leftovers.
-old_paths="$(git grep -nE '(\$HESTIA|\$\{HESTIA\}|/usr/local/hestia)/web/|\.\./web/' -- \
+# The optional quote after the prefix catches $HESTIA'/web/…' and "$HESTIA"/web/….
+quote="['\"]?"
+old_paths="$(git grep -nE '(\$HESTIA|\$\{HESTIA\}|/usr/local/hestia)'"$quote"'/web/|\.\./web/' -- \
 	bin func install src lib web-app/app web-app/config web-app/routes web-app/resources test \
 	':!install/upgrade/versions/' \
 	':!lib/locale/' \
