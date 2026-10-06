@@ -335,6 +335,27 @@ FAKE
 	assert_output --partial "USAGE: mail-wrapper.php -s SUBJECT EMAIL [NOTIFY]"
 }
 
+@test "Webmail clients change a mail password through /reset/mail/" {
+	local old new address
+	old="Ma1l-$(head -c 9 /dev/urandom | base64 | tr -dc 'A-Za-z0-9')"
+	new="N3w-$old"
+	address="e8box@$E8_USER.example"
+	v-add-mail-domain "$E8_USER" "$E8_USER.example" > /dev/null
+	run v-add-mail-account "$E8_USER" "$E8_USER.example" e8box "$old"
+	assert_success
+
+	run curl -sk --data-urlencode "email=$address" --data-urlencode "password=$old" --data-urlencode "new=$new" "$PANEL/reset/mail/"
+	assert_output "==ok=="
+	run curl -sk --data-urlencode "email=$address" --data-urlencode "password=$old" --data-urlencode "new=$old" "$PANEL/reset/mail/"
+	assert_output "error old password does not match"
+	run curl -sk --data-urlencode "email=$address" --data-urlencode "password=$new" --data-urlencode "new=$old" "$PANEL/reset/mail/"
+	assert_output "==ok=="
+	# a proxy header is refused like in 1.x
+	run curl -sk -o /dev/null -w '%{http_code}' -H 'X-Forwarded-For: 127.0.0.1' --data-urlencode "email=$address" \
+		--data-urlencode "password=$old" --data-urlencode "new=$new" "$PANEL/reset/mail/"
+	assert_output "403"
+}
+
 @test "Notifications are sanitized with lib/vendor" {
 	run v-add-user-notification "$E8_USER" "E8 notice" '<p>ok</p><script>alert(1)</script>'
 	assert_success

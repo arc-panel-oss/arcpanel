@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\LogoutController;
+use App\Http\Controllers\Auth\MailPasswordController;
 use App\Http\Controllers\Auth\ResetController;
 use App\Http\Controllers\Auth\TwoFactorController;
 use App\Http\Controllers\Backups\BackupController;
@@ -109,6 +110,10 @@ Route::middleware('guest.arc')->group(function () {
     Route::get('/reset2fa', [ResetController::class, 'twoFactor'])->name('reset2fa');
     Route::post('/reset2fa', [ResetController::class, 'twoFactorStore'])->name('reset2fa.store');
 });
+
+// Mail password change for the webmail clients of this server (1.x
+// web/reset/mail); no session, the controller checks the caller's address
+Route::post('/reset/mail', MailPasswordController::class)->name('reset.mail');
 
 Route::middleware('auth.arc')->group(function () {
     Route::get('/', DashboardController::class)->name('dashboard');

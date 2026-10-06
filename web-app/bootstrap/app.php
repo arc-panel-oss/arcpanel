@@ -35,7 +35,9 @@ $app = Application::configure(basePath: dirname(__DIR__))
         // arc_ui (theme, density) is written by the user menu script.
         $middleware->encryptCookies(except: [(string) ini_get('session.name'), UiPreferences::COOKIE]);
         // Form posts to legacy page paths answer 404 (E8 spec §5.3), not 419.
-        $middleware->validateCsrfTokens(except: ['list/*', 'add/*', 'edit/*', 'download/*', 'generate/*', 'fm', 'fm/*']);
+        // reset/mail is posted by the webmail clients of the server, without
+        // a session (MailPasswordController).
+        $middleware->validateCsrfTokens(except: ['list/*', 'add/*', 'edit/*', 'download/*', 'generate/*', 'fm', 'fm/*', 'reset/mail']);
         $middleware->web(append: [
             ResolvePrincipal::class,
             SetLocale::class,
