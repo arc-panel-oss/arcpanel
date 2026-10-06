@@ -1,0 +1,4 @@
+# The HestiaCP tree ArcPanel is built on: the commit that imported it (a
+# 1.10.x snapshot, see install/upstream.conf). test/upstream-diff.sh compares
+# bin/, func/, install/ and src/ with it. Update it on every upstream merge.
+565d56de27316df511bba989c099aab9107383ea

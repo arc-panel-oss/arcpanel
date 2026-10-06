@@ -95,6 +95,15 @@ jobs:
               --spamassassin no
           '
 
+      - name: Check the shipped panel nginx configuration
+        run: |
+          docker exec hestia-ci bash -lc '
+            set -euxo pipefail
+            install -m 0644 /hestiacp-git/src/deb/nginx/nginx.conf /usr/local/hestia/nginx/conf/nginx-ci.conf
+            /usr/local/hestia/nginx/sbin/hestia-nginx -t -c /usr/local/hestia/nginx/conf/nginx-ci.conf
+            rm -f /usr/local/hestia/nginx/conf/nginx-ci.conf
+          '
+
       - name: Run BATS test suite
         run: |
           docker exec hestia-ci bash -lc '

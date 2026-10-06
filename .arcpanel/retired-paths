@@ -1,0 +1,27 @@
+# Upstream paths that ArcPanel moved or removed (E8,
+# docs/features/specs/2026-10-06-004-e8-legacy-retirement-design.md §10.1).
+# scripts/upstream-merge-cleanup.sh reads this file after `git merge` of an
+# upstream release.
+#
+#   move OLD NEW   upstream path (file or directory prefix) and its ArcPanel
+#                  place; upstream changes to OLD are ported to NEW by hand
+#                  when git's rename detection did not carry them
+#   retire GLOB    upstream paths that are gone; changes to them are dropped
+
+move web/src/ lib/quickinstall/
+move web/inc/2fa/ lib/2fa/
+move web/inc/composer.json lib/composer.json
+move web/inc/composer.lock lib/composer.lock
+move web/inc/helpers.php lib/api/helpers.php
+move web/inc/mail-wrapper.php lib/mail-wrapper.php
+move web/api/index.php lib/api/index.php
+move web/locale/ lib/locale/
+move web/error/ lib/error/
+move web/images/logo.svg lib/images/logo.svg
+move web/images/logo.png lib/images/logo.png
+move web/images/logo-header.svg lib/images/logo-header.svg
+move web/images/favicon.png lib/images/favicon.png
+move web/favicon.ico lib/images/favicon.ico
+
+retire web/*
+retire install/deb/filemanager/*
