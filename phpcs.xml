@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
-<ruleset name="HestiaCP">
-	<file>./web/src/app</file>
+<ruleset name="ArcPanel">
+	<file>./lib/quickinstall/app</file>
 
 	<exclude-pattern>*.js</exclude-pattern>
 

@@ -21,12 +21,8 @@ trim_trailing_whitespace = false
 indent_size = 2
 indent_style = space
 
-# Views have longer line length for now
-[web/templates/**/*.php]
-max_line_length = 200
-
-# Modern PHP uses spaces for indentation
-[web/src/**/*.php]
+# Quick Install library: PSR-12 (phpcs.xml)
+[lib/quickinstall/**/*.php]
 indent_size = 4
 indent_style = space
 

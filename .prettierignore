@@ -25,10 +25,7 @@
 /bin/v-list-quick-install-app-options
 /bin/v-list-quick-install-apps
 
-# Exclude bats submodules if present
-/test/test_helper/*
-
-# Quick Install library (handled by PHPCS)
+# Quick Install library (PSR-12, see phpcs.xml)
 lib/quickinstall/
 
 # Panel app (handled by Laravel Pint)
@@ -37,9 +34,8 @@ web-app/
 # Patch files
 /install/upgrade/patch/*
 
-# Hestia Nginx.conf
+# Panel nginx.conf
 /src/deb/nginx/nginx.conf
-/src/rpm/nginx/nginx.conf
 
 # Email templates
 /install/common/templates/email/
@@ -50,10 +46,6 @@ web-app/
 **/composer.phar
 **/composer.json
 **/composer.lock
-
-# vitepress build output
-**/.vitepress/dist/
-**/.vitepress/cache/
 
 # Logs
 logs

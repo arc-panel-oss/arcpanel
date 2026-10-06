@@ -29,20 +29,32 @@ nbproject/project.xml
 
 # Composer
 composer.phar
-test/vendor/
 # PHPMailer, 2FA and the API (lib/composer.json)
 lib/vendor/
 # Quick install
 lib/quickinstall/vendor/
 .phpunit.result.cache
 
-# vitepress build output
-**/.vitepress/dist/
-**/.vitepress/cache/
 # Node
 **/node_modules/
 npm-debug.log
+*.log
+
+# Merge and patch leftovers
+*.orig
+*.rej
+
+# Windows
+Thumbs.db
+
+# Local Claude Code files
+.claude/settings.local.json
+.claude/*.lock
 
 # Playwright output (test/e2e)
 /test-results/
 /playwright-report/
+/blob-report/
+
+# Coverage reports
+coverage/
