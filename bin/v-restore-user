@@ -145,8 +145,11 @@ fi
 backup_system="arcpanel"
 backup_mode="gzip"
 
-# Check if it is a Vesta backup
-if tar -tf "$BACKUP/$backup" ./vesta > /dev/null 2>&1; then
+# Archives of HestiaCP and ArcPanel 1.x keep the objects in ./hestia,
+# archives of VestaCP in ./vesta (D8 of the full rename spec)
+if tar -tf "$BACKUP/$backup" ./hestia > /dev/null 2>&1; then
+	backup_system="hestia"
+elif tar -tf "$BACKUP/$backup" ./vesta > /dev/null 2>&1; then
 	backup_system="vesta"
 fi
 
@@ -829,9 +832,10 @@ if [ "$cron" != 'no' ] && [ -n "$CRON_SYSTEM" ]; then
 		echo -e "$(date "+%F %T") $jobs cron jobs" | tee -a $tmpdir/restore.log
 	fi
 
-	# Replace paths from vesta to arcpanel
-	if [ "$backup_system" == 'vesta' ] && [ "$user" == "$ROOT_USER" ]; then
-		sed -i 's/vesta/arcpanel/g' $tmpdir/cron/cron.conf
+	# Paths and command names of the panel that made the archive
+	# (/usr/local/hestia/bin/v-update-sys-hestia-all and the like)
+	if [ "$backup_system" != 'arcpanel' ] && [ "$user" == "$ROOT_USER" ]; then
+		sed -i "s/$backup_system/arcpanel/g" $tmpdir/cron/cron.conf
 	fi
 
 	# Restoring cron jobs

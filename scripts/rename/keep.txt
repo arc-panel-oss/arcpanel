@@ -27,6 +27,9 @@ file	test/test_helper/**
 # The restore suite names the users and domains inside the HestiaCP and
 # VestaCP sample archives on storage.arcpanel.top (§5.9); M6 edits it by hand
 file	test/restore.bats
+# Suites that check the old names are gone and the old backup formats restore
+file	test/arcpanel-names.bats
+file	test/arcpanel-backup-formats.bats
 # Replaced by the inverted brand check in M7
 file	test/brand-check.sh
 file	test/brand-allowlist.txt
@@ -56,6 +59,12 @@ text	nginx hestia arcpanel	install/arcpanel-install-*.sh
 text	7.14.6-hestiacp	*
 # Download parameter of PrestaShop
 text	source=hestiacp	*
+
+# --- Backup archives of HestiaCP and ArcPanel 1.x (§5.9, D8)
+text	Archives of HestiaCP and ArcPanel 1.x keep the objects in ./hestia,	bin/v-restore-user
+text	./hestia > /dev/null	bin/v-restore-user
+text	backup_system="hestia"	bin/v-restore-user
+text	(/usr/local/hestia/bin/v-update-sys-hestia-all and the like)	bin/v-restore-user
 
 # --- Old names that tests assert are gone
 # The 1.x session cookie must not come back (E1-S1)
