@@ -74,6 +74,13 @@ function arc_redirect_if_migrated(string $legacyPath, array $query = []): void {
 	) {
 		$owner = (string) $query["user"];
 	}
+	// E7 batch 3: config editors of the services (administrators; the panel
+	// app knows the editors and redirects iptables and web-terminal itself)
+	if (preg_match('#^/edit/server/([a-z0-9-]{2,32})/$#', $legacyPath, $editor) === 1 && $editor[1] !== "whitelabel") {
+		header("Location: /app/server/services/" . $editor[1] . "/config", true, 302);
+		exit();
+	}
+
 	$domain = isset($query["domain"]) ? (string) $query["domain"] : "";
 	$segment = fn(string $value): string => rawurlencode($value);
 

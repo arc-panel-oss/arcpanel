@@ -6,7 +6,7 @@
     $systems = array_filter([
         'WEB_SYSTEM' => __('Web Server'), 'PROXY_SYSTEM' => __('Proxy Server'), 'WEB_BACKEND' => __('Backend Server'),
     ], fn ($label, $key) => ($config[$key] ?? '') !== '', ARRAY_FILTER_USE_BOTH);
-    $editor = fn (string $service) => in_array($service, \App\Services\Server\ServiceConfigs::EDITORS, true) && Route::has('server.services.config')
+    $editor = fn (string $service) => in_array($service, \App\Services\Server\ServiceConfigs::NAMES, true) && Route::has('server.services.config')
         ? route('server.services.config', ['service' => $service]) : null;
 @endphp
 <x-ap-page :title="__('Server settings')" :crumbs="[['label' => __('Server')], ['label' => __('Server settings')], ['label' => __('Web Server')]]">

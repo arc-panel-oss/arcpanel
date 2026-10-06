@@ -479,6 +479,10 @@ teardown_file() {
     assert_output "302 $PANEL/app/server/settings"
     run pages_get /edit/server/whitelabel/
     assert_output "302 $PANEL/app/server/settings/white-label"
+    run pages_get /edit/server/nginx/
+    assert_output "302 $PANEL/app/server/services/nginx/config"
+    run pages_get /edit/server/php-fpm/
+    assert_output "302 $PANEL/app/server/services/php-fpm/config"
     run pages_get /app/server/settings/general
     assert_output "403 "
 }

@@ -9,6 +9,7 @@ export const islands = {
 	'node-apps': () => import('./node-apps/index.js'),
 	'file-manager': () => import('./file-manager/index.js'),
 	'docker-apps': () => import('./docker-apps/index.js'),
+	'service-editor': () => import('./service-editor/index.js'),
 };
 
 /** @param {ParentNode} root */

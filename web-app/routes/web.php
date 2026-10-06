@@ -42,6 +42,7 @@ use App\Http\Controllers\Ports\PortController;
 use App\Http\Controllers\Ports\ServerPortController;
 use App\Http\Controllers\Server\RrdPageController;
 use App\Http\Controllers\Server\ServerSettingsController;
+use App\Http\Controllers\Server\ServiceConfigController;
 use App\Http\Controllers\Server\ServiceController;
 use App\Http\Controllers\Server\SystemTaskController;
 use App\Http\Controllers\Shell\LanguageController;
@@ -265,9 +266,12 @@ Route::middleware('auth.arc')->group(function () {
     Route::prefix('server/services')->group(function () {
         Route::get('/', [ServiceController::class, 'index'])->name('server.services');
         Route::get('/status/{kind}', [ServiceController::class, 'status'])->where('kind', '[a-z]{2,4}')->name('server.services.status');
+        // Config editors (spec §9)
+        Route::get('/{service}/config', [ServiceConfigController::class, 'show'])->where('service', '[a-z0-9-]{2,32}')->name('server.services.config');
         Route::middleware('not-readonly')->group(function () {
             Route::post('/bulk', [ServiceController::class, 'bulk'])->name('server.services.bulk');
             Route::post('/restart-server', [ServiceController::class, 'restartServer'])->name('server.services.restart-server');
+            Route::post('/{service}/config', [ServiceConfigController::class, 'save'])->where('service', '[a-z0-9-]{2,32}')->name('server.services.config.save');
             Route::post('/{service}/{action}', [ServiceController::class, 'action'])
                 ->where(['service' => '[A-Za-z0-9][\w.@-]{0,63}', 'action' => 'start|stop|restart'])->name('server.services.action');
         });

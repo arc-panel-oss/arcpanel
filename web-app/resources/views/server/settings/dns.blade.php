@@ -6,7 +6,7 @@
         <dl class="ap-dl">
             <dt>{{ __('DNS Server') }}</dt>
             <dd class="mono">
-                @if (Route::has('server.services.config') && in_array($config['DNS_SYSTEM'], \App\Services\Server\ServiceConfigs::EDITORS, true))
+                @if (Route::has('server.services.config') && in_array($config['DNS_SYSTEM'], \App\Services\Server\ServiceConfigs::NAMES, true))
                     <a href="{{ route('server.services.config', ['service' => $config['DNS_SYSTEM']]) }}">{{ $config['DNS_SYSTEM'] }}</a>
                 @else
                     {{ $config['DNS_SYSTEM'] }}

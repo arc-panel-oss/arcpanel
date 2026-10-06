@@ -3798,3 +3798,22 @@ a.ap-pick:focus-visible {
 .ap-task-last > .ap-log {
 	margin-top: var(--ap-space-3);
 }
+
+/* Config editors of the services (E7 batch 3 spec §9.2) */
+.ap-service-file {
+	display: flex;
+	flex-direction: column;
+}
+.ap-service-file-head {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: var(--ap-space-2);
+	margin: 0;
+	padding: var(--ap-space-3) var(--ap-space-5);
+	border-bottom: 1px solid var(--ap-border);
+}
+.ap-service-file-editor {
+	height: 60vh;
+	min-height: 320px;
+}
