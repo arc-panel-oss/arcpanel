@@ -1,6 +1,6 @@
 // The shell: command palette, theme switch, notifications.
 import { expect, test } from '@playwright/test';
-import { ADMIN, BASE_URL, login, SITE, USER } from './helpers.js';
+import { ADMIN, login, SITE, USER } from './helpers.js';
 
 test('the command palette finds objects and pages from the keyboard', async ({ page }) => {
 	await login(page, ADMIN);
@@ -10,7 +10,7 @@ test('the command palette finds objects and pages from the keyboard', async ({ p
 	await page.keyboard.type('e2e-site');
 	await expect(dialog.getByRole('option', { name: new RegExp(SITE) })).toBeVisible();
 	await page.keyboard.press('Enter');
-	await expect(page).toHaveURL(new RegExp(`/app/web/domains/${USER}/${SITE}/edit`));
+	await expect(page).toHaveURL(new RegExp(`/web/domains/${USER}/${SITE}/edit`));
 
 	await page.keyboard.press('Control+k');
 	// The edit page has just loaded: type only once the search field has focus.
@@ -51,11 +51,15 @@ test('the notification tray opens and closes', async ({ page }) => {
 	await expect(page.locator('#ap-tray-panel')).toBeHidden();
 });
 
-test('legacy pages hand over to the panel app', async ({ page }) => {
+test('old bookmarks lead to the panel pages', async ({ page }) => {
 	await login(page, USER);
+	// the /app prefix of 1.x
+	await page.goto('/app/db');
+	await expect(page).toHaveURL(/\/db$/);
+	await expect(page.getByRole('heading', { level: 1 })).toContainText('Databases');
+	// the legacy page paths
 	await page.goto('/list/web/');
-	await expect(page).toHaveURL(/\/app\/web\/domains$/);
-	// A browser sends the page it came from; the legacy CSRF check wants it.
-	await page.goto(`/edit/web/?domain=${SITE}`, { referer: `${BASE_URL}/list/web/` });
-	await expect(page).toHaveURL(new RegExp(`/app/web/domains/${USER}/${SITE}/edit`));
+	await expect(page).toHaveURL(/\/web\/domains$/);
+	await page.goto(`/edit/web/?domain=${SITE}`);
+	await expect(page).toHaveURL(new RegExp(`/web/domains/${USER}/${SITE}/edit`));
 });

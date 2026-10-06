@@ -6,9 +6,9 @@ test.describe.configure({ mode: 'serial' });
 
 test('admin: change an nginx basic option without restart and restore it', async ({ page }) => {
 	await login(page, ADMIN);
-	await page.goto('/app/server/services');
+	await page.goto('/server/services');
 	await page.getByRole('link', { name: 'nginx', exact: true }).click();
-	await expect(page).toHaveURL(/\/app\/server\/services\/nginx\/config$/);
+	await expect(page).toHaveURL(/\/server\/services\/nginx\/config$/);
 	const option = page.getByLabel('client_max_body_size');
 	await expect(option).toBeVisible();
 	await expect(page.locator('.cm-content')).toBeVisible();
@@ -37,7 +37,7 @@ test('admin: change an nginx basic option without restart and restore it', async
 
 test('admin: the system crontab is read-only', async ({ page }) => {
 	await login(page, ADMIN);
-	await page.goto('/app/server/services/cron/config');
+	await page.goto('/server/services/cron/config');
 	await expect(page.getByText('/etc/crontab')).toBeVisible();
 	await expect(page.getByText('Read-only')).toBeVisible();
 	await expect(page.getByRole('button', { name: 'Save' })).toHaveCount(0);

@@ -6,6 +6,7 @@ use App\View\AssetManifest;
 use App\View\LogLine;
 use App\View\Navigation;
 use App\View\UiPreferences;
+use App\View\WhiteLabel;
 
 it('maps the legacy themes to panel app themes', function (?string $legacy, string $theme, string $density) {
     expect(UiPreferences::fromLegacyTheme($legacy))->toBe([$theme, $density]);
@@ -16,7 +17,30 @@ it('maps the legacy themes to panel app themes', function (?string $legacy, stri
     'flat' => ['flat', 'light', 'compact'],
     'custom' => ['my-theme', 'nocturne', 'comfortable'],
     'none' => [null, 'nocturne', 'comfortable'],
+    // THEME holds a panel theme since 2.0 (E8 spec D11)
+    'nocturne' => ['nocturne', 'nocturne', 'comfortable'],
+    'light' => ['light', 'light', 'comfortable'],
+    'auto' => ['auto', 'auto', 'comfortable'],
 ]);
+
+it('finds the custom White Label logo in data/white-label', function () {
+    $root = sys_get_temp_dir().'/arc-wl-'.bin2hex(random_bytes(4));
+    mkdir($root.'/data/white-label', 0755, true);
+    config(['arc.install_dir' => $root]);
+    WhiteLabel::forget();
+    expect(WhiteLabel::customLogo())->toBeFalse();
+
+    touch($root.'/data/white-label/logo-header.svg');
+    WhiteLabel::forget();
+    expect(WhiteLabel::customLogo())->toBeTrue()
+        ->and(WhiteLabel::LOGO_URL)->toBe('/images/custom/logo-header.svg');
+
+    unlink($root.'/data/white-label/logo-header.svg');
+    rmdir($root.'/data/white-label');
+    rmdir($root.'/data');
+    rmdir($root);
+    WhiteLabel::forget();
+});
 
 it('prefers the arc_ui cookie and ignores invalid values', function () {
     $prefs = UiPreferences::resolve('{"theme":"light","density":"compact"}', 'dark', true);

@@ -4,7 +4,6 @@ namespace App\Http\Controllers;
 
 use App\Arc\ArcCommand;
 use App\Arc\Options;
-use App\Arc\SysConfig;
 use App\Auth\LegacySession;
 use App\Auth\Principal;
 use App\Auth\PrincipalResolver;
@@ -14,19 +13,18 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 
 /**
- * "Login as": the same session keys and log lines as web/login/index.php
- * (?loginas=) and web/logout/index.php, so either app can end what the other
- * started. With ARCPANEL_APP_PAGES='yes' both directions land on /app/.
+ * "Login as": the session key `look` and the log lines of the HestiaCP 1.x
+ * login page (?loginas=), which the web terminal still reads. Both directions
+ * land on the dashboard.
  *
  * Resellers (E11 spec D4) use their own key `arc_look`, which only the panel
- * app reads: their "login as" works on /app pages only.
+ * app reads.
  */
 final class ImpersonationController extends Controller
 {
     public function __construct(
         private readonly ArcCommand $arc,
         private readonly LegacySession $legacy,
-        private readonly SysConfig $config,
     ) {}
 
     public function start(string $user, Principal $principal, ImpersonationPolicy $policy): RedirectResponse
@@ -51,11 +49,9 @@ final class ImpersonationController extends Controller
             return redirect()->route('dashboard');
         }
 
-        // File Manager state belongs to the previous account
-        $this->legacy->write(['look' => $user, '_sf2_attributes' => null, '_sf2_meta' => null]);
+        $this->legacy->write(['look' => $user]);
 
-        // The legacy /login/ sends a logged-in session to its landing page.
-        return $this->config->is('ARCPANEL_APP_PAGES') ? redirect()->route('dashboard') : redirect()->away('/login/');
+        return redirect()->route('dashboard');
     }
 
     /** The user switcher of the top bar posts the user name in the body. */
@@ -81,10 +77,10 @@ final class ImpersonationController extends Controller
 
                 return redirect()->route('dashboard');
             }
-            $this->legacy->write(['look' => null, '_sf2_attributes' => null, '_sf2_meta' => null]);
+            $this->legacy->write(['look' => null]);
         }
 
-        return $this->config->is('ARCPANEL_APP_PAGES') ? redirect()->route('dashboard') : redirect()->away('/');
+        return redirect()->route('dashboard');
     }
 
     private function actor(Principal $principal): string

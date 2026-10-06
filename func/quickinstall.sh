@@ -81,8 +81,8 @@ qi_task_running() {
 	[ "$(qi_task_get "$1" STATUS)" = 'running' ]
 }
 
-# Installer names: web/src/app/WebApp/Installers/<APP>/<APP>Setup.php
+# Installer names: lib/quickinstall/app/WebApp/Installers/<APP>/<APP>Setup.php
 qi_app_exists() {
 	[[ "$1" =~ ^[A-Za-z][A-Za-z0-9]{0,63}$ ]] \
-		&& [ -f "$HESTIA/web/src/app/WebApp/Installers/$1/$1Setup.php" ]
+		&& [ -f "$HESTIA/lib/quickinstall/app/WebApp/Installers/$1/$1Setup.php" ]
 }

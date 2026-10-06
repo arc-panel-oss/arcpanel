@@ -870,13 +870,13 @@ if [ "$HESTIA_B" = true ]; then
 	for BUILD_ARCH in $arch; do
 		for os in $supported_os; do
 			mkdir -p $BUILD_DIR_HESTIA/usr/local/hestia
-			cp -rf bin func install web web-app $BUILD_DIR_HESTIA/usr/local/hestia/
+			cp -rf bin func install lib web-app $BUILD_DIR_HESTIA/usr/local/hestia/
 
 			# Set permissions
 			find $BUILD_DIR_HESTIA/usr/local/hestia/ -type f -exec chmod -x {} \;
 
-			# Allow send email via /usr/local/hestia/web/inc/mail-wrapper.php via cli
-			chmod +x $BUILD_DIR_HESTIA/usr/local/hestia/web/inc/mail-wrapper.php
+			# Allow send email via /usr/local/hestia/lib/mail-wrapper.php via cli
+			chmod +x $BUILD_DIR_HESTIA/usr/local/hestia/lib/mail-wrapper.php
 			# Allow the executable to be executed
 			chmod +x $BUILD_DIR_HESTIA/usr/local/hestia/bin/*
 			find $BUILD_DIR_HESTIA/usr/local/hestia/install/ \( -name '*.sh' \) -exec chmod +x {} \;

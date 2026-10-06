@@ -1,4 +1,4 @@
-// Build JS and CSS using esbuild and Lightning CSS
+// Build the panel app (web-app/) with esbuild and Lightning CSS
 import { createHash } from 'node:crypto';
 import { watch as fsWatch, promises as fs } from 'node:fs';
 import path from 'node:path';
@@ -6,75 +6,6 @@ import browserslist from 'browserslist';
 import esbuild from 'esbuild';
 import * as lightningcss from 'lightningcss';
 import { vueDefines, vuePlugin } from './scripts/esbuild-vue.js';
-
-// Packages to build but exclude from bundle
-const externalPackages = [
-	'chart.js/auto',
-	'alpinejs/dist/cdn.min.js',
-	'@alpinejs/collapse/dist/cdn.min.js',
-	'@xterm/xterm',
-	'@xterm/addon-webgl',
-];
-
-// Build main bundle
-async function buildJS() {
-	const inputPath = './web/js/src/index.js';
-	try {
-		await esbuild.build({
-			entryPoints: [inputPath],
-			outfile: './web/js/dist/main.min.js',
-			bundle: true,
-			minify: true,
-			sourcemap: true,
-			external: externalPackages,
-		});
-		console.log('✅ JavaScript build completed for', inputPath);
-	} catch (error) {
-		console.error('❌ Error building JavaScript:', error);
-		process.exit(1);
-	}
-}
-
-// Build external packages
-async function buildExternalJS() {
-	try {
-		const buildPromises = externalPackages.map(async (pkg) => {
-			const outputPath = getOutputPath(pkg);
-			await esbuild.build({
-				entryPoints: [pkg],
-				outfile: outputPath,
-				bundle: true,
-				minify: true,
-				format: 'esm',
-				mainFields: ['main'],
-			});
-			console.log(`✅ Dependency build completed for ${pkg}`);
-		});
-
-		await Promise.all(buildPromises);
-	} catch (error) {
-		console.error('❌ Error building external packages:', error);
-		process.exit(1);
-	}
-}
-
-function getOutputPath(pkg) {
-	let pkgName;
-
-	if (pkg.startsWith('alpinejs')) {
-		pkgName = 'alpinejs';
-	} else if (pkg.startsWith('@alpinejs/collapse')) {
-		pkgName = 'alpinejs-collapse';
-	} else if (pkg === '@xterm/xterm') {
-		pkgName = 'xterm';
-	} else if (pkg.startsWith('@xterm/')) {
-		pkgName = pkg.replace('@xterm/', 'xterm-');
-	} else {
-		pkgName = pkg.replace(/\//g, '-');
-	}
-
-	return `./web/js/dist/${pkgName}.min.js`;
-}
 
 // Bundle a CSS file and its imports
 async function bundleCSS(inputFile) {
@@ -86,18 +17,6 @@ async function bundleCSS(inputFile) {
 		minify: true,
 		targets: lightningcss.browserslistToTargets(browserslist()),
 		drafts: { customMedia: true, nesting: true },
-		visitor: {
-			Url: (node) => {
-				// Fix relative paths for webfonts
-				if (node.url.startsWith('../webfonts/')) {
-					return {
-						url: node.url.replace('../webfonts/', '/webfonts/'),
-						loc: node.loc,
-					};
-				}
-				return node;
-			},
-		},
 		resolver: {
 			resolve(specifier, from) {
 				if (!specifier.endsWith('.css')) {
@@ -110,37 +29,6 @@ async function bundleCSS(inputFile) {
 			},
 		},
 	});
-}
-
-// Process a CSS file
-async function processCSS(inputFile, outputFile) {
-	try {
-		await ensureDir(path.dirname(outputFile));
-		const bundle = await bundleCSS(inputFile);
-		await fs.writeFile(outputFile, bundle.code);
-		await fs.writeFile(`${outputFile}.map`, bundle.map);
-		console.log(`✅ CSS build completed for ${inputFile}`);
-	} catch (error) {
-		console.error(`❌ Error processing CSS for ${inputFile}:`, error);
-		process.exit(1);
-	}
-}
-
-// Build CSS
-async function buildCSS() {
-	const themesSourcePath = './web/css/src/themes/';
-	const cssEntries = await fs.readdir(themesSourcePath);
-
-	const cssBuildPromises = cssEntries
-		.filter((entry) => path.extname(entry) === '.css')
-		.map(async (entry) => {
-			const entryName = entry.replace('.css', '.min.css');
-			const inputPath = path.join(themesSourcePath, entry);
-			const outputPath = `./web/css/themes/${entryName}`;
-			await processCSS(inputPath, outputPath);
-		});
-
-	await Promise.all(cssBuildPromises);
 }
 
 // Panel app (web-app/, docs/design/05 §7): hashed CSS and JS, bundled fonts
@@ -217,7 +105,7 @@ async function buildPanelApp() {
 		}
 
 		// Quick Install (E7 batch 2 spec §10.3): the logo of each installer
-		const installers = './web/src/app/WebApp/Installers';
+		const installers = './lib/quickinstall/app/WebApp/Installers';
 		for (const app of await fs.readdir(installers)) {
 			for (const file of await fs.readdir(`${installers}/${app}`)) {
 				if (/\.(svg|png|jpe?g|webp)$/i.test(file)) {
@@ -279,12 +167,9 @@ async function ensureDir(dir) {
 	}
 }
 
-// Build all assets
+// Build all assets (the legacy bundle of web/ is gone since 2.0, E8)
 async function build() {
-	console.log('🚀 Building JS and CSS...');
-	await buildJS();
-	await buildExternalJS();
-	await buildCSS();
+	console.log('🚀 Building the panel app...');
 	await buildPanelApp();
 	await checkPanelApp();
 	console.log('🎉 Build completed.');

@@ -31,6 +31,7 @@ use App\Http\Controllers\ImpersonationController;
 use App\Http\Controllers\Ips\IpController;
 use App\Http\Controllers\Keys\AccessKeyController;
 use App\Http\Controllers\Keys\SshKeyController;
+use App\Http\Controllers\LegacyRedirectController;
 use App\Http\Controllers\Logs\LogController;
 use App\Http\Controllers\Mail\MailAccountController;
 use App\Http\Controllers\Mail\MailActionController;
@@ -69,8 +70,8 @@ use App\Services\Node\NodeAppService;
 use App\Services\Server\ServerSettings;
 use Illuminate\Support\Facades\Route;
 
-// Served under /app/ (ADR-0002). Link with route names only, so the prefix
-// can be dropped at 2.0 without touching views.
+// Served at the root URL since 2.0 (ADR-0002, E8 spec §5). Link with route
+// names only.
 
 // User names as func/main.sh accepts them; domains (IDN too) are checked by
 // the commands, the route only keeps out slashes and spaces.
@@ -597,6 +598,7 @@ Route::middleware('auth.arc')->group(function () {
         Route::middleware('effective-user')->prefix('{user}/{domain}')->group(function () {
             Route::get('/edit', [WebDomainEditController::class, 'edit'])->name('edit');
             Route::get('/logs/{type}', [WebDomainLogController::class, 'show'])->whereIn('type', ['access', 'error'])->name('logs');
+            Route::get('/logs/{type}/download', [WebDomainLogController::class, 'download'])->whereIn('type', ['access', 'error'])->name('logs.download');
             // Quick Install (E7 batch 2 spec §10.2)
             Route::get('/install', [QuickInstallController::class, 'index'])->name('install');
             Route::get('/install/{app}', [QuickInstallController::class, 'form'])->where('app', '[A-Za-z][A-Za-z0-9]{0,63}')->name('install.form');
@@ -618,3 +620,11 @@ Route::middleware('auth.arc')->group(function () {
         });
     });
 });
+
+// Old URLs for one release (E8 spec §5.3): the /app prefix of 1.x and the
+// legacy page paths answer 301. Registered last, so no panel route is shadowed.
+Route::get('/app/{path?}', [LegacyRedirectController::class, 'app'])->where('path', '.*')->name('legacy.app');
+Route::get('/logout', [LegacyRedirectController::class, 'logout'])->name('legacy.logout');
+Route::any('/{legacy}', [LegacyRedirectController::class, 'page'])
+    ->where('legacy', '(list|add|edit|download|generate|fm)(/.*)?')
+    ->name('legacy.page');

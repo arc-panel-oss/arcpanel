@@ -18,7 +18,7 @@ test('user: add a domain, see its DNS records, edit it, add and edit an account,
 		.getByRole('navigation', { name: 'Sections' })
 		.getByRole('link', { name: 'Mail', exact: true })
 		.click();
-	await expect(page).toHaveURL(/\/app\/mail$/);
+	await expect(page).toHaveURL(/\/mail$/);
 	await expect(row(page, KNOWN)).toBeVisible();
 	await expectAccessible(page);
 
@@ -30,13 +30,13 @@ test('user: add a domain, see its DNS records, edit it, add and edit an account,
 		.getByRole('textbox', { name: 'Domain', exact: true })
 		.fill(`www.${ADDED.toUpperCase()}`);
 	await page.getByRole('button', { name: 'Save' }).click();
-	await expect(page).toHaveURL(new RegExp(`/app/mail/${USER}/${escapeRe(ADDED)}/accounts$`));
+	await expect(page).toHaveURL(new RegExp(`/mail/${USER}/${escapeRe(ADDED)}/accounts$`));
 	await expectToast(page, `Mail domain ${ADDED} has been created successfully.`);
 	await expectAccessible(page);
 
 	// DNS hints: A, MX, SPF, DMARC and the DKIM key
 	await page.getByRole('link', { name: 'DNS Records' }).click();
-	await expect(page).toHaveURL(new RegExp(`/app/mail/${USER}/${escapeRe(ADDED)}/dns$`));
+	await expect(page).toHaveURL(new RegExp(`/mail/${USER}/${escapeRe(ADDED)}/dns$`));
 	await expect(page.locator('#mail-dns-0-record')).toHaveValue(`mail.${ADDED}`);
 	await expect(page.locator('input[value="v=DMARC1; p=quarantine; pct=100"]')).toBeVisible();
 	await expect(page.locator('input[value="mail._domainkey"]')).toBeVisible();
@@ -44,7 +44,7 @@ test('user: add a domain, see its DNS records, edit it, add and edit an account,
 	await expectAccessible(page);
 
 	// Edit the general tab: a catch-all address
-	await page.goto(`/app/mail/${USER}/${ADDED}/edit`);
+	await page.goto(`/mail/${USER}/${ADDED}/edit`);
 	await expectAccessible(page);
 	await page.getByRole('textbox', { name: 'Catch-All Email' }).fill('catch@example.net');
 	await page.getByRole('button', { name: 'Save' }).click();
@@ -54,7 +54,7 @@ test('user: add a domain, see its DNS records, edit it, add and edit an account,
 	);
 
 	// Add an account with an alias and a forward; the client panel mirrors it
-	await page.goto(`/app/mail/${USER}/${ADDED}/accounts`);
+	await page.goto(`/mail/${USER}/${ADDED}/accounts`);
 	await page.getByRole('link', { name: 'Add Mail Account' }).click();
 	await expect(page).toHaveURL(/\/accounts\/create$/);
 	await page.getByRole('textbox', { name: 'Account', exact: true }).fill(BOX);
@@ -67,7 +67,7 @@ test('user: add a domain, see its DNS records, edit it, add and edit an account,
 	await page.getByRole('textbox', { name: 'Forward to' }).fill('fwd@example.net');
 	await expectAccessible(page);
 	await page.getByRole('button', { name: 'Save' }).click();
-	await expect(page).toHaveURL(new RegExp(`/app/mail/${USER}/${escapeRe(ADDED)}/accounts$`));
+	await expect(page).toHaveURL(new RegExp(`/mail/${USER}/${escapeRe(ADDED)}/accounts$`));
 	await expectToast(page, `Mail account ${BOX}@${ADDED} has been created successfully.`);
 	await expect(row(page, `${BOX}@${ADDED}`)).toContainText('e2e-alias');
 	await expect(row(page, `${BOX}@${ADDED}`)).toContainText('fwd@example.net');
@@ -87,7 +87,7 @@ test('user: add a domain, see its DNS records, edit it, add and edit an account,
 	);
 
 	// Bulk suspend the account
-	await page.goto(`/app/mail/${USER}/${ADDED}/accounts`);
+	await page.goto(`/mail/${USER}/${ADDED}/accounts`);
 	await page.getByRole('checkbox', { name: `Select ${BOX}@${ADDED}` }).check();
 	await page.locator('.ap-bulk-bar').getByRole('button', { name: 'Suspend', exact: true }).click();
 	await page.getByRole('alertdialog').getByRole('button', { name: 'Suspend', exact: true }).click();
@@ -95,7 +95,7 @@ test('user: add a domain, see its DNS records, edit it, add and edit an account,
 	await expect(row(page, `${BOX}@${ADDED}`)).toContainText('Suspended');
 
 	// Delete the new domain from the row menu
-	await page.goto('/app/mail');
+	await page.goto('/mail');
 	await row(page, ADDED).getByLabel(`Actions for ${ADDED}`).first().click();
 	await row(page, ADDED).getByRole('button', { name: 'Delete', exact: true }).click();
 	await expect(page.getByRole('alertdialog')).toContainText(
@@ -108,13 +108,13 @@ test('user: add a domain, see its DNS records, edit it, add and edit an account,
 
 test('user: another user’s mail domain is not found', async ({ page }) => {
 	await login(page, USER);
-	const response = await page.goto(`/app/mail/${ADMIN}/${KNOWN}/accounts`);
+	const response = await page.goto(`/mail/${ADMIN}/${KNOWN}/accounts`);
 	expect(response.status()).toBe(404);
 });
 
 test('admin: every owner in the list, filter by owner', async ({ page }) => {
 	await login(page, ADMIN);
-	await page.goto('/app/mail');
+	await page.goto('/mail');
 	await expect(row(page, KNOWN)).toContainText(USER);
 	await page.getByLabel('Owner').selectOption(USER);
 	await expect(page).toHaveURL(new RegExp(`owner=${USER}`));
@@ -125,12 +125,12 @@ test('admin: every owner in the list, filter by owner', async ({ page }) => {
 test('legacy mail pages redirect to the panel app', async ({ page }) => {
 	await login(page, USER);
 	await page.goto('/list/mail/');
-	await expect(page).toHaveURL(/\/app\/mail$/);
+	await expect(page).toHaveURL(/\/mail$/);
 	await page.goto(`/list/mail/?domain=${KNOWN}`);
-	await expect(page).toHaveURL(new RegExp(`/app/mail/${USER}/${escapeRe(KNOWN)}/accounts$`));
+	await expect(page).toHaveURL(new RegExp(`/mail/${USER}/${escapeRe(KNOWN)}/accounts$`));
 	await expect(row(page, `info@${KNOWN}`)).toBeVisible();
 	await page.goto(`/list/mail/?domain=${KNOWN}&dns=1`);
-	await expect(page).toHaveURL(new RegExp(`/app/mail/${USER}/${escapeRe(KNOWN)}/dns$`));
+	await expect(page).toHaveURL(new RegExp(`/mail/${USER}/${escapeRe(KNOWN)}/dns$`));
 	// The legacy edit page checks where the request came from
 	await page.goto(`/edit/mail/?domain=${KNOWN}&account=info`, {
 		referer: `${BASE_URL}/list/mail/`,

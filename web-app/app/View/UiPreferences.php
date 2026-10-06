@@ -43,13 +43,19 @@ final class UiPreferences
     }
 
     /**
-     * Legacy themes (web/css/themes): dark → nocturne; default and vestia →
-     * light; flat → light and compact; anything else → nocturne.
+     * THEME holds a panel theme since 2.0 (E8 spec D11). Values of 1.x
+     * servers and users not yet upgraded keep their mapping: dark → nocturne;
+     * default and vestia → light; flat → light and compact; anything else →
+     * nocturne.
      *
      * @return array{0: string, 1: string}
      */
     public static function fromLegacyTheme(?string $legacyTheme): array
     {
+        if (in_array($legacyTheme, self::THEMES, true)) {
+            return [$legacyTheme, 'comfortable'];
+        }
+
         return match ($legacyTheme) {
             'default', 'vestia' => ['light', 'comfortable'],
             'flat' => ['light', 'compact'],

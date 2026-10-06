@@ -12,7 +12,7 @@ test('user: all results of the palette on the search page', async ({ page }) => 
 	await expect(dialog.getByRole('option', { name: new RegExp(SITE) }).first()).toBeVisible();
 	await dialog.getByRole('link', { name: 'View all results' }).click();
 
-	await expect(page).toHaveURL(/\/app\/search\?q=e2e-site$/);
+	await expect(page).toHaveURL(/\/search\?q=e2e-site$/);
 	await expect(page.getByRole('link', { name: new RegExp(SITE) }).first()).toBeVisible();
 	await expectAccessible(page);
 
@@ -25,7 +25,7 @@ test('user: all results of the palette on the search page', async ({ page }) => 
 test('user: generate a CSR into the SSL form of a web domain', async ({ page }) => {
 	test.setTimeout(120_000);
 	await login(page, USER);
-	await page.goto(`/app/web/domains/${USER}/${SITE}/edit`);
+	await page.goto(`/web/domains/${USER}/${SITE}/edit`);
 	await page.getByRole('tab', { name: 'SSL' }).click();
 	const ssl = page.locator('#ssl');
 	await expect(ssl).toBeVisible();

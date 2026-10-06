@@ -25,7 +25,7 @@ test('admin: every tab opens and passes axe', async ({ page }) => {
 		.getByRole('navigation', { name: 'Sections' })
 		.getByRole('link', { name: 'Configure' })
 		.click();
-	await expect(page).toHaveURL(/\/app\/server\/settings\/general$/);
+	await expect(page).toHaveURL(/\/server\/settings\/general$/);
 	for (const name of TABS) {
 		const link = tabs(page).getByRole('link', { name, exact: true });
 		if ((await link.count()) === 0) {
@@ -39,7 +39,7 @@ test('admin: every tab opens and passes axe', async ({ page }) => {
 
 test('admin: change the time zone and back', async ({ page }) => {
 	await login(page, ADMIN);
-	await page.goto('/app/server/settings/general');
+	await page.goto('/server/settings/general');
 	const zone = page.getByRole('combobox', { name: 'Time Zone' });
 	const before = await zone.inputValue();
 	const other = before === 'UTC' ? 'Europe/Berlin' : 'UTC';
@@ -57,7 +57,7 @@ test('admin: change the time zone and back', async ({ page }) => {
 
 test('admin: toggle a user policy and back', async ({ page }) => {
 	await login(page, ADMIN);
-	await page.goto('/app/server/settings/security');
+	await page.goto('/server/settings/security');
 	const policy = page.getByRole('combobox', { name: 'Allow users to delete log history' });
 	const before = await policy.inputValue();
 	const other = before === 'yes' ? 'no' : 'yes';
@@ -78,11 +78,11 @@ test('admin: toggle a user policy and back', async ({ page }) => {
 
 test('admin: the plugin list and the PHP versions show their state', async ({ page }) => {
 	await login(page, ADMIN);
-	await page.goto('/app/server/settings/plugins');
+	await page.goto('/server/settings/plugins');
 	await expect(page.getByRole('row', { name: /Firewall/ })).toContainText(
 		/Installed|Not installed/,
 	);
-	await page.goto('/app/server/settings/web');
+	await page.goto('/server/settings/web');
 	await expect(page.getByText('Default version')).toBeVisible();
 });
 
@@ -91,6 +91,6 @@ test('user: no server settings, 403 on the page', async ({ page }) => {
 	await expect(
 		page.getByRole('navigation', { name: 'Sections' }).getByRole('link', { name: 'Configure' }),
 	).toHaveCount(0);
-	const response = await page.goto('/app/server/settings/general');
+	const response = await page.goto('/server/settings/general');
 	expect(response.status()).toBe(403);
 });

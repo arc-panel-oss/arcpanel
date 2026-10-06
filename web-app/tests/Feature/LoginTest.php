@@ -33,14 +33,14 @@ it('hides the password reset link when the policy disables it', function () {
     $this->get('/login')->assertOk()->assertDontSee('href="'.route('reset').'"', false);
 });
 
-it('logs a user in and lands on the legacy page', function () {
+it('logs a user in and lands on the dashboard', function () {
     bobCanLogIn($this->fake);
 
     $this->get('/login');
     $fingerprint = session('login.fingerprint');
 
     $this->post('/login', ['user' => 'bob', 'password' => 'pw'])
-        ->assertRedirect('/list/web/');
+        ->assertRedirect('/');
 
     $this->session->assertRegenerated();
     expect($this->session->data())->toMatchArray([
@@ -52,10 +52,10 @@ it('logs a user in and lands on the legacy page', function () {
     $this->fake->assertRan('v-log-user-login', fn ($args) => $args[2] === 'success' && $args[3] === $fingerprint);
 });
 
-it('sends an admin to the users list', function () {
+it('sends an admin to the dashboard', function () {
     bobCanLogIn($this->fake, ['ROLE' => 'admin']);
 
-    $this->post('/login', ['user' => 'bob', 'password' => 'pw'])->assertRedirect('/list/user/');
+    $this->post('/login', ['user' => 'bob', 'password' => 'pw'])->assertRedirect('/');
 });
 
 it('shows the legacy error for a wrong password and keeps the user name', function () {
@@ -78,7 +78,7 @@ it('asks for the 2FA code, then logs in', function () {
         ->and(session('pending_2fa'))->not->toHaveKey('password');
     $this->get('/login/2fa')->assertOk()->assertSee('name="twofa"', false);
 
-    $this->post('/login/2fa', ['twofa' => '123456'])->assertRedirect('/list/web/');
+    $this->post('/login/2fa', ['twofa' => '123456'])->assertRedirect('/');
     expect($this->session->data()['user'])->toBe('bob')
         ->and(session('pending_2fa'))->toBeNull();
 });
@@ -118,7 +118,7 @@ it('sends a logged-in user away from the login form', function () {
         'token' => str_repeat('a', 32), 'LAST_ACTIVITY' => time(), 'look' => '',
     ]);
 
-    $this->get('/login')->assertRedirect('/login/');
+    $this->get('/login')->assertRedirect('/');
 });
 
 it('rejects a login form without a CSRF token', function () {

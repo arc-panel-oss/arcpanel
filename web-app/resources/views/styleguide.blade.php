@@ -6,7 +6,7 @@
         '2026/10/05 10:42:19 [error] 123#123: *1 connect() failed (111: Connection refused)',
     ];
 @endphp
-<x-ap-page :title="__('Style guide')" eyebrow="/app/_styleguide" :description="__('Every building block of the panel app. Names match the Blade components in docs/design/05 §5.')"
+<x-ap-page :title="__('Style guide')" eyebrow="/_styleguide" :description="__('Every building block of the panel app. Names match the Blade components in docs/design/05 §5.')"
     :crumbs="[['label' => __('Developer')], ['label' => __('Style guide')]]">
     <x-slot:actions>
         <x-ap-button :href="request()->fullUrlWithQuery(['theme' => 'nocturne'])" size="sm" variant="ghost">Nocturne</x-ap-button>

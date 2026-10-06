@@ -1,8 +1,6 @@
 <?php
 
 use App\Arc\ExitCode;
-use App\Arc\SysConfig;
-use App\Auth\Landing;
 
 beforeEach(function () {
     $this->fake = fakeArc();
@@ -83,12 +81,8 @@ it('shows the user dashboard of the effective user while an admin impersonates',
     $this->get('/')->assertOk()->assertSee('Welcome, bob')->assertSee('Logged in as')->assertDontSee('Recent sign-ins');
 });
 
-it('lands on the dashboard after login when ARCPANEL_APP_PAGES is yes', function () {
-    $this->fake->on('v-list-sys-config', ['json'])->returnsJson(sysConfig(['ARCPANEL_APP_PAGES' => 'yes']));
-    cache()->flush();
-    app()->forgetInstance(SysConfig::class);
+it('sends a logged-in user from the login page to the dashboard', function () {
     signIn('bob', 'user');
 
     $this->get('/login')->assertRedirect('/');
-    expect(Landing::for(userRecord(['ROLE' => 'admin']), true))->toBe('/app/');
 });

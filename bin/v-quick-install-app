@@ -21,8 +21,8 @@ use Symfony\Component\Console\Output\OutputInterface;
 use Hestiacp\quoteshellarg\quoteshellarg;
 
 session_start();
-require_once __DIR__ . "/../web/inc/vendor/autoload.php";
-require_once __DIR__ . "/../web/src/init.php";
+require_once __DIR__ . "/../lib/vendor/autoload.php";
+require_once __DIR__ . "/../lib/quickinstall/init.php";
 
 define("HESTIA_DIR_BIN", "/usr/local/hestia/bin/");
 define("HESTIA_CMD", "/usr/bin/sudo /usr/local/hestia/bin/");
@@ -110,7 +110,7 @@ $application
 	->register("apps")
 	->setDescription("List availble apps")
 	->setCode(function (InputInterface $input, OutputInterface $output): int {
-		$appInstallers = glob(__DIR__ . "/../web/src/app/WebApp/Installers/*/*.php");
+		$appInstallers = glob(__DIR__ . "/../lib/quickinstall/app/WebApp/Installers/*/*.php");
 		$output->writeln("Available Apps");
 		$output->writeln("---------------------------------");
 		foreach ($appInstallers as $appInstaller) {
@@ -120,7 +120,7 @@ $application
 			if (
 				!file_exists(
 					__DIR__ .
-						"/../web/src/app/WebApp/Installers/" .
+						"/../lib/quickinstall/app/WebApp/Installers/" .
 						$app .
 						"/" .
 						$app .

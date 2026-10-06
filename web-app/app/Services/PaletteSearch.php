@@ -92,16 +92,14 @@ final class PaletteSearch
             if (! Capabilities::allows($role, $capability) || $this->isProtectedAdmin($owner)) {
                 continue;
             }
-            // Resellers open their customers' objects in the panel app only
-            // (E11 spec D4): legacy pages have no "login as" for them.
-            $panelUrl = $this->panelUrl($type, $row);
-            if ($role === Role::Reseller && $owner !== $this->principal->effectiveUser() && $panelUrl === null) {
+            $url = $this->panelUrl($type, $row);
+            if ($url === null) {
                 continue;
             }
             $groups[__($label)][] = [
                 'label' => (string) ($row['RESULT'] ?? ''),
                 'meta' => $owner,
-                'url' => $panelUrl ?? $this->objectUrl($type, $row),
+                'url' => $url,
                 'icon' => $icon,
             ];
         }
@@ -110,8 +108,7 @@ final class PaletteSearch
     }
 
     /**
-     * The panel app page of an object whose module has moved (E1-S2, E7),
-     * null while the module is still served by the legacy pages.
+     * The panel app page of an object; null for object kinds without one.
      *
      * @param  array<string, mixed>  $row
      */
@@ -139,39 +136,6 @@ final class PaletteSearch
         return route($route, ['user' => $owner, ...$params]);
     }
 
-    /**
-     * Objects of modules that are still legacy open the legacy edit page,
-     * through "log in as" for another user (templates/pages/list_search.php).
-     *
-     * @param  array<string, mixed>  $row
-     */
-    private function objectUrl(string $type, array $row): string
-    {
-        $owner = (string) $row['USER'];
-        $result = (string) ($row['RESULT'] ?? '');
-        $key = (string) ($row['KEY'] ?? '');
-
-        $query = ['user' => $owner];
-        match ($key) {
-            'RECORD' => $query += ['domain' => $row['PARENT'] ?? '', 'record_id' => $row['LINK'] ?? ''],
-            'ACCOUNT' => $query += ['domain' => $row['PARENT'] ?? '', 'account' => $row['LINK'] ?? ''],
-            'JOB' => $query += ['job' => $row['LINK'] ?? ''],
-            'DATABASE' => $query += ['database' => $result],
-            default => $query[strtolower($key)] = $result,
-        };
-        $edit = '/edit/'.rawurlencode($type).'/?'.http_build_query($query);
-
-        if ($owner === $this->principal->effectiveUser()) {
-            return $edit.'&'.http_build_query(['token' => $this->principal->legacyToken]);
-        }
-
-        return '/login/?'.http_build_query([
-            'loginas' => $owner,
-            'token' => $this->principal->legacyToken,
-            'edit_link' => $edit,
-        ]);
-    }
-
     /** @return list<array{label: string, meta: string, url: string, icon: string}> */
     private function matchingUsers(string $query): array
     {
@@ -187,9 +151,7 @@ final class PaletteSearch
             $items[] = [
                 'label' => $name,
                 'meta' => (string) ($record['NAME'] ?? ''),
-                'url' => Route::has('users.show')
-                    ? route('users.show', ['user' => $name])
-                    : '/edit/user/?'.http_build_query(['user' => $name, 'token' => $this->principal->legacyToken]),
+                'url' => route('users.show', ['user' => $name]),
                 'icon' => 'user',
             ];
         }

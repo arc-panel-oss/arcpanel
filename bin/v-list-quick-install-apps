@@ -5,7 +5,7 @@
 //#
 //# example: v-list-quick-install-apps json
 //#
-//# This function lists the installers of web/src/app/WebApp/Installers:
+//# This function lists the installers of lib/quickinstall/app/WebApp/Installers:
 //# NAME, GROUP, VERSION, THUMBNAIL (a file next to the installer),
 //# PHP_VERSIONS (supported and installed) and INSTALLABLE (yes when one PHP
 //# version fits).

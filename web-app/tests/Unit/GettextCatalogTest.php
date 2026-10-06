@@ -68,10 +68,10 @@ it('reads a compiled .mo file', function () {
     ]);
 });
 
-it('reads the catalogues shipped in web/locale', function () {
-    $mo = base_path('../web/locale/de/LC_MESSAGES/hestiacp.mo');
+it('reads the catalogues shipped in lib/locale', function () {
+    $mo = base_path('../lib/locale/de/LC_MESSAGES/hestiacp.mo');
     if (! is_file($mo)) {
-        $this->markTestSkipped('web/locale is not next to the panel app');
+        $this->markTestSkipped('lib/locale is not next to the panel app');
     }
 
     expect(GettextCatalog::fromFile($mo))->toHaveKey('Username');

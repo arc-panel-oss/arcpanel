@@ -42,7 +42,7 @@ bin/* :: # Hestia SFTP Chroot
 install/upgrade/versions/* :: *
 
 # gettext source reference to a PHP class path, not a message.
-web/locale/hestiacp.pot :: #: ../../web/src/app/System/HestiaApp.php
+lib/locale/hestiacp.pot :: #: ../../web/src/app/System/HestiaApp.php
 
 # Contributor guide explains what the brand check looks for.
 CONTRIBUTING.md :: test/brand-check.sh

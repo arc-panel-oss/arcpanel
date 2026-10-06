@@ -34,6 +34,8 @@ $app = Application::configure(basePath: dirname(__DIR__))
         // The legacy session cookie is PHP's own, never encrypted by Laravel;
         // arc_ui (theme, density) is written by the user menu script.
         $middleware->encryptCookies(except: [(string) ini_get('session.name'), UiPreferences::COOKIE]);
+        // Form posts to legacy page paths answer 404 (E8 spec §5.3), not 419.
+        $middleware->validateCsrfTokens(except: ['list/*', 'add/*', 'edit/*', 'download/*', 'generate/*', 'fm', 'fm/*']);
         $middleware->web(append: [
             ResolvePrincipal::class,
             SetLocale::class,

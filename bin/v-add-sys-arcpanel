@@ -103,15 +103,15 @@ fi
 # installed gettext catalogues (both generated, never shipped)
 "$PHP_BIN" "$APP_DIR/artisan" arcpanel:allow-list --bin="$HESTIA/bin" > /dev/null
 check_result $? "panel app allow-list failed"
-"$PHP_BIN" "$APP_DIR/artisan" arcpanel:i18n-import --locale-dir="$HESTIA/web/locale" > /dev/null
+"$PHP_BIN" "$APP_DIR/artisan" arcpanel:i18n-import --locale-dir="$HESTIA/lib/locale" > /dev/null
 check_result $? "panel app translations failed"
 chown -R "$WEB_USER:$WEB_USER" "$APP_DIR/storage" "$APP_DIR/bootstrap/cache"
 
-# Framework caches, built as the web user. Routes are not cached: with a route
-# cache Laravel trims the trailing slash of /app/ and no longer finds its
-# /app base URL, so the panel app's root page fails (HTTP 405).
+# Framework caches, built as the web user. Routes are cached since the panel
+# app serves the root URL (2.0, E8); under the /app prefix of 1.x a route
+# cache lost the base URL.
 runuser -u "$WEB_USER" -- "$PHP_BIN" "$APP_DIR/artisan" optimize:clear > /dev/null 2>&1
-for cache in config:cache event:cache view:cache; do
+for cache in config:cache event:cache route:cache view:cache; do
 	runuser -u "$WEB_USER" -- "$PHP_BIN" "$APP_DIR/artisan" "$cache" > /dev/null 2>&1
 	check_result $? "panel app $cache failed"
 done

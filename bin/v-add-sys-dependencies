@@ -21,8 +21,8 @@ source "$HESTIA/install/upgrade/upgrade.conf"
 MODE=$1
 user="$ROOT_USER"
 
-PM_INSTALL_DIR="$HESTIA/web/inc"
-QUICK_INSTALL_DIR="$HESTIA/web/src"
+PM_INSTALL_DIR="$HESTIA/lib"
+QUICK_INSTALL_DIR="$HESTIA/lib/quickinstall"
 COMPOSER_BIN="$HOMEDIR/$user/.composer/composer"
 
 #----------------------------------------------------------#

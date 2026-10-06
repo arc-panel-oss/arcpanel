@@ -16,7 +16,7 @@ test('user: add a cron job with the generator, edit it, bulk suspend, unsuspend,
 		.getByRole('navigation', { name: 'Sections' })
 		.getByRole('link', { name: 'Cron Jobs' })
 		.click();
-	await expect(page).toHaveURL(/\/app\/cron$/);
+	await expect(page).toHaveURL(/\/cron$/);
 	await expect(row(page, KNOWN)).toBeVisible();
 	await expectAccessible(page);
 
@@ -33,20 +33,20 @@ test('user: add a cron job with the generator, edit it, bulk suspend, unsuspend,
 	await expect(page.getByRole('textbox', { name: 'Day', exact: true })).toHaveValue('*/3');
 	await expect(page.locator('.ap-cron-preview code')).toHaveText('0 12 */3 * *');
 	await page.getByRole('button', { name: 'Save' }).click();
-	await expect(page).toHaveURL(/\/app\/cron$/);
+	await expect(page).toHaveURL(/\/cron$/);
 	await expectToast(page, 'Cron job has been created successfully.');
 	await expect(row(page, ADDED)).toContainText('*/3');
 
 	// Edit: another hour
 	await page.getByRole('link', { name: ADDED }).click();
-	await expect(page).toHaveURL(new RegExp(`/app/cron/${USER}/\\d+/edit`));
+	await expect(page).toHaveURL(new RegExp(`/cron/${USER}/\\d+/edit`));
 	await page.getByRole('textbox', { name: 'Hour', exact: true }).fill('6');
 	await page.getByRole('button', { name: 'Save' }).click();
 	await expectToast(page, 'Changes have been saved.');
 	await expect(page.getByRole('textbox', { name: 'Hour', exact: true })).toHaveValue('6');
 
 	// Bulk suspend both
-	await page.goto('/app/cron');
+	await page.goto('/cron');
 	await page.getByRole('checkbox', { name: `Select ${KNOWN}` }).check();
 	await page.getByRole('checkbox', { name: `Select ${ADDED}` }).check();
 	await page.locator('.ap-bulk-bar').getByRole('button', { name: 'Suspend', exact: true }).click();
@@ -74,7 +74,7 @@ test('user: add a cron job with the generator, edit it, bulk suspend, unsuspend,
 
 test('user: enable and disable cron e-mail reports', async ({ page }) => {
 	await login(page, USER);
-	await page.goto('/app/cron');
+	await page.goto('/cron');
 	await page.getByRole('button', { name: 'Enable Notifications' }).click();
 	await expectToast(page, 'Cron job email reporting has been successfully enabled.');
 	await page.getByRole('button', { name: 'Disable Notifications' }).click();
@@ -84,13 +84,13 @@ test('user: enable and disable cron e-mail reports', async ({ page }) => {
 
 test('user: another user’s cron job is not found', async ({ page }) => {
 	await login(page, USER);
-	const response = await page.goto(`/app/cron/${ADMIN}/1/edit`);
+	const response = await page.goto(`/cron/${ADMIN}/1/edit`);
 	expect(response.status()).toBe(404);
 });
 
 test('admin: every owner in the list, filter by owner', async ({ page }) => {
 	await login(page, ADMIN);
-	await page.goto('/app/cron');
+	await page.goto('/cron');
 	await expect(row(page, KNOWN)).toContainText(USER);
 	await page.getByLabel('Owner').selectOption(USER);
 	await expect(page).toHaveURL(new RegExp(`owner=${USER}`));
@@ -102,5 +102,5 @@ test('admin: every owner in the list, filter by owner', async ({ page }) => {
 test('legacy cron list redirects to the panel app', async ({ page }) => {
 	await login(page, USER);
 	await page.goto('/list/cron/');
-	await expect(page).toHaveURL(/\/app\/cron$/);
+	await expect(page).toHaveURL(/\/cron$/);
 });

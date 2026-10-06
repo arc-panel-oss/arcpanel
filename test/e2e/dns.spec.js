@@ -18,7 +18,7 @@ test('user: add a zone, add and edit records, bulk delete them, edit the zone, b
 		.getByRole('navigation', { name: 'Sections' })
 		.getByRole('link', { name: 'DNS', exact: true })
 		.click();
-	await expect(page).toHaveURL(/\/app\/dns$/);
+	await expect(page).toHaveURL(/\/dns$/);
 	await expect(row(page, KNOWN)).toBeVisible();
 	await expectAccessible(page);
 
@@ -34,7 +34,7 @@ test('user: add a zone, add and edit records, bulk delete them, edit the zone, b
 		.getByRole('textbox', { name: 'Domain', exact: true })
 		.fill(`www.${ADDED.toUpperCase()}`);
 	await page.getByRole('button', { name: 'Save' }).click();
-	await expect(page).toHaveURL(new RegExp(`/app/dns/${USER}/${escapeRe(ADDED)}/records$`));
+	await expect(page).toHaveURL(new RegExp(`/dns/${USER}/${escapeRe(ADDED)}/records$`));
 	await expectToast(page, `DNS zone ${ADDED} has been created successfully.`);
 	await expectAccessible(page);
 
@@ -88,7 +88,7 @@ test('user: add a zone, add and edit records, bulk delete them, edit the zone, b
 
 	// Edit the zone TTL
 	await page.getByRole('link', { name: 'Edit DNS Domain' }).click();
-	await expect(page).toHaveURL(new RegExp(`/app/dns/${USER}/${escapeRe(ADDED)}/edit$`));
+	await expect(page).toHaveURL(new RegExp(`/dns/${USER}/${escapeRe(ADDED)}/edit$`));
 	await expectAccessible(page);
 	await page.getByRole('textbox', { name: 'TTL' }).fill('3600');
 	await page.getByRole('button', { name: 'Save' }).click();
@@ -96,7 +96,7 @@ test('user: add a zone, add and edit records, bulk delete them, edit the zone, b
 	await expect(page.getByRole('textbox', { name: 'TTL' })).toHaveValue('3600');
 
 	// Bulk suspend both zones
-	await page.goto('/app/dns');
+	await page.goto('/dns');
 	await page.getByRole('checkbox', { name: `Select ${KNOWN}` }).check();
 	await page.getByRole('checkbox', { name: `Select ${ADDED}` }).check();
 	await page.locator('.ap-bulk-bar').getByRole('button', { name: 'Suspend', exact: true }).click();
@@ -127,13 +127,13 @@ test('user: add a zone, add and edit records, bulk delete them, edit the zone, b
 
 test('user: another user’s zone is not found', async ({ page }) => {
 	await login(page, USER);
-	const response = await page.goto(`/app/dns/${ADMIN}/${KNOWN}/records`);
+	const response = await page.goto(`/dns/${ADMIN}/${KNOWN}/records`);
 	expect(response.status()).toBe(404);
 });
 
 test('admin: every owner in the list, filter by owner', async ({ page }) => {
 	await login(page, ADMIN);
-	await page.goto('/app/dns');
+	await page.goto('/dns');
 	await expect(row(page, KNOWN)).toContainText(USER);
 	await page.getByLabel('Owner').selectOption(USER);
 	await expect(page).toHaveURL(new RegExp(`owner=${USER}`));
@@ -144,9 +144,9 @@ test('admin: every owner in the list, filter by owner', async ({ page }) => {
 test('legacy DNS pages redirect to the panel app', async ({ page }) => {
 	await login(page, USER);
 	await page.goto('/list/dns/');
-	await expect(page).toHaveURL(/\/app\/dns$/);
+	await expect(page).toHaveURL(/\/dns$/);
 	await page.goto(`/list/dns/?domain=${KNOWN}`);
-	await expect(page).toHaveURL(new RegExp(`/app/dns/${USER}/${escapeRe(KNOWN)}/records$`));
+	await expect(page).toHaveURL(new RegExp(`/dns/${USER}/${escapeRe(KNOWN)}/records$`));
 	// The legacy add page checks where the request came from
 	await page.goto(`/add/dns/?domain=${KNOWN}`, { referer: `${BASE_URL}/list/dns/` });
 	await expect(page).toHaveURL(/\/records\?add=1$/);

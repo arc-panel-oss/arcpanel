@@ -15,7 +15,7 @@ test('user: dashboard, add a domain, edit General and SSL, bulk suspend, delete'
 	await page.getByRole('link', { name: 'Add Web Domain' }).first().click();
 	await page.getByRole('textbox', { name: 'Domain', exact: true }).fill('e2e-new.example');
 	await page.getByRole('button', { name: 'Save' }).click();
-	await expect(page).toHaveURL(new RegExp(`/app/web/domains/${USER}/e2e-new.example/edit`));
+	await expect(page).toHaveURL(new RegExp(`/web/domains/${USER}/e2e-new.example/edit`));
 	await expectToast(page, 'e2e-new.example');
 
 	// General: one more alias
@@ -46,7 +46,7 @@ test('user: dashboard, add a domain, edit General and SSL, bulk suspend, delete'
 	expect(await page.content()).not.toContain('PRIVATE KEY');
 
 	// Bulk suspend from the list
-	await page.goto('/app/web/domains');
+	await page.goto('/web/domains');
 	await page.getByRole('checkbox', { name: 'Select e2e-bulk.example' }).check();
 	await page.getByRole('checkbox', { name: 'Select e2e-new.example' }).check();
 	await expect(page.locator('.ap-bulk-bar')).toContainText('2 selected');
@@ -66,7 +66,7 @@ test('user: dashboard, add a domain, edit General and SSL, bulk suspend, delete'
 
 test('user: another user’s domain is not found', async ({ page }) => {
 	await login(page, USER);
-	const response = await page.goto(`/app/web/domains/${ADMIN}/anything.example/edit`);
+	const response = await page.goto(`/web/domains/${ADMIN}/anything.example/edit`);
 	expect(response.status()).toBe(404);
 });
 
@@ -103,11 +103,21 @@ test('admin: dashboard, every owner in the list, edit a user’s domain', async 
 
 test('admin: adds a domain for a user', async ({ page }) => {
 	await login(page, ADMIN);
-	await page.goto(`/app/web/domains/create?owner=${USER}`);
+	await page.goto(`/web/domains/create?owner=${USER}`);
 	await page.getByRole('textbox', { name: 'Domain', exact: true }).fill('e2e-admin.example');
 	await page.getByRole('button', { name: 'Save' }).last().click();
-	await expect(page).toHaveURL(new RegExp(`/app/web/domains/${USER}/e2e-admin.example/edit`));
+	await expect(page).toHaveURL(new RegExp(`/web/domains/${USER}/e2e-admin.example/edit`));
 	await page.getByRole('button', { name: 'Delete', exact: true }).click();
 	await page.getByRole('alertdialog').getByRole('button', { name: 'Confirm' }).click();
-	await expect(page).toHaveURL(/\/app\/web\/domains$/);
+	await expect(page).toHaveURL(/\/web\/domains$/);
+});
+
+test('user: downloads the access log of a domain', async ({ page }) => {
+	await login(page, USER);
+	await page.goto(`/web/domains/${USER}/${SITE}/logs/access`);
+	const [download] = await Promise.all([
+		page.waitForEvent('download'),
+		page.getByRole('link', { name: 'Download' }).click(),
+	]);
+	expect(download.suggestedFilename()).toBe(`${SITE}.access-log.txt`);
 });

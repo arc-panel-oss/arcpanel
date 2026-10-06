@@ -92,7 +92,7 @@ const props = (overrides = {}) => ({
 		options: 'php',
 		language: 'ini',
 		alwaysRestart: false,
-		saveUrl: '/app/server/services/php/config',
+		saveUrl: '/server/services/php/config',
 		strings: {},
 		...overrides,
 	},
@@ -128,7 +128,7 @@ describe('service editor', () => {
 		await fireEvent.click(screen.getByRole('button', { name: /Save/ }));
 		await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
 		const [url, init] = fetchMock.mock.calls[0];
-		expect(url).toBe('/app/server/services/php/config');
+		expect(url).toBe('/server/services/php/config');
 		expect(JSON.parse(init.body)).toEqual({ index: 0, content: docs[0], restart: true });
 	});
 

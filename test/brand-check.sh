@@ -24,9 +24,8 @@ OUTPUT_PATTERN='echo|printf|v-add-user-notification|subject|message|title='
 
 # Paths where every line is user-visible.
 FULL_PATHS=(
-	web/templates
-	web/locale/hestiacp.pot
-	web/inc/mail-wrapper.php
+	lib/locale/hestiacp.pot
+	lib/mail-wrapper.php
 	docs
 	README.md
 	CONTRIBUTING.md

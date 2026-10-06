@@ -1,7 +1,7 @@
 Source: arcpanel-nginx
 Package: arcpanel-nginx
 Priority: optional
-Version: 1.30.5
+Version: 1.30.5-2
 Section: admin
 Maintainer: ArcPanel <info@arcpanel.top>
 Homepage: https://arcpanel.top

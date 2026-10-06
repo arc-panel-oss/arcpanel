@@ -21,7 +21,7 @@ test('ports flow from the administrator to a customer and open to the internet',
 	page,
 }) => {
 	await login(page, ADMIN);
-	await page.goto('/app/server/ports');
+	await page.goto('/server/ports');
 	await expect(page.getByRole('heading', { name: 'Ports', level: 1 })).toBeVisible();
 	await expectAccessible(page);
 
@@ -34,7 +34,7 @@ test('ports flow from the administrator to a customer and open to the internet',
 	await expectToast(page, 'Ports have been allocated.');
 
 	await login(page, RESELLER);
-	await page.goto('/app/ports');
+	await page.goto('/ports');
 	await expect(page.getByRole('heading', { name: 'Your pool' })).toBeVisible();
 	await expectAccessible(page);
 	await page.getByRole('button', { name: 'Give ports' }).click();
@@ -46,7 +46,7 @@ test('ports flow from the administrator to a customer and open to the internet',
 	await expect(page.locator('.ap-ports-customers')).toContainText('4 / 0 allocated');
 
 	await login(page, CUSTOMER);
-	await page.goto('/app/ports');
+	await page.goto('/ports');
 	await page.getByRole('button', { name: 'Reserve a port' }).click();
 	const reserve = page.getByRole('dialog', { name: 'Reserve a port' });
 	await reserve.getByLabel('What runs on it').fill('e2e app');
@@ -64,7 +64,7 @@ test('ports flow from the administrator to a customer and open to the internet',
 
 	// The administrator sees the public port with its owner and no drift
 	await login(page, ADMIN);
-	await page.goto('/app/server/ports');
+	await page.goto('/server/ports');
 	const entry = page.locator('#ports tr[data-row]', { hasText: 'e2e app' });
 	await expect(entry).toContainText(CUSTOMER);
 	await expect(entry).toContainText('Public');
@@ -73,15 +73,15 @@ test('ports flow from the administrator to a customer and open to the internet',
 
 test('ports of other tenants stay out of reach', async ({ page }) => {
 	await login(page, CUSTOMER);
-	expect((await page.goto('/app/server/ports'))?.status()).toBe(403);
-	await page.goto('/app/ports');
+	expect((await page.goto('/server/ports'))?.status()).toBe(403);
+	await page.goto('/ports');
 	const token = await page.locator('meta[name="csrf-token"]').getAttribute('content');
-	const response = await page.request.post(`/app/ports/${USER}/reserve`, {
+	const response = await page.request.post(`/ports/${USER}/reserve`, {
 		form: { _token: token ?? '', proto: 'tcp' },
 	});
 	expect(response.status()).toBe(404);
 
 	await login(page, RESELLER);
-	await page.goto('/app/ports');
+	await page.goto('/ports');
 	await expect(page.locator('.ap-ports-customers')).not.toContainText(USER);
 });

@@ -5,7 +5,7 @@ error=false
 current=$1
 
 if [ -z "$current" ]; then
-	current="/usr/local/hestia/web/"
+	current="/usr/local/hestia/lib/"
 fi
 
 if [ ! -d $current ] && [ ! -f $current ]; then
@@ -14,7 +14,7 @@ if [ ! -d $current ] && [ ! -f $current ]; then
 fi
 
 echo "Checking PHP files..."
-for file in $(find $current -type f -name "*.php" -not -path "${current}fm/*"); do
+for file in $(find $current -type f -name "*.php" -not -path "*/vendor/*"); do
 	RESULTS=$(php -l -n $file)
 
 	if [ "$RESULTS" != "No syntax errors detected in $file" ]; then
@@ -24,7 +24,7 @@ for file in $(find $current -type f -name "*.php" -not -path "${current}fm/*"); 
 done
 
 echo "Checking HTML/PHP combined files..."
-for file in $(find $current -type f -name "*.html" -not -path "${current}fm/*"); do
+for file in $(find $current -type f -name "*.html" -not -path "*/vendor/*"); do
 	RESULTS=$(php -l -n $file)
 
 	if [ "$RESULTS" != "No syntax errors detected in $file" ]; then

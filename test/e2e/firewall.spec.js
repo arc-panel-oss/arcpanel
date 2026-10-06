@@ -15,7 +15,7 @@ test('admin: add, edit, move, suspend and delete a firewall rule', async ({ page
 		.getByRole('navigation', { name: 'Sections' })
 		.getByRole('link', { name: 'Firewall' })
 		.click();
-	await expect(page).toHaveURL(/\/app\/server\/firewall$/);
+	await expect(page).toHaveURL(/\/server\/firewall$/);
 	await expect(page.getByRole('heading', { name: 'Firewall' })).toBeVisible();
 	await expectAccessible(page);
 
@@ -28,7 +28,7 @@ test('admin: add, edit, move, suspend and delete a firewall rule', async ({ page
 	await page.getByRole('textbox', { name: 'IP Address / IPset IP List' }).fill('198.51.100.0/24');
 	await page.getByRole('textbox', { name: 'Comment' }).fill(RULE);
 	await page.getByRole('button', { name: 'Save' }).click();
-	await expect(page).toHaveURL(/\/app\/server\/firewall$/);
+	await expect(page).toHaveURL(/\/server\/firewall$/);
 	await expectToast(page, 'Rule has been created successfully.');
 	await expect(row(page, RULE)).toContainText('4444,4445');
 
@@ -38,14 +38,14 @@ test('admin: add, edit, move, suspend and delete a firewall rule', async ({ page
 		.first()
 		.click();
 	await row(page, RULE).getByRole('link', { name: 'Edit Firewall Rule' }).click();
-	await expect(page).toHaveURL(/\/app\/server\/firewall\/\d+\/edit$/);
+	await expect(page).toHaveURL(/\/server\/firewall\/\d+\/edit$/);
 	await page.getByRole('textbox', { name: 'Port', exact: true }).fill('4446');
 	await page.getByRole('button', { name: 'Save' }).click();
 	await expectToast(page, 'Changes have been saved.');
 	await expect(page.getByRole('textbox', { name: 'Port', exact: true })).toHaveValue('4446');
 
 	// Move it up one place
-	await page.goto('/app/server/firewall');
+	await page.goto('/server/firewall');
 	const before = await row(page, RULE).locator('[data-col="pos"]').innerText();
 	await row(page, RULE)
 		.getByLabel(/Actions for rule/)
@@ -73,9 +73,9 @@ test('admin: add, edit, move, suspend and delete a firewall rule', async ({ page
 
 test('admin: add and delete an IPset list', async ({ page }) => {
 	await login(page, ADMIN);
-	await page.goto('/app/server/firewall');
+	await page.goto('/server/firewall');
 	await page.getByRole('link', { name: 'IPset IP Lists' }).click();
-	await expect(page).toHaveURL(/\/app\/server\/firewall\/ipsets$/);
+	await expect(page).toHaveURL(/\/server\/firewall\/ipsets$/);
 	await page.getByRole('link', { name: 'Add IP list' }).first().click();
 	await expectAccessible(page);
 	await page.getByRole('textbox', { name: 'IP List Name' }).fill(LIST);
@@ -87,13 +87,13 @@ test('admin: add and delete an IPset list', async ({ page }) => {
 	await expectAccessible(page);
 
 	// The list is a choice of the rule form
-	await page.goto('/app/server/firewall/create');
+	await page.goto('/server/firewall/create');
 	await page.getByRole('combobox', { name: 'IPset IP Lists' }).selectOption(`ipset:${LIST}`);
 	await expect(page.getByRole('textbox', { name: 'IP Address / IPset IP List' })).toHaveValue(
 		`ipset:${LIST}`,
 	);
 
-	await page.goto('/app/server/firewall/ipsets');
+	await page.goto('/server/firewall/ipsets');
 	await row(page, LIST)
 		.getByRole('button', { name: `Delete ${LIST}` })
 		.click();
@@ -104,9 +104,9 @@ test('admin: add and delete an IPset list', async ({ page }) => {
 
 test('admin: ban and unban an address', async ({ page }) => {
 	await login(page, ADMIN);
-	await page.goto('/app/server/firewall');
+	await page.goto('/server/firewall');
 	await page.getByRole('link', { name: 'Banned IP Addresses' }).click();
-	await expect(page).toHaveURL(/\/app\/server\/firewall\/bans$/);
+	await expect(page).toHaveURL(/\/server\/firewall\/bans$/);
 	await page.getByRole('link', { name: 'Ban IP Address' }).first().click();
 	await page.getByRole('textbox', { name: 'IP Address' }).fill(BANNED);
 	await page.getByRole('combobox', { name: 'Banlist' }).selectOption('SSH');
@@ -128,6 +128,6 @@ test('user: no firewall in the menu, 403 on the page', async ({ page }) => {
 	await expect(
 		page.getByRole('navigation', { name: 'Sections' }).getByRole('link', { name: 'Firewall' }),
 	).toHaveCount(0);
-	const response = await page.goto('/app/server/firewall');
+	const response = await page.goto('/server/firewall');
 	expect(response.status()).toBe(403);
 });

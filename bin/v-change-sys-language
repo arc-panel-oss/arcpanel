@@ -30,7 +30,7 @@ is_language_valid() {
 			log_event "$E_INVALID" "$ARGUMENTS"
 			exit $E_INVALID
 		fi
-		if [ ! -d "$HESTIA/web/locale/$1" ]; then
+		if [ ! -d "$HESTIA/lib/locale/$1" ]; then
 			echo "Error: language $1 doesn't exist"
 			log_event "$E_NOTEXIST" "$ARGUMENTS"
 			exit $E_NOTEXIST

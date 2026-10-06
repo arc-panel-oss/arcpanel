@@ -27,37 +27,37 @@ source_conf "$HESTIA/conf/hestia.conf"
 #----------------------------------------------------------#
 
 if [ "$reset" = "yes" ]; then
-	rm -rf "$HESTIA/web/images/custom/"
+	rm -rf "$HESTIA/data/white-label/"
 fi
 
-if [ -f "$HESTIA/web/images/custom/logo.svg" ]; then
-	cp -f "$HESTIA/web/images/custom/logo.svg" "$HESTIA/web/images/logo.svg"
-elif [ ! -f "$HESTIA/web/images/custom/logo.svg" ] && [ "$download" = "yes" ]; then
-	download_file "https://raw.githubusercontent.com/arc-panel-oss/arcpanel/release/web/images/logo.svg" "$HESTIA/web/images/logo.svg"
+if [ -f "$HESTIA/data/white-label/logo.svg" ]; then
+	cp -f "$HESTIA/data/white-label/logo.svg" "$HESTIA/lib/images/logo.svg"
+elif [ ! -f "$HESTIA/data/white-label/logo.svg" ] && [ "$download" = "yes" ]; then
+	download_file "https://raw.githubusercontent.com/arc-panel-oss/arcpanel/release/lib/images/logo.svg" "$HESTIA/lib/images/logo.svg"
 fi
 
-if [ -f "$HESTIA/web/images/custom/logo.png" ]; then
-	cp -f "$HESTIA/web/images/custom/logo.png" "$HESTIA/web/images/logo.png"
-elif [ ! -f "$HESTIA/web/images/custom/logo.png" ] && [ "$download" = "yes" ]; then
-	download_file "https://raw.githubusercontent.com/arc-panel-oss/arcpanel/release/web/images/logo.png" "$HESTIA/web/images/logo.png"
+if [ -f "$HESTIA/data/white-label/logo.png" ]; then
+	cp -f "$HESTIA/data/white-label/logo.png" "$HESTIA/lib/images/logo.png"
+elif [ ! -f "$HESTIA/data/white-label/logo.png" ] && [ "$download" = "yes" ]; then
+	download_file "https://raw.githubusercontent.com/arc-panel-oss/arcpanel/release/lib/images/logo.png" "$HESTIA/lib/images/logo.png"
 fi
 
-if [ -f "$HESTIA/web/images/custom/logo-header.svg" ]; then
-	cp -f "$HESTIA/web/images/custom/logo-header.svg" "$HESTIA/web/images/logo-header.svg"
-elif [ ! -f "$HESTIA/web/images/custom/logo-header.svg" ] && [ "$download" = "yes" ]; then
-	download_file "https://raw.githubusercontent.com/arc-panel-oss/arcpanel/release/web/images/logo-header.svg" "$HESTIA/web/images/logo-header.svg"
+if [ -f "$HESTIA/data/white-label/logo-header.svg" ]; then
+	cp -f "$HESTIA/data/white-label/logo-header.svg" "$HESTIA/lib/images/logo-header.svg"
+elif [ ! -f "$HESTIA/data/white-label/logo-header.svg" ] && [ "$download" = "yes" ]; then
+	download_file "https://raw.githubusercontent.com/arc-panel-oss/arcpanel/release/lib/images/logo-header.svg" "$HESTIA/lib/images/logo-header.svg"
 fi
 
-if [ -f "$HESTIA/web/images/custom/favicon.png" ]; then
-	cp -f "$HESTIA/web/images/custom/favicon.png" "$HESTIA/web/images/favicon.png"
-elif [ ! -f "$HESTIA/web/images/custom/favicon.png" ] && [ "$download" = "yes" ]; then
-	download_file "https://raw.githubusercontent.com/arc-panel-oss/arcpanel/release/web/images/favicon.png" "$HESTIA/web/images/favicon.png"
+if [ -f "$HESTIA/data/white-label/favicon.png" ]; then
+	cp -f "$HESTIA/data/white-label/favicon.png" "$HESTIA/lib/images/favicon.png"
+elif [ ! -f "$HESTIA/data/white-label/favicon.png" ] && [ "$download" = "yes" ]; then
+	download_file "https://raw.githubusercontent.com/arc-panel-oss/arcpanel/release/lib/images/favicon.png" "$HESTIA/lib/images/favicon.png"
 fi
 
-if [ -f "$HESTIA/web/images/custom/favicon.ico" ]; then
-	cp -f "$HESTIA/web/images/custom/favicon.ico" "$HESTIA/web/favicon.ico"
-elif [ ! -f "$HESTIA/web/images/custom/favicon.ico" ] && [ "$download" = "yes" ]; then
-	download_file "https://raw.githubusercontent.com/arc-panel-oss/arcpanel/release/web/favicon.ico" "$HESTIA/web/favicon.ico"
+if [ -f "$HESTIA/data/white-label/favicon.ico" ]; then
+	cp -f "$HESTIA/data/white-label/favicon.ico" "$HESTIA/lib/images/favicon.ico"
+elif [ ! -f "$HESTIA/data/white-label/favicon.ico" ] && [ "$download" = "yes" ]; then
+	download_file "https://raw.githubusercontent.com/arc-panel-oss/arcpanel/release/lib/images/favicon.ico" "$HESTIA/lib/images/favicon.ico"
 fi
 
 #----------------------------------------------------------#

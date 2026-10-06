@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { data, jsonResponse, mount, unmount } from './helpers.js';
 
 const markup = `
-<div id="tray" x-data="apNotifications({ url: '/app/_notifications' })">
+<div id="tray" x-data="apNotifications({ url: '/_notifications' })">
 	<span id="count" x-text="unread"></span>
 </div>
 <div data-toast-region></div>`;
@@ -41,7 +41,7 @@ describe('apNotifications', () => {
 	it('loads the list and counts unread notifications', async () => {
 		mount(markup);
 		await vi.advanceTimersByTimeAsync(0);
-		expect(fetchMock).toHaveBeenCalledWith('/app/_notifications', expect.objectContaining({ method: 'GET' }));
+		expect(fetchMock).toHaveBeenCalledWith('/_notifications', expect.objectContaining({ method: 'GET' }));
 		expect(tray().items).toHaveLength(3);
 		expect(tray().loaded).toBe(true);
 		expect(tray().unread).toBe(2);
@@ -90,7 +90,7 @@ describe('apNotifications', () => {
 		await tray().acknowledge(item);
 
 		const [url, options] = fetchMock.mock.calls.at(-1);
-		expect(url).toBe('/app/_notifications/1/acknowledge');
+		expect(url).toBe('/_notifications/1/acknowledge');
 		expect(options.method).toBe('POST');
 		expect(options.headers['X-CSRF-TOKEN']).toBe('csrf-123');
 		expect(tray().items[0].acknowledged).toBe(true);
@@ -103,7 +103,7 @@ describe('apNotifications', () => {
 		await tray().remove(tray().items[2]);
 
 		const [url, options] = fetchMock.mock.calls.at(-1);
-		expect(url).toBe('/app/_notifications/7');
+		expect(url).toBe('/_notifications/7');
 		expect(options.method).toBe('DELETE');
 		expect(options.headers['X-CSRF-TOKEN']).toBe('csrf-123');
 		expect(tray().items.map((item) => item.id)).toEqual([1, 5]);
@@ -128,7 +128,7 @@ describe('apNotifications', () => {
 		await tray().acknowledgeAll();
 
 		const [url, options] = fetchMock.mock.calls.at(-1);
-		expect(url).toBe('/app/_notifications/acknowledge');
+		expect(url).toBe('/_notifications/acknowledge');
 		expect(options.method).toBe('POST');
 		expect(options.headers['X-CSRF-TOKEN']).toBe('csrf-123');
 		expect(tray().unread).toBe(0);
@@ -141,7 +141,7 @@ describe('apNotifications', () => {
 		await tray().removeAll();
 
 		const [url, options] = fetchMock.mock.calls.at(-1);
-		expect(url).toBe('/app/_notifications');
+		expect(url).toBe('/_notifications');
 		expect(options.method).toBe('DELETE');
 		expect(tray().items).toEqual([]);
 	});

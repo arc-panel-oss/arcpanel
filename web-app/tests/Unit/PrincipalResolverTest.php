@@ -2,7 +2,6 @@
 
 use App\Arc\SysConfig;
 use App\Auth\ArrayLegacySession;
-use App\Auth\Landing;
 use App\Auth\PrincipalResolver;
 use App\Auth\Role;
 
@@ -163,13 +162,3 @@ it('creates a legacy token when the session has none', function () {
     expect($principal->legacyToken)->toMatch('/^[0-9a-f]{32}$/')
         ->and($session->data()['token'])->toBe($principal->legacyToken);
 });
-
-it('lands users on the first module their package has', function (array $user, string $url) {
-    expect(Landing::for(userRecord($user)))->toBe($url);
-})->with([
-    'admin' => [['ROLE' => 'admin'], '/list/user/'],
-    'web' => [[], '/list/web/'],
-    'dns only' => [['WEB_DOMAINS' => '0'], '/list/dns/'],
-    'backups only' => [['WEB_DOMAINS' => '0', 'DNS_DOMAINS' => '0', 'MAIL_DOMAINS' => '0', 'DATABASES' => '0', 'CRON_JOBS' => '0'], '/list/backup/'],
-    'nothing' => [['WEB_DOMAINS' => '0', 'DNS_DOMAINS' => '0', 'MAIL_DOMAINS' => '0', 'DATABASES' => '0', 'CRON_JOBS' => '0', 'BACKUPS' => '0'], '/error/'],
-]);

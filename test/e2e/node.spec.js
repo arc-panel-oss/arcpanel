@@ -94,15 +94,15 @@ test('a user without Node.js in the package has no entry and cannot change anyth
 		page.getByRole('navigation', { name: 'Sections' }).getByRole('link', { name: 'Node.js' }),
 	).toHaveCount(0);
 
-	await page.goto('/app/node');
-	await expect(page).toHaveURL(new RegExp(`/app/node/${USER}$`));
+	await page.goto('/node');
+	await expect(page).toHaveURL(new RegExp(`/node/${USER}$`));
 	await expect(page.getByText('Node.js is not included in your package.').first()).toBeVisible();
 	await expect(page.getByRole('button', { name: 'Enable Node.js' })).toHaveCount(0);
 	await expectAccessible(page);
 
 	const status = await page.evaluate(async (user) => {
 		const token = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
-		const response = await fetch(`/app/node/${user}/api/enable`, {
+		const response = await fetch(`/node/${user}/api/enable`, {
 			method: 'POST',
 			headers: { Accept: 'application/json', 'X-CSRF-TOKEN': token },
 		});
@@ -110,6 +110,6 @@ test('a user without Node.js in the package has no entry and cannot change anyth
 	}, USER);
 	expect(status).toBe(403);
 
-	const other = await page.request.get(`/app/node/${DEV}`);
+	const other = await page.request.get(`/node/${DEV}`);
 	expect(other.status()).toBe(404);
 });

@@ -2,15 +2,15 @@
 /**
  * Shared bootstrap of the Quick Install commands (E7 batch 2 spec §10.1):
  * v-list-quick-install-apps, v-list-quick-install-app-options and
- * v-add-web-domain-app. The installer classes live in web/src (moved out of
- * web/ by E8) and read the panel session; these helpers give them what they
- * expect when they run from the command line.
+ * v-add-web-domain-app. The installer classes live in lib/quickinstall (moved
+ * out of web/src by E8) and read the panel session; these helpers give them
+ * what they expect when they run from the command line.
  */
 
 declare(strict_types=1);
 
-require_once __DIR__ . "/../web/inc/vendor/autoload.php";
-require_once __DIR__ . "/../web/src/init.php";
+require_once __DIR__ . "/../lib/vendor/autoload.php";
+require_once __DIR__ . "/../lib/quickinstall/init.php";
 
 if (!defined("HESTIA_DIR_BIN")) {
 	define("HESTIA_DIR_BIN", "/usr/local/hestia/bin/");
@@ -24,9 +24,9 @@ const QI_E_INVALID = 2;
 const QI_E_NOTEXIST = 3;
 const QI_E_FORBIDEN = 8;
 
-/** Installer folders: web/src/app/WebApp/Installers/<App>/<App>Setup.php */
+/** Installer folders: lib/quickinstall/app/WebApp/Installers/<App>/<App>Setup.php */
 function qi_installers_dir(): string {
-	return __DIR__ . "/../web/src/app/WebApp/Installers";
+	return __DIR__ . "/../lib/quickinstall/app/WebApp/Installers";
 }
 
 /** Print "Error: …" as the shell commands do and exit with CODE. */

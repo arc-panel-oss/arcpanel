@@ -202,7 +202,7 @@ upgrade_send_notification_to_email() {
 	if [ "$UPGRADE_SEND_EMAIL" = "true" ]; then
 		# Retrieve admin email address, sendmail path, and message temp file path
 		admin_email=$($BIN/v-list-user "$ROOT_USER" json | grep "CONTACT" | cut -d'"' -f4)
-		send_mail="$HESTIA/web/inc/mail-wrapper.php"
+		send_mail="$HESTIA/lib/mail-wrapper.php"
 		message_tmp_file="/tmp/hestia-upgrade-complete.txt"
 
 		# Create temporary file
@@ -242,7 +242,7 @@ upgrade_send_notification_to_email() {
 upgrade_send_log_to_email() {
 	if [ "$UPGRADE_SEND_EMAIL_LOG" = "true" ]; then
 		admin_email=$($BIN/v-list-user $ROOT_USER json | grep "CONTACT" | cut -d'"' -f4)
-		send_mail="$HESTIA/web/inc/mail-wrapper.php"
+		send_mail="$HESTIA/lib/mail-wrapper.php"
 		cat $LOG | $send_mail -s "ArcPanel Update Installation Log - v${arcpanel_new_version:-$new_version}" $admin_email
 	fi
 }
@@ -667,40 +667,9 @@ upgrade_phpmyadmin() {
 }
 
 upgrade_filemanager() {
-	FILE_MANAGER_CHECK=$(cat $HESTIA/conf/hestia.conf | grep "FILE_MANAGER='false'")
-	if [ -z "$FILE_MANAGER_CHECK" ]; then
-		if [ -f "$HESTIA/web/fm/version" ]; then
-			fm_version=$(cat $HESTIA/web/fm/version)
-		else
-			fm_version="1.0.0"
-		fi
-		if ! version_ge "$fm_version" "$fm_v"; then
-			echo "[ ! ] Upgrading File Manager to version $fm_v..."
-			# Reinstall the File Manager
-			$BIN/v-delete-sys-filemanager quiet yes
-			$BIN/v-add-sys-filemanager quiet
-		else
-			echo "[ * ] File Manager is up to date ($fm_v)..."
-
-			if [ "$UPGRADE_UPDATE_FILEMANAGER_CONFIG" = "true" ]; then
-				if [ -e "$HESTIA/web/fm/configuration.php" ]; then
-					echo "[ ! ] Updating File Manager configuration..."
-					# Update configuration.php
-					cp -f $HESTIA_INSTALL_DIR/filemanager/filegator/configuration.php $HESTIA/web/fm/configuration.php
-
-					# Path to the file manager configuration file where the change will be made.
-					config_file="$HESTIA/web/fm/configuration.php"
-					app_name="File Manager - $APP_NAME"
-
-					# Sed replaces only the value after "File Manager -"
-					sed -i "s|\(\$dist_config\[\"frontend_config\"\]\[\"app_name\"\] = \"File Manager - \).*\";|\1${APP_NAME}\";|" "$config_file"
-
-					# Set environment variable for interface
-					$BIN/v-change-sys-config-value 'FILE_MANAGER' 'true'
-				fi
-			fi
-		fi
-	fi
+	# ArcPanel 2.0 (E8): the file manager ships with the panel app; FileGator is
+	# no longer installed or upgraded, and the 2.0.0 step removes its files.
+	:
 }
 
 upgrade_roundcube() {

@@ -14,7 +14,7 @@ test('user: create an access key, see the secret once, delete it', async ({ page
 		.getByRole('navigation', { name: 'Sections' })
 		.getByRole('link', { name: 'Access keys' })
 		.click();
-	await expect(page).toHaveURL(new RegExp(`/app/access-keys/${USER}$`));
+	await expect(page).toHaveURL(new RegExp(`/access-keys/${USER}$`));
 	await expectAccessible(page);
 
 	await page.getByRole('link', { name: 'Add Access Key' }).first().click();
@@ -28,7 +28,7 @@ test('user: create an access key, see the secret once, delete it', async ({ page
 	expect(secret.length).toBeGreaterThan(20);
 	await expectAccessible(page);
 	// The address became the key page: reloading shows no secret and posts nothing
-	await expect(page).toHaveURL(new RegExp(`/app/access-keys/${USER}/[A-Za-z0-9]{20}$`));
+	await expect(page).toHaveURL(new RegExp(`/access-keys/${USER}/[A-Za-z0-9]{20}$`));
 	await page.reload();
 	await expect(page.getByText('Warning! Last chance to save secret key!')).toHaveCount(0);
 	await expect(page.getByText(secret)).toHaveCount(0);
@@ -51,7 +51,7 @@ test('user: add and delete an SSH key', async ({ page }) => {
 		.getByRole('navigation', { name: 'Sections' })
 		.getByRole('link', { name: 'SSH keys' })
 		.click();
-	await expect(page).toHaveURL(new RegExp(`/app/ssh-keys/${USER}$`));
+	await expect(page).toHaveURL(new RegExp(`/ssh-keys/${USER}$`));
 	await expectAccessible(page);
 
 	await page.getByRole('button', { name: 'Add SSH Key' }).first().click();

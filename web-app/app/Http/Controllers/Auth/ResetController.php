@@ -31,9 +31,24 @@ final class ResetController extends Controller
         private readonly SysConfig $config,
     ) {}
 
-    public function show(): View
+    /**
+     * The request form. The links of the reset e-mail keep the 1.x form
+     * (/reset/?action=confirm&user=…&code=…, also in templates that
+     * administrators customised), so ?action= leads to the matching step.
+     */
+    public function show(Request $request): View|RedirectResponse
     {
         $this->requireEnabled();
+
+        $action = (string) $request->query('action', '');
+        $user = (string) $request->query('user', '');
+        $code = (string) $request->query('code', '');
+        if ($action === 'confirm' && $user !== '' && $code !== '') {
+            return redirect()->route('reset.confirm', ['user' => $user, 'code' => $code]);
+        }
+        if ($action === 'code') {
+            return redirect()->route('reset.code', ['user' => $user]);
+        }
 
         return $this->page('auth.reset');
     }

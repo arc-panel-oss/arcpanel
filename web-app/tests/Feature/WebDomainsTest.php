@@ -360,7 +360,7 @@ it('shows the access and error log, and returns JSON for the refresh button', fu
     $this->fake->on('v-list-web-domain-accesslog', ['bob', 'example.com'])->returns("203.0.113.7 - - \"GET / HTTP/2.0\" 200 512\n");
     $this->fake->on('v-list-web-domain-errorlog', ['bob', 'example.com'])->returns("[error] boom\n");
 
-    $this->get('/web/domains/bob/example.com/logs/access')->assertOk()->assertSee('GET / HTTP/2.0')->assertSee('/download/web-log/');
+    $this->get('/web/domains/bob/example.com/logs/access')->assertOk()->assertSee('GET / HTTP/2.0')->assertSee('/web/domains/bob/example.com/logs/access/download');
     $this->getJson('/web/domains/bob/example.com/logs/error')->assertOk()->assertExactJson(['lines' => ['[error] boom']]);
     $this->get('/web/domains/bob/example.com/logs/other')->assertNotFound();
     $this->get('/web/domains/carol/carol.example/logs/access')->assertNotFound();

@@ -47,7 +47,7 @@ it('impersonates from the user switcher', function () {
     $this->fake->on('v-log-action')->returns();
     $session = signIn('arcadmin', 'admin');
 
-    $this->post('/impersonate', ['user' => 'bob'])->assertRedirect('/login/');
+    $this->post('/impersonate', ['user' => 'bob'])->assertRedirect('/');
     expect($session->data()['look'])->toBe('bob');
 
     $this->post('/impersonate', ['user' => 'bad user'])->assertSessionHasErrors('user');

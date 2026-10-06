@@ -10,7 +10,7 @@
 		":disableDependencyDashboard",
 		"customManagers:biomeVersions"
 	],
-	"ignorePaths": ["**/node_modules/**", "install/deb/filemanager/filegator/composer.json"],
+	"ignorePaths": ["**/node_modules/**"],
 	"rangeStrategy": "bump",
 	"reviewers": ["jaapmarcus"]
 }

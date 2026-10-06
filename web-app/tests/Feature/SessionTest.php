@@ -31,13 +31,12 @@ it('logs out of both apps', function () {
     $this->fake->assertRan('v-log-user-logout', fn ($args) => $args === ['bob', str_repeat('e', 32)]);
 });
 
-it('lets an admin impersonate a user, as the legacy ?loginas= does', function () {
-    $session = ArrayLegacySession::install(sessionOf('arcadmin', 'admin', ['_sf2_meta' => 'x']));
+it('lets an admin impersonate a user through the session key look', function () {
+    $session = ArrayLegacySession::install(sessionOf('arcadmin', 'admin'));
 
-    $this->post('/impersonate/bob')->assertRedirect('/login/');
+    $this->post('/impersonate/bob')->assertRedirect('/');
 
-    expect($session->data()['look'])->toBe('bob')
-        ->and($session->data())->not->toHaveKey('_sf2_meta');
+    expect($session->data()['look'])->toBe('bob');
     $this->fake->assertRan('v-log-action', fn ($args) => $args === ['arcadmin', 'Info', 'Security', 'Logged in as another user (User: bob)']);
     $this->fake->assertRan('v-log-action', fn ($args) => $args === ['system', 'Warning', 'Security', 'User impersonation session started (User: bob, Administrator: arcadmin)']);
 });

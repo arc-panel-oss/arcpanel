@@ -20,7 +20,7 @@ test('user: archives list, detail and a restore of one object', async ({ page })
 		.getByRole('navigation', { name: 'Sections' })
 		.getByRole('link', { name: 'Backups' })
 		.click();
-	await expect(page).toHaveURL(new RegExp(`/app/backups/${BACKUP_USER}$`));
+	await expect(page).toHaveURL(new RegExp(`/backups/${BACKUP_USER}$`));
 	const archive = page.getByRole('link', { name: new RegExp(`^${BACKUP_USER}\\.`) }).first();
 	await expect(archive).toBeVisible();
 	await expectAccessible(page);
@@ -36,7 +36,7 @@ test('user: archives list, detail and a restore of one object', async ({ page })
 
 test('user: exclusions keep their lines and the toggle list', async ({ page }) => {
 	await login(page, BACKUP_USER);
-	await page.goto(`/app/backups/${BACKUP_USER}/exclusions`);
+	await page.goto(`/backups/${BACKUP_USER}/exclusions`);
 	await expectAccessible(page);
 	await page.getByLabel('User Directories').fill('tmp/cache');
 	await page.getByRole('button', { name: 'Save' }).click();
@@ -51,7 +51,7 @@ test('user: exclusions keep their lines and the toggle list', async ({ page }) =
 test('user: browse a snapshot and restore one file', async ({ page }) => {
 	runOnServer(['backups-change-file']);
 	await login(page, BACKUP_USER);
-	await page.goto(`/app/backups/${BACKUP_USER}/snapshots`);
+	await page.goto(`/backups/${BACKUP_USER}/snapshots`);
 	await expectAccessible(page);
 	const row = page.getByRole('row').nth(1);
 	await row
@@ -60,7 +60,7 @@ test('user: browse a snapshot and restore one file', async ({ page }) => {
 		.click();
 	await row.getByRole('link', { name: 'Browse Files' }).click();
 
-	await expect(page).toHaveURL(/\/app\/files\/arce2ebackup\?snapshot=[0-9a-f]+/);
+	await expect(page).toHaveURL(/\/files\/arce2ebackup\?snapshot=[0-9a-f]+/);
 	await expect(page.getByText(/read-only/)).toBeVisible();
 	await page.getByRole('link', { name: 'tmp', exact: true }).first().click();
 	await page.getByRole('link', { name: 'e2e-note.txt' }).first().click();
@@ -74,12 +74,12 @@ test('user: browse a snapshot and restore one file', async ({ page }) => {
 
 test('another user’s backups are not found', async ({ page }) => {
 	await login(page, USER);
-	const response = await page.goto(`/app/backups/${BACKUP_USER}`);
+	const response = await page.goto(`/backups/${BACKUP_USER}`);
 	expect(response.status()).toBe(404);
 });
 
 test('legacy backup list redirects to the panel app', async ({ page }) => {
 	await login(page, BACKUP_USER);
 	await page.goto('/list/backup/');
-	await expect(page).toHaveURL(new RegExp(`/app/backups/${BACKUP_USER}$`));
+	await expect(page).toHaveURL(new RegExp(`/backups/${BACKUP_USER}$`));
 });

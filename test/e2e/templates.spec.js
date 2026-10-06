@@ -15,7 +15,7 @@ test('admin adds a Node.js domain from the card picker with a pool port', async 
 	runOnServer(['ports', `${PORT}-39904`]);
 
 	await login(page, ADMIN);
-	await page.goto(`/app/web/domains/create?owner=${USER}`);
+	await page.goto(`/web/domains/create?owner=${USER}`);
 	await page.getByRole('textbox', { name: 'Domain', exact: true }).fill(DOMAIN);
 	await page.getByText('Advanced Options').click();
 
@@ -33,7 +33,7 @@ test('admin adds a Node.js domain from the card picker with a pool port', async 
 	await expectAccessible(page);
 
 	await page.getByRole('button', { name: 'Save' }).click();
-	await expect(page).toHaveURL(new RegExp(`/app/web/domains/${USER}/${DOMAIN}/edit`));
+	await expect(page).toHaveURL(new RegExp(`/web/domains/${USER}/${DOMAIN}/edit`));
 	await expectToast(page, DOMAIN);
 	await expect(page.locator('.ap-entity')).toContainText('Node.js app');
 	await expect(page.locator('.ap-entity')).toContainText(`Port ${PORT}`);

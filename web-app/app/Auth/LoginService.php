@@ -133,10 +133,6 @@ final class LoginService
             'token' => $context->fingerprint,
             'language' => $language,
             'userTheme' => $this->config->is('POLICY_USER_CHANGE_THEME') ? ($user['THEME'] ?? '') : null,
-            'userSortOrder' => ($user['PREF_UI_SORT'] ?? '') !== '' ? $user['PREF_UI_SORT'] : 'name',
-            // Leftovers of a legacy login attempt in the same session
-            'login' => null,
-            'failed_twofa' => null,
         ];
     }
 

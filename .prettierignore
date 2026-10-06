@@ -28,11 +28,8 @@
 # Exclude bats submodules if present
 /test/test_helper/*
 
-# Web templates (for now)
-web/templates/
-
-# Modern Web (handled by PHPCS)
-web/src/
+# Quick Install library (handled by PHPCS)
+lib/quickinstall/
 
 # Panel app (handled by Laravel Pint)
 web-app/

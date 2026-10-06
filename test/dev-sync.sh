@@ -63,16 +63,18 @@ sync_tree --delete \
 	"$SRC/web-app/" "$HESTIA/web-app/"
 sync_tree --ignore-existing "$SRC/web-app/storage/" "$HESTIA/web-app/storage/"
 
-# Legacy app, CLI and installer files: overwrite, never delete (the server
-# holds build output and vendor directories that are not in the checkout).
-sync_tree --exclude 'vendor/' --exclude '/fm/' "$SRC/web/" "$HESTIA/web/"
+# Libraries of the commands (E8): mirror the source, keep the vendor
+# directories that Composer installs on the server.
+mkdir -p "$HESTIA/lib"
+sync_tree --delete --exclude '/vendor/' --exclude '/quickinstall/vendor/' "$SRC/lib/" "$HESTIA/lib/"
+# CLI and installer files: overwrite, never delete.
 sync_tree "$SRC/bin/" "$HESTIA/bin/"
 sync_tree "$SRC/func/" "$HESTIA/func/"
 sync_tree "$SRC/install/" "$HESTIA/install/"
 # The Docker app catalog (E4) mirrors the checkout: removed apps go away
 mkdir -p "$HESTIA/install/common/apps"
 sync_tree --delete "$SRC/install/common/apps/" "$HESTIA/install/common/apps/"
-chmod 755 "$HESTIA"/bin/* "$HESTIA/web-app/artisan" "$HESTIA/web/inc/mail-wrapper.php"
+chmod 755 "$HESTIA"/bin/* "$HESTIA/web-app/artisan" "$HESTIA/lib/mail-wrapper.php"
 find "$HESTIA/install" -name '*.sh' -exec chmod 755 {} +
 chmod 644 "$HESTIA"/install/*.sh
 
@@ -97,17 +99,17 @@ if [ "$composer_step" = yes ]; then
 	# Dev dependencies are kept so the test suite can run on the server.
 	composer install --working-dir="$HESTIA/web-app" --no-interaction --no-progress --quiet
 fi
+for dir in "$HESTIA/lib" "$HESTIA/lib/quickinstall"; do
+	if [ "$composer_step" = yes ] || [ ! -d "$dir/vendor" ]; then
+		COMPOSER_ALLOW_SUPERUSER=1 composer install --working-dir="$dir" --no-dev --no-interaction --no-progress --quiet
+	fi
+done
 
 "$HESTIA/bin/v-add-sys-arcpanel"
 
-# Servers installed before the panel app existed: turn its login and pages
-# on once, keep an administrator's later "no".
-if ! grep -q "^ARCPANEL_APP_LOGIN=" "$HESTIA/conf/hestia.conf"; then
-	"$HESTIA/bin/v-change-sys-config-value" ARCPANEL_APP_LOGIN yes
-fi
-if ! grep -q "^ARCPANEL_APP_PAGES=" "$HESTIA/conf/hestia.conf"; then
-	"$HESTIA/bin/v-change-sys-config-value" ARCPANEL_APP_PAGES yes
-fi
+# The 2.0 layout (E8): data out of web/, themes, no switches, no web/; it
+# runs again on every sync and changes nothing the second time.
+HESTIA="$HESTIA" bash "$HESTIA/install/upgrade/arcpanel/2.0.0.sh"
 
 "$HESTIA/bin/v-add-sys-tenancy"
 "$HESTIA/bin/v-add-sys-port-registry"

@@ -45,7 +45,7 @@ async function expectTaskDone(page, label) {
 
 /** Walk the wizard with the proposals of package.json and create the app. */
 async function createApp(page, domain, template) {
-	await page.goto('/app/node-apps');
+	await page.goto('/node-apps');
 	await page.getByRole('link', { name: 'Create app' }).click();
 	await expect(page.getByRole('heading', { name: 'Create app', level: 1 })).toBeVisible();
 	await page.getByLabel('Web domain').selectOption(domain);
@@ -94,7 +94,7 @@ test('a developer deploys an Express app and a Next.js app with HTTPS from the w
 	expect(Date.now() - started).toBeLessThan(300_000);
 
 	// The list shows both online with their resources
-	await page.goto('/app/node-apps');
+	await page.goto('/node-apps');
 	for (const domain of [API, NEXT]) {
 		const row = page.locator('tbody tr', { hasText: domain });
 		await expect(row).toContainText('Online', { timeout: 30_000 });
@@ -105,7 +105,7 @@ test('a developer deploys an Express app and a Next.js app with HTTPS from the w
 
 test('the app page shows live logs and saves the environment the app reads', async ({ page }) => {
 	await login(page, DEV);
-	await page.goto(`/app/node/${DEV}/apps/${API}`);
+	await page.goto(`/node/${DEV}/apps/${API}`);
 	await expect(page.getByRole('heading', { name: API, level: 1 })).toBeVisible();
 	await expectAccessible(page);
 
@@ -139,21 +139,21 @@ test('a user without Node.js and a reseller outside the tree cannot reach the ap
 	await expect(
 		page.getByRole('navigation', { name: 'Sections' }).getByRole('link', { name: 'Node apps' }),
 	).toHaveCount(0);
-	expect((await page.request.get(`/app/node/${USER}/apps/create`)).status()).toBe(403);
-	expect((await page.request.get(`/app/node/${DEV}/apps`)).status()).toBe(404);
+	expect((await page.request.get(`/node/${USER}/apps/create`)).status()).toBe(403);
+	expect((await page.request.get(`/node/${DEV}/apps`)).status()).toBe(404);
 
 	await login(page, RESELLER);
-	expect((await page.request.get(`/app/node/${DEV}/apps`)).status()).toBe(404);
+	expect((await page.request.get(`/node/${DEV}/apps`)).status()).toBe(404);
 });
 
 test('deleting the apps restores the domains', async ({ page }) => {
 	await login(page, DEV);
 	for (const domain of [NEXT, API]) {
-		await page.goto(`/app/node/${DEV}/apps/${domain}#danger`);
+		await page.goto(`/node/${DEV}/apps/${domain}#danger`);
 		await page.getByRole('button', { name: 'Delete the app' }).click();
 		const dialog = page.getByRole('dialog', { name: 'Delete the app' });
 		await dialog.getByRole('button', { name: 'Delete', exact: true }).click();
-		await expect(page).toHaveURL(new RegExp(`/app/node/${DEV}/apps$`));
+		await expect(page).toHaveURL(new RegExp(`/node/${DEV}/apps$`));
 		await expect.poll(() => https(domain).body, { timeout: 60_000 }).not.toContain('arce2e-');
 	}
 	await expect(page.getByText('No Node.js app yet.')).toBeVisible();

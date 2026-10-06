@@ -57,36 +57,25 @@ app_key_hash() {
 }
 
 @test "Health endpoint answers without a session" {
-    run curl -sk "$PANEL/app/_health"
+    run curl -sk "$PANEL/_health"
     assert_success
     assert_output --partial '"status":"ok"'
 }
 
 @test "Panel app root works with the framework caches built" {
-    run curl -sk -o /dev/null -w '%{http_code} %{redirect_url}' "$PANEL/app/"
-    assert_output "302 $PANEL/app/login"
-}
-
-@test "Legacy login redirects guests to the panel app when the switch is on" {
-    v-change-sys-config-value ARCPANEL_APP_LOGIN yes
-    run curl -sk -o /dev/null -w '%{http_code} %{redirect_url}' "$PANEL/login/"
-    assert_output "302 $PANEL/app/login"
-}
-
-@test "Legacy login form comes back when the switch is off" {
-    v-change-sys-config-value ARCPANEL_APP_LOGIN no
-    run curl -sk -o /dev/null -w '%{http_code}' "$PANEL/login/"
-    v-change-sys-config-value ARCPANEL_APP_LOGIN yes
-    assert_output "200"
+    run curl -sk -o /dev/null -w '%{http_code} %{redirect_url}' "$PANEL/"
+    assert_output "302 $PANEL/login"
 }
 
 @test "Session cookie is ARCPANELSID" {
-    run curl -sk -D - -o /dev/null "$PANEL/list/user/"
-    assert_output --partial 'ARCPANELSID='
-    refute_output --partial 'HESTIASID='
+    pages_login
+    run cat "$PAGES_JAR"
+    assert_output --partial "ARCPANELSID"
+    refute_output --partial "HESTIASID"
 }
 
-# E1 slice S2: the ARCPANEL_APP_PAGES switch
+# Old URLs: the legacy page paths answer 301, or 302 when the target depends
+# on the signed-in user (E8 spec §5.3; first written for the E1 slice S2 switch)
 # (docs/features/specs/2026-10-05-002-e1-s2-dashboard-web-domains-design.md §9)
 
 PAGES_USER="arcbatspages"
@@ -95,15 +84,14 @@ PAGES_JAR="$BATS_FILE_TMPDIR/pages.jar"
 pages_login() {
     local token
     rm -f "$PAGES_JAR"
-    token="$(curl -sk -c "$PAGES_JAR" -b "$PAGES_JAR" "$PANEL/app/login" | grep -o 'name="_token" value="[^"]*"' | head -n1 | sed 's/.*value="\([^"]*\)"/\1/')"
+    token="$(curl -sk -c "$PAGES_JAR" -b "$PAGES_JAR" "$PANEL/login" | grep -o 'name="_token" value="[^"]*"' | head -n1 | sed 's/.*value="\([^"]*\)"/\1/')"
     curl -sk -c "$PAGES_JAR" -b "$PAGES_JAR" -o /dev/null --data-urlencode "_token=$token" \
-        --data-urlencode "user=$PAGES_USER" --data-urlencode "password=$PAGES_PASS" "$PANEL/app/login"
+        --data-urlencode "user=$PAGES_USER" --data-urlencode "password=$PAGES_PASS" "$PANEL/login"
 }
 
-# status and redirect target of a page for the signed-in test user; like a
-# browser it sends the page it came from (the legacy CSRF check wants it)
+# status and redirect target of a page for the signed-in test user
 pages_get() {
-    curl -sk -b "$PAGES_JAR" -c "$PAGES_JAR" -e "$PANEL/list/web/" -o /dev/null -w '%{http_code} %{redirect_url}' "$PANEL$1"
+    curl -sk -b "$PAGES_JAR" -c "$PAGES_JAR" -o /dev/null -w '%{http_code} %{redirect_url}' "$PANEL$1"
 }
 
 setup_file() {
@@ -123,398 +111,267 @@ setup_file() {
 }
 
 teardown_file() {
-    v-change-sys-config-value ARCPANEL_APP_PAGES yes
     v-delete-user "$PAGES_USER" > /dev/null 2>&1 || true
 }
 
-@test "v-list-sys-config lists ARCPANEL_APP_PAGES" {
-    v-change-sys-config-value ARCPANEL_APP_PAGES yes
-    run v-list-sys-config json
-    assert_success
-    assert_output --partial '"ARCPANEL_APP_PAGES": "yes"'
-    run v-list-sys-config
-    assert_output --partial 'Panel app pages:                  yes'
-}
-
-@test "Legacy web pages redirect to the panel app when ARCPANEL_APP_PAGES is yes" {
-    v-change-sys-config-value ARCPANEL_APP_PAGES yes
+@test "Legacy web pages redirect to the panel app" {
     pages_login
     run pages_get /list/web/
-    assert_output "302 $PANEL/app/web/domains"
+    assert_output "301 $PANEL/web/domains"
     run pages_get /add/web/
-    assert_output "302 $PANEL/app/web/domains/create"
+    assert_output "301 $PANEL/web/domains/create"
     run pages_get "/edit/web/?domain=$PAGES_USER.example"
-    assert_output "302 $PANEL/app/web/domains/$PAGES_USER/$PAGES_USER.example/edit"
+    assert_output "302 $PANEL/web/domains/$PAGES_USER/$PAGES_USER.example/edit"
     run pages_get "/list/web-log/?domain=$PAGES_USER.example&type=error"
-    assert_output "302 $PANEL/app/web/domains/$PAGES_USER/$PAGES_USER.example/logs/error"
+    assert_output "302 $PANEL/web/domains/$PAGES_USER/$PAGES_USER.example/logs/error"
     run pages_get /login/
-    assert_output "302 $PANEL/app/"
-    run pages_get "/app/web/domains/$PAGES_USER/$PAGES_USER.example/edit"
+    assert_output "302 $PANEL/"
+    run pages_get "/web/domains/$PAGES_USER/$PAGES_USER.example/edit"
     assert_output "200 "
 }
 
-@test "Legacy web pages come back when ARCPANEL_APP_PAGES is no" {
-    v-change-sys-config-value ARCPANEL_APP_PAGES no
-    pages_login
-    run pages_get /list/web/
-    assert_output "200 "
-    run pages_get /add/web/
-    assert_output "200 "
-    run pages_get "/edit/web/?domain=$PAGES_USER.example"
-    assert_output "200 "
-    run pages_get "/list/web-log/?domain=$PAGES_USER.example&type=access"
-    assert_output "200 "
-    run pages_get /login/
-    assert_output "302 $PANEL/list/web/"
-    # the panel app pages stay reachable by URL
-    run pages_get /app/web/domains
-    assert_output "200 "
-    v-change-sys-config-value ARCPANEL_APP_PAGES yes
-}
 
 # E7 batch 1 (docs/features/specs/2026-10-06-001-e7-batch1-pages-design.md §4)
 
-@test "Legacy database pages redirect to the panel app when ARCPANEL_APP_PAGES is yes" {
-    v-change-sys-config-value ARCPANEL_APP_PAGES yes
+@test "Legacy database pages redirect to the panel app" {
     pages_login
     run pages_get /list/db/
-    assert_output "302 $PANEL/app/db"
+    assert_output "301 $PANEL/db"
     run pages_get /add/db/
-    assert_output "302 $PANEL/app/db/create"
+    assert_output "301 $PANEL/db/create"
     run pages_get "/edit/db/?database=${PAGES_USER}_db"
-    assert_output "302 $PANEL/app/db/$PAGES_USER/${PAGES_USER}_db/edit"
-    run pages_get "/app/db/$PAGES_USER/${PAGES_USER}_db/edit"
+    assert_output "302 $PANEL/db/$PAGES_USER/${PAGES_USER}_db/edit"
+    run pages_get "/db/$PAGES_USER/${PAGES_USER}_db/edit"
     assert_output "200 "
 }
 
-@test "Legacy database pages come back when ARCPANEL_APP_PAGES is no" {
-    v-change-sys-config-value ARCPANEL_APP_PAGES no
-    pages_login
-    run pages_get /list/db/
-    assert_output "200 "
-    run pages_get /add/db/
-    assert_output "200 "
-    run pages_get "/edit/db/?database=${PAGES_USER}_db"
-    assert_output "200 "
-    run pages_get /app/db
-    assert_output "200 "
-    v-change-sys-config-value ARCPANEL_APP_PAGES yes
-}
-
-@test "Legacy cron pages redirect to the panel app when ARCPANEL_APP_PAGES is yes" {
-    v-change-sys-config-value ARCPANEL_APP_PAGES yes
+@test "Legacy cron pages redirect to the panel app" {
     pages_login
     run pages_get /list/cron/
-    assert_output "302 $PANEL/app/cron"
+    assert_output "301 $PANEL/cron"
     run pages_get /add/cron/
-    assert_output "302 $PANEL/app/cron/create"
+    assert_output "301 $PANEL/cron/create"
     run pages_get "/edit/cron/?job=1"
-    assert_output "302 $PANEL/app/cron/$PAGES_USER/1/edit"
-    run pages_get "/app/cron/$PAGES_USER/1/edit"
+    assert_output "302 $PANEL/cron/$PAGES_USER/1/edit"
+    run pages_get "/cron/$PAGES_USER/1/edit"
     assert_output "200 "
 }
 
-@test "Legacy cron pages come back when ARCPANEL_APP_PAGES is no" {
-    v-change-sys-config-value ARCPANEL_APP_PAGES no
-    pages_login
-    run pages_get /list/cron/
-    assert_output "200 "
-    run pages_get /add/cron/
-    assert_output "200 "
-    run pages_get "/edit/cron/?job=1"
-    assert_output "200 "
-    run pages_get /app/cron
-    assert_output "200 "
-    v-change-sys-config-value ARCPANEL_APP_PAGES yes
-}
-
-@test "Legacy DNS pages redirect to the panel app when ARCPANEL_APP_PAGES is yes" {
+@test "Legacy DNS pages redirect to the panel app" {
     local zone="$PAGES_USER.dns.example"
-    v-change-sys-config-value ARCPANEL_APP_PAGES yes
     pages_login
     run pages_get /list/dns/
-    assert_output "302 $PANEL/app/dns"
+    assert_output "302 $PANEL/dns"
     run pages_get "/list/dns/?domain=$zone"
-    assert_output "302 $PANEL/app/dns/$PAGES_USER/$zone/records"
+    assert_output "302 $PANEL/dns/$PAGES_USER/$zone/records"
     run pages_get "/list/dns/?domain=$zone&action=view"
-    assert_output "302 $PANEL/app/dns/$PAGES_USER/$zone/dnssec"
+    assert_output "302 $PANEL/dns/$PAGES_USER/$zone/dnssec"
     run pages_get /add/dns/
-    assert_output "302 $PANEL/app/dns/create"
+    assert_output "302 $PANEL/dns/create"
     run pages_get "/add/dns/?domain=$zone"
-    assert_output "302 $PANEL/app/dns/$PAGES_USER/$zone/records?add=1"
+    assert_output "302 $PANEL/dns/$PAGES_USER/$zone/records?add=1"
     run pages_get "/edit/dns/?domain=$zone"
-    assert_output "302 $PANEL/app/dns/$PAGES_USER/$zone/edit"
+    assert_output "302 $PANEL/dns/$PAGES_USER/$zone/edit"
     run pages_get "/edit/dns/?domain=$zone&record_id=1"
-    assert_output "302 $PANEL/app/dns/$PAGES_USER/$zone/records?edit=1"
-    run pages_get "/app/dns/$PAGES_USER/$zone/records?edit=1"
+    assert_output "302 $PANEL/dns/$PAGES_USER/$zone/records?edit=1"
+    run pages_get "/dns/$PAGES_USER/$zone/records?edit=1"
     assert_output "200 "
-    run pages_get "/app/dns/$PAGES_USER/$zone/edit"
+    run pages_get "/dns/$PAGES_USER/$zone/edit"
     assert_output "200 "
 }
 
-@test "Legacy DNS pages come back when ARCPANEL_APP_PAGES is no" {
-    local zone="$PAGES_USER.dns.example"
-    v-change-sys-config-value ARCPANEL_APP_PAGES no
-    pages_login
-    run pages_get /list/dns/
-    assert_output "200 "
-    run pages_get "/list/dns/?domain=$zone"
-    assert_output "200 "
-    run pages_get /add/dns/
-    assert_output "200 "
-    run pages_get "/edit/dns/?domain=$zone"
-    assert_output "200 "
-    run pages_get "/edit/dns/?domain=$zone&record_id=1"
-    assert_output "200 "
-    run pages_get /app/dns
-    assert_output "200 "
-    v-change-sys-config-value ARCPANEL_APP_PAGES yes
-}
-
-@test "Legacy mail pages redirect to the panel app when ARCPANEL_APP_PAGES is yes" {
+@test "Legacy mail pages redirect to the panel app" {
     local domain="$PAGES_USER.mail.example"
-    v-change-sys-config-value ARCPANEL_APP_PAGES yes
     pages_login
     run pages_get /list/mail/
-    assert_output "302 $PANEL/app/mail"
+    assert_output "302 $PANEL/mail"
     run pages_get "/list/mail/?domain=$domain"
-    assert_output "302 $PANEL/app/mail/$PAGES_USER/$domain/accounts"
+    assert_output "302 $PANEL/mail/$PAGES_USER/$domain/accounts"
     run pages_get "/list/mail/?domain=$domain&dns=1"
-    assert_output "302 $PANEL/app/mail/$PAGES_USER/$domain/dns"
+    assert_output "302 $PANEL/mail/$PAGES_USER/$domain/dns"
     run pages_get /add/mail/
-    assert_output "302 $PANEL/app/mail/create"
+    assert_output "302 $PANEL/mail/create"
     run pages_get "/add/mail/?domain=$domain"
-    assert_output "302 $PANEL/app/mail/$PAGES_USER/$domain/accounts/create"
+    assert_output "302 $PANEL/mail/$PAGES_USER/$domain/accounts/create"
     run pages_get "/edit/mail/?domain=$domain"
-    assert_output "302 $PANEL/app/mail/$PAGES_USER/$domain/edit"
+    assert_output "302 $PANEL/mail/$PAGES_USER/$domain/edit"
     run pages_get "/edit/mail/?domain=$domain&account=info"
-    assert_output "302 $PANEL/app/mail/$PAGES_USER/$domain/accounts/info/edit"
-    run pages_get "/app/mail/$PAGES_USER/$domain/accounts/info/edit"
+    assert_output "302 $PANEL/mail/$PAGES_USER/$domain/accounts/info/edit"
+    run pages_get "/mail/$PAGES_USER/$domain/accounts/info/edit"
     assert_output "200 "
-    run pages_get "/app/mail/$PAGES_USER/$domain/dns"
+    run pages_get "/mail/$PAGES_USER/$domain/dns"
     assert_output "200 "
 }
 
-@test "Legacy mail pages come back when ARCPANEL_APP_PAGES is no" {
-    local domain="$PAGES_USER.mail.example"
-    v-change-sys-config-value ARCPANEL_APP_PAGES no
-    pages_login
-    run pages_get /list/mail/
-    assert_output "200 "
-    run pages_get "/list/mail/?domain=$domain"
-    assert_output "200 "
-    run pages_get "/list/mail/?domain=$domain&dns=1"
-    assert_output "200 "
-    run pages_get /add/mail/
-    assert_output "200 "
-    run pages_get "/add/mail/?domain=$domain"
-    assert_output "200 "
-    run pages_get "/edit/mail/?domain=$domain"
-    assert_output "200 "
-    run pages_get "/edit/mail/?domain=$domain&account=info"
-    assert_output "200 "
-    run pages_get /app/mail
-    assert_output "200 "
-    v-change-sys-config-value ARCPANEL_APP_PAGES yes
-}
-
-@test "Legacy backup pages redirect to the panel app when ARCPANEL_APP_PAGES is yes" {
-    v-change-sys-config-value ARCPANEL_APP_PAGES yes
+@test "Legacy backup pages redirect to the panel app" {
     pages_login
     run pages_get /list/backup/
-    assert_output "302 $PANEL/app/backups/$PAGES_USER"
+    assert_output "302 $PANEL/backups/$PAGES_USER"
     run pages_get "/list/backup/?backup=$PAGES_USER.2026-10-06_05-10-00.tar"
-    assert_output "302 $PANEL/app/backups/$PAGES_USER/archives/$PAGES_USER.2026-10-06_05-10-00.tar"
+    assert_output "302 $PANEL/backups/$PAGES_USER/archives/$PAGES_USER.2026-10-06_05-10-00.tar"
     run pages_get /list/backup/incremental/
-    assert_output "302 $PANEL/app/backups/$PAGES_USER/snapshots"
+    assert_output "302 $PANEL/backups/$PAGES_USER/snapshots"
     run pages_get "/list/backup/incremental/?snapshot=0123abcd"
-    assert_output "302 $PANEL/app/backups/$PAGES_USER/snapshots/0123abcd"
+    assert_output "302 $PANEL/backups/$PAGES_USER/snapshots/0123abcd"
     run pages_get "/list/backup/incremental/?snapshot=0123abcd&browse=yes"
-    assert_output "302 $PANEL/app/files/$PAGES_USER?snapshot=0123abcd"
+    assert_output "302 $PANEL/files/$PAGES_USER?snapshot=0123abcd"
     run pages_get /edit/backup/exclusions/
-    assert_output "302 $PANEL/app/backups/$PAGES_USER/exclusions"
+    assert_output "302 $PANEL/backups/$PAGES_USER/exclusions"
     run pages_get /list/backup/exclusions/
-    assert_output "302 $PANEL/app/backups/$PAGES_USER/exclusions"
-    run pages_get "/app/backups/$PAGES_USER"
+    assert_output "302 $PANEL/backups/$PAGES_USER/exclusions"
+    run pages_get "/backups/$PAGES_USER"
     assert_output "200 "
-    run pages_get "/app/backups/$PAGES_USER/exclusions"
+    run pages_get "/backups/$PAGES_USER/exclusions"
     assert_output "200 "
 }
 
-@test "Legacy backup pages come back when ARCPANEL_APP_PAGES is no" {
-    v-change-sys-config-value ARCPANEL_APP_PAGES no
-    pages_login
-    run pages_get /list/backup/
-    assert_output "200 "
-    run pages_get /list/backup/exclusions/
-    assert_output "200 "
-    run pages_get /edit/backup/exclusions/
-    assert_output "200 "
-    run pages_get "/app/backups/$PAGES_USER"
-    assert_output "200 "
-    v-change-sys-config-value ARCPANEL_APP_PAGES yes
-}
 
 # E7 batch 2 (docs/features/specs/2026-10-06-002-e7-batch2-pages-design.md §4)
 
-@test "Legacy firewall pages redirect to the panel app when ARCPANEL_APP_PAGES is yes" {
-    v-change-sys-config-value ARCPANEL_APP_PAGES yes
+@test "Legacy firewall pages redirect to the panel app" {
     pages_login
     run pages_get /list/firewall/
-    assert_output "302 $PANEL/app/server/firewall"
+    assert_output "301 $PANEL/server/firewall"
     run pages_get /add/firewall/
-    assert_output "302 $PANEL/app/server/firewall/create"
+    assert_output "301 $PANEL/server/firewall/create"
     run pages_get "/edit/firewall/?rule=2"
-    assert_output "302 $PANEL/app/server/firewall/2/edit"
+    assert_output "301 $PANEL/server/firewall/2/edit"
     run pages_get /list/firewall/ipset/
-    assert_output "302 $PANEL/app/server/firewall/ipsets"
+    assert_output "301 $PANEL/server/firewall/ipsets"
     run pages_get /add/firewall/ipset/
-    assert_output "302 $PANEL/app/server/firewall/ipsets/create"
+    assert_output "301 $PANEL/server/firewall/ipsets/create"
     run pages_get /list/firewall/banlist/
-    assert_output "302 $PANEL/app/server/firewall/bans"
+    assert_output "301 $PANEL/server/firewall/bans"
     run pages_get /add/firewall/banlist/
-    assert_output "302 $PANEL/app/server/firewall/bans/create"
+    assert_output "301 $PANEL/server/firewall/bans/create"
     # the test user is no administrator
-    run pages_get /app/server/firewall
+    run pages_get /server/firewall
     assert_output "403 "
 }
 
-@test "Legacy firewall pages come back when ARCPANEL_APP_PAGES is no" {
-    v-change-sys-config-value ARCPANEL_APP_PAGES no
-    pages_login
-    # legacy sends non-administrators to the user list
-    run pages_get /list/firewall/
-    assert_output "302 $PANEL/list/user/"
-    v-change-sys-config-value ARCPANEL_APP_PAGES yes
-}
-
-@test "Legacy IP pages redirect to the panel app when ARCPANEL_APP_PAGES is yes" {
-    v-change-sys-config-value ARCPANEL_APP_PAGES yes
+@test "Legacy IP pages redirect to the panel app" {
     pages_login
     run pages_get /list/ip/
-    assert_output "302 $PANEL/app/server/ips"
+    assert_output "301 $PANEL/server/ips"
     run pages_get /add/ip/
-    assert_output "302 $PANEL/app/server/ips/create"
+    assert_output "301 $PANEL/server/ips/create"
     run pages_get "/edit/ip/?ip=10.0.0.10"
-    assert_output "302 $PANEL/app/server/ips/10.0.0.10/edit"
-    run pages_get /app/server/ips
+    assert_output "301 $PANEL/server/ips/10.0.0.10/edit"
+    run pages_get /server/ips
     assert_output "403 "
 }
 
-@test "Legacy key pages redirect to the panel app when ARCPANEL_APP_PAGES is yes" {
-    v-change-sys-config-value ARCPANEL_APP_PAGES yes
+@test "Legacy key pages redirect to the panel app" {
     pages_login
     run pages_get /list/access-key/
-    assert_output "302 $PANEL/app/access-keys/$PAGES_USER"
+    assert_output "302 $PANEL/access-keys/$PAGES_USER"
     run pages_get "/list/access-key/?key=AbCdEfGhIjKlMnOpQr12"
-    assert_output "302 $PANEL/app/access-keys/$PAGES_USER/AbCdEfGhIjKlMnOpQr12"
+    assert_output "302 $PANEL/access-keys/$PAGES_USER/AbCdEfGhIjKlMnOpQr12"
     run pages_get /add/access-key/
-    assert_output "302 $PANEL/app/access-keys/$PAGES_USER/create"
+    assert_output "302 $PANEL/access-keys/$PAGES_USER/create"
     run pages_get /list/key/
-    assert_output "302 $PANEL/app/ssh-keys/$PAGES_USER"
+    assert_output "302 $PANEL/ssh-keys/$PAGES_USER"
     run pages_get /add/key/
-    assert_output "302 $PANEL/app/ssh-keys/$PAGES_USER"
-    run pages_get "/app/ssh-keys/$PAGES_USER"
+    assert_output "302 $PANEL/ssh-keys/$PAGES_USER"
+    run pages_get "/ssh-keys/$PAGES_USER"
     assert_output "200 "
 }
 
-@test "Legacy log pages redirect to the panel app when ARCPANEL_APP_PAGES is yes" {
-    v-change-sys-config-value ARCPANEL_APP_PAGES yes
+@test "Legacy log pages redirect to the panel app" {
     pages_login
     run pages_get /list/log/
-    assert_output "302 $PANEL/app/logs/$PAGES_USER"
+    assert_output "302 $PANEL/logs/$PAGES_USER"
     run pages_get /list/log/auth/
-    assert_output "302 $PANEL/app/logs/$PAGES_USER/auth"
-    run pages_get "/app/logs/$PAGES_USER"
+    assert_output "302 $PANEL/logs/$PAGES_USER/auth"
+    run pages_get "/logs/$PAGES_USER"
     assert_output "200 "
-    run pages_get "/app/logs/$PAGES_USER/auth"
+    run pages_get "/logs/$PAGES_USER/auth"
     assert_output "200 "
 }
 
-@test "Legacy statistics and graph pages redirect to the panel app when ARCPANEL_APP_PAGES is yes" {
-    v-change-sys-config-value ARCPANEL_APP_PAGES yes
+@test "Legacy statistics and graph pages redirect to the panel app" {
     pages_login
     run pages_get /list/stats/
-    assert_output "302 $PANEL/app/stats"
+    assert_output "302 $PANEL/stats"
     run pages_get "/list/rrd/?period=weekly"
-    assert_output "302 $PANEL/app/server/rrd?period=weekly"
-    run pages_get /app/stats
+    assert_output "301 $PANEL/server/rrd?period=weekly"
+    run pages_get /stats
     assert_output "200 "
-    run pages_get /app/server/rrd
+    run pages_get /server/rrd
     assert_output "403 "
 }
 
-@test "Legacy terminal and Quick Install pages redirect to the panel app when ARCPANEL_APP_PAGES is yes" {
-    v-change-sys-config-value ARCPANEL_APP_PAGES yes
+@test "Legacy terminal and Quick Install pages redirect to the panel app" {
     pages_login
     run pages_get /list/terminal/
-    assert_output "302 $PANEL/app/terminal"
+    assert_output "301 $PANEL/terminal"
     run pages_get "/add/webapp/?domain=$PAGES_USER.example"
-    assert_output "302 $PANEL/app/web/domains/$PAGES_USER/$PAGES_USER.example/install"
+    assert_output "302 $PANEL/web/domains/$PAGES_USER/$PAGES_USER.example/install"
     run pages_get "/add/webapp/?domain=$PAGES_USER.example&app=DokuWiki"
-    assert_output "302 $PANEL/app/web/domains/$PAGES_USER/$PAGES_USER.example/install/DokuWiki"
-    run pages_get "/app/web/domains/$PAGES_USER/$PAGES_USER.example/install"
+    assert_output "302 $PANEL/web/domains/$PAGES_USER/$PAGES_USER.example/install/DokuWiki"
+    run pages_get "/web/domains/$PAGES_USER/$PAGES_USER.example/install"
     assert_output "200 "
 }
 
 # E7 batch 3 (docs/features/specs/2026-10-06-003-e7-batch3-pages-design.md §4)
 
-@test "Legacy services pages redirect to the panel app when ARCPANEL_APP_PAGES is yes" {
-    v-change-sys-config-value ARCPANEL_APP_PAGES yes
+@test "Legacy services pages redirect to the panel app" {
     pages_login
     run pages_get /list/server/
-    assert_output "302 $PANEL/app/server/services"
+    assert_output "301 $PANEL/server/services"
     run pages_get "/list/server/?cpu"
-    assert_output "302 $PANEL/app/server/services/status/cpu"
+    assert_output "301 $PANEL/server/services/status/cpu"
     run pages_get "/list/server/?mem"
-    assert_output "302 $PANEL/app/server/services/status/mem"
-    run pages_get /app/server/services
+    assert_output "301 $PANEL/server/services/status/mem"
+    run pages_get /server/services
     assert_output "403 "
 }
 
-@test "Legacy server settings pages redirect to the panel app when ARCPANEL_APP_PAGES is yes" {
-    v-change-sys-config-value ARCPANEL_APP_PAGES yes
+@test "Legacy server settings pages redirect to the panel app" {
     pages_login
     run pages_get /edit/server/
-    assert_output "302 $PANEL/app/server/settings"
+    assert_output "301 $PANEL/server/settings"
     run pages_get /edit/server/whitelabel/
-    assert_output "302 $PANEL/app/server/settings/white-label"
+    assert_output "301 $PANEL/server/settings/white-label"
     run pages_get /edit/server/nginx/
-    assert_output "302 $PANEL/app/server/services/nginx/config"
+    assert_output "301 $PANEL/server/services/nginx/config"
     run pages_get /edit/server/php-fpm/
-    assert_output "302 $PANEL/app/server/services/php-fpm/config"
+    assert_output "301 $PANEL/server/services/php-fpm/config"
     run pages_get /list/updates/
-    assert_output "302 $PANEL/app/server/updates"
-    run pages_get /app/server/settings/general
+    assert_output "301 $PANEL/server/updates"
+    run pages_get /server/settings/general
     assert_output "403 "
 }
 
-@test "Legacy search and CSR pages redirect to the panel app when ARCPANEL_APP_PAGES is yes" {
-    v-change-sys-config-value ARCPANEL_APP_PAGES yes
+@test "Legacy search and CSR pages redirect to the panel app" {
     pages_login
     run pages_get "/search/?q=$PAGES_USER"
-    assert_output "302 $PANEL/app/search?q=$PAGES_USER"
+    assert_output "200 "
     run pages_get "/generate/ssl/?domain=$PAGES_USER.example"
-    assert_output "302 $PANEL/app/web/domains/$PAGES_USER/$PAGES_USER.example/edit#ssl"
-    run pages_get "/app/search?q=$PAGES_USER"
+    assert_output "302 $PANEL/web/domains/$PAGES_USER/$PAGES_USER.example/edit#ssl"
+    run pages_get "/search?q=$PAGES_USER"
     assert_output "200 "
 }
 
-@test "Legacy reset pages redirect guests to the panel app when ARCPANEL_APP_PAGES is yes" {
-    v-change-sys-config-value ARCPANEL_APP_PAGES yes
+@test "Legacy reset pages redirect guests to the panel app" {
+    policy="$(grep -o "^POLICY_SYSTEM_PASSWORD_RESET='[a-z]*'" /usr/local/hestia/conf/hestia.conf | cut -d"'" -f2 || true)"
+    v-change-sys-config-value POLICY_SYSTEM_PASSWORD_RESET yes
+    runuser -u hestiaweb -- /usr/local/hestia/php/bin/php /usr/local/hestia/web-app/artisan cache:forget arc.sys-config > /dev/null
     guest_get() {
-        # the legacy 2FA page checks the referrer (prevent_csrf.php), as the login link sends it
-        curl -sk -e "$PANEL/login/" -o /dev/null -w '%{http_code} %{redirect_url}' "$PANEL$1"
+        # the 1.x reset paths with a trailing slash are the panel pages
+        curl -sk -o /dev/null -w '%{http_code} %{redirect_url}' "$PANEL$1"
     }
     run guest_get /reset/
-    assert_output "302 $PANEL/app/reset"
+    assert_output "200 "
     run guest_get "/reset/?action=code&user=$PAGES_USER"
-    assert_output "302 $PANEL/app/reset/code?user=$PAGES_USER"
+    assert_output "302 $PANEL/reset/code?user=$PAGES_USER"
     run guest_get "/reset/?action=confirm&user=$PAGES_USER&code=Abc123"
-    assert_output "302 $PANEL/app/reset/confirm?user=$PAGES_USER&code=Abc123"
+    assert_output "302 $PANEL/reset/confirm?user=$PAGES_USER&code=Abc123"
     run guest_get /reset2fa/
-    assert_output "302 $PANEL/app/reset2fa"
-    run guest_get /app/reset2fa
+    assert_output "200 "
+    run guest_get /reset2fa
+    v-change-sys-config-value POLICY_SYSTEM_PASSWORD_RESET "${policy:-yes}"
+    runuser -u hestiaweb -- /usr/local/hestia/php/bin/php /usr/local/hestia/web-app/artisan cache:forget arc.sys-config > /dev/null
     assert_output "200 "
 }
 

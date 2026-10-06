@@ -28,7 +28,7 @@ const rrd = {
 	],
 };
 
-const markup = `<div id="graph" x-data="apRrdGraph({ url: '/app/_rrd', service: 'la' })"><canvas x-ref="canvas"></canvas></div>`;
+const markup = `<div id="graph" x-data="apRrdGraph({ url: '/_rrd', service: 'la' })"><canvas x-ref="canvas"></canvas></div>`;
 let fetchMock;
 
 beforeEach(() => {
@@ -64,7 +64,7 @@ describe('apRrdGraph', () => {
 	it('loads the daily graph and draws it on the canvas', async () => {
 		mount(markup);
 		await tick();
-		expect(fetchMock.mock.calls[0][0]).toBe('/app/_rrd?service=la&period=daily');
+		expect(fetchMock.mock.calls[0][0]).toBe('/_rrd?service=la&period=daily');
 		expect(Chart).toHaveBeenCalledTimes(1);
 		expect(charts[0].canvas).toBe(document.querySelector('canvas'));
 		expect(charts[0].config.type).toBe('line');
@@ -79,7 +79,7 @@ describe('apRrdGraph', () => {
 		const graph = data(document.getElementById('graph'));
 
 		await graph.setPeriod('weekly');
-		expect(fetchMock.mock.calls[1][0]).toBe('/app/_rrd?service=la&period=weekly');
+		expect(fetchMock.mock.calls[1][0]).toBe('/_rrd?service=la&period=weekly');
 		expect(charts[0].destroy).toHaveBeenCalled();
 		expect(charts).toHaveLength(2);
 

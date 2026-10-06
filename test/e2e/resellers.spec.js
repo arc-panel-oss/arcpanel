@@ -18,7 +18,7 @@ test('a reseller onboards a customer and logs in as it', async ({ page }) => {
 	await expect(page.getByRole('heading', { name: `Welcome, ${RESELLER}` })).toBeVisible();
 
 	await page.getByRole('link', { name: 'Add Customer' }).first().click();
-	await expect(page).toHaveURL(/\/app\/users\/create$/);
+	await expect(page).toHaveURL(/\/users\/create$/);
 	await page.fill('#f-username', name);
 	await page.fill('#f-name', 'E2E Customer');
 	await page.fill('#f-email', `${name}@example.invalid`);
@@ -32,7 +32,7 @@ test('a reseller onboards a customer and logs in as it', async ({ page }) => {
 	await expectAccessible(page);
 	await page.getByRole('button', { name: 'Add Customer' }).click();
 
-	await expect(page).toHaveURL(new RegExp(`/app/users/${name}$`));
+	await expect(page).toHaveURL(new RegExp(`/users/${name}$`));
 	await expectToast(page, 'Customer has been created.');
 
 	await page.getByRole('button', { name: 'Log in as' }).click();
@@ -50,31 +50,31 @@ test('a reseller onboards a customer and logs in as it', async ({ page }) => {
 	await page.getByRole('button', { name: 'Return' }).click();
 	await expect(page.getByRole('heading', { name: `Welcome, ${RESELLER}` })).toBeVisible();
 
-	await page.goto(`/app/users/${name}`);
+	await page.goto(`/users/${name}`);
 	await page.getByRole('button', { name: 'Delete', exact: true }).click();
 	await page.getByRole('alertdialog').getByRole('button', { name: 'Confirm' }).click();
-	await expect(page).toHaveURL(/\/app\/users$/);
+	await expect(page).toHaveURL(/\/users$/);
 });
 
 test('a reseller cannot reach other tenants', async ({ page }) => {
 	await login(page, RESELLER);
 	for (const url of [
-		`/app/users/${USER}`,
-		`/app/users/${ADMIN}/edit`,
-		`/app/web/domains/${USER}/${SITE}/edit`,
-		`/app/web/domains?owner=${USER}`,
+		`/users/${USER}`,
+		`/users/${ADMIN}/edit`,
+		`/web/domains/${USER}/${SITE}/edit`,
+		`/web/domains?owner=${USER}`,
 	]) {
 		const response = await page.goto(url);
 		expect(response?.status(), url).toBe(404);
 	}
-	await page.goto('/app/users');
+	await page.goto('/users');
 	await expect(page.getByRole('link', { name: CUSTOMER, exact: true })).toBeVisible();
 	await expect(page.getByText(USER, { exact: true })).toHaveCount(0);
 });
 
 test('an admin sees the owner tree', async ({ page }) => {
 	await login(page, ADMIN);
-	await page.goto('/app/users#tree');
+	await page.goto('/users#tree');
 	const tree = page.locator('.ap-tree');
 	await expect(tree.getByRole('link', { name: RESELLER })).toBeVisible();
 	await expect(tree.locator('li.is-child').getByRole('link', { name: CUSTOMER })).toBeVisible();

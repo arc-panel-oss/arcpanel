@@ -1,6 +1,6 @@
 <?php
 
-require_once __DIR__ . "/../../web/inc/vendor/autoload.php";
+require_once __DIR__ . "/../../lib/vendor/autoload.php";
 use Symfony\Component\HtmlSanitizer\HtmlSanitizer;
 use Symfony\Component\HtmlSanitizer\HtmlSanitizerConfig;
 

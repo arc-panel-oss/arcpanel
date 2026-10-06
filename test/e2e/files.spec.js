@@ -24,7 +24,7 @@ test.describe.configure({ mode: 'serial', timeout: 600_000 });
 test.use({ actionTimeout: 30_000 });
 
 const ROOT = `web/${SITE}/public_html/e2e-files`;
-const PAGE = `/app/files/${USER}?path=${ROOT}`;
+const PAGE = `/files/${USER}?path=${ROOT}`;
 let local;
 
 test.beforeAll(() => {
@@ -70,7 +70,7 @@ test('a user browses, creates and uploads a folder and a 200 MB file that surviv
 		.getByRole('navigation', { name: 'Sections' })
 		.getByRole('link', { name: 'File manager' })
 		.click();
-	await expect(page).toHaveURL(new RegExp(`/app/files/${USER}`));
+	await expect(page).toHaveURL(new RegExp(`/files/${USER}`));
 	await openFolder(page);
 	await expect(row(page, 'edit.php')).toBeVisible();
 	await expectAccessible(page);
@@ -372,11 +372,11 @@ test('an administrator opens a customer document root from the web domain page',
 	page,
 }) => {
 	await login(page, ADMIN);
-	await page.goto(`/app/web/domains/${USER}/${SITE}/edit`);
+	await page.goto(`/web/domains/${USER}/${SITE}/edit`);
 	await page.getByRole('link', { name: 'Open document root' }).click();
 	await expect
 		.poll(() => decodeURIComponent(page.url()))
-		.toContain(`/app/files/${USER}?path=web/${SITE}/public_html`);
+		.toContain(`/files/${USER}?path=web/${SITE}/public_html`);
 	await expect(page.getByText(`Browsing the files of ${USER}`)).toBeVisible();
 	await expect(row(page, 'e2e-files')).toBeVisible();
 	await expectAccessible(page);
@@ -386,9 +386,9 @@ test('a reseller opens its customer files, not other trees, and only reads a sus
 	page,
 }) => {
 	await login(page, RESELLER);
-	await page.goto(`/app/users/${CUSTOMER}`);
+	await page.goto(`/users/${CUSTOMER}`);
 	await page.getByRole('link', { name: 'Files', exact: true }).click();
-	await expect(page).toHaveURL(new RegExp(`/app/files/${CUSTOMER}$`));
+	await expect(page).toHaveURL(new RegExp(`/files/${CUSTOMER}$`));
 	await expect(page.getByText(`Browsing the files of ${CUSTOMER}`)).toBeVisible();
 	// The home directory belongs to root; ~/tmp is the customer's
 	await expect(page.getByRole('button', { name: 'New folder' })).toHaveCount(0);
@@ -398,10 +398,10 @@ test('a reseller opens its customer files, not other trees, and only reads a sus
 		.click();
 	await expect(page.getByRole('button', { name: 'New folder' })).toBeVisible();
 
-	expect((await page.request.get(`/app/files/${USER}`)).status()).toBe(404);
+	expect((await page.request.get(`/files/${USER}`)).status()).toBe(404);
 	expect(
 		(
-			await page.request.get(`/app/files/${USER}/api/list`, {
+			await page.request.get(`/files/${USER}/api/list`, {
 				headers: { Accept: 'application/json' },
 			})
 		).status(),
@@ -414,7 +414,7 @@ test('a reseller opens its customer files, not other trees, and only reads a sus
 		await expect(page.getByRole('button', { name: 'New folder' })).toHaveCount(0);
 		await expect(page.getByRole('button', { name: 'Upload', exact: true })).toHaveCount(0);
 		const token = await page.locator('meta[name="csrf-token"]').getAttribute('content');
-		const write = await page.request.post(`/app/files/${CUSTOMER}/api/mkdir`, {
+		const write = await page.request.post(`/files/${CUSTOMER}/api/mkdir`, {
 			headers: { Accept: 'application/json', 'X-CSRF-TOKEN': token },
 			data: { path: 'tmp', name: 'nope' },
 		});
@@ -424,27 +424,22 @@ test('a reseller opens its customer files, not other trees, and only reads a sus
 	}
 });
 
-test('the legacy menu opens the new page, /fm/ still works, and FILE_MANAGER switches it off', async ({
+test('an old /fm/ bookmark opens the new page, and FILE_MANAGER switches it off', async ({
 	page,
 }) => {
 	await login(page, USER);
-	// A page that is still legacy (DNS moved to the panel app in E7)
-	await page.goto('/list/log/', { referer: new URL('/app/', page.url()).href });
-	await expect(page.locator('a.top-bar-menu-link[title="File manager"]')).toHaveAttribute(
-		'href',
-		'/app/files',
-	);
-	expect((await page.request.get('/fm/')).status()).toBe(200);
+	await page.goto('/fm/');
+	await expect(page).toHaveURL(new RegExp(`/files/${USER}`));
 
 	runOnServer(['files-config', 'FILE_MANAGER', 'false']);
 	try {
-		await page.goto('/app/');
+		await page.goto('/');
 		await expect(
 			page
 				.getByRole('navigation', { name: 'Sections' })
 				.getByRole('link', { name: 'File manager' }),
 		).toHaveCount(0);
-		expect((await page.request.get(`/app/files/${USER}`)).status()).toBe(404);
+		expect((await page.request.get(`/files/${USER}`)).status()).toBe(404);
 	} finally {
 		runOnServer(['files-config', 'FILE_MANAGER', 'true']);
 	}

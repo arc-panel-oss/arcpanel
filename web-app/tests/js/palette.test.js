@@ -4,7 +4,7 @@ import { data, jsonResponse, mount, tick, unmount } from './helpers.js';
 const markup = `
 <div>
 	<button id="trigger" type="button" x-data x-on:click="$dispatch('ap-palette')">Search</button>
-	<div id="palette" x-data="apPalette({ url: '/app/_palette' })">
+	<div id="palette" x-data="apPalette({ url: '/_palette' })">
 		<div x-show="open" x-ref="dialog" role="dialog" x-on:keydown="onKeydown($event)">
 			<input id="q" type="text" x-model="query" x-on:input="onInput()">
 			<a id="result" href="#">r</a>
@@ -85,7 +85,7 @@ describe('apPalette', () => {
 		expect(fetchMock).not.toHaveBeenCalled();
 		await vi.advanceTimersByTimeAsync(1);
 		expect(fetchMock).toHaveBeenCalledTimes(1);
-		expect(fetchMock.mock.calls[0][0]).toBe('/app/_palette?q=ex');
+		expect(fetchMock.mock.calls[0][0]).toBe('/_palette?q=ex');
 		expect(fetchMock.mock.calls[0][1].headers.Accept).toBe('application/json');
 		await vi.advanceTimersByTimeAsync(0);
 		expect(p.groups).toEqual(groups);
@@ -108,7 +108,7 @@ describe('apPalette', () => {
 		}
 		await vi.advanceTimersByTimeAsync(50);
 		expect(fetchMock).toHaveBeenCalledTimes(1);
-		expect(fetchMock.mock.calls[0][0]).toBe('/app/_palette?q=shop');
+		expect(fetchMock.mock.calls[0][0]).toBe('/_palette?q=shop');
 	});
 
 	it('aborts the previous request and ignores stale answers', async () => {
@@ -175,7 +175,7 @@ describe('apPalette', () => {
 	});
 
 	it('opens the search page with Enter when nothing is listed (E7 batch 3 spec §12.1)', async () => {
-		mount(markup.replace("apPalette({ url: '/app/_palette' })", "apPalette({ url: '/app/_palette', searchUrl: '#search' })"));
+		mount(markup.replace("apPalette({ url: '/_palette' })", "apPalette({ url: '/_palette', searchUrl: '#search' })"));
 		const p = palette();
 		p.show();
 		await tick();

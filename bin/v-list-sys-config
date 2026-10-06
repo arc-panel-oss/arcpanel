@@ -113,8 +113,6 @@ json_list() {
 		"USE_SERVER_SMTP": "'$USE_SERVER_SMTP'",
 		"VERSION": "'$VERSION'",
 		"ARCPANEL_VERSION": "'$ARCPANEL_VERSION'",
-		"ARCPANEL_APP_LOGIN": "'$ARCPANEL_APP_LOGIN'",
-		"ARCPANEL_APP_PAGES": "'$ARCPANEL_APP_PAGES'",
 		"PORT_RANGE_START": "'$PORT_RANGE_START'",
 		"PORT_RANGE_END": "'$PORT_RANGE_END'",
 		"PORT_REGISTRY": "'$PORT_REGISTRY'",
@@ -210,12 +208,6 @@ shell_list() {
 	fi
 	echo "ArcPanel version:                 $ARCPANEL_VERSION"
 	echo "Version (HestiaCP base):          $VERSION"
-	if [ -n "$ARCPANEL_APP_LOGIN" ]; then
-		echo "Panel app login:                  $ARCPANEL_APP_LOGIN"
-	fi
-	if [ -n "$ARCPANEL_APP_PAGES" ]; then
-		echo "Panel app pages:                  $ARCPANEL_APP_PAGES"
-	fi
 	if [ -n "$POLICY_RESELLER_CREATE_PACKAGES" ]; then
 		echo "Resellers create packages:        $POLICY_RESELLER_CREATE_PACKAGES"
 	fi

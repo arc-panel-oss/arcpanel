@@ -251,13 +251,17 @@ final class WebDomainService implements DomainProbe
         'delete' => 'v-delete-web-domain',
     ];
 
-    /** @return list<string> last lines of the access or error log */
-    public function log(string $user, string $domain, string $type): array
+    /**
+     * @param  int|null  $lines  how many lines (the command's default when null)
+     * @return list<string> last lines of the access or error log
+     */
+    public function log(string $user, string $domain, string $type, ?int $lines = null): array
     {
         $command = $type === 'error' ? 'v-list-web-domain-errorlog' : 'v-list-web-domain-accesslog';
+        $args = $lines === null ? [$user, $domain] : [$user, $domain, (string) $lines];
 
         // Plain lines: the JSON format of these commands does not escape backslashes.
-        return $this->arc->run($command, [$user, $domain])->lines();
+        return $this->arc->run($command, $args)->lines();
     }
 
     /** @return list<string> */

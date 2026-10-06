@@ -27,19 +27,13 @@ nbproject/project.xml
 
 .env
 
-# Distribution CSS
-web/css/themes/
-
-# Distribution JS
-web/js/dist/
-
 # Composer
 composer.phar
 test/vendor/
-# PHPMailer
-web/inc/vendor/
+# PHPMailer, 2FA and the API (lib/composer.json)
+lib/vendor/
 # Quick install
-web/src/vendor/
+lib/quickinstall/vendor/
 .phpunit.result.cache
 
 # vitepress build output

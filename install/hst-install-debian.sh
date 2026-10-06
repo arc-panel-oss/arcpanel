@@ -33,12 +33,12 @@ VERBOSE='no'
 # Define software versions
 # ArcPanel version (what users see, the arcpanel package version) and the
 # HestiaCP base version it is built on (stored as VERSION), see ADR-0006.
-ARCPANEL_INSTALL_VER='1.0.0'
+ARCPANEL_INSTALL_VER='2.0.0'
 HESTIA_INSTALL_VER='1.10.5'
 UPSTREAM_DISPLAY_VER="${HESTIA_INSTALL_VER%%~*}"
 
 # Build the full Hestia version
-# Split base version (1.0.0) from channel suffix (~alpha / ~beta), if present
+# Split base version (2.0.0) from channel suffix (~alpha / ~beta), if present
 ARCPANEL_BASE_VER="${ARCPANEL_INSTALL_VER%%~*}"
 if [[ "$ARCPANEL_INSTALL_VER" == *"~"* ]]; then
 	HESTIA_CHANNEL="~${ARCPANEL_INSTALL_VER#*~}"
@@ -1459,7 +1459,7 @@ write_config_value "LANGUAGE" "$lang"
 write_config_value "LOGIN_STYLE" "default"
 
 # Theme
-write_config_value "THEME" "dark"
+write_config_value "THEME" "nocturne"
 
 # Inactive session timeout
 write_config_value "INACTIVE_SESSION_TIMEOUT" "60"
@@ -1468,10 +1468,6 @@ write_config_value "INACTIVE_SESSION_TIMEOUT" "60"
 # VERSION keeps the upstream HestiaCP base version; ARCPANEL_VERSION is shown to users (ADR-0006)
 write_config_value "VERSION" "${HESTIA_INSTALL_VER}"
 write_config_value "ARCPANEL_VERSION" "${ARCPANEL_INSTALL_VER}"
-# Guests sign in on the panel app (web-app/); "no" restores the legacy login page
-write_config_value "ARCPANEL_APP_LOGIN" "yes"
-# Migrated pages (dashboard, web domains) are served by the panel app; "no" restores the legacy pages
-write_config_value "ARCPANEL_APP_PAGES" "yes"
 write_config_value "APP_NAME" "ArcPanel"
 write_config_value "RELEASE_BRANCH" "release"
 
@@ -2581,7 +2577,7 @@ The ArcPanel development team
 
 " >> $tmpfile
 
-send_mail="$HESTIA/web/inc/mail-wrapper.php"
+send_mail="$HESTIA/lib/mail-wrapper.php"
 cat $tmpfile | $send_mail -s "ArcPanel" $email
 
 # Congrats
@@ -2590,7 +2586,7 @@ cat $tmpfile
 rm -f $tmpfile
 
 # Add welcome message to notification panel
-$HESTIA/bin/v-add-user-notification "$username" 'Welcome to ArcPanel!' '<p>You are now ready to begin adding <a href="/add/user/">user accounts</a> and <a href="/add/web/">domains</a>. For help and assistance, <a href="https://docs.arcpanel.top/docs/" target="_blank">view the documentation</a>.</p><p>Please <a href="https://github.com/arc-panel-oss/arcpanel/issues" target="_blank">report any issues via GitHub</a>.</p><p class="u-text-bold">Have a wonderful day!</p><p><i class="fas fa-heart icon-red"></i> The ArcPanel development team</p>'
+$HESTIA/bin/v-add-user-notification "$username" 'Welcome to ArcPanel!' '<p>You are now ready to begin adding <a href="/users/create">user accounts</a> and <a href="/web/domains/create">domains</a>. For help and assistance, <a href="https://docs.arcpanel.top/docs/" target="_blank">view the documentation</a>.</p><p>Please <a href="https://github.com/arc-panel-oss/arcpanel/issues" target="_blank">report any issues via GitHub</a>.</p><p class="u-text-bold">Have a wonderful day!</p><p><i class="fas fa-heart icon-red"></i> The ArcPanel development team</p>'
 
 # Clean-up
 # Sort final configuration file

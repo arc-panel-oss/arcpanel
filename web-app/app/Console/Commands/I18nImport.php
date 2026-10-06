@@ -8,18 +8,18 @@ use Illuminate\Console\Attributes\Signature;
 use Illuminate\Console\Command;
 
 /**
- * Converts the gettext catalogues of the legacy app (Crowdin is the source of
+ * Converts the gettext catalogues of lib/locale (Crowdin is the source of
  * truth) into Laravel JSON translations keyed by the English msgid, so
- * __('Add Web Domain') matches the legacy _('Add Web Domain').
+ * __('Add Web Domain') matches the HestiaCP _('Add Web Domain').
  * Run at package build; the generated lang/*.json files are not committed.
  */
-#[Signature('arcpanel:i18n-import {--locale-dir= : Directory with <lang>/LC_MESSAGES (default: ../web/locale)}')]
-#[Description('Import web/locale gettext catalogues into lang/<lang>.json')]
+#[Signature('arcpanel:i18n-import {--locale-dir= : Directory with <lang>/LC_MESSAGES (default: ../lib/locale)}')]
+#[Description('Import lib/locale gettext catalogues into lang/<lang>.json')]
 final class I18nImport extends Command
 {
     public function handle(): int
     {
-        $localeDir = $this->option('locale-dir') ?: base_path('../web/locale');
+        $localeDir = $this->option('locale-dir') ?: base_path('../lib/locale');
         if (! is_dir($localeDir)) {
             $this->error("No locale directory at {$localeDir}");
 

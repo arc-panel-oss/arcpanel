@@ -21,41 +21,41 @@ import {
 
 const pages = {
 	[USER]: [
-		'/app/',
-		'/app/web/domains',
-		'/app/web/domains/create',
-		`/app/web/domains/${USER}/${SITE}/edit`,
-		`/app/web/domains/${USER}/${SITE}/logs/access`,
-		'/app/ports',
-		`/app/node/${USER}`,
-		`/app/files/${USER}?path=web/${SITE}/public_html`,
-		`/app/files/${USER}?path=web/${SITE}/public_html&edit=web/${SITE}/public_html/index.html`,
+		'/',
+		'/web/domains',
+		'/web/domains/create',
+		`/web/domains/${USER}/${SITE}/edit`,
+		`/web/domains/${USER}/${SITE}/logs/access`,
+		'/ports',
+		`/node/${USER}`,
+		`/files/${USER}?path=web/${SITE}/public_html`,
+		`/files/${USER}?path=web/${SITE}/public_html&edit=web/${SITE}/public_html/index.html`,
 	],
-	[DEV]: [`/app/node/${DEV}`],
+	[DEV]: [`/node/${DEV}`],
 	[ADMIN]: [
-		'/app/',
-		'/app/web/domains',
-		'/app/web/domains/create',
-		`/app/web/domains/${USER}/${SITE}/edit`,
-		'/app/_styleguide',
-		'/app/users',
-		`/app/users/${RESELLER}`,
-		`/app/users/${CUSTOMER}/edit`,
-		'/app/packages',
-		'/app/packages/default/edit',
-		'/app/server/ports',
-		`/app/node/${DEV}`,
-		`/app/files/${USER}`,
+		'/',
+		'/web/domains',
+		'/web/domains/create',
+		`/web/domains/${USER}/${SITE}/edit`,
+		'/_styleguide',
+		'/users',
+		`/users/${RESELLER}`,
+		`/users/${CUSTOMER}/edit`,
+		'/packages',
+		'/packages/default/edit',
+		'/server/ports',
+		`/node/${DEV}`,
+		`/files/${USER}`,
 	],
 	[RESELLER]: [
-		'/app/',
-		'/app/users',
-		'/app/users/create',
-		`/app/users/${CUSTOMER}`,
-		'/app/packages',
-		'/app/account',
-		'/app/ports',
-		`/app/files/${CUSTOMER}?path=tmp`,
+		'/',
+		'/users',
+		'/users/create',
+		`/users/${CUSTOMER}`,
+		'/packages',
+		'/account',
+		'/ports',
+		`/files/${CUSTOMER}?path=tmp`,
 	],
 };
 
@@ -73,7 +73,7 @@ for (const theme of ['nocturne', 'light']) {
 }
 
 test('axe: login page', async ({ page }) => {
-	await page.goto('/app/login');
+	await page.goto('/login');
 	await expectAccessible(page);
 });
 

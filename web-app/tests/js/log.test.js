@@ -3,7 +3,7 @@ import { lineLevel } from '../../resources/js/alpine/log.js';
 import { data, jsonResponse, mount, tick, unmount } from './helpers.js';
 
 const markup = `
-<div id="log" x-data="apLog({ url: '/app/web/domains/bob/a.com/logs/access' })">
+<div id="log" x-data="apLog({ url: '/web/domains/bob/a.com/logs/access' })">
 	<button id="refresh" x-on:click="refresh()">Refresh</button>
 	<div x-ref="body" class="ap-log-body"><div class="ap-log-line">old line</div></div>
 </div>`;
@@ -39,7 +39,7 @@ describe('apLog', () => {
 		document.getElementById('refresh').click();
 		await tick();
 
-		expect(fetchMock.mock.calls[0][0]).toBe('/app/web/domains/bob/a.com/logs/access');
+		expect(fetchMock.mock.calls[0][0]).toBe('/web/domains/bob/a.com/logs/access');
 		const lines = [...document.querySelectorAll('.ap-log-line')];
 		expect(lines.map((line) => line.textContent)).toEqual([
 			'1.2.3.4 - - "GET / HTTP/1.1" 200 12',

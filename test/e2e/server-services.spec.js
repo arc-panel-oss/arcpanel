@@ -10,7 +10,7 @@ test('admin: list the services, read the reports and restart cron', async ({ pag
 		.getByRole('navigation', { name: 'Sections' })
 		.getByRole('link', { name: 'Services' })
 		.click();
-	await expect(page).toHaveURL(/\/app\/server\/services$/);
+	await expect(page).toHaveURL(/\/server\/services$/);
 	await expect(page.getByRole('row', { name: /\bcron\b/ })).toBeVisible();
 	await expectAccessible(page);
 
@@ -19,7 +19,7 @@ test('admin: list the services, read the reports and restart cron', async ({ pag
 		.getByRole('navigation', { name: 'Status reports' })
 		.getByRole('link', { name: 'CPU' })
 		.click();
-	await expect(page).toHaveURL(/\/app\/server\/services\/status\/cpu$/);
+	await expect(page).toHaveURL(/\/server\/services\/status\/cpu$/);
 	await expect(page.locator('.ap-code')).toContainText('load average');
 	await expectAccessible(page);
 	await page
@@ -29,7 +29,7 @@ test('admin: list the services, read the reports and restart cron', async ({ pag
 	await expect(page.locator('.ap-code')).toContainText('Filesystem');
 
 	// Restart cron from its row menu
-	await page.goto('/app/server/services');
+	await page.goto('/server/services');
 	const row = page.getByRole('row', { name: /\bcron\b/ });
 	await row.getByLabel('Actions for cron').first().click();
 	await row.getByRole('button', { name: 'Restart' }).click();
@@ -54,6 +54,6 @@ test('user: no services in the menu, 403 on the page', async ({ page }) => {
 	await expect(
 		page.getByRole('navigation', { name: 'Sections' }).getByRole('link', { name: 'Services' }),
 	).toHaveCount(0);
-	const response = await page.goto('/app/server/services');
+	const response = await page.goto('/server/services');
 	expect(response.status()).toBe(403);
 });

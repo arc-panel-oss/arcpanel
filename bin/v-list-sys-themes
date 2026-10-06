@@ -25,27 +25,10 @@ source_conf "$HESTIA/conf/hestia.conf"
 # Define array for available themes
 available_themes=()
 
-# Function to process CSS theme files
+# The themes of the panel app (ArcPanel 2.0, E8 spec D11); the CSS themes
+# of the HestiaCP interface are gone with it
 get_themes() {
-	# Retrieve list of system themes
-	if [ -d "$HESTIA_THEMES" ]; then
-		for file in "$HESTIA_THEMES"/*.min.css; do
-			filename=$(basename "$file" .min.css)
-			available_themes+=("${filename%.*}")
-		done
-	fi
-
-	# Check for existence of custom themes folder and iterate through items
-	if [ -d "$HESTIA_THEMES_CUSTOM" ] && [ "$(ls -A "$HESTIA_THEMES_CUSTOM")" ]; then
-		for file in "$HESTIA_THEMES_CUSTOM"/*.css; do
-			filename=$(basename "$file" .css)
-			available_themes+=("${filename%.*}")
-		done
-	fi
-
-	# Sort theme list alphabetically
-	IFS=$'\n' available_themes=($(sort <<< "${available_themes[*]}"))
-	unset IFS
+	available_themes=(auto light nocturne)
 
 	# Get count of themes (for proper JSON formatting)
 	theme_count="${#available_themes[@]}"

@@ -1,7 +1,7 @@
 Source: arcpanel
 Package: arcpanel
 Priority: optional
-Version: 1.0.0
+Version: 2.0.0
 Section: admin
 Maintainer: ArcPanel <info@arcpanel.top>
 Homepage: https://arcpanel.top
@@ -10,6 +10,7 @@ Depends: bash, awk, sed, acl, sysstat, setpriv | util-linux (>= 2.33), zstd, lsb
 Provides: hestia
 Conflicts: hestia
 Replaces: hestia
+Breaks: arcpanel-nginx (<< 1.30.5-2)
 Description: ArcPanel web hosting control panel
  ArcPanel is an open-source web hosting control panel for Debian and Ubuntu.
  It is based on HestiaCP, a fork of VestaCP. Thanks to both projects.

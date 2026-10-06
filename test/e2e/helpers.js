@@ -11,7 +11,7 @@ export const CUSTOMER = 'arce2ecustomer';
 export const DEV = 'arce2edev';
 export const BASE_URL = process.env.E2E_BASE_URL ?? 'https://127.0.0.1:8083';
 
-/** Sign in on /app/login and land on the dashboard. */
+/** Sign in on /login and land on the dashboard. */
 export async function login(page, user, theme = 'nocturne') {
 	// Leave the current page first: a request still running there could set
 	// the previous session cookie again after it was cleared.
@@ -24,11 +24,11 @@ export async function login(page, user, theme = 'nocturne') {
 			url: BASE_URL,
 		},
 	]);
-	await page.goto('/app/login');
+	await page.goto('/login');
 	await page.fill('#user', user);
 	await page.fill('#password', process.env.E2E_PASSWORD);
 	await page.click('button[type=submit]');
-	await expect(page).toHaveURL(/\/app\/$/);
+	await expect(page).toHaveURL(/^https?:\/\/[^/]+\/$/);
 }
 
 /** No axe violations (WCAG 2.1 A and AA) on the current page. */

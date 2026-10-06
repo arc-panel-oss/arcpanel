@@ -4,7 +4,7 @@ import { data, jsonResponse, mount, unmount } from './helpers.js';
 const running = { id: '1', domain: 'example.com', app: 'DokuWiki', status: 'running', log: '$ v-add-web-domain-app' };
 
 const markup = (task) => `
-<div id="task" x-data="apTask({ url: '/app/web/domains/bob/example.com/install-task', task: ${JSON.stringify(task).replace(/"/g, "'")},
+<div id="task" x-data="apTask({ url: '/web/domains/bob/example.com/install-task', task: ${JSON.stringify(task).replace(/"/g, "'")},
 	doneMessage: 'DokuWiki installed successfully.', failMessage: 'Unable to install DokuWiki.' })">
 	<button id="go" x-bind:disabled="running">Install</button>
 </div>
@@ -36,7 +36,7 @@ describe('apTask', () => {
 		expect(document.getElementById('go').disabled).toBe(true);
 
 		await vi.advanceTimersByTimeAsync(2000);
-		expect(fetchMock).toHaveBeenCalledWith('/app/web/domains/bob/example.com/install-task', expect.objectContaining({ method: 'GET' }));
+		expect(fetchMock).toHaveBeenCalledWith('/web/domains/bob/example.com/install-task', expect.objectContaining({ method: 'GET' }));
 
 		fetchMock.mockResolvedValueOnce(jsonResponse({ task: { ...running, status: 'done', log: 'DokuWiki installed successfully.' } }));
 		await vi.advanceTimersByTimeAsync(2000);

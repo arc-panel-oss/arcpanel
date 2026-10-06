@@ -155,9 +155,7 @@ it('builds the legacy session keys on completion', function () {
         'token' => str_repeat('ab', 16),
         'language' => 'vi',
         'userTheme' => 'dark',
-        'userSortOrder' => 'name',
-        'login' => null,
-    ]);
+    ])->and($patch)->not->toHaveKeys(['userSortOrder', 'login', 'failed_twofa']);
     $this->fake->assertRan('v-log-user-login', fn ($args) => $args === [
         'bob', '203.0.113.7', 'success', str_repeat('ab', 16), 'Mozilla/5.0 test',
     ]);

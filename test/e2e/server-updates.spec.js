@@ -12,7 +12,7 @@ test('admin: list the packages and toggle the automatic updates and back', async
 		.getByRole('navigation', { name: 'Sections' })
 		.getByRole('link', { name: 'Updates' })
 		.click();
-	await expect(page).toHaveURL(/\/app\/server\/updates$/);
+	await expect(page).toHaveURL(/\/server\/updates$/);
 	await expect(page.getByRole('row', { name: /arcpanel-php/ })).toBeVisible();
 	await expectAccessible(page);
 
@@ -29,7 +29,7 @@ test('admin: list the packages and toggle the automatic updates and back', async
 test('admin: update every package in the background and see the task end', async ({ page }) => {
 	test.setTimeout(240_000);
 	await login(page, ADMIN);
-	await page.goto('/app/server/updates');
+	await page.goto('/server/updates');
 	await page.getByRole('button', { name: 'Update all' }).click();
 	await page.getByRole('alertdialog').getByRole('button', { name: 'Confirm' }).click();
 	await expectToast(page, 'The packages are being updated.');
@@ -48,6 +48,6 @@ test('user: no updates in the menu, 403 on the page', async ({ page }) => {
 	await expect(
 		page.getByRole('navigation', { name: 'Sections' }).getByRole('link', { name: 'Updates' }),
 	).toHaveCount(0);
-	const response = await page.goto('/app/server/updates');
+	const response = await page.goto('/server/updates');
 	expect(response.status()).toBe(403);
 });

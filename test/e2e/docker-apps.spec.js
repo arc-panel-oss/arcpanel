@@ -68,7 +68,7 @@ test('a developer installs Uptime Kuma from the store and it answers over HTTPS'
 	await page.getByRole('button', { name: 'Install', exact: true }).click();
 
 	// The app page follows the install task
-	await expect(page).toHaveURL(new RegExp(`/app/docker/${DEV}/apps/uptime-kuma$`));
+	await expect(page).toHaveURL(new RegExp(`/docker/${DEV}/apps/uptime-kuma$`));
 	const panel = page.locator('[aria-live="polite"]', { hasText: 'Install Uptime Kuma' });
 	await expect(panel.locator('.ap-badge')).toHaveText(/Done|Failed/, { timeout: 600_000 });
 	await expect(panel.locator('.ap-badge')).toHaveText('Done');
@@ -94,7 +94,7 @@ test('a developer installs Uptime Kuma from the store and it answers over HTTPS'
 	await expectAccessible(page);
 
 	// My apps
-	await page.goto('/app/docker-apps');
+	await page.goto('/docker-apps');
 	const row = page.locator('tbody tr', { hasText: 'uptime-kuma' });
 	await expect(row).toContainText('running');
 	await expect(row).toContainText(KUMA);
@@ -108,19 +108,19 @@ test('a user without Docker apps and a reseller outside the tree cannot reach th
 	await expect(
 		page.getByRole('navigation', { name: 'Sections' }).getByRole('link', { name: 'Docker apps' }),
 	).toHaveCount(0);
-	await page.goto(`/app/docker/${USER}/apps`);
+	await page.goto(`/docker/${USER}/apps`);
 	await expect(page.getByText('Docker apps are not included in your package.')).toBeVisible();
 	const csrf = await page.locator('meta[name="csrf-token"]').getAttribute('content');
-	const install = await page.request.post(`/app/docker/${USER}/api/apps`, {
+	const install = await page.request.post(`/docker/${USER}/api/apps`, {
 		data: { slug: 'uptime-kuma', name: 'kuma' },
 		headers: { 'X-CSRF-TOKEN': csrf ?? '', Accept: 'application/json' },
 	});
 	expect(install.status()).toBe(403);
-	expect((await page.request.get(`/app/docker/${DEV}/apps`)).status()).toBe(404);
+	expect((await page.request.get(`/docker/${DEV}/apps`)).status()).toBe(404);
 
 	await login(page, RESELLER);
-	expect((await page.request.get(`/app/docker/${DEV}/apps`)).status()).toBe(404);
-	expect((await page.request.get('/app/server/docker')).status()).toBe(403);
+	expect((await page.request.get(`/docker/${DEV}/apps`)).status()).toBe(404);
+	expect((await page.request.get('/server/docker')).status()).toBe(403);
 });
 
 test('deleting the app frees its port and gives the domain back', async ({ page }) => {
@@ -129,12 +129,12 @@ test('deleting the app frees its port and gives the domain back', async ({ page 
 	expect(runOnServer(['port-app', port]).trim()).toBe('docker:uptime-kuma');
 
 	await login(page, DEV);
-	await page.goto(`/app/docker/${DEV}/apps/uptime-kuma#danger`);
+	await page.goto(`/docker/${DEV}/apps/uptime-kuma#danger`);
 	await page.getByLabel('Keep the data folder').uncheck();
 	await page.getByRole('button', { name: 'Delete the app' }).click();
 	const dialog = page.getByRole('dialog', { name: 'Delete the app' });
 	await dialog.getByRole('button', { name: 'Delete', exact: true }).click();
-	await expect(page).toHaveURL(new RegExp(`/app/docker/${DEV}/apps$`));
+	await expect(page).toHaveURL(new RegExp(`/docker/${DEV}/apps$`));
 	await expect(page.getByText('No Docker app yet.')).toBeVisible();
 	expect(runOnServer(['port-app', port]).trim()).toBe('');
 	await expect.poll(() => https(KUMA).status, { timeout: 60_000 }).toBe('200');

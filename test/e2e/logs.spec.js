@@ -10,14 +10,14 @@ test('user: read the action log and the login history, delete the log', async ({
 		.getByRole('navigation', { name: 'Sections' })
 		.getByRole('link', { name: 'Logs' })
 		.click();
-	await expect(page).toHaveURL(new RegExp(`/app/logs/${USER}$`));
+	await expect(page).toHaveURL(new RegExp(`/logs/${USER}$`));
 	// prepare.sh added a web domain for the user
 	await expect(page.locator('#action-log')).toContainText('e2e-site.example');
 	await expectAccessible(page);
 
 	// The login of this test is the newest line of the history
 	await page.getByRole('link', { name: 'Login History' }).click();
-	await expect(page).toHaveURL(new RegExp(`/app/logs/${USER}/auth$`));
+	await expect(page).toHaveURL(new RegExp(`/logs/${USER}/auth$`));
 	await expect(page.locator('#login-history tbody tr').first()).toContainText('Success');
 	await expectAccessible(page);
 

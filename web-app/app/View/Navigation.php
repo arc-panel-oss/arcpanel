@@ -14,11 +14,7 @@ use Illuminate\Support\Facades\Route;
 
 /**
  * The role-aware sidebar (docs/design/05 §4.1, 03 §9.1), generated from
- * Capabilities for the role the panel acts with. Items are route names; a
- * route the panel app does not have yet links to the legacy page.
- *
- * A reseller's "login as" works on panel app pages only (E11 spec D4), so
- * legacy links are left out while a reseller acts as a customer.
+ * Capabilities for the role the panel acts with. Items are route names.
  */
 final class Navigation
 {
@@ -112,7 +108,7 @@ final class Navigation
                     continue;
                 }
                 $url = $this->url($item['route']);
-                if ($url === null || ($this->resellerActingAsCustomer($principal) && ! Route::has($item['route']))) {
+                if ($url === null) {
                     continue;
                 }
                 $items[] = [
@@ -131,10 +127,10 @@ final class Navigation
         return $groups;
     }
 
-    /** URL of a route name: the panel app route, else the legacy page. */
+    /** URL of a route name; null when the route does not exist. */
     public static function url(string $route): ?string
     {
-        return Route::has($route) ? route($route) : LegacyRoutes::url($route);
+        return Route::has($route) ? route($route) : null;
     }
 
     /** @param  array<string, mixed>  $item */

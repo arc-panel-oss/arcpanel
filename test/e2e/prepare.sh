@@ -637,8 +637,6 @@ if [ ! -f "$STATE" ]; then
 	grep -o "^DEBUG_MODE='[a-z]*'" "$HESTIA/conf/hestia.conf" | cut -d"'" -f2 > "$STATE" || echo false > "$STATE"
 fi
 "$B/v-change-sys-config-value" DEBUG_MODE true
-"$B/v-change-sys-config-value" ARCPANEL_APP_LOGIN yes
-"$B/v-change-sys-config-value" ARCPANEL_APP_PAGES yes
 forget_config_cache
 
 dir="$(mktemp -d)"

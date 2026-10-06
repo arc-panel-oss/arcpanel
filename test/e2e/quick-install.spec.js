@@ -17,9 +17,9 @@ test.afterAll(() => {
 test('user: install DokuWiki from the domain page', async ({ page }) => {
 	runOnServer(['quickinstall']);
 	await login(page, USER);
-	await page.goto(`/app/web/domains/${USER}/${DOMAIN}/edit`);
+	await page.goto(`/web/domains/${USER}/${DOMAIN}/edit`);
 	await page.getByRole('link', { name: 'Quick Install App' }).click();
-	await expect(page).toHaveURL(new RegExp(`/app/web/domains/${USER}/${DOMAIN}/install$`));
+	await expect(page).toHaveURL(new RegExp(`/web/domains/${USER}/${DOMAIN}/install$`));
 	await expectAccessible(page);
 
 	await page.getByRole('link', { name: /DokuWiki/ }).click();
@@ -55,7 +55,7 @@ test('user: the web terminal page loads xterm and reaches for the shell', async 
 		.getByRole('navigation', { name: 'Sections' })
 		.getByRole('link', { name: 'Web terminal' })
 		.click();
-	await expect(page).toHaveURL(/\/app\/terminal$/);
+	await expect(page).toHaveURL(/\/terminal$/);
 	// xterm draws its screen; this server has no terminal service, so the
 	// WebSocket fails with the legacy message
 	await expect(page.locator('.ap-terminal-screen .xterm')).toBeVisible();

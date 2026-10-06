@@ -11,7 +11,7 @@ const markup = `
 			<button id="accept" type="button" x-on:click="accept()" x-text="acceptLabel"></button>
 		</div>
 	</div>
-	<form id="bulk" action="/app/web/domains/bulk" method="post">
+	<form id="bulk" action="/web/domains/bulk" method="post">
 		<button id="delete" name="action" value="delete" data-confirm="Delete %d domains?" data-confirm-title="Delete" data-confirm-accept="Delete domains" data-confirm-danger>Delete</button>
 		<button id="rebuild" name="action" value="rebuild">Rebuild</button>
 	</form>
