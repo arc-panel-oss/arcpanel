@@ -1,0 +1,15 @@
+{
+	"title": "Django app",
+	"description": "Proxies to Gunicorn or Uvicorn; /static/ and /media/ (STATIC_ROOT, MEDIA_ROOT) come from the document root.",
+	"category": "python",
+	"runtime": "python",
+	"variables": [
+		{
+			"key": "BACKEND_PORT",
+			"type": "port",
+			"required": true,
+			"label": "App port"
+		}
+	],
+	"docs": "https://docs.arcpanel.top/docs/server-administration/web-templates.html"
+}
