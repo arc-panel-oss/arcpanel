@@ -45,6 +45,7 @@ use App\Http\Controllers\Server\ServerSettingsController;
 use App\Http\Controllers\Server\ServiceConfigController;
 use App\Http\Controllers\Server\ServiceController;
 use App\Http\Controllers\Server\SystemTaskController;
+use App\Http\Controllers\Server\UpdateController;
 use App\Http\Controllers\Shell\LanguageController;
 use App\Http\Controllers\Shell\NotificationController;
 use App\Http\Controllers\Shell\PaletteController;
@@ -260,6 +261,14 @@ Route::middleware('auth.arc')->group(function () {
                 ->whereIn('plugin', array_keys(ServerSettings::PLUGINS))->name('plugin');
             Route::post('/white-label/logo', [ServerSettingsController::class, 'logo'])->name('logo');
         });
+    });
+
+    // Updates (E7 batch 3 spec §10)
+    Route::get('/server/updates', [UpdateController::class, 'index'])->name('server.updates');
+    Route::prefix('server/updates')->name('server.updates.')->middleware('not-readonly')->group(function () {
+        Route::post('/update', [UpdateController::class, 'update'])->name('update');
+        Route::post('/autoupdate', [UpdateController::class, 'autoUpdate'])->name('autoupdate');
+        Route::post('/notifications', [UpdateController::class, 'notifications'])->name('notifications');
     });
 
     // Services (E7 batch 3 spec §7)

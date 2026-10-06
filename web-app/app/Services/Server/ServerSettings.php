@@ -479,6 +479,15 @@ final class ServerSettings
         return [...$steps, ...self::configSteps($config, $wanted)];
     }
 
+    /** The upgrade e-mails of the Updates page (spec D11). @return list<Step> */
+    public function planUpdateNotifications(bool $email, bool $log): array
+    {
+        return self::configSteps($this->config(), [
+            'UPGRADE_SEND_EMAIL' => $email ? 'true' : 'false',
+            'UPGRADE_SEND_EMAIL_LOG' => $log ? 'true' : 'false',
+        ]);
+    }
+
     /** @return list<Step> */
     public function planAppInstaller(bool $on): array
     {
