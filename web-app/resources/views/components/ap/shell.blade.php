@@ -46,7 +46,7 @@
             <div class="ap-sidebar-foot">
                 <div class="ap-server">
                     <span class="mono ap-server-host">{{ $shell['hostname'] }}</span>
-                    <span class="subtle ap-server-brand">ArcPanel · Based on HestiaCP</span>
+                    <span class="subtle ap-server-brand">ArcPanel</span>
                 </div>
             </div>
         </aside>

@@ -57,9 +57,6 @@
 
                 @yield('content')
             </div>
-            <footer class="ap-login-foot">
-                <span>ArcPanel · Based on HestiaCP</span>
-            </footer>
         </section>
     </div>
 </div>

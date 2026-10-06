@@ -87,7 +87,7 @@ EOF
 
 @test "keep.txt strings, scoped keys and files are not rewritten" {
     cat > func/keep.sh << 'EOF'
-# ArcPanel · Based on HestiaCP
+# ArcPanel
 # See https://github.com/hestiacp/hestiacp/issues/1234 and https://hestiacp.com/docs/
 plugin=change-password-hestia
 version=7.14.6-hestiacp
@@ -104,7 +104,7 @@ EOF
     commit_fixtures
     apply
     assert_success
-    assert_equal "$(sed -n 1p func/keep.sh)" '# ArcPanel · Based on HestiaCP'
+    assert_equal "$(sed -n 1p func/keep.sh)" '# ArcPanel'
     assert_equal "$(sed -n 2p func/keep.sh)" '# See https://github.com/hestiacp/hestiacp/issues/1234 and https://hestiacp.com/docs/'
     assert_equal "$(sed -n 3p func/keep.sh)" 'plugin=change-password-hestia'
     assert_equal "$(sed -n 4p func/keep.sh)" 'version=7.14.6-hestiacp'
@@ -211,7 +211,7 @@ EOF
 
 @test "--check reports old names outside keep.txt and changes nothing" {
     echo 'source /usr/local/hestia/func/main.sh' > bin/v-old
-    echo '# ArcPanel · Based on HestiaCP' > bin/v-kept
+    echo '# ArcPanel' > bin/v-kept
     echo 'name=arcpanelcp' > bin/v-doubled
     commit_fixtures
     apply --check
