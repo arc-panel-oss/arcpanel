@@ -31,7 +31,7 @@ test('user: read the action log and the login history, delete the log', async ({
 test('user: the tray offers "Mark all read" when something is unread', async ({ page }) => {
 	await login(page, USER);
 	await page.getByRole('button', { name: /^Notifications/ }).click();
-	const tray = page.getByRole('region', { name: 'Notifications' });
+	const tray = page.locator('#ap-tray-panel');
 	await expect(tray).toBeVisible();
 	const unread = await tray.locator('.ap-notice.is-unread').count();
 	if (unread > 0) {

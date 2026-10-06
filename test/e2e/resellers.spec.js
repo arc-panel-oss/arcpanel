@@ -38,8 +38,11 @@ test('a reseller onboards a customer and logs in as it', async ({ page }) => {
 	await page.getByRole('button', { name: 'Log in as' }).click();
 	await expect(page.getByRole('heading', { name: `Welcome, ${name}` })).toBeVisible();
 	await expect(page.getByRole('heading', { name: 'Your provider' })).toBeVisible();
-	// Legacy pages (Logs) have no login-as for resellers; migrated modules (DNS) are shown
-	await expect(page.getByRole('link', { name: 'Logs' })).toHaveCount(0);
+	// Migrated modules are shown while a reseller acts as a customer: DNS (E7
+	// batch 1) and Logs (E7 batch 2)
+	await expect(
+		page.getByRole('navigation', { name: 'Sections' }).getByRole('link', { name: 'Logs' }),
+	).toHaveCount(1);
 	await expect(
 		page.getByRole('navigation', { name: 'Sections' }).getByRole('link', { name: 'DNS' }),
 	).toHaveCount(1);

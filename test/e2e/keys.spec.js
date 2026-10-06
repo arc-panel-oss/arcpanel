@@ -67,7 +67,8 @@ test('user: add and delete an SSH key', async ({ page }) => {
 	await expectToast(page, 'SSH Key already exists.');
 	// the drawer opens again with the key to fix it
 	await expect(page.getByRole('dialog').getByRole('textbox', { name: 'SSH Key' })).toHaveValue(key);
-	await page.keyboard.press('Escape');
+	await page.getByRole('dialog').getByRole('button', { name: 'Close' }).click();
+	await expect(page.getByRole('dialog')).toBeHidden();
 
 	await page.getByRole('button', { name: `Delete ${SSH_ID}` }).click();
 	await page.getByRole('alertdialog').getByRole('button', { name: 'Confirm' }).click();
