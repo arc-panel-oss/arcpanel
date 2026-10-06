@@ -59,6 +59,13 @@ final class WebDomainPolicy
             && ! $principal->isReadOnly();
     }
 
+    /** The CSR generator of the SSL tab (E7 batch 3 spec §12.2). */
+    public function generateCsr(Principal $principal, string $owner): bool
+    {
+        return Capabilities::allows($principal->actingRole(), 'web.ssl.generate', fn () => $this->scope->canManage($owner))
+            && ! $principal->isReadOnly();
+    }
+
     public function delete(Principal $principal, string $owner): bool
     {
         return Capabilities::allows($principal->actingRole(), 'web.delete', fn () => $this->scope->canManage($owner))

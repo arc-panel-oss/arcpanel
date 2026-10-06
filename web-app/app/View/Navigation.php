@@ -7,6 +7,7 @@ use App\Auth\Principal;
 use App\Auth\Role;
 use App\Policies\AccessKeyPolicy;
 use App\Policies\Capabilities;
+use App\Policies\ServerPolicy;
 use App\Services\Docker\DockerAccess;
 use App\Services\Node\NodeAccess;
 use Illuminate\Support\Facades\Route;
@@ -70,13 +71,13 @@ final class Navigation
         'server' => [
             'label' => 'Server',
             'items' => [
-                ['route' => 'server.settings', 'label' => 'Configure', 'icon' => 'sliders', 'cap' => 'server.view'],
-                ['route' => 'server.services', 'label' => 'Services', 'icon' => 'activity', 'cap' => 'server.view', 'services' => true],
+                ['route' => 'server.settings', 'label' => 'Configure', 'icon' => 'sliders', 'cap' => 'server.settings', 'section' => 'server.settings'],
+                ['route' => 'server.services', 'label' => 'Services', 'icon' => 'activity', 'cap' => 'server.services', 'services' => true, 'section' => 'server.services'],
                 ['route' => 'server.ips', 'label' => 'IP Addresses', 'icon' => 'hash', 'cap' => 'server.ips', 'section' => 'server.ips'],
                 ['route' => 'server.firewall', 'label' => 'Firewall', 'icon' => 'shield', 'cap' => 'server.firewall', 'requires' => 'FIREWALL_SYSTEM', 'section' => 'server.firewall'],
                 ['route' => 'server.ports', 'label' => 'Ports', 'icon' => 'plug', 'cap' => 'server.ports', 'section' => 'server.ports'],
                 ['route' => 'server.docker', 'label' => 'Docker', 'icon' => 'container', 'cap' => 'docker.engine.manage', 'section' => 'server.docker'],
-                ['route' => 'server.updates', 'label' => 'Updates', 'icon' => 'refresh', 'cap' => 'server.view'],
+                ['route' => 'server.updates', 'label' => 'Updates', 'icon' => 'refresh', 'cap' => 'server.updates', 'section' => 'server.updates'],
                 ['route' => 'server.rrd', 'label' => 'Task Monitor', 'icon' => 'chart', 'cap' => 'server.rrd', 'section' => 'server.rrd'],
             ],
         ],
@@ -166,8 +167,7 @@ final class Navigation
         if (($item['api'] ?? false) && ! AccessKeyPolicy::apiAvailable($this->config, $principal->effectiveUser())) {
             return false;
         }
-        if (($item['services'] ?? false) && $this->config->is('POLICY_SYSTEM_HIDE_SERVICES')
-            && $principal->loginUser !== $this->config->get('ROOT_USER')) {
+        if (($item['services'] ?? false) && ! (new ServerPolicy($this->config))->viewServices($principal)) {
             return false;
         }
 

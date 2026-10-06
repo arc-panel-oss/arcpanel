@@ -140,6 +140,16 @@ final class Capabilities
 
         // Quick Install on a web domain (E7 batch 2 spec §10)
         'web.apps.install' => self::ALL_ROLES,
+
+        // Server pages of E7 batch 3 (spec §5.1)
+        'server.services' => self::ADMIN,
+        'server.settings' => self::ADMIN,
+        'server.config' => self::ADMIN,
+        'server.updates' => self::ADMIN,
+
+        // Search page and the CSR generator of a web domain (E7 batch 3 spec §5.1)
+        'search.use' => self::ALL_ROLES,
+        'web.ssl.generate' => self::ALL_ROLES,
     ];
 
     /**
