@@ -1,6 +1,6 @@
 # ADR-0006 — Rebranding depth: visible + distribution + compatibility layer; own versioning
 
-**Status:** Accepted (owner decision) · **Date:** 2026-10-04 · **Epic:** E9
+**Status:** Accepted (owner decision); decisions 1, 2 and 5 superseded by [ADR-0007](./0007-full-rename-and-hard-fork.md) · **Date:** 2026-10-04 · **Epic:** E9
 
 ## Context
 
