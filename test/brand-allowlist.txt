@@ -11,38 +11,29 @@
 docs/adr/* :: *
 docs/design/* :: *
 docs/features/* :: *
-docs/brand/* :: *
 docs/roadmap.md :: *
 docs/current-features.md :: *
 
-# Third-party add-ons written for HestiaCP keep their names (rebranding spec, WP2 item 7).
-docs/docs/community/* :: *
-docs/docs/index.md :: /docs/community/
-docs/.vitepress/config.js :: /docs/community/
-docs/.vitepress/config.js :: Ioncube installer for Hestia
-
-# Docs site footer: upstream attribution and copyright.
-docs/.vitepress/config.js :: github.com/hestiacp/hestiacp">HestiaCP</a>
-docs/.vitepress/config.js :: HestiaCP contributors
-
 # Upstream credits, project origin, trademark notice and upstream security coordination.
-docs/team.md :: HestiaCP
-docs/index.md :: HestiaCP
 README.md :: HestiaCP
-CONTRIBUTING.md :: HestiaCP
 SECURITY.md :: HestiaCP
 
-# ArcPanel restores HestiaCP and VestaCP backups; the product names describe the source format.
-docs/docs/server-administration/backup-restore.md :: HestiaCP
+# The README names the compatibility service and the package names (ADR-0006).
+README.md :: `systemctl restart hestia`
+README.md :: (hestia, hestia-nginx, hestia-php, web terminal)
 
 # Functional marker written to sshd_config and searched by other commands; must not change.
 bin/* :: # Hestia SFTP Chroot
+
+# The iptables chain of the firewall is an identifier (ADR-0006); renaming it breaks existing rules.
+bin/v-stop-firewall :: -X hestia
+bin/v-update-firewall :: -N hestia
+
+# 'hestia' is the value of DNS_CLUSTER_SYSTEM, an identifier read by the DNS cluster commands.
+func/syshealth.sh :: DNS_CLUSTER_SYSTEM ('hestia')
 
 # Upstream upgrade steps for HestiaCP <= 1.10.5; they never run on a fresh ArcPanel install.
 install/upgrade/versions/* :: *
 
 # gettext source reference to a PHP class path, not a message.
 lib/locale/hestiacp.pot :: #: ../../web/src/app/System/HestiaApp.php
-
-# Contributor guide explains what the brand check looks for.
-CONTRIBUTING.md :: test/brand-check.sh

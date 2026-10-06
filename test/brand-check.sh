@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 # ArcPanel brand check
 #
-# Fails when user-visible text still says "Hestia" or links to hestiacp.com.
-# Lower-case technical identifiers (/usr/local/hestia, HESTIA_*, v-*-hestia-*,
-# package internals) are intentionally not checked; see ADR-0006.
+# Fails when user-visible text still says "Hestia", uses "hestia" as a word, or
+# links to hestiacp.com or github.com/hestiacp. Technical identifiers
+# (/usr/local/hestia, $HESTIA, HESTIA_*, hestia.conf, v-*-hestia-*, package
+# internals) are intentionally not checked; see ADR-0006.
 #
 # Usage: test/brand-check.sh [file ...]
 #   Without arguments the whole repository is checked.
@@ -18,7 +19,9 @@ set -o pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 ALLOWLIST="$ROOT/test/brand-allowlist.txt"
-PATTERN='Hestia|hestiacp\.com'
+# "hestia" counts only as a word of its own: not inside a path, a variable,
+# a file name or an identifier.
+PATTERN='Hestia|hestiacp\.com|github\.com/hestiacp|(^|[^A-Za-z0-9_$/.{-])hestia([^A-Za-z0-9_/.-]|$)'
 # In shell code only lines that print or send text to a user are checked.
 OUTPUT_PATTERN='echo|printf|v-add-user-notification|subject|message|title='
 
@@ -31,6 +34,9 @@ FULL_PATHS=(
 	CONTRIBUTING.md
 	SECURITY.md
 	.github/ISSUE_TEMPLATE
+	package.json
+	web-app/resources
+	templates
 )
 
 # Paths where only output lines are user-visible.

@@ -371,7 +371,7 @@ upgrade_start_backup() {
 
 	# Hestia Control Panel configuration files
 	if [ "$DEBUG_MODE" = "true" ]; then
-		echo "      ---- hestia"
+		echo "      ---- ArcPanel"
 	fi
 	cp -fr $HESTIA/conf/* $HESTIA_BACKUP/conf/hestia/
 
@@ -864,7 +864,7 @@ upgrade_restart_services() {
 
 	# Always restart the Hestia Control Panel service
 	if [ "$DEBUG_MODE" = "true" ]; then
-		echo "      - hestia"
+		echo "      - ArcPanel"
 	fi
 	$BIN/v-restart-service hestia
 }

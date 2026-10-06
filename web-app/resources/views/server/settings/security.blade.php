@@ -36,7 +36,7 @@
                     <x-ap-select name="API_SYSTEM" :label="__('API')" :value="$config['API_SYSTEM'] ?? '0'"
                         :options="['0' => __('Disabled'), '1' => __('Enabled for the system administrator'), '2' => __('Enabled for every user')]" />
                     <x-ap-select name="API" :label="__('Legacy API')" :options="$yesNo" :value="($config['API'] ?? '') === 'yes' ? 'yes' : 'no'"
-                        :hint="__('The hash-based API of HestiaCP 1.x.')" />
+                        :hint="__('The older API that signs in with a user name and password or a hash key.')" />
                 </div>
                 <x-ap-textarea name="API_ALLOWED_IP" :label="__('Allowed IP addresses for API')" :value="str_replace(',', "\n", $config['API_ALLOWED_IP'] ?? '')" rows="3" mono
                     :hint="__('One address per line; allow-all accepts every address.')" />

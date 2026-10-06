@@ -326,7 +326,7 @@ for folder in *; do
 			# This is needed as parked domains have emails but not added
 			if ! $BIN/v-list-mail-domains $new_user plain | awk '{ print $1 }' | grep "^${folder}$"; then
 				tput setaf 3
-				echo "Found Parked domain $folder  not added in hestia mail, adding..."
+				echo "Found Parked domain $folder  not added in ArcPanel mail, adding..."
 				tput sgr0
 				$BIN/v-add-mail-domain $new_user $folder
 			fi
