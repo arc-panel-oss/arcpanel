@@ -1,6 +1,6 @@
 # 01 — Architecture Overview
 
-**Epics:** all · **Status:** Draft v1
+**Epics:** all · **Status:** Draft v1; the 2.0 layout (panel app at the root URL, `web/` deleted, `lib/` for the libraries of the commands) is implemented by the [E8 spec](../features/specs/2026-10-06-004-e8-legacy-retirement-design.md)
 
 This document describes the target architecture of ArcPanel 2.0, the principles every epic design follows, the runtime topology, packaging and the migration phases. The HestiaCP 1.10.5 starting point is summarised in Appendix A only as far as the designs depend on it.
 
@@ -54,7 +54,7 @@ flowchart TB
     policy[Policy layer<br/>role × owner × object]
     hc[ArcCommand<br/>sudo v-* json, escaping, error map, fake]
     svc[Domain services<br/>WebDomains · Users · Ports · NodeApps · DockerApps · Files]
-    i18n[i18n<br/>generated from web/locale/*.po]
+    i18n[i18n<br/>generated from lib/locale/*.mo]
   end
 
   subgraph cli["CLI layer (root via sudo) — upstream + additive"]
@@ -92,18 +92,18 @@ flowchart TB
 
 What changes between the starting point (Appendix A) and 2.0:
 
-| Area          | 1.10.5                                                      | 2.0                                                                                                                                                    |
-| ------------- | ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Web UI        | `web/*/index.php` + `web/templates/pages/*.php`             | Laravel 13 in `web-app/`: controllers, Blade views, Vue islands; `web/` deleted except `web/api/` and static assets served by Laravel                  |
-| Routing       | `hestia-nginx` serves PHP files from `web/`                 | `hestia-nginx` sends `/` to `web-app/public/index.php`; during migration `/app/*` only (ADR-0002)                                                      |
-| Auth          | `$_SESSION` checks in `main.php`                            | Laravel guard reading the same session (until E8), then a native session handler at the same path with the same keys so the web terminal keeps working |
-| Authorization | admin vs user via `userContext`; policies in `policies.php` | Policy classes: role × owner × object; the same classes back UI and API                                                                                |
-| Roles         | user, admin, dns-cluster                                    | user, reseller, admin, dns-cluster; `OWNER` relationship                                                                                               |
-| CLI           | 524 commands                                                | 524 unchanged + ArcPanel additions (ports, node, docker, apps, reseller, templates-meta)                                                               |
-| Runtimes      | PHP only                                                    | PHP, Node (per user, nvm + pm2), Docker Compose (per user), system packages (admin)                                                                    |
-| File manager  | FileGator (third party)                                     | First-party Vue island on `v-*-fs-*`                                                                                                                   |
-| Templates     | file-name dropdown                                          | `template.json` sidecars + card picker + 25 new templates                                                                                              |
-| Testing       | BATS, lint                                                  | BATS + Pest + Playwright + upstream-diff check                                                                                                         |
+| Area          | 1.10.5                                                      | 2.0                                                                                                                                                     |
+| ------------- | ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Web UI        | `web/*/index.php` + `web/templates/pages/*.php`             | Laravel 13 in `web-app/`: controllers, Blade views, Vue islands; `web/` deleted (E8), the pieces commands use moved to `lib/`                           |
+| Routing       | `hestia-nginx` serves PHP files from `web/`                 | `hestia-nginx` sends `/` to `web-app/public/index.php`, `/api/` to `lib/api/index.php`; `/app/*` (the 1.x prefix, ADR-0002) answers 301 for one release |
+| Auth          | `$_SESSION` checks in `main.php`                            | Laravel guard reading the same session (until E8), then a native session handler at the same path with the same keys so the web terminal keeps working  |
+| Authorization | admin vs user via `userContext`; policies in `policies.php` | Policy classes: role × owner × object; the same classes back UI and API                                                                                 |
+| Roles         | user, admin, dns-cluster                                    | user, reseller, admin, dns-cluster; `OWNER` relationship                                                                                                |
+| CLI           | 524 commands                                                | 524 unchanged + ArcPanel additions (ports, node, docker, apps, reseller, templates-meta)                                                                |
+| Runtimes      | PHP only                                                    | PHP, Node (per user, nvm + pm2), Docker Compose (per user), system packages (admin)                                                                     |
+| File manager  | FileGator (third party)                                     | First-party Vue island on `v-*-fs-*`                                                                                                                    |
+| Templates     | file-name dropdown                                          | `template.json` sidecars + card picker + 25 new templates                                                                                               |
+| Testing       | BATS, lint                                                  | BATS + Pest + Playwright + upstream-diff check                                                                                                          |
 
 What does **not** change: the `hestia-nginx` / `hestia-php` packages and their user, the sudoers rule, the flat-file data model, the queue mechanism, the installer entry points (`hst-install*.sh`), `HESTIA_*` paths and constants, the REST API wire format.
 
@@ -137,7 +137,9 @@ Hooks into existing flows use mechanisms upstream already provides: queue pipes,
 
 Earlier plan, kept for the remaining events: upstream `/etc/hestiacp/hooks/` today exposes only `pre_install.sh`, `post_install.sh`, `le_pre.sh` and `le_post.sh`. Several designs (03, 04, 07, 08, 12) want to react to `v-add-user`, `v-suspend-user`, `v-unsuspend-user`, `v-delete-user`, `v-rebuild-user` and `v-restore-web-domain`. The plan is: (1) propose the hook points upstream as one PR (`post_add_user.sh`, `post_suspend_user.sh`, `post_unsuspend_user.sh`, `post_delete_user.sh`, `post_rebuild_user.sh`, `post_restore_web_domain.sh`, each called with the user/domain as arguments, as `le_pre.sh` is today); (2) until merged, the panel's `UserService` calls the ArcPanel follow-up commands itself after the upstream command returns, and a nightly reconciliation (`v-check-sys-ports`, `v-check-sys-node`, `v-check-sys-docker`, `v-update-reseller-counters all`) converges state for users created, suspended or deleted from the CLI/API. Every reconciler fails safe (closes ports, stops daemons) rather than open.
 
-A CI job (`upstream-diff`, see 11 §5) fails if `bin/`, `func/` or `install/` contain a change to an existing upstream file other than the recorded patches.
+**Recorded exceptions.** `test/upstream-exceptions.txt` lists every upstream file under `bin/`, `func/`, `install/` and `src/` that ArcPanel changes, grouped by the decision that allows it: E9 rebranding and packaging (ADR-0006), `is_role_valid` in `func/main.sh` (E11 D10), the hook lines of the five user commands (E12 D4), output-only keys of `v-list-sys-config`, and the 2.0 cut-over (E8, [spec](../features/specs/2026-10-06-004-e8-legacy-retirement-design.md) §11): the path changes of `web/` to `lib/` and `data/` in `func/main.sh`, `func/upgrade.sh`, `func/internal/sanitize_html.php`, the 2FA, Quick Install, dependency, API, language, theme, White Label, statistics and git-update commands, `v-change-sys-config-value`, both installers, `src/hst_autocompile.sh` and `src/deb/nginx/nginx.conf`; the rewrite of `v-add-sys-filemanager` and `v-delete-sys-filemanager` to toggles of `FILE_MANAGER`; and the deletion of `web/` and `install/deb/filemanager/`. `.arcpanel/retired-paths` and `scripts/upstream-merge-cleanup.sh` keep upstream merges cheap after the deletion.
+
+A CI job (`upstream-diff`, see 11 §5, `test/upstream-diff.sh`) fails if `bin/`, `func/`, `install/` or `src/` contain a change to an existing upstream file that the list does not record, or if code references the removed `web/` directory.
 
 ### 3.3 Strangler migration with one session
 
@@ -211,7 +213,7 @@ The legacy app performs the same steps with `exec()`; the only new elements are 
 
 ### 4.3 Request flow — an API call
 
-Unchanged in wire format. `web/api/index.php` stays until E7 moves it under Laravel routing (same URL, same POST fields, same `Hestia-Exit-Code` header). Access-key checks continue to run in `v-check-access-key`; E11 adds owner awareness to that command's permission sets (03 §8).
+Unchanged in wire format. The API script moved from `web/api/index.php` to `lib/api/index.php` with E8 and still answers at `/api/` (same POST fields, same `Hestia-Exit-Code` header); a port to Laravel routing waits for E29. Access-key checks continue to run in `v-check-access-key`; E11 adds owner awareness to that command's permission sets (03 §8).
 
 ### 4.4 Long-running operations
 
@@ -234,7 +236,7 @@ install/
     api/                permission sets + reseller-billing (E11)
   deb/templates/web/    .tpl/.stpl + <name>.json sidecars (E6)
   upgrade/              versions/*.sh + patch/ (upstream patches)
-web/                    legacy app — shrinks to web/api/ and static assets by E8
+lib/                    libraries of the commands since 2.0 (E8): Quick Install, 2FA, mail wrapper, API script, locales, logos, error pages
 web-app/                Laravel 13 panel app (E1)
   app/
     Console/            artisan commands (i18n import, catalog sync)
@@ -246,7 +248,7 @@ web-app/                Laravel 13 panel app (E1)
   resources/
     views/              Blade + component library (E2)
     js/                 Alpine modules + Vue islands (E2, E3, E4, E14)
-    lang/               generated from web/locale/*.po (do not edit by hand)
+    lang/               generated from lib/locale/*.mo (do not edit by hand)
   routes/web.php, routes/api.php
   tests/                Pest unit + feature (fake ArcCommand)
   public/               index.php + built assets
@@ -261,7 +263,7 @@ docs/                   VitePress site, roadmap, current-features, design/, adr/
 
 - The `hestia` deb (`src/deb/hestia/`) ships `web-app/` including `vendor/` (built in CI with `composer install --no-dev --classmap-authoritative` on the bundled PHP 8.5). `hestia-nginx` ships the updated `nginx.conf` with the Laravel `location`. Nothing else changes in packaging.
 - Fresh install: `install/hst-install-*.sh` gains steps to create `web-app/storage/*` writable by `hestiaweb`, generate `APP_KEY` into `/etc/arcpanel/arcpanel.env` (root:hestiaweb 0640), and run `php artisan optimize`.
-- Upgrade: `install/upgrade/versions/<ver>.sh` runs the same steps idempotently, then `v-update-sys-queue restart` for `hestia-nginx`/`hestia-php`. Each epic that adds data files or package keys adds a migration step here (`v-update-user-ports` seeding, `developer.pkg` copy, sidecar generation).
+- Upgrade: `install/upgrade/arcpanel/<ver>.sh` (ADR-0006; `2.0.0.sh` moves the 1.x layout, E8 §8) runs the same steps idempotently, then `v-update-sys-queue restart` for `hestia-nginx`/`hestia-php`. Each epic that adds data files or package keys adds a migration step here (`v-update-user-ports` seeding, `developer.pkg` copy, sidecar generation).
 - Rollback: panel packages are reverted from the apt cache (`v-rollback-sys-hestia` arrives with E33; until then the documented apt procedure). Because the panel app has no database, rollback is a package downgrade plus `php artisan optimize:clear`.
 - Config: `/etc/arcpanel/arcpanel.env` holds only `APP_KEY`, `APP_ENV`, `APP_DEBUG` (mirrors `DEBUG_MODE`), `LOG_LEVEL`. Everything else is read live from `v-list-sys-config json`.
 
@@ -290,7 +292,7 @@ docs/                   VitePress site, roadmap, current-features, design/, adr/
 | 1     | Q1 (E1, E2, E11 part 1, E12, E6 b1) | `/app/login`, `/app/`, `/app/web/*`   | everything else                        | session bridge proven; owner model and ports exist |
 | 2     | Q2 (E3, E11 part 2, E13, E14)       | + files, users, packages, ports, node | rest                                   | FileGator still installed, hidden from nav         |
 | 3     | Q3 (E4, E7 part 1)                  | + apps, db, dns, mail, cron, backups  | server settings, firewall, logs, stats | ≥ 70 % routes                                      |
-| 4     | Q4 (E7 part 2, E8, E5)              | everything at `/`                     | nothing                                | `web/` deleted except `api/`; Laravel at root; 2.0 |
+| 4     | Q4 (E7 part 2, E8, E5)              | everything at `/`                     | nothing                                | `web/` deleted; Laravel at root; 2.0               |
 
 See [10-page-migration-and-retirement.md](./10-page-migration-and-retirement.md) for the per-module order and the cut-over procedure.
 

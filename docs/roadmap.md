@@ -173,6 +173,8 @@ Every migrated page is built **reseller-aware from day one** (owner scoping from
 
 ### E8 — Legacy retirement and 2.0 release
 
+**Design:** [E8 spec](./features/specs/2026-10-06-004-e8-legacy-retirement-design.md) (panel app at the root URL with redirects for old URLs, `web/` deleted and its still-used pieces moved to `lib/`, FileGator removed, 2.0.0 upgrade step from ArcPanel 1.x, upstream-diff CI job, seven milestones). **Status:** implemented 2026-10-06; publishing 2.0 waits for the E9 release infrastructure, and E5 and E6 batches 2–3 follow separately.
+
 **Scope:** remove old `web/` pages and `web/inc/`, move Laravel to the root URL, update `install/` and `install/upgrade/` scripts, update `hestia` deb packaging, migration notes for custom themes, release notes, docs site update, upstream-diff CI check (fails if `bin/`/`func/`/`install/` contain non-additive changes).
 
 **Success metric:** Fresh install and in-place upgrade from 1.10.5 both pass the BATS + e2e suites. **Effort:** M. **Outcome:** O2, O5.

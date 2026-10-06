@@ -1,6 +1,6 @@
 # ADR-0002 — URL scheme during the strangler migration
 
-**Status:** Accepted (2026-10-05) · **Date:** 2026-10-04 · **Epic:** E1, E8
+**Status:** Accepted (2026-10-05); the `/app` prefix ended with 2.0 (E8, 2026-10-06, see the note under Consequences) · **Date:** 2026-10-04 · **Epic:** E1, E8
 
 ## Context
 
@@ -26,3 +26,5 @@ Fixed paths that never move: `/api/` (REST API wire compatibility), `/_shell/` (
 - One nginx change at E1, one at E8 ([02](../design/02-laravel-foundation.md) §3, [10](../design/10-page-migration-and-retirement.md) §6).
 - Deep links shared during the migration (`/app/...`) break at 2.0 unless the redirect table also covers `/app/*` → `/*`; it will.
 - The docs site and release notes must describe the 2.0 URL change for people with custom nginx includes or reverse proxies in front of the panel.
+
+**2.0 (E8, [spec](../features/specs/2026-10-06-004-e8-legacy-retirement-design.md) §5).** Implemented as decided, with three details: Laravel derives its base URL from `SCRIPT_NAME` (no `APP_URL_PREFIX` setting was ever needed); old URLs are answered by `LegacyRedirectController` instead of stubs, with 301 for targets that do not depend on the signed-in user and 302 for owner-dependent targets, which a browser must not cache; `/rrd/` was dropped (the panel reads graphs through `v-export-rrd`) and `/fm/` now redirects to the file manager page.

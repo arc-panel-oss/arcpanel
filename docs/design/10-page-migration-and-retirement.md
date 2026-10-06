@@ -146,6 +146,8 @@ Password reset (`web/reset`) and 2FA reset (`web/reset2fa`) migrate last: `v-che
 
 ## 6. 2.0 cut-over (E8)
 
+**Status:** implemented by the [E8 spec](../features/specs/2026-10-06-004-e8-legacy-retirement-design.md), which wins over this section. It differs in three places: `web/` is deleted completely, the pieces commands use moved to `lib/` and runtime data to `data/rrd/` and `data/white-label/` (items 2 and 3 below kept them in place); the upgrade path is ArcPanel 1.x → 2.0 through `install/upgrade/arcpanel/2.0.0.sh`, since ADR-0006 rules out in-place upgrades from HestiaCP (items 4 and 9); and publishing the release waits for the E9 release infrastructure. The CSS themes are replaced by the panel themes (item 6).
+
 Preconditions: every module in §3 migrated (metric = 100 %), FileGator removed ([06](./06-file-manager-v2.md) §7), E14 landed, e2e suite green on all CI targets.
 
 1. **Routing** — `src/deb/nginx/nginx.conf`: `root /usr/local/hestia/web-app/public;`, `location / { try_files $uri /index.php?$query_string; }`, `location ~ ^/index\.php` → FPM; keep `/api/` (`alias /usr/local/hestia/web/api/`, PHP via FPM — the legacy API script stays, see [01](./01-architecture-overview.md) §9), `/_shell/`, `/rrd/`, `/backup/`, `/_downloads/`; remove `/fm/`, `/app/` prefix block, legacy deny lists. Laravel's base URL follows `SCRIPT_NAME` (now `/index.php`); all links are route-named so nothing else changes. `/app/*` → 301 to `/*` for one release.

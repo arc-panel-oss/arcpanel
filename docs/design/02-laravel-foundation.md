@@ -33,24 +33,24 @@ One `location` block is added to `src/deb/nginx/nginx.conf`, before the `\.php$`
 ```nginx
 # ArcPanel (Laravel) — strangler prefix, see docs/adr/0002-url-scheme.md
 location ^~ /app/ {
-	alias /usr/local/hestia/web-app/public/;
-	index index.php;
+	alias     /usr/local/hestia/web-app/public/;
+	index     index.php;
 	try_files $uri @arcpanel;
 
 	location ~ ^/app/build/ {
-		expires 1y;
+		expires    1y;
 		add_header Cache-Control "public, immutable";
-		try_files $uri =404;
+		try_files  $uri =404;
 	}
 }
 
 location @arcpanel {
-	include       fastcgi_params;
-	fastcgi_param HTTP_EARLY_DATA $rfc_early_data if_not_empty;
-	fastcgi_param SCRIPT_FILENAME /usr/local/hestia/web-app/public/index.php;
-	fastcgi_param SCRIPT_NAME     /app/index.php;
-	fastcgi_param REQUEST_URI     $request_uri;
-	fastcgi_pass  unix:/run/hestia-php.sock;
+	include              fastcgi_params;
+	fastcgi_param        HTTP_EARLY_DATA $rfc_early_data if_not_empty;
+	fastcgi_param        SCRIPT_FILENAME /usr/local/hestia/web-app/public/index.php;
+	fastcgi_param        SCRIPT_NAME /app/index.php;
+	fastcgi_param        REQUEST_URI $request_uri;
+	fastcgi_pass         unix:/run/hestia-php.sock;
 	fastcgi_read_timeout 600s;
 }
 ```
@@ -261,7 +261,9 @@ Demo mode (`v-change-sys-demo-mode`) is enforced by every `v-*` through `check_h
 
 ### 5.9 After E8
 
-When no legacy page remains, `LegacySession` stays as the session **handler** (same cookie, same path, same keys) because `web-terminal-session-auth.php` and FileGator-era tooling read it; only the `BridgeLegacySession` fallbacks for keys written by legacy pages are removed. E26 (passkeys, OIDC, session list) builds on this single handler.
+When no legacy page remains, `LegacySession` stays as the session **handler** (same cookie, same path, same keys) because `web-terminal-session-auth.php` reads it; only what served legacy pages is removed. E26 (passkeys, OIDC, session list) builds on this single handler.
+
+**Done (E8, [spec](../features/specs/2026-10-06-004-e8-legacy-retirement-design.md) §5.2).** The panel app serves the root URL (`SCRIPT_NAME=/index.php`, base URL `/`, routes cached). Login and impersonation always land on the dashboard; the session keys `userSortOrder`, `login`, `failed_twofa` and the FileGator keys `_sf2_attributes` / `_sf2_meta` are no longer written; `token` stays for `v-log-user-logout`, `look` for the web terminal.
 
 ---
 
