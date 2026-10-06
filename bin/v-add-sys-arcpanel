@@ -99,6 +99,11 @@ if [ -f "$SUDOERS_SOURCE" ]; then
 	mv -f "$SUDOERS_FILE.new" "$SUDOERS_FILE"
 fi
 
+# Framework caches of the previous version may name service providers that
+# the new vendor/ no longer has (artisan would not boot); they are rebuilt
+# below. dpkg leaves these generated files in place on upgrades.
+rm -f "$APP_DIR"/bootstrap/cache/*.php
+
 # Command allow-list from the installed v-* scripts, and translations from the
 # installed gettext catalogues (both generated, never shipped)
 "$PHP_BIN" "$APP_DIR/artisan" arcpanel:allow-list --bin="$HESTIA/bin" > /dev/null
