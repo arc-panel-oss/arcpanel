@@ -1,0 +1,97 @@
+#!/bin/bash
+# info: start a Quick Install of an application on a web domain in the background (E7 batch 2)
+# options: USER DOMAIN APP OPTIONS_FILE
+#
+# example: v-start-user-quick-install alice example.com DokuWiki /tmp/options.json
+#
+# This function checks the arguments of a Quick Install, keeps a root-only
+# copy of the options (a JSON object, at most 64 KiB), starts
+# v-add-web-domain-app detached from the caller and prints the task ID. A
+# user runs one install at a time; the state and the output are read with
+# v-list-user-quick-install-task.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+user=$1
+domain=$2
+app=$3
+options_file=$4
+
+# Includes
+# shellcheck source=/etc/hestiacp/hestia.conf
+source /etc/hestiacp/hestia.conf
+# shellcheck source=/usr/local/hestia/func/main.sh
+source $HESTIA/func/main.sh
+# shellcheck source=/usr/local/hestia/func/quickinstall.sh
+source $HESTIA/func/quickinstall.sh
+# load config file
+source_conf "$HESTIA/conf/hestia.conf"
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '4' "$#" 'USER DOMAIN APP OPTIONS_FILE'
+is_format_valid 'user' 'domain'
+is_object_valid 'user' 'USER' "$user"
+is_object_unsuspended 'user' 'USER' "$user"
+is_object_valid 'web' 'DOMAIN' "$domain"
+is_object_unsuspended 'web' 'DOMAIN' "$domain"
+if ! qi_app_exists "$app"; then
+	check_result "$E_NOTEXIST" "installer $app does not exist"
+fi
+if [ ! -f "$options_file" ] || [ -L "$options_file" ]; then
+	check_result "$E_NOTEXIST" "options file $options_file does not exist"
+fi
+if [ "$(stat -c %s "$options_file")" -gt 65536 ]; then
+	check_result "$E_INVALID" "options file is too large"
+fi
+if ! jq -e 'type == "object"' "$options_file" > /dev/null 2>&1; then
+	check_result "$E_INVALID" "options file is not a JSON object"
+fi
+
+# Perform verification if read-only mode is enabled
+check_hestia_demo_mode
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+exec {lock}> "$(qi_task_lock "$user")"
+flock -x "$lock"
+
+if qi_task_running "$user"; then
+	check_result "$E_INUSE" "Another installation is running for $user"
+fi
+
+options=$(qi_task_options "$user")
+(umask 077 && cp "$options_file" "$options")
+chown root:root "$options"
+chmod 600 "$options"
+
+id="$(date +%s)$(printf '%04d' $((RANDOM % 10000)))"
+log=$(qi_task_log "$user")
+: > "$log"
+chmod 640 "$log"
+qi_task_set "$user" "ID=$id" "DOMAIN=$domain" "APP=$app" STATUS=running PID= EXIT= \
+	"START=$(date +'%F %T')" END=
+
+# Detached: new session, no descriptor shared with the caller, so the panel's
+# request returns at once and the install survives it
+setsid "$BIN/v-run-user-quick-install" "$id" "$user" "$domain" "$app" \
+	< /dev/null >> "$log" 2>&1 {lock}>&- &
+qi_task_set "$user" "PID=$!"
+
+flock -u "$lock"
+echo "$id"
+
+#----------------------------------------------------------#
+#                       Hestia                             #
+#----------------------------------------------------------#
+
+log_event "$OK" "$ARGUMENTS"
+
+exit

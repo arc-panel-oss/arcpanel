@@ -22,6 +22,11 @@
 #                                 Keys)
 #   prepare.sh cleanup            deletes them again and restores API_SYSTEM
 #   prepare.sh ssh-key            prints a fresh public SSH key
+#   prepare.sh terminal-on        WEB_TERMINAL=true and a bash shell for
+#                                 arce2euser; terminal-off restores both
+#   prepare.sh quickinstall       a fresh web domain e2e-wiki.example for
+#                                 arce2euser; quickinstall-http prints its
+#                                 DokuWiki page, quickinstall-clean deletes it
 #   prepare.sh ports RANGE        allocates RANGE to arce2euser (E6)
 #   prepare.sh listen PORT        serves "arce2e-app-PORT" on 127.0.0.1:PORT
 #   prepare.sh http DOMAIN        prints the HTTP status, then the start of
@@ -257,7 +262,47 @@ keys_reset() {
 	"$B/v-delete-user-ssh-key" arce2euser e2e-key@arcpanel > /dev/null 2>&1 || true
 }
 
+# Terminal and Quick Install specs (E7 batch 2): WEB_TERMINAL and the shell of
+# arce2euser while the terminal spec runs, a fresh web domain for DokuWiki
+TERMINAL_STATE=/root/.arcpanel-e2e-web-terminal
+QUICKINSTALL_DOMAIN=e2e-wiki.example
+terminal_off() {
+	if [ -f "$TERMINAL_STATE" ]; then
+		"$B/v-change-sys-config-value" WEB_TERMINAL "$(cat "$TERMINAL_STATE")"
+		rm -f "$TERMINAL_STATE"
+	fi
+	"$B/v-change-user-shell" arce2euser nologin > /dev/null 2>&1 || true
+}
+
 case "${1:-}" in
+	terminal-on)
+		if [ ! -f "$TERMINAL_STATE" ]; then
+			grep -o "^WEB_TERMINAL='[a-z]*'" "$HESTIA/conf/hestia.conf" | cut -d"'" -f2 > "$TERMINAL_STATE" || echo false > "$TERMINAL_STATE"
+		fi
+		"$B/v-change-sys-config-value" WEB_TERMINAL true
+		"$B/v-change-user-shell" arce2euser bash > /dev/null
+		forget_config_cache
+		exit 0
+		;;
+	terminal-off)
+		terminal_off
+		forget_config_cache
+		exit 0
+		;;
+	quickinstall)
+		"$B/v-delete-web-domain" arce2euser "$QUICKINSTALL_DOMAIN" > /dev/null 2>&1 || true
+		"$B/v-add-web-domain" arce2euser "$QUICKINSTALL_DOMAIN" > /dev/null
+		exit 0
+		;;
+	quickinstall-http)
+		# The DokuWiki start page of the domain over HTTP
+		curl -sL --noproxy '*' --max-time 15 --resolve "$QUICKINSTALL_DOMAIN:80:$(domain_ip "$QUICKINSTALL_DOMAIN")" "http://$QUICKINSTALL_DOMAIN/doku.php" || true
+		exit 0
+		;;
+	quickinstall-clean)
+		"$B/v-delete-web-domain" arce2euser "$QUICKINSTALL_DOMAIN" > /dev/null 2>&1 || true
+		exit 0
+		;;
 	ssh-key)
 		# A fresh public key with the comment e2e-key@arcpanel
 		dir="$(mktemp -d)"
@@ -405,6 +450,7 @@ esac
 
 if [ "${1:-}" = cleanup ]; then
 	stop_listeners
+	terminal_off
 	keys_reset
 	if [ -f "$API_STATE" ]; then
 		"$B/v-change-sys-config-value" API_SYSTEM "$(cat "$API_STATE")"

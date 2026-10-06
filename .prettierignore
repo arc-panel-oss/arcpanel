@@ -20,6 +20,10 @@
 # Bin folder
 /bin/v-generate-password-hash
 /bin/v-quick-install-app
+# PHP commands of Quick Install (E7 batch 2)
+/bin/v-add-web-domain-app
+/bin/v-list-quick-install-app-options
+/bin/v-list-quick-install-apps
 
 # Exclude bats submodules if present
 /test/test_helper/*

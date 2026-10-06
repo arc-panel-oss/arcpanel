@@ -1,0 +1,74 @@
+#!/bin/bash
+# info: run a Quick Install started by v-start-user-quick-install (E7 batch 2)
+# options: ID USER DOMAIN APP
+#
+# example: v-run-user-quick-install 17286400001234 alice example.com DokuWiki
+#
+# This function is the background part of v-start-user-quick-install: it
+# runs v-add-web-domain-app with the staged options, removes them on every
+# exit path and records the result. It refuses to run a task that
+# v-start-user-quick-install did not start.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+id=$1
+user=$2
+domain=$3
+app=$4
+
+# Includes
+# shellcheck source=/etc/hestiacp/hestia.conf
+source /etc/hestiacp/hestia.conf
+# shellcheck source=/usr/local/hestia/func/main.sh
+source $HESTIA/func/main.sh
+# shellcheck source=/usr/local/hestia/func/quickinstall.sh
+source $HESTIA/func/quickinstall.sh
+# load config file
+source_conf "$HESTIA/conf/hestia.conf"
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+if [ -z "$app" ]; then
+	echo "Usage: v-run-user-quick-install ID USER DOMAIN APP"
+	exit "$E_ARGS"
+fi
+is_format_valid 'user'
+is_object_valid 'user' 'USER' "$user"
+if [ "$(qi_task_get "$user" ID)" != "$id" ] || [ "$(qi_task_get "$user" STATUS)" != 'running' ]; then
+	check_result "$E_FORBIDEN" "task $id was not started by v-start-user-quick-install"
+fi
+options=$(qi_task_options "$user")
+trap 'rm -f "$options"' EXIT
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+echo "$ v-add-web-domain-app $user $domain $app"
+"$BIN/v-add-web-domain-app" "$user" "$domain" "$app" "$options"
+rc=$?
+rm -f "$options"
+if [ "$rc" -eq 0 ]; then
+	status=done
+else
+	status=failed
+	echo "Exit code $rc"
+fi
+
+exec {lock}> "$(qi_task_lock "$user")"
+flock -x "$lock"
+if [ "$(qi_task_get "$user" ID)" = "$id" ]; then
+	qi_task_set "$user" "STATUS=$status" "EXIT=$rc" "END=$(date +'%F %T')"
+fi
+flock -u "$lock"
+
+#----------------------------------------------------------#
+#                       Hestia                             #
+#----------------------------------------------------------#
+
+exit "$rc"

@@ -10,14 +10,12 @@ final class LegacyRoutes
 {
     public const URLS = [
         'users.index' => '/list/user/',
-        'terminal.index' => '/list/terminal/',
         'server.services' => '/list/server/',
         'server.settings' => '/edit/server/',
         'server.updates' => '/list/updates/',
         'packages.index' => '/list/package/',
         'account.edit' => '/edit/user/',
         'users.create' => '/add/user/',
-        'web.apps.install' => '/add/webapp/',
         'web.logs.download' => '/download/web-log/',
     ];
 

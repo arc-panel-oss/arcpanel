@@ -184,6 +184,9 @@ async function buildPanelApp() {
 			// Vue islands (ADR-0001): precompiled single-file components
 			plugins: [vuePlugin()],
 			define: vueDefines,
+			// Stylesheets imported by scripts (xterm.js of the web terminal) arrive
+			// as text that the module adds to the page itself.
+			loader: { '.css': 'text' },
 		});
 		for (const [file, output] of Object.entries(js.metafile.outputs)) {
 			// Dynamic imports (chart.js) are entry points too; only list the app.
@@ -211,6 +214,20 @@ async function buildPanelApp() {
 				`./node_modules/@fontsource/${family}/LICENSE`,
 				`${panelOutput}/fonts/${family}-LICENSE.txt`,
 			);
+		}
+
+		// Quick Install (E7 batch 2 spec §10.3): the logo of each installer
+		const installers = './web/src/app/WebApp/Installers';
+		for (const app of await fs.readdir(installers)) {
+			for (const file of await fs.readdir(`${installers}/${app}`)) {
+				if (/\.(svg|png|jpe?g|webp)$/i.test(file)) {
+					await ensureDir(`${panelOutput}/quick-install/${app}`);
+					await fs.copyFile(
+						`${installers}/${app}/${file}`,
+						`${panelOutput}/quick-install/${app}/${file}`,
+					);
+				}
+			}
 		}
 
 		await fs.writeFile(`${panelOutput}/manifest.json`, `${JSON.stringify(manifest, null, '\t')}\n`);

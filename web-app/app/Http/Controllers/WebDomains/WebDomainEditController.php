@@ -30,7 +30,6 @@ use App\Services\WebDomains\Tabs\TemplateVarsTab;
 use App\Services\WebDomains\TemplateCatalog;
 use App\Services\WebDomains\TemplateForm;
 use App\Services\WebDomains\WebDomainService;
-use App\View\Navigation;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
@@ -91,8 +90,9 @@ final class WebDomainEditController extends Controller
             'fileManagerUrl' => $config->is('FILE_MANAGER', 'true') && $files->view($principal, $user)
                 ? route('files.show', ['user' => $user, 'path' => 'web/'.$domain.'/public_html'])
                 : null,
-            'appInstallerUrl' => $config->get('PLUGIN_APP_INSTALLER') !== 'false' && $can['update'] && $user === $principal->effectiveUser()
-                ? Navigation::url('web.apps.install').'?'.http_build_query(['domain' => $domain, 'token' => $principal->legacyToken])
+            // Quick Install (E7 batch 2 spec §10.3)
+            'appInstallerUrl' => $config->get('PLUGIN_APP_INSTALLER') !== 'false' && $policy->installApp($principal, $user)
+                ? route('web.domains.install', ['user' => $user, 'domain' => $domain])
                 : null,
             'isAdminView' => $user !== $principal->effectiveUser(),
         ]);

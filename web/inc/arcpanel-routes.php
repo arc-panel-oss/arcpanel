@@ -41,6 +41,7 @@ function arc_route(string $legacyPath): string {
 		"/list/log/" => "/app/logs",
 		"/list/stats/" => "/app/stats",
 		"/list/rrd/" => "/app/server/rrd",
+		"/list/terminal/" => "/app/terminal",
 	];
 
 	return arc_app_pages() && isset($routes[$legacyPath]) ? $routes[$legacyPath] : $legacyPath;
@@ -317,6 +318,23 @@ function arc_redirect_if_migrated(string $legacyPath, array $query = []): void {
 				1
 			) {
 				$url .= "?period=" . $period;
+			}
+			break;
+		// E7 batch 2: web terminal and Quick Install
+		case "/list/terminal/":
+			$url = "/app/terminal";
+			break;
+		case "/add/webapp/":
+			if ($domain === "" || $owner === "") {
+				return;
+			}
+			$url = "/app/web/domains/" . $segment($owner) . "/" . $segment($domain) . "/install";
+			$app = isset($query["app"]) ? (string) $query["app"] : "";
+			if ($app !== "") {
+				if (preg_match('/^[A-Za-z][A-Za-z0-9]{0,63}$/', $app) !== 1) {
+					return;
+				}
+				$url .= "/" . $app;
 			}
 			break;
 		default:

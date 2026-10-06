@@ -192,7 +192,7 @@
 									<li class="top-bar-menu-item">
 										<a title="<?= _("Web terminal") ?>" class="top-bar-menu-link <?php if ($TAB == "TERMINAL") {
 	echo "active";
-} ?>" href="/list/terminal/">
+} ?>" href="<?= tohtml(arc_route("/list/terminal/")) ?>">
 											<i class="fas fa-terminal"></i>
 											<span class="top-bar-menu-link-label u-hide-desktop"><?= _("Web terminal") ?></span>
 										</a>

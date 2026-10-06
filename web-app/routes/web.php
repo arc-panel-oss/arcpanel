@@ -47,9 +47,11 @@ use App\Http\Controllers\Shell\PaletteController;
 use App\Http\Controllers\Shell\RrdController;
 use App\Http\Controllers\Shell\StyleguideController;
 use App\Http\Controllers\Stats\StatsController;
+use App\Http\Controllers\TerminalController;
 use App\Http\Controllers\Users\UserActionController;
 use App\Http\Controllers\Users\UserController;
 use App\Http\Controllers\Users\UserEditController;
+use App\Http\Controllers\WebDomains\QuickInstallController;
 use App\Http\Controllers\WebDomains\WebDomainActionController;
 use App\Http\Controllers\WebDomains\WebDomainController;
 use App\Http\Controllers\WebDomains\WebDomainEditController;
@@ -232,6 +234,9 @@ Route::middleware('auth.arc')->group(function () {
     // Statistics and server graphs (E7 batch 2 spec §9.4, §9.5)
     Route::get('/stats', StatsController::class)->name('stats.index');
     Route::get('/server/rrd', RrdPageController::class)->name('server.rrd');
+
+    // Web terminal (E7 batch 2 spec §10.4)
+    Route::get('/terminal', TerminalController::class)->middleware('sys-config:WEB_TERMINAL=true')->name('terminal.index');
 
     // Port registry (E12 spec §7)
     Route::get('/server/ports', [ServerPortController::class, 'index'])->name('server.ports');
@@ -526,6 +531,11 @@ Route::middleware('auth.arc')->group(function () {
         Route::middleware('effective-user')->prefix('{user}/{domain}')->group(function () {
             Route::get('/edit', [WebDomainEditController::class, 'edit'])->name('edit');
             Route::get('/logs/{type}', [WebDomainLogController::class, 'show'])->whereIn('type', ['access', 'error'])->name('logs');
+            // Quick Install (E7 batch 2 spec §10.2)
+            Route::get('/install', [QuickInstallController::class, 'index'])->name('install');
+            Route::get('/install/{app}', [QuickInstallController::class, 'form'])->where('app', '[A-Za-z][A-Za-z0-9]{0,63}')->name('install.form');
+            Route::get('/install-task', [QuickInstallController::class, 'task'])->name('install.task');
+            Route::post('/install/{app}', [QuickInstallController::class, 'start'])->where('app', '[A-Za-z][A-Za-z0-9]{0,63}')->middleware('not-readonly')->name('install.start');
 
             Route::middleware('not-readonly')->group(function () {
                 foreach (['general', 'ssl', 'redirect', 'advanced', 'ftp', 'stats'] as $tab) {

@@ -16,6 +16,8 @@ import apRrdGraph from './rrd-graph.js';
 import apSidebar from './sidebar.js';
 import apTable from './table.js';
 import apTabs from './tabs.js';
+import apTask from './task.js';
+import apTerminal from './terminal.js';
 import apToast from './toast.js';
 import apUnlimited from './unlimited.js';
 import apUserMenu from './user-menu.js';
@@ -38,6 +40,8 @@ export const modules = {
 	apSidebar,
 	apTable,
 	apTabs,
+	apTask,
+	apTerminal,
 	apToast,
 	apUnlimited,
 	apUserMenu,

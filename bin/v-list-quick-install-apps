@@ -1,0 +1,46 @@
+#!/usr/local/hestia/php/bin/php
+<?php
+//# info: list the Quick Install applications (E7 batch 2)
+//# options: [FORMAT]
+//#
+//# example: v-list-quick-install-apps json
+//#
+//# This function lists the installers of web/src/app/WebApp/Installers:
+//# NAME, GROUP, VERSION, THUMBNAIL (a file next to the installer),
+//# PHP_VERSIONS (supported and installed) and INSTALLABLE (yes when one PHP
+//# version fits).
+
+require_once __DIR__ . "/../func/quickinstall.php";
+
+$format = $argv[1] ?? "shell";
+if (!in_array($format, ["json", "shell", "plain"], true)) {
+	qi_fail(QI_E_INVALID, "invalid format :: $format");
+}
+
+qi_session();
+qi_quiet_errors();
+$hestia = new QiHestiaApp();
+
+$apps = [];
+foreach (qi_apps() as $app) {
+	$info = qi_installer($app, $hestia)->getInfo();
+	$apps[$app] = [
+		"NAME" => $info->name,
+		"GROUP" => $info->group,
+		"VERSION" => $info->version,
+		"THUMBNAIL" => $info->thumbnail,
+		"PHP_VERSIONS" => implode(",", $info->supportedPHPVersions),
+		"INSTALLABLE" => $info->isInstallable() ? "yes" : "no",
+	];
+}
+
+if ($format === "json") {
+	qi_print_json((object) $apps);
+	exit(0);
+}
+if ($format === "shell") {
+	echo "NAME\tGROUP\tVERSION\tINSTALLABLE\n";
+}
+foreach ($apps as $row) {
+	echo "{$row["NAME"]}\t{$row["GROUP"]}\t{$row["VERSION"]}\t{$row["INSTALLABLE"]}\n";
+}

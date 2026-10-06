@@ -2012,6 +2012,14 @@ a.ap-pick:focus-visible {
 	background: currentColor;
 	box-shadow: 0 0 0 3px color-mix(in oklab, var(--ap-ok) 25%, transparent);
 }
+/* Output of a background task (Quick Install): plain wrapped text */
+.ap-log-body.ap-task-log {
+	margin: 0;
+	max-height: 360px;
+	padding-inline: var(--ap-space-3-5);
+	white-space: pre-wrap;
+	overflow-y: auto;
+}
 .ap-log-body {
 	padding: var(--ap-space-2-5) 0;
 	font: 400 12.5px/1.75 var(--ap-font-mono);
@@ -3753,4 +3761,14 @@ a.ap-pick:focus-visible {
 }
 .ap-break {
 	word-break: break-all;
+}
+
+/* Web terminal (E7 batch 2): xterm.js fills the card */
+.ap-terminal {
+	padding: var(--ap-space-2);
+	background: var(--ap-bg-sunken);
+	border-radius: inherit;
+}
+.ap-terminal-screen {
+	min-height: 60vh;
 }

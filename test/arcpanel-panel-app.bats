@@ -444,6 +444,19 @@ teardown_file() {
     assert_output "403 "
 }
 
+@test "Legacy terminal and Quick Install pages redirect to the panel app when ARCPANEL_APP_PAGES is yes" {
+    v-change-sys-config-value ARCPANEL_APP_PAGES yes
+    pages_login
+    run pages_get /list/terminal/
+    assert_output "302 $PANEL/app/terminal"
+    run pages_get "/add/webapp/?domain=$PAGES_USER.example"
+    assert_output "302 $PANEL/app/web/domains/$PAGES_USER/$PAGES_USER.example/install"
+    run pages_get "/add/webapp/?domain=$PAGES_USER.example&app=DokuWiki"
+    assert_output "302 $PANEL/app/web/domains/$PAGES_USER/$PAGES_USER.example/install/DokuWiki"
+    run pages_get "/app/web/domains/$PAGES_USER/$PAGES_USER.example/install"
+    assert_output "200 "
+}
+
 @test "Panel app build ships hashed assets and fonts" {
     run cat /usr/local/hestia/web-app/public/build/manifest.json
     assert_success
