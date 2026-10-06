@@ -1,0 +1,15 @@
+{
+	"title": "Laravel Octane app",
+	"description": "Serves files of the app's public/ folder and proxies the rest, PHP scripts included, to the Octane server.",
+	"category": "php-framework",
+	"runtime": "php",
+	"variables": [
+		{
+			"key": "BACKEND_PORT",
+			"type": "port",
+			"required": true,
+			"label": "App port"
+		}
+	],
+	"docs": "https://docs.arcpanel.top/docs/server-administration/web-templates.html"
+}

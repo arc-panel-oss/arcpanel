@@ -1,0 +1,15 @@
+{
+	"title": "Ruby on Rails app (Puma)",
+	"description": "Serves the app's public/ folder as the document root, caches /assets/ and /packs/, and proxies the rest to Puma.",
+	"category": "ruby",
+	"runtime": "ruby",
+	"variables": [
+		{
+			"key": "BACKEND_PORT",
+			"type": "port",
+			"required": true,
+			"label": "App port"
+		}
+	],
+	"docs": "https://docs.arcpanel.top/docs/server-administration/web-templates.html"
+}

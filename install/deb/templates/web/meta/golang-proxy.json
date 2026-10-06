@@ -1,0 +1,15 @@
+{
+	"title": "Go app",
+	"description": "Proxies every request to a Go server on the app port, with WebSockets.",
+	"category": "go",
+	"runtime": "go",
+	"variables": [
+		{
+			"key": "BACKEND_PORT",
+			"type": "port",
+			"required": true,
+			"label": "App port"
+		}
+	],
+	"docs": "https://docs.arcpanel.top/docs/server-administration/web-templates.html"
+}

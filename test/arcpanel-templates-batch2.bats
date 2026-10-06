@@ -23,8 +23,8 @@ PORT=38605
 LISTEN_DIR=$(mktemp -d)
 
 # Templates of batch 2 and those that take BACKEND_PORT
-B2_TEMPLATES="django flask-fastapi"
-B2_PORT_TEMPLATES="django flask-fastapi"
+B2_TEMPLATES="django flask-fastapi golang-proxy rails laravel-octane"
+B2_PORT_TEMPLATES="django flask-fastapi golang-proxy rails laravel-octane"
 
 source_value() {
     grep "^$1=" "$ARCPANEL/conf/arcpanel.conf" | tail -n1 | cut -d"'" -f2
@@ -253,4 +253,57 @@ teardown_file() {
     assert_output "1"
     run grep -c 'proxy_hide_header Upgrade' "$(ssl_conf_of $U1 $D1)"
     assert_output "0"
+}
+
+#----------------------------------------------------------#
+#                 Go, Ruby and Octane                      #
+#----------------------------------------------------------#
+
+@test "Batch 2: golang-proxy sends every path to the app" {
+    local docroot
+    docroot=$(docroot_of $U1 $D1)
+    echo "e6b-docroot-file" > "$docroot/robots.txt"
+    use_tpl golang-proxy
+    run eventually "404" status_path $U1 $D1 /robots.txt
+    # the listener has no robots.txt: the answer comes from the app, not the document root
+    assert_output "404"
+    run grep -c 'Upgrade \$http_upgrade' "$(conf_of $U1 $D1)"
+    assert_output "1"
+    rm -f "$docroot/robots.txt"
+}
+
+@test "Batch 2: rails serves public files and assets and proxies the rest to Puma" {
+    local docroot
+    docroot=$(docroot_of $U1 $D1)
+    mkdir -p "$docroot/assets"
+    echo "e6b-asset" > "$docroot/assets/app-123.js"
+    echo "e6b-public" > "$docroot/robots.txt"
+    chown -R --reference="$docroot" "$docroot/assets" "$docroot/robots.txt"
+    use_tpl rails
+    run eventually "e6b-public" fetch_path $U1 $D1 /robots.txt
+    assert_output "e6b-public"
+    run eventually "e6b-asset" fetch_path $U1 $D1 /assets/app-123.js
+    assert_output "e6b-asset"
+    run bash -c "curl -sI --noproxy '*' --resolve $D1:80:$(web_ip $U1 $D1) http://$D1/assets/app-123.js | grep -i '^cache-control'"
+    assert_output --partial "max-age"
+    run eventually "e6b-listener-$PORT" fetch_path $U1 $D1 /
+    assert_output "e6b-listener-$PORT"
+    rm -rf "$docroot/assets" "$docroot/robots.txt"
+}
+
+@test "Batch 2: laravel-octane never serves PHP files of the document root" {
+    local docroot
+    docroot=$(docroot_of $U1 $D1)
+    echo "<?php echo 'e6b-php-source';" > "$docroot/index.php"
+    echo "e6b-public" > "$docroot/robots.txt"
+    chown --reference="$docroot" "$docroot/index.php" "$docroot/robots.txt"
+    echo "e6b-octane-index" > "$LISTEN_DIR/$PORT/index.php"
+    use_tpl laravel-octane
+    run eventually "e6b-octane-index" fetch_path $U1 $D1 /index.php
+    assert_output "e6b-octane-index"
+    run eventually "e6b-public" fetch_path $U1 $D1 /robots.txt
+    assert_output "e6b-public"
+    run eventually "e6b-listener-$PORT" fetch_path $U1 $D1 /
+    assert_output "e6b-listener-$PORT"
+    rm -f "$docroot/index.php" "$docroot/robots.txt" "$LISTEN_DIR/$PORT/index.php"
 }
