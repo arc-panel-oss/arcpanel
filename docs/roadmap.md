@@ -140,6 +140,8 @@ Effort sizing for this team: **S** ≤ 2 weeks · **M** 3–5 weeks · **L** 6�
 
 **Success metric:** Node.js and Redis installable from the UI and immediately usable by E6 templates. **Effort:** M. **Outcome:** O3, O4.
 
+**Design:** [E5 + E6 batch 2 spec](./features/specs/2026-10-06-006-e5-e6b2-system-packages-templates-design.md) (six entries from the distribution's apt archive: Python 3, Go, Ruby, FFmpeg, ImageMagick, build tools; a record of what ArcPanel installed; installs as the E7 system task on an admin page `/server/packages`; runtime badges in the template picker; seven milestones). **Status:** implemented 2026-10-06; Redis and Memcached stay in the Docker store (a shared localhost instance is readable by every user), OpenJDK, the certbot plugins and snap are dropped, and package updates stay with apt. The BATS, smoke and e2e runs wait for the fresh install of E9 R5 M8 (see the spec's implementation notes).
+
 ### E6 — Web template expansion with metadata
 
 **Hypothesis:** We believe adding templates for non-PHP stacks and giving each template a description and variables will make the template picker usable by people who do not read NGINX configs, because today templates are only a file-name dropdown.
@@ -156,7 +158,7 @@ Effort sizing for this team: **S** ≤ 2 weeks · **M** 3–5 weeks · **L** 6�
 
 **Success metric:** ≥ 25 new templates with metadata; template picker in the new Web Domain form. **Effort:** M total, S per batch. **Outcome:** O4.
 
-**Design:** [E6 batch 1 spec](./features/specs/2026-10-05-005-e6-templates-batch1-design.md) (metadata for every shipped template, per-domain variables with ports from E12, ten templates on both NGINX stacks, card picker in Laravel, four milestones). **Status:** implemented 2026-10-05; the `nginx-fpm` CI job waits for E10.
+**Design:** [E6 batch 1 spec](./features/specs/2026-10-05-005-e6-templates-batch1-design.md) (metadata for every shipped template, per-domain variables with ports from E12, ten templates on both NGINX stacks, card picker in Laravel, four milestones). **Status:** implemented 2026-10-05; the `nginx-fpm` CI job waits for E10. Batch 2 ([spec](./features/specs/2026-10-06-006-e5-e6b2-system-packages-templates-design.md): `django`, `flask-fastapi`, `golang-proxy`, `rails`, `laravel-octane`, `wordpress-secure`; `redirect-only` and `maintenance` dropped) implemented 2026-10-06 together with E5.
 
 ### E7 — Migrate remaining pages to Laravel
 

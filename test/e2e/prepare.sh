@@ -48,6 +48,10 @@
 #                                 reset@e2e-mail.example (E7 batch 3 reset);
 #                                 reset-code prints the code of the newest
 #                                 reset mail, reset-clean deletes both
+#   prepare.sh syspackages        the system package catalog entry
+#                                 arctest-e2e (GNU hello, provides ruby)
+#                                 without hello installed (E5);
+#                                 syspackages-clean removes both again
 set -euo pipefail
 
 ARCPANEL="${ARCPANEL:-/usr/local/arcpanel}"
@@ -304,7 +308,28 @@ reset_enable() {
 	forget_config_cache
 }
 
+# E5: the catalog entry of the system packages spec and its package
+syspackages_clean() {
+	if grep -q "^SLUG='arctest-e2e' " "$ARCPANEL/data/sys-packages.conf" 2> /dev/null; then
+		"$B/v-delete-sys-package" arctest-e2e force > /dev/null 2>&1 || true
+	fi
+	rm -f "$ARCPANEL/install/common/apps/system/arctest-e2e.json"
+}
+
 case "${1:-}" in
+	syspackages)
+		syspackages_clean
+		if [ "$(dpkg-query -W -f='${db:Status-Status}' hello 2> /dev/null || true)" = installed ]; then
+			DEBIAN_FRONTEND=noninteractive apt-get -y -qq remove hello > /dev/null
+		fi
+		install -m 0644 "$(dirname "$(readlink -f "$0")")/../fixtures/sys-packages-e2e/arctest-e2e.json" \
+			"$ARCPANEL/install/common/apps/system/"
+		exit 0
+		;;
+	syspackages-clean)
+		syspackages_clean
+		exit 0
+		;;
 	terminal-on)
 		if [ ! -f "$TERMINAL_STATE" ]; then
 			grep -o "^WEB_TERMINAL='[a-z]*'" "$ARCPANEL/conf/arcpanel.conf" | cut -d"'" -f2 > "$TERMINAL_STATE" || echo false > "$TERMINAL_STATE"
@@ -505,6 +530,7 @@ esac
 
 if [ "${1:-}" = cleanup ]; then
 	stop_listeners
+	syspackages_clean
 	reset_clean
 	terminal_off
 	keys_reset

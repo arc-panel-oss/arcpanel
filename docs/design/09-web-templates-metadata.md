@@ -1,6 +1,6 @@
 # 09 — Web Templates with Metadata
 
-**Epic:** E6 · **Status:** Draft v1; batch 1 implemented by the [E6 batch 1 spec](../features/specs/2026-10-05-005-e6-templates-batch1-design.md), which wins where it differs (metadata in `templates/web/meta/`, `v-change-web-domain-tpl-vars` with `BACKEND_PORT`, `func/arc-template.sh`) · **Depends on:** nothing (batch 1 runs in Q1 parallel to E1) · **Unblocks:** E4 (`docker-proxy`), E14 (`nodejs-proxy`), E5 (runtime `requires`)
+**Epic:** E6 · **Status:** Draft v1; batch 1 implemented by the [E6 batch 1 spec](../features/specs/2026-10-05-005-e6-templates-batch1-design.md), which wins where it differs (metadata in `templates/web/meta/`, `v-change-web-domain-tpl-vars` with `BACKEND_PORT`, `func/arc-template.sh`); batch 2 and the runtime badges implemented by the [E5 + E6 batch 2 spec](../features/specs/2026-10-06-006-e5-e6b2-system-packages-templates-design.md) (one `runtime` field with `go` and `ruby` instead of `requires`, badges for the domain owner) · **Depends on:** nothing (batch 1 runs in Q1 parallel to E1) · **Unblocks:** E4 (`docker-proxy`), E14 (`nodejs-proxy`), E5 (runtime `requires`)
 
 ---
 
@@ -197,6 +197,8 @@ All new templates ship `.tpl`, `.stpl`, `.json`, and `.sh` (the `.sh` is a one-l
 | `strapi`, `ghost` | nginx (proxy)          | Node CMS presets: admin paths, upload size, websocket where needed (`node_port`)                                             |
 
 ### 7.2 Batch 2 — Q3
+
+> Implemented by the [E5 + E6 batch 2 spec](../features/specs/2026-10-06-006-e5-e6b2-system-packages-templates-design.md) §9 with six templates: `django`, `flask-fastapi`, `golang-proxy`, `rails`, `laravel-octane` and `wordpress-secure`. `redirect-only` (upstream redirects exist) and `maintenance` (needs a per-domain switch, not a template) were dropped; the `wp-cron.php` throttle too.
 
 | Template                  | Purpose                                                                                                                                                               |
 | ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

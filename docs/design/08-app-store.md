@@ -1,6 +1,6 @@
 # 08 — App Store (Docker apps and system packages)
 
-**Epics:** E4 (Docker apps), E5 (apt/snap system apps) · **Status:** §3–§5 and §7–§8 implemented by the [E4 spec](../features/specs/2026-10-05-009-e4-docker-apps-design.md), which wins where it differs (record in `data/users/<user>/dockerapps.conf` with `app.conf` as a backup copy, app instances with their own name, project `ap-<uid>-<name>`, JSON manifests and a `compose.yaml` per version read in place with an ArcPanel override instead of `compose.yaml.tpl`, every service as the user without capabilities, a task runner instead of `apps.pipe`, data snapshots instead of `pre_update` hooks, manifest dumps instead of pause and `post_restore` hooks, a 5-minute `v-check-sys-docker` instead of restore hooks, polling instead of the WebSocket log stream, no catalog refresh from Git until E33; Umami replaced by Miniflux); §6 (E5) is draft · **Depends on:** E1, E6 batch 1 (`docker-proxy*`, [09](./09-web-templates-metadata.md)), E12 ([04](./04-port-registry.md)), E11 for owner scoping · **Unblocks:** E33 (Docker updates in the Update Center), E6 batch 2–3 runtimes
+**Epics:** E4 (Docker apps), E5 (apt/snap system apps) · **Status:** §3–§5 and §7–§8 implemented by the [E4 spec](../features/specs/2026-10-05-009-e4-docker-apps-design.md), which wins where it differs (record in `data/users/<user>/dockerapps.conf` with `app.conf` as a backup copy, app instances with their own name, project `ap-<uid>-<name>`, JSON manifests and a `compose.yaml` per version read in place with an ArcPanel override instead of `compose.yaml.tpl`, every service as the user without capabilities, a task runner instead of `apps.pipe`, data snapshots instead of `pre_update` hooks, manifest dumps instead of pause and `post_restore` hooks, a 5-minute `v-check-sys-docker` instead of restore hooks, polling instead of the WebSocket log stream, no catalog refresh from Git until E33; Umami replaced by Miniflux); §6 (E5) is implemented by the [E5 spec](../features/specs/2026-10-06-006-e5-e6b2-system-packages-templates-design.md), which wins where it differs (JSON manifests read in place, distribution apt archive only, no snap, no Redis, Memcached, OpenJDK or certbot plugins, the E7 system task instead of `apps.pipe`, an admin page `/server/packages` instead of a store tab, no update command) · **Depends on:** E1, E6 batch 1 (`docker-proxy*`, [09](./09-web-templates-metadata.md)), E12 ([04](./04-port-registry.md)), E11 for owner scoping · **Unblocks:** E33 (Docker updates in the Update Center), E6 batch 2–3 runtimes
 
 ---
 
@@ -229,6 +229,8 @@ Shipped manifests are signed with the ArcPanel release key; `v-update-docker-cat
 ---
 
 ## 6. System packages (E5)
+
+> Implemented by the [E5 spec](../features/specs/2026-10-06-006-e5-e6b2-system-packages-templates-design.md) §4–§7, which wins over this section.
 
 ### 6.1 Data
 

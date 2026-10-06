@@ -1,0 +1,10 @@
+{
+	"schema": 1,
+	"slug": "arctest-e2e",
+	"name": "E2E hello",
+	"summary": "GNU hello under the name of a Ruby runtime, installed and removed by the Playwright suite.",
+	"category": "runtime",
+	"packages": ["hello"],
+	"os": {},
+	"provides": ["ruby"]
+}

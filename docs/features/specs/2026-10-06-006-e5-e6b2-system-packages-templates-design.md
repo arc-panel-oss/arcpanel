@@ -1,6 +1,6 @@
 # E5 system packages and E6 batch 2 templates — design
 
-**Status:** Approved (2026-10-06) · **Epics:** E5, E6 (batch 2) · **Base design:** [08 App Store](../../design/08-app-store.md) §6, [09 Web templates and metadata](../../design/09-web-templates-metadata.md) §7.2 · **Previous specs:** [E6 batch 1](./2026-10-05-005-e6-templates-batch1-design.md) (metadata, per-domain variables, trigger scripts), [E7 batch 3](./2026-10-06-003-e7-batch3-pages-design.md) (system task), [E9 R5](./2026-10-06-005-e9-full-rename-design.md) (names used here) · **Roadmap:** [§3 E5, E6](../../roadmap.md)
+**Status:** Implemented (2026-10-06, see §15; the server runs wait for E9 R5 M8) · **Epics:** E5, E6 (batch 2) · **Base design:** [08 App Store](../../design/08-app-store.md) §6, [09 Web templates and metadata](../../design/09-web-templates-metadata.md) §7.2 · **Previous specs:** [E6 batch 1](./2026-10-05-005-e6-templates-batch1-design.md) (metadata, per-domain variables, trigger scripts), [E7 batch 3](./2026-10-06-003-e7-batch3-pages-design.md) (system task), [E9 R5](./2026-10-06-005-e9-full-rename-design.md) (names used here) · **Roadmap:** [§3 E5, E6](../../roadmap.md)
 
 ## 1. Summary
 
@@ -244,3 +244,26 @@ The installers copy it when NGINX is installed; `v-add-sys-web-templates-meta` c
 | Old runtimes on older releases (Go 1.18 on Ubuntu 22.04)        | The page shows the version; the docs say so; third-party sources stay possible later                     |
 | The rename session and this work touch the same files           | New files where possible; existing `test/` and `docs/` files after the rename's M7; commits by path only |
 | `limit_req` without its zone breaks `nginx -t` for every domain | The trigger drops the line when the zone file is missing; BATS case                                      |
+
+## 15. Implementation notes (2026-10-06)
+
+These notes win over the sections above where they differ.
+
+1. **Commits.** M1 `3dff483`, M2 `81db59d`, M3 `b0647f4`, M4 `56ae76b`, M5 `6aaf97d` (with `068777e`, which restores the executable bit of the M4 and M5 triggers and of the batch 2 suite), M6 `3194c2e`, M7 the documentation and e2e commit.
+2. **Routes.** The page is `server.packages` (`GET /server/packages`, as `server.updates` is named) and one action route `server.packages.start` (`POST /server/packages/{slug}/{add|delete}`) instead of two. A slug outside the catalog and an unknown action answer 404. The Remove button is disabled, without a form, while domains need the runtime.
+3. **Per-request catalog.** `SystemPackages` is bound per request, so the page and `RuntimeAvailability` run `v-list-sys-packages` once. The Web Domains forms now also run `v-list-user-node-versions` for the domain owner when a template's runtime is `node`; `fakeWebDomains` in the Pest helpers fakes both commands.
+4. **Usage scan.** `sp_domain_runtimes` reads the `TPL` (web kind) and `PROXY` (proxy kind) keys of every `web.conf` once per list and resolves each template's `runtime` through `arc_tpl_meta_file`, cached per template.
+5. **CI.** The `System packages` job runs `bin/v-check-sys-packages` from the checkout with a stand-in `/etc/arcpanel/arcpanel.conf`; the apt matrix job looks the packages up with `apt-cache show`. The same lookup run in containers on 2026-10-06 found every package on all five releases, so no `os` override is needed. Versions: Go 1.19 (Debian 12), 1.24 (Debian 13), 1.18 (Ubuntu 22.04), 1.22 (24.04), 1.26 (26.04); Ruby 3.0 to 3.3; Python 3.10 to 3.14.
+6. **Template deviations.**
+   - `django` has no `favicon.ico` and `robots.txt` locations: serving them from the document root and falling back to the app needs a second copy of the proxy block. Django serves them, or `/static/` does.
+   - `rails` sets `expires max` on `/assets/` and `/packs/` but no `Cache-Control: immutable` header: an `add_header` in those locations would drop the server's HSTS header.
+   - `laravel-octane` sends every `.php` request to the Octane server (`try_files` on a name that never exists), so no PHP source of `public/` is ever served; other files of `public/` are served by NGINX.
+   - `wordpress-secure` denies with 403 inside `location /`, before the PHP and static handlers, because NGINX checks the nested regular expressions of the matching prefix location before those of the server. `xmlrpc.php` and `wp-login.php` have exact locations; `.git` and `.svn` keep the 404 of the skeleton's dotfile rule. `v-add-sys-web-templates-meta` removes the zone file again when `nginx -t` fails with it.
+7. **Templates are generated** from the batch 1 skeletons (`python-gunicorn` for `django`, `nodejs-proxy-ws` for the WebSocket templates, the upstream `wordpress` and `default` templates for `wordpress-secure`), so the parts outside the app block are those of batch 1.
+8. **Verification before M8.** `develop` installs only from the fresh install of E9 R5 M8, and the rename session asked to keep every ArcPanel distribution stopped meanwhile. Run instead, on 2026-10-06:
+   - ShellCheck 0.10 on every new and changed shell file (no error, no warning outside the excluded codes).
+   - The four commands in a sandbox (`$ARCPANEL` in a temporary folder of the plain WSL Ubuntu 24.04 distribution, with stand-ins for `apt-get`, `apt` and `dpkg-query`): every refusal and exit code, install, removal, a package another record lists, the apt failure with the universe hint, all four formats.
+   - `nginx -t` and functional checks of all six templates on both stacks in an `nginx:stable` container (static and media files, proxying with the query string, `try_files` fallbacks, PHP routing, every denied path, the 429 after six `wp-login.php` requests, the variant without the zone file).
+   - Pest 826 passed, 1 skipped (PHP 8.5 container); Vitest 231 passed; Pint clean.
+   - **Not run yet:** the BATS suites `arcpanel-sys-packages` and `arcpanel-templates-batch2`, the other ArcPanel suites, smoke and `test/e2e/system-packages.spec.js`. They run on the M8 install, and their results go here.
+9. **e2e fixture.** `test/fixtures/sys-packages-e2e/arctest-e2e.json` (GNU hello, provides `ruby`) is placed in the shipped catalog by `prepare.sh syspackages` and removed by `syspackages-clean` and `cleanup`; the Rails template's badge shows the change.
