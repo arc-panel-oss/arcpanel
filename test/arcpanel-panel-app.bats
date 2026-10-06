@@ -489,6 +489,24 @@ teardown_file() {
     assert_output "403 "
 }
 
+@test "Legacy reset pages redirect guests to the panel app when ARCPANEL_APP_PAGES is yes" {
+    v-change-sys-config-value ARCPANEL_APP_PAGES yes
+    guest_get() {
+        # the legacy 2FA page checks the referrer (prevent_csrf.php), as the login link sends it
+        curl -sk -e "$PANEL/login/" -o /dev/null -w '%{http_code} %{redirect_url}' "$PANEL$1"
+    }
+    run guest_get /reset/
+    assert_output "302 $PANEL/app/reset"
+    run guest_get "/reset/?action=code&user=$PAGES_USER"
+    assert_output "302 $PANEL/app/reset/code?user=$PAGES_USER"
+    run guest_get "/reset/?action=confirm&user=$PAGES_USER&code=Abc123"
+    assert_output "302 $PANEL/app/reset/confirm?user=$PAGES_USER&code=Abc123"
+    run guest_get /reset2fa/
+    assert_output "302 $PANEL/app/reset2fa"
+    run guest_get /app/reset2fa
+    assert_output "200 "
+}
+
 @test "Panel app build ships hashed assets and fonts" {
     run cat /usr/local/hestia/web-app/public/build/manifest.json
     assert_success

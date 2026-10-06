@@ -24,13 +24,13 @@ it('shows the login form', function () {
         ->assertOk()
         ->assertSee('Welcome to ArcPanel')
         ->assertSee('name="password"', false)
-        ->assertSee('href="/reset/"', false);
+        ->assertSee('href="'.route('reset').'"', false);
 });
 
 it('hides the password reset link when the policy disables it', function () {
     $this->fake->on('v-list-sys-config', ['json'])->returnsJson(sysConfig(['POLICY_SYSTEM_PASSWORD_RESET' => 'no']));
 
-    $this->get('/login')->assertOk()->assertDontSee('href="/reset/"', false);
+    $this->get('/login')->assertOk()->assertDontSee('href="'.route('reset').'"', false);
 });
 
 it('logs a user in and lands on the legacy page', function () {

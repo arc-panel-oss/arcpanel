@@ -18,7 +18,7 @@
         <label class="ap-label" for="password">
             <span>{{ __('Password') }}</span>
             @if ($passwordReset)
-                <a href="/reset/" style="font-weight: 500; font-size: 13px">{{ __('Forgot Password') }}</a>
+                <a href="{{ route('reset') }}" style="font-weight: 500; font-size: 13px">{{ __('Forgot Password') }}</a>
             @endif
         </label>
         <div class="ap-input-affix">

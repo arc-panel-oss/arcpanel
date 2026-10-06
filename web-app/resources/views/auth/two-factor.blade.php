@@ -9,7 +9,7 @@
     <div class="ap-field">
         <label class="ap-label" for="twofa">
             <span>{{ __('2FA Token') }}</span>
-            <a href="/reset2fa/" style="font-weight: 500; font-size: 13px">{{ __('Forgot Token') }}</a>
+            <a href="{{ route('reset2fa') }}" style="font-weight: 500; font-size: 13px">{{ __('Forgot Token') }}</a>
         </label>
         <div class="ap-input-affix">
             <svg class="ic" aria-hidden="true"><use href="#i-key"></use></svg>

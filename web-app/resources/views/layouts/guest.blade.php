@@ -36,6 +36,18 @@
                     <h1>@yield('heading')</h1>
                 </header>
 
+                @if (session('ok'))
+                    <div class="ap-alert is-ok" role="status">
+                        <svg class="ic" aria-hidden="true"><use href="#i-check-circle"></use></svg>
+                        <div class="ap-alert-body"><p>{{ session('ok') }}</p></div>
+                    </div>
+                @endif
+                @if ($errors->any())
+                    <div class="ap-alert is-danger" role="alert">
+                        <svg class="ic" aria-hidden="true"><use href="#i-alert"></use></svg>
+                        <div class="ap-alert-body"><p>{{ $errors->first() }}</p></div>
+                    </div>
+                @endif
                 @if (session('error'))
                     <div class="ap-alert is-danger" role="alert">
                         <svg class="ic" aria-hidden="true"><use href="#i-alert"></use></svg>

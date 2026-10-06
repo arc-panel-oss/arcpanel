@@ -14,6 +14,7 @@ use App\Services\Mail\AccountMailer;
 use App\Services\Mail\CredentialsMailer;
 use App\Services\Mail\HostingCredentialsMailer;
 use App\Services\Mail\PanelCredentialsMailer;
+use App\Services\Mail\PasswordResetMailer;
 use App\Services\Node\NodeAccess;
 use App\Tenancy\TenancyDirectory;
 use App\View\AssetManifest;
@@ -70,6 +71,7 @@ class AppServiceProvider extends ServiceProvider
         ));
         $this->app->bind(AccountMailer::class, fn ($app) => $app->make(CredentialsMailer::class));
         $this->app->bind(HostingCredentialsMailer::class, fn ($app) => $app->make(CredentialsMailer::class));
+        $this->app->bind(PasswordResetMailer::class, fn ($app) => $app->make(CredentialsMailer::class));
     }
 
     public function boot(): void

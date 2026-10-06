@@ -369,6 +369,21 @@ function arc_redirect_if_migrated(string $legacyPath, array $query = []): void {
 		case "/list/updates/":
 			$url = "/app/server/updates";
 			break;
+		// E7 batch 3: password and 2FA reset (guests; the link of the reset e-mail)
+		case "/reset/":
+			$action = isset($query["action"]) ? (string) $query["action"] : "";
+			$user = isset($query["user"]) ? (string) $query["user"] : "";
+			if ($action === "confirm" && $user !== "" && !empty($query["code"])) {
+				$url = "/app/reset/confirm?" . http_build_query(["user" => $user, "code" => (string) $query["code"]]);
+			} elseif ($action === "code") {
+				$url = "/app/reset/code?" . http_build_query(["user" => $user]);
+			} else {
+				$url = "/app/reset";
+			}
+			break;
+		case "/reset2fa/":
+			$url = "/app/reset2fa";
+			break;
 		default:
 			return;
 	}

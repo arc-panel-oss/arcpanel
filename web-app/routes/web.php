@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\LogoutController;
+use App\Http\Controllers\Auth\ResetController;
 use App\Http\Controllers\Auth\TwoFactorController;
 use App\Http\Controllers\Backups\BackupController;
 use App\Http\Controllers\Backups\ExclusionController;
@@ -95,6 +96,15 @@ Route::middleware('guest.arc')->group(function () {
     Route::post('/login', [LoginController::class, 'store'])->name('login.store');
     Route::get('/login/2fa', [TwoFactorController::class, 'show'])->name('login.2fa');
     Route::post('/login/2fa', [TwoFactorController::class, 'store'])->name('login.2fa.store');
+
+    // Password and 2FA reset (E7 batch 3 spec §11)
+    Route::get('/reset', [ResetController::class, 'show'])->name('reset');
+    Route::post('/reset', [ResetController::class, 'request'])->name('reset.request');
+    Route::get('/reset/code', [ResetController::class, 'code'])->name('reset.code');
+    Route::get('/reset/confirm', [ResetController::class, 'confirm'])->name('reset.confirm');
+    Route::post('/reset/confirm', [ResetController::class, 'update'])->name('reset.update');
+    Route::get('/reset2fa', [ResetController::class, 'twoFactor'])->name('reset2fa');
+    Route::post('/reset2fa', [ResetController::class, 'twoFactorStore'])->name('reset2fa.store');
 });
 
 Route::middleware('auth.arc')->group(function () {

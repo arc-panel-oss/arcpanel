@@ -18,7 +18,7 @@ use Throwable;
  * when USE_SERVER_SMTP is on, else the local sendmail. A failed mail does
  * not fail the change, as in the legacy page.
  */
-final class PanelCredentialsMailer implements AccountMailer, CredentialsMailer, HostingCredentialsMailer
+final class PanelCredentialsMailer implements AccountMailer, CredentialsMailer, HostingCredentialsMailer, PasswordResetMailer
 {
     public function __construct(
         private readonly SysConfig $config,
@@ -97,6 +97,40 @@ final class PanelCredentialsMailer implements AccountMailer, CredentialsMailer, 
         );
 
         $this->send($to, $subject, $text, 'Account mail failed');
+    }
+
+    /**
+     * web/reset: the "reset_password" template or the built-in text, with the
+     * link of the e-mail on the host the request came to (E7 batch 3 spec
+     * §11.2). The code reaches no log.
+     */
+    public function sendPasswordReset(string $to, string $name, string $username, string $code, string $language, string $host): void
+    {
+        $appName = $this->config->get('APP_NAME', 'ArcPanel');
+        $name = $name !== '' ? $name : $username;
+
+        $template = $this->template('reset_password', $language);
+        $subject = '';
+        if ($template !== null) {
+            if (preg_match('/<subject>(.*?)<\/subject>/si', $template, $matches) === 1) {
+                $subject = strtr($matches[1], ['{{date}}' => date('Y-m-d H:i:s'), '{{hostname}}' => $host, '{{appname}}' => $appName, '{{user}}' => $username]);
+                $template = str_replace($matches[0], '', $template);
+            }
+        } else {
+            $template = __("Hello {{name}},\n\nTo reset your {{appname}} password, please follow this link:\nhttps://{{hostname}}/reset/?action=confirm&user={{user}}&code={{resetcode}}\n\nAlternatively, you may go to https://{{hostname}}/reset/?action=code&user={{user}} and enter the following reset code:\n{{resetcode}}\n\nIf you did not request password reset, please ignore this message and accept our apologies.\n\nBest regards,\n\n--\n{{appname}}");
+        }
+        if ($subject === '') {
+            $subject = strtr($this->config->get('SUBJECT_EMAIL', '{{subject}}') ?: '{{subject}}', [
+                '{{subject}}' => sprintf(__('Password Reset at %s'), date('Y-m-d H:i:s')), '{{hostname}}' => $host, '{{appname}}' => $appName,
+            ]);
+        }
+
+        $text = strtr($template, [
+            '{{name}}' => htmlentities($name), '{{appname}}' => $appName, '{{hostname}}' => $host,
+            '{{user}}' => rawurlencode($username), '{{resetcode}}' => htmlentities($code),
+        ]);
+
+        $this->send($to, $subject, $text, 'Password reset mail failed');
     }
 
     /** web/add/db: the "database_credentials" template or the built-in text. */

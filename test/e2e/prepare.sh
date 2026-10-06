@@ -43,6 +43,11 @@
 #                                 arce2ebackup (E7); backups-clear-queue,
 #                                 backups-change-file and backups-run-queue go
 #                                 with it
+#   prepare.sh reset-user PASSWORD
+#                                 arce2ereset whose contact is the mailbox
+#                                 reset@e2e-mail.example (E7 batch 3 reset);
+#                                 reset-code prints the code of the newest
+#                                 reset mail, reset-clean deletes both
 set -euo pipefail
 
 HESTIA="${HESTIA:-/usr/local/hestia}"
@@ -274,6 +279,31 @@ terminal_off() {
 	"$B/v-change-user-shell" arce2euser nologin > /dev/null 2>&1 || true
 }
 
+# Reset spec (E7 batch 3): a throw-away user whose contact address is a
+# mailbox on the e2e mail domain
+RESET_USER=arce2ereset
+RESET_MAILBOX=reset
+RESET_MAILDIR=/home/arce2euser/mail/e2e-mail.example/$RESET_MAILBOX
+RESET_STATE=/root/.arcpanel-e2e-password-reset
+reset_clean() {
+	"$B/v-delete-user" "$RESET_USER" > /dev/null 2>&1 || true
+	"$B/v-delete-mail-account" arce2euser e2e-mail.example "$RESET_MAILBOX" > /dev/null 2>&1 || true
+	if [ -f "$RESET_STATE" ]; then
+		"$B/v-change-sys-config-value" POLICY_SYSTEM_PASSWORD_RESET "$(cat "$RESET_STATE")"
+		rm -f "$RESET_STATE"
+		forget_config_cache
+	fi
+}
+
+# POLICY_SYSTEM_PASSWORD_RESET=yes while the reset spec runs; reset_clean restores it
+reset_enable() {
+	if [ ! -f "$RESET_STATE" ]; then
+		grep -o "^POLICY_SYSTEM_PASSWORD_RESET='[a-z]*'" "$HESTIA/conf/hestia.conf" | cut -d"'" -f2 > "$RESET_STATE" || echo yes > "$RESET_STATE"
+	fi
+	"$B/v-change-sys-config-value" POLICY_SYSTEM_PASSWORD_RESET yes
+	forget_config_cache
+}
+
 case "${1:-}" in
 	terminal-on)
 		if [ ! -f "$TERMINAL_STATE" ]; then
@@ -446,10 +476,36 @@ case "${1:-}" in
 		grep "^PORT='${2:?port}' " "$HESTIA/data/ports/arce2edev.conf" 2> /dev/null | grep -oE "APP='[^']*'" | cut -d"'" -f2 || true
 		exit 0
 		;;
+	reset-user)
+		# E7 batch 3: arce2ereset with the contact reset@e2e-mail.example, a
+		# mailbox of arce2euser that receives the reset mail
+		reset_clean
+		file="$(mktemp)"
+		printf '%s\n' "${2:?password}" > "$file"
+		"$B/v-add-user" "$RESET_USER" "$2" "$RESET_MAILBOX@e2e-mail.example" default > /dev/null
+		"$B/v-add-mail-account" arce2euser e2e-mail.example "$RESET_MAILBOX" "$file" > /dev/null
+		rm -f "$file"
+		reset_enable
+		exit 0
+		;;
+	reset-code)
+		# The reset code of the newest mail in the reset mailbox (empty until it arrives)
+		latest=$(ls -t "$RESET_MAILDIR"/new/* "$RESET_MAILDIR"/cur/* 2> /dev/null | head -n1 || true)
+		if [ -n "$latest" ]; then
+			"$HESTIA/php/bin/php" -r 'echo quoted_printable_decode(file_get_contents($argv[1]));' "$latest" \
+				| grep -oE 'code=[A-Za-z0-9]{12}' | tail -n1 | cut -d= -f2 || true
+		fi
+		exit 0
+		;;
+	reset-clean)
+		reset_clean
+		exit 0
+		;;
 esac
 
 if [ "${1:-}" = cleanup ]; then
 	stop_listeners
+	reset_clean
 	terminal_off
 	keys_reset
 	if [ -f "$API_STATE" ]; then
