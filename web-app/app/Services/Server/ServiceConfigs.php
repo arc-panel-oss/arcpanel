@@ -58,7 +58,7 @@ final class ServiceConfigs
         'fail2ban' => ['files' => [['/etc/fail2ban/jail.local', 'fail2ban']], 'language' => 'ini'],
         'ssh' => ['files' => [['/etc/ssh/sshd_config', 'ssh']]],
         // The crontab of the panel user: always reloaded, as legacy does
-        'hestiaweb' => ['files' => [['/var/spool/cron/crontabs/hestiaweb', 'hestiaweb']], 'language' => 'shell', 'restart' => 'always'],
+        'arcpanelweb' => ['files' => [['/var/spool/cron/crontabs/arcpanelweb', 'arcpanelweb']], 'language' => 'shell', 'restart' => 'always'],
         // Legacy shows the system crontab without a save handler
         'cron' => ['files' => [['/etc/crontab', null]], 'language' => 'shell'],
         'crond' => ['files' => [['/etc/crontab', null]], 'language' => 'shell'],
@@ -68,7 +68,7 @@ final class ServiceConfigs
     public const NAMES = [
         'nginx', 'apache2', 'httpd', 'php', 'php-fpm', 'php5-fpm', 'mysql', 'mariadb', 'mysqld', 'postgresql',
         'bind9', 'named', 'dovecot', 'exim', 'exim4', 'clamav-daemon', 'spamassassin', 'spamd', 'proftpd',
-        'vsftpd', 'fail2ban', 'ssh', 'hestiaweb', 'cron', 'crond',
+        'vsftpd', 'fail2ban', 'ssh', 'arcpanelweb', 'cron', 'crond',
     ];
 
     /** @var array<string, array<string, mixed>> per-request cache of JSON configs */

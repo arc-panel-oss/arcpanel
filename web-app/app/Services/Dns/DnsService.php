@@ -222,10 +222,10 @@ final class DnsService
         return is_array($record) ? trim((string) ($record['DNS_TEMPLATE'] ?? '')) : '';
     }
 
-    /** DNSSEC needs the hestia-zone cluster system (v-change-dns-domain-dnssec). */
+    /** DNSSEC needs the arcpanel-zone cluster system (v-change-dns-domain-dnssec). */
     public function dnssecSupported(): bool
     {
-        return $this->config->get('DNS_CLUSTER_SYSTEM') === 'hestia-zone' && $this->config->is('SUPPORT_DNSSEC');
+        return $this->config->get('DNS_CLUSTER_SYSTEM') === 'arcpanel-zone' && $this->config->is('SUPPORT_DNSSEC');
     }
 
     /** Expiration date of a new zone: today + 1 year, as web/add/dns computes it. */

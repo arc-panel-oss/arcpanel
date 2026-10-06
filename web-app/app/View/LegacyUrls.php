@@ -5,7 +5,7 @@ namespace App\View;
 use App\Auth\Principal;
 
 /**
- * Panel routes for the page URLs of the HestiaCP 1.x interface (E8 spec
+ * Panel routes for the page URLs of the ArcPanel 1.x interface (E8 spec
  * §5.3), so bookmarks and old links keep working for one release. Ported
  * from arc_route() and arc_redirect_if_migrated() of the removed
  * web/inc/arcpanel-routes.php, plus the Users, Packages, file manager and

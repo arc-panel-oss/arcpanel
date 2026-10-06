@@ -66,7 +66,7 @@ it('keeps the firewall and the IPs for administrators and locks managed rules', 
     $hostco = principal('hostco', Role::Reseller);
 
     expect(batch2Policy(FirewallPolicy::class, $admin)->manage($admin))->toBeTrue()
-        ->and(batch2Policy(FirewallPolicy::class, $admin)->change($admin, 'HESTIA'))->toBeTrue()
+        ->and(batch2Policy(FirewallPolicy::class, $admin)->change($admin, 'ARCPANEL'))->toBeTrue()
         ->and(batch2Policy(FirewallPolicy::class, $admin)->change($admin, 'arcpanel-port-30005-bob'))->toBeFalse()
         ->and(FirewallPolicy::isManaged('arcpanel-port-30005-bob'))->toBeTrue()
         ->and(FirewallPolicy::isManaged('arcpanel-port-x-bob'))->toBeFalse()
@@ -96,7 +96,7 @@ it('lets resellers read the logs of their tree and delete only their own', funct
         ->and(batch2Policy(LogPolicy::class, $bob)->view($bob, 'carol'))->toBeFalse();
 });
 
-it('applies the log policies of hestia.conf to everyone but administrators', function () {
+it('applies the log policies of arcpanel.conf to everyone but administrators', function () {
     withSysConfig($this->fake, ['POLICY_USER_VIEW_LOGS' => 'no', 'POLICY_USER_DELETE_LOGS' => 'no']);
     $admin = principal('arcadmin', Role::Admin);
     $adminAsBob = principal('arcadmin', Role::Admin, look: 'bob');

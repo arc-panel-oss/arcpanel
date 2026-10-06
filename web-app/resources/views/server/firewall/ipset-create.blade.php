@@ -1,6 +1,6 @@
 {{-- Add an IPset list (web/add/firewall/ipset, E7 batch 2 spec §6.2). --}}
 @php
-    $blacklist = '/usr/local/hestia/install/common/firewall/ipset/blacklist.sh';
+    $blacklist = '/usr/local/arcpanel/install/common/firewall/ipset/blacklist.sh';
     $countries = [
         'br' => __('Brazil'), 'ca' => __('Canada'), 'cn' => __('China'), 'fr' => __('France'), 'de' => __('Germany'),
         'in' => __('India'), 'id' => __('Indonesia'), 'nl' => __('Netherlands'), 'ro' => __('Romania'), 'ru' => __('Russia'),

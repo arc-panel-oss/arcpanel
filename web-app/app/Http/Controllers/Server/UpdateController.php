@@ -15,7 +15,7 @@ use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
 /**
- * Updates of the panel packages (web/list/updates, web/update/hestia,
+ * Updates of the panel packages (web/list/updates, web/update/arcpanel,
  * web/add|delete/cron/autoupdate), E7 batch 3 spec §10.
  */
 final class UpdateController extends Controller
@@ -47,7 +47,7 @@ final class UpdateController extends Controller
         $data = $request->validate(['package' => ['nullable', 'string', Rule::in(PanelUpdates::PACKAGES)]]);
         $package = (string) ($data['package'] ?? '');
 
-        $result = $this->tasks->start('hestia-update', $package === '' ? [] : [$package]);
+        $result = $this->tasks->start('arcpanel-update', $package === '' ? [] : [$package]);
         $back = redirect()->route('server.updates');
 
         return $result->ok()

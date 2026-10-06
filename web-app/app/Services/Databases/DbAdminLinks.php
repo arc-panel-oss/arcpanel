@@ -66,7 +66,7 @@ final class DbAdminLinks
     }
 
     /**
-     * The hestia-sso.php link of templates/pages/list_db.php: a token over the
+     * The arcpanel-sso.php link of templates/pages/list_db.php: a token over the
      * database, its owner, the client IP and the time, valid for a minute.
      */
     public function ssoUrl(DatabaseRecord $record, string $clientIp): string
@@ -74,12 +74,12 @@ final class DbAdminLinks
         $time = time();
         $token = password_hash($record->database.$record->user.$clientIp.$time.$this->config->get('PHPMYADMIN_KEY'), PASSWORD_DEFAULT);
 
-        return 'https:'.$this->base('mysql').'hestia-sso.php?'.http_build_query([
+        return 'https:'.$this->base('mysql').'arcpanel-sso.php?'.http_build_query([
             'host' => $record->host,
             'database' => $record->database,
             'user' => $record->user,
             'exp' => $time,
-            'hestia_token' => $token,
+            'arcpanel_token' => $token,
         ]);
     }
 }

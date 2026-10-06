@@ -73,8 +73,8 @@ it('never stops the services the panel needs', function () {
     $policy = serverPolicy();
 
     expect($policy->stopService($admin, 'nginx'))->toBeTrue()
-        ->and($policy->stopService($admin, 'hestia'))->toBeFalse()
-        ->and(ServerPolicy::isProtectedService('hestia'))->toBeTrue()
+        ->and($policy->stopService($admin, 'arcpanel'))->toBeFalse()
+        ->and(ServerPolicy::isProtectedService('arcpanel'))->toBeTrue()
         ->and(ServerPolicy::isProtectedService('exim4'))->toBeFalse();
 });
 

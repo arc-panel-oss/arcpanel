@@ -19,7 +19,7 @@ final class ServerSettings
 {
     public const TABS = ['general', 'web', 'dns', 'mail', 'databases', 'backups', 'ssl', 'security', 'plugins', 'white-label'];
 
-    /** Plugin => [hestia.conf key, value when installed]; installed and removed by the system task. */
+    /** Plugin => [arcpanel.conf key, value when installed]; installed and removed by the system task. */
     public const PLUGINS = [
         'filemanager' => ['FILE_MANAGER', 'true'],
         'web-terminal' => ['WEB_TERMINAL', 'true'],
@@ -50,7 +50,7 @@ final class ServerSettings
         private readonly PlanRunner $runner,
     ) {}
 
-    /** hestia.conf as it is now (not the cached copy). */
+    /** arcpanel.conf as it is now (not the cached copy). */
     public function config(): array
     {
         $this->config->forget();
@@ -206,10 +206,10 @@ final class ServerSettings
         ];
     }
 
-    /** The panel certificate without its key (`v-list-sys-hestia-ssl json`). @return array<string, string> */
+    /** The panel certificate without its key (`v-list-sys-arcpanel-ssl json`). @return array<string, string> */
     public function ssl(): array
     {
-        $row = $this->arc->json('v-list-sys-hestia-ssl', [], Options::allowFailure())['HESTIA'] ?? [];
+        $row = $this->arc->json('v-list-sys-arcpanel-ssl', [], Options::allowFailure())['ARCPANEL'] ?? [];
         unset($row['KEY']);
 
         return array_map('strval', $row);
@@ -437,7 +437,7 @@ final class ServerSettings
     /** @return list<Step> */
     public function planSsl(string $certificate, string $key): array
     {
-        return [new Step(__('Change the panel certificate'), 'v-change-sys-hestia-ssl', [Secret::directory([
+        return [new Step(__('Change the panel certificate'), 'v-change-sys-arcpanel-ssl', [Secret::directory([
             'certificate.crt' => self::pem($certificate),
             'certificate.key' => self::pem($key),
         ])])];

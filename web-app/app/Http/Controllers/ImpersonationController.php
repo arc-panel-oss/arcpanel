@@ -13,7 +13,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 
 /**
- * "Login as": the session key `look` and the log lines of the HestiaCP 1.x
+ * "Login as": the session key `look` and the log lines of the ArcPanel 1.x
  * login page (?loginas=), which the web terminal still reads. Both directions
  * land on the dashboard.
  *

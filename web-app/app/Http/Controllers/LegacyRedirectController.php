@@ -9,7 +9,7 @@ use Illuminate\Http\Request;
 
 /**
  * Old URLs for one release (E8 spec §5.3): the /app prefix of 1.x and the
- * page paths of the HestiaCP 1.x interface answer 301. Removed in 2.1.
+ * page paths of the ArcPanel 1.x interface answer 301. Removed in 2.1.
  */
 final class LegacyRedirectController extends Controller
 {

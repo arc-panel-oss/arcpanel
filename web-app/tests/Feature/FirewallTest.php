@@ -16,7 +16,7 @@ function firewallRules(): array
 
     return [
         '1' => $rule('ACCEPT', 'ICMP', '0', '0.0.0.0/0', 'PING'),
-        '2' => $rule('ACCEPT', 'TCP', '8083', '0.0.0.0/0', 'HESTIA'),
+        '2' => $rule('ACCEPT', 'TCP', '8083', '0.0.0.0/0', 'ARCPANEL'),
         '3' => $rule('DROP', 'TCP', '25', '10.0.0.0/8', 'SMTP-OUT', 'yes'),
         '10' => $rule('ACCEPT', 'TCP', '30005', '0.0.0.0/0', 'arcpanel-port-30005-bob'),
     ];
@@ -47,7 +47,7 @@ it('lists the rules in order with the managed port rule locked', function () {
     signIn('arcadmin', 'admin');
 
     $this->get('/server/firewall')->assertOk()
-        ->assertSeeInOrder(['PING', 'HESTIA', 'SMTP-OUT', 'arcpanel-port-30005-bob'])
+        ->assertSeeInOrder(['PING', 'ARCPANEL', 'SMTP-OUT', 'arcpanel-port-30005-bob'])
         ->assertSee('Managed by Ports')->assertSee('Add Rule')->assertSee('IPset IP Lists')
         ->assertDontSee('Banned IP Addresses')
         ->assertSee('Are you sure you want to move rule #2 up?')
@@ -130,7 +130,7 @@ it('edits a rule with the arguments of web/edit/firewall', function () {
     $this->fake->on('v-change-firewall-rule')->returns();
     signIn('arcadmin', 'admin');
 
-    $this->get('/server/firewall/2/edit')->assertOk()->assertSee('HESTIA')->assertSee('8083');
+    $this->get('/server/firewall/2/edit')->assertOk()->assertSee('ARCPANEL')->assertSee('8083');
     $this->post('/server/firewall/2/edit', ['action' => 'ACCEPT', 'protocol' => 'TCP', 'port' => '8083 8084', 'ip' => '10.0.0.0/8', 'comment' => 'PANEL'])
         ->assertRedirect('/server/firewall/2/edit')->assertSessionHas('ok', 'Changes have been saved.');
     $this->fake->assertRan('v-change-firewall-rule', fn ($a) => $a === ['2', 'ACCEPT', '10.0.0.0/8', '8083,8084', 'TCP', 'PANEL']);
@@ -206,7 +206,7 @@ it('lists, adds and deletes IPset lists', function () {
         ->assertSee('Are you sure you want to delete IP list country-nl?')->assertSee('3 IP lists');
     $this->get('/server/firewall/ipsets/create')->assertOk()
         ->assertSee('(URL, script or file)')->assertSee('[IPv4] Block Malicious IPs')
-        ->assertSee('script:/usr/local/hestia/install/common/firewall/ipset/blacklist.sh', false);
+        ->assertSee('script:/usr/local/arcpanel/install/common/firewall/ipset/blacklist.sh', false);
 
     $this->post('/server/firewall/ipsets', ['name' => 'country-de', 'source' => 'https://example.org/de.txt', 'version' => 'v4', 'autoupdate' => 'yes'])
         ->assertRedirect('/server/firewall/ipsets')->assertSessionHas('ok', 'IP list has been created successfully.');
@@ -239,7 +239,7 @@ it('bans and unbans addresses, IPv6 included', function () {
     $this->get('/server/firewall/bans')->assertOk()
         ->assertSeeInOrder(['2001:db8::7', '203.0.113.7'])
         ->assertSee('WEB:2001:db8::7', false)->assertSee('Are you sure you want to delete IP address 203.0.113.7?');
-    $this->get('/server/firewall/bans/create')->assertOk()->assertSee('HESTIA');
+    $this->get('/server/firewall/bans/create')->assertOk()->assertSee('ARCPANEL');
 
     $this->post('/server/firewall/bans', ['ip' => '198.51.100.0/24', 'chain' => 'MAIL'])
         ->assertRedirect('/server/firewall/bans')->assertSessionHas('ok', 'IP address has been banned successfully.');

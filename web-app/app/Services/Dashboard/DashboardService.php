@@ -278,7 +278,7 @@ final class DashboardService
     public function updates(): array
     {
         $pending = [];
-        foreach ($this->arc->json('v-list-sys-hestia-updates') as $name => $row) {
+        foreach ($this->arc->json('v-list-sys-arcpanel-updates') as $name => $row) {
             if (is_array($row) && ($row['UPDATED'] ?? 'yes') !== 'yes') {
                 $pending[] = (string) $name;
             }

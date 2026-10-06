@@ -9,7 +9,7 @@ use Symfony\Component\Mime\MimeTypes;
 /**
  * Download tickets (E3 spec §6.3): v-add-fs-download writes the bytes into
  * downloads/<ticket>, the panel writes <ticket>.json with the login user,
- * and hestia-nginx sends the file through X-Accel-Redirect. A ticket serves
+ * and arcpanel-nginx sends the file through X-Accel-Redirect. A ticket serves
  * its owner for an hour (range requests of previews), then gc() removes it.
  */
 final class DownloadTickets

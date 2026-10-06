@@ -27,7 +27,7 @@ final class FirewallService
     public const PROTOCOLS = ['TCP', 'UDP', 'ICMP'];
 
     /** Chains of the ban list (web/add/firewall/banlist). */
-    public const CHAINS = ['SSH', 'WEB', 'FTP', 'DNS', 'MAIL', 'DB', 'HESTIA'];
+    public const CHAINS = ['SSH', 'WEB', 'FTP', 'DNS', 'MAIL', 'DB', 'ARCPANEL'];
 
     /** @var array<string, FirewallRule>|null per-request cache */
     private ?array $rules = null;

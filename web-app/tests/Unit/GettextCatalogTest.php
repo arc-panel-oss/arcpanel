@@ -69,7 +69,7 @@ it('reads a compiled .mo file', function () {
 });
 
 it('reads the catalogues shipped in lib/locale', function () {
-    $mo = base_path('../lib/locale/de/LC_MESSAGES/hestiacp.mo');
+    $mo = base_path('../lib/locale/de/LC_MESSAGES/arcpanel.mo');
     if (! is_file($mo)) {
         $this->markTestSkipped('lib/locale is not next to the panel app');
     }

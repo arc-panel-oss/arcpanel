@@ -123,7 +123,7 @@ final class Capabilities
         'server.rrd' => self::ADMIN,
 
         // Logs and statistics (E7 batch 2 spec D4, D5); LogPolicy and
-        // StatsPolicy add the hestia.conf policies and the reseller rules
+        // StatsPolicy add the arcpanel.conf policies and the reseller rules
         'logs.view' => self::ALL_ROLES,
         'logs.delete' => self::ALL_ROLES,
         'stats.view' => self::ALL_ROLES,

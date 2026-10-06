@@ -4,7 +4,7 @@ namespace App\View;
 
 /**
  * The custom logo of the White Label settings (E7 batch 3 spec D6): the
- * files administrators put into $HESTIA/data/white-label/, which nginx
+ * files administrators put into $ARCPANEL/data/white-label/, which nginx
  * serves under /images/custom/ (E8 spec §6.1).
  */
 final class WhiteLabel

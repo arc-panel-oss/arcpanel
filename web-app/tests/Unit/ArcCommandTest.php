@@ -39,7 +39,7 @@ function localRunner(array $scripts, ?AbstractLogger $log = null): array
         allowList: array_keys($scripts),
         binPath: $bin,
         sudo: '/usr/bin/env',
-        installDir: '/usr/local/hestia',
+        installDir: '/usr/local/arcpanel',
         secretDir: sys_get_temp_dir(),
         defaultTimeout: 10,
         log: $log ?? memoryLogger(),

@@ -13,8 +13,8 @@ use App\Arc\Options;
  */
 final class PanelUpdates
 {
-    /** Packages v-update-sys-hestia accepts. */
-    public const PACKAGES = ['arcpanel', 'arcpanel-nginx', 'arcpanel-php', 'hestia', 'hestia-nginx', 'hestia-php'];
+    /** Packages v-update-sys-arcpanel accepts. */
+    public const PACKAGES = ['arcpanel', 'arcpanel-nginx', 'arcpanel-php'];
 
     public function __construct(private readonly ArcCommand $arc) {}
 
@@ -22,7 +22,7 @@ final class PanelUpdates
     public function packages(): array
     {
         $packages = [];
-        foreach ($this->arc->json('v-list-sys-hestia-updates', [], Options::allowFailure()) as $name => $row) {
+        foreach ($this->arc->json('v-list-sys-arcpanel-updates', [], Options::allowFailure()) as $name => $row) {
             if (is_array($row)) {
                 $packages[] = [
                     'name' => (string) $name,
@@ -40,12 +40,12 @@ final class PanelUpdates
 
     public function autoUpdate(): bool
     {
-        return trim($this->arc->run('v-list-sys-hestia-autoupdate', ['plain'], Options::allowFailure())->stdout) === 'Enabled';
+        return trim($this->arc->run('v-list-sys-arcpanel-autoupdate', ['plain'], Options::allowFailure())->stdout) === 'Enabled';
     }
 
-    /** `v-add-cron-hestia-autoupdate` or `v-delete-cron-hestia-autoupdate` */
+    /** `v-add-cron-arcpanel-autoupdate` or `v-delete-cron-arcpanel-autoupdate` */
     public function setAutoUpdate(bool $on): CommandResult
     {
-        return $this->arc->run($on ? 'v-add-cron-hestia-autoupdate' : 'v-delete-cron-hestia-autoupdate', [], Options::allowFailure());
+        return $this->arc->run($on ? 'v-add-cron-arcpanel-autoupdate' : 'v-delete-cron-arcpanel-autoupdate', [], Options::allowFailure());
     }
 }

@@ -12,11 +12,11 @@ beforeEach(function () {
     $package = fn (string $version, string $updated, string $descr) => [
         'VERSION' => $version, 'ARCH' => 'amd64', 'UPDATED' => $updated, 'DESCR' => $descr, 'TIME' => '21:41:08', 'DATE' => '2026-10-04',
     ];
-    $this->fake->on('v-list-sys-hestia-updates')->returnsJson([
+    $this->fake->on('v-list-sys-arcpanel-updates')->returnsJson([
         'arcpanel' => $package('1.0.0-1+ubuntu24.04', 'yes', 'ArcPanel core package'),
         'arcpanel-php' => $package('8.5.11-1+ubuntu24.04', 'no', 'ArcPanel internal php interpreter'),
     ]);
-    $this->fake->on('v-list-sys-hestia-autoupdate', ['plain'])->returns("Enabled\n");
+    $this->fake->on('v-list-sys-arcpanel-autoupdate', ['plain'])->returns("Enabled\n");
     $this->fake->on('v-list-sys-task')->returnsJson(['ID' => '', 'KIND' => '', 'ARGS' => '', 'STATUS' => '', 'EXIT' => '', 'START' => '', 'END' => '', 'LOG' => '']);
 });
 
@@ -37,10 +37,10 @@ it('updates one package or every package in the background', function () {
 
     $this->post('/server/updates/update', ['package' => 'arcpanel-php'])
         ->assertRedirect('/server/updates')->assertSessionHas('ok', 'arcpanel-php is being updated.');
-    $this->fake->assertRan('v-start-sys-task', fn ($a) => $a === ['hestia-update', 'arcpanel-php']);
+    $this->fake->assertRan('v-start-sys-task', fn ($a) => $a === ['arcpanel-update', 'arcpanel-php']);
 
     $this->post('/server/updates/update')->assertSessionHas('ok', 'The packages are being updated.');
-    $this->fake->assertRan('v-start-sys-task', fn ($a) => $a === ['hestia-update']);
+    $this->fake->assertRan('v-start-sys-task', fn ($a) => $a === ['arcpanel-update']);
 
     $this->post('/server/updates/update', ['package' => 'bash'])->assertSessionHasErrors('package');
 });
@@ -53,15 +53,15 @@ it('refuses an update while another task runs', function () {
 });
 
 it('turns the automatic updates on and off and saves the notifications', function () {
-    $this->fake->on('v-add-cron-hestia-autoupdate')->returns();
-    $this->fake->on('v-delete-cron-hestia-autoupdate')->returns();
+    $this->fake->on('v-add-cron-arcpanel-autoupdate')->returns();
+    $this->fake->on('v-delete-cron-arcpanel-autoupdate')->returns();
     $this->fake->on('v-change-sys-config-value')->returns();
     signIn('arcadmin', 'admin');
 
     $this->post('/server/updates/autoupdate', ['state' => 'off'])->assertSessionHas('ok', 'Automatic updates are off.');
-    $this->fake->assertRan('v-delete-cron-hestia-autoupdate');
+    $this->fake->assertRan('v-delete-cron-arcpanel-autoupdate');
     $this->post('/server/updates/autoupdate', ['state' => 'on'])->assertSessionHas('ok', 'Automatic updates are on.');
-    $this->fake->assertRan('v-add-cron-hestia-autoupdate');
+    $this->fake->assertRan('v-add-cron-arcpanel-autoupdate');
 
     $this->post('/server/updates/notifications', ['send_email' => '1', 'send_log' => '1'])->assertSessionHas('ok', 'Changes have been saved.');
     $this->fake->assertRan('v-change-sys-config-value', fn ($a) => $a === ['UPGRADE_SEND_EMAIL_LOG', 'true']);

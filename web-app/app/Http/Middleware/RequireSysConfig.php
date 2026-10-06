@@ -9,7 +9,7 @@ use Symfony\Component\HttpFoundation\Response;
 
 /**
  * Route middleware `sys-config:KEY` or `sys-config:KEY=value` (E7 batch 2
- * spec §5.3): the route answers 404 when the hestia.conf key is empty or
+ * spec §5.3): the route answers 404 when the arcpanel.conf key is empty or
  * differs, as Navigation leaves the item out.
  */
 final class RequireSysConfig

@@ -112,7 +112,7 @@ final class FileTransferController extends Controller
         ], 201);
     }
 
-    /** The ticket's bytes, sent by hestia-nginx (X-Accel-Redirect). */
+    /** The ticket's bytes, sent by arcpanel-nginx (X-Accel-Redirect). */
     public function show(Request $request, string $user, string $ticket, Principal $principal, FilePolicy $policy): Response
     {
         abort_unless($policy->view($principal, $user), 403);

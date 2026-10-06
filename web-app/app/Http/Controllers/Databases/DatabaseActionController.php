@@ -77,7 +77,7 @@ final class DatabaseActionController extends Controller
         ]);
     }
 
-    /** Single sign-on into phpMyAdmin (templates/pages/list_db.php, install/deb/phpmyadmin/hestia-sso.php). */
+    /** Single sign-on into phpMyAdmin (templates/pages/list_db.php, install/deb/phpmyadmin/arcpanel-sso.php). */
     public function phpMyAdmin(Request $request, string $user, string $database, Principal $principal, DatabasePolicy $policy, DbAdminLinks $links): RedirectResponse
     {
         abort_unless($policy->update($principal, $user) && $links->ssoAvailable(), 403);

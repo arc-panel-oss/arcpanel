@@ -18,7 +18,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
 /*
-| The panel app is served under /app/ by hestia-nginx (ADR-0002). nginx passes
+| The panel app is served under /app/ by arcpanel-nginx (ADR-0002). nginx passes
 | SCRIPT_NAME=/app/index.php, so Laravel derives the /app base URL itself and
 | routes are written without the prefix.
 */

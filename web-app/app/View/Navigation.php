@@ -19,7 +19,7 @@ use Illuminate\Support\Facades\Route;
 final class Navigation
 {
     /**
-     * requires: hestia.conf key that must be set ("KEY") or equal ("KEY=value").
+     * requires: arcpanel.conf key that must be set ("KEY") or equal ("KEY=value").
      * node: only when the package of the account includes Node.js (E13),
      * always for administrators.
      * docker: only when the package of the account includes Docker apps (E4),
@@ -27,7 +27,7 @@ final class Navigation
      * labels: label per acting role, instead of label.
      * own: left out while a reseller acts as a customer, also as a panel app
      * page (the web terminal keeps the reseller's own shell).
-     * policy: hestia.conf policy that hides the item for everyone but
+     * policy: arcpanel.conf policy that hides the item for everyone but
      * administrators when it is 'no'.
      * api: only when the account may have access keys (API_SYSTEM).
      */

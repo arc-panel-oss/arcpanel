@@ -26,14 +26,14 @@ beforeEach(function () {
     $this->fake->on('v-open-fs-config')->using(fn (array $args) => match ($args[0]) {
         // The real command exits 127 under sudo after printing the file (ServiceConfigs::openedDespiteLogError)
         '/etc/nginx/nginx.conf' => new CommandResult('v-open-fs-config', $args, 127, "worker_processes auto;\n",
-            "/usr/local/hestia/bin/v-open-fs-config: line 60: /v-log-action: No such file or directory\n"),
+            "/usr/local/arcpanel/bin/v-open-fs-config: line 60: /v-log-action: No such file or directory\n"),
         '/etc/named.conf' => new CommandResult('v-open-fs-config', $args, 127, 'partial', "Segmentation fault\n"),
         '/etc/php/8.4/fpm/php.ini' => [0, "memory_limit = 128M\n"],
         '/etc/dovecot/dovecot.conf' => [0, "protocols = imap\n"],
         '/etc/dovecot/conf.d/10-auth.conf' => [0, "auth_mechanisms = plain\n"],
         '/etc/vsftpd.conf' => [0, "listen=YES\n"],
         '/etc/crontab' => [0, "17 * * * * root cd / && run-parts --report /etc/cron.hourly\n"],
-        '/var/spool/cron/crontabs/hestiaweb' => [0, "* * * * * sudo /usr/local/hestia/bin/v-update-sys-queue restart\n"],
+        '/var/spool/cron/crontabs/arcpanelweb' => [0, "* * * * * sudo /usr/local/arcpanel/bin/v-update-sys-queue restart\n"],
         default => [ExitCode::NotExist->value, 'Error: file does not exist'],
     });
 });
@@ -94,8 +94,8 @@ it('saves a file through a temporary file with LF line ends', function () {
     $this->fake->assertRan('v-change-sys-service-config', fn ($a) => $a === ['auth_mechanisms = plain login', 'dovecot-1', 'no']);
 
     // The panel crontab always reloads
-    $this->postJson('/server/services/hestiaweb/config', ['index' => 0, 'content' => '# empty', 'restart' => false])->assertOk();
-    $this->fake->assertRan('v-change-sys-service-config', fn ($a) => $a === ['# empty', 'hestiaweb', 'yes']);
+    $this->postJson('/server/services/arcpanelweb/config', ['index' => 0, 'content' => '# empty', 'restart' => false])->assertOk();
+    $this->fake->assertRan('v-change-sys-service-config', fn ($a) => $a === ['# empty', 'arcpanelweb', 'yes']);
 
     $this->postJson('/server/services/nginx/config', ['index' => 5, 'content' => 'x', 'restart' => true])->assertForbidden();
     $this->postJson('/server/services/nope/config', ['index' => 0, 'content' => 'x', 'restart' => true])->assertNotFound();

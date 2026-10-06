@@ -15,24 +15,24 @@ return [
     // ArcPanel root as administrators see it (symlink to the real directory).
     'root' => env('ARC_ROOT', '/usr/local/arcpanel'),
 
-    // Directory of the v-* commands. sudo must allow hestiaweb to run them
+    // Directory of the v-* commands. sudo must allow arcpanelweb to run them
     // (install/common/sudo/arcpanel).
     'bin_path' => env('ARC_BIN_PATH', '/usr/local/arcpanel/bin'),
 
     'sudo' => env('ARC_SUDO', '/usr/bin/sudo'),
 
-    // Real installation directory, passed to commands as $HESTIA.
-    'install_dir' => env('ARC_INSTALL_DIR', '/usr/local/hestia'),
+    // Real installation directory, passed to commands as $ARCPANEL.
+    'install_dir' => env('ARC_INSTALL_DIR', '/usr/local/arcpanel'),
 
     // Legacy PHP session files shared with web/ and the web terminal.
-    'sessions_path' => env('ARC_SESSIONS_PATH', '/usr/local/hestia/data/sessions'),
+    'sessions_path' => env('ARC_SESSIONS_PATH', '/usr/local/arcpanel/data/sessions'),
 
     // v-* commands only read secret files below /tmp/ (func/main.sh,
     // is_password_valid and is_hash_valid).
     'secret_dir' => env('ARC_SECRET_DIR', '/tmp'),
 
     // Local backup archives, served by the internal /backup/ location of
-    // hestia-nginx (E7 Backups page; web/download/backup uses the same path).
+    // arcpanel-nginx (E7 Backups page; web/download/backup uses the same path).
     'backup_dir' => env('ARC_BACKUP_DIR', '/backup'),
 
     // Default timeout of one v-* call, in seconds.

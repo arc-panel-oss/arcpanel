@@ -53,7 +53,7 @@ it('counts resellers on the admin dashboard', function () {
     $this->fake->on('v-list-sys-services', ['json'])->returnsFixture('v-list-sys-services/default.json');
     $this->fake->on('v-list-sys-rrd', ['json'])->returnsFixture('v-list-sys-rrd/default.json');
     $this->fake->on('v-list-user-auth-log', ['arcadmin', 'json'])->returnsFixture('v-list-user-auth-log/arcadmin.json');
-    $this->fake->on('v-list-sys-hestia-updates', ['json'])->returnsFixture('v-list-sys-hestia-updates/default.json');
+    $this->fake->on('v-list-sys-arcpanel-updates', ['json'])->returnsFixture('v-list-sys-arcpanel-updates/default.json');
     signIn('arcadmin', 'admin');
 
     $this->get('/')->assertOk()->assertSee('2 resellers');

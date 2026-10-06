@@ -226,10 +226,10 @@ it('signs into phpMyAdmin with a short-lived token when single sign-on is set up
     $response = $this->post('/db/bob/bob_wp/phpmyadmin');
     $response->assertRedirect();
     $url = $response->headers->get('Location');
-    expect($url)->toStartWith('https://localhost/phpmyadmin/hestia-sso.php?');
+    expect($url)->toStartWith('https://localhost/phpmyadmin/arcpanel-sso.php?');
     parse_str((string) parse_url($url, PHP_URL_QUERY), $query);
     expect($query['database'])->toBe('bob_wp')->and($query['user'])->toBe('bob')
-        ->and(password_verify('bob_wp'.'bob'.'127.0.0.1'.$query['exp'].'pma-key', $query['hestia_token']))->toBeTrue();
+        ->and(password_verify('bob_wp'.'bob'.'127.0.0.1'.$query['exp'].'pma-key', $query['arcpanel_token']))->toBeTrue();
 
     // suspended databases have no sign-on
     $this->post('/db/bob/bob_shop/phpmyadmin')->assertNotFound();

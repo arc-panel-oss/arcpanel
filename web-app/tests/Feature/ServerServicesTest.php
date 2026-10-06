@@ -22,7 +22,7 @@ beforeEach(function () {
         'php8.4-fpm' => $service('php interpreter'),
         'exim4' => $service('mail server', 'stopped'),
         'iptables' => $service('firewall'),
-        'hestia' => $service('panel'),
+        'arcpanel' => $service('panel'),
         'memcached' => $service('cache'),
     ]);
 });
@@ -38,7 +38,7 @@ it('lists the services with the system facts and the config editors', function (
         ->assertSee('Are you sure you want to restart the nginx service?')
         ->assertSee('Are you sure you want to stop the nginx service?')
         ->assertSee('Are you sure you want to start the exim4 service?')
-        ->assertDontSee('Are you sure you want to stop the hestia service?')
+        ->assertDontSee('Are you sure you want to stop the arcpanel service?')
         ->assertSee('This service is required by the panel.')
         ->assertSee('Restart server')
         ->assertSee('6 services');
@@ -92,16 +92,16 @@ it('never stops a protected service, alone or in bulk', function () {
     $this->fake->on('v-restart-service')->returns();
     signIn('arcadmin', 'admin');
 
-    $this->post('/server/services/hestia/stop')->assertForbidden();
-    $this->post('/server/services/hestia/restart')->assertSessionHas('ok');
+    $this->post('/server/services/arcpanel/stop')->assertForbidden();
+    $this->post('/server/services/arcpanel/restart')->assertSessionHas('ok');
 
-    $this->post('/server/services/bulk', ['action' => 'stop', 'items' => ['nginx', 'hestia']])
+    $this->post('/server/services/bulk', ['action' => 'stop', 'items' => ['nginx', 'arcpanel']])
         ->assertSessionHas('error', '1 done, 1 failed')
-        ->assertSessionHas('error_detail', 'hestia: This service is required by the panel.');
+        ->assertSessionHas('error_detail', 'arcpanel: This service is required by the panel.');
     $this->fake->assertRan('v-stop-service', fn ($a) => $a === ['nginx'], 1);
-    $this->fake->assertRan('v-stop-service', fn ($a) => $a === ['hestia'], 0);
+    $this->fake->assertRan('v-stop-service', fn ($a) => $a === ['arcpanel'], 0);
 
-    $this->post('/server/services/bulk', ['action' => 'restart', 'items' => ['nginx', 'hestia']])->assertSessionHas('ok', '2 done, 0 failed');
+    $this->post('/server/services/bulk', ['action' => 'restart', 'items' => ['nginx', 'arcpanel']])->assertSessionHas('ok', '2 done, 0 failed');
     $this->post('/server/services/bulk', ['action' => 'restart', 'items' => ['nope']])->assertNotFound();
     $this->post('/server/services/bulk', ['action' => 'reload', 'items' => ['nginx']])->assertSessionHasErrors('action');
 });

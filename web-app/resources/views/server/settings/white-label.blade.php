@@ -28,7 +28,7 @@
 
     <x-ap-card :title="__('Logo')" icon="image">
         <p>{{ $customLogo ? __('The panel shows your custom logo.') : __('The panel shows the default logo.') }}</p>
-        <p class="muted">{{ __('Put logo.svg, logo.png, logo-header.svg, favicon.png and favicon.ico into /usr/local/hestia/data/white-label/ on the server, then apply them.') }}</p>
+        <p class="muted">{{ __('Put logo.svg, logo.png, logo-header.svg, favicon.png and favicon.ico into /usr/local/arcpanel/data/white-label/ on the server, then apply them.') }}</p>
         @if ($canEdit)
             <div class="ap-form-actions">
                 <form method="post" action="{{ route('server.settings.logo') }}" class="ap-inline-form">

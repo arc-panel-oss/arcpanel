@@ -13,7 +13,7 @@ use App\Auth\Principal;
 final class ServerPolicy
 {
     /** Services the panel itself runs on: restart only (spec D5). */
-    private const PROTECTED_SERVICES = ['hestia'];
+    private const PROTECTED_SERVICES = ['arcpanel'];
 
     public function __construct(private readonly SysConfig $config) {}
 

@@ -5,7 +5,7 @@ namespace App\Services\Files;
 use RuntimeException;
 
 /**
- * The staging tree of the file manager (E3 spec §5.1), owned by hestiaweb:
+ * The staging tree of the file manager (E3 spec §5.1), owned by arcpanelweb:
  * uploads/<token>/ for upload sessions and editor saves, downloads/<ticket>
  * for download tickets with a <ticket>.json sidecar.
  */

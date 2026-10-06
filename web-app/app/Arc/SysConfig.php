@@ -5,7 +5,7 @@ namespace App\Arc;
 use Illuminate\Contracts\Cache\Repository as Cache;
 
 /**
- * Server configuration (hestia.conf) as returned by `v-list-sys-config json`,
+ * Server configuration (arcpanel.conf) as returned by `v-list-sys-config json`,
  * cached for config('arc.sys_config_ttl') seconds.
  */
 final class SysConfig

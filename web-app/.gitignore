@@ -26,6 +26,6 @@ Homestead.json
 Homestead.yaml
 Thumbs.db
 
-# Generated at package build (src/hst_autocompile.sh)
+# Generated at package build (src/arcpanel-build.sh)
 /config/arc-commands.php
 /lang/*.json

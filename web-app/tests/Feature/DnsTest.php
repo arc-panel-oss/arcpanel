@@ -175,19 +175,19 @@ it('lets an admin choose the template and refuses unknown templates', function (
     $this->fake->assertRan('v-change-dns-domain-tpl', fn ($a) => $a === ['bob', 'new.example', 'gmail', 'no']);
 });
 
-it('hides the DNSSEC box without the hestia-zone cluster or DNSSEC support', function (array $config) {
+it('hides the DNSSEC box without the arcpanel-zone cluster or DNSSEC support', function (array $config) {
     withSysConfig($this->fake, $config);
     signIn('bob', 'user');
 
     $this->get('/dns/create')->assertOk()->assertDontSee('Enable DNSSEC');
     $this->get('/dns/bob/example.com/edit')->assertOk()->assertDontSee('Enable DNSSEC');
 })->with([
-    'other cluster system' => [['DNS_CLUSTER_SYSTEM' => 'hestia', 'SUPPORT_DNSSEC' => 'yes']],
-    'no DNSSEC support' => [['DNS_CLUSTER_SYSTEM' => 'hestia-zone', 'SUPPORT_DNSSEC' => 'no']],
+    'other cluster system' => [['DNS_CLUSTER_SYSTEM' => 'arcpanel', 'SUPPORT_DNSSEC' => 'yes']],
+    'no DNSSEC support' => [['DNS_CLUSTER_SYSTEM' => 'arcpanel-zone', 'SUPPORT_DNSSEC' => 'no']],
 ]);
 
-it('shows the DNSSEC box with the hestia-zone cluster and DNSSEC support', function () {
-    withSysConfig($this->fake, ['DNS_CLUSTER_SYSTEM' => 'hestia-zone', 'SUPPORT_DNSSEC' => 'yes']);
+it('shows the DNSSEC box with the arcpanel-zone cluster and DNSSEC support', function () {
+    withSysConfig($this->fake, ['DNS_CLUSTER_SYSTEM' => 'arcpanel-zone', 'SUPPORT_DNSSEC' => 'yes']);
     $this->fake->on('v-add-dns-domain')->returns();
     signIn('bob', 'user');
 
@@ -268,7 +268,7 @@ it('shows the edit form with the zone values and answers 404 for unknown zones',
 });
 
 it('runs only the changed steps in the legacy order with one restart', function () {
-    withSysConfig($this->fake, ['DNS_CLUSTER_SYSTEM' => 'hestia-zone', 'SUPPORT_DNSSEC' => 'yes']);
+    withSysConfig($this->fake, ['DNS_CLUSTER_SYSTEM' => 'arcpanel-zone', 'SUPPORT_DNSSEC' => 'yes']);
     foreach (['ip', 'soa', 'exp', 'ttl', 'dnssec'] as $step) {
         $this->fake->on('v-change-dns-domain-'.$step)->returns();
     }

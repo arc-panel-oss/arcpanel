@@ -48,7 +48,7 @@ beforeEach(function () {
     ]);
     $this->fake->on('v-list-backup-host')->returns('');
     $this->fake->on('v-list-backup-host-restic')->returns('');
-    $this->fake->on('v-list-sys-hestia-ssl')->returnsJson(['HESTIA' => [
+    $this->fake->on('v-list-sys-arcpanel-ssl')->returnsJson(['ARCPANEL' => [
         'CRT' => "-----BEGIN CERTIFICATE-----\nMIIB\n-----END CERTIFICATE-----", 'KEY' => "-----BEGIN PRIVATE KEY-----\nSECRETKEY\n-----END PRIVATE KEY-----",
         'SUBJECT' => 'srv1.example.net', 'ALIASES' => 'srv1.example.net', 'NOT_BEFORE' => 'Oct 4 2026', 'NOT_AFTER' => 'Oct 4 2027',
         'SIGNATURE' => 'ecdsa-with-SHA256', 'PUB_KEY' => '256 bit', 'ISSUER' => 'Example CA',
@@ -300,13 +300,13 @@ it('replaces the remote backup type and the restic repository', function () {
 // SSL
 
 it('changes the panel certificate through a secret directory', function () {
-    $this->fake->on('v-change-sys-hestia-ssl')->returns();
+    $this->fake->on('v-change-sys-arcpanel-ssl')->returns();
     signIn('arcadmin', 'admin');
 
     $this->post('/server/settings/ssl', ['certificate' => 'nope', 'key' => ''])->assertSessionHasErrors(['certificate', 'key']);
     $this->post('/server/settings/ssl', ['certificate' => "-----BEGIN CERTIFICATE-----\r\nNEW\r\n-----END CERTIFICATE-----", 'key' => "-----BEGIN PRIVATE KEY-----\nK\n-----END PRIVATE KEY-----"])
         ->assertSessionHas('ok', 'Changes have been saved.');
-    $this->fake->assertRan('v-change-sys-hestia-ssl', fn ($a) => json_decode($a[0], true) === [
+    $this->fake->assertRan('v-change-sys-arcpanel-ssl', fn ($a) => json_decode($a[0], true) === [
         'certificate.crt' => "-----BEGIN CERTIFICATE-----\nNEW\n-----END CERTIFICATE-----\n",
         'certificate.key' => "-----BEGIN PRIVATE KEY-----\nK\n-----END PRIVATE KEY-----\n",
     ]);

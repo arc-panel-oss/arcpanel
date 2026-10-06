@@ -15,7 +15,7 @@ use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
  * Backups through the v-* commands, as the legacy pages call them
  * (web/list/backup, web/list/backup/incremental, web/edit/backup/exclusions,
  * web/schedule/*, web/bulk/backup, web/bulk/restore, web/download/backup).
- * Backups and restores go to the Hestia backup queue (E7 batch 1 spec D6).
+ * Backups and restores go to the ArcPanel backup queue (E7 batch 1 spec D6).
  */
 final class BackupService
 {

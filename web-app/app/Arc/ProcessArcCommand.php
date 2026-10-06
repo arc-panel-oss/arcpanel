@@ -51,7 +51,7 @@ final class ProcessArcCommand implements ArcCommand
                 '/',
                 [
                     'PATH' => '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin',
-                    'HESTIA' => $this->installDir,
+                    'ARCPANEL' => $this->installDir,
                     'LANG' => 'C.UTF-8',
                 ],
                 null,

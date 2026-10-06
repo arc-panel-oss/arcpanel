@@ -10,7 +10,7 @@ use Illuminate\Console\Command;
 /**
  * Converts the gettext catalogues of lib/locale (Crowdin is the source of
  * truth) into Laravel JSON translations keyed by the English msgid, so
- * __('Add Web Domain') matches the HestiaCP _('Add Web Domain').
+ * __('Add Web Domain') matches the ArcPanel _('Add Web Domain').
  * Run at package build; the generated lang/*.json files are not committed.
  */
 #[Signature('arcpanel:i18n-import {--locale-dir= : Directory with <lang>/LC_MESSAGES (default: ../lib/locale)}')]
@@ -33,7 +33,7 @@ final class I18nImport extends Command
         foreach (glob($localeDir.'/*/LC_MESSAGES') ?: [] as $dir) {
             $lang = basename(dirname($dir));
             // .po from Crowdin when present, else the compiled .mo in the repository
-            $file = is_file($dir.'/hestiacp.po') ? $dir.'/hestiacp.po' : $dir.'/hestiacp.mo';
+            $file = is_file($dir.'/arcpanel.po') ? $dir.'/arcpanel.po' : $dir.'/arcpanel.mo';
             if (! is_file($file) || $lang === 'en') {
                 continue;
             }
