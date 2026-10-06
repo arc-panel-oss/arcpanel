@@ -189,7 +189,8 @@ fi
 rdir=$(dockerapp_rdir "$user" "$name")
 mkdir -p "$rdir"
 chmod 700 "$(dirname "$rdir")" "$rdir"
-node_as_user "$user" bash -c 'umask 022; mkdir -p "$1" && [ ! -L "$1" ] && chmod 711 "$1"' apps "$HOMEDIR/$user/apps"
+node_home_dir_add "$user" apps 711 && node_as_user "$user" chmod 711 "$HOMEDIR/$user/apps"
+check_result $? "$HOMEDIR/$user/apps could not be created" "$E_FORBIDEN"
 node_as_user "$user" bash -c 'umask 077; mkdir -p "$1/data" && [ ! -L "$1" ] && [ ! -L "$1/data" ]' app "$(dockerapp_home "$user" "$name")"
 dockerapp_set "$user" "$name" "SLUG=$slug" "VERSION=$version" "DOMAIN=$domain" "WEB_PORT=$web_port" \
 	"EXTRA_PORTS=$extra" STATE=running STATUS=installing REASON= SUSPENDED=no \

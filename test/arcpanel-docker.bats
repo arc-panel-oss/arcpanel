@@ -56,12 +56,13 @@ refused() {
 }
 
 PASS="Tdk-$(date +%s)-Pass"
-USERS="tdk1 tdk2 tdkoff"
+USERS="tdk1 tdk2 tdkoff tdkjail"
 U1=tdk1
 U2=tdk2
 DA=a.tdk.example
 DB=b.tdk.example
 DC=c.tdk.example
+DJ=j.tdk.example
 
 source_value() {
     grep "^$1=" "$CONF" | tail -n1 | cut -d"'" -f2
@@ -73,9 +74,9 @@ else
 fi
 
 make_package() {
-    local name=$1 docker=$2 apps=$3 tmp
+    local name=$1 docker=$2 apps=$3 shell=${4:-bash} tmp
     tmp=$(mktemp)
-    sed "s/^SHELL=.*/SHELL='bash'/" "$PKG_DIR/default.pkg" > "$tmp"
+    sed "s/^SHELL=.*/SHELL='$shell'/" "$PKG_DIR/default.pkg" > "$tmp"
     v-add-user-package "$tmp" "$name" yes > /dev/null 2>&1 || v-add-user-package "$tmp" "$name" > /dev/null
     rm -f "$tmp"
     v-change-package-tenancy "$name" DOCKER "$docker"
@@ -151,6 +152,14 @@ container_of() {
     docker ps -q --filter "label=top.arcpanel.user=$1" --filter "label=top.arcpanel.app=$2" | head -n1
 }
 
+# A nologin user gets an SFTP jail, which makes the home root-owned
+# (v-add-user-sftp-jail); a server without the jail gets that state by hand
+jail_home() {
+    if [ "$(stat -c %U "/home/$1")" != root ]; then
+        chown root:root "/home/$1"
+    fi
+}
+
 cleanup() {
     local user name
     for user in $USERS; do
@@ -159,7 +168,7 @@ cleanup() {
         done
         v-delete-user "$user" > /dev/null 2>&1 || true
     done
-    for package in tdk-dev tdk-off; do
+    for package in tdk-dev tdk-off tdk-jail; do
         v-delete-user-package "$package" > /dev/null 2>&1 || true
         rm -f "$PKG_DIR/$package.tenancy"
     done
@@ -169,10 +178,14 @@ setup_file() {
     cleanup
     make_package tdk-dev yes 2
     make_package tdk-off no 2
+    make_package tdk-jail yes 1 nologin
     for user in $U1 $U2; do
         v-add-user "$user" "$PASS" "$user@example.invalid" tdk-dev > /dev/null
     done
     v-add-user tdkoff "$PASS" tdkoff@example.invalid tdk-off > /dev/null
+    v-add-user tdkjail "$PASS" tdkjail@example.invalid tdk-jail > /dev/null
+    jail_home tdkjail
+    v-add-web-domain tdkjail $DJ > /dev/null
     v-add-web-domain $U1 $DA > /dev/null
     v-add-web-domain $U1 $DB > /dev/null
     v-add-web-domain $U2 $DC > /dev/null
@@ -745,4 +758,23 @@ teardown_file() {
     [ -z "$(docker ps -aq --filter label=top.arcpanel.user=$U2)" ]
     [ ! -d "$ARCPANEL/data/users/$U2" ]
     v-add-user $U2 "$PASS" "$U2@example.invalid" tdk-dev > /dev/null
+}
+
+#----------------------------------------------------------#
+#                 Root-owned home (SFTP jail)              #
+#----------------------------------------------------------#
+
+@test "Jail: a user with a root-owned home installs and removes an app" {
+    assert_equal "$(stat -c %U /home/tdkjail)" "root"
+    run v-add-docker-app tdkjail tiny tiny $DJ '' 1.0.0
+    assert_success
+    assert_equal "$(wait_task tdkjail tiny)" "done"
+    assert_equal "$(app_field tdkjail tiny STATUS)" "running"
+    assert_equal "$(stat -c %U:%G:%a /home/tdkjail/apps)" "tdkjail:tdkjail:711"
+    assert_equal "$(stat -c %U /home/tdkjail/apps/tiny/data/www/index.html)" "tdkjail"
+    assert_equal "$(stat -c %U /home/tdkjail)" "root"
+    assert_equal "$(eventually 200 fetch_status tdkjail $DJ)" "200"
+    run v-delete-docker-app tdkjail tiny
+    assert_success
+    assert_dir_not_exists /home/tdkjail/apps/tiny
 }

@@ -407,6 +407,47 @@ node_as_user() {
 		NO_UPDATE_NOTIFIER=1 NPM_CONFIG_UPDATE_NOTIFIER=false "$@"
 }
 
+# Folders at the top of a home (~/.nvm, ~/.pm2, ~/apps). A user with an SFTP
+# jail has a root-owned home (v-add-user-sftp-jail) and can neither create
+# nor remove them, so root takes that one step there. That is safe because
+# the user cannot place a link in a folder it cannot write; everything inside
+# the folder is still done as the user.
+node_home_owned() {
+	[ "$(stat -c %u "$(node_home "$1")")" = "$(id -u "$1")" ]
+}
+
+# Create NAME in the home of USER with MODE, owned by the user; returns
+# E_FORBIDEN when NAME is a symbolic link
+node_home_dir_add() {
+	local user="$1" mode="$3" dir
+	dir="$(node_home "$user")/$2"
+	if [ -L "$dir" ]; then
+		echo "$dir is a symbolic link"
+		return "$E_FORBIDEN"
+	fi
+	if [ -d "$dir" ]; then
+		return 0
+	fi
+	if node_home_owned "$user"; then
+		node_as_user "$user" mkdir -m "$mode" "$dir"
+	else
+		mkdir -m "$mode" "$dir" && chown "$user:$user" "$dir"
+	fi
+}
+
+# Remove NAME and everything in it from the home of USER
+node_home_dir_delete() {
+	local user="$1" dir
+	dir="$(node_home "$user")/$2"
+	if node_home_owned "$user"; then
+		node_as_user "$user" rm -rf -- "$dir"
+	elif [ -L "$dir" ] || [ ! -d "$dir" ]; then
+		rm -f -- "$dir"
+	else
+		node_as_user "$user" find "$dir" -mindepth 1 -delete && rmdir "$dir"
+	fi
+}
+
 # Same, niced and limited to NODE_NPM_TIMEOUT seconds, umask 022
 node_as_user_long() {
 	local u="$1"

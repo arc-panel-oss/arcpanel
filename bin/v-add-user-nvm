@@ -54,7 +54,8 @@ if ! node_nvm_enabled "$user"; then
 	node_nvm_fetch
 	check_result $? "$NODE_ERROR"
 	prefix="nvm-$NODE_NVM_VERSION"
-	node_as_user "$user" mkdir -p "$nvm_dir"
+	node_home_dir_add "$user" .nvm 755
+	check_result $? "$nvm_dir could not be created" "$E_FORBIDEN"
 	node_as_user "$user" tar -xzf - -C "$nvm_dir" --strip-components=1 --no-same-owner \
 		"$prefix/nvm.sh" "$prefix/nvm-exec" "$prefix/bash_completion" "$prefix/LICENSE.md" \
 		< "$NODE_CACHE/nvm-$NODE_NVM_VERSION.tar.gz"

@@ -20,13 +20,14 @@ PORTS_DIR=$ARCPANEL/data/ports
 CONF=$ARCPANEL/conf/arcpanel.conf
 MIRROR=/root/arcpanel-node-mirror
 PASS="Tna-$(date +%s)-Pass"
-USERS="tna1 tna2 tnaoff"
+USERS="tna1 tna2 tnaoff tnajail"
 U1=tna1
 U2=tna2
 DA=a.tna.example
 DB=b.tna.example
 DC=c.tna.example
 DD=d.tna.example
+DJ=j.tna.example
 
 source_value() {
     grep "^$1=" "$CONF" | tail -n1 | cut -d"'" -f2
@@ -42,9 +43,9 @@ latest_of() {
 }
 
 make_package() {
-    local name=$1 node=$2 apps=$3 tmp
+    local name=$1 node=$2 apps=$3 shell=${4:-bash} tmp
     tmp=$(mktemp)
-    sed "s/^SHELL=.*/SHELL='bash'/" "$PKG_DIR/default.pkg" > "$tmp"
+    sed "s/^SHELL=.*/SHELL='$shell'/" "$PKG_DIR/default.pkg" > "$tmp"
     v-add-user-package "$tmp" "$name" yes > /dev/null 2>&1 || v-add-user-package "$tmp" "$name" > /dev/null
     rm -f "$tmp"
     v-change-package-tenancy "$name" NODE "$node"
@@ -117,6 +118,14 @@ app_status() {
     v-list-node-apps "$1" json | jq -r --arg d "$2" '.APPS[] | select(.DOMAIN == $d) | .STATUS'
 }
 
+# A nologin user gets an SFTP jail, which makes the home root-owned
+# (v-add-user-sftp-jail); a server without the jail gets that state by hand
+jail_home() {
+    if [ "$(stat -c %U "/home/$1")" != root ]; then
+        chown root:root "/home/$1"
+    fi
+}
+
 cleanup() {
     for user in $USERS; do
         if id "$user" > /dev/null 2>&1; then
@@ -127,7 +136,7 @@ cleanup() {
         v-delete-user "$user" > /dev/null 2>&1 || true
         rm -f "/etc/logrotate.d/arcpanel-node-$user"
     done
-    for package in tna-dev tna-off; do
+    for package in tna-dev tna-off tna-jail; do
         v-delete-user-package "$package" > /dev/null 2>&1 || true
         rm -f "$PKG_DIR/$package.tenancy"
     done
@@ -142,6 +151,7 @@ setup_file() {
     v-update-sys-node-releases > /dev/null
     make_package tna-dev yes 2
     make_package tna-off no 2
+    make_package tna-jail yes 1 nologin
     V24=$(latest_of 24)
     V22=$(latest_of 22)
     for user in $U1 $U2; do
@@ -151,6 +161,12 @@ setup_file() {
     done
     v-add-user-node-version $U1 "$V22" > /dev/null
     v-add-user tnaoff "$PASS" tnaoff@example.invalid tna-off > /dev/null
+    v-add-user tnajail "$PASS" tnajail@example.invalid tna-jail > /dev/null
+    jail_home tnajail
+    v-add-user-nvm tnajail > /dev/null
+    v-add-user-node-version tnajail "$V24" > /dev/null
+    v-add-web-domain tnajail $DJ > /dev/null
+    write_app tnajail $DJ server.js tna-j
     v-add-web-domain $U1 $DA > /dev/null
     v-add-web-domain $U1 $DB > /dev/null
     v-add-web-domain $U1 $DC > /dev/null
@@ -650,4 +666,21 @@ user_systemctl() {
     assert_file_not_exists "$ARCPANEL/data/users/$U1/pm2.conf"
     run pgrep -u $U1 -f "PM2"
     assert_failure
+}
+
+#----------------------------------------------------------#
+#                 Root-owned home (SFTP jail)              #
+#----------------------------------------------------------#
+
+@test "Jail: a user with a root-owned home runs an app" {
+    assert_equal "$(stat -c %U /home/tnajail)" "root"
+    run v-add-node-app tnajail $DJ
+    assert_success
+    assert_equal "$(stat -c %U:%G /home/tnajail/.pm2)" "tnajail:tnajail"
+    assert_equal "$(stat -c %U /home/tnajail)" "root"
+    port=$(app_field tnajail $DJ PORT)
+    run eventually "tna-j $port -" fetch tnajail $DJ
+    assert_output "tna-j $port -"
+    run app_status tnajail $DJ
+    assert_output "online"
 }

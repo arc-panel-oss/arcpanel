@@ -21,12 +21,12 @@ CONF=$ARCPANEL/conf/arcpanel.conf
 MIRROR=/root/arcpanel-node-mirror
 BAD_MIRROR=/root/arcpanel-node-mirror-bad
 PASS="Tn-$(date +%s)-Pass"
-USERS="tnu1 tnu2 tnu3 tnoff tnres tncust"
+USERS="tnu1 tnu2 tnu3 tnoff tnres tncust tnjail"
 
 make_package() {
-    local name=$1 node=$2 versions=$3 allowed=$4 tmp
+    local name=$1 node=$2 versions=$3 allowed=$4 shell=${5:-bash} tmp
     tmp=$(mktemp)
-    sed "s/^SHELL=.*/SHELL='bash'/" "$PKG_DIR/default.pkg" > "$tmp"
+    sed "s/^SHELL=.*/SHELL='$shell'/" "$PKG_DIR/default.pkg" > "$tmp"
     v-add-user-package "$tmp" "$name" yes > /dev/null 2>&1 || v-add-user-package "$tmp" "$name" > /dev/null
     rm -f "$tmp"
     v-change-package-tenancy "$name" NODE "$node"
@@ -90,11 +90,19 @@ use_mirror() {
     v-change-sys-config-value NODE_NVM_URL "file://$MIRROR/nvm"
 }
 
+# A nologin user gets an SFTP jail, which makes the home root-owned
+# (v-add-user-sftp-jail); a server without the jail gets that state by hand
+jail_home() {
+    if [ "$(stat -c %U "/home/$1")" != root ]; then
+        chown root:root "/home/$1"
+    fi
+}
+
 cleanup() {
     for user in $USERS; do
         v-delete-user "$user" > /dev/null 2>&1 || true
     done
-    for package in tn-dev tn-off tn-one tn-list tn-all tn-res tnres_tn-cust; do
+    for package in tn-dev tn-off tn-one tn-list tn-all tn-res tnres_tn-cust tn-jail; do
         v-delete-user-package "$package" > /dev/null 2>&1 || true
         rm -f "$PKG_DIR/$package.tenancy"
     done
@@ -110,10 +118,13 @@ setup_file() {
     make_package tn-one yes 1 '*'
     make_package tn-list yes unlimited 22
     make_package tn-all yes unlimited '*'
+    make_package tn-jail yes 3 lts nologin
     v-add-user tnu1 "$PASS" tnu1@example.invalid tn-dev > /dev/null
     v-add-user tnu2 "$PASS" tnu2@example.invalid tn-dev > /dev/null
     v-add-user tnu3 "$PASS" tnu3@example.invalid tn-one > /dev/null
     v-add-user tnoff "$PASS" tnoff@example.invalid tn-off > /dev/null
+    v-add-user tnjail "$PASS" tnjail@example.invalid tn-jail > /dev/null
+    jail_home tnjail
     export V24 V22
 }
 
@@ -530,6 +541,40 @@ wait_task() {
     assert_output "0"
     run v-delete-user-nvm tnu3
     assert_failure 3
+}
+
+#----------------------------------------------------------#
+#                 Root-owned home (SFTP jail)              #
+#----------------------------------------------------------#
+
+@test "Jail: a user with a root-owned home enables Node.js and installs a runtime" {
+    assert_equal "$(stat -c %U /home/tnjail)" "root"
+    run v-add-user-nvm tnjail
+    assert_success
+    assert_equal "$(stat -c %U:%G /home/tnjail/.nvm)" "tnjail:tnjail"
+    assert_equal "$(stat -c %U /home/tnjail/.nvm/nvm.sh)" "tnjail"
+    assert_equal "$(stat -c %U /home/tnjail)" "root"
+    run v-add-user-node-version tnjail lts
+    assert_success
+    assert_equal "$(stat -c %U "/home/tnjail/.nvm/versions/node/v$V24/bin/node")" "tnjail"
+}
+
+@test "Jail: removing Node.js deletes ~/.nvm from a root-owned home" {
+    run v-delete-user-nvm tnjail
+    assert_success
+    assert_dir_not_exists /home/tnjail/.nvm
+    assert_equal "$(stat -c %U /home/tnjail)" "root"
+}
+
+@test "Jail: a symbolic link at ~/.nvm is refused" {
+    mkdir -p /root/tn-elsewhere
+    ln -s /root/tn-elsewhere /home/tnjail/.nvm
+    run v-add-user-nvm tnjail
+    rm -f /home/tnjail/.nvm
+    assert_failure 10
+    run ls -A /root/tn-elsewhere
+    rmdir /root/tn-elsewhere
+    assert_output ""
 }
 
 @test "Cache: delete one version and all versions" {

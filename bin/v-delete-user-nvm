@@ -57,7 +57,7 @@ check_arcpanel_demo_mode
 
 node_shell_block_remove "$user"
 if [ -e "$nvm_dir" ]; then
-	node_as_user "$user" rm -rf -- "$nvm_dir"
+	node_home_dir_delete "$user" .nvm
 	check_result $? "$nvm_dir could not be removed"
 fi
 rm -f "$ARCPANEL/data/users/$user"/node-outdated-*.json

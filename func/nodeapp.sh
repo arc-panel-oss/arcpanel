@@ -464,10 +464,12 @@ nodeapp_pm2_install() {
 # Render the unit of USER from the shipped template
 nodeapp_unit_write() {
 	local user="$1" runtime pm2 dir
+	node_home_dir_add "$user" .config 755 || return "$E_FORBIDEN"
+	node_home_dir_add "$user" .pm2 755 || return "$E_FORBIDEN"
 	runtime=$(nodeapp_pm2_runtime "$user")
 	dir=$(node_version_dir "$user" "$runtime")
 	pm2=$(nodeapp_pm2_bin "$user" "$runtime")
-	node_as_user "$user" mkdir -p "$(dirname "$(nodeapp_unit_file "$user")")" "$(node_home "$user")/.pm2"
+	node_as_user "$user" mkdir -p "$(dirname "$(nodeapp_unit_file "$user")")"
 	sed -e "s|@RUNTIME@|$dir|g" -e "s|@PM2@|$pm2|g" -e 's/\r$//' "$NODEAPP_UNIT_SOURCE" \
 		| node_as_user "$user" bash -c 'umask 022; cat > "$1.tmp" && mv -f "$1.tmp" "$1"' unit "$(nodeapp_unit_file "$user")"
 	# resurrect needs a dump; an empty one starts no app
@@ -505,7 +507,10 @@ nodeapp_daemon_ensure() {
 		echo "pm2 could not be installed for $user"
 		return "$rc"
 	fi
-	nodeapp_unit_write "$user"
+	if ! nodeapp_unit_write "$user"; then
+		echo "the pm2 unit of $user could not be written"
+		return "$E_FORBIDEN"
+	fi
 	if ! nodeapp_manager_start "$user"; then
 		echo "the systemd user manager of $user did not start"
 		return "$E_RESTART"
