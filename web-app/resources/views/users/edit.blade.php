@@ -31,7 +31,7 @@
                         <div class="ap-form-grid">
                             <x-ap-input name="name" :label="__('Name')" :value="$record->fullName()" bag="general" required />
                             <x-ap-input name="email" type="email" :label="__('Email')" :value="$record->email()" bag="general" required />
-                            <x-ap-select name="language" :label="__('Language')" :options="$languages" :value="$record->language()" bag="general" />
+                            <x-ap-select name="language" :label="__('Language')" :options="\App\View\ShellComposer::languageOptions(array_keys($languages))" :value="$record->language()" bag="general" />
                         </div>
                         <x-ap-password name="password" :label="__('New password')" bag="general" :generate="true"
                             :hint="__('Leave empty to keep the current password.')" />

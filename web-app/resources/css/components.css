@@ -30,7 +30,8 @@
 	gap: var(--ap-space-2);
 	padding: var(--ap-space-0-5) var(--ap-space-2) var(--ap-space-4-5);
 }
-.ap-sidebar-close {
+/* Beats the display of .ap-btn: the close button belongs to the phone drawer */
+.ap-sidebar .ap-sidebar-close {
 	display: none;
 }
 .ap-nav {
@@ -131,8 +132,15 @@
 .ap-topbar-spacer {
 	flex: 1 1 auto;
 }
-.ap-menu-toggle {
+.ap-topbar > nav {
+	min-width: 0;
+}
+/* The menu button needs JavaScript: the rail on wider screens, the drawer on phones */
+.ap-topbar .ap-menu-toggle {
 	display: none;
+}
+.has-js .ap-topbar .ap-menu-toggle {
+	display: inline-flex;
 }
 
 .ap-crumbs {
@@ -213,6 +221,9 @@
 	flex-wrap: wrap;
 	align-items: center;
 	gap: var(--ap-space-2);
+	/* wide controls (segments) scroll inside instead of widening the page */
+	min-width: 0;
+	max-width: 100%;
 }
 
 .ap-grid {
@@ -298,6 +309,10 @@
 	font-size: var(--ap-text-sm);
 	color: var(--ap-fg-subtle);
 }
+/* In a padded card the footer still runs edge to edge, at the bottom */
+.ap-card:not(.ap-card-flush) > .ap-card-foot {
+	margin: auto calc(var(--ap-space-5) * -1) calc(var(--ap-space-5) * -1);
+}
 
 /* Stat tile */
 .ap-stat {
@@ -326,15 +341,22 @@
 	color: var(--ap-fg-muted);
 }
 
-/* Arc gauge (semicircle meter) */
+/* Arc gauge (semicircle meter): the value beside the arc, the meta lines below */
 .ap-gauge {
-	display: flex;
+	display: grid;
+	grid-template-columns: auto minmax(0, 1fr);
 	align-items: center;
-	gap: var(--ap-space-4-5);
+	gap: var(--ap-space-3) var(--ap-space-4);
+}
+.ap-gauge > .ap-stat {
+	display: contents;
+}
+.ap-gauge .ap-stat-meta {
+	grid-column: 1 / -1;
 }
 .ap-gauge svg {
-	width: 112px;
-	height: 64px;
+	width: 96px;
+	height: 55px;
 	flex: none;
 	overflow: visible;
 }
@@ -363,16 +385,24 @@
 	stroke: var(--ap-danger);
 }
 .ap-gauge-value {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: baseline;
+	gap: var(--ap-space-1) var(--ap-space-1);
+	min-width: 0;
 	font-size: 28px;
 	font-weight: 600;
 	letter-spacing: -0.02em;
 	line-height: 1;
 	font-variant-numeric: tabular-nums;
 }
+/* the unit drops under the value in narrow tiles instead of breaking inside */
 .ap-gauge-value small {
 	font-size: 15px;
 	color: var(--ap-fg-subtle);
 	font-weight: 500;
+	letter-spacing: 0;
+	white-space: nowrap;
 }
 
 /* ---------- Buttons ---------- */
@@ -1066,6 +1096,11 @@
 	font-family: var(--ap-font-mono);
 	font-size: 12px;
 	font-variant-numeric: tabular-nums;
+	white-space: nowrap;
+}
+.ap-usage-note {
+	font-size: var(--ap-text-xs);
+	color: var(--ap-fg-subtle);
 }
 .ap-bar {
 	height: 6px;
@@ -1280,6 +1315,47 @@
 	text-align: end;
 	white-space: nowrap;
 }
+/* Row actions stay in view when a wide table scrolls sideways */
+.ap-table th.col-actions,
+.ap-table td.col-actions {
+	position: sticky;
+	inset-inline-end: 0;
+	z-index: 1;
+	background: var(--ap-surface);
+}
+.ap-table td.col-actions:has(details[open]) {
+	z-index: 3;
+}
+/* The sticky cells of the last row follow the rounded corner of the card */
+.ap-card-flush > .ap-table-block:last-child > .ap-table-wrap:last-child {
+	border-end-start-radius: calc(var(--ap-radius-lg) - 1px);
+	border-end-end-radius: calc(var(--ap-radius-lg) - 1px);
+}
+.ap-table-wrap.is-scrollable .col-actions {
+	box-shadow: -1px 0 0 var(--ap-border), -14px 0 14px -14px var(--ap-overlay);
+}
+[dir="rtl"] .ap-table-wrap.is-scrollable .col-actions {
+	box-shadow: 1px 0 0 var(--ap-border), 14px 0 14px -14px var(--ap-overlay);
+}
+/* Names, addresses and figures read as one token: they never break */
+.ap-table td.mono,
+.ap-table td.nowrap,
+.ap-table td > .mono,
+.ap-table td > a,
+.ap-table .ap-cell-main > a,
+.ap-table td.col-num {
+	white-space: nowrap;
+}
+.ap-row-menu > summary.ap-btn-ghost {
+	border-color: var(--ap-border);
+	color: var(--ap-fg-muted);
+}
+.ap-row-menu > summary.ap-btn-ghost:hover,
+.ap-row-menu[open] > summary.ap-btn-ghost {
+	border-color: var(--ap-border-strong);
+	background: var(--ap-surface-hover);
+	color: var(--ap-fg);
+}
 .ap-cell {
 	display: flex;
 	align-items: center;
@@ -1404,14 +1480,19 @@
 }
 .ap-segment {
 	display: inline-flex;
+	max-width: 100%;
 	padding: var(--ap-space-1);
 	gap: var(--ap-space-0-5);
 	border: 1px solid var(--ap-border);
 	border-radius: var(--ap-radius-md);
 	background: var(--ap-bg-sunken);
+	/* many options (graph periods) scroll inside the control on phones */
+	overflow-x: auto;
+	scrollbar-width: none;
 }
 .ap-segment button,
 .ap-segment a {
+	flex: none;
 	height: 28px;
 	padding: 0 var(--ap-space-3);
 	border: 0;
@@ -1548,6 +1629,14 @@
 }
 .ap-menu-item .ic {
 	color: var(--ap-fg-subtle);
+}
+/* Links and buttons of a menu look the same */
+.ap-root a.ap-menu-item {
+	color: var(--ap-fg);
+	text-decoration: none;
+}
+.ap-root a.ap-menu-item.is-danger {
+	color: var(--ap-danger);
 }
 .ap-menu-item:hover,
 .ap-menu-item.is-active {
@@ -2394,16 +2483,66 @@ a.ap-pick:focus-visible {
 		flex-wrap: wrap;
 		padding: 0;
 	}
+	/* One row on phones: menu, current page, then icon buttons */
 	.ap-topbar {
 		position: static;
-		padding: var(--ap-space-2) var(--ap-space-4);
+		gap: var(--ap-space-1);
+		padding: var(--ap-space-2) var(--ap-space-3);
+	}
+	.ap-topbar > nav {
+		flex: 1 1 0;
+	}
+	.ap-topbar-spacer {
+		display: none;
+	}
+	.ap-crumbs li:not(:last-child) {
+		display: none;
+	}
+	.ap-crumbs li:last-child,
+	.ap-crumbs li:last-child > span {
+		min-width: 0;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
 	}
 	.ap-search-trigger {
-		order: 5;
-		width: 100%;
+		justify-content: center;
+		width: 40px;
+		height: 40px;
+		padding: 0;
+		border-color: transparent;
+		background: transparent;
+		color: var(--ap-fg-muted);
 	}
-	.ap-user-btn .who {
+	.ap-search-trigger .ap-kbd {
 		display: none;
+	}
+	.ap-search-label,
+	.ap-switch-label {
+		position: absolute;
+		width: 1px;
+		height: 1px;
+		overflow: hidden;
+		clip: rect(0 0 0 0);
+		white-space: nowrap;
+	}
+	.ap-user-switch > summary.ap-btn-sm {
+		width: 40px;
+		height: 40px;
+		padding: 0;
+	}
+	.ap-user-btn .who,
+	.ap-user-btn > .ic {
+		display: none;
+	}
+	.ap-user-btn {
+		padding: 0 var(--ap-space-1);
+	}
+	/* The impersonation banner takes its own row under the bar */
+	.ap-imp {
+		order: 10;
+		flex-basis: 100%;
+		justify-content: space-between;
 	}
 	.ap-content {
 		padding: var(--ap-space-5) var(--ap-space-4) var(--ap-space-7-5);
@@ -2456,8 +2595,26 @@ a.ap-pick:focus-visible {
 	.ap-table-cards .col-check {
 		display: none !important;
 	}
-	.ap-table-cards .col-actions {
+	/* The first column names the card; the row actions sit beside it */
+	.ap-table-cards tbody td:is(.col-check + td, :first-child:not(.col-check)) {
+		grid-column: 1;
+		grid-row: 1;
+		justify-content: flex-start;
+		min-height: 32px;
+		font-size: var(--ap-text-md);
+		font-weight: 500;
+	}
+	.ap-table-cards tbody td:is(.col-check + td, :first-child:not(.col-check))::before {
+		content: none;
+	}
+	.ap-table-cards tbody td.col-actions {
+		position: static;
+		grid-column: 2;
+		grid-row: 1;
+		width: auto;
 		justify-content: flex-end;
+		align-self: start;
+		box-shadow: none;
 	}
 	.ap-table-cards tbody tr:hover td {
 		background: none;
@@ -2491,6 +2648,12 @@ a.ap-pick:focus-visible {
 		translate: 0 0;
 		box-shadow: var(--ap-shadow-2);
 	}
+	.ap-sidebar-backdrop {
+		position: fixed;
+		inset: 0;
+		z-index: 79;
+		background: var(--ap-overlay);
+	}
 	.has-js .ap-sidebar-close {
 		display: inline-flex;
 	}
@@ -2516,6 +2679,61 @@ a.ap-pick:focus-visible {
 	}
 	.has-js .ap-nav-count {
 		display: inline;
+	}
+}
+
+/*
+ * Wider screens: the sidebar stays in view while the page scrolls, and the
+ * menu button folds it to an icon rail (data-sidebar="rail" on <html>).
+ */
+@media (min-width: 768px) {
+	.ap-sidebar {
+		position: sticky;
+		top: 0;
+		align-self: flex-start;
+		height: 100vh;
+		height: 100dvh;
+		overflow-y: auto;
+		overscroll-behavior: contain;
+		scrollbar-width: thin;
+		scrollbar-color: var(--ap-border-strong) transparent;
+	}
+	[data-sidebar="rail"] .ap-sidebar {
+		flex-basis: var(--ap-rail-w);
+		max-width: var(--ap-rail-w);
+		padding-inline: var(--ap-space-2-5);
+		scrollbar-width: none;
+	}
+	[data-sidebar="rail"] .ap-sidebar-brand {
+		justify-content: center;
+		padding-inline: 0;
+	}
+	/* The mark of the lockup: the word is cut off */
+	[data-sidebar="rail"] .ap-sidebar-home {
+		display: block;
+		width: 24px;
+		overflow: hidden;
+	}
+	[data-sidebar="rail"] .ap-nav a {
+		justify-content: center;
+		padding: 0;
+	}
+	[data-sidebar="rail"] .ap-nav a > span,
+	[data-sidebar="rail"] .ap-nav-label {
+		position: absolute;
+		width: 1px;
+		height: 1px;
+		overflow: hidden;
+		clip: rect(0 0 0 0);
+		white-space: nowrap;
+	}
+	[data-sidebar="rail"] .ap-nav-group {
+		margin-top: var(--ap-space-2-5);
+		padding-top: var(--ap-space-2-5);
+		border-top: 1px solid var(--ap-border);
+	}
+	[data-sidebar="rail"] .ap-sidebar-foot {
+		display: none;
 	}
 }
 
@@ -2825,6 +3043,97 @@ a.ap-pick:focus-visible {
 .ap-sidebar-brand .ap-logo {
 	height: 24px;
 }
+/* Links inside running text are underlined, not told apart by colour alone */
+.ap-root p a:not(.ap-btn),
+.ap-root .ap-alert-body a:not(.ap-btn),
+.ap-root .ap-hint a {
+	text-decoration: underline;
+	text-underline-offset: 3px;
+}
+/*
+ * Progressive disclosure without script: in .ap-reveal-group, the .ap-reveal
+ * fields show while the group's switch is on.
+ */
+.ap-reveal-group {
+	display: contents;
+}
+.ap-reveal-group:has(input[role="switch"]:not(:checked)) .ap-reveal {
+	display: none;
+}
+/* Dashboard figures that open the list behind them */
+.ap-root a.ap-stat-link {
+	color: inherit;
+}
+.ap-root a.ap-stat-link:hover {
+	color: var(--ap-accent-hover);
+	text-decoration: none;
+}
+.ap-root .ap-stat-meta a {
+	color: var(--ap-fg-muted);
+	text-decoration: underline;
+	text-decoration-color: var(--ap-border-strong);
+	text-underline-offset: 3px;
+}
+.ap-root .ap-stat-meta a:hover {
+	color: var(--ap-accent-hover);
+	text-decoration-color: currentColor;
+}
+/* Quick actions of the user dashboard: one row of tiles, icon above the label */
+.ap-quick {
+	display: grid;
+	gap: var(--ap-space-3);
+	grid-template-columns: repeat(auto-fit, minmax(min(150px, 100%), 1fr));
+}
+.ap-root a.ap-quick-item {
+	display: flex;
+	flex-direction: column;
+	align-items: flex-start;
+	gap: var(--ap-space-2-5);
+	min-height: 96px;
+	padding: var(--ap-space-3-5);
+	border: 1px solid var(--ap-border);
+	border-radius: var(--ap-radius-lg);
+	background: var(--ap-surface);
+	box-shadow: var(--ap-shadow-1);
+	color: var(--ap-fg);
+	font-weight: 500;
+	line-height: 1.3;
+	text-decoration: none;
+	transition: border-color var(--ap-duration-fast) var(--ap-ease), background var(--ap-duration-fast) var(--ap-ease);
+}
+.ap-root a.ap-quick-item:hover {
+	border-color: var(--ap-accent-line);
+	background: var(--ap-surface-hover);
+	color: var(--ap-fg);
+	text-decoration: none;
+}
+.ap-quick-icon {
+	display: grid;
+	place-items: center;
+	width: 36px;
+	height: 36px;
+	flex: none;
+	border-radius: var(--ap-radius-md);
+	background: var(--ap-accent-subtle);
+	color: var(--ap-accent);
+}
+@media (max-width: 767px) {
+	.ap-quick {
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+		gap: var(--ap-space-2);
+	}
+	.ap-root a.ap-quick-item {
+		min-height: 0;
+		padding: var(--ap-space-3);
+		font-size: var(--ap-text-sm);
+	}
+}
+/* "Unlimited" in figures: the mono fonts draw ∞ too small */
+.ap-inf {
+	font-family: var(--ap-font-sans);
+	font-size: 1.2em;
+	line-height: 1;
+}
 .ap-login-art .ap-logo {
 	height: 30px;
 }
@@ -2978,6 +3287,11 @@ a.ap-pick:focus-visible {
 	top: calc(100% + var(--ap-space-1));
 	z-index: 40;
 }
+/* No room below in the viewport (resources/js/dropdowns.js) */
+.ap-dropdown.is-up > .ap-menu {
+	top: auto;
+	bottom: calc(100% + var(--ap-space-1));
+}
 .ap-menu-wide {
 	min-width: 280px;
 }
@@ -3068,9 +3382,24 @@ a.ap-pick:focus-visible {
 .ap-tabpanel:focus {
 	outline: none;
 }
-.ap-tab[aria-current="page"] {
+/* Tabs that are links to pages (settings, backups, logs): muted until current */
+.ap-root a.ap-tab {
+	color: var(--ap-fg-muted);
+	text-decoration: none;
+}
+.ap-root a.ap-tab:hover,
+.ap-root a.ap-tab[aria-selected="true"],
+.ap-root a.ap-tab[aria-current="page"] {
 	color: var(--ap-fg);
-	border-bottom-color: var(--ap-accent);
+}
+.ap-tab[aria-current="page"]::after {
+	content: "";
+	position: absolute;
+	inset-inline: 8px;
+	bottom: -1px;
+	height: 2px;
+	border-radius: 2px 2px 0 0;
+	background: var(--ap-accent);
 }
 
 /* Top bar: palette, tray, user menu */

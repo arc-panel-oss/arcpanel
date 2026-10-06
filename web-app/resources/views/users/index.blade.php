@@ -4,7 +4,8 @@
     $columns = array_values(array_filter([
         ['key' => 'user', 'label' => __('Username'), 'sortable' => true],
         ['key' => 'name', 'label' => __('Name'), 'sortable' => true, 'optional' => true],
-        ['key' => 'email', 'label' => __('Email'), 'optional' => true],
+        // Administrators see every account: the e-mail column waits in the column chooser
+        ['key' => 'email', 'label' => __('Email'), 'optional' => true, 'hidden' => $isAdmin],
         $isAdmin ? ['key' => 'role', 'label' => __('Role'), 'sortable' => true] : null,
         $isAdmin ? ['key' => 'owner', 'label' => __('Owner'), 'sortable' => true, 'optional' => true] : null,
         ['key' => 'package', 'label' => __('Package'), 'sortable' => true],

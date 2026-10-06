@@ -5,7 +5,7 @@
 --}}
 @props(['title', 'crumbs' => []])
 <!doctype html>
-<html lang="{{ str_replace('_', '-', app()->getLocale()) }}" dir="{{ $shell['dir'] }}" data-theme="{{ $shell['prefs']->theme }}" data-density="{{ $shell['prefs']->density }}">
+<html lang="{{ str_replace('_', '-', app()->getLocale()) }}" dir="{{ $shell['dir'] }}" data-theme="{{ $shell['prefs']->theme }}" data-density="{{ $shell['prefs']->density }}" data-sidebar="{{ $shell['prefs']->sidebar }}">
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -21,23 +21,23 @@
 <x-icons />
 <div class="ap-root">
     <a class="skip-link" href="#main">{{ __('Skip to content') }}</a>
-    <div class="ap-shell" x-data="apSidebar()">
+    <div class="ap-shell" x-data="apSidebar({ rail: @js($shell['prefs']->sidebar === 'rail') })">
         <aside class="ap-sidebar" id="sidebar" aria-label="{{ __('Main navigation') }}" x-ref="sidebar" x-bind:class="{ 'is-open': open }">
             <div class="ap-sidebar-brand">
-                <a href="{{ $shell['home'] }}" aria-label="{{ $shell['appName'] }}"><x-logo /></a>
+                <a class="ap-sidebar-home" href="{{ $shell['home'] }}" aria-label="{{ $shell['appName'] }}"><x-logo /></a>
                 <button type="button" class="ap-btn ap-btn-ghost ap-btn-icon ap-btn-sm ap-sidebar-close" aria-label="{{ __('Close menu') }}" x-on:click="close()"><x-ap-icon name="x" /></button>
             </div>
             <nav class="ap-nav" aria-label="{{ __('Sections') }}">
                 @foreach ($shell['navigation'] as $group)
                     @if ($group['label'] === null)
                         @foreach ($group['items'] as $item)
-                            <a href="{{ $item['url'] }}" @if ($item['active']) aria-current="page" @endif><x-ap-icon :name="$item['icon']" /><span>{{ $item['label'] }}</span></a>
+                            <a href="{{ $item['url'] }}" @if ($item['active']) aria-current="page" @endif x-bind:title="rail && wide ? @js($item['label']) : null"><x-ap-icon :name="$item['icon']" /><span>{{ $item['label'] }}</span></a>
                         @endforeach
                     @else
                         <div class="ap-nav-group" role="group" aria-labelledby="nav-{{ $group['key'] }}">
                             <span class="ap-nav-label eyebrow" id="nav-{{ $group['key'] }}">{{ $group['label'] }}</span>
                             @foreach ($group['items'] as $item)
-                                <a href="{{ $item['url'] }}" @if ($item['active']) aria-current="page" @endif><x-ap-icon :name="$item['icon']" /><span>{{ $item['label'] }}</span></a>
+                                <a href="{{ $item['url'] }}" @if ($item['active']) aria-current="page" @endif x-bind:title="rail && wide ? @js($item['label']) : null"><x-ap-icon :name="$item['icon']" /><span>{{ $item['label'] }}</span></a>
                             @endforeach
                         </div>
                     @endif
@@ -50,10 +50,14 @@
                 </div>
             </div>
         </aside>
+        {{-- Phone drawer: the page behind is dimmed, a tap on it closes the menu --}}
+        <div class="ap-sidebar-backdrop" x-show="open" x-cloak x-on:click="close()" aria-hidden="true"></div>
         <div class="ap-main">
             <header class="ap-topbar">
                 <button type="button" class="ap-btn ap-btn-ghost ap-btn-icon ap-menu-toggle" aria-label="{{ __('Open menu') }}" aria-controls="sidebar"
-                    x-ref="toggle" x-bind:aria-expanded="open.toString()" x-on:click="show()"><x-ap-icon name="menu" /></button>
+                    x-ref="toggle" x-bind:aria-expanded="expanded().toString()" x-on:click="toggle()"
+                    x-bind:aria-label="wide ? (rail ? @js(__('Expand sidebar')) : @js(__('Collapse sidebar'))) : @js(__('Open menu'))"
+                    x-bind:title="wide ? (rail ? @js(__('Expand sidebar')) : @js(__('Collapse sidebar'))) : null"><x-ap-icon name="menu" /></button>
                 <nav aria-label="{{ __('Breadcrumb') }}">
                     <ol class="ap-crumbs">
                         @foreach ($crumbs as $crumb)
@@ -80,7 +84,7 @@
 
                 <div x-data="apPalette({ url: @js(route('shell.palette')), searchUrl: @js(Route::has('search') ? route('search') : '') })" class="ap-palette-host">
                     <button type="button" class="ap-search-trigger" x-on:click="show()" x-cloak>
-                        <x-ap-icon name="search" size="sm" /><span>{{ __('Search or jump to…') }}</span><span class="ap-kbd">Ctrl K</span>
+                        <x-ap-icon name="search" size="sm" /><span class="ap-search-label">{{ __('Search or jump to…') }}</span><span class="ap-kbd">Ctrl K</span>
                     </button>
                     <div class="ap-overlay ap-overlay-palette" x-show="open" x-cloak x-on:click.self="close()" x-on:keydown="onKeydown($event)">
                         <div class="ap-palette" role="dialog" aria-modal="true" aria-label="{{ __('Search') }}" x-ref="dialog">
@@ -122,7 +126,7 @@
 
                 @if ($shell['canSwitchUser'])
                     <details class="ap-dropdown ap-user-switch">
-                        <summary class="ap-btn ap-btn-ghost ap-btn-sm"><x-ap-icon name="switch" />{{ __('Switch user') }}</summary>
+                        <summary class="ap-btn ap-btn-ghost ap-btn-sm" title="{{ __('Switch user') }}"><x-ap-icon name="switch" /><span class="ap-switch-label">{{ __('Switch user') }}</span></summary>
                         <div class="ap-menu ap-menu-wide">
                             <form method="post" action="{{ route('impersonate.form') }}" class="ap-switch-form">
                                 @csrf

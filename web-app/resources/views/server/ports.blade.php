@@ -6,7 +6,7 @@
     $allocated = array_sum(array_map(fn (array $row) => (int) ($row['ALLOCATED'] ?? 0), $registry->users));
     $public = array_sum(array_map(fn (array $row) => (int) ($row['PUBLIC'] ?? 0), $registry->users));
     $size = $registry->rangeEnd - $registry->rangeStart + 1;
-    $limit = fn (array $row) => ($row['LIMIT'] ?? '0') === 'unlimited' ? '∞' : ($row['LIMIT'] ?? '0');
+    $limit = fn (array $row) => ($row['LIMIT'] ?? '0') === 'unlimited' ? new \Illuminate\Support\HtmlString('<span class="ap-inf" title="'.e(__('Unlimited')).'"><span aria-hidden="true">∞</span><span class="sr-only">'.e(__('Unlimited')).'</span></span>') : ($row['LIMIT'] ?? '0');
 @endphp
 <x-ap-page :title="__('Ports')" :crumbs="[['label' => __('Server')], ['label' => __('Ports')]]"
     :description="__('Which ports each account may use, and which of them are open to the internet.')">

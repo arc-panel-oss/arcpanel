@@ -47,6 +47,7 @@ final class ShellComposer
                 in_array($theme, UiPreferences::THEMES, true) ? $theme : $prefs->theme,
                 in_array($density, UiPreferences::DENSITIES, true) ? $density : $prefs->density,
                 $prefs->canChangeTheme,
+                $prefs->sidebar,
             );
             $dir = in_array($this->request->query('dir'), ['ltr', 'rtl'], true) ? (string) $this->request->query('dir') : $dir;
         }
@@ -100,5 +101,23 @@ final class ShellComposer
         }
 
         return $languages;
+    }
+
+    /**
+     * Options of a language select: code => "name in that language (code)",
+     * the code alone when the intl extension is missing.
+     *
+     * @param  iterable<string>  $codes
+     * @return array<string, string>
+     */
+    public static function languageOptions(iterable $codes): array
+    {
+        $options = [];
+        foreach ($codes as $code) {
+            $name = class_exists(\Locale::class) ? (string) \Locale::getDisplayName($code, $code) : '';
+            $options[$code] = $name !== '' && $name !== $code ? $name.' ('.$code.')' : $code;
+        }
+
+        return $options;
     }
 }

@@ -107,6 +107,38 @@ describe('apTable', () => {
 		expect(localStorage.getItem('ap-table:domains:hidden')).toBe('[]');
 	});
 
+	it('hides the cells of a column whose header alone is marked optional', () => {
+		const root = mount(markup().replaceAll('<td data-col="disk" data-optional', '<td data-col="disk"'));
+		data(root).toggleColumn('disk');
+		expect([...root.querySelectorAll('td[data-col="disk"]')].every((td) => td.hidden)).toBe(true);
+		expect([...root.querySelectorAll('td[data-col="name"]')].some((td) => td.hidden)).toBe(false);
+	});
+
+	it('starts with the default-hidden columns until the viewer chooses', () => {
+		const html = markup().replace('<th data-col="disk" data-optional', '<th data-col="disk" data-optional data-default-hidden');
+		let root = mount(html);
+		expect(data(root).hidden).toEqual(['disk']);
+		expect(root.querySelector('th[data-col="disk"]').hidden).toBe(true);
+		expect(root.querySelector('table').dataset.columnsReady).toBe('');
+
+		data(root).toggleColumn('disk');
+		unmount();
+		root = mount(html);
+		expect(data(root).hidden).toEqual([]);
+		expect(root.querySelector('th[data-col="disk"]').hidden).toBe(false);
+	});
+
+	it('marks the scroll box while the table is wider than it', () => {
+		const html = markup().replace('<table>', '<div class="ap-table-wrap"><table>').replace('</table>', '</table></div>');
+		const root = mount(html);
+		const wrap = root.querySelector('.ap-table-wrap');
+		expect(wrap.classList.contains('is-scrollable')).toBe(false);
+		Object.defineProperty(wrap, 'scrollWidth', { configurable: true, value: 900 });
+		Object.defineProperty(wrap, 'clientWidth', { configurable: true, value: 600 });
+		data(root).toggleColumn('disk');
+		expect(wrap.classList.contains('is-scrollable')).toBe(true);
+	});
+
 	it('works when localStorage throws or holds garbage', () => {
 		localStorage.setItem('ap-table:domains:hidden', '{not json');
 		let root = mount(markup());

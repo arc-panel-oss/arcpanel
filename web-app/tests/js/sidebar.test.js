@@ -1,4 +1,5 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { PREFERENCES_COOKIE } from '../../resources/js/alpine/user-menu.js';
 import { data, mount, tick, unmount } from './helpers.js';
 
 const markup = `
@@ -14,6 +15,10 @@ const sidebar = () => data(document.getElementById('shell'));
 afterEach(() => {
 	unmount();
 	localStorage.clear();
+	delete window.matchMedia;
+	delete document.documentElement.dataset.sidebar;
+	// biome-ignore lint/suspicious/noDocumentCookie: test cleanup
+	document.cookie = `${PREFERENCES_COOKIE}=; path=/; max-age=0`;
 });
 
 describe('apSidebar', () => {
@@ -54,6 +59,46 @@ describe('apSidebar', () => {
 		sidebar().toggleGroup('server');
 		expect(sidebar().isCollapsed('server')).toBe(false);
 		expect(localStorage.getItem('ap-sidebar:collapsed')).toBe('[]');
+	});
+
+	it('opens the drawer from the menu button on phones', async () => {
+		mount(markup);
+		sidebar().toggle();
+		await tick();
+		expect(sidebar().open).toBe(true);
+		expect(sidebar().expanded()).toBe(true);
+	});
+
+	it('collapses to the rail on wider screens and keeps it in arc_ui', () => {
+		const listeners = [];
+		window.matchMedia = vi.fn(() => ({
+			matches: true,
+			addEventListener: (_type, fn) => listeners.push(fn),
+			removeEventListener: () => {},
+		}));
+		mount(markup);
+		expect(sidebar().expanded()).toBe(true);
+
+		sidebar().toggle();
+		expect(sidebar().rail).toBe(true);
+		expect(sidebar().open).toBe(false);
+		expect(sidebar().expanded()).toBe(false);
+		expect(document.documentElement.dataset.sidebar).toBe('rail');
+		expect(document.cookie).toContain(encodeURIComponent('"sidebar":"rail"'));
+
+		sidebar().toggle();
+		expect(document.documentElement.dataset.sidebar).toBe('full');
+		expect(document.cookie).toContain(encodeURIComponent('"sidebar":"full"'));
+
+		// Growing from a phone with the drawer open closes the drawer
+		sidebar().open = true;
+		for (const fn of listeners) fn({ matches: true });
+		expect(sidebar().open).toBe(false);
+	});
+
+	it('starts from the rail the server rendered', () => {
+		mount(markup.replace('apSidebar()', 'apSidebar({ rail: true })'));
+		expect(sidebar().rail).toBe(true);
 	});
 
 	it('ignores stored garbage', () => {

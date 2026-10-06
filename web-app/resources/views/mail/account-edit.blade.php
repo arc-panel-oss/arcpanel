@@ -25,7 +25,7 @@
                 <h1 class="mono">{{ $email }}</h1>
                 <div class="ap-row">
                     <x-ap-badge :tone="$account->suspended ? 'danger' : 'ok'">{{ $account->suspended ? __('Suspended') : __('Active') }}</x-ap-badge>
-                    <x-ap-badge>{{ __('Quota') }}: {{ $account->unlimitedQuota() ? '∞' : \App\Services\Dashboard\DashboardService::size((int) $account->quota) }}</x-ap-badge>
+                    <x-ap-badge>{{ __('Quota') }}: @if ($account->unlimitedQuota())<x-ap-inf />@else{{ \App\Services\Dashboard\DashboardService::size((int) $account->quota) }}@endif</x-ap-badge>
                     @if ($account->autoreply)
                         <x-ap-badge tone="ok">{{ __('Auto Reply') }}</x-ap-badge>
                     @endif

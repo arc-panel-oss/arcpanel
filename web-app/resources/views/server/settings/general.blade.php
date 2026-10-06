@@ -8,7 +8,7 @@
                 <div class="ap-form-grid">
                     <x-ap-input name="hostname" :label="__('Hostname')" :value="$hostname" mono required />
                     <x-ap-select name="timezone" :label="__('Time Zone')" :options="array_combine($timezones, $timezones)" :value="$timezone" required />
-                    <x-ap-select name="language" :label="__('Default Language')" :options="array_combine($languages, $languages)" :value="$config['LANGUAGE'] ?? 'en'" required />
+                    <x-ap-select name="language" :label="__('Default Language')" :options="\App\View\ShellComposer::languageOptions($languages)" :value="$config['LANGUAGE'] ?? 'en'" required />
                     <x-ap-select name="theme" :label="__('Theme')" :options="array_combine($themes, array_map('ucfirst', $themes))" :value="$config['THEME'] ?? ''" required />
                 </div>
                 <x-ap-checkbox name="language_all" :label="__('Set as default language for all users')" />

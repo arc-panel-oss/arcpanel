@@ -69,7 +69,7 @@
                         <details class="ap-disclosure">
                             <summary class="ap-row">
                                 <b class="mono">{{ $customer->user }}</b>
-                                <span class="muted">{{ $customer->allocated }} / {{ $customer->unlimited() ? '∞' : $customer->limit }} {{ __('allocated') }} · {{ $customer->assigned }} {{ __('in use') }} · {{ $customer->public }} {{ __('public') }}</span>
+                                <span class="muted">{{ $customer->allocated }} / @if ($customer->unlimited())<x-ap-inf />@else{{ $customer->limit }}@endif {{ __('allocated') }} · {{ $customer->assigned }} {{ __('in use') }} · {{ $customer->public }} {{ __('public') }}</span>
                                 @if ($customer->suspended)<x-ap-badge tone="danger">{{ __('Suspended') }}</x-ap-badge>@endif
                             </summary>
                             @include('ports.partials.entries', ['entries' => $customer->entries, 'abilitiesFor' => $abilitiesFor, 'id' => 'ports-'.$customer->user,

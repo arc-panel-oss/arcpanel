@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { PREFERENCES_COOKIE, writePreferences } from '../../resources/js/alpine/user-menu.js';
+import { PREFERENCES_COOKIE, readPreferences, writePreferences } from '../../resources/js/alpine/user-menu.js';
 import { data, mount, tick, unmount } from './helpers.js';
 
 const markup = (options = "theme: 'nocturne', density: 'comfortable'") => `
@@ -82,5 +82,20 @@ describe('writePreferences', () => {
 	it('writes a JSON cookie for the whole site', () => {
 		writePreferences({ theme: 'auto', density: 'compact' });
 		expect(cookie()).toEqual({ theme: 'auto', density: 'compact' });
+	});
+
+	it('keeps the keys it is not given', () => {
+		writePreferences({ sidebar: 'rail' });
+		writePreferences({ theme: 'light', density: 'comfortable' });
+		expect(cookie()).toEqual({ sidebar: 'rail', theme: 'light', density: 'comfortable' });
+		expect(readPreferences()).toEqual({ sidebar: 'rail', theme: 'light', density: 'comfortable' });
+	});
+
+	it('starts over from an unreadable cookie', () => {
+		// biome-ignore lint/suspicious/noDocumentCookie: test setup
+		document.cookie = `${PREFERENCES_COOKIE}=not-json; path=/`;
+		expect(readPreferences()).toEqual({});
+		writePreferences({ density: 'compact' });
+		expect(cookie()).toEqual({ density: 'compact' });
 	});
 });

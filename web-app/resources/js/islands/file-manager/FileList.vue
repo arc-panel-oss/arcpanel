@@ -160,7 +160,7 @@ function sizeLabel(entry) {
 						</a>
 					</td>
 					<td :data-label="t('Size')" class="col-num"><span class="mono">{{ sizeLabel(entry) }}</span></td>
-					<td :data-label="t('Modified')"><span class="muted">{{ formatTime(entry.mtime) }}</span></td>
+					<td :data-label="t('Modified')" class="nowrap"><span class="muted">{{ formatTime(entry.mtime) }}</span></td>
 					<td :data-label="t('Permissions')"><span class="mono">{{ entry.mode }}</span></td>
 					<td :data-label="t('Owner')"><span class="mono muted">{{ entry.owner }}</span></td>
 					<td class="col-actions" @click.stop>

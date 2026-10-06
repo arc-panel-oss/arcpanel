@@ -21,7 +21,7 @@
                             :hint="__('Lowercase letters, digits, dots, dashes and underscores.')" />
                         <x-ap-input name="name" :label="__('Name')" required />
                         <x-ap-input name="email" type="email" :label="__('Email')" required />
-                        <x-ap-select name="language" :label="__('Language')" :options="$languages" :value="$defaultLanguage" />
+                        <x-ap-select name="language" :label="__('Language')" :options="\App\View\ShellComposer::languageOptions(array_keys($languages))" :value="$defaultLanguage" />
                     </div>
                     <x-ap-password name="password" :label="__('Password')" required :generate="true"
                         :hint="__('At least 8 characters with upper and lower case letters and a digit.')" />

@@ -16,7 +16,7 @@ use Illuminate\View\View;
  */
 final class DashboardController extends Controller
 {
-    public function __invoke(Principal $principal, DashboardService $dashboard): View
+    public function __invoke(Principal $principal, DashboardService $dashboard, Navigation $navigation): View
     {
         abort_unless(Capabilities::allows($principal->actingRole(), 'dashboard.view'), 403);
 
@@ -46,6 +46,7 @@ final class DashboardController extends Controller
             'widgets' => $dashboard->user($principal->effectiveUser()),
             'provider' => $dashboard->provider($principal->effectiveUser()),
             'canCreate' => Capabilities::allows($principal->actingRole(), 'web.create') && ! $principal->isReadOnly(),
+            'quickActions' => $navigation->quickActions($principal),
             'backupsUrl' => Navigation::url('backups.index'),
             'nodeAppsUrl' => route('node.apps.index', ['user' => $principal->effectiveUser()]),
             'dockerAppsUrl' => route('docker.apps.index', ['user' => $principal->effectiveUser()]),

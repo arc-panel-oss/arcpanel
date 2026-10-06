@@ -56,9 +56,9 @@
     <div class="ap-split">
         <x-ap-card :title="__('Contact')" icon="user-circle">
             <dl class="ap-dl">
-                <dt>{{ __('Name') }}</dt><dd>{{ $record->fullName() }}</dd>
+                <dt>{{ __('Name') }}</dt><dd>{{ $record->fullName() ?: '—' }}</dd>
                 <dt>{{ __('Email') }}</dt><dd>{{ $record->email() }}</dd>
-                <dt>{{ __('Language') }}</dt><dd>{{ $record->language() }}</dd>
+                <dt>{{ __('Language') }}</dt><dd>{{ \App\View\ShellComposer::languageOptions([$record->language()])[$record->language()] ?? $record->language() }}</dd>
                 <dt>{{ __('Name servers') }}</dt><dd class="mono">{{ implode(', ', $record->nameservers()) }}</dd>
                 <dt>{{ __('Created') }}</dt><dd>{{ $record->get('DATE') }}</dd>
             </dl>

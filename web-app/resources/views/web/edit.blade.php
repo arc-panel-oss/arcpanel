@@ -76,14 +76,17 @@
                         <x-ap-textarea name="aliases" :label="__('Aliases')" :value="implode(PHP_EOL, $record->aliases)" rows="3" mono bag="general"
                             :hint="__('One per line. Each alias gets the same certificate.')" />
                         <x-ap-select name="ip" :label="__('IP Address')" :options="$ipOptions" :value="$record->ip" bag="general" required />
-                        <div class="ap-settings">
-                            <x-ap-switch name="docroot_custom" :label="__('Custom document root')" :description="__('Serve the files of another of your domains, or of a folder.')"
-                                :checked="$docroot !== null" bag="general" />
-                        </div>
-                        <div class="ap-form-grid">
-                            <x-ap-select name="docroot_domain" :label="__('Point to')" :options="$domainOptions" :value="$docroot['domain'] ?? $record->domain" bag="general" />
-                            <x-ap-input name="docroot_folder" :label="__('Directory')" :value="$docroot['folder'] ?? ''" mono bag="general"
-                                :prefix="'/home/'.$record->user.'/web/…/public_html/'" />
+                        {{-- The target fields show while the switch is on (.ap-reveal-group) --}}
+                        <div class="ap-reveal-group">
+                            <div class="ap-settings">
+                                <x-ap-switch name="docroot_custom" :label="__('Custom document root')" :description="__('Serve the files of another of your domains, or of a folder.')"
+                                    :checked="$docroot !== null" bag="general" />
+                            </div>
+                            <div class="ap-form-grid ap-reveal">
+                                <x-ap-select name="docroot_domain" :label="__('Point to')" :options="$domainOptions" :value="$docroot['domain'] ?? $record->domain" bag="general" />
+                                <x-ap-input name="docroot_folder" :label="__('Directory')" :value="$docroot['folder'] ?? ''" mono bag="general"
+                                    :prefix="'/home/'.$record->user.'/web/…/public_html/'" />
+                            </div>
                         </div>
                     </fieldset>
                     @unless ($locked)
@@ -138,17 +141,22 @@
             <x-ap-card :title="__('Redirect')" icon="arrow">
                 <x-ap-form :action="route('web.domains.update.redirect', $params)">
                     <fieldset class="ap-fieldset-plain" @disabled($locked)>
-                        <div class="ap-settings">
-                            <x-ap-switch name="enabled" :label="__('Enable domain redirection')" :description="__('Send visitors of this domain to another address.')" :checked="$record->redirect !== ''" bag="redirect" />
-                        </div>
-                        <x-ap-radio-group name="target" :label="__('Redirect to')" bag="redirect" :value="$redirectChoice" :options="[
-                            'www' => 'www.'.$record->domain,
-                            'bare' => $record->domain,
-                            'custom' => __('Custom URL'),
-                        ]" />
-                        <div class="ap-form-grid">
-                            <x-ap-input name="custom" :label="__('Custom URL')" :value="$redirectChoice === 'custom' ? $record->redirect : ''" mono bag="redirect" placeholder="https://example.com/" />
-                            <x-ap-select name="code" :label="__('Status code')" :options="['301' => '301 '.__('Moved permanently'), '302' => '302 '.__('Found')]" :value="(string) $record->redirectCode" bag="redirect" />
+                        {{-- The target fields show while redirection is on (.ap-reveal-group) --}}
+                        <div class="ap-reveal-group">
+                            <div class="ap-settings">
+                                <x-ap-switch name="enabled" :label="__('Enable domain redirection')" :description="__('Send visitors of this domain to another address.')" :checked="$record->redirect !== ''" bag="redirect" />
+                            </div>
+                            <div class="ap-stack ap-reveal">
+                                <x-ap-radio-group name="target" :label="__('Redirect to')" bag="redirect" :value="$redirectChoice" :options="[
+                                    'www' => 'www.'.$record->domain,
+                                    'bare' => $record->domain,
+                                    'custom' => __('Custom URL'),
+                                ]" />
+                                <div class="ap-form-grid">
+                                    <x-ap-input name="custom" :label="__('Custom URL')" :value="$redirectChoice === 'custom' ? $record->redirect : ''" mono bag="redirect" placeholder="https://example.com/" />
+                                    <x-ap-select name="code" :label="__('Status code')" :options="['301' => '301 '.__('Moved permanently'), '302' => '302 '.__('Found')]" :value="(string) $record->redirectCode" bag="redirect" />
+                                </div>
+                            </div>
                         </div>
                     </fieldset>
                     @unless ($locked)

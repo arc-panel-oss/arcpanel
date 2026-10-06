@@ -37,6 +37,17 @@ it('shows the admin dashboard: health, services, graphs, accounts, sign-ins, cer
         ->assertSee('No certificate expires soon');
 });
 
+it('lists stopped services first with a count, and links the account figures', function () {
+    fakeServerHealth($this->fake);
+    signIn('arcadmin', 'admin');
+
+    $this->get('/')->assertOk()
+        ->assertSee('1 stopped')
+        ->assertSeeInOrder(['fail2ban', 'nginx', 'apache2'])
+        ->assertSee(route('users.index', ['role' => 'reseller']), false)
+        ->assertSee(route('users.index', ['role' => 'admin']), false);
+});
+
 it('lists certificates of every user expiring within 14 days', function () {
     fakeServerHealth($this->fake);
     $soon = gmdate('M j H:i:s Y', time() + 5 * 86400).' GMT';
@@ -69,6 +80,7 @@ it('shows the user dashboard: usage, domains, last backup and notifications', fu
         ->assertSee('example.com')->assertSee('Let’s Encrypt')
         ->assertSee('bob.2026-10-03_05-10-09.tar')
         ->assertSee('Maintenance tonight')->assertSee('Read the guide to get started.')
+        ->assertSee('Quick actions')->assertSee(route('db.create'), false)->assertSee(route('cron.create'), false)
         ->assertDontSee('Recent sign-ins');
     $this->fake->assertNotRan('v-list-sys-info');
 });

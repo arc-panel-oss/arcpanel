@@ -53,6 +53,13 @@ it('prefers the arc_ui cookie and ignores invalid values', function () {
     expect([$prefs->theme, $prefs->density])->toBe(['nocturne', 'comfortable']);
 });
 
+it('reads the sidebar layout from the cookie, full by default', function () {
+    expect(UiPreferences::resolve('{"theme":"light","density":"compact","sidebar":"rail"}', null, true)->sidebar)->toBe('rail')
+        ->and(UiPreferences::resolve('{"theme":"light"}', null, true)->sidebar)->toBe('full')
+        ->and(UiPreferences::resolve('{"sidebar":"hidden"}', null, true)->sidebar)->toBe('full')
+        ->and(UiPreferences::resolve(null, null, true)->sidebar)->toBe('full');
+});
+
 it('ignores the theme of the cookie when the policy forbids changing it', function () {
     $prefs = UiPreferences::resolve('{"theme":"light","density":"compact"}', 'dark', false);
 
@@ -81,6 +88,19 @@ it('builds the sidebar from the capabilities of the acting role', function () {
 
     $impersonating = collect($navigation->for(principal('arcadmin', Role::Admin, look: 'bob'), null))->flatMap(fn ($group) => $group['items'])->keyBy('key');
     expect($impersonating)->not->toHaveKey('users.index');
+});
+
+it('offers the create pages of the visible hosting sections as quick actions', function () {
+    fakeArc(['DNS_SYSTEM' => '', 'FILE_MANAGER' => 'true']);
+    $navigation = app(Navigation::class);
+
+    $keys = collect($navigation->quickActions(principal('bob', Role::User)))->pluck('key')->all();
+    expect($keys)->toBe(['web.domains.create', 'mail.create', 'db.create', 'cron.create', 'files.index']);
+
+    $first = $navigation->quickActions(principal('bob', Role::User))[0];
+    expect($first)->toBe(['key' => 'web.domains.create', 'label' => 'Add Web Domain', 'icon' => 'globe', 'url' => route('web.domains.create')]);
+
+    expect($navigation->quickActions(principal('bob', Role::User, readOnly: true)))->toBe([]);
 });
 
 it('gives resellers customers, packages and their own hosting', function () {

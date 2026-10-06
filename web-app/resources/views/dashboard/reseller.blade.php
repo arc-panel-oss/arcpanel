@@ -36,7 +36,8 @@
                             $value = $row['allocated'];
                             $isSized = in_array($key, $sized, true);
                         @endphp
-                        <x-ap-usage-bar :label="($keyLabels[$key] ?? $key).($key === 'USERS' ? '' : ' · '.__('used').' '.($isSized ? $size($row['used']) : $row['used']))"
+                        <x-ap-usage-bar :label="$keyLabels[$key] ?? $key"
+                            :note="$key === 'USERS' ? null : __('Used by the tree: :value', ['value' => $isSized ? $size($row['used']) : $row['used']])"
                             :value="$value ?? 0" :limit="$unlimited ? null : (float) $row['limit']" :unlimited="$unlimited"
                             :value-label="$value === null ? __('Unlimited') : ($isSized ? $size($value) : $value)"
                             :limit-label="$unlimited ? null : ($isSized ? $size($row['limit']) : $row['limit'])" />
@@ -60,7 +61,7 @@
                     </x-ap-empty>
                 @else
                     <div class="ap-card-body ap-row">
-                        <x-ap-badge>{{ $customers->data['total'] }} {{ __('customers') }}</x-ap-badge>
+                        <x-ap-badge>{{ trans_choice(':count customer|:count customers', $customers->data['total'], ['count' => $customers->data['total']]) }}</x-ap-badge>
                         @if ($customers->data['suspended'] > 0)
                             <x-ap-badge tone="danger">{{ $customers->data['suspended'] }} {{ __('suspended') }}</x-ap-badge>
                         @endif
@@ -68,7 +69,7 @@
                     <ul class="ap-list">
                         @foreach ($customers->data['recent'] as $row)
                             <li>
-                                <div class="ap-list-main"><a href="{{ route('users.show', ['user' => $row['name']]) }}"><b>{{ $row['name'] }}</b></a><span>{{ $row['fullName'] }} · {{ $row['package'] }}</span></div>
+                                <div class="ap-list-main"><a href="{{ route('users.show', ['user' => $row['name']]) }}"><b>{{ $row['name'] }}</b></a><span>{{ implode(' · ', array_filter([$row['fullName'], $row['package']], 'filled')) }}</span></div>
                                 <span class="subtle mono">{{ $row['date'] }}</span>
                             </li>
                         @endforeach

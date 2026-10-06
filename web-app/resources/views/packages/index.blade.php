@@ -12,7 +12,7 @@
         ['key' => 'owner', 'label' => __('Owner'), 'optional' => true],
         $showResellerColumns ? ['key' => 'users', 'label' => __('Users'), 'sortable' => true, 'type' => 'number'] : null,
     ]));
-    $limit = fn (string $value, bool $size = false) => $value === 'unlimited' ? '∞' : ($size ? \App\Services\Dashboard\DashboardService::size((int) $value) : $value);
+    $limit = fn (string $value, bool $size = false) => $value === 'unlimited' ? new \Illuminate\Support\HtmlString('<span class="ap-inf" title="'.e(__('Unlimited')).'"><span aria-hidden="true">∞</span><span class="sr-only">'.e(__('Unlimited')).'</span></span>') : ($size ? \App\Services\Dashboard\DashboardService::size((int) $value) : $value);
 @endphp
 <x-ap-page :title="__('Packages')" :crumbs="[['label' => __('Packages')]]"
     :description="$isReseller ? __('Packages you can give your customers. Your own packages carry your limits at most.') : __('Hosting plans and what resellers may sell.')">

@@ -1,6 +1,7 @@
 {{--
     Data table (docs/design/05 §5) around server-rendered rows.
-    columns: list of [key, label, sortable?, type? ('number'), optional? (column chooser), class?]
+    columns: list of [key, label, sortable?, type? ('number'), optional? (column chooser),
+    hidden? (optional and left out until the viewer picks it), class?]
     Rows: <tr data-row data-search="…"> with <td data-col="key" data-label="Label">.
     selectable: rows carry <x-ap-row-check> boxes that belong to the bulk form.
     apTable adds client sort, filter, column chooser (per id in localStorage)
@@ -19,8 +20,13 @@
     'caption' => null,
 ])
 @php
-    $optional = array_values(array_filter($columns, fn ($c) => $c['optional'] ?? false));
+    $optional = array_values(array_filter($columns, fn ($c) => ($c['optional'] ?? false) || ($c['hidden'] ?? false)));
+    $defaultHidden = array_values(array_map(fn ($c) => $c['key'], array_filter($columns, fn ($c) => $c['hidden'] ?? false)));
 @endphp
+@if ($defaultHidden !== [])
+    {{-- Default-hidden columns stay out of the first paint; apTable takes over (data-columns-ready) --}}
+    <style>@foreach ($defaultHidden as $key)#{{ $id }}:not([data-columns-ready]) [data-col="{{ $key }}"]{display:none}@endforeach</style>
+@endif
 <div {{ $attributes->merge(['class' => 'ap-table-block']) }} x-data="apTable({ id: @js($id) })">
     @if ($searchable || $toolbar || $optional)
         <div class="ap-toolbar">
@@ -56,7 +62,8 @@
                         @php($key = $column['key'])
                         <th scope="col" data-col="{{ $key }}"
                             @class([$column['class'] ?? null, 'col-num' => ($column['type'] ?? null) === 'number'])
-                            @if ($column['optional'] ?? false) data-optional @endif
+                            @if (($column['optional'] ?? false) || ($column['hidden'] ?? false)) data-optional @endif
+                            @if ($column['hidden'] ?? false) data-default-hidden @endif
                             @if (($column['type'] ?? null) === 'number') data-sort-type="number" @endif
                             @if ($column['sortable'] ?? false) x-bind:aria-sort="ariaSort(@js($key))" @endif>
                             @if ($column['sortable'] ?? false)

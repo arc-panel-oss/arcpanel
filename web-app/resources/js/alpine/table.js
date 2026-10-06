@@ -1,8 +1,11 @@
 // apTable: client-side sort, filter, column chooser and row selection for a
 // server-rendered <x-ap-table>. Rows are <tr data-row>; cells carry
-// data-col="key" and optionally data-sort-value. Selection checkboxes are
-// [data-select-row] (value = item id) and [data-select-all]; changes are
-// announced as the window event "ap-table-selection" {id, items}.
+// data-col="key" and optionally data-sort-value. Optional columns whose
+// header has data-default-hidden start hidden until the viewer picks them.
+// Selection checkboxes are [data-select-row] (value = item id) and
+// [data-select-all]; changes are announced as the window event
+// "ap-table-selection" {id, items}. The scroll box gets .is-scrollable while
+// the table is wider than it.
 import { readStore, writeStore } from './storage.js';
 
 export default function apTable({ id = '' } = {}) {
@@ -18,6 +21,7 @@ export default function apTable({ id = '' } = {}) {
 		init() {
 			this.hidden = this.readHidden();
 			this.applyColumns();
+			this.watchWidth();
 			this.filter();
 			this.$watch('query', () => this.filter());
 			this.$root.addEventListener('change', (event) => {
@@ -101,9 +105,35 @@ export default function apTable({ id = '' } = {}) {
 		},
 
 		applyColumns() {
+			const optional = new Set(
+				[...this.$root.querySelectorAll('th[data-col][data-optional]')].map((th) => th.dataset.col),
+			);
 			for (const cell of this.$root.querySelectorAll('th[data-col], td[data-col]')) {
-				cell.hidden = this.hidden.includes(cell.dataset.col) && cell.dataset.optional !== undefined;
+				cell.hidden = this.hidden.includes(cell.dataset.col) && optional.has(cell.dataset.col);
 			}
+			const table = this.$root.querySelector('table');
+			if (table) {
+				table.dataset.columnsReady = '';
+			}
+			this.measure?.();
+		},
+
+		/** Marks the scroll box while the table overflows it (sticky row actions get an edge). */
+		watchWidth() {
+			const wrap = this.$root.querySelector('.ap-table-wrap');
+			if (!wrap) {
+				return;
+			}
+			this.measure = () => wrap.classList.toggle('is-scrollable', wrap.scrollWidth > wrap.clientWidth + 1);
+			if (typeof ResizeObserver === 'function') {
+				this.observer = new ResizeObserver(() => this.measure());
+				this.observer.observe(wrap);
+			}
+			this.measure();
+		},
+
+		destroy() {
+			this.observer?.disconnect();
 		},
 
 		storageKey() {
@@ -111,14 +141,16 @@ export default function apTable({ id = '' } = {}) {
 		},
 
 		readHidden() {
-			if (!this.id) {
-				return [];
+			const defaults = [...this.$root.querySelectorAll('th[data-col][data-default-hidden]')].map((th) => th.dataset.col);
+			const stored = this.id ? readStore(this.storageKey()) : null;
+			if (stored === null) {
+				return defaults;
 			}
 			try {
-				const value = JSON.parse(readStore(this.storageKey()) ?? '[]');
-				return Array.isArray(value) ? value.filter((v) => typeof v === 'string') : [];
+				const value = JSON.parse(stored);
+				return Array.isArray(value) ? value.filter((v) => typeof v === 'string') : defaults;
 			} catch {
-				return [];
+				return defaults;
 			}
 		},
 

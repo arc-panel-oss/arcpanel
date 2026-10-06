@@ -11,7 +11,7 @@
         @if ($canBulk)
             <x-ap-bulk-bar table="users" :action="route('users.bulk')" :actions="$bulkActions" />
         @endif
-        <x-ap-table id="users" :columns="$columns" :selectable="$canBulk" :search-label="__('Search users')" :caption="$title">
+        <x-ap-table id="users" :columns="$columns" :selectable="$canBulk" :search-label="$isReseller ? __('Search customers') : __('Search users')" :caption="$title">
             @if ($isAdmin)
                 <x-slot:toolbar>
                     <form method="get" action="{{ route('users.index') }}" class="ap-owner-filter">
@@ -70,7 +70,7 @@
                     @endif
                     <td data-col="package" data-label="{{ __('Package') }}">{{ $label($record->package()) }}</td>
                     <td data-col="web" data-label="{{ __('Web Domains') }}" class="col-num mono" data-sort-value="{{ $record->get('U_WEB_DOMAINS', '0') }}">
-                        {{ $record->get('U_WEB_DOMAINS', '0') }} / {{ $record->get('WEB_DOMAINS') === 'unlimited' ? '∞' : $record->get('WEB_DOMAINS') }}
+                        {{ $record->get('U_WEB_DOMAINS', '0') }} / @if ($record->get('WEB_DOMAINS') === 'unlimited')<x-ap-inf />@else{{ $record->get('WEB_DOMAINS') }}@endif
                     </td>
                     <td data-col="disk" data-label="{{ __('Disk') }}" class="col-num mono" data-sort-value="{{ $record->get('U_DISK', '0') }}">{{ $size((int) $record->get('U_DISK', '0')) }}</td>
                     <td data-col="status" data-label="{{ __('Status') }}" data-sort-value="{{ $record->suspended() ? 'suspended' : 'active' }}">

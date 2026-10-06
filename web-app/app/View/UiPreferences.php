@@ -3,9 +3,9 @@
 namespace App\View;
 
 /**
- * Theme and density of the panel app (D8 of the E1-S2 spec): the cookie
- * arc_ui, else derived from the legacy THEME. Rendered on <html> by the
- * server so pages never flash.
+ * Theme, density and sidebar layout of the panel app (D8 of the E1-S2 spec):
+ * the cookie arc_ui, else derived from the legacy THEME. Rendered on <html>
+ * by the server so pages never flash.
  */
 final class UiPreferences
 {
@@ -15,10 +15,14 @@ final class UiPreferences
 
     public const DENSITIES = ['comfortable', 'compact'];
 
+    /** full: labels; rail: icons only (from 768 px, the phone drawer is unchanged) */
+    public const SIDEBARS = ['full', 'rail'];
+
     public function __construct(
         public readonly string $theme,
         public readonly string $density,
         public readonly bool $canChangeTheme,
+        public readonly string $sidebar = 'full',
     ) {}
 
     /**
@@ -28,6 +32,7 @@ final class UiPreferences
     public static function resolve(?string $cookie, ?string $legacyTheme, bool $canChangeTheme): self
     {
         [$theme, $density] = self::fromLegacyTheme($legacyTheme);
+        $sidebar = 'full';
 
         $saved = is_string($cookie) ? json_decode($cookie, true) : null;
         if (is_array($saved)) {
@@ -37,9 +42,12 @@ final class UiPreferences
             if (in_array($saved['density'] ?? null, self::DENSITIES, true)) {
                 $density = $saved['density'];
             }
+            if (in_array($saved['sidebar'] ?? null, self::SIDEBARS, true)) {
+                $sidebar = $saved['sidebar'];
+            }
         }
 
-        return new self($theme, $density, $canChangeTheme);
+        return new self($theme, $density, $canChangeTheme, $sidebar);
     }
 
     /**

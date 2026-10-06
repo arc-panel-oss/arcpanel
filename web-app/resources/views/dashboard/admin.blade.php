@@ -28,13 +28,17 @@
                 :value="round($h['memory']['usedMb'] / 1024, 1)" :unit="' / '.round($h['memory']['totalMb'] / 1024, 1).' GB'"
                 :meta="[$h['memory']['percent'].'% '.__('used'), __('Swap').' '.round($h['memory']['swapUsedMb'] / 1024, 1).' GB']" />
             <x-ap-meter :title="__('Disk')" icon="disk" :percent="$h['disk']['percent']" :value="$h['disk']['used']" :unit="' / '.$h['disk']['size']"
-                :meta="[$h['disk']['percent'].'% '.__('of').' /', $h['disk']['available'].' '.__('free')]" />
+                :meta="[$h['disk']['percent'].'% '.__('used'), $h['disk']['available'].' '.__('free')]" />
             @php($accounts = $widgets['accounts'])
             <x-ap-card :title="__('Accounts')" icon="users">
                 @if ($accounts->ok())
                     <div class="ap-stat">
-                        <div class="ap-stat-value">{{ $accounts->data['total'] }} <small>{{ __('users') }}</small></div>
-                        <div class="ap-stat-meta"><span>{{ $accounts->data['webDomains'] }} {{ __('web domains') }}</span><span>{{ $accounts->data['admins'] }} {{ __('administrators') }}</span><span>{{ $accounts->data['resellers'] }} {{ __('resellers') }}</span></div>
+                        <div class="ap-stat-value"><a class="ap-stat-link" href="{{ route('users.index') }}">{{ $accounts->data['total'] }} <small>{{ trans_choice('user|users', $accounts->data['total']) }}</small></a></div>
+                        <div class="ap-stat-meta">
+                            <a href="{{ route('web.domains.index') }}">{{ trans_choice(':count web domain|:count web domains', $accounts->data['webDomains'], ['count' => $accounts->data['webDomains']]) }}</a>
+                            <a href="{{ route('users.index', ['role' => 'admin']) }}">{{ trans_choice(':count administrator|:count administrators', $accounts->data['admins'], ['count' => $accounts->data['admins']]) }}</a>
+                            <a href="{{ route('users.index', ['role' => 'reseller']) }}">{{ trans_choice(':count reseller|:count resellers', $accounts->data['resellers'], ['count' => $accounts->data['resellers']]) }}</a>
+                        </div>
                     </div>
                     <div class="ap-row">
                         @if ($accounts->data['suspended'] > 0)
@@ -58,11 +62,22 @@
                 @endforeach
             @endif
         </div>
+        @php($services = $widgets['services']->ok() ? collect($widgets['services']->data)->sortBy(fn ($service) => $service['running'] ? 1 : 0)->values()->all() : [])
+        @php($stopped = count(array_filter($services, fn ($service) => ! $service['running'])))
         <x-ap-card :title="__('Services')" icon="server" :flush="true">
-            <x-slot:actions><x-ap-button :href="$servicesUrl" variant="ghost" size="sm">{{ __('All services') }}<x-ap-icon name="chevron-right" /></x-ap-button></x-slot:actions>
+            <x-slot:actions>
+                @if ($widgets['services']->ok())
+                    @if ($stopped > 0)
+                        <x-ap-badge tone="danger">{{ trans_choice(':count stopped|:count stopped', $stopped, ['count' => $stopped]) }}</x-ap-badge>
+                    @else
+                        <x-ap-badge tone="ok">{{ __('All running') }}</x-ap-badge>
+                    @endif
+                @endif
+                <x-ap-button :href="$servicesUrl" variant="ghost" size="sm">{{ __('All services') }}<x-ap-icon name="chevron-right" /></x-ap-button>
+            </x-slot:actions>
             @if ($widgets['services']->ok())
                 <ul class="ap-list">
-                    @foreach ($widgets['services']->data as $service)
+                    @foreach ($services as $service)
                         <li>
                             <div class="ap-list-main"><b class="mono">{{ $service['name'] }}</b><span>{{ $service['system'] }}</span></div>
                             <x-ap-badge :tone="$service['running'] ? 'ok' : 'danger'">{{ $service['running'] ? __('Running') : __('Stopped') }}</x-ap-badge>

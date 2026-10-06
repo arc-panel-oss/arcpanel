@@ -60,7 +60,7 @@
                     </td>
                     <td data-col="disk" data-label="{{ __('Disk') }}" class="col-num mono" data-sort-value="{{ $account->diskMb }}">{{ $size($account->diskMb) }}</td>
                     <td data-col="quota" data-label="{{ __('Quota') }}" class="col-num mono" data-sort-value="{{ $account->unlimitedQuota() ? PHP_INT_MAX : (int) $account->quota }}">
-                        {{ $account->unlimitedQuota() ? '∞' : $size((int) $account->quota) }}
+                        @if ($account->unlimitedQuota())<x-ap-inf />@else{{ $size((int) $account->quota) }}@endif
                     </td>
                     <td data-col="aliases" data-label="{{ __('Aliases') }}">
                         @forelse ($account->aliases as $alias)

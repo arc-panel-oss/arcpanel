@@ -3,10 +3,22 @@
 <x-ap-page :title="__('Dashboard')" :eyebrow="$usage->ok() && $usage->data['package'] !== '' ? __('Package').' · '.$usage->data['package'] : null"
     :heading="__('Welcome, :user', ['user' => $user])" :description="__('Your sites, mail and databases on this server.')">
     <x-slot:actions>
-        @if ($canCreate)
+        {{-- The quick actions below start with the same link --}}
+        @if ($canCreate && ($quickActions ?? []) === [])
             <x-ap-button :href="route('web.domains.create')" variant="primary" icon="plus">{{ __('Add Web Domain') }}</x-ap-button>
         @endif
     </x-slot:actions>
+
+    @if (($quickActions ?? []) !== [])
+        <nav class="ap-quick" aria-label="{{ __('Quick actions') }}">
+            @foreach ($quickActions as $action)
+                <a class="ap-quick-item" href="{{ $action['url'] }}">
+                    <span class="ap-quick-icon"><x-ap-icon :name="$action['icon']" /></span>
+                    <span>{{ $action['label'] }}</span>
+                </a>
+            @endforeach
+        </nav>
+    @endif
 
     <x-ap-card :title="__('Usage')" icon="chart">
         @if ($usage->ok())

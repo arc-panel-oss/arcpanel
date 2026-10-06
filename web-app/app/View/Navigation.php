@@ -127,6 +127,46 @@ final class Navigation
         return $groups;
     }
 
+    /**
+     * Shortcuts of the user dashboard: the create page of each hosting section
+     * the sidebar shows, then the file manager. Nothing in read-only mode.
+     */
+    private const QUICK_ACTIONS = [
+        ['section' => 'web.domains.index', 'route' => 'web.domains.create', 'cap' => 'web.create', 'label' => 'Add Web Domain', 'icon' => 'globe'],
+        ['section' => 'mail.index', 'route' => 'mail.create', 'cap' => 'mail.create', 'label' => 'Add Mail Domain', 'icon' => 'mail'],
+        ['section' => 'db.index', 'route' => 'db.create', 'cap' => 'db.create', 'label' => 'Add Database', 'icon' => 'db'],
+        ['section' => 'dns.index', 'route' => 'dns.create', 'cap' => 'dns.create', 'label' => 'Add DNS Domain', 'icon' => 'dns'],
+        ['section' => 'cron.index', 'route' => 'cron.create', 'cap' => 'cron.create', 'label' => 'Add Cron Job', 'icon' => 'clock'],
+        ['section' => 'files.index', 'route' => 'files.index', 'cap' => 'files.view', 'label' => 'File manager', 'icon' => 'folder'],
+    ];
+
+    /**
+     * @return list<array{key: string, label: string, icon: string, url: string}>
+     */
+    public function quickActions(Principal $principal): array
+    {
+        if ($principal->isReadOnly()) {
+            return [];
+        }
+        $items = [];
+        foreach (self::GROUPS['hosting']['items'] as $item) {
+            $items[$item['route']] = $item;
+        }
+        $actions = [];
+        foreach (self::QUICK_ACTIONS as $action) {
+            $section = $items[$action['section']] ?? null;
+            if ($section === null || ! $this->visible($principal, $section) || ! Capabilities::allows($principal->actingRole(), $action['cap'])) {
+                continue;
+            }
+            $url = $this->url($action['route']);
+            if ($url !== null) {
+                $actions[] = ['key' => $action['route'], 'label' => __($action['label']), 'icon' => $action['icon'], 'url' => $url];
+            }
+        }
+
+        return $actions;
+    }
+
     /** URL of a route name; null when the route does not exist. */
     public static function url(string $route): ?string
     {
