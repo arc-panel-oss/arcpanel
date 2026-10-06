@@ -21,6 +21,10 @@ use App\Http\Controllers\Files\FileController;
 use App\Http\Controllers\Files\FilePageController;
 use App\Http\Controllers\Files\FileTransferController;
 use App\Http\Controllers\Files\SnapshotFileController;
+use App\Http\Controllers\Firewall\FirewallActionController;
+use App\Http\Controllers\Firewall\FirewallBanController;
+use App\Http\Controllers\Firewall\FirewallController;
+use App\Http\Controllers\Firewall\FirewallIpsetController;
 use App\Http\Controllers\ImpersonationController;
 use App\Http\Controllers\Mail\MailAccountController;
 use App\Http\Controllers\Mail\MailActionController;
@@ -129,6 +133,41 @@ Route::middleware('auth.arc')->group(function () {
             Route::post('/{package}', [PackageController::class, 'update'])->name('update');
             Route::post('/{package}/copy', [PackageController::class, 'copy'])->name('copy');
             Route::delete('/{package}', [PackageController::class, 'destroy'])->name('destroy');
+        });
+    });
+
+    // Firewall (E7 batch 2 spec §6)
+    Route::prefix('server/firewall')->middleware('sys-config:FIREWALL_SYSTEM')->group(function () {
+        Route::get('/', [FirewallController::class, 'index'])->name('server.firewall');
+        Route::name('server.firewall.')->group(function () {
+            Route::get('/create', [FirewallController::class, 'create'])->name('create');
+            Route::get('/{rule}/edit', [FirewallController::class, 'edit'])->whereNumber('rule')->name('edit');
+            Route::get('/ipsets', [FirewallIpsetController::class, 'index'])->name('ipsets');
+            Route::get('/ipsets/create', [FirewallIpsetController::class, 'create'])->name('ipsets.create');
+            Route::middleware('sys-config:FIREWALL_EXTENSION')->group(function () {
+                Route::get('/bans', [FirewallBanController::class, 'index'])->name('bans');
+                Route::get('/bans/create', [FirewallBanController::class, 'create'])->name('bans.create');
+            });
+
+            Route::middleware('not-readonly')->group(function () {
+                Route::post('/', [FirewallController::class, 'store'])->name('store');
+                Route::post('/bulk', [FirewallActionController::class, 'bulk'])->name('bulk');
+                Route::prefix('{rule}')->whereNumber('rule')->group(function () {
+                    Route::post('/edit', [FirewallController::class, 'update'])->name('update');
+                    Route::post('/move/{direction}', [FirewallActionController::class, 'move'])->whereIn('direction', ['up', 'down'])->name('move');
+                    Route::post('/suspend', [FirewallActionController::class, 'suspend'])->name('suspend');
+                    Route::post('/unsuspend', [FirewallActionController::class, 'unsuspend'])->name('unsuspend');
+                    Route::delete('/', [FirewallActionController::class, 'destroy'])->name('destroy');
+                });
+                Route::post('/ipsets', [FirewallIpsetController::class, 'store'])->name('ipsets.store');
+                Route::post('/ipsets/bulk', [FirewallIpsetController::class, 'bulk'])->name('ipsets.bulk');
+                Route::delete('/ipsets/{name}', [FirewallIpsetController::class, 'destroy'])->where('name', '[\w.-]{1,255}')->name('ipsets.destroy');
+                Route::middleware('sys-config:FIREWALL_EXTENSION')->group(function () {
+                    Route::post('/bans', [FirewallBanController::class, 'store'])->name('bans.store');
+                    Route::post('/bans/bulk', [FirewallBanController::class, 'bulk'])->name('bans.bulk');
+                    Route::delete('/bans', [FirewallBanController::class, 'destroy'])->name('bans.destroy');
+                });
+            });
         });
     });
 

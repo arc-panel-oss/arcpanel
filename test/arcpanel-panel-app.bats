@@ -355,6 +355,39 @@ teardown_file() {
     v-change-sys-config-value ARCPANEL_APP_PAGES yes
 }
 
+# E7 batch 2 (docs/features/specs/2026-10-06-002-e7-batch2-pages-design.md §4)
+
+@test "Legacy firewall pages redirect to the panel app when ARCPANEL_APP_PAGES is yes" {
+    v-change-sys-config-value ARCPANEL_APP_PAGES yes
+    pages_login
+    run pages_get /list/firewall/
+    assert_output "302 $PANEL/app/server/firewall"
+    run pages_get /add/firewall/
+    assert_output "302 $PANEL/app/server/firewall/create"
+    run pages_get "/edit/firewall/?rule=2"
+    assert_output "302 $PANEL/app/server/firewall/2/edit"
+    run pages_get /list/firewall/ipset/
+    assert_output "302 $PANEL/app/server/firewall/ipsets"
+    run pages_get /add/firewall/ipset/
+    assert_output "302 $PANEL/app/server/firewall/ipsets/create"
+    run pages_get /list/firewall/banlist/
+    assert_output "302 $PANEL/app/server/firewall/bans"
+    run pages_get /add/firewall/banlist/
+    assert_output "302 $PANEL/app/server/firewall/bans/create"
+    # the test user is no administrator
+    run pages_get /app/server/firewall
+    assert_output "403 "
+}
+
+@test "Legacy firewall pages come back when ARCPANEL_APP_PAGES is no" {
+    v-change-sys-config-value ARCPANEL_APP_PAGES no
+    pages_login
+    # legacy sends non-administrators to the user list
+    run pages_get /list/firewall/
+    assert_output "302 $PANEL/list/user/"
+    v-change-sys-config-value ARCPANEL_APP_PAGES yes
+}
+
 @test "Panel app build ships hashed assets and fonts" {
     run cat /usr/local/hestia/web-app/public/build/manifest.json
     assert_success

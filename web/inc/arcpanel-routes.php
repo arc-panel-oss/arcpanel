@@ -33,6 +33,8 @@ function arc_route(string $legacyPath): string {
 		"/list/mail/" => "/app/mail",
 		"/add/mail/" => "/app/mail/create",
 		"/list/backup/" => "/app/backups",
+		// E7 batch 2 (docs/features/specs/2026-10-06-002-e7-batch2-pages-design.md §11)
+		"/list/firewall/" => "/app/server/firewall",
 	];
 
 	return arc_app_pages() && isset($routes[$legacyPath]) ? $routes[$legacyPath] : $legacyPath;
@@ -55,7 +57,11 @@ function arc_redirect_if_migrated(string $legacyPath, array $query = []): void {
 	} else {
 		$owner = $_SESSION["user"] ?? "";
 	}
-	if (($_SESSION["userContext"] ?? "") === "admin" && empty($_SESSION["look"]) && !empty($query["user"])) {
+	if (
+		($_SESSION["userContext"] ?? "") === "admin" &&
+		empty($_SESSION["look"]) &&
+		!empty($query["user"])
+	) {
 		$owner = (string) $query["user"];
 	}
 	$domain = isset($query["domain"]) ? (string) $query["domain"] : "";
@@ -79,7 +85,8 @@ function arc_redirect_if_migrated(string $legacyPath, array $query = []): void {
 				return;
 			}
 			$type = ($query["type"] ?? "") === "error" ? "error" : "access";
-			$url = "/app/web/domains/" . $segment($owner) . "/" . $segment($domain) . "/logs/" . $type;
+			$url =
+				"/app/web/domains/" . $segment($owner) . "/" . $segment($domain) . "/logs/" . $type;
 			break;
 		case "/list/db/":
 			$url = "/app/db";
@@ -204,6 +211,32 @@ function arc_redirect_if_migrated(string $legacyPath, array $query = []): void {
 				return;
 			}
 			$url = "/app/backups/" . $segment($owner) . "/exclusions";
+			break;
+		// E7 batch 2: firewall (administrators; the panel app checks the role)
+		case "/list/firewall/":
+			$url = "/app/server/firewall";
+			break;
+		case "/add/firewall/":
+			$url = "/app/server/firewall/create";
+			break;
+		case "/edit/firewall/":
+			$rule = isset($query["rule"]) ? (string) $query["rule"] : "";
+			if (preg_match('/^\d{1,9}$/', $rule) !== 1) {
+				return;
+			}
+			$url = "/app/server/firewall/" . $rule . "/edit";
+			break;
+		case "/list/firewall/ipset/":
+			$url = "/app/server/firewall/ipsets";
+			break;
+		case "/add/firewall/ipset/":
+			$url = "/app/server/firewall/ipsets/create";
+			break;
+		case "/list/firewall/banlist/":
+			$url = "/app/server/firewall/bans";
+			break;
+		case "/add/firewall/banlist/":
+			$url = "/app/server/firewall/bans/create";
 			break;
 		default:
 			return;

@@ -211,6 +211,7 @@ final class PaletteSearch
             ['cron.create', 'cron.create', 'Add Cron Job', 'Cron Jobs'],
             ['dns.create', 'dns.create', 'Add DNS Domain', 'DNS'],
             ['mail.create', 'mail.create', 'Add Mail Domain', 'Mail'],
+            ['server.firewall', 'server.firewall.create', 'Add Rule', 'Firewall'],
         ];
         foreach ($creates as [$capability, $route, $label, $meta]) {
             if (Capabilities::allows($role, $capability) && ! $this->principal->isReadOnly() && Route::has($route)) {

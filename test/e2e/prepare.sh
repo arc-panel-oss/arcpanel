@@ -13,7 +13,11 @@
 #                                 DNS zone e2e-zone.example and the mail
 #                                 domain e2e-mail.example with the account
 #                                 info (E7); arce2ebackup has a package with
-#                                 incremental backups (E7 Backups)
+#                                 incremental backups (E7 Backups); firewall
+#                                 rules "e2e-fw*", IP lists "arce2e*" and the
+#                                 ban of 198.51.100.77 are removed, and
+#                                 /root/arce2e-ipset.txt is written (E7
+#                                 batch 2 Firewall)
 #   prepare.sh cleanup            deletes them again
 #   prepare.sh ports RANGE        allocates RANGE to arce2euser (E6)
 #   prepare.sh listen PORT        serves "arce2e-app-PORT" on 127.0.0.1:PORT
@@ -221,6 +225,22 @@ files_prepare() {
 	runuser -u arce2euser -- sh -c "cd '$FILES_ROOT' && zip -qr site.zip archive-src && rm -rf archive-src"
 }
 
+# Firewall spec (E7 batch 2): no rule, IP list or ban of an earlier run; the
+# IP list file the spec loads
+FIREWALL_IPSET_FILE=/root/arce2e-ipset.txt
+firewall_reset() {
+	local id
+	for id in $("$B/v-list-firewall" json 2> /dev/null | jq -r 'to_entries[] | select(.value.COMMENT | startswith("e2e-fw")) | .key' | sort -rn); do
+		"$B/v-delete-firewall-rule" "$id" > /dev/null 2>&1 || true
+	done
+	for id in $("$B/v-list-firewall-ipset" json 2> /dev/null | jq -r 'keys[] | select(startswith("arce2e"))'); do
+		"$B/v-delete-firewall-ipset" "$id" > /dev/null 2>&1 || true
+	done
+	"$B/v-delete-firewall-ban" 198.51.100.77 SSH > /dev/null 2>&1 || true
+	# v-add-firewall-ipset ignores lists of fewer than five entries
+	printf '198.51.100.%s\n' 81 82 83 84 85 > "$FIREWALL_IPSET_FILE"
+}
+
 case "${1:-}" in
 	files)
 		files_prepare
@@ -362,6 +382,10 @@ esac
 if [ "${1:-}" = cleanup ]; then
 	stop_listeners
 	delete_users
+	if [ -n "$(grep -o "^FIREWALL_SYSTEM='[^']\+'" "$HESTIA/conf/hestia.conf" || true)" ]; then
+		firewall_reset
+		rm -f "$FIREWALL_IPSET_FILE"
+	fi
 	if [ -f "$RESTIC_STATE" ]; then
 		"$B/v-delete-backup-host-restic" > /dev/null 2>&1 || rm -f "$HESTIA/conf/restic.conf"
 		"$B/v-change-sys-config-value" BACKUP_INCREMENTAL no > /dev/null 2>&1 || true
@@ -463,6 +487,11 @@ if [ -n "$(grep -o "^MAIL_SYSTEM='[^']\+'" "$HESTIA/conf/hestia.conf" || true)" 
 	printf '%s\n' "$password" > "$file"
 	"$B/v-add-mail-account" arce2euser e2e-mail.example info "$file" > /dev/null
 	rm -f "$file"
+fi
+
+# Firewall spec (E7 batch 2)
+if [ -n "$(grep -o "^FIREWALL_SYSTEM='[^']\+'" "$HESTIA/conf/hestia.conf" || true)" ]; then
+	firewall_reset
 fi
 
 # The style guide is part of the accessibility run.

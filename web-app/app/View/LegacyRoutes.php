@@ -14,7 +14,6 @@ final class LegacyRoutes
         'server.services' => '/list/server/',
         'server.settings' => '/edit/server/',
         'server.ips' => '/list/ip/',
-        'server.firewall' => '/list/firewall/',
         'server.updates' => '/list/updates/',
         'server.rrd' => '/list/rrd/',
         'packages.index' => '/list/package/',
