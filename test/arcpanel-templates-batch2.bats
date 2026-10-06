@@ -23,7 +23,7 @@ PORT=38605
 LISTEN_DIR=$(mktemp -d)
 
 # Templates of batch 2 and those that take BACKEND_PORT
-B2_TEMPLATES="django flask-fastapi golang-proxy rails laravel-octane"
+B2_TEMPLATES="django flask-fastapi golang-proxy rails laravel-octane wordpress-secure"
 B2_PORT_TEMPLATES="django flask-fastapi golang-proxy rails laravel-octane"
 
 source_value() {
@@ -161,7 +161,7 @@ teardown_file() {
                 assert_success
             done
         done
-        for name in $B2_PORT_TEMPLATES; do
+        for name in $B2_PORT_TEMPLATES wordpress-secure; do
             assert_file_executable "$dir/$name.sh"
         done
     done
@@ -306,4 +306,69 @@ teardown_file() {
     run eventually "e6b-listener-$PORT" fetch_path $U1 $D1 /
     assert_output "e6b-listener-$PORT"
     rm -f "$docroot/index.php" "$docroot/robots.txt" "$LISTEN_DIR/$PORT/index.php"
+}
+
+#----------------------------------------------------------#
+#                   wordpress-secure                       #
+#----------------------------------------------------------#
+
+@test "Batch 2: wordpress-secure denies the sensitive WordPress paths and runs the rest" {
+    local docroot
+    docroot=$(docroot_of $U1 $D1)
+    mkdir -p "$docroot/wp-content/uploads" "$docroot/wp-includes"
+    echo "<?php echo 'e6b-wp-index';" > "$docroot/index.php"
+    for file in xmlrpc.php wp-config.php wp-content/uploads/shell.php wp-includes/version.php; do
+        echo "<?php echo 'e6b-wp-ran';" > "$docroot/$file"
+    done
+    echo "readme" > "$docroot/readme.html"
+    echo "e6b-upload" > "$docroot/wp-content/uploads/pic.txt"
+    chown -R --reference="$docroot" "$docroot/index.php" "$docroot/xmlrpc.php" "$docroot/wp-config.php" \
+        "$docroot/readme.html" "$docroot/wp-content" "$docroot/wp-includes"
+    use_tpl wordpress-secure
+    run eventually "e6b-wp-index" fetch_path $U1 $D1 /index.php
+    assert_output "e6b-wp-index"
+    for path in /xmlrpc.php /wp-config.php /readme.html /wp-content/uploads/shell.php /wp-includes/version.php; do
+        run eventually "403" status_path $U1 $D1 "$path"
+        assert_output "403"
+    done
+    run eventually "e6b-upload" fetch_path $U1 $D1 /wp-content/uploads/pic.txt
+    assert_output "e6b-upload"
+    rm -rf "$docroot/index.php" "$docroot/xmlrpc.php" "$docroot/wp-config.php" "$docroot/readme.html" \
+        "$docroot/wp-content" "$docroot/wp-includes"
+}
+
+@test "Batch 2: wordpress-secure rate limits wp-login.php and drops the limit without its zone" {
+    assert_file_exist /etc/nginx/conf.d/arcpanel-wp.conf
+    use_tpl wordpress-secure
+    run grep -c 'limit_req zone=arcpanel_wp_login' "$(conf_of $U1 $D1)" "$(ssl_conf_of $U1 $D1)"
+    refute_output --partial ":0"
+
+    mv /etc/nginx/conf.d/arcpanel-wp.conf /tmp/arcpanel-wp.conf.e6b
+    run v-rebuild-web-domain $U1 $D1
+    local rc=$status
+    run grep -c 'limit_req zone=arcpanel_wp_login' "$(conf_of $U1 $D1)" "$(ssl_conf_of $U1 $D1)"
+    local counts=$output
+    run nginx -t
+    local nginx_rc=$status
+    mv /tmp/arcpanel-wp.conf.e6b /etc/nginx/conf.d/arcpanel-wp.conf
+    v-rebuild-web-domain $U1 $D1 > /dev/null
+    [ "$rc" -eq 0 ]
+    [[ "$counts" != *":1"* ]]
+    [ "$nginx_rc" -eq 0 ]
+}
+
+@test "Batch 2: the metadata setup installs the rate limit zone when it is missing" {
+    mv /etc/nginx/conf.d/arcpanel-wp.conf /tmp/arcpanel-wp.conf.e6b
+    run v-add-sys-web-templates-meta
+    local rc=$status
+    if [ ! -f /etc/nginx/conf.d/arcpanel-wp.conf ]; then
+        mv /tmp/arcpanel-wp.conf.e6b /etc/nginx/conf.d/arcpanel-wp.conf
+        false
+    fi
+    rm -f /tmp/arcpanel-wp.conf.e6b
+    [ "$rc" -eq 0 ]
+    run stat -c '%a' /etc/nginx/conf.d/arcpanel-wp.conf
+    assert_output "644"
+    run nginx -t
+    assert_success
 }

@@ -1,0 +1,7 @@
+{
+	"title": "WordPress (hardened)",
+	"description": "WordPress with xmlrpc.php, wp-config.php and PHP in uploads blocked, and a rate limit on wp-login.php.",
+	"category": "php-cms",
+	"runtime": "php",
+	"docs": "https://docs.arcpanel.top/docs/server-administration/web-templates.html"
+}

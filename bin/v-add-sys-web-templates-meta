@@ -7,8 +7,10 @@
 # This function copies the template metadata (templates/web/meta) and the
 # templates ArcPanel ships for NGINX (static, spa, nodejs-proxy and the other
 # E6 templates, with their trigger scripts) from the installed package into
-# the server's template folder. Other templates are not touched and no
-# domain is rebuilt. Safe to run on every upgrade.
+# the server's template folder, and the wp-login.php rate limit zone of the
+# wordpress-secure template into /etc/nginx/conf.d when it is missing (NGINX
+# is reloaded then). Other templates are not touched and no domain is
+# rebuilt. Safe to run on every upgrade.
 
 #----------------------------------------------------------#
 #                Variables & Functions                     #
@@ -59,6 +61,19 @@ if [ "$PROXY_SYSTEM" = 'nginx' ] || [ "$WEB_BACKEND" = 'php-fpm' ]; then
 			done
 		done
 	done
+fi
+
+# Rate limit zone of wordpress-secure (E6 batch 2)
+if [ -d /etc/nginx/conf.d ] && [ ! -f /etc/nginx/conf.d/arcpanel-wp.conf ] && [ -f "$ARCPANEL_INSTALL_DIR/nginx/arcpanel-wp.conf" ]; then
+	cp -f "$ARCPANEL_INSTALL_DIR/nginx/arcpanel-wp.conf" /etc/nginx/conf.d/arcpanel-wp.conf
+	chmod 644 /etc/nginx/conf.d/arcpanel-wp.conf
+	if systemctl is-active --quiet nginx 2> /dev/null; then
+		if nginx -t > /dev/null 2>&1; then
+			systemctl reload nginx
+		else
+			rm -f /etc/nginx/conf.d/arcpanel-wp.conf
+		fi
+	fi
 fi
 
 #----------------------------------------------------------#

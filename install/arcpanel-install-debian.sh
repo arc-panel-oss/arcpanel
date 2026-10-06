@@ -1590,6 +1590,8 @@ rm -f /etc/nginx/conf.d/*.conf
 cp -f $ARCPANEL_INSTALL_DIR/nginx/nginx.conf /etc/nginx/
 cp -f $ARCPANEL_INSTALL_DIR/nginx/status.conf /etc/nginx/conf.d/
 cp -f $ARCPANEL_INSTALL_DIR/nginx/0rtt-anti-replay.conf /etc/nginx/conf.d/
+# wp-login.php rate limit of the wordpress-secure template (E6 batch 2)
+cp -f $ARCPANEL_INSTALL_DIR/nginx/arcpanel-wp.conf /etc/nginx/conf.d/
 cp -f $ARCPANEL_INSTALL_DIR/nginx/agents.conf /etc/nginx/conf.d/
 # Copy over cloudflare.inc incase in the next step there are connection issues with CF
 cp -f $ARCPANEL_INSTALL_DIR/nginx/cloudflare.inc /etc/nginx/conf.d/
