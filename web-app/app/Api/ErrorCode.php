@@ -15,6 +15,7 @@ enum ErrorCode: string
     case ApiDisabled = 'E_API_DISABLED';
     case Forbidden = 'E_FORBIDDEN';
     case NotExist = 'E_NOTEXIST';
+    case Gone = 'E_GONE';
     case Validation = 'E_VALIDATION';
     case RateLimit = 'E_RATE_LIMIT';
     case MethodNotAllowed = 'E_METHOD_NOT_ALLOWED';

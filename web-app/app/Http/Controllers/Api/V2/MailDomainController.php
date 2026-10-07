@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V2;
 
 use App\Api\ApiException;
+use App\Api\TaskLink;
 use App\Api\ErrorCode;
 use App\Api\Paginates;
 use App\Api\PlanGate;
@@ -285,12 +286,21 @@ final class MailDomainController extends Controller
         $algo = (string) $request->input('key_algorithm', $record->keyAlgo());
         $steps = [new Step(__('Issue a Let’s Encrypt certificate'), 'v-schedule-letsencrypt-domain', [$user, $domain, '', $algo, 'yes'])];
 
-        if ($preview = $this->gate->execute($steps, $this->mail->apply(...))) {
+        $apply = null;
+        if ($preview = $this->gate->execute($steps, function (array $plan) use (&$apply) {
+            $apply = $this->mail->apply($plan);
+
+            return $apply;
+        })) {
             return $preview;
         }
+        $recordId = $apply?->stdoutOf('v-schedule-letsencrypt-domain') ?? '';
+        $headers = ['Location' => route('api.v2.mail-domains.show', ['user' => $user, 'domain' => $domain])];
+        if ($recordId !== '') {
+            $headers['Link'] = TaskLink::queue($user, $recordId);
+        }
 
-        return $this->resource($user, $domain)->response()->setStatusCode(202)
-            ->header('Location', route('api.v2.mail-domains.show', ['user' => $user, 'domain' => $domain]));
+        return $this->resource($user, $domain)->response()->setStatusCode(202)->withHeaders($headers);
     }
 
     /**

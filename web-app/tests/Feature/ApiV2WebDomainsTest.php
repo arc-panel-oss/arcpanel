@@ -473,12 +473,13 @@ it('plans the removal of a Let’s Encrypt certificate', function () {
 // Let's Encrypt (requestWebDomainLetsEncrypt)
 
 it('queues a Let’s Encrypt certificate and answers 202 with the domain to poll', function () {
-    $this->fake->on('v-schedule-letsencrypt-domain')->returns();
+    $this->fake->on('v-schedule-letsencrypt-domain')->returns("17290000001234\n");
     $headers = apiAs($this->fake, 'hostco', 'reseller');
 
     $this->postJson('/api/v2/users/bob/web-domains/shop.example/letsencrypt', [], $headers)
         ->assertStatus(202)
         ->assertHeader('Location', 'http://localhost/api/v2/users/bob/web-domains/shop.example')
+        ->assertHeader('Link', '</api/v2/tasks/queue:bob:17290000001234>; rel="monitor"')
         ->assertJsonPath('data.ssl.letsencrypt', false);
     $this->fake->assertRan('v-schedule-letsencrypt-domain', fn ($a) => $a === ['bob', 'shop.example', 'www.shop.example', 'ecdsa-256']);
 

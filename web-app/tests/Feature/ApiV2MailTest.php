@@ -183,13 +183,14 @@ it('requires a key for a first certificate and replaces Lets Encrypt in one plan
 });
 
 it('queues a mail Lets Encrypt certificate and removes a relay only when one exists', function () {
-    $this->fake->on('v-schedule-letsencrypt-domain')->returns();
+    $this->fake->on('v-schedule-letsencrypt-domain')->returns("17290000009999\n");
     $this->fake->on('v-delete-mail-domain-smtp-relay')->returns();
     $headers = apiAs($this->fake, 'bob', 'user', area: 'mail');
 
     $this->postJson('/api/v2/users/bob/mail-domains/example.com/letsencrypt', ['key_algorithm' => 'rsa'], $headers)
         ->assertStatus(202)
-        ->assertHeader('Location', 'http://localhost/api/v2/users/bob/mail-domains/example.com');
+        ->assertHeader('Location', 'http://localhost/api/v2/users/bob/mail-domains/example.com')
+        ->assertHeader('Link', '</api/v2/tasks/queue:bob:17290000009999>; rel="monitor"');
     $this->fake->assertRan('v-schedule-letsencrypt-domain', fn ($a) => $a === ['bob', 'example.com', '', 'rsa', 'yes']);
 
     $this->deleteJson('/api/v2/users/bob/mail-domains/example.com/smtp-relay', [], $headers)->assertNoContent();

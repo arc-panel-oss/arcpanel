@@ -200,6 +200,12 @@ The path the command prints must match `^/backup/[\w.-]+$`, as on the page; anyt
 
 The work log of each milestone is appended here.
 
+### M2 (2026-10-08)
+
+- Added `getTask`, `listUserTasks` and `listSystemTasks` with `TaskService`, `TaskId`, `TaskLink` and `E_GONE`.
+- `Link rel="monitor"` on web and mail Let's Encrypt `202` responses; set `v2-backup` and task reads in `v2-read`, `v2-web`, `v2-mail` and `v2-write`.
+- Pest: `tests/Feature/ApiV2TasksTest.php`.
+
 ### M1 (2026-10-08)
 
 - Added `func/queuetask.sh`, `bin/v-run-queue-task` and `bin/v-list-user-tasks`.

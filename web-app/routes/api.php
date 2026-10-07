@@ -8,6 +8,7 @@ use App\Http\Controllers\Api\V2\MailDomainController;
 use App\Http\Controllers\Api\V2\MeController;
 use App\Http\Controllers\Api\V2\PackageController;
 use App\Http\Controllers\Api\V2\UserController;
+use App\Http\Controllers\Api\V2\TaskController;
 use App\Http\Controllers\Api\V2\WebDomainController;
 use Illuminate\Support\Facades\Route;
 
@@ -29,11 +30,15 @@ Route::pattern('alias', '[^/\s]{1,253}');
 
 Route::get('/me', MeController::class)->name('me');
 
+Route::get('/tasks/{id}', [TaskController::class, 'show'])->where('id', '.+')->defaults('api_area', 'backup')->name('tasks.show');
+Route::get('/system/tasks', [TaskController::class, 'system'])->defaults('api_area', 'backup')->name('system.tasks.index');
+
 // Users (spec §6.1); {user} outside the principal's tree answers 404
 Route::get('/users', [UserController::class, 'index'])->name('users.index');
 Route::post('/users', [UserController::class, 'store'])->middleware('not-readonly')->name('users.store');
 Route::middleware('effective-user')->group(function () {
     Route::get('/users/{user}', [UserController::class, 'show'])->name('users.show');
+    Route::get('/users/{user}/tasks', [TaskController::class, 'index'])->defaults('api_area', 'backup')->name('users.tasks.index');
     Route::middleware('not-readonly')->group(function () {
         Route::patch('/users/{user}', [UserController::class, 'update'])->name('users.update');
         Route::put('/users/{user}/package', [UserController::class, 'package'])->name('users.package');
@@ -161,6 +166,7 @@ foreach (Route::getRoutes() as $route) {
         str_contains($uri, '/mail-domains') => 'mail',
         str_contains($uri, '/databases') => 'db',
         str_contains($uri, '/cron-jobs'), str_contains($uri, '/cron-reports') => 'cron',
+        str_contains($uri, '/tasks') => 'backup',
         str_starts_with($uri, 'api/v2/users'), str_starts_with($uri, 'api/v2/packages') => 'accounts',
         default => null,
     };

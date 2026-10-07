@@ -157,7 +157,7 @@ it('keeps every area set inside v2-write and its reads inside v2-read', function
     $areas = apiAreaSets();
     $union = [];
 
-    expect($areas)->toContain('v2-accounts', 'v2-web');
+    expect($areas)->toContain('v2-accounts', 'v2-web', 'v2-backup');
     foreach ($areas as $area) {
         $commands = apiSetCommands($area);
         expect(array_values(array_diff($commands, $write)))->toBe([], "{$area} is not part of v2-write");
@@ -253,6 +253,7 @@ it('declares an area on the batch 1 routes', function () {
             str_contains($uri, '/mail-domains') => 'mail',
             str_contains($uri, '/databases') => 'db',
             str_contains($uri, '/cron-jobs'), str_contains($uri, '/cron-reports') => 'cron',
+            str_contains($uri, '/tasks') => 'backup',
             str_starts_with($uri, 'api/v2/users'), str_starts_with($uri, 'api/v2/packages') => 'accounts',
             default => null,
         };

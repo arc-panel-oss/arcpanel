@@ -47,12 +47,14 @@ final class PlanRunner
     public function apply(array $steps): ApplyResult
     {
         $applied = [];
+        $stdoutByCommand = [];
         $restart = [];
         foreach ($steps as $step) {
             try {
-                $this->arc->run($step->command, $step->args);
+                $result = $this->arc->run($step->command, $step->args);
+                $stdoutByCommand[$step->command] = $result->stdout;
             } catch (ArcCommandException $e) {
-                return new ApplyResult($applied, $step, $e->userMessage(), $e->getCode());
+                return new ApplyResult($applied, $step, $e->userMessage(), $e->getCode(), $stdoutByCommand);
             }
             $applied[] = $step;
             foreach ($step->restart as $service) {
@@ -70,11 +72,11 @@ final class PlanRunner
             try {
                 $this->arc->run($command);
             } catch (ArcCommandException $e) {
-                return new ApplyResult($applied, new Step(self::label($service), $command, []), $e->userMessage());
+                return new ApplyResult($applied, new Step(self::label($service), $command, []), $e->userMessage(), stdoutByCommand: $stdoutByCommand);
             }
         }
 
-        return new ApplyResult($applied);
+        return new ApplyResult($applied, stdoutByCommand: $stdoutByCommand);
     }
 
     private static function label(string $service): string

@@ -6,6 +6,7 @@ use App\Api\ApiException;
 use App\Api\ErrorCode;
 use App\Api\Paginates;
 use App\Api\PlanGate;
+use App\Api\TaskLink;
 use App\Auth\Principal;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\V2\LetsEncryptRequest;
@@ -368,12 +369,21 @@ final class WebDomainController extends Controller
         $record = $this->web->find($user, $domain);
         $steps = [$this->actions->planLetsEncrypt($record, (string) $request->input('key_algorithm', $record->sslKeyAlgo))];
 
-        if ($preview = $this->gate->execute($steps, $this->web->apply(...))) {
+        $apply = null;
+        if ($preview = $this->gate->execute($steps, function (array $plan) use (&$apply) {
+            $apply = $this->web->apply($plan);
+
+            return $apply;
+        })) {
             return $preview;
         }
+        $recordId = $apply?->stdoutOf('v-schedule-letsencrypt-domain') ?? '';
+        $headers = ['Location' => route('api.v2.web-domains.show', ['user' => $user, 'domain' => $domain])];
+        if ($recordId !== '') {
+            $headers['Link'] = TaskLink::queue($user, $recordId);
+        }
 
-        return $this->resource($user, $domain)->response()->setStatusCode(202)
-            ->header('Location', route('api.v2.web-domains.show', ['user' => $user, 'domain' => $domain]));
+        return $this->resource($user, $domain)->response()->setStatusCode(202)->withHeaders($headers);
     }
 
     private function setSuspended(string $user, string $domain, bool $suspend, Principal $principal, WebDomainPolicy $policy): WebDomainResource|JsonResponse

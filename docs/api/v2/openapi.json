@@ -6008,6 +6008,245 @@
                 }
             }
         },
+        "/tasks/{id}": {
+            "get": {
+                "operationId": "getTask",
+                "summary": "Show a task",
+                "tags": [
+                    "Tasks"
+                ],
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "lines",
+                        "in": "query",
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 1000
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "`Task`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/Task"
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    }
+                }
+            }
+        },
+        "/system/tasks": {
+            "get": {
+                "operationId": "listSystemTasks",
+                "description": "The current system task and Docker engine task.",
+                "summary": "List the system tasks",
+                "tags": [
+                    "Tasks"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Array of `Task`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/components/schemas/Task"
+                                            }
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    }
+                },
+                "parameters": [
+                    {
+                        "name": "limit",
+                        "in": "query",
+                        "description": "Page size, from 1 to 1000. Without it the list is complete.",
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 1000
+                        }
+                    },
+                    {
+                        "name": "offset",
+                        "in": "query",
+                        "description": "Items to skip. Used when `limit` is set; 0 when omitted.",
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 0
+                        }
+                    }
+                ]
+            }
+        },
+        "/users/{user}/tasks": {
+            "get": {
+                "operationId": "listUserTasks",
+                "description": "Node.js, Quick Install, Docker apps and queue tasks of the last seven\ndays, newest first.",
+                "summary": "List the tasks of a user",
+                "tags": [
+                    "Tasks"
+                ],
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "limit",
+                        "in": "query",
+                        "description": "Page size, from 1 to 1000. Without it the list is complete.",
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 1000
+                        }
+                    },
+                    {
+                        "name": "offset",
+                        "in": "query",
+                        "description": "Items to skip. Used when `limit` is set; 0 when omitted.",
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 0
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Array of `Task`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/components/schemas/Task"
+                                            }
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    }
+                }
+            }
+        },
         "/users": {
             "get": {
                 "operationId": "listUsers",
@@ -8615,6 +8854,7 @@
                     "E_API_DISABLED",
                     "E_FORBIDDEN",
                     "E_NOTEXIST",
+                    "E_GONE",
                     "E_VALIDATION",
                     "E_RATE_LIMIT",
                     "E_METHOD_NOT_ALLOWED",
@@ -10235,6 +10475,155 @@
                     "domain"
                 ],
                 "title": "StoreWebDomainRequest"
+            },
+            "Task": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "string"
+                    },
+                    "kind": {
+                        "type": "string"
+                    },
+                    "status": {
+                        "type": "string"
+                    },
+                    "exit_code": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ]
+                    },
+                    "error": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
+                    "started_at": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
+                    "finished_at": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
+                    "queued_at": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
+                    "log": {
+                        "type": "string"
+                    },
+                    "args": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
+                    "resource": {
+                        "$ref": "#/components/schemas/TaskView"
+                    }
+                },
+                "required": [
+                    "id",
+                    "kind",
+                    "status",
+                    "exit_code",
+                    "error",
+                    "started_at",
+                    "finished_at",
+                    "queued_at",
+                    "log",
+                    "args",
+                    "resource"
+                ],
+                "title": "Task"
+            },
+            "TaskView": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "string"
+                    },
+                    "kind": {
+                        "type": "string"
+                    },
+                    "status": {
+                        "type": "string",
+                        "enum": [
+                            "running",
+                            "succeeded",
+                            "failed",
+                            "queued"
+                        ]
+                    },
+                    "exitCode": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ]
+                    },
+                    "error": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
+                    "startedAt": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
+                    "finishedAt": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
+                    "queuedAt": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
+                    "log": {
+                        "type": "string"
+                    },
+                    "args": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
+                    "resource": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    }
+                },
+                "required": [
+                    "id",
+                    "kind",
+                    "status",
+                    "exitCode",
+                    "error",
+                    "startedAt",
+                    "finishedAt",
+                    "queuedAt",
+                    "log",
+                    "args",
+                    "resource"
+                ],
+                "title": "TaskView"
             },
             "UpdateCronJobRequest": {
                 "type": "object",
