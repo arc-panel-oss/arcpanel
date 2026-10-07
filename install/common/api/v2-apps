@@ -1,0 +1,4 @@
+# REST API v2 (E34 batch 4 M1): Node.js runtimes, plus the foundation reads. API v1 skips this set.
+ROLE='user'
+API_VERSION='2'
+COMMANDS='v-list-sys-config,v-list-users,v-list-user-owners,v-list-user,v-list-sys-languages,v-list-reseller-packages,v-list-package-tenancy,v-check-reseller-quota,v-list-user-node-versions,v-list-sys-node-releases,v-list-user-npm-packages,v-list-user-node-task,v-add-user-nvm,v-delete-user-nvm,v-change-user-node-default,v-delete-user-node-version,v-delete-user-npm-package,v-start-user-node-task'

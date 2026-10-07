@@ -59,6 +59,7 @@ final class AccessKeyController extends Controller
                 'v2-db' => __('REST API v2 only: databases.'),
                 'v2-cron' => __('REST API v2 only: cron jobs and reports.'),
                 'v2-backup' => __('REST API v2 only: backups and tasks.'),
+                'v2-apps' => __('REST API v2 only: Node.js, Docker apps and ports.'),
             ],
         ]);
     }

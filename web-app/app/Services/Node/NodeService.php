@@ -3,6 +3,9 @@
 namespace App\Services\Node;
 
 use App\Arc\ArcCommand;
+use App\Services\Support\PlanRunner;
+use App\Services\WebDomains\ApplyResult;
+use App\Services\WebDomains\Step;
 
 /**
  * Node.js runtimes and global packages of a user (E13 spec §6.1). Long
@@ -27,7 +30,10 @@ final class NodeService
     /** A name with an optional @version, range or dist-tag (node_pkg_spec_valid) */
     public const PACKAGE_SPEC = '/^(@[a-z0-9][a-z0-9._~-]*\/)?[a-z0-9][a-z0-9._~-]*(@[A-Za-z0-9.^~<>=*+-]{1,64})?$/';
 
-    public function __construct(private readonly ArcCommand $arc) {}
+    public function __construct(
+        private readonly ArcCommand $arc,
+        private readonly PlanRunner $plans,
+    ) {}
 
     public function account(string $user): NodeAccount
     {
@@ -109,6 +115,52 @@ final class NodeService
         $this->arc->run('v-delete-user-nvm', [$user]);
     }
 
+    public function planEnable(string $user, bool $enabled): Step
+    {
+        return $enabled
+            ? new Step(__('Enable Node.js'), 'v-add-user-nvm', [$user])
+            : new Step(__('Remove Node.js'), 'v-delete-user-nvm', [$user]);
+    }
+
+    public function planSetDefault(string $user, string $version): Step
+    {
+        return new Step(sprintf(__('Make Node.js %s the default runtime'), $version), 'v-change-user-node-default', [$user, $version]);
+    }
+
+    public function planDeleteVersion(string $user, string $version): Step
+    {
+        return new Step(sprintf(__('Uninstall Node.js %s'), $version), 'v-delete-user-node-version', [$user, $version]);
+    }
+
+    public function planDeletePackage(string $user, string $version, string $name): Step
+    {
+        return new Step(sprintf(__('Remove %s?'), $name), 'v-delete-user-npm-package', [$user, $version, $name]);
+    }
+
+    /**
+     * @param  list<string>  $args  action-specific arguments after USER and ACTION
+     */
+    public function planStartTask(string $user, string $action, array $args): Step
+    {
+        return new Step(__('Start a Node.js background task'), 'v-start-user-node-task', [$user, $action, ...$args]);
+    }
+
+    /** @param  list<Step>  $steps */
+    public function apply(array $steps): ApplyResult
+    {
+        return $this->plans->apply($steps);
+    }
+
+    /**
+     * Start a background task; returns its id.
+     *
+     * @param  list<string>  $args
+     */
+    public function startTask(string $user, string $action, array $args): string
+    {
+        return trim($this->arc->run('v-start-user-node-task', [$user, $action, ...$args])->stdout);
+    }
+
     public function setDefault(string $user, string $version): void
     {
         $this->arc->run('v-change-user-node-default', [$user, $version]);
@@ -122,15 +174,5 @@ final class NodeService
     public function deletePackage(string $user, string $version, string $name): void
     {
         $this->arc->run('v-delete-user-npm-package', [$user, $version, $name]);
-    }
-
-    /**
-     * Start a background task; returns its id.
-     *
-     * @param  list<string>  $args
-     */
-    public function startTask(string $user, string $action, array $args): string
-    {
-        return trim($this->arc->run('v-start-user-node-task', [$user, $action, ...$args])->stdout);
     }
 }

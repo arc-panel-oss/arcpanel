@@ -114,7 +114,7 @@ it('parses the account and knows when the package is full', function () {
 it('runs the commands with the arguments of the spec', function () {
     $this->fake->on('v-start-user-node-task')->returns("17286400001234\n");
     $this->fake->on('v-delete-user-npm-package')->returns();
-    $service = new NodeService(app(ArcCommand::class));
+    $service = app(NodeService::class);
 
     expect($service->startTask('bob', 'add-package', ['24.21.0', 'pm2']))->toBe('17286400001234');
     $this->fake->assertRan('v-start-user-node-task', fn ($a) => $a === ['bob', 'add-package', '24.21.0', 'pm2']);

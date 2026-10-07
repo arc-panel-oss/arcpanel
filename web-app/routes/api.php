@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\V2\DatabaseController;
 use App\Http\Controllers\Api\V2\DnsController;
 use App\Http\Controllers\Api\V2\MailAccountController;
 use App\Http\Controllers\Api\V2\MailDomainController;
+use App\Http\Controllers\Api\V2\NodeController;
 use App\Http\Controllers\Api\V2\MeController;
 use App\Http\Controllers\Api\V2\PackageController;
 use App\Http\Controllers\Api\V2\UserController;
@@ -30,6 +31,7 @@ Route::pattern('database', '[\w-]{1,64}');
 Route::pattern('backup', '[A-Za-z0-9][A-Za-z0-9_.-]{0,250}');
 Route::pattern('snapshot', '[0-9a-f]{8,64}');
 Route::pattern('alias', '[^/\s]{1,253}');
+Route::pattern('version', '\d{1,3}\.\d{1,3}\.\d{1,3}');
 
 Route::get('/me', MeController::class)->name('me');
 
@@ -152,6 +154,24 @@ Route::middleware('effective-user')->group(function () {
     Route::get('/users/{user}/snapshots/{snapshot}/files', [BackupController::class, 'listSnapshotFiles'])->name('snapshots.files');
     Route::get('/users/{user}/backup-exclusions', [BackupController::class, 'showExclusions'])->name('backup-exclusions.show');
 
+    // Node.js runtimes (E34 batch 4 spec §4.1)
+    Route::get('/users/{user}/node', [NodeController::class, 'show'])->name('node.show');
+    Route::get('/users/{user}/node/releases', [NodeController::class, 'releases'])->name('node.releases');
+    Route::get('/users/{user}/node/versions', [NodeController::class, 'versions'])->name('node.versions.index');
+    Route::get('/users/{user}/node/versions/{version}/packages', [NodeController::class, 'packages'])->name('node.packages.index');
+    Route::middleware('not-readonly')->prefix('/users/{user}/node')->name('node.')->group(function () {
+        Route::put('/', [NodeController::class, 'setEnabled'])->name('enabled');
+        Route::post('/versions', [NodeController::class, 'installVersion'])->name('versions.store');
+        Route::put('/versions/{version}/default', [NodeController::class, 'setDefault'])->name('versions.default');
+        Route::delete('/versions/{version}', [NodeController::class, 'destroyVersion'])->name('versions.destroy');
+        Route::post('/versions/{version}/packages', [NodeController::class, 'installPackage'])->name('packages.store');
+        Route::post('/versions/{version}/packages/update', [NodeController::class, 'updatePackages'])->name('packages.update');
+        Route::post('/versions/{version}/packages/check', [NodeController::class, 'checkPackages'])->name('packages.check');
+        Route::delete('/versions/{version}/packages/{package}', [NodeController::class, 'destroyPackage'])
+            ->where('package', '(@[a-z0-9][a-z0-9._~-]*/)?[a-z0-9][a-z0-9._~-]*')
+            ->name('packages.destroy');
+    });
+
     // Cron jobs (E34 batch 2 spec §6.5)
     Route::get('/users/{user}/cron-jobs', [CronController::class, 'index'])->name('cron-jobs.index');
     Route::get('/users/{user}/cron-jobs/{id}', [CronController::class, 'show'])->where('id', '[0-9]{1,9}')->name('cron-jobs.show');
@@ -191,6 +211,7 @@ foreach (Route::getRoutes() as $route) {
         str_contains($uri, '/cron-jobs'), str_contains($uri, '/cron-reports') => 'cron',
         str_contains($uri, '/backups'), str_contains($uri, '/snapshots'), str_contains($uri, '/backup-exclusions') => 'backup',
         str_contains($uri, '/tasks') => 'backup',
+        str_contains($uri, '/node') => 'apps',
         str_starts_with($uri, 'api/v2/users'), str_starts_with($uri, 'api/v2/packages') => 'accounts',
         default => null,
     };

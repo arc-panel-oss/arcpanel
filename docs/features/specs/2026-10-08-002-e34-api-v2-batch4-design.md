@@ -182,3 +182,10 @@ The sys-config cache of `DOCKER_SYSTEM` is forgotten when the install starts and
 ## 10. Implementation notes
 
 The work log of each milestone is appended here.
+
+### M1 (2026-10-08)
+
+- Added `/api/v2/users/{user}/node` runtime endpoints and `Api\V2\NodeController` reusing `NodeService` and `NodePolicy`.
+- Created `install/common/api/v2-apps`; node commands merged into `v2-read` and `v2-write`.
+- Pest: `ApiV2NodeTest` (matrix, NODE package rule, dry run, `v2-apps`/`v2-read`, `202`/`Link`, `409 E_INUSE`).
+- Regenerated `docs/api/v2/openapi.json` (116 operations).

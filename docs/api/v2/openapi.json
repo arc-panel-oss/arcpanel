@@ -20,7 +20,7 @@
         }
     ],
     "paths": {
-        "/me": {
+        "/v2/me": {
             "get": {
                 "operationId": "getMe",
                 "description": "The access key of the request: its owner and role, its permission\nsets and the commands they allow (`*` when unrestricted), and the\nversions of the panel and of the API. Clients use it to check a\nprofile (E34 spec D12).",
@@ -70,7 +70,7 @@
                 }
             }
         },
-        "/users/{user}/backups": {
+        "/v2/users/{user}/backups": {
             "get": {
                 "operationId": "listBackups",
                 "description": "Newest first. `meta.limit` is the number of archives kept; `meta.incremental`\nis whether the package has incremental backups.",
@@ -262,7 +262,7 @@
                 }
             }
         },
-        "/users/{user}/backups/{backup}": {
+        "/v2/users/{user}/backups/{backup}": {
             "get": {
                 "operationId": "getBackup",
                 "summary": "Get a backup archive",
@@ -384,7 +384,7 @@
                         }
                     },
                     "204": {
-                        "description": "No content.",
+                        "description": "No content",
                         "headers": {
                             "X-Request-Id": {
                                 "$ref": "#/components/headers/RequestId"
@@ -421,7 +421,7 @@
                 }
             }
         },
-        "/users/{user}/backups/{backup}/download": {
+        "/v2/users/{user}/backups/{backup}/download": {
             "get": {
                 "operationId": "downloadBackup",
                 "description": "Serves a local archive through nginx. A remote archive is fetched first\nand answers 202 with the queue task.",
@@ -532,7 +532,7 @@
                 }
             }
         },
-        "/users/{user}/backups/{backup}/restore": {
+        "/v2/users/{user}/backups/{backup}/restore": {
             "post": {
                 "operationId": "restoreBackup",
                 "description": "Optional `web`, `dns`, `mail`, `db` and `udir` lists and a `cron` flag\nrestore only those objects. An empty body restores everything.",
@@ -651,7 +651,7 @@
                 }
             }
         },
-        "/users/{user}/snapshots": {
+        "/v2/users/{user}/snapshots": {
             "post": {
                 "operationId": "createSnapshot",
                 "description": "Queues a snapshot of the user. When a backup or restore is already queued,\nanswers 409 `E_EXISTS` with `existing` set to that task.",
@@ -843,7 +843,7 @@
                 }
             }
         },
-        "/users/{user}/snapshots/{snapshot}/restore": {
+        "/v2/users/{user}/snapshots/{snapshot}/restore": {
             "post": {
                 "operationId": "restoreSnapshot",
                 "description": "An empty body restores everything. Send `type` and `object` to restore one\nweb, dns, mail or database object, or all cron jobs. Send `path` to restore\none file or folder; the restore overwrites the current file.",
@@ -962,7 +962,7 @@
                 }
             }
         },
-        "/users/{user}/snapshots/{snapshot}": {
+        "/v2/users/{user}/snapshots/{snapshot}": {
             "delete": {
                 "operationId": "deleteSnapshot",
                 "summary": "Delete a restic snapshot",
@@ -1016,7 +1016,7 @@
                         }
                     },
                     "204": {
-                        "description": "No content.",
+                        "description": "No content",
                         "headers": {
                             "X-Request-Id": {
                                 "$ref": "#/components/headers/RequestId"
@@ -1122,7 +1122,7 @@
                 }
             }
         },
-        "/users/{user}/backup-exclusions": {
+        "/v2/users/{user}/backup-exclusions": {
             "put": {
                 "operationId": "setBackupExclusions",
                 "description": "Send the full object. A type left out of the body keeps its current list.",
@@ -1279,7 +1279,7 @@
                 }
             }
         },
-        "/users/{user}/snapshots/{snapshot}/files": {
+        "/v2/users/{user}/snapshots/{snapshot}/files": {
             "get": {
                 "operationId": "listSnapshotFiles",
                 "description": "Paths are relative to the home directory. Entries are read-only.",
@@ -1386,7 +1386,7 @@
                 }
             }
         },
-        "/users/{user}/cron-jobs": {
+        "/v2/users/{user}/cron-jobs": {
             "get": {
                 "operationId": "listCronJobs",
                 "description": "`meta.timezone` is the server's time zone.",
@@ -1515,36 +1515,25 @@
                 },
                 "responses": {
                     "200": {
-                        "description": "With `dry_run`: the planned steps; nothing ran.",
-                        "headers": {
-                            "X-Request-Id": {
-                                "$ref": "#/components/headers/RequestId"
-                            },
-                            "ArcPanel-Version": {
-                                "$ref": "#/components/headers/Version"
-                            }
-                        },
+                        "description": "`CronJob`; with `dry_run`, the planned steps.",
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/DryRun"
-                                }
-                            }
-                        }
-                    },
-                    "201": {
-                        "description": "`CronJob`",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "$ref": "#/components/schemas/CronJob"
+                                    "oneOf": [
+                                        {
+                                            "type": "object",
+                                            "properties": {
+                                                "data": {
+                                                    "$ref": "#/components/schemas/CronJob"
+                                                }
+                                            },
+                                            "required": [
+                                                "data"
+                                            ]
+                                        },
+                                        {
+                                            "$ref": "#/components/schemas/DryRun"
                                         }
-                                    },
-                                    "required": [
-                                        "data"
                                     ]
                                 }
                             }
@@ -1555,9 +1544,6 @@
                             },
                             "ArcPanel-Version": {
                                 "$ref": "#/components/headers/Version"
-                            },
-                            "Location": {
-                                "$ref": "#/components/headers/Location"
                             }
                         }
                     },
@@ -1588,7 +1574,7 @@
                 }
             }
         },
-        "/users/{user}/cron-jobs/{id}": {
+        "/v2/users/{user}/cron-jobs/{id}": {
             "get": {
                 "operationId": "getCronJob",
                 "summary": "Get a cron job",
@@ -1813,7 +1799,7 @@
                         }
                     },
                     "204": {
-                        "description": "No content.",
+                        "description": "No content",
                         "headers": {
                             "X-Request-Id": {
                                 "$ref": "#/components/headers/RequestId"
@@ -1850,7 +1836,7 @@
                 }
             }
         },
-        "/users/{user}/cron-reports": {
+        "/v2/users/{user}/cron-reports": {
             "get": {
                 "operationId": "getCronReports",
                 "summary": "Whether cron mails the output of the user's jobs",
@@ -2024,7 +2010,7 @@
                 }
             }
         },
-        "/users/{user}/cron-jobs/{id}/suspend": {
+        "/v2/users/{user}/cron-jobs/{id}/suspend": {
             "post": {
                 "operationId": "suspendCronJob",
                 "summary": "Suspend a cron job",
@@ -2119,7 +2105,7 @@
                 }
             }
         },
-        "/users/{user}/cron-jobs/{id}/unsuspend": {
+        "/v2/users/{user}/cron-jobs/{id}/unsuspend": {
             "post": {
                 "operationId": "unsuspendCronJob",
                 "summary": "Unsuspend a cron job",
@@ -2214,7 +2200,7 @@
                 }
             }
         },
-        "/users/{user}/dns-zones": {
+        "/v2/users/{user}/dns-zones": {
             "get": {
                 "operationId": "listDnsZones",
                 "summary": "List the DNS zones of a user",
@@ -2342,36 +2328,25 @@
                 },
                 "responses": {
                     "200": {
-                        "description": "With `dry_run`: the planned steps; nothing ran.",
-                        "headers": {
-                            "X-Request-Id": {
-                                "$ref": "#/components/headers/RequestId"
-                            },
-                            "ArcPanel-Version": {
-                                "$ref": "#/components/headers/Version"
-                            }
-                        },
+                        "description": "`DnsZone`; with `dry_run`, the planned steps.",
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/DryRun"
-                                }
-                            }
-                        }
-                    },
-                    "201": {
-                        "description": "`DnsZone`",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "$ref": "#/components/schemas/DnsZone"
+                                    "oneOf": [
+                                        {
+                                            "type": "object",
+                                            "properties": {
+                                                "data": {
+                                                    "$ref": "#/components/schemas/DnsZone"
+                                                }
+                                            },
+                                            "required": [
+                                                "data"
+                                            ]
+                                        },
+                                        {
+                                            "$ref": "#/components/schemas/DryRun"
                                         }
-                                    },
-                                    "required": [
-                                        "data"
                                     ]
                                 }
                             }
@@ -2382,9 +2357,6 @@
                             },
                             "ArcPanel-Version": {
                                 "$ref": "#/components/headers/Version"
-                            },
-                            "Location": {
-                                "$ref": "#/components/headers/Location"
                             }
                         }
                     },
@@ -2415,7 +2387,7 @@
                 }
             }
         },
-        "/users/{user}/dns-zones/{domain}": {
+        "/v2/users/{user}/dns-zones/{domain}": {
             "get": {
                 "operationId": "getDnsZone",
                 "summary": "Get a DNS zone",
@@ -2640,7 +2612,7 @@
                         }
                     },
                     "204": {
-                        "description": "No content.",
+                        "description": "No content",
                         "headers": {
                             "X-Request-Id": {
                                 "$ref": "#/components/headers/RequestId"
@@ -2677,7 +2649,7 @@
                 }
             }
         },
-        "/users/{user}/dns-zones/{domain}/dnssec": {
+        "/v2/users/{user}/dns-zones/{domain}/dnssec": {
             "get": {
                 "operationId": "getDnsZoneDnssec",
                 "description": "404 when the zone has no DNSSEC.",
@@ -2748,7 +2720,7 @@
                 }
             }
         },
-        "/users/{user}/dns-zones/{domain}/records": {
+        "/v2/users/{user}/dns-zones/{domain}/records": {
             "get": {
                 "operationId": "listDnsRecords",
                 "description": "`name` and `type` match exactly.",
@@ -2927,36 +2899,25 @@
                 },
                 "responses": {
                     "200": {
-                        "description": "With `dry_run`: the planned steps; nothing ran.",
-                        "headers": {
-                            "X-Request-Id": {
-                                "$ref": "#/components/headers/RequestId"
-                            },
-                            "ArcPanel-Version": {
-                                "$ref": "#/components/headers/Version"
-                            }
-                        },
+                        "description": "`DnsRecord`; with `dry_run`, the planned steps.",
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/DryRun"
-                                }
-                            }
-                        }
-                    },
-                    "201": {
-                        "description": "`DnsRecord`",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "$ref": "#/components/schemas/DnsRecord"
+                                    "oneOf": [
+                                        {
+                                            "type": "object",
+                                            "properties": {
+                                                "data": {
+                                                    "$ref": "#/components/schemas/DnsRecord"
+                                                }
+                                            },
+                                            "required": [
+                                                "data"
+                                            ]
+                                        },
+                                        {
+                                            "$ref": "#/components/schemas/DryRun"
                                         }
-                                    },
-                                    "required": [
-                                        "data"
                                     ]
                                 }
                             }
@@ -2967,9 +2928,6 @@
                             },
                             "ArcPanel-Version": {
                                 "$ref": "#/components/headers/Version"
-                            },
-                            "Location": {
-                                "$ref": "#/components/headers/Location"
                             }
                         }
                     },
@@ -3000,7 +2958,7 @@
                 }
             }
         },
-        "/users/{user}/dns-zones/{domain}/records/{id}": {
+        "/v2/users/{user}/dns-zones/{domain}/records/{id}": {
             "get": {
                 "operationId": "getDnsRecord",
                 "summary": "Get a DNS record",
@@ -3249,7 +3207,7 @@
                         }
                     },
                     "204": {
-                        "description": "No content.",
+                        "description": "No content",
                         "headers": {
                             "X-Request-Id": {
                                 "$ref": "#/components/headers/RequestId"
@@ -3286,7 +3244,7 @@
                 }
             }
         },
-        "/users/{user}/dns-zones/{domain}/suspend": {
+        "/v2/users/{user}/dns-zones/{domain}/suspend": {
             "post": {
                 "operationId": "suspendDnsZone",
                 "description": "A suspended zone answers as it is.",
@@ -3382,7 +3340,7 @@
                 }
             }
         },
-        "/users/{user}/dns-zones/{domain}/unsuspend": {
+        "/v2/users/{user}/dns-zones/{domain}/unsuspend": {
             "post": {
                 "operationId": "unsuspendDnsZone",
                 "summary": "Unsuspend a DNS zone",
@@ -3477,7 +3435,7 @@
                 }
             }
         },
-        "/users/{user}/dns-zones/{domain}/rebuild": {
+        "/v2/users/{user}/dns-zones/{domain}/rebuild": {
             "post": {
                 "operationId": "rebuildDnsZone",
                 "description": "Administrators only.",
@@ -3573,7 +3531,7 @@
                 }
             }
         },
-        "/users/{user}/dns-zones/{domain}/records/{id}/suspend": {
+        "/v2/users/{user}/dns-zones/{domain}/records/{id}/suspend": {
             "post": {
                 "operationId": "suspendDnsRecord",
                 "summary": "Suspend a DNS record",
@@ -3676,7 +3634,7 @@
                 }
             }
         },
-        "/users/{user}/dns-zones/{domain}/records/{id}/unsuspend": {
+        "/v2/users/{user}/dns-zones/{domain}/records/{id}/unsuspend": {
             "post": {
                 "operationId": "unsuspendDnsRecord",
                 "summary": "Unsuspend a DNS record",
@@ -3779,7 +3737,7 @@
                 }
             }
         },
-        "/users/{user}/databases": {
+        "/v2/users/{user}/databases": {
             "get": {
                 "operationId": "listDatabases",
                 "summary": "List the databases of a user",
@@ -3907,36 +3865,25 @@
                 },
                 "responses": {
                     "200": {
-                        "description": "With `dry_run`: the planned steps; nothing ran.",
-                        "headers": {
-                            "X-Request-Id": {
-                                "$ref": "#/components/headers/RequestId"
-                            },
-                            "ArcPanel-Version": {
-                                "$ref": "#/components/headers/Version"
-                            }
-                        },
+                        "description": "`Database`; with `dry_run`, the planned steps.",
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/DryRun"
-                                }
-                            }
-                        }
-                    },
-                    "201": {
-                        "description": "`Database`",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "$ref": "#/components/schemas/Database"
+                                    "oneOf": [
+                                        {
+                                            "type": "object",
+                                            "properties": {
+                                                "data": {
+                                                    "$ref": "#/components/schemas/Database"
+                                                }
+                                            },
+                                            "required": [
+                                                "data"
+                                            ]
+                                        },
+                                        {
+                                            "$ref": "#/components/schemas/DryRun"
                                         }
-                                    },
-                                    "required": [
-                                        "data"
                                     ]
                                 }
                             }
@@ -3947,9 +3894,6 @@
                             },
                             "ArcPanel-Version": {
                                 "$ref": "#/components/headers/Version"
-                            },
-                            "Location": {
-                                "$ref": "#/components/headers/Location"
                             }
                         }
                     },
@@ -3980,7 +3924,7 @@
                 }
             }
         },
-        "/users/{user}/databases/{database}": {
+        "/v2/users/{user}/databases/{database}": {
             "get": {
                 "operationId": "getDatabase",
                 "summary": "Get a database",
@@ -4206,7 +4150,7 @@
                         }
                     },
                     "204": {
-                        "description": "No content.",
+                        "description": "No content",
                         "headers": {
                             "X-Request-Id": {
                                 "$ref": "#/components/headers/RequestId"
@@ -4243,7 +4187,7 @@
                 }
             }
         },
-        "/users/{user}/databases/{database}/password": {
+        "/v2/users/{user}/databases/{database}/password": {
             "put": {
                 "operationId": "changeDatabasePassword",
                 "summary": "Change the password of a database",
@@ -4307,7 +4251,7 @@
                         }
                     },
                     "204": {
-                        "description": "No content.",
+                        "description": "No content",
                         "headers": {
                             "X-Request-Id": {
                                 "$ref": "#/components/headers/RequestId"
@@ -4344,7 +4288,7 @@
                 }
             }
         },
-        "/users/{user}/databases/{database}/suspend": {
+        "/v2/users/{user}/databases/{database}/suspend": {
             "post": {
                 "operationId": "suspendDatabase",
                 "summary": "Suspend a database",
@@ -4439,7 +4383,7 @@
                 }
             }
         },
-        "/users/{user}/databases/{database}/unsuspend": {
+        "/v2/users/{user}/databases/{database}/unsuspend": {
             "post": {
                 "operationId": "unsuspendDatabase",
                 "summary": "Unsuspend a database",
@@ -4534,7 +4478,7 @@
                 }
             }
         },
-        "/users/{user}/databases/{database}/rebuild": {
+        "/v2/users/{user}/databases/{database}/rebuild": {
             "post": {
                 "operationId": "rebuildDatabase",
                 "description": "Administrators only.",
@@ -4630,7 +4574,7 @@
                 }
             }
         },
-        "/users/{user}/databases/{database}/dump": {
+        "/v2/users/{user}/databases/{database}/dump": {
             "post": {
                 "operationId": "dumpDatabase",
                 "description": "Runs `v-dump-database` and serves the `.sql.gz` through nginx (D35).\nThe dump file is removed about an hour later, as on the Databases page.",
@@ -4730,7 +4674,7 @@
                 }
             }
         },
-        "/users/{user}/mail-domains": {
+        "/v2/users/{user}/mail-domains": {
             "get": {
                 "operationId": "listMailDomains",
                 "summary": "List the mail domains of a user",
@@ -4858,36 +4802,25 @@
                 },
                 "responses": {
                     "200": {
-                        "description": "With `dry_run`: the planned steps; nothing ran.",
-                        "headers": {
-                            "X-Request-Id": {
-                                "$ref": "#/components/headers/RequestId"
-                            },
-                            "ArcPanel-Version": {
-                                "$ref": "#/components/headers/Version"
-                            }
-                        },
+                        "description": "`MailDomain`; with `dry_run`, the planned steps.",
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/DryRun"
-                                }
-                            }
-                        }
-                    },
-                    "201": {
-                        "description": "`MailDomain`",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "$ref": "#/components/schemas/MailDomain"
+                                    "oneOf": [
+                                        {
+                                            "type": "object",
+                                            "properties": {
+                                                "data": {
+                                                    "$ref": "#/components/schemas/MailDomain"
+                                                }
+                                            },
+                                            "required": [
+                                                "data"
+                                            ]
+                                        },
+                                        {
+                                            "$ref": "#/components/schemas/DryRun"
                                         }
-                                    },
-                                    "required": [
-                                        "data"
                                     ]
                                 }
                             }
@@ -4898,9 +4831,6 @@
                             },
                             "ArcPanel-Version": {
                                 "$ref": "#/components/headers/Version"
-                            },
-                            "Location": {
-                                "$ref": "#/components/headers/Location"
                             }
                         }
                     },
@@ -4931,7 +4861,7 @@
                 }
             }
         },
-        "/users/{user}/mail-domains/{domain}": {
+        "/v2/users/{user}/mail-domains/{domain}": {
             "get": {
                 "operationId": "getMailDomain",
                 "summary": "Get a mail domain",
@@ -5156,7 +5086,7 @@
                         }
                     },
                     "204": {
-                        "description": "No content.",
+                        "description": "No content",
                         "headers": {
                             "X-Request-Id": {
                                 "$ref": "#/components/headers/RequestId"
@@ -5193,7 +5123,7 @@
                 }
             }
         },
-        "/users/{user}/mail-domains/{domain}/dns-records": {
+        "/v2/users/{user}/mail-domains/{domain}/dns-records": {
             "get": {
                 "operationId": "getMailDomainDnsRecords",
                 "summary": "DNS records a mail domain needs",
@@ -5266,7 +5196,7 @@
                 }
             }
         },
-        "/users/{user}/mail-domains/{domain}/suspend": {
+        "/v2/users/{user}/mail-domains/{domain}/suspend": {
             "post": {
                 "operationId": "suspendMailDomain",
                 "summary": "Suspend a mail domain",
@@ -5361,7 +5291,7 @@
                 }
             }
         },
-        "/users/{user}/mail-domains/{domain}/unsuspend": {
+        "/v2/users/{user}/mail-domains/{domain}/unsuspend": {
             "post": {
                 "operationId": "unsuspendMailDomain",
                 "summary": "Unsuspend a mail domain",
@@ -5456,7 +5386,7 @@
                 }
             }
         },
-        "/users/{user}/mail-domains/{domain}/rebuild": {
+        "/v2/users/{user}/mail-domains/{domain}/rebuild": {
             "post": {
                 "operationId": "rebuildMailDomain",
                 "description": "Administrators only.",
@@ -5552,7 +5482,7 @@
                 }
             }
         },
-        "/users/{user}/mail-domains/{domain}/ssl": {
+        "/v2/users/{user}/mail-domains/{domain}/ssl": {
             "put": {
                 "operationId": "setMailDomainSsl",
                 "description": "Replacing a Let's Encrypt certificate removes it first, in the same plan.",
@@ -5711,7 +5641,7 @@
                         }
                     },
                     "204": {
-                        "description": "No content.",
+                        "description": "No content",
                         "headers": {
                             "X-Request-Id": {
                                 "$ref": "#/components/headers/RequestId"
@@ -5748,7 +5678,7 @@
                 }
             }
         },
-        "/users/{user}/mail-domains/{domain}/letsencrypt": {
+        "/v2/users/{user}/mail-domains/{domain}/letsencrypt": {
             "post": {
                 "operationId": "requestMailDomainLetsEncrypt",
                 "description": "Answers 202 with the domain as it is: `ssl.letsencrypt` turns true once\nthe queued certificate is installed.",
@@ -5794,36 +5724,25 @@
                 },
                 "responses": {
                     "200": {
-                        "description": "With `dry_run`: the planned steps; nothing ran.",
-                        "headers": {
-                            "X-Request-Id": {
-                                "$ref": "#/components/headers/RequestId"
-                            },
-                            "ArcPanel-Version": {
-                                "$ref": "#/components/headers/Version"
-                            }
-                        },
+                        "description": "`MailDomain`; with `dry_run`, the planned steps.",
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/DryRun"
-                                }
-                            }
-                        }
-                    },
-                    "202": {
-                        "description": "`MailDomain`",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "$ref": "#/components/schemas/MailDomain"
+                                    "oneOf": [
+                                        {
+                                            "type": "object",
+                                            "properties": {
+                                                "data": {
+                                                    "$ref": "#/components/schemas/MailDomain"
+                                                }
+                                            },
+                                            "required": [
+                                                "data"
+                                            ]
+                                        },
+                                        {
+                                            "$ref": "#/components/schemas/DryRun"
                                         }
-                                    },
-                                    "required": [
-                                        "data"
                                     ]
                                 }
                             }
@@ -5834,9 +5753,6 @@
                             },
                             "ArcPanel-Version": {
                                 "$ref": "#/components/headers/Version"
-                            },
-                            "Location": {
-                                "$ref": "#/components/headers/Location"
                             }
                         }
                     },
@@ -5867,7 +5783,7 @@
                 }
             }
         },
-        "/users/{user}/mail-domains/{domain}/smtp-relay": {
+        "/v2/users/{user}/mail-domains/{domain}/smtp-relay": {
             "put": {
                 "operationId": "setMailDomainSmtpRelay",
                 "description": "Re-added only when the host, username or port changed or a password was sent.",
@@ -6026,7 +5942,7 @@
                         }
                     },
                     "204": {
-                        "description": "No content.",
+                        "description": "No content",
                         "headers": {
                             "X-Request-Id": {
                                 "$ref": "#/components/headers/RequestId"
@@ -6063,7 +5979,7 @@
                 }
             }
         },
-        "/users/{user}/mail-domains/{domain}/accounts": {
+        "/v2/users/{user}/mail-domains/{domain}/accounts": {
             "get": {
                 "operationId": "listMailAccounts",
                 "summary": "List the mail accounts of a domain",
@@ -6219,36 +6135,25 @@
                 },
                 "responses": {
                     "200": {
-                        "description": "With `dry_run`: the planned steps; nothing ran.",
-                        "headers": {
-                            "X-Request-Id": {
-                                "$ref": "#/components/headers/RequestId"
-                            },
-                            "ArcPanel-Version": {
-                                "$ref": "#/components/headers/Version"
-                            }
-                        },
+                        "description": "`MailAccount`; with `dry_run`, the planned steps.",
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/DryRun"
-                                }
-                            }
-                        }
-                    },
-                    "201": {
-                        "description": "`MailAccount`",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "$ref": "#/components/schemas/MailAccount"
+                                    "oneOf": [
+                                        {
+                                            "type": "object",
+                                            "properties": {
+                                                "data": {
+                                                    "$ref": "#/components/schemas/MailAccount"
+                                                }
+                                            },
+                                            "required": [
+                                                "data"
+                                            ]
+                                        },
+                                        {
+                                            "$ref": "#/components/schemas/DryRun"
                                         }
-                                    },
-                                    "required": [
-                                        "data"
                                     ]
                                 }
                             }
@@ -6259,9 +6164,6 @@
                             },
                             "ArcPanel-Version": {
                                 "$ref": "#/components/headers/Version"
-                            },
-                            "Location": {
-                                "$ref": "#/components/headers/Location"
                             }
                         }
                     },
@@ -6292,7 +6194,7 @@
                 }
             }
         },
-        "/users/{user}/mail-domains/{domain}/accounts/{account}": {
+        "/v2/users/{user}/mail-domains/{domain}/accounts/{account}": {
             "get": {
                 "operationId": "getMailAccount",
                 "summary": "Get a mail account",
@@ -6541,7 +6443,7 @@
                         }
                     },
                     "204": {
-                        "description": "No content.",
+                        "description": "No content",
                         "headers": {
                             "X-Request-Id": {
                                 "$ref": "#/components/headers/RequestId"
@@ -6578,7 +6480,7 @@
                 }
             }
         },
-        "/users/{user}/mail-domains/{domain}/accounts/{account}/password": {
+        "/v2/users/{user}/mail-domains/{domain}/accounts/{account}/password": {
             "put": {
                 "operationId": "changeMailAccountPassword",
                 "summary": "Change the password of a mail account",
@@ -6650,7 +6552,7 @@
                         }
                     },
                     "204": {
-                        "description": "No content.",
+                        "description": "No content",
                         "headers": {
                             "X-Request-Id": {
                                 "$ref": "#/components/headers/RequestId"
@@ -6687,7 +6589,7 @@
                 }
             }
         },
-        "/users/{user}/mail-domains/{domain}/accounts/{account}/suspend": {
+        "/v2/users/{user}/mail-domains/{domain}/accounts/{account}/suspend": {
             "post": {
                 "operationId": "suspendMailAccount",
                 "summary": "Suspend a mail account",
@@ -6790,7 +6692,7 @@
                 }
             }
         },
-        "/users/{user}/mail-domains/{domain}/accounts/{account}/unsuspend": {
+        "/v2/users/{user}/mail-domains/{domain}/accounts/{account}/unsuspend": {
             "post": {
                 "operationId": "unsuspendMailAccount",
                 "summary": "Unsuspend a mail account",
@@ -6893,7 +6795,1166 @@
                 }
             }
         },
-        "/packages": {
+        "/v2/users/{user}/node": {
+            "get": {
+                "operationId": "getNodeAccount",
+                "summary": "Get the Node.js account of a user",
+                "tags": [
+                    "Node.js"
+                ],
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "`NodeAccount`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/NodeAccount"
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    }
+                }
+            },
+            "put": {
+                "operationId": "setNodeEnabled",
+                "summary": "Enable or remove Node.js for a user",
+                "tags": [
+                    "Node.js"
+                ],
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "dry_run",
+                        "in": "query",
+                        "description": "Validate, authorize and plan the change, and answer with its steps instead of running them.",
+                        "schema": {
+                            "type": "boolean",
+                            "default": false
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/SetNodeEnabledRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "`NodeAccount`; with `dry_run`, the planned steps.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "oneOf": [
+                                        {
+                                            "type": "object",
+                                            "properties": {
+                                                "data": {
+                                                    "$ref": "#/components/schemas/NodeAccount"
+                                                }
+                                            },
+                                            "required": [
+                                                "data"
+                                            ]
+                                        },
+                                        {
+                                            "$ref": "#/components/schemas/DryRun"
+                                        }
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "409": {
+                        "$ref": "#/components/responses/Conflict"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    },
+                    "503": {
+                        "$ref": "#/components/responses/Unavailable"
+                    }
+                }
+            }
+        },
+        "/v2/users/{user}/node/releases": {
+            "get": {
+                "operationId": "listNodeReleases",
+                "summary": "List installable Node.js majors",
+                "tags": [
+                    "Node.js"
+                ],
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "limit",
+                        "in": "query",
+                        "description": "Page size, from 1 to 1000. Without it the list is complete.",
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 1000
+                        }
+                    },
+                    {
+                        "name": "offset",
+                        "in": "query",
+                        "description": "Items to skip. Used when `limit` is set; 0 when omitted.",
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 0
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Array of `NodeRelease`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/components/schemas/NodeRelease"
+                                            }
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    }
+                }
+            }
+        },
+        "/v2/users/{user}/node/versions": {
+            "get": {
+                "operationId": "listNodeVersions",
+                "summary": "List the installed Node.js runtimes of a user",
+                "tags": [
+                    "Node.js"
+                ],
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "limit",
+                        "in": "query",
+                        "description": "Page size, from 1 to 1000. Without it the list is complete.",
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 1000
+                        }
+                    },
+                    {
+                        "name": "offset",
+                        "in": "query",
+                        "description": "Items to skip. Used when `limit` is set; 0 when omitted.",
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 0
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Array of `NodeRuntime`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/components/schemas/NodeRuntime"
+                                            }
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    }
+                }
+            },
+            "post": {
+                "operationId": "installNodeVersion",
+                "summary": "Install a Node.js runtime",
+                "tags": [
+                    "Node.js"
+                ],
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "dry_run",
+                        "in": "query",
+                        "description": "Validate, authorize and plan the change, and answer with its steps instead of running them.",
+                        "schema": {
+                            "type": "boolean",
+                            "default": false
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/InstallNodeVersionRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "With `dry_run`: the planned steps; nothing ran.",
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/DryRun"
+                                }
+                            }
+                        }
+                    },
+                    "202": {
+                        "description": "`Task`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/Task"
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            },
+                            "Location": {
+                                "$ref": "#/components/headers/Location"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "409": {
+                        "$ref": "#/components/responses/Conflict"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    },
+                    "503": {
+                        "$ref": "#/components/responses/Unavailable"
+                    }
+                }
+            }
+        },
+        "/v2/users/{user}/node/versions/{version}/packages": {
+            "get": {
+                "operationId": "listNodePackages",
+                "summary": "List the global npm packages of a runtime",
+                "tags": [
+                    "Node.js"
+                ],
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "version",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "limit",
+                        "in": "query",
+                        "description": "Page size, from 1 to 1000. Without it the list is complete.",
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 1000
+                        }
+                    },
+                    {
+                        "name": "offset",
+                        "in": "query",
+                        "description": "Items to skip. Used when `limit` is set; 0 when omitted.",
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 0
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/components/schemas/NodePackage"
+                                            }
+                                        },
+                                        "meta": {
+                                            "$ref": "#/components/schemas/ListMeta"
+                                        }
+                                    },
+                                    "required": [
+                                        "data",
+                                        "meta"
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    }
+                }
+            },
+            "post": {
+                "operationId": "installNodePackage",
+                "summary": "Install a global npm package",
+                "tags": [
+                    "Node.js"
+                ],
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "version",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "dry_run",
+                        "in": "query",
+                        "description": "Validate, authorize and plan the change, and answer with its steps instead of running them.",
+                        "schema": {
+                            "type": "boolean",
+                            "default": false
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/InstallNodePackageRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "With `dry_run`: the planned steps; nothing ran.",
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/DryRun"
+                                }
+                            }
+                        }
+                    },
+                    "202": {
+                        "description": "`Task`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/Task"
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            },
+                            "Location": {
+                                "$ref": "#/components/headers/Location"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "409": {
+                        "$ref": "#/components/responses/Conflict"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    },
+                    "503": {
+                        "$ref": "#/components/responses/Unavailable"
+                    }
+                }
+            }
+        },
+        "/v2/users/{user}/node/versions/{version}/default": {
+            "put": {
+                "operationId": "setNodeDefaultVersion",
+                "summary": "Set the default Node.js runtime",
+                "tags": [
+                    "Node.js"
+                ],
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "version",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "dry_run",
+                        "in": "query",
+                        "description": "Validate, authorize and plan the change, and answer with its steps instead of running them.",
+                        "schema": {
+                            "type": "boolean",
+                            "default": false
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "`NodeAccount`; with `dry_run`, the planned steps.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "oneOf": [
+                                        {
+                                            "type": "object",
+                                            "properties": {
+                                                "data": {
+                                                    "$ref": "#/components/schemas/NodeAccount"
+                                                }
+                                            },
+                                            "required": [
+                                                "data"
+                                            ]
+                                        },
+                                        {
+                                            "$ref": "#/components/schemas/DryRun"
+                                        }
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "409": {
+                        "$ref": "#/components/responses/Conflict"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    },
+                    "503": {
+                        "$ref": "#/components/responses/Unavailable"
+                    }
+                }
+            }
+        },
+        "/v2/users/{user}/node/versions/{version}": {
+            "delete": {
+                "operationId": "deleteNodeVersion",
+                "summary": "Uninstall a Node.js runtime",
+                "tags": [
+                    "Node.js"
+                ],
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "version",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "dry_run",
+                        "in": "query",
+                        "description": "Validate, authorize and plan the change, and answer with its steps instead of running them.",
+                        "schema": {
+                            "type": "boolean",
+                            "default": false
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "With `dry_run`: the planned steps; nothing ran.",
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/DryRun"
+                                }
+                            }
+                        }
+                    },
+                    "204": {
+                        "description": "No content",
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "409": {
+                        "$ref": "#/components/responses/Conflict"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    },
+                    "503": {
+                        "$ref": "#/components/responses/Unavailable"
+                    }
+                }
+            }
+        },
+        "/v2/users/{user}/node/versions/{version}/packages/update": {
+            "post": {
+                "operationId": "updateNodePackages",
+                "summary": "Update every global npm package of a runtime",
+                "tags": [
+                    "Node.js"
+                ],
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "version",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "dry_run",
+                        "in": "query",
+                        "description": "Validate, authorize and plan the change, and answer with its steps instead of running them.",
+                        "schema": {
+                            "type": "boolean",
+                            "default": false
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "With `dry_run`: the planned steps; nothing ran.",
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/DryRun"
+                                }
+                            }
+                        }
+                    },
+                    "202": {
+                        "description": "`Task`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/Task"
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            },
+                            "Location": {
+                                "$ref": "#/components/headers/Location"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "409": {
+                        "$ref": "#/components/responses/Conflict"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    },
+                    "503": {
+                        "$ref": "#/components/responses/Unavailable"
+                    }
+                }
+            }
+        },
+        "/v2/users/{user}/node/versions/{version}/packages/check": {
+            "post": {
+                "operationId": "checkNodePackages",
+                "summary": "Check global npm packages for updates",
+                "tags": [
+                    "Node.js"
+                ],
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "version",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "dry_run",
+                        "in": "query",
+                        "description": "Validate, authorize and plan the change, and answer with its steps instead of running them.",
+                        "schema": {
+                            "type": "boolean",
+                            "default": false
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "With `dry_run`: the planned steps; nothing ran.",
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/DryRun"
+                                }
+                            }
+                        }
+                    },
+                    "202": {
+                        "description": "`Task`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/Task"
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            },
+                            "Location": {
+                                "$ref": "#/components/headers/Location"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "409": {
+                        "$ref": "#/components/responses/Conflict"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    },
+                    "503": {
+                        "$ref": "#/components/responses/Unavailable"
+                    }
+                }
+            }
+        },
+        "/v2/users/{user}/node/versions/{version}/packages/{package}": {
+            "delete": {
+                "operationId": "deleteNodePackage",
+                "summary": "Remove a global npm package",
+                "tags": [
+                    "Node.js"
+                ],
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "version",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "package",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "dry_run",
+                        "in": "query",
+                        "description": "Validate, authorize and plan the change, and answer with its steps instead of running them.",
+                        "schema": {
+                            "type": "boolean",
+                            "default": false
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "With `dry_run`: the planned steps; nothing ran.",
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/DryRun"
+                                }
+                            }
+                        }
+                    },
+                    "204": {
+                        "description": "No content",
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "409": {
+                        "$ref": "#/components/responses/Conflict"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    },
+                    "503": {
+                        "$ref": "#/components/responses/Unavailable"
+                    }
+                }
+            }
+        },
+        "/v2/packages": {
             "get": {
                 "operationId": "listPackages",
                 "description": "Every package but `system` for an administrator, the packages a\nreseller may assign for a reseller.",
@@ -6992,36 +8053,25 @@
                 },
                 "responses": {
                     "200": {
-                        "description": "With `dry_run`: the planned steps; nothing ran.",
-                        "headers": {
-                            "X-Request-Id": {
-                                "$ref": "#/components/headers/RequestId"
-                            },
-                            "ArcPanel-Version": {
-                                "$ref": "#/components/headers/Version"
-                            }
-                        },
+                        "description": "`Package`; with `dry_run`, the planned steps.",
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/DryRun"
-                                }
-                            }
-                        }
-                    },
-                    "201": {
-                        "description": "`Package`",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "$ref": "#/components/schemas/Package"
+                                    "oneOf": [
+                                        {
+                                            "type": "object",
+                                            "properties": {
+                                                "data": {
+                                                    "$ref": "#/components/schemas/Package"
+                                                }
+                                            },
+                                            "required": [
+                                                "data"
+                                            ]
+                                        },
+                                        {
+                                            "$ref": "#/components/schemas/DryRun"
                                         }
-                                    },
-                                    "required": [
-                                        "data"
                                     ]
                                 }
                             }
@@ -7032,9 +8082,6 @@
                             },
                             "ArcPanel-Version": {
                                 "$ref": "#/components/headers/Version"
-                            },
-                            "Location": {
-                                "$ref": "#/components/headers/Location"
                             }
                         }
                     },
@@ -7073,7 +8120,7 @@
                 ]
             }
         },
-        "/packages/{package}": {
+        "/v2/packages/{package}": {
             "get": {
                 "operationId": "getPackage",
                 "summary": "Get a package",
@@ -7275,7 +8322,7 @@
                         }
                     },
                     "204": {
-                        "description": "No content.",
+                        "description": "No content",
                         "headers": {
                             "X-Request-Id": {
                                 "$ref": "#/components/headers/RequestId"
@@ -7312,7 +8359,7 @@
                 }
             }
         },
-        "/packages/{package}/copy": {
+        "/v2/packages/{package}/copy": {
             "post": {
                 "operationId": "copyPackage",
                 "description": "Administrators only; the copy has the reseller, port, Node.js and\nDocker settings of the original.",
@@ -7351,36 +8398,25 @@
                 },
                 "responses": {
                     "200": {
-                        "description": "With `dry_run`: the planned steps; nothing ran.",
-                        "headers": {
-                            "X-Request-Id": {
-                                "$ref": "#/components/headers/RequestId"
-                            },
-                            "ArcPanel-Version": {
-                                "$ref": "#/components/headers/Version"
-                            }
-                        },
+                        "description": "`Package`; with `dry_run`, the planned steps.",
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/DryRun"
-                                }
-                            }
-                        }
-                    },
-                    "201": {
-                        "description": "`Package`",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "$ref": "#/components/schemas/Package"
+                                    "oneOf": [
+                                        {
+                                            "type": "object",
+                                            "properties": {
+                                                "data": {
+                                                    "$ref": "#/components/schemas/Package"
+                                                }
+                                            },
+                                            "required": [
+                                                "data"
+                                            ]
+                                        },
+                                        {
+                                            "$ref": "#/components/schemas/DryRun"
                                         }
-                                    },
-                                    "required": [
-                                        "data"
                                     ]
                                 }
                             }
@@ -7391,9 +8427,6 @@
                             },
                             "ArcPanel-Version": {
                                 "$ref": "#/components/headers/Version"
-                            },
-                            "Location": {
-                                "$ref": "#/components/headers/Location"
                             }
                         }
                     },
@@ -7424,7 +8457,7 @@
                 }
             }
         },
-        "/tasks/{id}": {
+        "/v2/tasks/{id}": {
             "get": {
                 "operationId": "getTask",
                 "summary": "Show a task",
@@ -7501,7 +8534,7 @@
                 }
             }
         },
-        "/system/tasks": {
+        "/v2/system/tasks": {
             "get": {
                 "operationId": "listSystemTasks",
                 "description": "The current system task and Docker engine task.",
@@ -7578,7 +8611,7 @@
                 ]
             }
         },
-        "/users/{user}/tasks": {
+        "/v2/users/{user}/tasks": {
             "get": {
                 "operationId": "listUserTasks",
                 "description": "Node.js, Quick Install, Docker apps and queue tasks of the last seven\ndays, newest first.",
@@ -7666,7 +8699,7 @@
                 }
             }
         },
-        "/users": {
+        "/v2/users": {
             "get": {
                 "operationId": "listUsers",
                 "description": "Every user for an administrator, the customers for a reseller.",
@@ -7793,36 +8826,25 @@
                 },
                 "responses": {
                     "200": {
-                        "description": "With `dry_run`: the planned steps; nothing ran.",
-                        "headers": {
-                            "X-Request-Id": {
-                                "$ref": "#/components/headers/RequestId"
-                            },
-                            "ArcPanel-Version": {
-                                "$ref": "#/components/headers/Version"
-                            }
-                        },
+                        "description": "`User`; with `dry_run`, the planned steps.",
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/DryRun"
-                                }
-                            }
-                        }
-                    },
-                    "201": {
-                        "description": "`User`",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "$ref": "#/components/schemas/User"
+                                    "oneOf": [
+                                        {
+                                            "type": "object",
+                                            "properties": {
+                                                "data": {
+                                                    "$ref": "#/components/schemas/User"
+                                                }
+                                            },
+                                            "required": [
+                                                "data"
+                                            ]
+                                        },
+                                        {
+                                            "$ref": "#/components/schemas/DryRun"
                                         }
-                                    },
-                                    "required": [
-                                        "data"
                                     ]
                                 }
                             }
@@ -7833,9 +8855,6 @@
                             },
                             "ArcPanel-Version": {
                                 "$ref": "#/components/headers/Version"
-                            },
-                            "Location": {
-                                "$ref": "#/components/headers/Location"
                             }
                         }
                     },
@@ -7874,7 +8893,7 @@
                 ]
             }
         },
-        "/users/{user}": {
+        "/v2/users/{user}": {
             "get": {
                 "operationId": "getUser",
                 "summary": "Get a user",
@@ -8075,17 +9094,6 @@
                             }
                         }
                     },
-                    "204": {
-                        "description": "No content.",
-                        "headers": {
-                            "X-Request-Id": {
-                                "$ref": "#/components/headers/RequestId"
-                            },
-                            "ArcPanel-Version": {
-                                "$ref": "#/components/headers/Version"
-                            }
-                        }
-                    },
                     "401": {
                         "$ref": "#/components/responses/Unauthenticated"
                     },
@@ -8113,7 +9121,7 @@
                 }
             }
         },
-        "/users/{user}/package": {
+        "/v2/users/{user}/package": {
             "put": {
                 "operationId": "changeUserPackage",
                 "summary": "Change the package of a user",
@@ -8210,7 +9218,7 @@
                 }
             }
         },
-        "/users/{user}/password": {
+        "/v2/users/{user}/password": {
             "put": {
                 "operationId": "changeUserPassword",
                 "summary": "Change the password of a user",
@@ -8266,7 +9274,7 @@
                         }
                     },
                     "204": {
-                        "description": "No content.",
+                        "description": "No content",
                         "headers": {
                             "X-Request-Id": {
                                 "$ref": "#/components/headers/RequestId"
@@ -8303,7 +9311,7 @@
                 }
             }
         },
-        "/users/{user}/suspend": {
+        "/v2/users/{user}/suspend": {
             "post": {
                 "operationId": "suspendUser",
                 "description": "Suspends the account and its objects; a suspended user answers as it is.",
@@ -8391,7 +9399,7 @@
                 }
             }
         },
-        "/users/{user}/unsuspend": {
+        "/v2/users/{user}/unsuspend": {
             "post": {
                 "operationId": "unsuspendUser",
                 "summary": "Unsuspend a user",
@@ -8478,7 +9486,7 @@
                 }
             }
         },
-        "/users/{user}/web-domains": {
+        "/v2/users/{user}/web-domains": {
             "get": {
                 "operationId": "listWebDomains",
                 "summary": "List the web domains of a user",
@@ -8679,7 +9687,7 @@
                 }
             }
         },
-        "/users/{user}/web-domains/{domain}": {
+        "/v2/users/{user}/web-domains/{domain}": {
             "get": {
                 "operationId": "getWebDomain",
                 "summary": "Get a web domain",
@@ -8904,17 +9912,6 @@
                             }
                         }
                     },
-                    "204": {
-                        "description": "No content.",
-                        "headers": {
-                            "X-Request-Id": {
-                                "$ref": "#/components/headers/RequestId"
-                            },
-                            "ArcPanel-Version": {
-                                "$ref": "#/components/headers/Version"
-                            }
-                        }
-                    },
                     "401": {
                         "$ref": "#/components/responses/Unauthenticated"
                     },
@@ -8942,7 +9939,7 @@
                 }
             }
         },
-        "/users/{user}/web-domains/{domain}/suspend": {
+        "/v2/users/{user}/web-domains/{domain}/suspend": {
             "post": {
                 "operationId": "suspendWebDomain",
                 "description": "A suspended domain answers as it is.",
@@ -9038,7 +10035,7 @@
                 }
             }
         },
-        "/users/{user}/web-domains/{domain}/unsuspend": {
+        "/v2/users/{user}/web-domains/{domain}/unsuspend": {
             "post": {
                 "operationId": "unsuspendWebDomain",
                 "summary": "Unsuspend a web domain",
@@ -9133,7 +10130,7 @@
                 }
             }
         },
-        "/users/{user}/web-domains/{domain}/rebuild": {
+        "/v2/users/{user}/web-domains/{domain}/rebuild": {
             "post": {
                 "operationId": "rebuildWebDomain",
                 "description": "Writes the configuration of the domain again. Administrators only.",
@@ -9229,7 +10226,7 @@
                 }
             }
         },
-        "/users/{user}/web-domains/{domain}/purge-cache": {
+        "/v2/users/{user}/web-domains/{domain}/purge-cache": {
             "post": {
                 "operationId": "purgeWebDomainCache",
                 "description": "On servers where NGINX serves the domains; 403 elsewhere.",
@@ -9325,7 +10322,7 @@
                 }
             }
         },
-        "/users/{user}/web-domains/{domain}/aliases": {
+        "/v2/users/{user}/web-domains/{domain}/aliases": {
             "post": {
                 "operationId": "addWebDomainAlias",
                 "description": "With a DNS record when the domain has a DNS zone; a Let's Encrypt\ncertificate is queued again to cover it. An alias the domain has\nanswers 409 `E_EXISTS`.",
@@ -9431,7 +10428,7 @@
                 }
             }
         },
-        "/users/{user}/web-domains/{domain}/aliases/{alias}": {
+        "/v2/users/{user}/web-domains/{domain}/aliases/{alias}": {
             "delete": {
                 "operationId": "deleteWebDomainAlias",
                 "description": "With its DNS record; a Let's Encrypt certificate is queued again\nwithout it.",
@@ -9494,7 +10491,7 @@
                         }
                     },
                     "204": {
-                        "description": "No content.",
+                        "description": "No content",
                         "headers": {
                             "X-Request-Id": {
                                 "$ref": "#/components/headers/RequestId"
@@ -9531,7 +10528,7 @@
                 }
             }
         },
-        "/users/{user}/web-domains/{domain}/ssl": {
+        "/v2/users/{user}/web-domains/{domain}/ssl": {
             "put": {
                 "operationId": "setWebDomainSsl",
                 "description": "With `certificate` (and `key` for a first certificate) the uploaded\ncertificate is installed or replaced; a Let's Encrypt certificate is\nremoved first. Without it, `force` and `hsts` change for the\ncertificate the domain has.",
@@ -9689,7 +10686,7 @@
                         }
                     },
                     "204": {
-                        "description": "No content.",
+                        "description": "No content",
                         "headers": {
                             "X-Request-Id": {
                                 "$ref": "#/components/headers/RequestId"
@@ -9726,7 +10723,7 @@
                 }
             }
         },
-        "/users/{user}/web-domains/{domain}/letsencrypt": {
+        "/v2/users/{user}/web-domains/{domain}/letsencrypt": {
             "post": {
                 "operationId": "requestWebDomainLetsEncrypt",
                 "description": "Queues the certificate for the domain and its aliases, which must\nresolve to this server; the queue runs every five minutes. Answers\n202 with the domain as it is: `ssl.letsencrypt` turns true once the\ncertificate is installed.",
@@ -9772,36 +10769,25 @@
                 },
                 "responses": {
                     "200": {
-                        "description": "With `dry_run`: the planned steps; nothing ran.",
-                        "headers": {
-                            "X-Request-Id": {
-                                "$ref": "#/components/headers/RequestId"
-                            },
-                            "ArcPanel-Version": {
-                                "$ref": "#/components/headers/Version"
-                            }
-                        },
+                        "description": "`WebDomain`; with `dry_run`, the planned steps.",
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/DryRun"
-                                }
-                            }
-                        }
-                    },
-                    "202": {
-                        "description": "`WebDomain`",
-                        "content": {
-                            "application/json": {
-                                "schema": {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "$ref": "#/components/schemas/WebDomain"
+                                    "oneOf": [
+                                        {
+                                            "type": "object",
+                                            "properties": {
+                                                "data": {
+                                                    "$ref": "#/components/schemas/WebDomain"
+                                                }
+                                            },
+                                            "required": [
+                                                "data"
+                                            ]
+                                        },
+                                        {
+                                            "$ref": "#/components/schemas/DryRun"
                                         }
-                                    },
-                                    "required": [
-                                        "data"
                                     ]
                                 }
                             }
@@ -9812,9 +10798,6 @@
                             },
                             "ArcPanel-Version": {
                                 "$ref": "#/components/headers/Version"
-                            },
-                            "Location": {
-                                "$ref": "#/components/headers/Location"
                             }
                         }
                     },
@@ -10434,6 +11417,35 @@
                     "E_RESTART"
                 ]
             },
+            "InstallNodePackageRequest": {
+                "type": "object",
+                "description": "POST /users/{user}/node/versions/{version}/packages",
+                "properties": {
+                    "spec": {
+                        "type": "string",
+                        "pattern": "^(@[a-z0-9][a-z0-9._~-]*\\/)?[a-z0-9][a-z0-9._~-]*(@[A-Za-z0-9.^~<>=*+-]{1,64})?$",
+                        "maxLength": 280
+                    }
+                },
+                "required": [
+                    "spec"
+                ],
+                "title": "InstallNodePackageRequest"
+            },
+            "InstallNodeVersionRequest": {
+                "type": "object",
+                "description": "POST /users/{user}/node/versions",
+                "properties": {
+                    "spec": {
+                        "type": "string",
+                        "pattern": "^(lts|\\d{1,3}|\\d{1,3}\\.\\d{1,3}\\.\\d{1,3})$"
+                    }
+                },
+                "required": [
+                    "spec"
+                ],
+                "title": "InstallNodeVersionRequest"
+            },
             "LetsEncryptRequest": {
                 "type": "object",
                 "description": "POST /users/{user}/web-domains/{domain}/letsencrypt.",
@@ -10815,6 +11827,163 @@
                     "api_version"
                 ],
                 "title": "Me"
+            },
+            "NodeAccount": {
+                "type": "object",
+                "properties": {
+                    "enabled": {
+                        "type": "string"
+                    },
+                    "default_version": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
+                    "allowed_versions": {
+                        "type": "string"
+                    },
+                    "limit": {
+                        "type": "string"
+                    },
+                    "room": {
+                        "type": "string"
+                    },
+                    "runtimes": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/NodeRuntime"
+                        }
+                    }
+                },
+                "required": [
+                    "enabled",
+                    "default_version",
+                    "allowed_versions",
+                    "limit",
+                    "room",
+                    "runtimes"
+                ],
+                "title": "NodeAccount"
+            },
+            "NodePackage": {
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string"
+                    },
+                    "version": {
+                        "type": "string"
+                    },
+                    "latest": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
+                    "outdated": {
+                        "type": "boolean"
+                    },
+                    "bundled": {
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "name",
+                    "version",
+                    "latest",
+                    "outdated",
+                    "bundled"
+                ],
+                "title": "NodePackage"
+            },
+            "NodeRelease": {
+                "type": "object",
+                "properties": {
+                    "major": {
+                        "type": "string"
+                    },
+                    "latest": {
+                        "type": "string"
+                    },
+                    "lts": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
+                    "status": {
+                        "type": "string"
+                    },
+                    "eol": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
+                    "cached": {
+                        "type": "string"
+                    },
+                    "allowed": {
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "major",
+                    "latest",
+                    "lts",
+                    "status",
+                    "eol",
+                    "cached",
+                    "allowed"
+                ],
+                "title": "NodeRelease"
+            },
+            "NodeRuntime": {
+                "type": "object",
+                "properties": {
+                    "version": {
+                        "type": "string"
+                    },
+                    "major": {
+                        "type": "string"
+                    },
+                    "default": {
+                        "type": "string"
+                    },
+                    "lts": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
+                    "status": {
+                        "type": "string"
+                    },
+                    "eol": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
+                    "size_mb": {
+                        "type": "string"
+                    },
+                    "packages": {
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "version",
+                    "major",
+                    "default",
+                    "lts",
+                    "status",
+                    "eol",
+                    "size_mb",
+                    "packages"
+                ],
+                "title": "NodeRuntime"
             },
             "Package": {
                 "type": "object",
@@ -11378,6 +12547,19 @@
                     "certificate"
                 ],
                 "title": "SetMailDomainSslRequest"
+            },
+            "SetNodeEnabledRequest": {
+                "type": "object",
+                "description": "PUT /users/{user}/node",
+                "properties": {
+                    "enabled": {
+                        "type": "boolean"
+                    }
+                },
+                "required": [
+                    "enabled"
+                ],
+                "title": "SetNodeEnabledRequest"
             },
             "Snapshot": {
                 "type": "object",
