@@ -14,6 +14,7 @@ use App\Http\Requests\Users\UserPackageRequest;
 use App\Http\Requests\Users\UserSecurityRequest;
 use App\Policies\ImpersonationPolicy;
 use App\Policies\UserPolicy;
+use App\Services\Users\UserActions;
 use App\Services\Users\UserPlanner;
 use App\Services\Users\UserRecord;
 use App\Services\Users\UserService;
@@ -52,16 +53,14 @@ final class UserEditController extends Controller
         return $this->page($this->users->find($principal->effectiveUser()), $principal, $policy, $impersonation);
     }
 
-    public function general(UserGeneralRequest $request, string $user, Principal $principal, UserPolicy $policy): RedirectResponse
+    public function general(UserGeneralRequest $request, string $user, Principal $principal, UserPolicy $policy, UserActions $actions): RedirectResponse
     {
         abort_unless($policy->update($principal, $user), 403);
         $record = $this->users->find($user);
         $values = $request->values();
-        if (! array_key_exists($values['language'], $this->users->languages())) {
-            throw $this->invalid('general', $user, $principal, ['language' => __('Please select a valid language.')]);
-        }
+        $steps = $this->onTab('general', $user, $principal, fn () => $actions->planGeneral($record, $values));
 
-        $result = $this->users->apply($this->planner->general($record, $values));
+        $result = $this->users->apply($steps);
         if ($result->ok() && $user === $principal->loginUser && $values['language'] !== $record->language()) {
             // The language of the session follows, as web/edit/user does.
             app(LegacySession::class)->write(['language' => $values['language']]);
@@ -70,26 +69,14 @@ final class UserEditController extends Controller
         return $this->finish($user, $principal, 'general', $result);
     }
 
-    public function package(UserPackageRequest $request, string $user, Principal $principal, UserPolicy $policy): RedirectResponse
+    public function package(UserPackageRequest $request, string $user, Principal $principal, UserPolicy $policy, UserActions $actions): RedirectResponse
     {
         abort_unless($policy->changePackage($principal, $user), 403);
         $record = $this->users->find($user);
         $package = (string) $request->input('package');
-        $role = $principal->actingRole();
+        $steps = $this->onTab('package', $user, $principal, fn () => $actions->planPackage($principal, $record, $package));
 
-        if ($package !== $record->package()) {
-            if (! array_key_exists($package, $this->users->assignablePackages($role, $principal->effectiveUser()))) {
-                throw $this->invalid('package', $user, $principal, ['package' => __('Please select a valid package.')]);
-            }
-            if ($role === Role::Reseller && ($key = $this->users->quotaProblem($principal->effectiveUser(), $package, $user)) !== null) {
-                throw $this->invalid('package', $user, $principal, ['package' => UserController::quotaMessage($key)]);
-            }
-            if ($record->role() === Role::Reseller && UserController::sellsNoUsers($this->users->packageTenancy($package))) {
-                throw $this->invalid('package', $user, $principal, ['package' => __('A reseller needs a package that allows customers (USERS above 0).')]);
-            }
-        }
-
-        $result = $this->users->apply($this->planner->package($record, $package, $role, $principal->effectiveUser()));
+        $result = $this->users->apply($steps);
         if ($result->changed()) {
             $this->users->updateCounters($record->owner);
         }
@@ -136,7 +123,7 @@ final class UserEditController extends Controller
             $errors['role'] = __('Move or delete the customers of this reseller first.');
         }
         if ($newRole === Role::Reseller->value && $record->role() !== Role::Reseller
-            && UserController::sellsNoUsers($this->users->packageTenancy($record->package()))) {
+            && UserActions::sellsNoUsers($this->users->packageTenancy($record->package()))) {
             $errors['role'] = __('A reseller needs a package that allows customers (USERS above 0).');
         }
         $owners = array_merge([$this->config->get('ROOT_USER')], $this->tenancy->resellers());
@@ -196,6 +183,23 @@ final class UserEditController extends Controller
             'currentOwner' => $record->owner === '' ? $this->config->get('ROOT_USER') : $record->owner,
             'roles' => ['user' => __('User'), 'reseller' => __('Reseller'), 'admin' => __('Administrator')],
         ]);
+    }
+
+    /**
+     * The plan of a tab; its validation errors go back to the tab.
+     *
+     * @template T
+     *
+     * @param  \Closure(): T  $plan
+     * @return T
+     */
+    private function onTab(string $tab, string $user, Principal $principal, \Closure $plan): mixed
+    {
+        try {
+            return $plan();
+        } catch (ValidationException $e) {
+            throw $e->errorBag($tab)->redirectTo($this->tabUrl($user, $principal, $tab));
+        }
     }
 
     /** @param  array<string, string>  $messages */

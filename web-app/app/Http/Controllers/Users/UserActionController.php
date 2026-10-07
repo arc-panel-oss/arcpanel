@@ -7,6 +7,7 @@ use App\Auth\Principal;
 use App\Auth\Role;
 use App\Http\Controllers\Controller;
 use App\Policies\UserPolicy;
+use App\Services\Users\UserActions;
 use App\Services\Users\UserService;
 use App\Tenancy\TenancyDirectory;
 use Illuminate\Http\RedirectResponse;
@@ -22,6 +23,7 @@ final class UserActionController extends Controller
     public function __construct(
         private readonly UserService $users,
         private readonly TenancyDirectory $tenancy,
+        private readonly UserActions $actions,
     ) {}
 
     public function suspend(string $user, Principal $principal, UserPolicy $policy): RedirectResponse
@@ -127,8 +129,8 @@ final class UserActionController extends Controller
     {
         $refused = [];
         foreach ($users as $user) {
-            if ($this->tenancy->customersOf($user) !== []) {
-                $refused[$user] = __('Move or delete the customers of this reseller first.');
+            if (($reason = $this->actions->deleteRefusal($user)) !== null) {
+                $refused[$user] = $reason;
             }
         }
 

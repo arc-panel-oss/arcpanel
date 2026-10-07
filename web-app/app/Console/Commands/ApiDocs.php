@@ -8,6 +8,9 @@ use Dedoc\Scramble\Scramble;
 use Illuminate\Console\Attributes\Description;
 use Illuminate\Console\Attributes\Signature;
 use Illuminate\Console\Command;
+use Illuminate\Routing\Route as LaravelRoute;
+use Illuminate\Support\Facades\Route;
+use ReflectionMethod;
 
 /**
  * Writes docs/api/v2/openapi.json (E34 spec D14, §7): Scramble infers the
@@ -112,10 +115,11 @@ final class ApiDocs extends Command
         ksort($components['schemas']);
         $spec['components'] = $components;
 
+        $statuses = $this->declaredStatuses();
         foreach ($spec['paths'] ?? [] as $path => $operations) {
             foreach ($operations as $method => $operation) {
                 if (is_array($operation) && in_array($method, ['get', 'post', 'put', 'patch', 'delete'], true)) {
-                    $spec['paths'][$path][$method] = $this->operation($path, $method, $operation);
+                    $spec['paths'][$path][$method] = $this->operation($path, $method, $operation, $statuses[$method.' '.$path] ?? 200);
                 }
             }
         }
@@ -171,18 +175,38 @@ final class ApiDocs extends Command
      * @param  array<string, mixed>  $operation
      * @return array<string, mixed>
      */
-    private function operation(string $path, string $method, array $operation): array
+    private function operation(string $path, string $method, array $operation, int $success): array
     {
         $write = $method !== 'get';
-        $responses = array_filter($operation['responses'] ?? [], fn ($status) => (int) $status < 400, ARRAY_FILTER_USE_KEY);
-
-        foreach ($responses as $status => $response) {
-            if (! isset($response['$ref'])) {
-                $response['headers'] = ['X-Request-Id' => ['$ref' => '#/components/headers/RequestId'], 'ArcPanel-Version' => ['$ref' => '#/components/headers/Version']]
-                    + (in_array((string) $status, ['201', '202'], true) ? ['Location' => ['$ref' => '#/components/headers/Location']] : [])
-                    + ($response['headers'] ?? []);
-                $responses[$status] = $response;
+        $responses = [];
+        foreach ($operation['responses'] ?? [] as $status => $response) {
+            if ((int) $status >= 400) {
+                continue;
             }
+            // Scramble also infers the dry-run answer of PlanGate; it is documented once, as DryRun.
+            $schema = $response['content']['application/json']['schema'] ?? null;
+            if ($schema !== null) {
+                $schema = self::withoutDryRun($schema);
+                if ($schema === null) {
+                    continue;
+                }
+                $response['content']['application/json']['schema'] = self::withEmptyMeta($schema);
+            }
+            if (! isset($response['$ref'])) {
+                $response['headers'] = self::successHeaders((string) $status) + ($response['headers'] ?? []);
+            }
+            $responses[$status] = $response;
+        }
+
+        // The success status of the operation: the @status tag of its controller method
+        if ($success === 204) {
+            $responses = array_filter($responses, fn ($status) => (int) $status >= 300, ARRAY_FILTER_USE_KEY);
+            $responses['204'] = ['description' => 'No content.', 'headers' => self::successHeaders('204')];
+        } elseif ($success !== 200 && isset($responses['200']) && ! isset($responses[(string) $success])) {
+            $moved = $responses['200'];
+            unset($responses['200']);
+            $moved['headers'] = self::successHeaders((string) $success) + ($moved['headers'] ?? []);
+            $responses[(string) $success] = $moved;
         }
 
         if ($write) {
@@ -196,11 +220,11 @@ final class ApiDocs extends Command
             if (isset($responses['200']['content']['application/json']['schema'])) {
                 $schema = $responses['200']['content']['application/json']['schema'];
                 $responses['200']['content']['application/json']['schema'] = ['oneOf' => [$schema, $dryRun]];
-                $responses['200']['description'] = trim(($responses['200']['description'] ?? '').' With `dry_run`, the planned steps.');
+                $responses['200']['description'] = trim(($responses['200']['description'] ?? '').'; with `dry_run`, the planned steps.');
             } else {
                 $responses['200'] = [
                     'description' => 'With `dry_run`: the planned steps; nothing ran.',
-                    'headers' => ['X-Request-Id' => ['$ref' => '#/components/headers/RequestId'], 'ArcPanel-Version' => ['$ref' => '#/components/headers/Version']],
+                    'headers' => self::successHeaders('200'),
                     'content' => ['application/json' => ['schema' => $dryRun]],
                 ];
             }
@@ -210,9 +234,10 @@ final class ApiDocs extends Command
         if (str_contains($path, '{')) {
             $errors[] = '404';
         }
+        $query = array_filter($operation['parameters'] ?? [], fn ($parameter) => ($parameter['in'] ?? '') === 'query' && ($parameter['name'] ?? '') !== 'dry_run');
         if ($write) {
             array_push($errors, '409', '422');
-        } elseif (($operation['parameters'] ?? []) !== []) {
+        } elseif ($query !== []) {
             $errors[] = '422';
         }
         array_push($errors, '429', '500');
@@ -226,6 +251,87 @@ final class ApiDocs extends Command
         $operation['responses'] = $responses;
 
         return $operation;
+    }
+
+    /**
+     * The success status of each operation other than 200, from the
+     * `@status` tag of its controller method (Scramble does not follow
+     * `setStatusCode()` and `noContent()` after an early return).
+     *
+     * @return array<string, int> "method /path" => status
+     */
+    private function declaredStatuses(): array
+    {
+        $statuses = [];
+        foreach (Route::getRoutes()->getRoutes() as $route) {
+            /** @var LaravelRoute $route */
+            $action = $route->getAction('uses');
+            if (! str_starts_with($route->uri(), 'api/v2/') || ! is_string($action) || ! str_contains($action, '@')) {
+                continue;
+            }
+            [$class, $method] = explode('@', $action, 2);
+            $doc = (string) (new ReflectionMethod($class, $method))->getDocComment();
+            if (preg_match('/@status\s+(\d{3})/', $doc, $m) !== 1) {
+                continue;
+            }
+            foreach ($route->methods() as $verb) {
+                if ($verb !== 'HEAD') {
+                    $statuses[strtolower($verb).' /'.substr($route->uri(), strlen('api/v2/'))] = (int) $m[1];
+                }
+            }
+        }
+
+        return $statuses;
+    }
+
+    /**
+     * The schema without the alternatives Scramble infers for the dry-run
+     * answer (`{"data": {"dry_run": …}}`) or for an untyped JSON response;
+     * null when nothing else is left.
+     *
+     * @param  array<string, mixed>  $schema
+     * @return array<string, mixed>|null
+     */
+    private static function withoutDryRun(array $schema): ?array
+    {
+        $isDryRun = fn (array $alternative): bool => isset($alternative['properties']['data']['properties']['dry_run'])
+            || ($alternative === ['type' => 'object']);
+
+        foreach (['anyOf', 'oneOf'] as $key) {
+            if (isset($schema[$key]) && is_array($schema[$key])) {
+                $left = array_values(array_filter($schema[$key], fn ($alternative) => is_array($alternative) && ! $isDryRun($alternative)));
+
+                return match (count($left)) {
+                    0 => null,
+                    1 => $left[0],
+                    default => [...$schema, $key => $left],
+                };
+            }
+        }
+
+        return $isDryRun($schema) ? null : $schema;
+    }
+
+    /**
+     * `meta` of a list is an object, empty until pagination exists (spec D9).
+     *
+     * @param  array<string, mixed>  $schema
+     * @return array<string, mixed>
+     */
+    private static function withEmptyMeta(array $schema): array
+    {
+        if (isset($schema['properties']['meta'])) {
+            $schema['properties']['meta'] = ['type' => 'object', 'description' => 'Reserved for pagination; empty for now.'];
+        }
+
+        return $schema;
+    }
+
+    /** @return array<string, array{'$ref': string}> */
+    private static function successHeaders(string $status): array
+    {
+        return ['X-Request-Id' => ['$ref' => '#/components/headers/RequestId'], 'ArcPanel-Version' => ['$ref' => '#/components/headers/Version']]
+            + (in_array($status, ['201', '202'], true) ? ['Location' => ['$ref' => '#/components/headers/Location']] : []);
     }
 
     /** @return array<string, mixed> */

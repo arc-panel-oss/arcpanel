@@ -1,4 +1,4 @@
 # REST API v2 (E34): the commands of every endpoint. API v1 skips this set.
 ROLE='user'
 API_VERSION='2'
-COMMANDS='v-list-sys-config'
+COMMANDS='v-list-sys-config,v-list-users,v-list-user-owners,v-list-user,v-list-sys-languages,v-list-reseller-packages,v-list-package-tenancy,v-add-user,v-add-reseller-user,v-change-user-language,v-change-user-role,v-change-user-owner,v-change-user-config-value,v-change-user-contact,v-change-user-name,v-change-user-password,v-change-user-package,v-change-reseller-user-package,v-check-reseller-quota,v-suspend-user,v-unsuspend-user,v-delete-user,v-update-reseller-counters'

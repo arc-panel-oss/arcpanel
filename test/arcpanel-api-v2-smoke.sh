@@ -1,0 +1,130 @@
+#!/bin/bash
+# Smoke test of REST API v2 (E34,
+# docs/features/specs/2026-10-07-002-e34-api-v2-design.md) against a
+# running ArcPanel server, through nginx and curl only.
+#
+# Turns the API on for every key and address for the run (API_SYSTEM=2,
+# API_ALLOWED_IP=allow-all) and restores both at the end. Creates access
+# keys and throw-away users (arcsmoke*), and deletes them.
+#
+# Run as root on a test server, never on production.
+
+set -euo pipefail
+
+PANEL="${PANEL:-https://127.0.0.1:8083}"
+ARCPANEL="${ARCPANEL:-/usr/local/arcpanel}"
+API="$PANEL/api/v2"
+CONF="$ARCPANEL/conf/arcpanel.conf"
+SMOKE_USER="arcsmoke$RANDOM"
+SMOKE_PASS="$(head -c 18 /dev/urandom | base64 | tr -dc 'A-Za-z0-9' | head -c 20)Aa1"
+ROOT_USER=$(grep "^ROOT_USER=" "$CONF" | cut -d"'" -f2)
+OLD_API_SYSTEM=$(grep "^API_SYSTEM=" "$CONF" | cut -d"'" -f2 || true)
+OLD_API_ALLOWED_IP=$(grep "^API_ALLOWED_IP=" "$CONF" | cut -d"'" -f2 || true)
+BODY="$(mktemp)"
+KEYS=()
+failures=0
+
+# The panel caches arcpanel.conf for a minute
+clear_panel_cache() {
+	runuser -u arcpanelweb -- "$ARCPANEL/php/bin/php" "$ARCPANEL/web-app/artisan" cache:clear > /dev/null
+}
+
+cleanup() {
+	"$ARCPANEL/bin/v-delete-user" "$SMOKE_USER" > /dev/null 2>&1 || true
+	for key in "${KEYS[@]}"; do
+		"$ARCPANEL/bin/v-delete-access-key" "${key%%:*}" > /dev/null 2>&1 || true
+	done
+	"$ARCPANEL/bin/v-change-sys-config-value" API_SYSTEM "${OLD_API_SYSTEM:-0}"
+	"$ARCPANEL/bin/v-change-sys-config-value" API_ALLOWED_IP "$OLD_API_ALLOWED_IP"
+	clear_panel_cache
+	rm -f "$BODY"
+}
+trap cleanup EXIT
+
+ok() { echo "ok   - $1"; }
+fail() {
+	echo "FAIL - $1"
+	failures=$((failures + 1))
+}
+
+# check NAME EXPECTED ACTUAL
+check() {
+	if [ "$2" = "$3" ]; then ok "$1"; else fail "$1 (expected '$2', got '$3')"; fi
+}
+
+# new_key USER SETS -> "ID:SECRET"
+new_key() {
+	local key
+	key=$("$ARCPANEL/bin/v-add-access-key" "$1" "$2" arcsmoke json | jq -r '"\(.ACCESS_KEY_ID):\(.SECRET_ACCESS_KEY)"')
+	KEYS+=("$key")
+	echo "$key"
+}
+
+# call KEY METHOD PATH [JSON] -> prints the status; the answer is in $BODY
+call() {
+	local key="$1" method="$2" path="$3" data="${4:-}"
+	local args=(-sk -o "$BODY" -w '%{http_code}' -X "$method" -H "Authorization: Bearer $key" -H 'Accept: application/json')
+	if [ -n "$data" ]; then
+		args+=(-H 'Content-Type: application/json' --data "$data")
+	fi
+	curl "${args[@]}" "$API$path"
+}
+
+# json FILTER -> value of the last answer
+json() { jq -r "$1" "$BODY"; }
+
+"$ARCPANEL/bin/v-change-sys-config-value" API_SYSTEM 2
+"$ARCPANEL/bin/v-change-sys-config-value" API_ALLOWED_IP allow-all
+clear_panel_cache
+
+ADMIN=$(new_key "$ROOT_USER" '')
+
+# Foundation (spec §4)
+check "GET /me answers for the administrator's key" 200 "$(call "$ADMIN" GET /me)"
+check "GET /me: unrestricted" '*' "$(json '.data.commands | join(",")')"
+check "a wrong secret answers 401" 401 "$(call "${ADMIN%%:*}:$(printf 'x%.0s' {1..40})" GET /me)"
+check "401 carries the error code" E_UNAUTHENTICATED "$(json .error.code)"
+check "an unknown path answers 404 with the error body" E_NOTEXIST "$(
+	call "$ADMIN" GET /nothing > /dev/null
+	json .error.code
+)"
+headers=$(curl -sk -D - -o /dev/null -H "Authorization: Bearer $ADMIN" -H 'X-Request-Id: smoke-1' "$API/me")
+check "X-Request-Id is echoed" 1 "$(grep -ci '^x-request-id: smoke-1' <<< "$headers")"
+check "ArcPanel-Version is sent" 1 "$(grep -ci '^arcpanel-version:' <<< "$headers")"
+
+# Users (spec §6.1)
+user_json="{\"username\": \"$SMOKE_USER\", \"password\": \"$SMOKE_PASS\", \"email\": \"$SMOKE_USER@example.invalid\", \"name\": \"Smoke User\", \"package\": \"default\"}"
+check "createUser dry run answers 200" 200 "$(call "$ADMIN" POST '/users?dry_run=1' "$user_json")"
+check "the dry run plans v-add-user" v-add-user "$(json '.data.steps[0].command')"
+check "the dry run masks the password" '******' "$(json '.data.steps[0].args[1]')"
+if "$ARCPANEL/bin/v-list-user" "$SMOKE_USER" > /dev/null 2>&1; then fail "the dry run created the user"; else ok "the dry run created nothing"; fi
+check "createUser answers 201" 201 "$(call "$ADMIN" POST /users "$user_json")"
+check "the new user is a user" user "$(json .data.role)"
+check "a repeated createUser answers 409" 409 "$(call "$ADMIN" POST /users "$user_json")"
+check "getUser answers 200" 200 "$(call "$ADMIN" GET "/users/$SMOKE_USER")"
+
+READER=$(new_key "$SMOKE_USER" v2-read)
+WRITER=$(new_key "$SMOKE_USER" v2-write)
+check "a v2-read key reads its own account" 200 "$(call "$READER" GET "/users/$SMOKE_USER")"
+check "a v2-read key may not change it" 403 "$(call "$READER" PATCH "/users/$SMOKE_USER" '{"name": "Changed"}')"
+check "the refusal names the command" v-change-user-name "$(json '.error.commands | join(",")')"
+check "the name did not change" "Smoke User" "$("$ARCPANEL/bin/v-list-user" "$SMOKE_USER" json | jq -r ".\"$SMOKE_USER\".NAME")"
+check "a user key may not list users" 403 "$(call "$READER" GET /users)"
+check "another user answers 404" 404 "$(call "$READER" GET "/users/$ROOT_USER")"
+v1_exit=$(curl -sk -D - -o /dev/null -X POST --data "hash=$READER&cmd=v-list-sys-config&arg1=json" "$PANEL/api/" | grep -i '^arcpanel-exit-code:' | tr -dc '0-9')
+check "API v1 refuses the commands of v2-read (E_FORBIDEN)" 10 "$v1_exit"
+check "a v2-write key changes the name" 200 "$(call "$WRITER" PATCH "/users/$SMOKE_USER" '{"name": "Smoke Changed"}')"
+check "the name changed" "Smoke Changed" "$("$ARCPANEL/bin/v-list-user" "$SMOKE_USER" json | jq -r ".\"$SMOKE_USER\".NAME")"
+check "changeUserPassword answers 204" 204 "$(call "$WRITER" PUT "/users/$SMOKE_USER/password" "{\"password\": \"${SMOKE_PASS}B2\"}")"
+check "suspendUser answers 200" 200 "$(call "$ADMIN" POST "/users/$SMOKE_USER/suspend")"
+check "the user is suspended" true "$(json .data.suspended)"
+check "a suspended owner's key answers 403" 403 "$(call "$WRITER" GET /me)"
+check "unsuspendUser answers 200" 200 "$(call "$ADMIN" POST "/users/$SMOKE_USER/unsuspend")"
+check "deleteUser answers 204" 204 "$(call "$ADMIN" DELETE "/users/$SMOKE_USER")"
+check "the user is gone" 404 "$(call "$ADMIN" GET "/users/$SMOKE_USER")"
+
+if [ "$failures" -gt 0 ]; then
+	echo "$failures check(s) failed"
+	exit 1
+fi
+echo "All checks passed"

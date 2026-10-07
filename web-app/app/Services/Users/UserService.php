@@ -177,7 +177,7 @@ final class UserService
             } catch (ArcCommandException $e) {
                 $this->forget();
 
-                return new ApplyResult($applied, $step, $e->userMessage());
+                return new ApplyResult($applied, $step, $e->userMessage(), $e->getCode());
             }
             $applied[] = $step;
             if ($step->onSuccess !== null) {

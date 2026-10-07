@@ -69,6 +69,800 @@
                     }
                 }
             }
+        },
+        "/users": {
+            "get": {
+                "operationId": "listUsers",
+                "description": "Every user for an administrator, the customers for a reseller.",
+                "summary": "List users",
+                "tags": [
+                    "Users"
+                ],
+                "parameters": [
+                    {
+                        "name": "role",
+                        "in": "query",
+                        "description": "Only users of this role.",
+                        "schema": {
+                            "anyOf": [
+                                {
+                                    "$ref": "#/components/schemas/ApiRole"
+                                },
+                                {
+                                    "type": "null"
+                                }
+                            ]
+                        }
+                    },
+                    {
+                        "name": "owner",
+                        "in": "query",
+                        "description": "Administrators: only the customers of this reseller (or of the administrator).",
+                        "schema": {
+                            "type": [
+                                "string",
+                                "null"
+                            ],
+                            "pattern": "^[[:alnum:]][-.\\w]*$",
+                            "maxLength": 32
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Array of `User`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/components/schemas/User"
+                                            }
+                                        },
+                                        "meta": {
+                                            "type": "object",
+                                            "description": "Reserved for pagination; empty for now."
+                                        }
+                                    },
+                                    "required": [
+                                        "data",
+                                        "meta"
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    }
+                }
+            },
+            "post": {
+                "operationId": "createUser",
+                "description": "An administrator creates any user (with `role`, `owner` and\n`login_disabled`), a reseller a customer of its own within its plan.\nA repeated call answers 409 `E_EXISTS`.",
+                "summary": "Create a user",
+                "tags": [
+                    "Users"
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/StoreUserRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "With `dry_run`: the planned steps; nothing ran.",
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/DryRun"
+                                }
+                            }
+                        }
+                    },
+                    "201": {
+                        "description": "`User`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/User"
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            },
+                            "Location": {
+                                "$ref": "#/components/headers/Location"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "409": {
+                        "$ref": "#/components/responses/Conflict"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    },
+                    "503": {
+                        "$ref": "#/components/responses/Unavailable"
+                    }
+                },
+                "parameters": [
+                    {
+                        "name": "dry_run",
+                        "in": "query",
+                        "description": "Validate, authorize and plan the change, and answer with its steps instead of running them.",
+                        "schema": {
+                            "type": "boolean",
+                            "default": false
+                        }
+                    }
+                ]
+            }
+        },
+        "/users/{user}": {
+            "get": {
+                "operationId": "getUser",
+                "summary": "Get a user",
+                "tags": [
+                    "Users"
+                ],
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "`User`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/User"
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    }
+                }
+            },
+            "patch": {
+                "operationId": "updateUser",
+                "description": "Name, contact e-mail and language; the fields left out keep their\nvalue. Users change their own account, administrators and resellers\nthose they manage.",
+                "summary": "Update a user",
+                "tags": [
+                    "Users"
+                ],
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "dry_run",
+                        "in": "query",
+                        "description": "Validate, authorize and plan the change, and answer with its steps instead of running them.",
+                        "schema": {
+                            "type": "boolean",
+                            "default": false
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/UpdateUserRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "`User`; with `dry_run`, the planned steps.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "oneOf": [
+                                        {
+                                            "type": "object",
+                                            "properties": {
+                                                "data": {
+                                                    "$ref": "#/components/schemas/User"
+                                                }
+                                            },
+                                            "required": [
+                                                "data"
+                                            ]
+                                        },
+                                        {
+                                            "$ref": "#/components/schemas/DryRun"
+                                        }
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "409": {
+                        "$ref": "#/components/responses/Conflict"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    },
+                    "503": {
+                        "$ref": "#/components/responses/Unavailable"
+                    }
+                }
+            },
+            "delete": {
+                "operationId": "deleteUser",
+                "description": "Deletes the account with all its data. A reseller with customers\nanswers 409 `E_INUSE`.",
+                "summary": "Delete a user",
+                "tags": [
+                    "Users"
+                ],
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "dry_run",
+                        "in": "query",
+                        "description": "Validate, authorize and plan the change, and answer with its steps instead of running them.",
+                        "schema": {
+                            "type": "boolean",
+                            "default": false
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "With `dry_run`: the planned steps; nothing ran.",
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/DryRun"
+                                }
+                            }
+                        }
+                    },
+                    "204": {
+                        "description": "No content.",
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "409": {
+                        "$ref": "#/components/responses/Conflict"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    },
+                    "503": {
+                        "$ref": "#/components/responses/Unavailable"
+                    }
+                }
+            }
+        },
+        "/users/{user}/package": {
+            "put": {
+                "operationId": "changeUserPackage",
+                "summary": "Change the package of a user",
+                "tags": [
+                    "Users"
+                ],
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "dry_run",
+                        "in": "query",
+                        "description": "Validate, authorize and plan the change, and answer with its steps instead of running them.",
+                        "schema": {
+                            "type": "boolean",
+                            "default": false
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/UserPackageRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "`User`; with `dry_run`, the planned steps.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "oneOf": [
+                                        {
+                                            "type": "object",
+                                            "properties": {
+                                                "data": {
+                                                    "$ref": "#/components/schemas/User"
+                                                }
+                                            },
+                                            "required": [
+                                                "data"
+                                            ]
+                                        },
+                                        {
+                                            "$ref": "#/components/schemas/DryRun"
+                                        }
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "409": {
+                        "$ref": "#/components/responses/Conflict"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    },
+                    "503": {
+                        "$ref": "#/components/responses/Unavailable"
+                    }
+                }
+            }
+        },
+        "/users/{user}/password": {
+            "put": {
+                "operationId": "changeUserPassword",
+                "summary": "Change the password of a user",
+                "tags": [
+                    "Users"
+                ],
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "dry_run",
+                        "in": "query",
+                        "description": "Validate, authorize and plan the change, and answer with its steps instead of running them.",
+                        "schema": {
+                            "type": "boolean",
+                            "default": false
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/UserPasswordRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "With `dry_run`: the planned steps; nothing ran.",
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/DryRun"
+                                }
+                            }
+                        }
+                    },
+                    "204": {
+                        "description": "No content.",
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "409": {
+                        "$ref": "#/components/responses/Conflict"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    },
+                    "503": {
+                        "$ref": "#/components/responses/Unavailable"
+                    }
+                }
+            }
+        },
+        "/users/{user}/suspend": {
+            "post": {
+                "operationId": "suspendUser",
+                "description": "Suspends the account and its objects; a suspended user answers as it is.",
+                "summary": "Suspend a user",
+                "tags": [
+                    "Users"
+                ],
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "dry_run",
+                        "in": "query",
+                        "description": "Validate, authorize and plan the change, and answer with its steps instead of running them.",
+                        "schema": {
+                            "type": "boolean",
+                            "default": false
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "`User`; with `dry_run`, the planned steps.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "oneOf": [
+                                        {
+                                            "type": "object",
+                                            "properties": {
+                                                "data": {
+                                                    "$ref": "#/components/schemas/User"
+                                                }
+                                            },
+                                            "required": [
+                                                "data"
+                                            ]
+                                        },
+                                        {
+                                            "$ref": "#/components/schemas/DryRun"
+                                        }
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "409": {
+                        "$ref": "#/components/responses/Conflict"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    },
+                    "503": {
+                        "$ref": "#/components/responses/Unavailable"
+                    }
+                }
+            }
+        },
+        "/users/{user}/unsuspend": {
+            "post": {
+                "operationId": "unsuspendUser",
+                "summary": "Unsuspend a user",
+                "tags": [
+                    "Users"
+                ],
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "dry_run",
+                        "in": "query",
+                        "description": "Validate, authorize and plan the change, and answer with its steps instead of running them.",
+                        "schema": {
+                            "type": "boolean",
+                            "default": false
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "`User`; with `dry_run`, the planned steps.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "oneOf": [
+                                        {
+                                            "type": "object",
+                                            "properties": {
+                                                "data": {
+                                                    "$ref": "#/components/schemas/User"
+                                                }
+                                            },
+                                            "required": [
+                                                "data"
+                                            ]
+                                        },
+                                        {
+                                            "$ref": "#/components/schemas/DryRun"
+                                        }
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "409": {
+                        "$ref": "#/components/responses/Conflict"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    },
+                    "503": {
+                        "$ref": "#/components/responses/Unavailable"
+                    }
+                }
+            }
         }
     },
     "components": {
@@ -288,40 +1082,320 @@
                     "label",
                     "command"
                 ]
-            }
-        },
-        "securitySchemes": {
-            "accessKey": {
-                "type": "http",
-                "scheme": "bearer",
-                "bearerFormat": "ACCESS_KEY_ID:SECRET_ACCESS_KEY",
-                "description": "An access key of the panel and its secret, joined by a colon."
-            }
-        },
-        "headers": {
-            "RequestId": {
-                "description": "The id of the request: the client's X-Request-Id, or a new one.",
-                "schema": {
-                    "type": "string"
-                }
             },
-            "Version": {
-                "description": "Version of the panel.",
-                "schema": {
-                    "type": "string"
-                }
+            "StoreUserRequest": {
+                "type": "object",
+                "description": "POST /users: the account of the create wizard (E11 spec §7.3). Role,\nowner and login_disabled are an administrator's choices; for a reseller\nthe new user is always its own customer.",
+                "properties": {
+                    "username": {
+                        "type": "string",
+                        "description": "The login name: 2 to 30 of a-z, 0-9, dot, dash and underscore.",
+                        "pattern": "^[a-z0-9][-.a-z0-9_]*[a-z0-9]$",
+                        "minLength": 2,
+                        "maxLength": 30
+                    },
+                    "password": {
+                        "type": "string",
+                        "description": "At least 8 characters with a lower-case and an upper-case letter and a digit.",
+                        "pattern": "\\d",
+                        "minLength": 8,
+                        "maxLength": 256
+                    },
+                    "email": {
+                        "type": "string",
+                        "format": "email",
+                        "maxLength": 254
+                    },
+                    "name": {
+                        "type": "string",
+                        "description": "The full name.",
+                        "maxLength": 100
+                    },
+                    "package": {
+                        "type": "string",
+                        "description": "A package the caller may assign (see GET /packages).",
+                        "pattern": "^[[:alnum:]][-.\\w]*$",
+                        "maxLength": 100
+                    },
+                    "language": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "A language of the server; the server language when left out.",
+                        "pattern": "^[a-z]{2,3}(-[a-z]{2})?$",
+                        "maxLength": 10
+                    },
+                    "role": {
+                        "anyOf": [
+                            {
+                                "description": "Administrators only.",
+                                "$ref": "#/components/schemas/ApiRole"
+                            },
+                            {
+                                "type": "null"
+                            }
+                        ]
+                    },
+                    "owner": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "Administrators only: the administrator or a reseller that owns a new user.",
+                        "pattern": "^[[:alnum:]][-.\\w]*$",
+                        "maxLength": 32
+                    },
+                    "login_disabled": {
+                        "type": [
+                            "boolean",
+                            "null"
+                        ],
+                        "description": "Administrators only."
+                    }
+                },
+                "required": [
+                    "username",
+                    "password",
+                    "email",
+                    "name",
+                    "package"
+                ],
+                "title": "StoreUserRequest"
             },
-            "RetryAfter": {
-                "description": "Seconds to wait before the next request.",
-                "schema": {
-                    "type": "integer"
-                }
+            "UpdateUserRequest": {
+                "type": "object",
+                "description": "PATCH /users/{user}: the General tab without the password (PUT\n/users/{user}/password); fields left out keep their value.",
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "description": "The full name.",
+                        "maxLength": 100
+                    },
+                    "email": {
+                        "type": "string",
+                        "format": "email",
+                        "maxLength": 254
+                    },
+                    "language": {
+                        "type": "string",
+                        "pattern": "^[a-z]{2,3}(-[a-z]{2})?$",
+                        "maxLength": 10
+                    }
+                },
+                "title": "UpdateUserRequest"
             },
-            "Location": {
-                "description": "URL of the resource (201) or of the resource to poll (202).",
-                "schema": {
-                    "type": "string"
-                }
+            "User": {
+                "type": "object",
+                "properties": {
+                    "username": {
+                        "type": "string",
+                        "description": "the login name"
+                    },
+                    "name": {
+                        "type": "string",
+                        "description": "the full name"
+                    },
+                    "email": {
+                        "type": "string",
+                        "description": "the contact e-mail"
+                    },
+                    "role": {
+                        "$ref": "#/components/schemas/ApiRole"
+                    },
+                    "owner": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "the reseller or administrator that owns the user; null for administrators"
+                    },
+                    "package": {
+                        "type": "string"
+                    },
+                    "language": {
+                        "type": "string"
+                    },
+                    "shell": {
+                        "type": "string",
+                        "description": "the login shell (nologin without SSH)"
+                    },
+                    "suspended": {
+                        "type": "boolean"
+                    },
+                    "login_disabled": {
+                        "type": "boolean"
+                    },
+                    "two_factor": {
+                        "type": "boolean"
+                    },
+                    "nameservers": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "limits": {
+                        "type": "object",
+                        "properties": {
+                            "web_domains": {
+                                "type": [
+                                    "integer",
+                                    "null"
+                                ]
+                            },
+                            "dns_domains": {
+                                "type": [
+                                    "integer",
+                                    "null"
+                                ]
+                            },
+                            "mail_domains": {
+                                "type": [
+                                    "integer",
+                                    "null"
+                                ]
+                            },
+                            "mail_accounts": {
+                                "type": [
+                                    "integer",
+                                    "null"
+                                ]
+                            },
+                            "databases": {
+                                "type": [
+                                    "integer",
+                                    "null"
+                                ]
+                            },
+                            "cron_jobs": {
+                                "type": [
+                                    "integer",
+                                    "null"
+                                ]
+                            },
+                            "disk_mb": {
+                                "type": [
+                                    "integer",
+                                    "null"
+                                ]
+                            },
+                            "bandwidth_mb": {
+                                "type": [
+                                    "integer",
+                                    "null"
+                                ]
+                            }
+                        },
+                        "required": [
+                            "web_domains",
+                            "dns_domains",
+                            "mail_domains",
+                            "mail_accounts",
+                            "databases",
+                            "cron_jobs",
+                            "disk_mb",
+                            "bandwidth_mb"
+                        ]
+                    },
+                    "usage": {
+                        "type": "object",
+                        "properties": {
+                            "web_domains": {
+                                "type": "integer"
+                            },
+                            "dns_domains": {
+                                "type": "integer"
+                            },
+                            "mail_domains": {
+                                "type": "integer"
+                            },
+                            "mail_accounts": {
+                                "type": "integer"
+                            },
+                            "databases": {
+                                "type": "integer"
+                            },
+                            "cron_jobs": {
+                                "type": "integer"
+                            },
+                            "disk_mb": {
+                                "type": "integer"
+                            },
+                            "bandwidth_mb": {
+                                "type": "integer"
+                            }
+                        },
+                        "required": [
+                            "web_domains",
+                            "dns_domains",
+                            "mail_domains",
+                            "mail_accounts",
+                            "databases",
+                            "cron_jobs",
+                            "disk_mb",
+                            "bandwidth_mb"
+                        ]
+                    },
+                    "created_at": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "creation time in the server's time zone, YYYY-MM-DDTHH:MM:SS"
+                    }
+                },
+                "required": [
+                    "username",
+                    "name",
+                    "email",
+                    "role",
+                    "owner",
+                    "package",
+                    "language",
+                    "shell",
+                    "suspended",
+                    "login_disabled",
+                    "two_factor",
+                    "nameservers",
+                    "limits",
+                    "usage",
+                    "created_at"
+                ],
+                "title": "User"
+            },
+            "UserPackageRequest": {
+                "type": "object",
+                "description": "PUT /users/{user}/package",
+                "properties": {
+                    "package": {
+                        "type": "string",
+                        "description": "A package the caller may assign (see GET /packages).",
+                        "pattern": "^[[:alnum:]][-.\\w]*$",
+                        "maxLength": 100
+                    }
+                },
+                "required": [
+                    "package"
+                ],
+                "title": "UserPackageRequest"
+            },
+            "UserPasswordRequest": {
+                "type": "object",
+                "description": "PUT /users/{user}/password",
+                "properties": {
+                    "password": {
+                        "type": "string",
+                        "description": "At least 8 characters with a lower-case and an upper-case letter and a digit.",
+                        "pattern": "\\d",
+                        "minLength": 8,
+                        "maxLength": 256
+                    }
+                },
+                "required": [
+                    "password"
+                ],
+                "title": "UserPasswordRequest"
             }
         },
         "responses": {
@@ -467,6 +1541,40 @@
                             "$ref": "#/components/schemas/Error"
                         }
                     }
+                }
+            }
+        },
+        "securitySchemes": {
+            "accessKey": {
+                "type": "http",
+                "scheme": "bearer",
+                "bearerFormat": "ACCESS_KEY_ID:SECRET_ACCESS_KEY",
+                "description": "An access key of the panel and its secret, joined by a colon."
+            }
+        },
+        "headers": {
+            "RequestId": {
+                "description": "The id of the request: the client's X-Request-Id, or a new one.",
+                "schema": {
+                    "type": "string"
+                }
+            },
+            "Version": {
+                "description": "Version of the panel.",
+                "schema": {
+                    "type": "string"
+                }
+            },
+            "RetryAfter": {
+                "description": "Seconds to wait before the next request.",
+                "schema": {
+                    "type": "integer"
+                }
+            },
+            "Location": {
+                "description": "URL of the resource (201) or of the resource to poll (202).",
+                "schema": {
+                    "type": "string"
                 }
             }
         }

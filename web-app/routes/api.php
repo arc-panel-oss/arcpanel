@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\V2\MeController;
+use App\Http\Controllers\Api\V2\UserController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -18,3 +19,18 @@ Route::pattern('package', '[[:alnum:]][-.\w]{0,99}');
 Route::pattern('alias', '[^/\s]{1,253}');
 
 Route::get('/me', MeController::class)->name('me');
+
+// Users (spec §6.1); {user} outside the principal's tree answers 404
+Route::get('/users', [UserController::class, 'index'])->name('users.index');
+Route::post('/users', [UserController::class, 'store'])->middleware('not-readonly')->name('users.store');
+Route::middleware('effective-user')->group(function () {
+    Route::get('/users/{user}', [UserController::class, 'show'])->name('users.show');
+    Route::middleware('not-readonly')->group(function () {
+        Route::patch('/users/{user}', [UserController::class, 'update'])->name('users.update');
+        Route::put('/users/{user}/package', [UserController::class, 'package'])->name('users.package');
+        Route::put('/users/{user}/password', [UserController::class, 'password'])->name('users.password');
+        Route::post('/users/{user}/suspend', [UserController::class, 'suspend'])->name('users.suspend');
+        Route::post('/users/{user}/unsuspend', [UserController::class, 'unsuspend'])->name('users.unsuspend');
+        Route::delete('/users/{user}', [UserController::class, 'destroy'])->name('users.destroy');
+    });
+});

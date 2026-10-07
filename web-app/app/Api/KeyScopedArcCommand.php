@@ -30,4 +30,10 @@ final class KeyScopedArcCommand implements ArcCommand
 
         return $this->inner->run($command, $args, $options);
     }
+
+    /** The unrestricted ArcCommand underneath. */
+    public function inner(): ArcCommand
+    {
+        return $this->inner;
+    }
 }

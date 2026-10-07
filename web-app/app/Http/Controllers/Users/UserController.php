@@ -18,7 +18,7 @@ use App\Services\Mail\AccountMailer;
 use App\Services\Node\NodeApps;
 use App\Services\Node\NodeAppService;
 use App\Services\Ports\PortService;
-use App\Services\Users\UserPlanner;
+use App\Services\Users\UserActions;
 use App\Services\Users\UserRecord;
 use App\Services\Users\UserService;
 use App\Services\WebDomains\Step;
@@ -27,7 +27,6 @@ use App\Tenancy\TenancyDirectory;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
 /**
@@ -107,7 +106,7 @@ final class UserController extends Controller
         ]);
     }
 
-    public function create(Principal $principal, UserPolicy $policy): View
+    public function create(Principal $principal, UserPolicy $policy, UserActions $actions): View
     {
         abort_unless($policy->create($principal), 403);
         $role = $principal->actingRole();
@@ -121,7 +120,7 @@ final class UserController extends Controller
             'defaultPackage' => array_key_exists('default', $packages) ? 'default' : (string) array_key_first($packages),
             'languages' => $languages,
             'defaultLanguage' => $this->config->get('LANGUAGE', 'en') ?: 'en',
-            'owners' => $role === Role::Admin ? $this->ownerOptions() : [],
+            'owners' => $role === Role::Admin ? $actions->ownerOptions() : [],
             'rootUser' => $this->config->get('ROOT_USER'),
             'hasDns' => $this->config->get('DNS_SYSTEM') !== '',
             'hasMail' => $this->config->get('MAIL_SYSTEM') !== '',
@@ -131,21 +130,13 @@ final class UserController extends Controller
         ]);
     }
 
-    public function store(StoreUserRequest $request, Principal $principal, UserPolicy $policy, UserPlanner $planner, WebDomainService $web, AccountMailer $mailer): RedirectResponse
+    public function store(StoreUserRequest $request, Principal $principal, UserPolicy $policy, UserActions $actions, WebDomainService $web, AccountMailer $mailer): RedirectResponse
     {
         abort_unless($policy->create($principal), 403);
         $role = $principal->actingRole();
-        $input = $request->account();
-        $rootUser = $this->config->get('ROOT_USER');
+        ['input' => $input, 'steps' => $steps, 'counters' => $counters] = $actions->planCreate($principal, $request->account());
 
-        if ($role !== Role::Admin) {
-            $input['role'] = Role::User->value;
-            $input['owner'] = '';
-            $input['login_disabled'] = false;
-        }
-        $this->validateChoices($input, $role, $principal);
-
-        $result = $this->users->apply($planner->create($role, $principal->effectiveUser(), $rootUser, $input));
+        $result = $this->users->apply($steps);
         if (! $result->ok()) {
             if ($result->applied === []) {
                 return back()->withInput($request->except(['password', 'db_password']))
@@ -154,7 +145,7 @@ final class UserController extends Controller
 
             return $this->partial($input['username'], $result->failed, $result->error);
         }
-        $this->users->updateCounters($role === Role::Reseller ? $principal->effectiveUser() : $input['owner']);
+        $this->users->updateCounters($counters);
 
         // Optional first web domain and database, as the owner
         $user = $input['username'];
@@ -201,52 +192,7 @@ final class UserController extends Controller
 
         return response()->json($key === null
             ? ['ok' => true]
-            : ['ok' => false, 'key' => $key, 'message' => self::quotaMessage($key)]);
-    }
-
-    public static function quotaMessage(string $key): string
-    {
-        return sprintf(__('The plan has no room for %s.'), $key);
-    }
-
-    /**
-     * Package, role and owner must be ones the principal may choose; a
-     * reseller's plan must have room for the package.
-     *
-     * @param  array{username: string, package: string, role: string, owner: string}  $input
-     */
-    private function validateChoices(array $input, Role $role, Principal $principal): void
-    {
-        $errors = [];
-        if (array_key_exists($input['username'], $this->users->all())) {
-            $errors['username'] = __('This username is already taken.');
-        }
-        $packages = $this->users->assignablePackages($role, $principal->effectiveUser());
-        if (! array_key_exists($input['package'], $packages)) {
-            $errors['package'] = __('Please select a valid package.');
-        }
-        if ($role === Role::Admin && $input['owner'] !== '' && ! array_key_exists($input['owner'], $this->ownerOptions())) {
-            $errors['owner'] = __('Please select a valid owner.');
-        }
-        if ($input['role'] === Role::Reseller->value && ! isset($errors['package']) && self::sellsNoUsers($this->users->packageTenancy($input['package']))) {
-            $errors['package'] = __('A reseller needs a package that allows customers (USERS above 0).');
-        }
-        $reseller = $role === Role::Reseller ? $principal->effectiveUser() : ($input['role'] === Role::User->value ? $input['owner'] : '');
-        if (! isset($errors['package']) && $reseller !== '' && $this->tenancy->isReseller($reseller)
-            && ($key = $this->users->quotaProblem($reseller, $input['package'])) !== null) {
-            $errors['package'] = self::quotaMessage($key);
-        }
-        if ($errors !== []) {
-            throw ValidationException::withMessages($errors);
-        }
-    }
-
-    /** @param  array<string, string>  $tenancy */
-    public static function sellsNoUsers(array $tenancy): bool
-    {
-        $users = $tenancy['USERS'] ?? '0';
-
-        return $users !== 'unlimited' && (int) $users < 1;
+            : ['ok' => false, 'key' => $key, 'message' => UserActions::quotaMessage($key)]);
     }
 
     /** The account exists, a later step failed: go to it and name the step. */
@@ -267,18 +213,6 @@ final class UserController extends Controller
         $options = [];
         foreach (array_keys($packages) as $name) {
             $options[$name] = UserService::packageLabel($name, $reseller);
-        }
-
-        return $options;
-    }
-
-    /** @return array<string, string> ROOT_USER and every reseller */
-    private function ownerOptions(): array
-    {
-        $root = $this->config->get('ROOT_USER');
-        $options = [$root => $root.' ('.__('Administrator').')'];
-        foreach ($this->tenancy->resellers() as $reseller) {
-            $options[$reseller] = $reseller.' ('.__('Reseller').')';
         }
 
         return $options;
