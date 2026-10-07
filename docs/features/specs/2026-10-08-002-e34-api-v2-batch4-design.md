@@ -197,3 +197,11 @@ The work log of each milestone is appended here.
 - Extended `v2-apps` with node-app commands; reads and writes merged into `v2-read` / `v2-write`.
 - Pest: `ApiV2NodeAppsTest`, `NodeAppActionsTest`; `NodeAppsTest` unchanged.
 - Regenerated `docs/api/v2/openapi.json` (131 operations).
+
+### M3 (2026-10-08)
+
+- Added `/api/v2/docker-catalog` and `/api/v2/users/{user}/docker-apps` endpoints with D42–D44; `Api\V2\DockerCatalogController` and `Api\V2\DockerAppController`.
+- Extracted `DockerAppActions` and `DockerAppLogCursor`; session `DockerAppController` reuses them (D47).
+- Extended `v2-apps` with Docker catalog and app commands; reads and writes merged into `v2-read` / `v2-write`.
+- Pest: `ApiV2DockerAppsTest`, `DockerAppActionsTest`, `DockerAppResourceTest`; `DockerAppsTest` unchanged.
+- Regenerated `docs/api/v2/openapi.json` (146 operations).

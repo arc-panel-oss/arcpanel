@@ -4,6 +4,8 @@ use App\Http\Controllers\Api\V2\BackupController;
 use App\Http\Controllers\Api\V2\CronController;
 use App\Http\Controllers\Api\V2\DatabaseController;
 use App\Http\Controllers\Api\V2\DnsController;
+use App\Http\Controllers\Api\V2\DockerAppController;
+use App\Http\Controllers\Api\V2\DockerCatalogController;
 use App\Http\Controllers\Api\V2\MailAccountController;
 use App\Http\Controllers\Api\V2\MailDomainController;
 use App\Http\Controllers\Api\V2\MeController;
@@ -35,6 +37,10 @@ Route::pattern('alias', '[^/\s]{1,253}');
 Route::pattern('version', '\d{1,3}\.\d{1,3}\.\d{1,3}');
 
 Route::get('/me', MeController::class)->name('me');
+
+// Docker catalog (E34 batch 4 spec §4.3, D44)
+Route::get('/docker-catalog', [DockerCatalogController::class, 'index'])->defaults('api_area', 'apps')->name('docker-catalog.index');
+Route::get('/docker-catalog/{slug}', [DockerCatalogController::class, 'show'])->defaults('api_area', 'apps')->name('docker-catalog.show');
 
 Route::get('/tasks/{id}', [TaskController::class, 'show'])->where('id', '.+')->defaults('api_area', 'backup')->name('tasks.show');
 Route::get('/system/tasks', [TaskController::class, 'system'])->defaults('api_area', 'backup')->name('system.tasks.index');
@@ -192,6 +198,23 @@ Route::middleware('effective-user')->group(function () {
         Route::put('/{domain}/env', [NodeAppController::class, 'setEnv'])->name('env.update');
     });
 
+    // Docker apps (E34 batch 4 spec §4.3)
+    Route::get('/users/{user}/docker-apps', [DockerAppController::class, 'index'])->name('docker-apps.index');
+    Route::get('/users/{user}/docker-apps/{name}', [DockerAppController::class, 'show'])->name('docker-apps.show');
+    Route::get('/users/{user}/docker-apps/{name}/env', [DockerAppController::class, 'env'])->name('docker-apps.env.show');
+    Route::get('/users/{user}/docker-apps/{name}/logs', [DockerAppController::class, 'logs'])->name('docker-apps.logs');
+    Route::middleware('not-readonly')->prefix('/users/{user}/docker-apps')->name('docker-apps.')->group(function () {
+        Route::post('/', [DockerAppController::class, 'store'])->name('store');
+        Route::delete('/{name}', [DockerAppController::class, 'destroy'])->name('destroy');
+        Route::post('/{name}/tasks', [DockerAppController::class, 'startTask'])->name('tasks');
+        Route::post('/{name}/start', [DockerAppController::class, 'start'])->name('start');
+        Route::post('/{name}/stop', [DockerAppController::class, 'stop'])->name('stop');
+        Route::post('/{name}/restart', [DockerAppController::class, 'restart'])->name('restart');
+        Route::put('/{name}/env', [DockerAppController::class, 'setEnv'])->name('env.update');
+        Route::put('/{name}/limits', [DockerAppController::class, 'limits'])->name('limits');
+        Route::put('/{name}/domain', [DockerAppController::class, 'domain'])->name('domain');
+    });
+
     // Cron jobs (E34 batch 2 spec §6.5)
     Route::get('/users/{user}/cron-jobs', [CronController::class, 'index'])->name('cron-jobs.index');
     Route::get('/users/{user}/cron-jobs/{id}', [CronController::class, 'show'])->where('id', '[0-9]{1,9}')->name('cron-jobs.show');
@@ -231,6 +254,7 @@ foreach (Route::getRoutes() as $route) {
         str_contains($uri, '/cron-jobs'), str_contains($uri, '/cron-reports') => 'cron',
         str_contains($uri, '/backups'), str_contains($uri, '/snapshots'), str_contains($uri, '/backup-exclusions') => 'backup',
         str_contains($uri, '/tasks') => 'backup',
+        str_contains($uri, '/docker-catalog') || str_contains($uri, '/docker-apps') => 'apps',
         str_contains($uri, '/node') => 'apps',
         str_starts_with($uri, 'api/v2/users'), str_starts_with($uri, 'api/v2/packages') => 'accounts',
         default => null,

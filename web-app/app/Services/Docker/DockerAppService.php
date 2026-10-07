@@ -5,6 +5,9 @@ namespace App\Services\Docker;
 use App\Arc\ArcCommand;
 use App\Arc\Secret;
 use App\Services\Node\NodeAppService;
+use App\Services\Support\PlanRunner;
+use App\Services\WebDomains\ApplyResult;
+use App\Services\WebDomains\Step;
 use App\Services\WebDomains\WebDomainService;
 
 /**
@@ -41,6 +44,7 @@ final class DockerAppService
         private readonly ArcCommand $arc,
         private readonly WebDomainService $domains,
         private readonly NodeAppService $nodeApps,
+        private readonly PlanRunner $plans,
     ) {}
 
     public function apps(string $user): DockerApps
@@ -177,6 +181,59 @@ final class DockerAppService
         sort($free);
 
         return $free;
+    }
+
+    /**
+     * @param  array<string, string>  $vars
+     */
+    public function planInstall(string $user, string $slug, string $name, string $domain, array $vars, string $version): Step
+    {
+        return new Step(__('Install the Docker app'), 'v-add-docker-app', [
+            $user, $slug, $name, $domain, self::varsFile($vars), $version,
+        ]);
+    }
+
+    public function planDelete(string $user, string $name, bool $keepData): Step
+    {
+        return new Step(__('Delete the Docker app'), 'v-delete-docker-app',
+            $keepData ? [$user, $name, 'keep-data'] : [$user, $name]);
+    }
+
+    public function planAction(string $user, string $name, string $action): Step
+    {
+        return new Step(__('Run :action on the Docker app', ['action' => $action]), 'v-'.$action.'-docker-app', [$user, $name]);
+    }
+
+    /** @param  array<string, string>  $vars */
+    public function planSaveEnv(string $user, string $name, array $vars): Step
+    {
+        return new Step(__('Update the environment'), 'v-change-docker-app-env', [$user, $name, self::varsFile($vars)]);
+    }
+
+    public function planLimits(string $user, string $name, string $cpus, int $memory): Step
+    {
+        return new Step(__('Change the resource limits'), 'v-change-docker-app-limits', [$user, $name, $cpus, (string) $memory]);
+    }
+
+    public function planDomain(string $user, string $name, string $domain): Step
+    {
+        return new Step(__('Change the domain'), 'v-change-docker-app-domain', [$user, $name, $domain]);
+    }
+
+    public function planStartTask(string $user, string $name, string $action, string $version = ''): Step
+    {
+        $args = [$user, $name, $action];
+        if ($action === 'update' && $version !== '') {
+            $args[] = $version;
+        }
+
+        return new Step(__('Start the Docker app task'), 'v-start-docker-app-task', $args);
+    }
+
+    /** @param  list<Step>  $steps */
+    public function apply(array $steps): ApplyResult
+    {
+        return $this->plans->apply($steps);
     }
 
     /** @param  array<string, string>  $vars */

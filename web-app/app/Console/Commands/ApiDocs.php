@@ -32,10 +32,11 @@ final class ApiDocs extends Command
         'checkNodePackages',
         'installNodeApp',
         'buildNodeApp',
+        'startDockerAppTask',
     ];
 
     /** List operations whose `meta` is not paginated `ListMeta` (E34 batch 3 §5, batch 4 §4.2). */
-    private const LIST_WITHOUT_PAGINATION = ['listSystemTasks', 'listUserTasks', 'listNodeApps'];
+    private const LIST_WITHOUT_PAGINATION = ['listSystemTasks', 'listUserTasks', 'listNodeApps', 'listDockerApps', 'listDockerCatalog'];
 
     private const ERROR_STATUSES = [
         '401' => ['Unauthenticated', 'The access key is missing, unknown or wrong (`E_UNAUTHENTICATED`).'],
@@ -333,6 +334,7 @@ final class ApiDocs extends Command
             $responses['202']['headers']['Link'] = ['$ref' => '#/components/headers/Link'];
         }
         self::tailorNodeAppOpenApi($operationId, $operation, $responses);
+        self::tailorDockerAppOpenApi($operationId, $operation, $responses);
         uksort($responses, fn ($a, $b) => (int) $a <=> (int) $b);
         $operation['responses'] = $responses;
 
@@ -444,8 +446,18 @@ final class ApiDocs extends Command
 
             return $schema;
         }
+        if ($operationId === 'listDockerApps') {
+            $schema['properties']['meta'] = ['$ref' => '#/components/schemas/DockerAppListMeta'];
+
+            return $schema;
+        }
         if ($operationId === 'getNodeAppLogs') {
             $schema['properties']['meta'] = ['$ref' => '#/components/schemas/NodeAppLogMeta'];
+
+            return $schema;
+        }
+        if ($operationId === 'getDockerAppLogs') {
+            $schema['properties']['meta'] = ['$ref' => '#/components/schemas/DockerAppLogMeta'];
 
             return $schema;
         }
@@ -464,6 +476,74 @@ final class ApiDocs extends Command
         }
 
         return $schema;
+    }
+
+    /**
+     * @param  array<string, mixed>  $operation
+     * @param  array<string, mixed>  $responses
+     */
+    /**
+     * @param  array<string, mixed>  $operation
+     * @param  array<string, mixed>  $responses
+     */
+    private static function tailorDockerAppOpenApi(string $operationId, array &$operation, array &$responses): void
+    {
+        if ($operationId === 'getDockerAppLogs') {
+            $operation['parameters'] = [...($operation['parameters'] ?? []), ...self::dockerAppLogParameters()];
+            if (isset($responses['200']['content']['application/json']['schema'])) {
+                $responses['200']['description'] = 'Log lines and a cursor for the next snapshot (D43).';
+            }
+        }
+        if ($operationId === 'getDockerAppEnv' && isset($responses['200']['content']['application/json']['schema'])) {
+            $responses['200']['content']['application/json']['schema'] = self::dockerAppEnvBodySchema();
+            $responses['200']['description'] = 'Environment variables with secrets masked (D42).';
+        }
+        if ($operationId === 'setDockerAppEnv' && isset($responses['200'])) {
+            $env = self::dockerAppEnvBodySchema();
+            $dryRun = ['$ref' => '#/components/schemas/DryRun'];
+            $responses['200']['content']['application/json']['schema'] = ['oneOf' => [$env, $dryRun]];
+            $responses['200']['description'] = 'The saved environment (D42); with `dry_run`, the planned steps.';
+        }
+    }
+
+    /** @return array<string, mixed> */
+    private static function dockerAppEnvBodySchema(): array
+    {
+        return [
+            'type' => 'object',
+            'properties' => [
+                'data' => [
+                    'type' => 'array',
+                    'items' => ['$ref' => '#/components/schemas/DockerAppEnvEntry'],
+                ],
+            ],
+            'required' => ['data'],
+        ];
+    }
+
+    /** @return list<array<string, mixed>> */
+    private static function dockerAppLogParameters(): array
+    {
+        return [
+            [
+                'name' => 'lines',
+                'in' => 'query',
+                'description' => 'Number of lines to return (1–1000). Defaults to 200.',
+                'schema' => ['type' => 'integer', 'minimum' => 1, 'maximum' => 1000, 'default' => 200],
+            ],
+            [
+                'name' => 'after',
+                'in' => 'query',
+                'description' => 'Opaque cursor from `meta.next` of a previous snapshot; returns lines that appeared since.',
+                'schema' => ['type' => 'string', 'maxLength' => 128],
+            ],
+            [
+                'name' => 'service',
+                'in' => 'query',
+                'description' => 'Compose service to read (`all` for every service).',
+                'schema' => ['type' => 'string', 'default' => 'all'],
+            ],
+        ];
     }
 
     /**
@@ -664,6 +744,58 @@ final class ApiDocs extends Command
                     ],
                 ],
                 'required' => ['name', 'set'],
+            ],
+            'DockerAppListMeta' => [
+                'type' => 'object',
+                'description' => 'Docker engine state and DOCKER_APPS limits; the app list is not paginated (E34 batch 4 §4.3).',
+                'properties' => [
+                    'engine' => ['type' => 'boolean', 'description' => 'Whether the Docker engine is installed on the server.'],
+                    'totals' => [
+                        'type' => 'object',
+                        'properties' => [
+                            'running' => ['type' => 'integer', 'minimum' => 0],
+                            'stopped' => ['type' => 'integer', 'minimum' => 0],
+                            'failed' => ['type' => 'integer', 'minimum' => 0],
+                            'busy' => ['type' => 'integer', 'minimum' => 0],
+                            'suspended' => ['type' => 'integer', 'minimum' => 0],
+                        ],
+                        'required' => ['running', 'stopped', 'failed', 'busy', 'suspended'],
+                    ],
+                    'limit' => ['type' => 'string', 'description' => 'Maximum apps from DOCKER_APPS (`unlimited` or a number).'],
+                    'room' => ['type' => 'boolean', 'description' => 'Whether another app fits under the limit.'],
+                ],
+                'required' => ['engine', 'totals', 'limit', 'room'],
+            ],
+            'DockerAppLogMeta' => [
+                'type' => 'object',
+                'description' => 'Cursor metadata for Docker log snapshots (D43).',
+                'properties' => [
+                    'next' => [
+                        'description' => 'Cursor for the next snapshot; pass as `after`. Null when there is nothing newer.',
+                        'type' => ['string', 'null'],
+                    ],
+                ],
+                'required' => ['next'],
+            ],
+            'DockerAppEnvEntry' => [
+                'type' => 'object',
+                'description' => 'One Docker app environment variable (D42).',
+                'properties' => [
+                    'name' => ['type' => 'string'],
+                    'label' => ['type' => 'string'],
+                    'type' => ['type' => 'string'],
+                    'options' => ['type' => 'array', 'items' => ['type' => 'string']],
+                    'secret' => ['type' => 'boolean'],
+                    'immutable' => ['type' => 'boolean'],
+                    'required' => ['type' => 'boolean'],
+                    'pattern' => ['type' => 'string'],
+                    'set' => ['type' => 'boolean'],
+                    'value' => [
+                        'type' => 'string',
+                        'description' => 'Omitted for secrets and generated defaults.',
+                    ],
+                ],
+                'required' => ['name', 'label', 'type', 'secret', 'immutable', 'required', 'set'],
             ],
             'PlanStep' => $step,
             'DryRun' => [

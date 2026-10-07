@@ -219,9 +219,16 @@ it('documents pagination and error.existing', function () {
             if (in_array($id, ['listSystemTasks', 'listUserTasks'], true)) {
                 continue;
             }
-            if ($id === 'listNodeApps') {
+            if (in_array($id, ['listNodeApps', 'listDockerApps'], true)) {
+                $ref = $id === 'listNodeApps' ? '#/components/schemas/NodeAppListMeta' : '#/components/schemas/DockerAppListMeta';
                 $schema = $operation['responses']['200']['content']['application/json']['schema']['properties']['meta'] ?? null;
-                expect($schema)->toBe(['$ref' => '#/components/schemas/NodeAppListMeta']);
+                expect($schema)->toBe(['$ref' => $ref]);
+                $names = array_column($operation['parameters'] ?? [], 'name');
+                expect($names)->not->toContain('limit')->not->toContain('offset');
+
+                continue;
+            }
+            if ($id === 'listDockerCatalog') {
                 $names = array_column($operation['parameters'] ?? [], 'name');
                 expect($names)->not->toContain('limit')->not->toContain('offset');
 
@@ -270,6 +277,7 @@ it('declares an area on the batch 1 routes', function () {
             str_contains($uri, '/cron-jobs'), str_contains($uri, '/cron-reports') => 'cron',
             str_contains($uri, '/backups'), str_contains($uri, '/snapshots'), str_contains($uri, '/backup-exclusions') => 'backup',
             str_contains($uri, '/tasks') => 'backup',
+            str_contains($uri, '/docker-catalog') || str_contains($uri, '/docker-apps') => 'apps',
             str_contains($uri, '/node') => 'apps',
             str_starts_with($uri, 'api/v2/users'), str_starts_with($uri, 'api/v2/packages') => 'accounts',
             default => null,

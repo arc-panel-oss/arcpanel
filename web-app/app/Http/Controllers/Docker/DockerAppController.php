@@ -5,12 +5,12 @@ namespace App\Http\Controllers\Docker;
 use App\Auth\Principal;
 use App\Http\Controllers\Controller;
 use App\Policies\DockerPolicy;
+use App\Services\Docker\DockerAppActions;
 use App\Services\Docker\DockerAppService;
 use App\Services\Docker\DockerCatalog;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
-use Illuminate\Validation\ValidationException;
 
 /**
  * JSON routes of the docker-apps island (E4 spec §6.3). Routes with {user}
@@ -22,6 +22,7 @@ final class DockerAppController extends Controller
     public function __construct(
         private readonly DockerAppService $apps,
         private readonly DockerCatalog $catalog,
+        private readonly DockerAppActions $actions,
     ) {}
 
     /** The store: catalog apps the principal may install. */
@@ -85,7 +86,7 @@ final class DockerAppController extends Controller
         $entry = $this->catalog->find((string) $data['slug']);
         abort_if($entry === null, 404);
         abort_if($entry['adminOnly'] && ! $policy->installAdminOnly($principal), 403);
-        $vars = $this->checkedVars((array) ($data['vars'] ?? []), true);
+        $vars = $this->actions->checkedVars((array) ($data['vars'] ?? []), true);
         $name = (string) $data['name'];
         $id = $this->apps->install($user, (string) $data['slug'], $name, strtolower((string) ($data['domain'] ?? '')), $vars,
             (string) ($data['version'] ?? ''));
@@ -121,7 +122,7 @@ final class DockerAppController extends Controller
     {
         abort_unless($policy->manageApps($principal, $user), 403);
         $data = $request->validate(['vars' => ['present', 'array', 'max:100']]);
-        $this->apps->saveEnv($user, $name, $this->checkedVars((array) $data['vars'], false));
+        $this->apps->saveEnv($user, $name, $this->actions->checkedVars((array) $data['vars'], false));
 
         return response()->json(['variables' => $this->apps->env($user, $name)]);
     }
@@ -180,47 +181,10 @@ final class DockerAppController extends Controller
         return response()->json(['id' => $id, 'task' => $this->apps->task($user, $name)->toArray()], 202);
     }
 
-    /**
-     * Variable values of a request: names and values the commands accept,
-     * as field errors otherwise (the command checks types again).
-     *
-     * @param  array<mixed>  $vars
-     * @return array<string, string>
-     */
-    private function checkedVars(array $vars, bool $dropEmpty): array
-    {
-        $checked = [];
-        $errors = [];
-        foreach ($vars as $key => $value) {
-            $value = $value === null ? '' : $value;
-            if (! is_string($key) || preg_match(DockerAppService::VARIABLE, $key) !== 1 || str_starts_with($key, 'ARC_')) {
-                $errors['vars'] = __('Unknown variable.');
-
-                continue;
-            }
-            if (! is_scalar($value) || strlen((string) $value) > 1024 || preg_match(DockerAppService::FORBIDDEN_VALUE, (string) $value) === 1) {
-                $errors['vars.'.$key] = __('At most 1024 characters, without quotes, $, ` or \\.');
-
-                continue;
-            }
-            if ($dropEmpty && (string) $value === '') {
-                continue;
-            }
-            $checked[$key] = (string) $value;
-        }
-        if ($errors !== []) {
-            throw ValidationException::withMessages($errors);
-        }
-
-        return $checked;
-    }
-
     /** @return list<array<string, mixed>> */
     private function visibleCatalog(Principal $principal, DockerPolicy $policy): array
     {
-        $admin = $policy->installAdminOnly($principal);
-
-        return array_values(array_filter($this->catalog->apps(), fn (array $app) => $admin || ! $app['adminOnly']));
+        return $this->actions->visibleCatalog($this->catalog->apps(), $policy->installAdminOnly($principal));
     }
 
     /** @return array<string, mixed> */
