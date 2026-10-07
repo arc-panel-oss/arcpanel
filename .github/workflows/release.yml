@@ -6,7 +6,7 @@ name: Release
 #   Version 1.0.0        -> tag v1.0.0        -> stable repository  https://apt.arcpanel.top/
 #   Version 1.0.1~beta1  -> tag v1.0.1-beta1  -> beta repository    https://apt.arcpanel.top/beta/
 #
-# Required repository secrets (see docs/docs/server-administration/release-signing.md):
+# Required secrets of the release environment (see docs/operations/release-signing.md):
 #   APT_SIGNING_KEY         ASCII-armored private signing subkey
 #   APT_SIGNING_KEY_ID      fingerprint of that subkey
 #   APT_DEPLOY_SSH_KEY      private SSH key allowed to write to the APT host
