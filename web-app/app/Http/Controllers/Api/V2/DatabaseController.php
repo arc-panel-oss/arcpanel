@@ -18,6 +18,8 @@ use App\Services\Databases\DatabaseService;
 use App\Services\Databases\DbAdminLinks;
 use App\Services\Mail\HostingCredentialsMailer;
 use App\Services\WebDomains\Step;
+use Dedoc\Scramble\Attributes\Header;
+use Dedoc\Scramble\Attributes\Response as ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -193,6 +195,48 @@ final class DatabaseController extends Controller
     public function unsuspend(string $user, string $database, Principal $principal, DatabasePolicy $policy): DatabaseResource|JsonResponse
     {
         return $this->setSuspended($user, $database, false, $principal, $policy);
+    }
+
+    /**
+     * Export a database dump
+     *
+     * Runs `v-dump-database` and serves the `.sql.gz` through nginx (D35).
+     * The dump file is removed about an hour later, as on the Databases page.
+     *
+     * @operationId dumpDatabase
+     */
+    #[ApiResponse(
+        status: 200,
+        description: 'The gzip dump: an empty body with `X-Accel-Redirect` so nginx serves the bytes (D35).',
+        mediaType: 'application/gzip',
+    )]
+    #[Header('Content-Disposition', description: '`attachment; filename="<dump>.sql.gz"`', status: 200)]
+    #[Header('X-Accel-Redirect', description: 'Internal nginx path under `/backup/` (D35).', status: 200)]
+    public function dump(string $user, string $database, Principal $principal, DatabasePolicy $policy): Response|JsonResponse
+    {
+        $this->assertOwner($user, $principal, $policy);
+        $this->databases->find($user, $database);
+
+        $steps = [new Step(sprintf(__('Export database %s'), $database), 'v-dump-database', [$user, $database, 'file', 'gzip'])];
+        $this->gate->authorize($steps);
+        if ($this->gate->dryRun()) {
+            return $this->gate->preview($steps);
+        }
+
+        $path = $this->databases->dump($user, $database);
+        if (preg_match('#^/backup/[\w.-]+$#', $path) !== 1) {
+            throw new ApiException(ErrorCode::Server, __('The database could not be exported.'), 500);
+        }
+
+        $name = basename($path);
+
+        return response('', 200, [
+            'Content-Type' => 'application/gzip',
+            'Content-Disposition' => 'attachment; filename="'.$name.'"',
+            'X-Accel-Redirect' => $path,
+            'X-Content-Type-Options' => 'nosniff',
+            'Cache-Control' => 'no-store',
+        ]);
     }
 
     /**

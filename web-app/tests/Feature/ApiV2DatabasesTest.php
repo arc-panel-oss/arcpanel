@@ -130,3 +130,56 @@ it('refuses a short name that already starts with the owner prefix', function ()
         ->toThrow(ValidationException::class);
     expect($actions->fullName('alice', 'shop', 'pgsql'))->toBe('alice_shop');
 });
+
+const API_DB_DUMP = '/backup/bob_bob_wp_mysql_2026-10-06_10-00-00.sql.gz';
+
+it('dumps a database inside the tree and answers 404 outside it', function (string $principal, string $role, string $owner, string $database, int $status) {
+    $this->fake->on('v-dump-database', [$owner, $database, 'file', 'gzip'])->returns(API_DB_DUMP."\n");
+    $headers = apiAs($this->fake, $principal, $role, area: 'db');
+
+    $response = $this->post("/api/v2/users/{$owner}/databases/{$database}/dump", [], $headers)->assertStatus($status);
+    if ($status === 200) {
+        $response->assertHeader('X-Accel-Redirect', API_DB_DUMP)
+            ->assertHeader('Content-Type', 'application/gzip')
+            ->assertHeader('Content-Disposition', 'attachment; filename="bob_bob_wp_mysql_2026-10-06_10-00-00.sql.gz"');
+        $this->fake->assertRan('v-dump-database');
+    } else {
+        $this->fake->assertNotRan('v-dump-database');
+    }
+})->with([
+    'admin, bob' => ['arcadmin', 'admin', 'bob', 'bob_wp', 200],
+    'admin, unknown user' => ['arcadmin', 'admin', 'ghost', 'bob_wp', 404],
+    'admin, unknown database' => ['arcadmin', 'admin', 'bob', 'missing_db', 404],
+    'reseller A, its customer' => ['hostco', 'reseller', 'bob', 'bob_wp', 200],
+    'reseller A, a customer of reseller B' => ['hostco', 'reseller', 'carol', 'carol_app', 404],
+    'reseller B, its customer' => ['resb', 'reseller', 'carol', 'carol_app', 200],
+    'reseller B, a customer of reseller A' => ['resb', 'reseller', 'bob', 'bob_wp', 404],
+    'user, itself' => ['bob', 'user', 'bob', 'bob_wp', 200],
+    'user, another user' => ['bob', 'user', 'carol', 'carol_app', 404],
+]);
+
+it('plans a dump without running it and refuses a v2-read key before any command', function () {
+    $this->postJson('/api/v2/users/bob/databases/bob_wp/dump?dry_run=1', [], apiAs($this->fake, 'bob', 'user', area: 'db'))
+        ->assertOk()->assertJsonPath('data.steps.0.command', 'v-dump-database');
+    $this->fake->assertNotRan('v-dump-database');
+
+    $this->postJson('/api/v2/users/bob/databases/bob_wp/dump', [], apiAs($this->fake, 'bob', 'user', readOnly: true))
+        ->assertForbidden()->assertJsonPath('error.commands.0', 'v-dump-database');
+    $this->fake->assertNotRan('v-dump-database');
+});
+
+it('dumps with a key that holds only v2-db', function () {
+    $this->fake->on('v-dump-database', ['bob', 'bob_wp', 'file', 'gzip'])->returns(API_DB_DUMP."\n");
+
+    $this->post('/api/v2/users/bob/databases/bob_wp/dump', [], apiAs($this->fake, 'bob', 'user', area: 'db'))
+        ->assertOk()->assertHeader('X-Accel-Redirect', API_DB_DUMP);
+    $this->fake->assertRan('v-dump-database');
+});
+
+it('answers 500 E_SERVER when the dump path is not under backup', function () {
+    $this->fake->on('v-dump-database', ['bob', 'bob_wp', 'file', 'gzip'])->returns("/tmp/evil.sql.gz\n");
+
+    $this->postJson('/api/v2/users/bob/databases/bob_wp/dump', [], apiAs($this->fake, 'bob', 'user', area: 'db'))
+        ->assertStatus(500)->assertJsonPath('error.code', 'E_SERVER');
+    $this->fake->assertRan('v-dump-database');
+});

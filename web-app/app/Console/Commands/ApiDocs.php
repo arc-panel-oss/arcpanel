@@ -299,6 +299,21 @@ final class ApiDocs extends Command
                 ],
             ];
         }
+        if (($operation['operationId'] ?? '') === 'dumpDatabase') {
+            $responses['200'] = [
+                'description' => 'The gzip dump: an empty body with `X-Accel-Redirect` so nginx serves the bytes (D35).',
+                'headers' => self::successHeaders('200') + [
+                    'Content-Type' => ['description' => '`application/gzip`.', 'schema' => ['type' => 'string']],
+                    'Content-Disposition' => ['description' => '`attachment; filename="<dump>.sql.gz"`', 'schema' => ['type' => 'string']],
+                    'X-Accel-Redirect' => ['description' => 'Internal nginx path under `/backup/` (D35).', 'schema' => ['type' => 'string']],
+                ],
+                'content' => [
+                    'application/gzip' => [
+                        'schema' => ['type' => 'string', 'format' => 'binary'],
+                    ],
+                ],
+            ];
+        }
         uksort($responses, fn ($a, $b) => (int) $a <=> (int) $b);
         $operation['responses'] = $responses;
 

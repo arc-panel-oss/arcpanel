@@ -130,6 +130,7 @@ Route::middleware('effective-user')->group(function () {
         Route::post('/{database}/suspend', [DatabaseController::class, 'suspend'])->name('suspend');
         Route::post('/{database}/unsuspend', [DatabaseController::class, 'unsuspend'])->name('unsuspend');
         Route::post('/{database}/rebuild', [DatabaseController::class, 'rebuild'])->name('rebuild');
+        Route::post('/{database}/dump', [DatabaseController::class, 'dump'])->name('dump');
     });
 
     // Backups (E34 batch 3 spec §6.1)

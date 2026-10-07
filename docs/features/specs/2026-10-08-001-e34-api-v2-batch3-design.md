@@ -200,6 +200,11 @@ The path the command prints must match `^/backup/[\w.-]+$`, as on the page; anyt
 
 The work log of each milestone is appended here.
 
+### M5 (2026-10-08)
+
+- `POST /api/v2/users/{user}/databases/{database}/dump` (`dumpDatabase`): `v-dump-database … gzip`, D35 download headers, path guard `^/backup/[\w.-]+$`; `v-dump-database` added to `v2-db` and `v2-write`.
+- Pest: extended `tests/Feature/ApiV2DatabasesTest.php`.
+
 ### M4 (2026-10-08)
 
 - Snapshot endpoints under `/api/v2/users/{user}/snapshots` (`listSnapshots`, `createSnapshot`, `getSnapshot`, `deleteSnapshot`, `listSnapshotFiles`, `restoreSnapshot`) and exclusions (`getBackupExclusions`, `setBackupExclusions`); incremental packages only for snapshots; `SnapshotResource`, batch-5-shaped file entries, `v2-backup` / `v2-read` / `v2-write` command sets updated.
