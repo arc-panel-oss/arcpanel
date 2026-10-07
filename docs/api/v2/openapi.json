@@ -3,7 +3,7 @@
     "info": {
         "title": "ArcPanel REST API v2",
         "version": "2",
-        "description": "Resource API of an ArcPanel server, served by the panel at `/api/v2/` (port 8083 by default). Every call acts as the owner of the access key, with the role and the reach that user has in the panel: objects outside its reach answer `404`, refused actions `403`.\n\n**Authentication.** `Authorization: Bearer ACCESS_KEY_ID:SECRET_ACCESS_KEY`, an access key of the panel (Account → Access keys). The API must be on (`API_SYSTEM` 1 for the administrator's keys, 2 for every key) and accept the client's address (`API_ALLOWED_IP`). A key with permission sets may only run their commands. `v2-read` allows every read endpoint and `v2-write` every endpoint; each area also has its own set (`v2-accounts`, `v2-web`, and the sets of later areas). A change that touches another area needs that area's set too. API v1 refuses every set marked for v2. `GET /me` describes the key.\n\n**Pagination.** Every list accepts `limit` (1–1000) and `offset` (0 or more). `meta.total` is the number of items. Without `limit` the list is complete, as before pagination existed.\n\n**Dry run.** Every write accepts `?dry_run=1`: the request is validated, authorized and checked against the permission sets, and the answer lists the commands it would run, without running any.\n\n**Errors.** Every error answers `{\"error\": {\"code\": \"E_…\", \"message\": \"…\"}}`; `code` is one of `ErrorCode`. Validation errors add `fields`, refused permission sets add `commands`, a duplicate the server can point at adds `existing` (the path of that object), and a failed step of a change adds `step` and the steps that ran before it (`applied`), which stay applied.\n\n**Headers.** Every answer carries `ArcPanel-Version` and `X-Request-Id` (the client's own value, or a new one). `429` carries `Retry-After`; `201` and `202` carry `Location`. Each key may make 60 requests a minute; ten failed authentications a minute block the client's address for a minute.\n\n**Compatibility.** Within v2 the document only grows: new operations, new optional fields, new enum values. Clients should ignore unknown fields."
+        "description": "Resource API of an ArcPanel server, served by the panel at `/api/v2/` (port 8083 by default). Every call acts as the owner of the access key, with the role and the reach that user has in the panel: objects outside its reach answer `404`, refused actions `403`.\n\n**Authentication.** `Authorization: Bearer ACCESS_KEY_ID:SECRET_ACCESS_KEY`, an access key of the panel (Account → Access keys). The API must be on (`API_SYSTEM` 1 for the administrator's keys, 2 for every key) and accept the client's address (`API_ALLOWED_IP`). A key with permission sets may only run their commands. `v2-read` allows every read endpoint and `v2-write` every endpoint; each area also has its own set (`v2-accounts`, `v2-web`, and the sets of later areas). A change that touches another area needs that area's set too. API v1 refuses every set marked for v2. `GET /me` describes the key.\n\n**Pagination.** Every list accepts `limit` (1–1000) and `offset` (0 or more). `meta.total` is the number of items. Without `limit` the list is complete, as before pagination existed.\n\n**Dry run.** Every write accepts `?dry_run=1`: the request is validated, authorized and checked against the permission sets, and the answer lists the commands it would run, without running any.\n\n**Errors.** Every error answers `{\"error\": {\"code\": \"E_…\", \"message\": \"…\"}}`; `code` is one of `ErrorCode`. Validation errors add `fields`, refused permission sets add `commands`, a duplicate the server can point at adds `existing` (the path of that object, or a queued backup or restore task), and a failed step of a change adds `step` and the steps that ran before it (`applied`), which stay applied.\n\n**Headers.** Every answer carries `ArcPanel-Version` and `X-Request-Id` (the client's own value, or a new one). `429` carries `Retry-After`; `201` and `202` carry `Location`. Each key may make 60 requests a minute; ten failed authentications a minute block the client's address for a minute.\n\n**Compatibility.** Within v2 the document only grows: new operations, new optional fields, new enum values. Clients should ignore unknown fields."
     },
     "servers": [
         {
@@ -448,8 +448,45 @@
                     }
                 ],
                 "responses": {
+                    "200": {
+                        "description": "The archive when it is on this server: an empty body with `X-Accel-Redirect` so nginx serves the bytes (D35).",
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            },
+                            "Content-Type": {
+                                "description": "Usually `application/octet-stream` or `application/x-gzip`.",
+                                "schema": {
+                                    "type": "string"
+                                }
+                            },
+                            "Content-Disposition": {
+                                "description": "`attachment; filename=\"<backup>\"`",
+                                "schema": {
+                                    "type": "string"
+                                }
+                            },
+                            "X-Accel-Redirect": {
+                                "description": "Internal nginx path to the archive file (D35).",
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "content": {
+                            "application/octet-stream": {
+                                "schema": {
+                                    "type": "string",
+                                    "format": "binary"
+                                }
+                            }
+                        }
+                    },
                     "202": {
-                        "description": "`Task`",
+                        "description": "The fetch task when the archive is only on a remote backup host.",
                         "content": {
                             "application/json": {
                                 "schema": {
@@ -6756,14 +6793,10 @@
                                             "items": {
                                                 "$ref": "#/components/schemas/Task"
                                             }
-                                        },
-                                        "meta": {
-                                            "$ref": "#/components/schemas/ListMeta"
                                         }
                                     },
                                     "required": [
-                                        "data",
-                                        "meta"
+                                        "data"
                                     ]
                                 }
                             }
@@ -9444,8 +9477,15 @@
                                 }
                             },
                             "existing": {
-                                "type": "string",
-                                "description": "E_EXISTS when the server can point at the duplicate: its path under /api/v2."
+                                "description": "E_EXISTS when the server can point at the duplicate: its path under /api/v2, or a queued backup or restore task (D21).",
+                                "oneOf": [
+                                    {
+                                        "type": "string"
+                                    },
+                                    {
+                                        "$ref": "#/components/schemas/Task"
+                                    }
+                                ]
                             },
                             "step": {
                                 "description": "The step of a change that failed.",

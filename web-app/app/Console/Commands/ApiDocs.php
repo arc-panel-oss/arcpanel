@@ -45,7 +45,7 @@ final class ApiDocs extends Command
 
         **Dry run.** Every write accepts `?dry_run=1`: the request is validated, authorized and checked against the permission sets, and the answer lists the commands it would run, without running any.
 
-        **Errors.** Every error answers `{"error": {"code": "E_…", "message": "…"}}`; `code` is one of `ErrorCode`. Validation errors add `fields`, refused permission sets add `commands`, a duplicate the server can point at adds `existing` (the path of that object), and a failed step of a change adds `step` and the steps that ran before it (`applied`), which stay applied.
+        **Errors.** Every error answers `{"error": {"code": "E_…", "message": "…"}}`; `code` is one of `ErrorCode`. Validation errors add `fields`, refused permission sets add `commands`, a duplicate the server can point at adds `existing` (the path of that object, or a queued backup or restore task), and a failed step of a change adds `step` and the steps that ran before it (`applied`), which stay applied.
 
         **Headers.** Every answer carries `ArcPanel-Version` and `X-Request-Id` (the client's own value, or a new one). `429` carries `Retry-After`; `201` and `202` carry `Location`. Each key may make 60 requests a minute; ten failed authentications a minute block the client's address for a minute.
 
@@ -284,6 +284,21 @@ final class ApiDocs extends Command
         foreach ($errors as $status) {
             $responses[$status] = ['$ref' => '#/components/responses/'.self::ERROR_STATUSES[$status][0]];
         }
+        if (($operation['operationId'] ?? '') === 'downloadBackup') {
+            $responses['200'] = [
+                'description' => 'The archive when it is on this server: an empty body with `X-Accel-Redirect` so nginx serves the bytes (D35).',
+                'headers' => self::successHeaders('200') + [
+                    'Content-Type' => ['description' => 'Usually `application/octet-stream` or `application/x-gzip`.', 'schema' => ['type' => 'string']],
+                    'Content-Disposition' => ['description' => '`attachment; filename="<backup>"`', 'schema' => ['type' => 'string']],
+                    'X-Accel-Redirect' => ['description' => 'Internal nginx path to the archive file (D35).', 'schema' => ['type' => 'string']],
+                ],
+                'content' => [
+                    'application/octet-stream' => [
+                        'schema' => ['type' => 'string', 'format' => 'binary'],
+                    ],
+                ],
+            ];
+        }
         uksort($responses, fn ($a, $b) => (int) $a <=> (int) $b);
         $operation['responses'] = $responses;
 
@@ -429,8 +444,11 @@ final class ApiDocs extends Command
                                 'items' => ['type' => 'string'],
                             ],
                             'existing' => [
-                                'type' => 'string',
-                                'description' => 'E_EXISTS when the server can point at the duplicate: its path under /api/v2.',
+                                'description' => 'E_EXISTS when the server can point at the duplicate: its path under /api/v2, or a queued backup or restore task (D21).',
+                                'oneOf' => [
+                                    ['type' => 'string'],
+                                    ['$ref' => '#/components/schemas/Task'],
+                                ],
                             ],
                             'step' => ['description' => 'The step of a change that failed.', 'anyOf' => [['$ref' => '#/components/schemas/PlanStep'], ['type' => 'null']]],
                             'applied' => ['type' => 'array', 'description' => 'The steps that ran before the failed one; they stay applied.', 'items' => ['$ref' => '#/components/schemas/PlanStep']],

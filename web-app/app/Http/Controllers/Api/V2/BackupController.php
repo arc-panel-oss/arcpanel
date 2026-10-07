@@ -22,6 +22,8 @@ use App\Services\Backups\BackupService;
 use App\Services\Tasks\TaskMapper;
 use App\Services\Tasks\TaskService;
 use App\Services\WebDomains\Step;
+use Dedoc\Scramble\Attributes\Header;
+use Dedoc\Scramble\Attributes\Response as ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -157,9 +159,20 @@ final class BackupController extends Controller
      * and answers 202 with the queue task.
      *
      * @operationId downloadBackup
-     *
-     * @status 202
      */
+    #[ApiResponse(
+        status: 200,
+        description: 'The archive when it is on this server: an empty body with `X-Accel-Redirect` so nginx serves the bytes (D35).',
+        mediaType: 'application/octet-stream',
+    )]
+    #[ApiResponse(
+        status: 202,
+        description: 'The fetch task when the archive is only on a remote backup host.',
+        mediaType: 'application/json',
+        type: TaskResource::class,
+    )]
+    #[Header('Content-Disposition', description: '`attachment; filename="<backup>"`', status: 200)]
+    #[Header('X-Accel-Redirect', description: 'Internal nginx path to the archive file (D35).', status: 200)]
     public function download(string $user, string $backup, Principal $principal, BackupPolicy $policy): Response|TaskResource|JsonResponse
     {
         $this->assertOwner($user, $principal, $policy);

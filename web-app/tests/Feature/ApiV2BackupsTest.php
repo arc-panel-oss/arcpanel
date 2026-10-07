@@ -102,6 +102,7 @@ it('restores everything or a selection and validates unknown objects', function 
     $headers = apiAs($this->fake, 'bob', 'user', area: 'backup');
 
     $this->postJson('/api/v2/users/bob/backups/'.API_BK_ARCHIVE.'/restore', [], $headers)->assertStatus(202)
+        ->assertHeader('Link', '</api/v2/tasks/queue:bob:9002>; rel="monitor"')
         ->assertJsonPath('data.kind', 'restore');
     $this->fake->assertRan('v-schedule-user-restore', fn ($a) => $a === ['bob', API_BK_ARCHIVE, 'json']);
 

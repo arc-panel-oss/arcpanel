@@ -205,14 +205,17 @@ it('points a duplicate at the existing object', function () {
 it('documents pagination and error.existing', function () {
     $spec = json_decode((string) file_get_contents(base_path('../docs/api/v2/openapi.json')), true);
 
-    expect($spec['components']['schemas']['Error']['properties']['error']['properties'])->toHaveKey('existing')
+    $existing = $spec['components']['schemas']['Error']['properties']['error']['properties']['existing'] ?? null;
+    expect($existing)->toHaveKey('oneOf')
+        ->and($existing['oneOf'])->toHaveCount(2)
         ->and($spec['components']['schemas'])->toHaveKey('ListMeta');
     foreach ($spec['paths'] as $operations) {
         foreach ($operations as $operation) {
             if (! is_array($operation) || ! str_starts_with((string) ($operation['operationId'] ?? ''), 'list')) {
                 continue;
             }
-            if (($operation['operationId'] ?? '') === 'listSystemTasks') {
+            // Task lists return the full set without paginated meta (E34 batch 3 §5).
+            if (in_array($operation['operationId'] ?? '', ['listSystemTasks', 'listUserTasks'], true)) {
                 continue;
             }
             $names = array_column($operation['parameters'] ?? [], 'name');
