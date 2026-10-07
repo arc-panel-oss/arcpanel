@@ -47,6 +47,11 @@ Route::middleware('effective-user')->group(function () {
         Route::post('/{domain}/unsuspend', [WebDomainController::class, 'unsuspend'])->name('unsuspend');
         Route::post('/{domain}/rebuild', [WebDomainController::class, 'rebuild'])->name('rebuild');
         Route::post('/{domain}/purge-cache', [WebDomainController::class, 'purgeCache'])->name('purge-cache');
+        Route::post('/{domain}/aliases', [WebDomainController::class, 'addAlias'])->name('aliases.store');
+        Route::delete('/{domain}/aliases/{alias}', [WebDomainController::class, 'deleteAlias'])->name('aliases.destroy');
+        Route::put('/{domain}/ssl', [WebDomainController::class, 'setSsl'])->name('ssl.update');
+        Route::delete('/{domain}/ssl', [WebDomainController::class, 'deleteSsl'])->name('ssl.destroy');
+        Route::post('/{domain}/letsencrypt', [WebDomainController::class, 'letsEncrypt'])->name('letsencrypt');
     });
 });
 

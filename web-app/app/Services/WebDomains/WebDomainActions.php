@@ -6,6 +6,7 @@ use App\Services\Ports\PortService;
 use App\Services\UserDirectory;
 use App\Services\WebDomains\Tabs\AdvancedTab;
 use App\Services\WebDomains\Tabs\GeneralTab;
+use App\Services\WebDomains\Tabs\SslTab;
 use App\Services\WebDomains\Tabs\TemplateVarsTab;
 use Illuminate\Validation\ValidationException;
 
@@ -25,6 +26,7 @@ final class WebDomainActions
         private readonly AdvancedTab $advanced,
         private readonly TemplateVarsTab $vars,
         private readonly GeneralTab $general,
+        private readonly SslTab $ssl,
     ) {}
 
     /**
@@ -176,6 +178,91 @@ final class WebDomainActions
     public function planGeneral(WebDomainRecord $record, array $values, array $userIps): array
     {
         return $this->general->plan($record, $values, $userIps, $this->web);
+    }
+
+    /**
+     * New aliases of a domain, with their DNS records and statistics as the
+     * General tab changes them; a Let's Encrypt certificate is queued again
+     * for the new aliases.
+     *
+     * @param  list<string>  $aliases
+     * @return list<Step>
+     */
+    public function planAliases(WebDomainRecord $record, array $aliases): array
+    {
+        $parts = $record->customDocrootParts();
+        $values = [
+            'aliases' => implode(',', $aliases),
+            'ip' => $record->ip,
+            'docroot_custom' => $record->customDocroot !== '',
+            'docroot_domain' => $parts['domain'] ?? null,
+            'docroot_folder' => $parts['folder'] ?? null,
+        ];
+
+        return self::queueLetsEncrypt($this->planGeneral($record, $values, $this->web->userIps($record->user)));
+    }
+
+    /** Queue a Let's Encrypt certificate for the aliases of the domain (E34 spec D15). */
+    public function planLetsEncrypt(WebDomainRecord $record, string $keyAlgorithm): Step
+    {
+        return new Step(__('Queue a Let’s Encrypt certificate'), 'v-schedule-letsencrypt-domain',
+            [$record->user, $record->domain, implode(',', $record->aliases), $keyAlgorithm]);
+    }
+
+    /**
+     * The SSL tab for an uploaded certificate, or for forced HTTPS and HSTS
+     * alone when $values has no certificate. A Let's Encrypt certificate is
+     * removed before an uploaded one is installed.
+     *
+     * @param  array{certificate?: ?string, key?: ?string, ca?: ?string, force?: bool, hsts?: bool}  $values
+     * @return list<Step>
+     */
+    public function planSsl(WebDomainRecord $record, array $values): array
+    {
+        $uploaded = Input::pem($values['certificate'] ?? '') !== '';
+        $input = [
+            'ssl' => true,
+            'letsencrypt' => ! $uploaded && $record->letsEncrypt,
+            'key_algo' => $record->sslKeyAlgo,
+            'certificate' => $values['certificate'] ?? null,
+            'key' => $values['key'] ?? null,
+            'ca' => $values['ca'] ?? null,
+            'force' => $values['force'] ?? $record->sslForce,
+            'hsts' => $values['hsts'] ?? $record->sslHsts,
+        ];
+        if ($uploaded && $record->letsEncrypt) {
+            return [
+                new Step(__('Delete the Let’s Encrypt certificate'), 'v-delete-letsencrypt-domain', [$record->user, $record->domain, ''], ['web', 'proxy']),
+                ...$this->ssl->plan($record->withoutSsl(), null, $input),
+            ];
+        }
+
+        return $this->ssl->plan($record, $record->ssl ? $this->web->ssl($record->user, $record->domain) : null, $input);
+    }
+
+    /**
+     * Turn SSL off: the certificate (Let's Encrypt or uploaded), forced HTTPS
+     * and HSTS.
+     *
+     * @return list<Step>
+     */
+    public function planSslOff(WebDomainRecord $record): array
+    {
+        return $record->ssl ? $this->ssl->plan($record, null, ['ssl' => false, 'letsencrypt' => false]) : [];
+    }
+
+    /**
+     * The General tab renews a Let's Encrypt certificate at once; API v2
+     * queues it instead (E34 spec D15).
+     *
+     * @param  list<Step>  $steps
+     * @return list<Step>
+     */
+    private static function queueLetsEncrypt(array $steps): array
+    {
+        return array_map(fn (Step $step) => $step->command === 'v-add-letsencrypt-domain'
+            ? new Step(__('Queue a Let’s Encrypt certificate'), 'v-schedule-letsencrypt-domain', [$step->args[0], $step->args[1], $step->args[2], $step->args[4]])
+            : $step, $steps);
     }
 
     /**

@@ -7,14 +7,17 @@ use App\Api\ErrorCode;
 use App\Api\PlanGate;
 use App\Auth\Principal;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Api\V2\LetsEncryptRequest;
 use App\Http\Requests\Api\V2\StoreWebDomainRequest;
 use App\Http\Requests\Api\V2\UpdateWebDomainRequest;
+use App\Http\Requests\Api\V2\WebDomainAliasRequest;
 use App\Http\Requests\Api\V2\WebDomainRequest;
+use App\Http\Requests\Api\V2\WebDomainSslRequest;
 use App\Http\Resources\V2\WebDomainResource;
 use App\Policies\WebDomainPolicy;
 use App\Services\WebDomains\ApplyResult;
+use App\Services\WebDomains\Input;
 use App\Services\WebDomains\Step;
-use App\Services\WebDomains\Tabs\TemplateVarsTab;
 use App\Services\WebDomains\TemplateCatalog;
 use App\Services\WebDomains\WebDomainActions;
 use App\Services\WebDomains\WebDomainService;
@@ -247,6 +250,128 @@ final class WebDomainController extends Controller
         return $this->gate->execute($steps, $this->web->apply(...)) ?? $this->resource($user, $domain);
     }
 
+    /**
+     * Add an alias to a web domain
+     *
+     * With a DNS record when the domain has a DNS zone; a Let's Encrypt
+     * certificate is queued again to cover it. An alias the domain has
+     * answers 409 `E_EXISTS`.
+     *
+     * @operationId addWebDomainAlias
+     */
+    public function addAlias(WebDomainAliasRequest $request, string $user, string $domain, Principal $principal, WebDomainPolicy $policy): WebDomainResource|JsonResponse
+    {
+        $this->assertOwner($user, $principal, $policy);
+        abort_unless($policy->update($principal, $user), 403);
+        $record = $this->web->find($user, $domain);
+        $alias = (string) $request->input('alias');
+        if (in_array($alias, [$domain, ...$record->aliases], true)) {
+            throw new ApiException(ErrorCode::Exists, sprintf(__('Alias %s exists.'), $alias), 409);
+        }
+
+        return $this->gate->execute($this->actions->planAliases($record, [...$record->aliases, $alias]), $this->web->apply(...))
+            ?? $this->resource($user, $domain);
+    }
+
+    /**
+     * Delete an alias of a web domain
+     *
+     * With its DNS record; a Let's Encrypt certificate is queued again
+     * without it.
+     *
+     * @operationId deleteWebDomainAlias
+     *
+     * @status 204
+     */
+    public function deleteAlias(string $user, string $domain, string $alias, Principal $principal, WebDomainPolicy $policy): Response|JsonResponse
+    {
+        $this->assertOwner($user, $principal, $policy);
+        abort_unless($policy->update($principal, $user), 403);
+        $record = $this->web->find($user, $domain);
+        $alias = strtolower($alias);
+        abort_unless(in_array($alias, $record->aliases, true), 404);
+        $aliases = array_values(array_filter($record->aliases, fn (string $name) => $name !== $alias));
+
+        return $this->gate->execute($this->actions->planAliases($record, $aliases), $this->web->apply(...))
+            ?? response()->noContent();
+    }
+
+    /**
+     * Install a certificate or change HTTPS settings
+     *
+     * With `certificate` (and `key` for a first certificate) the uploaded
+     * certificate is installed or replaced; a Let's Encrypt certificate is
+     * removed first. Without it, `force` and `hsts` change for the
+     * certificate the domain has.
+     *
+     * @operationId setWebDomainSsl
+     */
+    public function setSsl(WebDomainSslRequest $request, string $user, string $domain, Principal $principal, WebDomainPolicy $policy): WebDomainResource|JsonResponse
+    {
+        $this->assertOwner($user, $principal, $policy);
+        abort_unless($policy->update($principal, $user), 403);
+        $record = $this->web->find($user, $domain);
+        $values = $request->values();
+        $uploaded = Input::pem($values['certificate'] ?? '') !== '';
+        $missing = array_filter([
+            'certificate' => ! $uploaded && ! $record->ssl ? __('The domain has no certificate: send one.') : null,
+            'key' => $uploaded && (! $record->ssl || $record->letsEncrypt) && Input::pem($values['key'] ?? '') === '' ? __('The private key of a new certificate is required.') : null,
+        ]);
+        if ($missing !== []) {
+            throw ValidationException::withMessages($missing);
+        }
+
+        return $this->gate->execute($this->actions->planSsl($record, $values), $this->web->apply(...))
+            ?? $this->resource($user, $domain);
+    }
+
+    /**
+     * Turn SSL off
+     *
+     * Removes the certificate (uploaded or Let's Encrypt), forced HTTPS and
+     * HSTS. A domain without SSL answers as it is.
+     *
+     * @operationId deleteWebDomainSsl
+     *
+     * @status 204
+     */
+    public function deleteSsl(string $user, string $domain, Principal $principal, WebDomainPolicy $policy): Response|JsonResponse
+    {
+        $this->assertOwner($user, $principal, $policy);
+        abort_unless($policy->update($principal, $user), 403);
+        $record = $this->web->find($user, $domain);
+
+        return $this->gate->execute($this->actions->planSslOff($record), $this->web->apply(...))
+            ?? response()->noContent();
+    }
+
+    /**
+     * Request a Let's Encrypt certificate
+     *
+     * Queues the certificate for the domain and its aliases, which must
+     * resolve to this server; the queue runs every five minutes. Answers
+     * 202 with the domain as it is: `ssl.letsencrypt` turns true once the
+     * certificate is installed.
+     *
+     * @operationId requestWebDomainLetsEncrypt
+     *
+     * @status 202
+     */
+    public function letsEncrypt(LetsEncryptRequest $request, string $user, string $domain, Principal $principal, WebDomainPolicy $policy): WebDomainResource|JsonResponse
+    {
+        $this->assertOwner($user, $principal, $policy);
+        abort_unless($policy->update($principal, $user), 403);
+        $record = $this->web->find($user, $domain);
+        $steps = [$this->actions->planLetsEncrypt($record, (string) $request->input('key_algorithm', $record->sslKeyAlgo))];
+
+        if ($preview = $this->gate->execute($steps, $this->web->apply(...))) {
+            return $preview;
+        }
+
+        return $this->resource($user, $domain)->response()->setStatusCode(202)
+            ->header('Location', route('api.v2.web-domains.show', ['user' => $user, 'domain' => $domain]));
+    }
+
     private function setSuspended(string $user, string $domain, bool $suspend, Principal $principal, WebDomainPolicy $policy): WebDomainResource|JsonResponse
     {
         $this->assertOwner($user, $principal, $policy);
@@ -291,15 +416,9 @@ final class WebDomainController extends Controller
         }
     }
 
-    /** One domain with the app port of its template. */
+    /** One domain with the app port of its template and its certificate. */
     private function resource(string $user, string $domain): WebDomainResource
     {
-        $record = $this->web->find($user, $domain);
-        $kind = $this->catalog->activeKind();
-        $active = TemplateVarsTab::currentTemplate($kind, $record);
-        $key = $active !== null ? $this->catalog->find((string) $kind, $active)?->portVariable() : null;
-        $port = $key !== null ? ($this->web->templateVars($user, $domain)['variables'][$key] ?? '') : '';
-
-        return (new WebDomainResource($record))->withBackendPort($port);
+        return WebDomainResource::single($this->web, $this->catalog, $user, $domain);
     }
 }

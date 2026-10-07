@@ -187,3 +187,26 @@ setup() {
     run jq -r '.USER' <<< "$output"
     assert_output "$USER_A"
 }
+
+@test "schedule Let's Encrypt: queues the domain's aliases and the key type, once" {
+    local domain="$USER_A-le.example.test"
+    local pipe="$ARCPANEL/data/queue/letsencrypt.pipe"
+    v-add-web-domain "$USER_A" "$domain" '' no "www.$domain" > /dev/null
+
+    run v-schedule-letsencrypt-domain "$USER_A" "$domain" '' ecdsa-384
+    assert_success
+    run grep -c " $domain " "$pipe"
+    assert_output 1
+    run grep " $domain " "$pipe"
+    assert_output "$ARCPANEL/bin/v-add-letsencrypt-domain $USER_A $domain 'www.$domain' no ecdsa-384"
+
+    # Again without a key type: the domain's own, and still one line
+    run v-schedule-letsencrypt-domain "$USER_A" "$domain" "www.$domain"
+    assert_success
+    run grep " $domain " "$pipe"
+    assert_output "$ARCPANEL/bin/v-add-letsencrypt-domain $USER_A $domain 'www.$domain' no ecdsa-256"
+
+    run v-schedule-letsencrypt-domain "$USER_A" "$domain" '' dsa
+    assert_failure 2
+    sed -i "/ $domain /d" "$pipe"
+}

@@ -2,13 +2,18 @@
 
 namespace App\Http\Resources\V2;
 
+use App\Services\WebDomains\Tabs\TemplateVarsTab;
+use App\Services\WebDomains\TemplateCatalog;
 use App\Services\WebDomains\WebDomainRecord;
+use App\Services\WebDomains\WebDomainService;
+use App\Services\WebDomains\WebDomainSsl;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
 /**
- * A web domain (`v-list-web-domain USER DOMAIN json`). `backend_port` is
- * only part of a single domain (getWebDomain and the write operations).
+ * A web domain (`v-list-web-domain USER DOMAIN json`). `backend_port` and
+ * `ssl.certificate` are only part of a single domain (getWebDomain and the
+ * write operations): lists would need two commands per domain.
  *
  * @property WebDomainRecord $resource
  */
@@ -17,15 +22,24 @@ final class WebDomainResource extends JsonResource
     /** The app port of the domain's template (E6), when it was read. */
     private ?string $backendPort = null;
 
-    private bool $withPort = false;
+    private ?WebDomainSsl $certificate = null;
 
-    /** Add the app port of the template, '' when the template takes none. */
-    public function withBackendPort(string $port): self
+    private bool $single = false;
+
+    /** One domain with the app port of its template and its certificate. */
+    public static function single(WebDomainService $web, TemplateCatalog $catalog, string $user, string $domain): self
     {
-        $this->backendPort = $port;
-        $this->withPort = true;
+        $record = $web->find($user, $domain);
+        $kind = $catalog->activeKind();
+        $active = TemplateVarsTab::currentTemplate($kind, $record);
+        $key = $active !== null ? $catalog->find((string) $kind, $active)?->portVariable() : null;
 
-        return $this;
+        $resource = new self($record);
+        $resource->single = true;
+        $resource->backendPort = $key !== null ? ($web->templateVars($user, $domain)['variables'][$key] ?? '') : '';
+        $resource->certificate = $record->ssl ? $web->ssl($user, $domain) : null;
+
+        return $resource;
     }
 
     /** @return array<string, mixed> */
@@ -81,6 +95,19 @@ final class WebDomainResource extends JsonResource
                 'home' => $domain->sslHome === 'single' ? 'single' : 'same',
                 /** @var 'ecdsa-256'|'ecdsa-384'|'rsa' the key type of a Let's Encrypt certificate */
                 'key_algorithm' => $domain->sslKeyAlgo,
+                /** The installed certificate, null without SSL; only part of a single domain. */
+                'certificate' => $this->when($this->single, fn () => $this->certificate !== null ? [
+                    /** @var string */
+                    'subject' => $this->certificate->subject,
+                    /** @var list<string> the names it covers */
+                    'names' => array_values(array_filter(preg_split('/[\s,]+/', $this->certificate->aliases) ?: [])),
+                    /** @var string */
+                    'issuer' => $this->certificate->issuer,
+                    /** @var string|null start of validity, UTC, YYYY-MM-DDTHH:MM:SSZ */
+                    'not_before' => self::utc($this->certificate->notBefore),
+                    /** @var string|null end of validity, UTC, YYYY-MM-DDTHH:MM:SSZ */
+                    'not_after' => self::utc($this->certificate->notAfter),
+                ] : null),
             ],
             /** Where every request is redirected; null without a redirect. */
             'redirect' => $domain->redirect !== '' ? [
@@ -100,9 +127,17 @@ final class WebDomainResource extends JsonResource
             /** @var int */
             'bandwidth_mb' => $domain->bandwidthMb,
             /** @var int|null the app port of the domain's template (E6); null when the template takes none */
-            'backend_port' => $this->when($this->withPort, fn () => ctype_digit((string) $this->backendPort) ? (int) $this->backendPort : null),
+            'backend_port' => $this->when($this->single, fn () => ctype_digit((string) $this->backendPort) ? (int) $this->backendPort : null),
             /** @var string|null creation time in the server's time zone, YYYY-MM-DDTHH:MM:SS */
             'created_at' => UserResource::localTime($domain->date, $domain->time),
         ];
+    }
+
+    /** A date of openssl (Dec 19 00:00:00 2026 GMT) as ISO 8601 UTC. */
+    private static function utc(string $date): ?string
+    {
+        $time = $date !== '' ? strtotime($date) : false;
+
+        return $time === false ? null : gmdate('Y-m-d\TH:i:s\Z', $time);
     }
 }

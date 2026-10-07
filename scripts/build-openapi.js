@@ -271,10 +271,11 @@ export function userArgPosition(text) {
 }
 
 /**
- * A permission set file of install/common/api/: ROLE and the comma-separated COMMANDS.
+ * A permission set file of install/common/api/: ROLE, the comma-separated COMMANDS and
+ * API_VERSION ('2' for the sets of REST API v2, which this API refuses; '1' when absent).
  *
  * @param {string} text
- * @returns {{role: string, commands: string[]}}
+ * @returns {{role: string, commands: string[], apiVersion: string}}
  */
 export function parsePermissionSet(text) {
 	const value = (key) => text.match(new RegExp(`^${key}='([^']*)'`, 'm'))?.[1] ?? '';
@@ -282,7 +283,11 @@ export function parsePermissionSet(text) {
 		.split(',')
 		.map((item) => item.trim())
 		.filter((item) => item !== '');
-	return { role: value('ROLE'), commands: [...new Set(commands)] };
+	return {
+		role: value('ROLE'),
+		commands: [...new Set(commands)],
+		apiVersion: value('API_VERSION') || '1',
+	};
 }
 
 /**
@@ -450,10 +455,11 @@ export function buildOperation(command, { permissionSets, fixtures = {} }) {
 /**
  * The info.description of the document: how the API works, exit codes and permission sets.
  *
- * @param {Record<string, {role: string, commands: string[]}>} permissionSets
+ * @param {Record<string, {role: string, commands: string[]}>} permissionSets the sets of this API
+ * @param {string[]} v2Sets names of the sets of REST API v2
  * @returns {string}
  */
-function overview(permissionSets) {
+function overview(permissionSets, v2Sets) {
 	const sets = Object.keys(permissionSets)
 		.sort()
 		.map((set) => {
@@ -493,6 +499,12 @@ function overview(permissionSets) {
 		'## Permission sets',
 		'Permission sets are files in `$ARCPANEL/data/api/`, installed from `install/common/api/`. Each operation lists the sets that include it (`x-arcpanel-permission-sets`).',
 		['| Set | Role | Commands |', '| --- | --- | --- |', ...sets].join('\n'),
+		...(v2Sets.length > 0
+			? [
+					`The sets ${v2Sets.map((set) => `\`${set}\``).join(' and ')} belong to REST API v2 (\`/api/v2/\`, documented in \`docs/api/v2/openapi.json\`): ` +
+						'this API ignores them, so a key with only those sets may run no command here.',
+				]
+			: []),
 	].join('\n\n');
 }
 
@@ -502,7 +514,14 @@ function overview(permissionSets) {
  * @param {{commands: {name: string, header: ReturnType<typeof parseHeader>, userArg: number}[], permissionSets: Record<string, {role: string, commands: string[]}>, fixtures: Record<string, Record<string, unknown>>, version: string}} input
  * @returns {object}
  */
-export function buildDocument({ commands, permissionSets, fixtures, version }) {
+export function buildDocument({ commands, permissionSets: allSets, fixtures, version }) {
+	// The sets of REST API v2 are refused by this API (get_apis_commands of func/main.sh)
+	const permissionSets = Object.fromEntries(
+		Object.entries(allSets).filter(([, set]) => set.apiVersion !== '2'),
+	);
+	const v2Sets = Object.keys(allSets)
+		.filter((name) => !(name in permissionSets))
+		.sort();
 	const sorted = [...commands].sort((a, b) => a.name.localeCompare(b.name));
 	const paths = {};
 	const schemas = {};
@@ -531,7 +550,7 @@ export function buildDocument({ commands, permissionSets, fixtures, version }) {
 		info: {
 			title: 'ArcPanel REST API',
 			version,
-			description: overview(permissionSets),
+			description: overview(permissionSets, v2Sets),
 			license: { name: 'GPL-3.0-or-later', identifier: 'GPL-3.0-or-later' },
 		},
 		servers: [

@@ -96,6 +96,14 @@ final class WebDomainRecord
         );
     }
 
+    /** The domain as it is once its certificate was removed (no SSL, Let's Encrypt, forced HTTPS or HSTS). */
+    public function withoutSsl(): self
+    {
+        $values = get_object_vars($this);
+
+        return new self(...array_merge($values, ['ssl' => false, 'sslForce' => false, 'sslHsts' => false, 'letsEncrypt' => false]));
+    }
+
     /** Aliases other than www.DOMAIN, as the legacy list shows them. */
     public function extraAliases(): array
     {

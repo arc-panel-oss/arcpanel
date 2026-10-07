@@ -1,10 +1,13 @@
 #!/bin/bash
-# info: adding cronjob for letsencrypt certificate installation
-# options: USER DOMAIN [ALIASES]
+# info: queue a Let's Encrypt certificate for a web domain
+# options: USER DOMAIN [ALIASES] [KEY_ALGO]
 #
-# example: v-schedule-letsencrypt-domain admin example.com www.example.com
+# example: v-schedule-letsencrypt-domain admin example.com www.example.com ecdsa-256
 #
-# This function adds cronjob for letsencrypt ssl certificate installation
+# This function queues a Let's Encrypt certificate for a web domain: the
+# letsencrypt queue, run by cron every five minutes, issues it with
+# v-add-letsencrypt-domain. ALIASES defaults to the aliases of the domain,
+# KEY_ALGO (rsa, ecdsa-256, ecdsa-384) to its current key type.
 
 #----------------------------------------------------------#
 #                Variables & Functions                     #
@@ -14,6 +17,7 @@
 user=$1
 domain=$2
 aliases=$3
+key_algo="${4,,}"
 
 # Includes
 # shellcheck source=/etc/arcpanel/arcpanel.conf
@@ -29,8 +33,8 @@ source_conf "$ARCPANEL/conf/arcpanel.conf"
 #                    Verifications                         #
 #----------------------------------------------------------#
 
-check_args '2' "$#" 'USER DOMAIN [ALIASES]'
-is_format_valid 'user' 'domain' 'aliases'
+check_args '2' "$#" 'USER DOMAIN [ALIASES] [KEY_ALGO]'
+is_format_valid 'user' 'domain' 'aliases' 'key_algo'
 is_system_enabled "$WEB_SYSTEM" 'WEB_SYSTEM'
 is_system_enabled "$WEB_SSL" 'SSL_SUPPORT'
 is_object_valid 'user' 'USER' "$user"
@@ -45,17 +49,23 @@ check_arcpanel_demo_mode
 #                       Action                             #
 #----------------------------------------------------------#
 
-# Parsing domain aliases
+# Parsing domain aliases and key type
+get_domain_values 'web'
 if [ -z "$aliases" ]; then
-	get_domain_values 'web'
 	aliases="$ALIAS"
+fi
+if [ -z "$key_algo" ]; then
+	key_algo="${SSL_KEY_ALGO:-ecdsa-256}"
+	is_format_valid 'key_algo'
 fi
 
 # Adding cronjob scheduler for LE
 $BIN/v-add-cron-letsencrypt-job
 
-# Adding LE task
-echo "$BIN/v-add-letsencrypt-domain $user $domain '$aliases' no yes" \
+# Adding LE task (MAIL 'no': the web domain), replacing one queued before
+touch $ARCPANEL/data/queue/letsencrypt.pipe
+sed -i "/ $domain /d" $ARCPANEL/data/queue/letsencrypt.pipe
+echo "$BIN/v-add-letsencrypt-domain $user $domain '$aliases' no $key_algo" \
 	>> $ARCPANEL/data/queue/letsencrypt.pipe
 
 #----------------------------------------------------------#

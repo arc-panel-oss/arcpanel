@@ -22,6 +22,7 @@ ROOT_USER=$(grep "^ROOT_USER=" "$CONF" | cut -d"'" -f2)
 OLD_API_SYSTEM=$(grep "^API_SYSTEM=" "$CONF" | cut -d"'" -f2 || true)
 OLD_API_ALLOWED_IP=$(grep "^API_ALLOWED_IP=" "$CONF" | cut -d"'" -f2 || true)
 BODY="$(mktemp)"
+CERT_DIR="$(mktemp -d)"
 KEYS=()
 failures=0
 
@@ -42,7 +43,9 @@ cleanup() {
 	"$ARCPANEL/bin/v-change-sys-config-value" API_SYSTEM "${OLD_API_SYSTEM:-0}"
 	"$ARCPANEL/bin/v-change-sys-config-value" API_ALLOWED_IP "$OLD_API_ALLOWED_IP"
 	clear_panel_cache
-	rm -f "$BODY"
+	# A queued certificate of a smoke domain
+	sed -i "/ $SMOKE_USER\.example\.test /d" "$ARCPANEL/data/queue/letsencrypt.pipe" 2> /dev/null || true
+	rm -rf "$BODY" "$CERT_DIR"
 }
 trap cleanup EXIT
 
@@ -185,6 +188,25 @@ check "unsuspendWebDomain answers 200" 200 "$(call "$WRITER" POST "$WEB/$SMOKE_D
 check "the domain is unsuspended" false "$(json .data.suspended)"
 check "a user key may not rebuild" 403 "$(call "$WRITER" POST "$WEB/$SMOKE_DOMAIN/rebuild")"
 check "rebuildWebDomain answers 200 for the administrator" 200 "$(call "$ADMIN" POST "$WEB/$SMOKE_DOMAIN/rebuild")"
+
+# Aliases, SSL and Let's Encrypt (spec §6.3)
+check "addWebDomainAlias answers 200" 200 "$(call "$WRITER" POST "$WEB/$SMOKE_DOMAIN/aliases" "{\"alias\": \"new.$SMOKE_DOMAIN\"}")"
+check "the alias was added" 1 "$(domain_value ALIAS | tr ',' '\n' | grep -cx "new.$SMOKE_DOMAIN")"
+check "a repeated alias answers 409" 409 "$(call "$WRITER" POST "$WEB/$SMOKE_DOMAIN/aliases" "{\"alias\": \"new.$SMOKE_DOMAIN\"}")"
+check "deleteWebDomainAlias answers 204" 204 "$(call "$WRITER" DELETE "$WEB/$SMOKE_DOMAIN/aliases/new.$SMOKE_DOMAIN")"
+check "the alias was deleted" 0 "$(domain_value ALIAS | tr ',' '\n' | grep -cx "new.$SMOKE_DOMAIN" || true)"
+openssl req -x509 -newkey rsa:2048 -nodes -days 2 -subj "/CN=$SMOKE_DOMAIN" -keyout "$CERT_DIR/key.pem" -out "$CERT_DIR/crt.pem" > /dev/null 2>&1
+ssl_json=$(jq -n --rawfile c "$CERT_DIR/crt.pem" --rawfile k "$CERT_DIR/key.pem" '{certificate: $c, key: $k, force: true}')
+check "setWebDomainSsl installs an uploaded certificate" 200 "$(call "$WRITER" PUT "$WEB/$SMOKE_DOMAIN/ssl" "$ssl_json")"
+check "the domain has SSL with forced HTTPS" "yes yes" "$(domain_value SSL) $(domain_value SSL_FORCE)"
+check "the answer describes the certificate" "$SMOKE_DOMAIN" "$(json .data.ssl.certificate.subject)"
+check "setWebDomainSsl changes HSTS alone" 200 "$(call "$WRITER" PUT "$WEB/$SMOKE_DOMAIN/ssl" '{"hsts": true}')"
+check "HSTS is on" yes "$(domain_value SSL_HSTS)"
+check "deleteWebDomainSsl answers 204" 204 "$(call "$WRITER" DELETE "$WEB/$SMOKE_DOMAIN/ssl")"
+check "the domain has no SSL" no "$(domain_value SSL)"
+check "requestWebDomainLetsEncrypt answers 202" 202 "$(call "$WRITER" POST "$WEB/$SMOKE_DOMAIN/letsencrypt" '{"key_algorithm": "ecdsa-384"}')"
+check "the certificate is queued with its key type" 1 "$(grep -c " $SMOKE_DOMAIN .* no ecdsa-384$" "$ARCPANEL/data/queue/letsencrypt.pipe")"
+sed -i "/ $SMOKE_DOMAIN /d" "$ARCPANEL/data/queue/letsencrypt.pipe"
 check "deleteWebDomain answers 204" 204 "$(call "$WRITER" DELETE "$WEB/$SMOKE_DOMAIN")"
 check "the domain is gone" 404 "$(call "$WRITER" GET "$WEB/$SMOKE_DOMAIN")"
 check "the user of the web domains is deleted" 204 "$(call "$ADMIN" DELETE "/users/$SMOKE_USER")"

@@ -119,7 +119,12 @@ describe('parsePermissionSet', () => {
 		expect(parsePermissionSet("ROLE='user'\nCOMMANDS='v-list-web-domains,v-purge-nginx-cache,v-list-web-domains'\n")).toEqual({
 			role: 'user',
 			commands: ['v-list-web-domains', 'v-purge-nginx-cache'],
+			apiVersion: '1',
 		});
+	});
+
+	it('reads the API_VERSION of a set of REST API v2', () => {
+		expect(parsePermissionSet("ROLE='user'\nAPI_VERSION='2'\nCOMMANDS='v-list-sys-config'\n").apiVersion).toBe('2');
 	});
 });
 
@@ -209,6 +214,16 @@ describe('buildDocument and validateDocument', () => {
 		expect(doc.info.description).toContain('purge-nginx-cache');
 		expect(doc.components.schemas.Credentials.properties.secret_key.examples).toEqual(['']);
 		expect(validateDocument(doc, { commands, permissionSets })).toEqual([]);
+	});
+
+	it('leaves the sets of REST API v2 out of the operations and names them in the overview', () => {
+		const sets = { ...permissionSets, 'v2-write': { role: 'user', commands: ['v-add-web-domain'], apiVersion: '2' } };
+		const doc = buildDocument({ commands, permissionSets: sets, fixtures: {}, version: '2.0.0' });
+
+		expect(doc.paths['/api/#v-add-web-domain'].post['x-arcpanel-permission-sets']).toEqual(['purge-nginx-cache']);
+		expect(doc.info.description).not.toContain('| `v2-write` |');
+		expect(doc.info.description).toContain('The sets `v2-write` belong to REST API v2');
+		expect(validateDocument(doc, { commands, permissionSets: sets })).toEqual([]);
 	});
 
 	it('reports a reference that does not resolve', () => {

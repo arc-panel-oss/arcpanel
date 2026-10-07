@@ -71,8 +71,8 @@ info:
     | `purge-nginx-cache` | user | `v-purge-nginx-cache`, `v-list-web-domains`, `v-list-web-domain` |
     | `sync-dns-cluster` | admin | `v-list-users`, `v-list-sys-config`, `v-list-user`, `v-add-cron-restart-job`, `v-delete-dns-domains-src`, `v-insert-dns-domain`, `v-insert-dns-record`, `v-insert-dns-records`, `v-rebuild-dns-domains`, `v-rebuild-dns-domain`, `v-delete-dns-record`, `v-make-tmp-file`, `v-delete-dns-domain` |
     | `update-dns-records` | user | `v-list-dns-records`, `v-change-dns-record` |
-    | `v2-read` | user | `v-list-sys-config` |
-    | `v2-write` | user | `v-list-sys-config` |
+
+    The sets `v2-read` and `v2-write` belong to REST API v2 (`/api/v2/`, documented in `docs/api/v2/openapi.json`): this API ignores them, so a key with only those sets may run no command here.
   license:
     name: GPL-3.0-or-later
     identifier: GPL-3.0-or-later
@@ -20116,11 +20116,9 @@ paths:
         | --- | --- | --- |
         | `arg1` | `FORMAT` | no |
 
-        **Permission sets:** `sync-dns-cluster`, `v2-read`, `v2-write`.
+        **Permission sets:** `sync-dns-cluster`.
       x-arcpanel-permission-sets:
         - sync-dns-cluster
-        - v2-read
-        - v2-write
       requestBody:
         required: true
         content:
@@ -27327,9 +27325,12 @@ paths:
       operationId: v-schedule-letsencrypt-domain
       tags:
         - Let's Encrypt
-      summary: Adding cronjob for letsencrypt certificate installation
+      summary: Queue a Let's Encrypt certificate for a web domain
       description: |-
-        This function adds cronjob for letsencrypt ssl certificate installation
+        This function queues a Let's Encrypt certificate for a web domain: the
+        letsencrypt queue, run by cron every five minutes, issues it with
+        v-add-letsencrypt-domain. ALIASES defaults to the aliases of the domain,
+        KEY_ALGO (rsa, ecdsa-256, ecdsa-384) to its current key type.
 
         **Arguments**
 
@@ -27338,6 +27339,7 @@ paths:
         | `arg1` | `USER` | yes |
         | `arg2` | `DOMAIN` | yes |
         | `arg3` | `ALIASES` | no |
+        | `arg4` | `KEY_ALGO` | no |
 
         **User argument:** with the access key of a user other than the admin, `arg1` must be the key's user.
       x-arcpanel-user-arg: 1
@@ -50926,6 +50928,12 @@ components:
               description: "`ALIASES`, optional"
               examples:
                 - www.example.com
+            arg4:
+              type: string
+              title: KEY_ALGO
+              description: "`KEY_ALGO`, optional"
+              examples:
+                - ecdsa-256
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-schedule-user-backup:

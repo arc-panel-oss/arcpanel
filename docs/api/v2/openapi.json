@@ -2197,6 +2197,526 @@
                     }
                 }
             }
+        },
+        "/users/{user}/web-domains/{domain}/aliases": {
+            "post": {
+                "operationId": "addWebDomainAlias",
+                "description": "With a DNS record when the domain has a DNS zone; a Let's Encrypt\ncertificate is queued again to cover it. An alias the domain has\nanswers 409 `E_EXISTS`.",
+                "summary": "Add an alias to a web domain",
+                "tags": [
+                    "Web domains"
+                ],
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "domain",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "dry_run",
+                        "in": "query",
+                        "description": "Validate, authorize and plan the change, and answer with its steps instead of running them.",
+                        "schema": {
+                            "type": "boolean",
+                            "default": false
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/WebDomainAliasRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "`WebDomain`; with `dry_run`, the planned steps.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "oneOf": [
+                                        {
+                                            "type": "object",
+                                            "properties": {
+                                                "data": {
+                                                    "$ref": "#/components/schemas/WebDomain"
+                                                }
+                                            },
+                                            "required": [
+                                                "data"
+                                            ]
+                                        },
+                                        {
+                                            "$ref": "#/components/schemas/DryRun"
+                                        }
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "409": {
+                        "$ref": "#/components/responses/Conflict"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    },
+                    "503": {
+                        "$ref": "#/components/responses/Unavailable"
+                    }
+                }
+            }
+        },
+        "/users/{user}/web-domains/{domain}/aliases/{alias}": {
+            "delete": {
+                "operationId": "deleteWebDomainAlias",
+                "description": "With its DNS record; a Let's Encrypt certificate is queued again\nwithout it.",
+                "summary": "Delete an alias of a web domain",
+                "tags": [
+                    "Web domains"
+                ],
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "domain",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "alias",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "dry_run",
+                        "in": "query",
+                        "description": "Validate, authorize and plan the change, and answer with its steps instead of running them.",
+                        "schema": {
+                            "type": "boolean",
+                            "default": false
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "With `dry_run`: the planned steps; nothing ran.",
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/DryRun"
+                                }
+                            }
+                        }
+                    },
+                    "204": {
+                        "description": "No content.",
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "409": {
+                        "$ref": "#/components/responses/Conflict"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    },
+                    "503": {
+                        "$ref": "#/components/responses/Unavailable"
+                    }
+                }
+            }
+        },
+        "/users/{user}/web-domains/{domain}/ssl": {
+            "put": {
+                "operationId": "setWebDomainSsl",
+                "description": "With `certificate` (and `key` for a first certificate) the uploaded\ncertificate is installed or replaced; a Let's Encrypt certificate is\nremoved first. Without it, `force` and `hsts` change for the\ncertificate the domain has.",
+                "summary": "Install a certificate or change HTTPS settings",
+                "tags": [
+                    "Web domains"
+                ],
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "domain",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "dry_run",
+                        "in": "query",
+                        "description": "Validate, authorize and plan the change, and answer with its steps instead of running them.",
+                        "schema": {
+                            "type": "boolean",
+                            "default": false
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/WebDomainSslRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "`WebDomain`; with `dry_run`, the planned steps.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "oneOf": [
+                                        {
+                                            "type": "object",
+                                            "properties": {
+                                                "data": {
+                                                    "$ref": "#/components/schemas/WebDomain"
+                                                }
+                                            },
+                                            "required": [
+                                                "data"
+                                            ]
+                                        },
+                                        {
+                                            "$ref": "#/components/schemas/DryRun"
+                                        }
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "409": {
+                        "$ref": "#/components/responses/Conflict"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    },
+                    "503": {
+                        "$ref": "#/components/responses/Unavailable"
+                    }
+                }
+            },
+            "delete": {
+                "operationId": "deleteWebDomainSsl",
+                "description": "Removes the certificate (uploaded or Let's Encrypt), forced HTTPS and\nHSTS. A domain without SSL answers as it is.",
+                "summary": "Turn SSL off",
+                "tags": [
+                    "Web domains"
+                ],
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "domain",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "dry_run",
+                        "in": "query",
+                        "description": "Validate, authorize and plan the change, and answer with its steps instead of running them.",
+                        "schema": {
+                            "type": "boolean",
+                            "default": false
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "With `dry_run`: the planned steps; nothing ran.",
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/DryRun"
+                                }
+                            }
+                        }
+                    },
+                    "204": {
+                        "description": "No content.",
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "409": {
+                        "$ref": "#/components/responses/Conflict"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    },
+                    "503": {
+                        "$ref": "#/components/responses/Unavailable"
+                    }
+                }
+            }
+        },
+        "/users/{user}/web-domains/{domain}/letsencrypt": {
+            "post": {
+                "operationId": "requestWebDomainLetsEncrypt",
+                "description": "Queues the certificate for the domain and its aliases, which must\nresolve to this server; the queue runs every five minutes. Answers\n202 with the domain as it is: `ssl.letsencrypt` turns true once the\ncertificate is installed.",
+                "summary": "Request a Let's Encrypt certificate",
+                "tags": [
+                    "Web domains"
+                ],
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "domain",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "dry_run",
+                        "in": "query",
+                        "description": "Validate, authorize and plan the change, and answer with its steps instead of running them.",
+                        "schema": {
+                            "type": "boolean",
+                            "default": false
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/LetsEncryptRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "With `dry_run`: the planned steps; nothing ran.",
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/DryRun"
+                                }
+                            }
+                        }
+                    },
+                    "202": {
+                        "description": "`WebDomain`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/WebDomain"
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            },
+                            "Location": {
+                                "$ref": "#/components/headers/Location"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "409": {
+                        "$ref": "#/components/responses/Conflict"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    },
+                    "503": {
+                        "$ref": "#/components/responses/Unavailable"
+                    }
+                }
+            }
         }
     },
     "components": {
@@ -2365,6 +2885,22 @@
                     "E_UPDATE",
                     "E_RESTART"
                 ]
+            },
+            "LetsEncryptRequest": {
+                "type": "object",
+                "description": "POST /users/{user}/web-domains/{domain}/letsencrypt.",
+                "properties": {
+                    "key_algorithm": {
+                        "type": "string",
+                        "description": "The key type of the certificate; the domain's current one when left out.",
+                        "enum": [
+                            "ecdsa-256",
+                            "ecdsa-384",
+                            "rsa"
+                        ]
+                    }
+                },
+                "title": "LetsEncryptRequest"
             },
             "Me": {
                 "type": "object",
@@ -3946,6 +4482,49 @@
                                     "ecdsa-384",
                                     "rsa"
                                 ]
+                            },
+                            "certificate": {
+                                "type": [
+                                    "object",
+                                    "null"
+                                ],
+                                "description": "The installed certificate, null without SSL; only part of a single domain.",
+                                "properties": {
+                                    "subject": {
+                                        "type": "string"
+                                    },
+                                    "names": {
+                                        "type": "array",
+                                        "description": "the names it covers",
+                                        "items": {
+                                            "type": "string"
+                                        }
+                                    },
+                                    "issuer": {
+                                        "type": "string"
+                                    },
+                                    "not_before": {
+                                        "type": [
+                                            "string",
+                                            "null"
+                                        ],
+                                        "description": "start of validity, UTC, YYYY-MM-DDTHH:MM:SSZ"
+                                    },
+                                    "not_after": {
+                                        "type": [
+                                            "string",
+                                            "null"
+                                        ],
+                                        "description": "end of validity, UTC, YYYY-MM-DDTHH:MM:SSZ"
+                                    }
+                                },
+                                "required": [
+                                    "subject",
+                                    "names",
+                                    "issuer",
+                                    "not_before",
+                                    "not_after"
+                                ]
                             }
                         },
                         "required": [
@@ -4045,6 +4624,61 @@
                     "created_at"
                 ],
                 "title": "WebDomain"
+            },
+            "WebDomainAliasRequest": {
+                "type": "object",
+                "description": "POST /users/{user}/web-domains/{domain}/aliases: one more name of the domain, lowercased.",
+                "properties": {
+                    "alias": {
+                        "type": "string",
+                        "description": "A host name such as www.example.com, or a wildcard such as *.example.com.",
+                        "pattern": "^(\\*\\.)?[\\pL\\pN]([\\pL\\pN_-]*[\\pL\\pN])?(\\.[\\pL\\pN]([\\pL\\pN_-]*[\\pL\\pN])?)+$",
+                        "maxLength": 253
+                    }
+                },
+                "required": [
+                    "alias"
+                ],
+                "title": "WebDomainAliasRequest"
+            },
+            "WebDomainSslRequest": {
+                "type": "object",
+                "description": "PUT /users/{user}/web-domains/{domain}/ssl: an uploaded certificate, or\nforced HTTPS and HSTS alone for the certificate the domain has.",
+                "properties": {
+                    "certificate": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "The certificate (PEM); left out, the domain keeps its certificate, Let's Encrypt included.",
+                        "maxLength": 65536
+                    },
+                    "key": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "Its private key (PEM); required with a first certificate, left out it keeps the current key.",
+                        "maxLength": 65536
+                    },
+                    "ca": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "The intermediate certificates (PEM).",
+                        "maxLength": 65536
+                    },
+                    "force": {
+                        "type": "boolean",
+                        "description": "Redirect HTTP to HTTPS; left out it keeps its value."
+                    },
+                    "hsts": {
+                        "type": "boolean",
+                        "description": "Send Strict-Transport-Security; left out it keeps its value."
+                    }
+                },
+                "title": "WebDomainSslRequest"
             }
         },
         "responses": {

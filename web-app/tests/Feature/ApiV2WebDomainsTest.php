@@ -44,7 +44,9 @@ it('lists the domains of a user inside the tree and answers 404 outside it', fun
 it('lists the domains of a user', function () {
     $this->getJson('/api/v2/users/bob/web-domains', apiAs($this->fake, 'bob', 'user', readOnly: true))->assertOk()
         ->assertJsonPath('data.*.domain', ['example.com', 'shop.example'])
-        ->assertJsonMissingPath('data.0.backend_port');
+        ->assertJsonMissingPath('data.0.backend_port')
+        ->assertJsonMissingPath('data.0.ssl.certificate');
+    $this->fake->assertNotRan('v-list-web-domain-ssl');
 });
 
 it('describes a domain with typed fields and its app port', function () {
@@ -58,7 +60,9 @@ it('describes a domain with typed fields and its app port', function () {
         ->assertJsonPath('data.templates', ['web' => 'default', 'backend' => 'default', 'proxy' => 'default'])
         ->assertJsonPath('data.proxy_extensions', ['css', 'js', 'png', 'jpg'])
         ->assertJsonPath('data.fastcgi_cache', ['enabled' => false, 'duration' => null])
-        ->assertJsonPath('data.ssl', ['enabled' => true, 'letsencrypt' => true, 'force' => true, 'hsts' => false, 'home' => 'same', 'key_algorithm' => 'ecdsa-256'])
+        ->assertJsonPath('data.ssl', ['enabled' => true, 'letsencrypt' => true, 'force' => true, 'hsts' => false, 'home' => 'same', 'key_algorithm' => 'ecdsa-256',
+            'certificate' => ['subject' => 'example.com', 'names' => ['example.com', 'www.example.com', 'blog.example.com'], 'issuer' => "Let's Encrypt E6",
+                'not_before' => '2026-09-20T00:00:00Z', 'not_after' => '2026-12-19T00:00:00Z']])
         ->assertJsonPath('data.redirect', null)
         ->assertJsonPath('data.stats', 'awstats')
         ->assertJsonPath('data.ftp_accounts', [['username' => 'bob_deploy', 'path' => 'releases']])
@@ -346,4 +350,133 @@ it('refuses every change to a v2-read key and runs nothing', function () {
     foreach (['v-change-web-domain-docroot', 'v-suspend-web-domain', 'v-purge-nginx-cache', 'v-delete-web-domain'] as $command) {
         $this->fake->assertNotRan($command);
     }
+});
+
+// Aliases (addWebDomainAlias, deleteWebDomainAlias)
+
+it('adds an alias with its DNS record and queues the Let’s Encrypt certificate again', function () {
+    $this->fake->on('v-list-dns-domain')->returnsExit(ExitCode::NotExist, 'no zone');
+    $this->fake->on('v-list-dns-domain', ['bob', 'example.com', 'json'])->returns('{}');
+    foreach (['v-add-web-domain-alias', 'v-add-dns-on-web-alias', 'v-schedule-letsencrypt-domain', 'v-change-web-domain-stats'] as $command) {
+        $this->fake->on($command)->returns();
+    }
+    fakeRestarts($this->fake);
+
+    $this->postJson('/api/v2/users/bob/web-domains/example.com/aliases', ['alias' => 'New.Example.com'], apiAs($this->fake, 'bob', 'user'))->assertOk()
+        ->assertJsonPath('data.domain', 'example.com');
+
+    $this->fake->assertRan('v-add-web-domain-alias', fn ($a) => $a === ['bob', 'example.com', 'new.example.com', 'no']);
+    $this->fake->assertRan('v-add-dns-on-web-alias', fn ($a) => $a === ['bob', 'new.example.com', '203.0.113.10', 'no']);
+    $this->fake->assertRan('v-schedule-letsencrypt-domain', fn ($a) => $a === ['bob', 'example.com', 'www.example.com,blog.example.com,new.example.com', 'ecdsa-256']);
+    $this->fake->assertNotRan('v-add-letsencrypt-domain');
+    $this->fake->assertRan('v-change-web-domain-stats', fn ($a) => $a === ['bob', 'example.com', 'awstats']);
+});
+
+it('answers an alias the domain has with 409 and validates the alias', function () {
+    $headers = apiAs($this->fake, 'bob', 'user');
+
+    $this->postJson('/api/v2/users/bob/web-domains/example.com/aliases', ['alias' => 'blog.example.com'], $headers)->assertStatus(409)
+        ->assertJsonPath('error.code', 'E_EXISTS');
+    $this->postJson('/api/v2/users/bob/web-domains/example.com/aliases', ['alias' => 'example.com'], $headers)->assertStatus(409);
+    $this->postJson('/api/v2/users/bob/web-domains/example.com/aliases', ['alias' => 'bad alias'], $headers)->assertUnprocessable()
+        ->assertJsonStructure(['error' => ['fields' => ['alias']]]);
+    $this->fake->assertNotRan('v-add-web-domain-alias');
+});
+
+it('deletes an alias, and answers 404 for an alias the domain does not have', function () {
+    $this->fake->on('v-list-dns-domain')->returnsExit(ExitCode::NotExist, 'no zone');
+    $this->fake->on('v-delete-web-domain-alias')->returns();
+    fakeRestarts($this->fake);
+    $headers = apiAs($this->fake, 'bob', 'user');
+
+    $this->deleteJson('/api/v2/users/bob/web-domains/shop.example/aliases/www.shop.example', [], $headers)->assertNoContent();
+    $this->fake->assertRan('v-delete-web-domain-alias', fn ($a) => $a === ['bob', 'shop.example', 'www.shop.example', 'no']);
+    $this->fake->assertNotRan('v-delete-dns-on-web-alias');
+
+    $this->deleteJson('/api/v2/users/bob/web-domains/shop.example/aliases/nope.shop.example', [], $headers)->assertNotFound();
+    $this->deleteJson('/api/v2/users/carol/web-domains/carol.example/aliases/www.carol.example', [], $headers)->assertNotFound();
+});
+
+// SSL (setWebDomainSsl, deleteWebDomainSsl)
+
+it('installs an uploaded certificate, the key required', function () {
+    $this->fake->on('v-add-web-domain-ssl')->returns();
+    $this->fake->on('v-add-web-domain-ssl-force')->returns();
+    fakeRestarts($this->fake);
+    $headers = apiAs($this->fake, 'bob', 'user');
+
+    $this->putJson('/api/v2/users/bob/web-domains/shop.example/ssl', ['force' => true], $headers)->assertUnprocessable()
+        ->assertJsonPath('error.fields', ['certificate' => ['The domain has no certificate: send one.']]);
+    $this->putJson('/api/v2/users/bob/web-domains/shop.example/ssl', ['certificate' => 'CERT'], $headers)->assertUnprocessable()
+        ->assertJsonPath('error.fields', ['key' => ['The private key of a new certificate is required.']]);
+    $this->fake->assertNotRan('v-add-web-domain-ssl');
+
+    $this->putJson('/api/v2/users/bob/web-domains/shop.example/ssl', ['certificate' => 'CERT', 'key' => 'KEY', 'force' => true], $headers)->assertOk();
+    $this->fake->assertRan('v-add-web-domain-ssl', fn ($a) => $a[0] === 'bob' && $a[1] === 'shop.example'
+        && json_decode($a[2], true) === ['shop.example.crt' => 'CERT', 'shop.example.key' => 'KEY'] && $a[3] === 'same' && $a[4] === 'no');
+    $this->fake->assertRan('v-add-web-domain-ssl-force', fn ($a) => $a === ['bob', 'shop.example']);
+});
+
+it('changes HSTS alone on a Let’s Encrypt certificate', function () {
+    $this->fake->on('v-add-web-domain-ssl-hsts')->returns();
+    fakeRestarts($this->fake);
+
+    $this->putJson('/api/v2/users/bob/web-domains/example.com/ssl', ['hsts' => true], apiAs($this->fake, 'bob', 'user'))->assertOk();
+
+    $this->fake->assertRan('v-add-web-domain-ssl-hsts', fn ($a) => $a === ['bob', 'example.com']);
+    foreach (['v-add-letsencrypt-domain', 'v-delete-letsencrypt-domain', 'v-change-web-domain-sslcert', 'v-delete-web-domain-ssl-force'] as $command) {
+        $this->fake->assertNotRan($command);
+    }
+});
+
+it('replaces a Let’s Encrypt certificate with an uploaded one', function () {
+    $this->putJson('/api/v2/users/bob/web-domains/example.com/ssl?dry_run=1', ['certificate' => 'CERT', 'key' => 'KEY'], apiAs($this->fake, 'bob', 'user'))->assertOk()
+        ->assertJsonPath('data.steps.*.command', ['v-delete-letsencrypt-domain', 'v-add-web-domain-ssl', 'v-add-web-domain-ssl-force'])
+        ->assertJsonPath('data.steps.1.args', ['bob', 'example.com', '******', 'same', 'no']);
+    $this->fake->assertNotRan('v-delete-letsencrypt-domain');
+});
+
+it('turns SSL off, a domain without SSL answering as it is', function () {
+    $this->fake->on('v-delete-web-domain-ssl')->returns();
+    fakeRestarts($this->fake);
+    $headers = apiAs($this->fake, 'bob', 'user');
+    apiWebDomainListed($this, 'bob', 'example.com', ['SSL' => 'yes', 'LETSENCRYPT' => 'no', 'SSL_FORCE' => 'no']);
+
+    $this->deleteJson('/api/v2/users/bob/web-domains/example.com/ssl', [], $headers)->assertNoContent();
+    $this->fake->assertRan('v-delete-web-domain-ssl', fn ($a) => $a === ['bob', 'example.com', 'no']);
+
+    $this->deleteJson('/api/v2/users/bob/web-domains/shop.example/ssl', [], $headers)->assertNoContent();
+    $this->fake->assertRan('v-delete-web-domain-ssl', times: 1);
+});
+
+it('plans the removal of a Let’s Encrypt certificate', function () {
+    $this->deleteJson('/api/v2/users/bob/web-domains/example.com/ssl?dry_run=1', [], apiAs($this->fake, 'arcadmin', 'admin'))->assertOk()
+        ->assertJsonPath('data.steps.0.command', 'v-delete-letsencrypt-domain');
+});
+
+// Let's Encrypt (requestWebDomainLetsEncrypt)
+
+it('queues a Let’s Encrypt certificate and answers 202 with the domain to poll', function () {
+    $this->fake->on('v-schedule-letsencrypt-domain')->returns();
+    $headers = apiAs($this->fake, 'hostco', 'reseller');
+
+    $this->postJson('/api/v2/users/bob/web-domains/shop.example/letsencrypt', [], $headers)
+        ->assertStatus(202)
+        ->assertHeader('Location', 'http://localhost/api/v2/users/bob/web-domains/shop.example')
+        ->assertJsonPath('data.ssl.letsencrypt', false);
+    $this->fake->assertRan('v-schedule-letsencrypt-domain', fn ($a) => $a === ['bob', 'shop.example', 'www.shop.example', 'ecdsa-256']);
+
+    $this->postJson('/api/v2/users/bob/web-domains/example.com/letsencrypt', ['key_algorithm' => 'rsa'], $headers)->assertStatus(202);
+    $this->fake->assertRan('v-schedule-letsencrypt-domain', fn ($a) => $a === ['bob', 'example.com', 'www.example.com,blog.example.com', 'rsa']);
+
+    $this->postJson('/api/v2/users/bob/web-domains/example.com/letsencrypt', ['key_algorithm' => 'dsa'], $headers)->assertUnprocessable();
+    $this->postJson('/api/v2/users/carol/web-domains/carol.example/letsencrypt', [], $headers)->assertNotFound();
+});
+
+it('plans a Let’s Encrypt request, and refuses it to a v2-read key', function () {
+    $this->postJson('/api/v2/users/bob/web-domains/shop.example/letsencrypt?dry_run=1', [], apiAs($this->fake, 'bob', 'user'))->assertOk()
+        ->assertJsonPath('data.steps', [['label' => 'Queue a Let’s Encrypt certificate', 'command' => 'v-schedule-letsencrypt-domain', 'args' => ['bob', 'shop.example', 'www.shop.example', 'ecdsa-256']]]);
+    $this->postJson('/api/v2/users/bob/web-domains/shop.example/letsencrypt', [], apiAs($this->fake, 'bob', 'user', readOnly: true))->assertForbidden()
+        ->assertJsonPath('error.commands', ['v-schedule-letsencrypt-domain']);
+    $this->fake->assertNotRan('v-schedule-letsencrypt-domain');
 });
