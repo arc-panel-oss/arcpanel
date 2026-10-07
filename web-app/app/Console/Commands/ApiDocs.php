@@ -212,6 +212,11 @@ final class ApiDocs extends Command
             }
         });
 
+        if (isset($spec['components']['schemas']['DockerApp'])) {
+            $spec['components']['schemas']['DockerApp'] = self::dockerAppSchema();
+        }
+        unset($spec['components']['schemas']['DockerAppResource']);
+
         return $spec;
     }
 
@@ -510,7 +515,7 @@ final class ApiDocs extends Command
     {
         return [
             'type' => 'object',
-            'description' => 'One Docker app (`DockerAppResource`). Detail fields appear on `getDockerApp` only.',
+            'description' => 'One Docker app. Detail fields appear on `getDockerApp` only.',
             'properties' => [
                 'name' => ['type' => 'string'],
                 'slug' => ['type' => 'string'],
@@ -571,7 +576,6 @@ final class ApiDocs extends Command
     private static function dockerAppComponentSchemas(): array
     {
         return [
-            'DockerApp' => self::dockerAppSchema(),
             'DockerAppPortEntry' => [
                 'type' => 'object',
                 'properties' => [

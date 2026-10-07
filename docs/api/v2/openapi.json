@@ -5407,7 +5407,7 @@
                 ],
                 "responses": {
                     "200": {
-                        "description": "Array of `DockerAppResource`",
+                        "description": "Array of `DockerApp`",
                         "content": {
                             "application/json": {
                                 "schema": {
@@ -5416,7 +5416,7 @@
                                         "data": {
                                             "type": "array",
                                             "items": {
-                                                "$ref": "#/components/schemas/DockerAppResource"
+                                                "$ref": "#/components/schemas/DockerApp"
                                             }
                                         },
                                         "meta": {
@@ -5596,14 +5596,14 @@
                 ],
                 "responses": {
                     "200": {
-                        "description": "`DockerAppResource`",
+                        "description": "`DockerApp`",
                         "content": {
                             "application/json": {
                                 "schema": {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/components/schemas/DockerAppResource"
+                                            "$ref": "#/components/schemas/DockerApp"
                                         }
                                     },
                                     "required": [
@@ -5782,7 +5782,7 @@
                 },
                 "responses": {
                     "200": {
-                        "description": "`DockerAppResource`; with `dry_run`, the planned steps.",
+                        "description": "`DockerApp`; with `dry_run`, the planned steps.",
                         "content": {
                             "application/json": {
                                 "schema": {
@@ -5791,7 +5791,7 @@
                                             "type": "object",
                                             "properties": {
                                                 "data": {
-                                                    "$ref": "#/components/schemas/DockerAppResource"
+                                                    "$ref": "#/components/schemas/DockerApp"
                                                 }
                                             },
                                             "required": [
@@ -6066,7 +6066,7 @@
                 },
                 "responses": {
                     "200": {
-                        "description": "`DockerAppResource`; with `dry_run`, the planned steps.",
+                        "description": "`DockerApp`; with `dry_run`, the planned steps.",
                         "content": {
                             "application/json": {
                                 "schema": {
@@ -6075,7 +6075,7 @@
                                             "type": "object",
                                             "properties": {
                                                 "data": {
-                                                    "$ref": "#/components/schemas/DockerAppResource"
+                                                    "$ref": "#/components/schemas/DockerApp"
                                                 }
                                             },
                                             "required": [
@@ -6291,7 +6291,7 @@
                 ],
                 "responses": {
                     "200": {
-                        "description": "`DockerAppResource`; with `dry_run`, the planned steps.",
+                        "description": "`DockerApp`; with `dry_run`, the planned steps.",
                         "content": {
                             "application/json": {
                                 "schema": {
@@ -6300,7 +6300,7 @@
                                             "type": "object",
                                             "properties": {
                                                 "data": {
-                                                    "$ref": "#/components/schemas/DockerAppResource"
+                                                    "$ref": "#/components/schemas/DockerApp"
                                                 }
                                             },
                                             "required": [
@@ -6386,7 +6386,7 @@
                 ],
                 "responses": {
                     "200": {
-                        "description": "`DockerAppResource`; with `dry_run`, the planned steps.",
+                        "description": "`DockerApp`; with `dry_run`, the planned steps.",
                         "content": {
                             "application/json": {
                                 "schema": {
@@ -6395,7 +6395,7 @@
                                             "type": "object",
                                             "properties": {
                                                 "data": {
-                                                    "$ref": "#/components/schemas/DockerAppResource"
+                                                    "$ref": "#/components/schemas/DockerApp"
                                                 }
                                             },
                                             "required": [
@@ -6481,7 +6481,7 @@
                 ],
                 "responses": {
                     "200": {
-                        "description": "`DockerAppResource`; with `dry_run`, the planned steps.",
+                        "description": "`DockerApp`; with `dry_run`, the planned steps.",
                         "content": {
                             "application/json": {
                                 "schema": {
@@ -6490,7 +6490,7 @@
                                             "type": "object",
                                             "properties": {
                                                 "data": {
-                                                    "$ref": "#/components/schemas/DockerAppResource"
+                                                    "$ref": "#/components/schemas/DockerApp"
                                                 }
                                             },
                                             "required": [
@@ -14285,7 +14285,7 @@
             },
             "DockerApp": {
                 "type": "object",
-                "description": "One Docker app (`DockerAppResource`). Detail fields appear on `getDockerApp` only.",
+                "description": "One Docker app. Detail fields appear on `getDockerApp` only.",
                 "properties": {
                     "name": {
                         "type": "string"
@@ -14587,158 +14587,6 @@
                     "public",
                     "description"
                 ]
-            },
-            "DockerAppResource": {
-                "type": "object",
-                "properties": {
-                    "name": {
-                        "type": "string"
-                    },
-                    "slug": {
-                        "type": "string"
-                    },
-                    "app_name": {
-                        "type": "string"
-                    },
-                    "version": {
-                        "type": "string"
-                    },
-                    "latest_version": {
-                        "type": "string"
-                    },
-                    "update_available": {
-                        "type": "string"
-                    },
-                    "domain": {
-                        "type": [
-                            "string",
-                            "null"
-                        ]
-                    },
-                    "url": {
-                        "type": [
-                            "string",
-                            "null"
-                        ]
-                    },
-                    "ssl": {
-                        "type": "string"
-                    },
-                    "web_port": {
-                        "type": [
-                            "string",
-                            "null"
-                        ]
-                    },
-                    "extra_ports": {
-                        "type": [
-                            "string",
-                            "null"
-                        ]
-                    },
-                    "state": {
-                        "type": "string"
-                    },
-                    "status": {
-                        "type": "string"
-                    },
-                    "reason": {
-                        "type": [
-                            "string",
-                            "null"
-                        ]
-                    },
-                    "suspended": {
-                        "type": "string"
-                    },
-                    "busy": {
-                        "type": "string"
-                    },
-                    "previous_version": {
-                        "type": [
-                            "string",
-                            "null"
-                        ]
-                    },
-                    "cpus": {
-                        "type": "string"
-                    },
-                    "memory_mb": {
-                        "type": "string"
-                    },
-                    "cpu": {
-                        "type": "string"
-                    },
-                    "memory_used_mb": {
-                        "type": "string"
-                    },
-                    "containers": {
-                        "type": "string"
-                    },
-                    "running_containers": {
-                        "type": "string"
-                    },
-                    "created_at": {
-                        "type": [
-                            "string",
-                            "null"
-                        ]
-                    },
-                    "services": {
-                        "type": "string"
-                    },
-                    "ports": {
-                        "type": "array",
-                        "items": {}
-                    },
-                    "post_install": {
-                        "type": [
-                            "string",
-                            "null"
-                        ]
-                    },
-                    "rollback": {
-                        "type": "string"
-                    },
-                    "last_dump": {
-                        "type": [
-                            "string",
-                            "null"
-                        ]
-                    }
-                },
-                "required": [
-                    "name",
-                    "slug",
-                    "app_name",
-                    "version",
-                    "latest_version",
-                    "update_available",
-                    "domain",
-                    "url",
-                    "ssl",
-                    "web_port",
-                    "extra_ports",
-                    "state",
-                    "status",
-                    "reason",
-                    "suspended",
-                    "busy",
-                    "previous_version",
-                    "cpus",
-                    "memory_mb",
-                    "cpu",
-                    "memory_used_mb",
-                    "containers",
-                    "running_containers",
-                    "created_at",
-                    "services",
-                    "ports",
-                    "post_install",
-                    "rollback",
-                    "last_dump"
-                ],
-                "title": "DockerAppResource"
             },
             "DockerAppServiceEntry": {
                 "type": "object",
