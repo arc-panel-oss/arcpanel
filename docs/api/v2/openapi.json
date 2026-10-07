@@ -1333,14 +1333,17 @@
                 ],
                 "responses": {
                     "200": {
-                        "description": "",
+                        "description": "Array of `SnapshotFileEntry`",
                         "content": {
                             "application/json": {
                                 "schema": {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "type": "string"
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/components/schemas/SnapshotFileEntry"
+                                            }
                                         },
                                         "meta": {
                                             "$ref": "#/components/schemas/ListMeta"
@@ -11361,6 +11364,98 @@
                     "content"
                 ],
                 "title": "Snapshot"
+            },
+            "SnapshotFileEntry": {
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string"
+                    },
+                    "path": {
+                        "type": "string",
+                        "description": "path relative to the home directory"
+                    },
+                    "type": {
+                        "type": "string",
+                        "enum": [
+                            "file",
+                            "directory",
+                            "link",
+                            "other"
+                        ]
+                    },
+                    "size": {
+                        "type": "integer"
+                    },
+                    "mode": {
+                        "type": "string",
+                        "description": "octal mode"
+                    },
+                    "owner": {
+                        "type": "string"
+                    },
+                    "group": {
+                        "type": "string"
+                    },
+                    "modified_at": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "creation time in the server's time zone, YYYY-MM-DDTHH:MM:SS"
+                    },
+                    "link_target": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
+                    "link_type": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "enum": [
+                            "d",
+                            "f",
+                            "missing",
+                            "o",
+                            null
+                        ]
+                    },
+                    "link_inside": {
+                        "type": "boolean"
+                    },
+                    "mime": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
+                    "writable": {
+                        "type": "boolean"
+                    },
+                    "valid_name": {
+                        "type": "boolean"
+                    }
+                },
+                "required": [
+                    "name",
+                    "path",
+                    "type",
+                    "size",
+                    "mode",
+                    "owner",
+                    "group",
+                    "modified_at",
+                    "link_target",
+                    "link_type",
+                    "link_inside",
+                    "mime",
+                    "writable",
+                    "valid_name"
+                ],
+                "title": "SnapshotFileEntry"
             },
             "StoreCronJobRequest": {
                 "type": "object",

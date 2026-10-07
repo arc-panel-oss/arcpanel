@@ -18,6 +18,7 @@ use App\Http\Requests\Api\V2\SetBackupExclusionsRequest;
 use App\Http\Resources\V2\BackupExclusionsResource;
 use App\Http\Resources\V2\BackupResource;
 use App\Http\Resources\V2\SnapshotFileEntryResource;
+use App\Http\Resources\V2\SnapshotListingEntry;
 use App\Http\Resources\V2\SnapshotResource;
 use App\Http\Resources\V2\TaskResource;
 use App\Services\Backups\BackupArchive;
@@ -297,7 +298,7 @@ final class BackupController extends Controller
      *
      * @operationId listSnapshotFiles
      */
-    public function listSnapshotFiles(Request $request, string $user, string $snapshot, Principal $principal, BackupPolicy $policy): JsonResponse
+    public function listSnapshotFiles(Request $request, string $user, string $snapshot, Principal $principal, BackupPolicy $policy): AnonymousResourceCollection
     {
         $this->assertOwner($user, $principal, $policy);
         $this->assertIncremental($user);
@@ -310,16 +311,13 @@ final class BackupController extends Controller
         }
         $home = self::home($user);
         $listing = $this->backups->snapshotFolder($user, $snapshot, $relative->absolute($home));
-        $entries = array_map(
-            fn (array $entry) => SnapshotFileEntryResource::from($entry, $home, $listing->path),
-            $listing->entries,
+        $page = $this->pages->slice($request, $listing->entries);
+        $items = array_map(
+            fn (array $entry) => new SnapshotListingEntry($entry, $home, $listing->path),
+            $page['items'],
         );
-        $page = $this->pages->slice($request, $entries);
 
-        return response()->json([
-            'data' => $page['items'],
-            'meta' => $page['meta'],
-        ]);
+        return SnapshotFileEntryResource::collection($items)->additional(['meta' => $page['meta']]);
     }
 
     /**

@@ -177,6 +177,36 @@ it('describes one snapshot and refuses an unknown or invalid id', function () {
     $this->getJson('/api/v2/users/bob/snapshots/not-hex-id!', $headers)->assertNotFound();
 });
 
+it('answers 409 with the queued task when a snapshot backup is already scheduled', function () {
+    $this->fake->on('v-list-user-tasks', ['bob', 'json'])->returnsJson([
+        '8001' => ['ID' => '8001', 'KIND' => 'backup', 'ARGS' => '', 'STATUS' => 'queued', 'EXIT' => '', 'ERROR' => '',
+            'QUEUED' => '2026-10-08 09:00:00', 'START' => '', 'END' => '', 'LOG' => ''],
+    ]);
+    $this->fake->on('v-schedule-user-backup-restic', ['bob', 'json'])->returnsExit(ExitCode::Exists, 'Error: backup is already scheduled');
+
+    $this->postJson('/api/v2/users/bob/snapshots', [], apiAs($this->fake, 'bob', 'user', area: 'backup'))
+        ->assertStatus(409)
+        ->assertJsonPath('error.code', 'E_EXISTS')
+        ->assertJsonPath('error.existing.id', 'queue:bob:8001')
+        ->assertJsonPath('error.existing.status', 'queued');
+    $this->fake->assertRan('v-schedule-user-backup-restic');
+});
+
+it('answers 409 with the queued task when a snapshot restore is already scheduled', function () {
+    $this->fake->on('v-list-user-tasks', ['bob', 'json'])->returnsJson([
+        '8002' => ['ID' => '8002', 'KIND' => 'restore', 'ARGS' => '', 'STATUS' => 'queued', 'EXIT' => '', 'ERROR' => '',
+            'QUEUED' => '2026-10-08 09:00:00', 'START' => '', 'END' => '', 'LOG' => ''],
+    ]);
+    $this->fake->on('v-schedule-user-restore-restic')->returnsExit(ExitCode::Exists, 'Error: restore is already scheduled');
+
+    $this->postJson('/api/v2/users/bob/snapshots/'.API_BK_SNAPSHOT.'/restore', [], apiAs($this->fake, 'bob', 'user', area: 'backup'))
+        ->assertStatus(409)
+        ->assertJsonPath('error.code', 'E_EXISTS')
+        ->assertJsonPath('error.existing.id', 'queue:bob:8002')
+        ->assertJsonPath('error.existing.status', 'queued');
+    $this->fake->assertRan('v-schedule-user-restore-restic');
+});
+
 it('creates a snapshot with Link and lists snapshot files as read-only entries', function () {
     $this->fake->on('v-schedule-user-backup-restic', ['bob', 'json'])->returnsJson(['ID' => '9010']);
     $headers = apiAs($this->fake, 'bob', 'user', area: 'backup');
