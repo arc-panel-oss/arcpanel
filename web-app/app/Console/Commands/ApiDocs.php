@@ -482,12 +482,11 @@ final class ApiDocs extends Command
      * @param  array<string, mixed>  $operation
      * @param  array<string, mixed>  $responses
      */
-    /**
-     * @param  array<string, mixed>  $operation
-     * @param  array<string, mixed>  $responses
-     */
     private static function tailorDockerAppOpenApi(string $operationId, array &$operation, array &$responses): void
     {
+        if ($operationId === 'createDockerApp' && isset($responses['202']['headers'])) {
+            $responses['202']['headers']['Link'] = ['$ref' => '#/components/headers/Link'];
+        }
         if ($operationId === 'getDockerAppLogs') {
             $operation['parameters'] = [...($operation['parameters'] ?? []), ...self::dockerAppLogParameters()];
             if (isset($responses['200']['content']['application/json']['schema'])) {
@@ -504,6 +503,98 @@ final class ApiDocs extends Command
             $responses['200']['content']['application/json']['schema'] = ['oneOf' => [$env, $dryRun]];
             $responses['200']['description'] = 'The saved environment (D42); with `dry_run`, the planned steps.';
         }
+    }
+
+    /** @return array<string, mixed> */
+    private static function dockerAppSchema(): array
+    {
+        return [
+            'type' => 'object',
+            'description' => 'One Docker app (`DockerAppResource`). Detail fields appear on `getDockerApp` only.',
+            'properties' => [
+                'name' => ['type' => 'string'],
+                'slug' => ['type' => 'string'],
+                'app_name' => ['type' => 'string'],
+                'version' => ['type' => 'string'],
+                'latest_version' => ['type' => 'string'],
+                'update_available' => ['type' => 'boolean'],
+                'domain' => ['type' => ['string', 'null']],
+                'url' => ['type' => ['string', 'null']],
+                'ssl' => ['type' => 'boolean'],
+                'web_port' => ['type' => ['string', 'null']],
+                'extra_ports' => ['type' => ['string', 'null']],
+                'state' => ['type' => 'string'],
+                'status' => ['type' => 'string'],
+                'reason' => ['type' => ['string', 'null']],
+                'suspended' => ['type' => 'boolean'],
+                'busy' => ['type' => 'boolean'],
+                'previous_version' => ['type' => ['string', 'null']],
+                'cpus' => ['type' => 'string'],
+                'memory_mb' => ['type' => 'integer'],
+                'cpu' => ['type' => 'number'],
+                'memory_used_mb' => ['type' => 'integer'],
+                'containers' => ['type' => 'integer'],
+                'running_containers' => ['type' => 'integer'],
+                'created_at' => ['type' => ['string', 'null']],
+                'services' => [
+                    'type' => 'array',
+                    'description' => 'Compose services; present on detail only.',
+                    'items' => ['$ref' => '#/components/schemas/DockerAppServiceEntry'],
+                ],
+                'ports' => [
+                    'type' => 'array',
+                    'description' => 'Published ports; present on detail only.',
+                    'items' => ['$ref' => '#/components/schemas/DockerAppPortEntry'],
+                ],
+                'post_install' => [
+                    'type' => ['string', 'null'],
+                    'description' => 'Post-install note; present on detail only.',
+                ],
+                'rollback' => [
+                    'type' => 'boolean',
+                    'description' => 'Whether a rollback is available; present on detail only.',
+                ],
+                'last_dump' => [
+                    'type' => ['string', 'null'],
+                    'description' => 'Last database dump path; present on detail only.',
+                ],
+            ],
+            'required' => [
+                'name', 'slug', 'app_name', 'version', 'latest_version', 'update_available', 'domain', 'url', 'ssl',
+                'web_port', 'extra_ports', 'state', 'status', 'reason', 'suspended', 'busy', 'previous_version', 'cpus',
+                'memory_mb', 'cpu', 'memory_used_mb', 'containers', 'running_containers', 'created_at',
+            ],
+        ];
+    }
+
+    /** @return array<string, mixed> */
+    private static function dockerAppComponentSchemas(): array
+    {
+        return [
+            'DockerApp' => self::dockerAppSchema(),
+            'DockerAppPortEntry' => [
+                'type' => 'object',
+                'properties' => [
+                    'name' => ['type' => 'string'],
+                    'port' => ['type' => 'string'],
+                    'container' => ['type' => 'string'],
+                    'public' => ['type' => 'boolean'],
+                    'description' => ['type' => 'string'],
+                ],
+                'required' => ['name', 'port', 'container', 'public', 'description'],
+            ],
+            'DockerAppServiceEntry' => [
+                'type' => 'object',
+                'properties' => [
+                    'service' => ['type' => 'string'],
+                    'image' => ['type' => 'string'],
+                    'state' => ['type' => 'string'],
+                    'health' => ['type' => 'string'],
+                    'status' => ['type' => 'string'],
+                ],
+                'required' => ['service', 'image', 'state', 'health', 'status'],
+            ],
+        ];
     }
 
     /** @return array<string, mixed> */
@@ -745,6 +836,7 @@ final class ApiDocs extends Command
                 ],
                 'required' => ['name', 'set'],
             ],
+            ...self::dockerAppComponentSchemas(),
             'DockerAppListMeta' => [
                 'type' => 'object',
                 'description' => 'Docker engine state and DOCKER_APPS limits; the app list is not paginated (E34 batch 4 §4.3).',

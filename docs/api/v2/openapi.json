@@ -5407,7 +5407,7 @@
                 ],
                 "responses": {
                     "200": {
-                        "description": "Array of `DockerApp`",
+                        "description": "Array of `DockerAppResource`",
                         "content": {
                             "application/json": {
                                 "schema": {
@@ -5416,7 +5416,7 @@
                                         "data": {
                                             "type": "array",
                                             "items": {
-                                                "$ref": "#/components/schemas/DockerApp"
+                                                "$ref": "#/components/schemas/DockerAppResource"
                                             }
                                         },
                                         "meta": {
@@ -5536,6 +5536,9 @@
                             },
                             "Location": {
                                 "$ref": "#/components/headers/Location"
+                            },
+                            "Link": {
+                                "$ref": "#/components/headers/Link"
                             }
                         }
                     },
@@ -5593,14 +5596,14 @@
                 ],
                 "responses": {
                     "200": {
-                        "description": "`DockerApp`",
+                        "description": "`DockerAppResource`",
                         "content": {
                             "application/json": {
                                 "schema": {
                                     "type": "object",
                                     "properties": {
                                         "data": {
-                                            "$ref": "#/components/schemas/DockerApp"
+                                            "$ref": "#/components/schemas/DockerAppResource"
                                         }
                                     },
                                     "required": [
@@ -5779,7 +5782,7 @@
                 },
                 "responses": {
                     "200": {
-                        "description": "`DockerApp`; with `dry_run`, the planned steps.",
+                        "description": "`DockerAppResource`; with `dry_run`, the planned steps.",
                         "content": {
                             "application/json": {
                                 "schema": {
@@ -5788,7 +5791,7 @@
                                             "type": "object",
                                             "properties": {
                                                 "data": {
-                                                    "$ref": "#/components/schemas/DockerApp"
+                                                    "$ref": "#/components/schemas/DockerAppResource"
                                                 }
                                             },
                                             "required": [
@@ -6063,7 +6066,7 @@
                 },
                 "responses": {
                     "200": {
-                        "description": "`DockerApp`; with `dry_run`, the planned steps.",
+                        "description": "`DockerAppResource`; with `dry_run`, the planned steps.",
                         "content": {
                             "application/json": {
                                 "schema": {
@@ -6072,7 +6075,7 @@
                                             "type": "object",
                                             "properties": {
                                                 "data": {
-                                                    "$ref": "#/components/schemas/DockerApp"
+                                                    "$ref": "#/components/schemas/DockerAppResource"
                                                 }
                                             },
                                             "required": [
@@ -6288,7 +6291,7 @@
                 ],
                 "responses": {
                     "200": {
-                        "description": "`DockerApp`; with `dry_run`, the planned steps.",
+                        "description": "`DockerAppResource`; with `dry_run`, the planned steps.",
                         "content": {
                             "application/json": {
                                 "schema": {
@@ -6297,7 +6300,7 @@
                                             "type": "object",
                                             "properties": {
                                                 "data": {
-                                                    "$ref": "#/components/schemas/DockerApp"
+                                                    "$ref": "#/components/schemas/DockerAppResource"
                                                 }
                                             },
                                             "required": [
@@ -6383,7 +6386,7 @@
                 ],
                 "responses": {
                     "200": {
-                        "description": "`DockerApp`; with `dry_run`, the planned steps.",
+                        "description": "`DockerAppResource`; with `dry_run`, the planned steps.",
                         "content": {
                             "application/json": {
                                 "schema": {
@@ -6392,7 +6395,7 @@
                                             "type": "object",
                                             "properties": {
                                                 "data": {
-                                                    "$ref": "#/components/schemas/DockerApp"
+                                                    "$ref": "#/components/schemas/DockerAppResource"
                                                 }
                                             },
                                             "required": [
@@ -6478,7 +6481,7 @@
                 ],
                 "responses": {
                     "200": {
-                        "description": "`DockerApp`; with `dry_run`, the planned steps.",
+                        "description": "`DockerAppResource`; with `dry_run`, the planned steps.",
                         "content": {
                             "application/json": {
                                 "schema": {
@@ -6487,7 +6490,7 @@
                                             "type": "object",
                                             "properties": {
                                                 "data": {
-                                                    "$ref": "#/components/schemas/DockerApp"
+                                                    "$ref": "#/components/schemas/DockerAppResource"
                                                 }
                                             },
                                             "required": [
@@ -14282,6 +14285,311 @@
             },
             "DockerApp": {
                 "type": "object",
+                "description": "One Docker app (`DockerAppResource`). Detail fields appear on `getDockerApp` only.",
+                "properties": {
+                    "name": {
+                        "type": "string"
+                    },
+                    "slug": {
+                        "type": "string"
+                    },
+                    "app_name": {
+                        "type": "string"
+                    },
+                    "version": {
+                        "type": "string"
+                    },
+                    "latest_version": {
+                        "type": "string"
+                    },
+                    "update_available": {
+                        "type": "boolean"
+                    },
+                    "domain": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
+                    "url": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
+                    "ssl": {
+                        "type": "boolean"
+                    },
+                    "web_port": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
+                    "extra_ports": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
+                    "state": {
+                        "type": "string"
+                    },
+                    "status": {
+                        "type": "string"
+                    },
+                    "reason": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
+                    "suspended": {
+                        "type": "boolean"
+                    },
+                    "busy": {
+                        "type": "boolean"
+                    },
+                    "previous_version": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
+                    "cpus": {
+                        "type": "string"
+                    },
+                    "memory_mb": {
+                        "type": "integer"
+                    },
+                    "cpu": {
+                        "type": "number"
+                    },
+                    "memory_used_mb": {
+                        "type": "integer"
+                    },
+                    "containers": {
+                        "type": "integer"
+                    },
+                    "running_containers": {
+                        "type": "integer"
+                    },
+                    "created_at": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
+                    "services": {
+                        "type": "array",
+                        "description": "Compose services; present on detail only.",
+                        "items": {
+                            "$ref": "#/components/schemas/DockerAppServiceEntry"
+                        }
+                    },
+                    "ports": {
+                        "type": "array",
+                        "description": "Published ports; present on detail only.",
+                        "items": {
+                            "$ref": "#/components/schemas/DockerAppPortEntry"
+                        }
+                    },
+                    "post_install": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "Post-install note; present on detail only."
+                    },
+                    "rollback": {
+                        "type": "boolean",
+                        "description": "Whether a rollback is available; present on detail only."
+                    },
+                    "last_dump": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "Last database dump path; present on detail only."
+                    }
+                },
+                "required": [
+                    "name",
+                    "slug",
+                    "app_name",
+                    "version",
+                    "latest_version",
+                    "update_available",
+                    "domain",
+                    "url",
+                    "ssl",
+                    "web_port",
+                    "extra_ports",
+                    "state",
+                    "status",
+                    "reason",
+                    "suspended",
+                    "busy",
+                    "previous_version",
+                    "cpus",
+                    "memory_mb",
+                    "cpu",
+                    "memory_used_mb",
+                    "containers",
+                    "running_containers",
+                    "created_at"
+                ]
+            },
+            "DockerAppEnvEntry": {
+                "type": "object",
+                "description": "One Docker app environment variable (D42).",
+                "properties": {
+                    "name": {
+                        "type": "string"
+                    },
+                    "label": {
+                        "type": "string"
+                    },
+                    "type": {
+                        "type": "string"
+                    },
+                    "options": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "secret": {
+                        "type": "boolean"
+                    },
+                    "immutable": {
+                        "type": "boolean"
+                    },
+                    "required": {
+                        "type": "boolean"
+                    },
+                    "pattern": {
+                        "type": "string"
+                    },
+                    "set": {
+                        "type": "boolean"
+                    },
+                    "value": {
+                        "type": "string",
+                        "description": "Omitted for secrets and generated defaults."
+                    }
+                },
+                "required": [
+                    "name",
+                    "label",
+                    "type",
+                    "secret",
+                    "immutable",
+                    "required",
+                    "set"
+                ]
+            },
+            "DockerAppListMeta": {
+                "type": "object",
+                "description": "Docker engine state and DOCKER_APPS limits; the app list is not paginated (E34 batch 4 §4.3).",
+                "properties": {
+                    "engine": {
+                        "type": "boolean",
+                        "description": "Whether the Docker engine is installed on the server."
+                    },
+                    "totals": {
+                        "type": "object",
+                        "properties": {
+                            "running": {
+                                "type": "integer",
+                                "minimum": 0
+                            },
+                            "stopped": {
+                                "type": "integer",
+                                "minimum": 0
+                            },
+                            "failed": {
+                                "type": "integer",
+                                "minimum": 0
+                            },
+                            "busy": {
+                                "type": "integer",
+                                "minimum": 0
+                            },
+                            "suspended": {
+                                "type": "integer",
+                                "minimum": 0
+                            }
+                        },
+                        "required": [
+                            "running",
+                            "stopped",
+                            "failed",
+                            "busy",
+                            "suspended"
+                        ]
+                    },
+                    "limit": {
+                        "type": "string",
+                        "description": "Maximum apps from DOCKER_APPS (`unlimited` or a number)."
+                    },
+                    "room": {
+                        "type": "boolean",
+                        "description": "Whether another app fits under the limit."
+                    }
+                },
+                "required": [
+                    "engine",
+                    "totals",
+                    "limit",
+                    "room"
+                ]
+            },
+            "DockerAppLogMeta": {
+                "type": "object",
+                "description": "Cursor metadata for Docker log snapshots (D43).",
+                "properties": {
+                    "next": {
+                        "description": "Cursor for the next snapshot; pass as `after`. Null when there is nothing newer.",
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    }
+                },
+                "required": [
+                    "next"
+                ]
+            },
+            "DockerAppPortEntry": {
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string"
+                    },
+                    "port": {
+                        "type": "string"
+                    },
+                    "container": {
+                        "type": "string"
+                    },
+                    "public": {
+                        "type": "boolean"
+                    },
+                    "description": {
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "name",
+                    "port",
+                    "container",
+                    "public",
+                    "description"
+                ]
+            },
+            "DockerAppResource": {
+                "type": "object",
                 "properties": {
                     "name": {
                         "type": "string"
@@ -14430,127 +14738,33 @@
                     "rollback",
                     "last_dump"
                 ],
-                "title": "DockerApp"
+                "title": "DockerAppResource"
             },
-            "DockerAppEnvEntry": {
+            "DockerAppServiceEntry": {
                 "type": "object",
-                "description": "One Docker app environment variable (D42).",
                 "properties": {
-                    "name": {
+                    "service": {
                         "type": "string"
                     },
-                    "label": {
+                    "image": {
                         "type": "string"
                     },
-                    "type": {
+                    "state": {
                         "type": "string"
                     },
-                    "options": {
-                        "type": "array",
-                        "items": {
-                            "type": "string"
-                        }
-                    },
-                    "secret": {
-                        "type": "boolean"
-                    },
-                    "immutable": {
-                        "type": "boolean"
-                    },
-                    "required": {
-                        "type": "boolean"
-                    },
-                    "pattern": {
+                    "health": {
                         "type": "string"
                     },
-                    "set": {
-                        "type": "boolean"
-                    },
-                    "value": {
-                        "type": "string",
-                        "description": "Omitted for secrets and generated defaults."
+                    "status": {
+                        "type": "string"
                     }
                 },
                 "required": [
-                    "name",
-                    "label",
-                    "type",
-                    "secret",
-                    "immutable",
-                    "required",
-                    "set"
-                ]
-            },
-            "DockerAppListMeta": {
-                "type": "object",
-                "description": "Docker engine state and DOCKER_APPS limits; the app list is not paginated (E34 batch 4 §4.3).",
-                "properties": {
-                    "engine": {
-                        "type": "boolean",
-                        "description": "Whether the Docker engine is installed on the server."
-                    },
-                    "totals": {
-                        "type": "object",
-                        "properties": {
-                            "running": {
-                                "type": "integer",
-                                "minimum": 0
-                            },
-                            "stopped": {
-                                "type": "integer",
-                                "minimum": 0
-                            },
-                            "failed": {
-                                "type": "integer",
-                                "minimum": 0
-                            },
-                            "busy": {
-                                "type": "integer",
-                                "minimum": 0
-                            },
-                            "suspended": {
-                                "type": "integer",
-                                "minimum": 0
-                            }
-                        },
-                        "required": [
-                            "running",
-                            "stopped",
-                            "failed",
-                            "busy",
-                            "suspended"
-                        ]
-                    },
-                    "limit": {
-                        "type": "string",
-                        "description": "Maximum apps from DOCKER_APPS (`unlimited` or a number)."
-                    },
-                    "room": {
-                        "type": "boolean",
-                        "description": "Whether another app fits under the limit."
-                    }
-                },
-                "required": [
-                    "engine",
-                    "totals",
-                    "limit",
-                    "room"
-                ]
-            },
-            "DockerAppLogMeta": {
-                "type": "object",
-                "description": "Cursor metadata for Docker log snapshots (D43).",
-                "properties": {
-                    "next": {
-                        "description": "Cursor for the next snapshot; pass as `after`. Null when there is nothing newer.",
-                        "type": [
-                            "string",
-                            "null"
-                        ]
-                    }
-                },
-                "required": [
-                    "next"
+                    "service",
+                    "image",
+                    "state",
+                    "health",
+                    "status"
                 ]
             },
             "DockerCatalogApp": {
