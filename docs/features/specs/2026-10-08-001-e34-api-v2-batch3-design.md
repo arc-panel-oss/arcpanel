@@ -203,7 +203,7 @@ The work log of each milestone is appended here.
 ### M3 (2026-10-08)
 
 - Archive endpoints under `/api/v2/users/{user}/backups` (`listBackups`, `createBackup`, `getBackup`, `deleteBackup`, `restoreBackup`, `downloadBackup`) with `BackupResource`, D35 downloads via `BackupPaths`, `409`/`existing` as a task, and `v2-backup` command sets updated.
-- Pest: `tests/Feature/ApiV2BackupsTest.php`, `tests/Unit/BackupResourceTest.php`; `listUserTasks` paginates like other lists.
+- Pest: `tests/Feature/ApiV2BackupsTest.php`, `tests/Unit/BackupResourceTest.php`.
 
 ### M2 (2026-10-08)
 

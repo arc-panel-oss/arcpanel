@@ -480,6 +480,36 @@ function fakeMailDomains(ArcCommandFake $fake): void
     $fake->on('v-list-user-ips')->returnsFixture('v-list-user-ips/bob.json');
 }
 
+/**
+ * Backups of the test users (E7): bob has two archives, one restic snapshot
+ * with web, database and cron, and snapshot folder entries; carol has none.
+ */
+function fakeBackupData(ArcCommandFake $fake): void
+{
+    $snapshot = '4f2a91c0';
+    $archives = fn (string $user) => $user === 'bob' ? commandFixture('v-list-user-backups/bob.json') : [];
+    $fake->on('v-list-user-backups')->using(fn (array $a) => [0, (string) json_encode((object) $archives($a[0]))]);
+    $fake->on('v-list-user-backup')->using(function (array $a) use ($archives) {
+        $row = $archives($a[0])[$a[1]] ?? null;
+
+        return $row !== null ? [0, (string) json_encode([$a[1] => $row])] : [3, "Error: backup {$a[1]} doesn't exist"];
+    });
+    $fake->on('v-list-user-backups-restic')->using(fn (array $a) => [0, (string) json_encode($a[0] === 'bob' ? [[
+        'time' => '2026-10-06T01:00:00.123Z', 'paths' => ['/home/bob'], 'hostname' => 'arcpanel-test', 'id' => $snapshot.str_repeat('0', 56), 'short_id' => $snapshot,
+    ]] : [])]);
+    $fake->on('v-list-user-backup-restic')->using(fn (array $a) => [0, (string) json_encode(['bob.2026-10-06_01-00-00' => [
+        'TYPE' => 'restic', 'WEB' => 'example.com', 'DNS' => 'example.com', 'MAIL' => '', 'DB' => 'bob_wp', 'CRON' => 'yes', 'UDIR' => '',
+    ]])]);
+    $fake->on('v-list-user-files-restic')->using(fn (array $a) => [0, implode("\n", [
+        json_encode(['struct_type' => 'snapshot', 'short_id' => $snapshot]),
+        json_encode(['name' => 'tmp', 'type' => 'dir', 'path' => $a[2].'/tmp', 'mode' => 2147484141, 'struct_type' => 'node']),
+        json_encode(['name' => 'note.txt', 'type' => 'file', 'path' => $a[2].'/note.txt', 'size' => 9, 'mode' => 420, 'struct_type' => 'node']),
+    ])]);
+    $fake->on('v-list-user-backup-exclusions')->returnsJson([
+        'WEB' => ['example.com' => 'public_html/cache'], 'DNS' => ['example.com' => ''], 'MAIL' => [], 'DB' => [], 'CRON' => ['*' => ''], 'USER' => ['tmp' => '', 'apps/kuma' => ''],
+    ]);
+}
+
 /** Restart commands answer success. */
 function fakeRestarts(ArcCommandFake $fake): void
 {
