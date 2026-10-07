@@ -13,7 +13,7 @@ final class ApiException extends RuntimeException
     /**
      * @param  array<string, mixed>  $details  more keys of the error object (fields, step, applied)
      * @param  array<string, string>  $headers
-     * @param  string|null  $existing  path under /api/v2 of the object a duplicate matches (D21)
+     * @param  string|array<string, mixed>|null  $existing  path under /api/v2, or a task (D21)
      */
     public function __construct(
         public readonly ErrorCode $errorCode,
@@ -21,7 +21,7 @@ final class ApiException extends RuntimeException
         public readonly int $status,
         public readonly array $details = [],
         public readonly array $headers = [],
-        public readonly ?string $existing = null,
+        public readonly string|array|null $existing = null,
     ) {
         parent::__construct($message);
     }

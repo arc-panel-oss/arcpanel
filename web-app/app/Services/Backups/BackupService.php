@@ -86,10 +86,12 @@ final class BackupService
             && ! str_contains($name, '..');
     }
 
-    /** `v-schedule-user-backup USER`: exit 4 when a backup of the user is already queued. */
-    public function schedule(string $user): CommandResult
+    /** `v-schedule-user-backup USER [FORMAT]`: exit 4 when a backup of the user is already queued. */
+    public function schedule(string $user, string $format = 'shell'): CommandResult
     {
-        return $this->arc->run('v-schedule-user-backup', [$user], Options::allowFailure());
+        $args = $format === 'shell' ? [$user] : [$user, $format];
+
+        return $this->arc->run('v-schedule-user-backup', $args, Options::allowFailure());
     }
 
     /**
@@ -99,7 +101,7 @@ final class BackupService
      *
      * @param  array<string, list<string>>|null  $selection  type => objects; cron takes ["yes"]
      */
-    public function restore(string $user, string $backup, ?array $selection = null): CommandResult
+    public function restore(string $user, string $backup, ?array $selection = null, string $format = 'shell'): CommandResult
     {
         $args = [$user, $backup];
         if ($selection !== null) {
@@ -109,6 +111,9 @@ final class BackupService
                     ? ($objects !== [] ? 'yes' : 'no')
                     : ($objects !== [] ? implode(',', $objects) : 'no');
             }
+        }
+        if ($format !== 'shell') {
+            $args[] = $format;
         }
 
         return $this->arc->run('v-schedule-user-restore', $args, Options::allowFailure());
@@ -120,10 +125,23 @@ final class BackupService
         return $this->runner->run($names, fn (string $name) => [$name, 'v-delete-user-backup', [$user, $name]]);
     }
 
-    /** `v-schedule-user-backup-download USER BACKUP`: fetch a remote archive to the local backup folder. */
-    public function scheduleDownload(string $user, string $backup): CommandResult
+    /** `v-schedule-user-backup-download USER BACKUP [FORMAT]`: fetch a remote archive to the local backup folder. */
+    public function scheduleDownload(string $user, string $backup, string $format = 'shell'): CommandResult
     {
-        return $this->arc->run('v-schedule-user-backup-download', [$user, $backup], Options::allowFailure());
+        $args = $format === 'shell' ? [$user, $backup] : [$user, $backup, $format];
+
+        return $this->arc->run('v-schedule-user-backup-download', $args, Options::allowFailure());
+    }
+
+    /** Id the schedule command printed in `json` format. */
+    public static function queueTaskId(CommandResult $result): string
+    {
+        $data = json_decode($result->stdout, true);
+        if (is_array($data)) {
+            return trim((string) ($data['ID'] ?? ''));
+        }
+
+        return trim($result->stdout);
     }
 
     // Restic snapshots

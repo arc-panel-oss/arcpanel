@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\V2\BackupController;
 use App\Http\Controllers\Api\V2\CronController;
 use App\Http\Controllers\Api\V2\DatabaseController;
 use App\Http\Controllers\Api\V2\DnsController;
@@ -26,6 +27,7 @@ Route::pattern('domain', '[^/\s]{1,253}');
 Route::pattern('package', '[[:alnum:]][-.\w]{0,99}');
 Route::pattern('account', '[\w.-]{1,64}');
 Route::pattern('database', '[\w-]{1,64}');
+Route::pattern('backup', '[A-Za-z0-9][A-Za-z0-9_.-]{0,250}');
 Route::pattern('alias', '[^/\s]{1,253}');
 
 Route::get('/me', MeController::class)->name('me');
@@ -129,6 +131,16 @@ Route::middleware('effective-user')->group(function () {
         Route::post('/{database}/rebuild', [DatabaseController::class, 'rebuild'])->name('rebuild');
     });
 
+    // Backups (E34 batch 3 spec §6.1)
+    Route::get('/users/{user}/backups', [BackupController::class, 'index'])->name('backups.index');
+    Route::get('/users/{user}/backups/{backup}', [BackupController::class, 'show'])->name('backups.show');
+    Route::get('/users/{user}/backups/{backup}/download', [BackupController::class, 'download'])->name('backups.download');
+    Route::middleware('not-readonly')->group(function () {
+        Route::post('/users/{user}/backups', [BackupController::class, 'store'])->name('backups.store');
+        Route::post('/users/{user}/backups/{backup}/restore', [BackupController::class, 'restore'])->name('backups.restore');
+        Route::delete('/users/{user}/backups/{backup}', [BackupController::class, 'destroy'])->name('backups.destroy');
+    });
+
     // Cron jobs (E34 batch 2 spec §6.5)
     Route::get('/users/{user}/cron-jobs', [CronController::class, 'index'])->name('cron-jobs.index');
     Route::get('/users/{user}/cron-jobs/{id}', [CronController::class, 'show'])->where('id', '[0-9]{1,9}')->name('cron-jobs.show');
@@ -166,6 +178,7 @@ foreach (Route::getRoutes() as $route) {
         str_contains($uri, '/mail-domains') => 'mail',
         str_contains($uri, '/databases') => 'db',
         str_contains($uri, '/cron-jobs'), str_contains($uri, '/cron-reports') => 'cron',
+        str_contains($uri, '/backups') => 'backup',
         str_contains($uri, '/tasks') => 'backup',
         str_starts_with($uri, 'api/v2/users'), str_starts_with($uri, 'api/v2/packages') => 'accounts',
         default => null,

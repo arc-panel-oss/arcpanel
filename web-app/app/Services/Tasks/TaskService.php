@@ -84,6 +84,23 @@ final class TaskService
         return $this->arc->run('v-list-user', [$user, 'json'], Options::allowFailure())->ok();
     }
 
+    /** A queued backup or restore of the user, if any (E34 batch 3 §6.1). */
+    public function queuedBackupOrRestore(string $user): ?TaskView
+    {
+        foreach ($this->queueTasks($user) as $recordId => $row) {
+            if (! is_array($row)) {
+                continue;
+            }
+            $status = (string) ($row['STATUS'] ?? '');
+            $kind = (string) ($row['KIND'] ?? '');
+            if ($status === 'queued' && in_array($kind, ['backup', 'restore'], true)) {
+                return TaskMapper::fromSource(new TaskId(TaskId::SOURCE_QUEUE, (string) $recordId, $user), $row, 1);
+            }
+        }
+
+        return null;
+    }
+
     public function dockerAppExists(string $user, string $app): bool
     {
         foreach ($this->dockerApps($user) as $row) {

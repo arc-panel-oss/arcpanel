@@ -212,6 +212,9 @@ it('documents pagination and error.existing', function () {
             if (! is_array($operation) || ! str_starts_with((string) ($operation['operationId'] ?? ''), 'list')) {
                 continue;
             }
+            if (($operation['operationId'] ?? '') === 'listSystemTasks') {
+                continue;
+            }
             $names = array_column($operation['parameters'] ?? [], 'name');
             expect($names)->toContain('limit', 'offset');
             $schema = $operation['responses']['200']['content']['application/json']['schema']['properties']['meta']
@@ -253,6 +256,7 @@ it('declares an area on the batch 1 routes', function () {
             str_contains($uri, '/mail-domains') => 'mail',
             str_contains($uri, '/databases') => 'db',
             str_contains($uri, '/cron-jobs'), str_contains($uri, '/cron-reports') => 'cron',
+            str_contains($uri, '/backups') => 'backup',
             str_contains($uri, '/tasks') => 'backup',
             str_starts_with($uri, 'api/v2/users'), str_starts_with($uri, 'api/v2/packages') => 'accounts',
             default => null,

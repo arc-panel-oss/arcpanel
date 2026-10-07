@@ -8,6 +8,7 @@ use App\Auth\Principal;
 use App\Http\Controllers\Controller;
 use App\Policies\BackupPolicy;
 use App\Services\Backups\BackupArchive;
+use App\Services\Backups\BackupPaths;
 use App\Services\Backups\BackupService;
 use App\Services\Support\OwnerList;
 use Illuminate\Http\RedirectResponse;
@@ -135,8 +136,7 @@ final class BackupController extends Controller
         abort_unless($policy->download($principal, $user), 403);
         $archive = $this->backups->archive($user, $backup);
 
-        $file = rtrim((string) config('arc.backup_dir', '/backup'), '/').'/'.$archive->name;
-        if (! is_file($file)) {
+        if (! is_file(BackupPaths::localFile($archive->name))) {
             abort_unless($policy->create($principal, $user), 404);
 
             return $this->queued(
@@ -150,7 +150,7 @@ final class BackupController extends Controller
         return response('', 200, [
             'Content-Type' => $archive->contentType(),
             'Content-Disposition' => 'attachment; filename="'.$archive->name.'"',
-            'X-Accel-Redirect' => '/backup/'.rawurlencode($archive->name),
+            'X-Accel-Redirect' => BackupPaths::accelRedirect($archive->name),
             'X-Content-Type-Options' => 'nosniff',
             'Cache-Control' => 'no-store',
         ]);
