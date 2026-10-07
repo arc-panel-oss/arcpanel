@@ -24,6 +24,14 @@ use ReflectionMethod;
 #[Description('Generate the OpenAPI document of REST API v2')]
 final class ApiDocs extends Command
 {
+    /** 202 answers that queue a task with `Link: …; rel="monitor"` only (no `Location`). */
+    private const TASK_MONITOR_202 = [
+        'installNodeVersion',
+        'installNodePackage',
+        'updateNodePackages',
+        'checkNodePackages',
+    ];
+
     private const ERROR_STATUSES = [
         '401' => ['Unauthenticated', 'The access key is missing, unknown or wrong (`E_UNAUTHENTICATED`).'],
         '403' => ['Forbidden', 'The API is off for this key (`E_API_DISABLED`), the role or a permission set refuses the call (`E_FORBIDDEN`), or the owner is suspended (`E_SUSPENDED`).'],
@@ -61,7 +69,7 @@ final class ApiDocs extends Command
         }
         $path = $this->option('path') ?: base_path('../docs/api/v2/openapi.json');
 
-        $spec = $this->document(app(Generator::class)->generate(Scramble::getGeneratorConfig('default'))->spec());
+        $spec = $this->document($this->normalizePaths(app(Generator::class)->generate(Scramble::getGeneratorConfig('default'))->spec()));
         $problems = $this->problems($spec);
         foreach ($problems as $problem) {
             $this->error($problem);
@@ -314,10 +322,44 @@ final class ApiDocs extends Command
                 ],
             ];
         }
+        if (in_array((string) ($operation['operationId'] ?? ''), self::TASK_MONITOR_202, true) && isset($responses['202']['headers'])) {
+            unset($responses['202']['headers']['Location']);
+            $responses['202']['headers']['Link'] = ['$ref' => '#/components/headers/Link'];
+        }
         uksort($responses, fn ($a, $b) => (int) $a <=> (int) $b);
         $operation['responses'] = $responses;
 
         return $operation;
+    }
+
+    /**
+     * Scramble may prefix paths with `/v2/` while `servers.url` already ends in `/api/v2`.
+     *
+     * @param  array<string, mixed>  $spec
+     * @return array<string, mixed>
+     */
+    private function normalizePaths(array $spec): array
+    {
+        $paths = [];
+        foreach ($spec['paths'] ?? [] as $path => $operations) {
+            $paths[self::documentPath($path)] = $operations;
+        }
+        ksort($paths);
+        $spec['paths'] = $paths;
+
+        return $spec;
+    }
+
+    private static function documentPath(string $path): string
+    {
+        if ($path === '/v2/me') {
+            return '/me';
+        }
+        if (str_starts_with($path, '/v2/')) {
+            return substr($path, 3);
+        }
+
+        return $path;
     }
 
     /**
@@ -516,6 +558,7 @@ final class ApiDocs extends Command
             'Version' => ['description' => 'Version of the panel.', 'schema' => ['type' => 'string']],
             'RetryAfter' => ['description' => 'Seconds to wait before the next request.', 'schema' => ['type' => 'integer']],
             'Location' => ['description' => 'URL of the resource (201) or of the resource to poll (202).', 'schema' => ['type' => 'string']],
+            'Link' => ['description' => 'Task monitor URL (`rel="monitor"`) for `GET /tasks/{id}`.', 'schema' => ['type' => 'string']],
         ];
     }
 

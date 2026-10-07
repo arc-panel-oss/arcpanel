@@ -43,6 +43,9 @@ it('refuses manage without NODE but allows uninstall with a v2-apps key', functi
     $headers = apiAs($this->fake, 'carol', 'user', area: 'apps');
     $this->fake->on('v-delete-user-node-version')->returns();
 
+    $this->fake->on('v-delete-user-nvm')->returns();
+    $this->putJson('/api/v2/users/carol/node', ['enabled' => false], $headers)->assertOk();
+    $this->fake->assertRan('v-delete-user-nvm', fn ($a) => $a === ['carol']);
     $this->putJson('/api/v2/users/carol/node', ['enabled' => true], $headers)->assertForbidden()
         ->assertJsonPath('error.message', 'Node.js is not included in your package.');
     $this->postJson('/api/v2/users/carol/node/versions', ['spec' => '22'], $headers)->assertForbidden()

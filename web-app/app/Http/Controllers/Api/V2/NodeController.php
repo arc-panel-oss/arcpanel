@@ -61,9 +61,13 @@ final class NodeController extends Controller
     public function setEnabled(SetNodeEnabledRequest $request, string $user, Principal $principal, NodePolicy $policy): NodeAccountResource|JsonResponse
     {
         $this->assertOwner($user, $principal, $policy);
-        $this->assertManage($principal, $user, $policy);
-        $account = $this->node->account($user);
         $enabled = $request->boolean('enabled');
+        if ($enabled) {
+            $this->assertManage($principal, $user, $policy);
+        } else {
+            abort_unless($policy->remove($principal, $user), 403);
+        }
+        $account = $this->node->account($user);
         $steps = $account->enabled === $enabled ? [] : [$this->node->planEnable($user, $enabled)];
 
         return $this->gate->execute($steps, $this->node->apply(...))
