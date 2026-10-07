@@ -10492,25 +10492,44 @@
                         "type": "string"
                     },
                     "exit_code": {
-                        "type": "string"
+                        "type": [
+                            "integer",
+                            "null"
+                        ],
+                        "description": "set when the task has finished"
                     },
                     "error": {
-                        "type": "string"
+                        "type": [
+                            "string",
+                            "null"
+                        ]
                     },
                     "started_at": {
-                        "type": "string"
+                        "type": [
+                            "string",
+                            "null"
+                        ]
                     },
                     "finished_at": {
-                        "type": "string"
+                        "type": [
+                            "string",
+                            "null"
+                        ]
                     },
                     "queued_at": {
-                        "type": "string"
+                        "type": [
+                            "string",
+                            "null"
+                        ]
                     },
                     "log": {
                         "type": "string"
                     },
                     "args": {
-                        "type": "string"
+                        "type": [
+                            "string",
+                            "null"
+                        ]
                     },
                     "resource": {
                         "type": [
