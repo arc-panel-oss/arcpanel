@@ -16,7 +16,9 @@
 		"prepare": "husky",
 		"dev": "node build.js --watch",
 		"test:js": "vitest run --config web-app/vitest.config.js",
-		"test:e2e": "playwright test --config test/e2e/playwright.config.js"
+		"test:e2e": "playwright test --config test/e2e/playwright.config.js",
+		"docs:api": "node scripts/build-openapi.js",
+		"docs:api:check": "node scripts/build-openapi.js --check"
 	},
 	"dependencies": {
 		"@alpinejs/collapse": "^3.17.3",

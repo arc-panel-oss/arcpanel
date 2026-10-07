@@ -1,5 +1,8 @@
 #!/bin/bash
 # info: Delete auth log file for user
+# options: USER
+#
+# example: v-delete-user-auth-log admin
 #
 # This function for deleting a users auth log file
 

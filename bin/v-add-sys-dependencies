@@ -1,5 +1,5 @@
 #!/bin/bash
-# Add php dependencies to ArcPanel
+# info: add PHP dependencies to ArcPanel
 # options: [MODE]
 #
 # This function install PHPMailer and quoteshellarg as via composer

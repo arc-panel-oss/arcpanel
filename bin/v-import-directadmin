@@ -1,5 +1,6 @@
 #!/bin/bash
 # info: Import DirectAdmin backup to a new user
+# options: BACKUP_FILE
 #
 # example: v-import-directadmin /backup/backup.tar.gz
 #
