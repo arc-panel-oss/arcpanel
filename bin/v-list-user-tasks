@@ -81,7 +81,7 @@ record_json() {
 	jq -nc \
 		--arg ID "$task" \
 		--arg KIND "$(qt_get "$user" "$task" KIND)" \
-		--arg ARGS "$(qt_get "$user" "$task" ARGS)" \
+		--arg task_args "$(qt_get "$user" "$task" ARGS)" \
 		--arg STATUS "$(qt_get "$user" "$task" STATUS)" \
 		--arg EXIT "$(qt_get "$user" "$task" EXIT)" \
 		--arg ERROR "$(qt_get "$user" "$task" ERROR)" \
@@ -89,7 +89,7 @@ record_json() {
 		--arg START "$(qt_get "$user" "$task" START)" \
 		--arg END "$(qt_get "$user" "$task" END)" \
 		--arg LOG "$text" \
-		'{ID: $ID, KIND: $KIND, ARGS: $ARGS, STATUS: $STATUS, EXIT: $EXIT,
+		'{ID: $ID, KIND: $KIND, ARGS: $task_args, STATUS: $STATUS, EXIT: $EXIT,
 			ERROR: $ERROR, QUEUED: $QUEUED, START: $START, END: $END, LOG: $LOG}'
 }
 

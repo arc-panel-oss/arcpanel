@@ -150,6 +150,8 @@ setup() {
     echo 'task-log-line' > "$(qt_tasks_dir)/$id.log"
     run v-list-user-tasks "$QT_USER" "$id" 5 json
     assert_success
+    run jq -r '.ARGS | type' <<< "$output"
+    assert_output string
     run jq -r .LOG <<< "$output"
     assert_output task-log-line
 

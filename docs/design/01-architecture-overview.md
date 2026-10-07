@@ -224,7 +224,7 @@ Two APIs answer on the panel port, both with the same access keys; `arcpanel-ngi
 
 ### 4.4 Long-running operations
 
-Until E15: a `v-*` command appends a line to a pipe (`data/queue/<name>.pipe`) and returns immediately; cron runs `v-update-sys-queue <name>`. The UI polls a `v-list-*` command for state. New pipes are added additively (`apps.pipe` for Docker installs, `node.pipe` for `npm ci`/builds) with their own cron entries installed by the upgrade script.
+Until E15: a `v-*` command appends a line to a pipe (`data/queue/<name>.pipe`) and returns immediately; cron runs `v-update-sys-queue <name>`. Scheduled backup, restore, Let's Encrypt and related work also creates a queue task record under `data/users/USER/tasks/` and queues `v-run-queue-task USER ID -- …`, which runs the worker line once and stores status and log (E34 batch 3). The UI and API v2 poll `v-list-user-tasks` or `GET /api/v2/tasks/{id}`. New pipes are added additively (`apps.pipe` for Docker installs, `node.pipe` for `npm ci`/builds) with their own cron entries installed by the upgrade script.
 
 Live output (build logs, container logs) is streamed through the existing web terminal WebSocket server (07 §6.4, 08 §6.5): the server already authenticates the `ARCPANELSID` cookie and already spawns processes as the effective user.
 

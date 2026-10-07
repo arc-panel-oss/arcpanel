@@ -72,7 +72,7 @@ info:
     | `sync-dns-cluster` | admin | `v-list-users`, `v-list-sys-config`, `v-list-user`, `v-add-cron-restart-job`, `v-delete-dns-domains-src`, `v-insert-dns-domain`, `v-insert-dns-record`, `v-insert-dns-records`, `v-rebuild-dns-domains`, `v-rebuild-dns-domain`, `v-delete-dns-record`, `v-make-tmp-file`, `v-delete-dns-domain` |
     | `update-dns-records` | user | `v-list-dns-records`, `v-change-dns-record` |
 
-    The sets `v2-accounts` and `v2-cron` and `v2-db` and `v2-dns` and `v2-mail` and `v2-read` and `v2-web` and `v2-write` belong to REST API v2 (`/api/v2/`, documented in `docs/api/v2/openapi.json`): this API ignores them, so a key with only those sets may run no command here.
+    The sets `v2-accounts` and `v2-backup` and `v2-cron` and `v2-db` and `v2-dns` and `v2-mail` and `v2-read` and `v2-web` and `v2-write` belong to REST API v2 (`/api/v2/`, documented in `docs/api/v2/openapi.json`): this API ignores them, so a key with only those sets may run no command here.
   license:
     name: GPL-3.0-or-later
     identifier: GPL-3.0-or-later
@@ -23155,6 +23155,61 @@ paths:
           $ref: "#/components/responses/InvalidRequest"
         "422":
           $ref: "#/components/responses/Unprocessable"
+  "/api/#v-list-user-tasks":
+    post:
+      operationId: v-list-user-tasks
+      tags:
+        - Users
+      summary: List the tasks of a user
+      description: |-
+        This function prints the queue-task records of USER, newest first, or
+        one record. LOG is the last LINES lines of the task log (default 100,
+        at most 1000). A record that is still queued but whose line is gone
+        from every queue is stored as failed.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `USER` | yes |
+        | `arg2` | `ID` | no |
+        | `arg3` | `LINES` | no |
+        | `arg4` | `FORMAT` | no |
+
+        **User argument:** with the access key of a user other than the admin, `arg1` must be the key's user.
+      x-arcpanel-user-arg: 1
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-list-user-tasks"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-list-user-tasks"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+            application/json:
+              schema:
+                type: object
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
   "/api/#v-list-users":
     post:
       operationId: v-list-users
@@ -27071,6 +27126,60 @@ paths:
           $ref: "#/components/responses/InvalidRequest"
         "422":
           $ref: "#/components/responses/Unprocessable"
+  "/api/#v-run-queue-task":
+    post:
+      operationId: v-run-queue-task
+      tags:
+        - System
+      summary: Run a queued command and record its result
+      description: |-
+        This function runs one command that a v-schedule-* script queued. The
+        record must exist and be queued; a second run of the same id does
+        nothing. The command's output is appended to the task log and also
+        written to standard output, so the redirection on the queue line
+        (>> $ARCPANEL/log/backup.log and the others) still receives it.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `USER` | yes |
+        | `arg2` | `ID` | yes |
+        | `arg3` | `--` | yes |
+        | `arg4` | `COMMAND` | yes |
+        | `arg5` | `ARG…` | no |
+
+        **User argument:** with the access key of a user other than the admin, `arg1` must be the key's user.
+      x-arcpanel-user-arg: 1
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-run-queue-task"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-run-queue-task"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
   "/api/#v-run-sys-docker-task":
     post:
       operationId: v-run-sys-docker-task
@@ -27343,6 +27452,7 @@ paths:
         | `arg3` | `ALIASES` | no |
         | `arg4` | `KEY_ALGO` | no |
         | `arg5` | `MAIL` | no |
+        | `arg6` | `FORMAT` | no |
 
         **User argument:** with the access key of a user other than the admin, `arg1` must be the key's user.
       x-arcpanel-user-arg: 1
@@ -27365,6 +27475,9 @@ paths:
             text/plain:
               schema:
                 type: string
+            application/json:
+              schema:
+                type: object
         "204":
           $ref: "#/components/responses/NoContent"
         "400":
@@ -27389,6 +27502,7 @@ paths:
         | Field | Option | Required |
         | --- | --- | --- |
         | `arg1` | `USER` | yes |
+        | `arg2` | `FORMAT` | no |
 
         **User argument:** with the access key of a user other than the admin, `arg1` must be the key's user.
       x-arcpanel-user-arg: 1
@@ -27411,6 +27525,9 @@ paths:
             text/plain:
               schema:
                 type: string
+            application/json:
+              schema:
+                type: object
         "204":
           $ref: "#/components/responses/NoContent"
         "400":
@@ -27436,6 +27553,7 @@ paths:
         | --- | --- | --- |
         | `arg1` | `USER` | yes |
         | `arg2` | `BACKUP` | yes |
+        | `arg3` | `FORMAT` | no |
 
         **User argument:** with the access key of a user other than the admin, `arg1` must be the key's user.
       x-arcpanel-user-arg: 1
@@ -27458,6 +27576,9 @@ paths:
             text/plain:
               schema:
                 type: string
+            application/json:
+              schema:
+                type: object
         "204":
           $ref: "#/components/responses/NoContent"
         "400":
@@ -27482,6 +27603,7 @@ paths:
         | Field | Option | Required |
         | --- | --- | --- |
         | `arg1` | `USER` | yes |
+        | `arg2` | `FORMAT` | no |
 
         **User argument:** with the access key of a user other than the admin, `arg1` must be the key's user.
       x-arcpanel-user-arg: 1
@@ -27504,6 +27626,9 @@ paths:
             text/plain:
               schema:
                 type: string
+            application/json:
+              schema:
+                type: object
         "204":
           $ref: "#/components/responses/NoContent"
         "400":
@@ -27535,6 +27660,7 @@ paths:
         | `arg6` | `DB` | no |
         | `arg7` | `CRON` | no |
         | `arg8` | `UDIR` | no |
+        | `arg9` | `FORMAT` | no |
 
         **User argument:** with the access key of a user other than the admin, `arg1` must be the key's user.
       x-arcpanel-user-arg: 1
@@ -27557,6 +27683,9 @@ paths:
             text/plain:
               schema:
                 type: string
+            application/json:
+              schema:
+                type: object
         "204":
           $ref: "#/components/responses/NoContent"
         "400":
@@ -27588,6 +27717,7 @@ paths:
         | `arg1` | `USER` | yes |
         | `arg2` | `SNAPSHOT` | yes |
         | `arg3` | `PATH` | yes |
+        | `arg4` | `FORMAT` | no |
 
         **User argument:** with the access key of a user other than the admin, `arg1` must be the key's user.
       x-arcpanel-user-arg: 1
@@ -27610,6 +27740,9 @@ paths:
             text/plain:
               schema:
                 type: string
+            application/json:
+              schema:
+                type: object
         "204":
           $ref: "#/components/responses/NoContent"
         "400":
@@ -27634,13 +27767,10 @@ paths:
         | Field | Option | Required |
         | --- | --- | --- |
         | `arg1` | `USER` | yes |
-        | `arg2` | `BACKUP` | yes |
-        | `arg3` | `WEB` | no |
-        | `arg4` | `DNS` | no |
-        | `arg5` | `MAIL` | no |
-        | `arg6` | `DB` | no |
-        | `arg7` | `CRON` | no |
-        | `arg8` | `UDIR` | no |
+        | `arg2` | `SNAPSHOT` | yes |
+        | `arg3` | `OBJECT` | no |
+        | `arg4` | `VALUE` | no |
+        | `arg5` | `FORMAT` | no |
 
         **User argument:** with the access key of a user other than the admin, `arg1` must be the key's user.
       x-arcpanel-user-arg: 1
@@ -27663,6 +27793,9 @@ paths:
             text/plain:
               schema:
                 type: string
+            application/json:
+              schema:
+                type: object
         "204":
           $ref: "#/components/responses/NoContent"
         "400":
@@ -48249,6 +48382,50 @@ components:
                 - json
             returncode:
               $ref: "#/components/schemas/ReturnCode"
+    v-list-user-tasks:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-list-user-tasks
+              default: v-list-user-tasks
+            arg1:
+              type: string
+              title: USER
+              description: "`USER`"
+              examples:
+                - admin
+            arg2:
+              type: string
+              title: ID
+              description: "`ID`, optional"
+              examples:
+                - json
+            arg3:
+              type: string
+              title: LINES
+              description: "`LINES`, optional"
+              examples:
+                - ""
+            arg4:
+              type: string
+              title: FORMAT
+              description: "`FORMAT`, optional"
+              enum:
+                - json
+                - plain
+                - csv
+                - shell
+              examples:
+                - json
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
     v-list-users:
       allOf:
         - $ref: "#/components/schemas/Credentials"
@@ -50673,6 +50850,54 @@ components:
                 - api.example.com
             returncode:
               $ref: "#/components/schemas/ReturnCode"
+    v-run-queue-task:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+            - arg2
+            - arg3
+            - arg4
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-run-queue-task
+              default: v-run-queue-task
+            arg1:
+              type: string
+              title: USER
+              description: "`USER`"
+              examples:
+                - admin
+            arg2:
+              type: string
+              title: ID
+              description: "`ID`"
+              examples:
+                - "17280000001234"
+            arg3:
+              type: string
+              title: "--"
+              description: "`--`"
+              examples:
+                - "--"
+            arg4:
+              type: string
+              title: COMMAND
+              description: "`COMMAND`"
+              examples:
+                - /usr/local/arcpanel/bin/v-backup-user
+            arg5:
+              type: string
+              title: "ARG…"
+              description: "`ARG…`, optional"
+              examples:
+                - admin
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
     v-run-sys-docker-task:
       allOf:
         - $ref: "#/components/schemas/Credentials"
@@ -50943,6 +51168,17 @@ components:
               description: "`MAIL`, optional"
               examples:
                 - ""
+            arg6:
+              type: string
+              title: FORMAT
+              description: "`FORMAT`, optional"
+              enum:
+                - json
+                - plain
+                - csv
+                - shell
+              examples:
+                - json
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-schedule-user-backup:
@@ -50964,6 +51200,17 @@ components:
               description: "`USER`"
               examples:
                 - admin
+            arg2:
+              type: string
+              title: FORMAT
+              description: "`FORMAT`, optional"
+              enum:
+                - json
+                - plain
+                - csv
+                - shell
+              examples:
+                - json
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-schedule-user-backup-download:
@@ -50992,6 +51239,17 @@ components:
               description: "`BACKUP`"
               examples:
                 - "2019-04-22_01-00-00.tar"
+            arg3:
+              type: string
+              title: FORMAT
+              description: "`FORMAT`, optional"
+              enum:
+                - json
+                - plain
+                - csv
+                - shell
+              examples:
+                - json
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-schedule-user-backup-restic:
@@ -51013,6 +51271,17 @@ components:
               description: "`USER`"
               examples:
                 - admin
+            arg2:
+              type: string
+              title: FORMAT
+              description: "`FORMAT`, optional"
+              enum:
+                - json
+                - plain
+                - csv
+                - shell
+              examples:
+                - json
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-schedule-user-restore:
@@ -51077,6 +51346,17 @@ components:
               description: "`UDIR`, optional"
               examples:
                 - ""
+            arg9:
+              type: string
+              title: FORMAT
+              description: "`FORMAT`, optional"
+              enum:
+                - json
+                - plain
+                - csv
+                - shell
+              examples:
+                - json
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-schedule-user-restore-file-restic:
@@ -51112,6 +51392,17 @@ components:
               description: "`PATH`"
               examples:
                 - /home/alice/web/example.com/public_html/index.php
+            arg4:
+              type: string
+              title: FORMAT
+              description: "`FORMAT`, optional"
+              enum:
+                - json
+                - plain
+                - csv
+                - shell
+              examples:
+                - json
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-schedule-user-restore-restic:
@@ -51136,46 +51427,33 @@ components:
                 - "2019-04-22_01-00-00.tar"
             arg2:
               type: string
-              title: BACKUP
-              description: "`BACKUP`"
+              title: SNAPSHOT
+              description: "`SNAPSHOT`"
               examples:
                 - ""
             arg3:
               type: string
-              title: WEB
-              description: "`WEB`, optional"
+              title: OBJECT
+              description: "`OBJECT`, optional"
               examples:
                 - ""
             arg4:
               type: string
-              title: DNS
-              description: "`DNS`, optional"
+              title: VALUE
+              description: "`VALUE`, optional"
               examples:
                 - ""
             arg5:
               type: string
-              title: MAIL
-              description: "`MAIL`, optional"
+              title: FORMAT
+              description: "`FORMAT`, optional"
+              enum:
+                - json
+                - plain
+                - csv
+                - shell
               examples:
-                - ""
-            arg6:
-              type: string
-              title: DB
-              description: "`DB`, optional"
-              examples:
-                - ""
-            arg7:
-              type: string
-              title: CRON
-              description: "`CRON`, optional"
-              examples:
-                - ""
-            arg8:
-              type: string
-              title: UDIR
-              description: "`UDIR`, optional"
-              examples:
-                - ""
+                - json
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-search-command:

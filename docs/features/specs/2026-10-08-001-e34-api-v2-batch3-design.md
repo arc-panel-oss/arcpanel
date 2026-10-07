@@ -200,6 +200,12 @@ The path the command prints must match `^/backup/[\w.-]+$`, as on the page; anyt
 
 The work log of each milestone is appended here.
 
+### M6 (2026-10-08)
+
+- Extended `test/arcpanel-api-v2-smoke.sh` with backup create, task poll, archive list and download, selective web restore, archive delete, database dump download and Let's Encrypt `Link rel="monitor"`.
+- Updated `docs/roadmap.md` (E34 and E15), `docs/design/13-data-model-reference.md`, `docs/design/01-architecture-overview.md`, `docs/api/README.md`; regenerated `docs/api/openapi.yaml` for `v-run-queue-task`, `v-list-user-tasks` and the schedule commands' new output.
+- Smoke found `v-list-user-tasks` `json` used jq `$ARGS` (built-in CLI args); renamed to `$task_args` so `ARGS` is a string; BATS asserts the type.
+
 ### M5 (2026-10-08)
 
 - `POST /api/v2/users/{user}/databases/{database}/dump` (`dumpDatabase`): `v-dump-database … gzip`, D35 download headers, path guard `^/backup/[\w.-]+$`; `v-dump-database` added to `v2-db` and `v2-write`.

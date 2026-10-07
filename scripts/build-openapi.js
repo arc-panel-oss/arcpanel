@@ -102,6 +102,7 @@ const tags = [
 			'command',
 			'object',
 			'password',
+			'queue',
 		],
 		description: 'Server configuration, services, packages, updates, logs and searches',
 	},

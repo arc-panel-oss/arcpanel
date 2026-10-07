@@ -81,6 +81,26 @@ call() {
 # json FILTER -> value of the last answer
 json() { jq -r "$1" "$BODY"; }
 
+# wait_v2_task KEY TASK_ID [MAX_SECONDS] — poll GET /tasks/{id}, drive the backup queue
+wait_v2_task() {
+	local key="$1" task_id="$2" max="${3:-600}" i st
+	for i in $(seq 1 "$max"); do
+		"$ARCPANEL/bin/v-update-sys-queue" backup > /dev/null 2>&1 || true
+		call "$key" GET "/tasks/$task_id" > /dev/null
+		st="$(json .data.status)"
+		case "$st" in
+			succeeded) ok "task $task_id finished"; return 0 ;;
+			failed)
+				fail "task $task_id failed ($(json '.data.log' | tail -c 500))"
+				return 1
+				;;
+		esac
+		sleep 2
+	done
+	fail "task $task_id timed out after ${max}s"
+	return 1
+}
+
 "$ARCPANEL/bin/v-change-sys-config-value" API_SYSTEM 2
 "$ARCPANEL/bin/v-change-sys-config-value" API_ALLOWED_IP allow-all
 clear_panel_cache
@@ -241,7 +261,14 @@ DB_KEY=$(new_key "$SMOKE_USER" v2-db)
 DB="/users/$SMOKE_USER/databases"
 check "createDatabase with only v2-db answers 201" 201 "$(call "$DB_KEY" POST "$DB" '{"name": "app", "db_user": "app", "password": "SmokePass1"}')"
 check "the database name has the owner prefix" "${SMOKE_USER}_app" "$(json .data.name)"
-check "deleteDatabase answers 204" 204 "$(call "$DB_KEY" DELETE "$DB/${SMOKE_USER}_app")"
+SMOKE_DB="${SMOKE_USER}_app"
+DUMP_FILE="$(mktemp)"
+dump_code=$(curl -sk -o "$DUMP_FILE" -w '%{http_code}' -X POST -H "Authorization: Bearer $DB_KEY" -H 'Accept: application/json' "$API$DB/$SMOKE_DB/dump")
+dump_size=$(stat -c%s "$DUMP_FILE" 2> /dev/null || echo 0)
+check "dumpDatabase answers with a gzip body" 200 "$dump_code"
+check "the database dump is not empty" 1 "$([ "$dump_size" -gt 100 ] && echo 1 || echo 0)"
+rm -f "$DUMP_FILE"
+check "deleteDatabase answers 204" 204 "$(call "$DB_KEY" DELETE "$DB/$SMOKE_DB")"
 
 CRON_KEY=$(new_key "$SMOKE_USER" v2-cron)
 CRON="/users/$SMOKE_USER/cron-jobs"
@@ -250,6 +277,36 @@ CRON_ID="$(json .data.id)"
 check "a duplicate cron job answers 409" 409 "$(call "$CRON_KEY" POST "$CRON" '{"schedule": "*/5 * * * *", "command": "echo arcsmoke"}')"
 check "the duplicate points at the job" "/api/v2$CRON/$CRON_ID" "$(json .error.existing)"
 check "deleteCronJob answers 204" 204 "$(call "$CRON_KEY" DELETE "$CRON/$CRON_ID")"
+
+# Batch 3: tasks, backups and downloads (spec 2026-10-08-001 §8)
+WEB="/users/$SMOKE_USER/web-domains"
+BK="/users/$SMOKE_USER/backups"
+check "a web domain for the backup smoke" 201 "$(call "$WRITER" POST "$WEB" "{\"domain\": \"$SMOKE_DOMAIN\"}")"
+le_headers=$(curl -sk -D - -o /dev/null -X POST \
+	-H "Authorization: Bearer $WRITER" -H 'Accept: application/json' -H 'Content-Type: application/json' \
+	--data '{"key_algorithm": "ecdsa-384"}' "$API$WEB/$SMOKE_DOMAIN/letsencrypt")
+check "requestWebDomainLetsEncrypt sends Link rel=monitor" 1 "$(grep -ci 'link:.*tasks/.*rel="monitor"' <<< "$le_headers")"
+sed -i "/ $SMOKE_DOMAIN /d" "$ARCPANEL/data/queue/letsencrypt.pipe"
+
+BACKUP_KEY=$(new_key "$SMOKE_USER" v2-backup)
+check "createBackup answers 202" 202 "$(call "$BACKUP_KEY" POST "$BK")"
+BK_TASK="$(json .data.id)"
+if [[ "$BK_TASK" == queue:"$SMOKE_USER":* ]]; then ok "createBackup returns a queue task id"; else fail "createBackup task id (got '$BK_TASK')"; fi
+wait_v2_task "$BACKUP_KEY" "$BK_TASK" 900
+if [ "$(call "$BACKUP_KEY" GET "/tasks/$BK_TASK")" = 200 ] && [ "$(json .data.status)" = succeeded ]; then
+	BK_NAME="$(call "$BACKUP_KEY" GET "$BK" > /dev/null && json '.data[0].name')"
+	check "listBackups finds the new archive" "$SMOKE_USER." "${BK_NAME%%.*}."
+	BK_DL="$(mktemp)"
+	dl_bytes=$(curl -sk -o "$BK_DL" -w '%{size_download}' -H "Authorization: Bearer $BACKUP_KEY" "$API$BK/$BK_NAME/download")
+	check "downloadBackup returns bytes" 1 "$([ "${dl_bytes:-0}" -gt 100 ] && echo 1 || echo 0)"
+	rm -f "$BK_DL"
+	check "restoreBackup of one web domain answers 202" 202 "$(call "$BACKUP_KEY" POST "$BK/$BK_NAME/restore" "{\"web\": [\"$SMOKE_DOMAIN\"]}")"
+	RS_TASK="$(json .data.id)"
+	wait_v2_task "$BACKUP_KEY" "$RS_TASK" 900 || true
+	check "deleteBackup answers 204" 204 "$(call "$BACKUP_KEY" DELETE "$BK/$BK_NAME")"
+else
+	fail "backup task did not succeed; skipping archive download and restore"
+fi
 
 check "the user of the web domains is deleted" 204 "$(call "$ADMIN" DELETE "/users/$SMOKE_USER")"
 
