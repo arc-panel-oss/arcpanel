@@ -31,6 +31,9 @@ lib/quickinstall/
 # Panel app (handled by Laravel Pint)
 web-app/
 
+# OpenAPI document of API v2, written by `php artisan arcpanel:api-docs` (E34)
+/docs/api/v2/openapi.json
+
 # Patch files
 /install/upgrade/patch/*
 

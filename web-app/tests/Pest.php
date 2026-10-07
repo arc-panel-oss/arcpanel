@@ -622,3 +622,67 @@ function dockerCatalogRow(string $slug, array $overrides = []): array
         'HOMEPAGE' => 'https://example.com', 'LICENSE' => 'MIT', 'WEB' => true, 'ICON' => 'data:image/svg+xml;base64,PHN2Zy8+',
     ], $overrides);
 }
+
+/** Access key of the API v2 tests (E34): an id and a secret in the formats of func/main.sh. */
+const API_KEY_ID = 'APIKEY0123456789abcd';
+
+const API_SECRET = 'S3cret-0123456789abcdefghijklmnopqrstuvw';
+
+/**
+ * The commands of a permission set shipped in install/common/api/ (the
+ * v2-read and v2-write sets of E34).
+ *
+ * @return list<string>
+ */
+function apiSetCommands(string $set): array
+{
+    $file = base_path('../install/common/api/'.$set);
+    $content = is_file($file) ? (string) file_get_contents($file) : '';
+    if (preg_match("/^COMMANDS='([^']*)'/m", $content, $m) !== 1) {
+        throw new RuntimeException("No COMMANDS in {$file}");
+    }
+
+    return array_values(array_filter(explode(',', $m[1])));
+}
+
+/**
+ * A fake for the API v2 tests: the API is on for every key from every
+ * address unless $config says otherwise.
+ *
+ * @param  array<string, string>  $config
+ */
+function fakeApi(array $config = []): ArcCommandFake
+{
+    return fakeArc(array_merge(['API_SYSTEM' => '2', 'API_ALLOWED_IP' => 'allow-all'], $config));
+}
+
+/**
+ * Let the access key of the API tests belong to $user: `v-check-access-key-permissions`
+ * answers for API_KEY_ID and API_SECRET only. Without $sets the key is
+ * unrestricted (an administrator's key without sets); with sets its
+ * commands are those of the shipped set files, so a test fails when an
+ * endpoint runs a command its set does not list.
+ *
+ * @param  list<string>  $sets
+ * @return array<string, string> the request headers
+ */
+function apiKey(ArcCommandFake $fake, string $user, string $role, array $sets = []): array
+{
+    $commands = $sets === [] ? ['*'] : array_values(array_unique(array_merge(...array_map(apiSetCommands(...), $sets))));
+    $fake->on('v-check-access-key-permissions')->using(fn (array $args) => $args[0] === API_KEY_ID && $args[1] === API_SECRET
+        ? [0, (string) json_encode(['ACCESS_KEY_ID' => API_KEY_ID, 'USER' => $user, 'ROLE' => $role, 'PERMISSIONS' => $sets, 'COMMANDS' => $commands])]
+        : [9, 'Error: Invalid secret key for key '.$args[0]]);
+
+    return ['Authorization' => 'Bearer '.API_KEY_ID.':'.API_SECRET, 'Accept' => 'application/json'];
+}
+
+/**
+ * The key a test signs in with: unrestricted for administrators, the v2-write
+ * set (or v2-read for $readOnly) for everyone else, as the panel requires.
+ *
+ * @return array<string, string>
+ */
+function apiAs(ArcCommandFake $fake, string $user, string $role, bool $readOnly = false): array
+{
+    return apiKey($fake, $user, $role, $role === 'admin' ? [] : [$readOnly ? 'v2-read' : 'v2-write']);
+}

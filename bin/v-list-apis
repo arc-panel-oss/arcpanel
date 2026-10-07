@@ -25,6 +25,7 @@ json_list() {
 	local quote COMMANDS_ARR
 	for api in $ARCPANEL/data/api/*; do
 		api="$(basename -- "$api")"
+		COMMANDS="" API_VERSION=""
 		source_conf $ARCPANEL/data/api/$api
 
 		COMMANDS_ARR='[]'
@@ -33,7 +34,7 @@ json_list() {
 		fi
 
 		echo -en "$quote"
-		echo -n '    "'$api'": {"COMMANDS": '${COMMANDS_ARR}', "ROLE": "'${ROLE}'"}'
+		echo -n '    "'$api'": {"COMMANDS": '${COMMANDS_ARR}', "ROLE": "'${ROLE}'", "API_VERSION": "'${API_VERSION:-1}'"}'
 		quote=",\n"
 	done
 	echo -e '\n}'
@@ -41,13 +42,14 @@ json_list() {
 
 # SHELL list function
 shell_list() {
-	list="API\tROLE\tCOMMANDS\n"
-	list+="---\t----\t--------\n"
+	list="API\tROLE\tVERSION\tCOMMANDS\n"
+	list+="---\t----\t-------\t--------\n"
 
 	for api in $ARCPANEL/data/api/*; do
 		api="$(basename -- "$api")"
+		COMMANDS="" API_VERSION=""
 		source_conf $ARCPANEL/data/api/$api
-		list+="${api}\t${ROLE}\t${COMMANDS}\n"
+		list+="${api}\t${ROLE}\t${API_VERSION:-1}\t${COMMANDS}\n"
 	done
 	echo -e "$list" | column -t -s "	"
 }

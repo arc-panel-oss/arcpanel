@@ -2079,9 +2079,12 @@ cleanup_key_permissions() {
 	echo "$final"
 }
 
-# Extract all allowed commands from a permission list
+# Extract all allowed commands from a permission list. Sets marked
+# API_VERSION='2' belong to REST API v2 (E34) and are skipped unless the
+# second argument is "v2", so API v1 never runs their commands.
 get_apis_commands() {
 	local permissions="$1"
+	local api="${2:-v1}"
 
 	local allowed_commands quote commands_to_add
 	while IFS=',' read -ra permissions_arr; do
@@ -2093,8 +2096,11 @@ get_apis_commands() {
 			#                commands_to_add="$permission"
 			#            el
 			if [[ -e "$ARCPANEL/data/api/$permission" ]]; then
+				COMMANDS="" API_VERSION=""
 				source_conf "$ARCPANEL/data/api/$permission"
-				commands_to_add="$COMMANDS"
+				if [[ "$API_VERSION" != "2" || "$api" = "v2" ]]; then
+					commands_to_add="$COMMANDS"
+				fi
 			fi
 
 			if [[ -n "$commands_to_add" ]]; then

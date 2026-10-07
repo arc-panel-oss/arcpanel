@@ -30,6 +30,7 @@ json_list() {
 	echo '{
     "API": "'$api'",
     "ROLE": "'$ROLE'",
+    "API_VERSION": "'${API_VERSION:-1}'",
     "COMMANDS": '$COMMANDS_ARR'
 }'
 }
@@ -38,6 +39,7 @@ json_list() {
 shell_list() {
 	echo "API:           $api"
 	echo "ROLE:          $ROLE"
+	echo "API_VERSION:   ${API_VERSION:-1}"
 	echo "COMMANDS:      $COMMANDS"
 }
 
@@ -55,6 +57,7 @@ fi
 #                       Action                             #
 #----------------------------------------------------------#
 
+API_VERSION=""
 source_conf "${ARCPANEL}/data/api/${api}"
 
 # Listing data

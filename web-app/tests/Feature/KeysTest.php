@@ -48,6 +48,7 @@ beforeEach(function () {
         'billing' => ['COMMANDS' => ['v-add-user'], 'ROLE' => 'admin'],
         'purge-nginx-cache' => ['COMMANDS' => ['v-purge-nginx-cache'], 'ROLE' => 'user'],
         'update-dns-records' => ['COMMANDS' => ['v-change-dns-record'], 'ROLE' => 'user'],
+        'v2-read' => ['COMMANDS' => ['v-list-user'], 'ROLE' => 'user', 'API_VERSION' => '2'],
     ]);
     $this->fake->on('v-list-user-ssh-key')->using(fn (array $args) => $args[0] === 'bob'
         ? [0, (string) json_encode([
@@ -117,6 +118,13 @@ it('offers user permission sets to users and every set to the root user', functi
     signIn('arcadmin', 'admin');
     $this->get('/access-keys/arcadmin/create')->assertOk()->assertSee('billing');
     $this->get('/access-keys/bob/create')->assertOk()->assertDontSee('billing');
+});
+
+it('explains the sets of REST API v2', function () {
+    signIn('bob', 'user');
+
+    $this->get('/access-keys/bob/create')->assertOk()
+        ->assertSee('v2-read')->assertSee('REST API v2 only: every read endpoint, no change.');
 });
 
 it('creates a key and shows its secret once, without storing it', function () {

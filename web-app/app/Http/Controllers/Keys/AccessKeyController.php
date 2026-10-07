@@ -48,6 +48,11 @@ final class AccessKeyController extends Controller
         return view('keys.access-key-create', [
             'user' => $user,
             'sets' => $policy->allowedSets($user, $this->keys->permissionSets()),
+            // The sets of REST API v2 (E34 spec §4.2), refused by API v1
+            'setHints' => [
+                'v2-read' => __('REST API v2 only: every read endpoint, no change.'),
+                'v2-write' => __('REST API v2 only: every endpoint, changes included.'),
+            ],
         ]);
     }
 

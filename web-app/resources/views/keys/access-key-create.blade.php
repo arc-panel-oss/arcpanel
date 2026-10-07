@@ -14,6 +14,9 @@
                             <input type="checkbox" id="set-{{ $set }}" name="sets[]" value="{{ $set }}" @checked(in_array($set, $chosen, true))>
                             <span>{{ __($set) }}</span>
                         </label>
+                        @if (isset($setHints[$set]))
+                            <p class="ap-hint">{{ $setHints[$set] }}</p>
+                        @endif
                     </div>
                 @empty
                     <p class="muted">{{ __('No permission sets are available for this account.') }}</p>

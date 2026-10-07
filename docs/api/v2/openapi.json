@@ -1,0 +1,479 @@
+{
+    "openapi": "3.1.0",
+    "info": {
+        "title": "ArcPanel REST API v2",
+        "version": "2",
+        "description": "Resource API of an ArcPanel server, served by the panel at `/api/v2/` (port 8083 by default). Every call acts as the owner of the access key, with the role and the reach that user has in the panel: objects outside its reach answer `404`, refused actions `403`.\n\n**Authentication.** `Authorization: Bearer ACCESS_KEY_ID:SECRET_ACCESS_KEY`, an access key of the panel (Account → Access keys). The API must be on (`API_SYSTEM` 1 for the administrator's keys, 2 for every key) and accept the client's address (`API_ALLOWED_IP`). A key with permission sets may only run their commands: `v2-read` allows the read endpoints, `v2-write` every endpoint. Both sets are refused by API v1. `GET /me` describes the key.\n\n**Dry run.** Every write accepts `?dry_run=1`: the request is validated, authorized and checked against the permission sets, and the answer lists the commands it would run, without running any.\n\n**Errors.** Every error answers `{\"error\": {\"code\": \"E_…\", \"message\": \"…\"}}`; `code` is one of `ErrorCode`. Validation errors add `fields`, refused permission sets add `commands`, a failed step of a change adds `step` and the steps that ran before it (`applied`), which stay applied.\n\n**Headers.** Every answer carries `ArcPanel-Version` and `X-Request-Id` (the client's own value, or a new one). `429` carries `Retry-After`; `201` and `202` carry `Location`. Each key may make 60 requests a minute; ten failed authentications a minute block the client's address for a minute.\n\n**Compatibility.** Within v2 the document only grows: new operations, new optional fields, new enum values. Clients should ignore unknown fields."
+    },
+    "servers": [
+        {
+            "url": "https://{host}:{port}/api/v2",
+            "description": "An ArcPanel server",
+            "variables": {
+                "host": {
+                    "default": "panel.example.com"
+                },
+                "port": {
+                    "default": "8083"
+                }
+            }
+        }
+    ],
+    "paths": {
+        "/me": {
+            "get": {
+                "operationId": "getMe",
+                "description": "The access key of the request: its owner and role, its permission\nsets and the commands they allow (`*` when unrestricted), and the\nversions of the panel and of the API. Clients use it to check a\nprofile (E34 spec D12).",
+                "summary": "Who am I",
+                "tags": [
+                    "Account"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "`Me`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/Me"
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    }
+                }
+            }
+        }
+    },
+    "components": {
+        "schemas": {
+            "ApiRole": {
+                "type": "string",
+                "description": "Role of a user in API v2 answers and requests.\n",
+                "enum": [
+                    "admin",
+                    "reseller",
+                    "user"
+                ],
+                "title": "ApiRole"
+            },
+            "DryRun": {
+                "type": "object",
+                "properties": {
+                    "data": {
+                        "type": "object",
+                        "properties": {
+                            "dry_run": {
+                                "type": "boolean",
+                                "const": true
+                            },
+                            "steps": {
+                                "type": "array",
+                                "items": {
+                                    "type": "object",
+                                    "properties": {
+                                        "label": {
+                                            "type": "string",
+                                            "description": "What the step does."
+                                        },
+                                        "command": {
+                                            "type": "string",
+                                            "description": "The v-* command of the step."
+                                        },
+                                        "args": {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "string"
+                                            },
+                                            "description": "Arguments of the command; secrets are masked."
+                                        }
+                                    },
+                                    "required": [
+                                        "label",
+                                        "command",
+                                        "args"
+                                    ]
+                                }
+                            }
+                        },
+                        "required": [
+                            "dry_run",
+                            "steps"
+                        ]
+                    }
+                },
+                "required": [
+                    "data"
+                ]
+            },
+            "Error": {
+                "type": "object",
+                "properties": {
+                    "error": {
+                        "type": "object",
+                        "properties": {
+                            "code": {
+                                "$ref": "#/components/schemas/ErrorCode"
+                            },
+                            "message": {
+                                "type": "string"
+                            },
+                            "fields": {
+                                "type": "object",
+                                "description": "E_VALIDATION: the messages of each invalid field.",
+                                "additionalProperties": {
+                                    "type": "array",
+                                    "items": {
+                                        "type": "string"
+                                    }
+                                }
+                            },
+                            "commands": {
+                                "type": "array",
+                                "description": "E_FORBIDDEN by a permission set: the commands the key may not run.",
+                                "items": {
+                                    "type": "string"
+                                }
+                            },
+                            "step": {
+                                "description": "The step of a change that failed.",
+                                "anyOf": [
+                                    {
+                                        "$ref": "#/components/schemas/PlanStep"
+                                    },
+                                    {
+                                        "type": "null"
+                                    }
+                                ]
+                            },
+                            "applied": {
+                                "type": "array",
+                                "description": "The steps that ran before the failed one; they stay applied.",
+                                "items": {
+                                    "$ref": "#/components/schemas/PlanStep"
+                                }
+                            }
+                        },
+                        "required": [
+                            "code",
+                            "message"
+                        ]
+                    }
+                },
+                "required": [
+                    "error"
+                ]
+            },
+            "ErrorCode": {
+                "type": "string",
+                "description": "Error names of the command exit codes (func/main.sh) and of the API layer.",
+                "enum": [
+                    "E_UNAUTHENTICATED",
+                    "E_API_DISABLED",
+                    "E_FORBIDDEN",
+                    "E_NOTEXIST",
+                    "E_VALIDATION",
+                    "E_RATE_LIMIT",
+                    "E_METHOD_NOT_ALLOWED",
+                    "E_SERVER",
+                    "E_ARGS",
+                    "E_INVALID",
+                    "E_EXISTS",
+                    "E_SUSPENDED",
+                    "E_UNSUSPENDED",
+                    "E_INUSE",
+                    "E_LIMIT",
+                    "E_PASSWORD",
+                    "E_DISABLED",
+                    "E_PARSING",
+                    "E_DISK",
+                    "E_LA",
+                    "E_CONNECT",
+                    "E_FTP",
+                    "E_DB",
+                    "E_RRD",
+                    "E_UPDATE",
+                    "E_RESTART"
+                ]
+            },
+            "Me": {
+                "type": "object",
+                "properties": {
+                    "access_key_id": {
+                        "type": "string",
+                        "description": "the access key id"
+                    },
+                    "user": {
+                        "type": "string",
+                        "description": "the owner of the key; every call acts as this user"
+                    },
+                    "role": {
+                        "$ref": "#/components/schemas/ApiRole"
+                    },
+                    "read_only": {
+                        "type": "boolean",
+                        "description": "whether the user may only read (no write endpoint answers)"
+                    },
+                    "permissions": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "commands": {
+                        "type": "array",
+                        "description": "the commands the key may run, `*` when unrestricted",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "panel_version": {
+                        "type": "string"
+                    },
+                    "api_version": {
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "access_key_id",
+                    "user",
+                    "role",
+                    "read_only",
+                    "permissions",
+                    "commands",
+                    "panel_version",
+                    "api_version"
+                ],
+                "title": "Me"
+            },
+            "PlanStep": {
+                "type": "object",
+                "properties": {
+                    "label": {
+                        "type": "string",
+                        "description": "What the step does."
+                    },
+                    "command": {
+                        "type": "string",
+                        "description": "The v-* command of the step."
+                    }
+                },
+                "required": [
+                    "label",
+                    "command"
+                ]
+            }
+        },
+        "securitySchemes": {
+            "accessKey": {
+                "type": "http",
+                "scheme": "bearer",
+                "bearerFormat": "ACCESS_KEY_ID:SECRET_ACCESS_KEY",
+                "description": "An access key of the panel and its secret, joined by a colon."
+            }
+        },
+        "headers": {
+            "RequestId": {
+                "description": "The id of the request: the client's X-Request-Id, or a new one.",
+                "schema": {
+                    "type": "string"
+                }
+            },
+            "Version": {
+                "description": "Version of the panel.",
+                "schema": {
+                    "type": "string"
+                }
+            },
+            "RetryAfter": {
+                "description": "Seconds to wait before the next request.",
+                "schema": {
+                    "type": "integer"
+                }
+            },
+            "Location": {
+                "description": "URL of the resource (201) or of the resource to poll (202).",
+                "schema": {
+                    "type": "string"
+                }
+            }
+        },
+        "responses": {
+            "Unauthenticated": {
+                "description": "The access key is missing, unknown or wrong (`E_UNAUTHENTICATED`).",
+                "headers": {
+                    "X-Request-Id": {
+                        "$ref": "#/components/headers/RequestId"
+                    },
+                    "ArcPanel-Version": {
+                        "$ref": "#/components/headers/Version"
+                    }
+                },
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/Error"
+                        }
+                    }
+                }
+            },
+            "Forbidden": {
+                "description": "The API is off for this key (`E_API_DISABLED`), the role or a permission set refuses the call (`E_FORBIDDEN`), or the owner is suspended (`E_SUSPENDED`).",
+                "headers": {
+                    "X-Request-Id": {
+                        "$ref": "#/components/headers/RequestId"
+                    },
+                    "ArcPanel-Version": {
+                        "$ref": "#/components/headers/Version"
+                    }
+                },
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/Error"
+                        }
+                    }
+                }
+            },
+            "NotFound": {
+                "description": "No such object in the scope of the key (`E_NOTEXIST`).",
+                "headers": {
+                    "X-Request-Id": {
+                        "$ref": "#/components/headers/RequestId"
+                    },
+                    "ArcPanel-Version": {
+                        "$ref": "#/components/headers/Version"
+                    }
+                },
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/Error"
+                        }
+                    }
+                }
+            },
+            "Conflict": {
+                "description": "The object exists or is in use (`E_EXISTS`, `E_INUSE`).",
+                "headers": {
+                    "X-Request-Id": {
+                        "$ref": "#/components/headers/RequestId"
+                    },
+                    "ArcPanel-Version": {
+                        "$ref": "#/components/headers/Version"
+                    }
+                },
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/Error"
+                        }
+                    }
+                }
+            },
+            "ValidationFailed": {
+                "description": "The request is invalid (`E_VALIDATION` with `fields`, or a command refused an argument).",
+                "headers": {
+                    "X-Request-Id": {
+                        "$ref": "#/components/headers/RequestId"
+                    },
+                    "ArcPanel-Version": {
+                        "$ref": "#/components/headers/Version"
+                    }
+                },
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/Error"
+                        }
+                    }
+                }
+            },
+            "TooManyRequests": {
+                "description": "Too many requests (`E_RATE_LIMIT`, or a package limit `E_LIMIT`); `Retry-After` names the seconds to wait.",
+                "headers": {
+                    "X-Request-Id": {
+                        "$ref": "#/components/headers/RequestId"
+                    },
+                    "ArcPanel-Version": {
+                        "$ref": "#/components/headers/Version"
+                    }
+                },
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/Error"
+                        }
+                    }
+                }
+            },
+            "ServerError": {
+                "description": "A command failed on the server.",
+                "headers": {
+                    "X-Request-Id": {
+                        "$ref": "#/components/headers/RequestId"
+                    },
+                    "ArcPanel-Version": {
+                        "$ref": "#/components/headers/Version"
+                    }
+                },
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/Error"
+                        }
+                    }
+                }
+            },
+            "Unavailable": {
+                "description": "The service is disabled or the server is too busy (`E_DISABLED`, `E_LA`).",
+                "headers": {
+                    "X-Request-Id": {
+                        "$ref": "#/components/headers/RequestId"
+                    },
+                    "ArcPanel-Version": {
+                        "$ref": "#/components/headers/Version"
+                    }
+                },
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/Error"
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "security": [
+        {
+            "accessKey": []
+        }
+    ]
+}

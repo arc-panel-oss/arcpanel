@@ -1,0 +1,140 @@
+#!/bin/bash
+# info: check an access key for API v2
+# options: ACCESS_KEY_ID SECRET_FILE IP [FORMAT]
+#
+# example: v-check-access-key-permissions 1234567890ABCDefghij /tmp/arcSecret 203.0.113.5 json
+#
+# This function checks an access key for REST API v2 (E34) and prints its
+# owner, the owner's role, its permission sets and the commands they allow:
+# * the key exists and the secret (read from SECRET_FILE) belongs to it;
+# * the owner exists and is not suspended;
+# * a key of another user than the administrator has permission sets.
+# COMMANDS is "*" for an administrator's key without permission sets. Sets
+# marked API_VERSION='2' are expanded too (API v1 skips them).
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+access_key_id="$(basename "$1")"
+secret_file=$2
+ip46=$3
+format=${4-shell}
+
+# Includes
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# load config file
+source_conf "$ARCPANEL/conf/arcpanel.conf"
+
+time_n_date=$(date +'%T %F')
+time=$(echo "$time_n_date" | cut -f 1 -d \ )
+date=$(echo "$time_n_date" | cut -f 2 -d \ )
+
+# JSON array of a comma list
+json_array() {
+	if [[ -z "$1" ]]; then
+		echo -n '[]'
+	else
+		echo -n "[\"$(echo "$1" | sed -E 's|,|", "|g')\"]"
+	fi
+}
+
+# JSON list function
+json_list() {
+	echo '{
+    "ACCESS_KEY_ID": "'$access_key_id'",
+    "USER": "'$user'",
+    "ROLE": "'$role'",
+    "PERMISSIONS": '$(json_array "$permissions")',
+    "COMMANDS": '$(json_array "$commands")'
+}'
+}
+
+# SHELL list function
+shell_list() {
+	echo "ACCESS_KEY_ID:  $access_key_id"
+	echo "USER:           $user"
+	echo "ROLE:           $role"
+	echo "PERMISSIONS:    $permissions"
+	echo "COMMANDS:       $commands"
+}
+
+# Callback of check_result: every failure is logged like v-check-access-key;
+# a wrong key or secret answers E_PASSWORD
+abort_mismatch() {
+	echo "Error: $2"
+	echo "$date $time ${access_key_id:-api} $ip46 failed to login" >> $ARCPANEL/log/auth.log
+
+	if [[ "$1" == "$E_PASSWORD" && -n "$user" ]]; then
+		log_history "[$ip46] $access_key_id $2" "Error" "$user" "API"
+	fi
+
+	if [[ "$1" == "$E_FORBIDEN" || "$1" == "$E_SUSPENDED" ]]; then
+		exit "$1"
+	fi
+
+	exit "$E_PASSWORD"
+}
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+CHECK_RESULT_CALLBACK="abort_mismatch"
+
+check_args '3' "$#" 'ACCESS_KEY_ID SECRET_FILE IP [FORMAT]'
+is_format_valid 'access_key_id' 'ip46'
+is_object_valid 'key' 'KEY' "$access_key_id"
+
+# The secret comes in a temporary file of the panel, never on the command line
+if [[ ! "$secret_file" =~ ^/tmp/ || "$secret_file" == *../* || ! -f "$secret_file" ]]; then
+	check_result "$E_PASSWORD" "Secret key not provided for key $access_key_id"
+fi
+secret_access_key="$(head -n1 "$secret_file")"
+
+user=''
+check_access_key_secret "$access_key_id" "$secret_access_key" user
+
+# Owner of the key: exists and is active
+is_format_valid 'user'
+is_object_valid 'user' 'USER' "$user"
+export USER_DATA=$ARCPANEL/data/users/$user
+is_object_unsuspended 'user' 'USER' "$user"
+role="$(get_user_value '$ROLE')"
+
+# Permission sets of the key; the administrator's key without sets may run any command
+USER="" PERMISSIONS=""
+source_conf "$ARCPANEL/data/access-keys/$access_key_id"
+permissions="$PERMISSIONS"
+if [[ -n "$permissions" ]]; then
+	commands="$(get_apis_commands "$permissions" v2)"
+elif [[ "$user" == "$ROOT_USER" ]]; then
+	commands='*'
+else
+	check_result "$E_FORBIDEN" "Key $access_key_id has no permission sets"
+fi
+
+CHECK_RESULT_CALLBACK=""
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+case $format in
+	json) json_list ;;
+	shell) shell_list ;;
+esac
+
+#----------------------------------------------------------#
+#                         ArcPanel                         #
+#----------------------------------------------------------#
+
+# Logging
+log_history "[$ip46] Access key $access_key_id successfully authenticated for API v2" "Info" "$user" "API"
+echo "$date $time $access_key_id $ip46 api v2 successfully authenticated" >> $ARCPANEL/log/auth.log
+
+exit

@@ -1,7 +1,12 @@
 <?php
 
+use App\Api\ApiException;
+use App\Api\ErrorRenderer;
 use App\Arc\ArcCommandException;
 use App\Http\Controllers\HealthController;
+use App\Http\Middleware\Api\ApiEnabled;
+use App\Http\Middleware\Api\AuthenticateAccessKey;
+use App\Http\Middleware\Api\StartApiRequest;
 use App\Http\Middleware\BindEffectiveUser;
 use App\Http\Middleware\FilesEnabled;
 use App\Http\Middleware\NotReadOnly;
@@ -28,7 +33,15 @@ $app = Application::configure(basePath: dirname(__DIR__))
         web: __DIR__.'/../routes/web.php',
         commands: __DIR__.'/../routes/console.php',
         // Outside the web group: no sessions, no cookies.
-        then: fn () => Route::get('/_health', HealthController::class)->name('health'),
+        then: function (): void {
+            Route::get('/_health', HealthController::class)->name('health');
+
+            // REST API v2 (E34 spec D1): stateless, authenticated by access key
+            Route::prefix('api/v2')
+                ->name('api.v2.')
+                ->middleware([StartApiRequest::class, ApiEnabled::class, AuthenticateAccessKey::class, 'throttle:api-v2'])
+                ->group(base_path('routes/api.php'));
+        },
     )
     ->withMiddleware(function (Middleware $middleware): void {
         // The legacy session cookie is PHP's own, never encrypted by Laravel;
@@ -52,7 +65,10 @@ $app = Application::configure(basePath: dirname(__DIR__))
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
-        $exceptions->dontReport(ArcCommandException::class);
+        $exceptions->dontReport([ArcCommandException::class, ApiException::class]);
+
+        // API v2 answers every error with its JSON error body (E34 spec D10).
+        $exceptions->render(fn (Throwable $e, Request $request) => ErrorRenderer::handles($request) ? ErrorRenderer::render($e, $request) : null);
 
         $exceptions->render(function (ArcCommandException $e, Request $request) {
             if ($request->expectsJson()) {

@@ -92,6 +92,15 @@ mv -f "$tmp_env" "$ENV_FILE"
 # below. dpkg leaves these generated files in place on upgrades.
 rm -f "$APP_DIR"/bootstrap/cache/*.php
 
+# Permission sets of REST API v2 (E34): their command lists follow the panel
+# app, so they are refreshed on every install and upgrade
+mkdir -p "$ARCPANEL/data/api"
+for set in "$ARCPANEL"/install/common/api/v2-*; do
+	if [ -f "$set" ]; then
+		install -o root -g root -m 644 "$set" "$ARCPANEL/data/api/"
+	fi
+done
+
 # Command allow-list from the installed v-* scripts, and translations from the
 # installed gettext catalogues (both generated, never shipped)
 "$PHP_BIN" "$APP_DIR/artisan" arcpanel:allow-list --bin="$ARCPANEL/bin" > /dev/null

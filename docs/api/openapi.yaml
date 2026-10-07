@@ -71,6 +71,8 @@ info:
     | `purge-nginx-cache` | user | `v-purge-nginx-cache`, `v-list-web-domains`, `v-list-web-domain` |
     | `sync-dns-cluster` | admin | `v-list-users`, `v-list-sys-config`, `v-list-user`, `v-add-cron-restart-job`, `v-delete-dns-domains-src`, `v-insert-dns-domain`, `v-insert-dns-record`, `v-insert-dns-records`, `v-rebuild-dns-domains`, `v-rebuild-dns-domain`, `v-delete-dns-record`, `v-make-tmp-file`, `v-delete-dns-domain` |
     | `update-dns-records` | user | `v-list-dns-records`, `v-change-dns-record` |
+    | `v2-read` | user | `v-list-sys-config` |
+    | `v2-write` | user | `v-list-sys-config` |
   license:
     name: GPL-3.0-or-later
     identifier: GPL-3.0-or-later
@@ -9958,6 +9960,61 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/v-check-access-key"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+            application/json:
+              schema:
+                type: object
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+  "/api/#v-check-access-key-permissions":
+    post:
+      operationId: v-check-access-key-permissions
+      tags:
+        - Access keys
+      summary: Check an access key for API v2
+      description: |-
+        This function checks an access key for REST API v2 (E34) and prints its
+        owner, the owner's role, its permission sets and the commands they allow:
+        * the key exists and the secret (read from SECRET_FILE) belongs to it;
+        * the owner exists and is not suspended;
+        * a key of another user than the administrator has permission sets.
+        COMMANDS is "*" for an administrator's key without permission sets. Sets
+        marked API_VERSION='2' are expanded too (API v1 skips them).
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `ACCESS_KEY_ID` | yes |
+        | `arg2` | `SECRET_FILE` | yes |
+        | `arg3` | `IP` | yes |
+        | `arg4` | `FORMAT` | no |
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-check-access-key-permissions"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-check-access-key-permissions"
       responses:
         "200":
           description: "The output of the command; `OK` for an empty output with legacy authentication."
@@ -20059,9 +20116,11 @@ paths:
         | --- | --- | --- |
         | `arg1` | `FORMAT` | no |
 
-        **Permission sets:** `sync-dns-cluster`.
+        **Permission sets:** `sync-dns-cluster`, `v2-read`, `v2-write`.
       x-arcpanel-permission-sets:
         - sync-dns-cluster
+        - v2-read
+        - v2-write
       requestBody:
         required: true
         content:
@@ -40394,6 +40453,52 @@ components:
               examples:
                 - "127.0.0.1"
             arg5:
+              type: string
+              title: FORMAT
+              description: "`FORMAT`, optional"
+              enum:
+                - json
+                - plain
+                - csv
+                - shell
+              examples:
+                - json
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
+    v-check-access-key-permissions:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+            - arg2
+            - arg3
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-check-access-key-permissions
+              default: v-check-access-key-permissions
+            arg1:
+              type: string
+              title: ACCESS_KEY_ID
+              description: "`ACCESS_KEY_ID`"
+              examples:
+                - "1234567890ABCDefghij"
+            arg2:
+              type: string
+              title: SECRET_FILE
+              description: "`SECRET_FILE`"
+              examples:
+                - /tmp/arcSecret
+            arg3:
+              type: string
+              title: IP
+              description: "`IP`"
+              examples:
+                - "203.0.113.5"
+            arg4:
               type: string
               title: FORMAT
               description: "`FORMAT`, optional"

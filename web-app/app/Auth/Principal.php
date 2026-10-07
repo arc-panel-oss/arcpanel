@@ -24,6 +24,8 @@ final class Principal
         public readonly string $legacyToken,
         /** web/inc/policies.php */
         public readonly bool $readOnly,
+        /** Access key id of an API v2 request (E34), null for a session */
+        public readonly ?string $accessKey = null,
     ) {}
 
     public function effectiveUser(): string

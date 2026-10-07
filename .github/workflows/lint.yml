@@ -59,6 +59,28 @@ jobs:
       - name: Check that docs/api/openapi.yaml matches the commands
         run: node scripts/build-openapi.js --check
 
+  openapi-v2:
+    name: OpenAPI document of API v2
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.5"
+          tools: composer:v2
+          coverage: none
+
+      - name: Install the panel app with its dev dependencies
+        working-directory: web-app
+        run: composer install --no-interaction --no-progress
+
+      - name: Check that docs/api/v2/openapi.json matches the code
+        working-directory: web-app
+        run: php artisan arcpanel:api-docs --check
+
   shellcheck:
     name: ShellCheck
     runs-on: ubuntu-latest

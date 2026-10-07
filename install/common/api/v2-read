@@ -1,0 +1,4 @@
+# REST API v2 (E34): the commands of the read endpoints. API v1 skips this set.
+ROLE='user'
+API_VERSION='2'
+COMMANDS='v-list-sys-config'
