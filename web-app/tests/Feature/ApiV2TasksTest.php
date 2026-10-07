@@ -1,8 +1,6 @@
 <?php
 
-use App\Api\TaskId;
 use App\Arc\ExitCode;
-use App\Services\Tasks\TaskMapper;
 
 // REST API v2 tasks (E34 batch 3 spec §5, §8).
 
@@ -73,6 +71,8 @@ it('maps the six sources to the Task schema', function () {
         ->assertJsonPath('data.resource', '/users/bob/docker-apps/kuma');
 
     $this->getJson('/api/v2/tasks/queue:bob:4001', $headers)->assertOk()
+        ->assertJsonPath('data.status', 'succeeded')
+        ->assertJsonPath('data.exit_code', 0)
         ->assertJsonPath('data.queued_at', '2026-10-07T05:00:00')
         ->assertJsonPath('data.resource', '/users/bob/backups/bob.2026-10-01.tar');
 });
@@ -96,6 +96,23 @@ it('answers 410 for an expired queue task and 404 for a malformed id', function 
     $this->getJson('/api/v2/tasks/node:carol:7001', $headers)->assertNotFound();
 });
 
+it('answers 500 when a task status cannot be mapped', function () {
+    fakeTaskSources($this->fake);
+    $headers = apiAs($this->fake, 'hostco', 'reseller');
+    $this->fake->on('v-list-user-tasks', ['bob', '4001', '100', 'json'])->returnsJson([
+        'ID' => '4001', 'KIND' => 'backup', 'ARGS' => 'bob.tar', 'STATUS' => 'weird', 'EXIT' => '0', 'ERROR' => '',
+        'QUEUED' => '2026-10-07 05:00:00', 'START' => '', 'END' => '', 'LOG' => '',
+    ]);
+
+    $this->getJson('/api/v2/tasks/queue:bob:4001', $headers)->assertStatus(500)->assertJsonPath('error.code', 'E_SERVER');
+
+    $this->fake->on('v-list-user-tasks', ['bob', 'json'])->returnsJson([
+        '4001' => ['ID' => '4001', 'KIND' => 'backup', 'ARGS' => 'bob.tar', 'STATUS' => 'weird', 'EXIT' => '0', 'ERROR' => '',
+            'QUEUED' => '2026-10-07 05:00:00', 'START' => '', 'END' => '', 'LOG' => ''],
+    ]);
+    $this->getJson('/api/v2/users/bob/tasks', $headers)->assertStatus(500)->assertJsonPath('error.code', 'E_SERVER');
+});
+
 it('hides system tasks from non-administrators', function () {
     fakeTaskSources($this->fake);
     $this->getJson('/api/v2/tasks/sys:9001', apiAs($this->fake, 'bob', 'user'))->assertNotFound();
@@ -107,9 +124,42 @@ it('lists user tasks newest first and respects the tree', function () {
     fakeTaskSources($this->fake);
     $this->getJson('/api/v2/users/bob/tasks', apiAs($this->fake, 'hostco', 'reseller'))->assertOk()
         ->assertJsonPath('data.0.id', 'queue:bob:4002')
+        ->assertJsonFragment(['id' => 'queue:bob:4001', 'status' => 'succeeded'])
         ->assertJsonCount(5, 'data');
     $this->getJson('/api/v2/users/carol/tasks', apiAs($this->fake, 'hostco', 'reseller'))->assertNotFound();
 });
+
+it('lets admin, both resellers and users read tasks inside their tree only', function (string $principal, string $role, string $owner, int $status) {
+    fakeTaskSources($this->fake, $owner === 'carol' ? 'carol' : 'bob');
+    if ($owner === 'carol') {
+        $this->fake->on('v-list-user-tasks', ['carol', 'json'])->returnsJson([
+            '5001' => ['ID' => '5001', 'KIND' => 'backup', 'ARGS' => 'carol.tar', 'STATUS' => 'succeeded', 'EXIT' => '0', 'ERROR' => '',
+                'QUEUED' => '2026-10-08 09:00:00', 'START' => '', 'END' => '', 'LOG' => ''],
+        ]);
+        $this->fake->on('v-list-user-tasks', ['carol', '5001', '100', 'json'])->returnsJson([
+            'ID' => '5001', 'KIND' => 'backup', 'ARGS' => 'carol.tar', 'STATUS' => 'succeeded', 'EXIT' => '0', 'ERROR' => '',
+            'QUEUED' => '2026-10-08 09:00:00', 'START' => '', 'END' => '', 'LOG' => '',
+        ]);
+        $this->fake->on('v-list-user-node-task', ['carol', '100', 'json'])->returnsJson(['ID' => '', 'ACTION' => '', 'ARGS' => '', 'STATUS' => '', 'EXIT' => '', 'START' => '', 'END' => '', 'LOG' => '']);
+        $this->fake->on('v-list-user-quick-install-task', ['carol', '100', 'json'])->returnsJson(['ID' => '', 'USER' => 'carol', 'DOMAIN' => '', 'APP' => '', 'STATUS' => '', 'EXIT' => '', 'START' => '', 'END' => '', 'LOG' => '']);
+        $this->fake->on('v-list-docker-apps', ['carol', 'json'])->returnsJson(['APPS' => []]);
+    }
+
+    $this->getJson("/api/v2/users/{$owner}/tasks", apiAs($this->fake, $principal, $role, readOnly: true))->assertStatus($status);
+
+    $taskId = $owner === 'carol' ? 'queue:carol:5001' : 'queue:bob:4001';
+    $this->getJson('/api/v2/tasks/'.$taskId, apiAs($this->fake, $principal, $role, readOnly: true))
+        ->assertStatus($status === 200 ? 200 : 404)
+        ->when($status === 200, fn ($response) => $response->assertJsonPath('data.status', 'succeeded'));
+})->with([
+    'admin, bob' => ['arcadmin', 'admin', 'bob', 200],
+    'reseller A, its customer' => ['hostco', 'reseller', 'bob', 200],
+    'reseller A, a customer of B' => ['hostco', 'reseller', 'carol', 404],
+    'reseller B, its customer' => ['resb', 'reseller', 'carol', 200],
+    'reseller B, a customer of A' => ['resb', 'reseller', 'bob', 404],
+    'user, itself' => ['bob', 'user', 'bob', 200],
+    'user, another user' => ['bob', 'user', 'carol', 404],
+]);
 
 it('adds Link on Let’s Encrypt 202 responses', function () {
     fakeWebDomains($this->fake);
@@ -138,16 +188,4 @@ it('lets a v2-read key and an area key follow tasks', function () {
         ->assertStatus(202)
         ->assertHeader('Link');
     $this->fake->assertRan('v-schedule-letsencrypt-domain');
-});
-
-it('parses task ids and maps statuses in unit checks', function () {
-    expect(TaskId::parse('sys:1')?->apiId())->toBe('sys:1')
-        ->and(TaskId::parse('docker:bob:kuma:9')?->app)->toBe('kuma')
-        ->and(TaskId::parse('bad:extra:too:many:parts'))->toBeNull();
-
-    $view = TaskMapper::fromSource(TaskId::parse('node:bob:1') ?? throw new RuntimeException, [
-        'ACTION' => 'app-install', 'ARGS' => 'app.example build', 'STATUS' => 'done', 'EXIT' => '0', 'START' => '', 'END' => '', 'LOG' => '',
-    ], 100);
-    expect($view->status)->toBe('succeeded')
-        ->and($view->resource)->toBe('/users/bob/node-apps/app.example');
 });

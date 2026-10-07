@@ -6070,6 +6070,9 @@
                     "404": {
                         "$ref": "#/components/responses/NotFound"
                     },
+                    "410": {
+                        "$ref": "#/components/responses/Gone"
+                    },
                     "422": {
                         "$ref": "#/components/responses/ValidationFailed"
                     },
@@ -10489,46 +10492,32 @@
                         "type": "string"
                     },
                     "exit_code": {
-                        "type": [
-                            "integer",
-                            "null"
-                        ]
+                        "type": "string"
                     },
                     "error": {
-                        "type": [
-                            "string",
-                            "null"
-                        ]
+                        "type": "string"
                     },
                     "started_at": {
-                        "type": [
-                            "string",
-                            "null"
-                        ]
+                        "type": "string"
                     },
                     "finished_at": {
-                        "type": [
-                            "string",
-                            "null"
-                        ]
+                        "type": "string"
                     },
                     "queued_at": {
-                        "type": [
-                            "string",
-                            "null"
-                        ]
+                        "type": "string"
                     },
                     "log": {
                         "type": "string"
                     },
                     "args": {
+                        "type": "string"
+                    },
+                    "resource": {
                         "type": [
                             "string",
                             "null"
-                        ]
-                    },
-                    "resource": {
-                        "$ref": "#/components/schemas/TaskView"
+                        ],
+                        "description": "path under /api/v2 for the related resource"
                     }
                 },
                 "required": [
@@ -10545,85 +10534,6 @@
                     "resource"
                 ],
                 "title": "Task"
-            },
-            "TaskView": {
-                "type": "object",
-                "properties": {
-                    "id": {
-                        "type": "string"
-                    },
-                    "kind": {
-                        "type": "string"
-                    },
-                    "status": {
-                        "type": "string",
-                        "enum": [
-                            "running",
-                            "succeeded",
-                            "failed",
-                            "queued"
-                        ]
-                    },
-                    "exitCode": {
-                        "type": [
-                            "integer",
-                            "null"
-                        ]
-                    },
-                    "error": {
-                        "type": [
-                            "string",
-                            "null"
-                        ]
-                    },
-                    "startedAt": {
-                        "type": [
-                            "string",
-                            "null"
-                        ]
-                    },
-                    "finishedAt": {
-                        "type": [
-                            "string",
-                            "null"
-                        ]
-                    },
-                    "queuedAt": {
-                        "type": [
-                            "string",
-                            "null"
-                        ]
-                    },
-                    "log": {
-                        "type": "string"
-                    },
-                    "args": {
-                        "type": [
-                            "string",
-                            "null"
-                        ]
-                    },
-                    "resource": {
-                        "type": [
-                            "string",
-                            "null"
-                        ]
-                    }
-                },
-                "required": [
-                    "id",
-                    "kind",
-                    "status",
-                    "exitCode",
-                    "error",
-                    "startedAt",
-                    "finishedAt",
-                    "queuedAt",
-                    "log",
-                    "args",
-                    "resource"
-                ],
-                "title": "TaskView"
             },
             "UpdateCronJobRequest": {
                 "type": "object",
@@ -11820,6 +11730,24 @@
             },
             "NotFound": {
                 "description": "No such object in the scope of the key (`E_NOTEXIST`).",
+                "headers": {
+                    "X-Request-Id": {
+                        "$ref": "#/components/headers/RequestId"
+                    },
+                    "ArcPanel-Version": {
+                        "$ref": "#/components/headers/Version"
+                    }
+                },
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/Error"
+                        }
+                    }
+                }
+            },
+            "Gone": {
+                "description": "The task result is no longer kept (`E_GONE`).",
                 "headers": {
                     "X-Request-Id": {
                         "$ref": "#/components/headers/RequestId"

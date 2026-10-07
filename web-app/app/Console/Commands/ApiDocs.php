@@ -28,6 +28,7 @@ final class ApiDocs extends Command
         '401' => ['Unauthenticated', 'The access key is missing, unknown or wrong (`E_UNAUTHENTICATED`).'],
         '403' => ['Forbidden', 'The API is off for this key (`E_API_DISABLED`), the role or a permission set refuses the call (`E_FORBIDDEN`), or the owner is suspended (`E_SUSPENDED`).'],
         '404' => ['NotFound', 'No such object in the scope of the key (`E_NOTEXIST`).'],
+        '410' => ['Gone', 'The task result is no longer kept (`E_GONE`).'],
         '409' => ['Conflict', 'The object exists or is in use (`E_EXISTS`, `E_INUSE`).'],
         '422' => ['ValidationFailed', 'The request is invalid (`E_VALIDATION` with `fields`, or a command refused an argument).'],
         '429' => ['TooManyRequests', 'Too many requests (`E_RATE_LIMIT`, or a package limit `E_LIMIT`); `Retry-After` names the seconds to wait.'],
@@ -266,6 +267,9 @@ final class ApiDocs extends Command
         $errors = ['401', '403'];
         if (str_contains($path, '{')) {
             $errors[] = '404';
+        }
+        if (($operation['operationId'] ?? '') === 'getTask') {
+            $errors[] = '410';
         }
         $query = array_filter($operation['parameters'] ?? [], fn ($parameter) => ($parameter['in'] ?? '') === 'query' && ($parameter['name'] ?? '') !== 'dry_run');
         if ($write) {

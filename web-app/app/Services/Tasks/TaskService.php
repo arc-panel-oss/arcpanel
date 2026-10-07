@@ -35,12 +35,12 @@ final class TaskService
         $tasks = [];
         $node = $this->readJson('v-list-user-node-task', [$user, (string) $lines]);
         if ((string) ($node['ID'] ?? '') !== '') {
-            $tasks[] = TaskMapper::fromSource(new TaskId(TaskId::SOURCE_NODE, (string) $node['ID'], $user), $node, $lines);
+            $tasks[] = $this->mapRow(new TaskId(TaskId::SOURCE_NODE, (string) $node['ID'], $user), $node, $lines);
         }
 
         $install = $this->readJson('v-list-user-quick-install-task', [$user, (string) $lines]);
         if ((string) ($install['ID'] ?? '') !== '') {
-            $tasks[] = TaskMapper::fromSource(new TaskId(TaskId::SOURCE_INSTALL, (string) $install['ID'], $user), $install, $lines);
+            $tasks[] = $this->mapRow(new TaskId(TaskId::SOURCE_INSTALL, (string) $install['ID'], $user), $install, $lines);
         }
 
         foreach ($this->dockerApps($user) as $app) {
@@ -50,12 +50,12 @@ final class TaskService
             }
             $row = $this->readDockerTask('v-list-docker-app-task', [$user, $name], 1);
             if ((string) ($row['ID'] ?? '') !== '') {
-                $tasks[] = TaskMapper::fromSource(new TaskId(TaskId::SOURCE_DOCKER, (string) $row['ID'], $user, $name), $row, $lines);
+                $tasks[] = $this->mapRow(new TaskId(TaskId::SOURCE_DOCKER, (string) $row['ID'], $user, $name), $row, $lines);
             }
         }
 
         foreach ($this->queueTasks($user) as $recordId => $row) {
-            $tasks[] = TaskMapper::fromSource(new TaskId(TaskId::SOURCE_QUEUE, $recordId, $user), $row, 1);
+            $tasks[] = $this->mapRow(new TaskId(TaskId::SOURCE_QUEUE, $recordId, $user), $row, 1);
         }
 
         usort($tasks, fn (TaskView $a, TaskView $b) => strcmp(TaskMapper::sortKey($b), TaskMapper::sortKey($a)));
@@ -69,11 +69,11 @@ final class TaskService
         $tasks = [];
         $sys = $this->readJson('v-list-sys-task', [(string) $lines]);
         if ((string) ($sys['ID'] ?? '') !== '') {
-            $tasks[] = TaskMapper::fromSource(new TaskId(TaskId::SOURCE_SYS, (string) $sys['ID']), $sys, $lines);
+            $tasks[] = $this->mapRow(new TaskId(TaskId::SOURCE_SYS, (string) $sys['ID']), $sys, $lines);
         }
         $engine = $this->readDockerTask('v-list-sys-docker-task', [], $lines);
         if ((string) ($engine['ID'] ?? '') !== '') {
-            $tasks[] = TaskMapper::fromSource(new TaskId(TaskId::SOURCE_DOCKER_ENGINE, (string) $engine['ID']), $engine, $lines);
+            $tasks[] = $this->mapRow(new TaskId(TaskId::SOURCE_DOCKER_ENGINE, (string) $engine['ID']), $engine, $lines);
         }
 
         return $tasks;
@@ -106,7 +106,7 @@ final class TaskService
             throw new ApiException(ErrorCode::Gone, 'The task result is no longer kept.', 410);
         }
 
-        return TaskMapper::fromSource($id, $row, $lines);
+        return $this->mapRow($id, $row, $lines);
     }
 
     private function getDockerEngine(TaskId $id, int $lines): TaskView
@@ -117,7 +117,7 @@ final class TaskService
             throw new ApiException(ErrorCode::Gone, 'The task result is no longer kept.', 410);
         }
 
-        return TaskMapper::fromSource($id, $row, $lines);
+        return $this->mapRow($id, $row, $lines);
     }
 
     private function getNode(TaskId $id, int $lines): TaskView
@@ -128,7 +128,7 @@ final class TaskService
             throw new ApiException(ErrorCode::Gone, 'The task result is no longer kept.', 410);
         }
 
-        return TaskMapper::fromSource($id, $row, $lines);
+        return $this->mapRow($id, $row, $lines);
     }
 
     private function getDockerApp(TaskId $id, int $lines): TaskView
@@ -142,7 +142,7 @@ final class TaskService
             throw new ApiException(ErrorCode::Gone, 'The task result is no longer kept.', 410);
         }
 
-        return TaskMapper::fromSource($id, $row, $lines);
+        return $this->mapRow($id, $row, $lines);
     }
 
     private function getInstall(TaskId $id, int $lines): TaskView
@@ -153,7 +153,7 @@ final class TaskService
             throw new ApiException(ErrorCode::Gone, 'The task result is no longer kept.', 410);
         }
 
-        return TaskMapper::fromSource($id, $row, $lines);
+        return $this->mapRow($id, $row, $lines);
     }
 
     private function getQueue(TaskId $id, int $lines): TaskView
@@ -170,7 +170,19 @@ final class TaskService
             throw new ApiException(ErrorCode::Server, 'The task could not be read.', 500);
         }
 
-        return TaskMapper::fromSource($id, $row, $lines);
+        return $this->mapRow($id, $row, $lines);
+    }
+
+    /**
+     * @param  array<string, mixed>  $row
+     */
+    private function mapRow(TaskId $id, array $row, int $lines): TaskView
+    {
+        try {
+            return TaskMapper::fromSource($id, $row, $lines);
+        } catch (\InvalidArgumentException) {
+            throw new ApiException(ErrorCode::Server, 'The task could not be read.', 500);
+        }
     }
 
     /**

@@ -377,11 +377,14 @@ final class WebDomainController extends Controller
         })) {
             return $preview;
         }
-        $recordId = $apply?->stdoutOf('v-schedule-letsencrypt-domain') ?? '';
-        $headers = ['Location' => route('api.v2.web-domains.show', ['user' => $user, 'domain' => $domain])];
-        if ($recordId !== '') {
-            $headers['Link'] = TaskLink::queue($user, $recordId);
+        $recordId = trim($apply?->stdoutOf('v-schedule-letsencrypt-domain') ?? '');
+        if ($recordId === '') {
+            throw new ApiException(ErrorCode::Server, 'The task could not be queued.', 500);
         }
+        $headers = [
+            'Location' => route('api.v2.web-domains.show', ['user' => $user, 'domain' => $domain]),
+            'Link' => TaskLink::queue($user, $recordId),
+        ];
 
         return $this->resource($user, $domain)->response()->setStatusCode(202)->withHeaders($headers);
     }

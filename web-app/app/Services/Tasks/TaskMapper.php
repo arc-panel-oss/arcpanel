@@ -109,14 +109,14 @@ final class TaskMapper
         };
     }
 
-    private static function mapStatus(string $raw): string
+    public static function mapStatus(string $raw): string
     {
         return match ($raw) {
             'running' => 'running',
-            'done' => 'succeeded',
+            'done', 'succeeded' => 'succeeded',
             'failed' => 'failed',
             'queued' => 'queued',
-            default => 'failed',
+            default => throw new \InvalidArgumentException('Unknown task status.'),
         };
     }
 
