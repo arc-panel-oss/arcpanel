@@ -23,6 +23,27 @@ final class PackageService
         private readonly SysConfig $config,
     ) {}
 
+    /**
+     * Values of a new package: those of the add form (web/add/package),
+     * with the name servers of the default package.
+     *
+     * @return array<string, string> KEY => value of the package file and sidecar
+     */
+    public static function defaults(string $nameservers): array
+    {
+        return [
+            'WEB_TEMPLATE' => 'default', 'BACKEND_TEMPLATE' => 'default', 'PROXY_TEMPLATE' => 'default', 'DNS_TEMPLATE' => 'default',
+            'WEB_DOMAINS' => '1', 'WEB_ALIASES' => '5', 'DNS_DOMAINS' => '1', 'DNS_RECORDS' => 'unlimited', 'MAIL_DOMAINS' => '1',
+            'MAIL_ACCOUNTS' => '5', 'DATABASES' => '1', 'CRON_JOBS' => '1', 'DISK_QUOTA' => '1000', 'BANDWIDTH' => '1000',
+            'CPU_QUOTA' => 'unlimited', 'CPU_QUOTA_PERIOD' => 'unlimited', 'MEMORY_LIMIT' => 'unlimited', 'SWAP_LIMIT' => 'unlimited',
+            'RATE_LIMIT' => '200', 'BACKUPS' => '1', 'BACKUPS_INCREMENTAL' => 'no', 'SHELL' => 'nologin',
+            'NS' => $nameservers,
+            'USERS' => '0', 'RESELLER_PACKAGES' => '', 'RESELLER_VISIBLE' => 'no', 'PORTS' => '0',
+            'NODE' => 'no', 'NODE_VERSIONS' => '3', 'NODE_ALLOWED' => 'lts', 'NODE_APPS' => '3',
+            'DOCKER' => 'no', 'DOCKER_APPS' => '0', 'DOCKER_CPUS' => 'unlimited', 'DOCKER_MEMORY' => 'unlimited',
+        ];
+    }
+
     /** @return array<string, PackageRecord> every package but "system", by name */
     public function all(): array
     {

@@ -16,6 +16,7 @@ ARCPANEL="${ARCPANEL:-/usr/local/arcpanel}"
 API="$PANEL/api/v2"
 CONF="$ARCPANEL/conf/arcpanel.conf"
 SMOKE_USER="arcsmoke$RANDOM"
+SMOKE_PACKAGE="arcsmoke-pkg$RANDOM"
 SMOKE_PASS="$(head -c 18 /dev/urandom | base64 | tr -dc 'A-Za-z0-9' | head -c 20)Aa1"
 ROOT_USER=$(grep "^ROOT_USER=" "$CONF" | cut -d"'" -f2)
 OLD_API_SYSTEM=$(grep "^API_SYSTEM=" "$CONF" | cut -d"'" -f2 || true)
@@ -31,6 +32,10 @@ clear_panel_cache() {
 
 cleanup() {
 	"$ARCPANEL/bin/v-delete-user" "$SMOKE_USER" > /dev/null 2>&1 || true
+	for package in "$SMOKE_PACKAGE" "$SMOKE_PACKAGE-copy"; do
+		"$ARCPANEL/bin/v-delete-user-package" "$package" > /dev/null 2>&1 || true
+		"$ARCPANEL/bin/v-delete-package-tenancy" "$package" > /dev/null 2>&1 || true
+	done
 	for key in "${KEYS[@]}"; do
 		"$ARCPANEL/bin/v-delete-access-key" "${key%%:*}" > /dev/null 2>&1 || true
 	done
@@ -122,6 +127,27 @@ check "a suspended owner's key answers 403" 403 "$(call "$WRITER" GET /me)"
 check "unsuspendUser answers 200" 200 "$(call "$ADMIN" POST "/users/$SMOKE_USER/unsuspend")"
 check "deleteUser answers 204" 204 "$(call "$ADMIN" DELETE "/users/$SMOKE_USER")"
 check "the user is gone" 404 "$(call "$ADMIN" GET "/users/$SMOKE_USER")"
+
+# Packages (spec §6.2)
+package_value() { "$ARCPANEL/bin/v-list-user-package" "$1" json | jq -r ".\"$1\".$2"; }
+check "createPackage dry run answers 200" 200 "$(call "$ADMIN" POST '/packages?dry_run=1' "{\"name\": \"$SMOKE_PACKAGE\"}")"
+if "$ARCPANEL/bin/v-list-user-package" "$SMOKE_PACKAGE" > /dev/null 2>&1; then fail "the dry run created the package"; else ok "the dry run created no package"; fi
+check "createPackage answers 201" 201 "$(call "$ADMIN" POST /packages "{\"name\": \"$SMOKE_PACKAGE\", \"limits\": {\"web_domains\": 3, \"disk_mb\": null}}")"
+check "the package has the given limit" 3 "$(package_value "$SMOKE_PACKAGE" WEB_DOMAINS)"
+check "null is unlimited" unlimited "$(package_value "$SMOKE_PACKAGE" DISK_QUOTA)"
+check "fields left out take the form defaults" 5 "$(package_value "$SMOKE_PACKAGE" WEB_ALIASES)"
+check "getPackage answers 200" 200 "$(call "$ADMIN" GET "/packages/$SMOKE_PACKAGE")"
+check "getPackage: unlimited is null" null "$(json .data.limits.disk_mb)"
+check "updatePackage answers 200" 200 "$(call "$ADMIN" PATCH "/packages/$SMOKE_PACKAGE" '{"limits": {"web_domains": 4}}')"
+check "the limit changed" 4 "$(package_value "$SMOKE_PACKAGE" WEB_DOMAINS)"
+check "the other limits kept their value" unlimited "$(package_value "$SMOKE_PACKAGE" DISK_QUOTA)"
+check "copyPackage answers 201" 201 "$(call "$ADMIN" POST "/packages/$SMOKE_PACKAGE/copy" "{\"name\": \"$SMOKE_PACKAGE-copy\"}")"
+check "deletePackage of the copy answers 204" 204 "$(call "$ADMIN" DELETE "/packages/$SMOKE_PACKAGE-copy")"
+check "a user on the package" 201 "$(call "$ADMIN" POST /users "{\"username\": \"$SMOKE_USER\", \"password\": \"$SMOKE_PASS\", \"email\": \"$SMOKE_USER@example.invalid\", \"name\": \"Smoke User\", \"package\": \"$SMOKE_PACKAGE\"}")"
+check "a package with users answers 409" 409 "$(call "$ADMIN" DELETE "/packages/$SMOKE_PACKAGE")"
+check "the user is deleted" 204 "$(call "$ADMIN" DELETE "/users/$SMOKE_USER")"
+check "deletePackage answers 204" 204 "$(call "$ADMIN" DELETE "/packages/$SMOKE_PACKAGE")"
+check "the package is gone" 404 "$(call "$ADMIN" GET "/packages/$SMOKE_PACKAGE")"
 
 if [ "$failures" -gt 0 ]; then
 	echo "$failures check(s) failed"

@@ -70,6 +70,514 @@
                 }
             }
         },
+        "/packages": {
+            "get": {
+                "operationId": "listPackages",
+                "description": "Every package but `system` for an administrator, the packages a\nreseller may assign for a reseller.",
+                "summary": "List packages",
+                "tags": [
+                    "Packages"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Array of `Package`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/components/schemas/Package"
+                                            }
+                                        },
+                                        "meta": {
+                                            "type": "object",
+                                            "description": "Reserved for pagination; empty for now."
+                                        }
+                                    },
+                                    "required": [
+                                        "data",
+                                        "meta"
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    }
+                }
+            },
+            "post": {
+                "operationId": "createPackage",
+                "description": "Fields left out take the values of the add form of the panel. A\nreseller's package is stored as RESELLER_NAME and may not exceed the\nreseller's own limits; the `reseller` settings are an administrator's.\nA repeated call answers 409 `E_EXISTS`.",
+                "summary": "Create a package",
+                "tags": [
+                    "Packages"
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/StorePackageRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "With `dry_run`: the planned steps; nothing ran.",
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/DryRun"
+                                }
+                            }
+                        }
+                    },
+                    "201": {
+                        "description": "`Package`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/Package"
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            },
+                            "Location": {
+                                "$ref": "#/components/headers/Location"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "409": {
+                        "$ref": "#/components/responses/Conflict"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    },
+                    "503": {
+                        "$ref": "#/components/responses/Unavailable"
+                    }
+                },
+                "parameters": [
+                    {
+                        "name": "dry_run",
+                        "in": "query",
+                        "description": "Validate, authorize and plan the change, and answer with its steps instead of running them.",
+                        "schema": {
+                            "type": "boolean",
+                            "default": false
+                        }
+                    }
+                ]
+            }
+        },
+        "/packages/{package}": {
+            "get": {
+                "operationId": "getPackage",
+                "summary": "Get a package",
+                "tags": [
+                    "Packages"
+                ],
+                "parameters": [
+                    {
+                        "name": "package",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "`Package`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/Package"
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    }
+                }
+            },
+            "patch": {
+                "operationId": "updatePackage",
+                "description": "The fields left out keep their value; the package is applied to its\nusers. An administrator renames it with `name`.",
+                "summary": "Update a package",
+                "tags": [
+                    "Packages"
+                ],
+                "parameters": [
+                    {
+                        "name": "package",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "dry_run",
+                        "in": "query",
+                        "description": "Validate, authorize and plan the change, and answer with its steps instead of running them.",
+                        "schema": {
+                            "type": "boolean",
+                            "default": false
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/UpdatePackageRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "`Package`; with `dry_run`, the planned steps.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "oneOf": [
+                                        {
+                                            "type": "object",
+                                            "properties": {
+                                                "data": {
+                                                    "$ref": "#/components/schemas/Package"
+                                                }
+                                            },
+                                            "required": [
+                                                "data"
+                                            ]
+                                        },
+                                        {
+                                            "$ref": "#/components/schemas/DryRun"
+                                        }
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "409": {
+                        "$ref": "#/components/responses/Conflict"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    },
+                    "503": {
+                        "$ref": "#/components/responses/Unavailable"
+                    }
+                }
+            },
+            "delete": {
+                "operationId": "deletePackage",
+                "description": "A package with users answers 409 `E_INUSE`; `default` cannot be deleted.",
+                "summary": "Delete a package",
+                "tags": [
+                    "Packages"
+                ],
+                "parameters": [
+                    {
+                        "name": "package",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "dry_run",
+                        "in": "query",
+                        "description": "Validate, authorize and plan the change, and answer with its steps instead of running them.",
+                        "schema": {
+                            "type": "boolean",
+                            "default": false
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "With `dry_run`: the planned steps; nothing ran.",
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/DryRun"
+                                }
+                            }
+                        }
+                    },
+                    "204": {
+                        "description": "No content.",
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "409": {
+                        "$ref": "#/components/responses/Conflict"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    },
+                    "503": {
+                        "$ref": "#/components/responses/Unavailable"
+                    }
+                }
+            }
+        },
+        "/packages/{package}/copy": {
+            "post": {
+                "operationId": "copyPackage",
+                "description": "Administrators only; the copy has the reseller, port, Node.js and\nDocker settings of the original.",
+                "summary": "Copy a package",
+                "tags": [
+                    "Packages"
+                ],
+                "parameters": [
+                    {
+                        "name": "package",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "dry_run",
+                        "in": "query",
+                        "description": "Validate, authorize and plan the change, and answer with its steps instead of running them.",
+                        "schema": {
+                            "type": "boolean",
+                            "default": false
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/CopyPackageRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "With `dry_run`: the planned steps; nothing ran.",
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/DryRun"
+                                }
+                            }
+                        }
+                    },
+                    "201": {
+                        "description": "`Package`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/Package"
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            },
+                            "Location": {
+                                "$ref": "#/components/headers/Location"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "409": {
+                        "$ref": "#/components/responses/Conflict"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    },
+                    "503": {
+                        "$ref": "#/components/responses/Unavailable"
+                    }
+                }
+            }
+        },
         "/users": {
             "get": {
                 "operationId": "listUsers",
@@ -877,6 +1385,22 @@
                 ],
                 "title": "ApiRole"
             },
+            "CopyPackageRequest": {
+                "type": "object",
+                "description": "POST /packages/{package}/copy",
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "description": "The name of the copy.",
+                        "pattern": "^[[:alnum:]][-.\\w]*$",
+                        "maxLength": 60
+                    }
+                },
+                "required": [
+                    "name"
+                ],
+                "title": "CopyPackageRequest"
+            },
             "DryRun": {
                 "type": "object",
                 "properties": {
@@ -1066,6 +1590,316 @@
                 ],
                 "title": "Me"
             },
+            "Package": {
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "description": "the name in paths; a reseller's own packages are stored as RESELLER_NAME"
+                    },
+                    "label": {
+                        "type": "string",
+                        "description": "the name as its owner sees it"
+                    },
+                    "owner": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "the reseller that created the package; null for the administrator's"
+                    },
+                    "users": {
+                        "type": "integer",
+                        "description": "users on the package"
+                    },
+                    "templates": {
+                        "type": "object",
+                        "properties": {
+                            "web": {
+                                "type": "string"
+                            },
+                            "backend": {
+                                "type": "string"
+                            },
+                            "proxy": {
+                                "type": "string"
+                            },
+                            "dns": {
+                                "type": "string"
+                            }
+                        },
+                        "required": [
+                            "web",
+                            "backend",
+                            "proxy",
+                            "dns"
+                        ]
+                    },
+                    "limits": {
+                        "type": "object",
+                        "properties": {
+                            "web_domains": {
+                                "type": [
+                                    "integer",
+                                    "null"
+                                ]
+                            },
+                            "web_aliases": {
+                                "type": [
+                                    "integer",
+                                    "null"
+                                ]
+                            },
+                            "dns_domains": {
+                                "type": [
+                                    "integer",
+                                    "null"
+                                ]
+                            },
+                            "dns_records": {
+                                "type": [
+                                    "integer",
+                                    "null"
+                                ]
+                            },
+                            "mail_domains": {
+                                "type": [
+                                    "integer",
+                                    "null"
+                                ]
+                            },
+                            "mail_accounts": {
+                                "type": [
+                                    "integer",
+                                    "null"
+                                ]
+                            },
+                            "databases": {
+                                "type": [
+                                    "integer",
+                                    "null"
+                                ]
+                            },
+                            "cron_jobs": {
+                                "type": [
+                                    "integer",
+                                    "null"
+                                ]
+                            },
+                            "disk_mb": {
+                                "type": [
+                                    "integer",
+                                    "null"
+                                ]
+                            },
+                            "bandwidth_mb": {
+                                "type": [
+                                    "integer",
+                                    "null"
+                                ]
+                            },
+                            "rate_limit": {
+                                "type": "integer",
+                                "description": "outgoing mails an hour per account"
+                            },
+                            "backups": {
+                                "type": "integer",
+                                "description": "backups kept"
+                            }
+                        },
+                        "required": [
+                            "web_domains",
+                            "web_aliases",
+                            "dns_domains",
+                            "dns_records",
+                            "mail_domains",
+                            "mail_accounts",
+                            "databases",
+                            "cron_jobs",
+                            "disk_mb",
+                            "bandwidth_mb",
+                            "rate_limit",
+                            "backups"
+                        ]
+                    },
+                    "resources": {
+                        "type": "object",
+                        "description": "cgroup limits, applied when the server has RESOURCES_LIMIT='yes' (values such as 50%, 100ms, 512M)",
+                        "properties": {
+                            "cpu_quota": {
+                                "type": [
+                                    "string",
+                                    "null"
+                                ]
+                            },
+                            "cpu_quota_period": {
+                                "type": [
+                                    "string",
+                                    "null"
+                                ]
+                            },
+                            "memory_limit": {
+                                "type": [
+                                    "string",
+                                    "null"
+                                ]
+                            },
+                            "swap_limit": {
+                                "type": [
+                                    "string",
+                                    "null"
+                                ]
+                            }
+                        },
+                        "required": [
+                            "cpu_quota",
+                            "cpu_quota_period",
+                            "memory_limit",
+                            "swap_limit"
+                        ]
+                    },
+                    "shell": {
+                        "type": "string"
+                    },
+                    "nameservers": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "backups_incremental": {
+                        "type": "boolean"
+                    },
+                    "reseller": {
+                        "type": "object",
+                        "description": "What a reseller on this package may do (E11)",
+                        "properties": {
+                            "users": {
+                                "type": [
+                                    "integer",
+                                    "null"
+                                ],
+                                "description": "customers a reseller on this package may have"
+                            },
+                            "packages": {
+                                "type": "array",
+                                "description": "packages it may assign, `*` for every visible one",
+                                "items": {
+                                    "type": "string"
+                                }
+                            },
+                            "visible": {
+                                "type": "boolean",
+                                "description": "whether resellers may assign this package"
+                            }
+                        },
+                        "required": [
+                            "users",
+                            "packages",
+                            "visible"
+                        ]
+                    },
+                    "ports": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ],
+                        "description": "ports of the port registry (E12)"
+                    },
+                    "node": {
+                        "type": "object",
+                        "properties": {
+                            "enabled": {
+                                "type": "boolean"
+                            },
+                            "versions": {
+                                "type": [
+                                    "integer",
+                                    "null"
+                                ],
+                                "description": "runtimes per user"
+                            },
+                            "allowed": {
+                                "type": "string",
+                                "description": "`lts`, `*` or a list of major versions"
+                            },
+                            "apps": {
+                                "type": [
+                                    "integer",
+                                    "null"
+                                ],
+                                "description": "apps per user"
+                            }
+                        },
+                        "required": [
+                            "enabled",
+                            "versions",
+                            "allowed",
+                            "apps"
+                        ]
+                    },
+                    "docker": {
+                        "type": "object",
+                        "properties": {
+                            "enabled": {
+                                "type": "boolean"
+                            },
+                            "apps": {
+                                "type": [
+                                    "integer",
+                                    "null"
+                                ],
+                                "description": "apps per user"
+                            },
+                            "cpus": {
+                                "type": [
+                                    "string",
+                                    "null"
+                                ],
+                                "description": "CPUs per app"
+                            },
+                            "memory": {
+                                "type": [
+                                    "string",
+                                    "null"
+                                ],
+                                "description": "memory per app (512M, 2G)"
+                            }
+                        },
+                        "required": [
+                            "enabled",
+                            "apps",
+                            "cpus",
+                            "memory"
+                        ]
+                    },
+                    "created_at": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "creation time in the server's time zone, YYYY-MM-DDTHH:MM:SS"
+                    }
+                },
+                "required": [
+                    "name",
+                    "label",
+                    "owner",
+                    "users",
+                    "templates",
+                    "limits",
+                    "resources",
+                    "shell",
+                    "nameservers",
+                    "backups_incremental",
+                    "reseller",
+                    "ports",
+                    "node",
+                    "docker",
+                    "created_at"
+                ],
+                "title": "Package"
+            },
             "PlanStep": {
                 "type": "object",
                 "properties": {
@@ -1082,6 +1916,289 @@
                     "label",
                     "command"
                 ]
+            },
+            "StorePackageRequest": {
+                "type": "object",
+                "description": "POST /packages: the name is required, every other field takes the value of the add form.",
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "pattern": "^[[:alnum:]][-.\\w]*$",
+                        "maxLength": 60
+                    },
+                    "templates": {
+                        "type": "object",
+                        "properties": {
+                            "web": {
+                                "type": "string",
+                                "pattern": "^[[:alnum:]][-.\\w]*$",
+                                "maxLength": 100
+                            },
+                            "backend": {
+                                "type": "string",
+                                "pattern": "^[[:alnum:]][-.\\w]*$",
+                                "maxLength": 100
+                            },
+                            "proxy": {
+                                "type": "string",
+                                "pattern": "^[[:alnum:]][-.\\w]*$",
+                                "maxLength": 100
+                            },
+                            "dns": {
+                                "type": "string",
+                                "pattern": "^[[:alnum:]][-.\\w]*$",
+                                "maxLength": 100
+                            }
+                        }
+                    },
+                    "limits": {
+                        "type": "object",
+                        "properties": {
+                            "rate_limit": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 1000000
+                            },
+                            "backups": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 1000
+                            },
+                            "web_domains": {
+                                "type": [
+                                    "integer",
+                                    "null"
+                                ],
+                                "minimum": 0,
+                                "maximum": 100000000
+                            },
+                            "web_aliases": {
+                                "type": [
+                                    "integer",
+                                    "null"
+                                ],
+                                "minimum": 0,
+                                "maximum": 100000000
+                            },
+                            "dns_domains": {
+                                "type": [
+                                    "integer",
+                                    "null"
+                                ],
+                                "minimum": 0,
+                                "maximum": 100000000
+                            },
+                            "dns_records": {
+                                "type": [
+                                    "integer",
+                                    "null"
+                                ],
+                                "minimum": 0,
+                                "maximum": 100000000
+                            },
+                            "mail_domains": {
+                                "type": [
+                                    "integer",
+                                    "null"
+                                ],
+                                "minimum": 0,
+                                "maximum": 100000000
+                            },
+                            "mail_accounts": {
+                                "type": [
+                                    "integer",
+                                    "null"
+                                ],
+                                "minimum": 0,
+                                "maximum": 100000000
+                            },
+                            "databases": {
+                                "type": [
+                                    "integer",
+                                    "null"
+                                ],
+                                "minimum": 0,
+                                "maximum": 100000000
+                            },
+                            "cron_jobs": {
+                                "type": [
+                                    "integer",
+                                    "null"
+                                ],
+                                "minimum": 0,
+                                "maximum": 100000000
+                            },
+                            "disk_mb": {
+                                "type": [
+                                    "integer",
+                                    "null"
+                                ],
+                                "minimum": 0,
+                                "maximum": 100000000
+                            },
+                            "bandwidth_mb": {
+                                "type": [
+                                    "integer",
+                                    "null"
+                                ],
+                                "minimum": 0,
+                                "maximum": 100000000
+                            }
+                        }
+                    },
+                    "resources": {
+                        "type": "object",
+                        "properties": {
+                            "cpu_quota": {
+                                "type": [
+                                    "string",
+                                    "null"
+                                ],
+                                "pattern": "^\\d+(%|ms|s|[KMGT])?$",
+                                "maxLength": 20
+                            },
+                            "cpu_quota_period": {
+                                "type": [
+                                    "string",
+                                    "null"
+                                ],
+                                "pattern": "^\\d+(%|ms|s|[KMGT])?$",
+                                "maxLength": 20
+                            },
+                            "memory_limit": {
+                                "type": [
+                                    "string",
+                                    "null"
+                                ],
+                                "pattern": "^\\d+(%|ms|s|[KMGT])?$",
+                                "maxLength": 20
+                            },
+                            "swap_limit": {
+                                "type": [
+                                    "string",
+                                    "null"
+                                ],
+                                "pattern": "^\\d+(%|ms|s|[KMGT])?$",
+                                "maxLength": 20
+                            }
+                        }
+                    },
+                    "shell": {
+                        "type": "string",
+                        "pattern": "^[[:alnum:]][-.\\w]*$",
+                        "maxLength": 100
+                    },
+                    "nameservers": {
+                        "type": "array",
+                        "items": {
+                            "type": "string",
+                            "pattern": "^([a-z0-9]([a-z0-9-]*[a-z0-9])?\\.)+[a-z0-9-]+$",
+                            "maxLength": 253
+                        },
+                        "minItems": 2,
+                        "maxItems": 10
+                    },
+                    "backups_incremental": {
+                        "type": "boolean"
+                    },
+                    "reseller": {
+                        "type": "object",
+                        "properties": {
+                            "users": {
+                                "type": [
+                                    "integer",
+                                    "null"
+                                ],
+                                "minimum": 0,
+                                "maximum": 100000
+                            },
+                            "packages": {
+                                "type": "array",
+                                "items": {
+                                    "type": "string",
+                                    "pattern": "^(\\*|[[:alnum:]][-.\\w]*)$",
+                                    "maxLength": 100
+                                }
+                            },
+                            "visible": {
+                                "type": "boolean"
+                            }
+                        }
+                    },
+                    "ports": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ],
+                        "minimum": 0,
+                        "maximum": 65535
+                    },
+                    "node": {
+                        "type": "object",
+                        "properties": {
+                            "enabled": {
+                                "type": "boolean"
+                            },
+                            "versions": {
+                                "type": [
+                                    "integer",
+                                    "null"
+                                ],
+                                "minimum": 0,
+                                "maximum": 999
+                            },
+                            "allowed": {
+                                "type": "string",
+                                "pattern": "^(lts|\\*|\\d{1,3}(,\\d{1,3})*)$",
+                                "maxLength": 100
+                            },
+                            "apps": {
+                                "type": [
+                                    "integer",
+                                    "null"
+                                ],
+                                "minimum": 0,
+                                "maximum": 999
+                            }
+                        }
+                    },
+                    "docker": {
+                        "type": "object",
+                        "properties": {
+                            "enabled": {
+                                "type": "boolean"
+                            },
+                            "apps": {
+                                "type": [
+                                    "integer",
+                                    "null"
+                                ],
+                                "minimum": 0,
+                                "maximum": 999
+                            },
+                            "cpus": {
+                                "type": [
+                                    "string",
+                                    "null"
+                                ],
+                                "pattern": "^\\d{1,3}(\\.\\d{1,2})?$",
+                                "maxLength": 20
+                            },
+                            "memory": {
+                                "type": [
+                                    "string",
+                                    "null"
+                                ],
+                                "pattern": "^\\d{1,7}[MG]?$",
+                                "maxLength": 20
+                            }
+                        }
+                    }
+                },
+                "required": [
+                    "name"
+                ],
+                "title": "StorePackageRequest"
             },
             "StoreUserRequest": {
                 "type": "object",
@@ -1162,6 +2279,286 @@
                     "package"
                 ],
                 "title": "StoreUserRequest"
+            },
+            "UpdatePackageRequest": {
+                "type": "object",
+                "description": "PATCH /packages/{package}: the fields left out keep their value.",
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "pattern": "^[[:alnum:]][-.\\w]*$",
+                        "maxLength": 60
+                    },
+                    "templates": {
+                        "type": "object",
+                        "properties": {
+                            "web": {
+                                "type": "string",
+                                "pattern": "^[[:alnum:]][-.\\w]*$",
+                                "maxLength": 100
+                            },
+                            "backend": {
+                                "type": "string",
+                                "pattern": "^[[:alnum:]][-.\\w]*$",
+                                "maxLength": 100
+                            },
+                            "proxy": {
+                                "type": "string",
+                                "pattern": "^[[:alnum:]][-.\\w]*$",
+                                "maxLength": 100
+                            },
+                            "dns": {
+                                "type": "string",
+                                "pattern": "^[[:alnum:]][-.\\w]*$",
+                                "maxLength": 100
+                            }
+                        }
+                    },
+                    "limits": {
+                        "type": "object",
+                        "properties": {
+                            "rate_limit": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 1000000
+                            },
+                            "backups": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "maximum": 1000
+                            },
+                            "web_domains": {
+                                "type": [
+                                    "integer",
+                                    "null"
+                                ],
+                                "minimum": 0,
+                                "maximum": 100000000
+                            },
+                            "web_aliases": {
+                                "type": [
+                                    "integer",
+                                    "null"
+                                ],
+                                "minimum": 0,
+                                "maximum": 100000000
+                            },
+                            "dns_domains": {
+                                "type": [
+                                    "integer",
+                                    "null"
+                                ],
+                                "minimum": 0,
+                                "maximum": 100000000
+                            },
+                            "dns_records": {
+                                "type": [
+                                    "integer",
+                                    "null"
+                                ],
+                                "minimum": 0,
+                                "maximum": 100000000
+                            },
+                            "mail_domains": {
+                                "type": [
+                                    "integer",
+                                    "null"
+                                ],
+                                "minimum": 0,
+                                "maximum": 100000000
+                            },
+                            "mail_accounts": {
+                                "type": [
+                                    "integer",
+                                    "null"
+                                ],
+                                "minimum": 0,
+                                "maximum": 100000000
+                            },
+                            "databases": {
+                                "type": [
+                                    "integer",
+                                    "null"
+                                ],
+                                "minimum": 0,
+                                "maximum": 100000000
+                            },
+                            "cron_jobs": {
+                                "type": [
+                                    "integer",
+                                    "null"
+                                ],
+                                "minimum": 0,
+                                "maximum": 100000000
+                            },
+                            "disk_mb": {
+                                "type": [
+                                    "integer",
+                                    "null"
+                                ],
+                                "minimum": 0,
+                                "maximum": 100000000
+                            },
+                            "bandwidth_mb": {
+                                "type": [
+                                    "integer",
+                                    "null"
+                                ],
+                                "minimum": 0,
+                                "maximum": 100000000
+                            }
+                        }
+                    },
+                    "resources": {
+                        "type": "object",
+                        "properties": {
+                            "cpu_quota": {
+                                "type": [
+                                    "string",
+                                    "null"
+                                ],
+                                "pattern": "^\\d+(%|ms|s|[KMGT])?$",
+                                "maxLength": 20
+                            },
+                            "cpu_quota_period": {
+                                "type": [
+                                    "string",
+                                    "null"
+                                ],
+                                "pattern": "^\\d+(%|ms|s|[KMGT])?$",
+                                "maxLength": 20
+                            },
+                            "memory_limit": {
+                                "type": [
+                                    "string",
+                                    "null"
+                                ],
+                                "pattern": "^\\d+(%|ms|s|[KMGT])?$",
+                                "maxLength": 20
+                            },
+                            "swap_limit": {
+                                "type": [
+                                    "string",
+                                    "null"
+                                ],
+                                "pattern": "^\\d+(%|ms|s|[KMGT])?$",
+                                "maxLength": 20
+                            }
+                        }
+                    },
+                    "shell": {
+                        "type": "string",
+                        "pattern": "^[[:alnum:]][-.\\w]*$",
+                        "maxLength": 100
+                    },
+                    "nameservers": {
+                        "type": "array",
+                        "items": {
+                            "type": "string",
+                            "pattern": "^([a-z0-9]([a-z0-9-]*[a-z0-9])?\\.)+[a-z0-9-]+$",
+                            "maxLength": 253
+                        },
+                        "minItems": 2,
+                        "maxItems": 10
+                    },
+                    "backups_incremental": {
+                        "type": "boolean"
+                    },
+                    "reseller": {
+                        "type": "object",
+                        "properties": {
+                            "users": {
+                                "type": [
+                                    "integer",
+                                    "null"
+                                ],
+                                "minimum": 0,
+                                "maximum": 100000
+                            },
+                            "packages": {
+                                "type": "array",
+                                "items": {
+                                    "type": "string",
+                                    "pattern": "^(\\*|[[:alnum:]][-.\\w]*)$",
+                                    "maxLength": 100
+                                }
+                            },
+                            "visible": {
+                                "type": "boolean"
+                            }
+                        }
+                    },
+                    "ports": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ],
+                        "minimum": 0,
+                        "maximum": 65535
+                    },
+                    "node": {
+                        "type": "object",
+                        "properties": {
+                            "enabled": {
+                                "type": "boolean"
+                            },
+                            "versions": {
+                                "type": [
+                                    "integer",
+                                    "null"
+                                ],
+                                "minimum": 0,
+                                "maximum": 999
+                            },
+                            "allowed": {
+                                "type": "string",
+                                "pattern": "^(lts|\\*|\\d{1,3}(,\\d{1,3})*)$",
+                                "maxLength": 100
+                            },
+                            "apps": {
+                                "type": [
+                                    "integer",
+                                    "null"
+                                ],
+                                "minimum": 0,
+                                "maximum": 999
+                            }
+                        }
+                    },
+                    "docker": {
+                        "type": "object",
+                        "properties": {
+                            "enabled": {
+                                "type": "boolean"
+                            },
+                            "apps": {
+                                "type": [
+                                    "integer",
+                                    "null"
+                                ],
+                                "minimum": 0,
+                                "maximum": 999
+                            },
+                            "cpus": {
+                                "type": [
+                                    "string",
+                                    "null"
+                                ],
+                                "pattern": "^\\d{1,3}(\\.\\d{1,2})?$",
+                                "maxLength": 20
+                            },
+                            "memory": {
+                                "type": [
+                                    "string",
+                                    "null"
+                                ],
+                                "pattern": "^\\d{1,7}[MG]?$",
+                                "maxLength": 20
+                            }
+                        }
+                    }
+                },
+                "title": "UpdatePackageRequest"
             },
             "UpdateUserRequest": {
                 "type": "object",

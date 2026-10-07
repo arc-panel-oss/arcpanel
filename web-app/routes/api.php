@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\V2\MeController;
+use App\Http\Controllers\Api\V2\PackageController;
 use App\Http\Controllers\Api\V2\UserController;
 use Illuminate\Support\Facades\Route;
 
@@ -33,4 +34,14 @@ Route::middleware('effective-user')->group(function () {
         Route::post('/users/{user}/unsuspend', [UserController::class, 'unsuspend'])->name('users.unsuspend');
         Route::delete('/users/{user}', [UserController::class, 'destroy'])->name('users.destroy');
     });
+});
+
+// Packages (spec §6.2); a package the principal may not assign answers 404
+Route::get('/packages', [PackageController::class, 'index'])->name('packages.index');
+Route::get('/packages/{package}', [PackageController::class, 'show'])->name('packages.show');
+Route::middleware('not-readonly')->group(function () {
+    Route::post('/packages', [PackageController::class, 'store'])->name('packages.store');
+    Route::patch('/packages/{package}', [PackageController::class, 'update'])->name('packages.update');
+    Route::post('/packages/{package}/copy', [PackageController::class, 'copy'])->name('packages.copy');
+    Route::delete('/packages/{package}', [PackageController::class, 'destroy'])->name('packages.destroy');
 });
