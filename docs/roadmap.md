@@ -315,13 +315,13 @@ Every migrated page is built **reseller-aware from day one** (owner scoping from
 
 These epics are **not** part of the 12-month capacity: §6 already books two developers until 2.0. They are scored in §4, sequenced as post-2.0 waves in §6, and reviewed every quarter. An item moves to _Next_ only when a committed epic finishes early or is cut. They follow the same rules as E1–E14: Laravel UI built from E2 components, owner-scoped through E11 policies, and only additive `v-*` commands.
 
-| Theme                        | Epics                                                                                        |
-| ---------------------------- | -------------------------------------------------------------------------------------------- |
-| Operations and observability | E15 Job Center · E16 Alerts · E17 Doctor · E18 Log Explorer · E33 Update Center              |
-| Web workflows                | E19 Per-domain PHP settings · E20 Git Deploy · E21 WordPress Toolkit · E22 Staging and clone |
-| Security                     | E23 Audit log · E24 WAF · E25 Malware scanning · E26 Login hardening                         |
-| Mail, DNS and integrations   | E27 Mail deliverability · E28 Cloudflare / external DNS · E29 Webhooks and OpenAPI           |
-| Tenancy and growth           | E30 Collaborators · E31 Migration wizard · E32 AI assistant (experimental)                   |
+| Theme                        | Epics                                                                                                |
+| ---------------------------- | ---------------------------------------------------------------------------------------------------- |
+| Operations and observability | E15 Job Center · E16 Alerts · E17 Doctor · E18 Log Explorer · E33 Update Center                      |
+| Web workflows                | E19 Per-domain PHP settings · E20 Git Deploy · E21 WordPress Toolkit · E22 Staging and clone         |
+| Security                     | E23 Audit log · E24 WAF · E25 Malware scanning · E26 Login hardening                                 |
+| Mail, DNS and integrations   | E27 Mail deliverability · E28 Cloudflare / external DNS · E29 Webhooks and OpenAPI · E34 REST API v2 |
+| Tenancy and growth           | E30 Collaborators · E31 Migration wizard · E32 AI assistant (experimental)                           |
 
 ### E15 — Job Center
 
@@ -510,7 +510,7 @@ These epics are **not** part of the 12-month capacity: §6 already books two dev
 
 ### E29 — Outgoing webhooks and OpenAPI
 
-**Status (2026-10-07):** the OpenAPI document is done ([spec](./features/specs/2026-10-07-001-e29-openapi-design.md)): `scripts/build-openapi.js` generates [`docs/api/openapi.yaml`](./api/openapi.yaml) from the command headers, the permission sets and the panel fixtures, CI checks that it is current, and [`docs/api/index.html`](./api/index.html) shows it with Swagger UI. Still open: publishing it on the docs site, and the outgoing webhooks.
+**Status (2026-10-07):** the OpenAPI document is done ([spec](./features/specs/2026-10-07-001-e29-openapi-design.md)): `scripts/build-openapi.js` generates [`docs/api/openapi.yaml`](./api/openapi.yaml) from the command headers, the permission sets and the panel fixtures, CI checks that it is current, and [`docs/api/index.html`](./api/index.html) shows it with Swagger UI. Still open: publishing it on the docs site, and the outgoing webhooks. The resource API built next to it is [E34](#e34--rest-api-v2), whose own document sits beside this one.
 
 **Hypothesis:** We believe a published OpenAPI spec and signed outgoing webhooks will let billing systems and internal tools integrate without polling, because today the API is documented only as a command list and nothing pushes events.
 
@@ -583,6 +583,22 @@ These epics are **not** part of the 12-month capacity: §6 already books two dev
 - **UI:** a redesigned Updates page (replaces the current Updates list): components with pending counts and security badges, policy editor, maintenance window, "Update now / Schedule", history.
 
 **Success metric:** With `auto-security` enabled for OS packages and `auto-all` for the panel, a test server installs updates only inside its window, passes the post-update health check, and a deliberately broken panel update is rolled back with an alert, all without SSH. **Effort:** M. **Outcome:** O8, O5.
+
+### E34 — REST API v2
+
+**Status (2026-10-07):** batch 1 implemented ([spec](./features/specs/2026-10-07-002-e34-api-v2-design.md)): the foundation (access keys as bearer tokens through `v-check-access-key-permissions`, the v2-only permission sets `v2-read` and `v2-write`, error bodies, headers, rate limits, dry run, `GET /api/v2/me`) and the users, packages and web domains with aliases, SSL and Let's Encrypt. The generated document is [`docs/api/v2/openapi.json`](./api/v2/openapi.json), checked by CI. Next batches: DNS, mail, databases, cron and backups, one spec each. Started outside the waves of §6 because the maintainer's TypeScript SDK, the `arc` command line tool and the agent skills are built on it.
+
+**Hypothesis:** We believe resource routes with named JSON fields, owner scoping and a dry run will let SDKs, scripts and AI agents manage a panel safely, because API v1 runs any command by position, scopes a non-admin key only by one argument and cannot show what a call would change.
+
+**Scope:**
+
+- Resource routes under `/api/v2/` in the panel app, thin controllers on the same services and shared action classes as the pages; owner scoping through the panel's policies (`404` outside the tree, `403` inside it).
+- The existing access keys, sent as `Authorization: Bearer ACCESS_KEY:SECRET_KEY`; v2-only permission sets that API v1 ignores.
+- JSON with snake_case fields, one error schema with the command error names, `?dry_run=1` on every change, `202` and `Location` for queued work.
+- An OpenAPI 3.1 document generated from the code with stable camelCase `operationId`s; within v2 only additive changes.
+- API v1 stays unchanged and supported.
+
+**Success metric:** A client generated from `docs/api/v2/openapi.json` creates a user, a package and a web domain with a certificate, a dry run changes nothing, and a reseller's key cannot see another tree (smoke-tested). **Effort:** M per batch. **Outcome:** O6, O2.
 
 ---
 

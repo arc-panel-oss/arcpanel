@@ -1,6 +1,6 @@
 <!doctype html>
-<!-- Swagger UI for docs/api/openapi.yaml (docs/features/specs/2026-10-07-001-e29-openapi-design.md §7). -->
-<!-- Serve this folder over HTTP: browsers block fetch() from file:// (see README.md). -->
+<!-- Swagger UI for the REST API documents: v1 (docs/api/openapi.yaml, E29 spec §7) and v2 (docs/api/v2/openapi.json, E34 spec §7). -->
+<!-- Serve this folder over HTTP: browsers block fetch() from file:// (see README.md). Open with ?api=v2 to start on API v2. -->
 <html lang="en">
 	<head>
 		<meta charset="utf-8" />
@@ -20,10 +20,20 @@
 	<body>
 		<div id="swagger-ui"></div>
 		<script src="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5.33.1/swagger-ui-bundle.js"></script>
+		<script src="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5.33.1/swagger-ui-standalone-preset.js"></script>
 		<script>
-			// Drop empty fields: an empty access_key would select access-key authentication,
+			const documents = [
+				{ url: "openapi.yaml", name: "API v1 (commands, /api/)" },
+				{ url: "v2/openapi.json", name: "API v2 (resources, /api/v2/)" },
+			];
+
+			// API v1 only: an empty access_key would select access-key authentication,
 			// and an empty argument is not the same as a missing one for the commands.
+			// API v2 requests keep their bodies as typed.
 			function dropEmptyFields(request) {
+				if (request.url.includes("/api/v2/")) {
+					return request;
+				}
 				if (typeof request.body !== "string" || request.body === "") {
 					return request;
 				}
@@ -47,14 +57,18 @@
 			}
 
 			window.addEventListener("load", () => {
+				const v2 = new URLSearchParams(window.location.search).get("api") === "v2";
 				window.ui = SwaggerUIBundle({
-					url: "openapi.yaml",
+					urls: documents,
+					"urls.primaryName": documents[v2 ? 1 : 0].name,
 					dom_id: "#swagger-ui",
+					presets: [SwaggerUIBundle.presets.apis, SwaggerUIStandalonePreset],
+					layout: "StandaloneLayout",
 					deepLinking: true,
 					docExpansion: "none",
 					filter: true,
 					defaultModelsExpandDepth: -1,
-					// Every call runs a real command on the server: "Try it out" stays off until clicked
+					// Every call changes a real server: "Try it out" stays off until clicked
 					tryItOutEnabled: false,
 					requestInterceptor: dropEmptyFields,
 				});

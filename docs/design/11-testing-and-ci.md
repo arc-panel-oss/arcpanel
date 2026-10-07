@@ -63,25 +63,25 @@ cust-b1            OWNER=reseller-b   same objects
 plain-user         OWNER=admin        same objects + Node enabled (developer package)
 ```
 
-Ports: a block of 10 to each reseller (`v-add-user-port RESELLER 30100-30109`), two sub-allocated to `cust-a1`. Access keys: one `billing` key for admin, one `reseller-billing` key for each reseller, one `purge-nginx-cache` key for `plain-user`. Passwords are generated and written to `/tmp/arcpanel-e2e-env.sh` (never committed), mirroring `test/api.bats`'s `/tmp/arcpanel-api-env.sh`.
+Ports: a block of 10 to each reseller (`v-add-user-port RESELLER 30100-30109`), two sub-allocated to `cust-a1`. Access keys: one `billing` key for admin, one `v2-write` key for each reseller (REST API v2, E34), one `purge-nginx-cache` key for `plain-user`. Passwords are generated and written to `/tmp/arcpanel-e2e-env.sh` (never committed), mirroring `test/api.bats`'s `/tmp/arcpanel-api-env.sh`.
 
 ### 4.2 Matrix
 
 `test/e2e/roles/*.spec.ts` logs in as each principal (Playwright storage state per role, created once per run) and executes the same table of probes:
 
-| Probe                                                              | admin                   | reseller-a       | reseller-b           | plain-user        |
-| ------------------------------------------------------------------ | ----------------------- | ---------------- | -------------------- | ----------------- |
-| `GET /users` lists cust-a1                                         | 200 + row               | 200 + row        | 200, row absent      | 404               |
-| `GET /users/cust-a1`                                               | 200                     | 200              | **404**              | **404**           |
-| `GET /web/domains?user=cust-a1`                                    | 200                     | 200              | **404**              | **404**           |
-| `POST /impersonate/cust-a1`                                        | 303 → acting as cust-a1 | 303              | **404**              | **403**           |
-| `POST /impersonate/admin`                                          | n/a                     | **403**          | **403**              | **403**           |
-| `GET /server/settings`                                             | 200                     | **404**          | **404**              | **404**           |
-| `GET /ports` shows block 30100-30109 of reseller-a                 | 200 (all)               | 200              | 200 (own block only) | own ports only    |
-| API `v-list-user cust-a1` with reseller-b's `reseller-billing` key | —                       | —                | `E_FORBIDEN`         | —                 |
-| API `v-add-reseller-user reseller-a x …` with reseller-b's key     | —                       | —                | `E_FORBIDEN`         | —                 |
-| API `v-list-users` with `plain-user` key                           | —                       | —                | —                    | permission denied |
-| Legacy page `/list/dns/?user=cust-b1` (until E7)                   | 200                     | **404/redirect** | 200                  | **404/redirect**  |
+| Probe                                                                    | admin                   | reseller-a       | reseller-b                            | plain-user        |
+| ------------------------------------------------------------------------ | ----------------------- | ---------------- | ------------------------------------- | ----------------- |
+| `GET /users` lists cust-a1                                               | 200 + row               | 200 + row        | 200, row absent                       | 404               |
+| `GET /users/cust-a1`                                                     | 200                     | 200              | **404**                               | **404**           |
+| `GET /web/domains?user=cust-a1`                                          | 200                     | 200              | **404**                               | **404**           |
+| `POST /impersonate/cust-a1`                                              | 303 → acting as cust-a1 | 303              | **404**                               | **403**           |
+| `POST /impersonate/admin`                                                | n/a                     | **403**          | **403**                               | **403**           |
+| `GET /server/settings`                                                   | 200                     | **404**          | **404**                               | **404**           |
+| `GET /ports` shows block 30100-30109 of reseller-a                       | 200 (all)               | 200              | 200 (own block only)                  | own ports only    |
+| API v2 `GET /api/v2/users/cust-a1` with each principal's key             | 200                     | 200              | **404**                               | **404**           |
+| API v2 `POST /api/v2/users` with reseller-b's key and `owner` reseller-a | —                       | —                | owner ignored, customer of reseller-b | —                 |
+| API v1 `v-list-users` with `plain-user` key                              | —                       | —                | —                                     | permission denied |
+| Legacy page `/list/dns/?user=cust-b1` (until E7)                         | 200                     | **404/redirect** | 200                                   | **404/redirect**  |
 
 Every probe asserts **both** the HTTP status and that the response body does not contain any username, domain or email of another tree (a shared `assertNoForeignTenant(body, tree)` helper with the seed's object lists). The suite fails on any new route under `/app/` that is not in the matrix: a Pest test enumerates `route:list` and compares with `test/e2e/roles/matrix.json`, so adding a page forces adding its row.
 

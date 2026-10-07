@@ -14,7 +14,7 @@ ArcPanel is an open-source Linux hosting control panel based on **HestiaCP 1.10.
 
 Three roles exist: **admin** (server owner), **reseller** (owns a tree of customers inside its own package limits) and **user** (hosting customer). Every page and command is owner-scoped from the start.
 
-The current state of each epic is in [docs/roadmap.md](docs/roadmap.md). As of 2026-10-06 these are implemented:
+The current state of each epic is in [docs/roadmap.md](docs/roadmap.md). As of 2026-10-07 these are implemented:
 
 - E1 (Laravel foundation, slices S1–S2, which also deliver the E2 design system and shell) and E9 (rebranding; the release infrastructure is still open).
 - E11 (resellers) and E12 (port registry).
@@ -24,6 +24,7 @@ The current state of each epic is in [docs/roadmap.md](docs/roadmap.md). As of 2
 - E7 batch 1 (Databases, Cron, DNS, Mail and Backups, with the restic snapshot browser), batch 2 (Firewall, IPs, access and SSH keys, logs, statistics and graphs, web terminal, Quick Install run in the background) and batch 3 (Services, Server settings, config editors, Updates, password and 2FA reset, Search, CSR generator).
 - E8 (legacy retirement, [spec](docs/features/specs/2026-10-06-004-e8-legacy-retirement-design.md)): the panel app at the root URL, `web/` deleted and its still-used pieces in `lib/`, FileGator removed, version 2.0.0. Publishing the release waits for the E9 release infrastructure.
 - E9 R5 (full rename and hard fork, [spec](docs/features/specs/2026-10-06-005-e9-full-rename-design.md)): in progress; `develop` installs again when its milestone M8 passes.
+- E29, the OpenAPI document of REST API v1 ([spec](docs/features/specs/2026-10-07-001-e29-openapi-design.md)), and E34 batch 1, REST API v2 under `/api/v2/` in the panel app with users, packages and web domains ([spec](docs/features/specs/2026-10-07-002-e34-api-v2-design.md)).
 
 The rest is design.
 
@@ -115,19 +116,21 @@ Do not narrow the scope silently. If part of a milestone is blocked, finish the 
 
 Run from the repository root unless noted. The panel's PHP suites need PHP 8.5 and Composer; the shell suites need a test server.
 
-| Purpose                              | Command                                                                                                                 |
-| ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------- |
-| Install tooling, pre-commit hooks    | `npm ci` (Node LTS, npm 11)                                                                                             |
-| Lint everything the CI lints         | `npm run lint` (Prettier, Biome, markdownlint) · `bash test/shellcheck.sh` · `bash test/brand-check.sh`                 |
-| Format                               | `npm run format` · `cd web-app && vendor/bin/pint`                                                                      |
-| Build assets                         | `npm run build` (watch: `npm run dev`)                                                                                  |
-| Panel unit + feature tests           | `cd web-app && composer install && vendor/bin/pest`                                                                     |
-| Alpine module and Vue island tests   | `npm run test:js`                                                                                                       |
-| CLI tests (on the test server, root) | `bats test/arcpanel-*.bats` (all ArcPanel suites) or one suite, for example `bats test/arcpanel-ports.bats`             |
-| HTTP smoke test (test server, root)  | `bash test/arcpanel-login-smoke.sh`                                                                                     |
-| Browser e2e (from the workstation)   | `bash test/e2e/prepare.sh prepare <password>` on the server, then `E2E_BASE_URL=https://<server>:8083 npm run test:e2e` |
-| Regenerate the REST API document     | `npm run docs:api` (CI runs `npm run docs:api:check`; see `docs/api/README.md`)                                         |
-| Sync the checkout to a test server   | `bash test/dev-sync.sh [--no-composer] [--no-restart]` as root on the server                                            |
+| Purpose                               | Command                                                                                                                 |
+| ------------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| Install tooling, pre-commit hooks     | `npm ci` (Node LTS, npm 11)                                                                                             |
+| Lint everything the CI lints          | `npm run lint` (Prettier, Biome, markdownlint) · `bash test/shellcheck.sh` · `bash test/brand-check.sh`                 |
+| Format                                | `npm run format` · `cd web-app && vendor/bin/pint`                                                                      |
+| Build assets                          | `npm run build` (watch: `npm run dev`)                                                                                  |
+| Panel unit + feature tests            | `cd web-app && composer install && vendor/bin/pest`                                                                     |
+| Alpine module and Vue island tests    | `npm run test:js`                                                                                                       |
+| CLI tests (on the test server, root)  | `bats test/arcpanel-*.bats` (all ArcPanel suites) or one suite, for example `bats test/arcpanel-ports.bats`             |
+| HTTP smoke test (test server, root)   | `bash test/arcpanel-login-smoke.sh`                                                                                     |
+| Browser e2e (from the workstation)    | `bash test/e2e/prepare.sh prepare <password>` on the server, then `E2E_BASE_URL=https://<server>:8083 npm run test:e2e` |
+| Regenerate the REST API document      | `npm run docs:api` (CI runs `npm run docs:api:check`; see `docs/api/README.md`)                                         |
+| Regenerate the REST API v2 document   | `cd web-app && php artisan arcpanel:api-docs` (CI runs it with `--check`)                                               |
+| REST API v2 smoke (test server, root) | `bash test/arcpanel-api-v2-smoke.sh`                                                                                    |
+| Sync the checkout to a test server    | `bash test/dev-sync.sh [--no-composer] [--no-restart]` as root on the server                                            |
 
 Local test server used by the maintainer: WSL distribution `arcpanel-test` (Ubuntu 24.04) with ArcPanel at `/usr/local/arcpanel`. From Windows: `MSYS_NO_PATHCONV=1 wsl.exe -d arcpanel-test -u root -- bash /mnt/d/project/arcpanel/arcpanel/test/dev-sync.sh`. Known pitfalls: the Windows checkout is CRLF and reports uid 1000, so copy only through `dev-sync.sh`; `wsl.exe … bash -c` expands `$VAR` before bash sees it, so put scripts in files; keep a `wsl.exe -d arcpanel-test -u root -- sleep 5400` session open while Playwright runs, otherwise the distribution stops. Pest on the server runs with `/usr/local/arcpanel/php/bin/php vendor/bin/pest`; Pint with the system `php`.
 
@@ -154,6 +157,7 @@ A change is verified when the suites it touches pass **and** the smoke or e2e fl
 - [ ] Spec decisions and milestones are reflected in code; nothing in scope was dropped without saying so.
 - [ ] New commands: header, validation, demo mode, logging, `json` output, BATS cases, entry in the panel's allow-list when the panel calls them, `docs/api/openapi.yaml` regenerated (`npm run docs:api`).
 - [ ] New routes: policy + `Capabilities` entry, `effective-user` / `not-readonly` middleware where applicable, Pest feature test for admin, reseller A, reseller B and user.
+- [ ] New REST API v2 endpoints: a stable camelCase `@operationId`, the Pest matrix of admin, reseller A, reseller B and user with cross-tenant 404, a dry run that runs nothing and a `v2-read` key refused before any command; their commands in `install/common/api/v2-read` or `v2-write`; `docs/api/v2/openapi.json` regenerated (`php artisan arcpanel:api-docs`); the smoke script extended.
 - [ ] Owner scoping proven: cross-tenant access returns 404 in a test.
 - [ ] Documentation updated: design doc status, **13**, **15** (if data changed), roadmap status line, spec implementation notes.
 - [ ] `npm run lint`, `test/shellcheck.sh`, `test/brand-check.sh`, Pest, Vitest green; BATS and smoke green on the test server; e2e for new pages.

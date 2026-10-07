@@ -10,7 +10,7 @@
 > - **`ROLE='reseller'`:** one-line change in `is_role_valid` (`func/main.sh`), no patch file (D10).
 > - **Pages (§9):** one Users module `/users` ("Customers" for resellers) and one Packages module `/packages`; no `/customers` (D3). Statistics, Backups and Logs per tree stay with E7.
 > - **Login as (§9.1):** resellers use the session key `arc_look`, checked on every request and never read by the legacy app; it works on panel pages only (D4).
-> - **API keys (§8):** deferred to the Laravel API (D6).
+> - **API keys (§8):** deferred to the Laravel API (D6), then built as REST API v2 (E34): see §8.
 
 ---
 
@@ -122,22 +122,22 @@ Existing commands that must stay correct with a reseller in the tree: `v-change-
 
 The roadmap's matrix, made executable. `✔` = allowed, `tree` = only for users in the principal's tree, `self` = only for the effective user, `pkg` = if the effective user's package allows.
 
-| Capability                                                                      | admin                                 | reseller                                     | user                   |
-| ------------------------------------------------------------------------------- | ------------------------------------- | -------------------------------------------- | ---------------------- |
-| Server settings, services, IPs, firewall, updates, templates, packages (global) | ✔                                     | ✖                                            | ✖                      |
-| Users: list / create / edit / suspend / delete                                  | ✔                                     | tree                                         | ✖                      |
-| Users: change package                                                           | ✔                                     | tree, only assignable packages, quota check  | ✖                      |
-| Users: change owner                                                             | ✔                                     | ✖                                            | ✖                      |
-| Packages: create                                                                | ✔                                     | only if `POLICY_RESELLER_CREATE_PACKAGES`    | ✖                      |
-| Login-as                                                                        | any                                   | tree (if `POLICY_RESELLER_LOGIN_AS`)         | ✖                      |
-| Web / DNS / Mail / DB / Cron / Backups objects                                  | any user                              | tree                                         | self                   |
-| Port registry                                                                   | assign to anyone, change server range | sub-allocate own pool to tree                | read own; request more |
-| Node / Docker apps                                                              | any user                              | tree                                         | self, pkg              |
-| App Store install                                                               | ✔                                     | pkg                                          | pkg                    |
-| Statistics / RRD                                                                | all + server graphs                   | tree aggregate, no server graphs             | self                   |
-| Logs / auth log                                                                 | all                                   | tree                                         | self                   |
-| Access keys                                                                     | any user; any permission set          | self + tree-scoped sets (`reseller-billing`) | self; user-role sets   |
-| Notifications                                                                   | all                                   | tree (send to customers)                     | self                   |
+| Capability                                                                      | admin                                 | reseller                                    | user                   |
+| ------------------------------------------------------------------------------- | ------------------------------------- | ------------------------------------------- | ---------------------- |
+| Server settings, services, IPs, firewall, updates, templates, packages (global) | ✔                                     | ✖                                           | ✖                      |
+| Users: list / create / edit / suspend / delete                                  | ✔                                     | tree                                        | ✖                      |
+| Users: change package                                                           | ✔                                     | tree, only assignable packages, quota check | ✖                      |
+| Users: change owner                                                             | ✔                                     | ✖                                           | ✖                      |
+| Packages: create                                                                | ✔                                     | only if `POLICY_RESELLER_CREATE_PACKAGES`   | ✖                      |
+| Login-as                                                                        | any                                   | tree (if `POLICY_RESELLER_LOGIN_AS`)        | ✖                      |
+| Web / DNS / Mail / DB / Cron / Backups objects                                  | any user                              | tree                                        | self                   |
+| Port registry                                                                   | assign to anyone, change server range | sub-allocate own pool to tree               | read own; request more |
+| Node / Docker apps                                                              | any user                              | tree                                        | self, pkg              |
+| App Store install                                                               | ✔                                     | pkg                                         | pkg                    |
+| Statistics / RRD                                                                | all + server graphs                   | tree aggregate, no server graphs            | self                   |
+| Logs / auth log                                                                 | all                                   | tree                                        | self                   |
+| Access keys                                                                     | any user; any permission set          | self; tree through API v2 (§8)              | self; user-role sets   |
+| Notifications                                                                   | all                                   | tree (send to customers)                    | self                   |
 
 The matrix is encoded once in `web-app/app/Policies/Capabilities.php` as data (`[capability => [role => Scope]]`) and consumed by the policies (§7), the role-aware navigation (05 §4) and the e2e role tests (11 §4). A capability missing from the table is denied.
 
@@ -200,6 +200,15 @@ Policies decide; the CLI still validates. A policy bug can only ever **widen** U
 ---
 
 ## 8. API access keys
+
+> **Replaced by REST API v2** ([E34 spec](../features/specs/2026-10-07-002-e34-api-v2-design.md), implemented 2026-10-07). The `SCOPE` line, `v-check-access-key-scope`, the `reseller-billing` set and `v-add-reseller-access-key` below were never built. Owner awareness comes from API v2 instead:
+>
+> - A v2 call acts as the **owner of the key** (its `Principal`, with that user's role and read-only state), so the policies, `OwnerScope` and `TenancyDirectory` of §7 apply exactly as for that user signed in: outside the tree **404**, refused inside it **403**. A reseller's key manages its customers through the same routes as an administrator's.
+> - `v-check-access-key-permissions ACCESS_KEY_ID SECRET_FILE IP [FORMAT]` checks the key and prints its user, role, sets and allowed commands.
+> - Two v2-only sets, `install/common/api/v2-read` and `v2-write` (`ROLE='user'`, `API_VERSION='2'`), limit what a key may run; `get_apis_commands` skips them for API v1, so they open nothing there. Every command of a v2 plan is checked against the sets before the first one runs.
+> - API v1 (`lib/api/index.php`) is unchanged: a non-admin key is still scoped by its sets and one user argument.
+
+The original design, kept for reference:
 
 - Permission set files gain an optional `SCOPE='self|tree|all'` line (default: `all` for `ROLE='admin'`, `self` for `ROLE='user'`), read by `v-check-access-key` through an **additive** helper in `func/reseller.sh` — the existing command is not changed; instead a new `v-check-access-key-scope KEY CMD USER_ARG` is called by the API layer after `v-check-access-key` succeeds, and refuses when the user argument is outside the key owner's scope.
 - New permission set `install/common/api/reseller-billing`: `ROLE='reseller'`, `SCOPE='tree'`, `COMMANDS='v-add-reseller-user,v-suspend-user,v-unsuspend-user,v-delete-user,v-change-user-package,v-list-reseller-users,v-list-user,v-change-user-password,v-make-tmp-file'`.

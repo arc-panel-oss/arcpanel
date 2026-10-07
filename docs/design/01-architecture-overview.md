@@ -215,7 +215,12 @@ The legacy app of 1.x performed the same steps with `exec()`; the only new eleme
 
 ### 4.3 Request flow — an API call
 
-Unchanged in wire format. The API script moved from `web/api/index.php` to `lib/api/index.php` with E8 and still answers at `/api/` (same POST fields, same `ArcPanel-Exit-Code` header); a port to Laravel routing waits for E29. Access-key checks continue to run in `v-check-access-key`; E11 adds owner awareness to that command's permission sets (03 §8). The wire format is documented in the OpenAPI document [`docs/api/openapi.yaml`](../api/openapi.yaml) (E29, generated from the command headers; see [`docs/api/README.md`](../api/README.md)).
+Two APIs answer on the panel port, both with the same access keys; `arcpanel-nginx` sends `/api/v2/` to the panel app and the rest of `/api/` to the API v1 script (the longest prefix wins).
+
+- **API v1** (`POST /api/`), unchanged in wire format: the script moved from `web/api/index.php` to `lib/api/index.php` with E8 and still runs one `v-*` command by name with positional arguments and the `ArcPanel-Exit-Code` header. `v-check-access-key` checks the key; a non-admin key is scoped by its permission sets and by one user argument. Documented in [`docs/api/openapi.yaml`](../api/openapi.yaml) (E29, generated from the command headers).
+- **API v2** (`/api/v2/…`, [E34 spec](../features/specs/2026-10-07-002-e34-api-v2-design.md)): resource routes of the Laravel panel app in a stateless middleware group (no session, no CSRF). `AuthenticateAccessKey` reads `Authorization: Bearer ACCESS_KEY:SECRET_KEY`, runs `v-check-access-key-permissions` (secret in a `Secret` temp file) and binds the key's owner as the `Principal`; from there a call runs the same chain as a UI action (§4.2): FormRequest, policy and `OwnerScope`, service, `ArcCommand`. `PlanGate` checks every command of a plan against the key's permission sets before the first one runs and answers `?dry_run=1` without running any. Errors are `{"error": {"code", "message", "fields"}}` with the statuses of `ExitCode::httpStatus()` (02 §4.3). Documented in [`docs/api/v2/openapi.json`](../api/v2/openapi.json), generated from the code by `php artisan arcpanel:api-docs`.
+
+[`docs/api/README.md`](../api/README.md) describes both and how to regenerate their documents.
 
 ### 4.4 Long-running operations
 
@@ -235,7 +240,7 @@ install/
     apps/docker/        Docker catalog manifests (E4)
     apps/system/        apt/snap whitelist manifests (E5)
     packages/           default.pkg, system.pkg + developer.pkg (E13)
-    api/                permission sets + reseller-billing (E11)
+    api/                permission sets of API v1 + v2-read, v2-write (E34)
   deb/templates/web/    .tpl/.stpl + <name>.json sidecars (E6)
   upgrade/              versions/*.sh + patch/ (upstream patches)
 lib/                    libraries of the commands since 2.0 (E8): Quick Install, 2FA, mail wrapper, API script, locales, logos, error pages
