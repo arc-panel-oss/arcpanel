@@ -1,0 +1,89 @@
+#!/bin/bash
+# info: run a queued command and record its result
+# options: USER ID -- COMMAND [ARG…]
+#
+# example: v-run-queue-task admin 17280000001234 -- /usr/local/arcpanel/bin/v-backup-user admin yes
+#
+# This function runs one command that a v-schedule-* script queued. The
+# record must exist and be queued; a second run of the same id does
+# nothing. The command's output is appended to the task log and also
+# written to standard output, so the redirection on the queue line
+# (>> $ARCPANEL/log/backup.log and the others) still receives it.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+user=$1
+id=$2
+
+# Includes
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/queuetask.sh
+source $ARCPANEL/func/queuetask.sh
+# load config file
+source_conf "$ARCPANEL/conf/arcpanel.conf"
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '4' "$#" 'USER ID -- COMMAND [ARG…]'
+is_format_valid 'user' 'id'
+is_object_valid 'user' 'USER' "$user"
+if [ "$3" != "--" ]; then
+	check_result "$E_INVALID" "missing -- before the command"
+fi
+if ! [[ "$id" =~ ^[0-9]{14}$ ]]; then
+	check_result "$E_INVALID" "invalid id format :: $id"
+fi
+
+# Perform verification if read-only mode is enabled
+check_arcpanel_demo_mode
+
+shift 3
+
+if ! qt_prepare_argv "$@"; then
+	check_result "$E_FORBIDEN" "command is not allowed"
+fi
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+qt_lock
+qt_cleanup_unlocked
+if [ ! -f "$(qt_conf "$user" "$id")" ] || [ "$(qt_get "$user" "$id" STATUS)" != "queued" ]; then
+	qt_unlock
+	exit 0
+fi
+
+qt_set "$user" "$id" STATUS=running "START=$(date +'%F %T')" "PID=$$"
+qt_unlock
+
+log=$(qt_log "$user" "$id")
+touch "$log"
+chmod 640 "$log"
+
+"${QT_ARGV[@]}" 2>&1 | tee -a "$log"
+rc=${PIPESTATUS[0]}
+chmod 640 "$log"
+
+qt_lock
+if [ "$rc" -eq 0 ]; then
+	qt_set "$user" "$id" STATUS=succeeded "EXIT=0" "END=$(date +'%F %T')"
+else
+	qt_set "$user" "$id" STATUS=failed "EXIT=$rc" "END=$(date +'%F %T')"
+fi
+qt_unlock
+
+#----------------------------------------------------------#
+#                         ArcPanel                         #
+#----------------------------------------------------------#
+
+log_event "$rc" "$ARGUMENTS"
+
+exit "$rc"

@@ -1,6 +1,6 @@
 #!/bin/bash
 # info: schedule user backup creation
-# options: USER
+# options: USER [FORMAT]
 #
 # example: v-schedule-user-backup admin
 #
@@ -12,12 +12,15 @@
 
 # Argument definition
 user=$1
+format=shell
 
 # Includes
 # shellcheck source=/etc/arcpanel/arcpanel.conf
 source /etc/arcpanel/arcpanel.conf
 # shellcheck source=/usr/local/arcpanel/func/main.sh
 source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/queuetask.sh
+source $ARCPANEL/func/queuetask.sh
 # load config file
 source_conf "$ARCPANEL/conf/arcpanel.conf"
 
@@ -25,8 +28,14 @@ source_conf "$ARCPANEL/conf/arcpanel.conf"
 #                    Verifications                         #
 #----------------------------------------------------------#
 
-check_args '1' "$#" 'USER'
-is_format_valid 'user'
+if [ "$#" -gt 2 ]; then
+	check_result "$E_ARGS" "too many arguments"
+fi
+if [ "$#" -eq 2 ]; then
+	format=$2
+fi
+check_args '1' "$#" 'USER [FORMAT]'
+is_format_valid 'user' 'format'
 is_system_enabled "$BACKUP_SYSTEM" 'BACKUP_SYSTEM'
 is_object_valid 'user' 'USER' "$user"
 is_backup_enabled
@@ -39,9 +48,10 @@ check_arcpanel_demo_mode
 #                       Action                             #
 #----------------------------------------------------------#
 
-# Adding backup task to  the queue
+# Adding backup task to the queue
 log=$ARCPANEL/log/backup.log
-echo "$BIN/v-backup-user $user yes >> $log 2>&1" >> $ARCPANEL/data/queue/backup.pipe
+qt_queue backup '' "$ARCPANEL/data/queue/backup.pipe" \
+	"$BIN/v-backup-user $user yes >> $log 2>&1"
 
 #----------------------------------------------------------#
 #                         ArcPanel                         #

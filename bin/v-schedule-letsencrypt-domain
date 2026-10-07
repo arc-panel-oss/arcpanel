@@ -1,6 +1,6 @@
 #!/bin/bash
 # info: queue a Let's Encrypt certificate for a web or mail domain
-# options: USER DOMAIN [ALIASES] [KEY_ALGO] [MAIL]
+# options: USER DOMAIN [ALIASES] [KEY_ALGO] [MAIL] [FORMAT]
 #
 # example: v-schedule-letsencrypt-domain admin example.com www.example.com ecdsa-256
 # example: v-schedule-letsencrypt-domain admin example.com '' ecdsa-256 yes
@@ -22,12 +22,15 @@ domain=$2
 aliases=$3
 key_algo="${4,,}"
 mail="${5,,}"
+format=shell
 
 # Includes
 # shellcheck source=/etc/arcpanel/arcpanel.conf
 source /etc/arcpanel/arcpanel.conf
 # shellcheck source=/usr/local/arcpanel/func/main.sh
 source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/queuetask.sh
+source $ARCPANEL/func/queuetask.sh
 # shellcheck source=/usr/local/arcpanel/func/domain.sh
 source $ARCPANEL/func/domain.sh
 # load config file
@@ -37,8 +40,14 @@ source_conf "$ARCPANEL/conf/arcpanel.conf"
 #                    Verifications                         #
 #----------------------------------------------------------#
 
-check_args '2' "$#" 'USER DOMAIN [ALIASES] [KEY_ALGO] [MAIL]'
-is_format_valid 'user' 'domain' 'aliases' 'key_algo'
+if [ "$#" -gt 6 ]; then
+	check_result "$E_ARGS" "too many arguments"
+fi
+if [ "$#" -eq 6 ]; then
+	format=$6
+fi
+check_args '2' "$#" 'USER DOMAIN [ALIASES] [KEY_ALGO] [MAIL] [FORMAT]'
+is_format_valid 'user' 'domain' 'aliases' 'key_algo' 'format'
 is_system_enabled "$WEB_SYSTEM" 'WEB_SYSTEM'
 is_system_enabled "$WEB_SSL" 'SSL_SUPPORT'
 is_object_valid 'user' 'USER' "$user"
@@ -77,16 +86,26 @@ fi
 $BIN/v-add-cron-letsencrypt-job
 
 # One queued line per domain and kind. A web line and a mail line may both wait.
-touch $ARCPANEL/data/queue/letsencrypt.pipe
+# Replacing a line marks its task failed; the new line carries a new id.
+pipe=$ARCPANEL/data/queue/letsencrypt.pipe
+touch "$pipe"
+qt_lock
 if [ "$mail" = "yes" ]; then
-	sed -i "\|v-add-letsencrypt-domain ${user} ${domain} '' yes |d" $ARCPANEL/data/queue/letsencrypt.pipe
-	echo "$BIN/v-add-letsencrypt-domain $user $domain '' yes $key_algo" \
-		>> $ARCPANEL/data/queue/letsencrypt.pipe
+	qt_fail_replaced "$pipe" "v-add-letsencrypt-domain ${user} ${domain} '' yes "
+	sed -i "\|v-add-letsencrypt-domain ${user} ${domain} '' yes |d" "$pipe"
+	qt_create_unlocked letsencrypt "$domain mail"
+	printf '%s%s\n' "$(qt_prefix)" \
+		"$BIN/v-add-letsencrypt-domain $user $domain '' yes $key_algo" >> "$pipe"
 else
-	sed -i "\|v-add-letsencrypt-domain ${user} ${domain} '.*' no |d" $ARCPANEL/data/queue/letsencrypt.pipe
-	echo "$BIN/v-add-letsencrypt-domain $user $domain '$aliases' no $key_algo" \
-		>> $ARCPANEL/data/queue/letsencrypt.pipe
+	qt_fail_replaced "$pipe" "v-add-letsencrypt-domain ${user} ${domain} '.*' no "
+	sed -i "\|v-add-letsencrypt-domain ${user} ${domain} '.*' no |d" "$pipe"
+	qt_create_unlocked letsencrypt "$domain"
+	printf '%s%s\n' "$(qt_prefix)" \
+		"$BIN/v-add-letsencrypt-domain $user $domain '$aliases' no $key_algo" >> "$pipe"
 fi
+qt_cleanup_unlocked
+qt_unlock
+qt_emit_id "$QT_ID" "$format"
 
 #----------------------------------------------------------#
 #                         ArcPanel                         #

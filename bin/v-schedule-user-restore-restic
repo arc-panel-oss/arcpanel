@@ -1,6 +1,6 @@
 #!/bin/bash
 # info: schedule user backup restoration
-# options: USER BACKUP [WEB] [DNS] [MAIL] [DB] [CRON] [UDIR]
+# options: USER SNAPSHOT [OBJECT] [VALUE] [FORMAT]
 #
 # example: v-schedule-user-restore 2019-04-22_01-00-00.tar
 #
@@ -15,12 +15,15 @@ user=$1
 snapshot=$2
 object=$3
 value=$4
+format=shell
 
 # Includes
 # shellcheck source=/etc/arcpanel/arcpanel.conf
 source /etc/arcpanel/arcpanel.conf
 # shellcheck source=/usr/local/arcpanel/func/main.sh
 source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/queuetask.sh
+source $ARCPANEL/func/queuetask.sh
 # load config file
 source_conf "$ARCPANEL/conf/arcpanel.conf"
 
@@ -28,8 +31,14 @@ source_conf "$ARCPANEL/conf/arcpanel.conf"
 #                    Verifications                         #
 #----------------------------------------------------------#
 
-check_args '2' "$#" 'USER SNAPSHOT OBJECT VALUE'
-is_format_valid 'user' 'snapshot' 'value'
+if [ "$#" -gt 5 ]; then
+	check_result "$E_ARGS" "too many arguments"
+fi
+if [ "$#" -eq 5 ]; then
+	format=$5
+fi
+check_args '2' "$#" 'USER SNAPSHOT [OBJECT] [VALUE] [FORMAT]'
+is_format_valid 'user' 'snapshot' 'value' 'format'
 is_system_enabled "$BACKUP_SYSTEM" 'BACKUP_SYSTEM'
 is_object_valid 'user' 'USER' "$user"
 is_backup_scheduled 'restore'
@@ -53,19 +62,26 @@ if [ "$?" -ne 0 ]; then
 fi
 rm -fr "$tmpdir"
 
+pipe="$ARCPANEL/data/queue/backup.pipe"
 if [ -z "$object" ]; then
-	echo "$BIN/v-restore-user-restic '$user' '$snapshot' '*' '*' '*' '*' 'yes' 'yes' 'yes' >> $log 2>&1" >> $ARCPANEL/data/queue/backup.pipe
+	qt_queue snapshot-restore "$snapshot" "$pipe" \
+		"$BIN/v-restore-user-restic '$user' '$snapshot' '*' '*' '*' '*' 'yes' 'yes' 'yes' >> $log 2>&1"
 else
 	if [ "$object" = "web" ]; then
-		echo "$BIN/v-restore-web-domain-restic '$user' '$snapshot' '$value' 'yes' >> $log 2>&1" >> $ARCPANEL/data/queue/backup.pipe
+		qt_queue snapshot-restore "$snapshot $object $value" "$pipe" \
+			"$BIN/v-restore-web-domain-restic '$user' '$snapshot' '$value' 'yes' >> $log 2>&1"
 	elif [ "$object" = "dns" ]; then
-		echo "$BIN/v-restore-dns-domain-restic '$user' '$snapshot' '$value' 'yes' >> $log 2>&1" >> $ARCPANEL/data/queue/backup.pipe
+		qt_queue snapshot-restore "$snapshot $object $value" "$pipe" \
+			"$BIN/v-restore-dns-domain-restic '$user' '$snapshot' '$value' 'yes' >> $log 2>&1"
 	elif [ "$object" = "mail" ]; then
-		echo "$BIN/v-restore-mail-domain-restic '$user' '$snapshot' '$value' 'yes' >> $log 2>&1" >> $ARCPANEL/data/queue/backup.pipe
+		qt_queue snapshot-restore "$snapshot $object $value" "$pipe" \
+			"$BIN/v-restore-mail-domain-restic '$user' '$snapshot' '$value' 'yes' >> $log 2>&1"
 	elif [ "$object" = "db" ]; then
-		echo "$BIN/v-restore-database-restic '$user' '$snapshot' '$value' 'yes' >> $log 2>&1" >> $ARCPANEL/data/queue/backup.pipe
+		qt_queue snapshot-restore "$snapshot $object $value" "$pipe" \
+			"$BIN/v-restore-database-restic '$user' '$snapshot' '$value' 'yes' >> $log 2>&1"
 	elif [ "$object" = "cron" ]; then
-		echo "$BIN/v-restore-cron-job-restic '$user' '$snapshot' 'yes' >> $log 2>&1" >> $ARCPANEL/data/queue/backup.pipe
+		qt_queue snapshot-restore "$snapshot $object" "$pipe" \
+			"$BIN/v-restore-cron-job-restic '$user' '$snapshot' 'yes' >> $log 2>&1"
 	else
 		check_result "$E_INVALID" "Not supported"
 	fi

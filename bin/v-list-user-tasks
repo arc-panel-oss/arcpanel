@@ -1,0 +1,148 @@
+#!/bin/bash
+# info: list the tasks of a user
+# options: USER [ID] [LINES] [FORMAT]
+#
+# example: v-list-user-tasks admin json
+# example: v-list-user-tasks admin 17280000001234 100 json
+#
+# This function prints the queue-task records of USER, newest first, or
+# one record. LOG is the last LINES lines of the task log (default 100,
+# at most 1000). A record that is still queued but whose line is gone
+# from every queue is stored as failed.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+user=$1
+id=''
+lines=100
+format=shell
+
+# Includes
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/queuetask.sh
+source $ARCPANEL/func/queuetask.sh
+# load config file
+source_conf "$ARCPANEL/conf/arcpanel.conf"
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '1' "$#" 'USER [ID] [LINES] [FORMAT]'
+is_format_valid 'user'
+is_object_valid 'user' 'USER' "$user"
+
+shift
+while [ "$#" -gt 0 ]; do
+	case "$1" in
+		json | plain | shell | csv) format=$1 ;;
+		*)
+			if [[ "$1" =~ ^[0-9]{1,4}$ ]]; then
+				lines=$1
+			elif [[ "$1" =~ ^[0-9]{10,20}$ ]]; then
+				id=$1
+			else
+				check_result "$E_INVALID" "invalid argument :: $1"
+			fi
+			;;
+	esac
+	shift
+done
+if [[ ! "$lines" =~ ^[0-9]+$ ]] || [ "$lines" -lt 1 ] || [ "$lines" -gt 1000 ]; then
+	check_result "$E_INVALID" "invalid number of lines :: $lines (1 to 1000)"
+fi
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+qt_lock
+qt_reap_unlocked
+qt_unlock
+
+log_of() {
+	local task="$1" file text
+	file=$(qt_log "$user" "$task")
+	text=''
+	if [ -f "$file" ]; then
+		text=$(tail -n "$lines" "$file" | sed -e 's/\x1b\[[0-9;?]*[A-Za-z]//g' -e 's/\r$//' -e 's/.*\r//' -e 's/.\x08//g')
+	fi
+	printf '%s' "$text"
+}
+
+record_json() {
+	local task="$1" text
+	text=$(log_of "$task")
+	jq -nc \
+		--arg ID "$task" \
+		--arg KIND "$(qt_get "$user" "$task" KIND)" \
+		--arg ARGS "$(qt_get "$user" "$task" ARGS)" \
+		--arg STATUS "$(qt_get "$user" "$task" STATUS)" \
+		--arg EXIT "$(qt_get "$user" "$task" EXIT)" \
+		--arg ERROR "$(qt_get "$user" "$task" ERROR)" \
+		--arg QUEUED "$(qt_get "$user" "$task" QUEUED)" \
+		--arg START "$(qt_get "$user" "$task" START)" \
+		--arg END "$(qt_get "$user" "$task" END)" \
+		--arg LOG "$text" \
+		'{ID: $ID, KIND: $KIND, ARGS: $ARGS, STATUS: $STATUS, EXIT: $EXIT,
+			ERROR: $ERROR, QUEUED: $QUEUED, START: $START, END: $END, LOG: $LOG}'
+}
+
+print_shell() {
+	local task="$1" text
+	text=$(log_of "$task")
+	record_json "$task" | jq -r 'to_entries[] | select(.key != "LOG") | "\(.key): \(.value)"'
+	echo
+	printf '%s\n' "$text"
+}
+
+if [ -n "$id" ]; then
+	if [ ! -f "$(qt_conf "$user" "$id")" ]; then
+		check_result "$E_NOTEXIST" "task $id doesn't exist"
+	fi
+	json=$(record_json "$id")
+	case "$format" in
+		json) printf '%s\n' "$json" ;;
+		*) print_shell "$id" ;;
+	esac
+else
+	dir=$(qt_dir "$user")
+	ids=()
+	if [ -d "$dir" ]; then
+		shopt -s nullglob
+		for file in "$dir"/*.conf; do
+			ids+=("$(basename "$file" .conf)")
+		done
+		shopt -u nullglob
+	fi
+	if [ "${#ids[@]}" -gt 0 ]; then
+		mapfile -t ids < <(printf '%s\n' "${ids[@]}" | sort -nr)
+	fi
+	case "$format" in
+		json)
+			json='{}'
+			for task in "${ids[@]}"; do
+				one=$(record_json "$task")
+				json=$(jq -nc --argjson obj "$json" --argjson one "$one" --arg key "$task" '$obj + {($key): $one}')
+			done
+			printf '%s\n' "$json"
+			;;
+		*)
+			for task in "${ids[@]}"; do
+				print_shell "$task"
+				echo
+			done
+			;;
+	esac
+fi
+
+#----------------------------------------------------------#
+#                         ArcPanel                         #
+#----------------------------------------------------------#
+
+exit

@@ -1,6 +1,6 @@
 #!/bin/bash
 # info: schedule user backup restoration
-# options: USER BACKUP [WEB] [DNS] [MAIL] [DB] [CRON] [UDIR]
+# options: USER BACKUP [WEB] [DNS] [MAIL] [DB] [CRON] [UDIR] [FORMAT]
 #
 # example: v-schedule-user-restore 2019-04-22_01-00-00.tar
 #
@@ -19,12 +19,15 @@ mail=$5
 db=$6
 cron=$7
 udir=$8
+format=shell
 
 # Includes
 # shellcheck source=/etc/arcpanel/arcpanel.conf
 source /etc/arcpanel/arcpanel.conf
 # shellcheck source=/usr/local/arcpanel/func/main.sh
 source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/queuetask.sh
+source $ARCPANEL/func/queuetask.sh
 # load config file
 source_conf "$ARCPANEL/conf/arcpanel.conf"
 
@@ -32,8 +35,14 @@ source_conf "$ARCPANEL/conf/arcpanel.conf"
 #                    Verifications                         #
 #----------------------------------------------------------#
 
-check_args '2' "$#" 'USER BACKUP [WEB] [DNS] [MAIL] [DB] [CRON] [UDIR]'
-is_format_valid 'user' 'backup'
+if [ "$#" -gt 9 ]; then
+	check_result "$E_ARGS" "too many arguments"
+fi
+if [ "$#" -eq 9 ]; then
+	format=$9
+fi
+check_args '2' "$#" 'USER BACKUP [WEB] [DNS] [MAIL] [DB] [CRON] [UDIR] [FORMAT]'
+is_format_valid 'user' 'backup' 'format'
 is_system_enabled "$BACKUP_SYSTEM" 'BACKUP_SYSTEM'
 is_object_valid 'user' 'USER' "$user"
 is_object_valid 'backup' 'BACKUP' "$2"
@@ -47,11 +56,11 @@ check_arcpanel_demo_mode
 #                       Action                             #
 #----------------------------------------------------------#
 
-# Adding restore task to  the queue
+# Adding restore task to the queue
 log="$ARCPANEL/log/restore.log"
 queue_file="$ARCPANEL/data/queue/backup.pipe"
 # Store a safely serialized command line for the legacy Bash queue consumer.
-printf 'nice -n 19 ionice -c 3 %q %q %q %q %q %q %q %q %q yes >> %q 2>&1\n' \
+body=$(printf 'nice -n 19 ionice -c 3 %q %q %q %q %q %q %q %q %q yes >> %q 2>&1' \
 	"$BIN/v-restore-user" \
 	"$user" \
 	"$backup" \
@@ -61,7 +70,8 @@ printf 'nice -n 19 ionice -c 3 %q %q %q %q %q %q %q %q %q yes >> %q 2>&1\n' \
 	"$db" \
 	"$cron" \
 	"$udir" \
-	"$log" >> "$queue_file"
+	"$log")
+qt_queue restore "$backup" "$queue_file" "$body"
 
 #----------------------------------------------------------#
 #                         ArcPanel                         #

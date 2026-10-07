@@ -21,6 +21,8 @@ queue=$1
 source /etc/arcpanel/arcpanel.conf
 # shellcheck source=/usr/local/arcpanel/func/main.sh
 source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/queuetask.sh
+source $ARCPANEL/func/queuetask.sh
 # load config file
 source_conf "$ARCPANEL/conf/arcpanel.conf"
 
@@ -48,7 +50,10 @@ case $queue in
 	webstats) bash $ARCPANEL/data/queue/$queue.pipe > /dev/null 2>&1 ;;
 	backup) bash $ARCPANEL/data/queue/$queue.pipe > /dev/null 2>&1 ;;
 	disk) bash $ARCPANEL/data/queue/$queue.pipe > /dev/null 2>&1 ;;
-	daily) bash $ARCPANEL/data/queue/$queue.pipe > /dev/null 2>&1 ;;
+	daily)
+		bash $ARCPANEL/data/queue/$queue.pipe > /dev/null 2>&1
+		qt_cleanup_all
+		;;
 	traffic) bash $ARCPANEL/data/queue/$queue.pipe > /dev/null 2>&1 ;;
 	dns-cluster) bash $ARCPANEL/data/queue/$queue.pipe > /dev/null 2>&1 ;;
 	letsencrypt) bash $ARCPANEL/data/queue/$queue.pipe > /dev/null 2>&1 ;;

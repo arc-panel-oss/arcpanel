@@ -1,0 +1,275 @@
+#!/bin/bash
+# ArcPanel: records for commands that wait in a queue pipe (E34 batch 3,
+# docs/features/specs/2026-10-08-001-e34-api-v2-batch3-design.md §4).
+# A schedule command writes data/users/USER/tasks/ID.conf (STATUS=queued)
+# and queues `v-run-queue-task USER ID -- <the line it used to queue>`.
+# The wrapper runs that command once and stores the exit code. Records and
+# logs are kept for 7 days.
+
+#----------------------------------------------------------#
+#                       Locations                          #
+#----------------------------------------------------------#
+
+QT_KEYS="ID KIND ARGS STATUS EXIT ERROR QUEUED START END PID"
+
+# Commands a schedule script is allowed to hand to the wrapper.
+qt_command_allowed() {
+	case "$1" in
+		v-backup-user) return 0 ;;
+		v-restore-user) return 0 ;;
+		v-download-backup) return 0 ;;
+		v-backup-user-restic) return 0 ;;
+		v-restore-user-restic) return 0 ;;
+		v-restore-web-domain-restic) return 0 ;;
+		v-restore-dns-domain-restic) return 0 ;;
+		v-restore-mail-domain-restic) return 0 ;;
+		v-restore-database-restic) return 0 ;;
+		v-restore-cron-job-restic) return 0 ;;
+		v-restore-file-restic) return 0 ;;
+		v-add-letsencrypt-domain) return 0 ;;
+		*) return 1 ;;
+	esac
+}
+
+qt_dir() {
+	echo "$ARCPANEL/data/users/$1/tasks"
+}
+
+qt_conf() {
+	echo "$(qt_dir "$1")/$2.conf"
+}
+
+qt_log() {
+	echo "$(qt_dir "$1")/$2.log"
+}
+
+#----------------------------------------------------------#
+#                         Lock                             #
+#----------------------------------------------------------#
+
+# Hold the user's task lock. Do not call again before qt_unlock: a second
+# flock on a new descriptor waits for this one forever.
+qt_lock() {
+	local dir="$ARCPANEL/data/users/$user"
+	[ -d "$dir" ] || return 1
+	exec {QT_LOCK_FD}> "$dir/tasks.lock"
+	flock -x "$QT_LOCK_FD"
+}
+
+qt_unlock() {
+	if [ -n "${QT_LOCK_FD:-}" ]; then
+		flock -u "$QT_LOCK_FD"
+		exec {QT_LOCK_FD}>&-
+		QT_LOCK_FD=
+	fi
+}
+
+#----------------------------------------------------------#
+#                        Records                           #
+#----------------------------------------------------------#
+
+# Value of KEY in the task record of USER ID
+qt_get() {
+	local file
+	file=$(qt_conf "$1" "$2")
+	if [ -f "$file" ]; then
+		grep -oE "(^| )$3='[^']*'" "$file" | head -n1 | cut -d\' -f2
+	fi
+}
+
+# Set KEY=VALUE pairs. The other keys keep their values. Quotes and line
+# breaks are dropped from values. Caller holds the lock.
+qt_set() {
+	local owner="$1" task="$2" file pair key line='' tmp
+	local -A values=()
+	shift 2
+	for key in $QT_KEYS; do
+		values[$key]=$(qt_get "$owner" "$task" "$key")
+	done
+	for pair in "$@"; do
+		key=${pair%%=*}
+		values[$key]=$(printf '%s' "${pair#*=}" | tr -d "'\n\r")
+	done
+	line=''
+	for key in $QT_KEYS; do
+		line="$line$key='${values[$key]}' "
+	done
+	file=$(qt_conf "$owner" "$task")
+	mkdir -p "$(dirname "$file")"
+	chmod 750 "$(dirname "$file")"
+	tmp="$file.$$"
+	echo "${line% }" > "$tmp"
+	chmod 640 "$tmp"
+	mv -f "$tmp" "$file"
+}
+
+# New queued record. Sets QT_ID. Caller holds the lock.
+qt_create_unlocked() {
+	local kind="$1" args="$2" dir id
+	dir=$(qt_dir "$user")
+	mkdir -p "$dir"
+	chmod 750 "$dir"
+	id="$(date +%s)$(printf '%04d' $((RANDOM % 10000)))"
+	while [ -e "$dir/$id.conf" ]; do
+		id="$(date +%s)$(printf '%04d' $((RANDOM % 10000)))"
+	done
+	QT_ID=$id
+	qt_set "$user" "$id" "ID=$id" "KIND=$kind" "ARGS=$args" STATUS=queued EXIT= ERROR= \
+		"QUEUED=$(date +'%F %T')" START= END= PID=
+}
+
+# `v-run-queue-task USER ID -- ` for the record just created
+qt_prefix() {
+	printf '%s/v-run-queue-task %s %s -- ' "$BIN" "$user" "$QT_ID"
+}
+
+# Print the id of the record just created. FORMAT json prints {"ID":"…"}.
+qt_emit_id() {
+	local id="$1" fmt="${2:-shell}"
+	case "$fmt" in
+		json) jq -nc --arg id "$id" '{ID: $id}' ;;
+		*) printf '%s\n' "$id" ;;
+	esac
+}
+
+# Create the record and append PREFIX + LINE to PIPE. LINE is the shell
+# command the schedule script used to queue, redirections included.
+qt_queue() {
+	local kind="$1" args="$2" pipe="$3" line="$4" fmt="${format:-shell}"
+	qt_lock
+	qt_create_unlocked "$kind" "$args"
+	mkdir -p "$(dirname "$pipe")"
+	printf '%s%s\n' "$(qt_prefix)" "$line" >> "$pipe"
+	qt_cleanup_unlocked
+	qt_unlock
+	qt_emit_id "$QT_ID" "$fmt"
+}
+
+# Mark every queued record whose line matches PATTERN as replaced.
+# Caller holds the lock. PATTERN is an extended regular expression.
+qt_fail_replaced() {
+	local file="$1" pattern="$2" line id
+	[ -f "$file" ] || return 0
+	while IFS= read -r line; do
+		[ -n "$line" ] || continue
+		id=$(printf '%s\n' "$line" | grep -oE "v-run-queue-task ${user} [0-9]+" | awk 'NR==1 { print $3 }')
+		if [ -n "$id" ]; then
+			qt_set "$user" "$id" STATUS=failed "ERROR=replaced by a newer request" \
+				"END=$(date +'%F %T')"
+		fi
+	done < <(grep -E "$pattern" "$file" || true)
+}
+
+#----------------------------------------------------------#
+#                     Queue and age                        #
+#----------------------------------------------------------#
+
+# Whether the queue still holds the wrapped line of USER ID
+qt_line_queued() {
+	local owner="$1" task="$2" pipe
+	local -a pipes=()
+	shopt -s nullglob
+	pipes=("$ARCPANEL/data/queue"/*.pipe)
+	shopt -u nullglob
+	for pipe in "${pipes[@]}"; do
+		if grep -qF "v-run-queue-task $owner $task " "$pipe"; then
+			return 0
+		fi
+	done
+	return 1
+}
+
+# A queued record whose line a worker removed never ran.
+# Caller holds the lock.
+qt_reap_unlocked() {
+	local dir file id status
+	dir=$(qt_dir "$user")
+	[ -d "$dir" ] || return 0
+	shopt -s nullglob
+	for file in "$dir"/*.conf; do
+		id=$(basename "$file" .conf)
+		status=$(qt_get "$user" "$id" STATUS)
+		if [ "$status" = "queued" ] && ! qt_line_queued "$user" "$id"; then
+			qt_set "$user" "$id" STATUS=failed "ERROR=removed from the queue" \
+				"END=$(date +'%F %T')"
+		fi
+	done
+	shopt -u nullglob
+}
+
+# Delete this user's records and logs older than 7 days.
+# A running task is kept. Caller holds the lock.
+qt_cleanup_unlocked() {
+	local dir file id queued ts cutoff status
+	dir=$(qt_dir "$user")
+	[ -d "$dir" ] || return 0
+	cutoff=$(date -d '7 days ago' +%s)
+	shopt -s nullglob
+	for file in "$dir"/*.conf; do
+		id=$(basename "$file" .conf)
+		status=$(qt_get "$user" "$id" STATUS)
+		[ "$status" = "running" ] && continue
+		queued=$(qt_get "$user" "$id" QUEUED)
+		ts=$(date -d "$queued" +%s 2> /dev/null || echo 0)
+		if [ -n "$ts" ] && [ "$ts" -lt "$cutoff" ]; then
+			rm -f "$file" "$dir/$id.log"
+		fi
+	done
+	for file in "$dir"/*.log; do
+		id=$(basename "$file" .log)
+		if [ ! -f "$dir/$id.conf" ]; then
+			rm -f "$file"
+		fi
+	done
+	shopt -u nullglob
+}
+
+# Every user, as v-update-sys-queue daily does.
+qt_cleanup_all() {
+	local home name
+	shopt -s nullglob
+	for home in "$ARCPANEL/data/users"/*; do
+		[ -d "$home/tasks" ] || continue
+		name=$(basename "$home")
+		user=$name
+		qt_lock || continue
+		qt_cleanup_unlocked
+		qt_unlock
+	done
+	shopt -u nullglob
+}
+
+#----------------------------------------------------------#
+#                       Invocation                         #
+#----------------------------------------------------------#
+
+# Resolve the command the wrapper may run into QT_ARGV.
+# A restore line starts with the fixed `nice -n 19 ionice -c 3` prefix;
+# the v-* command after it, or the first argument otherwise, must be one
+# of QT_ALLOWED and must live in $BIN.
+qt_prepare_argv() {
+	local -a args=("$@")
+	local i=0 base
+	QT_ARGV=()
+	if [ "${args[0]-}" = "nice" ] && [ "${args[1]-}" = "-n" ] && [ "${args[2]-}" = "19" ] \
+		&& [ "${args[3]-}" = "ionice" ] && [ "${args[4]-}" = "-c" ] && [ "${args[5]-}" = "3" ]; then
+		QT_ARGV=(nice -n 19 ionice -c 3)
+		i=6
+	fi
+	if [ "$i" -ge ${#args[@]} ]; then
+		return 1
+	fi
+	base=$(basename "${args[$i]}")
+	if ! qt_command_allowed "$base"; then
+		return 1
+	fi
+	if [[ "${args[$i]}" == */* && "${args[$i]}" != "$BIN/$base" ]]; then
+		return 1
+	fi
+	QT_ARGV+=("$BIN/$base")
+	while [ "$((i + 1))" -lt ${#args[@]} ]; do
+		i=$((i + 1))
+		QT_ARGV+=("${args[$i]}")
+	done
+	return 0
+}

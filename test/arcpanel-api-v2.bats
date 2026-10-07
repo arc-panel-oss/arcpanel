@@ -216,13 +216,13 @@ setup() {
     run grep -c " $domain " "$pipe"
     assert_output 1
     run grep " $domain " "$pipe"
-    assert_output "$ARCPANEL/bin/v-add-letsencrypt-domain $USER_A $domain 'www.$domain' no ecdsa-384"
+    assert_output --partial "$ARCPANEL/bin/v-add-letsencrypt-domain $USER_A $domain 'www.$domain' no ecdsa-384"
 
     # Again without a key type: the domain's own, and still one line
     run v-schedule-letsencrypt-domain "$USER_A" "$domain" "www.$domain"
     assert_success
     run grep " $domain " "$pipe"
-    assert_output "$ARCPANEL/bin/v-add-letsencrypt-domain $USER_A $domain 'www.$domain' no ecdsa-256"
+    assert_output --partial "$ARCPANEL/bin/v-add-letsencrypt-domain $USER_A $domain 'www.$domain' no ecdsa-256"
 
     run v-schedule-letsencrypt-domain "$USER_A" "$domain" '' dsa
     assert_failure 2
@@ -242,14 +242,14 @@ setup() {
     run grep -c " $domain " "$pipe"
     assert_output 2
     run grep " $domain '' yes " "$pipe"
-    assert_output "$ARCPANEL/bin/v-add-letsencrypt-domain $USER_A $domain '' yes ecdsa-256"
+    assert_output --partial "$ARCPANEL/bin/v-add-letsencrypt-domain $USER_A $domain '' yes ecdsa-256"
 
     run v-schedule-letsencrypt-domain "$USER_A" "$domain" '' rsa yes
     assert_success
     run grep -c " $domain " "$pipe"
     assert_output 2
     run grep " $domain '' yes " "$pipe"
-    assert_output "$ARCPANEL/bin/v-add-letsencrypt-domain $USER_A $domain '' yes rsa"
+    assert_output --partial "$ARCPANEL/bin/v-add-letsencrypt-domain $USER_A $domain '' yes rsa"
     run grep " $domain 'www.$domain' no " "$pipe"
     assert_success
 

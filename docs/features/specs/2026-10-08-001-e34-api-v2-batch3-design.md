@@ -199,3 +199,10 @@ The path the command prints must match `^/backup/[\w.-]+$`, as on the page; anyt
 ## 12. Implementation notes
 
 The work log of each milestone is appended here.
+
+### M1 (2026-10-08)
+
+- Added `func/queuetask.sh`, `bin/v-run-queue-task` and `bin/v-list-user-tasks`.
+- The seven `v-schedule-*` commands create a record under `data/users/USER/tasks/`, print the task id (`json` → `{"ID":"…"}`), and queue `v-run-queue-task USER ID -- …` instead of the bare worker line.
+- `v-update-sys-queue daily` calls `qt_cleanup_all()` so records older than seven days are removed even when no new queue task runs.
+- BATS: `test/arcpanel-api-v2-tasks.bats`; Let's Encrypt scheduling in `test/arcpanel-api-v2.bats` uses `--partial` on the inner command inside the wrapped line.
