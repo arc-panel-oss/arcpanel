@@ -30,7 +30,12 @@ final class ApiDocs extends Command
         'installNodePackage',
         'updateNodePackages',
         'checkNodePackages',
+        'installNodeApp',
+        'buildNodeApp',
     ];
+
+    /** List operations whose `meta` is not paginated `ListMeta` (E34 batch 3 §5, batch 4 §4.2). */
+    private const LIST_WITHOUT_PAGINATION = ['listSystemTasks', 'listUserTasks', 'listNodeApps'];
 
     private const ERROR_STATUSES = [
         '401' => ['Unauthenticated', 'The access key is missing, unknown or wrong (`E_UNAUTHENTICATED`).'],
@@ -215,6 +220,7 @@ final class ApiDocs extends Command
      */
     private function operation(string $path, string $method, array $operation, int $success): array
     {
+        $operationId = (string) ($operation['operationId'] ?? '');
         $write = $method !== 'get';
         $responses = [];
         foreach ($operation['responses'] ?? [] as $status => $response) {
@@ -228,7 +234,7 @@ final class ApiDocs extends Command
                 if ($schema === null) {
                     continue;
                 }
-                $response['content']['application/json']['schema'] = self::withListMeta($schema);
+                $response['content']['application/json']['schema'] = self::applyListMeta($schema, $operationId);
             }
             if (! isset($response['$ref'])) {
                 $response['headers'] = self::successHeaders((string) $status) + ($response['headers'] ?? []);
@@ -247,7 +253,7 @@ final class ApiDocs extends Command
             $responses[(string) $success] = $moved;
         }
 
-        if (str_starts_with((string) ($operation['operationId'] ?? ''), 'list')) {
+        if (str_starts_with($operationId, 'list') && ! in_array($operationId, self::LIST_WITHOUT_PAGINATION, true)) {
             $operation['parameters'] = [...($operation['parameters'] ?? []), ...self::pageParameters()];
         }
 
@@ -322,10 +328,11 @@ final class ApiDocs extends Command
                 ],
             ];
         }
-        if (in_array((string) ($operation['operationId'] ?? ''), self::TASK_MONITOR_202, true) && isset($responses['202']['headers'])) {
+        if (in_array($operationId, self::TASK_MONITOR_202, true) && isset($responses['202']['headers'])) {
             unset($responses['202']['headers']['Location']);
             $responses['202']['headers']['Link'] = ['$ref' => '#/components/headers/Link'];
         }
+        self::tailorNodeAppOpenApi($operationId, $operation, $responses);
         uksort($responses, fn ($a, $b) => (int) $a <=> (int) $b);
         $operation['responses'] = $responses;
 
@@ -427,6 +434,29 @@ final class ApiDocs extends Command
      * @param  array<string, mixed>  $schema
      * @return array<string, mixed>
      */
+    private static function applyListMeta(array $schema, string $operationId): array
+    {
+        if (! isset($schema['properties']['meta'])) {
+            return $schema;
+        }
+        if ($operationId === 'listNodeApps') {
+            $schema['properties']['meta'] = ['$ref' => '#/components/schemas/NodeAppListMeta'];
+
+            return $schema;
+        }
+        if ($operationId === 'getNodeAppLogs') {
+            $schema['properties']['meta'] = ['$ref' => '#/components/schemas/NodeAppLogMeta'];
+
+            return $schema;
+        }
+
+        return self::withListMeta($schema);
+    }
+
+    /**
+     * @param  array<string, mixed>  $schema
+     * @return array<string, mixed>
+     */
     private static function withListMeta(array $schema): array
     {
         if (isset($schema['properties']['meta'])) {
@@ -434,6 +464,70 @@ final class ApiDocs extends Command
         }
 
         return $schema;
+    }
+
+    /**
+     * @param  array<string, mixed>  $operation
+     * @param  array<string, mixed>  $responses
+     */
+    private static function tailorNodeAppOpenApi(string $operationId, array &$operation, array &$responses): void
+    {
+        if ($operationId === 'getNodeAppLogs') {
+            $operation['parameters'] = [...($operation['parameters'] ?? []), ...self::nodeAppLogParameters()];
+            if (isset($responses['200']['content']['application/json']['schema'])) {
+                $responses['200']['description'] = 'Log lines and a cursor for the next snapshot (D43).';
+            }
+        }
+        if ($operationId === 'getNodeAppEnv' && isset($responses['200']['content']['application/json']['schema'])) {
+            $responses['200']['content']['application/json']['schema'] = self::nodeAppEnvBodySchema();
+            $responses['200']['description'] = 'Environment names and set flags (D41); values only with `reveal=1`.';
+        }
+        if ($operationId === 'setNodeAppEnv' && isset($responses['200'])) {
+            $env = self::nodeAppEnvBodySchema();
+            $dryRun = ['$ref' => '#/components/schemas/DryRun'];
+            $responses['200']['content']['application/json']['schema'] = ['oneOf' => [$env, $dryRun]];
+            $responses['200']['description'] = 'The saved environment (names and set flags; values only when the key may reveal them); with `dry_run`, the planned steps.';
+        }
+    }
+
+    /** @return array<string, mixed> */
+    private static function nodeAppEnvBodySchema(): array
+    {
+        return [
+            'type' => 'object',
+            'properties' => [
+                'data' => [
+                    'type' => 'array',
+                    'items' => ['$ref' => '#/components/schemas/NodeAppEnvEntry'],
+                ],
+            ],
+            'required' => ['data'],
+        ];
+    }
+
+    /** @return list<array<string, mixed>> */
+    private static function nodeAppLogParameters(): array
+    {
+        return [
+            [
+                'name' => 'lines',
+                'in' => 'query',
+                'description' => 'Number of lines to return (1–1000). Defaults to 200.',
+                'schema' => ['type' => 'integer', 'minimum' => 1, 'maximum' => 1000, 'default' => 200],
+            ],
+            [
+                'name' => 'after',
+                'in' => 'query',
+                'description' => 'Opaque cursor from `meta.next` of a previous snapshot; returns lines that appeared since.',
+                'schema' => ['type' => 'string', 'maxLength' => 64],
+            ],
+            [
+                'name' => 'stream',
+                'in' => 'query',
+                'description' => 'Which log file to read.',
+                'schema' => ['type' => 'string', 'enum' => ['out', 'err', 'install', 'build'], 'default' => 'out'],
+            ],
+        ];
     }
 
     /**
@@ -525,6 +619,51 @@ final class ApiDocs extends Command
                     'timezone' => ['type' => 'string', 'description' => 'The server time zone. Present on listCronJobs.'],
                 ],
                 'required' => ['total'],
+            ],
+            'NodeAppListMeta' => [
+                'type' => 'object',
+                'description' => 'The user\'s pm2 daemon and NODE_APPS limits; the app list is not paginated (E34 batch 4 §4.2).',
+                'properties' => [
+                    'daemon' => ['type' => 'boolean', 'description' => 'Whether the user\'s pm2 daemon is running.'],
+                    'totals' => [
+                        'type' => 'object',
+                        'properties' => [
+                            'online' => ['type' => 'integer', 'minimum' => 0],
+                            'stopped' => ['type' => 'integer', 'minimum' => 0],
+                            'errored' => ['type' => 'integer', 'minimum' => 0],
+                            'suspended' => ['type' => 'integer', 'minimum' => 0],
+                        ],
+                        'required' => ['online', 'stopped', 'errored', 'suspended'],
+                    ],
+                    'limit' => ['type' => 'string', 'description' => 'Maximum apps from NODE_APPS (`unlimited` or a number).'],
+                    'room' => ['type' => 'boolean', 'description' => 'Whether another app fits under the limit.'],
+                ],
+                'required' => ['daemon', 'totals', 'limit', 'room'],
+            ],
+            'NodeAppLogMeta' => [
+                'type' => 'object',
+                'description' => 'Cursor metadata for log snapshots (D43).',
+                'properties' => [
+                    'stream' => ['type' => 'string', 'enum' => ['out', 'err', 'install', 'build']],
+                    'next' => [
+                        'description' => 'Cursor for the next snapshot; pass as `after`. Null when there is nothing newer.',
+                        'type' => ['string', 'null'],
+                    ],
+                ],
+                'required' => ['stream', 'next'],
+            ],
+            'NodeAppEnvEntry' => [
+                'type' => 'object',
+                'description' => 'One environment variable (D41).',
+                'properties' => [
+                    'name' => ['type' => 'string'],
+                    'set' => ['type' => 'boolean', 'description' => 'Whether a non-empty value is stored.'],
+                    'value' => [
+                        'type' => 'string',
+                        'description' => 'Present only when `reveal=1` and the key holds `v2-apps` or `v2-write`.',
+                    ],
+                ],
+                'required' => ['name', 'set'],
             ],
             'PlanStep' => $step,
             'DryRun' => [

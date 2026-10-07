@@ -645,37 +645,13 @@
                     "403": {
                         "$ref": "#/components/responses/Forbidden"
                     },
-                    "422": {
-                        "$ref": "#/components/responses/ValidationFailed"
-                    },
                     "429": {
                         "$ref": "#/components/responses/TooManyRequests"
                     },
                     "500": {
                         "$ref": "#/components/responses/ServerError"
                     }
-                },
-                "parameters": [
-                    {
-                        "name": "limit",
-                        "in": "query",
-                        "description": "Page size, from 1 to 1000. Without it the list is complete.",
-                        "schema": {
-                            "type": "integer",
-                            "minimum": 1,
-                            "maximum": 1000
-                        }
-                    },
-                    {
-                        "name": "offset",
-                        "in": "query",
-                        "description": "Items to skip. Used when `limit` is set; 0 when omitted.",
-                        "schema": {
-                            "type": "integer",
-                            "minimum": 0
-                        }
-                    }
-                ]
+                }
             }
         },
         "/tasks/{id}": {
@@ -7619,25 +7595,6 @@
                         "schema": {
                             "type": "string"
                         }
-                    },
-                    {
-                        "name": "limit",
-                        "in": "query",
-                        "description": "Page size, from 1 to 1000. Without it the list is complete.",
-                        "schema": {
-                            "type": "integer",
-                            "minimum": 1,
-                            "maximum": 1000
-                        }
-                    },
-                    {
-                        "name": "offset",
-                        "in": "query",
-                        "description": "Items to skip. Used when `limit` is set; 0 when omitted.",
-                        "schema": {
-                            "type": "integer",
-                            "minimum": 0
-                        }
                     }
                 ],
                 "responses": {
@@ -7655,7 +7612,7 @@
                                             }
                                         },
                                         "meta": {
-                                            "$ref": "#/components/schemas/ListMeta"
+                                            "$ref": "#/components/schemas/NodeAppListMeta"
                                         }
                                     },
                                     "required": [
@@ -7682,9 +7639,6 @@
                     },
                     "404": {
                         "$ref": "#/components/responses/NotFound"
-                    },
-                    "422": {
-                        "$ref": "#/components/responses/ValidationFailed"
                     },
                     "429": {
                         "$ref": "#/components/responses/TooManyRequests"
@@ -8263,8 +8217,8 @@
                             "ArcPanel-Version": {
                                 "$ref": "#/components/headers/Version"
                             },
-                            "Location": {
-                                "$ref": "#/components/headers/Location"
+                            "Link": {
+                                "$ref": "#/components/headers/Link"
                             }
                         }
                     },
@@ -8330,7 +8284,7 @@
                 ],
                 "responses": {
                     "200": {
-                        "description": "",
+                        "description": "Environment names and set flags (D41); values only with `reveal=1`.",
                         "content": {
                             "application/json": {
                                 "schema": {
@@ -8339,23 +8293,7 @@
                                         "data": {
                                             "type": "array",
                                             "items": {
-                                                "type": "object",
-                                                "properties": {
-                                                    "name": {
-                                                        "type": "string"
-                                                    },
-                                                    "set": {
-                                                        "type": "boolean"
-                                                    },
-                                                    "value": {
-                                                        "type": "string"
-                                                    }
-                                                },
-                                                "required": [
-                                                    "name",
-                                                    "set",
-                                                    "value"
-                                                ]
+                                                "$ref": "#/components/schemas/NodeAppEnvEntry"
                                             }
                                         }
                                     },
@@ -8439,7 +8377,7 @@
                 },
                 "responses": {
                     "200": {
-                        "description": "With `dry_run`: the planned steps; nothing ran.",
+                        "description": "The saved environment (names and set flags; values only when the key may reveal them); with `dry_run`, the planned steps.",
                         "headers": {
                             "X-Request-Id": {
                                 "$ref": "#/components/headers/RequestId"
@@ -8451,7 +8389,25 @@
                         "content": {
                             "application/json": {
                                 "schema": {
-                                    "$ref": "#/components/schemas/DryRun"
+                                    "oneOf": [
+                                        {
+                                            "type": "object",
+                                            "properties": {
+                                                "data": {
+                                                    "type": "array",
+                                                    "items": {
+                                                        "$ref": "#/components/schemas/NodeAppEnvEntry"
+                                                    }
+                                                }
+                                            },
+                                            "required": [
+                                                "data"
+                                            ]
+                                        },
+                                        {
+                                            "$ref": "#/components/schemas/DryRun"
+                                        }
+                                    ]
                                 }
                             }
                         }
@@ -8486,6 +8442,7 @@
         "/users/{user}/node-apps/{domain}/install": {
             "post": {
                 "operationId": "installNodeApp",
+                "description": "Chooses the install command from the lockfile in the app working directory\n(`pnpm-lock.yaml`, `yarn.lock`, or `package-lock.json`), otherwise\n`npm install`, as the panel install control does. There is no request\nfield to override it.",
                 "summary": "Install npm dependencies of a Node.js app",
                 "tags": [
                     "Node.js apps"
@@ -8560,8 +8517,8 @@
                             "ArcPanel-Version": {
                                 "$ref": "#/components/headers/Version"
                             },
-                            "Location": {
-                                "$ref": "#/components/headers/Location"
+                            "Link": {
+                                "$ref": "#/components/headers/Link"
                             }
                         }
                     },
@@ -8615,11 +8572,46 @@
                         "schema": {
                             "type": "string"
                         }
+                    },
+                    {
+                        "name": "lines",
+                        "in": "query",
+                        "description": "Number of lines to return (1–1000). Defaults to 200.",
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 1000,
+                            "default": 200
+                        }
+                    },
+                    {
+                        "name": "after",
+                        "in": "query",
+                        "description": "Opaque cursor from `meta.next` of a previous snapshot; returns lines that appeared since.",
+                        "schema": {
+                            "type": "string",
+                            "maxLength": 64
+                        }
+                    },
+                    {
+                        "name": "stream",
+                        "in": "query",
+                        "description": "Which log file to read.",
+                        "schema": {
+                            "type": "string",
+                            "enum": [
+                                "out",
+                                "err",
+                                "install",
+                                "build"
+                            ],
+                            "default": "out"
+                        }
                     }
                 ],
                 "responses": {
                     "200": {
-                        "description": "",
+                        "description": "Log lines and a cursor for the next snapshot (D43).",
                         "content": {
                             "application/json": {
                                 "schema": {
@@ -8638,7 +8630,7 @@
                                             ]
                                         },
                                         "meta": {
-                                            "$ref": "#/components/schemas/ListMeta"
+                                            "$ref": "#/components/schemas/NodeAppLogMeta"
                                         }
                                     },
                                     "required": [
@@ -10937,25 +10929,6 @@
                         "schema": {
                             "type": "string"
                         }
-                    },
-                    {
-                        "name": "limit",
-                        "in": "query",
-                        "description": "Page size, from 1 to 1000. Without it the list is complete.",
-                        "schema": {
-                            "type": "integer",
-                            "minimum": 1,
-                            "maximum": 1000
-                        }
-                    },
-                    {
-                        "name": "offset",
-                        "in": "query",
-                        "description": "Items to skip. Used when `limit` is set; 0 when omitted.",
-                        "schema": {
-                            "type": "integer",
-                            "minimum": 0
-                        }
                     }
                 ],
                 "responses": {
@@ -10996,9 +10969,6 @@
                     },
                     "404": {
                         "$ref": "#/components/responses/NotFound"
-                    },
-                    "422": {
-                        "$ref": "#/components/responses/ValidationFailed"
                     },
                     "429": {
                         "$ref": "#/components/responses/TooManyRequests"
@@ -13626,6 +13596,104 @@
                     "created_at"
                 ],
                 "title": "NodeApp"
+            },
+            "NodeAppEnvEntry": {
+                "type": "object",
+                "description": "One environment variable (D41).",
+                "properties": {
+                    "name": {
+                        "type": "string"
+                    },
+                    "set": {
+                        "type": "boolean",
+                        "description": "Whether a non-empty value is stored."
+                    },
+                    "value": {
+                        "type": "string",
+                        "description": "Present only when `reveal=1` and the key holds `v2-apps` or `v2-write`."
+                    }
+                },
+                "required": [
+                    "name",
+                    "set"
+                ]
+            },
+            "NodeAppListMeta": {
+                "type": "object",
+                "description": "The user's pm2 daemon and NODE_APPS limits; the app list is not paginated (E34 batch 4 §4.2).",
+                "properties": {
+                    "daemon": {
+                        "type": "boolean",
+                        "description": "Whether the user's pm2 daemon is running."
+                    },
+                    "totals": {
+                        "type": "object",
+                        "properties": {
+                            "online": {
+                                "type": "integer",
+                                "minimum": 0
+                            },
+                            "stopped": {
+                                "type": "integer",
+                                "minimum": 0
+                            },
+                            "errored": {
+                                "type": "integer",
+                                "minimum": 0
+                            },
+                            "suspended": {
+                                "type": "integer",
+                                "minimum": 0
+                            }
+                        },
+                        "required": [
+                            "online",
+                            "stopped",
+                            "errored",
+                            "suspended"
+                        ]
+                    },
+                    "limit": {
+                        "type": "string",
+                        "description": "Maximum apps from NODE_APPS (`unlimited` or a number)."
+                    },
+                    "room": {
+                        "type": "boolean",
+                        "description": "Whether another app fits under the limit."
+                    }
+                },
+                "required": [
+                    "daemon",
+                    "totals",
+                    "limit",
+                    "room"
+                ]
+            },
+            "NodeAppLogMeta": {
+                "type": "object",
+                "description": "Cursor metadata for log snapshots (D43).",
+                "properties": {
+                    "stream": {
+                        "type": "string",
+                        "enum": [
+                            "out",
+                            "err",
+                            "install",
+                            "build"
+                        ]
+                    },
+                    "next": {
+                        "description": "Cursor for the next snapshot; pass as `after`. Null when there is nothing newer.",
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    }
+                },
+                "required": [
+                    "stream",
+                    "next"
+                ]
             },
             "NodePackage": {
                 "type": "object",

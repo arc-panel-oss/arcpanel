@@ -214,8 +214,17 @@ it('documents pagination and error.existing', function () {
             if (! is_array($operation) || ! str_starts_with((string) ($operation['operationId'] ?? ''), 'list')) {
                 continue;
             }
+            $id = (string) ($operation['operationId'] ?? '');
             // Task lists return the full set without paginated meta (E34 batch 3 §5).
-            if (in_array($operation['operationId'] ?? '', ['listSystemTasks', 'listUserTasks'], true)) {
+            if (in_array($id, ['listSystemTasks', 'listUserTasks'], true)) {
+                continue;
+            }
+            if ($id === 'listNodeApps') {
+                $schema = $operation['responses']['200']['content']['application/json']['schema']['properties']['meta'] ?? null;
+                expect($schema)->toBe(['$ref' => '#/components/schemas/NodeAppListMeta']);
+                $names = array_column($operation['parameters'] ?? [], 'name');
+                expect($names)->not->toContain('limit')->not->toContain('offset');
+
                 continue;
             }
             $names = array_column($operation['parameters'] ?? [], 'name');

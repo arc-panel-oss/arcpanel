@@ -214,6 +214,11 @@ final class NodeAppController extends Controller
     /**
      * Install npm dependencies of a Node.js app
      *
+     * Chooses the install command from the lockfile in the app working directory
+     * (`pnpm-lock.yaml`, `yarn.lock`, or `package-lock.json`), otherwise
+     * `npm install`, as the panel install control does. There is no request
+     * field to override it.
+     *
      * @operationId installNodeApp
      *
      * @status 202
