@@ -178,13 +178,10 @@ setup() {
     v-delete-web-domain "$QT_USER" "$domain" > /dev/null
 }
 
-@test "restic schedule commands print an id and queue the wrapped line" {
-    local pkg snapshot id path
-    if [ ! -f "$ARCPANEL/conf/restic.conf" ]; then
-        skip "restic backup host is not configured"
-    fi
-    pkg=arcbatsqt-inc
+qt_enable_incremental_backups() {
+    local pkg=arcbatsqt-inc
     if ! v-list-user-package "$pkg" > /dev/null 2>&1; then
+        local tmp
         tmp=$(mktemp)
         sed "s/^BACKUPS_INCREMENTAL=.*/BACKUPS_INCREMENTAL='yes'/" "$ARCPANEL/data/packages/default.pkg" > "$tmp"
         grep -q "^BACKUPS_INCREMENTAL=" "$tmp" || echo "BACKUPS_INCREMENTAL='yes'" >> "$tmp"
@@ -192,30 +189,60 @@ setup() {
         rm -f "$tmp"
     fi
     v-change-user-package "$QT_USER" "$pkg" yes > /dev/null
+}
+
+@test "v-schedule-user-backup-restic: prints an id and queues the wrapped line" {
+    local id
+    qt_enable_incremental_backups
+    qt_clear_user_queue
+    run v-schedule-user-backup-restic "$QT_USER" json
+    assert_success
+    id=$(jq -r .ID <<< "$output")
+    [[ "$id" =~ ^[0-9]{14}$ ]]
+    grep -q "v-run-queue-task $QT_USER $id" "$PIPE"
+    grep -q "v-backup-user-restic $QT_USER" "$PIPE"
+    v-change-user-package "$QT_USER" default yes > /dev/null
+}
+
+@test "v-schedule-user-restore-restic: prints an id and queues the wrapped line" {
+    local snapshot id
+    if [ ! -f "$ARCPANEL/conf/restic.conf" ]; then
+        skip "restic backup host is not configured"
+    fi
+    qt_enable_incremental_backups
     runuser -u "$QT_USER" -- sh -c "mkdir -p /home/$QT_USER/tmp/qt && echo x > /home/$QT_USER/tmp/qt/a.txt"
     v-backup-user-restic "$QT_USER" > /dev/null 2>&1
     snapshot=$(v-list-user-backups-restic "$QT_USER" json | jq -r '.[0].short_id')
     [ -n "$snapshot" ] && [ "$snapshot" != null ]
 
     qt_clear_user_queue
-    run v-schedule-user-backup-restic "$QT_USER" json
+    run v-schedule-user-restore-restic "$QT_USER" "$snapshot" '' '' json
     assert_success
     id=$(jq -r .ID <<< "$output")
-    grep -q "v-run-queue-task $QT_USER $id" "$PIPE"
-    grep -q "v-backup-user-restic $QT_USER" "$PIPE"
-
-    qt_clear_user_queue
-    run v-schedule-user-restore-restic "$QT_USER" "$snapshot" json
-    assert_success
-    id=$(jq -r .ID <<< "$output")
+    [[ "$id" =~ ^[0-9]{14}$ ]]
     grep -q "v-run-queue-task $QT_USER $id" "$PIPE"
     grep -q "v-restore-user-restic" "$PIPE"
+
+    v-change-user-package "$QT_USER" default yes > /dev/null
+}
+
+@test "v-schedule-user-restore-file-restic: prints an id and queues the wrapped line" {
+    local snapshot id path
+    if [ ! -f "$ARCPANEL/conf/restic.conf" ]; then
+        skip "restic backup host is not configured"
+    fi
+    qt_enable_incremental_backups
+    runuser -u "$QT_USER" -- sh -c "mkdir -p /home/$QT_USER/tmp/qt && echo x > /home/$QT_USER/tmp/qt/a.txt"
+    v-backup-user-restic "$QT_USER" > /dev/null 2>&1
+    snapshot=$(v-list-user-backups-restic "$QT_USER" json | jq -r '.[0].short_id')
+    [ -n "$snapshot" ] && [ "$snapshot" != null ]
 
     qt_clear_user_queue
     path="/home/$QT_USER/tmp/qt/a.txt"
     run v-schedule-user-restore-file-restic "$QT_USER" "$snapshot" "$path" json
     assert_success
     id=$(jq -r .ID <<< "$output")
+    [[ "$id" =~ ^[0-9]{14}$ ]]
     grep -q "v-run-queue-task $QT_USER $id" "$PIPE"
     grep -q "v-restore-file-restic" "$PIPE"
 
@@ -235,4 +262,29 @@ setup() {
     assert_failure
     [ ! -f "$dir/$old_id.conf" ]
     [ ! -f "$dir/$old_id.log" ]
+}
+
+@test "v-update-sys-queue daily: removes stale task records for idle users" {
+    local clean_user=arcbatsqtdaily old_id clean_dir recent_id
+    PASS="Qt-$(date +%s)-Daily"
+    v-delete-user "$clean_user" > /dev/null 2>&1 || true
+    v-add-user "$clean_user" "$PASS" "$clean_user@example.invalid" default > /dev/null
+    clean_dir="$ARCPANEL/data/users/$clean_user/tasks"
+    old_id="19990101120002"
+    mkdir -p "$clean_dir"
+    printf "%s\n" \
+        "ID='$old_id' KIND='backup' ARGS='' STATUS='queued' EXIT='' ERROR='' QUEUED='1990-01-01 00:00:00' START='' END='' PID=''" \
+        > "$clean_dir/$old_id.conf"
+    echo stale-daily > "$clean_dir/$old_id.log"
+    recent_id=$(v-schedule-user-backup "$QT_USER" json | jq -r .ID)
+    sed -i "/v-run-queue-task $QT_USER $recent_id/d" "$PIPE"
+
+    run v-update-sys-queue daily
+    assert_success
+    [ ! -f "$clean_dir/$old_id.conf" ]
+    [ ! -f "$clean_dir/$old_id.log" ]
+    [ -f "$(qt_tasks_dir)/$recent_id.conf" ]
+
+    v-delete-user "$clean_user" > /dev/null 2>&1 || true
+    rm -rf "$clean_dir"
 }
