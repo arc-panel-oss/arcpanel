@@ -5,6 +5,9 @@ namespace App\Services\Node;
 use App\Arc\ArcCommand;
 use App\Arc\Options;
 use App\Arc\Secret;
+use App\Services\Support\PlanRunner;
+use App\Services\WebDomains\ApplyResult;
+use App\Services\WebDomains\Step;
 use App\Services\WebDomains\TemplateCatalog;
 use App\Services\WebDomains\WebDomainService;
 
@@ -39,6 +42,7 @@ final class NodeAppService
         private readonly NodeService $node,
         private readonly WebDomainService $domains,
         private readonly TemplateCatalog $catalog,
+        private readonly PlanRunner $plans,
     ) {}
 
     public function apps(string $user): NodeApps
@@ -142,6 +146,62 @@ final class NodeAppService
     public function startBuild(string $user, string $domain, string $script): string
     {
         return $this->node->startTask($user, 'app-build', [$domain, $script]);
+    }
+
+    /**
+     * @param  array{start: string, version: string, port: string, cwd: string, instances: int, template: string, name: string}  $app
+     */
+    public function planCreate(string $user, string $domain, array $app): Step
+    {
+        return new Step(__('Create the Node.js app'), 'v-add-node-app', [
+            $user, $domain, $app['start'], $app['version'], $app['port'], $app['cwd'],
+            (string) $app['instances'], $app['template'], $app['name'],
+        ]);
+    }
+
+    public function planDelete(string $user, string $domain, bool $keepFiles): Step
+    {
+        return new Step(__('Delete the Node.js app'), 'v-delete-node-app',
+            $keepFiles ? [$user, $domain, 'keep-files'] : [$user, $domain]);
+    }
+
+    public function planAction(string $user, string $domain, string $action): Step
+    {
+        return new Step(__('Run :action on the Node.js app', ['action' => $action]), 'v-'.$action.'-node-app', [$user, $domain]);
+    }
+
+    public function planChangeStart(string $user, string $domain, string $start, string $cwd): Step
+    {
+        return new Step(__('Change the start command'), 'v-change-node-app-start', [$user, $domain, $start, $cwd]);
+    }
+
+    public function planChangeVersion(string $user, string $domain, string $version): Step
+    {
+        return new Step(__('Change the Node.js runtime'), 'v-change-node-app-version', [$user, $domain, $version]);
+    }
+
+    public function planScale(string $user, string $domain, int $instances, int $memory): Step
+    {
+        return new Step(__('Scale the Node.js app'), 'v-change-node-app-scale', [$user, $domain, (string) $instances, (string) $memory]);
+    }
+
+    /**
+     * @param  list<array{key: string, value: string}>  $vars
+     */
+    public function planSaveEnv(string $user, string $domain, array $vars): Step
+    {
+        $content = '';
+        foreach ($vars as $var) {
+            $content .= $var['key'].'='.str_replace(["\r", "\n"], '', $var['value'])."\n";
+        }
+
+        return new Step(__('Update the environment'), 'v-change-node-app-env', [$user, $domain, Secret::file($content)]);
+    }
+
+    /** @param  list<Step>  $steps */
+    public function apply(array $steps): ApplyResult
+    {
+        return $this->plans->apply($steps);
     }
 
     /**

@@ -5,12 +5,12 @@ namespace App\Http\Controllers\Node;
 use App\Auth\Principal;
 use App\Http\Controllers\Controller;
 use App\Policies\NodePolicy;
+use App\Services\Node\NodeAppActions;
 use App\Services\Node\NodeAppService;
 use App\Services\Node\NodeService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
-use Illuminate\Validation\ValidationException;
 
 /**
  * JSON routes of the Node apps island (E14 spec §6.3). Routes with {user}
@@ -22,6 +22,7 @@ final class NodeAppController extends Controller
     public function __construct(
         private readonly NodeAppService $apps,
         private readonly NodeService $node,
+        private readonly NodeAppActions $actions,
     ) {}
 
     public function index(string $user, Principal $principal, NodePolicy $policy): JsonResponse
@@ -60,26 +61,9 @@ final class NodeAppController extends Controller
     public function store(Request $request, string $user, Principal $principal, NodePolicy $policy): JsonResponse
     {
         abort_unless($policy->manageApps($principal, $user), 403);
-        $data = $request->validate([
-            'domain' => ['required', 'string', 'max:253', 'regex:/^[^\s\/]+$/'],
-            'start' => ['nullable', 'string', 'max:200', 'regex:'.self::startRule()],
-            'version' => ['nullable', 'string', 'regex:/^(default|\d{1,3}\.\d{1,3}\.\d{1,3})$/'],
-            'port' => ['nullable', 'string', 'regex:/^(auto|\d{4,5})$/'],
-            'cwd' => ['nullable', 'string', 'regex:'.NodeAppService::PATH],
-            'instances' => ['nullable', 'integer', 'min:1', 'max:999'],
-            'template' => ['nullable', 'string', 'regex:/^[A-Za-z0-9_.-]{1,64}$/'],
-            'name' => ['nullable', 'string', 'regex:'.NodeAppService::NAME],
-        ]);
+        $data = $request->validate($this->actions->createRules());
         $domain = strtolower((string) $data['domain']);
-        $this->apps->create($user, $domain, [
-            'start' => (string) ($data['start'] ?? ''),
-            'version' => (string) ($data['version'] ?? 'default'),
-            'port' => (string) ($data['port'] ?? 'auto'),
-            'cwd' => (string) ($data['cwd'] ?? 'public_html'),
-            'instances' => (int) ($data['instances'] ?? 1),
-            'template' => (string) ($data['template'] ?? 'nodejs-proxy'),
-            'name' => (string) ($data['name'] ?? ''),
-        ]);
+        $this->apps->create($user, $domain, $this->actions->createPayload($data));
 
         return response()->json($this->appPayload($user, $domain, $principal, $policy), 201);
     }
@@ -112,7 +96,7 @@ final class NodeAppController extends Controller
     {
         abort_unless($policy->manageApps($principal, $user), 403);
         $data = $request->validate([
-            'start' => ['required', 'string', 'max:200', 'regex:'.self::startRule()],
+            'start' => ['required', 'string', 'max:200', 'regex:'.NodeAppActions::startRule()],
             'cwd' => ['required', 'string', 'regex:'.NodeAppService::PATH],
         ]);
         $this->apps->changeStart($user, $domain, (string) $data['start'], (string) $data['cwd']);
@@ -151,17 +135,11 @@ final class NodeAppController extends Controller
     public function saveEnv(Request $request, string $user, string $domain, Principal $principal, NodePolicy $policy): JsonResponse
     {
         abort_unless($policy->manageApps($principal, $user), 403);
-        $data = $request->validate([
-            'vars' => ['present', 'array', 'max:200'],
-            'vars.*.key' => ['required', 'string', 'max:128', 'regex:'.NodeAppService::ENV_KEY, Rule::notIn(NodeAppService::RESERVED_ENV), 'distinct'],
-            'vars.*.value' => ['present', 'nullable', 'string', 'max:4096', 'not_regex:/[\r\n\x00]/'],
-        ], [
+        $data = $request->validate($this->actions->envSaveRules(), [
             'vars.*.key.not_in' => __(':input is set by the panel.'),
         ]);
-        $vars = array_map(fn (array $var) => ['key' => (string) $var['key'], 'value' => (string) ($var['value'] ?? '')], $data['vars']);
-        if (strlen(implode("\n", array_map(fn ($var) => $var['key'].'='.$var['value'], $vars))) > 65000) {
-            throw ValidationException::withMessages(['vars' => __('The environment is larger than 64 KB.')]);
-        }
+        $vars = $this->actions->normalizeSessionEnv($data['vars']);
+        $this->actions->assertEnvSize($vars);
         $this->apps->saveEnv($user, $domain, $vars);
 
         return response()->json(['vars' => $this->apps->env($user, $domain)]);
@@ -193,12 +171,6 @@ final class NodeAppController extends Controller
         $script = (string) ($request->validate(['script' => ['nullable', 'string', 'regex:'.NodeAppService::SCRIPT]])['script'] ?? 'build');
 
         return $this->started($user, $this->apps->startBuild($user, $domain, $script ?: 'build'));
-    }
-
-    /** A start file or npm:<script> */
-    private static function startRule(): string
-    {
-        return '#^(npm:[A-Za-z0-9][A-Za-z0-9:._-]{0,63}|[A-Za-z0-9_][A-Za-z0-9._/@+-]{0,199})$#';
     }
 
     /** @return array<string, mixed> */

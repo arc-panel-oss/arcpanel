@@ -6,11 +6,12 @@ use App\Http\Controllers\Api\V2\DatabaseController;
 use App\Http\Controllers\Api\V2\DnsController;
 use App\Http\Controllers\Api\V2\MailAccountController;
 use App\Http\Controllers\Api\V2\MailDomainController;
-use App\Http\Controllers\Api\V2\NodeController;
 use App\Http\Controllers\Api\V2\MeController;
+use App\Http\Controllers\Api\V2\NodeAppController;
+use App\Http\Controllers\Api\V2\NodeController;
 use App\Http\Controllers\Api\V2\PackageController;
-use App\Http\Controllers\Api\V2\UserController;
 use App\Http\Controllers\Api\V2\TaskController;
+use App\Http\Controllers\Api\V2\UserController;
 use App\Http\Controllers\Api\V2\WebDomainController;
 use Illuminate\Support\Facades\Route;
 
@@ -170,6 +171,25 @@ Route::middleware('effective-user')->group(function () {
         Route::delete('/versions/{version}/packages/{package}', [NodeController::class, 'destroyPackage'])
             ->where('package', '(@[a-z0-9][a-z0-9._~-]*/)?[a-z0-9][a-z0-9._~-]*')
             ->name('packages.destroy');
+    });
+
+    // Node.js apps (E34 batch 4 spec §4.2)
+    Route::get('/users/{user}/node-apps', [NodeAppController::class, 'index'])->name('node-apps.index');
+    Route::get('/users/{user}/node-apps/detect/{domain}', [NodeAppController::class, 'detect'])->name('node-apps.detect');
+    Route::get('/users/{user}/node-apps/{domain}', [NodeAppController::class, 'show'])->name('node-apps.show');
+    Route::get('/users/{user}/node-apps/{domain}/env', [NodeAppController::class, 'env'])->name('node-apps.env.show');
+    Route::get('/users/{user}/node-apps/{domain}/logs', [NodeAppController::class, 'logs'])->name('node-apps.logs');
+    Route::middleware('not-readonly')->prefix('/users/{user}/node-apps')->name('node-apps.')->group(function () {
+        Route::post('/', [NodeAppController::class, 'store'])->name('store');
+        Route::patch('/{domain}', [NodeAppController::class, 'update'])->name('update');
+        Route::delete('/{domain}', [NodeAppController::class, 'destroy'])->name('destroy');
+        Route::post('/{domain}/start', [NodeAppController::class, 'start'])->name('start');
+        Route::post('/{domain}/stop', [NodeAppController::class, 'stop'])->name('stop');
+        Route::post('/{domain}/restart', [NodeAppController::class, 'restart'])->name('restart');
+        Route::post('/{domain}/reload', [NodeAppController::class, 'reload'])->name('reload');
+        Route::post('/{domain}/install', [NodeAppController::class, 'install'])->name('install');
+        Route::post('/{domain}/build', [NodeAppController::class, 'build'])->name('build');
+        Route::put('/{domain}/env', [NodeAppController::class, 'setEnv'])->name('env.update');
     });
 
     // Cron jobs (E34 batch 2 spec §6.5)

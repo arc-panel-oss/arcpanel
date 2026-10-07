@@ -1,4 +1,4 @@
-# REST API v2 (E34 batch 4 M1): Node.js runtimes, plus the foundation reads. API v1 skips this set.
+# REST API v2 (E34 batch 4): Node.js runtimes and apps, plus foundation reads. API v1 skips this set.
 ROLE='user'
 API_VERSION='2'
-COMMANDS='v-list-sys-config,v-list-users,v-list-user-owners,v-list-user,v-list-sys-languages,v-list-reseller-packages,v-list-package-tenancy,v-check-reseller-quota,v-list-user-node-versions,v-list-sys-node-releases,v-list-user-npm-packages,v-list-user-node-task,v-add-user-nvm,v-delete-user-nvm,v-change-user-node-default,v-delete-user-node-version,v-delete-user-npm-package,v-start-user-node-task'
+COMMANDS='v-list-sys-config,v-list-users,v-list-user-owners,v-list-user,v-list-sys-languages,v-list-reseller-packages,v-list-package-tenancy,v-check-reseller-quota,v-list-user-node-versions,v-list-sys-node-releases,v-list-user-npm-packages,v-list-user-node-task,v-list-node-apps,v-list-node-app,v-list-node-app-env,v-list-node-app-logs,v-open-fs-file,v-add-user-nvm,v-delete-user-nvm,v-change-user-node-default,v-delete-user-node-version,v-delete-user-npm-package,v-start-user-node-task,v-add-node-app,v-change-node-app-start,v-change-node-app-version,v-change-node-app-scale,v-change-node-app-env,v-start-node-app,v-stop-node-app,v-restart-node-app,v-reload-node-app,v-delete-node-app'
