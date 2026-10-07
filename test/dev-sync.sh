@@ -3,7 +3,7 @@
 # ArcPanel test server, then prepare the panel app and restart the panel.
 #
 # Run inside the test server as root, e.g. from Windows:
-#   wsl.exe -d arcpanel-test -u root -- bash /mnt/d/project/arcpanel/test/dev-sync.sh
+#   wsl.exe -d arcpanel-test -u root -- bash /mnt/d/project/arcpanel/arcpanel/test/dev-sync.sh
 #
 # Options:
 #   --no-composer   skip `composer install` (vendor/ unchanged)
