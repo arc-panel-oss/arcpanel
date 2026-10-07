@@ -9104,10 +9104,14 @@
                                             "items": {
                                                 "$ref": "#/components/schemas/NodeRelease"
                                             }
+                                        },
+                                        "meta": {
+                                            "$ref": "#/components/schemas/ListMeta"
                                         }
                                     },
                                     "required": [
-                                        "data"
+                                        "data",
+                                        "meta"
                                     ]
                                 }
                             }
@@ -9191,10 +9195,14 @@
                                             "items": {
                                                 "$ref": "#/components/schemas/NodeRuntime"
                                             }
+                                        },
+                                        "meta": {
+                                            "$ref": "#/components/schemas/ListMeta"
                                         }
                                     },
                                     "required": [
-                                        "data"
+                                        "data",
+                                        "meta"
                                     ]
                                 }
                             }
@@ -9570,7 +9578,7 @@
                 ],
                 "responses": {
                     "200": {
-                        "description": "",
+                        "description": "Array of `NodePackage`",
                         "content": {
                             "application/json": {
                                 "schema": {

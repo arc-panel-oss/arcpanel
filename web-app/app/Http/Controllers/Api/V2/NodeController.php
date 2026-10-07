@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\V2;
 
 use App\Api\ApiException;
 use App\Api\ErrorCode;
+use App\Api\Paginates;
 use App\Api\PlanGate;
 use App\Api\TaskId;
 use App\Api\TaskLink;
@@ -24,6 +25,7 @@ use App\Services\Node\NodeService;
 use App\Services\Tasks\TaskMapper;
 use App\Tenancy\TenancyDirectory;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\Response;
 
@@ -39,6 +41,7 @@ final class NodeController extends Controller
         private readonly NodeAccess $access,
         private readonly PlanGate $gate,
         private readonly TenancyDirectory $directory,
+        private readonly Paginates $pages,
     ) {}
 
     /**
@@ -79,12 +82,13 @@ final class NodeController extends Controller
      *
      * @operationId listNodeReleases
      */
-    public function releases(string $user, Principal $principal, NodePolicy $policy): AnonymousResourceCollection
+    public function releases(Request $request, string $user, Principal $principal, NodePolicy $policy): AnonymousResourceCollection
     {
         $this->assertOwner($user, $principal, $policy);
         $account = $this->node->account($user);
+        $page = $this->pages->slice($request, $this->node->releases($account));
 
-        return NodeReleaseResource::collection($this->node->releases($account));
+        return NodeReleaseResource::collection($page['items'])->additional(['meta' => $page['meta']]);
     }
 
     /**
@@ -92,11 +96,12 @@ final class NodeController extends Controller
      *
      * @operationId listNodeVersions
      */
-    public function versions(string $user, Principal $principal, NodePolicy $policy): AnonymousResourceCollection
+    public function versions(Request $request, string $user, Principal $principal, NodePolicy $policy): AnonymousResourceCollection
     {
         $this->assertOwner($user, $principal, $policy);
+        $page = $this->pages->slice($request, $this->node->account($user)->runtimes);
 
-        return NodeRuntimeResource::collection($this->node->account($user)->runtimes);
+        return NodeRuntimeResource::collection($page['items'])->additional(['meta' => $page['meta']]);
     }
 
     /**
@@ -155,16 +160,15 @@ final class NodeController extends Controller
      *
      * @operationId listNodePackages
      */
-    public function packages(string $user, string $version, Principal $principal, NodePolicy $policy): JsonResponse
+    public function packages(Request $request, string $user, string $version, Principal $principal, NodePolicy $policy): AnonymousResourceCollection
     {
         $this->assertOwner($user, $principal, $policy);
         $this->assertVersion($user, $version);
         $data = $this->node->packages($user, $version);
+        $page = $this->pages->slice($request, $data['packages']);
+        $page['meta']['checked_at'] = $data['checked'] !== '' ? $data['checked'] : null;
 
-        return response()->json([
-            'data' => NodePackageResource::collection($data['packages']),
-            'meta' => ['checked_at' => $data['checked'] !== '' ? $data['checked'] : null],
-        ]);
+        return NodePackageResource::collection($page['items'])->additional(['meta' => $page['meta']]);
     }
 
     /**
