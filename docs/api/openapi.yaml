@@ -32940,23 +32940,33 @@ components:
         access_key:
           type: string
           description: ID of the access key (20 characters).
+          examples:
+            - ""
         secret_key:
           type: string
           format: password
           description: Secret of the access key (40 characters).
+          examples:
+            - ""
         hash:
           type: string
           format: password
           description: "`ACCESS_KEY:SECRET_KEY` in one field, or a legacy API key (deprecated)."
+          examples:
+            - ""
         user:
           type: string
           deprecated: true
           description: "Legacy authentication: the admin user."
+          examples:
+            - ""
         password:
           type: string
           format: password
           deprecated: true
           description: "Legacy authentication: the password of the admin user."
+          examples:
+            - ""
     ReturnCode:
       type: string
       enum:
@@ -32982,10 +32992,14 @@ components:
               type: string
               title: USER
               description: "`USER`"
+              examples:
+                - ""
             arg2:
               type: string
               title: NOTIFICATION
               description: "`NOTIFICATION`"
+              examples:
+                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-add-access-key:
@@ -33076,10 +33090,14 @@ components:
               type: string
               title: PATH
               description: "`PATH`, optional"
+              examples:
+                - ""
             arg6:
               type: string
               title: PORT
               description: "`PORT`, optional"
+              examples:
+                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-add-backup-host-restic:
@@ -33126,10 +33144,14 @@ components:
               type: string
               title: PATH
               description: "`PATH`, optional"
+              examples:
+                - ""
             arg6:
               type: string
               title: PORT
               description: "`PORT`, optional"
+              examples:
+                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-add-cron-arcpanel-autoupdate:
@@ -33149,6 +33171,8 @@ components:
               type: string
               title: MODE
               description: "`MODE`"
+              examples:
+                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-add-cron-job:
@@ -33320,14 +33344,20 @@ components:
               type: string
               title: TYPE
               description: "`TYPE`, optional"
+              examples:
+                - ""
             arg6:
               type: string
               title: HOST
               description: "`HOST`, optional"
+              examples:
+                - ""
             arg7:
               type: string
               title: CHARSET
               description: "`CHARSET`, optional"
+              examples:
+                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-add-database-host:
@@ -33374,18 +33404,26 @@ components:
               type: string
               title: MAX_DB
               description: "`MAX_DB`, optional"
+              examples:
+                - ""
             arg6:
               type: string
               title: CHARSETS
               description: "`CHARSETS`, optional"
+              examples:
+                - ""
             arg7:
               type: string
               title: TEMPLATE
               description: "`TEMPLATE`, optional"
+              examples:
+                - ""
             arg8:
               type: string
               title: PORT
               description: "`PORT`, optional"
+              examples:
+                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-add-database-temp-user:
@@ -33424,10 +33462,14 @@ components:
               type: string
               title: HOST
               description: "`HOST`, optional"
+              examples:
+                - ""
             arg5:
               type: string
               title: TTL
               description: "`TTL`, optional"
+              examples:
+                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-add-dns-domain:
@@ -33473,26 +33515,38 @@ components:
               type: string
               title: NS2
               description: "`NS2`, optional"
+              examples:
+                - ""
             arg6:
               type: string
               title: NS3
               description: "`NS3`, optional"
+              examples:
+                - ""
             arg7:
               type: string
               title: NS4
               description: "`NS4`, optional"
+              examples:
+                - ""
             arg8:
               type: string
               title: NS5
               description: "`NS5`, optional"
+              examples:
+                - ""
             arg9:
               type: string
               title: NS6
               description: "`NS6`, optional"
+              examples:
+                - ""
             arg10:
               type: string
               title: NS7
               description: "`NS7`, optional"
+              examples:
+                - ""
             arg11:
               type: string
               title: NS8
@@ -33601,10 +33655,14 @@ components:
               type: string
               title: PRIORITY
               description: "`PRIORITY`, optional"
+              examples:
+                - ""
             arg7:
               type: string
               title: ID
               description: "`ID`, optional"
+              examples:
+                - ""
             arg8:
               type: string
               title: RESTART
@@ -33616,6 +33674,8 @@ components:
               type: string
               title: TTL
               description: "`TTL`, optional"
+              examples:
+                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-add-docker-app:
@@ -33661,10 +33721,14 @@ components:
               type: string
               title: VARS_FILE
               description: "`VARS_FILE`, optional"
+              examples:
+                - ""
             arg6:
               type: string
               title: VERSION
               description: "`VERSION`, optional"
+              examples:
+                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-add-domain:
@@ -33697,6 +33761,8 @@ components:
               type: string
               title: IP
               description: "`IP`, optional"
+              examples:
+                - ""
             arg4:
               type: string
               title: RESTART
@@ -33837,14 +33903,20 @@ components:
               type: string
               title: IPVERSION
               description: "`IPVERSION`, optional"
+              examples:
+                - ""
             arg4:
               type: string
               title: AUTOUPDATE
               description: "`AUTOUPDATE`, optional"
+              examples:
+                - ""
             arg5:
               type: string
               title: REFRESH
               description: "`REFRESH`, optional"
+              examples:
+                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-add-firewall-rule:
@@ -33884,14 +33956,20 @@ components:
               type: string
               title: PROTOCOL
               description: "`PROTOCOL`, optional"
+              examples:
+                - ""
             arg5:
               type: string
               title: COMMENT
               description: "`COMMENT`, optional"
+              examples:
+                - ""
             arg6:
               type: string
               title: RULE
               description: "`RULE`, optional"
+              examples:
+                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-add-fs-archive:
@@ -33931,42 +34009,62 @@ components:
               type: string
               title: SOURCE
               description: "`SOURCE`, repeatable, optional"
+              examples:
+                - ""
             arg5:
               type: string
               title: SOURCE
               description: "`SOURCE`, repeatable, optional"
+              examples:
+                - ""
             arg6:
               type: string
               title: SOURCE
               description: "`SOURCE`, repeatable, optional"
+              examples:
+                - ""
             arg7:
               type: string
               title: SOURCE
               description: "`SOURCE`, repeatable, optional"
+              examples:
+                - ""
             arg8:
               type: string
               title: SOURCE
               description: "`SOURCE`, repeatable, optional"
+              examples:
+                - ""
             arg9:
               type: string
               title: SOURCE
               description: "`SOURCE`, repeatable, optional"
+              examples:
+                - ""
             arg10:
               type: string
               title: SOURCE
               description: "`SOURCE`, repeatable, optional"
+              examples:
+                - ""
             arg11:
               type: string
               title: SOURCE
               description: "`SOURCE`, repeatable, optional"
+              examples:
+                - ""
             arg12:
               type: string
               title: SOURCE
               description: "`SOURCE`, repeatable, optional"
+              examples:
+                - ""
             arg13:
               type: string
               title: SOURCE
               description: "`SOURCE`, repeatable, optional"
+              examples:
+                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-add-fs-directory:
@@ -34034,42 +34132,62 @@ components:
               type: string
               title: PATH
               description: "`PATH`, repeatable, optional"
+              examples:
+                - ""
             arg5:
               type: string
               title: PATH
               description: "`PATH`, repeatable, optional"
+              examples:
+                - ""
             arg6:
               type: string
               title: PATH
               description: "`PATH`, repeatable, optional"
+              examples:
+                - ""
             arg7:
               type: string
               title: PATH
               description: "`PATH`, repeatable, optional"
+              examples:
+                - ""
             arg8:
               type: string
               title: PATH
               description: "`PATH`, repeatable, optional"
+              examples:
+                - ""
             arg9:
               type: string
               title: PATH
               description: "`PATH`, repeatable, optional"
+              examples:
+                - ""
             arg10:
               type: string
               title: PATH
               description: "`PATH`, repeatable, optional"
+              examples:
+                - ""
             arg11:
               type: string
               title: PATH
               description: "`PATH`, repeatable, optional"
+              examples:
+                - ""
             arg12:
               type: string
               title: PATH
               description: "`PATH`, repeatable, optional"
+              examples:
+                - ""
             arg13:
               type: string
               title: PATH
               description: "`PATH`, repeatable, optional"
+              examples:
+                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-add-fs-file:
@@ -34184,42 +34302,62 @@ components:
               type: string
               title: PATH
               description: "`PATH`, repeatable, optional"
+              examples:
+                - ""
             arg5:
               type: string
               title: PATH
               description: "`PATH`, repeatable, optional"
+              examples:
+                - ""
             arg6:
               type: string
               title: PATH
               description: "`PATH`, repeatable, optional"
+              examples:
+                - ""
             arg7:
               type: string
               title: PATH
               description: "`PATH`, repeatable, optional"
+              examples:
+                - ""
             arg8:
               type: string
               title: PATH
               description: "`PATH`, repeatable, optional"
+              examples:
+                - ""
             arg9:
               type: string
               title: PATH
               description: "`PATH`, repeatable, optional"
+              examples:
+                - ""
             arg10:
               type: string
               title: PATH
               description: "`PATH`, repeatable, optional"
+              examples:
+                - ""
             arg11:
               type: string
               title: PATH
               description: "`PATH`, repeatable, optional"
+              examples:
+                - ""
             arg12:
               type: string
               title: PATH
               description: "`PATH`, repeatable, optional"
+              examples:
+                - ""
             arg13:
               type: string
               title: PATH
               description: "`PATH`, repeatable, optional"
+              examples:
+                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-add-letsencrypt-domain:
@@ -34258,10 +34396,14 @@ components:
               type: string
               title: MAIL
               description: "`MAIL`, optional"
+              examples:
+                - ""
             arg5:
               type: string
               title: KEY_ALGO
               description: "`KEY_ALGO`, optional"
+              examples:
+                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-add-letsencrypt-host:
@@ -34343,6 +34485,8 @@ components:
               type: string
               title: QUOTA
               description: "`QUOTA`, optional"
+              examples:
+                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-add-mail-account-alias:
@@ -34536,18 +34680,26 @@ components:
               type: string
               title: ANTISPAM
               description: "`ANTISPAM`, optional"
+              examples:
+                - ""
             arg4:
               type: string
               title: ANTIVIRUS
               description: "`ANTIVIRUS`, optional"
+              examples:
+                - ""
             arg5:
               type: string
               title: DKIM
               description: "`DKIM`, optional"
+              examples:
+                - ""
             arg6:
               type: string
               title: DKIM_SIZE
               description: "`DKIM_SIZE`, optional"
+              examples:
+                - ""
             arg7:
               type: string
               title: RESTART
@@ -34559,6 +34711,8 @@ components:
               type: string
               title: REJECT_SPAM
               description: "`REJECT_SPAM`, optional"
+              examples:
+                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-add-mail-domain-antispam:
@@ -34682,6 +34836,8 @@ components:
               type: string
               title: DKIM_SIZE
               description: "`DKIM_SIZE`, optional"
+              examples:
+                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-add-mail-domain-reject:
@@ -34761,6 +34917,8 @@ components:
               type: string
               title: PORT
               description: "`PORT`, optional"
+              examples:
+                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-add-mail-domain-ssl:
@@ -34782,14 +34940,20 @@ components:
               type: string
               title: USER
               description: "`USER`"
+              examples:
+                - ""
             arg2:
               type: string
               title: DOMAIN
               description: "`DOMAIN`"
+              examples:
+                - ""
             arg3:
               type: string
               title: SSL_DIR
               description: "`SSL_DIR`"
+              examples:
+                - ""
             arg4:
               type: string
               title: RESTART
@@ -34829,6 +34993,8 @@ components:
               type: string
               title: WEBMAIL
               description: "`WEBMAIL`, optional"
+              examples:
+                - ""
             arg4:
               type: string
               title: RESTART
@@ -34840,6 +35006,8 @@ components:
               type: string
               title: QUIET
               description: "`QUIET`, optional"
+              examples:
+                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-add-node-app:
@@ -34872,30 +35040,44 @@ components:
               type: string
               title: START
               description: "`START`, optional"
+              examples:
+                - ""
             arg4:
               type: string
               title: NODE_VERSION
               description: "`NODE_VERSION`, optional"
+              examples:
+                - ""
             arg5:
               type: string
               title: PORT
               description: "`PORT`, optional"
+              examples:
+                - ""
             arg6:
               type: string
               title: CWD
               description: "`CWD`, optional"
+              examples:
+                - ""
             arg7:
               type: string
               title: INSTANCES
               description: "`INSTANCES`, optional"
+              examples:
+                - ""
             arg8:
               type: string
               title: TEMPLATE
               description: "`TEMPLATE`, optional"
+              examples:
+                - ""
             arg9:
               type: string
               title: NAME
               description: "`NAME`, optional"
+              examples:
+                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-add-remote-dns-domain:
@@ -34976,10 +35158,14 @@ components:
               type: string
               title: TYPE
               description: "`TYPE`, optional"
+              examples:
+                - ""
             arg6:
               type: string
               title: DNS_USER
               description: "`DNS_USER`, optional"
+              examples:
+                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-add-remote-dns-record:
@@ -35177,6 +35363,8 @@ components:
               type: string
               title: MODE
               description: "`MODE`, optional"
+              examples:
+                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-add-sys-docker:
@@ -35195,6 +35383,8 @@ components:
               type: string
               title: DATA_ROOT
               description: "`DATA_ROOT`, optional"
+              examples:
+                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-add-sys-filemanager:
@@ -35261,22 +35451,32 @@ components:
               type: string
               title: INTERFACE
               description: "`INTERFACE`, optional"
+              examples:
+                - ""
             arg4:
               type: string
               title: USER
               description: "`USER`, optional"
+              examples:
+                - ""
             arg5:
               type: string
               title: IP_STATUS
               description: "`IP_STATUS`, optional"
+              examples:
+                - ""
             arg6:
               type: string
               title: IP_NAME
               description: "`IP_NAME`, optional"
+              examples:
+                - ""
             arg7:
               type: string
               title: NAT_IP
               description: "`NAT_IP`, optional"
+              examples:
+                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-add-sys-mail-dnsbl:
@@ -35372,6 +35572,8 @@ components:
               type: string
               title: mode
               description: "`mode`, optional"
+              examples:
+                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-add-sys-pma-sso:
@@ -35390,6 +35592,8 @@ components:
               type: string
               title: mode
               description: "`mode`, optional"
+              examples:
+                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-add-sys-port-registry:
@@ -35463,6 +35667,8 @@ components:
               type: string
               title: MODE
               description: "`MODE`, optional"
+              examples:
+                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-add-sys-sftp-jail:
@@ -35579,6 +35785,8 @@ components:
               type: string
               title: PORT
               description: "`PORT`, optional"
+              examples:
+                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-add-sys-snappymail:
@@ -35597,6 +35805,8 @@ components:
               type: string
               title: MODE
               description: "`MODE`, optional"
+              examples:
+                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-add-sys-ssh-jail:
@@ -35692,14 +35902,20 @@ components:
               type: string
               title: PACKAGE
               description: "`PACKAGE`, optional"
+              examples:
+                - ""
             arg5:
               type: string
               title: NAME
               description: "`NAME`, optional"
+              examples:
+                - ""
             arg6:
               type: string
               title: LASTNAME
               description: "`LASTNAME`, optional"
+              examples:
+                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-add-user-2fa:
@@ -35791,18 +36007,26 @@ components:
               type: string
               title: USER
               description: "`USER`"
+              examples:
+                - ""
             arg2:
               type: string
               title: TOPIC
               description: "`TOPIC`"
+              examples:
+                - ""
             arg3:
               type: string
               title: NOTICE
               description: "`NOTICE`"
+              examples:
+                - ""
             arg4:
               type: string
               title: TYPE
               description: "`TYPE`, optional"
+              examples:
+                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-add-user-npm-package:
@@ -35879,14 +36103,20 @@ components:
               type: string
               title: tmpfile
               description: "`tmpfile`"
+              examples:
+                - ""
             arg2:
               type: string
               title: PACKAGE
               description: "`PACKAGE`"
+              examples:
+                - ""
             arg3:
               type: string
               title: REWRITE
               description: "`REWRITE`, optional"
+              examples:
+                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-add-user-port:
@@ -35958,6 +36188,8 @@ components:
               type: string
               title: PUBLIC_OK
               description: "`PUBLIC_OK`, optional"
+              examples:
+                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-add-user-sftp-jail:
@@ -36005,10 +36237,14 @@ components:
               type: string
               title: USER
               description: "`USER`"
+              examples:
+                - ""
             arg2:
               type: string
               title: TTL
               description: "`TTL`, optional"
+              examples:
+                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-add-user-ssh-key:
@@ -36111,6 +36347,8 @@ components:
               type: string
               title: PROXY_EXTENSIONS
               description: "`PROXY_EXTENSIONS`, optional"
+              examples:
+                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-add-web-domain-alias:
@@ -36314,6 +36552,8 @@ components:
               type: string
               title: FTP_PATH
               description: "`FTP_PATH`, optional"
+              examples:
+                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-add-web-domain-httpauth:
@@ -36395,10 +36635,14 @@ components:
               type: string
               title: TEMPLATE
               description: "`TEMPLATE`, optional"
+              examples:
+                - ""
             arg4:
               type: string
               title: EXTENSIONS
               description: "`EXTENSIONS`, optional"
+              examples:
+                - ""
             arg5:
               type: string
               title: RESTART
@@ -36446,6 +36690,8 @@ components:
               type: string
               title: HTTPCODE
               description: "`HTTPCODE`"
+              examples:
+                - ""
             arg5:
               type: string
               title: RESTART
@@ -36492,6 +36738,8 @@ components:
               type: string
               title: SSL_HOME
               description: "`SSL_HOME`, optional"
+              examples:
+                - ""
             arg5:
               type: string
               title: RESTART
@@ -36538,6 +36786,8 @@ components:
               type: string
               title: QUIET
               description: "`QUIET`, optional"
+              examples:
+                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-add-web-domain-ssl-hsts:
@@ -36558,10 +36808,14 @@ components:
               type: string
               title: USER
               description: "`USER`"
+              examples:
+                - ""
             arg2:
               type: string
               title: DOMAIN
               description: "`DOMAIN`"
+              examples:
+                - ""
             arg3:
               type: string
               title: RESTART
@@ -36573,6 +36827,8 @@ components:
               type: string
               title: QUIET
               description: "`QUIET`, optional"
+              examples:
+                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-add-web-domain-ssl-preset:
@@ -36593,14 +36849,20 @@ components:
               type: string
               title: USER
               description: "`USER`"
+              examples:
+                - ""
             arg2:
               type: string
               title: DOMAIN
               description: "`DOMAIN`"
+              examples:
+                - ""
             arg3:
               type: string
               title: SSL
               description: "`SSL`, optional"
+              examples:
+                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-add-web-domain-stats:
@@ -36738,14 +37000,20 @@ components:
               type: string
               title: PROTO
               description: "`PROTO`, optional"
+              examples:
+                - ""
             arg4:
               type: string
               title: PORT
               description: "`PORT`, optional"
+              examples:
+                - ""
             arg5:
               type: string
               title: COMMENT
               description: "`COMMENT`, optional"
+              examples:
+                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-backup-docker-apps:
@@ -36771,6 +37039,8 @@ components:
               type: string
               title: NAME
               description: "`NAME`, optional"
+              examples:
+                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-backup-user:
@@ -37097,6 +37367,8 @@ components:
               type: string
               title: DBPASS
               description: "`DBPASS`, optional"
+              examples:
+                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-change-dns-domain-dnssec:
@@ -37385,14 +37657,20 @@ components:
               type: string
               title: TYPE
               description: "`TYPE`"
+              examples:
+                - ""
             arg6:
               type: string
               title: VALUE
               description: "`VALUE`"
+              examples:
+                - ""
             arg7:
               type: string
               title: PRIORITY
               description: "`PRIORITY`, optional"
+              examples:
+                - ""
             arg8:
               type: string
               title: RESTART
@@ -37404,6 +37682,8 @@ components:
               type: string
               title: TTL
               description: "`TTL`, optional"
+              examples:
+                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-change-dns-record-id:
@@ -37641,10 +37921,14 @@ components:
               type: string
               title: PROTOCOL
               description: "`PROTOCOL`, optional"
+              examples:
+                - ""
             arg6:
               type: string
               title: COMMENT
               description: "`COMMENT`, optional"
+              examples:
+                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-change-fs-directory-permission:
@@ -37944,14 +38228,20 @@ components:
               type: string
               title: USER
               description: "`USER`"
+              examples:
+                - ""
             arg2:
               type: string
               title: DOMAIN
               description: "`DOMAIN`"
+              examples:
+                - ""
             arg3:
               type: string
               title: SSL_DIR
               description: "`SSL_DIR`"
+              examples:
+                - ""
             arg4:
               type: string
               title: RESTART
@@ -38033,6 +38323,8 @@ components:
               type: string
               title: MAX_MEMORY
               description: "`MAX_MEMORY`, optional"
+              examples:
+                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-change-node-app-start:
@@ -38072,6 +38364,8 @@ components:
               type: string
               title: CWD
               description: "`CWD`, optional"
+              examples:
+                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-change-node-app-version:
@@ -38162,10 +38456,14 @@ components:
               type: string
               title: USER
               description: "`USER`"
+              examples:
+                - ""
             arg2:
               type: string
               title: DOMAIN
               description: "`DOMAIN`"
+              examples:
+                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-change-remote-dns-domain-soa:
@@ -38418,6 +38716,8 @@ components:
               type: string
               title: ACTIVE
               description: "`ACTIVE`"
+              examples:
+                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-change-sys-hostname:
@@ -38583,6 +38883,8 @@ components:
               type: string
               title: UPDATE_USERS
               description: "`UPDATE_USERS`, optional"
+              examples:
+                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-change-sys-php:
@@ -38602,6 +38904,8 @@ components:
               type: string
               title: VERSION
               description: "`VERSION`"
+              examples:
+                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-change-sys-port:
@@ -38958,30 +39262,44 @@ components:
               type: string
               title: NS2
               description: "`NS2`"
+              examples:
+                - ""
             arg4:
               type: string
               title: NS3
               description: "`NS3`, optional"
+              examples:
+                - ""
             arg5:
               type: string
               title: NS4
               description: "`NS4`, optional"
+              examples:
+                - ""
             arg6:
               type: string
               title: NS5
               description: "`NS5`, optional"
+              examples:
+                - ""
             arg7:
               type: string
               title: NS6
               description: "`NS6`, optional"
+              examples:
+                - ""
             arg8:
               type: string
               title: NS7
               description: "`NS7`, optional"
+              examples:
+                - ""
             arg9:
               type: string
               title: NS8
               description: "`NS8`, optional"
+              examples:
+                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-change-user-owner:
@@ -39042,6 +39360,8 @@ components:
               type: string
               title: FORCE
               description: "`FORCE`, optional"
+              examples:
+                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-change-user-password:
@@ -39172,6 +39492,8 @@ components:
               type: string
               title: RULE
               description: "`RULE`, optional"
+              examples:
+                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-change-user-port-public-ok:
@@ -39226,10 +39548,14 @@ components:
               type: string
               title: USER
               description: "`USER`"
+              examples:
+                - ""
             arg2:
               type: string
               title: HASH
               description: "`HASH`, optional"
+              examples:
+                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-change-user-role:
@@ -39493,10 +39819,14 @@ components:
               type: string
               title: DIRECTORY
               description: "`DIRECTORY`, optional"
+              examples:
+                - ""
             arg5:
               type: string
               title: PHP
               description: "`PHP`, optional"
+              examples:
+                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-change-web-domain-ftp-password:
@@ -39579,6 +39909,8 @@ components:
               type: string
               title: FTP_PATH
               description: "`FTP_PATH`"
+              examples:
+                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-change-web-domain-httpauth:
@@ -39755,6 +40087,8 @@ components:
               type: string
               title: EXTENSIONS
               description: "`EXTENSIONS`, optional"
+              examples:
+                - ""
             arg5:
               type: string
               title: RESTART
@@ -39962,42 +40296,62 @@ components:
               type: string
               title: KEY=VALUE
               description: "`KEY=VALUE`, repeatable, optional"
+              examples:
+                - ""
             arg5:
               type: string
               title: KEY=VALUE
               description: "`KEY=VALUE`, repeatable, optional"
+              examples:
+                - ""
             arg6:
               type: string
               title: KEY=VALUE
               description: "`KEY=VALUE`, repeatable, optional"
+              examples:
+                - ""
             arg7:
               type: string
               title: KEY=VALUE
               description: "`KEY=VALUE`, repeatable, optional"
+              examples:
+                - ""
             arg8:
               type: string
               title: KEY=VALUE
               description: "`KEY=VALUE`, repeatable, optional"
+              examples:
+                - ""
             arg9:
               type: string
               title: KEY=VALUE
               description: "`KEY=VALUE`, repeatable, optional"
+              examples:
+                - ""
             arg10:
               type: string
               title: KEY=VALUE
               description: "`KEY=VALUE`, repeatable, optional"
+              examples:
+                - ""
             arg11:
               type: string
               title: KEY=VALUE
               description: "`KEY=VALUE`, repeatable, optional"
+              examples:
+                - ""
             arg12:
               type: string
               title: KEY=VALUE
               description: "`KEY=VALUE`, repeatable, optional"
+              examples:
+                - ""
             arg13:
               type: string
               title: KEY=VALUE
               description: "`KEY=VALUE`, repeatable, optional"
+              examples:
+                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-check-access-key:
@@ -40095,6 +40449,8 @@ components:
               type: string
               title: DIR
               description: "`DIR`, optional"
+              examples:
+                - ""
             arg2:
               type: string
               title: FORMAT
@@ -40201,6 +40557,8 @@ components:
               type: string
               title: USER
               description: "`USER`, optional"
+              examples:
+                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-check-sys-docker:
@@ -40219,6 +40577,8 @@ components:
               type: string
               title: MODE
               description: "`MODE`, optional"
+              examples:
+                - ""
             arg2:
               type: string
               title: FORMAT
@@ -40248,6 +40608,8 @@ components:
               type: string
               title: MODE
               description: "`MODE`, optional"
+              examples:
+                - ""
             arg2:
               type: string
               title: FORMAT
@@ -40277,6 +40639,8 @@ components:
               type: string
               title: DIR
               description: "`DIR`, optional"
+              examples:
+                - ""
             arg2:
               type: string
               title: FORMAT
@@ -40368,6 +40732,8 @@ components:
               type: string
               title: IP
               description: "`IP`, optional"
+              examples:
+                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-check-user-npm-outdated:
@@ -40428,10 +40794,14 @@ components:
               type: string
               title: IP
               description: "`IP`, optional"
+              examples:
+                - ""
             arg4:
               type: string
               title: RETURN_HASH
               description: "`RETURN_HASH`, optional"
+              examples:
+                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-check-user-port:
@@ -40464,6 +40834,8 @@ components:
               type: string
               title: PROTO
               description: "`PROTO`, optional"
+              examples:
+                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-copy-fs-directory:
@@ -40608,6 +40980,8 @@ components:
               type: string
               title: HOST
               description: "`HOST`, optional"
+              examples:
+                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-delete-backup-host-restic:
@@ -40799,6 +41173,8 @@ components:
               type: string
               title: HOST
               description: "`HOST`, optional"
+              examples:
+                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-delete-databases:
@@ -40902,6 +41278,8 @@ components:
               type: string
               title: SRC
               description: "`SRC`"
+              examples:
+                - ""
             arg3:
               type: string
               title: RESTART
@@ -41029,6 +41407,8 @@ components:
               type: string
               title: KEEP_DATA
               description: "`KEEP_DATA`, optional"
+              examples:
+                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-delete-domain:
@@ -41280,6 +41660,8 @@ components:
               type: string
               title: MAIL
               description: "`MAIL`, optional"
+              examples:
+                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-delete-mail-account:
@@ -41397,6 +41779,8 @@ components:
               type: string
               title: ALIAS
               description: "`ALIAS`"
+              examples:
+                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-delete-mail-account-forward:
@@ -41737,6 +42121,8 @@ components:
               type: string
               title: QUIET
               description: "`QUIET`, optional"
+              examples:
+                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-delete-mail-domains:
@@ -41790,6 +42176,8 @@ components:
               type: string
               title: KEEP_FILES
               description: "`KEEP_FILES`, optional"
+              examples:
+                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-delete-package-tenancy:
@@ -41857,6 +42245,8 @@ components:
               type: string
               title: HOST
               description: "`HOST`, optional"
+              examples:
+                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-delete-remote-dns-host:
@@ -41994,6 +42384,8 @@ components:
               type: string
               title: PURGE
               description: "`PURGE`, optional"
+              examples:
+                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-delete-sys-filemanager:
@@ -42012,6 +42404,8 @@ components:
               type: string
               title: MODE
               description: "`MODE`, optional"
+              examples:
+                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-delete-sys-firewall:
@@ -42134,6 +42528,8 @@ components:
               type: string
               title: FORCE
               description: "`FORCE`, optional"
+              examples:
+                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-delete-sys-pma-restrict:
@@ -42152,6 +42548,8 @@ components:
               type: string
               title: mode
               description: "`mode`, optional"
+              examples:
+                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-delete-sys-pma-sso:
@@ -42170,6 +42568,8 @@ components:
               type: string
               title: mode
               description: "`mode`, optional"
+              examples:
+                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-delete-sys-port-reserved:
@@ -42412,6 +42812,8 @@ components:
               type: string
               title: SYSTEM
               description: "`SYSTEM`, optional"
+              examples:
+                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-delete-user-backup-restic:
@@ -42689,6 +43091,8 @@ components:
               type: string
               title: force
               description: "`force`, optional"
+              examples:
+                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-delete-user-ports:
@@ -42785,6 +43189,8 @@ components:
               type: string
               title: DOMAIN
               description: "`DOMAIN`"
+              examples:
+                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-delete-web-domain:
@@ -43146,6 +43552,8 @@ components:
               type: string
               title: QUIET
               description: "`QUIET`, optional"
+              examples:
+                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-delete-web-domain-ssl-hsts:
@@ -43185,6 +43593,8 @@ components:
               type: string
               title: QUIET
               description: "`QUIET`, optional"
+              examples:
+                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-delete-web-domain-stats:
@@ -43425,6 +43835,8 @@ components:
               type: string
               title: TYPE
               description: "`TYPE`, optional"
+              examples:
+                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-export-rrd:
@@ -43490,14 +43902,20 @@ components:
               type: string
               title: SELECTED_DIR
               description: "`SELECTED_DIR`, optional"
+              examples:
+                - ""
             arg5:
               type: string
               title: STRIP
               description: "`STRIP`, optional"
+              examples:
+                - ""
             arg6:
               type: string
               title: TEST
               description: "`TEST`, optional"
+              examples:
+                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-generate-api-key:
@@ -43614,6 +44032,8 @@ components:
               type: string
               title: ALIASES
               description: "`ALIASES`, optional"
+              examples:
+                - ""
             arg9:
               type: string
               title: FORMAT
@@ -43629,6 +44049,8 @@ components:
               type: string
               title: KEY_ALGO
               description: "`KEY_ALGO`, optional"
+              examples:
+                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-get-dns-domain-value:
@@ -43883,6 +44305,8 @@ components:
               type: string
               title: IP
               description: "`IP`, optional"
+              examples:
+                - ""
             arg3:
               type: string
               title: FORMAT
@@ -44025,18 +44449,26 @@ components:
               type: string
               title: USER
               description: "`USER`"
+              examples:
+                - ""
             arg2:
               type: string
               title: DATA
               description: "`DATA`"
+              examples:
+                - ""
             arg3:
               type: string
               title: SRC
               description: "`SRC`, optional"
+              examples:
+                - ""
             arg4:
               type: string
               title: FLUSH
               description: "`FLUSH`, optional"
+              examples:
+                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-insert-dns-record:
@@ -44058,14 +44490,20 @@ components:
               type: string
               title: USER
               description: "`USER`"
+              examples:
+                - ""
             arg2:
               type: string
               title: DOMAIN
               description: "`DOMAIN`"
+              examples:
+                - ""
             arg3:
               type: string
               title: DATA
               description: "`DATA`"
+              examples:
+                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-insert-dns-records:
@@ -44087,14 +44525,20 @@ components:
               type: string
               title: USER
               description: "`USER`"
+              examples:
+                - ""
             arg2:
               type: string
               title: DOMAIN
               description: "`DOMAIN`"
+              examples:
+                - ""
             arg3:
               type: string
               title: DATA_FILE
               description: "`DATA_FILE`"
+              examples:
+                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-list-access-key:
@@ -44376,6 +44820,8 @@ components:
               type: string
               title: DATABASE
               description: "`DATABASE`"
+              examples:
+                - ""
             arg3:
               type: string
               title: FORMAT
@@ -44849,14 +45295,20 @@ components:
               type: string
               title: SERVICE
               description: "`SERVICE`, optional"
+              examples:
+                - ""
             arg4:
               type: string
               title: SINCE
               description: "`SINCE`, optional"
+              examples:
+                - ""
             arg5:
               type: string
               title: LINES
               description: "`LINES`, optional"
+              examples:
+                - ""
             arg6:
               type: string
               title: FORMAT
@@ -44963,6 +45415,8 @@ components:
               type: string
               title: CATEGORY
               description: "`CATEGORY`, optional"
+              examples:
+                - ""
             arg2:
               type: string
               title: FORMAT
@@ -44999,6 +45453,8 @@ components:
               type: string
               title: VERSION
               description: "`VERSION`, optional"
+              examples:
+                - ""
             arg3:
               type: string
               title: FORMAT
@@ -45143,6 +45599,8 @@ components:
               type: string
               title: DIRECTORY
               description: "`DIRECTORY`"
+              examples:
+                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-list-fs-directory-json:
@@ -45707,10 +46165,14 @@ components:
               type: string
               title: OFFSET
               description: "`OFFSET`, optional"
+              examples:
+                - ""
             arg5:
               type: string
               title: LINES
               description: "`LINES`, optional"
+              examples:
+                - ""
             arg6:
               type: string
               title: FORMAT
@@ -46667,6 +47129,8 @@ components:
               type: string
               title: orphans
               description: "`orphans`, optional"
+              examples:
+                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-list-sys-proftpd-config:
@@ -47013,6 +47477,8 @@ components:
               type: string
               title: USER
               description: "`USER`"
+              examples:
+                - ""
             arg2:
               type: string
               title: FORMAT
@@ -47216,6 +47682,8 @@ components:
               type: string
               title: FOLDER
               description: "`FOLDER`"
+              examples:
+                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-list-user-ips:
@@ -47267,6 +47735,8 @@ components:
               type: string
               title: USER
               description: "`USER`"
+              examples:
+                - ""
             arg2:
               type: string
               title: FORMAT
@@ -47495,6 +47965,8 @@ components:
               type: string
               title: PACKAGE
               description: "`PACKAGE`"
+              examples:
+                - ""
             arg2:
               type: string
               title: FORMAT
@@ -47620,6 +48092,8 @@ components:
               type: string
               title: USER
               description: "`USER`"
+              examples:
+                - ""
             arg2:
               type: string
               title: FORMAT
@@ -47784,6 +48258,8 @@ components:
               type: string
               title: LINES
               description: "`LINES`, optional"
+              examples:
+                - ""
             arg4:
               type: string
               title: FORMAT
@@ -47827,6 +48303,8 @@ components:
               type: string
               title: LINES
               description: "`LINES`, optional"
+              examples:
+                - ""
             arg4:
               type: string
               title: FORMAT
@@ -48099,10 +48577,14 @@ components:
               type: string
               title: LOG_TYPE
               description: "`LOG_TYPE`"
+              examples:
+                - ""
             arg2:
               type: string
               title: USER
               description: "`USER`"
+              examples:
+                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-log-user-login:
@@ -48124,18 +48606,26 @@ components:
               type: string
               title: USER
               description: "`USER`"
+              examples:
+                - ""
             arg2:
               type: string
               title: IP
               description: "`IP`"
+              examples:
+                - ""
             arg3:
               type: string
               title: STATUS
               description: "`STATUS`"
+              examples:
+                - ""
             arg4:
               type: string
               title: FINGERPRINT
               description: "`FINGERPRINT`, optional"
+              examples:
+                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-log-user-logout:
@@ -48156,10 +48646,14 @@ components:
               type: string
               title: USER
               description: "`USER`"
+              examples:
+                - ""
             arg2:
               type: string
               title: FINGERPRINT
               description: "`FINGERPRINT`"
+              examples:
+                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-make-tmp-file:
@@ -48488,6 +48982,8 @@ components:
               type: string
               title: MAX_BYTES
               description: "`MAX_BYTES`, optional"
+              examples:
+                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-rebuild-all:
@@ -48507,6 +49003,8 @@ components:
               type: string
               title: USER
               description: "`USER`"
+              examples:
+                - ""
             arg2:
               type: string
               title: RESTART
@@ -48632,6 +49130,8 @@ components:
               type: string
               title: UPDATE_SERIAL
               description: "`UPDATE_SERIAL`, optional"
+              examples:
+                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-rebuild-dns-domains:
@@ -48664,6 +49164,8 @@ components:
               type: string
               title: UPDATE_SERIAL
               description: "`UPDATE_SERIAL`, optional"
+              examples:
+                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-rebuild-docker-apps:
@@ -48860,6 +49362,8 @@ components:
               type: string
               title: USER
               description: "`USER`"
+              examples:
+                - ""
             arg2:
               type: string
               title: RESTART
@@ -48997,6 +49501,8 @@ components:
               type: string
               title: mode
               description: "`mode`, optional"
+              examples:
+                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-repair-sys-config:
@@ -49015,6 +49521,8 @@ components:
               type: string
               title: SYSTEM
               description: "`SYSTEM`, optional"
+              examples:
+                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-restart-cron:
@@ -49204,6 +49712,8 @@ components:
               type: string
               title: DELAY
               description: "`DELAY`, optional"
+              examples:
+                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-restart-web:
@@ -49222,6 +49732,8 @@ components:
               type: string
               title: RESTARRT
               description: "`RESTARRT`, optional"
+              examples:
+                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-restart-web-backend:
@@ -49606,30 +50118,44 @@ components:
               type: string
               title: WEB
               description: "`WEB`, optional"
+              examples:
+                - ""
             arg4:
               type: string
               title: DNS
               description: "`DNS`, optional"
+              examples:
+                - ""
             arg5:
               type: string
               title: MAIL
               description: "`MAIL`, optional"
+              examples:
+                - ""
             arg6:
               type: string
               title: DB
               description: "`DB`, optional"
+              examples:
+                - ""
             arg7:
               type: string
               title: CRON
               description: "`CRON`, optional"
+              examples:
+                - ""
             arg8:
               type: string
               title: UDIR
               description: "`UDIR`, optional"
+              examples:
+                - ""
             arg9:
               type: string
               title: NOTIFY
               description: "`NOTIFY`, optional"
+              examples:
+                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-restore-user-full-restic:
@@ -49703,26 +50229,38 @@ components:
               type: string
               title: WEB
               description: "`WEB`"
+              examples:
+                - ""
             arg4:
               type: string
               title: DNS
               description: "`DNS`"
+              examples:
+                - ""
             arg5:
               type: string
               title: MAIL
               description: "`MAIL`"
+              examples:
+                - ""
             arg6:
               type: string
               title: DB
               description: "`DB`"
+              examples:
+                - ""
             arg7:
               type: string
               title: CRON
               description: "`CRON`"
+              examples:
+                - ""
             arg8:
               type: string
               title: UDIR
               description: "`UDIR`"
+              examples:
+                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-restore-web-domain:
@@ -49863,38 +50401,56 @@ components:
               type: string
               title: ARG
               description: "`ARG`, repeatable, optional"
+              examples:
+                - ""
             arg6:
               type: string
               title: ARG
               description: "`ARG`, repeatable, optional"
+              examples:
+                - ""
             arg7:
               type: string
               title: ARG
               description: "`ARG`, repeatable, optional"
+              examples:
+                - ""
             arg8:
               type: string
               title: ARG
               description: "`ARG`, repeatable, optional"
+              examples:
+                - ""
             arg9:
               type: string
               title: ARG
               description: "`ARG`, repeatable, optional"
+              examples:
+                - ""
             arg10:
               type: string
               title: ARG
               description: "`ARG`, repeatable, optional"
+              examples:
+                - ""
             arg11:
               type: string
               title: ARG
               description: "`ARG`, repeatable, optional"
+              examples:
+                - ""
             arg12:
               type: string
               title: ARG
               description: "`ARG`, repeatable, optional"
+              examples:
+                - ""
             arg13:
               type: string
               title: ARG
               description: "`ARG`, repeatable, optional"
+              examples:
+                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-run-docker-app-task:
@@ -49941,6 +50497,8 @@ components:
               type: string
               title: VERSION
               description: "`VERSION`, optional"
+              examples:
+                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-run-node-app-build:
@@ -49973,6 +50531,8 @@ components:
               type: string
               title: SCRIPT
               description: "`SCRIPT`, optional"
+              examples:
+                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-run-node-app-install:
@@ -50026,6 +50586,8 @@ components:
               type: string
               title: DATA_ROOT
               description: "`DATA_ROOT`, optional"
+              examples:
+                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-run-sys-task:
@@ -50092,38 +50654,56 @@ components:
               type: string
               title: ARGS
               description: "`ARGS`, repeatable, optional"
+              examples:
+                - ""
             arg6:
               type: string
               title: ARGS
               description: "`ARGS`, repeatable, optional"
+              examples:
+                - ""
             arg7:
               type: string
               title: ARGS
               description: "`ARGS`, repeatable, optional"
+              examples:
+                - ""
             arg8:
               type: string
               title: ARGS
               description: "`ARGS`, repeatable, optional"
+              examples:
+                - ""
             arg9:
               type: string
               title: ARGS
               description: "`ARGS`, repeatable, optional"
+              examples:
+                - ""
             arg10:
               type: string
               title: ARGS
               description: "`ARGS`, repeatable, optional"
+              examples:
+                - ""
             arg11:
               type: string
               title: ARGS
               description: "`ARGS`, repeatable, optional"
+              examples:
+                - ""
             arg12:
               type: string
               title: ARGS
               description: "`ARGS`, repeatable, optional"
+              examples:
+                - ""
             arg13:
               type: string
               title: ARGS
               description: "`ARGS`, repeatable, optional"
+              examples:
+                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-run-user-quick-install:
@@ -50337,30 +50917,44 @@ components:
               type: string
               title: BACKUP
               description: "`BACKUP`"
+              examples:
+                - ""
             arg3:
               type: string
               title: WEB
               description: "`WEB`, optional"
+              examples:
+                - ""
             arg4:
               type: string
               title: DNS
               description: "`DNS`, optional"
+              examples:
+                - ""
             arg5:
               type: string
               title: MAIL
               description: "`MAIL`, optional"
+              examples:
+                - ""
             arg6:
               type: string
               title: DB
               description: "`DB`, optional"
+              examples:
+                - ""
             arg7:
               type: string
               title: CRON
               description: "`CRON`, optional"
+              examples:
+                - ""
             arg8:
               type: string
               title: UDIR
               description: "`UDIR`, optional"
+              examples:
+                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-schedule-user-restore-file-restic:
@@ -50422,30 +51016,44 @@ components:
               type: string
               title: BACKUP
               description: "`BACKUP`"
+              examples:
+                - ""
             arg3:
               type: string
               title: WEB
               description: "`WEB`, optional"
+              examples:
+                - ""
             arg4:
               type: string
               title: DNS
               description: "`DNS`, optional"
+              examples:
+                - ""
             arg5:
               type: string
               title: MAIL
               description: "`MAIL`, optional"
+              examples:
+                - ""
             arg6:
               type: string
               title: DB
               description: "`DB`, optional"
+              examples:
+                - ""
             arg7:
               type: string
               title: CRON
               description: "`CRON`, optional"
+              examples:
+                - ""
             arg8:
               type: string
               title: UDIR
               description: "`UDIR`, optional"
+              examples:
+                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-search-command:
@@ -50471,50 +51079,74 @@ components:
               type: string
               title: ARG
               description: "`ARG`, repeatable, optional"
+              examples:
+                - ""
             arg3:
               type: string
               title: ARG
               description: "`ARG`, repeatable, optional"
+              examples:
+                - ""
             arg4:
               type: string
               title: ARG
               description: "`ARG`, repeatable, optional"
+              examples:
+                - ""
             arg5:
               type: string
               title: ARG
               description: "`ARG`, repeatable, optional"
+              examples:
+                - ""
             arg6:
               type: string
               title: ARG
               description: "`ARG`, repeatable, optional"
+              examples:
+                - ""
             arg7:
               type: string
               title: ARG
               description: "`ARG`, repeatable, optional"
+              examples:
+                - ""
             arg8:
               type: string
               title: ARG
               description: "`ARG`, repeatable, optional"
+              examples:
+                - ""
             arg9:
               type: string
               title: ARG
               description: "`ARG`, repeatable, optional"
+              examples:
+                - ""
             arg10:
               type: string
               title: ARG
               description: "`ARG`, repeatable, optional"
+              examples:
+                - ""
             arg11:
               type: string
               title: ARG
               description: "`ARG`, repeatable, optional"
+              examples:
+                - ""
             arg12:
               type: string
               title: ARG
               description: "`ARG`, repeatable, optional"
+              examples:
+                - ""
             arg13:
               type: string
               title: ARG
               description: "`ARG`, repeatable, optional"
+              examples:
+                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-search-domain-owner:
@@ -50540,6 +51172,8 @@ components:
               type: string
               title: TYPE
               description: "`TYPE`, optional"
+              examples:
+                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-search-fs-object:
@@ -50572,6 +51206,8 @@ components:
               type: string
               title: PATH
               description: "`PATH`, optional"
+              examples:
+                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-search-object:
@@ -50710,6 +51346,8 @@ components:
               type: string
               title: VERSION
               description: "`VERSION`, optional"
+              examples:
+                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-start-node-app:
@@ -50777,6 +51415,8 @@ components:
               type: string
               title: DATA_ROOT
               description: "`DATA_ROOT`, optional"
+              examples:
+                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-start-sys-task:
@@ -50814,42 +51454,62 @@ components:
               type: string
               title: ARG
               description: "`ARG`, repeatable, optional"
+              examples:
+                - ""
             arg5:
               type: string
               title: ARG
               description: "`ARG`, repeatable, optional"
+              examples:
+                - ""
             arg6:
               type: string
               title: ARG
               description: "`ARG`, repeatable, optional"
+              examples:
+                - ""
             arg7:
               type: string
               title: ARG
               description: "`ARG`, repeatable, optional"
+              examples:
+                - ""
             arg8:
               type: string
               title: ARG
               description: "`ARG`, repeatable, optional"
+              examples:
+                - ""
             arg9:
               type: string
               title: ARG
               description: "`ARG`, repeatable, optional"
+              examples:
+                - ""
             arg10:
               type: string
               title: ARG
               description: "`ARG`, repeatable, optional"
+              examples:
+                - ""
             arg11:
               type: string
               title: ARG
               description: "`ARG`, repeatable, optional"
+              examples:
+                - ""
             arg12:
               type: string
               title: ARG
               description: "`ARG`, repeatable, optional"
+              examples:
+                - ""
             arg13:
               type: string
               title: ARG
               description: "`ARG`, repeatable, optional"
+              examples:
+                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-start-user-node-task:
@@ -50888,42 +51548,62 @@ components:
               type: string
               title: ARGS
               description: "`ARGS`, repeatable, optional"
+              examples:
+                - ""
             arg5:
               type: string
               title: ARGS
               description: "`ARGS`, repeatable, optional"
+              examples:
+                - ""
             arg6:
               type: string
               title: ARGS
               description: "`ARGS`, repeatable, optional"
+              examples:
+                - ""
             arg7:
               type: string
               title: ARGS
               description: "`ARGS`, repeatable, optional"
+              examples:
+                - ""
             arg8:
               type: string
               title: ARGS
               description: "`ARGS`, repeatable, optional"
+              examples:
+                - ""
             arg9:
               type: string
               title: ARGS
               description: "`ARGS`, repeatable, optional"
+              examples:
+                - ""
             arg10:
               type: string
               title: ARGS
               description: "`ARGS`, repeatable, optional"
+              examples:
+                - ""
             arg11:
               type: string
               title: ARGS
               description: "`ARGS`, repeatable, optional"
+              examples:
+                - ""
             arg12:
               type: string
               title: ARGS
               description: "`ARGS`, repeatable, optional"
+              examples:
+                - ""
             arg13:
               type: string
               title: ARGS
               description: "`ARGS`, repeatable, optional"
+              examples:
+                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-start-user-quick-install:
@@ -51723,6 +52403,8 @@ components:
               type: string
               title: HOST
               description: "`HOST`"
+              examples:
+                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-unsuspend-cron-job:
@@ -51865,6 +52547,8 @@ components:
               type: string
               title: USER
               description: "`USER`"
+              examples:
+                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-unsuspend-dns-domain:
@@ -52457,6 +53141,8 @@ components:
               type: string
               title: REFRESH
               description: "`REFRESH`, optional"
+              examples:
+                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-update-host-certificate:
@@ -52615,6 +53301,8 @@ components:
               type: string
               title: SKIP
               description: "`SKIP`, optional"
+              examples:
+                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-update-reseller-counters:
@@ -52724,6 +53412,8 @@ components:
               type: string
               title: SYSTEM
               description: "`SYSTEM`, optional"
+              examples:
+                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-update-sys-ip:
@@ -52757,6 +53447,8 @@ components:
               type: string
               title: IP
               description: "`IP`"
+              examples:
+                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-update-sys-node-releases:
@@ -52789,6 +53481,8 @@ components:
               type: string
               title: listening
               description: "`listening`, optional"
+              examples:
+                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-update-sys-queue:
@@ -52808,6 +53502,8 @@ components:
               type: string
               title: PIPE
               description: "`PIPE`"
+              examples:
+                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-update-sys-rrd:
@@ -52841,6 +53537,8 @@ components:
               type: string
               title: PERIOD
               description: "`PERIOD`"
+              examples:
+                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-update-sys-rrd-ftp:
@@ -52860,6 +53558,8 @@ components:
               type: string
               title: PERIOD
               description: "`PERIOD`"
+              examples:
+                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-update-sys-rrd-httpd:
@@ -52879,6 +53579,8 @@ components:
               type: string
               title: PERIOD
               description: "`PERIOD`"
+              examples:
+                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-update-sys-rrd-la:
@@ -52898,6 +53600,8 @@ components:
               type: string
               title: PERIOD
               description: "`PERIOD`"
+              examples:
+                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-update-sys-rrd-mail:
@@ -52917,6 +53621,8 @@ components:
               type: string
               title: PERIOD
               description: "`PERIOD`"
+              examples:
+                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-update-sys-rrd-mem:
@@ -52936,6 +53642,8 @@ components:
               type: string
               title: PERIOD
               description: "`PERIOD`"
+              examples:
+                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-update-sys-rrd-mysql:
@@ -52955,6 +53663,8 @@ components:
               type: string
               title: PERIOD
               description: "`PERIOD`"
+              examples:
+                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-update-sys-rrd-net:
@@ -52974,6 +53684,8 @@ components:
               type: string
               title: PERIOD
               description: "`PERIOD`"
+              examples:
+                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-update-sys-rrd-nginx:
@@ -52993,6 +53705,8 @@ components:
               type: string
               title: PERIOD
               description: "`PERIOD`"
+              examples:
+                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-update-sys-rrd-pgsql:
@@ -53012,6 +53726,8 @@ components:
               type: string
               title: PERIOD
               description: "`PERIOD`"
+              examples:
+                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-update-sys-rrd-ssh:
@@ -53031,6 +53747,8 @@ components:
               type: string
               title: PERIOD
               description: "`PERIOD`"
+              examples:
+                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-update-user-backup-exclusions:
@@ -53425,6 +54143,8 @@ components:
               type: string
               title: SKIP
               description: "`SKIP`, optional"
+              examples:
+                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-update-white-label-logo:
@@ -53443,6 +54163,8 @@ components:
               type: string
               title: DOWNLOAD
               description: "`DOWNLOAD`, optional"
+              examples:
+                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
   headers:

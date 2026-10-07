@@ -1,6 +1,6 @@
 # E29 OpenAPI document of the REST API — design
 
-**Status:** Draft (2026-10-07) · **Epic:** E29 (the OpenAPI part; webhooks stay open) · **Base design:** [14 Later backlog](../../design/14-later-backlog.md) §E29, [01 Architecture](../../design/01-architecture-overview.md) §4.3, [03 Tenancy](../../design/03-tenancy-and-authorization.md) §8 · **Roadmap:** [§E29](../../roadmap.md)
+**Status:** Implemented (2026-10-07, see §12) · **Epic:** E29 (the OpenAPI part; webhooks stay open) · **Base design:** [14 Later backlog](../../design/14-later-backlog.md) §E29, [01 Architecture](../../design/01-architecture-overview.md) §4.3, [03 Tenancy](../../design/03-tenancy-and-authorization.md) §8 · **Roadmap:** [§E29](../../roadmap.md)
 
 ## 1. Summary
 
@@ -130,3 +130,18 @@ components:
 | A header lies about its arguments                    | The document is as good as the headers; header fixes go into the command, and the CI check keeps them in step |
 | Someone runs a destructive command from "Try it out" | `tryItOutEnabled: false`, a warning in the README and in `info.description`                                   |
 | Document size (665 operations)                       | Shared components keep each operation short; measured in the implementation notes                             |
+
+## 12. Implementation notes
+
+Implemented on 2026-10-07, one commit per milestone after the spec.
+
+- **Size:** 666 operations (the 665 commands of `bin/` and `v-make-tmp-file`), 18 tags, about 54,000 lines and 1.7 MB of YAML. The script runs in about 2.5 seconds, Prettier included.
+- **`v-make-tmp-file`** is not a script: `lib/api/index.php` handles it itself, and three permission sets name it. The script documents it from a header kept in its `builtinCommands` list.
+- **Header fixes (D10):** `bin/v-add-sys-dependencies` had no `info:` line; `bin/v-delete-user-auth-log` and `bin/v-import-directadmin` had no `options:` line.
+- **User argument:** `x-arcpanel-user-arg` follows `search_command_arg_position` in `func/main.sh`, which reads only the shell `# options:` line. The three PHP commands that take a user (`v-add-web-domain-app`, `v-list-quick-install-app-options`, `v-quick-install-app`) therefore get no user check from the API for the keys of non-admin users. The document states this; fixing the API is out of scope (§10) and left for a follow-up.
+- **Empty examples (addition to §5 and §7):** every argument without an example and every credential field has `examples: [""]`, otherwise Swagger UI fills them with `string` and sends them. `docs/api/index.html` adds a `requestInterceptor` that drops empty fields, because an empty `access_key` selects access-key authentication and an empty argument is not a missing one.
+- **Fixtures:** 28 commands get JSON response examples and one (`v-list-sys-status`) gets text examples. The fixtures of `v-list-sys-hestia-updates`, a command that no longer exists, are ignored.
+- **YAML:** the script writes block YAML itself and formats it with the Prettier API and the `.editorconfig` settings. A one-off check parsed the file back with the `yaml` package and found it deep-equal to the generated document. No full OpenAPI validator ran (it would be a new dependency); `validateDocument` checks references and operation ids, and Swagger UI loaded the document without errors.
+- **Browser check (§8):** Swagger UI 5.33.1 rendered the 18 tags without console errors and merged the `allOf` of `Credentials` and the arguments into one form. "Try it out" on `v-list-quick-install-app-options`, sent to an unused local port, went out as `POST https://localhost:9/api/` with only the non-empty fields, both as a form and as JSON. Swagger UI renders the operations of a large tag as you scroll; deep links (`#/System/v-list-sys-info`) work after a page load.
+- **Tests:** 20 Vitest cases in `web-app/tests/js/openapi.test.js`. The full Vitest run has 251 cases; `tests/js/modal.test.js` fails now and then on a focus assertion, also when run alone, independently of this change.
+- **Not run:** BATS and the smoke test, because no command behaviour changed (only header comments). `npm run lint` reports Prettier issues in about 735 files of the Windows checkout (CRLF line endings) before and after this change; the files of this change pass Prettier, Biome and markdownlint.

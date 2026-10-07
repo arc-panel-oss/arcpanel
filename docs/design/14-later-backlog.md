@@ -185,7 +185,7 @@ Until E15 the panel has no database: the CLI's flat files are the state. Job rec
 
 **Goal:** integrations without polling and a documented API.
 
-- **OpenAPI 3** spec for `lib/api/index.php` (the API script, `web/api` before 2.0) generated from `config/arc-commands.php` plus per-command metadata (`info:`/`options:` headers already present in every `v-*`, parsed by a build script — `src/arcpanel-clidocs.sh` already does similar), permission sets documented; published on the docs site.
+- **OpenAPI 3** spec for `lib/api/index.php` — **implemented** (2026-10-07, [spec](../features/specs/2026-10-07-001-e29-openapi-design.md)): `scripts/build-openapi.js` reads `bin/` directly, writes [`docs/api/openapi.yaml`](../api/openapi.yaml) and checks it in CI; publishing is still open. The original plan: spec for `lib/api/index.php` (the API script, `web/api` before 2.0) generated from `config/arc-commands.php` plus per-command metadata (`info:`/`options:` headers already present in every `v-*`, parsed by a build script — `src/arcpanel-clidocs.sh` already does similar), permission sets documented; published on the docs site.
 - **Events:** the E23 audit stream filtered to a public subset (`user.created`, `user.suspended`, `domain.added`, `ssl.renewed`, `backup.failed`, `app.installed`, `job.failed`, …); subscriptions in SQLite `webhooks` (url, events, scope = owner tree, secret id); secrets in `data/secrets/<user>/webhooks/<id>`.
 - **Delivery:** the E16 channel sender's generic webhook: HMAC-SHA256 header, retries with exponential backoff (5 attempts), SQLite `webhook_deliveries` log with response code and body excerpt.
 - **Commands (new):** `v-add-user-webhook`, `v-delete-user-webhook`, `v-list-user-webhooks`, `v-list-user-webhook-deliveries`.

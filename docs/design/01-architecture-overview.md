@@ -215,7 +215,7 @@ The legacy app of 1.x performed the same steps with `exec()`; the only new eleme
 
 ### 4.3 Request flow — an API call
 
-Unchanged in wire format. The API script moved from `web/api/index.php` to `lib/api/index.php` with E8 and still answers at `/api/` (same POST fields, same `ArcPanel-Exit-Code` header); a port to Laravel routing waits for E29. Access-key checks continue to run in `v-check-access-key`; E11 adds owner awareness to that command's permission sets (03 §8).
+Unchanged in wire format. The API script moved from `web/api/index.php` to `lib/api/index.php` with E8 and still answers at `/api/` (same POST fields, same `ArcPanel-Exit-Code` header); a port to Laravel routing waits for E29. Access-key checks continue to run in `v-check-access-key`; E11 adds owner awareness to that command's permission sets (03 §8). The wire format is documented in the OpenAPI document [`docs/api/openapi.yaml`](../api/openapi.yaml) (E29, generated from the command headers; see [`docs/api/README.md`](../api/README.md)).
 
 ### 4.4 Long-running operations
 
@@ -304,7 +304,7 @@ See [10-page-migration-and-retirement.md](./10-page-migration-and-retirement.md)
 
 1. **URL prefix during migration** — `/app/*` (recommended) vs. a second port. Decided in ADR-0002.
 2. **Web terminal as log transport** — decided: reuse `server.js` with a backwards-compatible `tail` control frame; one authenticated WebSocket endpoint is easier to secure. See [07](./07-node-platform.md) §6.4.
-3. **Where API v1 lives after E8** — resolved by E8: the API stays a plain script, `lib/api/index.php`, still served at `/api/` by `arcpanel-nginx`; a port to a controller belongs to E29 (webhooks and OpenAPI). The original question: keep `web/api/index.php` as a standalone script under the Laravel `public/` directory (zero-risk) vs. port to a controller. Recommendation: keep the script, route `/api/` to it from `arcpanel-nginx`, and build OpenAPI (E29) on top; revisit when webhooks need shared code.
+3. **Where API v1 lives after E8** — resolved by E8: the API stays a plain script, `lib/api/index.php`, still served at `/api/` by `arcpanel-nginx`; a port to a controller belongs to E29 (webhooks and OpenAPI). The original question: keep `web/api/index.php` as a standalone script under the Laravel `public/` directory (zero-risk) vs. port to a controller. Recommendation: keep the script, route `/api/` to it from `arcpanel-nginx`, and build OpenAPI (E29) on top; revisit when webhooks need shared code. The OpenAPI document exists since 2026-10-07 ([`docs/api/`](../api/README.md)).
 
 ---
 

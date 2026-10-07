@@ -348,8 +348,9 @@ export function buildOperation(command, { permissionSets, fixtures = {} }) {
 			property.enum = enumValues;
 		}
 		const example = field.name.toUpperCase() === 'FORMAT' ? 'json' : header.example?.[index];
-		if (example !== undefined && example !== '') {
-			property.examples = [example];
+		// An empty example keeps Swagger UI from filling the field with "string"
+		if (!enumValues || example !== undefined) {
+			property.examples = [example ?? ''];
 		}
 		properties[field.field] = property;
 	}
@@ -522,6 +523,9 @@ export function buildDocument({ commands, permissionSets, fixtures, version }) {
 		content: { 'text/plain': { schema: { type: 'string' } } },
 	});
 
+	// An empty example keeps Swagger UI from filling the credentials with "string"
+	const credential = (property) => ({ type: 'string', ...property, examples: [''] });
+
 	return {
 		openapi: '3.1.0',
 		info: {
@@ -551,29 +555,25 @@ export function buildDocument({ commands, permissionSets, fixtures, version }) {
 					description:
 						'Send `access_key` and `secret_key`, or one of the other forms of the overview.',
 					properties: {
-						access_key: { type: 'string', description: 'ID of the access key (20 characters).' },
-						secret_key: {
-							type: 'string',
+						access_key: credential({ description: 'ID of the access key (20 characters).' }),
+						secret_key: credential({
 							format: 'password',
 							description: 'Secret of the access key (40 characters).',
-						},
-						hash: {
-							type: 'string',
+						}),
+						hash: credential({
 							format: 'password',
 							description:
 								'`ACCESS_KEY:SECRET_KEY` in one field, or a legacy API key (deprecated).',
-						},
-						user: {
-							type: 'string',
+						}),
+						user: credential({
 							deprecated: true,
 							description: 'Legacy authentication: the admin user.',
-						},
-						password: {
-							type: 'string',
+						}),
+						password: credential({
 							format: 'password',
 							deprecated: true,
 							description: 'Legacy authentication: the password of the admin user.',
-						},
+						}),
 					},
 				},
 				ReturnCode: {

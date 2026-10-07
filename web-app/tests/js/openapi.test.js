@@ -176,6 +176,7 @@ describe('buildOperation', () => {
 
 		expect(names).toHaveLength(13);
 		expect(schema.allOf[1].properties.arg13.title).toBe('PATH');
+		expect(schema.allOf[1].properties.arg13.examples).toEqual(['']);
 		expect(schema.allOf[1].required).toEqual(['cmd', 'arg1', 'arg2', 'arg3']);
 	});
 
@@ -206,6 +207,7 @@ describe('buildDocument and validateDocument', () => {
 		expect(Object.keys(doc.paths)).toEqual(['/api/#v-add-web-domain', '/api/#v-list-quick-install-apps']);
 		expect(doc.tags.map((tag) => tag.name)).toEqual(['Web', 'Quick Install']);
 		expect(doc.info.description).toContain('purge-nginx-cache');
+		expect(doc.components.schemas.Credentials.properties.secret_key.examples).toEqual(['']);
 		expect(validateDocument(doc, { commands, permissionSets })).toEqual([]);
 	});
 

@@ -126,6 +126,7 @@ Run from the repository root unless noted. The panel's PHP suites need PHP 8.5 a
 | CLI tests (on the test server, root) | `bats test/arcpanel-*.bats` (all ArcPanel suites) or one suite, for example `bats test/arcpanel-ports.bats`             |
 | HTTP smoke test (test server, root)  | `bash test/arcpanel-login-smoke.sh`                                                                                     |
 | Browser e2e (from the workstation)   | `bash test/e2e/prepare.sh prepare <password>` on the server, then `E2E_BASE_URL=https://<server>:8083 npm run test:e2e` |
+| Regenerate the REST API document     | `npm run docs:api` (CI runs `npm run docs:api:check`; see `docs/api/README.md`)                                         |
 | Sync the checkout to a test server   | `bash test/dev-sync.sh [--no-composer] [--no-restart]` as root on the server                                            |
 
 Local test server used by the maintainer: WSL distribution `arcpanel-test` (Ubuntu 24.04) with ArcPanel at `/usr/local/arcpanel`. From Windows: `MSYS_NO_PATHCONV=1 wsl.exe -d arcpanel-test -u root -- bash /mnt/d/project/arcpanel/arcpanel/test/dev-sync.sh`. Known pitfalls: the Windows checkout is CRLF and reports uid 1000, so copy only through `dev-sync.sh`; `wsl.exe … bash -c` expands `$VAR` before bash sees it, so put scripts in files; keep a `wsl.exe -d arcpanel-test -u root -- sleep 5400` session open while Playwright runs, otherwise the distribution stops. Pest on the server runs with `/usr/local/arcpanel/php/bin/php vendor/bin/pest`; Pint with the system `php`.
@@ -151,7 +152,7 @@ A change is verified when the suites it touches pass **and** the smoke or e2e fl
 ## 11. Definition of done
 
 - [ ] Spec decisions and milestones are reflected in code; nothing in scope was dropped without saying so.
-- [ ] New commands: header, validation, demo mode, logging, `json` output, BATS cases, entry in the panel's allow-list when the panel calls them.
+- [ ] New commands: header, validation, demo mode, logging, `json` output, BATS cases, entry in the panel's allow-list when the panel calls them, `docs/api/openapi.yaml` regenerated (`npm run docs:api`).
 - [ ] New routes: policy + `Capabilities` entry, `effective-user` / `not-readonly` middleware where applicable, Pest feature test for admin, reseller A, reseller B and user.
 - [ ] Owner scoping proven: cross-tenant access returns 404 in a test.
 - [ ] Documentation updated: design doc status, **13**, **15** (if data changed), roadmap status line, spec implementation notes.

@@ -1,0 +1,64 @@
+<!doctype html>
+<!-- Swagger UI for docs/api/openapi.yaml (docs/features/specs/2026-10-07-001-e29-openapi-design.md §7). -->
+<!-- Serve this folder over HTTP: browsers block fetch() from file:// (see README.md). -->
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<title>ArcPanel REST API</title>
+		<link
+			rel="stylesheet"
+			href="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5.33.1/swagger-ui.css"
+		/>
+		<style>
+			body {
+				margin: 0;
+				background: #fff;
+			}
+		</style>
+	</head>
+	<body>
+		<div id="swagger-ui"></div>
+		<script src="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5.33.1/swagger-ui-bundle.js"></script>
+		<script>
+			// Drop empty fields: an empty access_key would select access-key authentication,
+			// and an empty argument is not the same as a missing one for the commands.
+			function dropEmptyFields(request) {
+				if (typeof request.body !== "string" || request.body === "") {
+					return request;
+				}
+				const type = Object.entries(request.headers).find(
+					([name]) => name.toLowerCase() === "content-type",
+				)?.[1];
+				if (type?.startsWith("application/x-www-form-urlencoded")) {
+					const form = new URLSearchParams(request.body);
+					for (const [name, value] of [...form]) {
+						if (value === "") form.delete(name);
+					}
+					request.body = form.toString();
+				} else if (type?.startsWith("application/json")) {
+					const data = JSON.parse(request.body);
+					for (const name of Object.keys(data)) {
+						if (data[name] === "") delete data[name];
+					}
+					request.body = JSON.stringify(data);
+				}
+				return request;
+			}
+
+			window.addEventListener("load", () => {
+				window.ui = SwaggerUIBundle({
+					url: "openapi.yaml",
+					dom_id: "#swagger-ui",
+					deepLinking: true,
+					docExpansion: "none",
+					filter: true,
+					defaultModelsExpandDepth: -1,
+					// Every call runs a real command on the server: "Try it out" stays off until clicked
+					tryItOutEnabled: false,
+					requestInterceptor: dropEmptyFields,
+				});
+			});
+		</script>
+	</body>
+</html>

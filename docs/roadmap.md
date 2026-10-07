@@ -510,11 +510,13 @@ These epics are **not** part of the 12-month capacity: §6 already books two dev
 
 ### E29 — Outgoing webhooks and OpenAPI
 
+**Status (2026-10-07):** the OpenAPI document is done ([spec](./features/specs/2026-10-07-001-e29-openapi-design.md)): `scripts/build-openapi.js` generates [`docs/api/openapi.yaml`](./api/openapi.yaml) from the command headers, the permission sets and the panel fixtures, CI checks that it is current, and [`docs/api/index.html`](./api/index.html) shows it with Swagger UI. Still open: publishing it on the docs site, and the outgoing webhooks.
+
 **Hypothesis:** We believe a published OpenAPI spec and signed outgoing webhooks will let billing systems and internal tools integrate without polling, because today the API is documented only as a command list and nothing pushes events.
 
 **Scope:**
 
-- OpenAPI 3 spec for the existing REST API (`web/api/`) and access-key permission sets, published on the docs site with examples.
+- OpenAPI 3 spec for the existing REST API (`lib/api/`, `web/api/` before 2.0) and access-key permission sets, published on the docs site with examples. Done except publishing: [`docs/api/`](./api/README.md).
 - Events from the Laravel layer and the E23 audit stream: `user.created`, `user.suspended`, `domain.added`, `ssl.renewed`, `backup.failed`, `app.installed`, and more.
 - Webhook subscriptions per user, reseller or admin; HMAC-SHA256 signatures, retries with backoff, delivery log. E16 reuses the same sender.
 
