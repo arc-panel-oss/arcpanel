@@ -232,15 +232,22 @@ final class WebDomainService implements DomainProbe
             $items,
             fn (array $item) => [$item['domain'], $command, [$item['user'], $item['domain'], 'no']],
             ['v-restart-web', 'v-restart-proxy', 'v-restart-dns', 'v-restart-web-backend'],
-            $action === 'delete' ? function (array $item): void {
-                // Ports the domain's template used go back to the pool (E6)
-                $this->arc->run('v-delete-web-domain-tpl-vars', [$item['user'], $item['domain']], Options::allowFailure());
-                // Its Node.js app (E14): process, port and record; exit 3 when it has none
-                $this->arc->run('v-delete-node-app', [$item['user'], $item['domain']], Options::allowFailure());
-                // Its Docker app (E4): containers, ports and record; the data folder is kept
-                $this->deleteDockerApp($item['user'], $item['domain']);
-            } : null,
+            $action === 'delete' ? fn (array $item) => $this->cleanUpDeleted($item['user'], $item['domain']) : null,
         )->toArray();
+    }
+
+    /** The commands cleanUpDeleted() may run. */
+    public const DELETE_CLEANUP = ['v-delete-web-domain-tpl-vars', 'v-delete-node-app', 'v-list-docker-apps', 'v-delete-docker-app'];
+
+    /** What a deleted domain leaves behind; each command may fail when there is nothing to remove. */
+    public function cleanUpDeleted(string $user, string $domain): void
+    {
+        // Ports the domain's template used go back to the pool (E6)
+        $this->arc->run('v-delete-web-domain-tpl-vars', [$user, $domain], Options::allowFailure());
+        // Its Node.js app (E14): process, port and record; exit 3 when it has none
+        $this->arc->run('v-delete-node-app', [$user, $domain], Options::allowFailure());
+        // Its Docker app (E4): containers, ports and record; the data folder is kept
+        $this->deleteDockerApp($user, $domain);
     }
 
     public const BULK_COMMANDS = [

@@ -1371,6 +1371,832 @@
                     }
                 }
             }
+        },
+        "/users/{user}/web-domains": {
+            "get": {
+                "operationId": "listWebDomains",
+                "summary": "List the web domains of a user",
+                "tags": [
+                    "Web domains"
+                ],
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Array of `WebDomain`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/components/schemas/WebDomain"
+                                            }
+                                        },
+                                        "meta": {
+                                            "type": "object",
+                                            "description": "Reserved for pagination; empty for now."
+                                        }
+                                    },
+                                    "required": [
+                                        "data",
+                                        "meta"
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    }
+                }
+            },
+            "post": {
+                "operationId": "createWebDomain",
+                "description": "As the add page of the panel: the domain with its aliases (`www.DOMAIN`\nby default), the DNS zone and mail domain when asked, then the asked\ntemplates and the app port of a template that takes one. A domain the\nuser has answers 409 `E_EXISTS`; one of another user fails with it too.",
+                "summary": "Create a web domain",
+                "tags": [
+                    "Web domains"
+                ],
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "dry_run",
+                        "in": "query",
+                        "description": "Validate, authorize and plan the change, and answer with its steps instead of running them.",
+                        "schema": {
+                            "type": "boolean",
+                            "default": false
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/StoreWebDomainRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "With `dry_run`: the planned steps; nothing ran.",
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/DryRun"
+                                }
+                            }
+                        }
+                    },
+                    "201": {
+                        "description": "`WebDomain`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/WebDomain"
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            },
+                            "Location": {
+                                "$ref": "#/components/headers/Location"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "409": {
+                        "$ref": "#/components/responses/Conflict"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    },
+                    "503": {
+                        "$ref": "#/components/responses/Unavailable"
+                    }
+                }
+            }
+        },
+        "/users/{user}/web-domains/{domain}": {
+            "get": {
+                "operationId": "getWebDomain",
+                "summary": "Get a web domain",
+                "tags": [
+                    "Web domains"
+                ],
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "domain",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "`WebDomain`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/WebDomain"
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    }
+                }
+            },
+            "patch": {
+                "operationId": "updateWebDomain",
+                "description": "The IP address, the document root and, with the right to change\ntemplates, the templates, proxy, FastCGI cache and app port; the fields\nleft out keep their value. A new IP also moves the DNS zones of the\ndomain and its aliases.",
+                "summary": "Update a web domain",
+                "tags": [
+                    "Web domains"
+                ],
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "domain",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "dry_run",
+                        "in": "query",
+                        "description": "Validate, authorize and plan the change, and answer with its steps instead of running them.",
+                        "schema": {
+                            "type": "boolean",
+                            "default": false
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/UpdateWebDomainRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "`WebDomain`; with `dry_run`, the planned steps.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "oneOf": [
+                                        {
+                                            "type": "object",
+                                            "properties": {
+                                                "data": {
+                                                    "$ref": "#/components/schemas/WebDomain"
+                                                }
+                                            },
+                                            "required": [
+                                                "data"
+                                            ]
+                                        },
+                                        {
+                                            "$ref": "#/components/schemas/DryRun"
+                                        }
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "409": {
+                        "$ref": "#/components/responses/Conflict"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    },
+                    "503": {
+                        "$ref": "#/components/responses/Unavailable"
+                    }
+                }
+            },
+            "delete": {
+                "operationId": "deleteWebDomain",
+                "description": "Deletes the domain with its files, and the app port, Node.js app and\nDocker app bound to it (the Docker app's data folder is kept).",
+                "summary": "Delete a web domain",
+                "tags": [
+                    "Web domains"
+                ],
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "domain",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "dry_run",
+                        "in": "query",
+                        "description": "Validate, authorize and plan the change, and answer with its steps instead of running them.",
+                        "schema": {
+                            "type": "boolean",
+                            "default": false
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "With `dry_run`: the planned steps; nothing ran.",
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/DryRun"
+                                }
+                            }
+                        }
+                    },
+                    "204": {
+                        "description": "No content.",
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "409": {
+                        "$ref": "#/components/responses/Conflict"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    },
+                    "503": {
+                        "$ref": "#/components/responses/Unavailable"
+                    }
+                }
+            }
+        },
+        "/users/{user}/web-domains/{domain}/suspend": {
+            "post": {
+                "operationId": "suspendWebDomain",
+                "description": "A suspended domain answers as it is.",
+                "summary": "Suspend a web domain",
+                "tags": [
+                    "Web domains"
+                ],
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "domain",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "dry_run",
+                        "in": "query",
+                        "description": "Validate, authorize and plan the change, and answer with its steps instead of running them.",
+                        "schema": {
+                            "type": "boolean",
+                            "default": false
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "`WebDomain`; with `dry_run`, the planned steps.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "oneOf": [
+                                        {
+                                            "type": "object",
+                                            "properties": {
+                                                "data": {
+                                                    "$ref": "#/components/schemas/WebDomain"
+                                                }
+                                            },
+                                            "required": [
+                                                "data"
+                                            ]
+                                        },
+                                        {
+                                            "$ref": "#/components/schemas/DryRun"
+                                        }
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "409": {
+                        "$ref": "#/components/responses/Conflict"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    },
+                    "503": {
+                        "$ref": "#/components/responses/Unavailable"
+                    }
+                }
+            }
+        },
+        "/users/{user}/web-domains/{domain}/unsuspend": {
+            "post": {
+                "operationId": "unsuspendWebDomain",
+                "summary": "Unsuspend a web domain",
+                "tags": [
+                    "Web domains"
+                ],
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "domain",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "dry_run",
+                        "in": "query",
+                        "description": "Validate, authorize and plan the change, and answer with its steps instead of running them.",
+                        "schema": {
+                            "type": "boolean",
+                            "default": false
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "`WebDomain`; with `dry_run`, the planned steps.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "oneOf": [
+                                        {
+                                            "type": "object",
+                                            "properties": {
+                                                "data": {
+                                                    "$ref": "#/components/schemas/WebDomain"
+                                                }
+                                            },
+                                            "required": [
+                                                "data"
+                                            ]
+                                        },
+                                        {
+                                            "$ref": "#/components/schemas/DryRun"
+                                        }
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "409": {
+                        "$ref": "#/components/responses/Conflict"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    },
+                    "503": {
+                        "$ref": "#/components/responses/Unavailable"
+                    }
+                }
+            }
+        },
+        "/users/{user}/web-domains/{domain}/rebuild": {
+            "post": {
+                "operationId": "rebuildWebDomain",
+                "description": "Writes the configuration of the domain again. Administrators only.",
+                "summary": "Rebuild a web domain",
+                "tags": [
+                    "Web domains"
+                ],
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "domain",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "dry_run",
+                        "in": "query",
+                        "description": "Validate, authorize and plan the change, and answer with its steps instead of running them.",
+                        "schema": {
+                            "type": "boolean",
+                            "default": false
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "`WebDomain`; with `dry_run`, the planned steps.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "oneOf": [
+                                        {
+                                            "type": "object",
+                                            "properties": {
+                                                "data": {
+                                                    "$ref": "#/components/schemas/WebDomain"
+                                                }
+                                            },
+                                            "required": [
+                                                "data"
+                                            ]
+                                        },
+                                        {
+                                            "$ref": "#/components/schemas/DryRun"
+                                        }
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "409": {
+                        "$ref": "#/components/responses/Conflict"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    },
+                    "503": {
+                        "$ref": "#/components/responses/Unavailable"
+                    }
+                }
+            }
+        },
+        "/users/{user}/web-domains/{domain}/purge-cache": {
+            "post": {
+                "operationId": "purgeWebDomainCache",
+                "description": "On servers where NGINX serves the domains; 403 elsewhere.",
+                "summary": "Purge the NGINX cache of a web domain",
+                "tags": [
+                    "Web domains"
+                ],
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "domain",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "dry_run",
+                        "in": "query",
+                        "description": "Validate, authorize and plan the change, and answer with its steps instead of running them.",
+                        "schema": {
+                            "type": "boolean",
+                            "default": false
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "`WebDomain`; with `dry_run`, the planned steps.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "oneOf": [
+                                        {
+                                            "type": "object",
+                                            "properties": {
+                                                "data": {
+                                                    "$ref": "#/components/schemas/WebDomain"
+                                                }
+                                            },
+                                            "required": [
+                                                "data"
+                                            ]
+                                        },
+                                        {
+                                            "$ref": "#/components/schemas/DryRun"
+                                        }
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "409": {
+                        "$ref": "#/components/responses/Conflict"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    },
+                    "503": {
+                        "$ref": "#/components/responses/Unavailable"
+                    }
+                }
+            }
         }
     },
     "components": {
@@ -2280,6 +3106,106 @@
                 ],
                 "title": "StoreUserRequest"
             },
+            "StoreWebDomainRequest": {
+                "type": "object",
+                "description": "POST /users/{user}/web-domains: the fields of the add page (web/add/web).\nThe domain is lowercased and loses a leading \"www.\".",
+                "properties": {
+                    "domain": {
+                        "type": "string",
+                        "description": "The domain name; IDNs are accepted as Unicode.",
+                        "pattern": "^[\\pL\\pN]([\\pL\\pN-]*[\\pL\\pN])?(\\.[\\pL\\pN]([\\pL\\pN-]*[\\pL\\pN])?)+$",
+                        "maxLength": 253
+                    },
+                    "ip": {
+                        "type": "string",
+                        "description": "One of the user's addresses (v-list-user-ips); the first one when left out."
+                    },
+                    "aliases": {
+                        "type": "array",
+                        "description": "Replace the default alias www.DOMAIN.",
+                        "items": {
+                            "type": "string",
+                            "pattern": "^[\\pL\\pN*_.-]+$",
+                            "maxLength": 253
+                        },
+                        "maxItems": 500
+                    },
+                    "dns": {
+                        "type": "boolean",
+                        "description": "Also add a DNS zone for the domain, with the public address of the IP."
+                    },
+                    "mail": {
+                        "type": "boolean",
+                        "description": "Also add a mail domain."
+                    },
+                    "templates": {
+                        "type": "object",
+                        "properties": {
+                            "web": {
+                                "type": "string",
+                                "description": "A web template of the server (v-list-web-templates).",
+                                "pattern": "^[\\w.-]+$",
+                                "maxLength": 100
+                            },
+                            "backend": {
+                                "type": "string",
+                                "description": "A PHP-FPM backend template, on servers with a backend.",
+                                "pattern": "^[\\w.-]+$",
+                                "maxLength": 100
+                            },
+                            "proxy": {
+                                "type": "string",
+                                "description": "A proxy template, on servers with a proxy; it also turns the proxy on.",
+                                "pattern": "^[\\w.-]+$",
+                                "maxLength": 100
+                            }
+                        }
+                    },
+                    "proxy": {
+                        "type": "boolean",
+                        "description": "Turns the proxy in front of the web server on or off."
+                    },
+                    "proxy_extensions": {
+                        "type": "array",
+                        "description": "Extensions the proxy serves itself.",
+                        "items": {
+                            "type": "string",
+                            "pattern": "^[\\w.-]+$",
+                            "maxLength": 20
+                        },
+                        "maxItems": 200
+                    },
+                    "fastcgi_cache": {
+                        "type": "object",
+                        "description": "The NGINX FastCGI cache, on servers where NGINX runs PHP-FPM.",
+                        "properties": {
+                            "enabled": {
+                                "type": "boolean"
+                            },
+                            "duration": {
+                                "type": [
+                                    "string",
+                                    "null"
+                                ],
+                                "description": "How long a page is kept, such as 2m (the default), 1h or 1d.",
+                                "pattern": "^\\d+[smhd]$"
+                            }
+                        }
+                    },
+                    "backend_port": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "`auto` or a port of the owner's pool, for a template that takes an app port (E6).",
+                        "pattern": "^(auto|\\d{1,5})$"
+                    }
+                },
+                "required": [
+                    "domain"
+                ],
+                "title": "StoreWebDomainRequest"
+            },
             "UpdatePackageRequest": {
                 "type": "object",
                 "description": "PATCH /packages/{package}: the fields left out keep their value.",
@@ -2582,6 +3508,102 @@
                 },
                 "title": "UpdateUserRequest"
             },
+            "UpdateWebDomainRequest": {
+                "type": "object",
+                "description": "PATCH /users/{user}/web-domains/{domain}: the fields of the General tab\n(IP address, document root) and of the Advanced tab; the fields left out\nkeep their value. Aliases have their own operations.",
+                "properties": {
+                    "ip": {
+                        "type": "string",
+                        "description": "One of the user's addresses (v-list-user-ips)."
+                    },
+                    "custom_document_root": {
+                        "type": [
+                            "object",
+                            "null"
+                        ],
+                        "description": "Serve the folder of another domain of the user; null serves the domain's own public_html.",
+                        "properties": {
+                            "domain": {
+                                "type": "string",
+                                "pattern": "^[\\pL\\pN.-]+$",
+                                "maxLength": 253
+                            },
+                            "folder": {
+                                "type": [
+                                    "string",
+                                    "null"
+                                ],
+                                "description": "A folder below that domain's public_html.",
+                                "pattern": "^[\\pL\\pN\\/._ -]*$",
+                                "maxLength": 255
+                            }
+                        }
+                    },
+                    "templates": {
+                        "type": "object",
+                        "properties": {
+                            "web": {
+                                "type": "string",
+                                "description": "A web template of the server (v-list-web-templates).",
+                                "pattern": "^[\\w.-]+$",
+                                "maxLength": 100
+                            },
+                            "backend": {
+                                "type": "string",
+                                "description": "A PHP-FPM backend template, on servers with a backend.",
+                                "pattern": "^[\\w.-]+$",
+                                "maxLength": 100
+                            },
+                            "proxy": {
+                                "type": "string",
+                                "description": "A proxy template, on servers with a proxy; it also turns the proxy on.",
+                                "pattern": "^[\\w.-]+$",
+                                "maxLength": 100
+                            }
+                        }
+                    },
+                    "proxy": {
+                        "type": "boolean",
+                        "description": "Turns the proxy in front of the web server on or off."
+                    },
+                    "proxy_extensions": {
+                        "type": "array",
+                        "description": "Extensions the proxy serves itself.",
+                        "items": {
+                            "type": "string",
+                            "pattern": "^[\\w.-]+$",
+                            "maxLength": 20
+                        },
+                        "maxItems": 200
+                    },
+                    "fastcgi_cache": {
+                        "type": "object",
+                        "description": "The NGINX FastCGI cache, on servers where NGINX runs PHP-FPM.",
+                        "properties": {
+                            "enabled": {
+                                "type": "boolean"
+                            },
+                            "duration": {
+                                "type": [
+                                    "string",
+                                    "null"
+                                ],
+                                "description": "How long a page is kept, such as 2m (the default), 1h or 1d.",
+                                "pattern": "^\\d+[smhd]$"
+                            }
+                        }
+                    },
+                    "backend_port": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "`auto` or a port of the owner's pool, for a template that takes an app port (E6).",
+                        "pattern": "^(auto|\\d{1,5})$"
+                    }
+                },
+                "title": "UpdateWebDomainRequest"
+            },
             "User": {
                 "type": "object",
                 "properties": {
@@ -2793,6 +3815,236 @@
                     "password"
                 ],
                 "title": "UserPasswordRequest"
+            },
+            "WebDomain": {
+                "type": "object",
+                "properties": {
+                    "domain": {
+                        "type": "string"
+                    },
+                    "user": {
+                        "type": "string",
+                        "description": "the owner"
+                    },
+                    "ip": {
+                        "type": "string",
+                        "description": "the server address the domain is bound to (without its NAT address)"
+                    },
+                    "aliases": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "document_root": {
+                        "type": "string",
+                        "description": "the folder the domain serves"
+                    },
+                    "custom_document_root": {
+                        "type": [
+                            "object",
+                            "null"
+                        ],
+                        "description": "The folder of another domain of the same user that this domain serves; null for its own public_html.",
+                        "properties": {
+                            "domain": {
+                                "type": "string"
+                            },
+                            "folder": {
+                                "type": "string",
+                                "description": "a folder below its public_html, '' for public_html itself"
+                            }
+                        },
+                        "required": [
+                            "domain",
+                            "folder"
+                        ]
+                    },
+                    "templates": {
+                        "type": "object",
+                        "properties": {
+                            "web": {
+                                "type": "string"
+                            },
+                            "backend": {
+                                "type": [
+                                    "string",
+                                    "null"
+                                ],
+                                "description": "null without a PHP-FPM backend"
+                            },
+                            "proxy": {
+                                "type": [
+                                    "string",
+                                    "null"
+                                ],
+                                "description": "null with the proxy off"
+                            }
+                        },
+                        "required": [
+                            "web",
+                            "backend",
+                            "proxy"
+                        ]
+                    },
+                    "proxy_extensions": {
+                        "type": "array",
+                        "description": "extensions the proxy serves itself",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "fastcgi_cache": {
+                        "type": "object",
+                        "properties": {
+                            "enabled": {
+                                "type": "boolean"
+                            },
+                            "duration": {
+                                "type": [
+                                    "string",
+                                    "null"
+                                ],
+                                "description": "how long NGINX keeps a page, such as 2m"
+                            }
+                        },
+                        "required": [
+                            "enabled",
+                            "duration"
+                        ]
+                    },
+                    "ssl": {
+                        "type": "object",
+                        "properties": {
+                            "enabled": {
+                                "type": "boolean"
+                            },
+                            "letsencrypt": {
+                                "type": "boolean",
+                                "description": "the certificate comes from Let's Encrypt"
+                            },
+                            "force": {
+                                "type": "boolean",
+                                "description": "HTTP is redirected to HTTPS"
+                            },
+                            "hsts": {
+                                "type": "boolean"
+                            },
+                            "home": {
+                                "type": "string",
+                                "description": "public_html for HTTP and HTTPS, or private/ for HTTPS",
+                                "enum": [
+                                    "same",
+                                    "single"
+                                ]
+                            },
+                            "key_algorithm": {
+                                "type": "string",
+                                "description": "the key type of a Let's Encrypt certificate",
+                                "enum": [
+                                    "ecdsa-256",
+                                    "ecdsa-384",
+                                    "rsa"
+                                ]
+                            }
+                        },
+                        "required": [
+                            "enabled",
+                            "letsencrypt",
+                            "force",
+                            "hsts",
+                            "home",
+                            "key_algorithm"
+                        ]
+                    },
+                    "redirect": {
+                        "type": [
+                            "object",
+                            "null"
+                        ],
+                        "description": "Where every request is redirected; null without a redirect.",
+                        "properties": {
+                            "url": {
+                                "type": "string"
+                            },
+                            "code": {
+                                "type": "integer"
+                            }
+                        },
+                        "required": [
+                            "url",
+                            "code"
+                        ]
+                    },
+                    "stats": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "the statistics engine, null without statistics"
+                    },
+                    "ftp_accounts": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "username": {
+                                    "type": "string"
+                                },
+                                "path": {
+                                    "type": "string"
+                                }
+                            },
+                            "required": [
+                                "username",
+                                "path"
+                            ]
+                        }
+                    },
+                    "suspended": {
+                        "type": "boolean"
+                    },
+                    "disk_mb": {
+                        "type": "integer"
+                    },
+                    "bandwidth_mb": {
+                        "type": "integer"
+                    },
+                    "backend_port": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ],
+                        "description": "the app port of the domain's template (E6); null when the template takes none"
+                    },
+                    "created_at": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "creation time in the server's time zone, YYYY-MM-DDTHH:MM:SS"
+                    }
+                },
+                "required": [
+                    "domain",
+                    "user",
+                    "ip",
+                    "aliases",
+                    "document_root",
+                    "custom_document_root",
+                    "templates",
+                    "proxy_extensions",
+                    "fastcgi_cache",
+                    "ssl",
+                    "redirect",
+                    "stats",
+                    "ftp_accounts",
+                    "suspended",
+                    "disk_mb",
+                    "bandwidth_mb",
+                    "created_at"
+                ],
+                "title": "WebDomain"
             }
         },
         "responses": {

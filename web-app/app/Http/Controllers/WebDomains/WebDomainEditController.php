@@ -14,21 +14,18 @@ use App\Http\Requests\WebDomains\StatsRequest;
 use App\Policies\FilePolicy;
 use App\Policies\WebDomainPolicy;
 use App\Services\Mail\CredentialsMailer;
-use App\Services\Ports\PortService;
 use App\Services\UserDirectory;
 use App\Services\WebDomains\ApplyResult;
-use App\Services\WebDomains\BackendPorts;
 use App\Services\WebDomains\Input;
 use App\Services\WebDomains\Step;
-use App\Services\WebDomains\Tabs\AdvancedTab;
 use App\Services\WebDomains\Tabs\FtpTab;
-use App\Services\WebDomains\Tabs\GeneralTab;
 use App\Services\WebDomains\Tabs\RedirectTab;
 use App\Services\WebDomains\Tabs\SslTab;
 use App\Services\WebDomains\Tabs\StatsTab;
 use App\Services\WebDomains\Tabs\TemplateVarsTab;
 use App\Services\WebDomains\TemplateCatalog;
 use App\Services\WebDomains\TemplateForm;
+use App\Services\WebDomains\WebDomainActions;
 use App\Services\WebDomains\WebDomainService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Validation\ValidationException;
@@ -98,23 +95,20 @@ final class WebDomainEditController extends Controller
         ]);
     }
 
-    public function general(GeneralRequest $request, string $user, string $domain, Principal $principal, WebDomainPolicy $policy, GeneralTab $tab): RedirectResponse
+    public function general(GeneralRequest $request, string $user, string $domain, Principal $principal, WebDomainPolicy $policy, WebDomainActions $actions): RedirectResponse
     {
         abort_unless($policy->update($principal, $user), 403);
         $record = $this->web->find($user, $domain);
 
         $values = $request->values();
-        $userIps = $this->web->userIps($user);
-        if (! array_key_exists($values['ip'], $userIps)) {
-            throw ValidationException::withMessages(['ip' => __('Please select a valid IP address.')])
-                ->errorBag('general')->redirectTo($this->tabUrl($user, $domain, 'general'));
-        }
-        if ($values['docroot_custom'] && ! in_array($values['docroot_domain'], array_keys($this->web->forUser($user)), true)) {
-            throw ValidationException::withMessages(['docroot_domain' => __('Please select one of your domains.')])
-                ->errorBag('general')->redirectTo($this->tabUrl($user, $domain, 'general'));
-        }
+        $steps = $this->onTab('general', $user, $domain, function () use ($actions, $record, $values, $user) {
+            $userIps = $actions->checkIp($user, $values['ip']);
+            $actions->checkDocroot($user, $values);
 
-        return $this->finish($user, $domain, 'general', $this->web->apply($tab->plan($record, $values, $userIps, $this->web)));
+            return $actions->planGeneral($record, $values, $userIps);
+        });
+
+        return $this->finish($user, $domain, 'general', $this->web->apply($steps));
     }
 
     public function ssl(SslRequest $request, string $user, string $domain, Principal $principal, WebDomainPolicy $policy, SslTab $tab): RedirectResponse
@@ -150,39 +144,20 @@ final class WebDomainEditController extends Controller
         return $this->finish($user, $domain, 'redirect', $this->web->apply($tab->plan($record, $request->values())));
     }
 
-    public function advanced(AdvancedRequest $request, string $user, string $domain, Principal $principal, WebDomainPolicy $policy, AdvancedTab $tab, TemplateVarsTab $varsTab, PortService $ports): RedirectResponse
+    public function advanced(AdvancedRequest $request, string $user, string $domain, Principal $principal, WebDomainPolicy $policy, WebDomainActions $actions): RedirectResponse
     {
         abort_unless($policy->updateTemplates($principal, $user), 403);
         $record = $this->web->find($user, $domain);
         $values = $request->values();
-
-        $known = [
-            'template' => $this->catalog->names('web'),
-            'backend_template' => $this->web->backendTemplates(),
-            'proxy_template' => $this->catalog->names('proxy'),
-        ];
-        foreach ($known as $field => $names) {
-            if (($values[$field] ?? '') !== '' && $values[$field] !== null && ! in_array($values[$field], $names, true)) {
-                throw ValidationException::withMessages([$field => __('Please select a valid template.')])
-                    ->errorBag('advanced')->redirectTo($this->tabUrl($user, $domain, 'advanced'));
-            }
-        }
-
-        $steps = $tab->plan($record, $values, $this->web->systems());
-
-        // Backend port of the visitor-facing template (E6 spec §7.2)
-        $kind = $this->catalog->activeKind();
-        $active = TemplateVarsTab::activeTemplate($kind, $record, $values);
-        $meta = $active !== null ? $this->catalog->find((string) $kind, $active) : null;
-        $vars = $kind !== null ? $this->web->templateVars($user, $domain)['variables'] : [];
         $port = (string) $request->input('backend_port', '');
-        $key = $meta?->portVariable();
-        if ($key !== null && $port !== '' && ! BackendPorts::accepts($ports->account($user), $domain, $vars[$key] ?? '', $port)) {
-            throw ValidationException::withMessages(['backend_port' => __('Please select one of the ports of the list.')])
-                ->errorBag('advanced')->redirectTo($this->tabUrl($user, $domain, 'advanced'));
-        }
-        $changed = $active !== TemplateVarsTab::currentTemplate($kind, $record);
-        $steps = [...$steps, ...$varsTab->plan($record, $meta, $port, $vars, $changed)];
+
+        $steps = $this->onTab('advanced', $user, $domain, function () use ($actions, $record, $values, $port, $user, $domain) {
+            $actions->checkTemplates($values);
+            // Backend port of the visitor-facing template (E6 spec §7.2)
+            $actions->checkPort($user, $domain, $record, $values, $port);
+
+            return $actions->planTemplates($record, $values, $port);
+        });
 
         $result = $this->web->apply($steps);
         if (! $result->ok() && $result->failed?->command === TemplateVarsTab::COMMAND) {
@@ -237,6 +212,24 @@ final class WebDomainEditController extends Controller
         }
 
         return $redirect->with('ok', $result->changed() ? __('Changes have been saved.') : __('Nothing has changed.'));
+    }
+
+    /**
+     * Run the checks and plan of a tab; their validation errors go to the
+     * tab's error bag and back to the tab.
+     *
+     * @template T
+     *
+     * @param  \Closure(): T  $plan
+     * @return T
+     */
+    private function onTab(string $tab, string $user, string $domain, \Closure $plan): mixed
+    {
+        try {
+            return $plan();
+        } catch (ValidationException $e) {
+            throw $e->errorBag($tab)->redirectTo($this->tabUrl($user, $domain, $tab));
+        }
     }
 
     private function tabUrl(string $user, string $domain, string $tab): string

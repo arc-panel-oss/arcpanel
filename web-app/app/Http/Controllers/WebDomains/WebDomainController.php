@@ -9,19 +9,15 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\WebDomains\StoreWebDomainRequest;
 use App\Policies\Capabilities;
 use App\Policies\WebDomainPolicy;
-use App\Services\Ports\PortService;
 use App\Services\UserDirectory;
-use App\Services\WebDomains\BackendPorts;
 use App\Services\WebDomains\Input;
-use App\Services\WebDomains\Step;
-use App\Services\WebDomains\Tabs\AdvancedTab;
 use App\Services\WebDomains\Tabs\TemplateVarsTab;
 use App\Services\WebDomains\TemplateCatalog;
 use App\Services\WebDomains\TemplateForm;
+use App\Services\WebDomains\WebDomainActions;
 use App\Services\WebDomains\WebDomainService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
 /**
@@ -117,39 +113,25 @@ final class WebDomainController extends Controller
         ]);
     }
 
-    public function store(StoreWebDomainRequest $request, Principal $principal, WebDomainPolicy $policy, OwnerScope $scope, WebDomainService $web, UserDirectory $directory, AdvancedTab $advanced, TemplateVarsTab $varsTab, TemplateCatalog $catalog, PortService $ports): RedirectResponse
+    public function store(StoreWebDomainRequest $request, Principal $principal, WebDomainPolicy $policy, OwnerScope $scope, WebDomainService $web, UserDirectory $directory, WebDomainActions $actions): RedirectResponse
     {
         $owner = $this->owner($request->input('owner'), $principal, $scope, $directory);
         abort_unless($policy->create($principal, $owner), 403);
 
-        $userIps = $web->userIps($owner);
         $ip = (string) $request->input('ip');
-        if (! array_key_exists($ip, $userIps)) {
-            throw ValidationException::withMessages(['ip' => __('Please select a valid IP address.')]);
-        }
+        $userIps = $actions->checkIp($owner, $ip);
 
         $domain = (string) $request->input('domain');
         $canTemplates = $policy->updateTemplates($principal, $owner);
 
         // The backend port of a template that takes one is checked before the
         // domain exists (E6 spec §7.2).
-        $kind = $catalog->activeKind();
         $port = (string) $request->input('backend_port', '');
-        if ($canTemplates && $kind !== null) {
-            $field = $kind === 'web' ? 'template' : 'proxy_template';
-            $intended = trim((string) $request->input($field, '')) ?: 'default';
-            $meta = $catalog->find($kind, $intended);
-            if ($meta?->portVariable() !== null && $port !== '' && ! BackendPorts::accepts($ports->account($owner), $domain, '', $port)) {
-                throw ValidationException::withMessages(['backend_port' => __('Please select one of the ports of the list.')]);
-            }
+        if ($canTemplates) {
+            $actions->checkPort($owner, $domain, null, ['template' => $request->input('template'), 'proxy_template' => $request->input('proxy_template')], $port);
         }
 
-        $steps = $web->planCreate($owner, $domain, $ip, $request->boolean('dns'), $request->boolean('mail'), $userIps);
-        $aliases = Input::list($request->input('aliases'));
-        if ($aliases !== []) {
-            // v-add-web-domain [ALIASES] replaces the default www alias.
-            $steps[0] = new Step($steps[0]->label, 'v-add-web-domain', [$owner, $domain, $ip, 'yes', implode(',', $aliases)]);
-        }
+        $steps = $actions->planCreate($owner, $domain, $ip, $request->boolean('dns'), $request->boolean('mail'), Input::list($request->input('aliases')), $userIps);
 
         $result = $web->apply(array_slice($steps, 0, 1));
         if (! $result->ok()) {
@@ -164,30 +146,15 @@ final class WebDomainController extends Controller
         // Template choices of an administrator (or with POLICY_USER_EDIT_WEB_TEMPLATES)
         if ($canTemplates) {
             $record = $web->find($owner, $domain);
-            $templateSteps = $advanced->plan($record, [
-                'template' => $request->input('template'),
-                'backend_template' => $request->input('backend_template'),
-                'proxy' => $record->hasProxy(),
-                'proxy_template' => $request->input('proxy_template'),
-                'proxy_extensions' => $request->filled('proxy_extensions') ? $request->input('proxy_extensions') : implode(',', $record->proxyExtensions),
-                'fastcgi_cache' => $record->fastcgiCache,
-                'fastcgi_duration' => $record->fastcgiDuration,
-            ], $web->systems());
-            $result = $web->apply($templateSteps);
-            if (! $result->ok()) {
-                return redirect()->route('web.domains.edit', ['user' => $owner, 'domain' => $domain])
-                    ->with('error', sprintf(__('%s failed'), $result->failed->label))->with('error_detail', $result->error);
-            }
-
-            // Backend port of the new domain's template
-            $record = $web->find($owner, $domain);
-            $active = TemplateVarsTab::currentTemplate($kind, $record);
-            $meta = $active !== null ? $catalog->find((string) $kind, $active) : null;
-            $result = $web->apply($varsTab->plan($record, $meta, $port, [], true));
-            if (! $result->ok()) {
+            $result = $web->apply($actions->planCreatedTemplates($record, $request->only(['template', 'backend_template', 'proxy_template', 'proxy_extensions']), $port));
+            if (! $result->ok() && $result->failed?->command === TemplateVarsTab::COMMAND) {
                 return redirect()->to(route('web.domains.edit', ['user' => $owner, 'domain' => $domain]).'#advanced')
                     ->withErrors(['backend_port' => TemplateVarsTab::error($result->exitCode, $result->error, $owner)], 'advanced')
                     ->with('error', sprintf(__('%s failed'), $result->failed->label));
+            }
+            if (! $result->ok()) {
+                return redirect()->route('web.domains.edit', ['user' => $owner, 'domain' => $domain])
+                    ->with('error', sprintf(__('%s failed'), $result->failed->label))->with('error_detail', $result->error);
             }
         }
 

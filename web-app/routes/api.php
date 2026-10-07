@@ -3,6 +3,7 @@
 use App\Http\Controllers\Api\V2\MeController;
 use App\Http\Controllers\Api\V2\PackageController;
 use App\Http\Controllers\Api\V2\UserController;
+use App\Http\Controllers\Api\V2\WebDomainController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -33,6 +34,19 @@ Route::middleware('effective-user')->group(function () {
         Route::post('/users/{user}/suspend', [UserController::class, 'suspend'])->name('users.suspend');
         Route::post('/users/{user}/unsuspend', [UserController::class, 'unsuspend'])->name('users.unsuspend');
         Route::delete('/users/{user}', [UserController::class, 'destroy'])->name('users.destroy');
+    });
+
+    // Web domains (spec §6.3)
+    Route::get('/users/{user}/web-domains', [WebDomainController::class, 'index'])->name('web-domains.index');
+    Route::get('/users/{user}/web-domains/{domain}', [WebDomainController::class, 'show'])->name('web-domains.show');
+    Route::middleware('not-readonly')->prefix('/users/{user}/web-domains')->name('web-domains.')->group(function () {
+        Route::post('/', [WebDomainController::class, 'store'])->name('store');
+        Route::patch('/{domain}', [WebDomainController::class, 'update'])->name('update');
+        Route::delete('/{domain}', [WebDomainController::class, 'destroy'])->name('destroy');
+        Route::post('/{domain}/suspend', [WebDomainController::class, 'suspend'])->name('suspend');
+        Route::post('/{domain}/unsuspend', [WebDomainController::class, 'unsuspend'])->name('unsuspend');
+        Route::post('/{domain}/rebuild', [WebDomainController::class, 'rebuild'])->name('rebuild');
+        Route::post('/{domain}/purge-cache', [WebDomainController::class, 'purgeCache'])->name('purge-cache');
     });
 });
 

@@ -149,6 +149,46 @@ check "the user is deleted" 204 "$(call "$ADMIN" DELETE "/users/$SMOKE_USER")"
 check "deletePackage answers 204" 204 "$(call "$ADMIN" DELETE "/packages/$SMOKE_PACKAGE")"
 check "the package is gone" 404 "$(call "$ADMIN" GET "/packages/$SMOKE_PACKAGE")"
 
+# Web domains (spec §6.3)
+SMOKE_DOMAIN="$SMOKE_USER.example.test"
+WEB="/users/$SMOKE_USER/web-domains"
+domain_value() { "$ARCPANEL/bin/v-list-web-domain" "$SMOKE_USER" "$SMOKE_DOMAIN" json | jq -r ".\"$SMOKE_DOMAIN\".$1"; }
+check "a user for the web domains" 201 "$(call "$ADMIN" POST /users "$user_json")"
+READER=$(new_key "$SMOKE_USER" v2-read)
+WRITER=$(new_key "$SMOKE_USER" v2-write)
+check "createWebDomain dry run answers 200" 200 "$(call "$WRITER" POST "$WEB?dry_run=1" "{\"domain\": \"$SMOKE_DOMAIN\"}")"
+check "the dry run plans v-add-web-domain" v-add-web-domain "$(json '.data.steps[0].command')"
+if "$ARCPANEL/bin/v-list-web-domain" "$SMOKE_USER" "$SMOKE_DOMAIN" > /dev/null 2>&1; then fail "the dry run created the domain"; else ok "the dry run created no domain"; fi
+check "a v2-read key may not create a domain" 403 "$(call "$READER" POST "$WEB" "{\"domain\": \"$SMOKE_DOMAIN\"}")"
+check "createWebDomain answers 201" 201 "$(call "$WRITER" POST "$WEB" "{\"domain\": \"$SMOKE_DOMAIN\", \"aliases\": [\"www.$SMOKE_DOMAIN\", \"alt.$SMOKE_DOMAIN\"]}")"
+check "the domain has the given aliases" "alt.$SMOKE_DOMAIN,www.$SMOKE_DOMAIN" "$(domain_value ALIAS | tr ',' '\n' | sort | paste -sd,)"
+check "a repeated createWebDomain answers 409" 409 "$(call "$WRITER" POST "$WEB" "{\"domain\": \"$SMOKE_DOMAIN\"}")"
+check "listWebDomains lists it" "$SMOKE_DOMAIN" "$(
+	call "$READER" GET "$WEB" > /dev/null
+	json '.data[0].domain'
+)"
+check "getWebDomain answers 200 for a v2-read key" 200 "$(call "$READER" GET "$WEB/$SMOKE_DOMAIN")"
+check "another user's domains answer 404" 404 "$(call "$READER" GET "/users/$ROOT_USER/web-domains")"
+if [ "$(grep "^POLICY_USER_EDIT_WEB_TEMPLATES=" "$CONF" | cut -d"'" -f2)" = yes ]; then
+	check "a user key changes templates with POLICY_USER_EDIT_WEB_TEMPLATES" 200 "$(call "$WRITER" PATCH "$WEB/$SMOKE_DOMAIN" '{"templates": {"web": "default"}}')"
+else
+	check "a user key may not change templates" 403 "$(call "$WRITER" PATCH "$WEB/$SMOKE_DOMAIN" '{"templates": {"web": "default"}}')"
+fi
+if [ -n "$(grep "^PROXY_SYSTEM=" "$CONF" | cut -d"'" -f2)" ]; then
+	check "updateWebDomain answers 200 for the administrator" 200 "$(call "$ADMIN" PATCH "$WEB/$SMOKE_DOMAIN" '{"proxy_extensions": ["css", "js"]}')"
+	check "the proxy extensions changed" "css,js" "$(domain_value PROXY_EXT)"
+	check "purgeWebDomainCache answers 200" 200 "$(call "$WRITER" POST "$WEB/$SMOKE_DOMAIN/purge-cache")"
+fi
+check "suspendWebDomain answers 200" 200 "$(call "$WRITER" POST "$WEB/$SMOKE_DOMAIN/suspend")"
+check "the domain is suspended" yes "$(domain_value SUSPENDED)"
+check "unsuspendWebDomain answers 200" 200 "$(call "$WRITER" POST "$WEB/$SMOKE_DOMAIN/unsuspend")"
+check "the domain is unsuspended" false "$(json .data.suspended)"
+check "a user key may not rebuild" 403 "$(call "$WRITER" POST "$WEB/$SMOKE_DOMAIN/rebuild")"
+check "rebuildWebDomain answers 200 for the administrator" 200 "$(call "$ADMIN" POST "$WEB/$SMOKE_DOMAIN/rebuild")"
+check "deleteWebDomain answers 204" 204 "$(call "$WRITER" DELETE "$WEB/$SMOKE_DOMAIN")"
+check "the domain is gone" 404 "$(call "$WRITER" GET "$WEB/$SMOKE_DOMAIN")"
+check "the user of the web domains is deleted" 204 "$(call "$ADMIN" DELETE "/users/$SMOKE_USER")"
+
 if [ "$failures" -gt 0 ]; then
 	echo "$failures check(s) failed"
 	exit 1

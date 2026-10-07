@@ -30,6 +30,19 @@ final class PlanRunner
         private readonly SysConfig $config,
     ) {}
 
+    /**
+     * The restart commands apply() may run after $steps.
+     *
+     * @param  list<Step>  $steps
+     * @return list<string>
+     */
+    public static function restartCommands(array $steps): array
+    {
+        $services = array_unique(array_merge([], ...array_map(fn (Step $step) => $step->restart, $steps)));
+
+        return array_values(array_intersect_key(self::RESTARTS, array_flip($services)));
+    }
+
     /** @param  list<Step>  $steps */
     public function apply(array $steps): ApplyResult
     {

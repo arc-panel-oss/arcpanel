@@ -4,6 +4,7 @@ namespace App\Api;
 
 use App\Arc\CommandArguments;
 use App\Arc\ExitCode;
+use App\Services\Support\PlanRunner;
 use App\Services\WebDomains\ApplyResult;
 use App\Services\WebDomains\Step;
 use Closure;
@@ -34,7 +35,7 @@ final class PlanGate
      */
     public function authorize(array $steps, array $also = []): void
     {
-        $missing = $this->permissions->missing([...array_map(fn (Step $step) => $step->command, $steps), ...$also]);
+        $missing = $this->permissions->missing([...array_map(fn (Step $step) => $step->command, $steps), ...PlanRunner::restartCommands($steps), ...$also]);
         if ($missing !== []) {
             throw ApiException::commandsRefused($missing);
         }

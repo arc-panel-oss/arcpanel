@@ -28,6 +28,8 @@ final class StartApiRequest
             app()->instance(ArcCommand::class, $arc->inner());
         }
         app()->forgetScopedInstances();
+        // The route keeps its controller, built with the services of the last request.
+        $request->route()?->flushController();
 
         ApiHeaders::requestId($request);
 

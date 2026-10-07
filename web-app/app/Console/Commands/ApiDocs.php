@@ -109,7 +109,7 @@ final class ApiDocs extends Command
             'bearerFormat' => 'ACCESS_KEY_ID:SECRET_ACCESS_KEY',
             'description' => 'An access key of the panel and its secret, joined by a colon.',
         ]];
-        $components['schemas'] = array_merge($components['schemas'] ?? [], $this->schemas());
+        $components['schemas'] = self::withNullableObjects(array_merge($components['schemas'] ?? [], $this->schemas()));
         $components['headers'] = $this->headers();
         $components['responses'] = $this->errorResponses();
         ksort($components['schemas']);
@@ -125,6 +125,33 @@ final class ApiDocs extends Command
         }
 
         return $this->withoutResourceSuffix($spec);
+    }
+
+    /**
+     * Scramble drops `nullable` from a field that has nested rules
+     * (`field` and `field.key`): the request schemas take it from the rules
+     * of their FormRequest again.
+     *
+     * @param  array<string, mixed>  $schemas
+     * @return array<string, mixed>
+     */
+    private static function withNullableObjects(array $schemas): array
+    {
+        foreach ($schemas as $name => $schema) {
+            $class = 'App\\Http\\Requests\\Api\\V2\\'.$name;
+            if (! class_exists($class) || ! isset($schema['properties']) || ! is_array($schema['properties'])) {
+                continue;
+            }
+            foreach ((new $class)->rules() as $field => $rules) {
+                $property = $schema['properties'][$field] ?? null;
+                if (! is_array($property) || ! in_array('nullable', (array) $rules, true) || ($property['type'] ?? null) !== 'object') {
+                    continue;
+                }
+                $schemas[$name]['properties'][$field]['type'] = ['object', 'null'];
+            }
+        }
+
+        return $schemas;
     }
 
     /**
