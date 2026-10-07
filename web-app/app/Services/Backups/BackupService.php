@@ -182,19 +182,27 @@ final class BackupService
         return BackupArchive::fromArray($user, $id, $this->lookup->one('v-list-user-backup-restic', [$user, $id]));
     }
 
-    /** `v-schedule-user-backup-restic USER` */
-    public function scheduleSnapshot(string $user): CommandResult
+    /** `v-schedule-user-backup-restic USER [FORMAT]` */
+    public function scheduleSnapshot(string $user, string $format = 'shell'): CommandResult
     {
-        return $this->arc->run('v-schedule-user-backup-restic', [$user], Options::allowFailure());
+        $args = $format === 'shell' ? [$user] : [$user, $format];
+
+        return $this->arc->run('v-schedule-user-backup-restic', $args, Options::allowFailure());
     }
 
-    /** `v-schedule-user-restore-restic USER SNAPSHOT [OBJECT VALUE]`: everything, or one web, dns, mail or db object, or the cron jobs. */
-    public function restoreSnapshot(string $user, string $id, ?string $object = null, string $value = ''): CommandResult
+    /** `v-schedule-user-restore-restic USER SNAPSHOT [OBJECT VALUE [FORMAT]]`: everything, or one web, dns, mail or db object, or the cron jobs. */
+    public function restoreSnapshot(string $user, string $id, ?string $object = null, string $value = '', string $format = 'shell'): CommandResult
     {
         $args = [$user, $id];
         if ($object !== null) {
             $args[] = $object;
             $args[] = $object === 'cron' ? 'yes' : $value;
+        }
+        if ($format === 'json') {
+            if ($object === null) {
+                $args = array_merge($args, ['', '']);
+            }
+            $args[] = 'json';
         }
 
         return $this->arc->run('v-schedule-user-restore-restic', $args, Options::allowFailure());
@@ -217,10 +225,15 @@ final class BackupService
         return SnapshotListing::parse($result->stdout, $path);
     }
 
-    /** `v-schedule-user-restore-file-restic USER SNAPSHOT PATH` (E7 batch 1 spec §10.4). */
-    public function restoreFile(string $user, string $id, string $path): CommandResult
+    /** `v-schedule-user-restore-file-restic USER SNAPSHOT PATH [FORMAT]` (E7 batch 1 spec §10.4). */
+    public function restoreFile(string $user, string $id, string $path, string $format = 'shell'): CommandResult
     {
-        return $this->arc->run('v-schedule-user-restore-file-restic', [$user, $id, $path], Options::allowFailure());
+        $args = [$user, $id, $path];
+        if ($format !== 'shell') {
+            $args[] = $format;
+        }
+
+        return $this->arc->run('v-schedule-user-restore-file-restic', $args, Options::allowFailure());
     }
 
     // Exclusions

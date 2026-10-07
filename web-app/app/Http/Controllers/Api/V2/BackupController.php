@@ -13,10 +13,17 @@ use App\Arc\ExitCode;
 use App\Auth\Principal;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\V2\RestoreBackupRequest;
+use App\Http\Requests\Api\V2\RestoreSnapshotRequest;
+use App\Http\Requests\Api\V2\SetBackupExclusionsRequest;
+use App\Http\Resources\V2\BackupExclusionsResource;
 use App\Http\Resources\V2\BackupResource;
+use App\Http\Resources\V2\SnapshotFileEntryResource;
+use App\Http\Resources\V2\SnapshotResource;
 use App\Http\Resources\V2\TaskResource;
-use App\Policies\BackupPolicy;
 use App\Services\Backups\BackupArchive;
+use App\Services\Files\FilePath;
+use App\Services\Files\InvalidFilePath;
+use App\Policies\BackupPolicy;
 use App\Services\Backups\BackupPaths;
 use App\Services\Backups\BackupService;
 use App\Services\Tasks\TaskMapper;
@@ -31,7 +38,7 @@ use Illuminate\Http\Response;
 use Illuminate\Validation\ValidationException;
 
 /**
- * Tar backup archives of a user (E34 batch 3 spec §6.1).
+ * Backup archives, restic snapshots and exclusions of a user (E34 batch 3 spec §6.1–§6.3).
  *
  * @tags Backups
  */
@@ -199,6 +206,263 @@ final class BackupController extends Controller
         return $this->queued($user, $this->backups->scheduleDownload($user, $backup, 'json'), 'backup-download', $backup);
     }
 
+    /**
+     * List restic snapshots of a user
+     *
+     * Newest first. Only available when the user's package has incremental backups.
+     *
+     * @operationId listSnapshots
+     */
+    public function listSnapshots(Request $request, string $user, Principal $principal, BackupPolicy $policy): AnonymousResourceCollection
+    {
+        $this->assertOwner($user, $principal, $policy);
+        $this->assertIncremental($user);
+        $page = $this->pages->slice($request, $this->backups->snapshots($user));
+
+        return SnapshotResource::collection($page['items'])->additional(['meta' => $page['meta']]);
+    }
+
+    /**
+     * Create a restic snapshot
+     *
+     * Queues a snapshot of the user. When a backup or restore is already queued,
+     * answers 409 `E_EXISTS` with `existing` set to that task.
+     *
+     * @operationId createSnapshot
+     *
+     * @status 202
+     */
+    public function createSnapshot(string $user, Principal $principal, BackupPolicy $policy): TaskResource|JsonResponse
+    {
+        $this->assertOwner($user, $principal, $policy);
+        $this->assertIncremental($user);
+        abort_unless($policy->create($principal, $user), 403);
+        $steps = [new Step(__('Create snapshot'), 'v-schedule-user-backup-restic', [$user, 'json'])];
+        $this->gate->authorize($steps);
+        if ($this->gate->dryRun()) {
+            return $this->gate->preview($steps);
+        }
+
+        return $this->queued($user, $this->backups->scheduleSnapshot($user, 'json'), 'snapshot');
+    }
+
+    /**
+     * Get a restic snapshot
+     *
+     * Includes the objects the snapshot holds per type.
+     *
+     * @operationId getSnapshot
+     */
+    public function getSnapshot(string $user, string $snapshot, Principal $principal, BackupPolicy $policy): SnapshotResource
+    {
+        $this->assertOwner($user, $principal, $policy);
+        $this->assertIncremental($user);
+        $this->assertSnapshotId($snapshot);
+        $record = $this->backups->snapshot($user, $snapshot);
+
+        return new SnapshotResource($record, $this->backups->snapshotContent($user, $snapshot));
+    }
+
+    /**
+     * Delete a restic snapshot
+     *
+     * @operationId deleteSnapshot
+     *
+     * @status 204
+     */
+    public function destroySnapshot(string $user, string $snapshot, Principal $principal, BackupPolicy $policy): Response|JsonResponse
+    {
+        $this->assertOwner($user, $principal, $policy);
+        $this->assertIncremental($user);
+        abort_unless($policy->delete($principal, $user), 403);
+        $this->assertSnapshotId($snapshot);
+        $this->backups->snapshot($user, $snapshot);
+        $steps = [new Step(sprintf(__('Delete snapshot %s'), $snapshot), 'v-delete-user-backup-restic', [$user, $snapshot])];
+        $this->gate->authorize($steps);
+        if ($this->gate->dryRun()) {
+            return $this->gate->preview($steps);
+        }
+        $result = $this->backups->deleteSnapshot($user, $snapshot);
+        if (! $result->ok()) {
+            throw new ApiException(ErrorCode::Server, $result->firstError(), 500);
+        }
+
+        return response()->noContent();
+    }
+
+    /**
+     * List files and folders in a restic snapshot
+     *
+     * Paths are relative to the home directory. Entries are read-only.
+     *
+     * @operationId listSnapshotFiles
+     */
+    public function listSnapshotFiles(Request $request, string $user, string $snapshot, Principal $principal, BackupPolicy $policy): JsonResponse
+    {
+        $this->assertOwner($user, $principal, $policy);
+        $this->assertIncremental($user);
+        $this->assertSnapshotId($snapshot);
+        $this->backups->snapshot($user, $snapshot);
+        try {
+            $relative = FilePath::from(is_string($request->query('path')) ? $request->query('path') : '');
+        } catch (InvalidFilePath) {
+            throw ValidationException::withMessages(['path' => [__('The path is invalid.')]]);
+        }
+        $home = self::home($user);
+        $listing = $this->backups->snapshotFolder($user, $snapshot, $relative->absolute($home));
+        $entries = array_map(
+            fn (array $entry) => SnapshotFileEntryResource::from($entry, $home, $listing->path),
+            $listing->entries,
+        );
+        $page = $this->pages->slice($request, $entries);
+
+        return response()->json([
+            'data' => $page['items'],
+            'meta' => $page['meta'],
+        ]);
+    }
+
+    /**
+     * Restore from a restic snapshot
+     *
+     * An empty body restores everything. Send `type` and `object` to restore one
+     * web, dns, mail or database object, or all cron jobs. Send `path` to restore
+     * one file or folder; the restore overwrites the current file.
+     *
+     * @operationId restoreSnapshot
+     *
+     * @status 202
+     */
+    public function restoreSnapshot(
+        RestoreSnapshotRequest $request,
+        string $user,
+        string $snapshot,
+        Principal $principal,
+        BackupPolicy $policy,
+    ): TaskResource|JsonResponse {
+        $this->assertOwner($user, $principal, $policy);
+        $this->assertIncremental($user);
+        abort_unless($policy->restore($principal, $user), 403);
+        $this->assertSnapshotId($snapshot);
+        $this->backups->snapshot($user, $snapshot);
+
+        if ($request->restoresPath()) {
+            return $this->restoreSnapshotPath($request, $user, $snapshot);
+        }
+
+        $type = $request->restoresObject() ? $request->string('type')->toString() : null;
+        $object = $request->input('object');
+        if ($type !== null && $type !== 'cron') {
+            $content = $this->backups->snapshotContent($user, $snapshot);
+            abort_unless(in_array($object, $content->items[$type], true), 404);
+        }
+        $args = $type === null
+            ? [$user, $snapshot, '', '', 'json']
+            : array_merge([$user, $snapshot, $type, $type === 'cron' ? 'yes' : (string) $object], ['json']);
+        $steps = [new Step(sprintf(__('Restore snapshot %s'), $snapshot), 'v-schedule-user-restore-restic', $args)];
+        $this->gate->authorize($steps);
+        if ($this->gate->dryRun()) {
+            return $this->gate->preview($steps);
+        }
+
+        return $this->queued(
+            $user,
+            $this->backups->restoreSnapshot($user, $snapshot, $type, (string) ($object ?? ''), 'json'),
+            'snapshot-restore',
+            trim($snapshot.' '.($type ?? '')),
+        );
+    }
+
+    /**
+     * Get backup exclusions of a user
+     *
+     * @operationId getBackupExclusions
+     */
+    public function showExclusions(string $user, Principal $principal, BackupPolicy $policy): BackupExclusionsResource
+    {
+        $this->assertOwner($user, $principal, $policy);
+
+        return new BackupExclusionsResource($this->backups->exclusions($user));
+    }
+
+    /**
+     * Set backup exclusions of a user
+     *
+     * Send the full object. A type left out of the body keeps its current list.
+     *
+     * @operationId setBackupExclusions
+     */
+    public function updateExclusions(
+        SetBackupExclusionsRequest $request,
+        string $user,
+        Principal $principal,
+        BackupPolicy $policy,
+    ): BackupExclusionsResource|JsonResponse {
+        $this->assertOwner($user, $principal, $policy);
+        abort_unless($policy->editExclusions($principal, $user), 403);
+        $current = $this->backups->exclusions($user);
+        $changes = [];
+        foreach (['web' => 'WEB', 'dns' => 'DNS', 'mail' => 'MAIL', 'db' => 'DB', 'cron' => 'CRON', 'user' => 'USER'] as $field => $key) {
+            if ($request->exists($field)) {
+                $changes[$key] = array_values(array_map('strval', $request->input($field, [])));
+            }
+        }
+        $updated = $current->with($changes);
+        $steps = [new Step(__('Update backup exclusions'), 'v-update-user-backup-exclusions', [$user])];
+        $this->gate->authorize($steps);
+        if ($this->gate->dryRun()) {
+            return $this->gate->preview($steps);
+        }
+        $result = $this->backups->saveExclusions($user, $updated);
+        if (! $result->ok()) {
+            throw new ApiException(ErrorCode::fromExit($result->exit()), $result->errorMessage(), ErrorCode::statusOfExit($result->exit()));
+        }
+
+        return new BackupExclusionsResource($updated);
+    }
+
+    private function restoreSnapshotPath(RestoreSnapshotRequest $request, string $user, string $snapshot): TaskResource|JsonResponse
+    {
+        try {
+            $relative = FilePath::from($request->string('path')->toString());
+        } catch (InvalidFilePath) {
+            throw ValidationException::withMessages(['path' => [__('The path is invalid.')]]);
+        }
+        if ($relative->isRoot()) {
+            throw ValidationException::withMessages(['path' => [__('The home directory cannot be restored on its own.')]]);
+        }
+        $absolute = $relative->absolute(self::home($user));
+        $steps = [new Step(sprintf(__('Restore file from snapshot %s'), $snapshot), 'v-schedule-user-restore-file-restic', [$user, $snapshot, $absolute, 'json'])];
+        $this->gate->authorize($steps);
+        if ($this->gate->dryRun()) {
+            return $this->gate->preview($steps);
+        }
+        $result = $this->backups->restoreFile($user, $snapshot, $absolute, 'json');
+        if ($result->exit() === ExitCode::Exists) {
+            $task = $this->tasks->queuedBackupOrRestore($user);
+            if ($task !== null) {
+                throw new ApiException(
+                    ErrorCode::Exists,
+                    $result->message() !== '' ? $result->message() : __('An existing restoration task is already running. Please wait for it to finish before launching it again.'),
+                    409,
+                    existing: (new TaskResource($task))->resolve(request()),
+                );
+            }
+        }
+        if ($result->exit() === ExitCode::Invalid || $result->exit() === ExitCode::Args) {
+            throw ValidationException::withMessages(['path' => [$result->message() !== '' ? $result->message() : __('The path is invalid.')]]);
+        }
+        if (! $result->ok()) {
+            throw new ApiException(
+                ErrorCode::fromExit($result->exit()),
+                $result->errorMessage(),
+                ErrorCode::statusOfExit($result->exit()),
+            );
+        }
+
+        return $this->queued($user, $result, 'file-restore', trim($snapshot.' '.$relative->relative()));
+    }
+
     private function assertOwner(string $user, Principal $principal, BackupPolicy $policy): void
     {
         abort_unless($policy->view($principal, $user) && $this->tasks->userExists($user), 404);
@@ -209,6 +473,21 @@ final class BackupController extends Controller
         abort_unless(BackupService::ownsName($user, $backup), 404);
 
         return $this->backups->archive($user, $backup);
+    }
+
+    private function assertIncremental(string $user): void
+    {
+        abort_unless($this->backups->incremental($user), 404);
+    }
+
+    private function assertSnapshotId(string $snapshot): void
+    {
+        abort_unless(preg_match('/^[0-9a-f]{8,64}$/', $snapshot) === 1, 404);
+    }
+
+    private static function home(string $user): string
+    {
+        return '/home/'.$user;
     }
 
     /**

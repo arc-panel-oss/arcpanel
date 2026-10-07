@@ -200,6 +200,11 @@ The path the command prints must match `^/backup/[\w.-]+$`, as on the page; anyt
 
 The work log of each milestone is appended here.
 
+### M4 (2026-10-08)
+
+- Snapshot endpoints under `/api/v2/users/{user}/snapshots` (`listSnapshots`, `createSnapshot`, `getSnapshot`, `deleteSnapshot`, `listSnapshotFiles`, `restoreSnapshot`) and exclusions (`getBackupExclusions`, `setBackupExclusions`); incremental packages only for snapshots; `SnapshotResource`, batch-5-shaped file entries, `v2-backup` / `v2-read` / `v2-write` command sets updated.
+- Pest: extended `tests/Feature/ApiV2BackupsTest.php`, `tests/Unit/SnapshotResourceTest.php`.
+
 ### M3 (2026-10-08)
 
 - Archive endpoints under `/api/v2/users/{user}/backups` (`listBackups`, `createBackup`, `getBackup`, `deleteBackup`, `restoreBackup`, `downloadBackup`) with `BackupResource`, D35 downloads via `BackupPaths`, `409`/`existing` as a task, and `v2-backup` command sets updated.

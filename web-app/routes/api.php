@@ -28,6 +28,7 @@ Route::pattern('package', '[[:alnum:]][-.\w]{0,99}');
 Route::pattern('account', '[\w.-]{1,64}');
 Route::pattern('database', '[\w-]{1,64}');
 Route::pattern('backup', '[A-Za-z0-9][A-Za-z0-9_.-]{0,250}');
+Route::pattern('snapshot', '[0-9a-f]{8,64}');
 Route::pattern('alias', '[^/\s]{1,253}');
 
 Route::get('/me', MeController::class)->name('me');
@@ -139,7 +140,16 @@ Route::middleware('effective-user')->group(function () {
         Route::post('/users/{user}/backups', [BackupController::class, 'store'])->name('backups.store');
         Route::post('/users/{user}/backups/{backup}/restore', [BackupController::class, 'restore'])->name('backups.restore');
         Route::delete('/users/{user}/backups/{backup}', [BackupController::class, 'destroy'])->name('backups.destroy');
+        Route::post('/users/{user}/snapshots', [BackupController::class, 'createSnapshot'])->name('snapshots.store');
+        Route::post('/users/{user}/snapshots/{snapshot}/restore', [BackupController::class, 'restoreSnapshot'])->name('snapshots.restore');
+        Route::delete('/users/{user}/snapshots/{snapshot}', [BackupController::class, 'destroySnapshot'])->name('snapshots.destroy');
+        Route::put('/users/{user}/backup-exclusions', [BackupController::class, 'updateExclusions'])->name('backup-exclusions.update');
     });
+
+    Route::get('/users/{user}/snapshots', [BackupController::class, 'listSnapshots'])->name('snapshots.index');
+    Route::get('/users/{user}/snapshots/{snapshot}', [BackupController::class, 'getSnapshot'])->name('snapshots.show');
+    Route::get('/users/{user}/snapshots/{snapshot}/files', [BackupController::class, 'listSnapshotFiles'])->name('snapshots.files');
+    Route::get('/users/{user}/backup-exclusions', [BackupController::class, 'showExclusions'])->name('backup-exclusions.show');
 
     // Cron jobs (E34 batch 2 spec §6.5)
     Route::get('/users/{user}/cron-jobs', [CronController::class, 'index'])->name('cron-jobs.index');
@@ -178,7 +188,7 @@ foreach (Route::getRoutes() as $route) {
         str_contains($uri, '/mail-domains') => 'mail',
         str_contains($uri, '/databases') => 'db',
         str_contains($uri, '/cron-jobs'), str_contains($uri, '/cron-reports') => 'cron',
-        str_contains($uri, '/backups') => 'backup',
+        str_contains($uri, '/backups'), str_contains($uri, '/snapshots'), str_contains($uri, '/backup-exclusions') => 'backup',
         str_contains($uri, '/tasks') => 'backup',
         str_starts_with($uri, 'api/v2/users'), str_starts_with($uri, 'api/v2/packages') => 'accounts',
         default => null,
