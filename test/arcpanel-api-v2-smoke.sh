@@ -285,6 +285,8 @@ check "a web domain for the backup smoke" 201 "$(call "$WRITER" POST "$WEB" "{\"
 le_headers=$(curl -sk -D - -o /dev/null -X POST \
 	-H "Authorization: Bearer $WRITER" -H 'Accept: application/json' -H 'Content-Type: application/json' \
 	--data '{"key_algorithm": "ecdsa-384"}' "$API$WEB/$SMOKE_DOMAIN/letsencrypt")
+le_code=$(head -1 <<< "$le_headers" | awk '{print $2}')
+check "requestWebDomainLetsEncrypt answers 202" 202 "$le_code"
 check "requestWebDomainLetsEncrypt sends Link rel=monitor" 1 "$(grep -ci 'link:.*tasks/.*rel="monitor"' <<< "$le_headers")"
 sed -i "/ $SMOKE_DOMAIN /d" "$ARCPANEL/data/queue/letsencrypt.pipe"
 
