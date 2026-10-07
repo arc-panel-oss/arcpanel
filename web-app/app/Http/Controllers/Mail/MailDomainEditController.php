@@ -8,10 +8,10 @@ use App\Http\Requests\Mail\MailGeneralRequest;
 use App\Http\Requests\Mail\MailRelayRequest;
 use App\Http\Requests\Mail\MailSslRequest;
 use App\Policies\MailPolicy;
+use App\Services\MailDomains\MailActions;
 use App\Services\MailDomains\MailDomainPlanner;
 use App\Services\MailDomains\MailService;
 use App\Services\WebDomains\ApplyResult;
-use App\Services\WebDomains\Input;
 use App\Services\WebDomains\Step;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Validation\ValidationException;
@@ -35,10 +35,12 @@ final class MailDomainEditController extends Controller
         $values = $request->values($policy->updateRateLimit($principal, $user));
 
         $client = $values['webmail'];
-        if ($systems['webmail'] && $client !== null && $client !== MailDomainPlanner::WEBMAIL_DISABLED
-            && $client !== $record->webmail && ! in_array($client, $this->mail->webmailClients(), true)) {
-            throw ValidationException::withMessages(['webmail' => __('Please select a valid webmail client.')])
-                ->errorBag('general')->redirectTo($this->tabUrl($user, $domain, 'general'));
+        if ($systems['webmail'] && $client !== null && $client !== $record->webmail) {
+            try {
+                app(MailActions::class)->assertWebmail($client);
+            } catch (ValidationException $e) {
+                throw $e->errorBag('general')->redirectTo($this->tabUrl($user, $domain, 'general'));
+            }
         }
 
         return $this->finish($user, $domain, 'general', $this->mail->apply($this->planner->planGeneral($record, $values, $systems)));
@@ -50,18 +52,10 @@ final class MailDomainEditController extends Controller
         $record = $this->mail->find($user, $domain);
         $values = $request->values();
 
-        // An uploaded certificate needs the certificate and its key.
-        if (MailDomainPlanner::installsCertificate($record, $values)) {
-            $missing = [];
-            if (Input::pem($values['certificate']) === '') {
-                $missing['certificate'] = sprintf(__('Field "%s" can not be blank.'), __('SSL Certificate'));
-            }
-            if (Input::pem($values['key']) === '') {
-                $missing['key'] = sprintf(__('Field "%s" can not be blank.'), __('SSL Private Key'));
-            }
-            if ($missing !== []) {
-                throw ValidationException::withMessages($missing)->errorBag('ssl')->redirectTo($this->tabUrl($user, $domain, 'ssl'));
-            }
+        try {
+            app(MailActions::class)->assertCertificate($record, $values);
+        } catch (ValidationException $e) {
+            throw $e->errorBag('ssl')->redirectTo($this->tabUrl($user, $domain, 'ssl'));
         }
 
         $certificate = $record->ssl ? $this->mail->ssl($user, $domain) : null;

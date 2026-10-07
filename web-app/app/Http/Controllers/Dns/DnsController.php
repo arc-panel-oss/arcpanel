@@ -9,11 +9,11 @@ use App\Http\Requests\Dns\StoreDnsZoneRequest;
 use App\Http\Requests\Dns\UpdateDnsZoneRequest;
 use App\Policies\Capabilities;
 use App\Policies\DnsPolicy;
+use App\Services\Dns\DnsActions;
 use App\Services\Dns\DnsService;
 use App\Services\Support\OwnerList;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
 /**
@@ -25,7 +25,10 @@ final class DnsController extends Controller
     /** Lists longer than this are paged on the server. */
     public const PAGE_SIZE = 500;
 
-    public function __construct(private readonly DnsService $dns) {}
+    public function __construct(
+        private readonly DnsService $dns,
+        private readonly DnsActions $actions,
+    ) {}
 
     public function index(Request $request, Principal $principal, DnsPolicy $policy, OwnerList $ownerList): View
     {
@@ -98,7 +101,7 @@ final class DnsController extends Controller
 
         $canTemplates = $policy->updateTemplates($principal, $owner);
         $zone = $request->zone($this->dns->dnssecSupported());
-        $this->assertTemplate($canTemplates, $zone['template']);
+        $this->actions->assertTemplate($canTemplates, $zone['template']);
 
         $result = $this->dns->apply($this->dns->planCreate($owner, $zone, $canTemplates, $this->dns->ownerTemplate($owner)));
         $records = redirect()->route('dns.records.index', ['user' => $owner, 'domain' => $zone['domain']]);
@@ -135,7 +138,7 @@ final class DnsController extends Controller
         $canTemplates = $policy->updateTemplates($principal, $user);
         $input = $request->zone($this->dns->dnssecSupported());
         if ($input['template'] !== $zone->template) {
-            $this->assertTemplate($canTemplates, $input['template']);
+            $this->actions->assertTemplate($canTemplates, $input['template']);
         }
 
         $result = $this->dns->apply($this->dns->planUpdate($zone, $input, $canTemplates));
@@ -160,14 +163,4 @@ final class DnsController extends Controller
         ]);
     }
 
-    /** A template other than the current one must be allowed and exist (D10). */
-    private function assertTemplate(bool $allowed, string $template): void
-    {
-        if ($template === '' || ! $allowed) {
-            return;
-        }
-        if (! in_array($template, $this->dns->templates(), true)) {
-            throw ValidationException::withMessages(['template' => __('Please select a valid template.')]);
-        }
-    }
 }

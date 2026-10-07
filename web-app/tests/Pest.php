@@ -629,8 +629,7 @@ const API_KEY_ID = 'APIKEY0123456789abcd';
 const API_SECRET = 'S3cret-0123456789abcdefghijklmnopqrstuvw';
 
 /**
- * The commands of a permission set shipped in install/common/api/ (the
- * v2-read and v2-write sets of E34).
+ * The commands of a permission set shipped in install/common/api/.
  *
  * @return list<string>
  */
@@ -643,6 +642,25 @@ function apiSetCommands(string $set): array
     }
 
     return array_values(array_filter(explode(',', $m[1])));
+}
+
+/**
+ * Area sets of API v2 (`v2-accounts`, `v2-web`, …), not the unions.
+ *
+ * @return list<string>
+ */
+function apiAreaSets(): array
+{
+    $sets = [];
+    foreach (glob(base_path('../install/common/api/v2-*')) ?: [] as $file) {
+        $name = basename($file);
+        if (! in_array($name, ['v2-read', 'v2-write'], true)) {
+            $sets[] = $name;
+        }
+    }
+    sort($sets);
+
+    return $sets;
 }
 
 /**
@@ -679,10 +697,13 @@ function apiKey(ArcCommandFake $fake, string $user, string $role, array $sets = 
 /**
  * The key a test signs in with: unrestricted for administrators, the v2-write
  * set (or v2-read for $readOnly) for everyone else, as the panel requires.
+ * With $area the key holds only that area's set (D30), for an administrator too.
  *
  * @return array<string, string>
  */
-function apiAs(ArcCommandFake $fake, string $user, string $role, bool $readOnly = false): array
+function apiAs(ArcCommandFake $fake, string $user, string $role, bool $readOnly = false, ?string $area = null): array
 {
-    return apiKey($fake, $user, $role, $role === 'admin' ? [] : [$readOnly ? 'v2-read' : 'v2-write']);
+    $sets = $area !== null ? ['v2-'.$area] : ($role === 'admin' ? [] : [$readOnly ? 'v2-read' : 'v2-write']);
+
+    return apiKey($fake, $user, $role, $sets);
 }

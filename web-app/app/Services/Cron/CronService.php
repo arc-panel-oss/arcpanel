@@ -104,9 +104,14 @@ final class CronService
      *
      * @param  array<string, string>  $schedule  min, hour, day, month, wday
      */
-    public function planCreate(string $owner, array $schedule, string $command): Step
+    public function planCreate(string $owner, array $schedule, string $command, string $job = ''): Step
     {
-        return new Step(__('Add the cron job'), 'v-add-cron-job', [$owner, ...self::ordered($schedule), $command]);
+        $args = [$owner, ...self::ordered($schedule), $command];
+        if ($job !== '') {
+            $args[] = $job;
+        }
+
+        return new Step(__('Add the cron job'), 'v-add-cron-job', $args);
     }
 
     /**
@@ -147,6 +152,33 @@ final class CronService
         $this->lists = [];
 
         return $this->runner->run([[$user, $job]], fn (array $item) => [$item[0].'/'.$item[1], $command, [$item[0], $item[1]]]);
+    }
+
+    /**
+     * The step that turns cron reports on or off, or none when they already
+     * match. The page runs `setReports` at once; the API plans this step.
+     *
+     * @return list<Step>
+     */
+    public function planReports(string $user, bool $enabled, bool $current): array
+    {
+        if ($enabled === $current) {
+            return [];
+        }
+
+        return [new Step(
+            $enabled ? __('Enable cron reports') : __('Disable cron reports'),
+            $enabled ? 'v-add-cron-reports' : 'v-delete-cron-reports',
+            [$user],
+        )];
+    }
+
+    /** The server's time zone (`v-get-sys-timezone`). */
+    public function timezone(): string
+    {
+        $zone = trim((string) ($this->arc->run('v-get-sys-timezone', [], Options::allowFailure())->lines()[0] ?? ''));
+
+        return $zone !== '' ? $zone : date_default_timezone_get();
     }
 
     /** `v-add-cron-reports USER` or `v-delete-cron-reports USER`. */

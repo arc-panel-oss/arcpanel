@@ -205,7 +205,7 @@ Policies decide; the CLI still validates. A policy bug can only ever **widen** U
 >
 > - A v2 call acts as the **owner of the key** (its `Principal`, with that user's role and read-only state), so the policies, `OwnerScope` and `TenancyDirectory` of §7 apply exactly as for that user signed in: outside the tree **404**, refused inside it **403**. A reseller's key manages its customers through the same routes as an administrator's.
 > - `v-check-access-key-permissions ACCESS_KEY_ID SECRET_FILE IP [FORMAT]` checks the key and prints its user, role, sets and allowed commands.
-> - Two v2-only sets, `install/common/api/v2-read` and `v2-write` (`ROLE='user'`, `API_VERSION='2'`), limit what a key may run; `get_apis_commands` skips them for API v1, so they open nothing there. Every command of a v2 plan is checked against the sets before the first one runs.
+> - v2-only sets (`ROLE='user'`, `API_VERSION='2'`) limit what a key may run; `get_apis_commands` skips them for API v1, so they open nothing there. `v2-read` and `v2-write` are the union of the area sets `v2-accounts`, `v2-web`, `v2-dns`, `v2-mail`, `v2-db` and `v2-cron`. A key may hold several area sets. Every command of a v2 plan is checked against the sets before the first one runs.
 > - API v1 (`lib/api/index.php`) is unchanged: a non-admin key is still scoped by its sets and one user argument.
 
 The original design, kept for reference:

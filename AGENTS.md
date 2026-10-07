@@ -24,7 +24,7 @@ The current state of each epic is in [docs/roadmap.md](docs/roadmap.md). As of 2
 - E7 batch 1 (Databases, Cron, DNS, Mail and Backups, with the restic snapshot browser), batch 2 (Firewall, IPs, access and SSH keys, logs, statistics and graphs, web terminal, Quick Install run in the background) and batch 3 (Services, Server settings, config editors, Updates, password and 2FA reset, Search, CSR generator).
 - E8 (legacy retirement, [spec](docs/features/specs/2026-10-06-004-e8-legacy-retirement-design.md)): the panel app at the root URL, `web/` deleted and its still-used pieces in `lib/`, FileGator removed, version 2.0.0. Publishing the release waits for the E9 release infrastructure.
 - E9 R5 (full rename and hard fork, [spec](docs/features/specs/2026-10-06-005-e9-full-rename-design.md)): in progress; `develop` installs again when its milestone M8 passes.
-- E29, the OpenAPI document of REST API v1 ([spec](docs/features/specs/2026-10-07-001-e29-openapi-design.md)), and E34 batch 1, REST API v2 under `/api/v2/` in the panel app with users, packages and web domains ([spec](docs/features/specs/2026-10-07-002-e34-api-v2-design.md)).
+- E29, the OpenAPI document of REST API v1 ([spec](docs/features/specs/2026-10-07-001-e29-openapi-design.md)), and E34 batches 1 and 2, REST API v2 under `/api/v2/` in the panel app with users, packages, web domains, DNS, mail, databases and cron ([spec](docs/features/specs/2026-10-07-002-e34-api-v2-design.md), [batch 2](docs/features/specs/2026-10-07-003-e34-api-v2-batch2-design.md)).
 
 The rest is design.
 
@@ -157,7 +157,7 @@ A change is verified when the suites it touches pass **and** the smoke or e2e fl
 - [ ] Spec decisions and milestones are reflected in code; nothing in scope was dropped without saying so.
 - [ ] New commands: header, validation, demo mode, logging, `json` output, BATS cases, entry in the panel's allow-list when the panel calls them, `docs/api/openapi.yaml` regenerated (`npm run docs:api`).
 - [ ] New routes: policy + `Capabilities` entry, `effective-user` / `not-readonly` middleware where applicable, Pest feature test for admin, reseller A, reseller B and user.
-- [ ] New REST API v2 endpoints: a stable camelCase `@operationId`, the Pest matrix of admin, reseller A, reseller B and user with cross-tenant 404, a dry run that runs nothing and a `v2-read` key refused before any command; their commands in `install/common/api/v2-read` or `v2-write`; `docs/api/v2/openapi.json` regenerated (`php artisan arcpanel:api-docs`); the smoke script extended.
+- [ ] New REST API v2 endpoints: a stable camelCase `@operationId`, the Pest matrix of admin, reseller A, reseller B and user with cross-tenant 404, a dry run that runs nothing and a `v2-read` key refused before any command. The route declares its area. Its commands are listed in that area set and, through the union, in `v2-read` or `v2-write`. The main path passes with a key that holds only that area set. `docs/api/v2/openapi.json` is regenerated (`php artisan arcpanel:api-docs`) and the smoke script is extended.
 - [ ] Owner scoping proven: cross-tenant access returns 404 in a test.
 - [ ] Documentation updated: design doc status, **13**, **15** (if data changed), roadmap status line, spec implementation notes.
 - [ ] `npm run lint`, `test/shellcheck.sh`, `test/brand-check.sh`, Pest, Vitest green; BATS and smoke green on the test server; e2e for new pages.

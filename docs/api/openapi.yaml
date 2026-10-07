@@ -72,7 +72,7 @@ info:
     | `sync-dns-cluster` | admin | `v-list-users`, `v-list-sys-config`, `v-list-user`, `v-add-cron-restart-job`, `v-delete-dns-domains-src`, `v-insert-dns-domain`, `v-insert-dns-record`, `v-insert-dns-records`, `v-rebuild-dns-domains`, `v-rebuild-dns-domain`, `v-delete-dns-record`, `v-make-tmp-file`, `v-delete-dns-domain` |
     | `update-dns-records` | user | `v-list-dns-records`, `v-change-dns-record` |
 
-    The sets `v2-read` and `v2-write` belong to REST API v2 (`/api/v2/`, documented in `docs/api/v2/openapi.json`): this API ignores them, so a key with only those sets may run no command here.
+    The sets `v2-accounts` and `v2-cron` and `v2-db` and `v2-dns` and `v2-mail` and `v2-read` and `v2-web` and `v2-write` belong to REST API v2 (`/api/v2/`, documented in `docs/api/v2/openapi.json`): this API ignores them, so a key with only those sets may run no command here.
   license:
     name: GPL-3.0-or-later
     identifier: GPL-3.0-or-later
@@ -27325,12 +27325,14 @@ paths:
       operationId: v-schedule-letsencrypt-domain
       tags:
         - Let's Encrypt
-      summary: Queue a Let's Encrypt certificate for a web domain
+      summary: Queue a Let's Encrypt certificate for a web or mail domain
       description: |-
-        This function queues a Let's Encrypt certificate for a web domain: the
-        letsencrypt queue, run by cron every five minutes, issues it with
-        v-add-letsencrypt-domain. ALIASES defaults to the aliases of the domain,
-        KEY_ALGO (rsa, ecdsa-256, ecdsa-384) to its current key type.
+        This function queues a Let's Encrypt certificate: the letsencrypt queue,
+        run by cron every five minutes, issues it with v-add-letsencrypt-domain.
+        ALIASES defaults to the aliases of the web domain, KEY_ALGO (rsa,
+        ecdsa-256, ecdsa-384) to its current key type. MAIL=yes queues the
+        certificate of the mail domain (no aliases) and leaves a queued web
+        certificate of the same domain in place.
 
         **Arguments**
 
@@ -27340,6 +27342,7 @@ paths:
         | `arg2` | `DOMAIN` | yes |
         | `arg3` | `ALIASES` | no |
         | `arg4` | `KEY_ALGO` | no |
+        | `arg5` | `MAIL` | no |
 
         **User argument:** with the access key of a user other than the admin, `arg1` must be the key's user.
       x-arcpanel-user-arg: 1
@@ -50934,6 +50937,12 @@ components:
               description: "`KEY_ALGO`, optional"
               examples:
                 - ecdsa-256
+            arg5:
+              type: string
+              title: MAIL
+              description: "`MAIL`, optional"
+              examples:
+                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-schedule-user-backup:

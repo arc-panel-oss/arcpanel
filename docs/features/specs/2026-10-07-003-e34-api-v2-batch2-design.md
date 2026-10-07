@@ -252,4 +252,12 @@ Field names follow the records in snake_case (batch 1 §5): booleans for `yes`/`
 
 ## 13. Implementation notes
 
-The work log of each milestone is appended here, as in the batch 1 spec.
+Implemented 2026-10-07, milestones M1–M7.
+
+- Pagination, `error.existing` and the area sets landed as specified. `v2-read` and `v2-write` are rebuilt as the union of the area files. `v-get-sys-timezone` is in `v2-cron` and also in `v2-read`, because `listCronJobs` returns `meta.timezone` and a read key must be allowed to run it. The shared `ListMeta` schema carries `timezone` as an optional field, set by that list only.
+- A web domain created with `dns: true` or `mail: true` needs `v2-dns` or `v2-mail` as well as `v2-web`. Probes and side effects that the web-domain endpoints always run stay in `v2-web`.
+- Zone plans restart DNS once. Adding a record follows the page: the command restarts DNS itself. The next record id and the next cron job id are passed to the commands.
+- Mail Let's Encrypt is queued with `v-schedule-letsencrypt-domain … MAIL=yes`. The mail page still issues the certificate at once. Replacing a Let's Encrypt certificate with an uploaded one is one plan on the API (`planSsl` `$replaceLetsEncrypt`); the page still needs two saves.
+- `send_credentials_to` uses `HostingCredentialsMailer`. A failed mail leaves the create at 201 with `meta.credentials_sent: false`.
+- Cron reports are planned with `CronService::planReports`. The page still calls `setReports` directly.
+- Database and mail checks that moved into `DatabaseActions` and `MailActions` keep the pages' messages. The API's type and host errors name the allowed values.

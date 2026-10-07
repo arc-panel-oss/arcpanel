@@ -28,7 +28,7 @@ function apiWebDomainListed($test, string $user, string $domain, array $row = []
 it('lists the domains of a user inside the tree and answers 404 outside it', function (string $principal, string $role, string $owner, int $status) {
     $response = $this->getJson("/api/v2/users/{$owner}/web-domains", apiAs($this->fake, $principal, $role, readOnly: true))->assertStatus($status);
     if ($status === 200) {
-        $response->assertJsonPath('meta', []);
+        $response->assertJsonPath('meta.total', count($response->json('data')));
     }
 })->with([
     'admin, bob' => ['arcadmin', 'admin', 'bob', 200],
@@ -40,6 +40,13 @@ it('lists the domains of a user inside the tree and answers 404 outside it', fun
     'user, itself' => ['bob', 'user', 'bob', 200],
     'user, another user' => ['bob', 'user', 'carol', 404],
 ]);
+
+it('pages the domain list', function () {
+    $this->getJson('/api/v2/users/bob/web-domains?limit=1', apiAs($this->fake, 'bob', 'user', readOnly: true))->assertOk()
+        ->assertJsonCount(1, 'data')
+        ->assertJsonPath('data.0.domain', 'example.com')
+        ->assertJsonPath('meta', ['total' => 2, 'limit' => 1, 'offset' => 0]);
+});
 
 it('lists the domains of a user', function () {
     $this->getJson('/api/v2/users/bob/web-domains', apiAs($this->fake, 'bob', 'user', readOnly: true))->assertOk()
@@ -95,7 +102,7 @@ it('creates a domain with its DNS zone and mail domain', function () {
     }
     apiWebDomainListed($this, 'bob', 'new.example');
 
-    $this->postJson('/api/v2/users/bob/web-domains', ['domain' => 'WWW.New.Example', 'ip' => '10.0.0.10', 'dns' => true, 'mail' => true], apiAs($this->fake, 'bob', 'user'))
+    $this->postJson('/api/v2/users/bob/web-domains', ['domain' => 'WWW.New.Example', 'ip' => '10.0.0.10', 'dns' => true, 'mail' => true], apiAs($this->fake, 'arcadmin', 'admin'))
         ->assertCreated()
         ->assertHeader('Location', 'http://localhost/api/v2/users/bob/web-domains/new.example')
         ->assertJsonPath('data.domain', 'new.example');
@@ -195,8 +202,17 @@ it('plans a create with its template steps without running it', function () {
 it('refuses a key whose sets do not allow the create and runs nothing', function () {
     $this->postJson('/api/v2/users/bob/web-domains', ['domain' => 'new.example'], apiAs($this->fake, 'bob', 'user', readOnly: true))->assertForbidden()
         ->assertJsonPath('error.code', 'E_FORBIDDEN')
-        ->assertJsonPath('error.commands', ['v-list-user-ips']);
+        ->assertJsonPath('error.commands', ['v-add-web-domain']);
     $this->fake->assertNotRan('v-add-web-domain');
+});
+
+it('refuses a v2-web key that also creates a DNS zone and names the missing command', function () {
+    $this->postJson('/api/v2/users/bob/web-domains', ['domain' => 'new.example', 'dns' => true], apiAs($this->fake, 'bob', 'user', area: 'web'))
+        ->assertForbidden()
+        ->assertJsonPath('error.code', 'E_FORBIDDEN')
+        ->assertJsonPath('error.commands', ['v-add-dns-domain']);
+    $this->fake->assertNotRan('v-add-web-domain');
+    $this->fake->assertNotRan('v-add-dns-domain');
 });
 
 // Update (updateWebDomain)

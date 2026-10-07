@@ -1,4 +1,4 @@
-# REST API v2 (E34): the commands of the read endpoints. API v1 skips this set.
+# REST API v2 (E34): the read commands of every area. API v1 skips this set.
 ROLE='user'
 API_VERSION='2'
-COMMANDS='v-list-sys-config,v-list-users,v-list-user-owners,v-list-user,v-list-sys-languages,v-list-reseller-packages,v-list-package-tenancy,v-check-reseller-quota,v-list-web-domains,v-list-web-domain,v-list-web-templates-meta,v-list-web-domain-tpl-vars,v-list-web-domain-ssl'
+COMMANDS='v-list-sys-config,v-list-users,v-list-user-owners,v-list-user,v-list-sys-languages,v-list-reseller-packages,v-list-package-tenancy,v-check-reseller-quota,v-list-user-package,v-list-web-templates,v-list-web-templates-backend,v-list-web-templates-proxy,v-list-dns-templates,v-list-sys-shells,v-list-cron-jobs,v-list-cron-job,v-get-sys-timezone,v-list-databases,v-list-database,v-list-database-hosts,v-list-dns-domains,v-list-dns-domain,v-list-dns-records,v-list-dnssec-public-key,v-list-user-ips,v-list-user-ns,v-list-mail-domains,v-list-mail-domain,v-list-mail-domain-ssl,v-list-mail-domain-dkim-dns,v-list-sys-webmail,v-list-mail-accounts,v-list-mail-account,v-list-mail-account-autoreply,v-list-web-domains,v-list-web-domain,v-list-web-templates-meta,v-list-web-domain-tpl-vars,v-list-user-ports,v-list-docker-apps,v-list-web-domain-ssl'

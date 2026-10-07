@@ -9,13 +9,13 @@ use App\Http\Requests\Databases\StoreDatabaseRequest;
 use App\Http\Requests\Databases\UpdateDatabaseRequest;
 use App\Policies\Capabilities;
 use App\Policies\DatabasePolicy;
+use App\Services\Databases\DatabaseActions;
 use App\Services\Databases\DatabaseService;
 use App\Services\Databases\DbAdminLinks;
 use App\Services\Mail\HostingCredentialsMailer;
 use App\Services\Support\OwnerList;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
 /**
@@ -26,7 +26,10 @@ final class DatabaseController extends Controller
     /** Lists longer than this are paged on the server. */
     public const PAGE_SIZE = 500;
 
-    public function __construct(private readonly DatabaseService $databases) {}
+    public function __construct(
+        private readonly DatabaseService $databases,
+        private readonly DatabaseActions $actions,
+    ) {}
 
     public function index(Request $request, Principal $principal, DatabasePolicy $policy, OwnerList $ownerList, DbAdminLinks $links): View
     {
@@ -92,13 +95,9 @@ final class DatabaseController extends Controller
         abort_unless($policy->create($principal, $owner), 403);
 
         $type = (string) $request->input('type');
-        if (! in_array($type, $this->databases->types(), true)) {
-            throw ValidationException::withMessages(['type' => __('Please select a valid database type.')]);
-        }
         $host = (string) $request->input('host');
-        if (! in_array($host, $this->databases->hosts(), true)) {
-            throw ValidationException::withMessages(['host' => __('Please select a valid database host.')]);
-        }
+        $this->actions->assertAllowed('type', $type, $this->databases->types(), __('Please select a valid database type.'));
+        $this->actions->assertAllowed('host', $host, $this->databases->hosts(), __('Please select a valid database host.'));
 
         $name = (string) $request->input('database');
         $dbUser = (string) $request->input('dbuser');

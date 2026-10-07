@@ -76,7 +76,7 @@ setup() {
 }
 
 @test "v2 sets: installed by v-add-sys-arcpanel, marked for API v2" {
-    for set in v2-read v2-write; do
+    for set in v2-read v2-write v2-accounts v2-web v2-dns v2-mail v2-db v2-cron; do
         assert_file_exist "$ARCPANEL/data/api/$set"
         run grep -c "^API_VERSION='2'$" "$ARCPANEL/data/api/$set"
         assert_output "1"
@@ -89,7 +89,7 @@ setup() {
 }
 
 @test "v2 sets: every command of the sets exists" {
-    for set in v2-read v2-write; do
+    for set in v2-read v2-write v2-accounts v2-web v2-dns v2-mail v2-db v2-cron; do
         commands=$(grep "^COMMANDS=" "$ARCPANEL/data/api/$set" | cut -d"'" -f2 | tr ',' ' ')
         for command in $commands; do
             assert_file_exist "$ARCPANEL/bin/$command"
@@ -108,6 +108,24 @@ setup() {
 
 @test "get_apis_commands: skips API_VERSION 2 sets unless asked for v2" {
     run bash -c "source $ARCPANEL/func/main.sh; get_apis_commands 'v2-read'"
+    assert_success
+    assert_output ""
+    run bash -c "source $ARCPANEL/func/main.sh; get_apis_commands 'v2-web'"
+    assert_success
+    assert_output ""
+    run bash -c "source $ARCPANEL/func/main.sh; get_apis_commands 'v2-accounts'"
+    assert_success
+    assert_output ""
+    run bash -c "source $ARCPANEL/func/main.sh; get_apis_commands 'v2-dns'"
+    assert_success
+    assert_output ""
+    run bash -c "source $ARCPANEL/func/main.sh; get_apis_commands 'v2-mail'"
+    assert_success
+    assert_output ""
+    run bash -c "source $ARCPANEL/func/main.sh; get_apis_commands 'v2-db'"
+    assert_success
+    assert_output ""
+    run bash -c "source $ARCPANEL/func/main.sh; get_apis_commands 'v2-cron'"
     assert_success
     assert_output ""
     run bash -c "source $ARCPANEL/func/main.sh; get_apis_commands 'v2-read' v2"
@@ -209,4 +227,36 @@ setup() {
     run v-schedule-letsencrypt-domain "$USER_A" "$domain" '' dsa
     assert_failure 2
     sed -i "/ $domain /d" "$pipe"
+}
+
+@test "schedule Let's Encrypt: a mail line waits beside a web line and replaces only itself" {
+    local domain="$USER_A-lemail.example.test"
+    local pipe="$ARCPANEL/data/queue/letsencrypt.pipe"
+    v-add-web-domain "$USER_A" "$domain" '' no "www.$domain" > /dev/null
+    v-add-mail-domain "$USER_A" "$domain" > /dev/null
+
+    run v-schedule-letsencrypt-domain "$USER_A" "$domain" '' ecdsa-256
+    assert_success
+    run v-schedule-letsencrypt-domain "$USER_A" "$domain" '' ecdsa-256 yes
+    assert_success
+    run grep -c " $domain " "$pipe"
+    assert_output 2
+    run grep " $domain '' yes " "$pipe"
+    assert_output "$ARCPANEL/bin/v-add-letsencrypt-domain $USER_A $domain '' yes ecdsa-256"
+
+    run v-schedule-letsencrypt-domain "$USER_A" "$domain" '' rsa yes
+    assert_success
+    run grep -c " $domain " "$pipe"
+    assert_output 2
+    run grep " $domain '' yes " "$pipe"
+    assert_output "$ARCPANEL/bin/v-add-letsencrypt-domain $USER_A $domain '' yes rsa"
+    run grep " $domain 'www.$domain' no " "$pipe"
+    assert_success
+
+    run v-schedule-letsencrypt-domain "$USER_A" "$domain" '' dsa yes
+    assert_failure 2
+
+    sed -i "/ $domain /d" "$pipe"
+    v-delete-mail-domain "$USER_A" "$domain" > /dev/null
+    v-delete-web-domain "$USER_A" "$domain" > /dev/null
 }

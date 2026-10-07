@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\V2;
 
 use App\Api\ApiException;
 use App\Api\ErrorCode;
+use App\Api\Paginates;
 use App\Api\PlanGate;
 use App\Auth\Principal;
 use App\Http\Controllers\Controller;
@@ -22,6 +23,7 @@ use App\Services\WebDomains\TemplateCatalog;
 use App\Services\WebDomains\WebDomainActions;
 use App\Services\WebDomains\WebDomainService;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\Response;
 use Illuminate\Validation\ValidationException;
@@ -41,6 +43,7 @@ final class WebDomainController extends Controller
         private readonly WebDomainActions $actions,
         private readonly TemplateCatalog $catalog,
         private readonly PlanGate $gate,
+        private readonly Paginates $pages,
     ) {}
 
     /**
@@ -48,11 +51,12 @@ final class WebDomainController extends Controller
      *
      * @operationId listWebDomains
      */
-    public function index(string $user, Principal $principal, WebDomainPolicy $policy): AnonymousResourceCollection
+    public function index(Request $request, string $user, Principal $principal, WebDomainPolicy $policy): AnonymousResourceCollection
     {
         $this->assertOwner($user, $principal, $policy);
+        $page = $this->pages->slice($request, array_values($this->web->forUser($user)));
 
-        return WebDomainResource::collection(array_values($this->web->forUser($user)))->additional(['meta' => (object) []]);
+        return WebDomainResource::collection($page['items'])->additional(['meta' => $page['meta']]);
     }
 
     /**

@@ -5,6 +5,7 @@ use App\Api\ErrorCode;
 use App\Api\ErrorRenderer;
 use App\Api\KeyPermissions;
 use App\Api\KeyScopedArcCommand;
+use App\Api\Paginates;
 use App\Api\PlanGate;
 use App\Arc\ArcCommand;
 use App\Arc\ArcCommandException;
@@ -14,9 +15,14 @@ use App\Arc\Secret;
 use App\Auth\Role;
 use App\Http\Middleware\Api\ApiEnabled;
 use App\Http\Middleware\Api\AuthenticateAccessKey;
+use App\Http\Resources\V2\DnsRecordResource;
+use App\Http\Resources\V2\DnsZoneResource;
+use App\Services\Dns\DnsRecordRecord;
+use App\Services\Dns\DnsZoneRecord;
 use App\Services\WebDomains\ApplyResult;
 use App\Services\WebDomains\Step;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Route;
 use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
@@ -140,7 +146,116 @@ it('ships v2-read as a part of v2-write, with commands of bin/ only', function (
     $write = apiSetCommands('v2-write');
 
     expect(array_diff($read, $write))->toBe([]);
-    foreach ($write as $command) {
+    foreach ([...$write, ...array_merge(...array_map(apiSetCommands(...), apiAreaSets()))] as $command) {
         expect(is_file(base_path('../bin/'.$command)))->toBeTrue("{$command} is not a command of bin/");
+    }
+});
+
+it('keeps every area set inside v2-write and its reads inside v2-read', function () {
+    $read = apiSetCommands('v2-read');
+    $write = apiSetCommands('v2-write');
+    $areas = apiAreaSets();
+    $union = [];
+
+    expect($areas)->toContain('v2-accounts', 'v2-web');
+    foreach ($areas as $area) {
+        $commands = apiSetCommands($area);
+        expect(array_values(array_diff($commands, $write)))->toBe([], "{$area} is not part of v2-write");
+        $reads = array_values(array_filter(
+            $commands,
+            fn (string $command) => str_starts_with($command, 'v-list-') || str_starts_with($command, 'v-check-'),
+        ));
+        expect(array_values(array_diff($reads, $read)))->toBe([], "{$area} has a read command outside v2-read");
+        $content = (string) file_get_contents(base_path('../install/common/api/'.$area));
+        expect($content)->toContain("ROLE='user'")->toContain("API_VERSION='2'");
+        $union = array_merge($union, $commands);
+    }
+    expect(array_values(array_diff($write, $union)))->toBe([]);
+});
+
+it('pages a list and refuses a limit or offset outside its range', function () {
+    $pages = new Paginates;
+    $items = ['a', 'b', 'c', 'd'];
+
+    expect($pages->slice(Request::create('/api/v2/users', 'GET'), $items))
+        ->toBe(['items' => $items, 'meta' => ['total' => 4]])
+        ->and($pages->slice(Request::create('/api/v2/users?limit=2&offset=1', 'GET'), $items))
+        ->toBe(['items' => ['b', 'c'], 'meta' => ['total' => 4, 'limit' => 2, 'offset' => 1]])
+        ->and($pages->slice(Request::create('/api/v2/users?limit=2', 'GET'), $items)['meta'])
+        ->toBe(['total' => 4, 'limit' => 2, 'offset' => 0])
+        ->and($pages->slice(Request::create('/api/v2/users?offset=3', 'GET'), $items))
+        ->toBe(['items' => $items, 'meta' => ['total' => 4]]);
+
+    expect(fn () => $pages->slice(Request::create('/api/v2/users?limit=0', 'GET'), $items))->toThrow(ValidationException::class);
+    expect(fn () => $pages->slice(Request::create('/api/v2/users?limit=1001', 'GET'), $items))->toThrow(ValidationException::class);
+    expect(fn () => $pages->slice(Request::create('/api/v2/users?offset=-1', 'GET'), $items))->toThrow(ValidationException::class);
+    expect(fn () => $pages->slice(Request::create('/api/v2/users?limit=no', 'GET'), $items))->toThrow(ValidationException::class);
+});
+
+it('points a duplicate at the existing object', function () {
+    $error = new ApiException(ErrorCode::Exists, 'DNS record exists.', 409, existing: '/api/v2/users/bob/dns-zones/example.com/records/3');
+
+    expect($error->body())->toBe(['error' => [
+        'code' => 'E_EXISTS',
+        'message' => 'DNS record exists.',
+        'existing' => '/api/v2/users/bob/dns-zones/example.com/records/3',
+    ]]);
+});
+
+it('documents pagination and error.existing', function () {
+    $spec = json_decode((string) file_get_contents(base_path('../docs/api/v2/openapi.json')), true);
+
+    expect($spec['components']['schemas']['Error']['properties']['error']['properties'])->toHaveKey('existing')
+        ->and($spec['components']['schemas'])->toHaveKey('ListMeta');
+    foreach ($spec['paths'] as $operations) {
+        foreach ($operations as $operation) {
+            if (! is_array($operation) || ! str_starts_with((string) ($operation['operationId'] ?? ''), 'list')) {
+                continue;
+            }
+            $names = array_column($operation['parameters'] ?? [], 'name');
+            expect($names)->toContain('limit', 'offset');
+            $schema = $operation['responses']['200']['content']['application/json']['schema']['properties']['meta']
+                ?? $operation['responses']['200']['content']['application/json']['schema']['allOf'][0]['properties']['meta']
+                ?? null;
+            expect($schema)->toBe(['$ref' => '#/components/schemas/ListMeta'], $operation['operationId']);
+        }
+    }
+});
+
+it('types a DNS zone and a record, with nulls where a value does not apply', function () {
+    fakeArc();
+    $zone = (new DnsZoneResource(DnsZoneRecord::fromArray('bob', 'example.com', [
+        'IP' => '203.0.113.10', 'TPL' => 'default', 'TTL' => '14400', 'EXP' => '2027-10-06', 'SOA' => 'ns1.example.net',
+        'SERIAL' => '2026100601', 'DNSSEC' => 'yes', 'RECORDS' => '6', 'SUSPENDED' => 'no', 'DATE' => '2026-10-06', 'TIME' => '10:00:00',
+    ])))->resolve(Request::create('/api/v2/users/bob/dns-zones/example.com'));
+    $record = (new DnsRecordResource(DnsRecordRecord::fromArray('bob', 'example.com', '5', [
+        'RECORD' => '@', 'TYPE' => 'TXT', 'PRIORITY' => '10', 'VALUE' => 'v', 'ID' => '5', 'TTL' => '', 'SUSPENDED' => 'no',
+        'DATE' => '2026-10-06', 'TIME' => '10:00:00',
+    ])))->resolve(Request::create('/'));
+
+    expect($zone['dnssec'])->toBeNull()
+        ->and($zone['ttl'])->toBe(14400)
+        ->and($zone['serial'])->toBe(2026100601)
+        ->and($zone['expiry'])->toBe('2027-10-06')
+        ->and($zone['created_at'])->toBe('2026-10-06T10:00:00')
+        ->and($record)->toMatchArray(['id' => 5, 'name' => '@', 'type' => 'TXT', 'priority' => null, 'ttl' => null, 'suspended' => false]);
+});
+
+it('declares an area on the batch 1 routes', function () {
+    foreach (Route::getRoutes() as $route) {
+        $uri = $route->uri();
+        if (! str_starts_with($uri, 'api/v2/')) {
+            continue;
+        }
+        $area = match (true) {
+            str_contains($uri, '/web-domains') => 'web',
+            str_contains($uri, '/dns-zones') => 'dns',
+            str_contains($uri, '/mail-domains') => 'mail',
+            str_contains($uri, '/databases') => 'db',
+            str_contains($uri, '/cron-jobs'), str_contains($uri, '/cron-reports') => 'cron',
+            str_starts_with($uri, 'api/v2/users'), str_starts_with($uri, 'api/v2/packages') => 'accounts',
+            default => null,
+        };
+        expect($route->defaults['api_area'] ?? null)->toBe($area, $uri);
     }
 });

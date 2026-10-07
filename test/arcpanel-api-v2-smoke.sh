@@ -209,6 +209,48 @@ check "the certificate is queued with its key type" 1 "$(grep -c " $SMOKE_DOMAIN
 sed -i "/ $SMOKE_DOMAIN /d" "$ARCPANEL/data/queue/letsencrypt.pipe"
 check "deleteWebDomain answers 204" 204 "$(call "$WRITER" DELETE "$WEB/$SMOKE_DOMAIN")"
 check "the domain is gone" 404 "$(call "$WRITER" GET "$WEB/$SMOKE_DOMAIN")"
+
+# Batch 2: DNS, mail, databases and cron (spec 2026-10-07-003)
+DNS_KEY=$(new_key "$SMOKE_USER" v2-dns)
+ZONE="/users/$SMOKE_USER/dns-zones"
+check "createDnsZone with only v2-dns answers 201" 201 "$(call "$DNS_KEY" POST "$ZONE" "{\"domain\": \"$SMOKE_DOMAIN\"}")"
+check "createDnsRecord answers 201" 201 "$(call "$DNS_KEY" POST "$ZONE/$SMOKE_DOMAIN/records" '{"name": "_acme-challenge", "type": "TXT", "value": "smoke-token"}')"
+RECORD_ID="$(json .data.id)"
+check "the TXT record is found by name and type" 1 "$(
+	call "$DNS_KEY" GET "$ZONE/$SMOKE_DOMAIN/records?name=_acme-challenge&type=TXT" > /dev/null
+	json '.meta.total'
+)"
+check "deleteDnsRecord answers 204" 204 "$(call "$DNS_KEY" DELETE "$ZONE/$SMOKE_DOMAIN/records/$RECORD_ID")"
+check "deleteDnsZone answers 204" 204 "$(call "$DNS_KEY" DELETE "$ZONE/$SMOKE_DOMAIN")"
+
+MAIL_KEY=$(new_key "$SMOKE_USER" v2-mail)
+MAIL="/users/$SMOKE_USER/mail-domains"
+check "createMailDomain with only v2-mail answers 201" 201 "$(call "$MAIL_KEY" POST "$MAIL" "{\"domain\": \"$SMOKE_DOMAIN\"}")"
+check "createMailAccount answers 201" 201 "$(call "$MAIL_KEY" POST "$MAIL/$SMOKE_DOMAIN/accounts" '{"account": "info", "password": "SmokePass1"}')"
+check "the mail domain needs an MX record" MX "$(
+	call "$MAIL_KEY" GET "$MAIL/$SMOKE_DOMAIN/dns-records" > /dev/null
+	json '.data[] | select(.type=="MX") | .type'
+)"
+check "requestMailDomainLetsEncrypt answers 202" 202 "$(call "$MAIL_KEY" POST "$MAIL/$SMOKE_DOMAIN/letsencrypt" '{"key_algorithm": "ecdsa-256"}')"
+check "the mail certificate is queued" 1 "$(grep -c " $SMOKE_DOMAIN '' yes " "$ARCPANEL/data/queue/letsencrypt.pipe")"
+sed -i "/ $SMOKE_DOMAIN /d" "$ARCPANEL/data/queue/letsencrypt.pipe"
+check "deleteMailAccount answers 204" 204 "$(call "$MAIL_KEY" DELETE "$MAIL/$SMOKE_DOMAIN/accounts/info")"
+check "deleteMailDomain answers 204" 204 "$(call "$MAIL_KEY" DELETE "$MAIL/$SMOKE_DOMAIN")"
+
+DB_KEY=$(new_key "$SMOKE_USER" v2-db)
+DB="/users/$SMOKE_USER/databases"
+check "createDatabase with only v2-db answers 201" 201 "$(call "$DB_KEY" POST "$DB" '{"name": "app", "db_user": "app", "password": "SmokePass1"}')"
+check "the database name has the owner prefix" "${SMOKE_USER}_app" "$(json .data.name)"
+check "deleteDatabase answers 204" 204 "$(call "$DB_KEY" DELETE "$DB/${SMOKE_USER}_app")"
+
+CRON_KEY=$(new_key "$SMOKE_USER" v2-cron)
+CRON="/users/$SMOKE_USER/cron-jobs"
+check "createCronJob with only v2-cron answers 201" 201 "$(call "$CRON_KEY" POST "$CRON" '{"schedule": "*/5 * * * *", "command": "echo arcsmoke"}')"
+CRON_ID="$(json .data.id)"
+check "a duplicate cron job answers 409" 409 "$(call "$CRON_KEY" POST "$CRON" '{"schedule": "*/5 * * * *", "command": "echo arcsmoke"}')"
+check "the duplicate points at the job" "/api/v2$CRON/$CRON_ID" "$(json .error.existing)"
+check "deleteCronJob answers 204" 204 "$(call "$CRON_KEY" DELETE "$CRON/$CRON_ID")"
+
 check "the user of the web domains is deleted" 204 "$(call "$ADMIN" DELETE "/users/$SMOKE_USER")"
 
 if [ "$failures" -gt 0 ]; then

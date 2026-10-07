@@ -1,0 +1,4 @@
+# REST API v2 (E34): cron jobs and reports, plus the foundation reads. API v1 skips this set.
+ROLE='user'
+API_VERSION='2'
+COMMANDS='v-list-sys-config,v-list-users,v-list-user-owners,v-list-user,v-list-sys-languages,v-list-reseller-packages,v-list-package-tenancy,v-check-reseller-quota,v-list-cron-jobs,v-list-cron-job,v-get-sys-timezone,v-add-cron-job,v-change-cron-job,v-suspend-cron-job,v-unsuspend-cron-job,v-delete-cron-job,v-add-cron-reports,v-delete-cron-reports'

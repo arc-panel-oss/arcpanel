@@ -303,11 +303,12 @@ final class DnsService
      * restarts DNS itself.
      *
      * @param  array{record: string, type: string, value: string, priority: string, ttl: string}  $fields
+     * @param  string  $id  the record id; empty lets the command choose one. API v2 passes the next id (D21).
      */
-    public function planAddRecord(string $user, string $domain, array $fields): Step
+    public function planAddRecord(string $user, string $domain, array $fields, string $id = ''): Step
     {
         return new Step(__('Add the DNS record'), 'v-add-dns-record',
-            [$user, $domain, $fields['record'], $fields['type'], $fields['value'], $fields['priority'], '', 'yes', $fields['ttl']]);
+            [$user, $domain, $fields['record'], $fields['type'], $fields['value'], $fields['priority'], $id, 'yes', $fields['ttl']]);
     }
 
     /**

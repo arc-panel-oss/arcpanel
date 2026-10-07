@@ -38,7 +38,7 @@ it('lists every user for an admin and the customers for a reseller', function ()
     $this->getJson('/api/v2/users', apiAs($this->fake, 'arcadmin', 'admin'))->assertOk()
         ->assertJsonCount(6, 'data')
         ->assertJsonPath('data.0.username', 'arcadmin')
-        ->assertJsonPath('meta', []);
+        ->assertJsonPath('meta.total', 6);
     $this->getJson('/api/v2/users?role=reseller', apiAs($this->fake, 'arcadmin', 'admin'))->assertOk()
         ->assertJsonPath('data.*.username', ['hostco', 'resb']);
     $this->getJson('/api/v2/users?owner=resb', apiAs($this->fake, 'arcadmin', 'admin'))->assertOk()
@@ -52,10 +52,22 @@ it('lists every user for an admin and the customers for a reseller', function ()
         ->assertJsonPath('error.code', 'E_FORBIDDEN');
 });
 
-it('answers the list with an empty meta object', function () {
-    $content = (string) $this->getJson('/api/v2/users', apiAs($this->fake, 'arcadmin', 'admin'))->getContent();
+it('pages the user list and keeps the full total', function () {
+    $headers = apiAs($this->fake, 'arcadmin', 'admin');
 
-    expect($content)->toContain('"meta":{}');
+    $this->getJson('/api/v2/users?limit=2&offset=2', $headers)->assertOk()
+        ->assertJsonCount(2, 'data')
+        ->assertJsonPath('meta', ['total' => 6, 'limit' => 2, 'offset' => 2]);
+    $this->getJson('/api/v2/users?offset=2', $headers)->assertOk()
+        ->assertJsonCount(6, 'data')
+        ->assertJsonPath('meta', ['total' => 6]);
+    $this->getJson('/api/v2/users?limit=0', $headers)->assertUnprocessable()
+        ->assertJsonPath('error.code', 'E_VALIDATION')
+        ->assertJsonStructure(['error' => ['fields' => ['limit']]]);
+    $this->getJson('/api/v2/users?limit=1001', $headers)->assertUnprocessable()
+        ->assertJsonStructure(['error' => ['fields' => ['limit']]]);
+    $this->getJson('/api/v2/users?offset=-1', $headers)->assertUnprocessable()
+        ->assertJsonStructure(['error' => ['fields' => ['offset']]]);
 });
 
 it('describes a user with typed fields and no secrets', function () {

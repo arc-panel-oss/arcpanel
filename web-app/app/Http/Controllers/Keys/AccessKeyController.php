@@ -52,6 +52,12 @@ final class AccessKeyController extends Controller
             'setHints' => [
                 'v2-read' => __('REST API v2 only: every read endpoint, no change.'),
                 'v2-write' => __('REST API v2 only: every endpoint, changes included.'),
+                'v2-accounts' => __('REST API v2 only: users and packages.'),
+                'v2-web' => __('REST API v2 only: web domains.'),
+                'v2-dns' => __('REST API v2 only: DNS zones and records.'),
+                'v2-mail' => __('REST API v2 only: mail domains and accounts.'),
+                'v2-db' => __('REST API v2 only: databases.'),
+                'v2-cron' => __('REST API v2 only: cron jobs and reports.'),
             ],
         ]);
     }

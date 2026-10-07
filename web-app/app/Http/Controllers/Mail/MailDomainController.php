@@ -11,12 +11,12 @@ use App\Policies\Capabilities;
 use App\Policies\DnsPolicy;
 use App\Policies\MailPolicy;
 use App\Services\Dns\DnsService;
+use App\Services\MailDomains\MailActions;
 use App\Services\MailDomains\MailDomainPlanner;
 use App\Services\MailDomains\MailService;
 use App\Services\Support\OwnerList;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
 /**
@@ -94,7 +94,7 @@ final class MailDomainController extends Controller
         $systems = $this->mail->systems();
         $values = $request->values();
         if ($systems['webmail']) {
-            $this->assertWebmail($values['webmail']);
+            app(MailActions::class)->assertWebmail($values['webmail']);
         }
 
         $result = $this->mail->apply($planner->planCreate($owner, $values, $systems));
@@ -143,13 +143,5 @@ final class MailDomainController extends Controller
             'rows' => $this->mail->dnsHints($record),
             'zoneUrl' => $zoneUrl,
         ]);
-    }
-
-    /** A webmail client must be one of the server's, or "disabled". */
-    private function assertWebmail(string $client): void
-    {
-        if ($client !== '' && $client !== MailDomainPlanner::WEBMAIL_DISABLED && ! in_array($client, $this->mail->webmailClients(), true)) {
-            throw ValidationException::withMessages(['webmail' => __('Please select a valid webmail client.')]);
-        }
     }
 }

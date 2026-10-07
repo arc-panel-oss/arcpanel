@@ -49,6 +49,8 @@ beforeEach(function () {
         'purge-nginx-cache' => ['COMMANDS' => ['v-purge-nginx-cache'], 'ROLE' => 'user'],
         'update-dns-records' => ['COMMANDS' => ['v-change-dns-record'], 'ROLE' => 'user'],
         'v2-read' => ['COMMANDS' => ['v-list-user'], 'ROLE' => 'user', 'API_VERSION' => '2'],
+        'v2-accounts' => ['COMMANDS' => ['v-list-user'], 'ROLE' => 'user', 'API_VERSION' => '2'],
+        'v2-web' => ['COMMANDS' => ['v-list-web-domain'], 'ROLE' => 'user', 'API_VERSION' => '2'],
     ]);
     $this->fake->on('v-list-user-ssh-key')->using(fn (array $args) => $args[0] === 'bob'
         ? [0, (string) json_encode([
@@ -124,7 +126,9 @@ it('explains the sets of REST API v2', function () {
     signIn('bob', 'user');
 
     $this->get('/access-keys/bob/create')->assertOk()
-        ->assertSee('v2-read')->assertSee('REST API v2 only: every read endpoint, no change.');
+        ->assertSee('v2-read')->assertSee('REST API v2 only: every read endpoint, no change.')
+        ->assertSee('REST API v2 only: users and packages.')
+        ->assertSee('REST API v2 only: web domains.');
 });
 
 it('creates a key and shows its secret once, without storing it', function () {

@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\V2;
 
 use App\Api\ApiException;
 use App\Api\ErrorCode;
+use App\Api\Paginates;
 use App\Api\PlanGate;
 use App\Auth\Principal;
 use App\Http\Controllers\Controller;
@@ -18,6 +19,7 @@ use App\Services\Packages\PackageRecord;
 use App\Services\Packages\PackageService;
 use App\Services\Users\UserService;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\Response;
 
@@ -36,6 +38,7 @@ final class PackageController extends Controller
         private readonly PackageActions $actions,
         private readonly UserService $users,
         private readonly PlanGate $gate,
+        private readonly Paginates $pages,
     ) {}
 
     /**
@@ -46,11 +49,12 @@ final class PackageController extends Controller
      *
      * @operationId listPackages
      */
-    public function index(Principal $principal, PackagePolicy $policy): AnonymousResourceCollection
+    public function index(Request $request, Principal $principal, PackagePolicy $policy): AnonymousResourceCollection
     {
         abort_unless($policy->viewAny($principal), 403);
+        $page = $this->pages->slice($request, array_values($this->actions->visible($principal)));
 
-        return PackageResource::collection(array_values($this->actions->visible($principal)))->additional(['meta' => (object) []]);
+        return PackageResource::collection($page['items'])->additional(['meta' => $page['meta']]);
     }
 
     /**

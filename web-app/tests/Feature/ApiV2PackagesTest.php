@@ -50,12 +50,20 @@ function apiPackageAdded($test, string $command, string $name, array $row = []):
 it('lists packages by role', function (string $principal, string $role, array $names) {
     $this->getJson('/api/v2/packages', apiAs($this->fake, $principal, $role, readOnly: true))->assertOk()
         ->assertJsonPath('data.*.name', $names)
-        ->assertJsonPath('meta', []);
+        ->assertJsonPath('meta.total', count($names));
 })->with([
     'admin: every package but system' => ['arcadmin', 'admin', ['default', 'hostco_gold', 'resb_silver', 'reseller', 'starter']],
     'reseller A: what it may assign' => ['hostco', 'reseller', ['hostco_gold', 'starter']],
     'reseller B: what it may assign' => ['resb', 'reseller', ['resb_silver', 'starter']],
 ]);
+
+it('pages the package list', function () {
+    $this->getJson('/api/v2/packages?limit=2&offset=1', apiAs($this->fake, 'arcadmin', 'admin'))->assertOk()
+        ->assertJsonCount(2, 'data')
+        ->assertJsonPath('meta.total', 5)
+        ->assertJsonPath('meta.limit', 2)
+        ->assertJsonPath('meta.offset', 1);
+});
 
 it('keeps users out of packages', function () {
     $headers = apiAs($this->fake, 'bob', 'user', readOnly: true);

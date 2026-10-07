@@ -38,11 +38,13 @@ final class ApiDocs extends Command
     private const DESCRIPTION = <<<'MD'
         Resource API of an ArcPanel server, served by the panel at `/api/v2/` (port 8083 by default). Every call acts as the owner of the access key, with the role and the reach that user has in the panel: objects outside its reach answer `404`, refused actions `403`.
 
-        **Authentication.** `Authorization: Bearer ACCESS_KEY_ID:SECRET_ACCESS_KEY`, an access key of the panel (Account → Access keys). The API must be on (`API_SYSTEM` 1 for the administrator's keys, 2 for every key) and accept the client's address (`API_ALLOWED_IP`). A key with permission sets may only run their commands: `v2-read` allows the read endpoints, `v2-write` every endpoint. Both sets are refused by API v1. `GET /me` describes the key.
+        **Authentication.** `Authorization: Bearer ACCESS_KEY_ID:SECRET_ACCESS_KEY`, an access key of the panel (Account → Access keys). The API must be on (`API_SYSTEM` 1 for the administrator's keys, 2 for every key) and accept the client's address (`API_ALLOWED_IP`). A key with permission sets may only run their commands. `v2-read` allows every read endpoint and `v2-write` every endpoint; each area also has its own set (`v2-accounts`, `v2-web`, and the sets of later areas). A change that touches another area needs that area's set too. API v1 refuses every set marked for v2. `GET /me` describes the key.
+
+        **Pagination.** Every list accepts `limit` (1–1000) and `offset` (0 or more). `meta.total` is the number of items. Without `limit` the list is complete, as before pagination existed.
 
         **Dry run.** Every write accepts `?dry_run=1`: the request is validated, authorized and checked against the permission sets, and the answer lists the commands it would run, without running any.
 
-        **Errors.** Every error answers `{"error": {"code": "E_…", "message": "…"}}`; `code` is one of `ErrorCode`. Validation errors add `fields`, refused permission sets add `commands`, a failed step of a change adds `step` and the steps that ran before it (`applied`), which stay applied.
+        **Errors.** Every error answers `{"error": {"code": "E_…", "message": "…"}}`; `code` is one of `ErrorCode`. Validation errors add `fields`, refused permission sets add `commands`, a duplicate the server can point at adds `existing` (the path of that object), and a failed step of a change adds `step` and the steps that ran before it (`applied`), which stay applied.
 
         **Headers.** Every answer carries `ArcPanel-Version` and `X-Request-Id` (the client's own value, or a new one). `429` carries `Retry-After`; `201` and `202` carry `Location`. Each key may make 60 requests a minute; ten failed authentications a minute block the client's address for a minute.
 
@@ -217,7 +219,7 @@ final class ApiDocs extends Command
                 if ($schema === null) {
                     continue;
                 }
-                $response['content']['application/json']['schema'] = self::withEmptyMeta($schema);
+                $response['content']['application/json']['schema'] = self::withListMeta($schema);
             }
             if (! isset($response['$ref'])) {
                 $response['headers'] = self::successHeaders((string) $status) + ($response['headers'] ?? []);
@@ -234,6 +236,10 @@ final class ApiDocs extends Command
             unset($responses['200']);
             $moved['headers'] = self::successHeaders((string) $success) + ($moved['headers'] ?? []);
             $responses[(string) $success] = $moved;
+        }
+
+        if (str_starts_with((string) ($operation['operationId'] ?? ''), 'list')) {
+            $operation['parameters'] = [...($operation['parameters'] ?? []), ...self::pageParameters()];
         }
 
         if ($write) {
@@ -340,18 +346,39 @@ final class ApiDocs extends Command
     }
 
     /**
-     * `meta` of a list is an object, empty until pagination exists (spec D9).
+     * `meta` of a list is `ListMeta`: `total`, and `limit` with `offset` when the client pages (D20).
      *
      * @param  array<string, mixed>  $schema
      * @return array<string, mixed>
      */
-    private static function withEmptyMeta(array $schema): array
+    private static function withListMeta(array $schema): array
     {
         if (isset($schema['properties']['meta'])) {
-            $schema['properties']['meta'] = ['type' => 'object', 'description' => 'Reserved for pagination; empty for now.'];
+            $schema['properties']['meta'] = ['$ref' => '#/components/schemas/ListMeta'];
         }
 
         return $schema;
+    }
+
+    /**
+     * @return list<array<string, mixed>>
+     */
+    private static function pageParameters(): array
+    {
+        return [
+            [
+                'name' => 'limit',
+                'in' => 'query',
+                'description' => 'Page size, from 1 to 1000. Without it the list is complete.',
+                'schema' => ['type' => 'integer', 'minimum' => 1, 'maximum' => 1000],
+            ],
+            [
+                'name' => 'offset',
+                'in' => 'query',
+                'description' => 'Items to skip. Used when `limit` is set; 0 when omitted.',
+                'schema' => ['type' => 'integer', 'minimum' => 0],
+            ],
+        ];
     }
 
     /** @return array<string, array{'$ref': string}> */
@@ -397,6 +424,10 @@ final class ApiDocs extends Command
                                 'description' => 'E_FORBIDDEN by a permission set: the commands the key may not run.',
                                 'items' => ['type' => 'string'],
                             ],
+                            'existing' => [
+                                'type' => 'string',
+                                'description' => 'E_EXISTS when the server can point at the duplicate: its path under /api/v2.',
+                            ],
                             'step' => ['description' => 'The step of a change that failed.', 'anyOf' => [['$ref' => '#/components/schemas/PlanStep'], ['type' => 'null']]],
                             'applied' => ['type' => 'array', 'description' => 'The steps that ran before the failed one; they stay applied.', 'items' => ['$ref' => '#/components/schemas/PlanStep']],
                         ],
@@ -404,6 +435,17 @@ final class ApiDocs extends Command
                     ],
                 ],
                 'required' => ['error'],
+            ],
+            'ListMeta' => [
+                'type' => 'object',
+                'description' => 'Without `limit` only `total` is present and `data` is the full list. With `limit`, `offset` is present too (0 when the client omits it) and `data` is that page.',
+                'properties' => [
+                    'total' => ['type' => 'integer', 'minimum' => 0, 'description' => 'Items before limit and offset.'],
+                    'limit' => ['type' => 'integer', 'minimum' => 1, 'maximum' => 1000],
+                    'offset' => ['type' => 'integer', 'minimum' => 0],
+                    'timezone' => ['type' => 'string', 'description' => 'The server time zone. Present on listCronJobs.'],
+                ],
+                'required' => ['total'],
             ],
             'PlanStep' => $step,
             'DryRun' => [

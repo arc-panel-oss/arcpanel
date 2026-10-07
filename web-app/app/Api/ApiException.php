@@ -13,6 +13,7 @@ final class ApiException extends RuntimeException
     /**
      * @param  array<string, mixed>  $details  more keys of the error object (fields, step, applied)
      * @param  array<string, string>  $headers
+     * @param  string|null  $existing  path under /api/v2 of the object a duplicate matches (D21)
      */
     public function __construct(
         public readonly ErrorCode $errorCode,
@@ -20,6 +21,7 @@ final class ApiException extends RuntimeException
         public readonly int $status,
         public readonly array $details = [],
         public readonly array $headers = [],
+        public readonly ?string $existing = null,
     ) {
         parent::__construct($message);
     }
@@ -53,6 +55,11 @@ final class ApiException extends RuntimeException
     /** @return array{error: array<string, mixed>} */
     public function body(): array
     {
-        return ['error' => ['code' => $this->errorCode->value, 'message' => $this->getMessage(), ...$this->details]];
+        $error = ['code' => $this->errorCode->value, 'message' => $this->getMessage(), ...$this->details];
+        if ($this->existing !== null) {
+            $error['existing'] = $this->existing;
+        }
+
+        return ['error' => $error];
     }
 }

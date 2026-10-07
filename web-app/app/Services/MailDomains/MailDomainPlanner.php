@@ -134,7 +134,7 @@ final class MailDomainPlanner
      * @param  array{ssl: bool, letsencrypt: bool, key_algo: string, certificate: ?string, key: ?string, ca: ?string}  $input
      * @return list<Step>
      */
-    public function planSsl(MailDomainRecord $current, ?MailDomainSsl $certificate, array $input): array
+    public function planSsl(MailDomainRecord $current, ?MailDomainSsl $certificate, array $input, bool $replaceLetsEncrypt = false): array
     {
         $user = $current->user;
         $domain = $current->domain;
@@ -146,6 +146,16 @@ final class MailDomainPlanner
         $crt = Input::pem($input['certificate'] ?? '');
         $key = Input::pem($input['key'] ?? '');
         $ca = Input::pem($input['ca'] ?? '');
+
+        // The API replaces Let's Encrypt with an uploaded certificate in one
+        // plan. The page still needs two saves (the flag stays false there).
+        if ($replaceLetsEncrypt && $current->letsEncrypt && $sslOn && ! $leOn && $crt !== '') {
+            return [
+                new Step(__('Delete the Let’s Encrypt certificate'), 'v-delete-letsencrypt-domain', [$user, $domain, '', 'yes']),
+                new Step(__('Install the SSL certificate'), 'v-add-mail-domain-ssl',
+                    [$user, $domain, $this->files($domain, $crt, $key, $ca, ''), 'no']),
+            ];
+        }
 
         $ssl = $current->ssl;
         $le = $current->letsEncrypt;

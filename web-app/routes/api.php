@@ -1,5 +1,10 @@
 <?php
 
+use App\Http\Controllers\Api\V2\CronController;
+use App\Http\Controllers\Api\V2\DatabaseController;
+use App\Http\Controllers\Api\V2\DnsController;
+use App\Http\Controllers\Api\V2\MailAccountController;
+use App\Http\Controllers\Api\V2\MailDomainController;
 use App\Http\Controllers\Api\V2\MeController;
 use App\Http\Controllers\Api\V2\PackageController;
 use App\Http\Controllers\Api\V2\UserController;
@@ -18,6 +23,8 @@ use Illuminate\Support\Facades\Route;
 Route::pattern('user', '[[:alnum:]][-.\w]{0,28}[[:alnum:]]');
 Route::pattern('domain', '[^/\s]{1,253}');
 Route::pattern('package', '[[:alnum:]][-.\w]{0,99}');
+Route::pattern('account', '[\w.-]{1,64}');
+Route::pattern('database', '[\w-]{1,64}');
 Route::pattern('alias', '[^/\s]{1,253}');
 
 Route::get('/me', MeController::class)->name('me');
@@ -53,6 +60,82 @@ Route::middleware('effective-user')->group(function () {
         Route::delete('/{domain}/ssl', [WebDomainController::class, 'deleteSsl'])->name('ssl.destroy');
         Route::post('/{domain}/letsencrypt', [WebDomainController::class, 'letsEncrypt'])->name('letsencrypt');
     });
+
+    // DNS zones and records (E34 batch 2 spec §6.1)
+    Route::get('/users/{user}/dns-zones', [DnsController::class, 'index'])->name('dns-zones.index');
+    Route::get('/users/{user}/dns-zones/{domain}', [DnsController::class, 'show'])->name('dns-zones.show');
+    Route::get('/users/{user}/dns-zones/{domain}/dnssec', [DnsController::class, 'dnssec'])->name('dns-zones.dnssec');
+    Route::get('/users/{user}/dns-zones/{domain}/records', [DnsController::class, 'records'])->name('dns-zones.records.index');
+    Route::get('/users/{user}/dns-zones/{domain}/records/{id}', [DnsController::class, 'showRecord'])->where('id', '[0-9]{1,9}')->name('dns-zones.records.show');
+    Route::middleware('not-readonly')->prefix('/users/{user}/dns-zones')->name('dns-zones.')->group(function () {
+        Route::post('/', [DnsController::class, 'store'])->name('store');
+        Route::patch('/{domain}', [DnsController::class, 'update'])->name('update');
+        Route::delete('/{domain}', [DnsController::class, 'destroy'])->name('destroy');
+        Route::post('/{domain}/suspend', [DnsController::class, 'suspend'])->name('suspend');
+        Route::post('/{domain}/unsuspend', [DnsController::class, 'unsuspend'])->name('unsuspend');
+        Route::post('/{domain}/rebuild', [DnsController::class, 'rebuild'])->name('rebuild');
+        Route::post('/{domain}/records', [DnsController::class, 'storeRecord'])->name('records.store');
+        Route::patch('/{domain}/records/{id}', [DnsController::class, 'updateRecord'])->where('id', '[0-9]{1,9}')->name('records.update');
+        Route::delete('/{domain}/records/{id}', [DnsController::class, 'destroyRecord'])->where('id', '[0-9]{1,9}')->name('records.destroy');
+        Route::post('/{domain}/records/{id}/suspend', [DnsController::class, 'suspendRecord'])->where('id', '[0-9]{1,9}')->name('records.suspend');
+        Route::post('/{domain}/records/{id}/unsuspend', [DnsController::class, 'unsuspendRecord'])->where('id', '[0-9]{1,9}')->name('records.unsuspend');
+    });
+
+    // Mail domains (E34 batch 2 spec §6.2)
+    Route::get('/users/{user}/mail-domains', [MailDomainController::class, 'index'])->name('mail-domains.index');
+    Route::get('/users/{user}/mail-domains/{domain}', [MailDomainController::class, 'show'])->name('mail-domains.show');
+    Route::get('/users/{user}/mail-domains/{domain}/dns-records', [MailDomainController::class, 'dnsRecords'])->name('mail-domains.dns-records');
+    Route::middleware('not-readonly')->prefix('/users/{user}/mail-domains')->name('mail-domains.')->group(function () {
+        Route::post('/', [MailDomainController::class, 'store'])->name('store');
+        Route::patch('/{domain}', [MailDomainController::class, 'update'])->name('update');
+        Route::delete('/{domain}', [MailDomainController::class, 'destroy'])->name('destroy');
+        Route::post('/{domain}/suspend', [MailDomainController::class, 'suspend'])->name('suspend');
+        Route::post('/{domain}/unsuspend', [MailDomainController::class, 'unsuspend'])->name('unsuspend');
+        Route::post('/{domain}/rebuild', [MailDomainController::class, 'rebuild'])->name('rebuild');
+        Route::put('/{domain}/ssl', [MailDomainController::class, 'setSsl'])->name('ssl.update');
+        Route::delete('/{domain}/ssl', [MailDomainController::class, 'deleteSsl'])->name('ssl.destroy');
+        Route::post('/{domain}/letsencrypt', [MailDomainController::class, 'letsEncrypt'])->name('letsencrypt');
+        Route::put('/{domain}/smtp-relay', [MailDomainController::class, 'setRelay'])->name('relay.update');
+        Route::delete('/{domain}/smtp-relay', [MailDomainController::class, 'deleteRelay'])->name('relay.destroy');
+    });
+
+    // Mail accounts (E34 batch 2 spec §6.3)
+    Route::get('/users/{user}/mail-domains/{domain}/accounts', [MailAccountController::class, 'index'])->name('mail-domains.accounts.index');
+    Route::get('/users/{user}/mail-domains/{domain}/accounts/{account}', [MailAccountController::class, 'show'])->name('mail-domains.accounts.show');
+    Route::middleware('not-readonly')->prefix('/users/{user}/mail-domains/{domain}/accounts')->name('mail-domains.accounts.')->group(function () {
+        Route::post('/', [MailAccountController::class, 'store'])->name('store');
+        Route::patch('/{account}', [MailAccountController::class, 'update'])->name('update');
+        Route::put('/{account}/password', [MailAccountController::class, 'password'])->name('password');
+        Route::delete('/{account}', [MailAccountController::class, 'destroy'])->name('destroy');
+        Route::post('/{account}/suspend', [MailAccountController::class, 'suspend'])->name('suspend');
+        Route::post('/{account}/unsuspend', [MailAccountController::class, 'unsuspend'])->name('unsuspend');
+    });
+
+    // Databases (E34 batch 2 spec §6.4)
+    Route::get('/users/{user}/databases', [DatabaseController::class, 'index'])->name('databases.index');
+    Route::get('/users/{user}/databases/{database}', [DatabaseController::class, 'show'])->name('databases.show');
+    Route::middleware('not-readonly')->prefix('/users/{user}/databases')->name('databases.')->group(function () {
+        Route::post('/', [DatabaseController::class, 'store'])->name('store');
+        Route::patch('/{database}', [DatabaseController::class, 'update'])->name('update');
+        Route::put('/{database}/password', [DatabaseController::class, 'password'])->name('password');
+        Route::delete('/{database}', [DatabaseController::class, 'destroy'])->name('destroy');
+        Route::post('/{database}/suspend', [DatabaseController::class, 'suspend'])->name('suspend');
+        Route::post('/{database}/unsuspend', [DatabaseController::class, 'unsuspend'])->name('unsuspend');
+        Route::post('/{database}/rebuild', [DatabaseController::class, 'rebuild'])->name('rebuild');
+    });
+
+    // Cron jobs (E34 batch 2 spec §6.5)
+    Route::get('/users/{user}/cron-jobs', [CronController::class, 'index'])->name('cron-jobs.index');
+    Route::get('/users/{user}/cron-jobs/{id}', [CronController::class, 'show'])->where('id', '[0-9]{1,9}')->name('cron-jobs.show');
+    Route::get('/users/{user}/cron-reports', [CronController::class, 'reports'])->name('cron-reports.show');
+    Route::middleware('not-readonly')->group(function () {
+        Route::post('/users/{user}/cron-jobs', [CronController::class, 'store'])->name('cron-jobs.store');
+        Route::patch('/users/{user}/cron-jobs/{id}', [CronController::class, 'update'])->where('id', '[0-9]{1,9}')->name('cron-jobs.update');
+        Route::delete('/users/{user}/cron-jobs/{id}', [CronController::class, 'destroy'])->where('id', '[0-9]{1,9}')->name('cron-jobs.destroy');
+        Route::post('/users/{user}/cron-jobs/{id}/suspend', [CronController::class, 'suspend'])->where('id', '[0-9]{1,9}')->name('cron-jobs.suspend');
+        Route::post('/users/{user}/cron-jobs/{id}/unsuspend', [CronController::class, 'unsuspend'])->where('id', '[0-9]{1,9}')->name('cron-jobs.unsuspend');
+        Route::put('/users/{user}/cron-reports', [CronController::class, 'setReports'])->name('cron-reports.update');
+    });
 });
 
 // Packages (spec §6.2); a package the principal may not assign answers 404
@@ -64,3 +147,24 @@ Route::middleware('not-readonly')->group(function () {
     Route::post('/packages/{package}/copy', [PackageController::class, 'copy'])->name('packages.copy');
     Route::delete('/packages/{package}', [PackageController::class, 'destroy'])->name('packages.destroy');
 });
+
+// Area of each route (E34 batch 2 spec D30). A test gives its key exactly
+// that area's set. More specific paths win over /users and /packages.
+foreach (Route::getRoutes() as $route) {
+    $uri = $route->uri();
+    if (! str_starts_with($uri, 'api/v2/') || isset($route->defaults['api_area'])) {
+        continue;
+    }
+    $area = match (true) {
+        str_contains($uri, '/web-domains') => 'web',
+        str_contains($uri, '/dns-zones') => 'dns',
+        str_contains($uri, '/mail-domains') => 'mail',
+        str_contains($uri, '/databases') => 'db',
+        str_contains($uri, '/cron-jobs'), str_contains($uri, '/cron-reports') => 'cron',
+        str_starts_with($uri, 'api/v2/users'), str_starts_with($uri, 'api/v2/packages') => 'accounts',
+        default => null,
+    };
+    if ($area !== null) {
+        $route->defaults('api_area', $area);
+    }
+}

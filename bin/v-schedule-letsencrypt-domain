@@ -1,13 +1,16 @@
 #!/bin/bash
-# info: queue a Let's Encrypt certificate for a web domain
-# options: USER DOMAIN [ALIASES] [KEY_ALGO]
+# info: queue a Let's Encrypt certificate for a web or mail domain
+# options: USER DOMAIN [ALIASES] [KEY_ALGO] [MAIL]
 #
 # example: v-schedule-letsencrypt-domain admin example.com www.example.com ecdsa-256
+# example: v-schedule-letsencrypt-domain admin example.com '' ecdsa-256 yes
 #
-# This function queues a Let's Encrypt certificate for a web domain: the
-# letsencrypt queue, run by cron every five minutes, issues it with
-# v-add-letsencrypt-domain. ALIASES defaults to the aliases of the domain,
-# KEY_ALGO (rsa, ecdsa-256, ecdsa-384) to its current key type.
+# This function queues a Let's Encrypt certificate: the letsencrypt queue,
+# run by cron every five minutes, issues it with v-add-letsencrypt-domain.
+# ALIASES defaults to the aliases of the web domain, KEY_ALGO (rsa,
+# ecdsa-256, ecdsa-384) to its current key type. MAIL=yes queues the
+# certificate of the mail domain (no aliases) and leaves a queued web
+# certificate of the same domain in place.
 
 #----------------------------------------------------------#
 #                Variables & Functions                     #
@@ -18,6 +21,7 @@ user=$1
 domain=$2
 aliases=$3
 key_algo="${4,,}"
+mail="${5,,}"
 
 # Includes
 # shellcheck source=/etc/arcpanel/arcpanel.conf
@@ -33,14 +37,22 @@ source_conf "$ARCPANEL/conf/arcpanel.conf"
 #                    Verifications                         #
 #----------------------------------------------------------#
 
-check_args '2' "$#" 'USER DOMAIN [ALIASES] [KEY_ALGO]'
+check_args '2' "$#" 'USER DOMAIN [ALIASES] [KEY_ALGO] [MAIL]'
 is_format_valid 'user' 'domain' 'aliases' 'key_algo'
 is_system_enabled "$WEB_SYSTEM" 'WEB_SYSTEM'
 is_system_enabled "$WEB_SSL" 'SSL_SUPPORT'
 is_object_valid 'user' 'USER' "$user"
 is_object_unsuspended 'user' 'USER' "$user"
-is_object_valid 'web' 'DOMAIN' "$domain"
-is_object_unsuspended 'web' 'DOMAIN' "$domain"
+if [ -n "$mail" ] && [ "$mail" != "yes" ] && [ "$mail" != "no" ]; then
+	check_result "$E_INVALID" "MAIL must be yes or no"
+fi
+if [ "$mail" = "yes" ]; then
+	is_object_valid 'mail' 'DOMAIN' "$domain"
+	is_object_unsuspended 'mail' 'DOMAIN' "$domain"
+else
+	is_object_valid 'web' 'DOMAIN' "$domain"
+	is_object_unsuspended 'web' 'DOMAIN' "$domain"
+fi
 
 # Perform verification if read-only mode is enabled
 check_arcpanel_demo_mode
@@ -50,9 +62,11 @@ check_arcpanel_demo_mode
 #----------------------------------------------------------#
 
 # Parsing domain aliases and key type
-get_domain_values 'web'
-if [ -z "$aliases" ]; then
-	aliases="$ALIAS"
+if [ "$mail" != "yes" ]; then
+	get_domain_values 'web'
+	if [ -z "$aliases" ]; then
+		aliases="$ALIAS"
+	fi
 fi
 if [ -z "$key_algo" ]; then
 	key_algo="${SSL_KEY_ALGO:-ecdsa-256}"
@@ -62,11 +76,17 @@ fi
 # Adding cronjob scheduler for LE
 $BIN/v-add-cron-letsencrypt-job
 
-# Adding LE task (MAIL 'no': the web domain), replacing one queued before
+# One queued line per domain and kind. A web line and a mail line may both wait.
 touch $ARCPANEL/data/queue/letsencrypt.pipe
-sed -i "/ $domain /d" $ARCPANEL/data/queue/letsencrypt.pipe
-echo "$BIN/v-add-letsencrypt-domain $user $domain '$aliases' no $key_algo" \
-	>> $ARCPANEL/data/queue/letsencrypt.pipe
+if [ "$mail" = "yes" ]; then
+	sed -i "\|v-add-letsencrypt-domain ${user} ${domain} '' yes |d" $ARCPANEL/data/queue/letsencrypt.pipe
+	echo "$BIN/v-add-letsencrypt-domain $user $domain '' yes $key_algo" \
+		>> $ARCPANEL/data/queue/letsencrypt.pipe
+else
+	sed -i "\|v-add-letsencrypt-domain ${user} ${domain} '.*' no |d" $ARCPANEL/data/queue/letsencrypt.pipe
+	echo "$BIN/v-add-letsencrypt-domain $user $domain '$aliases' no $key_algo" \
+		>> $ARCPANEL/data/queue/letsencrypt.pipe
+fi
 
 #----------------------------------------------------------#
 #                         ArcPanel                         #

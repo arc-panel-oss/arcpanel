@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\V2;
 
 use App\Api\ApiException;
 use App\Api\ErrorCode;
+use App\Api\Paginates;
 use App\Api\PlanGate;
 use App\Arc\Secret;
 use App\Arc\SysConfig;
@@ -46,6 +47,7 @@ final class UserController extends Controller
         private readonly TenancyDirectory $tenancy,
         private readonly SysConfig $config,
         private readonly PlanGate $gate,
+        private readonly Paginates $pages,
     ) {}
 
     /**
@@ -77,7 +79,9 @@ final class UserController extends Controller
         $shown = array_filter($records, fn (UserRecord $record) => ($role === '' || $record->role()->value === $role)
             && ($owner === '' || $record->owner === $owner));
 
-        return UserResource::collection(array_values($shown))->additional(['meta' => (object) []]);
+        $page = $this->pages->slice($request, array_values($shown));
+
+        return UserResource::collection($page['items'])->additional(['meta' => $page['meta']]);
     }
 
     /**
