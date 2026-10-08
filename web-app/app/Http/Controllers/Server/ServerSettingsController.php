@@ -13,13 +13,13 @@ use App\Http\Requests\Server\SslSettingsRequest;
 use App\Http\Requests\Server\WhiteLabelRequest;
 use App\Policies\ServerPolicy;
 use App\Services\Server\ServerSettings;
+use App\Services\Server\ServerSettingsActions;
 use App\Services\Server\SystemTaskService;
 use App\Services\WebDomains\ApplyResult;
 use App\View\WhiteLabel;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
-use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
 /**
@@ -31,6 +31,7 @@ final class ServerSettingsController extends Controller
     public function __construct(
         private readonly ServerSettings $settings,
         private readonly SystemTaskService $tasks,
+        private readonly ServerSettingsActions $actions,
     ) {}
 
     public function index(Principal $principal, ServerPolicy $policy): RedirectResponse
@@ -83,14 +84,7 @@ final class ServerSettingsController extends Controller
     {
         abort_unless($policy->editSettings($principal), 403);
         $values = $request->values();
-        $errors = array_filter([
-            'timezone' => in_array($values['timezone'], $this->settings->timezones(), true) ? null : __('Please select a valid time zone.'),
-            'language' => in_array($values['language'], $this->settings->languages(), true) ? null : __('Please select a valid language.'),
-            'theme' => in_array($values['theme'], $this->settings->themes(), true) ? null : __('Please select a valid theme.'),
-        ]);
-        if ($errors !== []) {
-            throw ValidationException::withMessages($errors);
-        }
+        $this->actions->checkGeneral($values);
 
         return $this->finish('general', $this->settings->apply($this->settings->planGeneral($values)));
     }
@@ -99,8 +93,7 @@ final class ServerSettingsController extends Controller
     public function web(Request $request, Principal $principal, ServerPolicy $policy): RedirectResponse
     {
         abort_unless($policy->editSettings($principal), 403);
-        $installed = array_keys(array_filter($this->settings->phpVersions(), fn ($v) => $v['installed']));
-        $data = $request->validate(['php_default' => ['required', 'string', Rule::in($installed)]]);
+        $data = $request->validate(['php_default' => ['required', 'string', Rule::in($this->actions->installedPhp())]]);
 
         return $this->finish('web', $this->settings->apply($this->settings->planDefaultPhp($data['php_default'])));
     }
@@ -131,10 +124,7 @@ final class ServerSettingsController extends Controller
         abort_unless($policy->editSettings($principal), 403);
         abort_unless($this->settings->available('mail'), 404);
         $values = $request->values();
-        if ($values['relay_password'] === null
-            && $this->settings->relayNeedsPassword($values['relay'], $values['relay_host'], $values['relay_port'], $values['relay_user'])) {
-            throw ValidationException::withMessages(['relay_password' => sprintf(__('Field "%s" can not be blank.'), __('Password'))]);
-        }
+        $this->actions->checkMail($values);
 
         return $this->finish('mail', $this->settings->apply($this->settings->planMail($values)));
     }
@@ -151,8 +141,7 @@ final class ServerSettingsController extends Controller
     public function databaseHostPassword(Request $request, string $type, string $host, Principal $principal, ServerPolicy $policy): RedirectResponse
     {
         abort_unless($policy->editSettings($principal), 403);
-        $known = array_filter($this->settings->databaseHosts(), fn ($h) => $h['type'] === $type && $h['host'] === $host);
-        abort_unless($type === 'mysql' && $known !== [], 404);
+        abort_unless($this->actions->knowsDatabaseHost($type, $host), 404);
         $data = $request->validateWithBag('dbhost', [
             'user' => ['required', 'string', 'max:64', 'regex:/^[A-Za-z0-9_.-]+$/'],
             'password' => ['required', 'string', 'min:8', 'max:256', 'not_regex:/[\'"\\\\]/'],
@@ -166,21 +155,7 @@ final class ServerSettingsController extends Controller
     {
         abort_unless($policy->editSettings($principal), 403);
         $values = $request->values();
-        $config = $this->settings->config();
-        if ($values['remote']) {
-            $missing = match ($values['remote_type']) {
-                'b2' => array_filter(['bucket' => __('Bucket'), 'key_id' => __('Application Key ID')], fn ($label, $field) => $values[$field] === '', ARRAY_FILTER_USE_BOTH),
-                'rclone' => array_filter(['host' => __('Host')], fn ($label, $field) => $values[$field] === '', ARRAY_FILTER_USE_BOTH),
-                default => array_filter(['host' => __('Host'), 'username' => __('Username')], fn ($label, $field) => $values[$field] === '', ARRAY_FILTER_USE_BOTH),
-            };
-            if ($values['remote_type'] !== 'rclone' && $values['remote_secret'] === null
-                && $this->settings->remoteChanged($this->settings->remoteBackupType($config), $values)) {
-                $missing['password'] = $values['remote_type'] === 'b2' ? __('Application Key') : __('Password');
-            }
-            if ($missing !== []) {
-                throw ValidationException::withMessages(array_map(fn ($label) => sprintf(__('Field "%s" can not be blank.'), $label), $missing));
-            }
-        }
+        $this->actions->checkBackups($values);
 
         return $this->finish('backups', $this->settings->apply($this->settings->planBackups($values)));
     }
@@ -213,7 +188,7 @@ final class ServerSettingsController extends Controller
     public function plugin(Request $request, string $plugin, Principal $principal, ServerPolicy $policy): RedirectResponse
     {
         abort_unless($policy->editSettings($principal), 403);
-        abort_unless(isset(ServerSettings::PLUGINS[$plugin]), 404);
+        abort_unless(ServerSettingsActions::knowsPlugin($plugin), 404);
         $data = $request->validate(['state' => ['required', 'in:on,off']]);
 
         $result = $this->tasks->start('plugin', [$plugin, $data['state']]);

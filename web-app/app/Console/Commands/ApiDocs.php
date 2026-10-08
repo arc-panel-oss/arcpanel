@@ -3,6 +3,8 @@
 namespace App\Console\Commands;
 
 use App\Api\ErrorCode;
+use App\Services\Server\ServerSettings;
+use App\Services\Server\ServerSettingsApi;
 use Dedoc\Scramble\Generator;
 use Dedoc\Scramble\Scramble;
 use Illuminate\Console\Attributes\Description;
@@ -36,6 +38,8 @@ final class ApiDocs extends Command
         'runUpdates',
         'installSystemPackage',
         'removeSystemPackage',
+        'setPhpVersions',
+        'setPlugin',
     ];
 
     /** List operations whose `meta` is not paginated `ListMeta` (E34 batch 3 §5, batch 4 §4.2, batch 6 D60). */
@@ -167,7 +171,7 @@ final class ApiDocs extends Command
             'bearerFormat' => 'ACCESS_KEY_ID:SECRET_ACCESS_KEY',
             'description' => 'An access key of the panel and its secret, joined by a colon.',
         ]];
-        $components['schemas'] = self::withNullableObjects(array_merge($components['schemas'] ?? [], $this->schemas()));
+        $components['schemas'] = self::withNullableObjects(array_merge($components['schemas'] ?? [], $this->schemas(), self::serverSettingsSchemas()));
         $components['headers'] = $this->headers();
         $components['responses'] = $this->errorResponses();
         ksort($components['schemas']);
@@ -392,6 +396,7 @@ final class ApiDocs extends Command
         self::tailorDockerAppOpenApi($operationId, $operation, $responses);
         self::tailorPortOpenApi($operationId, $operation, $responses);
         self::tailorFileOpenApi($operationId, $operation, $responses);
+        self::tailorServerSettingsOpenApi($operationId, $responses);
         if ($operationId === 'createAccessKey' && isset($responses['201']['headers'])) {
             $responses['201']['headers']['Cache-Control'] = ['description' => '`no-store`: the answer carries the secret of the new key, which no other answer shows (E34 batch 6 D62).', 'schema' => ['type' => 'string']];
         }
@@ -569,6 +574,110 @@ final class ApiDocs extends Command
         }
 
         return $schema;
+    }
+
+    /**
+     * The answers of the server settings (E34 batch 6 D58): the tabs are
+     * written out from the allow-lists of ServerSettingsApi.
+     *
+     * @param  array<string, mixed>  $responses
+     */
+    private static function tailorServerSettingsOpenApi(string $operationId, array &$responses): void
+    {
+        if ($operationId === 'getServerSettings' && isset($responses['200'])) {
+            $responses['200']['description'] = 'The allow-listed fields of each tab the server has.';
+            $responses['200']['content'] = ['application/json' => ['schema' => [
+                'type' => 'object',
+                'properties' => ['data' => ['$ref' => '#/components/schemas/ServerSettings']],
+                'required' => ['data'],
+            ]]];
+        }
+        if ($operationId === 'updateServerSettings' && isset($responses['200'])) {
+            $tabs = array_map(fn (string $tab) => ['$ref' => '#/components/schemas/'.self::settingsSchemaName($tab)], array_keys(ServerSettingsApi::WRITE));
+            $responses['200']['description'] = 'The tab as getServerSettings shows it; with `dry_run`, the planned steps.';
+            $responses['200']['content'] = ['application/json' => ['schema' => ['oneOf' => [
+                ['type' => 'object', 'properties' => ['data' => ['oneOf' => $tabs]], 'required' => ['data']],
+                ['$ref' => '#/components/schemas/DryRun'],
+            ]]]];
+        }
+    }
+
+    private static function settingsSchemaName(string $tab): string
+    {
+        return str_replace(' ', '', ucwords(str_replace('-', ' ', $tab))).'Settings';
+    }
+
+    /** @return array<string, mixed> */
+    private static function serverSettingsSchemas(): array
+    {
+        $types = [
+            'string' => ['type' => 'string'],
+            '?string' => ['type' => ['string', 'null']],
+            'boolean' => ['type' => 'boolean'],
+            'integer' => ['type' => 'integer'],
+            '?integer' => ['type' => ['integer', 'null']],
+            'secret' => ['$ref' => '#/components/schemas/SecretFlag'],
+            'php_versions' => ['type' => 'array', 'items' => ['$ref' => '#/components/schemas/PhpVersion']],
+            'dns_hosts' => ['type' => 'array', 'description' => 'The DNS cluster hosts (read-only).', 'items' => [
+                'type' => 'object',
+                'properties' => [
+                    'host' => ['type' => 'string'], 'port' => ['type' => ['integer', 'null']], 'type' => ['type' => 'string'],
+                    'user' => ['type' => 'string'], 'dns_user' => ['type' => 'string'], 'suspended' => ['type' => 'boolean'],
+                ],
+                'required' => ['host', 'port', 'type', 'user', 'dns_user', 'suspended'],
+            ]],
+            'database_hosts' => ['type' => 'array', 'description' => 'The database hosts; setDatabaseHostPassword changes the password of a MySQL host.', 'items' => [
+                'type' => 'object',
+                'properties' => [
+                    'host' => ['type' => 'string'], 'type' => ['type' => 'string'], 'port' => ['type' => ['integer', 'null']],
+                    'max_databases' => ['type' => ['integer', 'null']], 'databases' => ['type' => 'integer'], 'suspended' => ['type' => 'boolean'],
+                ],
+                'required' => ['host', 'type', 'port', 'max_databases', 'databases', 'suspended'],
+            ]],
+            'plugins' => [
+                'type' => 'object',
+                'description' => 'Whether each plugin is installed; setPlugin installs or removes one.',
+                'properties' => array_map(fn () => ['type' => 'boolean'], ServerSettings::PLUGINS),
+                'required' => array_keys(ServerSettings::PLUGINS),
+            ],
+        ];
+        $schemas = [
+            'SecretFlag' => [
+                'type' => 'object',
+                'description' => 'A secret of the settings: whether one is stored. The value is never returned (D58).',
+                'properties' => ['set' => ['type' => 'boolean']],
+                'required' => ['set'],
+            ],
+        ];
+        $tabs = [];
+        foreach (ServerSettingsApi::READ as $tab => $fields) {
+            $name = self::settingsSchemaName($tab);
+            $writable = ServerSettingsApi::WRITE[$tab] ?? [];
+            $properties = [];
+            foreach ($fields as $field => $type) {
+                $properties[$field] = $types[$type];
+                if (isset(ServerSettingsApi::REFUSED[$field])) {
+                    $properties[$field]['description'] = 'Read-only through the API (403 on a change).';
+                } elseif (! in_array($field, $writable, true) && ! in_array($type, ['php_versions', 'plugins'], true)) {
+                    $properties[$field]['description'] ??= 'Read-only.';
+                }
+            }
+            $schemas[$name] = [
+                'type' => 'object',
+                'description' => sprintf('The `%s` tab of the server settings.', $tab),
+                'properties' => $properties,
+                'required' => array_keys($fields),
+            ];
+            $tabs[$tab] = ['$ref' => '#/components/schemas/'.$name];
+        }
+        $schemas['ServerSettings'] = [
+            'type' => 'object',
+            'description' => 'The server settings by tab (E34 batch 6 D58); `dns`, `mail` and `databases` are left out when the server does not run that system.',
+            'properties' => $tabs,
+            'required' => array_values(array_diff(array_keys($tabs), ['dns', 'mail', 'databases'])),
+        ];
+
+        return $schemas;
     }
 
     /**

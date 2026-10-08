@@ -209,39 +209,54 @@ final class ServerSettings
     /** The panel certificate without its key (`v-list-sys-arcpanel-ssl json`). @return array<string, string> */
     public function ssl(): array
     {
+        return $this->sslWithKeyFlag()[0];
+    }
+
+    /**
+     * The panel certificate without its key, and whether a key is stored.
+     *
+     * @return array{0: array<string, string>, 1: bool}
+     */
+    public function sslWithKeyFlag(): array
+    {
         $row = $this->arc->json('v-list-sys-arcpanel-ssl', [], Options::allowFailure())['ARCPANEL'] ?? [];
+        $row = is_array($row) ? $row : [];
+        $key = trim((string) ($row['KEY'] ?? '')) !== '';
         unset($row['KEY']);
 
-        return array_map('strval', $row);
+        return [array_map('strval', $row), $key];
     }
 
     // Plans
 
     /**
-     * @param  array{hostname: string, timezone: string, language: string, language_all: bool, theme: string, user_theme: bool, debug: bool, experimental: bool}  $values
+     * A null value was not given (API v2) and changes nothing.
+     *
+     * @param  array{hostname: ?string, timezone: ?string, language: ?string, language_all: bool, theme: ?string, user_theme: ?bool, debug: ?bool, experimental: ?bool}  $values
      * @return list<Step>
      */
     public function planGeneral(array $values): array
     {
         $config = $this->config();
         $steps = [];
-        if ($values['hostname'] !== $this->hostname()) {
+        if ($values['hostname'] !== null && $values['hostname'] !== $this->hostname()) {
             $steps[] = new Step(__('Change the host name'), 'v-change-sys-hostname', [$values['hostname']]);
         }
-        if ($values['timezone'] !== $this->timezone()) {
+        if ($values['timezone'] !== null && $values['timezone'] !== $this->timezone()) {
             $steps[] = new Step(__('Change the time zone'), 'v-change-sys-timezone', [$values['timezone']]);
         }
-        if ($values['language'] !== ($config['LANGUAGE'] ?? '') || $values['language_all']) {
+        if ($values['language'] !== null && ($values['language'] !== ($config['LANGUAGE'] ?? '') || $values['language_all'])) {
             $steps[] = new Step(__('Change the language'), 'v-change-sys-language', $values['language_all'] ? [$values['language'], 'yes'] : [$values['language']]);
         }
+        $flag = fn (?bool $on, string $yes, string $no) => $on === null ? null : ($on ? $yes : $no);
         $steps = [...$steps, ...self::configSteps($config, [
             'THEME' => $values['theme'],
-            'POLICY_USER_CHANGE_THEME' => $values['user_theme'] ? 'yes' : 'no',
-            'DEBUG_MODE' => $values['debug'] ? 'true' : 'false',
-            'POLICY_SYSTEM_ENABLE_BACON' => $values['experimental'] ? 'true' : 'false',
+            'POLICY_USER_CHANGE_THEME' => $flag($values['user_theme'], 'yes', 'no'),
+            'DEBUG_MODE' => $flag($values['debug'], 'true', 'false'),
+            'POLICY_SYSTEM_ENABLE_BACON' => $flag($values['experimental'], 'true', 'false'),
         ])];
         // Turning the experimental features off hides suspended objects again (legacy L506)
-        if (! $values['experimental'] && ($config['POLICY_SYSTEM_ENABLE_BACON'] ?? '') === 'true' && ($config['POLICY_USER_VIEW_SUSPENDED'] ?? '') !== 'no') {
+        if ($values['experimental'] === false && ($config['POLICY_SYSTEM_ENABLE_BACON'] ?? '') === 'true' && ($config['POLICY_USER_VIEW_SUSPENDED'] ?? '') !== 'no') {
             $steps[] = self::configStep('POLICY_USER_VIEW_SUSPENDED', 'no');
         }
 
@@ -368,10 +383,12 @@ final class ServerSettings
         } elseif (! $values['local'] && $local) {
             $steps[] = new Step(__('Turn off local backups'), 'v-delete-backup-host', ['local']);
         }
-        // gzip always uses level 9, as legacy does
+        // gzip always uses level 9, as legacy does; a null mode or level was not given (API v2)
+        $mode = $values['mode'] ?? (($config['BACKUP_MODE'] ?? '') === 'zstd' ? 'zstd' : 'gzip');
+        $level = $values['level'] ?? null;
         $steps = [...$steps, ...self::configSteps($config, [
-            'BACKUP_MODE' => $values['mode'],
-            'BACKUP_GZIP' => $values['mode'] === 'gzip' ? '9' : (string) $values['level'],
+            'BACKUP_MODE' => $values['mode'] ?? null,
+            'BACKUP_GZIP' => ($values['mode'] ?? null) === null && $level === null ? null : ($mode === 'gzip' ? '9' : ($level === null ? null : (string) $level)),
         ])];
 
         $current = $this->remoteBackupType($config);
@@ -477,6 +494,20 @@ final class ServerSettings
         }
 
         return [...$steps, ...self::configSteps($config, $wanted)];
+    }
+
+    /**
+     * Security keys of API v2 (E34 batch 6 D58): only the given keys, never
+     * the API switches or the protection group, which the API refuses.
+     *
+     * @param  array<string, string>  $values
+     * @return list<Step>
+     */
+    public function planPolicies(array $values): array
+    {
+        $refused = ['API_SYSTEM', 'API', 'API_ALLOWED_IP', ...self::SECURITY_POLICIES['protection']];
+
+        return self::configSteps($this->config(), array_diff_key($values, array_flip($refused)));
     }
 
     /** The upgrade e-mails of the Updates page (spec D11); null leaves a value alone (API v2). @return list<Step> */

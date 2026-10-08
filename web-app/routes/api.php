@@ -26,6 +26,7 @@ use App\Http\Controllers\Api\V2\PackageController;
 use App\Http\Controllers\Api\V2\PortController;
 use App\Http\Controllers\Api\V2\PortRegistryController;
 use App\Http\Controllers\Api\V2\SearchController;
+use App\Http\Controllers\Api\V2\ServerSettingsController;
 use App\Http\Controllers\Api\V2\ServiceController;
 use App\Http\Controllers\Api\V2\SshKeyController;
 use App\Http\Controllers\Api\V2\StatsController;
@@ -128,6 +129,21 @@ Route::prefix('/system')->name('system.')->group(function () {
         Route::put('/updates/settings', [UpdateController::class, 'settings'])->name('updates.settings');
         Route::post('/packages/{slug}', [SystemPackageController::class, 'install'])->where($slug)->name('packages.install');
         Route::delete('/packages/{slug}', [SystemPackageController::class, 'remove'])->where($slug)->name('packages.remove');
+    });
+});
+
+// Server settings (E34 batch 6 spec §5.7, D58); administrators only
+Route::prefix('/system/settings')->name('system.settings.')->group(function () {
+    Route::get('/', [ServerSettingsController::class, 'show'])->name('show');
+    Route::middleware('not-readonly')->group(function () {
+        Route::put('/web/php', [ServerSettingsController::class, 'php'])->name('php');
+        Route::put('/plugins/{plugin}', [ServerSettingsController::class, 'plugin'])->where('plugin', '[a-z][a-z-]{0,31}')->name('plugin');
+        Route::put('/databases/hosts/{type}/{host}/password', [ServerSettingsController::class, 'databaseHostPassword'])
+            ->where(['type' => '[a-z]{1,16}', 'host' => '[A-Za-z0-9][A-Za-z0-9.:_-]{0,252}'])
+            ->name('database-host-password');
+        Route::patch('/{tab}', [ServerSettingsController::class, 'update'])
+            ->where('tab', 'general|web|dns|mail|databases|backups|ssl|security|plugins|white-label')
+            ->name('update');
     });
 });
 
@@ -427,6 +443,8 @@ foreach (Route::getRoutes() as $route) {
         continue;
     }
     $area = match (true) {
+        // The settings host path names a database host, not the db area
+        str_starts_with($uri, 'api/v2/system/settings/') => 'server',
         str_contains($uri, '/web-domains') => 'web',
         str_contains($uri, '/dns-zones') => 'dns',
         str_contains($uri, '/mail-domains') => 'mail',
