@@ -23,6 +23,9 @@ final class FileService
     /** Results of a name search at most */
     public const SEARCH_MAX = 500;
 
+    /** Entries the listing command answers at most per call */
+    public const LIST_MAX = 5000;
+
     /** Seconds for commands that copy, pack or unpack whole trees */
     private const LONG = 600;
 
@@ -60,6 +63,22 @@ final class FileService
             'offset' => (int) ($data['OFFSET'] ?? 0),
             'entries' => array_values(array_map(fn ($row) => FileEntry::from((array) $row), array_filter((array) ($data['ENTRIES'] ?? []), 'is_array'))),
         ];
+    }
+
+    /**
+     * Every entry of $dir, read in pages of LIST_MAX.
+     *
+     * @return array{total: int, entries: list<FileEntry>}
+     */
+    public function listAll(string $user, FilePath $dir, string $sort = 'name', string $order = 'asc', bool $hidden = true): array
+    {
+        $entries = [];
+        do {
+            $page = $this->list($user, $dir, count($entries), self::LIST_MAX, $sort, $order, $hidden);
+            array_push($entries, ...$page['entries']);
+        } while ($page['entries'] !== [] && count($entries) < $page['total']);
+
+        return ['total' => $page['total'], 'entries' => $entries];
     }
 
     public function info(string $user, FilePath $path): FileEntry

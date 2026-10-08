@@ -1,0 +1,4 @@
+# REST API v2 (E34 batch 5): files of the home directories of users, plus the foundation reads. API v1 skips this set.
+ROLE='user'
+API_VERSION='2'
+COMMANDS='v-list-sys-config,v-list-users,v-list-user-owners,v-list-user,v-list-sys-languages,v-list-reseller-packages,v-list-package-tenancy,v-check-reseller-quota,v-list-fs-directory-json,v-get-fs-file-info,v-read-fs-file,v-search-fs-object,v-list-fs-disk-usage'

@@ -176,7 +176,7 @@ it('keeps every area set inside v2-write and its reads inside v2-read', function
     $areas = apiAreaSets();
     $union = [];
 
-    expect($areas)->toContain('v2-accounts', 'v2-web', 'v2-backup', 'v2-apps', 'v2-server');
+    expect($areas)->toContain('v2-accounts', 'v2-web', 'v2-backup', 'v2-apps', 'v2-server', 'v2-files');
     foreach ($areas as $area) {
         $commands = apiSetCommands($area);
         expect(array_values(array_diff($commands, $write)))->toBe([], "{$area} is not part of v2-write");
@@ -191,6 +191,14 @@ it('keeps every area set inside v2-write and its reads inside v2-read', function
         $union = array_merge($union, $commands);
     }
     expect(array_values(array_diff($write, $union)))->toBe([]);
+});
+
+it('puts the file reads of v2-files in v2-read (E34 batch 5 D56)', function () {
+    $files = apiSetCommands('v2-files');
+    $reads = ['v-list-fs-directory-json', 'v-get-fs-file-info', 'v-read-fs-file', 'v-search-fs-object', 'v-list-fs-disk-usage'];
+
+    expect($files)->toContain(...$reads)
+        ->and(array_values(array_diff($reads, apiSetCommands('v2-read'))))->toBe([]);
 });
 
 it('pages a list and refuses a limit or offset outside its range', function () {
@@ -297,6 +305,7 @@ it('declares an area on the batch 1 routes', function () {
             str_contains($uri, '/cron-jobs'), str_contains($uri, '/cron-reports') => 'cron',
             str_contains($uri, '/backups'), str_contains($uri, '/snapshots'), str_contains($uri, '/backup-exclusions') => 'backup',
             str_contains($uri, '/tasks') => 'backup',
+            str_contains($uri, '/files') => 'files',
             str_contains($uri, '/system/docker') || str_contains($uri, '/system/ports') => 'server',
             str_contains($uri, '/docker-catalog') || str_contains($uri, '/docker-apps') => 'apps',
             str_contains($uri, '/ports') => 'apps',

@@ -61,6 +61,7 @@ final class AccessKeyController extends Controller
                 'v2-backup' => __('REST API v2 only: backups and tasks.'),
                 'v2-apps' => __('REST API v2 only: Node.js, Docker apps and ports.'),
                 'v2-server' => __('REST API v2 only: server-wide operations of administrators.'),
+                'v2-files' => __('REST API v2 only: files of the home directory.'),
             ],
         ]);
     }

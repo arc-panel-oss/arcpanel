@@ -47,11 +47,15 @@ final class ApiDocs extends Command
         '404' => ['NotFound', 'No such object in the scope of the key (`E_NOTEXIST`).'],
         '410' => ['Gone', 'The task result is no longer kept (`E_GONE`).'],
         '409' => ['Conflict', 'The object exists or is in use (`E_EXISTS`, `E_INUSE`).'],
+        '413' => ['TooLarge', 'The file or the content is larger than the limit of the operation (`E_LIMIT`).'],
         '422' => ['ValidationFailed', 'The request is invalid (`E_VALIDATION` with `fields`, or a command refused an argument), or a package limit is reached (`E_LIMIT`).'],
         '429' => ['TooManyRequests', 'Too many requests (`E_RATE_LIMIT`); `Retry-After` names the seconds to wait.'],
         '500' => ['ServerError', 'A command failed on the server.'],
         '503' => ['Unavailable', 'The service is disabled or the server is too busy (`E_DISABLED`, `E_LA`).'],
     ];
+
+    /** File operations that answer 413 (E34 batch 5 D55). */
+    private const FILE_ERRORS = ['readFile' => ['413']];
 
     private const DESCRIPTION = <<<'MD'
         Resource API of an ArcPanel server, served by the panel at `/api/v2/` (port 8083 by default). Every call acts as the owner of the access key, with the role and the reach that user has in the panel: objects outside its reach answer `404`, refused actions `403`.
@@ -309,6 +313,7 @@ final class ApiDocs extends Command
         if ($write) {
             $errors[] = '503';
         }
+        array_push($errors, ...(self::FILE_ERRORS[$operationId] ?? []));
         foreach ($errors as $status) {
             $responses[$status] = ['$ref' => '#/components/responses/'.self::ERROR_STATUSES[$status][0]];
         }
@@ -349,6 +354,7 @@ final class ApiDocs extends Command
         self::tailorNodeAppOpenApi($operationId, $operation, $responses);
         self::tailorDockerAppOpenApi($operationId, $operation, $responses);
         self::tailorPortOpenApi($operationId, $operation, $responses);
+        self::tailorFileOpenApi($operationId, $operation, $responses);
         uksort($responses, fn ($a, $b) => (int) $a <=> (int) $b);
         $operation['responses'] = $responses;
 
@@ -482,6 +488,11 @@ final class ApiDocs extends Command
         }
         if ($operationId === 'getDockerAppLogs') {
             $schema['properties']['meta'] = ['$ref' => '#/components/schemas/DockerAppLogMeta'];
+
+            return $schema;
+        }
+        if ($operationId === 'searchFiles') {
+            $schema['properties']['meta'] = ['$ref' => '#/components/schemas/FileSearchMeta'];
 
             return $schema;
         }
@@ -711,6 +722,27 @@ final class ApiDocs extends Command
                 'properties' => ['data' => ['type' => 'array', 'items' => ['$ref' => '#/components/schemas/PortFinding']]],
                 'required' => ['data'],
             ], $dryRun]];
+        }
+    }
+
+    /**
+     * The file endpoints (E34 batch 5 §4): the boolean `hidden` of
+     * listFiles, and the descriptions of the answers Scramble leaves empty.
+     *
+     * @param  array<string, mixed>  $operation
+     * @param  array<string, mixed>  $responses
+     */
+    private static function tailorFileOpenApi(string $operationId, array &$operation, array &$responses): void
+    {
+        if ($operationId === 'listFiles') {
+            foreach ($operation['parameters'] ?? [] as $i => $parameter) {
+                if (($parameter['name'] ?? '') === 'hidden' && ($parameter['in'] ?? '') === 'query') {
+                    $operation['parameters'][$i]['schema'] = ['type' => 'boolean', 'default' => true];
+                }
+            }
+        }
+        if ($operationId === 'getFolderSize' && isset($responses['200'])) {
+            $responses['200']['description'] = 'The bytes of the folder and everything in it.';
         }
     }
 
@@ -1055,6 +1087,14 @@ final class ApiDocs extends Command
                     'room' => ['type' => 'boolean', 'description' => 'Whether another app fits under the limit.'],
                 ],
                 'required' => ['engine', 'totals', 'limit', 'room'],
+            ],
+            'FileSearchMeta' => [
+                'type' => 'object',
+                'description' => 'A name search answers at most 500 entries; the list is not paginated (E34 batch 5 §4.1).',
+                'properties' => [
+                    'truncated' => ['type' => 'boolean', 'description' => 'Whether more than 500 entries matched.'],
+                ],
+                'required' => ['truncated'],
             ],
             'DockerAppLogMeta' => [
                 'type' => 'object',

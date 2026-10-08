@@ -19,20 +19,34 @@ final class Paginates
      */
     public function slice(Request $request, array $items): array
     {
-        $query = $request->validate([
-            'limit' => ['sometimes', 'integer', 'min:1', 'max:1000'],
-            'offset' => ['sometimes', 'integer', 'min:0'],
-        ]);
+        ['limit' => $limit, 'offset' => $offset] = $this->window($request);
         $total = count($items);
-        if (! array_key_exists('limit', $query)) {
+        if ($limit === null) {
             return ['items' => array_values($items), 'meta' => ['total' => $total]];
         }
-        $limit = (int) $query['limit'];
-        $offset = (int) ($query['offset'] ?? 0);
 
         return [
             'items' => array_values(array_slice($items, $offset, $limit)),
             'meta' => ['total' => $total, 'limit' => $limit, 'offset' => $offset],
+        ];
+    }
+
+    /**
+     * The validated `limit` (null without one) and `offset` (0 without
+     * one), for a list whose command pages itself.
+     *
+     * @return array{limit: int|null, offset: int}
+     */
+    public function window(Request $request): array
+    {
+        $query = $request->validate([
+            'limit' => ['sometimes', 'integer', 'min:1', 'max:1000'],
+            'offset' => ['sometimes', 'integer', 'min:0'],
+        ]);
+
+        return [
+            'limit' => array_key_exists('limit', $query) ? (int) $query['limit'] : null,
+            'offset' => (int) ($query['offset'] ?? 0),
         ];
     }
 }

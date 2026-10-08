@@ -7,6 +7,7 @@ use App\Http\Controllers\Api\V2\DnsController;
 use App\Http\Controllers\Api\V2\DockerAppController;
 use App\Http\Controllers\Api\V2\DockerCatalogController;
 use App\Http\Controllers\Api\V2\DockerEngineController;
+use App\Http\Controllers\Api\V2\FileController;
 use App\Http\Controllers\Api\V2\MailAccountController;
 use App\Http\Controllers\Api\V2\MailDomainController;
 use App\Http\Controllers\Api\V2\MeController;
@@ -252,6 +253,15 @@ Route::middleware('effective-user')->group(function () {
         });
     });
 
+    // Files of a user's home directory (E34 batch 5 spec §4.1); FILE_MANAGER off answers 404
+    Route::middleware('files.enabled')->prefix('/users/{user}/files')->name('files.')->group(function () {
+        Route::get('/', [FileController::class, 'index'])->name('index');
+        Route::get('/info', [FileController::class, 'info'])->name('info');
+        Route::get('/content', [FileController::class, 'read'])->name('content.show');
+        Route::get('/search', [FileController::class, 'search'])->name('search');
+        Route::get('/size', [FileController::class, 'size'])->name('size');
+    });
+
     // Cron jobs (E34 batch 2 spec §6.5)
     Route::get('/users/{user}/cron-jobs', [CronController::class, 'index'])->name('cron-jobs.index');
     Route::get('/users/{user}/cron-jobs/{id}', [CronController::class, 'show'])->where('id', '[0-9]{1,9}')->name('cron-jobs.show');
@@ -291,6 +301,7 @@ foreach (Route::getRoutes() as $route) {
         str_contains($uri, '/cron-jobs'), str_contains($uri, '/cron-reports') => 'cron',
         str_contains($uri, '/backups'), str_contains($uri, '/snapshots'), str_contains($uri, '/backup-exclusions') => 'backup',
         str_contains($uri, '/tasks') => 'backup',
+        str_contains($uri, '/files') => 'files',
         str_contains($uri, '/system/docker') || str_contains($uri, '/system/ports') => 'server',
         str_contains($uri, '/docker-catalog') || str_contains($uri, '/docker-apps') => 'apps',
         str_contains($uri, '/ports') => 'apps',

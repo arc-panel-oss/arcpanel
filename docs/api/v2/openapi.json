@@ -7545,6 +7545,483 @@
                 }
             }
         },
+        "/users/{user}/files": {
+            "get": {
+                "operationId": "listFiles",
+                "description": "The entries of a folder of the user's home directory: folders first,\nthen by `sort` and `order`. `mime` and `writable` are null in a list\n(getFileInfo reads them). Without `limit` the list is complete.",
+                "summary": "List a folder",
+                "tags": [
+                    "Files"
+                ],
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "path",
+                        "in": "query",
+                        "description": "Folder relative to the home directory; the home directory when left out.",
+                        "schema": {
+                            "type": [
+                                "string",
+                                "null"
+                            ]
+                        }
+                    },
+                    {
+                        "name": "sort",
+                        "in": "query",
+                        "description": "Folders come first, then this order.",
+                        "schema": {
+                            "type": "string",
+                            "enum": [
+                                "name",
+                                "size",
+                                "mtime"
+                            ]
+                        }
+                    },
+                    {
+                        "name": "order",
+                        "in": "query",
+                        "schema": {
+                            "type": "string",
+                            "enum": [
+                                "asc",
+                                "desc"
+                            ]
+                        }
+                    },
+                    {
+                        "name": "hidden",
+                        "in": "query",
+                        "description": "List names that start with a dot (default true).",
+                        "schema": {
+                            "type": "boolean",
+                            "default": true
+                        }
+                    },
+                    {
+                        "name": "limit",
+                        "in": "query",
+                        "description": "Page size, from 1 to 1000. Without it the list is complete.",
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 1000
+                        }
+                    },
+                    {
+                        "name": "offset",
+                        "in": "query",
+                        "description": "Items to skip. Used when `limit` is set; 0 when omitted.",
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 0
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Array of `FileEntry`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/components/schemas/FileEntry"
+                                            }
+                                        },
+                                        "meta": {
+                                            "$ref": "#/components/schemas/ListMeta"
+                                        }
+                                    },
+                                    "required": [
+                                        "data",
+                                        "meta"
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    }
+                }
+            }
+        },
+        "/users/{user}/files/content": {
+            "get": {
+                "operationId": "readFile",
+                "description": "The content of a regular file of at most 2 MiB (`413` `E_LIMIT`\nabove) with its SHA-256 `hash`, which saveFile expects back. Bytes\nthat are not UTF-8 are replaced and `utf8` is false: saving such\ncontent back would change the file.",
+                "summary": "Read a text file",
+                "tags": [
+                    "Files"
+                ],
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "path",
+                        "in": "query",
+                        "required": true,
+                        "description": "File relative to the home directory.",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "`FileContent`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/FileContent"
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "413": {
+                        "$ref": "#/components/responses/TooLarge"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    }
+                }
+            }
+        },
+        "/users/{user}/files/info": {
+            "get": {
+                "operationId": "getFileInfo",
+                "description": "One entry with its MIME type and whether the user may write it.",
+                "summary": "Get a file or folder",
+                "tags": [
+                    "Files"
+                ],
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "path",
+                        "in": "query",
+                        "description": "Path relative to the home directory; the home directory when left out.",
+                        "schema": {
+                            "type": [
+                                "string",
+                                "null"
+                            ]
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "`FileEntry`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/FileEntry"
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    }
+                }
+            }
+        },
+        "/users/{user}/files/search": {
+            "get": {
+                "operationId": "searchFiles",
+                "description": "Entries whose name matches `q` in the folder `path` and below, at\nmost 500 (`meta.truncated` when there were more). A search that takes\nlonger than 10 seconds answers `422` `E_LIMIT`: narrow it.",
+                "summary": "Search by name",
+                "tags": [
+                    "Files"
+                ],
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "path",
+                        "in": "query",
+                        "description": "Folder to search in, with its subfolders; the home directory when left out.",
+                        "schema": {
+                            "type": [
+                                "string",
+                                "null"
+                            ]
+                        }
+                    },
+                    {
+                        "name": "q",
+                        "in": "query",
+                        "required": true,
+                        "description": "A name or a shell pattern (`*`, `?`, `[…]`), 1 to 100 characters without `/`; a term without a pattern character matches as `*q*`.",
+                        "schema": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 100
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Array of `FileSearchResult`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/components/schemas/FileSearchResult"
+                                            }
+                                        },
+                                        "meta": {
+                                            "$ref": "#/components/schemas/FileSearchMeta"
+                                        }
+                                    },
+                                    "required": [
+                                        "data",
+                                        "meta"
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    }
+                }
+            }
+        },
+        "/users/{user}/files/size": {
+            "get": {
+                "operationId": "getFolderSize",
+                "description": "The bytes used by a folder and everything in it (`du -sb` as the\nuser). Counting longer than 30 seconds answers `422` `E_LIMIT`.",
+                "summary": "Get the size of a folder",
+                "tags": [
+                    "Files"
+                ],
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "path",
+                        "in": "query",
+                        "description": "Path relative to the home directory; the home directory when left out.",
+                        "schema": {
+                            "type": [
+                                "string",
+                                "null"
+                            ]
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "The bytes of the folder and everything in it.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "object",
+                                            "properties": {
+                                                "path": {
+                                                    "type": "string",
+                                                    "description": "path relative to the home directory"
+                                                },
+                                                "size": {
+                                                    "type": "integer",
+                                                    "description": "bytes"
+                                                }
+                                            },
+                                            "required": [
+                                                "path",
+                                                "size"
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    }
+                }
+            }
+        },
         "/users/{user}/mail-domains": {
             "get": {
                 "operationId": "listMailDomains",
@@ -17054,6 +17531,200 @@
                     "E_RESTART"
                 ]
             },
+            "FileContent": {
+                "type": "object",
+                "properties": {
+                    "path": {
+                        "type": "string",
+                        "description": "path relative to the home directory"
+                    },
+                    "content": {
+                        "type": "string",
+                        "description": "the text; bytes that are not UTF-8 are replaced (see `utf8`). readFile only"
+                    },
+                    "hash": {
+                        "type": "string",
+                        "description": "SHA-256 of the bytes on disk, in hexadecimal: send it back with saveFile"
+                    },
+                    "size": {
+                        "type": "integer",
+                        "description": "bytes"
+                    },
+                    "modified_at": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "modification time in the server's time zone, YYYY-MM-DDTHH:MM:SS"
+                    },
+                    "mime": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "MIME type"
+                    },
+                    "utf8": {
+                        "type": "boolean",
+                        "description": "false when the file is not valid UTF-8: `content` is scrubbed and saving it back would change the file. readFile only"
+                    }
+                },
+                "required": [
+                    "path",
+                    "hash",
+                    "size",
+                    "modified_at",
+                    "mime"
+                ],
+                "title": "FileContent"
+            },
+            "FileEntry": {
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string"
+                    },
+                    "path": {
+                        "type": "string",
+                        "description": "path relative to the home directory; empty for the home directory itself"
+                    },
+                    "type": {
+                        "type": "string",
+                        "enum": [
+                            "file",
+                            "directory",
+                            "link",
+                            "other"
+                        ]
+                    },
+                    "size": {
+                        "type": "integer",
+                        "description": "bytes"
+                    },
+                    "mode": {
+                        "type": "string",
+                        "description": "octal mode, e.g. 0644"
+                    },
+                    "owner": {
+                        "type": "string"
+                    },
+                    "group": {
+                        "type": "string"
+                    },
+                    "modified_at": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "modification time in the server's time zone, YYYY-MM-DDTHH:MM:SS"
+                    },
+                    "link_target": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "target of a symbolic link"
+                    },
+                    "link_type": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "what a symbolic link points to: folder, file, nothing, other",
+                        "enum": [
+                            "d",
+                            "f",
+                            "missing",
+                            "o",
+                            null
+                        ]
+                    },
+                    "link_inside": {
+                        "type": "boolean",
+                        "description": "whether a symbolic link points inside the home directory; false for other entries"
+                    },
+                    "mime": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "MIME type; null in lists, which do not read it"
+                    },
+                    "writable": {
+                        "type": [
+                            "boolean",
+                            "null"
+                        ],
+                        "description": "whether the user may write it; null in lists, which do not test it"
+                    },
+                    "valid_name": {
+                        "type": "boolean",
+                        "description": "false for a name the panel cannot address (not UTF-8, control characters): listed, but no operation accepts it"
+                    }
+                },
+                "required": [
+                    "name",
+                    "path",
+                    "type",
+                    "size",
+                    "mode",
+                    "owner",
+                    "group",
+                    "modified_at",
+                    "link_target",
+                    "link_type",
+                    "link_inside",
+                    "mime",
+                    "writable",
+                    "valid_name"
+                ],
+                "title": "FileEntry"
+            },
+            "FileSearchMeta": {
+                "type": "object",
+                "description": "A name search answers at most 500 entries; the list is not paginated (E34 batch 5 §4.1).",
+                "properties": {
+                    "truncated": {
+                        "type": "boolean",
+                        "description": "Whether more than 500 entries matched."
+                    }
+                },
+                "required": [
+                    "truncated"
+                ]
+            },
+            "FileSearchResult": {
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string"
+                    },
+                    "path": {
+                        "type": "string",
+                        "description": "path relative to the home directory"
+                    },
+                    "type": {
+                        "type": "string",
+                        "enum": [
+                            "file",
+                            "directory",
+                            "link",
+                            "other"
+                        ]
+                    },
+                    "size": {
+                        "type": "integer",
+                        "description": "bytes"
+                    }
+                },
+                "required": [
+                    "name",
+                    "path",
+                    "type",
+                    "size"
+                ],
+                "title": "FileSearchResult"
+            },
             "GivePortsRequest": {
                 "type": "object",
                 "properties": {
@@ -21513,6 +22184,24 @@
             },
             "Conflict": {
                 "description": "The object exists or is in use (`E_EXISTS`, `E_INUSE`).",
+                "headers": {
+                    "X-Request-Id": {
+                        "$ref": "#/components/headers/RequestId"
+                    },
+                    "ArcPanel-Version": {
+                        "$ref": "#/components/headers/Version"
+                    }
+                },
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/Error"
+                        }
+                    }
+                }
+            },
+            "TooLarge": {
+                "description": "The file or the content is larger than the limit of the operation (`E_LIMIT`).",
                 "headers": {
                     "X-Request-Id": {
                         "$ref": "#/components/headers/RequestId"
