@@ -4547,3 +4547,130 @@ a.ap-pick:focus-visible {
 		background: var(--ap-surface);
 	}
 }
+
+/* Access keys (spec 2026-10-08-008): label/value list, permission set cards,
+   the one-time credentials and their usage examples */
+.ap-facts {
+	align-items: start;
+	display: grid;
+	grid-template-columns: minmax(8rem, 12rem) minmax(0, 1fr);
+	gap: var(--ap-space-3) var(--ap-space-6);
+	margin: 0 0 var(--ap-space-4);
+	font-size: var(--ap-text-sm);
+}
+.ap-facts dt {
+	color: var(--ap-fg-muted);
+}
+.ap-facts dd {
+	margin: 0;
+	min-width: 0;
+	overflow-wrap: anywhere;
+}
+@media (max-width: 639px) {
+	.ap-facts {
+		grid-template-columns: minmax(0, 1fr);
+		gap: var(--ap-space-1) 0;
+	}
+	.ap-facts dd + dt {
+		margin-top: var(--ap-space-2-5);
+	}
+}
+.ap-set-list {
+	display: flex;
+	flex-direction: column;
+	gap: var(--ap-space-2);
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+.ap-set-list li {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: var(--ap-space-1-5) var(--ap-space-2);
+}
+.ap-key-heading {
+	margin: 0;
+	font-size: var(--ap-text-sm);
+	font-weight: 600;
+	color: var(--ap-fg);
+}
+.ap-set-group {
+	display: flex;
+	flex-direction: column;
+	gap: var(--ap-space-1-5);
+}
+.ap-set-group + .ap-set-group {
+	margin-top: var(--ap-space-5);
+}
+.ap-sets {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(min(15rem, 100%), 1fr));
+	gap: var(--ap-space-2-5);
+	margin-top: var(--ap-space-1);
+}
+.ap-set {
+	position: relative;
+	display: flex;
+	flex-direction: column;
+	gap: var(--ap-space-1);
+	padding: var(--ap-space-3) var(--ap-space-3-5);
+	border: 1px solid var(--ap-border);
+	border-radius: var(--ap-radius-md);
+	background: var(--ap-surface);
+	transition:
+		border-color var(--ap-duration-fast) var(--ap-ease),
+		background-color var(--ap-duration-fast) var(--ap-ease);
+}
+.ap-set:hover {
+	border-color: var(--ap-border-strong);
+}
+.ap-set:has(input:checked) {
+	border-color: var(--ap-accent);
+	background: var(--ap-accent-subtle);
+}
+.ap-set:has(input:focus-visible) {
+	border-color: var(--ap-accent);
+}
+.ap-set .ap-check {
+	font-weight: 500;
+}
+/* the whole card toggles the check box */
+.ap-set .ap-check::after {
+	content: "";
+	position: absolute;
+	inset: 0;
+	border-radius: inherit;
+}
+.ap-set .ap-check input {
+	position: relative;
+	z-index: 1;
+}
+.ap-set .ap-hint {
+	margin: 0;
+	padding-inline-start: var(--ap-space-6-5);
+}
+.ap-key-sets-cell {
+	flex-wrap: wrap;
+	gap: var(--ap-space-1);
+}
+.ap-key-credentials .ap-input-group > .ap-btn {
+	flex: none;
+}
+.ap-key-examples {
+	padding-top: var(--ap-space-4);
+	border-top: 1px solid var(--ap-border);
+}
+.ap-key-example {
+	display: flex;
+	flex-direction: column;
+	gap: var(--ap-space-1-5);
+}
+.ap-key-example-head {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: var(--ap-space-2);
+	font-size: var(--ap-text-xs);
+	color: var(--ap-fg-muted);
+}

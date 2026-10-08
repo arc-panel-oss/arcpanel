@@ -93,9 +93,20 @@ it('types access keys, shows the secret only in a new key and describes every sh
         ->toBe(['name' => 'v2-read', 'api' => 2, 'description' => 'd']);
 
     foreach (glob(base_path('../install/common/api/*')) ?: [] as $file) {
-        expect(AccessKeySets::description(basename($file)))->toBeString(basename($file).' has no description');
+        expect(AccessKeySets::description(basename($file)))->toBeString(basename($file).' has no description')
+            ->and(AccessKeySets::summary(basename($file)))->toBeString(basename($file).' has no summary');
     }
-    // the page shows a hint under every v2 set
+    // every v2 set has its API description
     expect(array_keys(AccessKeySets::hints()))->toEqualCanonicalizing(array_map('basename', glob(base_path('../install/common/api/v2-*')) ?: []))
-        ->and(AccessKeySets::description('unknown'))->toBeNull();
+        ->and(AccessKeySets::description('unknown'))->toBeNull()
+        ->and(AccessKeySets::summary('unknown'))->toBeNull();
+});
+
+it('groups the permission sets of the add form: v2 full access, v2 areas, then v1', function () {
+    $groups = AccessKeySets::groups(['billing', 'purge-nginx-cache', 'v2-dns', 'v2-read', 'v2-web', 'v2-write']);
+
+    expect(array_column($groups, 'sets'))->toBe([['v2-read', 'v2-write'], ['v2-dns', 'v2-web'], ['billing', 'purge-nginx-cache']])
+        ->and(array_column($groups, 'label'))->toBe(['REST API v2: full access', 'REST API v2: by area', 'REST API v1'])
+        ->and(array_column(AccessKeySets::groups(['purge-nginx-cache']), 'label'))->toBe(['REST API v1'])
+        ->and(AccessKeySets::groups([]))->toBe([]);
 });

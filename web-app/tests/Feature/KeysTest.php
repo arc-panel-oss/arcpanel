@@ -68,6 +68,9 @@ it('lists the access keys of a user, oldest first and without secrets', function
     $this->get('/access-keys')->assertRedirect('/access-keys/bob');
     $this->get('/access-keys/bob')->assertOk()
         ->assertSeeInOrder([BOB_OLD_KEY, BOB_KEY])->assertSee('deploy bot')->assertDontSee(CAROL_KEY)
+        ->assertSeeInOrder(['Access Key', 'Permissions', 'Created'])
+        ->assertSeeInOrder(['deploy bot', BOB_KEY, 'purge-nginx-cache', '2026-10-05', '10:00:00'])
+        ->assertSee('data-search="'.BOB_KEY.' deploy bot purge-nginx-cache"', false)
         ->assertSee('Are you sure you want to delete access key '.BOB_KEY.'?')->assertDontSee(SECRET);
     $this->get('/access-keys/carol')->assertNotFound();
     $this->get('/access-keys?owner=carol')->assertNotFound();
@@ -78,7 +81,8 @@ it('shows one key without its secret, and only to its owner', function () {
 
     $this->get('/access-keys/bob/'.BOB_KEY)->assertOk()
         ->assertSee('Access Key ID')->assertSee('purge-nginx-cache')->assertSee('deploy bot')
-        ->assertDontSee(SECRET)->assertDontSee('Last chance');
+        ->assertSeeInOrder(['Created', '2026-10-05', '10:00:00', 'Permissions', 'purge-nginx-cache', 'API v1', 'Purge the NGINX cache of web domains.'])
+        ->assertDontSee(SECRET)->assertDontSee('Last chance')->assertDontSee('Bearer');
     $this->get('/access-keys/bob/'.CAROL_KEY)->assertNotFound();
     $this->get('/access-keys/bob/NoSuchKeyNoSuchKey00')->assertNotFound();
 });
@@ -122,13 +126,15 @@ it('offers user permission sets to users and every set to the root user', functi
     $this->get('/access-keys/bob/create')->assertOk()->assertDontSee('billing');
 });
 
-it('explains the sets of REST API v2', function () {
+it('asks for the comment first and groups the sets by API version, each with a short description', function () {
     signIn('bob', 'user');
 
     $this->get('/access-keys/bob/create')->assertOk()
-        ->assertSee('v2-read')->assertSee('REST API v2 only: every read endpoint, no change.')
-        ->assertSee('REST API v2 only: users and packages.')
-        ->assertSee('REST API v2 only: web domains.');
+        ->assertSeeInOrder(['Comment', 'What the key is for, for example deploy bot.',
+            'REST API v2: full access', 'v2-read', 'Every read endpoint, no change.',
+            'REST API v2: by area', 'v2-accounts', 'Users and packages.', 'v2-web', 'Web domains.',
+            'REST API v1', 'purge-nginx-cache', 'Purge the NGINX cache of web domains.', 'update-dns-records', 'Change DNS records.', 'Save'])
+        ->assertDontSee('REST API v2 only:');
 });
 
 it('creates a key and shows its secret once, without storing it', function () {
@@ -141,9 +147,23 @@ it('creates a key and shows its secret once, without storing it', function () {
         ->assertOk()->assertHeader('Cache-Control', 'no-store, private')
         ->assertSee('Access key NeWkEyNeWkEyNeWkEy01 has been created successfully.')
         ->assertSee('Warning! Last chance to save secret key!')->assertSee('fresh-secret-abcdef')
+        ->assertSee('Bearer token')->assertSee('NeWkEyNeWkEyNeWkEy01:fresh-secret-abcdef')
+        ->assertSee('x-data="apAccessKeySecret()"', false)
+        ->assertDontSee('arc whoami')->assertDontSee('/api/v2/me')
         ->assertSessionMissing('ok');
     $this->fake->assertRan('v-add-access-key', fn ($a) => $a === ['bob', 'purge-nginx-cache,update-dns-records', 'ci', 'json']);
     expect(json_encode(session()->all()))->not->toContain('fresh-secret-abcdef');
+});
+
+it('shows how to call REST API v2 with a new v2 key', function () {
+    $this->fake->on('v-add-access-key')->returnsJson(['ACCESS_KEY_ID' => 'NeWkEyNeWkEyNeWkEy02', 'SECRET_ACCESS_KEY' => 'v2-secret_abc=',
+        'USER' => 'bob', 'PERMISSIONS' => ['v2-read'], 'COMMENT' => '', 'TIME' => '12:00:00', 'DATE' => '2026-10-06']);
+    signIn('bob', 'user');
+
+    $this->post('/access-keys/bob', ['sets' => ['v2-read']])->assertOk()
+        ->assertSee("curl -H 'Authorization: Bearer NeWkEyNeWkEyNeWkEy02:v2-secret_abc=' http://localhost/api/v2/me")
+        ->assertSeeInOrder(['export ARCPANEL_ENDPOINT=http://localhost', 'export ARCPANEL_ACCESS_KEY_ID=NeWkEyNeWkEyNeWkEy02',
+            "export ARCPANEL_SECRET_KEY='v2-secret_abc='", 'arc whoami']);
 });
 
 it('requires permissions and refuses sets of other roles', function () {

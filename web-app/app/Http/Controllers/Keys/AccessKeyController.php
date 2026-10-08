@@ -48,9 +48,8 @@ final class AccessKeyController extends Controller
 
         return view('keys.access-key-create', [
             'user' => $user,
-            'sets' => $policy->allowedSets($user, $this->keys->permissionSets()),
-            // The sets of REST API v2 (E34 spec §4.2), refused by API v1
-            'setHints' => AccessKeySets::hints(),
+            // v2 full access, v2 areas, v1 (spec 2026-10-08-008 U3)
+            'groups' => AccessKeySets::groups($policy->allowedSets($user, $this->keys->permissionSets())),
         ]);
     }
 
@@ -84,6 +83,8 @@ final class AccessKeyController extends Controller
             'key' => $key,
             'created' => true,
             'canManage' => true,
+            // the panel origin of the usage examples (spec 2026-10-08-008 U6)
+            'endpoint' => $request->getSchemeAndHttpHost(),
         ])->header('Cache-Control', 'no-store');
     }
 

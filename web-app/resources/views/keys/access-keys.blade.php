@@ -1,10 +1,9 @@
-{{-- API access keys of an account (web/list/access-key, E7 batch 2 spec §8.2). --}}
+{{-- API access keys of an account (web/list/access-key, E7 batch 2 spec §8.2; columns of spec 2026-10-08-008 U1). --}}
 @php
     $columns = [
         ['key' => 'id', 'label' => __('Access Key'), 'sortable' => true],
-        ['key' => 'comment', 'label' => __('Comment'), 'sortable' => true],
-        ['key' => 'date', 'label' => __('Date'), 'sortable' => true],
-        ['key' => 'time', 'label' => __('Time'), 'sortable' => true],
+        ['key' => 'permissions', 'label' => __('Permissions')],
+        ['key' => 'created', 'label' => __('Created'), 'sortable' => true],
     ];
 @endphp
 <x-ap-page :title="__('Access Keys')" :crumbs="[['label' => __('Account')], ['label' => __('Access Keys')]]"
@@ -27,17 +26,49 @@
             @endif
             <x-ap-table id="access-keys" :columns="$columns" :selectable="$canManage" :search-label="__('Search access keys')" :caption="__('Access Keys')">
                 @foreach ($keys as $key)
-                    @php($params = ['user' => $user, 'key' => $key->id])
-                    <tr data-row data-search="{{ $key->id }} {{ $key->comment }}">
+                    @php
+                        $params = ['user' => $user, 'key' => $key->id];
+                        $shown = array_slice($key->permissions, 0, 3);
+                        $more = array_slice($key->permissions, 3);
+                    @endphp
+                    <tr data-row data-search="{{ trim($key->id.' '.$key->comment.' '.implode(' ', $key->permissions)) }}">
                         @if ($canManage)
                             <x-ap-row-check :value="$key->id" :label="__('Select :name', ['name' => $key->id])" form="access-keys-bulk" />
                         @endif
-                        <td data-col="id" data-label="{{ __('Access Key') }}" data-sort-value="{{ $key->id }}">
-                            <a class="mono" href="{{ route('access-keys.show', $params) }}">{{ $key->id }}</a>
+                        <td data-col="id" data-label="{{ __('Access Key') }}" data-sort-value="{{ $key->comment !== '' ? $key->comment : $key->id }}">
+                            <div class="ap-cell-main">
+                                @if ($key->comment !== '')
+                                    <a href="{{ route('access-keys.show', $params) }}"><b>{{ $key->comment }}</b></a>
+                                    <span class="mono">{{ $key->id }}</span>
+                                @else
+                                    <a class="mono" href="{{ route('access-keys.show', $params) }}">{{ $key->id }}</a>
+                                @endif
+                            </div>
                         </td>
-                        <td data-col="comment" data-label="{{ __('Comment') }}">{{ $key->comment !== '' ? $key->comment : '-' }}</td>
-                        <td data-col="date" data-label="{{ __('Date') }}">{{ $key->date !== '' ? $key->date : '-' }}</td>
-                        <td data-col="time" data-label="{{ __('Time') }}">{{ $key->time !== '' ? $key->time : '-' }}</td>
+                        <td data-col="permissions" data-label="{{ __('Permissions') }}">
+                            @if ($key->permissions === [])
+                                -
+                            @else
+                                <div class="ap-row ap-key-sets-cell">
+                                    @foreach ($shown as $permission)
+                                        <x-ap-badge :mono="true">{{ $permission }}</x-ap-badge>
+                                    @endforeach
+                                    @if ($more !== [])
+                                        <x-ap-badge :dot="false" title="{{ implode(', ', $more) }}">
+                                            <span aria-hidden="true">+{{ count($more) }}</span>
+                                            <span class="sr-only">{{ __(':count more: :sets', ['count' => count($more), 'sets' => implode(', ', $more)]) }}</span>
+                                        </x-ap-badge>
+                                    @endif
+                                </div>
+                            @endif
+                        </td>
+                        <td data-col="created" data-label="{{ __('Created') }}" data-sort-value="{{ $key->date }} {{ $key->time }}" class="nowrap">
+                            @if ($key->date !== '')
+                                {{ $key->date }} <span class="muted">{{ $key->time }}</span>
+                            @else
+                                -
+                            @endif
+                        </td>
                         <td class="col-actions">
                             @if ($canManage)
                                 <x-ap-button variant="ghost" size="sm" :icon-only="true" icon="trash" :label="__('Delete :name', ['name' => $key->id])"
