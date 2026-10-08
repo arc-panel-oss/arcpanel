@@ -19,7 +19,7 @@
                 value="{{ $unlimited ? '' : $current }}" @disabled($unlimited)
                 @if ($error) aria-invalid="true" @endif
                 @if ($describedBy) aria-describedby="{{ $describedBy }}" @endif>
-            @if ($suffix)<span class="ap-addon">{{ $suffix }}</span>@endif
+            @if ($suffix)<span class="ap-addon" title="{{ $suffix }}"><span class="ap-addon-text">{{ $suffix }}</span></span>@endif
         </div>
         <label class="ap-check"><input type="checkbox" name="{{ $name }}_unlimited" value="1" @checked($unlimited) x-on:change="toggle()"><span>{{ __('Unlimited') }}</span></label>
     </div>

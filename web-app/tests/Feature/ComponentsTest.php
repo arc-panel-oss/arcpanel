@@ -39,7 +39,7 @@ it('renders form fields with labels, hints, errors and old input', function (str
         ->toContain('Domain is required.')->toContain('ap-input-mono')->toContain('required');
 
     $html = component('<x-ap-input name="ftp[0][path]" label="Path" bag="ssl" prefix="/home/" />', dir: $dir);
-    expect($html)->toContain('id="f-ftp-0-path"')->toContain('Bad path.')->toContain('<span class="ap-addon">/home/</span>');
+    expect($html)->toContain('id="f-ftp-0-path"')->toContain('Bad path.')->toContain('<span class="ap-addon" title="/home/"><span class="ap-addon-text">/home/</span></span>');
 
     $html = component('<x-ap-select name="ip" label="IP" :options="[\'1.1.1.1\' => \'one\']" value="2.2.2.2" />', dir: $dir);
     expect($html)->toContain('<option value="2.2.2.2" selected>')->toContain('<option value="1.1.1.1"');

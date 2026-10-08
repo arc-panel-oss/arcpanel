@@ -818,6 +818,10 @@
 	grid-template-columns: repeat(4, minmax(0, 1fr));
 	gap: var(--ap-space-1);
 }
+/* Empty field: no meter yet (the space stays, so nothing jumps) */
+.ap-strength[data-score="0"] {
+	visibility: hidden;
+}
 .ap-strength span {
 	height: 4px;
 	border-radius: 2px;
@@ -3667,19 +3671,26 @@ a.ap-pick:focus-visible {
 	}
 }
 
-/* Long prefixes (document roots) must not widen the field. */
+/* Long prefixes (document roots) must not widen the field. The input starts
+   from zero width, so a short addon keeps its full text and only a long one
+   shrinks; the inner span carries the ellipsis (a flex box cannot). */
 .ap-input-group {
 	min-width: 0;
 }
 .ap-input-group > .ap-addon {
 	flex: 0 1 auto;
 	max-width: 60%;
+	min-width: 0;
+}
+.ap-addon-text {
+	min-width: 0;
 	overflow: hidden;
 	text-overflow: ellipsis;
+	white-space: nowrap;
 }
 .ap-input-group > .ap-input {
-	flex: 1 1 auto;
-	min-width: 6ch;
+	flex: 1 1 0;
+	min-width: 8ch;
 }
 .ap-ftp-account .ap-field {
 	min-width: 0;

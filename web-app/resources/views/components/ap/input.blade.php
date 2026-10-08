@@ -1,6 +1,8 @@
 {{--
     Text input as a full field (label, hint, error). prefix renders an addon
-    (/home/alice/web/), suffix an addon after it, icon an affix icon.
+    (/home/alice/web/), suffix an addon after it, icon an affix icon. An addon
+    keeps its full width and is cut with "…" only when the field is too narrow;
+    its title shows the whole text.
 --}}
 @props([
     'name',
@@ -25,13 +27,13 @@
 @endphp
 <x-ap-field :label="$label" :for="$id" :hint="$hint" :error="$error" :required="$required">
     @if ($prefix || $suffix)<div class="ap-input-group">@elseif ($icon)<div class="ap-input-affix">@endif
-    @if ($prefix)<span class="ap-addon">{{ $prefix }}</span>@endif
+    @if ($prefix)<span class="ap-addon" title="{{ $prefix }}"><span class="ap-addon-text">{{ $prefix }}</span></span>@endif
     @if ($icon)<x-ap-icon :name="$icon" />@endif
     <input {{ $attributes->merge(['class' => $classes]) }} id="{{ $id }}" name="{{ $name }}" type="{{ $type }}"
         @if ($current !== null) value="{{ $current }}" @endif
         @if ($required) required @endif
         @if ($error) aria-invalid="true" @endif
         @if ($describedBy) aria-describedby="{{ $describedBy }}" @endif>
-    @if ($suffix)<span class="ap-addon">{{ $suffix }}</span>@endif
+    @if ($suffix)<span class="ap-addon" title="{{ $suffix }}"><span class="ap-addon-text">{{ $suffix }}</span></span>@endif
     @if ($prefix || $suffix || $icon)</div>@endif
 </x-ap-field>
