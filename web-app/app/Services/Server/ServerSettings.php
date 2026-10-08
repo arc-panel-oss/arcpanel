@@ -479,12 +479,12 @@ final class ServerSettings
         return [...$steps, ...self::configSteps($config, $wanted)];
     }
 
-    /** The upgrade e-mails of the Updates page (spec D11). @return list<Step> */
-    public function planUpdateNotifications(bool $email, bool $log): array
+    /** The upgrade e-mails of the Updates page (spec D11); null leaves a value alone (API v2). @return list<Step> */
+    public function planUpdateNotifications(?bool $email, ?bool $log): array
     {
         return self::configSteps($this->config(), [
-            'UPGRADE_SEND_EMAIL' => $email ? 'true' : 'false',
-            'UPGRADE_SEND_EMAIL_LOG' => $log ? 'true' : 'false',
+            'UPGRADE_SEND_EMAIL' => $email === null ? null : ($email ? 'true' : 'false'),
+            'UPGRADE_SEND_EMAIL_LOG' => $log === null ? null : ($log ? 'true' : 'false'),
         ]);
     }
 
@@ -529,17 +529,18 @@ final class ServerSettings
     }
 
     /**
-     * One `v-change-sys-config-value` step per changed key.
+     * One `v-change-sys-config-value` step per changed key; a null value
+     * was not given (API v2 changes only the fields it receives).
      *
      * @param  array<string, string>  $config
-     * @param  array<string, string>  $values
+     * @param  array<string, string|null>  $values
      * @return list<Step>
      */
     private static function configSteps(array $config, array $values): array
     {
         $steps = [];
         foreach ($values as $key => $value) {
-            if ($value !== ($config[$key] ?? '')) {
+            if ($value !== null && $value !== ($config[$key] ?? '')) {
                 $steps[] = self::configStep($key, $value);
             }
         }

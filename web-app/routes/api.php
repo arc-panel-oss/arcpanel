@@ -13,6 +13,7 @@ use App\Http\Controllers\Api\V2\FileTransferController;
 use App\Http\Controllers\Api\V2\FirewallBanController;
 use App\Http\Controllers\Api\V2\FirewallIpsetController;
 use App\Http\Controllers\Api\V2\FirewallRuleController;
+use App\Http\Controllers\Api\V2\GraphController;
 use App\Http\Controllers\Api\V2\IpController;
 use App\Http\Controllers\Api\V2\LogController;
 use App\Http\Controllers\Api\V2\MailAccountController;
@@ -28,7 +29,9 @@ use App\Http\Controllers\Api\V2\SearchController;
 use App\Http\Controllers\Api\V2\ServiceController;
 use App\Http\Controllers\Api\V2\SshKeyController;
 use App\Http\Controllers\Api\V2\StatsController;
+use App\Http\Controllers\Api\V2\SystemPackageController;
 use App\Http\Controllers\Api\V2\TaskController;
+use App\Http\Controllers\Api\V2\UpdateController;
 use App\Http\Controllers\Api\V2\UserController;
 use App\Http\Controllers\Api\V2\WebDomainController;
 use Illuminate\Support\Facades\Route;
@@ -110,6 +113,21 @@ Route::prefix('/system')->name('system.')->group(function () {
         Route::post('/ips/refresh', [IpController::class, 'refresh'])->name('ips.refresh');
         Route::patch('/ips/{ip}', [IpController::class, 'update'])->where($ip)->name('ips.update');
         Route::delete('/ips/{ip}', [IpController::class, 'destroy'])->where($ip)->name('ips.destroy');
+    });
+});
+
+// Updates, system packages and graphs of the server (E34 batch 6 spec §5.4–§5.6, D65); administrators only
+Route::prefix('/system')->name('system.')->group(function () {
+    $slug = ['slug' => '[a-z0-9][a-z0-9-]{0,63}'];
+    Route::get('/updates', [UpdateController::class, 'index'])->name('updates.index');
+    Route::get('/packages', [SystemPackageController::class, 'index'])->name('packages.index');
+    Route::get('/graphs', [GraphController::class, 'index'])->name('graphs.index');
+    Route::get('/graphs/{graph}', [GraphController::class, 'show'])->where('graph', '[\w.-]{1,64}')->name('graphs.show');
+    Route::middleware('not-readonly')->group(function () use ($slug) {
+        Route::post('/updates', [UpdateController::class, 'run'])->name('updates.run');
+        Route::put('/updates/settings', [UpdateController::class, 'settings'])->name('updates.settings');
+        Route::post('/packages/{slug}', [SystemPackageController::class, 'install'])->where($slug)->name('packages.install');
+        Route::delete('/packages/{slug}', [SystemPackageController::class, 'remove'])->where($slug)->name('packages.remove');
     });
 });
 

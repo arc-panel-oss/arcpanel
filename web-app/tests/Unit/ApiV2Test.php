@@ -252,8 +252,8 @@ it('documents pagination and error.existing', function () {
             if (in_array($id, ['listSystemTasks'], true)) {
                 continue;
             }
-            if (in_array($id, ['listNodeApps', 'listDockerApps', 'listPorts', 'listServices'], true)) {
-                $ref = ['listNodeApps' => '#/components/schemas/NodeAppListMeta', 'listDockerApps' => '#/components/schemas/DockerAppListMeta', 'listPorts' => '#/components/schemas/PortListMeta', 'listServices' => '#/components/schemas/ServiceListMeta'][$id];
+            if (in_array($id, ['listNodeApps', 'listDockerApps', 'listPorts', 'listServices', 'listUpdates'], true)) {
+                $ref = ['listNodeApps' => '#/components/schemas/NodeAppListMeta', 'listDockerApps' => '#/components/schemas/DockerAppListMeta', 'listPorts' => '#/components/schemas/PortListMeta', 'listServices' => '#/components/schemas/ServiceListMeta', 'listUpdates' => '#/components/schemas/UpdateSettings'][$id];
                 $schema = $operation['responses']['200']['content']['application/json']['schema']['properties']['meta'] ?? null;
                 expect($schema)->toBe(['$ref' => $ref]);
                 $names = array_column($operation['parameters'] ?? [], 'name');

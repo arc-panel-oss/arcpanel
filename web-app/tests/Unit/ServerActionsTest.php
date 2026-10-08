@@ -1,20 +1,29 @@
 <?php
 
+use App\Arc\ExitCode;
 use App\Http\Resources\V2\FirewallBanResource;
 use App\Http\Resources\V2\FirewallIpsetResource;
 use App\Http\Resources\V2\FirewallRuleResource;
+use App\Http\Resources\V2\GraphDataResource;
+use App\Http\Resources\V2\GraphResource;
 use App\Http\Resources\V2\IpResource;
 use App\Http\Resources\V2\NetworkInterfaceResource;
+use App\Http\Resources\V2\PanelPackageResource;
 use App\Http\Resources\V2\ServiceResource;
 use App\Http\Resources\V2\ServiceStatusResource;
+use App\Http\Resources\V2\SystemPackageResource;
+use App\Http\Resources\V2\UpdateSettingsResource;
 use App\Services\Firewall\FirewallActions;
 use App\Services\Firewall\FirewallBan;
 use App\Services\Firewall\FirewallRule;
 use App\Services\Firewall\FirewallService;
 use App\Services\Firewall\IpsetList;
 use App\Services\Ips\SystemIp;
+use App\Services\Server\PanelUpdates;
+use App\Services\Server\RrdService;
 use App\Services\Server\ServiceActions;
 use App\Services\Server\SystemServices;
+use App\Services\Server\SystemTaskService;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpKernel\Exception\HttpException;
@@ -166,4 +175,57 @@ it('plans the firewall commands of the pages', function () {
         ->and(FirewallService::planRule('unsuspend', '3')->command)->toBe('v-unsuspend-firewall-rule')
         ->and($ipset->args)->toBe(['nl', 'https://example.org/nl.txt', 'v4', 'no'])
         ->and(FirewallService::planDeleteBan('2001:db8::7', 'WEB')->args)->toBe(['2001:db8::7', 'WEB']);
+});
+
+it('plans the system task steps of updates and system packages (§5.4, §5.5)', function () {
+    $all = PanelUpdates::planRun(null);
+    $one = PanelUpdates::planRun('arcpanel-php');
+    $package = SystemTaskService::step('Install Go', 'package', ['go', 'add']);
+
+    expect([$all->command, $all->args])->toBe(['v-start-sys-task', ['arcpanel-update']])
+        ->and($one->args)->toBe(['arcpanel-update', 'arcpanel-php'])
+        ->and([$package->label, $package->args])->toBe(['Install Go', ['package', 'go', 'add']]);
+
+    $this->fake->on('v-list-sys-arcpanel-autoupdate', ['plain'])->returns("Enabled\n");
+    $updates = app(PanelUpdates::class);
+    expect($updates->planAutoUpdate(true))->toBe([])
+        ->and($updates->planAutoUpdate(false)[0]->command)->toBe('v-delete-cron-arcpanel-autoupdate');
+});
+
+it('reads the series of a graph and knows its unit (D65)', function () {
+    $this->fake->on('v-list-sys-rrd')->returnsJson(commandFixture('v-list-sys-rrd/default.json'));
+    $this->fake->on('v-export-rrd')->returns('{"about": "RRDtool xport JSON output", "meta": {"start": 100, "end": 700, "step": 300, "legend": ["Used", "Swap"]}, "data": [[1.0000000000e+03, null], [2.5e+02, 3]]}');
+    $rrd = app(RrdService::class);
+
+    expect($rrd->find('net_eth0'))->toBe(['service' => 'net_eth0', 'title' => 'Bandwidth Usage eth0', 'type' => 'net'])
+        ->and($rrd->find('eth0'))->toBeNull()
+        ->and($rrd->export('mem', 'weekly'))->toBe([
+            'start' => 100, 'end' => 700, 'step' => 300, 'series' => ['Used', 'Swap'],
+            'points' => [['time' => 100, 'values' => [1000.0, null]], ['time' => 400, 'values' => [250.0, 3.0]]],
+        ])
+        ->and(RrdService::unit('mem'))->toBe('Mbytes')
+        ->and(RrdService::unit('net_eth0'))->toBe('KBytes')
+        ->and(RrdService::unit('mysql_localhost'))->toBe('Queries')
+        ->and(RrdService::unit('httpd'))->toBeNull();
+
+    $this->fake->on('v-export-rrd')->returnsExit(ExitCode::Args, 'Does not exist');
+    expect($rrd->export('mem', 'daily'))->toBeNull();
+});
+
+it('types the update, system package and graph resources', function () {
+    $request = Request::create('/');
+
+    expect((new PanelPackageResource(['name' => 'arcpanel', 'version' => '2.0.0', 'arch' => 'amd64', 'upToDate' => false, 'description' => 'core', 'date' => '']))->resolve($request))
+        ->toBe(['name' => 'arcpanel', 'version' => '2.0.0', 'arch' => 'amd64', 'description' => 'core', 'up_to_date' => false, 'built_at' => null])
+        ->and((new UpdateSettingsResource(['auto_update' => false, 'send_email' => true, 'send_log' => true]))->resolve($request))
+        ->toBe(['auto_update' => false, 'send_email' => true, 'send_log' => true])
+        ->and((new GraphResource(['service' => 'la', 'title' => 'Load Average', 'type' => 'la']))->resolve($request))
+        ->toBe(['id' => 'la', 'title' => 'Load Average', 'type' => 'la'])
+        ->and(array_keys((new GraphDataResource(['graph' => ['service' => 'la', 'title' => 'Load', 'type' => 'la'], 'period' => 'daily', 'unit' => null,
+            'start' => 1, 'end' => 2, 'step' => 1, 'series' => [], 'points' => []]))->resolve($request)))
+        ->toBe(['id', 'title', 'period', 'unit', 'start', 'end', 'step', 'series', 'points']);
+
+    $entry = ['slug' => 'ffmpeg', 'name' => 'FFmpeg', 'summary' => 's', 'category' => 'media', 'provides' => [], 'packages' => ['ffmpeg'],
+        'available' => true, 'status' => 'partial', 'source' => 'system', 'version' => '', 'upgradable' => false, 'domains' => [], 'usedBy' => 0];
+    expect((new SystemPackageResource($entry))->resolve($request))->toMatchArray(['status' => 'partial', 'source' => 'system', 'version' => null, 'used_by' => 0]);
 });

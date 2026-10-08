@@ -33,10 +33,13 @@ final class ApiDocs extends Command
         'installNodeApp',
         'buildNodeApp',
         'startDockerAppTask',
+        'runUpdates',
+        'installSystemPackage',
+        'removeSystemPackage',
     ];
 
     /** List operations whose `meta` is not paginated `ListMeta` (E34 batch 3 §5, batch 4 §4.2, batch 6 D60). */
-    private const LIST_WITHOUT_PAGINATION = ['listSystemTasks', 'listNodeApps', 'listDockerApps', 'listDockerCatalog', 'listPorts', 'listUserLogs', 'listUserAuthLogs', 'listServices'];
+    private const LIST_WITHOUT_PAGINATION = ['listSystemTasks', 'listNodeApps', 'listDockerApps', 'listDockerCatalog', 'listPorts', 'listUserLogs', 'listUserAuthLogs', 'listServices', 'listUpdates'];
 
     /** Logs page through the newest entries with `LogListMeta` (E34 batch 6 D60). */
     private const LOG_LISTS = ['listUserLogs', 'listUserAuthLogs'];
@@ -90,6 +93,10 @@ final class ApiDocs extends Command
 
             return self::FAILURE;
         }
+        // Scramble's analysis of every operation outgrew PHP's default 128M (E34 batch 6)
+        if (self::bytes((string) ini_get('memory_limit')) < 512 * 1024 * 1024) {
+            ini_set('memory_limit', '512M');
+        }
         $path = $this->option('path') ?: base_path('../docs/api/v2/openapi.json');
 
         $spec = $this->document($this->normalizePaths(app(Generator::class)->generate(Scramble::getGeneratorConfig('default'))->spec()));
@@ -120,6 +127,23 @@ final class ApiDocs extends Command
         $this->info(count($this->operations($spec))." operations written to {$path}");
 
         return self::SUCCESS;
+    }
+
+    /** A `memory_limit` value in bytes; `-1` (no limit) is the largest integer. */
+    private static function bytes(string $limit): int
+    {
+        $limit = trim($limit);
+        if ($limit === '' || $limit === '-1') {
+            return PHP_INT_MAX;
+        }
+        $number = (int) $limit;
+
+        return match (strtolower(substr($limit, -1))) {
+            'g' => $number * 1024 ** 3,
+            'm' => $number * 1024 ** 2,
+            'k' => $number * 1024,
+            default => $number,
+        };
     }
 
     /**
@@ -502,6 +526,11 @@ final class ApiDocs extends Command
         }
         if ($operationId === 'listServices') {
             $schema['properties']['meta'] = ['$ref' => '#/components/schemas/ServiceListMeta'];
+
+            return $schema;
+        }
+        if ($operationId === 'listUpdates') {
+            $schema['properties']['meta'] = ['$ref' => '#/components/schemas/UpdateSettings'];
 
             return $schema;
         }

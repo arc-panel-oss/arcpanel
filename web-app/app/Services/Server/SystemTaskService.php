@@ -6,6 +6,7 @@ use App\Arc\ArcCommand;
 use App\Arc\CommandResult;
 use App\Arc\ExitCode;
 use App\Arc\Options;
+use App\Services\WebDomains\Step;
 
 /**
  * The system task of E7 batch 3 spec §6: one long server operation at a time
@@ -24,6 +25,17 @@ final class SystemTaskService
     public function start(string $kind, array $args = []): CommandResult
     {
         return $this->arc->run('v-start-sys-task', [$kind, ...$args], Options::allowFailure());
+    }
+
+    /**
+     * The start of a system task as a plan step (API v2, E34 batch 6 §5.4,
+     * §5.5, §5.7): `v-start-sys-task KIND [ARG…]`, which prints the task ID.
+     *
+     * @param  list<string>  $args
+     */
+    public static function step(string $label, string $kind, array $args = []): Step
+    {
+        return new Step($label, 'v-start-sys-task', [$kind, ...$args]);
     }
 
     /** The message of a refused start: another task runs, or the command's own error. */

@@ -2733,6 +2733,169 @@
                 }
             }
         },
+        "/system/graphs": {
+            "get": {
+                "operationId": "listGraphs",
+                "description": "Load, memory, network, web, mail, database and other graphs that the\nserver records.",
+                "summary": "List the server graphs",
+                "tags": [
+                    "Server"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Array of `Graph`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/components/schemas/Graph"
+                                            }
+                                        },
+                                        "meta": {
+                                            "$ref": "#/components/schemas/ListMeta"
+                                        }
+                                    },
+                                    "required": [
+                                        "data",
+                                        "meta"
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    }
+                },
+                "parameters": [
+                    {
+                        "name": "limit",
+                        "in": "query",
+                        "description": "Page size, from 1 to 1000. Without it the list is complete.",
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 1000
+                        }
+                    },
+                    {
+                        "name": "offset",
+                        "in": "query",
+                        "description": "Items to skip. Used when `limit` is set; 0 when omitted.",
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 0
+                        }
+                    }
+                ]
+            }
+        },
+        "/system/graphs/{graph}": {
+            "get": {
+                "operationId": "getGraph",
+                "description": "The data points of one graph for `period` (default `daily`), with the\nnames of its series and the unit of their values.",
+                "summary": "Get the data of a server graph",
+                "tags": [
+                    "Server"
+                ],
+                "parameters": [
+                    {
+                        "name": "graph",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "period",
+                        "in": "query",
+                        "description": "The time span of the series: a day (default), a week, a month, a year, two or three years.",
+                        "schema": {
+                            "type": "string",
+                            "enum": [
+                                "daily",
+                                "weekly",
+                                "monthly",
+                                "yearly",
+                                "biennially",
+                                "triennially"
+                            ]
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "`GraphData`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/GraphData"
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    }
+                }
+            }
+        },
         "/system/interfaces": {
             "get": {
                 "operationId": "listInterfaces",
@@ -3281,6 +3444,289 @@
                             },
                             "ArcPanel-Version": {
                                 "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "409": {
+                        "$ref": "#/components/responses/Conflict"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    },
+                    "503": {
+                        "$ref": "#/components/responses/Unavailable"
+                    }
+                }
+            }
+        },
+        "/system/packages": {
+            "get": {
+                "operationId": "listSystemPackages",
+                "description": "The catalog of runtimes and tools that administrators install from the\ndistribution's archive, with their state, version and the web domains\nthat need them.",
+                "summary": "List the system packages",
+                "tags": [
+                    "Server"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Array of `SystemPackage`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/components/schemas/SystemPackage"
+                                            }
+                                        },
+                                        "meta": {
+                                            "$ref": "#/components/schemas/ListMeta"
+                                        }
+                                    },
+                                    "required": [
+                                        "data",
+                                        "meta"
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    }
+                },
+                "parameters": [
+                    {
+                        "name": "limit",
+                        "in": "query",
+                        "description": "Page size, from 1 to 1000. Without it the list is complete.",
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 1000
+                        }
+                    },
+                    {
+                        "name": "offset",
+                        "in": "query",
+                        "description": "Items to skip. Used when `limit` is set; 0 when omitted.",
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 0
+                        }
+                    }
+                ]
+            }
+        },
+        "/system/packages/{slug}": {
+            "post": {
+                "operationId": "installSystemPackage",
+                "description": "Installs the distribution packages of a catalog entry as the system\ntask. An entry that is installed answers `409 E_EXISTS`, one the\nrelease of the server does not have `422`; another running system\ntask answers `409 E_INUSE` with `existing`.",
+                "summary": "Install a system package",
+                "tags": [
+                    "Server"
+                ],
+                "parameters": [
+                    {
+                        "name": "slug",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "dry_run",
+                        "in": "query",
+                        "description": "Validate, authorize and plan the change, and answer with its steps instead of running them.",
+                        "schema": {
+                            "type": "boolean",
+                            "default": false
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "With `dry_run`: the planned steps; nothing ran.",
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/DryRun"
+                                }
+                            }
+                        }
+                    },
+                    "202": {
+                        "description": "`Task`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/Task"
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            },
+                            "Link": {
+                                "$ref": "#/components/headers/Link"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "409": {
+                        "$ref": "#/components/responses/Conflict"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    },
+                    "503": {
+                        "$ref": "#/components/responses/Unavailable"
+                    }
+                }
+            },
+            "delete": {
+                "operationId": "removeSystemPackage",
+                "description": "Removes an entry that the panel installed, as the system task. An entry\ninstalled by the system, or needed by web domains, answers `403`;\nanother running system task answers `409 E_INUSE` with `existing`.",
+                "summary": "Remove a system package",
+                "tags": [
+                    "Server"
+                ],
+                "parameters": [
+                    {
+                        "name": "slug",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "dry_run",
+                        "in": "query",
+                        "description": "Validate, authorize and plan the change, and answer with its steps instead of running them.",
+                        "schema": {
+                            "type": "boolean",
+                            "default": false
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "With `dry_run`: the planned steps; nothing ran.",
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/DryRun"
+                                }
+                            }
+                        }
+                    },
+                    "202": {
+                        "description": "`Task`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/Task"
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            },
+                            "Link": {
+                                "$ref": "#/components/headers/Link"
                             }
                         }
                     },
@@ -4575,6 +5021,247 @@
                         "$ref": "#/components/responses/ServerError"
                     }
                 }
+            }
+        },
+        "/system/updates": {
+            "get": {
+                "operationId": "listUpdates",
+                "description": "The packages of the panel with their version and whether an update\nis available. `meta` holds the update settings (setUpdateSettings).\nThe list is not paginated.",
+                "summary": "List the panel packages",
+                "tags": [
+                    "Server"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Array of `PanelPackage`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/components/schemas/PanelPackage"
+                                            }
+                                        },
+                                        "meta": {
+                                            "$ref": "#/components/schemas/UpdateSettings"
+                                        }
+                                    },
+                                    "required": [
+                                        "data",
+                                        "meta"
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    }
+                }
+            },
+            "post": {
+                "operationId": "runUpdates",
+                "description": "Updates `package`, or every package without it, as the system task;\nthe panel may restart while it runs. Another running system task\nanswers `409 E_INUSE` with `existing`.",
+                "summary": "Update the panel packages",
+                "tags": [
+                    "Server"
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/RunUpdatesRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "With `dry_run`: the planned steps; nothing ran.",
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/DryRun"
+                                }
+                            }
+                        }
+                    },
+                    "202": {
+                        "description": "`Task`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/Task"
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            },
+                            "Link": {
+                                "$ref": "#/components/headers/Link"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "409": {
+                        "$ref": "#/components/responses/Conflict"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    },
+                    "503": {
+                        "$ref": "#/components/responses/Unavailable"
+                    }
+                },
+                "parameters": [
+                    {
+                        "name": "dry_run",
+                        "in": "query",
+                        "description": "Validate, authorize and plan the change, and answer with its steps instead of running them.",
+                        "schema": {
+                            "type": "boolean",
+                            "default": false
+                        }
+                    }
+                ]
+            }
+        },
+        "/system/updates/settings": {
+            "put": {
+                "operationId": "setUpdateSettings",
+                "description": "`auto_update`, `send_email` and `send_log`; fields left out keep their\nvalue, and only a changed value runs its command.",
+                "summary": "Change the update settings",
+                "tags": [
+                    "Server"
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/SetUpdateSettingsRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "`UpdateSettings`; with `dry_run`, the planned steps.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "oneOf": [
+                                        {
+                                            "type": "object",
+                                            "properties": {
+                                                "data": {
+                                                    "$ref": "#/components/schemas/UpdateSettings"
+                                                }
+                                            },
+                                            "required": [
+                                                "data"
+                                            ]
+                                        },
+                                        {
+                                            "$ref": "#/components/schemas/DryRun"
+                                        }
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "409": {
+                        "$ref": "#/components/responses/Conflict"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    },
+                    "503": {
+                        "$ref": "#/components/responses/Unavailable"
+                    }
+                },
+                "parameters": [
+                    {
+                        "name": "dry_run",
+                        "in": "query",
+                        "description": "Validate, authorize and plan the change, and answer with its steps instead of running them.",
+                        "schema": {
+                            "type": "boolean",
+                            "default": false
+                        }
+                    }
+                ]
             }
         },
         "/tasks/{id}": {
@@ -23928,6 +24615,106 @@
                 ],
                 "title": "GivePortsRequest"
             },
+            "Graph": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "description": "the id getGraph takes, for example `la`, `mem` or `net_eth0`"
+                    },
+                    "title": {
+                        "type": "string"
+                    },
+                    "type": {
+                        "type": "string",
+                        "description": "the kind of graph, for example `la`, `mem`, `net`, `web` or `db`"
+                    }
+                },
+                "required": [
+                    "id",
+                    "title",
+                    "type"
+                ],
+                "title": "Graph"
+            },
+            "GraphData": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "string"
+                    },
+                    "title": {
+                        "type": "string"
+                    },
+                    "period": {
+                        "type": "string",
+                        "description": "`daily`, `weekly`, `monthly`, `yearly`, `biennially` or `triennially`"
+                    },
+                    "unit": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "the unit of the values, for example `Connections` or `KBytes`"
+                    },
+                    "start": {
+                        "type": "integer",
+                        "description": "the first point, in seconds since the Unix epoch"
+                    },
+                    "end": {
+                        "type": "integer",
+                        "description": "the end of the period, in seconds since the Unix epoch"
+                    },
+                    "step": {
+                        "type": "integer",
+                        "description": "seconds between two points"
+                    },
+                    "series": {
+                        "type": "array",
+                        "description": "the names of the series, in the order of `values`",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "points": {
+                        "type": "array",
+                        "description": "`time` in seconds since the Unix epoch; one value per series",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "time": {
+                                    "type": "integer"
+                                },
+                                "values": {
+                                    "type": "array",
+                                    "items": {
+                                        "type": [
+                                            "number",
+                                            "null"
+                                        ]
+                                    }
+                                }
+                            },
+                            "required": [
+                                "time",
+                                "values"
+                            ]
+                        }
+                    }
+                },
+                "required": [
+                    "id",
+                    "title",
+                    "period",
+                    "unit",
+                    "start",
+                    "end",
+                    "step",
+                    "series",
+                    "points"
+                ],
+                "title": "GraphData"
+            },
             "InstallNodePackageRequest": {
                 "type": "object",
                 "description": "POST /users/{user}/node/versions/{version}/packages",
@@ -25243,6 +26030,45 @@
                 ],
                 "title": "Package"
             },
+            "PanelPackage": {
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "description": "`arcpanel`, `arcpanel-nginx` or `arcpanel-php`; runUpdates takes it as `package`"
+                    },
+                    "version": {
+                        "type": "string",
+                        "description": "the installed version"
+                    },
+                    "arch": {
+                        "type": "string"
+                    },
+                    "description": {
+                        "type": "string"
+                    },
+                    "up_to_date": {
+                        "type": "boolean",
+                        "description": "false when the archive has a newer version"
+                    },
+                    "built_at": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "when the installed version was built"
+                    }
+                },
+                "required": [
+                    "name",
+                    "version",
+                    "arch",
+                    "description",
+                    "up_to_date",
+                    "built_at"
+                ],
+                "title": "PanelPackage"
+            },
             "PlanStep": {
                 "type": "object",
                 "properties": {
@@ -25910,6 +26736,26 @@
                 },
                 "title": "RestoreSnapshotRequest"
             },
+            "RunUpdatesRequest": {
+                "type": "object",
+                "description": "POST /system/updates (E34 batch 6 spec §5.4).",
+                "properties": {
+                    "package": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "The package to update; every package when left out.",
+                        "enum": [
+                            "arcpanel",
+                            "arcpanel-nginx",
+                            "arcpanel-php",
+                            null
+                        ]
+                    }
+                },
+                "title": "RunUpdatesRequest"
+            },
             "SaveFileRequest": {
                 "type": "object",
                 "description": "Body of `saveFile` (E34 batch 5 spec §4.2). `content` may span lines; a\nNUL byte is refused, because binary content is out of scope (§8).",
@@ -26392,6 +27238,25 @@
                     "end"
                 ],
                 "title": "SetPortRangeRequest"
+            },
+            "SetUpdateSettingsRequest": {
+                "type": "object",
+                "description": "PUT /system/updates/settings (E34 batch 6 spec §5.4): fields left out keep\ntheir value.",
+                "properties": {
+                    "auto_update": {
+                        "type": "boolean",
+                        "description": "Update the panel packages every day (a cron job of the administrator)."
+                    },
+                    "send_email": {
+                        "type": "boolean",
+                        "description": "Send an e-mail to the administrator after an update."
+                    },
+                    "send_log": {
+                        "type": "boolean",
+                        "description": "Attach the log of the update to that e-mail."
+                    }
+                },
+                "title": "SetUpdateSettingsRequest"
             },
             "Snapshot": {
                 "type": "object",
@@ -27834,6 +28699,92 @@
                 ],
                 "title": "StoreWebDomainRequest"
             },
+            "SystemPackage": {
+                "type": "object",
+                "properties": {
+                    "slug": {
+                        "type": "string",
+                        "description": "the id the install and remove paths take"
+                    },
+                    "name": {
+                        "type": "string"
+                    },
+                    "summary": {
+                        "type": "string"
+                    },
+                    "category": {
+                        "type": "string",
+                        "description": "`runtime`, `media` or `tooling`"
+                    },
+                    "provides": {
+                        "type": "array",
+                        "description": "runtimes the entry provides to the templates, for example `python`",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "packages": {
+                        "type": "array",
+                        "description": "the distribution packages of the entry",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "available": {
+                        "type": "boolean",
+                        "description": "whether the distribution release of the server has the packages"
+                    },
+                    "status": {
+                        "type": "string",
+                        "description": "`installed`, `partial` or `missing`"
+                    },
+                    "source": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "`arcpanel` (installed by the panel, which may remove it) or `system`"
+                    },
+                    "version": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "the installed version"
+                    },
+                    "upgradable": {
+                        "type": "boolean",
+                        "description": "whether the archive has a newer version"
+                    },
+                    "domains": {
+                        "type": "array",
+                        "description": "web domains whose template needs the entry, as `user/domain`",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "used_by": {
+                        "type": "integer",
+                        "description": "the number of those web domains"
+                    }
+                },
+                "required": [
+                    "slug",
+                    "name",
+                    "summary",
+                    "category",
+                    "provides",
+                    "packages",
+                    "available",
+                    "status",
+                    "source",
+                    "version",
+                    "upgradable",
+                    "domains",
+                    "used_by"
+                ],
+                "title": "SystemPackage"
+            },
             "Task": {
                 "type": "object",
                 "properties": {
@@ -28537,6 +29488,29 @@
                     }
                 },
                 "title": "UpdatePackageRequest"
+            },
+            "UpdateSettings": {
+                "type": "object",
+                "properties": {
+                    "auto_update": {
+                        "type": "boolean",
+                        "description": "the panel packages are updated every day"
+                    },
+                    "send_email": {
+                        "type": "boolean",
+                        "description": "the administrator gets an e-mail after an update"
+                    },
+                    "send_log": {
+                        "type": "boolean",
+                        "description": "that e-mail carries the log of the update"
+                    }
+                },
+                "required": [
+                    "auto_update",
+                    "send_email",
+                    "send_log"
+                ],
+                "title": "UpdateSettings"
             },
             "UpdateUserRequest": {
                 "type": "object",
