@@ -205,3 +205,19 @@ The work log of each milestone is appended here.
 - Extended `v2-apps` with Docker catalog and app commands; reads and writes merged into `v2-read` / `v2-write`.
 - Pest: `ApiV2DockerAppsTest`, `DockerAppActionsTest`, `DockerAppResourceTest`; `DockerAppsTest` unchanged.
 - Regenerated `docs/api/v2/openapi.json` (146 operations).
+
+### M4 (2026-10-08)
+
+- Added `GET /api/v2/system/docker` and `POST /api/v2/system/docker/install` (`Api\V2\DockerEngineController`, `DockerEngineResource`) on `DockerEngineService`; administrators only through `DockerPolicy::manageEngine`.
+- Created `install/common/api/v2-server` with the engine commands; reads merged into `v2-read`, everything into `v2-write`.
+- The install answers `202` with `docker-engine:ID` and `Link`; a running engine task answers `409 E_INUSE` with `existing`.
+- Pest: `ApiV2DockerEngineTest` (role matrix, `202` and `409`, dry run, `v2-read` refused before any command).
+
+### Review fixes (2026-10-08)
+
+- The commit of M4 left `docs/api/v2/openapi.json` without the engine operations and `v2-write` without five Docker reads of `v2-apps`; both fixed, so `arcpanel:api-docs --check` and `ApiV2Test` pass again.
+- D43: Node.js logs always answer `meta.next`, also once the log is caught up (the cursor was null after every tail read); Docker logs answer the client's own cursor when no new line came.
+- D41: `PUT …/env` answers values only with `?reveal=1` and the rights of `GET …/env?reveal=1`.
+- §4.4: reading a finished engine task through `GET /api/v2/tasks/docker-engine:ID` forgets the cached `DOCKER_SYSTEM`, as the page does.
+- The key page describes `v2-server`.
+- A write that changes nothing (enabling Node.js twice, a `PATCH` without fields) answers `200` without checking its command against the key's sets, as batch 1 does for users: nothing runs.

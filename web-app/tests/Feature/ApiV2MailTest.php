@@ -199,6 +199,29 @@ it('queues a mail Lets Encrypt certificate and removes a relay only when one exi
     $this->fake->assertRan('v-delete-mail-domain-smtp-relay', fn ($a) => $a === ['bob', 'shop.example']);
 });
 
+it('keeps the stored relay password: changed relay settings need the password again', function () {
+    $headers = apiAs($this->fake, 'bob', 'user', area: 'mail');
+
+    $this->putJson('/api/v2/users/bob/mail-domains/shop.example/smtp-relay', ['host' => 'smtp2.relay.example', 'username' => 'relayuser'], $headers)
+        ->assertUnprocessable()
+        ->assertJsonPath('error.fields', ['password' => ['The password is required when the relay settings change.']]);
+    $this->putJson('/api/v2/users/bob/mail-domains/shop.example/smtp-relay', ['host' => 'smtp.relay.example', 'username' => 'relayuser', 'port' => 2525, 'password' => null], $headers)
+        ->assertUnprocessable()
+        ->assertJsonStructure(['error' => ['fields' => ['password']]]);
+    $this->fake->assertNotRan('v-add-mail-domain-smtp-relay');
+
+    $this->putJson('/api/v2/users/bob/mail-domains/shop.example/smtp-relay', ['host' => 'smtp.relay.example', 'username' => 'relayuser', 'port' => 587], $headers)
+        ->assertOk();
+    $this->fake->assertNotRan('v-add-mail-domain-smtp-relay');
+
+    $this->putJson('/api/v2/users/bob/mail-domains/shop.example/smtp-relay?dry_run=1', ['host' => 'smtp2.relay.example', 'username' => 'relayuser', 'password' => 'Relay-pass1'], $headers)
+        ->assertOk()
+        ->assertJsonPath('data.steps.0.command', 'v-add-mail-domain-smtp-relay');
+    $this->putJson('/api/v2/users/bob/mail-domains/example.com/smtp-relay?dry_run=1', ['host' => 'smtp.relay.example'], $headers)
+        ->assertOk()
+        ->assertJsonPath('data.steps.0.command', 'v-add-mail-domain-smtp-relay');
+});
+
 it('returns the DNS records the domain needs', function () {
     $this->getJson('/api/v2/users/bob/mail-domains/example.com/dns-records', apiAs($this->fake, 'bob', 'user', readOnly: true))->assertOk()
         ->assertJsonFragment(['name' => 'example.com', 'type' => 'MX', 'value' => 'mail.example.com.', 'priority' => 10])

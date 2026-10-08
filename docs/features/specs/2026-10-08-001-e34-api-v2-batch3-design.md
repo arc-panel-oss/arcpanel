@@ -200,6 +200,19 @@ The path the command prints must match `^/backup/[\w.-]+$`, as on the page; anyt
 
 The work log of each milestone is appended here.
 
+### Review fixes (2026-10-08)
+
+- **Retries (§4.1).** The queue keeps its behaviour from before the records: a worker that fails and leaves its line in the pipe runs again on the next pass (the Let's Encrypt worker does so on purpose while DNS propagates). `v-run-queue-task` then sets the record back to `queued`, keeps the log, and stores `ERROR` (the attempt and its exit code) and the new key `ATTEMPTS`; a failed worker whose line is gone gives `failed` with `EXIT`. `v-list-user-tasks` prints `ATTEMPTS`; the API's `Task` schema does not carry it (D19 fixes the schema), so a retried task reads `queued` with `error` set.
+- **Dead lines.** A line whose record is missing, `succeeded` or `failed` is removed by the wrapper without running anything (under the user's task lock, which the schedule commands hold when they write the pipe; the pipes have no lock of their own). Such a line used to stay forever and made `is_backup_scheduled` refuse every later backup of the user. A `running` record keeps its line: another pass runs it.
+- **Reaped records (§4.3).** A poll that finds a queued record without its line marks it `failed` with `removed from the queue`, but the pass that read the pipe before a worker rewrote it (`sed -i`) still runs that line. The wrapper therefore still runs a record with exactly that error and no exit code, so a poll cannot cancel a job.
+- `qt_fail_replaced` changes only records that are still `queued`; a replaced request that already failed or runs keeps its result. The 7-day clean-up keeps a queued record whose line is still retried.
+- **Full restore.** `v-schedule-user-restore` reads `FORMAT` only as its ninth argument, so a restore without selection passes the six types as `''` (everything) before `json` (`BackupService::restoreArgs`). Before, `json` landed in `WEB` and no web domain was restored.
+- **`409` `existing`.** The task is the newest `queued` or `running` record of the backup queue, preferring the group that the refusing check matches (`backup`, `backup-download`, `snapshot` for backups; `restore`, `snapshot-restore`, `file-restore` for restores).
+- **Downloads (D35).** Archives are looked up in the `BACKUP` folder of `arcpanel.conf` and the redirect is always `/backup/<name>`, the only internal location of arcpanel-nginx (`root /`). `ARC_BACKUP_DIR` now names the folder that location serves; when `BACKUP` is another folder the download answers `500 E_SERVER` (the page `500`) instead of a redirect nginx cannot serve. Serving a non-default `BACKUP` folder needs an nginx change (an `alias` written from `BACKUP`), which is not part of this batch.
+- **Task ids.** The record id of every source must be 14 digits (date in seconds and four random digits); anything else answers `404` before a command runs.
+- **`listUserTasks`** is paged with `limit` and `offset` and answers `meta` (D20).
+- BATS: retried and failed workers, dead lines, the reaped record that still runs, replaced requests that keep their result, the clean-up of a retried record. Pest: exact restore arguments, `409` with running and snapshot tasks, downloads from the `BACKUP` folder, malformed task ids, paging. Smoke: a restore without a body brings a deleted web domain back.
+
 ### M6 (2026-10-08)
 
 - Extended `test/arcpanel-api-v2-smoke.sh` with backup create, task poll, archive list and download, selective web restore, archive delete, database dump download and Let's Encrypt `Link rel="monitor"`.

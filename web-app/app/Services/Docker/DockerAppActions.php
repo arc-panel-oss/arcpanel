@@ -184,11 +184,14 @@ final class DockerAppActions
 
     /**
      * @param  array{lines: list<array{time: string, service: string, text: string}>, next: string}  $snapshot
+     * @param  string|null  $since  the time stamp of the cursor the client sent
      * @return array{lines: list<array{time: string, service: string, text: string}>, meta: array{next: string|null}}
      */
-    public function logResponse(array $snapshot): array
+    public function logResponse(array $snapshot, ?string $since = null): array
     {
-        $next = $snapshot['next'] !== '' ? DockerAppLogCursor::encode($snapshot['next']) : null;
+        // No new lines: the client keeps its position (D43)
+        $next = $snapshot['next'] !== '' ? $snapshot['next'] : $since;
+        $next = $next !== null && $next !== '' ? DockerAppLogCursor::encode($next) : null;
 
         return [
             'lines' => $snapshot['lines'],

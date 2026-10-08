@@ -19,6 +19,8 @@ use Illuminate\Http\Request;
  */
 final class PlanGate
 {
+    public const INVALID_ARGUMENT = 'A value contains a character the command does not accept.';
+
     public function __construct(
         private readonly KeyPermissions $permissions,
         private readonly Request $request,
@@ -66,7 +68,11 @@ final class PlanGate
         return response()->json(['data' => ['dry_run' => true, 'steps' => array_map(self::describe(...), $steps)]]);
     }
 
-    /** A failed step answers with the status of its exit code, naming the step and those that ran before it. */
+    /**
+     * A failed step answers with the status of its exit code, naming the step
+     * and those that ran before it. A step whose argument was refused before
+     * it ran (a line break, a NUL byte) is the client's input: 422 E_INVALID.
+     */
     public function assertApplied(ApplyResult $result): void
     {
         if ($result->ok()) {
@@ -75,9 +81,9 @@ final class PlanGate
         $exit = ExitCode::tryFrom($result->exitCode);
 
         throw new ApiException(
-            ErrorCode::fromExit($exit),
-            $result->error,
-            ErrorCode::statusOfExit($exit),
+            $result->invalidArgument ? ErrorCode::Invalid : ErrorCode::fromExit($exit),
+            $result->invalidArgument ? self::INVALID_ARGUMENT : $result->error,
+            $result->invalidArgument ? 422 : ErrorCode::statusOfExit($exit),
             [
                 'step' => $result->failed !== null ? self::describe($result->failed, withArgs: false) : null,
                 'applied' => array_map(fn (Step $step) => self::describe($step, withArgs: false), $result->applied),

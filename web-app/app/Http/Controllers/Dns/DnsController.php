@@ -162,5 +162,4 @@ final class DnsController extends Controller
             'key' => $zone->dnssec ? $this->dns->dnssecKey($user, $domain) : null,
         ]);
     }
-
 }

@@ -103,20 +103,37 @@ final class BackupService
      */
     public function restore(string $user, string $backup, ?array $selection = null, string $format = 'shell'): CommandResult
     {
-        $args = [$user, $backup];
-        if ($selection !== null) {
-            foreach (BackupArchive::TYPES as $type) {
-                $objects = $selection[$type] ?? [];
-                $args[] = $type === 'cron'
-                    ? ($objects !== [] ? 'yes' : 'no')
-                    : ($objects !== [] ? implode(',', $objects) : 'no');
-            }
-        }
-        if ($format !== 'shell') {
-            $args[] = $format;
-        }
+        return $this->arc->run('v-schedule-user-restore', self::restoreArgs($user, $backup, $selection, $format), Options::allowFailure());
+    }
 
-        return $this->arc->run('v-schedule-user-restore', $args, Options::allowFailure());
+    /**
+     * Arguments of `v-schedule-user-restore`. FORMAT is only read as the
+     * ninth argument, so a full restore with a format passes the six types
+     * as '' (everything) before it.
+     *
+     * @param  array<string, list<string>>|null  $selection  type => objects; cron takes ["yes"]
+     * @return list<string>
+     */
+    public static function restoreArgs(string $user, string $backup, ?array $selection, string $format = 'shell'): array
+    {
+        $args = [$user, $backup];
+        foreach (BackupArchive::TYPES as $type) {
+            if ($selection === null) {
+                $args[] = '';
+
+                continue;
+            }
+            $objects = $selection[$type] ?? [];
+            $args[] = $type === 'cron'
+                ? ($objects !== [] ? 'yes' : 'no')
+                : ($objects !== [] ? implode(',', $objects) : 'no');
+        }
+        if ($format === 'shell') {
+            return $selection === null ? [$user, $backup] : $args;
+        }
+        $args[] = $format;
+
+        return $args;
     }
 
     /** @param  list<string>  $names */

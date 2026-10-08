@@ -112,16 +112,22 @@ it('creates a domain with its DNS zone and mail domain', function () {
     $this->fake->assertRan('v-add-mail-domain', fn ($a) => $a === ['bob', 'new.example']);
 });
 
-it('takes the first address of the user and the given aliases', function () {
+/** Main paths run with the v2-write key and with a key that holds only the web set (D30). */
+dataset('web keys', [
+    'v2-write key' => [null],
+    'v2-web key' => ['web'],
+]);
+
+it('takes the first address of the user and the given aliases', function (?string $area) {
     $this->fake->on('v-add-web-domain')->returns();
     apiWebDomainListed($this, 'bob', 'new.example');
 
-    $this->postJson('/api/v2/users/bob/web-domains', ['domain' => 'new.example', 'aliases' => ['A.new.example', 'b.new.example']], apiAs($this->fake, 'bob', 'user'))
+    $this->postJson('/api/v2/users/bob/web-domains', ['domain' => 'new.example', 'aliases' => ['A.new.example', 'b.new.example']], apiAs($this->fake, 'bob', 'user', area: $area))
         ->assertCreated();
 
     $this->fake->assertRan('v-add-web-domain', fn ($a) => $a === ['bob', 'new.example', '10.0.0.10', 'yes', 'a.new.example,b.new.example']);
     $this->fake->assertNotRan('v-add-dns-domain');
-});
+})->with('web keys');
 
 it('answers a domain the user has with 409 and a domain of another user with the command error', function () {
     $headers = apiAs($this->fake, 'bob', 'user');
@@ -217,7 +223,7 @@ it('refuses a v2-web key that also creates a DNS zone and names the missing comm
 
 // Update (updateWebDomain)
 
-it('moves a domain to another address with its DNS zone', function () {
+it('moves a domain to another address with its DNS zone', function (?string $area) {
     $this->fake->on('v-list-dns-domain')->returnsExit(ExitCode::NotExist, 'no zone');
     $this->fake->on('v-list-dns-domain', ['bob', 'example.com', 'json'])->returns('{}');
     $this->fake->on('v-list-mail-domain')->returnsExit(ExitCode::NotExist, 'no mail');
@@ -225,7 +231,7 @@ it('moves a domain to another address with its DNS zone', function () {
     $this->fake->on('v-change-dns-domain-ip')->returns();
     fakeRestarts($this->fake);
 
-    $this->patchJson('/api/v2/users/bob/web-domains/example.com', ['ip' => '10.0.0.20'], apiAs($this->fake, 'bob', 'user'))->assertOk()
+    $this->patchJson('/api/v2/users/bob/web-domains/example.com', ['ip' => '10.0.0.20'], apiAs($this->fake, 'bob', 'user', area: $area))->assertOk()
         ->assertJsonPath('data.domain', 'example.com');
 
     $this->fake->assertRan('v-change-web-domain-ip', fn ($a) => $a === ['bob', 'example.com', '10.0.0.20', 'no']);
@@ -233,12 +239,12 @@ it('moves a domain to another address with its DNS zone', function () {
     $this->fake->assertNotRan('v-add-web-domain-alias');
     $this->fake->assertNotRan('v-delete-web-domain-alias');
     $this->fake->assertRan('v-restart-web', times: 1);
-});
+})->with('web keys');
 
-it('sets and resets a custom document root', function () {
+it('sets and resets a custom document root', function (?string $area) {
     $this->fake->on('v-change-web-domain-docroot')->returns();
     fakeRestarts($this->fake);
-    $headers = apiAs($this->fake, 'bob', 'user');
+    $headers = apiAs($this->fake, 'bob', 'user', area: $area);
 
     $this->patchJson('/api/v2/users/bob/web-domains/example.com', ['custom_document_root' => ['domain' => 'shop.example', 'folder' => 'app/']], $headers)->assertOk();
     $this->fake->assertRan('v-change-web-domain-docroot', fn ($a) => $a === ['bob', 'example.com', 'shop.example', 'app', 'yes']);
@@ -249,6 +255,19 @@ it('sets and resets a custom document root', function () {
 
     $this->patchJson('/api/v2/users/bob/web-domains/example.com', ['custom_document_root' => ['domain' => 'carol.example']], $headers)->assertUnprocessable()
         ->assertJsonPath('error.fields', ['custom_document_root.domain' => ['Please select one of your domains.']]);
+})->with('web keys');
+
+it('changes the backend template with a key that holds only the v2-web set', function () {
+    $this->fake->on('v-change-web-domain-backend-tpl')->returns();
+    fakeRestarts($this->fake);
+
+    $this->patchJson('/api/v2/users/bob/web-domains/example.com', ['templates' => ['backend' => 'PHP-8_5']], apiAs($this->fake, 'arcadmin', 'admin', area: 'web'))
+        ->assertOk();
+    $this->fake->assertRan('v-change-web-domain-backend-tpl', fn ($a) => array_slice($a, 0, 3) === ['bob', 'example.com', 'PHP-8_5']);
+
+    $this->patchJson('/api/v2/users/bob/web-domains/example.com', ['templates' => ['backend' => 'evil']], apiAs($this->fake, 'arcadmin', 'admin', area: 'web'))
+        ->assertUnprocessable()
+        ->assertJsonPath('error.fields', ['templates.backend' => ['Please select a valid template.']]);
 });
 
 it('changes the templates for an administrator, keeping what was not sent', function () {
@@ -333,18 +352,18 @@ it('purges the NGINX cache where NGINX serves the domains', function () {
         ->assertJsonPath('error.code', 'E_FORBIDDEN');
 });
 
-it('deletes a domain with what it leaves behind', function () {
+it('deletes a domain with what it leaves behind', function (?string $area) {
     $this->fake->on('v-delete-web-domain')->returns();
     $this->fake->on('v-delete-node-app')->returnsExit(ExitCode::NotExist, 'no app');
     $this->fake->on('v-list-docker-apps')->returnsJson(['APPS' => [['NAME' => 'shop', 'DOMAIN' => 'example.com'], ['NAME' => 'other', 'DOMAIN' => 'other.example']]]);
     $this->fake->on('v-delete-docker-app')->returns();
 
-    $this->deleteJson('/api/v2/users/bob/web-domains/example.com', [], apiAs($this->fake, 'bob', 'user'))->assertNoContent();
+    $this->deleteJson('/api/v2/users/bob/web-domains/example.com', [], apiAs($this->fake, 'bob', 'user', area: $area))->assertNoContent();
 
     $this->fake->assertRan('v-delete-web-domain', fn ($a) => $a === ['bob', 'example.com']);
     $this->fake->assertRan('v-delete-web-domain-tpl-vars', fn ($a) => $a === ['bob', 'example.com']);
     $this->fake->assertRan('v-delete-docker-app', fn ($a) => $a === ['bob', 'shop', 'keep-data'], times: 1);
-});
+})->with('web keys');
 
 it('plans a delete without running it, and refuses a read-only key', function () {
     $this->deleteJson('/api/v2/users/bob/web-domains/example.com?dry_run=1', [], apiAs($this->fake, 'bob', 'user'))->assertOk()
@@ -370,7 +389,7 @@ it('refuses every change to a v2-read key and runs nothing', function () {
 
 // Aliases (addWebDomainAlias, deleteWebDomainAlias)
 
-it('adds an alias with its DNS record and queues the Let’s Encrypt certificate again', function () {
+it('adds an alias with its DNS record and queues the Let’s Encrypt certificate again', function (?string $area) {
     $this->fake->on('v-list-dns-domain')->returnsExit(ExitCode::NotExist, 'no zone');
     $this->fake->on('v-list-dns-domain', ['bob', 'example.com', 'json'])->returns('{}');
     foreach (['v-add-web-domain-alias', 'v-add-dns-on-web-alias', 'v-schedule-letsencrypt-domain', 'v-change-web-domain-stats'] as $command) {
@@ -378,7 +397,7 @@ it('adds an alias with its DNS record and queues the Let’s Encrypt certificate
     }
     fakeRestarts($this->fake);
 
-    $this->postJson('/api/v2/users/bob/web-domains/example.com/aliases', ['alias' => 'New.Example.com'], apiAs($this->fake, 'bob', 'user'))->assertOk()
+    $this->postJson('/api/v2/users/bob/web-domains/example.com/aliases', ['alias' => 'New.Example.com'], apiAs($this->fake, 'bob', 'user', area: $area))->assertOk()
         ->assertJsonPath('data.domain', 'example.com');
 
     $this->fake->assertRan('v-add-web-domain-alias', fn ($a) => $a === ['bob', 'example.com', 'new.example.com', 'no']);
@@ -386,7 +405,7 @@ it('adds an alias with its DNS record and queues the Let’s Encrypt certificate
     $this->fake->assertRan('v-schedule-letsencrypt-domain', fn ($a) => $a === ['bob', 'example.com', 'www.example.com,blog.example.com,new.example.com', 'ecdsa-256']);
     $this->fake->assertNotRan('v-add-letsencrypt-domain');
     $this->fake->assertRan('v-change-web-domain-stats', fn ($a) => $a === ['bob', 'example.com', 'awstats']);
-});
+})->with('web keys');
 
 it('answers an alias the domain has with 409 and validates the alias', function () {
     $headers = apiAs($this->fake, 'bob', 'user');
@@ -415,11 +434,11 @@ it('deletes an alias, and answers 404 for an alias the domain does not have', fu
 
 // SSL (setWebDomainSsl, deleteWebDomainSsl)
 
-it('installs an uploaded certificate, the key required', function () {
+it('installs an uploaded certificate, the key required', function (?string $area) {
     $this->fake->on('v-add-web-domain-ssl')->returns();
     $this->fake->on('v-add-web-domain-ssl-force')->returns();
     fakeRestarts($this->fake);
-    $headers = apiAs($this->fake, 'bob', 'user');
+    $headers = apiAs($this->fake, 'bob', 'user', area: $area);
 
     $this->putJson('/api/v2/users/bob/web-domains/shop.example/ssl', ['force' => true], $headers)->assertUnprocessable()
         ->assertJsonPath('error.fields', ['certificate' => ['The domain has no certificate: send one.']]);
@@ -431,6 +450,21 @@ it('installs an uploaded certificate, the key required', function () {
     $this->fake->assertRan('v-add-web-domain-ssl', fn ($a) => $a[0] === 'bob' && $a[1] === 'shop.example'
         && json_decode($a[2], true) === ['shop.example.crt' => 'CERT', 'shop.example.key' => 'KEY'] && $a[3] === 'same' && $a[4] === 'no');
     $this->fake->assertRan('v-add-web-domain-ssl-force', fn ($a) => $a === ['bob', 'shop.example']);
+})->with('web keys');
+
+it('installs a certificate in PEM form, its line breaks included', function () {
+    $this->fake->on('v-add-web-domain-ssl')->returns();
+    fakeRestarts($this->fake);
+    $pem = "-----BEGIN CERTIFICATE-----\nMIIB\n-----END CERTIFICATE-----";
+    $key = "-----BEGIN PRIVATE KEY-----\r\nMIIE\r\n-----END PRIVATE KEY-----";
+
+    $this->putJson('/api/v2/users/bob/web-domains/shop.example/ssl', ['certificate' => $pem, 'key' => $key, 'ca' => $pem], apiAs($this->fake, 'bob', 'user', area: 'web'))
+        ->assertOk();
+    $this->fake->assertRan('v-add-web-domain-ssl', fn ($a) => json_decode($a[2], true)['shop.example.crt'] === $pem);
+
+    $this->putJson('/api/v2/users/bob/web-domains/shop.example/ssl', ['certificate' => $pem."\0", 'key' => $key], apiAs($this->fake, 'bob', 'user', area: 'web'))
+        ->assertUnprocessable()
+        ->assertJsonStructure(['error' => ['fields' => ['certificate']]]);
 });
 
 it('changes HSTS alone on a Let’s Encrypt certificate', function () {
@@ -472,9 +506,9 @@ it('plans the removal of a Let’s Encrypt certificate', function () {
 
 // Let's Encrypt (requestWebDomainLetsEncrypt)
 
-it('queues a Let’s Encrypt certificate and answers 202 with the domain to poll', function () {
+it('queues a Let’s Encrypt certificate and answers 202 with the domain to poll', function (?string $area) {
     $this->fake->on('v-schedule-letsencrypt-domain')->returns("17290000001234\n");
-    $headers = apiAs($this->fake, 'hostco', 'reseller');
+    $headers = apiAs($this->fake, 'hostco', 'reseller', area: $area);
 
     $this->postJson('/api/v2/users/bob/web-domains/shop.example/letsencrypt', [], $headers)
         ->assertStatus(202)
@@ -488,7 +522,7 @@ it('queues a Let’s Encrypt certificate and answers 202 with the domain to poll
 
     $this->postJson('/api/v2/users/bob/web-domains/example.com/letsencrypt', ['key_algorithm' => 'dsa'], $headers)->assertUnprocessable();
     $this->postJson('/api/v2/users/carol/web-domains/carol.example/letsencrypt', [], $headers)->assertNotFound();
-});
+})->with('web keys');
 
 it('plans a Let’s Encrypt request, and refuses it to a v2-read key', function () {
     $this->postJson('/api/v2/users/bob/web-domains/shop.example/letsencrypt?dry_run=1', [], apiAs($this->fake, 'bob', 'user'))->assertOk()

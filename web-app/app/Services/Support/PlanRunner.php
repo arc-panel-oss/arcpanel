@@ -54,7 +54,7 @@ final class PlanRunner
                 $result = $this->arc->run($step->command, $step->args);
                 $stdoutByCommand[$step->command] = $result->stdout;
             } catch (ArcCommandException $e) {
-                return new ApplyResult($applied, $step, $e->userMessage(), $e->getCode(), $stdoutByCommand);
+                return new ApplyResult($applied, $step, $e->userMessage(), $e->getCode(), $stdoutByCommand, $e->invalidArgument);
             }
             $applied[] = $step;
             foreach ($step->restart as $service) {

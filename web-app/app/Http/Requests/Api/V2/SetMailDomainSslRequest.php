@@ -7,6 +7,12 @@ namespace App\Http\Requests\Api\V2;
  */
 final class SetMailDomainSslRequest extends ApiRequest
 {
+    /** PEM text spans lines. */
+    protected function multiLineFields(): array
+    {
+        return ['certificate', 'key', 'ca'];
+    }
+
     /** @return array<string, mixed> */
     public function rules(): array
     {

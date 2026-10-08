@@ -31,8 +31,10 @@ return [
     // is_password_valid and is_hash_valid).
     'secret_dir' => env('ARC_SECRET_DIR', '/tmp'),
 
-    // Local backup archives, served by the internal /backup/ location of
-    // arcpanel-nginx (E7 Backups page; web/download/backup uses the same path).
+    // The folder that the internal /backup/ location of arcpanel-nginx
+    // serves (root /, so /backup). Archive downloads (E7 page, API v2 D35)
+    // need the BACKUP folder of arcpanel.conf to be this folder; set it only
+    // when nginx is changed to serve another one.
     'backup_dir' => env('ARC_BACKUP_DIR', '/backup'),
 
     // Default timeout of one v-* call, in seconds.

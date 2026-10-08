@@ -99,6 +99,128 @@ setup() {
     assert_output $'succeeded\n0'
 }
 
+qt_record_value() {
+    grep -oE "(^| )$2='[^']*'" "$(qt_tasks_dir)/$1.conf" | head -n1 | cut -d\' -f2
+}
+
+@test "v-run-queue-task: a failed worker that keeps its line is queued again with an attempt" {
+    local id
+    id=$(v-schedule-user-backup "$QT_USER" json | jq -r .ID)
+    # v-download-backup removes only its own lines: the backup line stays
+    run v-run-queue-task "$QT_USER" "$id" -- "$BIN/v-download-backup" "$QT_USER" 'no-such-backup.tar'
+    assert_failure
+    grep -q "v-run-queue-task $QT_USER $id " "$PIPE"
+    run v-list-user-tasks "$QT_USER" "$id" json
+    assert_success
+    run jq -r '.STATUS, .EXIT, .ATTEMPTS' <<< "$output"
+    assert_output $'queued\n\n1'
+    run qt_record_value "$id" ERROR
+    assert_output --partial 'attempt 1 failed with exit code'
+
+    run v-run-queue-task "$QT_USER" "$id" -- "$BIN/v-download-backup" "$QT_USER" 'no-such-backup.tar'
+    assert_failure
+    run qt_record_value "$id" STATUS
+    assert_output queued
+    run qt_record_value "$id" ATTEMPTS
+    assert_output 2
+    # Both runs are in the log
+    [ "$(grep -c 'no-such-backup.tar' "$(qt_tasks_dir)/$id.log")" -ge 2 ]
+}
+
+@test "v-run-queue-task: a failed worker that removes its line is failed" {
+    local id fail_rc
+    id="$(date +%s)0001"
+    qt_write_queued "$id" backup-download 'no-such-backup.tar'
+    echo "$BIN/v-run-queue-task $QT_USER $id -- $BIN/v-download-backup $QT_USER no-such-backup.tar" >> "$PIPE"
+    run v-run-queue-task "$QT_USER" "$id" -- "$BIN/v-download-backup" "$QT_USER" 'no-such-backup.tar'
+    assert_failure
+    fail_rc=$status
+    run grep -c "v-run-queue-task $QT_USER $id " "$PIPE"
+    assert_output 0
+    run v-list-user-tasks "$QT_USER" "$id" json
+    run jq -r '.STATUS, .EXIT, .ATTEMPTS' <<< "$output"
+    assert_output "failed"$'\n'"$fail_rc"$'\n1'
+}
+
+@test "v-run-queue-task: removes a dead line without running it" {
+    local id
+    id="$(date +%s)0002"
+    qt_write_queued "$id" backup ''
+    sed -i "s/STATUS='queued'/STATUS='succeeded'/; s/EXIT=''/EXIT='0'/" "$(qt_tasks_dir)/$id.conf"
+    echo "$BIN/v-run-queue-task $QT_USER $id -- $BIN/v-backup-user $QT_USER yes" >> "$PIPE"
+    run v-run-queue-task "$QT_USER" "$id" -- "$BIN/v-backup-user" "$QT_USER" yes
+    assert_success
+    run grep -c "v-run-queue-task $QT_USER $id " "$PIPE"
+    assert_output 0
+    [ ! -f "$(qt_tasks_dir)/$id.log" ]
+    run qt_record_value "$id" STATUS
+    assert_output succeeded
+
+    # A line without a record is dead too
+    echo "$BIN/v-run-queue-task $QT_USER 19990101120009 -- $BIN/v-backup-user $QT_USER yes" >> "$PIPE"
+    run v-run-queue-task "$QT_USER" 19990101120009 -- "$BIN/v-backup-user" "$QT_USER" yes
+    assert_success
+    run grep -c "v-run-queue-task $QT_USER 19990101120009 " "$PIPE"
+    assert_output 0
+
+    # The line of a record that another pass runs stays
+    sed -i "s/STATUS='succeeded'/STATUS='running'/" "$(qt_tasks_dir)/$id.conf"
+    echo "$BIN/v-run-queue-task $QT_USER $id -- $BIN/v-backup-user $QT_USER yes" >> "$PIPE"
+    run v-run-queue-task "$QT_USER" "$id" -- "$BIN/v-backup-user" "$QT_USER" yes
+    assert_success
+    run grep -c "v-run-queue-task $QT_USER $id " "$PIPE"
+    assert_output 1
+    rm -f "$(qt_tasks_dir)/$id.conf"
+}
+
+@test "v-run-queue-task: a poll that reaps a line does not cancel the pass that holds it" {
+    local id
+    id=$(v-schedule-user-backup "$QT_USER" json | jq -r .ID)
+    # A worker of the same pass removed the line; bash still reads the old pipe
+    sed -i "/v-run-queue-task $QT_USER $id /d" "$PIPE"
+    run v-list-user-tasks "$QT_USER" "$id" json
+    run jq -r '.STATUS, .ERROR' <<< "$output"
+    assert_output $'failed\nremoved from the queue'
+
+    run v-run-queue-task "$QT_USER" "$id" -- "$BIN/v-backup-user" "$QT_USER" yes
+    assert_success
+    run v-list-user-tasks "$QT_USER" "$id" json
+    run jq -r '.STATUS, .EXIT, .ERROR, .ATTEMPTS' <<< "$output"
+    assert_output $'succeeded\n0\n\n1'
+}
+
+@test "v-schedule-letsencrypt-domain: a replaced request keeps the result it already has" {
+    local domain first second conf
+    domain="$QT_USER-keep.example.test"
+    v-add-web-domain "$QT_USER" "$domain" '' no "www.$domain" > /dev/null
+    first=$(v-schedule-letsencrypt-domain "$QT_USER" "$domain" '' ecdsa-256 '' json | jq -r .ID)
+    conf="$(qt_tasks_dir)/$first.conf"
+    sed -i "s/STATUS='queued'/STATUS='failed'/; s/EXIT=''/EXIT='15'/; s/ERROR=''/ERROR='DNS is not ready'/" "$conf"
+    second=$(v-schedule-letsencrypt-domain "$QT_USER" "$domain" '' rsa '' json | jq -r .ID)
+    [ "$first" != "$second" ]
+    run qt_record_value "$first" ERROR
+    assert_output 'DNS is not ready'
+    run qt_record_value "$first" EXIT
+    assert_output 15
+    sed -i "/ $domain /d" "$LE_PIPE"
+    v-delete-web-domain "$QT_USER" "$domain" > /dev/null
+}
+
+@test "queue task clean-up keeps an old record whose line is still retried" {
+    local old_id id dir
+    old_id="19990101120003"
+    dir=$(qt_tasks_dir)
+    qt_write_queued "$old_id" letsencrypt "$QT_USER-old.example.test" '1990-01-01 00:00:00'
+    echo "$BIN/v-run-queue-task $QT_USER $old_id -- $BIN/v-add-letsencrypt-domain $QT_USER $QT_USER-old.example.test '' no" >> "$LE_PIPE"
+    id=$(v-schedule-user-backup "$QT_USER" json | jq -r .ID)
+    sed -i "/v-run-queue-task $QT_USER $id /d" "$PIPE"
+    run v-run-queue-task "$QT_USER" "$id" -- "$BIN/v-download-backup" "$QT_USER" 'no-such-backup.tar'
+    assert_failure
+    [ -f "$dir/$old_id.conf" ]
+    sed -i "/v-run-queue-task $QT_USER $old_id /d" "$LE_PIPE"
+    rm -f "$dir/$old_id.conf"
+}
+
 @test "v-schedule-user-backup: duplicate checks still refuse a second backup" {
     run v-schedule-user-backup "$QT_USER" json
     assert_success
@@ -150,9 +272,10 @@ setup() {
     echo 'task-log-line' > "$(qt_tasks_dir)/$id.log"
     run v-list-user-tasks "$QT_USER" "$id" 5 json
     assert_success
-    run jq -r '.ARGS | type' <<< "$output"
+    local record=$output
+    run jq -r '.ARGS | type' <<< "$record"
     assert_output string
-    run jq -r .LOG <<< "$output"
+    run jq -r .LOG <<< "$record"
     assert_output task-log-line
 
     sed -i "/v-run-queue-task $QT_USER $id/d" "$LE_PIPE"

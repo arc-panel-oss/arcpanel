@@ -36,7 +36,7 @@ final class ApiDocs extends Command
     ];
 
     /** List operations whose `meta` is not paginated `ListMeta` (E34 batch 3 §5, batch 4 §4.2). */
-    private const LIST_WITHOUT_PAGINATION = ['listSystemTasks', 'listUserTasks', 'listNodeApps', 'listDockerApps', 'listDockerCatalog'];
+    private const LIST_WITHOUT_PAGINATION = ['listSystemTasks', 'listNodeApps', 'listDockerApps', 'listDockerCatalog'];
 
     private const ERROR_STATUSES = [
         '401' => ['Unauthenticated', 'The access key is missing, unknown or wrong (`E_UNAUTHENTICATED`).'],

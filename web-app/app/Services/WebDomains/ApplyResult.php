@@ -19,6 +19,8 @@ final class ApplyResult
         /** exit code of the failed command, 0 when it did not run */
         public readonly int $exitCode = 0,
         public readonly array $stdoutByCommand = [],
+        /** the failed step did not run: one of its arguments was refused (ArcCommandException::invalidArgument) */
+        public readonly bool $invalidArgument = false,
     ) {}
 
     public function stdoutOf(string $command): ?string

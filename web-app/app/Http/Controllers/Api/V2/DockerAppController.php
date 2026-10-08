@@ -268,7 +268,7 @@ final class DockerAppController extends Controller
             $since,
             (int) ($data['lines'] ?? 200),
         );
-        $body = $this->actions->logResponse($snapshot);
+        $body = $this->actions->logResponse($snapshot, $since);
 
         return response()->json(['data' => ['lines' => $body['lines']], 'meta' => $body['meta']]);
     }

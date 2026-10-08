@@ -137,6 +137,10 @@ final class MailAccountController extends Controller
         if ($request->exists('discard_all') && $request->boolean('discard_all')) {
             $this->assertDiscard(true, $request->exists('forwards') ? $request->input('forwards') : []);
         }
+        // An account that keeps discarding mail would drop the forwards silently.
+        if (! $request->exists('discard_all') && $current->discards() && $request->input('forwards', []) !== []) {
+            throw ValidationException::withMessages(['forwards' => __('Turn off discard_all to set forwards.')]);
+        }
 
         $steps = [];
         if ($request->exists('quota_mb') || $request->exists('rate_limit')) {

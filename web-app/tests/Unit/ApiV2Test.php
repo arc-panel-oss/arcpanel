@@ -121,6 +121,24 @@ it('turns a failed step into an error naming it and the steps before it', functi
     }
 });
 
+it('answers a step whose argument was refused before it ran with 422, not 500', function () {
+    $gate = new PlanGate(keyWith(['*']), Request::create('/api/v2/users', 'POST'));
+    $add = new Step('Add user x', 'v-add-user', ['x']);
+    $name = new Step('Set the name', 'v-change-user-name', ['x', "X\n"]);
+
+    try {
+        $gate->assertApplied(new ApplyResult([$add], $name, 'Error code: 0', invalidArgument: true));
+        $this->fail('No error.');
+    } catch (ApiException $e) {
+        expect($e->status)->toBe(422)->and($e->body())->toBe(['error' => [
+            'code' => 'E_INVALID',
+            'message' => 'A value contains a character the command does not accept.',
+            'step' => ['label' => 'Set the name', 'command' => 'v-change-user-name'],
+            'applied' => [['label' => 'Add user x', 'command' => 'v-add-user']],
+        ]]);
+    }
+});
+
 it('maps exceptions to the error codes and statuses of D10', function (Throwable $e, string $code, int $status) {
     $error = ErrorRenderer::toApiException($e);
 
@@ -130,6 +148,7 @@ it('maps exceptions to the error codes and statuses of D10', function (Throwable
     'forbidden is spelled right' => [fn () => ArcCommandException::failed(new CommandResult('v-add-user', [], 10, 'Error: no')), 'E_FORBIDDEN', 403],
     'limit' => [fn () => ArcCommandException::failed(new CommandResult('v-add-user', [], 8, 'Error: limit')), 'E_LIMIT', 429],
     'not run' => [fn () => ArcCommandException::refused('v-x', 'timed out'), 'E_SERVER', 500],
+    'argument refused' => [fn () => ArcCommandException::invalidArgument('v-x', 'argument contains a control character'), 'E_INVALID', 422],
     'validation' => [fn () => ValidationException::withMessages(['name' => 'bad']), 'E_VALIDATION', 422],
     '404' => [fn () => new NotFoundHttpException, 'E_NOTEXIST', 404],
     'other' => [fn () => new RuntimeException('boom'), 'E_SERVER', 500],
@@ -215,8 +234,8 @@ it('documents pagination and error.existing', function () {
                 continue;
             }
             $id = (string) ($operation['operationId'] ?? '');
-            // Task lists return the full set without paginated meta (E34 batch 3 §5).
-            if (in_array($id, ['listSystemTasks', 'listUserTasks'], true)) {
+            // The system task list returns the full set without paginated meta (E34 batch 3 §5).
+            if (in_array($id, ['listSystemTasks'], true)) {
                 continue;
             }
             if (in_array($id, ['listNodeApps', 'listDockerApps'], true)) {

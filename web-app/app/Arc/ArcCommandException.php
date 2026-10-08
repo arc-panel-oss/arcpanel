@@ -12,6 +12,8 @@ class ArcCommandException extends RuntimeException
     public function __construct(
         string $message,
         public readonly ?CommandResult $result = null,
+        /** The command did not run: one of its arguments is not allowed (CommandArguments). */
+        public readonly bool $invalidArgument = false,
     ) {
         parent::__construct($message, $result?->exitCode ?? 0);
     }
@@ -29,6 +31,12 @@ class ArcCommandException extends RuntimeException
     public static function refused(string $command, string $reason): self
     {
         return new self(sprintf('Refused to run %s: %s', $command, $reason));
+    }
+
+    /** An argument value the command line cannot carry (a line break, a NUL byte): the command did not run. */
+    public static function invalidArgument(string $command, string $reason): self
+    {
+        return new self(sprintf('Refused to run %s: %s', $command, $reason), invalidArgument: true);
     }
 
     public function exit(): ?ExitCode

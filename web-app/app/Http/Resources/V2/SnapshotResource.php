@@ -7,6 +7,7 @@ use App\Services\Backups\ResticSnapshot;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\Resources\Json\JsonResource;
+use Illuminate\Pagination\AbstractPaginator;
 
 /**
  * A restic snapshot (`v-list-user-backups-restic USER json`).
@@ -25,7 +26,7 @@ final class SnapshotResource extends JsonResource
     /** @param  iterable<ResticSnapshot>  $resource */
     public static function collection($resource): AnonymousResourceCollection
     {
-        $items = $resource instanceof \Illuminate\Pagination\AbstractPaginator
+        $items = $resource instanceof AbstractPaginator
             ? $resource->getCollection()
             : collect($resource);
 

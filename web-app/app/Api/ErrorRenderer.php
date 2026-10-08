@@ -35,6 +35,7 @@ final class ErrorRenderer
     {
         return match (true) {
             $e instanceof ApiException => $e,
+            $e instanceof ArcCommandException && $e->invalidArgument => new ApiException(ErrorCode::Invalid, PlanGate::INVALID_ARGUMENT, 422),
             $e instanceof ArcCommandException => new ApiException(
                 ErrorCode::fromExit($e->exit()),
                 $e->result !== null ? $e->userMessage() : 'The command could not run.',

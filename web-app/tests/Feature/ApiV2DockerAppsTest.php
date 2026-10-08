@@ -116,7 +116,8 @@ it('pages log snapshots with an opaque cursor', function () {
 
     $this->fake->on('v-list-docker-app-logs', ['bob', 'kuma', 'all', '2026-10-05T10:00:00.1Z', '200', 'json'])->returnsJson(['LINES' => [], 'NEXT' => '']);
     $this->getJson('/api/v2/users/bob/docker-apps/kuma/logs?after='.urlencode((string) $cursor), $headers)->assertOk()
-        ->assertJsonPath('data.lines', []);
+        ->assertJsonPath('data.lines', [])
+        ->assertJsonPath('meta.next', $cursor);
 });
 
 it('hides admin-only catalog apps from non-administrators', function () {

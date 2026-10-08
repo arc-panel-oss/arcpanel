@@ -39,6 +39,12 @@ final class DnsService
     /** Types whose form shows the priority field. */
     public const PRIORITY_TYPES = ['MX', 'SRV'];
 
+    /** Types whose value v-add-dns-record ends with a dot and IDN-encodes. */
+    private const HOST_VALUE_TYPES = ['NS', 'CNAME', 'MX', 'PTR', 'SRV'];
+
+    /** Types whose value v-add-dns-record never quotes, spaces or not. */
+    private const UNQUOTED_TYPES = ['SRV', 'DNSKEY', 'DS', 'TLSA', 'KEY', 'IPSECKEY'];
+
     /** TTL of a new zone (web/add/dns). */
     public const DEFAULT_TTL = '14400';
 
@@ -309,6 +315,61 @@ final class DnsService
     {
         return new Step(__('Add the DNS record'), 'v-add-dns-record',
             [$user, $domain, $fields['record'], $fields['type'], $fields['value'], $fields['priority'], $id, 'yes', $fields['ttl']]);
+    }
+
+    /**
+     * A record in the form `v-add-dns-record` stores it, to compare a new
+     * record with the stored ones (D21). Mirrors bin/v-add-dns-record: the
+     * name is lowercased; MX and SRV without a priority get 10 and every
+     * other type drops it; NS, CNAME, MX, PTR and SRV values end with a dot
+     * and are IDN-encoded; double quotes are removed from every value but
+     * CAA, and a value with a space or `;` is quoted again, except for SRV,
+     * DNSKEY, DS, TLSA, KEY and IPSECKEY. Host names compare without case.
+     *
+     * @param  array{record: string, type: string, value: string, priority: string, ttl?: string}  $fields
+     * @return array{record: string, type: string, value: string, priority: string}
+     */
+    public static function storedRecord(array $fields): array
+    {
+        $type = strtoupper(trim($fields['type']));
+        $record = mb_strtolower(trim($fields['record']));
+        $value = trim($fields['value']);
+        $priority = trim($fields['priority']);
+
+        if (! in_array($type, self::PRIORITY_TYPES, true)) {
+            $priority = '';
+        } elseif ($priority === '') {
+            $priority = '10';
+        }
+
+        if (in_array($type, self::HOST_VALUE_TYPES, true)) {
+            if (! str_ends_with($value, '.')) {
+                $value .= '.';
+            }
+            $value = self::idnAscii($value);
+            $record = self::idnAscii($record);
+        } elseif (str_contains($record, 'xn--') && function_exists('idn_to_utf8')) {
+            $record = idn_to_utf8($record, IDNA_DEFAULT, INTL_IDNA_VARIANT_UTS46) ?: $record;
+        }
+
+        if ($type !== 'CAA') {
+            $value = str_replace('"', '', $value);
+            if (! in_array($type, self::UNQUOTED_TYPES, true) && preg_match('/[;\s]/', $value) === 1) {
+                $value = '"'.$value.'"';
+            }
+        }
+
+        return ['record' => $record, 'type' => $type, 'value' => $value, 'priority' => $priority];
+    }
+
+    /** `idn2` output: the ASCII form, lowercased. */
+    private static function idnAscii(string $name): string
+    {
+        if (preg_match('/[^\x00-\x7F]/', $name) === 1 && function_exists('idn_to_ascii')) {
+            $name = idn_to_ascii($name, IDNA_DEFAULT, INTL_IDNA_VARIANT_UTS46) ?: $name;
+        }
+
+        return strtolower($name);
     }
 
     /**

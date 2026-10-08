@@ -2,7 +2,6 @@
 
 use App\Arc\ExitCode;
 use App\Policies\Capabilities;
-use App\Services\Backups\BackupPaths;
 use Illuminate\Support\Facades\Route;
 
 const BK_SNAPSHOT = '4f2a91c0';
@@ -84,12 +83,13 @@ it('serves a local archive through NGINX and fetches a remote one first', functi
     $dir = sys_get_temp_dir().'/arc-backups-'.bin2hex(random_bytes(4));
     mkdir($dir);
     touch($dir.'/'.BK_ARCHIVE);
+    withSysConfig($this->fake, ['BACKUP' => $dir]);
     config(['arc.backup_dir' => $dir]);
     $this->fake->on('v-schedule-user-backup-download')->returns();
     signIn('bob', 'user');
 
     $this->get('/backups/bob/archives/'.BK_ARCHIVE.'/download')->assertOk()
-        ->assertHeader('X-Accel-Redirect', BackupPaths::accelRedirect(BK_ARCHIVE))
+        ->assertHeader('X-Accel-Redirect', '/backup/'.BK_ARCHIVE)
         ->assertHeader('Content-Type', 'application/x-tar');
     $this->get('/backups/bob/archives/bob.2026-10-01_05-10-11.tar/download')->assertRedirect('/backups/bob')
         ->assertSessionHas('ok', 'Download of remote backup file has been scheduled.');

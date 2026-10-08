@@ -41,11 +41,17 @@ final class TaskId
         return new self(self::SOURCE_QUEUE, $recordId, $user);
     }
 
-    /** Returns null when the id is malformed (D32 → 404). */
+    /**
+     * Returns null when the id is malformed (D32 → 404). Every source
+     * numbers its tasks with the date in seconds and four random digits,
+     * so a record id is exactly 14 digits; anything else would reach the
+     * list commands as another argument (`v-list-user-tasks` reads 1–4
+     * digits as LINES).
+     */
     public static function parse(string $id): ?self
     {
         $parts = explode(':', $id);
-        if ($parts === []) {
+        if (preg_match('/^\d{14}$/', (string) end($parts)) !== 1) {
             return null;
         }
 

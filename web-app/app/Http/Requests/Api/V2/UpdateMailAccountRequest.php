@@ -8,6 +8,12 @@ namespace App\Http\Requests\Api\V2;
  */
 final class UpdateMailAccountRequest extends ApiRequest
 {
+    /** The autoreply message spans lines. */
+    protected function multiLineFields(): array
+    {
+        return ['autoreply'];
+    }
+
     /** @return array<string, mixed> */
     public function rules(): array
     {

@@ -108,7 +108,13 @@ it('shows users inside the tree and answers 404 outside it', function (string $p
 
 // Create (createUser)
 
-it('lets an admin create a reseller with its language', function () {
+/** Main paths run with the default key and with a key that holds only the accounts set (D30). */
+dataset('accounts keys', [
+    'default key' => [null],
+    'v2-accounts key' => ['accounts'],
+]);
+
+it('lets an admin create a reseller with its language', function (?string $area) {
     $this->fake->on('v-add-user')->returns();
     $this->fake->on('v-change-user-role')->returns();
     $this->fake->on('v-change-user-language')->returns();
@@ -117,7 +123,7 @@ it('lets an admin create a reseller with its language', function () {
     $this->postJson('/api/v2/users', [
         'username' => 'Agency', 'password' => 'Secret-123', 'email' => 'x@example.com', 'name' => 'Agency', 'package' => 'reseller',
         'language' => 'de', 'role' => 'reseller',
-    ], apiAs($this->fake, 'arcadmin', 'admin'))
+    ], apiAs($this->fake, 'arcadmin', 'admin', area: $area))
         ->assertCreated()
         ->assertHeader('Location', 'http://localhost/api/v2/users/agency')
         ->assertJsonPath('data.username', 'agency')
@@ -126,7 +132,7 @@ it('lets an admin create a reseller with its language', function () {
     $this->fake->assertRan('v-add-user', fn ($a) => $a === ['agency', 'Secret-123', 'x@example.com', 'reseller', 'Agency']);
     $this->fake->assertRan('v-change-user-role', fn ($a) => $a === ['agency', 'reseller']);
     $this->fake->assertRan('v-change-user-language', fn ($a) => $a === ['agency', 'de']);
-});
+})->with('accounts keys');
 
 it('lets an admin key with the v2-write set create a customer of a reseller', function () {
     $this->fake->on('v-add-user')->returns();
@@ -141,21 +147,21 @@ it('lets an admin key with the v2-write set create a customer of a reseller', fu
     $this->fake->assertRan('v-update-reseller-counters', fn ($a) => $a === ['resb']);
 });
 
-it('lets a reseller create its own customer, ignoring the admin fields', function () {
+it('lets a reseller create its own customer, ignoring the admin fields', function (?string $area) {
     $this->fake->on('v-add-reseller-user')->returns();
     apiCreatedUser($this->fake, 'newcust', ['OWNER' => 'hostco']);
 
     $this->postJson('/api/v2/users', [
         'username' => 'newcust', 'password' => 'Secret-123', 'email' => 'new@example.com', 'name' => 'New Customer', 'package' => 'starter',
         'role' => 'admin', 'owner' => 'resb', 'login_disabled' => true,
-    ], apiAs($this->fake, 'hostco', 'reseller'))->assertCreated();
+    ], apiAs($this->fake, 'hostco', 'reseller', area: $area))->assertCreated();
 
     $this->fake->assertRan('v-add-reseller-user', fn ($a) => $a === ['hostco', 'newcust', 'Secret-123', 'new@example.com', 'starter', 'New Customer']);
     $this->fake->assertNotRan('v-change-user-role');
     $this->fake->assertNotRan('v-change-user-owner');
     $this->fake->assertNotRan('v-change-user-config-value');
     $this->fake->assertRan('v-update-reseller-counters', fn ($a) => $a === ['hostco']);
-});
+})->with('accounts keys');
 
 it('answers a repeated create with 409 and runs nothing', function () {
     $this->postJson('/api/v2/users', [
@@ -229,14 +235,26 @@ it('names the failed step and the steps before it', function () {
 
 // Change (updateUser, changeUserPackage, changeUserPassword)
 
-it('updates only the fields it was sent', function () {
+it('updates only the fields it was sent', function (?string $area) {
     $this->fake->on('v-change-user-contact')->returns();
 
-    $this->patchJson('/api/v2/users/bob', ['email' => 'new@example.com'], apiAs($this->fake, 'hostco', 'reseller'))->assertOk()
+    $this->patchJson('/api/v2/users/bob', ['email' => 'new@example.com'], apiAs($this->fake, 'hostco', 'reseller', area: $area))->assertOk()
         ->assertJsonPath('data.username', 'bob');
     $this->fake->assertRan('v-change-user-contact', fn ($a) => $a === ['bob', 'new@example.com']);
     $this->fake->assertNotRan('v-change-user-name');
     $this->fake->assertNotRan('v-change-user-language');
+})->with('accounts keys');
+
+it('updates every field of a user with a key that holds only the accounts set', function () {
+    foreach (['v-change-user-contact', 'v-change-user-name', 'v-change-user-language'] as $command) {
+        $this->fake->on($command)->returns();
+    }
+
+    $this->patchJson('/api/v2/users/bob', ['email' => 'new@example.com', 'name' => 'Robert', 'language' => 'de'], apiAs($this->fake, 'hostco', 'reseller', area: 'accounts'))
+        ->assertOk();
+    $this->fake->assertRan('v-change-user-contact', fn ($a) => $a === ['bob', 'new@example.com']);
+    $this->fake->assertRan('v-change-user-name', fn ($a) => $a === ['bob', 'Robert']);
+    $this->fake->assertRan('v-change-user-language', fn ($a) => $a === ['bob', 'de']);
 });
 
 it('lets a user update its own account but no one else outside the tree', function () {
@@ -305,17 +323,17 @@ it('answers a suspend of a suspended user as it is, without a command', function
     $this->fake->assertNotRan('v-suspend-user');
 });
 
-it('deletes a user, but not a reseller with customers', function () {
+it('deletes a user, but not a reseller with customers', function (?string $area) {
     $this->fake->on('v-delete-user')->returns();
 
-    $this->deleteJson('/api/v2/users/resb', [], apiAs($this->fake, 'arcadmin', 'admin'))->assertStatus(409)
+    $this->deleteJson('/api/v2/users/resb', [], apiAs($this->fake, 'arcadmin', 'admin', area: $area))->assertStatus(409)
         ->assertJsonPath('error.code', 'E_INUSE');
     $this->fake->assertNotRan('v-delete-user');
 
-    $this->deleteJson('/api/v2/users/dave', [], apiAs($this->fake, 'resb', 'reseller'))->assertNoContent();
+    $this->deleteJson('/api/v2/users/dave', [], apiAs($this->fake, 'resb', 'reseller', area: $area))->assertNoContent();
     $this->fake->assertRan('v-delete-user', fn ($a) => $a === ['dave']);
     $this->fake->assertRan('v-update-reseller-counters', fn ($a) => $a === ['resb']);
 
-    $this->deleteJson('/api/v2/users/bob', [], apiAs($this->fake, 'resb', 'reseller'))->assertNotFound();
-    $this->deleteJson('/api/v2/users/bob', [], apiAs($this->fake, 'bob', 'user'))->assertForbidden();
-});
+    $this->deleteJson('/api/v2/users/bob', [], apiAs($this->fake, 'resb', 'reseller', area: $area))->assertNotFound();
+    $this->deleteJson('/api/v2/users/bob', [], apiAs($this->fake, 'bob', 'user', area: $area))->assertForbidden();
+})->with('accounts keys');

@@ -131,12 +131,12 @@ final class BackupController extends Controller
      * Download an archive (web/download/backup): served by NGINX from the
      * backup directory; a remote archive is fetched first.
      */
-    public function download(string $user, string $backup, Principal $principal, BackupPolicy $policy): Response|RedirectResponse
+    public function download(string $user, string $backup, Principal $principal, BackupPolicy $policy, BackupPaths $paths): Response|RedirectResponse
     {
         abort_unless($policy->download($principal, $user), 403);
         $archive = $this->backups->archive($user, $backup);
 
-        if (! is_file(BackupPaths::localFile($archive->name))) {
+        if (! is_file($paths->localFile($archive->name))) {
             abort_unless($policy->create($principal, $user), 404);
 
             return $this->queued(
@@ -147,10 +147,13 @@ final class BackupController extends Controller
             );
         }
 
+        $redirect = $paths->accelRedirect($archive->name);
+        abort_if($redirect === null, 500, __('The backup folder is not served by the web server.'));
+
         return response('', 200, [
             'Content-Type' => $archive->contentType(),
             'Content-Disposition' => 'attachment; filename="'.$archive->name.'"',
-            'X-Accel-Redirect' => BackupPaths::accelRedirect($archive->name),
+            'X-Accel-Redirect' => $redirect,
             'X-Content-Type-Options' => 'nosniff',
             'Cache-Control' => 'no-store',
         ]);

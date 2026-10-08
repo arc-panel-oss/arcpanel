@@ -155,6 +155,20 @@ it('updates the SOA and refuses a rebuild to anyone but an administrator', funct
     $this->fake->assertRan('v-rebuild-dns-domain', fn ($a) => $a === ['bob', 'example.com']);
 });
 
+it('refuses a line break or a NUL byte in a field before any command runs', function (string $soa) {
+    $this->fake->on('v-change-dns-domain-soa')->returns();
+
+    $this->patchJson('/api/v2/users/bob/dns-zones/example.com', ['soa' => $soa], apiAs($this->fake, 'bob', 'user', area: 'dns'))
+        ->assertUnprocessable()
+        ->assertJsonPath('error.code', 'E_VALIDATION')
+        ->assertJsonStructure(['error' => ['fields' => ['soa']]]);
+    $this->fake->assertNotRan('v-change-dns-domain-soa');
+})->with([
+    'a final line break' => ["ns2.example.com\n"],
+    'a final carriage return' => ["ns2.example.com\r"],
+    'a NUL byte' => ["ns2.example.com\0"],
+]);
+
 it('suspends a zone once and deletes it', function () {
     $this->fake->on('v-suspend-dns-domain')->returns();
     $this->fake->on('v-delete-dns-domain')->returns();
@@ -202,6 +216,30 @@ it('creates a record with the next id and points a duplicate at the existing one
         ->assertJsonPath('error.code', 'E_EXISTS')
         ->assertJsonPath('error.existing', '/api/v2/users/bob/dns-zones/example.com/records/5');
 });
+
+it('compares a new record with the stored ones in the form v-add-dns-record stores it', function (array $body, int $existing) {
+    $this->postJson('/api/v2/users/bob/dns-zones/example.com/records', $body, apiAs($this->fake, 'bob', 'user', area: 'dns'))
+        ->assertStatus(409)
+        ->assertJsonPath('error.code', 'E_EXISTS')
+        ->assertJsonPath('error.existing', "/api/v2/users/bob/dns-zones/example.com/records/{$existing}");
+    $this->fake->assertNotRan('v-add-dns-record');
+})->with([
+    'TXT without quotes' => [['name' => '@', 'type' => 'TXT', 'value' => 'v=spf1 a mx ~all'], 5],
+    'MX without priority and trailing dot' => [['name' => '@', 'type' => 'MX', 'value' => 'mail.example.com'], 4],
+    'MX with priority 10 in upper case' => [['name' => '@', 'type' => 'mx', 'value' => 'Mail.Example.com.', 'priority' => 10], 4],
+    'CNAME without trailing dot' => [['name' => 'WWW', 'type' => 'CNAME', 'value' => 'example.com'], 3],
+    'NS without trailing dot' => [['name' => '@', 'type' => 'NS', 'value' => 'ns1.example.net'], 1],
+    'A with a priority the command drops' => [['name' => '@', 'type' => 'A', 'value' => '203.0.113.10', 'priority' => 5], 2],
+]);
+
+it('keeps a record that differs after normalisation new', function (array $body) {
+    $this->postJson('/api/v2/users/bob/dns-zones/example.com/records?dry_run=1', $body, apiAs($this->fake, 'bob', 'user', area: 'dns'))
+        ->assertOk()
+        ->assertJsonPath('data.steps.0.command', 'v-add-dns-record');
+})->with([
+    'MX with another priority' => [['name' => '@', 'type' => 'MX', 'value' => 'mail.example.com', 'priority' => 20]],
+    'TXT with another value' => [['name' => '@', 'type' => 'TXT', 'value' => 'v=spf1 -all']],
+]);
 
 it('updates, suspends and deletes a record', function () {
     $this->fake->on('v-change-dns-record')->returns();

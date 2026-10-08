@@ -1,13 +1,19 @@
 <?php
 
 use App\Arc\ExitCode;
-use App\Services\Backups\BackupPaths;
 
 // REST API v2 backups (E34 batch 3 spec §6.1–§6.3).
 
 const API_BK_ARCHIVE = 'bob.2026-10-03_05-10-09.tar';
 const API_BK_OLD = 'bob.2026-10-01_05-10-11.tar';
 const API_BK_SNAPSHOT = '4f2a91c0';
+
+/** BACKUP of arcpanel.conf, and the folder nginx serves at /backup/ (D35). */
+function apiBackupFolder($fake, string $dir, ?string $served = null): void
+{
+    withSysConfig($fake, ['API_SYSTEM' => '2', 'API_ALLOWED_IP' => 'allow-all', 'BACKUP' => $dir]);
+    config(['arc.backup_dir' => $served ?? $dir]);
+}
 
 beforeEach(function () {
     $this->fake = fakeApi();
@@ -44,19 +50,19 @@ it('describes one archive and refuses a foreign or invalid name', function () {
 });
 
 it('creates a backup with a v2-backup key and follows it with Link', function () {
-    $this->fake->on('v-schedule-user-backup', ['bob', 'json'])->returnsJson(['ID' => '9001']);
+    $this->fake->on('v-schedule-user-backup', ['bob', 'json'])->returnsJson(['ID' => '17290000009001']);
 
     $this->postJson('/api/v2/users/bob/backups', [], apiAs($this->fake, 'bob', 'user', area: 'backup'))
         ->assertStatus(202)
-        ->assertHeader('Link', '</api/v2/tasks/queue:bob:9001>; rel="monitor"')
-        ->assertJsonPath('data.id', 'queue:bob:9001')
+        ->assertHeader('Link', '</api/v2/tasks/queue:bob:17290000009001>; rel="monitor"')
+        ->assertJsonPath('data.id', 'queue:bob:17290000009001')
         ->assertJsonPath('data.status', 'queued');
     $this->fake->assertRan('v-schedule-user-backup', fn ($a) => $a === ['bob', 'json']);
 });
 
 it('answers 409 with the queued task when a backup is already scheduled', function () {
     $this->fake->on('v-list-user-tasks', ['bob', 'json'])->returnsJson([
-        '8001' => ['ID' => '8001', 'KIND' => 'backup', 'ARGS' => '', 'STATUS' => 'queued', 'EXIT' => '', 'ERROR' => '',
+        '17290000008001' => ['ID' => '17290000008001', 'KIND' => 'backup', 'ARGS' => '', 'STATUS' => 'queued', 'EXIT' => '', 'ERROR' => '',
             'QUEUED' => '2026-10-08 09:00:00', 'START' => '', 'END' => '', 'LOG' => ''],
     ]);
     $this->fake->on('v-schedule-user-backup', ['bob', 'json'])->returnsExit(ExitCode::Exists, 'Error: backup is already scheduled');
@@ -64,16 +70,41 @@ it('answers 409 with the queued task when a backup is already scheduled', functi
     $this->postJson('/api/v2/users/bob/backups', [], apiAs($this->fake, 'bob', 'user', area: 'backup'))
         ->assertStatus(409)
         ->assertJsonPath('error.code', 'E_EXISTS')
-        ->assertJsonPath('error.existing.id', 'queue:bob:8001')
+        ->assertJsonPath('error.existing.id', 'queue:bob:17290000008001')
         ->assertJsonPath('error.existing.status', 'queued');
     $this->fake->assertRan('v-schedule-user-backup');
+});
+
+it('answers 409 with the newest running or queued task that blocks the request', function () {
+    // is_backup_scheduled also refuses while a backup runs, and for snapshot,
+    // download and file-restore lines of the user
+    $this->fake->on('v-list-user-tasks', ['bob', 'json'])->returnsJson([
+        '17290000207003' => ['ID' => '17290000207003', 'KIND' => 'file-restore', 'ARGS' => API_BK_SNAPSHOT.' tmp/a.txt', 'STATUS' => 'queued', 'EXIT' => '', 'ERROR' => '',
+            'QUEUED' => '2026-10-08 09:30:00', 'START' => '', 'END' => '', 'LOG' => ''],
+        '17290000107002' => ['ID' => '17290000107002', 'KIND' => 'snapshot', 'ARGS' => '', 'STATUS' => 'running', 'EXIT' => '', 'ERROR' => '',
+            'QUEUED' => '2026-10-08 09:20:00', 'START' => '2026-10-08 09:20:05', 'END' => '', 'LOG' => ''],
+        '17290000007001' => ['ID' => '17290000007001', 'KIND' => 'backup', 'ARGS' => '', 'STATUS' => 'queued', 'EXIT' => '', 'ERROR' => '',
+            'QUEUED' => '2026-10-08 09:10:00', 'START' => '', 'END' => '', 'LOG' => ''],
+        '17290000307004' => ['ID' => '17290000307004', 'KIND' => 'backup', 'ARGS' => '', 'STATUS' => 'failed', 'EXIT' => '1', 'ERROR' => '',
+            'QUEUED' => '2026-10-08 09:40:00', 'START' => '', 'END' => '', 'LOG' => ''],
+    ]);
+    $this->fake->on('v-schedule-user-backup', ['bob', 'json'])->returnsExit(ExitCode::Exists, 'Error: backup is already scheduled');
+    $this->fake->on('v-schedule-user-restore')->returnsExit(ExitCode::Exists, 'Error: restore is already scheduled');
+    $headers = apiAs($this->fake, 'bob', 'user', area: 'backup');
+
+    $this->postJson('/api/v2/users/bob/backups', [], $headers)->assertStatus(409)
+        ->assertJsonPath('error.existing.id', 'queue:bob:17290000107002')
+        ->assertJsonPath('error.existing.status', 'running');
+    $this->postJson('/api/v2/users/bob/backups/'.API_BK_ARCHIVE.'/restore', [], $headers)->assertStatus(409)
+        ->assertJsonPath('error.existing.id', 'queue:bob:17290000207003')
+        ->assertJsonPath('error.existing.kind', 'file-restore');
 });
 
 it('refuses writes to a read-only key but allows download', function () {
     $dir = sys_get_temp_dir().'/arc-api-backups-'.bin2hex(random_bytes(4));
     mkdir($dir);
     touch($dir.'/'.API_BK_ARCHIVE);
-    config(['arc.backup_dir' => $dir]);
+    apiBackupFolder($this->fake, $dir);
     $readHeaders = apiAs($this->fake, 'bob', 'user', readOnly: true);
 
     $this->postJson('/api/v2/users/bob/backups', [], $readHeaders)->assertForbidden()
@@ -82,7 +113,7 @@ it('refuses writes to a read-only key but allows download', function () {
     $this->postJson('/api/v2/users/bob/backups/'.API_BK_ARCHIVE.'/restore', [], $readHeaders)->assertForbidden();
 
     $this->get('/api/v2/users/bob/backups/'.API_BK_ARCHIVE.'/download', $readHeaders)->assertOk()
-        ->assertHeader('X-Accel-Redirect', BackupPaths::accelRedirect(API_BK_ARCHIVE));
+        ->assertHeader('X-Accel-Redirect', '/backup/'.API_BK_ARCHIVE);
 
     unlink($dir.'/'.API_BK_ARCHIVE);
     rmdir($dir);
@@ -99,13 +130,14 @@ it('plans a create without running it and refuses a v2-read key before any comma
 });
 
 it('restores everything or a selection and validates unknown objects', function () {
-    $this->fake->on('v-schedule-user-restore')->returnsJson(['ID' => '9002']);
+    $this->fake->on('v-schedule-user-restore')->returnsJson(['ID' => '17290000009002']);
     $headers = apiAs($this->fake, 'bob', 'user', area: 'backup');
 
     $this->postJson('/api/v2/users/bob/backups/'.API_BK_ARCHIVE.'/restore', [], $headers)->assertStatus(202)
-        ->assertHeader('Link', '</api/v2/tasks/queue:bob:9002>; rel="monitor"')
+        ->assertHeader('Link', '</api/v2/tasks/queue:bob:17290000009002>; rel="monitor"')
         ->assertJsonPath('data.kind', 'restore');
-    $this->fake->assertRan('v-schedule-user-restore', fn ($a) => $a === ['bob', API_BK_ARCHIVE, 'json']);
+    // FORMAT is the ninth argument: a full restore passes the six types as '' (everything)
+    $this->fake->assertRan('v-schedule-user-restore', fn ($a) => $a === ['bob', API_BK_ARCHIVE, '', '', '', '', '', '', 'json'], times: 1);
 
     $this->postJson('/api/v2/users/bob/backups/'.API_BK_ARCHIVE.'/restore', ['web' => ['example.com']], $headers)->assertStatus(202);
     $this->fake->assertRan('v-schedule-user-restore', fn ($a) => $a === ['bob', API_BK_ARCHIVE, 'example.com', 'no', 'no', 'no', 'no', 'no', 'json']);
@@ -127,16 +159,34 @@ it('serves a local archive and schedules a remote one with Link', function () {
     $dir = sys_get_temp_dir().'/arc-api-backups-'.bin2hex(random_bytes(4));
     mkdir($dir);
     touch($dir.'/'.API_BK_ARCHIVE);
-    config(['arc.backup_dir' => $dir]);
-    $this->fake->on('v-schedule-user-backup-download', ['bob', API_BK_OLD, 'json'])->returnsJson(['ID' => '9003']);
+    apiBackupFolder($this->fake, $dir);
+    $this->fake->on('v-schedule-user-backup-download', ['bob', API_BK_OLD, 'json'])->returnsJson(['ID' => '17290000009003']);
     $headers = apiAs($this->fake, 'bob', 'user', area: 'backup');
 
     $this->get('/api/v2/users/bob/backups/'.API_BK_ARCHIVE.'/download', $headers)->assertOk()
-        ->assertHeader('X-Accel-Redirect', BackupPaths::accelRedirect(API_BK_ARCHIVE));
+        ->assertHeader('X-Accel-Redirect', '/backup/'.API_BK_ARCHIVE);
 
     $this->getJson('/api/v2/users/bob/backups/'.API_BK_OLD.'/download', $headers)->assertStatus(202)
-        ->assertHeader('Link', '</api/v2/tasks/queue:bob:9003>; rel="monitor"');
+        ->assertHeader('Link', '</api/v2/tasks/queue:bob:17290000009003>; rel="monitor"');
     $this->fake->assertRan('v-schedule-user-backup-download', fn ($a) => $a === ['bob', API_BK_OLD, 'json']);
+
+    unlink($dir.'/'.API_BK_ARCHIVE);
+    rmdir($dir);
+});
+
+it('looks for archives in the BACKUP folder and refuses one that nginx does not serve', function () {
+    $dir = sys_get_temp_dir().'/arc-api-backups-'.bin2hex(random_bytes(4));
+    mkdir($dir);
+    touch($dir.'/'.API_BK_ARCHIVE);
+    // nginx serves /backup/ only; ARC_BACKUP_DIR alone does not move the archives
+    apiBackupFolder($this->fake, $dir, served: '/backup');
+    $headers = apiAs($this->fake, 'bob', 'user', area: 'backup');
+
+    $this->getJson('/api/v2/users/bob/backups/'.API_BK_ARCHIVE.'/download', $headers)
+        ->assertStatus(500)
+        ->assertJsonPath('error.code', 'E_SERVER')
+        ->assertHeaderMissing('X-Accel-Redirect');
+    $this->fake->assertNotRan('v-schedule-user-backup-download');
 
     unlink($dir.'/'.API_BK_ARCHIVE);
     rmdir($dir);
@@ -179,7 +229,7 @@ it('describes one snapshot and refuses an unknown or invalid id', function () {
 
 it('answers 409 with the queued task when a snapshot backup is already scheduled', function () {
     $this->fake->on('v-list-user-tasks', ['bob', 'json'])->returnsJson([
-        '8001' => ['ID' => '8001', 'KIND' => 'backup', 'ARGS' => '', 'STATUS' => 'queued', 'EXIT' => '', 'ERROR' => '',
+        '17290000008001' => ['ID' => '17290000008001', 'KIND' => 'snapshot', 'ARGS' => '', 'STATUS' => 'queued', 'EXIT' => '', 'ERROR' => '',
             'QUEUED' => '2026-10-08 09:00:00', 'START' => '', 'END' => '', 'LOG' => ''],
     ]);
     $this->fake->on('v-schedule-user-backup-restic', ['bob', 'json'])->returnsExit(ExitCode::Exists, 'Error: backup is already scheduled');
@@ -187,14 +237,14 @@ it('answers 409 with the queued task when a snapshot backup is already scheduled
     $this->postJson('/api/v2/users/bob/snapshots', [], apiAs($this->fake, 'bob', 'user', area: 'backup'))
         ->assertStatus(409)
         ->assertJsonPath('error.code', 'E_EXISTS')
-        ->assertJsonPath('error.existing.id', 'queue:bob:8001')
+        ->assertJsonPath('error.existing.id', 'queue:bob:17290000008001')
         ->assertJsonPath('error.existing.status', 'queued');
     $this->fake->assertRan('v-schedule-user-backup-restic');
 });
 
 it('answers 409 with the queued task when a snapshot restore is already scheduled', function () {
     $this->fake->on('v-list-user-tasks', ['bob', 'json'])->returnsJson([
-        '8002' => ['ID' => '8002', 'KIND' => 'restore', 'ARGS' => '', 'STATUS' => 'queued', 'EXIT' => '', 'ERROR' => '',
+        '17290000008002' => ['ID' => '17290000008002', 'KIND' => 'snapshot-restore', 'ARGS' => API_BK_SNAPSHOT, 'STATUS' => 'queued', 'EXIT' => '', 'ERROR' => '',
             'QUEUED' => '2026-10-08 09:00:00', 'START' => '', 'END' => '', 'LOG' => ''],
     ]);
     $this->fake->on('v-schedule-user-restore-restic')->returnsExit(ExitCode::Exists, 'Error: restore is already scheduled');
@@ -202,17 +252,17 @@ it('answers 409 with the queued task when a snapshot restore is already schedule
     $this->postJson('/api/v2/users/bob/snapshots/'.API_BK_SNAPSHOT.'/restore', [], apiAs($this->fake, 'bob', 'user', area: 'backup'))
         ->assertStatus(409)
         ->assertJsonPath('error.code', 'E_EXISTS')
-        ->assertJsonPath('error.existing.id', 'queue:bob:8002')
+        ->assertJsonPath('error.existing.id', 'queue:bob:17290000008002')
         ->assertJsonPath('error.existing.status', 'queued');
     $this->fake->assertRan('v-schedule-user-restore-restic');
 });
 
 it('creates a snapshot with Link and lists snapshot files as read-only entries', function () {
-    $this->fake->on('v-schedule-user-backup-restic', ['bob', 'json'])->returnsJson(['ID' => '9010']);
+    $this->fake->on('v-schedule-user-backup-restic', ['bob', 'json'])->returnsJson(['ID' => '17290000009010']);
     $headers = apiAs($this->fake, 'bob', 'user', area: 'backup');
 
     $this->postJson('/api/v2/users/bob/snapshots', [], $headers)->assertStatus(202)
-        ->assertHeader('Link', '</api/v2/tasks/queue:bob:9010>; rel="monitor"')
+        ->assertHeader('Link', '</api/v2/tasks/queue:bob:17290000009010>; rel="monitor"')
         ->assertJsonPath('data.kind', 'snapshot');
     $this->fake->assertRan('v-schedule-user-backup-restic', fn ($a) => $a === ['bob', 'json']);
 
@@ -227,19 +277,19 @@ it('creates a snapshot with Link and lists snapshot files as read-only entries',
 });
 
 it('restores a snapshot, one object, or one path and validates bad paths', function () {
-    $this->fake->on('v-schedule-user-restore-restic')->returnsJson(['ID' => '9011']);
-    $this->fake->on('v-schedule-user-restore-file-restic')->returnsJson(['ID' => '9012']);
+    $this->fake->on('v-schedule-user-restore-restic')->returnsJson(['ID' => '17290000009011']);
+    $this->fake->on('v-schedule-user-restore-file-restic')->returnsJson(['ID' => '17290000009012']);
     $headers = apiAs($this->fake, 'bob', 'user', area: 'backup');
 
     $this->postJson('/api/v2/users/bob/snapshots/'.API_BK_SNAPSHOT.'/restore', [], $headers)->assertStatus(202)
-        ->assertHeader('Link', '</api/v2/tasks/queue:bob:9011>; rel="monitor"');
+        ->assertHeader('Link', '</api/v2/tasks/queue:bob:17290000009011>; rel="monitor"');
     $this->fake->assertRan('v-schedule-user-restore-restic', fn ($a) => $a === ['bob', API_BK_SNAPSHOT, '', '', 'json']);
 
     $this->postJson('/api/v2/users/bob/snapshots/'.API_BK_SNAPSHOT.'/restore', ['type' => 'db', 'object' => 'bob_wp'], $headers)->assertStatus(202);
     $this->fake->assertRan('v-schedule-user-restore-restic', fn ($a) => $a === ['bob', API_BK_SNAPSHOT, 'db', 'bob_wp', 'json']);
 
     $this->postJson('/api/v2/users/bob/snapshots/'.API_BK_SNAPSHOT.'/restore', ['path' => 'tmp/note.txt'], $headers)->assertStatus(202)
-        ->assertHeader('Link', '</api/v2/tasks/queue:bob:9012>; rel="monitor"');
+        ->assertHeader('Link', '</api/v2/tasks/queue:bob:17290000009012>; rel="monitor"');
     $this->fake->assertRan('v-schedule-user-restore-file-restic', fn ($a) => $a === ['bob', API_BK_SNAPSHOT, '/home/bob/tmp/note.txt', 'json']);
 
     $this->postJson('/api/v2/users/bob/snapshots/'.API_BK_SNAPSHOT.'/restore', ['path' => ''], $headers)->assertUnprocessable();

@@ -3,10 +3,10 @@
 namespace App\Http\Controllers\Api\V2;
 
 use App\Api\ApiException;
-use App\Api\TaskLink;
 use App\Api\ErrorCode;
 use App\Api\Paginates;
 use App\Api\PlanGate;
+use App\Api\TaskLink;
 use App\Auth\Principal;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\V2\RequestMailLetsEncryptRequest;
@@ -325,8 +325,13 @@ final class MailDomainController extends Controller
             'relay_user' => (string) $request->input('username', ''),
             'relay_password' => (string) $request->input('password', ''),
         ];
+        $steps = $this->planner->planRelay($record, $input);
+        // Re-adding the relay writes the password it is given: without one the stored password would be erased.
+        if ($record->relay && $steps !== [] && $input['relay_password'] === '') {
+            throw ValidationException::withMessages(['password' => __('The password is required when the relay settings change.')]);
+        }
 
-        return $this->gate->execute($this->planner->planRelay($record, $input), $this->mail->apply(...))
+        return $this->gate->execute($steps, $this->mail->apply(...))
             ?? $this->resource($user, $domain);
     }
 

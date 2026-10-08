@@ -89,7 +89,10 @@ wait_v2_task() {
 		call "$key" GET "/tasks/$task_id" > /dev/null
 		st="$(json .data.status)"
 		case "$st" in
-			succeeded) ok "task $task_id finished"; return 0 ;;
+			succeeded)
+				ok "task $task_id finished"
+				return 0
+				;;
 			failed)
 				fail "task $task_id failed ($(json '.data.log' | tail -c 500))"
 				return 1
@@ -305,6 +308,12 @@ if [ "$(call "$BACKUP_KEY" GET "/tasks/$BK_TASK")" = 200 ] && [ "$(json .data.st
 	check "restoreBackup of one web domain answers 202" 202 "$(call "$BACKUP_KEY" POST "$BK/$BK_NAME/restore" "{\"web\": [\"$SMOKE_DOMAIN\"]}")"
 	RS_TASK="$(json .data.id)"
 	wait_v2_task "$BACKUP_KEY" "$RS_TASK" 900 || true
+	# A restore without a body restores everything, web domains included
+	check "the web domain is deleted before a full restore" 204 "$(call "$WRITER" DELETE "$WEB/$SMOKE_DOMAIN")"
+	check "restoreBackup without a body answers 202" 202 "$(call "$BACKUP_KEY" POST "$BK/$BK_NAME/restore")"
+	FULL_TASK="$(json .data.id)"
+	wait_v2_task "$BACKUP_KEY" "$FULL_TASK" 900 || true
+	check "the full restore brings the web domain back" 200 "$(call "$WRITER" GET "$WEB/$SMOKE_DOMAIN")"
 	check "deleteBackup answers 204" 204 "$(call "$BACKUP_KEY" DELETE "$BK/$BK_NAME")"
 else
 	fail "backup task did not succeed; skipping archive download and restore"

@@ -75,6 +75,24 @@ it('applies a plan, stops at the first failure and restarts only after success',
     $this->fake->assertNotRan('v-restart-dns');
 });
 
+it('marks a step whose argument the runner refused, keeping the steps before it', function () {
+    $this->fake->on('v-change-dns-domain-ip')->returns();
+    $this->fake->on('v-restart-dns')->returns();
+
+    $result = app(PlanRunner::class)->apply([
+        new Step('Change the IP address', 'v-change-dns-domain-ip', ['bob', 'example.com', '10.0.0.2', 'no'], ['dns']),
+        new Step('Change the SOA', 'v-change-dns-domain-soa', ['bob', 'example.com', "ns.example.com\n", 'no'], ['dns']),
+    ]);
+
+    expect($result->ok())->toBeFalse()
+        ->and($result->failed->label)->toBe('Change the SOA')
+        ->and($result->invalidArgument)->toBeTrue()
+        ->and($result->exitCode)->toBe(0)
+        ->and(count($result->applied))->toBe(1);
+    $this->fake->assertNotRan('v-change-dns-domain-soa');
+    $this->fake->assertNotRan('v-restart-dns');
+});
+
 it('restarts each named service once after a successful plan', function () {
     $this->fake->on('v-change-cron-job')->returns();
     $this->fake->on('v-restart-cron')->returns();

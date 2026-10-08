@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\V2;
 
+use App\Api\Paginates;
 use App\Api\TaskId;
 use App\Auth\Principal;
 use App\Http\Controllers\Controller;
@@ -10,6 +11,7 @@ use App\Http\Resources\V2\TaskResource;
 use App\Policies\TaskPolicy;
 use App\Services\Tasks\TaskService;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 
 /**
@@ -19,7 +21,10 @@ use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
  */
 final class TaskController extends Controller
 {
-    public function __construct(private readonly TaskService $tasks) {}
+    public function __construct(
+        private readonly TaskService $tasks,
+        private readonly Paginates $pages,
+    ) {}
 
     /**
      * Show a task
@@ -41,15 +46,16 @@ final class TaskController extends Controller
      * List the tasks of a user
      *
      * Node.js, Quick Install, Docker apps and queue tasks of the last seven
-     * days, newest first.
+     * days, newest first. Paged with `limit` and `offset` (D20).
      *
      * @operationId listUserTasks
      */
-    public function index(string $user, Principal $principal, TaskPolicy $policy): AnonymousResourceCollection
+    public function index(Request $request, string $user, Principal $principal, TaskPolicy $policy): AnonymousResourceCollection
     {
         abort_unless($policy->viewUser($principal, $user) && $this->tasks->userExists($user), 404);
+        $page = $this->pages->slice($request, $this->tasks->listForUser($user, 100));
 
-        return TaskResource::collection($this->tasks->listForUser($user, 100));
+        return TaskResource::collection($page['items'])->additional(['meta' => $page['meta']]);
     }
 
     /**

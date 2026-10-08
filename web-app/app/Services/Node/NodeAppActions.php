@@ -176,15 +176,13 @@ final class NodeAppActions
      */
     public function logResponse(array $snapshot): array
     {
-        $next = $snapshot['offset'] < $snapshot['size']
-            ? NodeAppLogCursor::encode($snapshot['offset'])
-            : null;
-
+        // The offset is where the next read starts, also once the log is
+        // caught up: a client keeps following it with ?after= (D43).
         return [
             'lines' => $snapshot['lines'],
             'meta' => [
                 'stream' => $snapshot['stream'],
-                'next' => $next,
+                'next' => NodeAppLogCursor::encode($snapshot['offset']),
             ],
         ];
     }

@@ -21,12 +21,12 @@ use App\Http\Resources\V2\SnapshotFileEntryResource;
 use App\Http\Resources\V2\SnapshotListingEntry;
 use App\Http\Resources\V2\SnapshotResource;
 use App\Http\Resources\V2\TaskResource;
-use App\Services\Backups\BackupArchive;
-use App\Services\Files\FilePath;
-use App\Services\Files\InvalidFilePath;
 use App\Policies\BackupPolicy;
+use App\Services\Backups\BackupArchive;
 use App\Services\Backups\BackupPaths;
 use App\Services\Backups\BackupService;
+use App\Services\Files\FilePath;
+use App\Services\Files\InvalidFilePath;
 use App\Services\Tasks\TaskMapper;
 use App\Services\Tasks\TaskService;
 use App\Services\WebDomains\Step;
@@ -50,6 +50,7 @@ final class BackupController extends Controller
         private readonly TaskService $tasks,
         private readonly PlanGate $gate,
         private readonly Paginates $pages,
+        private readonly BackupPaths $paths,
     ) {}
 
     /**
@@ -150,7 +151,7 @@ final class BackupController extends Controller
         if ($request->selectsObjects()) {
             $selection = $this->selection($request, $archive);
         }
-        $args = $this->restoreArgs($user, $backup, $selection);
+        $args = BackupService::restoreArgs($user, $backup, $selection, 'json');
         $steps = [new Step(sprintf(__('Restore backup %s'), $backup), 'v-schedule-user-restore', $args)];
         $this->gate->authorize($steps);
         if ($this->gate->dryRun()) {
@@ -187,11 +188,14 @@ final class BackupController extends Controller
         abort_unless($policy->download($principal, $user), 403);
         $archive = $this->archive($user, $backup);
 
-        if (is_file(BackupPaths::localFile($archive->name))) {
+        if (is_file($this->paths->localFile($archive->name))) {
+            $redirect = $this->paths->accelRedirect($archive->name)
+                ?? throw new ApiException(ErrorCode::Server, __('The backup folder is not served by the web server.'), 500);
+
             return response('', 200, [
                 'Content-Type' => $archive->contentType(),
                 'Content-Disposition' => 'attachment; filename="'.$archive->name.'"',
-                'X-Accel-Redirect' => BackupPaths::accelRedirect($archive->name),
+                'X-Accel-Redirect' => $redirect,
                 'X-Content-Type-Options' => 'nosniff',
                 'Cache-Control' => 'no-store',
             ]);
@@ -437,7 +441,7 @@ final class BackupController extends Controller
         }
         $result = $this->backups->restoreFile($user, $snapshot, $absolute, 'json');
         if ($result->exit() === ExitCode::Exists) {
-            $task = $this->tasks->queuedBackupOrRestore($user);
+            $task = $this->tasks->blockingBackupTask($user, 'restore');
             if ($task !== null) {
                 throw new ApiException(
                     ErrorCode::Exists,
@@ -528,30 +532,10 @@ final class BackupController extends Controller
         return $selection;
     }
 
-    /**
-     * @param  array<string, list<string>>|null  $selection
-     * @return list<string>
-     */
-    private function restoreArgs(string $user, string $backup, ?array $selection): array
-    {
-        $args = [$user, $backup];
-        if ($selection !== null) {
-            foreach (BackupArchive::TYPES as $type) {
-                $objects = $selection[$type] ?? [];
-                $args[] = $type === 'cron'
-                    ? ($objects !== [] ? 'yes' : 'no')
-                    : ($objects !== [] ? implode(',', $objects) : 'no');
-            }
-        }
-        $args[] = 'json';
-
-        return $args;
-    }
-
     private function queued(string $user, CommandResult $result, string $kind, string $args = ''): TaskResource|JsonResponse
     {
         if ($result->exit() === ExitCode::Exists) {
-            $task = $this->tasks->queuedBackupOrRestore($user);
+            $task = $this->tasks->blockingBackupTask($user, str_contains($kind, 'restore') ? 'restore' : 'backup');
             if ($task !== null) {
                 throw new ApiException(
                     ErrorCode::Exists,

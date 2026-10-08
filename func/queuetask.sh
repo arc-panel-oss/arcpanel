@@ -3,14 +3,26 @@
 # docs/features/specs/2026-10-08-001-e34-api-v2-batch3-design.md §4).
 # A schedule command writes data/users/USER/tasks/ID.conf (STATUS=queued)
 # and queues `v-run-queue-task USER ID -- <the line it used to queue>`.
-# The wrapper runs that command once and stores the exit code. Records and
-# logs are kept for 7 days.
+# The wrapper runs that command and stores the exit code. Records and logs
+# are kept for 7 days.
+#
+# Retries keep the queue's behaviour from before the records: a worker that
+# fails and leaves its line in the pipe runs again on the next pass (the
+# Let's Encrypt worker does so on purpose while DNS propagates). Such a
+# record goes back to `queued` with ERROR and ATTEMPTS; a failed worker
+# whose line is gone is `failed`. A line whose record is gone or finished
+# is dead: the wrapper removes it instead of running it.
 
 #----------------------------------------------------------#
 #                       Locations                          #
 #----------------------------------------------------------#
 
-QT_KEYS="ID KIND ARGS STATUS EXIT ERROR QUEUED START END PID"
+QT_KEYS="ID KIND ARGS STATUS EXIT ERROR QUEUED START END PID ATTEMPTS"
+
+# ERROR of a queued record whose line a worker removed (qt_reap_unlocked).
+# The line may still run in the pass that read the pipe before the removal,
+# so the wrapper still runs such a record.
+QT_REMOVED_ERROR="removed from the queue"
 
 # Commands a schedule script is allowed to hand to the wrapper.
 qt_command_allowed() {
@@ -115,7 +127,7 @@ qt_create_unlocked() {
 	done
 	QT_ID=$id
 	qt_set "$user" "$id" "ID=$id" "KIND=$kind" "ARGS=$args" STATUS=queued EXIT= ERROR= \
-		"QUEUED=$(date +'%F %T')" START= END= PID=
+		"QUEUED=$(date +'%F %T')" START= END= PID= ATTEMPTS=0
 }
 
 # `v-run-queue-task USER ID -- ` for the record just created
@@ -145,15 +157,16 @@ qt_queue() {
 	qt_emit_id "$QT_ID" "$fmt"
 }
 
-# Mark every queued record whose line matches PATTERN as replaced.
-# Caller holds the lock. PATTERN is an extended regular expression.
+# Mark every queued record whose line matches PATTERN as replaced. A record
+# that already ran keeps its own result. Caller holds the lock. PATTERN is
+# an extended regular expression.
 qt_fail_replaced() {
 	local file="$1" pattern="$2" line id
 	[ -f "$file" ] || return 0
 	while IFS= read -r line; do
 		[ -n "$line" ] || continue
 		id=$(printf '%s\n' "$line" | grep -oE "v-run-queue-task ${user} [0-9]+" | awk 'NR==1 { print $3 }')
-		if [ -n "$id" ]; then
+		if [ -n "$id" ] && [ "$(qt_get "$user" "$id" STATUS)" = "queued" ]; then
 			qt_set "$user" "$id" STATUS=failed "ERROR=replaced by a newer request" \
 				"END=$(date +'%F %T')"
 		fi
@@ -179,7 +192,40 @@ qt_line_queued() {
 	return 1
 }
 
-# A queued record whose line a worker removed never ran.
+# Remove the wrapped line of USER ID from every queue pipe. sed -i writes a
+# new file, so a pass that is reading the old one is not disturbed (the
+# workers remove their lines the same way). Caller holds the lock, which
+# the schedule commands also hold when they add or replace lines.
+qt_remove_line() {
+	local owner="$1" task="$2" pipe
+	local -a pipes=()
+	shopt -s nullglob
+	pipes=("$ARCPANEL/data/queue"/*.pipe)
+	shopt -u nullglob
+	for pipe in "${pipes[@]}"; do
+		if grep -qF "v-run-queue-task $owner $task " "$pipe"; then
+			sed -i "\|v-run-queue-task ${owner//./\\.} $task |d" "$pipe"
+		fi
+	done
+}
+
+# Whether the wrapper may run the record of USER ID: it is queued, or a
+# worker removed its line from the pipe while a pass still holds it
+# (qt_reap_unlocked) and it never ran since. Caller holds the lock.
+qt_runnable_unlocked() {
+	local owner="$1" task="$2" status
+	[ -f "$(qt_conf "$owner" "$task")" ] || return 1
+	status=$(qt_get "$owner" "$task" STATUS)
+	if [ "$status" = "queued" ]; then
+		return 0
+	fi
+	[ "$status" = "failed" ] \
+		&& [ "$(qt_get "$owner" "$task" ERROR)" = "$QT_REMOVED_ERROR" ] \
+		&& [ -z "$(qt_get "$owner" "$task" EXIT)" ]
+}
+
+# A queued record whose line a worker removed does not run again unless
+# a pass still holds the line (see qt_runnable_unlocked).
 # Caller holds the lock.
 qt_reap_unlocked() {
 	local dir file id status
@@ -190,15 +236,16 @@ qt_reap_unlocked() {
 		id=$(basename "$file" .conf)
 		status=$(qt_get "$user" "$id" STATUS)
 		if [ "$status" = "queued" ] && ! qt_line_queued "$user" "$id"; then
-			qt_set "$user" "$id" STATUS=failed "ERROR=removed from the queue" \
+			qt_set "$user" "$id" STATUS=failed "ERROR=$QT_REMOVED_ERROR" \
 				"END=$(date +'%F %T')"
 		fi
 	done
 	shopt -u nullglob
 }
 
-# Delete this user's records and logs older than 7 days.
-# A running task is kept. Caller holds the lock.
+# Delete this user's records and logs older than 7 days. A running task is
+# kept, and so is a queued task whose line is still in a pipe (a request
+# that is retried, as Let's Encrypt waiting for DNS). Caller holds the lock.
 qt_cleanup_unlocked() {
 	local dir file id queued ts cutoff status
 	dir=$(qt_dir "$user")
@@ -212,6 +259,9 @@ qt_cleanup_unlocked() {
 		queued=$(qt_get "$user" "$id" QUEUED)
 		ts=$(date -d "$queued" +%s 2> /dev/null || echo 0)
 		if [ -n "$ts" ] && [ "$ts" -lt "$cutoff" ]; then
+			if [ "$status" = "queued" ] && qt_line_queued "$user" "$id"; then
+				continue
+			fi
 			rm -f "$file" "$dir/$id.log"
 		fi
 	done

@@ -9,13 +9,17 @@ use App\Arc\ArcCommand;
 use App\Arc\ArcCommandException;
 use App\Arc\ExitCode;
 use App\Arc\Options;
+use App\Arc\SysConfig;
 
 /**
  * Reads the six task sources of the panel (E34 batch 3 spec §5).
  */
 final class TaskService
 {
-    public function __construct(private readonly ArcCommand $arc) {}
+    public function __construct(
+        private readonly ArcCommand $arc,
+        private readonly SysConfig $config,
+    ) {}
 
     public function get(TaskId $id, int $lines): TaskView
     {
@@ -84,21 +88,44 @@ final class TaskService
         return $this->arc->run('v-list-user', [$user, 'json'], Options::allowFailure())->ok();
     }
 
-    /** A queued backup or restore of the user, if any (E34 batch 3 §6.1). */
-    public function queuedBackupOrRestore(string $user): ?TaskView
+    /**
+     * The newest queued or running task of the backup queue that blocks a
+     * new request of the user (E34 batch 3 §6.1). `is_backup_scheduled
+     * backup|restore` refuses while any line of the user in backup.pipe
+     * holds that word, so a task of the matching group is preferred and any
+     * other task of the backup queue is the fallback.
+     *
+     * @param  'backup'|'restore'  $check
+     */
+    public function blockingBackupTask(string $user, string $check): ?TaskView
     {
-        foreach ($this->queueTasks($user) as $recordId => $row) {
-            if (! is_array($row)) {
+        $groups = [
+            'backup' => ['backup', 'backup-download', 'snapshot'],
+            'restore' => ['restore', 'snapshot-restore', 'file-restore'],
+        ];
+        $preferred = $groups[$check];
+        $any = array_merge(...array_values($groups));
+        $first = null;
+        $fallback = null;
+        $records = $this->queueTasks($user);
+        krsort($records, SORT_STRING);
+        foreach ($records as $recordId => $row) {
+            if (! is_array($row) || ! in_array((string) ($row['STATUS'] ?? ''), ['queued', 'running'], true)) {
                 continue;
             }
-            $status = (string) ($row['STATUS'] ?? '');
             $kind = (string) ($row['KIND'] ?? '');
-            if ($status === 'queued' && in_array($kind, ['backup', 'restore'], true)) {
-                return TaskMapper::fromSource(new TaskId(TaskId::SOURCE_QUEUE, (string) $recordId, $user), $row, 1);
+            if ($first === null && in_array($kind, $preferred, true)) {
+                $first = [(string) $recordId, $row];
+            } elseif ($fallback === null && in_array($kind, $any, true)) {
+                $fallback = [(string) $recordId, $row];
             }
         }
+        $found = $first ?? $fallback;
+        if ($found === null) {
+            return null;
+        }
 
-        return null;
+        return TaskMapper::fromSource(new TaskId(TaskId::SOURCE_QUEUE, $found[0], $user), $found[1], 1);
     }
 
     public function dockerAppExists(string $user, string $app): bool
@@ -132,6 +159,10 @@ final class TaskService
         $current = (string) ($row['ID'] ?? '');
         if ($current === '' || $current !== $id->recordId) {
             throw new ApiException(ErrorCode::Gone, 'The task result is no longer kept.', 410);
+        }
+        // A finished install changes DOCKER_SYSTEM, as on the page (spec §4.4)
+        if ((string) ($row['STATUS'] ?? '') === 'done') {
+            $this->config->forget();
         }
 
         return $this->mapRow($id, $row, $lines);

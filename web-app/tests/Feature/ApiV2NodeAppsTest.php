@@ -113,7 +113,13 @@ it('keeps stored env values when an entry omits value on put', function () {
 
     $this->putJson('/api/v2/users/bob/node-apps/api.bob.example/env', [
         'entries' => [['name' => 'API_KEY'], ['name' => 'MODE', 'value' => 'staging']],
-    ], $headers)->assertOk();
+    ], $headers)->assertOk()
+        ->assertJsonMissingPath('data.0.value')
+        ->assertJsonMissingPath('data.1.value');
+    $this->putJson('/api/v2/users/bob/node-apps/api.bob.example/env?reveal=1', [
+        'entries' => [['name' => 'API_KEY'], ['name' => 'MODE', 'value' => 'staging']],
+    ], $headers)->assertOk()
+        ->assertJsonPath('data.0.value', 's3cr3t');
     $this->fake->assertRan('v-change-node-app-env', fn ($a) => $a === ['bob', 'api.bob.example', "API_KEY=s3cr3t\nMODE=staging\n"]);
 });
 
@@ -130,8 +136,25 @@ it('pages log snapshots with an opaque cursor', function () {
     $this->fake->on('v-list-node-app-logs', ['bob', 'api.bob.example', 'out', '20', '200', 'json'])->returnsJson([
         'STREAM' => 'out', 'SIZE' => '40', 'OFFSET' => '40', 'LINES' => ['line two'],
     ]);
-    $this->getJson('/api/v2/users/bob/node-apps/api.bob.example/logs?after='.urlencode((string) $cursor), $headers)->assertOk()
+    $second = $this->getJson('/api/v2/users/bob/node-apps/api.bob.example/logs?after='.urlencode((string) $cursor), $headers)->assertOk()
         ->assertJsonPath('data.lines', ['line two']);
+    expect($second->json('meta.next'))->not->toBeNull()->not->toBe($cursor);
+});
+
+it('answers a cursor after a tail read that reached the end of the log', function () {
+    $headers = apiAs($this->fake, 'bob', 'user', readOnly: true, area: 'apps');
+    $this->fake->on('v-list-node-app-logs', ['bob', 'api.bob.example', 'out', '', '200', 'json'])->returnsJson([
+        'STREAM' => 'out', 'SIZE' => '40', 'OFFSET' => '40', 'LINES' => ['line one'],
+    ]);
+    $cursor = $this->getJson('/api/v2/users/bob/node-apps/api.bob.example/logs', $headers)->assertOk()->json('meta.next');
+    expect($cursor)->toBeString();
+
+    $this->fake->on('v-list-node-app-logs', ['bob', 'api.bob.example', 'out', '40', '200', 'json'])->returnsJson([
+        'STREAM' => 'out', 'SIZE' => '40', 'OFFSET' => '40', 'LINES' => [],
+    ]);
+    $this->getJson('/api/v2/users/bob/node-apps/api.bob.example/logs?after='.urlencode((string) $cursor), $headers)->assertOk()
+        ->assertJsonPath('data.lines', [])
+        ->assertJsonPath('meta.next', $cursor);
 });
 
 it('creates an app with Location', function () {

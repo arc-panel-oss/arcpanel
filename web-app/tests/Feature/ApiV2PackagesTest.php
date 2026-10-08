@@ -105,14 +105,20 @@ it('describes a package with typed fields', function () {
 
 // Create (createPackage)
 
-it('creates a package with reseller settings for an admin, from the defaults of the form', function () {
+/** Main paths run with the default key and with a key that holds only the accounts set (D30). */
+dataset('package keys', [
+    'default key' => [null],
+    'v2-accounts key' => ['accounts'],
+]);
+
+it('creates a package with reseller settings for an admin, from the defaults of the form', function (?string $area) {
     apiPackageAdded($this, 'v-add-user-package', 'business');
     $this->fake->on('v-change-package-tenancy')->returns();
 
     $this->postJson('/api/v2/packages', [
         'name' => 'business', 'limits' => ['web_domains' => 3, 'mail_accounts' => null],
         'reseller' => ['users' => 10, 'packages' => ['starter', 'default'], 'visible' => true],
-    ], apiAs($this->fake, 'arcadmin', 'admin'))
+    ], apiAs($this->fake, 'arcadmin', 'admin', area: $area))
         ->assertCreated()
         ->assertHeader('Location', 'http://localhost/api/v2/packages/business')
         ->assertJsonPath('data.name', 'business');
@@ -123,7 +129,7 @@ it('creates a package with reseller settings for an admin, from the defaults of 
     $this->fake->assertRan('v-change-package-tenancy', fn ($a) => $a === ['business', 'USERS', '10']);
     $this->fake->assertRan('v-change-package-tenancy', fn ($a) => $a === ['business', 'RESELLER_PACKAGES', 'starter,default']);
     $this->fake->assertRan('v-change-package-tenancy', fn ($a) => $a === ['business', 'RESELLER_VISIBLE', 'yes']);
-});
+})->with('package keys');
 
 it('answers a repeated create with 409 and runs nothing', function () {
     $this->postJson('/api/v2/packages', ['name' => 'starter'], apiAs($this->fake, 'arcadmin', 'admin'))->assertStatus(409)
@@ -140,12 +146,14 @@ it('validates templates, name servers and limits with the API field names', func
         ->assertUnprocessable()->assertJsonStructure(['error' => ['fields' => ['templates.web']]]);
     $this->postJson('/api/v2/packages', ['name' => 'business', 'limits' => ['web_domains' => -1], 'docker' => ['cpus' => 'all']], $headers)
         ->assertUnprocessable()->assertJsonStructure(['error' => ['fields' => ['limits.web_domains', 'docker.cpus']]]);
+    $this->postJson('/api/v2/packages', ['name' => "business\n", 'nameservers' => ["ns1.example.com\n", 'ns2.example.com']], $headers)
+        ->assertUnprocessable()->assertJsonStructure(['error' => ['fields' => ['name', 'nameservers.0']]]);
     $this->fake->assertNotRan('v-add-user-package');
 });
 
-it('creates a reseller package within the reseller limits, without reseller settings', function () {
+it('creates a reseller package within the reseller limits, without reseller settings', function (?string $area) {
     apiPackageAdded($this, 'v-add-reseller-package', 'hostco_business', ['RESELLER_OWNER' => 'hostco']);
-    $headers = apiAs($this->fake, 'hostco', 'reseller');
+    $headers = apiAs($this->fake, 'hostco', 'reseller', area: $area);
 
     $this->postJson('/api/v2/packages', ['name' => 'business', 'limits' => ['web_domains' => 20, 'disk_mb' => null]], $headers)
         ->assertUnprocessable()
@@ -156,7 +164,7 @@ it('creates a reseller package within the reseller limits, without reseller sett
         ->assertJsonPath('data.label', 'business');
     $this->fake->assertRan('v-add-reseller-package', fn ($a) => $a[0] === 'hostco' && $a[2] === 'business');
     $this->fake->assertNotRan('v-change-package-tenancy');
-});
+})->with('package keys');
 
 it('needs the policy for reseller packages', function () {
     withSysConfig($this->fake, ['API_SYSTEM' => '2', 'API_ALLOWED_IP' => 'allow-all', 'POLICY_RESELLER_CREATE_PACKAGES' => 'no']);
@@ -183,13 +191,13 @@ it('refuses a key whose sets do not allow the change and runs nothing', function
 
 // Update, copy, delete
 
-it('saves, renames and applies a package for an admin', function () {
+it('saves, renames and applies a package for an admin', function (?string $area) {
     foreach (['v-add-user-package', 'v-update-user-package', 'v-change-package-tenancy', 'v-rename-package-tenancy'] as $command) {
         $this->fake->on($command)->returns();
     }
     apiPackageAdded($this, 'v-rename-user-package', 'basic', ['RESELLER_VISIBLE' => 'yes', 'WEB_DOMAINS' => '4']);
 
-    $this->patchJson('/api/v2/packages/starter', ['name' => 'basic', 'limits' => ['web_domains' => 4]], apiAs($this->fake, 'arcadmin', 'admin'))->assertOk()
+    $this->patchJson('/api/v2/packages/starter', ['name' => 'basic', 'limits' => ['web_domains' => 4]], apiAs($this->fake, 'arcadmin', 'admin', area: $area))->assertOk()
         ->assertJsonPath('data.name', 'basic')
         ->assertJsonPath('data.limits.web_domains', 4);
 
@@ -198,11 +206,11 @@ it('saves, renames and applies a package for an admin', function () {
     $this->fake->assertNotRan('v-change-package-tenancy');
     $this->fake->assertRan('v-rename-user-package', fn ($a) => $a === ['starter', 'basic']);
     $this->fake->assertRan('v-rename-package-tenancy', fn ($a) => $a === ['starter', 'basic']);
-});
+})->with('package keys');
 
-it('changes its own package for a reseller, keeping the name', function () {
+it('changes its own package for a reseller, keeping the name', function (?string $area) {
     $this->fake->on('v-change-reseller-package')->returns();
-    $headers = apiAs($this->fake, 'hostco', 'reseller');
+    $headers = apiAs($this->fake, 'hostco', 'reseller', area: $area);
 
     $this->patchJson('/api/v2/packages/hostco_gold', ['name' => 'other', 'limits' => ['web_domains' => 2]], $headers)->assertOk()
         ->assertJsonPath('data.name', 'hostco_gold');
@@ -210,7 +218,7 @@ it('changes its own package for a reseller, keeping the name', function () {
 
     $this->patchJson('/api/v2/packages/starter', ['limits' => ['web_domains' => 2]], $headers)->assertForbidden();
     $this->patchJson('/api/v2/packages/resb_silver', ['limits' => ['web_domains' => 2]], $headers)->assertNotFound();
-});
+})->with('package keys');
 
 it('copies a package for an admin only', function () {
     $this->fake->on('v-change-package-tenancy')->returns();
@@ -224,20 +232,21 @@ it('copies a package for an admin only', function () {
     $this->postJson('/api/v2/packages/hostco_gold/copy', ['name' => 'x'], apiAs($this->fake, 'hostco', 'reseller'))->assertForbidden();
 });
 
-it('deletes a package without users', function () {
+it('deletes a package without users', function (?string $area) {
     $this->fake->on('v-delete-user-package')->returns();
     $this->fake->on('v-delete-package-tenancy')->returns();
     $this->fake->on('v-delete-reseller-package')->returns();
+    $admin = apiAs($this->fake, 'arcadmin', 'admin', area: $area);
 
-    $this->deleteJson('/api/v2/packages/reseller', [], apiAs($this->fake, 'arcadmin', 'admin'))->assertStatus(409)->assertJsonPath('error.code', 'E_INUSE');
-    $this->deleteJson('/api/v2/packages/default', [], apiAs($this->fake, 'arcadmin', 'admin'))->assertForbidden();
+    $this->deleteJson('/api/v2/packages/reseller', [], $admin)->assertStatus(409)->assertJsonPath('error.code', 'E_INUSE');
+    $this->deleteJson('/api/v2/packages/default', [], $admin)->assertForbidden();
     $this->fake->assertNotRan('v-delete-user-package');
 
-    $this->deleteJson('/api/v2/packages/starter', [], apiAs($this->fake, 'arcadmin', 'admin'))->assertNoContent();
+    $this->deleteJson('/api/v2/packages/starter', [], $admin)->assertNoContent();
     $this->fake->assertRan('v-delete-user-package', fn ($a) => $a === ['starter']);
     $this->fake->assertRan('v-delete-package-tenancy', fn ($a) => $a === ['starter']);
 
-    $this->deleteJson('/api/v2/packages/hostco_gold', [], apiAs($this->fake, 'hostco', 'reseller'))->assertNoContent();
+    $this->deleteJson('/api/v2/packages/hostco_gold', [], apiAs($this->fake, 'hostco', 'reseller', area: $area))->assertNoContent();
     $this->fake->assertRan('v-delete-reseller-package', fn ($a) => $a === ['hostco', 'hostco_gold']);
-    $this->deleteJson('/api/v2/packages/hostco_gold', [], apiAs($this->fake, 'resb', 'reseller'))->assertNotFound();
-});
+    $this->deleteJson('/api/v2/packages/hostco_gold', [], apiAs($this->fake, 'resb', 'reseller', area: $area))->assertNotFound();
+})->with('package keys');

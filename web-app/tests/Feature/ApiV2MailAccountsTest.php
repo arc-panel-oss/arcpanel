@@ -121,6 +121,24 @@ it('replaces the alias list, refuses discard with forwards, and changes a passwo
     $this->fake->assertRan('v-change-mail-account-password');
 });
 
+it('refuses forwards for an account that discards all mail unless discard_all is turned off', function () {
+    $this->fake->on('v-delete-mail-account-forward')->returns();
+    $this->fake->on('v-add-mail-account-forward')->returns();
+    $headers = apiAs($this->fake, 'bob', 'user', area: 'mail');
+
+    $this->patchJson('/api/v2/users/bob/mail-domains/example.com/accounts/noreply', ['forwards' => ['c@example.net']], $headers)
+        ->assertUnprocessable()
+        ->assertJsonPath('error.fields', ['forwards' => ['Turn off discard_all to set forwards.']]);
+    $this->fake->assertNotRan('v-add-mail-account-forward');
+
+    $this->patchJson('/api/v2/users/bob/mail-domains/example.com/accounts/noreply', ['forwards' => []], $headers)->assertOk();
+    $this->fake->assertNotRan('v-add-mail-account-forward');
+
+    $this->patchJson('/api/v2/users/bob/mail-domains/example.com/accounts/noreply', ['discard_all' => false, 'forwards' => ['c@example.net']], $headers)->assertOk();
+    $this->fake->assertRan('v-delete-mail-account-forward', fn ($a) => $a === ['bob', 'example.com', 'noreply', ':blackhole:']);
+    $this->fake->assertRan('v-add-mail-account-forward', fn ($a) => $a === ['bob', 'example.com', 'noreply', 'c@example.net']);
+});
+
 it('suspends an account once and deletes it', function () {
     $this->fake->on('v-suspend-mail-account')->returns();
     $this->fake->on('v-delete-mail-account')->returns();

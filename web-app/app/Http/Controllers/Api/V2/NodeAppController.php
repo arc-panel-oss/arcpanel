@@ -285,7 +285,8 @@ final class NodeAppController extends Controller
         if ($preview = $this->gate->execute($steps, $this->apps->apply(...))) {
             return $preview;
         }
-        $reveal = $this->mayRevealEnv();
+        // Values only on request, as on GET (D41)
+        $reveal = $request->boolean('reveal') && $this->mayRevealEnv();
 
         return response()->json(['data' => $this->actions->envEntries($this->apps->env($user, $domain), $reveal)]);
     }

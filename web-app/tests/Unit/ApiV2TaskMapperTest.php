@@ -6,12 +6,17 @@ use App\Services\Tasks\TaskMapper;
 // Task id parser (D31) and source mappings (E34 batch 3 spec §5).
 
 it('parses task ids including dotted usernames in the middle segment', function () {
-    expect(TaskId::parse('sys:1')?->apiId())->toBe('sys:1')
-        ->and(TaskId::parse('docker:bob:kuma:9')?->app)->toBe('kuma')
-        ->and(TaskId::parse('node:host.co:42')?->user)->toBe('host.co')
+    expect(TaskId::parse('sys:17280000000001')?->apiId())->toBe('sys:17280000000001')
+        ->and(TaskId::parse('docker:bob:kuma:17280000000009')?->app)->toBe('kuma')
+        ->and(TaskId::parse('node:host.co:17280000000042')?->user)->toBe('host.co')
+        ->and(TaskId::parse('queue:bob:17280000004001')?->recordId)->toBe('17280000004001')
         ->and(TaskId::parse('bad:extra:too:many:parts'))->toBeNull()
-        ->and(TaskId::parse('node::1'))->toBeNull();
+        ->and(TaskId::parse('node::17280000000001'))->toBeNull();
 });
+
+it('refuses record ids that are not 14 digits', function (string $id) {
+    expect(TaskId::parse($id))->toBeNull();
+})->with(['sys:1', 'queue:bob:3999', 'queue:bob:abc', 'queue:bob:../x', 'queue:bob:172800000040011', 'docker:bob:kuma:', 'install:bob:1728000000400a']);
 
 it('maps CLI statuses to API statuses without inventing values', function () {
     expect(TaskMapper::mapStatus('queued'))->toBe('queued')
@@ -25,7 +30,7 @@ it('maps CLI statuses to API statuses without inventing values', function () {
 });
 
 it('maps node app tasks to node-apps resources', function () {
-    $view = TaskMapper::fromSource(TaskId::parse('node:bob:1') ?? throw new RuntimeException, [
+    $view = TaskMapper::fromSource(TaskId::parse('node:bob:17280000000001') ?? throw new RuntimeException, [
         'ACTION' => 'app-install', 'ARGS' => 'app.example build', 'STATUS' => 'done', 'EXIT' => '0', 'START' => '', 'END' => '', 'LOG' => '',
     ], 100);
 
@@ -34,7 +39,7 @@ it('maps node app tasks to node-apps resources', function () {
 });
 
 it('passes queue succeeded status through unchanged', function () {
-    $view = TaskMapper::fromSource(TaskId::queue('bob', '4001'), [
+    $view = TaskMapper::fromSource(TaskId::queue('bob', '17280000004001'), [
         'KIND' => 'backup', 'ARGS' => 'bob.tar', 'STATUS' => 'succeeded', 'EXIT' => '0', 'ERROR' => '',
         'QUEUED' => '2026-10-07 05:00:00', 'START' => '', 'END' => '', 'LOG' => '',
     ], 100);

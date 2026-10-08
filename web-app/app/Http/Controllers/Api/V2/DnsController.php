@@ -419,13 +419,16 @@ final class DnsController extends Controller
     }
 
     /**
+     * A record with the same name, type, value and priority answers 409,
+     * both sides in the form v-add-dns-record stores them (D21).
+     *
      * @param  array{record: string, type: string, value: string, priority: string, ttl: string}  $fields
      */
     private function assertRecordNew(string $user, string $domain, array $fields): void
     {
+        $new = DnsService::storedRecord($fields);
         foreach ($this->dns->records($user, $domain) as $record) {
-            if ($record->record === $fields['record'] && $record->type === $fields['type']
-                && $record->value === $fields['value'] && $record->priority === $fields['priority']) {
+            if (DnsService::storedRecord($record->fields()) === $new) {
                 throw new ApiException(
                     ErrorCode::Exists,
                     __('DNS record exists.'),

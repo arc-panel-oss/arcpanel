@@ -8,7 +8,8 @@
 # This function prints the queue-task records of USER, newest first, or
 # one record. LOG is the last LINES lines of the task log (default 100,
 # at most 1000). A record that is still queued but whose line is gone
-# from every queue is stored as failed.
+# from every queue is stored as failed. ATTEMPTS counts the runs of a
+# task that the queue retries.
 
 #----------------------------------------------------------#
 #                Variables & Functions                     #
@@ -88,9 +89,11 @@ record_json() {
 		--arg QUEUED "$(qt_get "$user" "$task" QUEUED)" \
 		--arg START "$(qt_get "$user" "$task" START)" \
 		--arg END "$(qt_get "$user" "$task" END)" \
+		--arg ATTEMPTS "$(qt_get "$user" "$task" ATTEMPTS)" \
 		--arg LOG "$text" \
 		'{ID: $ID, KIND: $KIND, ARGS: $task_args, STATUS: $STATUS, EXIT: $EXIT,
-			ERROR: $ERROR, QUEUED: $QUEUED, START: $START, END: $END, LOG: $LOG}'
+			ERROR: $ERROR, QUEUED: $QUEUED, START: $START, END: $END,
+			ATTEMPTS: $ATTEMPTS, LOG: $LOG}'
 }
 
 print_shell() {

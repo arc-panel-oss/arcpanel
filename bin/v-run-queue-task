@@ -5,10 +5,14 @@
 # example: v-run-queue-task admin 17280000001234 -- /usr/local/arcpanel/bin/v-backup-user admin yes
 #
 # This function runs one command that a v-schedule-* script queued. The
-# record must exist and be queued; a second run of the same id does
-# nothing. The command's output is appended to the task log and also
-# written to standard output, so the redirection on the queue line
-# (>> $ARCPANEL/log/backup.log and the others) still receives it.
+# record must exist and be queued. The command's output is appended to the
+# task log and also written to standard output, so the redirection on the
+# queue line (>> $ARCPANEL/log/backup.log and the others) still receives it.
+#
+# When the command fails and its line is still in the pipe, the record is
+# queued again (ERROR, ATTEMPTS) and the next pass of the queue retries it,
+# as the queue did before the records. A line whose record is missing or
+# finished is removed without running anything.
 
 #----------------------------------------------------------#
 #                Variables & Functions                     #
@@ -56,12 +60,24 @@ fi
 
 qt_lock
 qt_cleanup_unlocked
-if [ ! -f "$(qt_conf "$user" "$id")" ] || [ "$(qt_get "$user" "$id" STATUS)" != "queued" ]; then
+if ! qt_runnable_unlocked "$user" "$id"; then
+	# A dead line: it would never run again and would block the next
+	# backup of the user (is_backup_scheduled). A running record belongs
+	# to another pass, which decides about its line.
+	if [ "$(qt_get "$user" "$id" STATUS)" != "running" ]; then
+		qt_remove_line "$user" "$id"
+	fi
 	qt_unlock
 	exit 0
 fi
 
-qt_set "$user" "$id" STATUS=running "START=$(date +'%F %T')" "PID=$$"
+attempts=$(qt_get "$user" "$id" ATTEMPTS)
+if ! [[ "$attempts" =~ ^[0-9]+$ ]]; then
+	attempts=0
+fi
+attempts=$((attempts + 1))
+qt_set "$user" "$id" STATUS=running "START=$(date +'%F %T')" "PID=$$" \
+	EXIT= ERROR= END= "ATTEMPTS=$attempts"
 qt_unlock
 
 log=$(qt_log "$user" "$id")
@@ -74,9 +90,13 @@ chmod 640 "$log"
 
 qt_lock
 if [ "$rc" -eq 0 ]; then
-	qt_set "$user" "$id" STATUS=succeeded "EXIT=0" "END=$(date +'%F %T')"
+	qt_set "$user" "$id" STATUS=succeeded "EXIT=0" "END=$(date +'%F %T')" PID=
+elif qt_line_queued "$user" "$id"; then
+	# The worker kept its line: the next pass runs it again
+	qt_set "$user" "$id" STATUS=queued EXIT= START= END= PID= \
+		"ERROR=attempt $attempts failed with exit code $rc, queued again"
 else
-	qt_set "$user" "$id" STATUS=failed "EXIT=$rc" "END=$(date +'%F %T')"
+	qt_set "$user" "$id" STATUS=failed "EXIT=$rc" "END=$(date +'%F %T')" PID=
 fi
 qt_unlock
 

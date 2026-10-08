@@ -729,6 +729,145 @@
                 }
             }
         },
+        "/system/docker": {
+            "get": {
+                "operationId": "getDockerEngine",
+                "summary": "Get the Docker engine",
+                "tags": [
+                    "Server"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "`DockerEngine`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/DockerEngine"
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    }
+                }
+            }
+        },
+        "/system/docker/install": {
+            "post": {
+                "operationId": "installDockerEngine",
+                "summary": "Install the Docker engine",
+                "tags": [
+                    "Server"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "With `dry_run`: the planned steps; nothing ran.",
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/DryRun"
+                                }
+                            }
+                        }
+                    },
+                    "202": {
+                        "description": "`Task`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/Task"
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            },
+                            "Location": {
+                                "$ref": "#/components/headers/Location"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "409": {
+                        "$ref": "#/components/responses/Conflict"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    },
+                    "503": {
+                        "$ref": "#/components/responses/Unavailable"
+                    }
+                },
+                "parameters": [
+                    {
+                        "name": "dry_run",
+                        "in": "query",
+                        "description": "Validate, authorize and plan the change, and answer with its steps instead of running them.",
+                        "schema": {
+                            "type": "boolean",
+                            "default": false
+                        }
+                    }
+                ]
+            }
+        },
         "/system/tasks": {
             "get": {
                 "operationId": "listSystemTasks",
@@ -12315,7 +12454,7 @@
         "/users/{user}/tasks": {
             "get": {
                 "operationId": "listUserTasks",
-                "description": "Node.js, Quick Install, Docker apps and queue tasks of the last seven\ndays, newest first.",
+                "description": "Node.js, Quick Install, Docker apps and queue tasks of the last seven\ndays, newest first. Paged with `limit` and `offset` (D20).",
                 "summary": "List the tasks of a user",
                 "tags": [
                     "Tasks"
@@ -12327,6 +12466,25 @@
                         "required": true,
                         "schema": {
                             "type": "string"
+                        }
+                    },
+                    {
+                        "name": "limit",
+                        "in": "query",
+                        "description": "Page size, from 1 to 1000. Without it the list is complete.",
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 1000
+                        }
+                    },
+                    {
+                        "name": "offset",
+                        "in": "query",
+                        "description": "Items to skip. Used when `limit` is set; 0 when omitted.",
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 0
                         }
                     }
                 ],
@@ -12343,10 +12501,14 @@
                                             "items": {
                                                 "$ref": "#/components/schemas/Task"
                                             }
+                                        },
+                                        "meta": {
+                                            "$ref": "#/components/schemas/ListMeta"
                                         }
                                     },
                                     "required": [
-                                        "data"
+                                        "data",
+                                        "meta"
                                     ]
                                 }
                             }
@@ -12368,6 +12530,9 @@
                     },
                     "404": {
                         "$ref": "#/components/responses/NotFound"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
                     },
                     "429": {
                         "$ref": "#/components/responses/TooManyRequests"
@@ -14846,6 +15011,113 @@
                     "icon"
                 ],
                 "title": "DockerCatalogEntry"
+            },
+            "DockerEngine": {
+                "type": "object",
+                "properties": {
+                    "installed": {
+                        "type": "boolean"
+                    },
+                    "running": {
+                        "type": "boolean"
+                    },
+                    "version": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
+                    "compose_version": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
+                    "data_root": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
+                    "disk_used": {
+                        "type": "integer"
+                    },
+                    "disk_free": {
+                        "type": "integer"
+                    },
+                    "images": {
+                        "type": "integer"
+                    },
+                    "containers": {
+                        "type": "integer"
+                    },
+                    "apps": {
+                        "type": "integer"
+                    },
+                    "users": {
+                        "type": "integer"
+                    },
+                    "report": {
+                        "type": "object",
+                        "properties": {
+                            "time": {
+                                "type": [
+                                    "string",
+                                    "null"
+                                ]
+                            },
+                            "findings": {
+                                "type": "array",
+                                "items": {
+                                    "type": "object",
+                                    "properties": {
+                                        "user": {
+                                            "type": "string"
+                                        },
+                                        "app": {
+                                            "type": "string"
+                                        },
+                                        "type": {
+                                            "type": "string"
+                                        },
+                                        "detail": {
+                                            "type": "string"
+                                        },
+                                        "repaired": {
+                                            "type": "boolean"
+                                        }
+                                    },
+                                    "required": [
+                                        "user",
+                                        "app",
+                                        "type",
+                                        "detail",
+                                        "repaired"
+                                    ]
+                                }
+                            }
+                        },
+                        "required": [
+                            "time",
+                            "findings"
+                        ]
+                    }
+                },
+                "required": [
+                    "installed",
+                    "running",
+                    "version",
+                    "compose_version",
+                    "data_root",
+                    "disk_used",
+                    "disk_free",
+                    "images",
+                    "containers",
+                    "apps",
+                    "users",
+                    "report"
+                ],
+                "title": "DockerEngine"
             },
             "DryRun": {
                 "type": "object",

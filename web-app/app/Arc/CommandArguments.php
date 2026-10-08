@@ -32,7 +32,7 @@ final class CommandArguments
         };
 
         if (str_contains($value, "\0") || str_contains($value, "\n") || str_contains($value, "\r")) {
-            throw ArcCommandException::refused($command, 'argument contains a control character');
+            throw ArcCommandException::invalidArgument($command, 'argument contains a control character');
         }
 
         return $value;

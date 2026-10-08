@@ -73,7 +73,6 @@ final class SnapshotFileEntryResource extends JsonResource
 
     /**
      * @param  array{type: string, linkType: string}  $entry
-     *
      * @return 'd'|'f'|'missing'|'o'|null
      */
     private static function linkType(array $entry): ?string
