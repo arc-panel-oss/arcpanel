@@ -372,7 +372,7 @@ async function confirmRestore() {
 /* ---------- Operations ---------- */
 
 /** Run an operation that may answer 409 with names; ask and run it again. */
-async function withConflicts(action, onDone) {
+async function withConflicts(action, onDone, failTitle = undefined) {
 	try {
 		await action(null);
 		onDone?.();
@@ -390,14 +390,14 @@ async function withConflicts(action, onDone) {
 						onDone?.();
 					} catch (inner) {
 						conflict.open = false;
-						api.fail(inner);
+						api.fail(inner, failTitle);
 					} finally {
 						conflict.busy = false;
 					}
 				},
 			});
 		} else {
-			api.fail(error);
+			api.fail(error, failTitle);
 		}
 	}
 }
@@ -516,6 +516,7 @@ function transfer(dest) {
 			api.toast('ok', move ? t('Moved to ~/%s', dest) : t('Copied to ~/%s', dest));
 			refresh();
 		},
+		move ? t('Could not move') : t('Could not copy'),
 	);
 }
 
@@ -616,18 +617,18 @@ function menuItems(entry) {
 	items.push({ action: 'download', label: single && !entry.dir ? t('Download') : t('Download as zip'), icon: 'download' });
 	if (manage) {
 		items.push({ separator: true });
-		if (single) items.push({ action: 'rename', label: t('Rename'), icon: 'edit', kbd: 'F2' });
-		items.push(
-			{ action: 'copy', label: t('Copy'), icon: 'copy', kbd: 'Ctrl C' },
-			{ action: 'cut', label: t('Cut'), icon: 'scissors', kbd: 'Ctrl X' },
-			{ action: 'copy-to', label: t('Copy to…'), icon: 'copy' },
-			{ action: 'move-to', label: t('Move to…'), icon: 'arrow' },
-			{ action: 'compress', label: t('Compress to zip'), icon: 'archive' },
-		);
-		if (single && !entry.dir && isExtractable(entry.name)) {
+		// Entries of a read-only folder can be copied, not renamed, moved or deleted
+		const change = canWriteHere.value;
+		if (single && change) items.push({ action: 'rename', label: t('Rename'), icon: 'edit', kbd: 'F2' });
+		items.push({ action: 'copy', label: t('Copy'), icon: 'copy', kbd: 'Ctrl C' });
+		if (change) items.push({ action: 'cut', label: t('Cut'), icon: 'scissors', kbd: 'Ctrl X' });
+		items.push({ action: 'copy-to', label: t('Copy to…'), icon: 'copy' });
+		if (change) items.push({ action: 'move-to', label: t('Move to…'), icon: 'arrow' }, { action: 'compress', label: t('Compress to zip'), icon: 'archive' });
+		if (change && single && !entry.dir && isExtractable(entry.name)) {
 			items.push({ action: 'extract-here', label: t('Extract here'), icon: 'archive' }, { action: 'extract-folder', label: t('Extract to a new folder'), icon: 'folder' });
 		}
-		items.push({ action: 'permissions', label: t('Permissions'), icon: 'lock' }, { separator: true }, { action: 'delete', label: t('Delete'), icon: 'trash', danger: true, kbd: 'Del' });
+		items.push({ action: 'permissions', label: t('Permissions'), icon: 'lock' });
+		if (change) items.push({ separator: true }, { action: 'delete', label: t('Delete'), icon: 'trash', danger: true, kbd: 'Del' });
 	}
 	return items;
 }
@@ -733,10 +734,10 @@ function onKeydown(event) {
 			if (path.value !== '') navigate(parentPath(path.value));
 			break;
 		case 'rename':
-			if (manage && selectedEntries.value.length === 1) askName('rename');
+			if (canWriteHere.value && selectedEntries.value.length === 1) askName('rename');
 			break;
 		case 'delete':
-			if (manage) askDelete();
+			if (canWriteHere.value) askDelete();
 			break;
 		case 'search':
 			document.getElementById('fm-search')?.focus();
@@ -748,8 +749,10 @@ function onKeydown(event) {
 			selected.value = names;
 			break;
 		case 'copy':
-		case 'cut':
 			if (manage) toClipboard(action);
+			break;
+		case 'cut':
+			if (canWriteHere.value) toClipboard(action);
 			break;
 		case 'paste':
 			paste();
@@ -878,23 +881,28 @@ onBeforeUnmount(() => {
 						<button type="button" class="ap-btn ap-btn-ghost ap-btn-sm" @click="askName('touch')"><ApIcon name="file" />{{ t('New file') }}</button>
 						<span class="ap-fm-sep"></span>
 					</template>
-					<button type="button" class="ap-btn ap-btn-icon ap-btn-ghost ap-btn-sm" :aria-label="t('Up one folder')" :disabled="path === ''" @click="navigate(parentPath(path))"><ApIcon name="arrow-up" /></button>
+					<button type="button" class="ap-btn ap-btn-icon ap-btn-ghost ap-btn-sm" :aria-label="t('Up one folder')" :title="t('Up one folder')" :disabled="path === ''" @click="navigate(parentPath(path))"><ApIcon name="arrow-up" /></button>
 					<template v-if="manage">
-						<button type="button" class="ap-btn ap-btn-icon ap-btn-ghost ap-btn-sm" :aria-label="t('Cut')" :disabled="selected.length === 0" @click="toClipboard('cut')"><ApIcon name="scissors" /></button>
-						<button type="button" class="ap-btn ap-btn-icon ap-btn-ghost ap-btn-sm" :aria-label="t('Copy')" :disabled="selected.length === 0" @click="toClipboard('copy')"><ApIcon name="copy" /></button>
-						<button type="button" class="ap-btn ap-btn-icon ap-btn-ghost ap-btn-sm" :aria-label="t('Paste')" :disabled="!clipboard || !canWriteHere" @click="paste"><ApIcon name="clipboard" /></button>
+						<button type="button" class="ap-btn ap-btn-icon ap-btn-ghost ap-btn-sm" :aria-label="t('Cut')" :title="t('Cut')" :disabled="selected.length === 0 || !canWriteHere" @click="toClipboard('cut')"><ApIcon name="scissors" /></button>
+						<button type="button" class="ap-btn ap-btn-icon ap-btn-ghost ap-btn-sm" :aria-label="t('Copy')" :title="t('Copy')" :disabled="selected.length === 0" @click="toClipboard('copy')"><ApIcon name="copy" /></button>
+						<button type="button" class="ap-btn ap-btn-icon ap-btn-ghost ap-btn-sm" :aria-label="t('Paste')" :title="t('Paste')" :disabled="!clipboard || !canWriteHere" @click="paste"><ApIcon name="clipboard" /></button>
 					</template>
-					<button v-if="!snapshot" type="button" class="ap-btn ap-btn-icon ap-btn-ghost ap-btn-sm" :aria-label="t('Download')" :disabled="selected.length === 0" @click="download()"><ApIcon name="download" /></button>
+					<button v-if="!snapshot" type="button" class="ap-btn ap-btn-icon ap-btn-ghost ap-btn-sm" :aria-label="t('Download')" :title="t('Download')" :disabled="selected.length === 0" @click="download()"><ApIcon name="download" /></button>
 					<button v-if="canRestore" type="button" class="ap-btn ap-btn-primary ap-btn-sm" :disabled="selected.length !== 1" @click="askRestore()"><ApIcon name="history" />{{ t('Restore') }}</button>
 					<template v-if="manage">
-						<button type="button" class="ap-btn ap-btn-icon ap-btn-ghost ap-btn-sm" :aria-label="t('Compress to zip')" :disabled="selected.length === 0 || !canWriteHere" @click="askName('compress')"><ApIcon name="archive" /></button>
-						<button type="button" class="ap-btn ap-btn-icon ap-btn-ghost ap-btn-sm" :aria-label="t('Rename')" :disabled="selected.length !== 1" @click="askName('rename')"><ApIcon name="edit" /></button>
-						<button type="button" class="ap-btn ap-btn-icon ap-btn-ghost ap-btn-sm" :aria-label="t('Permissions')" :disabled="selected.length === 0" @click="act('permissions')"><ApIcon name="lock" /></button>
-						<button type="button" class="ap-btn ap-btn-icon ap-btn-ghost ap-btn-sm" :aria-label="t('Delete')" :disabled="selected.length === 0" @click="askDelete()"><ApIcon name="trash" /></button>
+						<button type="button" class="ap-btn ap-btn-icon ap-btn-ghost ap-btn-sm" :aria-label="t('Compress to zip')" :title="t('Compress to zip')" :disabled="selected.length === 0 || !canWriteHere" @click="askName('compress')"><ApIcon name="archive" /></button>
+						<button type="button" class="ap-btn ap-btn-icon ap-btn-ghost ap-btn-sm" :aria-label="t('Rename')" :title="t('Rename')" :disabled="selected.length !== 1 || !canWriteHere" @click="askName('rename')"><ApIcon name="edit" /></button>
+						<button type="button" class="ap-btn ap-btn-icon ap-btn-ghost ap-btn-sm" :aria-label="t('Permissions')" :title="t('Permissions')" :disabled="selected.length === 0" @click="act('permissions')"><ApIcon name="lock" /></button>
+						<button type="button" class="ap-btn ap-btn-icon ap-btn-ghost ap-btn-sm" :aria-label="t('Delete')" :title="t('Delete')" :disabled="selected.length === 0 || !canWriteHere" @click="askDelete()"><ApIcon name="trash" /></button>
 					</template>
-					<button type="button" class="ap-btn ap-btn-icon ap-btn-ghost ap-btn-sm" :aria-label="t('Refresh')" @click="refresh()"><ApIcon name="refresh" /></button>
+					<button type="button" class="ap-btn ap-btn-icon ap-btn-ghost ap-btn-sm" :aria-label="t('Refresh')" :title="t('Refresh')" @click="refresh()"><ApIcon name="refresh" /></button>
 					<div class="ap-topbar-spacer"></div>
 					<label class="ap-check"><input type="checkbox" :checked="hidden" @change="toggleHidden" /><span>{{ t('Hidden files') }}</span></label>
+				</div>
+
+				<div v-if="manage && !canWriteHere && search.results === null" class="ap-fm-readonly" role="note">
+					<ApIcon name="lock" size="sm" />
+					<span>{{ t('This folder is read-only: you can open, copy and download what is in it, but not add, move, rename or delete. Your site files go in public_html.') }}</span>
 				</div>
 
 				<div class="ap-fm">
@@ -979,12 +987,12 @@ onBeforeUnmount(() => {
 						</template>
 					</div>
 
-					<FileAside v-if="!snapshot" :entries="selectedEntries" :path="path" :manage="manage" :edit-max="limits.editMax" :api="api" :t="t" @action="act" />
+					<FileAside v-if="!snapshot" :entries="selectedEntries" :path="path" :manage="manage" :can-write="canWriteHere" :edit-max="limits.editMax" :api="api" :t="t" @action="act" />
 				</div>
 
 				<div class="ap-fm-status">
 					<span>{{ t('%d items', total) }}<template v-if="selected.length > 0"> · {{ t('%d selected', selected.length) }} ({{ formatSize(selectionSize) }})</template></span>
-					<span v-if="!canWriteHere && manage" class="muted">{{ t('You cannot change this folder.') }}</span>
+					<span v-if="!canWriteHere && manage" class="muted"><ApIcon name="lock" size="sm" /> {{ t('Read-only folder') }}</span>
 					<div class="ap-topbar-spacer"></div>
 					<span v-if="snapshot"></span>
 					<span v-else-if="disk.quota !== null">
@@ -1044,6 +1052,8 @@ onBeforeUnmount(() => {
 			:title="picking.mode === 'move' ? t('Move to') : t('Copy to')"
 			:submit="picking.mode === 'move' ? t('Move here') : t('Copy here')"
 			:start="path"
+			:paths="selectedEntries.map(full)"
+			:move="picking.mode === 'move'"
 			:home="initial.user"
 			:api="api"
 			:busy="picking.busy"

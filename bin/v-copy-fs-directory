@@ -43,6 +43,9 @@ if [ ! -e "$src_dir" ]; then
 	exit 3
 fi
 
+# The folder that receives the copy must be writable
+fs_check_writable_target "$dst_dir"
+
 # Copying directory
 user_exec cp -rf -- "$src_dir" "$dst_dir" > /dev/null 2>&1
 if [ $? -ne 0 ]; then

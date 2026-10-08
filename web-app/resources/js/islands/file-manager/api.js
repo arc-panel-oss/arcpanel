@@ -70,8 +70,9 @@ export function createApi(base, t) {
 		compress: (paths, name) => post('compress', { paths, name }),
 		extract: (path, dest) => post('extract', { path, dest }),
 		download: (paths) => post('download', { paths }),
-		fail(error) {
-			toast('error', t('Something went wrong'), error instanceof Error ? error.message : String(error));
+		/** An error toast; TITLE names what failed ("Could not move") */
+		fail(error, title = undefined) {
+			toast('error', title ?? t('Something went wrong'), error instanceof Error ? error.message : String(error));
 		},
 		toast,
 	};

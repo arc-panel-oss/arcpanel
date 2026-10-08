@@ -155,6 +155,25 @@ it('asks before overwriting on copy, move and rename', function () {
     $this->postJson('/files/bob/api/delete', ['paths' => ['.']])->assertNotFound();
 });
 
+it('names a read-only folder in one line instead of the command error', function () {
+    signIn('bob', 'user');
+    $this->fake->on('v-list-fs-directory-json')->returns(json_encode(['TOTAL' => 0, 'OFFSET' => 0, 'ENTRIES' => []]));
+    $this->fake->on('v-get-fs-file-info')->returnsJson(['NAME' => 'a.txt', 'TYPE' => 'f']);
+    $this->fake->on('v-get-fs-file-info', fn ($a) => $a[1] === '/home/bob/web/example.com/a.txt')->returnsExit(ExitCode::NotExist);
+    $this->fake->on('v-move-fs-file')->returnsExit(ExitCode::Forbidden, 'Error: /home/bob/web/example.com is read-only');
+
+    $this->postJson('/files/bob/api/move', ['paths' => ['web/example.com/public_html/a.txt'], 'dest' => 'web/example.com'])
+        ->assertForbidden()
+        ->assertJsonPath('error.code', 'E_FORBIDEN')
+        ->assertJsonPath('error.message', '~/web/example.com is read-only.');
+
+    $this->fake->on('v-get-fs-file-info', fn ($a) => $a[1] === '/home/bob/new')->returnsExit(ExitCode::NotExist);
+    $this->fake->on('v-add-fs-directory')->returnsExit(ExitCode::Forbidden, 'Error: /home/bob is read-only');
+    $this->postJson('/files/bob/api/mkdir', ['path' => '', 'name' => 'new'])
+        ->assertForbidden()
+        ->assertJsonPath('error.message', '~ is read-only.');
+});
+
 it('uploads in chunks and hands the file off', function () {
     signIn('bob', 'user');
     $init = $this->postJson('/files/bob/api/upload', ['path' => 'web', 'name' => 'a.txt', 'size' => 5, 'lastModified' => 1])

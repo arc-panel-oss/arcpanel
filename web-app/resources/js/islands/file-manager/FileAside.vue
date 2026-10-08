@@ -9,6 +9,8 @@ const props = defineProps({
 	entries: { type: Array, required: true },
 	path: { type: String, required: true },
 	manage: { type: Boolean, default: false },
+	/** The open folder takes new files (drop hint) */
+	canWrite: { type: Boolean, default: false },
 	editMax: { type: Number, required: true },
 	api: { type: Object, required: true },
 	t: { type: Function, required: true },
@@ -109,7 +111,7 @@ const total = computed(() => props.entries.reduce((sum, item) => sum + (item.dir
 			<div class="ap-preview"><ApIcon name="folder" /></div>
 			<p class="muted">{{ t('Select a file or folder to see its details.') }}</p>
 		</template>
-		<div v-if="manage" class="ap-alert" role="note">
+		<div v-if="manage && canWrite" class="ap-alert" role="note">
 			<ApIcon name="info" size="sm" />
 			<div class="ap-alert-body"><p>{{ t('Drop files anywhere on the list to upload them here.') }}</p></div>
 		</div>

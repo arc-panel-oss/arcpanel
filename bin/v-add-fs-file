@@ -36,6 +36,9 @@ check_arcpanel_demo_mode
 # Checking destination path
 fs_check_path "$dst_file"
 
+# The folder that receives the file must be writable
+fs_check_writable_parent "$dst_file"
+
 # Creating file
 user_exec touch -- "$dst_file" > /dev/null 2>&1
 if [ $? -ne 0 ]; then

@@ -525,6 +525,63 @@ refuses_outside() {
     assert_dir_exists "$T/n1"
 }
 
+@test "File commands refuse a read-only folder with E_FORBIDEN and name it" {
+    # Like a domain folder of the hosting layout: the user's, mode 551, with a
+    # writable public_html inside
+    as_user sh -c "mkdir -p '$T/ro/public_html/d' && printf data > '$T/ro/public_html/f.txt' && printf x > '$T/ro/keep.txt'"
+    as_user sh -c "cd '$T/ro/public_html' && tar -czf a.tar.gz f.txt"
+    chmod 551 "$T/ro"
+
+    # Into the read-only folder: by name, or into it as a folder
+    run v-move-fs-file $U1 "$T/ro/public_html/f.txt" "$T/ro/f.txt"
+    assert_failure 10
+    assert_output "Error: $T/ro is read-only"
+    assert_file_exists "$T/ro/public_html/f.txt"
+    run v-move-fs-file $U1 "$T/ro/public_html/f.txt" "$T/ro"
+    assert_failure 10
+    run v-move-fs-directory $U1 "$T/ro/public_html/d" "$T/ro/d"
+    assert_failure 10
+    run v-copy-fs-file $U1 "$T/ro/public_html/f.txt" "$T/ro/copy.txt"
+    assert_failure 10
+    run v-copy-fs-directory $U1 "$T/ro/public_html/d" "$T/ro/dcopy"
+    assert_failure 10
+    run v-add-fs-file $U1 "$T/ro/new.txt"
+    assert_failure 10
+    run v-add-fs-directory $U1 "$T/ro/new/sub"
+    assert_failure 10
+    assert_output "Error: $T/ro is read-only"
+    run v-add-fs-archive $U1 "$T/ro/pack.tar.gz" "$T/ro/public_html/f.txt"
+    assert_failure 10
+    run v-extract-fs-archive $U1 "$T/ro/public_html/a.tar.gz" "$T/ro/out"
+    assert_failure 10
+    assert_file_not_exists "$T/ro/out"
+
+    # Out of the read-only folder
+    run v-move-fs-file $U1 "$T/ro/keep.txt" "$T/keep.txt"
+    assert_failure 10
+    run v-delete-fs-file $U1 "$T/ro/keep.txt"
+    assert_failure 10
+    assert_file_exists "$T/ro/keep.txt"
+    run v-delete-fs-directory $U1 "$T/ro/public_html"
+    assert_failure 10
+    assert_dir_exists "$T/ro/public_html"
+
+    # The home directory belongs to root
+    run v-add-fs-file $U1 "$H1/new.txt"
+    assert_failure 10
+    assert_output "Error: $H1 is read-only"
+
+    # A folder that exists already, and writable folders below, still work
+    run v-add-fs-directory $U1 "$T/ro/public_html"
+    assert_success
+    run v-move-fs-file $U1 "$T/ro/public_html/f.txt" "$T/ro/public_html/d"
+    assert_success
+    assert_file_exists "$T/ro/public_html/d/f.txt"
+    run v-extract-fs-archive $U1 "$T/ro/public_html/a.tar.gz" "$T/ro/public_html/out"
+    assert_success
+    chmod 751 "$T/ro"
+}
+
 @test "Extract unpacks zip, tar.gz, tgz, tar.bz2, tbz and tar.zst into a new folder" {
     as_user sh -c "mkdir -p '$T/src/sub'; printf hello > '$T/src/sub/a.txt'"
     as_user sh -c "cd '$T/src' && zip -qr ../a.zip . && tar -czf ../a.tar.gz . && tar -czf ../a.tgz . \

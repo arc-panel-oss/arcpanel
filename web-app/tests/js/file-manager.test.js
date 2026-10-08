@@ -16,6 +16,7 @@ import {
 	modeBits,
 	modeString,
 	parentPath,
+	pickRefusal,
 	previewKind,
 	quotaUse,
 	select,
@@ -42,6 +43,18 @@ describe('paths relative to the home directory', () => {
 		]);
 	});
 
+	it('refuses a destination that cannot take the entries', () => {
+		const pick = { dest: 'web/example.com/private', writable: true, source: 'web/example.com/public_html', paths: ['web/example.com/public_html/index.html'], move: true };
+		expect(pickRefusal(pick)).toBeNull();
+		expect(pickRefusal({ ...pick, dest: 'web/example.com', writable: false })).toBe('read-only');
+		expect(pickRefusal({ ...pick, writable: undefined })).toBeNull();
+		expect(pickRefusal({ ...pick, dest: 'web/example.com/public_html' })).toBe('same-folder');
+		expect(pickRefusal({ ...pick, dest: 'web/example.com/public_html', move: false })).toBeNull();
+		const folder = { ...pick, paths: ['web/example.com/public_html/assets'] };
+		expect(pickRefusal({ ...folder, dest: 'web/example.com/public_html/assets' })).toBe('inside');
+		expect(pickRefusal({ ...folder, dest: 'web/example.com/public_html/assets/img', move: false })).toBe('inside');
+		expect(pickRefusal({ ...folder, dest: 'web/example.com/public_html/assets2' })).toBeNull();
+	});
 	it('accepts the names the commands accept', () => {
 		for (const name of ['index.php', '.htaccess', 'tệp tin.txt', 'a (1).zip']) {
 			expect(isValidName(name), name).toBe(true);

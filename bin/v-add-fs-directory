@@ -36,6 +36,11 @@ check_arcpanel_demo_mode
 # Checking destination path: inside the home, missing parents allowed
 fs_check_new_path "$dst_dir"
 
+# The folder that receives a new directory must be writable
+if [ ! -d "$dst_dir" ]; then
+	fs_check_writable_parent "$dst_dir"
+fi
+
 # Adding directory
 user_exec mkdir -p -- "$dst_dir" > /dev/null 2>&1
 if [ $? -ne 0 ]; then

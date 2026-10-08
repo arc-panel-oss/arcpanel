@@ -53,7 +53,10 @@ final class FilePageController extends Controller
         'This file is too large to edit; download it instead.', 'This folder is empty.',
         'This link points outside the home directory and cannot be opened.', 'This name is not valid UTF-8; rename it over SSH or FTP.',
         'Unsaved changes', 'Up one folder', 'Upload', 'Upload a folder', 'Upload files', 'Upload progress', 'Uploaded', 'Uploaded as %s', 'Uploads',
-        'Video', 'View', 'Waiting', 'Who', 'Wrap lines', 'Write', 'You cannot change this folder.', 'You cannot open this folder.', 'Your changes to %s are not saved.',
+        'Video', 'View', 'Waiting', 'Who', 'Wrap lines', 'Write', 'You cannot open this folder.', 'Your changes to %s are not saved.',
+        'A folder cannot go inside itself.', 'Could not copy', 'Could not move', 'Read-only folder', 'The items are already in this folder.',
+        'This folder is read-only. Open a folder inside it, such as public_html.',
+        'This folder is read-only: you can open, copy and download what is in it, but not add, move, rename or delete. Your site files go in public_html.',
     ];
 
     public function __construct(

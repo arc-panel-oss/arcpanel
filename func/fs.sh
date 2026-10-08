@@ -174,6 +174,31 @@ fs_user_test() {
 	user_exec test "$@" 2> /dev/null
 }
 
+# The folder that gains or loses the entry PATH: the deepest existing folder
+# above it. Stops with E_FORBIDEN when the user cannot write there, such as
+# the home directory, ~/web or a domain folder, which the hosting layout
+# keeps read-only on purpose.
+fs_check_writable_parent() {
+	local dir
+	dir=$(dirname -- "$1")
+	while [ "$dir" != '/' ] && [ ! -e "$dir" ]; do
+		dir=$(dirname -- "$dir")
+	done
+	if ! fs_user_test -w "$dir" || ! fs_user_test -x "$dir"; then
+		check_result "$E_FORBIDEN" "$dir is read-only"
+	fi
+}
+
+# fs_check_writable_parent for a copy or move target: an existing folder
+# receives the entry itself, anything else is the new name.
+fs_check_writable_target() {
+	if [ -d "$1" ]; then
+		fs_check_writable_parent "$1/."
+	else
+		fs_check_writable_parent "$1"
+	fi
+}
+
 # Whether an error message means a full disk or an exhausted quota
 fs_is_disk_error() {
 	grep -qiE 'quota|no space|space left' <<< "$1"

@@ -45,6 +45,9 @@ if [ -e "$archive" ]; then
 	exit 1
 fi
 
+# The folder that receives the archive must be writable
+fs_check_writable_parent "$archive"
+
 # Checking source paths
 for src in "$@"; do
 	fs_check_path "$src"

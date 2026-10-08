@@ -39,6 +39,10 @@ if [ ! -f "$src_file" ]; then
 	exit 3
 fi
 
+# The folders that lose and receive the file must be writable
+fs_check_writable_parent "$src_file"
+fs_check_writable_target "$dst_file"
+
 # Moving file
 user_exec mv -- "$src_file" "$dst_file" > /dev/null 2>&1
 if [ $? -ne 0 ]; then

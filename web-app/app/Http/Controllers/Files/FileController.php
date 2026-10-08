@@ -258,7 +258,8 @@ final class FileController extends Controller
         try {
             $result = $action();
         } catch (ArcCommandException $e) {
-            throw UploadRefused::fromCommand($e);
+            $user = request()->route('user');
+            throw UploadRefused::fromCommand($e, is_string($user) ? $this->files->account($user)->home : null);
         }
 
         return response()->json($result ?? ['ok' => true], $status);

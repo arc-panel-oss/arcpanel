@@ -46,6 +46,11 @@ if [ ! -e "$src_file" ]; then
 	exit 3
 fi
 
+# The folder that receives the files must be writable (not for a test run)
+if [ -z "$test" ] || [ "$test" = 'no' ]; then
+	fs_check_writable_target "$dst_dir"
+fi
+
 rc=''
 
 if [ -n "$strip" ]; then

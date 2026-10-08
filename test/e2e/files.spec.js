@@ -368,6 +368,42 @@ test('rename, copy, move, delete, permissions, compress and extract ask instead 
 	await expect(row(page, 'site')).toHaveCount(0);
 });
 
+test('a read-only folder says so, and the folder picker refuses it before anything runs', async ({
+	page,
+}) => {
+	await login(page, USER);
+	await openFolder(page);
+
+	// The picker starts in the folder of the file, then the domain folder (551) is read-only
+	await row(page, 'edit.php').click({ button: 'right' });
+	await page.getByRole('menuitem', { name: 'Move to…' }).click();
+	const picker = page.getByRole('dialog', { name: 'Move to' });
+	await expect(picker.getByRole('status')).toHaveText('The items are already in this folder.');
+	await expect(picker.getByRole('button', { name: 'Move here' })).toBeDisabled();
+	await picker
+		.getByRole('navigation', { name: 'Destination folder' })
+		.getByRole('link', { name: SITE })
+		.click();
+	await expect(picker.getByRole('status')).toContainText('This folder is read-only');
+	await expect(picker.getByRole('button', { name: 'Move here' })).toBeDisabled();
+	await picker.getByRole('listitem').filter({ hasText: 'private' }).click();
+	await expect(picker.getByRole('button', { name: 'Move here' })).toBeEnabled();
+	await picker.getByRole('button', { name: 'Cancel' }).click();
+
+	// The domain folder itself: a note, no upload, entries can be copied but not deleted
+	await page.goto(`/files/${USER}?path=web/${SITE}`);
+	await expect(page.locator('[data-island="file-manager"][data-island-mounted]')).toBeVisible();
+	await expect(
+		page.getByRole('note').filter({ hasText: 'This folder is read-only' }),
+	).toBeVisible();
+	const actions = page.locator('.ap-fm-actions');
+	await expect(actions.getByRole('button', { name: 'Upload', exact: true })).toHaveCount(0);
+	await pick(page, 'private');
+	await expect(actions.getByRole('button', { name: 'Delete' })).toBeDisabled();
+	await expect(actions.getByRole('button', { name: 'Rename' })).toBeDisabled();
+	await expect(actions.getByRole('button', { name: 'Copy', exact: true })).toBeEnabled();
+});
+
 test('an administrator opens a customer document root from the web domain page', async ({
 	page,
 }) => {

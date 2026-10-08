@@ -36,6 +36,9 @@ check_arcpanel_demo_mode
 # Checking destination path
 fs_check_entry "$dst_file"
 
+# The folder that loses the file must be writable
+fs_check_writable_parent "$dst_file"
+
 # Deleting file
 user_exec rm -f -- "$dst_file" > /dev/null 2>&1
 if [ $? -ne 0 ]; then

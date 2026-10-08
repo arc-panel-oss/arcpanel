@@ -29,6 +29,27 @@ export function isInside(outer, inner) {
 }
 
 /**
+ * Why a copy or move cannot go into DEST, or null: the folder is read-only
+ * for the user (writable false; unknown counts as writable), a move into the
+ * folder the entries are already in, or a folder into itself.
+ *
+ * @param {{dest: string, writable?: boolean, source: string, paths: string[], move: boolean}} pick
+ * @returns {'read-only'|'same-folder'|'inside'|null}
+ */
+export function pickRefusal({ dest, writable, source, paths, move }) {
+	if (writable === false) {
+		return 'read-only';
+	}
+	if (move && dest === source) {
+		return 'same-folder';
+	}
+	if (paths.some((p) => isInside(p, dest))) {
+		return 'inside';
+	}
+	return null;
+}
+
+/**
  * Breadcrumb of a path: [{name, path}] from the home directory down.
  *
  * @param {string} path
