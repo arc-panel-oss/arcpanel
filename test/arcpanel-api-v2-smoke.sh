@@ -226,6 +226,15 @@ check "listWebDomains lists it" "$SMOKE_DOMAIN" "$(
 )"
 check "getWebDomain answers 200 for a v2-read key" 200 "$(call "$READER" GET "$WEB/$SMOKE_DOMAIN")"
 check "another user's domains answer 404" 404 "$(call "$READER" GET "/users/$ROOT_USER/web-domains")"
+# Logs (E37 spec §4.1)
+check "getWebDomainLogs answers 200 for a v2-read key" 200 "$(call "$READER" GET "$WEB/$SMOKE_DOMAIN/logs?lines=20")"
+check "getWebDomainLogs reads the error log by default" "error 20" "$(json '"\(.meta.type) \(.meta.lines)"')"
+check "getWebDomainLogs reads the access log" access "$(
+	call "$READER" GET "$WEB/$SMOKE_DOMAIN/logs?type=access" > /dev/null
+	json '.meta.type'
+)"
+check "getWebDomainLogs refuses 0 lines" 422 "$(call "$READER" GET "$WEB/$SMOKE_DOMAIN/logs?lines=0")"
+check "getWebDomainLogs answers 404 for an unknown domain" 404 "$(call "$READER" GET "$WEB/nope.$SMOKE_DOMAIN/logs")"
 if [ "$(grep "^POLICY_USER_EDIT_WEB_TEMPLATES=" "$CONF" | cut -d"'" -f2)" = yes ]; then
 	check "a user key changes templates with POLICY_USER_EDIT_WEB_TEMPLATES" 200 "$(call "$WRITER" PATCH "$WEB/$SMOKE_DOMAIN" '{"templates": {"web": "default"}}')"
 else

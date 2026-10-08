@@ -213,6 +213,7 @@ Route::middleware('effective-user')->group(function () {
     // Web domains (spec §6.3)
     Route::get('/users/{user}/web-domains', [WebDomainController::class, 'index'])->name('web-domains.index');
     Route::get('/users/{user}/web-domains/{domain}', [WebDomainController::class, 'show'])->name('web-domains.show');
+    Route::get('/users/{user}/web-domains/{domain}/logs', [WebDomainController::class, 'logs'])->name('web-domains.logs');
     Route::middleware('not-readonly')->prefix('/users/{user}/web-domains')->name('web-domains.')->group(function () {
         Route::post('/', [WebDomainController::class, 'store'])->name('store');
         Route::patch('/{domain}', [WebDomainController::class, 'update'])->name('update');

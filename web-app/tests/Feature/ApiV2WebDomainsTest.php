@@ -531,3 +531,67 @@ it('plans a Let’s Encrypt request, and refuses it to a v2-read key', function 
         ->assertJsonPath('error.commands', ['v-schedule-letsencrypt-domain']);
     $this->fake->assertNotRan('v-schedule-letsencrypt-domain');
 });
+
+// Logs (getWebDomainLogs, E37 spec §4.1)
+
+it('reads the logs of a domain inside the tree and answers 404 outside it', function (string $principal, string $role, string $owner, string $domain, int $status) {
+    $this->fake->on('v-list-web-domain-errorlog')->returns("[error] one\n");
+
+    $this->getJson("/api/v2/users/{$owner}/web-domains/{$domain}/logs", apiAs($this->fake, $principal, $role, readOnly: true))->assertStatus($status);
+    if ($status === 404) {
+        $this->fake->assertNotRan('v-list-web-domain-errorlog');
+    }
+})->with([
+    'admin, bob' => ['arcadmin', 'admin', 'bob', 'example.com', 200],
+    'admin, an unknown user' => ['arcadmin', 'admin', 'ghost', 'example.com', 404],
+    'reseller A, its customer' => ['hostco', 'reseller', 'bob', 'example.com', 200],
+    'reseller A, a customer of reseller B' => ['hostco', 'reseller', 'carol', 'carol.example', 404],
+    'reseller B, its customer' => ['resb', 'reseller', 'carol', 'carol.example', 200],
+    'reseller B, a customer of reseller A' => ['resb', 'reseller', 'bob', 'example.com', 404],
+    'user, itself' => ['bob', 'user', 'bob', 'example.com', 200],
+    'user, another user' => ['bob', 'user', 'carol', 'carol.example', 404],
+]);
+
+it('reads the last 200 lines of the error log by default', function () {
+    $this->fake->on('v-list-web-domain-errorlog')->returns("[error] one\n[error] two\n");
+
+    $this->getJson('/api/v2/users/bob/web-domains/example.com/logs', apiAs($this->fake, 'bob', 'user', readOnly: true))->assertOk()
+        ->assertExactJson(['data' => ['lines' => ['[error] one', '[error] two']], 'meta' => ['type' => 'error', 'lines' => 200]]);
+    $this->fake->assertRan('v-list-web-domain-errorlog', fn ($a) => $a === ['bob', 'example.com', '200']);
+    $this->fake->assertNotRan('v-list-web-domain-accesslog');
+});
+
+it('reads the access log with the asked number of lines', function (?string $area) {
+    $this->fake->on('v-list-web-domain-accesslog')->returns("10.0.0.1 - - \"GET / HTTP/1.1\" 200\n");
+
+    $this->getJson('/api/v2/users/bob/web-domains/example.com/logs?type=access&lines=50', apiAs($this->fake, 'bob', 'user', area: $area))->assertOk()
+        ->assertJsonPath('data.lines', ['10.0.0.1 - - "GET / HTTP/1.1" 200'])
+        ->assertJsonPath('meta', ['type' => 'access', 'lines' => 50]);
+    $this->fake->assertRan('v-list-web-domain-accesslog', fn ($a) => $a === ['bob', 'example.com', '50']);
+})->with('web keys');
+
+it('answers an empty log with no lines', function () {
+    $this->fake->on('v-list-web-domain-errorlog')->returns('');
+
+    $this->getJson('/api/v2/users/bob/web-domains/example.com/logs', apiAs($this->fake, 'bob', 'user', readOnly: true))->assertOk()
+        ->assertJsonPath('data.lines', []);
+});
+
+it('validates the type and the number of lines and runs nothing', function (string $query, string $field) {
+    $this->getJson("/api/v2/users/bob/web-domains/example.com/logs?{$query}", apiAs($this->fake, 'bob', 'user', readOnly: true))->assertUnprocessable()
+        ->assertJsonPath('error.code', 'E_VALIDATION')
+        ->assertJsonStructure(['error' => ['fields' => [$field]]]);
+    $this->fake->assertNotRan('v-list-web-domain-errorlog');
+    $this->fake->assertNotRan('v-list-web-domain-accesslog');
+})->with([
+    'unknown type' => ['type=debug', 'type'],
+    'no lines' => ['lines=0', 'lines'],
+    'too many lines' => ['lines=1001', 'lines'],
+    'lines not a number' => ['lines=many', 'lines'],
+]);
+
+it('answers 404 for an unknown domain without reading a log', function () {
+    $this->getJson('/api/v2/users/bob/web-domains/nope.example/logs', apiAs($this->fake, 'bob', 'user', readOnly: true))->assertNotFound()
+        ->assertJsonPath('error.code', 'E_NOTEXIST');
+    $this->fake->assertNotRan('v-list-web-domain-errorlog');
+});

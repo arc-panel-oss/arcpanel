@@ -22508,6 +22508,119 @@
                 }
             }
         },
+        "/users/{user}/web-domains/{domain}/logs": {
+            "get": {
+                "operationId": "getWebDomainLogs",
+                "description": "The error log by default, or the access log with `type=access`; the\nnewest line comes last (E37 spec §4.1).",
+                "summary": "Read the last lines of a web domain log",
+                "tags": [
+                    "Web domains"
+                ],
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "domain",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "type",
+                        "in": "query",
+                        "description": "Which log to read.",
+                        "schema": {
+                            "type": "string",
+                            "enum": [
+                                "error",
+                                "access"
+                            ],
+                            "default": "error"
+                        }
+                    },
+                    {
+                        "name": "lines",
+                        "in": "query",
+                        "description": "Number of lines to return (1–1000). Defaults to 200.",
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 1000,
+                            "default": 200
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "The last lines of the log, the newest last (E37 spec §4.1).",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "object",
+                                            "properties": {
+                                                "lines": {
+                                                    "type": "array",
+                                                    "items": {
+                                                        "type": "string"
+                                                    }
+                                                }
+                                            },
+                                            "required": [
+                                                "lines"
+                                            ]
+                                        },
+                                        "meta": {
+                                            "$ref": "#/components/schemas/WebDomainLogMeta"
+                                        }
+                                    },
+                                    "required": [
+                                        "data",
+                                        "meta"
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    }
+                }
+            }
+        },
         "/users/{user}/web-domains/{domain}/purge-cache": {
             "post": {
                 "operationId": "purgeWebDomainCache",
@@ -31781,6 +31894,28 @@
                     "alias"
                 ],
                 "title": "WebDomainAliasRequest"
+            },
+            "WebDomainLogMeta": {
+                "type": "object",
+                "description": "The log that was read and the number of lines asked for (E37 spec §4.1).",
+                "properties": {
+                    "type": {
+                        "type": "string",
+                        "enum": [
+                            "error",
+                            "access"
+                        ]
+                    },
+                    "lines": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 1000
+                    }
+                },
+                "required": [
+                    "type",
+                    "lines"
+                ]
             },
             "WebDomainSslRequest": {
                 "type": "object",

@@ -131,6 +131,31 @@ final class WebDomainController extends Controller
     }
 
     /**
+     * Read the last lines of a web domain log
+     *
+     * The error log by default, or the access log with `type=access`; the
+     * newest line comes last (E37 spec §4.1).
+     *
+     * @operationId getWebDomainLogs
+     */
+    public function logs(Request $request, string $user, string $domain, Principal $principal, WebDomainPolicy $policy): JsonResponse
+    {
+        $this->assertOwner($user, $principal, $policy);
+        $data = $request->validate([
+            'type' => ['nullable', 'in:error,access'],
+            'lines' => ['nullable', 'integer', 'min:1', 'max:1000'],
+        ]);
+        $this->web->find($user, $domain);
+        $type = (string) ($data['type'] ?? 'error');
+        $lines = (int) ($data['lines'] ?? 200);
+
+        return response()->json([
+            'data' => ['lines' => $this->web->log($user, $domain, $type, $lines)],
+            'meta' => ['type' => $type, 'lines' => $lines],
+        ]);
+    }
+
+    /**
      * Update a web domain
      *
      * The IP address, the document root and, with the right to change

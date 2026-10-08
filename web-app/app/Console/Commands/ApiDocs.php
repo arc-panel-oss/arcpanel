@@ -392,6 +392,7 @@ final class ApiDocs extends Command
             unset($responses['202']['headers']['Location']);
             $responses['202']['headers']['Link'] = ['$ref' => '#/components/headers/Link'];
         }
+        self::tailorWebDomainOpenApi($operationId, $operation, $responses);
         self::tailorNodeAppOpenApi($operationId, $operation, $responses);
         self::tailorDockerAppOpenApi($operationId, $operation, $responses);
         self::tailorPortOpenApi($operationId, $operation, $responses);
@@ -1085,6 +1086,54 @@ final class ApiDocs extends Command
         ];
     }
 
+    /**
+     * @param  array<string, mixed>  $operation
+     * @param  array<string, mixed>  $responses
+     */
+    private static function tailorWebDomainOpenApi(string $operationId, array &$operation, array &$responses): void
+    {
+        if ($operationId !== 'getWebDomainLogs') {
+            return;
+        }
+        // The rules are inferred as nullable without a default: describe them as the client sees them
+        $inferred = array_filter($operation['parameters'] ?? [], fn (array $p) => ! (($p['in'] ?? '') === 'query' && in_array($p['name'] ?? '', ['type', 'lines'], true)));
+        $operation['parameters'] = [...array_values($inferred), ...self::webDomainLogParameters()];
+        if (isset($responses['200'])) {
+            $responses['200']['description'] = 'The last lines of the log, the newest last (E37 spec §4.1).';
+            $responses['200']['content']['application/json']['schema'] = [
+                'type' => 'object',
+                'properties' => [
+                    'data' => [
+                        'type' => 'object',
+                        'properties' => ['lines' => ['type' => 'array', 'items' => ['type' => 'string']]],
+                        'required' => ['lines'],
+                    ],
+                    'meta' => ['$ref' => '#/components/schemas/WebDomainLogMeta'],
+                ],
+                'required' => ['data', 'meta'],
+            ];
+        }
+    }
+
+    /** @return list<array<string, mixed>> */
+    private static function webDomainLogParameters(): array
+    {
+        return [
+            [
+                'name' => 'type',
+                'in' => 'query',
+                'description' => 'Which log to read.',
+                'schema' => ['type' => 'string', 'enum' => ['error', 'access'], 'default' => 'error'],
+            ],
+            [
+                'name' => 'lines',
+                'in' => 'query',
+                'description' => 'Number of lines to return (1–1000). Defaults to 200.',
+                'schema' => ['type' => 'integer', 'minimum' => 1, 'maximum' => 1000, 'default' => 200],
+            ],
+        ];
+    }
+
     /** @return list<array<string, mixed>> */
     private static function nodeAppLogParameters(): array
     {
@@ -1358,6 +1407,15 @@ final class ApiDocs extends Command
                     'truncated' => ['type' => 'boolean', 'description' => 'Whether more than 500 entries matched.'],
                 ],
                 'required' => ['truncated'],
+            ],
+            'WebDomainLogMeta' => [
+                'type' => 'object',
+                'description' => 'The log that was read and the number of lines asked for (E37 spec §4.1).',
+                'properties' => [
+                    'type' => ['type' => 'string', 'enum' => ['error', 'access']],
+                    'lines' => ['type' => 'integer', 'minimum' => 1, 'maximum' => 1000],
+                ],
+                'required' => ['type', 'lines'],
             ],
             'DockerAppLogMeta' => [
                 'type' => 'object',
