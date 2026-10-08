@@ -58,3 +58,6 @@ Thumbs.db
 
 # Coverage reports
 coverage/
+
+# One-off verification scripts of agents
+test/scratch/
