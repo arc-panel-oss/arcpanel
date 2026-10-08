@@ -15,6 +15,9 @@
 # Batch 5 uploads 16 MiB of random bytes in three chunks and downloads them
 # again as a zip; it skips the file checks when FILE_MANAGER is off.
 #
+# Batch 6 adds and deletes a firewall rule (when FIREWALL_SYSTEM is on) and
+# restarts the cron service; it changes no server setting.
+#
 # Run as root on a test server, never on production.
 
 set -euo pipefail
@@ -27,6 +30,7 @@ SMOKE_USER="arcsmoke$RANDOM"
 SMOKE_PACKAGE="arcsmoke-pkg$RANDOM"
 APPS_USER="${SMOKE_USER}a"
 FILES_USER="${SMOKE_USER}f"
+ACCOUNTS_USER="${SMOKE_USER}c"
 APPS_PACKAGE="$SMOKE_PACKAGE-apps"
 SMOKE_PASS="$(head -c 18 /dev/urandom | base64 | tr -dc 'A-Za-z0-9' | head -c 20)Aa1"
 ROOT_USER=$(grep "^ROOT_USER=" "$CONF" | cut -d"'" -f2)
@@ -35,7 +39,6 @@ OLD_API_ALLOWED_IP=$(grep "^API_ALLOWED_IP=" "$CONF" | cut -d"'" -f2 || true)
 BODY="$(mktemp)"
 CERT_DIR="$(mktemp -d)"
 FILES_DIR="$(mktemp -d)"
-KEYS=()
 failures=0
 
 # The panel caches arcpanel.conf for a minute
@@ -53,13 +56,20 @@ cleanup() {
 	fi
 	"$ARCPANEL/bin/v-delete-user" "$APPS_USER" > /dev/null 2>&1 || true
 	"$ARCPANEL/bin/v-delete-user" "$FILES_USER" > /dev/null 2>&1 || true
+	"$ARCPANEL/bin/v-delete-user" "$ACCOUNTS_USER" > /dev/null 2>&1 || true
+	# A firewall rule left by a failed run (the last one first: ids are positions)
+	for rule in $("$ARCPANEL/bin/v-list-firewall" json 2> /dev/null | jq -r 'to_entries[] | select(.value.COMMENT == "arcsmoke") | .key' | sort -rn); do
+		"$ARCPANEL/bin/v-delete-firewall-rule" "$rule" > /dev/null 2>&1 || true
+	done
 	rm -f "/etc/logrotate.d/arcpanel-node-$APPS_USER"
 	for package in "$SMOKE_PACKAGE" "$SMOKE_PACKAGE-copy" "$APPS_PACKAGE"; do
 		"$ARCPANEL/bin/v-delete-user-package" "$package" > /dev/null 2>&1 || true
 		"$ARCPANEL/bin/v-delete-package-tenancy" "$package" > /dev/null 2>&1 || true
 	done
-	for key in "${KEYS[@]}"; do
-		"$ARCPANEL/bin/v-delete-access-key" "${key%%:*}" > /dev/null 2>&1 || true
+	# new_key runs in a command substitution and cannot record its keys: those of the
+	# root administrator are found by their comment (the others go with their users)
+	for key in $("$ARCPANEL/bin/v-list-access-keys" "$ROOT_USER" json 2> /dev/null | jq -r '.[] | select(.COMMENT == "arcsmoke") | .ACCESS_KEY_ID'); do
+		"$ARCPANEL/bin/v-delete-access-key" "$key" > /dev/null 2>&1 || true
 	done
 	"$ARCPANEL/bin/v-change-sys-config-value" API_SYSTEM "${OLD_API_SYSTEM:-0}"
 	"$ARCPANEL/bin/v-change-sys-config-value" API_ALLOWED_IP "$OLD_API_ALLOWED_IP"
@@ -86,7 +96,6 @@ check() {
 new_key() {
 	local key
 	key=$("$ARCPANEL/bin/v-add-access-key" "$1" "$2" arcsmoke json | jq -r '"\(.ACCESS_KEY_ID):\(.SECRET_ACCESS_KEY)"')
-	KEYS+=("$key")
 	echo "$key"
 }
 
@@ -501,6 +510,90 @@ else
 	if [ -e "$FILES_HOME/tmp/arcsmoke" ]; then fail "the folder is still there"; else ok "the folder is gone"; fi
 	check "the files user is deleted" 204 "$(call "$ADMIN" DELETE "/users/$FILES_USER")"
 fi
+
+# Batch 6: account and server (spec 2026-10-08-004 §7)
+check "a user for the account endpoints" 201 "$(call "$ADMIN" POST /users "{\"username\": \"$ACCOUNTS_USER\", \"password\": \"$SMOKE_PASS\", \"email\": \"$ACCOUNTS_USER@example.invalid\", \"name\": \"Smoke Accounts\", \"package\": \"default\"}")"
+ACCOUNTS="/users/$ACCOUNTS_USER"
+ACCOUNTS_KEY=$(new_key "$ACCOUNTS_USER" v2-read,v2-accounts)
+
+# Logs and statistics (§4.1, §4.2)
+check "listUserLogs answers 200" 200 "$(call "$ACCOUNTS_KEY" GET "$ACCOUNTS/logs?limit=5")"
+check "the logs are a list" array "$(json '.data | type')"
+check "the logs page has its limit" 5 "$(json .meta.limit)"
+check "listUserAuthLogs answers 200" 200 "$(call "$ACCOUNTS_KEY" GET "$ACCOUNTS/auth-logs")"
+check "listUserStats answers 200" 200 "$(call "$ACCOUNTS_KEY" GET "$ACCOUNTS/stats")"
+check "listStats answers 200 to the administrator" 200 "$(call "$ADMIN" GET /stats)"
+check "listStats answers 403 to a user" 403 "$(call "$ACCOUNTS_KEY" GET /stats)"
+
+# Notifications (§4.3)
+"$ARCPANEL/bin/v-add-user-notification" "$ACCOUNTS_USER" 'Arcsmoke notice' 'A notice of the API v2 smoke test.'
+check "listNotifications answers 200" 200 "$(call "$ACCOUNTS_KEY" GET /notifications)"
+NOTICE_ID="$(json '[.data[] | select(.title == "Arcsmoke notice")][0].id')"
+check "the notice is not acknowledged" false "$(json "[.data[] | select(.id == ${NOTICE_ID:-0})][0].acknowledged")"
+check "acknowledgeNotification answers 204" 204 "$(call "$ACCOUNTS_KEY" POST "/notifications/$NOTICE_ID/acknowledge")"
+check "the notice is acknowledged" true "$(
+	call "$ACCOUNTS_KEY" GET /notifications > /dev/null
+	json "[.data[] | select(.id == ${NOTICE_ID:-0})][0].acknowledged"
+)"
+check "deleteNotification answers 204" 204 "$(call "$ACCOUNTS_KEY" DELETE "/notifications/$NOTICE_ID")"
+
+# SSH keys (§4.4)
+ssh-keygen -q -t ed25519 -N '' -C arcsmoke@smoke.test -f "$FILES_DIR/smoke_ed25519"
+ssh_json="$(jq -n --arg key "$(cat "$FILES_DIR/smoke_ed25519.pub")" '{key: $key}')"
+check "addSshKey answers 201" 201 "$(call "$ACCOUNTS_KEY" POST "$ACCOUNTS/ssh-keys" "$ssh_json")"
+check "the same key again answers 409" 409 "$(call "$ACCOUNTS_KEY" POST "$ACCOUNTS/ssh-keys" "$ssh_json")"
+check "listSshKeys holds the key" 1 "$(
+	call "$ACCOUNTS_KEY" GET "$ACCOUNTS/ssh-keys" > /dev/null
+	json '[.data[] | select(.id == "arcsmoke@smoke.test")] | length'
+)"
+check "deleteSshKey answers 204" 204 "$(call "$ACCOUNTS_KEY" DELETE "$ACCOUNTS/ssh-keys/arcsmoke%40smoke.test")"
+
+# Access keys (§4.6, D62): a v2-read+v2-accounts key gives a v2-read key, which deletes itself
+check "createAccessKey answers 201" 201 "$(call "$ACCOUNTS_KEY" POST "$ACCOUNTS/access-keys" '{"permissions": ["v2-read"], "comment": "arcsmoke-child"}')"
+CHILD_KEY="$(json '"\(.data.id):\(.data.secret)"')"
+check "the new key holds v2-read" v2-read "$(json '.data.permissions | join(",")')"
+check "a set the key does not hold answers 403" 403 "$(call "$ACCOUNTS_KEY" POST "$ACCOUNTS/access-keys" '{"permissions": ["v2-web"], "comment": "arcsmoke-refused"}')"
+check "listAccessKeys never holds a secret" false "$(
+	call "$ACCOUNTS_KEY" GET "$ACCOUNTS/access-keys" > /dev/null
+	json '[.data[] | has("secret")] | any'
+)"
+check "the new key reads its account" 200 "$(call "$CHILD_KEY" GET "$ACCOUNTS")"
+check "the new key deletes itself" 204 "$(call "$CHILD_KEY" DELETE "$ACCOUNTS/access-keys/${CHILD_KEY%%:*}")"
+check "the deleted key answers 401" 401 "$(call "$CHILD_KEY" GET /me)"
+
+# Firewall rules (§5.3, D59): ids are positions
+if [ -z "$(conf_value FIREWALL_SYSTEM)" ]; then
+	skip "firewall: FIREWALL_SYSTEM is off on this server"
+else
+	rule_json='{"action": "ACCEPT", "protocol": "TCP", "port": "65001", "source": "192.0.2.10", "comment": "arcsmoke"}'
+	check "createFirewallRule answers 201" 201 "$(call "$ADMIN" POST /system/firewall/rules "$rule_json")"
+	RULE_ID="$(json .data.id)"
+	check "the same rule again answers 409" 409 "$(call "$ADMIN" POST /system/firewall/rules "$rule_json")"
+	check "moveFirewallRule up answers 200" 200 "$(call "$ADMIN" POST "/system/firewall/rules/$RULE_ID/move" '{"direction": "up"}')"
+	check "the moved rule takes the position before" "$((RULE_ID - 1))" "$(json .data.id)"
+	check "deleteFirewallRule answers 204" 204 "$(call "$ADMIN" DELETE "/system/firewall/rules/$((RULE_ID - 1))")"
+	check "the rule is gone" 0 "$("$ARCPANEL/bin/v-list-firewall" json | jq '[.[] | select(.COMMENT == "arcsmoke")] | length')"
+fi
+
+# Services (§5.1)
+if "$ARCPANEL/bin/v-list-sys-services" json | jq -e 'has("cron")' > /dev/null; then
+	check "restartService cron answers 200" 200 "$(call "$ADMIN" POST /system/services/cron/restart)"
+	check "cron runs again" true "$(json .data.running)"
+else
+	skip "services: this server lists no cron service"
+fi
+check "stopService of arcpanel answers 403" 403 "$(call "$ADMIN" POST /system/services/arcpanel/stop)"
+
+# Server settings (§5.7, D58): no secret in the answer; stored values are compared here, never printed
+check "getServerSettings answers 200" 200 "$(call "$ADMIN" GET /system/settings)"
+check "the settings hold no PHPMYADMIN_KEY field" false "$(json '[.. | objects | has("PHPMYADMIN_KEY")] | any')"
+pma_key="$(conf_value PHPMYADMIN_KEY)"
+if [ -n "$pma_key" ] && grep -qF -- "$pma_key" "$BODY"; then fail "the settings hold the phpMyAdmin key"; else ok "the settings hold no phpMyAdmin key"; fi
+if grep -q 'PRIVATE KEY' "$BODY"; then fail "the settings hold a private key"; else ok "the settings hold no private key"; fi
+check "the panel key answers a set flag" boolean "$(json '.data.ssl.key.set | type')"
+check "a key may not change the API switches" 403 "$(call "$ADMIN" PATCH /system/settings/security '{"API_SYSTEM": "0"}')"
+
+check "the accounts user is deleted" 204 "$(call "$ADMIN" DELETE "$ACCOUNTS")"
 
 if [ "$failures" -gt 0 ]; then
 	echo "$failures check(s) failed"

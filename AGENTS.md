@@ -14,7 +14,7 @@ ArcPanel is an open-source Linux hosting control panel based on **HestiaCP 1.10.
 
 Three roles exist: **admin** (server owner), **reseller** (owns a tree of customers inside its own package limits) and **user** (hosting customer). Every page and command is owner-scoped from the start.
 
-The current state of each epic is in [docs/roadmap.md](docs/roadmap.md). As of 2026-10-07 these are implemented:
+The current state of each epic is in [docs/roadmap.md](docs/roadmap.md). As of 2026-10-08 these are implemented:
 
 - E1 (Laravel foundation, slices S1–S2, which also deliver the E2 design system and shell) and E9 (rebranding; the release infrastructure is still open).
 - E11 (resellers) and E12 (port registry).
@@ -24,7 +24,7 @@ The current state of each epic is in [docs/roadmap.md](docs/roadmap.md). As of 2
 - E7 batch 1 (Databases, Cron, DNS, Mail and Backups, with the restic snapshot browser), batch 2 (Firewall, IPs, access and SSH keys, logs, statistics and graphs, web terminal, Quick Install run in the background) and batch 3 (Services, Server settings, config editors, Updates, password and 2FA reset, Search, CSR generator).
 - E8 (legacy retirement, [spec](docs/features/specs/2026-10-06-004-e8-legacy-retirement-design.md)): the panel app at the root URL, `web/` deleted and its still-used pieces in `lib/`, FileGator removed, version 2.0.0. Publishing the release waits for the E9 release infrastructure.
 - E9 R5 (full rename and hard fork, [spec](docs/features/specs/2026-10-06-005-e9-full-rename-design.md)): in progress; `develop` installs again when its milestone M8 passes.
-- E29, the OpenAPI document of REST API v1 ([spec](docs/features/specs/2026-10-07-001-e29-openapi-design.md)), and E34 batches 1 to 5, REST API v2 under `/api/v2/` in the panel app with users, packages, web domains, DNS, mail, databases and cron, tasks and backups, Node.js, Docker apps and ports, and files with uploads and downloads ([spec](docs/features/specs/2026-10-07-002-e34-api-v2-design.md), [batch 2](docs/features/specs/2026-10-07-003-e34-api-v2-batch2-design.md), [batch 3](docs/features/specs/2026-10-08-001-e34-api-v2-batch3-design.md), [batch 4](docs/features/specs/2026-10-08-002-e34-api-v2-batch4-design.md), [batch 5](docs/features/specs/2026-10-08-003-e34-api-v2-batch5-design.md)).
+- E29, the OpenAPI document of REST API v1 ([spec](docs/features/specs/2026-10-07-001-e29-openapi-design.md)), and E34, REST API v2 under `/api/v2/` in the panel app, complete: users, packages, web domains, DNS, mail, databases and cron, tasks and backups, Node.js, Docker apps and ports, files with uploads and downloads, and the account and server endpoints of batch 6; only what D23 of batch 2 excludes stays on the pages ([spec](docs/features/specs/2026-10-07-002-e34-api-v2-design.md), [batch 2](docs/features/specs/2026-10-07-003-e34-api-v2-batch2-design.md), [batch 3](docs/features/specs/2026-10-08-001-e34-api-v2-batch3-design.md), [batch 4](docs/features/specs/2026-10-08-002-e34-api-v2-batch4-design.md), [batch 5](docs/features/specs/2026-10-08-003-e34-api-v2-batch5-design.md), [batch 6](docs/features/specs/2026-10-08-004-e34-api-v2-batch6-design.md)).
 
 The rest is design.
 
