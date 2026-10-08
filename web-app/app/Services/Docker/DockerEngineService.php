@@ -4,6 +4,9 @@ namespace App\Services\Docker;
 
 use App\Arc\ArcCommand;
 use App\Arc\SysConfig;
+use App\Services\Support\PlanRunner;
+use App\Services\WebDomains\ApplyResult;
+use App\Services\WebDomains\Step;
 
 /**
  * The Docker engine of the server (E4 spec §5.6, §6.1): its state with the
@@ -14,6 +17,7 @@ final class DockerEngineService
     public function __construct(
         private readonly ArcCommand $arc,
         private readonly SysConfig $config,
+        private readonly PlanRunner $plans,
     ) {}
 
     /** @return array<string, mixed> */
@@ -53,12 +57,28 @@ final class DockerEngineService
         ];
     }
 
+    public function planInstall(): Step
+    {
+        return new Step(__('Install Docker engine'), 'v-start-sys-docker-task', []);
+    }
+
+    /** @param  list<Step>  $steps */
+    public function apply(array $steps): ApplyResult
+    {
+        return $this->plans->apply($steps);
+    }
+
+    /** Forget the sys-config cache of DOCKER_SYSTEM (install start and task end). */
+    public function forgetConfigCache(): void
+    {
+        $this->config->forget();
+    }
+
     /** Start the installation of the engine; returns the task ID. */
     public function startInstall(): string
     {
         $id = trim($this->arc->run('v-start-sys-docker-task')->stdout);
-        // DOCKER_SYSTEM changes when the task ends
-        $this->config->forget();
+        $this->forgetConfigCache();
 
         return $id;
     }
@@ -67,7 +87,7 @@ final class DockerEngineService
     {
         $task = DockerTask::from($this->arc->json('v-list-sys-docker-task', [(string) $offset]));
         if ($task->status === 'done' && ! $this->config->is('DOCKER_SYSTEM')) {
-            $this->config->forget();
+            $this->forgetConfigCache();
         }
 
         return $task;

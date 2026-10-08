@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\V2\DatabaseController;
 use App\Http\Controllers\Api\V2\DnsController;
 use App\Http\Controllers\Api\V2\DockerAppController;
 use App\Http\Controllers\Api\V2\DockerCatalogController;
+use App\Http\Controllers\Api\V2\DockerEngineController;
 use App\Http\Controllers\Api\V2\MailAccountController;
 use App\Http\Controllers\Api\V2\MailDomainController;
 use App\Http\Controllers\Api\V2\MeController;
@@ -44,6 +45,9 @@ Route::get('/docker-catalog/{slug}', [DockerCatalogController::class, 'show'])->
 
 Route::get('/tasks/{id}', [TaskController::class, 'show'])->where('id', '.+')->defaults('api_area', 'backup')->name('tasks.show');
 Route::get('/system/tasks', [TaskController::class, 'system'])->defaults('api_area', 'backup')->name('system.tasks.index');
+
+Route::get('/system/docker', [DockerEngineController::class, 'show'])->defaults('api_area', 'server')->name('system.docker.show');
+Route::post('/system/docker/install', [DockerEngineController::class, 'install'])->middleware('not-readonly')->defaults('api_area', 'server')->name('system.docker.install');
 
 // Users (spec §6.1); {user} outside the principal's tree answers 404
 Route::get('/users', [UserController::class, 'index'])->name('users.index');
@@ -254,6 +258,7 @@ foreach (Route::getRoutes() as $route) {
         str_contains($uri, '/cron-jobs'), str_contains($uri, '/cron-reports') => 'cron',
         str_contains($uri, '/backups'), str_contains($uri, '/snapshots'), str_contains($uri, '/backup-exclusions') => 'backup',
         str_contains($uri, '/tasks') => 'backup',
+        str_contains($uri, '/system/docker') || str_contains($uri, '/system/ports') => 'server',
         str_contains($uri, '/docker-catalog') || str_contains($uri, '/docker-apps') => 'apps',
         str_contains($uri, '/node') => 'apps',
         str_starts_with($uri, 'api/v2/users'), str_starts_with($uri, 'api/v2/packages') => 'accounts',
