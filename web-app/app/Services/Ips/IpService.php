@@ -57,7 +57,27 @@ final class IpService
      */
     public function create(string $ip, string $netmask, string $interface, string $owner, bool $shared, string $name, string $nat): CommandResult
     {
-        return $this->arc->run('v-add-sys-ip', [$ip, $netmask, $interface, $owner, $shared ? 'shared' : 'dedicated', $name, $nat], Options::allowFailure());
+        $step = self::planCreate($ip, $netmask, $interface, $owner, $shared, $name, $nat);
+
+        return $this->arc->run($step->command, $step->args, Options::allowFailure());
+    }
+
+    /** The step of create(), for REST API v2 (E34 batch 6 §5.2). */
+    public static function planCreate(string $ip, string $netmask, string $interface, string $owner, bool $shared, string $name, string $nat): Step
+    {
+        return new Step(sprintf(__('Add IP address %s'), $ip), 'v-add-sys-ip', [$ip, $netmask, $interface, $owner, $shared ? 'shared' : 'dedicated', $name, $nat]);
+    }
+
+    /** The step of a single delete (`v-delete-sys-ip IP`). */
+    public static function planDelete(string $ip): Step
+    {
+        return new Step(sprintf(__('Delete IP address %s'), $ip), 'v-delete-sys-ip', [$ip]);
+    }
+
+    /** The step of refresh() (`v-update-sys-ip`). */
+    public static function planRefresh(): Step
+    {
+        return new Step(__('Refresh the IP addresses'), 'v-update-sys-ip', []);
     }
 
     /**

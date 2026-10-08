@@ -18,6 +18,8 @@ final class SystemIp
         public readonly string $domains,
         public readonly string $date,
         public readonly string $time,
+        /** @var list<string> accounts that use the address (U_SYS_USERS) */
+        public readonly array $users = [],
     ) {}
 
     /** @param  array<string, mixed>  $row */
@@ -34,6 +36,7 @@ final class SystemIp
             domains: (string) ($row['U_WEB_DOMAINS'] ?? '0'),
             date: (string) ($row['DATE'] ?? ''),
             time: (string) ($row['TIME'] ?? ''),
+            users: array_values(array_filter(explode(',', (string) ($row['U_SYS_USERS'] ?? '')), fn (string $user) => $user !== '')),
         );
     }
 

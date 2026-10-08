@@ -5,13 +5,13 @@ namespace App\Http\Controllers\Server;
 use App\Auth\Principal;
 use App\Http\Controllers\Controller;
 use App\Policies\ServerPolicy;
+use App\Services\Server\ServiceActions;
 use App\Services\Server\ServiceConfigs;
 use App\Services\Server\SystemServices;
 use App\Services\Support\BulkResult;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
-use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
 /**
@@ -20,7 +20,10 @@ use Illuminate\View\View;
  */
 final class ServiceController extends Controller
 {
-    public function __construct(private readonly SystemServices $services) {}
+    public function __construct(
+        private readonly SystemServices $services,
+        private readonly ServiceActions $actions,
+    ) {}
 
     public function index(Principal $principal, ServerPolicy $policy): View
     {
@@ -62,8 +65,8 @@ final class ServiceController extends Controller
     public function action(string $service, string $action, Principal $principal, ServerPolicy $policy): RedirectResponse
     {
         abort_unless($policy->manageServices($principal), 403);
-        abort_unless($this->services->knows($service), 404);
-        abort_if($action === 'stop' && ! $policy->stopService($principal, $service), 403);
+        $this->actions->assertKnown([$service]);
+        abort_unless(ServiceActions::allows($action, $service), 403);
 
         $result = $this->services->run($action, $service);
         $back = redirect()->route('server.services');
@@ -90,13 +93,11 @@ final class ServiceController extends Controller
             'items.*' => ['required', 'string', 'max:64'],
         ]);
         $items = array_values(array_unique($data['items']));
-        foreach ($items as $service) {
-            abort_unless($this->services->knows($service), 404);
-        }
+        $this->actions->assertKnown($items);
 
-        $allowed = array_values(array_filter($items, fn (string $service) => $data['action'] !== 'stop' || $policy->stopService($principal, $service)));
+        [$allowed, $refused] = ServiceActions::partition($data['action'], $items);
         $result = $this->services->bulk($data['action'], $allowed);
-        $refused = array_fill_keys(array_diff($items, $allowed), __('This service is required by the panel.'));
+        $refused = array_fill_keys($refused, ServiceActions::refusal());
 
         return (new BulkResult($result->done, $result->failed + $refused))->flash(redirect()->route('server.services'));
     }
@@ -105,11 +106,7 @@ final class ServiceController extends Controller
     public function restartServer(Request $request, Principal $principal, ServerPolicy $policy): RedirectResponse
     {
         abort_unless($policy->manageServices($principal), 403);
-        $hostname = $this->services->info()['hostname'];
-        $request->validate(['hostname' => ['required', 'string', Rule::in([$hostname])]], [
-            'hostname.in' => __('Type the host name of the server to confirm.'),
-            'hostname.required' => __('Type the host name of the server to confirm.'),
-        ]);
+        $this->actions->confirmRestart($request->input('hostname'));
 
         $result = $this->services->restartServer();
         $back = redirect()->route('server.services');

@@ -7,6 +7,9 @@ use App\Arc\CommandResult;
 use App\Arc\Options;
 use App\Services\Support\BulkResult;
 use App\Services\Support\BulkRunner;
+use App\Services\Support\PlanRunner;
+use App\Services\WebDomains\ApplyResult;
+use App\Services\WebDomains\Step;
 
 /**
  * The services page (web/list/server, web/bulk/service, web/start|stop|restart
@@ -34,9 +37,10 @@ final class SystemServices
     public function __construct(
         private readonly ArcCommand $arc,
         private readonly BulkRunner $bulk,
+        private readonly PlanRunner $plans,
     ) {}
 
-    /** @return array{hostname: string, os: string, version: string, arch: string, uptime: int, load: string, release: string} */
+    /** @return array{hostname: string, os: string, version: string, arch: string, uptime: int, load: string, release: string, arcpanel: string} */
     public function info(): array
     {
         $info = $this->arc->json('v-list-sys-info')['sysinfo'] ?? [];
@@ -49,6 +53,7 @@ final class SystemServices
             'uptime' => (int) ($info['UPTIME'] ?? 0),
             'load' => (string) ($info['LOADAVERAGE'] ?? ''),
             'release' => (string) ($info['RELEASE'] ?? ''),
+            'arcpanel' => (string) ($info['ARCPANEL'] ?? ''),
         ];
     }
 
@@ -79,6 +84,12 @@ final class SystemServices
         }
 
         return $this->services;
+    }
+
+    /** Read the services again on the next call (after an action). */
+    public function forget(): void
+    {
+        $this->services = null;
     }
 
     public function knows(string $service): bool
@@ -114,6 +125,30 @@ final class SystemServices
     public function restartServer(): CommandResult
     {
         return $this->arc->run('v-restart-system', ['yes'], Options::allowFailure());
+    }
+
+    /** The step of an action on one service (REST API v2, E34 batch 6 §5.1). */
+    public static function step(string $action, string $service): Step
+    {
+        [$command, $args] = self::call($action, $service);
+
+        return new Step(sprintf(match ($action) {
+            'start' => __('Start %s'),
+            'stop' => __('Stop %s'),
+            default => __('Restart %s'),
+        }, $service), $command, $args);
+    }
+
+    /** The step of a server restart: `v-restart-system yes`. */
+    public static function restartServerStep(): Step
+    {
+        return new Step(__('Restart the server'), 'v-restart-system', ['yes']);
+    }
+
+    /** @param  list<Step>  $steps */
+    public function apply(array $steps): ApplyResult
+    {
+        return $this->plans->apply($steps);
     }
 
     /**

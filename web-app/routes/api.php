@@ -10,6 +10,7 @@ use App\Http\Controllers\Api\V2\DockerCatalogController;
 use App\Http\Controllers\Api\V2\DockerEngineController;
 use App\Http\Controllers\Api\V2\FileController;
 use App\Http\Controllers\Api\V2\FileTransferController;
+use App\Http\Controllers\Api\V2\IpController;
 use App\Http\Controllers\Api\V2\LogController;
 use App\Http\Controllers\Api\V2\MailAccountController;
 use App\Http\Controllers\Api\V2\MailDomainController;
@@ -21,6 +22,7 @@ use App\Http\Controllers\Api\V2\PackageController;
 use App\Http\Controllers\Api\V2\PortController;
 use App\Http\Controllers\Api\V2\PortRegistryController;
 use App\Http\Controllers\Api\V2\SearchController;
+use App\Http\Controllers\Api\V2\ServiceController;
 use App\Http\Controllers\Api\V2\SshKeyController;
 use App\Http\Controllers\Api\V2\StatsController;
 use App\Http\Controllers\Api\V2\TaskController;
@@ -84,6 +86,27 @@ Route::middleware('sys-config:PORT_REGISTRY!=no')->prefix('/system/ports')->name
         Route::post('/register', [PortRegistryController::class, 'register'])->defaults('api_area', 'server')->name('register');
         Route::post('/adopt', [PortRegistryController::class, 'adopt'])->defaults('api_area', 'server')->name('adopt');
         Route::post('/close-rule', [PortRegistryController::class, 'closeRule'])->defaults('api_area', 'server')->name('close-rule');
+    });
+});
+
+// Services and IP addresses of the server (E34 batch 6 spec §5.1, §5.2); administrators only
+Route::prefix('/system')->name('system.')->group(function () {
+    $service = ['service' => '[A-Za-z0-9][\w.@-]{0,63}'];
+    $ip = ['ip' => '[0-9A-Fa-f:.]{2,45}'];
+    Route::get('/services', [ServiceController::class, 'index'])->name('services.index');
+    Route::get('/services/status/{kind}', [ServiceController::class, 'status'])->where('kind', '[a-z]{2,4}')->name('services.status');
+    Route::get('/ips', [IpController::class, 'index'])->name('ips.index');
+    Route::get('/ips/{ip}', [IpController::class, 'show'])->where($ip)->name('ips.show');
+    Route::get('/interfaces', [IpController::class, 'interfaces'])->name('interfaces.index');
+    Route::middleware('not-readonly')->group(function () use ($service, $ip) {
+        Route::post('/services/{service}/start', [ServiceController::class, 'start'])->where($service)->name('services.start');
+        Route::post('/services/{service}/stop', [ServiceController::class, 'stop'])->where($service)->name('services.stop');
+        Route::post('/services/{service}/restart', [ServiceController::class, 'restart'])->where($service)->name('services.restart');
+        Route::post('/restart', [ServiceController::class, 'restartServer'])->name('restart');
+        Route::post('/ips', [IpController::class, 'store'])->name('ips.store');
+        Route::post('/ips/refresh', [IpController::class, 'refresh'])->name('ips.refresh');
+        Route::patch('/ips/{ip}', [IpController::class, 'update'])->where($ip)->name('ips.update');
+        Route::delete('/ips/{ip}', [IpController::class, 'destroy'])->where($ip)->name('ips.destroy');
     });
 });
 
@@ -365,6 +388,7 @@ foreach (Route::getRoutes() as $route) {
         str_contains($uri, '/tasks') => 'backup',
         str_contains($uri, '/files') => 'files',
         str_contains($uri, '/system/docker') || str_contains($uri, '/system/ports') => 'server',
+        str_starts_with($uri, 'api/v2/system/') => 'server',
         str_contains($uri, '/docker-catalog') || str_contains($uri, '/docker-apps') => 'apps',
         str_contains($uri, '/ports') => 'apps',
         str_contains($uri, '/node') => 'apps',

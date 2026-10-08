@@ -36,7 +36,7 @@ final class ApiDocs extends Command
     ];
 
     /** List operations whose `meta` is not paginated `ListMeta` (E34 batch 3 §5, batch 4 §4.2, batch 6 D60). */
-    private const LIST_WITHOUT_PAGINATION = ['listSystemTasks', 'listNodeApps', 'listDockerApps', 'listDockerCatalog', 'listPorts', 'listUserLogs', 'listUserAuthLogs'];
+    private const LIST_WITHOUT_PAGINATION = ['listSystemTasks', 'listNodeApps', 'listDockerApps', 'listDockerCatalog', 'listPorts', 'listUserLogs', 'listUserAuthLogs', 'listServices'];
 
     /** Logs page through the newest entries with `LogListMeta` (E34 batch 6 D60). */
     private const LOG_LISTS = ['listUserLogs', 'listUserAuthLogs'];
@@ -494,6 +494,11 @@ final class ApiDocs extends Command
         }
         if ($operationId === 'listDockerApps') {
             $schema['properties']['meta'] = ['$ref' => '#/components/schemas/DockerAppListMeta'];
+
+            return $schema;
+        }
+        if ($operationId === 'listServices') {
+            $schema['properties']['meta'] = ['$ref' => '#/components/schemas/ServiceListMeta'];
 
             return $schema;
         }
@@ -1179,6 +1184,21 @@ final class ApiDocs extends Command
                     'room' => ['type' => 'boolean', 'description' => 'Whether another app fits under the limit.'],
                 ],
                 'required' => ['engine', 'totals', 'limit', 'room'],
+            ],
+            'ServiceListMeta' => [
+                'type' => 'object',
+                'description' => 'The server the services run on; the service list is not paginated (E34 batch 6 §5.1).',
+                'properties' => [
+                    'hostname' => ['type' => 'string', 'description' => 'The host name; restartServer takes it as `confirm_hostname`.'],
+                    'os' => ['type' => 'string', 'description' => 'The distribution, for example `Ubuntu`.'],
+                    'os_version' => ['type' => 'string', 'description' => 'For example `24.04`.'],
+                    'arch' => ['type' => 'string', 'description' => 'For example `x86_64`.'],
+                    'arcpanel_version' => ['type' => 'string'],
+                    'release' => ['type' => 'string', 'description' => 'The release channel of the panel.'],
+                    'uptime_minutes' => ['type' => 'integer', 'minimum' => 0],
+                    'load' => ['type' => 'array', 'items' => ['type' => 'number'], 'description' => 'The load averages of 1, 5 and 15 minutes.'],
+                ],
+                'required' => ['hostname', 'os', 'os_version', 'arch', 'arcpanel_version', 'release', 'uptime_minutes', 'load'],
             ],
             'LogListMeta' => [
                 'type' => 'object',

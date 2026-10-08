@@ -252,8 +252,8 @@ it('documents pagination and error.existing', function () {
             if (in_array($id, ['listSystemTasks'], true)) {
                 continue;
             }
-            if (in_array($id, ['listNodeApps', 'listDockerApps', 'listPorts'], true)) {
-                $ref = ['listNodeApps' => '#/components/schemas/NodeAppListMeta', 'listDockerApps' => '#/components/schemas/DockerAppListMeta', 'listPorts' => '#/components/schemas/PortListMeta'][$id];
+            if (in_array($id, ['listNodeApps', 'listDockerApps', 'listPorts', 'listServices'], true)) {
+                $ref = ['listNodeApps' => '#/components/schemas/NodeAppListMeta', 'listDockerApps' => '#/components/schemas/DockerAppListMeta', 'listPorts' => '#/components/schemas/PortListMeta', 'listServices' => '#/components/schemas/ServiceListMeta'][$id];
                 $schema = $operation['responses']['200']['content']['application/json']['schema']['properties']['meta'] ?? null;
                 expect($schema)->toBe(['$ref' => $ref]);
                 $names = array_column($operation['parameters'] ?? [], 'name');
@@ -318,6 +318,7 @@ it('declares an area on the batch 1 routes', function () {
             str_contains($uri, '/tasks') => 'backup',
             str_contains($uri, '/files') => 'files',
             str_contains($uri, '/system/docker') || str_contains($uri, '/system/ports') => 'server',
+            str_starts_with($uri, 'api/v2/system/') => 'server',
             str_contains($uri, '/docker-catalog') || str_contains($uri, '/docker-apps') => 'apps',
             str_contains($uri, '/ports') => 'apps',
             str_contains($uri, '/node') => 'apps',
