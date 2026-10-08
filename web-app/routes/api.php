@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\V2\AccessKeyController;
 use App\Http\Controllers\Api\V2\BackupController;
 use App\Http\Controllers\Api\V2\CronController;
 use App\Http\Controllers\Api\V2\DatabaseController;
@@ -59,6 +60,7 @@ Route::middleware('not-readonly')->group(function () {
 });
 Route::get('/stats', [StatsController::class, 'index'])->name('stats.index');
 Route::get('/search', SearchController::class)->name('search');
+Route::get('/access-key-sets', [AccessKeyController::class, 'sets'])->name('access-key-sets.index');
 
 // Docker catalog (E34 batch 4 spec §4.3, D44)
 Route::get('/docker-catalog', [DockerCatalogController::class, 'index'])->defaults('api_area', 'apps')->name('docker-catalog.index');
@@ -102,6 +104,15 @@ Route::middleware('effective-user')->group(function () {
         Route::delete('/users/{user}/auth-logs', [LogController::class, 'destroyLogins'])->name('auth-logs.destroy');
         Route::post('/users/{user}/ssh-keys', [SshKeyController::class, 'store'])->name('ssh-keys.store');
         Route::delete('/users/{user}/ssh-keys/{id}', [SshKeyController::class, 'destroy'])->where('id', '.{1,255}')->name('ssh-keys.destroy');
+    });
+
+    // Access keys and two-factor authentication of a user (E34 batch 6 §4.5, §4.6)
+    Route::get('/users/{user}/access-keys', [AccessKeyController::class, 'index'])->name('access-keys.index');
+    Route::get('/users/{user}/access-keys/{key}', [AccessKeyController::class, 'show'])->where('key', '[A-Za-z0-9]{20}')->name('access-keys.show');
+    Route::middleware('not-readonly')->group(function () {
+        Route::post('/users/{user}/access-keys', [AccessKeyController::class, 'store'])->name('access-keys.store');
+        Route::delete('/users/{user}/access-keys/{key}', [AccessKeyController::class, 'destroy'])->where('key', '[A-Za-z0-9]{20}')->name('access-keys.destroy');
+        Route::delete('/users/{user}/two-factor', [UserController::class, 'disableTwoFactor'])->name('users.two-factor.destroy');
     });
     Route::middleware('not-readonly')->group(function () {
         Route::patch('/users/{user}', [UserController::class, 'update'])->name('users.update');
@@ -358,7 +369,7 @@ foreach (Route::getRoutes() as $route) {
         str_contains($uri, '/ports') => 'apps',
         str_contains($uri, '/node') => 'apps',
         str_starts_with($uri, 'api/v2/users'), str_starts_with($uri, 'api/v2/packages') => 'accounts',
-        in_array($uri, ['api/v2/stats', 'api/v2/search'], true), str_starts_with($uri, 'api/v2/notifications') => 'accounts',
+        in_array($uri, ['api/v2/stats', 'api/v2/search', 'api/v2/access-key-sets'], true), str_starts_with($uri, 'api/v2/notifications') => 'accounts',
         default => null,
     };
     if ($area !== null) {

@@ -8,6 +8,7 @@ use App\Http\Controllers\Controller;
 use App\Policies\AccessKeyPolicy;
 use App\Services\Keys\AccessKey;
 use App\Services\Keys\AccessKeyService;
+use App\Services\Keys\AccessKeySets;
 use App\Services\Support\OwnerList;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -49,20 +50,7 @@ final class AccessKeyController extends Controller
             'user' => $user,
             'sets' => $policy->allowedSets($user, $this->keys->permissionSets()),
             // The sets of REST API v2 (E34 spec §4.2), refused by API v1
-            'setHints' => [
-                'v2-read' => __('REST API v2 only: every read endpoint, no change.'),
-                'v2-write' => __('REST API v2 only: every endpoint, changes included.'),
-                'v2-accounts' => __('REST API v2 only: users and packages.'),
-                'v2-web' => __('REST API v2 only: web domains.'),
-                'v2-dns' => __('REST API v2 only: DNS zones and records.'),
-                'v2-mail' => __('REST API v2 only: mail domains and accounts.'),
-                'v2-db' => __('REST API v2 only: databases.'),
-                'v2-cron' => __('REST API v2 only: cron jobs and reports.'),
-                'v2-backup' => __('REST API v2 only: backups and tasks.'),
-                'v2-apps' => __('REST API v2 only: Node.js, Docker apps and ports.'),
-                'v2-server' => __('REST API v2 only: server-wide operations of administrators.'),
-                'v2-files' => __('REST API v2 only: files of the home directory.'),
-            ],
+            'setHints' => AccessKeySets::hints(),
         ]);
     }
 

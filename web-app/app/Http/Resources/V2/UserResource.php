@@ -43,6 +43,12 @@ final class UserResource extends JsonResource
             'two_factor' => $user->twoFactor(),
             /** @var list<string> */
             'nameservers' => $user->nameservers(),
+            /** @var list<string>|null the addresses or networks the login is allowed from; null without a restriction */
+            'allowed_ips' => $user->loginUsesIpList()
+                ? array_values(array_filter(array_map('trim', explode(',', $user->get('LOGIN_ALLOW_IPS'))), fn (string $ip) => $ip !== ''))
+                : null,
+            /** @var string|null the PHP version of the command line; null for the server's default */
+            'php_cli' => $user->get('PHPCLI') !== '' ? $user->get('PHPCLI') : null,
             'limits' => [
                 'web_domains' => self::limit($user->get('WEB_DOMAINS')),
                 'dns_domains' => self::limit($user->get('DNS_DOMAINS')),

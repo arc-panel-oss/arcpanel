@@ -28,6 +28,7 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\Response;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 /**
  * Users and customers (E34 spec §6.1, E11 spec §7): an administrator
@@ -131,9 +132,16 @@ final class UserController extends Controller
     /**
      * Update a user
      *
-     * Name, contact e-mail and language; the fields left out keep their
-     * value. Users change their own account, administrators and resellers
-     * those they manage.
+     * The fields left out keep their value. Name, contact e-mail, language
+     * and `allowed_ips`: users for their own account, administrators and
+     * resellers for those they manage. `nameservers`: administrators and
+     * resellers for their customers, an administrator for itself.
+     * `login_disabled`: administrators, not for themselves. `role`,
+     * `owner`, `shell` and `php_cli`: administrators, never for the root
+     * administrator; `role` and `owner` not for themselves either. A
+     * reseller with customers cannot be demoted, a user becomes a reseller
+     * only with a package that allows customers. A field the caller may not
+     * change answers 403 naming it, before anything runs.
      *
      * @operationId updateUser
      */
@@ -142,15 +150,79 @@ final class UserController extends Controller
         $this->assertReadable($user, $principal, $policy);
         abort_unless($policy->update($principal, $user), 403);
         $record = $this->users->find($user);
+        $this->assertFieldsAllowed($request, $user, $principal, $policy);
+
         $values = [
             'name' => trim((string) $request->input('name', $record->fullName())),
             'email' => trim((string) $request->input('email', $record->email())),
             'password' => null,
             'language' => (string) $request->input('language', $record->language()),
         ];
+        $steps = $this->actions->planGeneral($record, $values);
+        if ($request->exists('nameservers')) {
+            $steps = [...$steps, ...$this->actions->planNameservers($record, array_values((array) $request->input('nameservers')))];
+        }
+        if ($request->exists('allowed_ips') || $request->exists('login_disabled')) {
+            $ips = $request->input('allowed_ips');
+            $steps = [...$steps, ...$this->actions->planSecurity($principal, $record, [
+                'use_iplist' => is_array($ips),
+                'allowed_ips' => $request->exists('allowed_ips') ? implode(',', (array) $ips) : null,
+                'login_disabled' => $request->exists('login_disabled') ? $request->boolean('login_disabled') : null,
+                'twofa_off' => false,
+            ], $policy->manageSecurity($principal, $user))];
+        }
+        $administration = [];
+        if (array_filter(UpdateUserRequest::ADMINISTRATION, fn (string $field) => $request->exists($field)) !== []) {
+            try {
+                $administration = $this->actions->planAdministration($record, [
+                    'role' => $request->input('role'),
+                    'owner' => $request->input('owner'),
+                    'shell' => $request->input('shell'),
+                    'phpcli' => $request->input('php_cli'),
+                ]);
+            } catch (ValidationException $e) {
+                $errors = $e->errors();
+                if (isset($errors['phpcli'])) {
+                    $errors['php_cli'] = $errors['phpcli'];
+                    unset($errors['phpcli']);
+                }
+                throw ValidationException::withMessages($errors);
+            }
+        }
+        $steps = [...$steps, ...$administration];
 
-        return $this->gate->execute($this->actions->planGeneral($record, $values), $this->users->apply(...))
-            ?? new UserResource($this->users->find($user));
+        if ($preview = $this->gate->execute($steps, $this->users->apply(...), $administration !== [] ? [self::COUNTERS] : [])) {
+            return $preview;
+        }
+        if ($administration !== []) {
+            $this->users->updateCounters($record->owner);
+        }
+
+        return new UserResource($this->users->find($user));
+    }
+
+    /**
+     * Turn off two-factor authentication
+     *
+     * Users for their own account, administrators for the accounts they
+     * manage. Turning it on stays with the login of the user. Answers 204
+     * without a command when it is already off.
+     *
+     * @operationId disableUserTwoFactor
+     *
+     * @status 204
+     */
+    public function disableTwoFactor(string $user, Principal $principal, UserPolicy $policy): Response|JsonResponse
+    {
+        $this->assertReadable($user, $principal, $policy);
+        $manage = $policy->manageSecurity($principal, $user);
+        abort_unless($policy->update($principal, $user) && ($user === $principal->effectiveUser() || $manage), 403);
+        $record = $this->users->find($user);
+        $steps = $this->actions->planSecurity($principal, $record, [
+            'use_iplist' => $record->loginUsesIpList(), 'allowed_ips' => null, 'login_disabled' => null, 'twofa_off' => true,
+        ], $manage);
+
+        return $this->gate->execute($steps, $this->users->apply(...)) ?? response()->noContent();
     }
 
     /**
@@ -259,6 +331,28 @@ final class UserController extends Controller
         }
 
         return new UserResource($this->users->find($user));
+    }
+
+    /**
+     * Fields of D63 that the principal may not change answer 403 naming the
+     * field, before anything runs.
+     */
+    private function assertFieldsAllowed(UpdateUserRequest $request, string $user, Principal $principal, UserPolicy $policy): void
+    {
+        $administer = $policy->administer($principal, $user) && $user !== $this->config->get('ROOT_USER');
+        $allowed = [
+            'nameservers' => $policy->changeNameservers($principal, $user),
+            'login_disabled' => $policy->manageSecurity($principal, $user),
+            'role' => $administer && $policy->changeRole($principal, $user),
+            'owner' => $administer && $policy->changeOwner($principal, $user),
+            'shell' => $administer,
+            'php_cli' => $administer,
+        ];
+        foreach ($allowed as $field => $ok) {
+            if ($request->exists($field) && ! $ok) {
+                throw new ApiException(ErrorCode::Forbidden, sprintf('You may not change the field %s of this user.', $field), 403);
+            }
+        }
     }
 
     /** The account itself, or one the principal manages; anything else answers 404. */

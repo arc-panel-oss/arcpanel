@@ -96,6 +96,83 @@ final class UserActions
         return $this->planner->package($record, $package, $role, $principal->effectiveUser());
     }
 
+    /**
+     * Name servers (the Name servers tab): 2 to 8 host names, checked by
+     * the request.
+     *
+     * @param  list<string>  $nameservers
+     * @return list<Step>
+     */
+    public function planNameservers(UserRecord $record, array $nameservers): array
+    {
+        return $this->planner->nameservers($record, $nameservers);
+    }
+
+    /**
+     * The Security tab (E34 batch 6 D66): the login IP allow list for
+     * everyone who may update the account; disabling the login and removing
+     * two-factor authentication of someone else only with $manage
+     * (UserPolicy::manageSecurity()); a user removes its own two-factor
+     * authentication. Values the principal may not change are dropped, as
+     * the page drops them.
+     *
+     * @param  array{use_iplist: bool, allowed_ips: ?string, login_disabled: ?bool, twofa_off: bool}  $values
+     * @return list<Step>
+     */
+    public function planSecurity(Principal $principal, UserRecord $record, array $values, bool $manage): array
+    {
+        if (! $manage) {
+            $values['login_disabled'] = null;
+            if ($record->name !== $principal->effectiveUser()) {
+                $values['twofa_off'] = false;
+            }
+        }
+
+        return $this->planner->security($record, $values);
+    }
+
+    /**
+     * The Administration tab (administrators, E34 batch 6 D66): role,
+     * owner, shell and PHP CLI version; a null value keeps it. A reseller
+     * with customers cannot be demoted, a user becomes a reseller only with
+     * a package that allows customers, the owner is ROOT_USER or a reseller,
+     * shells and PHP versions must be installed. The caller drops role and
+     * owner when UserPolicy::changeRole() or changeOwner() refuses them.
+     *
+     * @param  array{role: ?string, owner: ?string, shell: ?string, phpcli: ?string}  $values
+     * @return list<Step>
+     *
+     * @throws ValidationException with the fields role, owner, shell and phpcli
+     */
+    public function planAdministration(UserRecord $record, array $values): array
+    {
+        $user = $record->name;
+        $errors = [];
+        $newRole = $values['role'] ?? $record->role()->value;
+        if ($record->role() === Role::Reseller && $newRole !== Role::Reseller->value && $this->tenancy->customersOf($user) !== []) {
+            $errors['role'] = __('Move or delete the customers of this reseller first.');
+        }
+        if ($newRole === Role::Reseller->value && $record->role() !== Role::Reseller
+            && self::sellsNoUsers($this->users->packageTenancy($record->package()))) {
+            $errors['role'] = __('A reseller needs a package that allows customers (USERS above 0).');
+        }
+        $owners = array_merge([$this->config->get('ROOT_USER')], $this->tenancy->resellers());
+        if (($values['owner'] ?? '') !== '' && ! in_array($values['owner'], $owners, true)) {
+            $errors['owner'] = __('Please select a valid owner.');
+        }
+        if (($values['shell'] ?? '') !== '' && ! array_key_exists((string) $values['shell'], $this->users->shells())) {
+            $errors['shell'] = __('Please select a valid shell.');
+        }
+        if (($values['phpcli'] ?? '') !== '' && ! array_key_exists((string) $values['phpcli'], $this->users->phpVersions())) {
+            $errors['phpcli'] = __('Please select a valid PHP version.');
+        }
+        if ($errors !== []) {
+            throw ValidationException::withMessages($errors);
+        }
+
+        return $this->planner->administration($record, $values, $this->config->get('ROOT_USER'));
+    }
+
     /** Why the account cannot be deleted yet (a reseller with customers, E11 spec §5.4), or null. */
     public function deleteRefusal(string $user): ?string
     {

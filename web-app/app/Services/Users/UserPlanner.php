@@ -106,9 +106,10 @@ final class UserPlanner
 
     /**
      * Security tab: the IP allow list of the login (the user too), and, for
-     * someone else's account, login disabling and two-factor removal.
+     * someone else's account, login disabling and two-factor removal. A
+     * null `allowed_ips` leaves the allow list as it is (API v2).
      *
-     * @param  array{use_iplist: bool, allowed_ips: string, login_disabled: ?bool, twofa_off: bool}  $input
+     * @param  array{use_iplist: bool, allowed_ips: ?string, login_disabled: ?bool, twofa_off: bool}  $input
      * @return list<Step>
      */
     public function security(UserRecord $current, array $input): array
@@ -119,12 +120,14 @@ final class UserPlanner
             $steps[] = new Step($input['login_disabled'] ? __('Disable the login') : __('Enable the login'),
                 'v-change-user-config-value', [$user, 'LOGIN_DISABLED', $input['login_disabled'] ? 'yes' : 'no']);
         }
-        $ips = $input['use_iplist'] ? $input['allowed_ips'] : '';
-        if ($input['use_iplist'] !== $current->loginUsesIpList()) {
-            $steps[] = new Step(__('Change the login IP allow list'), 'v-change-user-config-value', [$user, 'LOGIN_USE_IPLIST', $input['use_iplist'] ? 'yes' : 'no']);
-        }
-        if ($ips !== $current->get('LOGIN_ALLOW_IPS')) {
-            $steps[] = new Step(__('Change the allowed IP addresses'), 'v-change-user-config-value', [$user, 'LOGIN_ALLOW_IPS', $ips]);
+        if ($input['allowed_ips'] !== null) {
+            $ips = $input['use_iplist'] ? $input['allowed_ips'] : '';
+            if ($input['use_iplist'] !== $current->loginUsesIpList()) {
+                $steps[] = new Step(__('Change the login IP allow list'), 'v-change-user-config-value', [$user, 'LOGIN_USE_IPLIST', $input['use_iplist'] ? 'yes' : 'no']);
+            }
+            if ($ips !== $current->get('LOGIN_ALLOW_IPS')) {
+                $steps[] = new Step(__('Change the allowed IP addresses'), 'v-change-user-config-value', [$user, 'LOGIN_ALLOW_IPS', $ips]);
+            }
         }
         if ($input['twofa_off'] && $current->twoFactor()) {
             $steps[] = new Step(__('Turn off two-factor authentication'), 'v-delete-user-2fa', [$user]);

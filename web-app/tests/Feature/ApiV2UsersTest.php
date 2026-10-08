@@ -81,7 +81,7 @@ it('describes a user with typed fields and no secrets', function () {
     $response->assertJsonPath('data', [
         'username' => 'bob', 'name' => 'Bob Builder', 'email' => 'bob@example.com', 'role' => 'user', 'owner' => 'hostco',
         'package' => 'starter', 'language' => 'en', 'shell' => 'nologin', 'suspended' => false, 'login_disabled' => false,
-        'two_factor' => true, 'nameservers' => ['ns1.example.net', 'ns2.example.net'],
+        'two_factor' => true, 'nameservers' => ['ns1.example.net', 'ns2.example.net'], 'allowed_ips' => null, 'php_cli' => null,
         'limits' => ['web_domains' => 2, 'dns_domains' => null, 'mail_domains' => null, 'mail_accounts' => null, 'databases' => null,
             'cron_jobs' => null, 'disk_mb' => null, 'bandwidth_mb' => null],
         'usage' => ['web_domains' => 1, 'dns_domains' => 0, 'mail_domains' => 0, 'mail_accounts' => 0, 'databases' => 0,

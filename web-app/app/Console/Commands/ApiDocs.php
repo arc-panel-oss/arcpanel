@@ -368,6 +368,9 @@ final class ApiDocs extends Command
         self::tailorDockerAppOpenApi($operationId, $operation, $responses);
         self::tailorPortOpenApi($operationId, $operation, $responses);
         self::tailorFileOpenApi($operationId, $operation, $responses);
+        if ($operationId === 'createAccessKey' && isset($responses['201']['headers'])) {
+            $responses['201']['headers']['Cache-Control'] = ['description' => '`no-store`: the answer carries the secret of the new key, which no other answer shows (E34 batch 6 D62).', 'schema' => ['type' => 'string']];
+        }
         uksort($responses, fn ($a, $b) => (int) $a <=> (int) $b);
         $operation['responses'] = $responses;
 

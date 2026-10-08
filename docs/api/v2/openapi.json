@@ -20,6 +20,97 @@
         }
     ],
     "paths": {
+        "/access-key-sets": {
+            "get": {
+                "operationId": "listAccessKeySets",
+                "description": "The sets the caller may give to a key of `user` (default: the owner\nof the calling key): those the owner may have, and, for a key with\nsets, only those the calling key holds.",
+                "summary": "List the permission sets a key may give",
+                "tags": [
+                    "Access keys"
+                ],
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "query",
+                        "description": "The owner of the keys to create.",
+                        "schema": {
+                            "type": "string",
+                            "pattern": "^[[:alnum:]][-.\\w]*$",
+                            "maxLength": 32
+                        }
+                    },
+                    {
+                        "name": "limit",
+                        "in": "query",
+                        "description": "Page size, from 1 to 1000. Without it the list is complete.",
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 1000
+                        }
+                    },
+                    {
+                        "name": "offset",
+                        "in": "query",
+                        "description": "Items to skip. Used when `limit` is set; 0 when omitted.",
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 0
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Array of `AccessKeySet`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/components/schemas/AccessKeySet"
+                                            }
+                                        },
+                                        "meta": {
+                                            "$ref": "#/components/schemas/ListMeta"
+                                        }
+                                    },
+                                    "required": [
+                                        "data",
+                                        "meta"
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    }
+                }
+            }
+        },
         "/docker-catalog": {
             "get": {
                 "operationId": "listDockerCatalog",
@@ -2555,7 +2646,7 @@
             },
             "patch": {
                 "operationId": "updateUser",
-                "description": "Name, contact e-mail and language; the fields left out keep their\nvalue. Users change their own account, administrators and resellers\nthose they manage.",
+                "description": "The fields left out keep their value. Name, contact e-mail, language\nand `allowed_ips`: users for their own account, administrators and\nresellers for those they manage. `nameservers`: administrators and\nresellers for their customers, an administrator for itself.\n`login_disabled`: administrators, not for themselves. `role`,\n`owner`, `shell` and `php_cli`: administrators, never for the root\nadministrator; `role` and `owner` not for themselves either. A\nreseller with customers cannot be demoted, a user becomes a reseller\nonly with a package that allows customers. A field the caller may not\nchange answers 403 naming it, before anything runs.",
                 "summary": "Update a user",
                 "tags": [
                     "Users"
@@ -2658,6 +2749,374 @@
                 "parameters": [
                     {
                         "name": "user",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "dry_run",
+                        "in": "query",
+                        "description": "Validate, authorize and plan the change, and answer with its steps instead of running them.",
+                        "schema": {
+                            "type": "boolean",
+                            "default": false
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "With `dry_run`: the planned steps; nothing ran.",
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/DryRun"
+                                }
+                            }
+                        }
+                    },
+                    "204": {
+                        "description": "No content.",
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "409": {
+                        "$ref": "#/components/responses/Conflict"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    },
+                    "503": {
+                        "$ref": "#/components/responses/Unavailable"
+                    }
+                }
+            }
+        },
+        "/users/{user}/access-keys": {
+            "get": {
+                "operationId": "listAccessKeys",
+                "description": "Oldest first, never with their secrets.",
+                "summary": "List the access keys of a user",
+                "tags": [
+                    "Access keys"
+                ],
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "limit",
+                        "in": "query",
+                        "description": "Page size, from 1 to 1000. Without it the list is complete.",
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 1000
+                        }
+                    },
+                    {
+                        "name": "offset",
+                        "in": "query",
+                        "description": "Items to skip. Used when `limit` is set; 0 when omitted.",
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 0
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Array of `AccessKey`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/components/schemas/AccessKey"
+                                            }
+                                        },
+                                        "meta": {
+                                            "$ref": "#/components/schemas/ListMeta"
+                                        }
+                                    },
+                                    "required": [
+                                        "data",
+                                        "meta"
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    }
+                }
+            },
+            "post": {
+                "operationId": "createAccessKey",
+                "description": "`permissions` are sets of `GET /access-key-sets`: a key gives only\nsets it holds itself, and only sets the owner may have (sets of role\n`user`, every set for the root administrator). An empty list makes a\nkey that may run every command: only for an administrator's own\naccount, and only by a key without sets. The answer carries the\nsecret, once, with `Cache-Control: no-store`; no other answer, log or\ndry run shows it.",
+                "summary": "Create an access key",
+                "tags": [
+                    "Access keys"
+                ],
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "dry_run",
+                        "in": "query",
+                        "description": "Validate, authorize and plan the change, and answer with its steps instead of running them.",
+                        "schema": {
+                            "type": "boolean",
+                            "default": false
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/CreateAccessKeyRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "With `dry_run`: the planned steps; nothing ran.",
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/DryRun"
+                                }
+                            }
+                        }
+                    },
+                    "201": {
+                        "description": "`NewAccessKey`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/NewAccessKey"
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            },
+                            "Location": {
+                                "$ref": "#/components/headers/Location"
+                            },
+                            "Cache-Control": {
+                                "description": "`no-store`: the answer carries the secret of the new key, which no other answer shows (E34 batch 6 D62).",
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "409": {
+                        "$ref": "#/components/responses/Conflict"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    },
+                    "503": {
+                        "$ref": "#/components/responses/Unavailable"
+                    }
+                }
+            }
+        },
+        "/users/{user}/access-keys/{key}": {
+            "get": {
+                "operationId": "getAccessKey",
+                "summary": "Get an access key",
+                "tags": [
+                    "Access keys"
+                ],
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "key",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "`AccessKey`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/AccessKey"
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    }
+                }
+            },
+            "delete": {
+                "operationId": "deleteAccessKey",
+                "description": "A key may always delete itself, whatever its permission sets: to\nrotate a key, create the new one, then delete the old one with it.\nDeleting another key needs a set that allows it.",
+                "summary": "Delete an access key",
+                "tags": [
+                    "Access keys"
+                ],
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "key",
                         "in": "path",
                         "required": true,
                         "schema": {
@@ -17600,6 +18059,90 @@
                 }
             }
         },
+        "/users/{user}/two-factor": {
+            "delete": {
+                "operationId": "disableUserTwoFactor",
+                "description": "Users for their own account, administrators for the accounts they\nmanage. Turning it on stays with the login of the user. Answers 204\nwithout a command when it is already off.",
+                "summary": "Turn off two-factor authentication",
+                "tags": [
+                    "Users"
+                ],
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "dry_run",
+                        "in": "query",
+                        "description": "Validate, authorize and plan the change, and answer with its steps instead of running them.",
+                        "schema": {
+                            "type": "boolean",
+                            "default": false
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "With `dry_run`: the planned steps; nothing ran.",
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/DryRun"
+                                }
+                            }
+                        }
+                    },
+                    "204": {
+                        "description": "No content.",
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "409": {
+                        "$ref": "#/components/responses/Conflict"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    },
+                    "503": {
+                        "$ref": "#/components/responses/Unavailable"
+                    }
+                }
+            }
+        },
         "/users/{user}/unsuspend": {
             "post": {
                 "operationId": "unsuspendUser",
@@ -19057,6 +19600,67 @@
     },
     "components": {
         "schemas": {
+            "AccessKey": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "description": "the access key id, 20 letters and digits"
+                    },
+                    "permissions": {
+                        "type": "array",
+                        "description": "the permission sets; empty for an administrator's key without sets, which may run every command",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "comment": {
+                        "type": "string"
+                    },
+                    "created_at": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "in the server's time zone, YYYY-MM-DDTHH:MM:SS"
+                    }
+                },
+                "required": [
+                    "id",
+                    "permissions",
+                    "comment",
+                    "created_at"
+                ],
+                "title": "AccessKey"
+            },
+            "AccessKeySet": {
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string"
+                    },
+                    "api": {
+                        "type": "integer",
+                        "description": "`2`: REST API v2 only, API v1 refuses the set; `1`: a set of API v1, whose commands API v2 runs too",
+                        "enum": [
+                            1,
+                            2
+                        ]
+                    },
+                    "description": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    }
+                },
+                "required": [
+                    "name",
+                    "api",
+                    "description"
+                ],
+                "title": "AccessKeySet"
+            },
             "AddReservedPortsRequest": {
                 "type": "object",
                 "properties": {
@@ -19457,6 +20061,35 @@
                     "name"
                 ],
                 "title": "CopyPackageRequest"
+            },
+            "CreateAccessKeyRequest": {
+                "type": "object",
+                "description": "POST /users/{user}/access-keys (E34 batch 6 §4.6, D62).",
+                "properties": {
+                    "permissions": {
+                        "type": "array",
+                        "description": "Permission sets (see GET /access-key-sets). At least one, except for the own key of an administrator, made with a key without sets: no set gives every command.",
+                        "items": {
+                            "type": "string",
+                            "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]*$",
+                            "maxLength": 64
+                        },
+                        "maxItems": 50,
+                        "uniqueItems": true
+                    },
+                    "comment": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "A note for the key, at most 255 characters.",
+                        "maxLength": 255
+                    }
+                },
+                "required": [
+                    "permissions"
+                ],
+                "title": "CreateAccessKeyRequest"
             },
             "CreateFileRequest": {
                 "type": "object",
@@ -21343,6 +21976,43 @@
                     "api_version"
                 ],
                 "title": "Me"
+            },
+            "NewAccessKey": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "description": "the access key id, 20 letters and digits"
+                    },
+                    "permissions": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "comment": {
+                        "type": "string"
+                    },
+                    "created_at": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "in the server's time zone, YYYY-MM-DDTHH:MM:SS"
+                    },
+                    "secret": {
+                        "type": "string",
+                        "description": "the secret access key; shown only here. Authenticate with `Authorization: Bearer ID:SECRET`."
+                    }
+                },
+                "required": [
+                    "id",
+                    "permissions",
+                    "comment",
+                    "created_at",
+                    "secret"
+                ],
+                "title": "NewAccessKey"
             },
             "NodeAccount": {
                 "type": "object",
@@ -25004,7 +25674,7 @@
             },
             "UpdateUserRequest": {
                 "type": "object",
-                "description": "PATCH /users/{user}: the General tab without the password (PUT\n/users/{user}/password); fields left out keep their value.",
+                "description": "PATCH /users/{user}: the General tab without the password (PUT\n/users/{user}/password), and the Name servers, Security and\nAdministration tabs (E34 batch 6 D63); fields left out keep their value.",
                 "properties": {
                     "name": {
                         "type": "string",
@@ -25019,6 +25689,56 @@
                     "language": {
                         "type": "string",
                         "pattern": "^[a-z]{2,3}(-[a-z]{2})?$",
+                        "maxLength": 10
+                    },
+                    "nameservers": {
+                        "type": "array",
+                        "description": "2 to 8 host names. Administrators and resellers for their customers, an administrator for itself.",
+                        "items": {
+                            "type": "string",
+                            "pattern": "^([a-z0-9]([a-z0-9-]*[a-z0-9])?\\.)+[a-z0-9-]+$",
+                            "maxLength": 253
+                        },
+                        "minItems": 2,
+                        "maxItems": 8
+                    },
+                    "allowed_ips": {
+                        "type": [
+                            "array",
+                            "null"
+                        ],
+                        "description": "The IPv4 addresses the login is allowed from, compared exactly (the user record takes no networks and no IPv6); null drops the restriction.",
+                        "items": {
+                            "type": "string"
+                        },
+                        "minItems": 1,
+                        "maxItems": 24,
+                        "uniqueItems": true
+                    },
+                    "login_disabled": {
+                        "type": "boolean",
+                        "description": "Administrators, not for their own account."
+                    },
+                    "role": {
+                        "description": "Administrators, never for the root administrator or themselves.",
+                        "$ref": "#/components/schemas/ApiRole"
+                    },
+                    "owner": {
+                        "type": "string",
+                        "description": "Administrators: the root administrator or a reseller that owns a user.",
+                        "pattern": "^[[:alnum:]][-.\\w]*$",
+                        "maxLength": 32
+                    },
+                    "shell": {
+                        "type": "string",
+                        "description": "Administrators: a shell installed on the server (`nologin` without SSH).",
+                        "pattern": "^[[:alnum:]][-.\\w]*$",
+                        "maxLength": 32
+                    },
+                    "php_cli": {
+                        "type": "string",
+                        "description": "Administrators: a PHP version installed on the server, for the command line.",
+                        "pattern": "^\\d+\\.\\d+$",
                         "maxLength": 10
                     }
                 },
@@ -25170,6 +25890,23 @@
                             "type": "string"
                         }
                     },
+                    "allowed_ips": {
+                        "type": [
+                            "array",
+                            "null"
+                        ],
+                        "description": "the addresses or networks the login is allowed from; null without a restriction",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "php_cli": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "the PHP version of the command line; null for the server's default"
+                    },
                     "limits": {
                         "type": "object",
                         "properties": {
@@ -25293,6 +26030,8 @@
                     "login_disabled",
                     "two_factor",
                     "nameservers",
+                    "allowed_ips",
+                    "php_cli",
                     "limits",
                     "usage",
                     "created_at"
