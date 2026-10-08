@@ -12,6 +12,9 @@
 # Docker app only when the server has the Docker engine (DOCKER_SYSTEM) and
 # says so otherwise.
 #
+# Batch 5 uploads 16 MiB of random bytes in three chunks and downloads them
+# again as a zip; it skips the file checks when FILE_MANAGER is off.
+#
 # Run as root on a test server, never on production.
 
 set -euo pipefail
@@ -23,6 +26,7 @@ CONF="$ARCPANEL/conf/arcpanel.conf"
 SMOKE_USER="arcsmoke$RANDOM"
 SMOKE_PACKAGE="arcsmoke-pkg$RANDOM"
 APPS_USER="${SMOKE_USER}a"
+FILES_USER="${SMOKE_USER}f"
 APPS_PACKAGE="$SMOKE_PACKAGE-apps"
 SMOKE_PASS="$(head -c 18 /dev/urandom | base64 | tr -dc 'A-Za-z0-9' | head -c 20)Aa1"
 ROOT_USER=$(grep "^ROOT_USER=" "$CONF" | cut -d"'" -f2)
@@ -30,6 +34,7 @@ OLD_API_SYSTEM=$(grep "^API_SYSTEM=" "$CONF" | cut -d"'" -f2 || true)
 OLD_API_ALLOWED_IP=$(grep "^API_ALLOWED_IP=" "$CONF" | cut -d"'" -f2 || true)
 BODY="$(mktemp)"
 CERT_DIR="$(mktemp -d)"
+FILES_DIR="$(mktemp -d)"
 KEYS=()
 failures=0
 
@@ -47,6 +52,7 @@ cleanup() {
 		pkill -9 -u "$APPS_USER" > /dev/null 2>&1 || true
 	fi
 	"$ARCPANEL/bin/v-delete-user" "$APPS_USER" > /dev/null 2>&1 || true
+	"$ARCPANEL/bin/v-delete-user" "$FILES_USER" > /dev/null 2>&1 || true
 	rm -f "/etc/logrotate.d/arcpanel-node-$APPS_USER"
 	for package in "$SMOKE_PACKAGE" "$SMOKE_PACKAGE-copy" "$APPS_PACKAGE"; do
 		"$ARCPANEL/bin/v-delete-user-package" "$package" > /dev/null 2>&1 || true
@@ -60,7 +66,7 @@ cleanup() {
 	clear_panel_cache
 	# A queued certificate of a smoke domain
 	sed -i "/ $SMOKE_USER\.example\.test /d; / $APPS_USER\.example\.test /d" "$ARCPANEL/data/queue/letsencrypt.pipe" 2> /dev/null || true
-	rm -rf "$BODY" "$CERT_DIR"
+	rm -rf "$BODY" "$CERT_DIR" "$FILES_DIR"
 }
 trap cleanup EXIT
 
@@ -417,6 +423,84 @@ else
 fi
 
 check "the apps user is deleted" 204 "$(call "$ADMIN" DELETE "/users/$APPS_USER")"
+
+# Batch 5: files (spec 2026-10-08-003 §6)
+FILES="/users/$FILES_USER/files"
+# put_chunk KEY TOKEN INDEX FILE -> prints the status of uploadChunk
+put_chunk() {
+	curl -sk -o "$BODY" -w '%{http_code}' -X PUT -H "Authorization: Bearer $1" -H 'Accept: application/json' \
+		-H 'Content-Type: application/octet-stream' --data-binary "@$4" "$API$FILES/uploads/$2/$3"
+}
+if [ "$(conf_value FILE_MANAGER)" != true ]; then
+	skip "files: FILE_MANAGER is off on this server"
+else
+	check "a user for the files" 201 "$(call "$ADMIN" POST /users "{\"username\": \"$FILES_USER\", \"password\": \"$SMOKE_PASS\", \"email\": \"$FILES_USER@example.invalid\", \"name\": \"Smoke Files\", \"package\": \"default\"}")"
+	FILES_HOME="$("$ARCPANEL/bin/v-list-user" "$FILES_USER" json | jq -r ".\"$FILES_USER\".HOME")"
+	FILES_KEY=$(new_key "$FILES_USER" v2-files)
+	OTHER_FILES_KEY=$(new_key "$FILES_USER" v2-files)
+	FILES_READER=$(new_key "$FILES_USER" v2-read)
+	check "createDirectory with only v2-files answers 201" 201 "$(call "$FILES_KEY" POST "$FILES/directories" '{"path": "tmp", "name": "arcsmoke"}')"
+
+	# Uploads (§4.3): a file a bit over 16 MiB goes in three chunks. The home itself
+	# belongs to root (SFTP jail): the smoke works in ~/tmp
+	head -c $((16 * 1048576 + 4096)) /dev/urandom > "$FILES_DIR/big.bin"
+	big_size=$(stat -c %s "$FILES_DIR/big.bin")
+	big_hash=$(sha256sum "$FILES_DIR/big.bin" | cut -d' ' -f1)
+	upload_json="{\"path\": \"tmp/arcsmoke\", \"name\": \"big.bin\", \"size\": $big_size, \"modified_at\": 1759658400000}"
+	check "startUpload answers 200" 200 "$(call "$FILES_KEY" POST "$FILES/uploads" "$upload_json")"
+	UPLOAD_TOKEN="$(json .data.token)"
+	chunk_size="$(json .data.chunk_size)"
+	check "the file takes three chunks" 3 "$(json .data.chunks)"
+	for index in 0 1 2; do
+		dd if="$FILES_DIR/big.bin" of="$FILES_DIR/chunk" bs="$chunk_size" skip="$index" count=1 status=none
+		check "uploadChunk $index answers 204" 204 "$(put_chunk "$FILES_KEY" "$UPLOAD_TOKEN" "$index" "$FILES_DIR/chunk")"
+	done
+	check "another key of the same user gets 404 for the session" 404 "$(put_chunk "$OTHER_FILES_KEY" "$UPLOAD_TOKEN" 2 "$FILES_DIR/chunk")"
+	check "startUpload again resumes the session" "$UPLOAD_TOKEN" "$(
+		call "$FILES_KEY" POST "$FILES/uploads" "$upload_json" > /dev/null
+		json .data.token
+	)"
+	check "the resumed session holds the three chunks" "0,1,2" "$(json '.data.received | join(",")')"
+	check "finishUpload answers 201" 201 "$(call "$FILES_KEY" POST "$FILES/uploads/$UPLOAD_TOKEN/finish")"
+	check "the uploaded file is in the home" "$big_hash" "$(sha256sum "$FILES_HOME/tmp/arcsmoke/big.bin" | cut -d' ' -f1)"
+	check "the uploaded file belongs to the user" "$FILES_USER" "$(stat -c %U "$FILES_HOME/tmp/arcsmoke/big.bin")"
+	check "finishUpload again answers 404" 404 "$(call "$FILES_KEY" POST "$FILES/uploads/$UPLOAD_TOKEN/finish")"
+
+	# Reads and changes (§4.1, §4.2)
+	check "saveFile creates a text file" 200 "$(call "$FILES_KEY" PUT "$FILES/content" '{"path": "tmp/arcsmoke/note.txt", "content": "hello\n", "hash": null}')"
+	check "readFile answers 200" 200 "$(call "$FILES_READER" GET "$FILES/content?path=tmp/arcsmoke/note.txt")"
+	check "readFile answers the content" "hello" "$(json .data.content)"
+	note_hash="$(json .data.hash)"
+	check "saveFile with the hash read answers 200" 200 "$(call "$FILES_KEY" PUT "$FILES/content" "{\"path\": \"tmp/arcsmoke/note.txt\", \"content\": \"hello again\\n\", \"hash\": \"$note_hash\"}")"
+	check "saveFile with a stale hash answers 409" E_INUSE "$(
+		call "$FILES_KEY" PUT "$FILES/content" "{\"path\": \"tmp/arcsmoke/note.txt\", \"content\": \"lost\", \"hash\": \"$note_hash\"}" > /dev/null
+		json .error.code
+	)"
+	check "copyFiles within the folder answers 200" 200 "$(call "$FILES_KEY" POST "$FILES/copy" '{"paths": ["tmp/arcsmoke/note.txt"], "destination": "tmp/arcsmoke"}')"
+	check "the copy gets a free name" "note (1).txt" "$(json '.data.names[0]')"
+	check "compressFiles answers 201" 201 "$(call "$FILES_KEY" POST "$FILES/compress" '{"paths": ["tmp/arcsmoke/big.bin", "tmp/arcsmoke/note.txt"], "name": "pack.zip"}')"
+	check "extractArchive into a new folder answers 201" 201 "$(call "$FILES_KEY" POST "$FILES/extract" '{"path": "tmp/arcsmoke/pack.zip", "destination": "tmp/arcsmoke/unpacked"}')"
+	check "the extracted file is the uploaded one" "$big_hash" "$(sha256sum "$FILES_HOME/tmp/arcsmoke/unpacked/big.bin" | cut -d' ' -f1)"
+	check "extractArchive into an existing folder answers 409" 409 "$(call "$FILES_KEY" POST "$FILES/extract" '{"path": "tmp/arcsmoke/pack.zip", "destination": "tmp/arcsmoke/unpacked"}')"
+
+	# Downloads through nginx (§4.4)
+	dl_code=$(curl -sk -D "$FILES_DIR/headers" -o "$FILES_DIR/unpacked.zip" -w '%{http_code}' -X POST -H "Authorization: Bearer $FILES_KEY" \
+		-H 'Content-Type: application/json' --data '{"paths": ["tmp/arcsmoke/unpacked"]}' "$API$FILES/download")
+	check "downloadFiles of a folder answers 200" 200 "$dl_code"
+	check "the folder comes as a zip" 1 "$(grep -ci '^content-type: application/zip' "$FILES_DIR/headers")"
+	check "the zip is larger than the file" 1 "$([ "$(stat -c %s "$FILES_DIR/unpacked.zip")" -gt "$big_size" ] && echo 1 || echo 0)"
+	check "the zip holds the uploaded file" "$big_hash" "$(unzip -p "$FILES_DIR/unpacked.zip" unpacked/big.bin | sha256sum | cut -d' ' -f1)"
+	dl_code=$(curl -sk -o "$FILES_DIR/note.txt" -w '%{http_code}' -X POST -H "Authorization: Bearer $FILES_READER" \
+		-H 'Content-Type: application/json' --data '{"paths": ["tmp/arcsmoke/note.txt"]}' "$API$FILES/download")
+	check "a v2-read key downloads one file" 200 "$dl_code"
+	check "the file comes as it is" "hello again" "$(cat "$FILES_DIR/note.txt")"
+	check "a path above the home answers 404" 404 "$(call "$FILES_READER" GET "$FILES/content?path=../../etc/passwd")"
+	check "a download above the home answers 404" 404 "$(call "$FILES_READER" POST "$FILES/download" '{"paths": ["../../etc/passwd"]}')"
+
+	check "deleteFiles answers 204" 204 "$(call "$FILES_KEY" POST "$FILES/delete" '{"paths": ["tmp/arcsmoke"]}')"
+	if [ -e "$FILES_HOME/tmp/arcsmoke" ]; then fail "the folder is still there"; else ok "the folder is gone"; fi
+	check "the files user is deleted" 204 "$(call "$ADMIN" DELETE "/users/$FILES_USER")"
+fi
 
 if [ "$failures" -gt 0 ]; then
 	echo "$failures check(s) failed"
