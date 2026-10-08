@@ -64,8 +64,13 @@ final class AccessKeyController extends Controller
         $data = $request->validate([
             'sets' => ['required', 'array', 'min:1'],
             'sets.*' => ['required', 'string', 'max:64'],
-            'comment' => ['nullable', 'string', 'max:255', 'not_regex:/[\r\n\x00\'"]/'],
-        ], ['sets.required' => sprintf(__('Field "%s" can not be blank.'), __('Permissions'))]);
+            // the rule of v-add-access-key, so a refused comment shows next to its field
+            'comment' => ['nullable', 'string', 'max:66', 'regex:'.AccessKeyService::COMMENT],
+        ], [
+            'sets.required' => sprintf(__('Field "%s" can not be blank.'), __('Permissions')),
+            'comment.max' => __('Use at most 66 characters.'),
+            'comment.regex' => __('Use 2 to 66 letters, digits, spaces, dots, dashes or underscores, starting and ending with a letter or digit.'),
+        ]);
         $sets = array_values(array_unique($data['sets']));
         foreach ($sets as $set) {
             if (! in_array($set, $allowed, true)) {

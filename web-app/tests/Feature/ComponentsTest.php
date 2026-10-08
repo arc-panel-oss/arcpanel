@@ -25,6 +25,11 @@ it('renders buttons, links and one-button forms', function (string $dir) {
     $html = component('<x-ap-button form-action="/delete" form-method="DELETE" variant="danger" confirm="Sure?">Delete</x-ap-button>', dir: $dir);
     expect($html)->toContain('method="post" action="/delete"')->toContain('name="_method" value="DELETE"')
         ->toContain('data-confirm="Sure?"')->toContain('data-confirm-danger')->toContain('name="_token"');
+
+    $html = component('<x-ap-button form-action="/delete" variant="ghost" confirm="Sure?">Delete</x-ap-button>', dir: $dir);
+    expect($html)->not->toContain('data-confirm-danger');
+    $html = component('<x-ap-button form-action="/delete" variant="ghost" confirm="Sure?" :confirm-danger="true">Delete</x-ap-button>', dir: $dir);
+    expect($html)->toContain('data-confirm-danger');
 })->with('directions');
 
 it('renders form fields with labels, hints, errors and old input', function (string $dir) {

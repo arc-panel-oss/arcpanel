@@ -174,6 +174,15 @@ it('requires permissions and refuses sets of other roles', function () {
     $this->fake->assertNotRan('v-add-access-key');
 });
 
+it('refuses a comment that v-add-access-key would refuse, next to the field', function () {
+    signIn('bob', 'user');
+
+    foreach (['x', 'deploy bot!', '-ci', str_repeat('a', 67)] as $comment) {
+        $this->post('/access-keys/bob', ['sets' => ['v2-read'], 'comment' => $comment])->assertSessionHasErrors('comment');
+    }
+    $this->fake->assertNotRan('v-add-access-key');
+});
+
 it('deletes keys in bulk, of the owner only', function () {
     $this->fake->on('v-delete-access-key')->returns();
     signIn('bob', 'user');

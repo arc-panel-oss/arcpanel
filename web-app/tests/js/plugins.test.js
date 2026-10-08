@@ -69,6 +69,14 @@ describe('focusFirst', () => {
 		expect(document.activeElement.id).toBe('search');
 	});
 
+	it('ignores the autofocus of a closed dialog', () => {
+		document.body.innerHTML = `
+			<form data-focus-first><input id="domain"></form>
+			<div style="display: none"><div role="alertdialog"><button id="accept" autofocus>OK</button></div></div>`;
+		initialized();
+		expect(document.activeElement.id).toBe('domain');
+	});
+
 	it('does nothing without a marked form', () => {
 		document.body.innerHTML = '<form><input id="domain"></form>';
 		initialized();

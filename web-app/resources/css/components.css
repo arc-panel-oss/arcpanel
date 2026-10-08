@@ -4589,6 +4589,14 @@ a.ap-pick:focus-visible {
 	align-items: center;
 	gap: var(--ap-space-1-5) var(--ap-space-2);
 }
+@media (max-width: 639px) {
+	.ap-set-list {
+		gap: var(--ap-space-3);
+	}
+	.ap-set-list li > .muted {
+		flex-basis: 100%;
+	}
+}
 .ap-key-heading {
 	margin: 0;
 	font-size: var(--ap-text-sm);
@@ -4602,6 +4610,9 @@ a.ap-pick:focus-visible {
 }
 .ap-set-group + .ap-set-group {
 	margin-top: var(--ap-space-5);
+}
+.ap-sets-error {
+	margin-bottom: var(--ap-space-2);
 }
 .ap-sets {
 	display: grid;
@@ -4649,6 +4660,12 @@ a.ap-pick:focus-visible {
 .ap-set .ap-hint {
 	margin: 0;
 	padding-inline-start: var(--ap-space-6-5);
+}
+/* a long comment wraps instead of running under the row actions */
+.ap-table .ap-key-name > a,
+.ap-key-name b {
+	white-space: normal;
+	overflow-wrap: anywhere;
 }
 .ap-key-sets-cell {
 	flex-wrap: wrap;

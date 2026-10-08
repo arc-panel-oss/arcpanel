@@ -28,7 +28,7 @@
     @if ($canManage)
         <x-slot:actions>
             <x-ap-button variant="danger" :form-action="route('access-keys.destroy', ['user' => $user, 'key' => $key->id])" form-method="DELETE" icon="trash"
-                :confirm="sprintf(__('Are you sure you want to delete access key %s?'), $key->id)">{{ __('Delete') }}</x-ap-button>
+                :confirm="sprintf(__('Are you sure you want to delete access key %s?'), $key->id)" :confirm-accept="__('Delete')">{{ __('Delete') }}</x-ap-button>
         </x-slot:actions>
     @endif
 

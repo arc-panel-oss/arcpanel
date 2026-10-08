@@ -17,14 +17,16 @@ export function autoTrim() {
 /**
  * focusFirst: on a page with a [data-focus-first] form, focus the first field
  * with an error, else the first field (focusFirstInput.js), unless something
- * already has focus or carries autofocus.
+ * already has focus or carries autofocus. The autofocus of a dialog (the
+ * shell's confirm dialog is on every page) is for when it opens, not the page.
  */
 export function focusFirst() {
 	document.addEventListener('alpine:initialized', () => {
 		if (document.activeElement && document.activeElement !== document.body) {
 			return;
 		}
-		if (document.querySelector('[autofocus]')) {
+		const autofocus = [...document.querySelectorAll('[autofocus]')].filter((el) => !el.closest('dialog, [role="dialog"], [role="alertdialog"]'));
+		if (autofocus.length > 0) {
 			return;
 		}
 		const form = document.querySelector('form[data-focus-first]');

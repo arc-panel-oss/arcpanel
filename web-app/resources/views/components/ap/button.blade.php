@@ -1,7 +1,8 @@
 {{--
     Button (docs/design/05 §5). Variants: default, primary, ghost, danger.
     href renders a link; form-action renders a one-button POST form with CSRF
-    (method spoofing with form-method), and confirm asks first (apConfirm).
+    (method spoofing with form-method), and confirm asks first (apConfirm);
+    the question is red for a danger button or with confirm-danger.
 --}}
 @props([
     'variant' => null,
@@ -16,6 +17,7 @@
     'confirm' => null,
     'confirmTitle' => null,
     'confirmAccept' => null,
+    'confirmDanger' => null,
     'loading' => false,
 ])
 @php
@@ -29,7 +31,7 @@
         'data-confirm' => $confirm,
         'data-confirm-title' => $confirmTitle,
         'data-confirm-accept' => $confirmAccept,
-        'data-confirm-danger' => $variant === 'danger' ? '' : null,
+        'data-confirm-danger' => ($confirmDanger ?? $variant === 'danger') ? '' : null,
     ], fn ($v) => $v !== null) : [];
 @endphp
 @if ($formAction)

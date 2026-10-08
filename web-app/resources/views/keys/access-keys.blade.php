@@ -36,12 +36,12 @@
                             <x-ap-row-check :value="$key->id" :label="__('Select :name', ['name' => $key->id])" form="access-keys-bulk" />
                         @endif
                         <td data-col="id" data-label="{{ __('Access Key') }}" data-sort-value="{{ $key->comment !== '' ? $key->comment : $key->id }}">
-                            <div class="ap-cell-main">
+                            <div class="ap-cell-main ap-key-name">
                                 @if ($key->comment !== '')
                                     <a href="{{ route('access-keys.show', $params) }}"><b>{{ $key->comment }}</b></a>
                                     <span class="mono">{{ $key->id }}</span>
                                 @else
-                                    <a class="mono" href="{{ route('access-keys.show', $params) }}">{{ $key->id }}</a>
+                                    <a href="{{ route('access-keys.show', $params) }}"><b class="mono">{{ $key->id }}</b></a>
                                 @endif
                             </div>
                         </td>
@@ -64,7 +64,7 @@
                         </td>
                         <td data-col="created" data-label="{{ __('Created') }}" data-sort-value="{{ $key->date }} {{ $key->time }}" class="nowrap">
                             @if ($key->date !== '')
-                                {{ $key->date }} <span class="muted">{{ $key->time }}</span>
+                                <span>{{ $key->date }} <span class="muted">{{ $key->time }}</span></span>
                             @else
                                 -
                             @endif
@@ -73,7 +73,7 @@
                             @if ($canManage)
                                 <x-ap-button variant="ghost" size="sm" :icon-only="true" icon="trash" :label="__('Delete :name', ['name' => $key->id])"
                                     :form-action="route('access-keys.destroy', $params)" form-method="DELETE"
-                                    :confirm="sprintf(__('Are you sure you want to delete access key %s?'), $key->id)" />
+                                    :confirm="sprintf(__('Are you sure you want to delete access key %s?'), $key->id)" :confirm-accept="__('Delete')" :confirm-danger="true" />
                             @endif
                         </td>
                     </tr>
