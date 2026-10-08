@@ -2,9 +2,10 @@
 # info: archive directory
 # options: USER ARCHIVE SOURCE [SOURCE...]
 #
-# example: v-add-fs-archive admin archive.tar readme.txt
+# example: v-add-fs-archive admin /home/admin/archive.tar /home/admin/readme.txt
 #
-# This function creates tar archive
+# This function creates tar archive as the user. The archive and every source
+# must be absolute paths inside the user's home; the archive must not exist.
 
 #----------------------------------------------------------#
 #                Variables & Functions                     #
@@ -18,6 +19,8 @@ archive=$2
 source /etc/arcpanel/arcpanel.conf
 # shellcheck source=/usr/local/arcpanel/func/main.sh
 source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/fs.sh
+source $ARCPANEL/func/fs.sh
 
 #----------------------------------------------------------#
 #                    Verifications                         #
@@ -30,52 +33,38 @@ is_object_valid 'user' 'USER' "$user"
 # Perform verification if read-only mode is enabled
 check_arcpanel_demo_mode
 
-# Checking user homedir
-homedir=$(grep "^$user:" /etc/passwd | cut -f 6 -d :)
-if [ -z "$homedir" ]; then
-	echo "Error: user home directory doesn't exist"
-	exit 12
-fi
+homedir=$(fs_home "$user")
+shift 2
 
-# Checking archive
+# Checking archive path: the archive and the tar written before gzip
+tar_file=${archive/.gz/}
+fs_check_path "$archive"
+fs_check_path "$tar_file"
 if [ -e "$archive" ]; then
 	echo "Error: archive already exist $archive"
 	exit 1
 fi
 
-# Checking source path
-IFS=$'\n'
-i=1
-for src in $*; do
-	if [ "$i" -gt 2 ]; then
-		rpath=$(readlink -f "$src")
-		if [ -z "$(echo $rpath | egrep "^/tmp|^$homedir")" ]; then
-			echo "Error: invalid source path $src"
-			exit 1
-		fi
-	fi
-	((i++))
+# Checking source paths
+for src in "$@"; do
+	fs_check_path "$src"
 done
 
-i=1
-for src in $*; do
-	if [ "$i" -gt 2 ]; then
-		# Deleting leading home path
-		src=$(echo "$src" | sed -e "s|/home/$user/||")
+for src in "$@"; do
+	# Deleting leading home path
+	src=${src#"$homedir"/}
 
-		# Creating tar.gz archive
-		user_exec tar -rf "${archive/.gz/}" -C /home/$user $src > /dev/null 2>&1
-		if [ "$?" -ne 0 ]; then
-			echo "Error: archive $archive was not created"
-			exit 3
-		fi
+	# Creating tar.gz archive
+	user_exec tar -rf "$tar_file" -C "$homedir" -- "$src" > /dev/null 2>&1
+	if [ "$?" -ne 0 ]; then
+		echo "Error: archive $archive was not created"
+		exit 3
 	fi
-	((i++))
 done
 
 # Checking gzip
 if [[ "$archive" =~ \.gz$ ]]; then
-	user_exec gzip "${archive/.gz/}" > /dev/null 2>&1
+	user_exec gzip -- "$tar_file" > /dev/null 2>&1
 	if [ "$?" -ne 0 ]; then
 		echo "Error: archive $archive was not gziped"
 		exit 3

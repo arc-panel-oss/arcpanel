@@ -2,9 +2,11 @@
 # info: change file permission
 # options: USER FILE PERMISSIONS
 #
-# example: v-change-fs-file-permission admin readme.txt 0777
+# example: v-change-fs-file-permission admin /home/admin/readme.txt 0777
 #
-# This function changes file access permissions on the file system
+# This function changes file access permissions on the file system as the
+# user. The path must be absolute and inside the user's home; PERMISSIONS is
+# an octal mode.
 
 user=$1
 src_file=$2
@@ -15,6 +17,8 @@ permissions=$3
 source /etc/arcpanel/arcpanel.conf
 # shellcheck source=/usr/local/arcpanel/func/main.sh
 source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/fs.sh
+source $ARCPANEL/func/fs.sh
 # load config file
 source_conf "$ARCPANEL/conf/arcpanel.conf"
 
@@ -29,28 +33,19 @@ is_object_valid 'user' 'USER' "$user"
 # Perform verification if read-only mode is enabled
 check_arcpanel_demo_mode
 
-# Checking user homedir
-homedir=$(grep "^$user:" /etc/passwd | cut -f 6 -d :)
-if [ -z "$homedir" ]; then
-	echo "Error: user home directory doesn't exist"
-	exit 12
-fi
-
-# Checking source file
+# Checking source path, then the file
+fs_check_path "$src_file"
 if [ ! -f "$src_file" ]; then
 	echo "Error: source file doesn't exist $src_file"
 	exit 3
 fi
 
-# Checking source path
-rpath=$(readlink -f "$src_file")
-if [ -z "$(echo $rpath | egrep "^/tmp|^$homedir")" ]; then
-	echo "Error: invalid source path $src_file"
-	exit 2
+if ! fs_mode_valid "$permissions"; then
+	check_result "$E_INVALID" "invalid permissions $permissions"
 fi
 
 # Changing file permissions
-user_exec chmod -R $permissions "$src_file" > /dev/null 2>&1
+user_exec chmod -R "$permissions" -- "$src_file" > /dev/null 2>&1
 if [ $? -ne 0 ]; then
 	echo "Error: access permission on $src_file was not changed"
 	exit 3

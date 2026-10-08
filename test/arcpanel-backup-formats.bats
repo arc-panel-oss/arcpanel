@@ -28,6 +28,15 @@ setup_file() {
 	v-add-web-domain "$BF_USER" "$BF_DOMAIN" > /dev/null
 	echo "arcbfmt marker" > "/home/$BF_USER/web/$BF_DOMAIN/public_html/arcbfmt.txt"
 	v-add-cron-job "$BF_USER" '17' '3' '*' '*' '*' "echo arcbfmt" > /dev/null
+	# A mail account with a message and a folder of the user's own, which the
+	# restore unpacks as the user (E34 batch 5, D53)
+	v-add-mail-domain "$BF_USER" "$BF_DOMAIN" > /dev/null
+	v-add-mail-account "$BF_USER" "$BF_DOMAIN" arcbfmt "$pass" > /dev/null
+	mkdir -p "/home/$BF_USER/mail/$BF_DOMAIN/arcbfmt/cur" "/home/$BF_USER/arcbfmt-dir"
+	echo "arcbfmt mail" > "/home/$BF_USER/mail/$BF_DOMAIN/arcbfmt/cur/1.arcbfmt:2,S"
+	echo "arcbfmt user dir" > "/home/$BF_USER/arcbfmt-dir/marker.txt"
+	chown -R "$BF_USER:mail" "/home/$BF_USER/mail/$BF_DOMAIN/arcbfmt"
+	chown -R "$BF_USER:$BF_USER" "/home/$BF_USER/arcbfmt-dir"
 	rm -f "$BACKUP_DIR/$BF_USER".*.tar
 	v-backup-user "$BF_USER" > /dev/null
 	ARCHIVE="$(ls -t "$BACKUP_DIR/$BF_USER".*.tar | head -n1)"
@@ -71,6 +80,18 @@ bf_restore_and_check() {
 @test "An ArcPanel archive restores" {
 	cp "$BATS_FILE_TMPDIR/arcpanel.tar" "$ARCHIVE"
 	bf_restore_and_check
+}
+
+@test "Mail accounts and folders of the user restore, unpacked as the user" {
+	cp "$BATS_FILE_TMPDIR/arcpanel.tar" "$ARCHIVE"
+	v-delete-user "$BF_USER" > /dev/null
+	run v-restore-user "$BF_USER" "$(basename "$ARCHIVE")" '*' 'no' '*' 'no' '*' '*' 'no'
+	assert_success
+	assert_equal "$(cat "/home/$BF_USER/mail/$BF_DOMAIN/arcbfmt/cur/1.arcbfmt:2,S")" "arcbfmt mail"
+	assert_equal "$(stat -c '%U:%G' "/home/$BF_USER/mail/$BF_DOMAIN/arcbfmt/cur/1.arcbfmt:2,S")" "$BF_USER:mail"
+	assert_equal "$(cat "/home/$BF_USER/arcbfmt-dir/marker.txt")" "arcbfmt user dir"
+	assert_equal "$(stat -c '%U' "/home/$BF_USER/arcbfmt-dir/marker.txt")" "$BF_USER"
+	assert_equal "$(stat -c '%U' "/home/$BF_USER")" "root"
 }
 
 @test "A HestiaCP or ArcPanel 1.x archive (./hestia) restores" {

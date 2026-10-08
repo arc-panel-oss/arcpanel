@@ -157,3 +157,36 @@ teardown_file() {
     run v-run-user-quick-install 1 "$QI_USER" "$QI_DOMAIN" DokuWiki
     assert_failure 10
 }
+
+# Installers write files through the panel's staging tree and v-add-fs-upload,
+# never through /tmp (E34 batch 5, D53)
+qi_create_file() {
+    "$ARCPANEL/php/bin/php" -r '
+        require "/usr/local/arcpanel/func/quickinstall.php";
+        qi_session($argv[1]);
+        (new QiArcPanelApp())->createFile($argv[2], $argv[3]);' "$QI_USER" "$1" "$2"
+}
+
+@test "Installers create files as the user and keep the mode of an existing file" {
+    file="/home/$QI_USER/web/$QI_DOMAIN/public_html/qi-created.env"
+    uploads="$ARCPANEL/web-app/storage/app/files/uploads"
+    before=$(find "$uploads" -mindepth 1 -maxdepth 1 | wc -l)
+    rm -f "$file"
+
+    run qi_create_file "$file" 'first=1'
+    assert_success
+    assert_equal "$(stat -c '%U:%G %a' "$file")" "$QI_USER:$QI_USER 644"
+    assert_equal "$(cat "$file")" "first=1"
+
+    chmod 600 "$file"
+    run qi_create_file "$file" 'second=2'
+    assert_success
+    assert_equal "$(stat -c '%U %a' "$file")" "$QI_USER 600"
+    assert_equal "$(cat "$file")" "second=2"
+
+    run qi_create_file "/home/$QI_OTHER/qi-created.env" 'nope'
+    assert_failure
+    assert_file_not_exists "/home/$QI_OTHER/qi-created.env"
+    assert_equal "$(find "$uploads" -mindepth 1 -maxdepth 1 | wc -l)" "$before"
+    rm -f "$file"
+}

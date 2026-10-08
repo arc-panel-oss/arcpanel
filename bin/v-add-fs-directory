@@ -2,9 +2,10 @@
 # info: add directory
 # options: USER DIRECTORY
 #
-# example: v-add-fs-directory admin mybar
+# example: v-add-fs-directory admin /home/admin/mybar
 #
-# This function creates new directory on the file system
+# This function creates new directory on the file system, with its missing
+# parents, as the user. The path must be absolute and inside the user's home.
 
 #----------------------------------------------------------#
 #                Variables & Functions                     #
@@ -18,6 +19,8 @@ dst_dir=$2
 source /etc/arcpanel/arcpanel.conf
 # shellcheck source=/usr/local/arcpanel/func/main.sh
 source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/fs.sh
+source $ARCPANEL/func/fs.sh
 
 #----------------------------------------------------------#
 #                    Verifications                         #
@@ -30,22 +33,11 @@ is_object_valid 'user' 'USER' "$user"
 # Perform verification if read-only mode is enabled
 check_arcpanel_demo_mode
 
-# Checking user homedir
-homedir=$(grep "^$user:" /etc/passwd | cut -f 6 -d :)
-if [ -z "$homedir" ]; then
-	echo "Error: user home directory doesn't exist"
-	exit 12
-fi
-
-# Checking destination path
-rpath=$(readlink -f "$dst_dir")
-if [ -z "$(echo $rpath | egrep "^/tmp|^$homedir")" ]; then
-	echo "Error: invalid destination path $dst_dir"
-	exit 2
-fi
+# Checking destination path: inside the home, missing parents allowed
+fs_check_new_path "$dst_dir"
 
 # Adding directory
-user_exec mkdir -p "$dst_dir" > /dev/null 2>&1
+user_exec mkdir -p -- "$dst_dir" > /dev/null 2>&1
 if [ $? -ne 0 ]; then
 	echo "Error: directory $dst_dir was not created"
 	exit 3

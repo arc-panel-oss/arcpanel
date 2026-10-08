@@ -1,10 +1,11 @@
 #!/bin/bash
-# info: open file
+# info: check file permission
 # options: USER FILE
 #
-# example: v-check-fs-permission admin readme.txt
+# example: v-check-fs-permission admin /home/admin/readme.txt
 #
-# This function opens/reads files on the file system
+# This function checks that the user can read a file or folder on the file
+# system. The path must be absolute and inside the user's home.
 
 #----------------------------------------------------------#
 #                Variables & Functions                     #
@@ -18,6 +19,8 @@ src=$2
 source /etc/arcpanel/arcpanel.conf
 # shellcheck source=/usr/local/arcpanel/func/main.sh
 source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/fs.sh
+source $ARCPANEL/func/fs.sh
 # load config file
 source_conf "$ARCPANEL/conf/arcpanel.conf"
 
@@ -32,24 +35,11 @@ is_object_valid 'user' 'USER' "$user"
 # Perform verification if read-only mode is enabled
 check_arcpanel_demo_mode
 
-# Checking user homedir
-homedir=$(grep "^$user:" /etc/passwd | cut -f 6 -d :)
-if [ -z "$homedir" ]; then
-	echo "Error: user home directory doesn't exist"
-	exit 12
-fi
-
 # Checking path
-if [ -n "$src" ]; then
-	rpath=$(readlink -f "$src")
-	if [ -z "$(echo $rpath | egrep "^/tmp|^$homedir")" ]; then
-		echo "Error: invalid source path $user $src"
-		exit 2
-	fi
-fi
+fs_check_path "$src"
 
 # Checking if file has readable permission
-user_exec ls "$src" > /dev/null 2>&1
+user_exec ls -- "$src" > /dev/null 2>&1
 if [ $? -ne 0 ]; then
 	echo "Error: can't read $src"
 	exit 1

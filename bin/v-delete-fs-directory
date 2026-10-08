@@ -2,9 +2,11 @@
 # info: delete directory
 # options: USER DIRECTORY
 #
-# example: v-delete-fs-directory admin report1
+# example: v-delete-fs-directory admin /home/admin/report1
 #
-# This function deletes directory on the file system
+# This function deletes directory on the file system as the user. The path
+# must be absolute and inside the user's home; the home itself cannot be
+# deleted.
 
 #----------------------------------------------------------#
 #                Variables & Functions                     #
@@ -18,6 +20,8 @@ dst_dir=$2
 source /etc/arcpanel/arcpanel.conf
 # shellcheck source=/usr/local/arcpanel/func/main.sh
 source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/fs.sh
+source $ARCPANEL/func/fs.sh
 # load config file
 source_conf "$ARCPANEL/conf/arcpanel.conf"
 
@@ -32,22 +36,11 @@ is_object_valid 'user' 'USER' "$user"
 # Perform verification if read-only mode is enabled
 check_arcpanel_demo_mode
 
-# Checking user homedir
-homedir=$(grep "^$user:" /etc/passwd | cut -f 6 -d :)
-if [ -z "$homedir" ]; then
-	echo "Error: user home directory doesn't exist"
-	exit 12
-fi
-
 # Checking destination path
-rpath=$(readlink -f "$dst_dir")
-if [ -z "$(echo $rpath | egrep "^/tmp|^$homedir")" ]; then
-	echo "Error: invalid destination path $dst_dir"
-	exit 1
-fi
+fs_check_entry "$dst_dir"
 
 # Deleting directory
-user_exec rm -rf "$dst_dir" # >/dev/null 2>&1
+user_exec rm -rf -- "$dst_dir" > /dev/null 2>&1
 if [ $? -ne 0 ]; then
 	echo "Error: directory $dst_dir was not deleted"
 	exit 3

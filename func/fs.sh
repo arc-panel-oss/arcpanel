@@ -78,6 +78,43 @@ fs_check_path() {
 	fi
 }
 
+# fs_check_path for an entry that is changed or removed as a whole (delete,
+# move, rename): the home directory itself is refused as well.
+fs_check_entry() {
+	fs_check_path "$1"
+	if [ "$FS_REAL" = "$(fs_home "$user")" ]; then
+		check_result "$E_FORBIDEN" "invalid path $1"
+	fi
+}
+
+# fs_check_path for a folder that "mkdir -p" may create with its missing
+# parents: the deepest part that exists (a symbolic link counts as existing)
+# must resolve inside the home directory of $user, and the missing part may
+# not hold "." or ".." segments. Sets FS_REAL.
+fs_check_new_path() {
+	local path=$1 home ancestor real
+	case "/$path/" in
+		*/./* | */../*) check_result "$E_FORBIDEN" "invalid path $path" ;;
+	esac
+	home=$(fs_home "$user")
+	if [ -z "$home" ] || [ ! -d "$home" ]; then
+		check_result "$E_NOTEXIST" "home directory of $user doesn't exist"
+	fi
+	if [ -z "$(fs_resolve "$path")" ] && [ "${path#/}" != "$path" ] && [ "$path" = "${path//$'\n'/}" ]; then
+		ancestor=$path
+		while [ "$ancestor" != '/' ] && [ ! -e "$ancestor" ] && [ ! -L "$ancestor" ]; do
+			ancestor=$(dirname -- "$ancestor")
+		done
+		real=$(readlink -f -- "$ancestor")
+		if fs_is_below "$home" "$real"; then
+			FS_REAL="$real/${path#"$ancestor"/}"
+			return 0
+		fi
+		check_result "$E_FORBIDEN" "invalid path $path"
+	fi
+	fs_check_path "$path"
+}
+
 # A single file name: not empty, no slash, not . or .., no newline
 fs_name_valid() {
 	local name=$1

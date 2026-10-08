@@ -1,9 +1,11 @@
 #!/usr/bin/env bats
 # ArcPanel file manager commands (E3,
-# docs/features/specs/2026-10-05-008-e3-file-manager-design.md).
+# docs/features/specs/2026-10-05-008-e3-file-manager-design.md) and the path
+# checks and extract formats of the inherited file commands (D52, D53 of
+# docs/features/specs/2026-10-08-003-e34-api-v2-batch5-design.md).
 # Run as root on a server installed with the ArcPanel installer. The disk
 # cases mount a small tmpfs and a loop ext4 image with user quotas inside the
-# test user's home.
+# test user's home. The 7z case needs 7-Zip (7z, 7za or 7zz).
 
 if [ "${PATH#*/usr/local/arcpanel/bin*}" = "$PATH" ]; then
     . /etc/profile.d/arcpanel.sh
@@ -21,7 +23,12 @@ CRONTAB=/var/spool/cron/crontabs/arcpanelweb
 PASS="Tf-$(date +%s)-Pass"
 U1=tfu1
 U2=tfu2
+# A user whose name extends U1: /home/tfu1x starts with /home/tfu1
+U3=${U1}x
 H1=/home/$U1
+# Files outside the home of U1 that U1 owns (D53)
+OUT_TMP=/tmp/tfd53
+OUT_SIBLING=/home/$U3/tfd53
 # The home directory itself belongs to root; users write below ~/tmp and ~/web
 T=$H1/tmp/t
 QUOTA_IMG=/root/arcpanel-files-quota.img
@@ -34,16 +41,17 @@ unmount_all() {
 
 cleanup() {
     unmount_all
-    for user in $U1 $U2; do
+    for user in $U1 $U2 $U3; do
         v-delete-user "$user" > /dev/null 2>&1 || true
     done
-    rm -rf "/home/${U1}x"
+    rm -rf "/home/${U1}x" "$OUT_TMP"*
 }
 
 setup_file() {
     cleanup
     v-add-user $U1 "$PASS" $U1@example.invalid default > /dev/null
     v-add-user $U2 "$PASS" $U2@example.invalid default > /dev/null
+    v-add-user $U3 "$PASS" $U3@example.invalid default > /dev/null
     v-add-sys-panel-files
 }
 
@@ -367,4 +375,204 @@ stage() {
     assert_success
     size=$(jq -r .SIZE <<< "$output")
     assert [ "$size" -ge 5000 ]
+}
+
+# Inherited file commands (E34 batch 5, D53)
+
+# Runs every inherited file command with a path below PREFIX, which resolves
+# outside the home of U1, as source and as destination; each one must end
+# with E_FORBIDEN. $T holds f.txt, d/ and a.zip of U1.
+refuses_outside() {
+    local p=$1
+    run v-add-fs-archive $U1 "$T/new.tar" "$p.txt"
+    assert_failure 10
+    run v-add-fs-archive $U1 "$p-new.tar" "$T/f.txt"
+    assert_failure 10
+    run v-add-fs-directory $U1 "$p-dir/sub"
+    assert_failure 10
+    run v-add-fs-file $U1 "$p-new.txt"
+    assert_failure 10
+    run v-change-fs-file-permission $U1 "$p.txt" 0600
+    assert_failure 10
+    run v-check-fs-permission $U1 "$p.txt"
+    assert_failure 10
+    run v-copy-fs-file $U1 "$p.txt" "$T/copy.txt"
+    assert_failure 10
+    run v-copy-fs-file $U1 "$T/f.txt" "$p-copy.txt"
+    assert_failure 10
+    run v-copy-fs-directory $U1 "$p.d" "$T/copy.d"
+    assert_failure 10
+    run v-copy-fs-directory $U1 "$T/d" "$p-copy.d"
+    assert_failure 10
+    run v-move-fs-file $U1 "$p.txt" "$T/moved.txt"
+    assert_failure 10
+    run v-move-fs-file $U1 "$T/f.txt" "$p-moved.txt"
+    assert_failure 10
+    run v-move-fs-directory $U1 "$p.d" "$T/moved.d"
+    assert_failure 10
+    run v-move-fs-directory $U1 "$T/d" "$p-moved.d"
+    assert_failure 10
+    run v-delete-fs-file $U1 "$p.txt"
+    assert_failure 10
+    run v-delete-fs-directory $U1 "$p.d"
+    assert_failure 10
+    run v-extract-fs-archive $U1 "$p.zip" "$T/x"
+    assert_failure 10
+    run v-extract-fs-archive $U1 "$T/a.zip" "$p-x"
+    assert_failure 10
+    run v-open-fs-file $U1 "$p.txt"
+    assert_failure 10
+    refute_output --partial 'outside secret'
+}
+
+@test "The inherited file commands refuse /tmp, a home sharing the prefix, .. and links that leave the home" {
+    as_user sh -c "printf mine > '$T/f.txt'; mkdir '$T/d'; cd '$T' && zip -q a.zip f.txt"
+    as_user ln -s /etc "$T/etc"
+    as_user ln -s "/home/$U3" "$T/sibling"
+    # Owned by U1, so only the path check can stop the commands
+    for p in "$OUT_TMP" "$OUT_SIBLING"; do
+        printf 'outside secret' > "$p.txt"
+        mkdir -p "$p.d"
+        zip -qj "$p.zip" "$p.txt"
+        chown -R $U1:$U1 "$p.txt" "$p.d" "$p.zip"
+        chmod 644 "$p.txt"
+    done
+
+    for p in "$OUT_TMP" "$OUT_SIBLING" "$H1/../$U3/tfd53" "$T/sibling/tfd53" "$T/etc/tfd53"; do
+        refuses_outside "$p"
+    done
+    run v-delete-fs-directory $U1 "$T/etc"
+    assert_failure 10
+    run v-change-fs-file-permission $U1 "$T/etc/hostname" 0777
+    assert_failure 10
+    run v-open-fs-file $U1 "$T/etc/hostname"
+    assert_failure 10
+    run v-add-fs-file $U1 "relative.txt"
+    assert_failure 10
+
+    for p in "$OUT_TMP" "$OUT_SIBLING"; do
+        assert_equal "$(stat -c '%U %a' "$p.txt")" "$U1 644"
+        assert_equal "$(cat "$p.txt")" "outside secret"
+        assert_dir_exists "$p.d"
+        assert_equal "$(ls -d "$p"-* 2> /dev/null | wc -l)" "0"
+    done
+    assert_equal "$(ls -A "$T" | sort | tr '\n' ' ')" "a.zip d etc f.txt sibling "
+    assert_equal "$(cat "$T/f.txt")" "mine"
+}
+
+@test "The inherited file commands work inside the home and protect the home itself" {
+    run v-add-fs-directory $U1 "$T/n1/n2/n3"
+    assert_success
+    assert_equal "$(stat -c '%U' "$T/n1" "$T/n1/n2/n3" | sort -u)" "$U1"
+    run v-add-fs-directory $U1 "$T/n1/n2/"
+    assert_success
+    run v-add-fs-directory $U1 "$T/new/../escape"
+    assert_failure 10
+    run v-add-fs-file $U1 "$T/n1/f.txt"
+    assert_success
+    assert_equal "$(stat -c '%U' "$T/n1/f.txt")" "$U1"
+    run v-add-fs-file $U1 "$T/missing/f.txt"
+    assert_failure 3
+
+    as_user sh -c "printf data > '$T/n1/f.txt'"
+    run v-change-fs-file-permission $U1 "$T/n1/f.txt" 0600
+    assert_success
+    assert_equal "$(stat -c '%a' "$T/n1/f.txt")" "600"
+    run v-change-fs-file-permission $U1 "$T/n1/f.txt" 'u+x'
+    assert_failure 2
+    run v-check-fs-permission $U1 "$T/n1/f.txt"
+    assert_success
+    run v-open-fs-file $U1 "$T/n1/f.txt"
+    assert_success
+    assert_output 'data'
+    run v-open-fs-file $U1 "$T/n1/none.txt"
+    assert_failure 2
+
+    run v-copy-fs-file $U1 "$T/n1/f.txt" "$T/copy.txt"
+    assert_success
+    assert_equal "$(stat -c '%U' "$T/copy.txt")" "$U1"
+    run v-copy-fs-directory $U1 "$T/n1" "$T/n1copy"
+    assert_success
+    assert_file_exists "$T/n1copy/f.txt"
+    assert_dir_exists "$T/n1copy/n2/n3"
+    run v-move-fs-file $U1 "$T/copy.txt" "$T/moved.txt"
+    assert_success
+    assert_file_not_exists "$T/copy.txt"
+    run v-move-fs-directory $U1 "$T/n1copy" "$T/n1moved"
+    assert_success
+    assert_dir_exists "$T/n1moved/n2"
+
+    run v-add-fs-archive $U1 "$T/pack.tar.gz" "$T/moved.txt" "$T/n1moved"
+    assert_success
+    assert_equal "$(tar -tzf "$T/pack.tar.gz" | grep -c -F -e 'tmp/t/moved.txt' -e 'tmp/t/n1moved/f.txt')" "2"
+    run v-add-fs-archive $U1 "$T/pack.tar.gz" "$T/moved.txt"
+    assert_failure 1
+
+    run v-delete-fs-file $U1 "$T/moved.txt"
+    assert_success
+    assert_file_not_exists "$T/moved.txt"
+    run v-delete-fs-directory $U1 "$T/n1moved"
+    assert_success
+    assert_file_not_exists "$T/n1moved"
+
+    # The home itself is never deleted or moved
+    run v-delete-fs-directory $U1 "$H1"
+    assert_failure 10
+    run v-delete-fs-directory $U1 "$T/.."/..
+    assert_failure 10
+    run v-move-fs-directory $U1 "$H1" "$T/home"
+    assert_failure 10
+    assert_dir_exists "$T/n1"
+}
+
+@test "Extract unpacks zip, tar.gz, tgz, tar.bz2, tbz and tar.zst into a new folder" {
+    as_user sh -c "mkdir -p '$T/src/sub'; printf hello > '$T/src/sub/a.txt'"
+    as_user sh -c "cd '$T/src' && zip -qr ../a.zip . && tar -czf ../a.tar.gz . && tar -czf ../a.tgz . \
+        && tar -cjf ../a.tar.bz2 . && tar -cjf ../a.tbz . && tar -I zstd -cf ../a.tar.zst ."
+    for archive in a.zip a.tar.gz a.tgz a.tar.bz2 a.tbz a.tar.zst; do
+        dst="$T/out/${archive//./-}/new"
+        run v-extract-fs-archive $U1 "$T/$archive" "$dst"
+        assert_success
+        assert_equal "$(cat "$dst/sub/a.txt")" "hello"
+        assert_equal "$(stat -c '%U' "$dst" "$dst/sub/a.txt" | sort -u)" "$U1"
+        assert_file_exists "$T/$archive"
+    done
+    as_user sh -c "printf text > '$T/plain.txt'"
+    run v-extract-fs-archive $U1 "$T/plain.txt" "$T/out/plain"
+    assert_failure 2
+}
+
+@test "Extract unpacks 7z into a new folder and keeps the archive" {
+    sevenzip=$(command -v 7z 7za 7zz | head -n 1)
+    as_user sh -c "mkdir -p '$T/src/sub'; printf hello > '$T/src/sub/a.txt'"
+    if [ -z "$sevenzip" ]; then
+        printf 'not a 7z archive' > "$T/a.7z"
+        run v-extract-fs-archive $U1 "$T/a.7z" "$T/x7/new"
+        assert_failure 3
+        skip '7-Zip (7z, 7za or 7zz) is not installed on this server'
+    fi
+    as_user sh -c "cd '$T/src' && '$sevenzip' a -bd -y ../a.7z sub > /dev/null"
+    run v-extract-fs-archive $U1 "$T/a.7z" "$T/x7/new"
+    assert_success
+    assert_equal "$(cat "$T/x7/new/sub/a.txt")" "hello"
+    assert_equal "$(stat -c '%U' "$T/x7/new/sub/a.txt")" "$U1"
+    assert_file_exists "$T/a.7z"
+}
+
+@test "Extract of a single .gz, .bz2 or .zst file moves it into the folder and decompresses it" {
+    as_user sh -c "cd '$T' && printf one > g.txt && gzip g.txt && printf two > b.txt && bzip2 b.txt \
+        && printf three > z.txt && zstd -q --rm z.txt"
+    run v-extract-fs-archive $U1 "$T/g.txt.gz" "$T/single-g"
+    assert_success
+    assert_equal "$(cat "$T/single-g/g.txt")" "one"
+    assert_file_not_exists "$T/g.txt.gz"
+    run v-extract-fs-archive $U1 "$T/b.txt.bz2" "$T/single-b"
+    assert_success
+    assert_equal "$(cat "$T/single-b/b.txt")" "two"
+    assert_file_not_exists "$T/b.txt.bz2"
+    run v-extract-fs-archive $U1 "$T/z.txt.zst" "$T/single-z"
+    assert_success
+    assert_equal "$(cat "$T/single-z/z.txt")" "three"
+    assert_file_not_exists "$T/z.txt.zst"
+    assert_equal "$(stat -c '%U' "$T/single-g/g.txt" "$T/single-b/b.txt" "$T/single-z/z.txt" | sort -u)" "$U1"
 }

@@ -82,23 +82,40 @@ class ArcPanelApp
         }
     }
 
+    /**
+     * Writes CONTENTS to PATH as the user. The file commands only take paths
+     * inside the home (E34 batch 5, D53), so the contents are staged in the
+     * panel's upload staging tree and handed off by v-add-fs-upload, which
+     * writes as the user; an existing file keeps its mode.
+     */
     public function createFile(string $path, string $contents): void
     {
-        $tmpFile = tempnam('/tmp', 'hst.');
+        $uploads = dirname(ARCPANEL_DIR_BIN) . '/web-app/storage/app/files/uploads';
+        $dir = $uploads . '/' . bin2hex(random_bytes(16));
+        $staged = $dir . '/file';
 
-        if (!$tmpFile) {
-            throw new RuntimeException('Error creating temp file');
+        if (!is_dir($uploads) || !mkdir($dir, 0700)) {
+            throw new RuntimeException('Error creating the staging folder');
         }
 
-        if (!file_put_contents($tmpFile, $contents)) {
-            throw new RuntimeException('Error writing to temp file');
+        try {
+            if (file_put_contents($staged, $contents) === false) {
+                throw new RuntimeException('Error writing the staged file');
+            }
+            chmod($staged, 0600);
+            foreach ([$dir, $staged] as $file) {
+                chown($file, 'arcpanelweb');
+                chgrp($file, 'arcpanelweb');
+            }
+
+            $mode = is_file($path) ? sprintf('%04o', fileperms($path) & 0777) : '0644';
+            $this->runUser('v-add-fs-upload', [$staged, $path, $mode, 'overwrite']);
+        } finally {
+            if (is_file($staged)) {
+                unlink($staged);
+            }
+            rmdir($dir);
         }
-
-        chmod($tmpFile, 0644);
-
-        $this->runUser('v-copy-fs-file', [$tmpFile, $path]);
-
-        unlink($tmpFile);
     }
 
     public function moveFile(string $fromPath, string $toPath): void

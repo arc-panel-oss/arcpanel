@@ -72,7 +72,7 @@ info:
     | `sync-dns-cluster` | admin | `v-list-users`, `v-list-sys-config`, `v-list-user`, `v-add-cron-restart-job`, `v-delete-dns-domains-src`, `v-insert-dns-domain`, `v-insert-dns-record`, `v-insert-dns-records`, `v-rebuild-dns-domains`, `v-rebuild-dns-domain`, `v-delete-dns-record`, `v-make-tmp-file`, `v-delete-dns-domain` |
     | `update-dns-records` | user | `v-list-dns-records`, `v-change-dns-record` |
 
-    The sets `v2-accounts` and `v2-backup` and `v2-cron` and `v2-db` and `v2-dns` and `v2-mail` and `v2-read` and `v2-web` and `v2-write` belong to REST API v2 (`/api/v2/`, documented in `docs/api/v2/openapi.json`): this API ignores them, so a key with only those sets may run no command here.
+    The sets `v2-accounts` and `v2-apps` and `v2-backup` and `v2-cron` and `v2-db` and `v2-dns` and `v2-mail` and `v2-read` and `v2-server` and `v2-web` and `v2-write` belong to REST API v2 (`/api/v2/`, documented in `docs/api/v2/openapi.json`): this API ignores them, so a key with only those sets may run no command here.
   license:
     name: GPL-3.0-or-later
     identifier: GPL-3.0-or-later
@@ -1240,7 +1240,8 @@ paths:
         - Files
       summary: Archive directory
       description: |-
-        This function creates tar archive
+        This function creates tar archive as the user. The archive and every source
+        must be absolute paths inside the user's home; the archive must not exist.
 
         **Arguments**
 
@@ -1289,7 +1290,8 @@ paths:
         - Files
       summary: Add directory
       description: |-
-        This function creates new directory on the file system
+        This function creates new directory on the file system, with its missing
+        parents, as the user. The path must be absolute and inside the user's home.
 
         **Arguments**
 
@@ -1389,7 +1391,8 @@ paths:
         - Files
       summary: Add file
       description: |-
-        This function creates new files on file system
+        This function creates new files on file system as the user. The path must
+        be absolute and inside the user's home; its folder must exist.
 
         **Arguments**
 
@@ -6602,7 +6605,9 @@ paths:
         - Files
       summary: Change file permission
       description: |-
-        This function changes file access permissions on the file system
+        This function changes file access permissions on the file system as the
+        user. The path must be absolute and inside the user's home; PERMISSIONS is
+        an octal mode.
 
         **Arguments**
 
@@ -10142,9 +10147,10 @@ paths:
       operationId: v-check-fs-permission
       tags:
         - Files
-      summary: Open file
+      summary: Check file permission
       description: |-
-        This function opens/reads files on the file system
+        This function checks that the user can read a file or folder on the file
+        system. The path must be absolute and inside the user's home.
 
         **Arguments**
 
@@ -10742,7 +10748,9 @@ paths:
         - Files
       summary: Copy directory
       description: |-
-        This function copies directory on the file system
+        This function copies directory on the file system as the user. Both paths
+        must be absolute and inside the user's home; the folder of DST_DIRECTORY
+        must exist.
 
         **Arguments**
 
@@ -10790,7 +10798,8 @@ paths:
         - Files
       summary: Copy file
       description: |-
-        This function copies file on the file system
+        This function copies file on the file system as the user. Both paths must
+        be absolute and inside the user's home; the folder of DST_FILE must exist.
 
         **Arguments**
 
@@ -11950,7 +11959,9 @@ paths:
         - Files
       summary: Delete directory
       description: |-
-        This function deletes directory on the file system
+        This function deletes directory on the file system as the user. The path
+        must be absolute and inside the user's home; the home itself cannot be
+        deleted.
 
         **Arguments**
 
@@ -11997,7 +12008,8 @@ paths:
         - Files
       summary: Delete file
       description: |-
-        This function deletes file on the file system
+        This function deletes file on the file system as the user. The path must be
+        absolute and inside the user's home.
 
         **Arguments**
 
@@ -15904,7 +15916,11 @@ paths:
         - Files
       summary: Archive to directory
       description: |-
-        This function extracts archive into directory on the file system
+        This function extracts archive into directory on the file system as the
+        user. Both paths must be absolute and inside the user's home; DIRECTORY and
+        its missing parents are created. zip, tar, tar.gz/tgz, tar.bz2/tbz, tar.zst,
+        7z (with 7-Zip installed) and rar archives are unpacked into DIRECTORY; a
+        single .gz, .bz2 or .zst file is moved into DIRECTORY and decompressed there.
 
         **Arguments**
 
@@ -23165,7 +23181,8 @@ paths:
         This function prints the queue-task records of USER, newest first, or
         one record. LOG is the last LINES lines of the task log (default 100,
         at most 1000). A record that is still queued but whose line is gone
-        from every queue is stored as failed.
+        from every queue is stored as failed. ATTEMPTS counts the runs of a
+        task that the queue retries.
 
         **Arguments**
 
@@ -24435,7 +24452,9 @@ paths:
       summary: Move file
       description: |-
         This function moved file or directory on the file system. This function
-        can also be used to rename files just like normal mv command.
+        can also be used to rename files just like normal mv command. It runs as
+        the user; both paths must be absolute and inside the user's home, and the
+        home itself cannot be moved.
 
         **Arguments**
 
@@ -24484,7 +24503,8 @@ paths:
       summary: Move file
       description: |-
         This function moved file or directory on the file system. This function
-        can also be used to rename files just like normal mv command.
+        can also be used to rename files just like normal mv command. It runs as
+        the user; both paths must be absolute and inside the user's home.
 
         **Arguments**
 
@@ -24575,7 +24595,8 @@ paths:
         - Files
       summary: Open file
       description: |-
-        This function opens/reads files on the file system
+        This function opens/reads files on the file system as the user. The path
+        must be absolute and inside the user's home.
 
         **Arguments**
 
@@ -27134,10 +27155,14 @@ paths:
       summary: Run a queued command and record its result
       description: |-
         This function runs one command that a v-schedule-* script queued. The
-        record must exist and be queued; a second run of the same id does
-        nothing. The command's output is appended to the task log and also
-        written to standard output, so the redirection on the queue line
-        (>> $ARCPANEL/log/backup.log and the others) still receives it.
+        record must exist and be queued. The command's output is appended to the
+        task log and also written to standard output, so the redirection on the
+        queue line (>> $ARCPANEL/log/backup.log and the others) still receives it.
+
+        When the command fails and its line is still in the pipe, the record is
+        queued again (ERROR, ATTEMPTS) and the next pass of the queue retries it,
+        as the queue did before the records. A line whose record is missing or
+        finished is removed without running anything.
 
         **Arguments**
 
@@ -34195,13 +34220,13 @@ components:
               title: ARCHIVE
               description: "`ARCHIVE`"
               examples:
-                - archive.tar
+                - /home/admin/archive.tar
             arg3:
               type: string
               title: SOURCE
               description: "`SOURCE`"
               examples:
-                - readme.txt
+                - /home/admin/readme.txt
             arg4:
               type: string
               title: SOURCE
@@ -34289,7 +34314,7 @@ components:
               title: DIRECTORY
               description: "`DIRECTORY`"
               examples:
-                - mybar
+                - /home/admin/mybar
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-add-fs-download:
@@ -34412,7 +34437,7 @@ components:
               title: FILE
               description: "`FILE`"
               examples:
-                - readme.md
+                - /home/admin/readme.md
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-add-fs-upload:
@@ -38201,7 +38226,7 @@ components:
               title: FILE
               description: "`FILE`"
               examples:
-                - readme.txt
+                - /home/admin/readme.txt
             arg3:
               type: string
               title: PERMISSIONS
@@ -40732,7 +40757,7 @@ components:
               title: FILE
               description: "`FILE`"
               examples:
-                - readme.txt
+                - /home/admin/readme.txt
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-check-mail-account-hash:
@@ -41113,7 +41138,7 @@ components:
               title: DST_DIRECTORY
               description: "`DST_DIRECTORY`"
               examples:
-                - /home/bob/dir2
+                - /home/alice/dir2
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-copy-fs-file:
@@ -41142,13 +41167,13 @@ components:
               title: SRC_FILE
               description: "`SRC_FILE`"
               examples:
-                - readme.txt
+                - /home/admin/readme.txt
             arg3:
               type: string
               title: DST_FILE
               description: "`DST_FILE`"
               examples:
-                - readme_new.txt
+                - /home/admin/readme_new.txt
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-copy-user-package:
@@ -41833,7 +41858,7 @@ components:
               title: DIRECTORY
               description: "`DIRECTORY`"
               examples:
-                - report1
+                - /home/admin/report1
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-delete-fs-file:
@@ -41861,7 +41886,7 @@ components:
               title: FILE
               description: "`FILE`"
               examples:
-                - readme.txt
+                - /home/admin/readme.txt
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-delete-letsencrypt-domain:
@@ -44134,13 +44159,13 @@ components:
               title: ARCHIVE
               description: "`ARCHIVE`"
               examples:
-                - latest.tar.gz
+                - /home/admin/latest.tar.gz
             arg3:
               type: string
               title: DIRECTORY
               description: "`DIRECTORY`"
               examples:
-                - /home/admin
+                - /home/admin/latest
             arg4:
               type: string
               title: SELECTED_DIR
@@ -49031,7 +49056,7 @@ components:
               title: DST_DIRECTORY
               description: "`DST_DIRECTORY`"
               examples:
-                - /home/user02/
+                - /home/admin/www/
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-move-fs-file:
@@ -49060,13 +49085,13 @@ components:
               title: SRC_FILE
               description: "`SRC_FILE`"
               examples:
-                - readme.txt
+                - /home/admin/readme.txt
             arg3:
               type: string
               title: DST_FILE
               description: "`DST_FILE`"
               examples:
-                - new_readme.txt
+                - /home/admin/new_readme.txt
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-open-fs-config:
@@ -49115,7 +49140,7 @@ components:
               title: FILE
               description: "`FILE`"
               examples:
-                - README.md
+                - /home/admin/README.md
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-purge-nginx-cache:
