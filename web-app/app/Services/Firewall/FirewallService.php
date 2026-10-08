@@ -8,6 +8,9 @@ use App\Arc\Options;
 use App\Services\Support\BulkResult;
 use App\Services\Support\BulkRunner;
 use App\Services\Support\ObjectLookup;
+use App\Services\Support\PlanRunner;
+use App\Services\WebDomains\ApplyResult;
+use App\Services\WebDomains\Step;
 
 /**
  * Firewall rules, IPset lists and the ban list through the v-* commands,
@@ -36,6 +39,7 @@ final class FirewallService
         private readonly ArcCommand $arc,
         private readonly ObjectLookup $lookup,
         private readonly BulkRunner $runner,
+        private readonly PlanRunner $plans,
     ) {}
 
     /** @return array<string, FirewallRule> position => rule, in rule order */
@@ -124,6 +128,77 @@ final class FirewallService
         $this->rules = null;
 
         return $this->runner->run($ids, fn (string $id) => ['#'.$id, $command, [$id]]);
+    }
+
+    /**
+     * `v-add-firewall-rule ACTION IP PORT PROTOCOL COMMENT RULE` with the
+     * position the rule gets (REST API v2, E34 batch 6 D59).
+     */
+    public static function planCreate(string $action, string $ip, string $port, string $protocol, string $comment, int $id): Step
+    {
+        return new Step(sprintf(__('Add firewall rule %d'), $id), 'v-add-firewall-rule', [$action, $ip, self::normalizePort($port), $protocol, $comment, (string) $id]);
+    }
+
+    /** `v-change-firewall-rule RULE ACTION IP PORT PROTOCOL COMMENT` */
+    public static function planUpdate(string $id, string $action, string $ip, string $port, string $protocol, string $comment): Step
+    {
+        return new Step(sprintf(__('Change firewall rule %s'), $id), 'v-change-firewall-rule', [$id, $action, $ip, self::normalizePort($port), $protocol, $comment]);
+    }
+
+    /** `v-move-firewall-rule RULE up|down` */
+    public static function planMove(string $id, string $direction): Step
+    {
+        return new Step(sprintf($direction === 'up' ? __('Move firewall rule %s up') : __('Move firewall rule %s down'), $id), 'v-move-firewall-rule', [$id, $direction]);
+    }
+
+    /** Delete, suspend or unsuspend one rule (BULK_COMMANDS). */
+    public static function planRule(string $action, string $id): Step
+    {
+        $command = self::BULK_COMMANDS[$action] ?? throw new \InvalidArgumentException("Unknown action {$action}");
+
+        return new Step(sprintf(match ($action) {
+            'delete' => __('Delete firewall rule %s'),
+            'suspend' => __('Suspend firewall rule %s'),
+            default => __('Unsuspend firewall rule %s'),
+        }, $id), $command, [$id]);
+    }
+
+    /** `v-add-firewall-ipset NAME DATASOURCE IPVER AUTOUPDATE` */
+    public static function planCreateIpset(string $name, string $source, string $version, bool $autoUpdate): Step
+    {
+        return new Step(sprintf(__('Add IP list %s'), $name), 'v-add-firewall-ipset', [$name, $source, $version, $autoUpdate ? 'yes' : 'no']);
+    }
+
+    /** `v-delete-firewall-ipset NAME` */
+    public static function planDeleteIpset(string $name): Step
+    {
+        return new Step(sprintf(__('Delete IP list %s'), $name), 'v-delete-firewall-ipset', [$name]);
+    }
+
+    /** `v-add-firewall-ban IP CHAIN` */
+    public static function planCreateBan(string $ip, string $chain): Step
+    {
+        return new Step(sprintf(__('Ban %s'), $ip), 'v-add-firewall-ban', [$ip, $chain]);
+    }
+
+    /** `v-delete-firewall-ban IP CHAIN` */
+    public static function planDeleteBan(string $ip, string $chain): Step
+    {
+        return new Step(sprintf(__('Unban %s'), $ip), 'v-delete-firewall-ban', [$ip, $chain]);
+    }
+
+    /** @param  list<Step>  $steps */
+    public function apply(array $steps): ApplyResult
+    {
+        $this->rules = null;
+
+        return $this->plans->apply($steps);
+    }
+
+    /** Read the rules again on the next call. */
+    public function forget(): void
+    {
+        $this->rules = null;
     }
 
     /** @return list<IpsetList> sorted by name */

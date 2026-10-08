@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Firewall;
 use App\Auth\Principal;
 use App\Http\Controllers\Controller;
 use App\Policies\FirewallPolicy;
+use App\Services\Firewall\FirewallActions;
 use App\Services\Firewall\FirewallService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -17,7 +18,10 @@ use Illuminate\View\View;
  */
 final class FirewallBanController extends Controller
 {
-    public function __construct(private readonly FirewallService $firewall) {}
+    public function __construct(
+        private readonly FirewallService $firewall,
+        private readonly FirewallActions $actions,
+    ) {}
 
     public function index(Principal $principal, FirewallPolicy $policy): View
     {
@@ -57,7 +61,7 @@ final class FirewallBanController extends Controller
     public function destroy(Request $request, Principal $principal, FirewallPolicy $policy): RedirectResponse
     {
         abort_unless($policy->manage($principal), 403);
-        $bans = $this->checked([(string) $request->input('item')]);
+        $bans = $this->actions->existingBans([(string) $request->input('item')]);
 
         $result = $this->firewall->deleteBans($bans);
         $back = redirect()->route('server.firewall.bans');
@@ -75,24 +79,6 @@ final class FirewallBanController extends Controller
             'items.*' => ['required', 'string', 'max:80'],
         ]);
 
-        return $this->firewall->deleteBans($this->checked($data['items']))->flash(redirect()->route('server.firewall.bans'));
-    }
-
-    /**
-     * @param  list<string>  $items
-     * @return list<array{0: string, 1: string}> [chain, ip] of listed bans
-     */
-    private function checked(array $items): array
-    {
-        $known = array_map(fn ($ban) => $ban->item(), $this->firewall->bans());
-        $bans = [];
-        foreach (array_values(array_unique($items)) as $item) {
-            $ban = FirewallService::parseBanItem($item);
-            abort_if($ban === null, 422);
-            abort_unless(in_array($item, $known, true), 404);
-            $bans[] = $ban;
-        }
-
-        return $bans;
+        return $this->firewall->deleteBans($this->actions->existingBans($data['items']))->flash(redirect()->route('server.firewall.bans'));
     }
 }

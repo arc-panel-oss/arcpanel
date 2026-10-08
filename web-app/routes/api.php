@@ -10,6 +10,9 @@ use App\Http\Controllers\Api\V2\DockerCatalogController;
 use App\Http\Controllers\Api\V2\DockerEngineController;
 use App\Http\Controllers\Api\V2\FileController;
 use App\Http\Controllers\Api\V2\FileTransferController;
+use App\Http\Controllers\Api\V2\FirewallBanController;
+use App\Http\Controllers\Api\V2\FirewallIpsetController;
+use App\Http\Controllers\Api\V2\FirewallRuleController;
 use App\Http\Controllers\Api\V2\IpController;
 use App\Http\Controllers\Api\V2\LogController;
 use App\Http\Controllers\Api\V2\MailAccountController;
@@ -107,6 +110,33 @@ Route::prefix('/system')->name('system.')->group(function () {
         Route::post('/ips/refresh', [IpController::class, 'refresh'])->name('ips.refresh');
         Route::patch('/ips/{ip}', [IpController::class, 'update'])->where($ip)->name('ips.update');
         Route::delete('/ips/{ip}', [IpController::class, 'destroy'])->where($ip)->name('ips.destroy');
+    });
+});
+
+// Firewall of the server (E34 batch 6 spec §5.3, D59); FIREWALL_SYSTEM off answers 404, the ban list also needs FIREWALL_EXTENSION
+Route::middleware('sys-config:FIREWALL_SYSTEM')->prefix('/system/firewall')->name('system.firewall.')->group(function () {
+    $rule = ['rule' => '[0-9]{1,9}'];
+    Route::get('/rules', [FirewallRuleController::class, 'index'])->name('rules.index');
+    Route::get('/rules/{rule}', [FirewallRuleController::class, 'show'])->where($rule)->name('rules.show');
+    Route::get('/ipsets', [FirewallIpsetController::class, 'index'])->name('ipsets.index');
+    Route::middleware('not-readonly')->group(function () use ($rule) {
+        Route::post('/rules', [FirewallRuleController::class, 'store'])->name('rules.store');
+        Route::patch('/rules/{rule}', [FirewallRuleController::class, 'update'])->where($rule)->name('rules.update');
+        Route::delete('/rules/{rule}', [FirewallRuleController::class, 'destroy'])->where($rule)->name('rules.destroy');
+        Route::post('/rules/{rule}/move', [FirewallRuleController::class, 'move'])->where($rule)->name('rules.move');
+        Route::post('/rules/{rule}/suspend', [FirewallRuleController::class, 'suspend'])->where($rule)->name('rules.suspend');
+        Route::post('/rules/{rule}/unsuspend', [FirewallRuleController::class, 'unsuspend'])->where($rule)->name('rules.unsuspend');
+        Route::post('/ipsets', [FirewallIpsetController::class, 'store'])->name('ipsets.store');
+        Route::delete('/ipsets/{name}', [FirewallIpsetController::class, 'destroy'])->where('name', '[\w.-]{1,255}')->name('ipsets.destroy');
+    });
+    Route::middleware('sys-config:FIREWALL_EXTENSION')->group(function () {
+        Route::get('/bans', [FirewallBanController::class, 'index'])->name('bans.index');
+        Route::middleware('not-readonly')->group(function () {
+            Route::post('/bans', [FirewallBanController::class, 'store'])->name('bans.store');
+            Route::delete('/bans/{chain}/{ip}', [FirewallBanController::class, 'destroy'])
+                ->where(['chain' => 'SSH|WEB|FTP|DNS|MAIL|DB|ARCPANEL', 'ip' => '[0-9A-Fa-f:.\/]{2,64}'])
+                ->name('bans.destroy');
+        });
     });
 });
 

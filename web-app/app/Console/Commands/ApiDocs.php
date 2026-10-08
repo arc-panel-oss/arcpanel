@@ -371,6 +371,9 @@ final class ApiDocs extends Command
         if ($operationId === 'createAccessKey' && isset($responses['201']['headers'])) {
             $responses['201']['headers']['Cache-Control'] = ['description' => '`no-store`: the answer carries the secret of the new key, which no other answer shows (E34 batch 6 D62).', 'schema' => ['type' => 'string']];
         }
+        if ($operationId === 'moveFirewallRule' && isset($responses['200'])) {
+            $responses['200']['headers']['Content-Location'] = ['description' => 'The path of the moved rule under its new id (E34 batch 6 D59); absent with `dry_run`.', 'schema' => ['type' => 'string']];
+        }
         uksort($responses, fn ($a, $b) => (int) $a <=> (int) $b);
         $operation['responses'] = $responses;
 

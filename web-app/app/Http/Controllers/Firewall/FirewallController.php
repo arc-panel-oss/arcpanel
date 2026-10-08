@@ -7,6 +7,7 @@ use App\Auth\Principal;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Firewall\FirewallRuleRequest;
 use App\Policies\FirewallPolicy;
+use App\Services\Firewall\FirewallActions;
 use App\Services\Firewall\FirewallService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\View\View;
@@ -75,7 +76,7 @@ final class FirewallController extends Controller
     {
         abort_unless($policy->manage($principal), 403);
         $record = $this->firewall->rule($rule);
-        abort_unless($policy->change($principal, $record->comment), 403);
+        abort_unless(FirewallActions::changeable($record), 403);
 
         $values = $request->rule();
         $result = $this->firewall->update($rule, $values['action'], $values['ip'], $values['port'], $values['protocol'], $values['comment']);

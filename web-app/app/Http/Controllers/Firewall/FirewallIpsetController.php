@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Firewall;
 use App\Auth\Principal;
 use App\Http\Controllers\Controller;
 use App\Policies\FirewallPolicy;
+use App\Services\Firewall\FirewallActions;
 use App\Services\Firewall\FirewallService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -18,7 +19,10 @@ final class FirewallIpsetController extends Controller
 {
     private const NAME = 'regex:/^[\w.-]{1,255}$/';
 
-    public function __construct(private readonly FirewallService $firewall) {}
+    public function __construct(
+        private readonly FirewallService $firewall,
+        private readonly FirewallActions $actions,
+    ) {}
 
     public function index(Principal $principal, FirewallPolicy $policy): View
     {
@@ -59,7 +63,7 @@ final class FirewallIpsetController extends Controller
     public function destroy(string $name, Principal $principal, FirewallPolicy $policy): RedirectResponse
     {
         abort_unless($policy->manage($principal), 403);
-        $this->assertExists([$name]);
+        $this->actions->assertIpsetsExist([$name]);
 
         $result = $this->firewall->deleteIpsets([$name]);
         $back = redirect()->route('server.firewall.ipsets');
@@ -77,17 +81,8 @@ final class FirewallIpsetController extends Controller
             'items.*' => ['required', 'string', self::NAME],
         ]);
         $names = array_values(array_unique($data['items']));
-        $this->assertExists($names);
+        $this->actions->assertIpsetsExist($names);
 
         return $this->firewall->deleteIpsets($names)->flash(redirect()->route('server.firewall.ipsets'));
-    }
-
-    /** @param  list<string>  $names */
-    private function assertExists(array $names): void
-    {
-        $known = array_map(fn ($list) => $list->name, $this->firewall->ipsets());
-        foreach ($names as $name) {
-            abort_unless(in_array($name, $known, true), 404);
-        }
     }
 }

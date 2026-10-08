@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Firewall;
 use App\Auth\Principal;
 use App\Http\Controllers\Controller;
 use App\Policies\FirewallPolicy;
+use App\Services\Firewall\FirewallActions;
 use App\Services\Firewall\FirewallService;
 use App\Services\Support\BulkResult;
 use Illuminate\Http\RedirectResponse;
@@ -18,7 +19,10 @@ use Illuminate\Validation\Rule;
  */
 final class FirewallActionController extends Controller
 {
-    public function __construct(private readonly FirewallService $firewall) {}
+    public function __construct(
+        private readonly FirewallService $firewall,
+        private readonly FirewallActions $actions,
+    ) {}
 
     public function move(string $rule, string $direction, Principal $principal, FirewallPolicy $policy): RedirectResponse
     {
@@ -56,16 +60,10 @@ final class FirewallActionController extends Controller
             'items.*' => ['required', 'string', 'regex:/^\d{1,9}$/'],
         ]);
 
-        $rules = $this->firewall->rules();
-        $ids = [];
+        [$ids, $managed] = FirewallActions::partition($this->actions->existingRules(array_values(array_unique($data['items']))));
         $skipped = [];
-        foreach (array_values(array_unique($data['items'])) as $id) {
-            abort_unless(isset($rules[$id]), 404);
-            if ($policy->change($principal, $rules[$id]->comment)) {
-                $ids[] = $id;
-            } else {
-                $skipped['#'.$id] = __('Managed by Ports');
-            }
+        foreach ($managed as $id) {
+            $skipped['#'.$id] = FirewallActions::managedReason();
         }
 
         $result = $this->firewall->bulk($data['action'], $ids);
@@ -77,7 +75,7 @@ final class FirewallActionController extends Controller
     {
         abort_unless($policy->manage($principal), 403);
         $record = $this->firewall->rule($rule);
-        abort_unless($policy->change($principal, $record->comment), 403);
+        abort_unless(FirewallActions::changeable($record), 403);
 
         $result = $this->firewall->bulk($action, [$rule]);
         $back = redirect()->route('server.firewall');
