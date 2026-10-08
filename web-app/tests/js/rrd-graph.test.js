@@ -61,14 +61,12 @@ describe('chartData', () => {
 });
 
 describe('loadAverage', () => {
-	it('scales the load back from hundredths and moves the processes to the right axis', () => {
-		const la = { meta: { start: 0, step: 1, legend: ['Load', 'Processes'] }, data: [[24, 80], [null, 81], [135, '82']] };
+	it('draws only the load, scaled back from hundredths, and tells the latest process count', () => {
+		const la = { meta: { start: 0, step: 1, legend: ['Load', 'Processes'] }, data: [[24, 80], [null, 81], [135, '82'], [140, null]] };
 		const result = loadAverage(chartData(la, ['x', 'y']));
-		expect(result.datasets.map((d) => [d.label, d.data, d.yAxisID])).toEqual([
-			['Load', [0.24, null, 1.35], 'y'],
-			['Processes', [80, 81, '82'], 'y1'],
-		]);
-		expect(loadAverage({ labels: [], datasets: [] })).toEqual({ labels: [], datasets: [] });
+		expect(result.data.datasets.map((d) => [d.label, d.data])).toEqual([['Load', [0.24, null, 1.35, 1.4]]]);
+		expect(result.note).toBe('Processes: 82');
+		expect(loadAverage({ labels: [], datasets: [] })).toEqual({ data: { labels: [], datasets: [] }, note: '' });
 	});
 });
 
@@ -80,11 +78,13 @@ describe('apRrdGraph', () => {
 		expect(Chart).toHaveBeenCalledTimes(1);
 		expect(charts[0].canvas).toBe(document.querySelector('canvas'));
 		expect(charts[0].config.type).toBe('line');
-		expect(charts[0].config.data.datasets).toHaveLength(2);
-		// The load graph names its axes instead of the RRD unit "Points"
+		// The load graph: one series on one axis named "Load Average" (not the RRD unit "Points"), no legend box
+		expect(charts[0].config.data.datasets).toHaveLength(1);
 		expect(charts[0].config.options.scales.y.title.text).toBe('Load Average');
-		expect(charts[0].config.options.scales.y1.title.text).toBe('5 min');
+		expect(charts[0].config.options.scales.y1).toBeUndefined();
+		expect(charts[0].config.options.plugins.legend.display).toBe(false);
 		expect(charts[0].config.data.datasets[0].data.map((v) => Number(v.toFixed(4)))).toEqual([0.005, 0.007]);
+		expect(data(document.getElementById('graph')).note).toBe('5 min: 1');
 		expect(data(document.getElementById('graph')).loading).toBe(false);
 	});
 

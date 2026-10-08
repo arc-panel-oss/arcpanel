@@ -37,6 +37,13 @@
 		--ap-info: #0b6da6;
 		--ap-info-subtle: #e6f2fa;
 
+		/* Categorical chart series, in this order (validated on the light surface;
+		   3 and 4 are under 3:1, so charts always label their values) */
+		--ap-series-1: #2a78d6;
+		--ap-series-2: #eb6834;
+		--ap-series-3: #1baf7a;
+		--ap-series-4: #eda100;
+
 		--ap-logo-tile: #0f1320;
 		--ap-logo-ring: #0f1320;
 		--ap-logo-mark: #9db0ff;

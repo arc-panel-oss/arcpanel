@@ -33,6 +33,13 @@
 	--ap-info: #5cb6ee;
 	--ap-info-subtle: #0d202d;
 
+	/* Categorical chart series, in this order (validated for colour-vision
+	   deficiencies on the dark surface) */
+	--ap-series-1: #3987e5;
+	--ap-series-2: #d95926;
+	--ap-series-3: #199e70;
+	--ap-series-4: #c98500;
+
 	--ap-star: #f2b451;
 	--ap-logo-tile: #0f1320;
 	--ap-logo-ring: #2c355a;

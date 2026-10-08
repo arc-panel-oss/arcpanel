@@ -20,8 +20,9 @@ test('reseller: totals of the tree, then one customer', async ({ page }) => {
 	await expect(
 		page.getByText('Totals of your account and your customers, per month.'),
 	).toBeVisible();
+	// The page reloads for the chosen owner; the button is for pages without scripts
 	await page.getByRole('combobox', { name: 'Owner' }).selectOption(CUSTOMER);
-	await page.getByRole('button', { name: 'Show statistics' }).click();
+	await expect(page.getByRole('button', { name: 'Show statistics' })).toBeHidden();
 	await expect(page).toHaveURL(new RegExp(`/stats\\?owner=${CUSTOMER}$`));
 	await expect(page.getByText(`Usage of ${CUSTOMER}, per month.`)).toBeVisible();
 	const response = await page.goto(`/stats?owner=${USER}`);

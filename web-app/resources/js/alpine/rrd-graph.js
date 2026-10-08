@@ -39,19 +39,22 @@ export function chartData(rrd, colours) {
 }
 
 /**
- * The load graph: v-update-sys-rrd-la stores the load average times 100, and
- * the process count would flatten it on a shared axis. The load is scaled
- * back and the other series get their own axis on the right.
+ * The load graph: v-update-sys-rrd-la stores the load average times 100 next
+ * to the process count. One axis only: the load is scaled back and drawn
+ * alone, the process count is told as its latest value ("Processes: 82").
+ *
+ * @returns {{ data: object, note: string }}
  */
 export function loadAverage(data) {
-	const [load, ...rest] = data.datasets;
+	const [load, processes] = data.datasets;
 	if (!load) {
-		return data;
+		return { data, note: '' };
 	}
-	const scaled = (value) => (value === null || value === undefined || value === '' ? value : Number(value) / 100);
+	const missing = (value) => value === null || value === undefined || value === '' || Number.isNaN(Number(value));
+	const latest = processes ? [...processes.data].reverse().find((value) => !missing(value)) : undefined;
 	return {
-		...data,
-		datasets: [{ ...load, data: load.data.map(scaled), yAxisID: 'y' }, ...rest.map((dataset) => ({ ...dataset, yAxisID: 'y1' }))],
+		data: { ...data, datasets: [{ ...load, data: load.data.map((value) => (missing(value) ? null : Number(value) / 100)) }] },
+		note: latest === undefined ? '' : `${processes.label}: ${Math.round(Number(latest))}`,
 	};
 }
 
@@ -66,6 +69,7 @@ export default function apRrdGraph({ url = '', service = 'la', period = 'daily' 
 		period,
 		loading: false,
 		error: '',
+		note: '',
 		chart: null,
 
 		async init() {
@@ -95,7 +99,9 @@ export default function apRrdGraph({ url = '', service = 'la', period = 'daily' 
 				const { Chart } = await import('chart.js/auto');
 				const series = chartData(rrd, [cssVar('--ap-accent'), cssVar('--ap-ok'), cssVar('--ap-warn'), cssVar('--ap-info')]);
 				const isLoad = this.service === 'la' && series.datasets.length > 1;
-				const data = isLoad ? loadAverage(series) : series;
+				const load = isLoad ? loadAverage(series) : null;
+				const data = load ? load.data : series;
+				this.note = load ? load.note : '';
 				const text = cssVar('--ap-fg-muted');
 				const grid = cssVar('--ap-border');
 				const labels = labelFormat(this.period);
@@ -106,7 +112,8 @@ export default function apRrdGraph({ url = '', service = 'la', period = 'daily' 
 					options: {
 						animation: false,
 						maintainAspectRatio: false,
-						plugins: { legend: { position: 'bottom', labels: { color: text } } },
+						// One series is named by the card title: no legend box
+						plugins: { legend: { display: data.datasets.length > 1, position: 'bottom', labels: { color: text } } },
 						scales: {
 							x: { ticks: { color: text, maxTicksLimit: 8 }, grid: { color: grid } },
 							y: {
@@ -116,16 +123,6 @@ export default function apRrdGraph({ url = '', service = 'la', period = 'daily' 
 								ticks: { color: text },
 								grid: { color: grid },
 							},
-							...(isLoad
-								? {
-										y1: {
-											position: 'right',
-											title: { display: true, text: data.datasets[1].label, color: text },
-											ticks: { color: text, precision: 0 },
-											grid: { drawOnChartArea: false },
-										},
-									}
-								: {}),
 						},
 					},
 				});

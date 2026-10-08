@@ -38,7 +38,10 @@ it('shows the months of a user, newest first', function () {
     $this->get('/stats')->assertOk()
         ->assertSeeInOrder(['Oct 2026', '512 MB', 'Sep 2026'])
         ->assertSee('User Directory')->assertSee('Web Domains')->assertSee('2 months')
-        ->assertDontSee('IP Addresses')->assertDontSee('Overall Statistics');
+        ->assertDontSee('IP Addresses')->assertDontSee('Overall Statistics')
+        // The newest month against the one before, the disk parts and the history table
+        ->assertSee('Compared with Sep 2026')->assertSee('of 1000 MB')->assertSee('51 % used')->assertSee('+502 MB vs Sep')
+        ->assertSee('Disk usage')->assertSeeInOrder(['History', 'Oct 2026', 'Sep 2026']);
     $this->fake->assertRan('v-list-user-stats', fn ($a) => $a === ['bob', 'json']);
     $this->get('/stats?owner=carol')->assertNotFound();
     $this->fake->assertNotRan('v-list-users-stats');

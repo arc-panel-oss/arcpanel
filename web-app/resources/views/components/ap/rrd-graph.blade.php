@@ -13,6 +13,8 @@
         <div class="ap-rrd-canvas">
             <canvas x-ref="canvas" role="img" aria-label="{{ $title }}"></canvas>
         </div>
+        {{-- The load graph tells the latest process count instead of drawing it on a second axis --}}
+        <p class="ap-hint ap-rrd-note" x-show="note && !loading" x-text="note" x-cloak></p>
         <p class="ap-hint" x-show="loading" x-cloak>{{ __('Loading') }}</p>
         <p class="ap-error" x-show="error" x-text="error" x-cloak role="alert"></p>
         <noscript><p class="ap-hint">{{ __('Graphs need JavaScript.') }}</p></noscript>
