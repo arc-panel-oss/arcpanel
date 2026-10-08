@@ -1,6 +1,8 @@
 # AGENTS.md — working in the ArcPanel repository
 
-Instructions for AI coding agents (Claude Code, Codex, Cursor and others) that work in this repository. Humans start with [README.md](README.md). When a rule here conflicts with a document under `docs/`, the document wins and this file needs a fix.
+Instructions for AI coding agents (Claude Code, Codex, Cursor and others) that work in this repository. Humans start with [README.md](README.md). When a rule here conflicts with a document of the documentation repository, the document wins and this file needs a fix.
+
+**Where the documents are.** Since 2026-10-08 the roadmap, design documents, specs, ADRs and runbooks live in the separate documentation repository [arc-panel-oss/docs](https://github.com/arc-panel-oss/docs) (branch `main`), checked out next to this repository in the workspace, so `../docs/` in this guide means that checkout. This repository keeps only the generated REST API documents in `docs/api/` (§8), so that each release tag carries the documents of its code. Code comments, tests and older specs that say `docs/<path>` mean `../docs/<path>`, except `docs/api/`; new comments keep that short form. The README and the changelog link to the documents on GitHub.
 
 ## 1. Language
 
@@ -10,11 +12,11 @@ Instructions for AI coding agents (Claude Code, Codex, Cursor and others) that w
 
 ## 2. What ArcPanel is
 
-ArcPanel is an open-source Linux hosting control panel based on **HestiaCP 1.10.5** and, since 2.0, a hard fork of it ([ADR-0007](docs/adr/0007-full-rename-and-hard-fork.md)): no upstream merges, every internal name is ArcPanel's (`/usr/local/arcpanel`, `/etc/arcpanel/arcpanel.conf`, `arcpanelweb`, the `v-*` commands), and 2.0 is installed fresh only. It keeps the HestiaCP architecture (the `v-*` commands, the REST API, the flat-file data model) and replaces the user-facing side: a Laravel 13 panel app (`web-app/`) took over the legacy PHP pages one page at a time (strangler migration) and, since 2.0, serves the root URL with the HestiaCP web interface removed, while new capabilities (resellers, port registry, Node and Docker apps, template metadata, file manager) are added as **new** `v-*` commands and shell libraries.
+ArcPanel is an open-source Linux hosting control panel based on **HestiaCP 1.10.5** and, since 2.0, a hard fork of it ([ADR-0007](../docs/adr/0007-full-rename-and-hard-fork.md)): no upstream merges, every internal name is ArcPanel's (`/usr/local/arcpanel`, `/etc/arcpanel/arcpanel.conf`, `arcpanelweb`, the `v-*` commands), and 2.0 is installed fresh only. It keeps the HestiaCP architecture (the `v-*` commands, the REST API, the flat-file data model) and replaces the user-facing side: a Laravel 13 panel app (`web-app/`) took over the legacy PHP pages one page at a time (strangler migration) and, since 2.0, serves the root URL with the HestiaCP web interface removed, while new capabilities (resellers, port registry, Node and Docker apps, template metadata, file manager) are added as **new** `v-*` commands and shell libraries.
 
 Three roles exist: **admin** (server owner), **reseller** (owns a tree of customers inside its own package limits) and **user** (hosting customer). Every page and command is owner-scoped from the start.
 
-The current state of each epic is in [docs/roadmap.md](docs/roadmap.md). As of 2026-10-08 these are implemented:
+The current state of each epic is in [../docs/roadmap.md](../docs/roadmap.md). As of 2026-10-08 these are implemented:
 
 - E1 (Laravel foundation, slices S1–S2, which also deliver the E2 design system and shell) and E9 (rebranding; the release infrastructure is still open).
 - E11 (resellers) and E12 (port registry).
@@ -22,9 +24,9 @@ The current state of each epic is in [docs/roadmap.md](docs/roadmap.md). As of 2
 - E13 (Node.js runtimes and global packages per user) and E14 (Node.js apps run by a per-user pm2 daemon).
 - E3 (File Manager v2, every file operation run as the user) and E4 (Docker apps from a curated catalog, every container run as the hosting user).
 - E7 batch 1 (Databases, Cron, DNS, Mail and Backups, with the restic snapshot browser), batch 2 (Firewall, IPs, access and SSH keys, logs, statistics and graphs, web terminal, Quick Install run in the background) and batch 3 (Services, Server settings, config editors, Updates, password and 2FA reset, Search, CSR generator).
-- E8 (legacy retirement, [spec](docs/features/specs/2026-10-06-004-e8-legacy-retirement-design.md)): the panel app at the root URL, `web/` deleted and its still-used pieces in `lib/`, FileGator removed, version 2.0.0. Publishing the release waits for the E9 release infrastructure.
-- E9 R5 (full rename and hard fork, [spec](docs/features/specs/2026-10-06-005-e9-full-rename-design.md)): in progress; `develop` installs again when its milestone M8 passes.
-- E29, the OpenAPI document of REST API v1 ([spec](docs/features/specs/2026-10-07-001-e29-openapi-design.md)), and E34, REST API v2 under `/api/v2/` in the panel app, complete: users, packages, web domains, DNS, mail, databases and cron, tasks and backups, Node.js, Docker apps and ports, files with uploads and downloads, and the account and server endpoints of batch 6; only what D23 of batch 2 excludes stays on the pages ([spec](docs/features/specs/2026-10-07-002-e34-api-v2-design.md), [batch 2](docs/features/specs/2026-10-07-003-e34-api-v2-batch2-design.md), [batch 3](docs/features/specs/2026-10-08-001-e34-api-v2-batch3-design.md), [batch 4](docs/features/specs/2026-10-08-002-e34-api-v2-batch4-design.md), [batch 5](docs/features/specs/2026-10-08-003-e34-api-v2-batch5-design.md), [batch 6](docs/features/specs/2026-10-08-004-e34-api-v2-batch6-design.md)).
+- E8 (legacy retirement, [spec](../docs/features/specs/2026-10-06-004-e8-legacy-retirement-design.md)): the panel app at the root URL, `web/` deleted and its still-used pieces in `lib/`, FileGator removed, version 2.0.0. Publishing the release waits for the E9 release infrastructure.
+- E9 R5 (full rename and hard fork, [spec](../docs/features/specs/2026-10-06-005-e9-full-rename-design.md)): in progress; `develop` installs again when its milestone M8 passes.
+- E29, the OpenAPI document of REST API v1 ([spec](../docs/features/specs/2026-10-07-001-e29-openapi-design.md)), and E34, REST API v2 under `/api/v2/` in the panel app, complete: users, packages, web domains, DNS, mail, databases and cron, tasks and backups, Node.js, Docker apps and ports, files with uploads and downloads, and the account and server endpoints of batch 6; only what D23 of batch 2 excludes stays on the pages ([spec](../docs/features/specs/2026-10-07-002-e34-api-v2-design.md), [batch 2](../docs/features/specs/2026-10-07-003-e34-api-v2-batch2-design.md), [batch 3](../docs/features/specs/2026-10-08-001-e34-api-v2-batch3-design.md), [batch 4](../docs/features/specs/2026-10-08-002-e34-api-v2-batch4-design.md), [batch 5](../docs/features/specs/2026-10-08-003-e34-api-v2-batch5-design.md), [batch 6](../docs/features/specs/2026-10-08-004-e34-api-v2-batch6-design.md)).
 
 The rest is design.
 
@@ -32,13 +34,13 @@ The rest is design.
 
 In this order, as far as the task needs:
 
-1. [docs/roadmap.md](docs/roadmap.md) — epics, priorities, status lines, what is out of scope.
-2. [docs/design/README.md](docs/design/README.md), then **01** (architecture), **02** (Laravel foundation) and **03** (tenancy). Everything else builds on the session bridge, `ArcCommand` and the policy layer defined there.
-3. The design document of the epic you touch (`docs/design/NN-*.md`).
-4. The newest spec for that epic in `docs/features/specs/` — **a spec wins over the design document where they differ**, and its "Implementation notes" section wins over the rest of the spec.
-5. [docs/design/13-data-model-reference.md](docs/design/13-data-model-reference.md) (where every key and file lives) and [docs/design/15-database-schema-and-erd.md](docs/design/15-database-schema-and-erd.md) (entities, relationships, the SQLite schema).
-6. [docs/adr/](docs/adr/README.md) for decisions that are expensive to reverse.
-7. [docs/current-features.md](docs/current-features.md) for what the HestiaCP baseline already does.
+1. [../docs/roadmap.md](../docs/roadmap.md) — epics, priorities, status lines, what is out of scope.
+2. [../docs/design/README.md](../docs/design/README.md), then **01** (architecture), **02** (Laravel foundation) and **03** (tenancy). Everything else builds on the session bridge, `ArcCommand` and the policy layer defined there.
+3. The design document of the epic you touch (`../docs/design/NN-*.md`).
+4. The newest spec for that epic in `../docs/features/specs/` — **a spec wins over the design document where they differ**, and its "Implementation notes" section wins over the rest of the spec.
+5. [../docs/design/13-data-model-reference.md](../docs/design/13-data-model-reference.md) (where every key and file lives) and [../docs/design/15-database-schema-and-erd.md](../docs/design/15-database-schema-and-erd.md) (entities, relationships, the SQLite schema).
+6. [../docs/adr/](../docs/adr/README.md) for decisions that are expensive to reverse.
+7. [../docs/current-features.md](../docs/current-features.md) for what the HestiaCP baseline already does.
 
 Then read the code the task touches. Design documents describe intent; the code and the spec's implementation notes describe what exists.
 
@@ -53,7 +55,7 @@ Then read the code the task touches. Design documents describe intent; the code 
 | `lib/`                     | Libraries of the commands, moved from the legacy `web/` in 2.0 (E8): Quick Install installers (`lib/quickinstall`), 2FA helpers, the mail wrapper (`$SENDMAIL`), the REST API script (`/api/`), gettext catalogues, logos, nginx error pages                                                            | upstream + ArcPanel |
 | `web-app/`                 | **Panel app** (Laravel 13, PHP 8.5): `app/Arc` (ArcCommand), `app/Auth`, `app/Policies`, `app/Services`, `app/Tenancy`, `app/View` (navigation, legacy URL redirects in `LegacyUrls`), Blade views, Alpine modules (`resources/js/alpine`), Vue islands (`resources/js/islands`), Pest and Vitest tests | ArcPanel            |
 | `test/`                    | BATS suites (`arcpanel-*.bats` are ours), smoke script, Playwright e2e (`test/e2e/`), `dev-sync.sh`, `brand-check.sh`                                                                                                                                                                                   | ArcPanel + upstream |
-| `docs/`                    | Roadmap, current features, design documents, specs, ADRs, schemas                                                                                                                                                                                                                                       | ArcPanel            |
+| `../docs/`                 | Separate repository `arc-panel-oss/docs`: roadmap, current features, design documents, specs, ADRs, schemas, API documents                                                                                                                                                                              | ArcPanel            |
 | `build.js`, `package.json` | esbuild + Lightning CSS pipeline for the panel assets; lint and test scripts                                                                                                                                                                                                                            | ArcPanel            |
 | `ai-manifest.yaml`         | Project members and roles (who may ask for a push)                                                                                                                                                                                                                                                      | ArcPanel            |
 
@@ -61,7 +63,7 @@ Then read the code the task touches. Design documents describe intent; the code 
 
 1. **The CLI is the system of record.** Every state change goes through a `v-*` command. The panel app never writes under `/usr/local/arcpanel/data`, `conf/` or a user's home; it calls commands through `ArcCommand` and reads `v-list-* … json`. No business logic in the web layer that the CLI does not have.
 2. **ArcPanel owns every file.** ArcPanel is a hard fork (ADR-0007): there are no upstream merges, so a change may touch any file, inherited or not. Keep the conventions of the inherited code (the `v-*` command shape of §6, flat files, exit codes), prefer a new command or library over a large rewrite of an inherited one, and port HestiaCP security fixes by hand (the release checklist names the advisories to read).
-3. **Hosting state stays in the flat files** (one object per line, `KEY='value'`). Keys that inherited commands would overwrite go into a sidecar (`tenancy.conf`, `<package>.tenancy`, `<web_system>.conf.tplvars`). The only database is the panel-owned SQLite file (E15+, `docs/design/15-database-schema-and-erd.md`): operational data, never hosting state.
+3. **Hosting state stays in the flat files** (one object per line, `KEY='value'`). Keys that inherited commands would overwrite go into a sidecar (`tenancy.conf`, `<package>.tenancy`, `<web_system>.conf.tplvars`). The only database is the panel-owned SQLite file (E15+, `../docs/design/15-database-schema-and-erd.md`): operational data, never hosting state.
 4. **Owner-scoped everywhere.** `OwnerScope` / `TenancyDirectory` decide what a principal may see. Objects outside the tree answer **404**, refusals inside the tree **403**. Blade templates, Alpine modules and `ArcCommand` contain no role or owner checks.
 5. **Privilege boundary is unchanged.** `arcpanelweb` runs `sudo /usr/local/arcpanel/bin/v-*` and nothing else. Commands validate their own arguments (`is_format_valid`, `is_object_valid`, `check_arcpanel_demo_mode`). Do not add sudoers lines, setuid helpers or socket access.
 6. **One name: ArcPanel** (ADR-0007). Paths, files, keys, variables, functions, commands, packages, users, services, namespaces and identifiers use ArcPanel names; no old name and no compatibility alias comes back. The exceptions (attribution, upstream links, names owned by third parties, the HestiaCP and VestaCP backup formats that restores read) are listed with a reason in `scripts/rename/keep.txt`, and `test/brand-check.sh` fails on any other "hestia".
@@ -90,8 +92,8 @@ Then read the code the task touches. Design documents describe intent; the code 
 
 ### Documentation
 
-- Design documents: `docs/design/NN-<slug>.md`, same shape (Goal → Current state → Design → Failure modes → Testing → Open questions). Specs: `docs/features/specs/YYYY-MM-DD-NNN-<epic>-<slug>-design.md` with a decisions table, milestones, scope, "Done when", and an "Implementation notes" section appended when the work lands. ADRs: `docs/adr/NNNN-<slug>.md` in the format of `docs/adr/README.md`.
-- When a change adds a file, key or command: update **13** (data model reference); when it adds an entity or a table: update **15** and `docs/design/schemas/arcpanel-sqlite.sql`; update the roadmap status line of the epic; mark the design document's status.
+- Design documents: `../docs/design/NN-<slug>.md`, same shape (Goal → Current state → Design → Failure modes → Testing → Open questions). Specs: `../docs/features/specs/YYYY-MM-DD-NNN-<epic>-<slug>-design.md` with a decisions table, milestones, scope, "Done when", and an "Implementation notes" section appended when the work lands. ADRs: `../docs/adr/NNNN-<slug>.md` in the format of `../docs/adr/README.md`.
+- When a change adds a file, key or command: update **13** (data model reference); when it adds an entity or a table: update **15** and `../docs/design/schemas/arcpanel-sqlite.sql`; update the roadmap status line of the epic; mark the design document's status.
 - Markdown follows `.markdownlint-cli2.cjs` and Prettier; tables are aligned by Prettier, so run it rather than aligning by hand.
 - Code references in prose use the repository path (`bin/v-add-user`); runtime paths use `$ARCPANEL` (`/usr/local/arcpanel`).
 
@@ -104,11 +106,11 @@ Then read the code the task touches. Design documents describe intent; the code 
 ## 7. Workflow for a feature or an epic slice
 
 1. **Brainstorm in Vietnamese** with the maintainer: intent, scope, decisions. Present all open design questions together, not one at a time.
-2. **Write the spec** in `docs/features/specs/` (English) recording the decisions, milestones with "done when", scope in/out, risks, tests and the documentation changes. Get it approved.
+2. **Write the spec** in `../docs/features/specs/` (English) recording the decisions, milestones with "done when", scope in/out, risks, tests and the documentation changes. Get it approved. Specs and every other document are committed in the documentation repository, not in this one.
 3. **Implement milestone by milestone, tests first**: BATS for commands, Pest for services and policies, Vitest for Alpine modules, Playwright for flows. Each milestone ends with a green run and a commit.
 4. **Verify on a test server**, never on production: sync the checkout (`test/dev-sync.sh`), run the suites of §8, run the smoke script.
 5. **Update the documents** named in the spec (design doc status, 13, 15, roadmap) and append "Implementation notes" to the spec.
-6. **Commit** with the conventions above. Push only when the maintainer asks for it (see §9).
+6. **Commit** with the conventions above: code in this repository, documents in `../docs/` (one commit per repository, same scope, for example `docs(e12): …`). Push only when the maintainer asks for it (see §9).
 
 Do not narrow the scope silently. If part of a milestone is blocked, finish the rest, say what is missing and why.
 
@@ -127,7 +129,7 @@ Run from the repository root unless noted. The panel's PHP suites need PHP 8.5 a
 | CLI tests (on the test server, root)  | `bats test/arcpanel-*.bats` (all ArcPanel suites) or one suite, for example `bats test/arcpanel-ports.bats`             |
 | HTTP smoke test (test server, root)   | `bash test/arcpanel-login-smoke.sh`                                                                                     |
 | Browser e2e (from the workstation)    | `bash test/e2e/prepare.sh prepare <password>` on the server, then `E2E_BASE_URL=https://<server>:8083 npm run test:e2e` |
-| Regenerate the REST API document      | `npm run docs:api` (CI runs `npm run docs:api:check`; see `docs/api/README.md`)                                         |
+| Regenerate the REST API document      | `npm run docs:api` (CI runs `npm run docs:api:check`; see `../docs/api/README.md`)                                      |
 | Regenerate the REST API v2 document   | `cd web-app && php artisan arcpanel:api-docs` (CI runs it with `--check`)                                               |
 | REST API v2 smoke (test server, root) | `bash test/arcpanel-api-v2-smoke.sh`                                                                                    |
 | Sync the checkout to a test server    | `bash test/dev-sync.sh [--no-composer] [--no-restart]` as root on the server                                            |

@@ -14,9 +14,6 @@
 file	scripts/rename/**
 # Vendored phpPgAdmin, upstream code (install/deb/pga/README.txt)
 file	install/deb/pga/phppgadmin/**
-# Decision records and specs are history; they are not rewritten
-file	docs/adr/**
-file	docs/features/specs/**
 # Release history and the licence
 file	CHANGELOG.md
 file	LICENSE

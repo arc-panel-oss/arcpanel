@@ -4,12 +4,12 @@
 
 ArcPanel is an open-source control panel for Linux web servers. From one dashboard and one command line it manages web domains, DNS zones, mail, databases, cron jobs, backups, firewall and SSL on a single host, and it adds what a modern hosting stack needs: resellers, a port registry, per-user Node.js and Docker apps, template metadata and a first-party file manager.
 
-ArcPanel is based on [HestiaCP](https://github.com/hestiacp/hestiacp) 1.10.5 and, since 2.0, a hard fork of it ([ADR-0007](docs/adr/0007-full-rename-and-hard-fork.md)). It keeps the architecture (the `v-*` commands, the REST API, the flat-file data model) under ArcPanel names: `/usr/local/arcpanel`, `/etc/arcpanel/arcpanel.conf`, `arcpanelweb`, `v-*-arcpanel-*`. Scripts and integrations written for HestiaCP need these names, and API clients read the `ArcPanel-Exit-Code` header.
+ArcPanel is based on [HestiaCP](https://github.com/hestiacp/hestiacp) 1.10.5 and, since 2.0, a hard fork of it ([ADR-0007](https://github.com/arc-panel-oss/docs/blob/main/adr/0007-full-rename-and-hard-fork.md)). It keeps the architecture (the `v-*` commands, the REST API, the flat-file data model) under ArcPanel names: `/usr/local/arcpanel`, `/etc/arcpanel/arcpanel.conf`, `arcpanelweb`, `v-*-arcpanel-*`. Scripts and integrations written for HestiaCP need these names, and API clients read the `ArcPanel-Exit-Code` header.
 
 | Item            | Value                                                                                        |
 | --------------- | -------------------------------------------------------------------------------------------- |
 | Current release | ArcPanel 2.0.0 (in development), based on HestiaCP 1.10.5                                    |
-| Target          | ArcPanel 2.0: the whole web UI on Laravel, legacy pages retired ([roadmap](docs/roadmap.md)) |
+| Target          | ArcPanel 2.0: the whole web UI on Laravel, legacy pages retired ([roadmap](https://github.com/arc-panel-oss/docs/blob/main/roadmap.md)) |
 | Platforms       | Debian 12 / 13, Ubuntu 22.04 / 24.04 / 26.04 LTS, amd64 and arm64 (no 32-bit)                |
 | License         | [GPL-3.0-or-later](LICENSE)                                                                  |
 
@@ -19,7 +19,7 @@ ArcPanel is based on [HestiaCP](https://github.com/hestiacp/hestiacp) 1.10.5 and
 
 ### Hosting stack
 
-From the HestiaCP baseline; see [current features](docs/current-features.md).
+From the HestiaCP baseline; see [current features](https://github.com/arc-panel-oss/docs/blob/main/current-features.md).
 
 - NGINX and Apache2 with PHP-FPM, multiple PHP versions (5.6 to 8.5)
 - BIND DNS with clustering, Let's Encrypt with wildcard certificates
@@ -34,16 +34,16 @@ From the HestiaCP baseline; see [current features](docs/current-features.md).
 
 | Area                                             | Status (2026-10-06)                                                                                                                                   | Where to read                                                                                                                                                                            |
 | ------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Rebranding and packaging                         | Implemented; full rename in progress (ADR-0007); release infrastructure open                                                                          | [ADR-0007](docs/adr/0007-full-rename-and-hard-fork.md)                                                                                                                                   |
-| Laravel panel app at the root URL                | Implemented: every page of the panel (E7); since 2.0 (E8) at the root URL, the HestiaCP web interface removed and old URLs redirected for one release | [02 Laravel foundation](docs/design/02-laravel-foundation.md), [10 Page migration](docs/design/10-page-migration-and-retirement.md)                                                      |
-| Reseller role                                    | Implemented: Users, Packages, quotas, login-as                                                                                                        | [03 Tenancy](docs/design/03-tenancy-and-authorization.md), [E11 spec](docs/features/specs/2026-10-05-003-e11-reseller-design.md)                                                         |
-| Port registry                                    | Implemented: allocation, sub-allocation, public ports, firewall link                                                                                  | [04 Port registry](docs/design/04-port-registry.md), [E12 spec](docs/features/specs/2026-10-05-004-e12-port-registry-design.md)                                                          |
-| Design system and new shell                      | Implemented: component library, role-aware shell, command palette, notification tray                                                                  | [05](docs/design/05-design-system-and-frontend.md), [E1-S2 spec](docs/features/specs/2026-10-05-002-e1-s2-dashboard-web-domains-design.md)                                               |
-| File Manager v2                                  | Implemented: every file operation run as the user, uploads, code editor, restic snapshot browsing; FileGator removed (2.0)                            | [06](docs/design/06-file-manager-v2.md), [E3 spec](docs/features/specs/2026-10-05-008-e3-file-manager-design.md)                                                                         |
-| Node.js runtimes and apps                        | Implemented: per-user runtimes and global packages, apps run by a per-user pm2 daemon                                                                 | [07](docs/design/07-node-platform.md), [E13 spec](docs/features/specs/2026-10-05-006-e13-node-manager-design.md), [E14 spec](docs/features/specs/2026-10-05-007-e14-node-apps-design.md) |
-| App Store (Docker, apt)                          | Docker apps implemented: curated catalog, containers run as the hosting user, updates with rollback. apt/snap system apps designed                    | [08](docs/design/08-app-store.md), [E4 spec](docs/features/specs/2026-10-05-009-e4-docker-apps-design.md)                                                                                |
-| Web templates with metadata                      | Batch 1 implemented: metadata, per-domain variables, ten new templates, template picker                                                               | [09](docs/design/09-web-templates-metadata.md), [E6 spec](docs/features/specs/2026-10-05-005-e6-templates-batch1-design.md)                                                              |
-| Job Center, alerts, audit, WAF, Update Center, … | Sketched (post-2.0)                                                                                                                                   | [14 Later backlog](docs/design/14-later-backlog.md)                                                                                                                                      |
+| Rebranding and packaging                         | Implemented; full rename in progress (ADR-0007); release infrastructure open                                                                          | [ADR-0007](https://github.com/arc-panel-oss/docs/blob/main/adr/0007-full-rename-and-hard-fork.md)                                                                                                                                   |
+| Laravel panel app at the root URL                | Implemented: every page of the panel (E7); since 2.0 (E8) at the root URL, the HestiaCP web interface removed and old URLs redirected for one release | [02 Laravel foundation](https://github.com/arc-panel-oss/docs/blob/main/design/02-laravel-foundation.md), [10 Page migration](https://github.com/arc-panel-oss/docs/blob/main/design/10-page-migration-and-retirement.md)                                                      |
+| Reseller role                                    | Implemented: Users, Packages, quotas, login-as                                                                                                        | [03 Tenancy](https://github.com/arc-panel-oss/docs/blob/main/design/03-tenancy-and-authorization.md), [E11 spec](https://github.com/arc-panel-oss/docs/blob/main/features/specs/2026-10-05-003-e11-reseller-design.md)                                                         |
+| Port registry                                    | Implemented: allocation, sub-allocation, public ports, firewall link                                                                                  | [04 Port registry](https://github.com/arc-panel-oss/docs/blob/main/design/04-port-registry.md), [E12 spec](https://github.com/arc-panel-oss/docs/blob/main/features/specs/2026-10-05-004-e12-port-registry-design.md)                                                          |
+| Design system and new shell                      | Implemented: component library, role-aware shell, command palette, notification tray                                                                  | [05](https://github.com/arc-panel-oss/docs/blob/main/design/05-design-system-and-frontend.md), [E1-S2 spec](https://github.com/arc-panel-oss/docs/blob/main/features/specs/2026-10-05-002-e1-s2-dashboard-web-domains-design.md)                                               |
+| File Manager v2                                  | Implemented: every file operation run as the user, uploads, code editor, restic snapshot browsing; FileGator removed (2.0)                            | [06](https://github.com/arc-panel-oss/docs/blob/main/design/06-file-manager-v2.md), [E3 spec](https://github.com/arc-panel-oss/docs/blob/main/features/specs/2026-10-05-008-e3-file-manager-design.md)                                                                         |
+| Node.js runtimes and apps                        | Implemented: per-user runtimes and global packages, apps run by a per-user pm2 daemon                                                                 | [07](https://github.com/arc-panel-oss/docs/blob/main/design/07-node-platform.md), [E13 spec](https://github.com/arc-panel-oss/docs/blob/main/features/specs/2026-10-05-006-e13-node-manager-design.md), [E14 spec](https://github.com/arc-panel-oss/docs/blob/main/features/specs/2026-10-05-007-e14-node-apps-design.md) |
+| App Store (Docker, apt)                          | Docker apps implemented: curated catalog, containers run as the hosting user, updates with rollback. apt/snap system apps designed                    | [08](https://github.com/arc-panel-oss/docs/blob/main/design/08-app-store.md), [E4 spec](https://github.com/arc-panel-oss/docs/blob/main/features/specs/2026-10-05-009-e4-docker-apps-design.md)                                                                                |
+| Web templates with metadata                      | Batch 1 implemented: metadata, per-domain variables, ten new templates, template picker                                                               | [09](https://github.com/arc-panel-oss/docs/blob/main/design/09-web-templates-metadata.md), [E6 spec](https://github.com/arc-panel-oss/docs/blob/main/features/specs/2026-10-05-005-e6-templates-batch1-design.md)                                                              |
+| Job Center, alerts, audit, WAF, Update Center, … | Sketched (post-2.0)                                                                                                                                   | [14 Later backlog](https://github.com/arc-panel-oss/docs/blob/main/design/14-later-backlog.md)                                                                                                                                      |
 
 ---
 
@@ -64,9 +64,9 @@ Browser ── HTTPS :8083 ──► arcpanel-nginx ──► arcpanel-php (FPM,
 - **The CLI is the API.** The panel app and the REST API call `v-*` commands through `sudo`; the commands validate arguments, write the flat files and configure the services. The panel never writes hosting state itself.
 - **Strangler migration.** In 1.x the Laravel app and the legacy app shared one port and one session, and pages moved to Laravel one module at a time; 2.0 removed the legacy app.
 - **Owner model.** Admin, reseller and user roles with a one-level ownership tree; every page and command is scoped by owner.
-- **Hard fork.** No upstream merges since 2.0; HestiaCP security fixes are read and ported by hand ([ADR-0007](docs/adr/0007-full-rename-and-hard-fork.md)).
+- **Hard fork.** No upstream merges since 2.0; HestiaCP security fixes are read and ported by hand ([ADR-0007](https://github.com/arc-panel-oss/docs/blob/main/adr/0007-full-rename-and-hard-fork.md)).
 
-Full description: [01 Architecture overview](docs/design/01-architecture-overview.md). Data model: [13 Data model reference](docs/design/13-data-model-reference.md) and [15 Database schema and ERD](docs/design/15-database-schema-and-erd.md).
+Full description: [01 Architecture overview](https://github.com/arc-panel-oss/docs/blob/main/design/01-architecture-overview.md). Data model: [13 Data model reference](https://github.com/arc-panel-oss/docs/blob/main/design/13-data-model-reference.md) and [15 Database schema and ERD](https://github.com/arc-panel-oss/docs/blob/main/design/15-database-schema-and-erd.md).
 
 ---
 
@@ -109,7 +109,7 @@ src/deb/        Debian packaging of the panel stack (arcpanel, arcpanel-nginx, a
 lib/            libraries of the commands: Quick Install, 2FA, mail wrapper, API script, locales, logos (moved from web/ in 2.0)
 web-app/        Laravel 13 panel app: ArcCommand, auth bridge, policies, services, Blade + Alpine, Vue islands, Pest and Vitest tests
 test/           BATS suites, smoke script, Playwright e2e, dev-sync.sh (deploy a checkout to a test server)
-docs/           roadmap, current features, design documents, specs, ADRs, schemas
+docs/api/       generated REST API documents (v1, v2) and their Swagger UI; every other document is in arc-panel-oss/docs
 build.js        esbuild + Lightning CSS build of the panel app assets
 ```
 
@@ -178,13 +178,16 @@ The scripts create and delete their own users (`arce2e*`, `arcsmoke*`); never ru
 
 ## Documentation
 
+The documentation lives in its own repository, [arc-panel-oss/docs](https://github.com/arc-panel-oss/docs). Only the generated REST API documents stay here, in `docs/api/`, so that each release carries the documents that match its code.
+
 | Document                                             | Content                                                                             |
 | ---------------------------------------------------- | ----------------------------------------------------------------------------------- |
-| [docs/roadmap.md](docs/roadmap.md)                   | 12-month roadmap: epics E1–E14 and the post-2.0 backlog E15–E33, priorities, status |
-| [docs/current-features.md](docs/current-features.md) | What the HestiaCP 1.10.5 baseline does today                                        |
-| [docs/design/](docs/design/README.md)                | System design, one document per epic, plus the data model reference and the ERD     |
-| [docs/features/specs/](docs/features/specs/)         | Approved specs of implemented slices with their implementation notes                |
-| [docs/adr/](docs/adr/README.md)                      | Architecture decision records                                                       |
+| [docs/roadmap.md](https://github.com/arc-panel-oss/docs/blob/main/roadmap.md)                   | 12-month roadmap: epics E1–E14 and the post-2.0 backlog E15–E33, priorities, status |
+| [docs/current-features.md](https://github.com/arc-panel-oss/docs/blob/main/current-features.md) | What the HestiaCP 1.10.5 baseline does today                                        |
+| [docs/design/](https://github.com/arc-panel-oss/docs/blob/main/design/README.md)                | System design, one document per epic, plus the data model reference and the ERD     |
+| [docs/features/specs/](https://github.com/arc-panel-oss/docs/tree/main/features/specs)         | Approved specs of implemented slices with their implementation notes                |
+| [docs/adr/](https://github.com/arc-panel-oss/docs/blob/main/adr/README.md)                      | Architecture decision records                                                       |
+| [REST API](https://github.com/arc-panel-oss/docs/blob/main/api/README.md) | The two REST APIs; the generated OpenAPI documents are in `docs/api/` of this repository |
 | [AGENTS.md](AGENTS.md), [CLAUDE.md](CLAUDE.md)       | Rules for AI coding agents working in this repository                               |
 | [SECURITY.md](SECURITY.md)                           | How to report a vulnerability                                                       |
 
@@ -193,7 +196,7 @@ The scripts create and delete their own users (`arce2e*`, `arcsmoke*`); never ru
 ## Contributing
 
 - Development happens on the `develop` branch; `master` holds releases (`vX.Y.Z`, betas as `vX.Y.Z-beta.N`).
-- ArcPanel owns every file: keep the conventions of the inherited code, use ArcPanel names only (`test/brand-check.sh`), and keep the original copyright headers ([ADR-0007](docs/adr/0007-full-rename-and-hard-fork.md)).
+- ArcPanel owns every file: keep the conventions of the inherited code, use ArcPanel names only (`test/brand-check.sh`), and keep the original copyright headers ([ADR-0007](https://github.com/arc-panel-oss/docs/blob/main/adr/0007-full-rename-and-hard-fork.md)).
 - Every change comes with tests at the right layer (BATS for commands, Pest for the panel app, Vitest for Alpine modules, Playwright for flows) and with the documentation updates the design calls for.
 - Commit messages follow Conventional Commits with the epic as scope, for example `feat(e12): add the Ports pages`.
 - Bugs and feature requests: [GitHub issues](https://github.com/arc-panel-oss/arcpanel/issues). Vulnerabilities: see [SECURITY.md](SECURITY.md), never a public issue.
