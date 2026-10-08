@@ -51,9 +51,18 @@ enum ErrorCode: string
         };
     }
 
-    /** HTTP status of a command's exit code (ExitCode::httpStatus(), 500 without one). */
+    /**
+     * HTTP status of a command's exit code (ExitCode::httpStatus(), 500
+     * without one). A package limit (`E_LIMIT`) is 422, not 429: the client
+     * has to change its request, waiting does not help, and a 429 would make
+     * SDKs retry (E34 batch 4 spec §5).
+     */
     public static function statusOfExit(?ExitCode $exit): int
     {
+        if ($exit === ExitCode::Limit) {
+            return 422;
+        }
+
         return $exit?->httpStatus() ?? 500;
     }
 }

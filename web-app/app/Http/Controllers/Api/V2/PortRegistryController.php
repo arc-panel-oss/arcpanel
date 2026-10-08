@@ -216,7 +216,7 @@ final class PortRegistryController extends Controller
     /** @param  list<Step>  $steps */
     private function run(array $steps): ?JsonResponse
     {
-        return $this->gate->executeWithLimits($steps, $this->ports->apply(...));
+        return $this->gate->execute($steps, $this->ports->apply(...));
     }
 
     private function existingUser(string $user): string

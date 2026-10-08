@@ -245,7 +245,7 @@ final class PortController extends Controller
      */
     private function run(array $steps, ?ApplyResult &$result = null): ?JsonResponse
     {
-        return $this->gate->executeWithLimits($steps, function (array $steps) use (&$result): ApplyResult {
+        return $this->gate->execute($steps, function (array $steps) use (&$result): ApplyResult {
             return $result = $this->ports->apply($steps);
         });
     }

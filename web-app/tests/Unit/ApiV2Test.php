@@ -146,7 +146,7 @@ it('maps exceptions to the error codes and statuses of D10', function (Throwable
 })->with([
     'exists' => [fn () => ArcCommandException::failed(new CommandResult('v-add-user', [], 4, 'Error: exists')), 'E_EXISTS', 409],
     'forbidden is spelled right' => [fn () => ArcCommandException::failed(new CommandResult('v-add-user', [], 10, 'Error: no')), 'E_FORBIDDEN', 403],
-    'limit' => [fn () => ArcCommandException::failed(new CommandResult('v-add-user', [], 8, 'Error: limit')), 'E_LIMIT', 429],
+    'limit' => [fn () => ArcCommandException::failed(new CommandResult('v-add-user', [], 8, 'Error: limit')), 'E_LIMIT', 422],
     'not run' => [fn () => ArcCommandException::refused('v-x', 'timed out'), 'E_SERVER', 500],
     'argument refused' => [fn () => ArcCommandException::invalidArgument('v-x', 'argument contains a control character'), 'E_INVALID', 422],
     'validation' => [fn () => ValidationException::withMessages(['name' => 'bad']), 'E_VALIDATION', 422],

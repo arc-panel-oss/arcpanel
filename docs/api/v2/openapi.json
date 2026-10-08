@@ -21530,7 +21530,7 @@
                 }
             },
             "ValidationFailed": {
-                "description": "The request is invalid (`E_VALIDATION` with `fields`, or a command refused an argument).",
+                "description": "The request is invalid (`E_VALIDATION` with `fields`, or a command refused an argument), or a package limit is reached (`E_LIMIT`).",
                 "headers": {
                     "X-Request-Id": {
                         "$ref": "#/components/headers/RequestId"
@@ -21548,7 +21548,7 @@
                 }
             },
             "TooManyRequests": {
-                "description": "Too many requests (`E_RATE_LIMIT`, or a package limit `E_LIMIT`); `Retry-After` names the seconds to wait.",
+                "description": "Too many requests (`E_RATE_LIMIT`); `Retry-After` names the seconds to wait.",
                 "headers": {
                     "X-Request-Id": {
                         "$ref": "#/components/headers/RequestId"

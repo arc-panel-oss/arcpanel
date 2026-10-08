@@ -47,8 +47,8 @@ final class ApiDocs extends Command
         '404' => ['NotFound', 'No such object in the scope of the key (`E_NOTEXIST`).'],
         '410' => ['Gone', 'The task result is no longer kept (`E_GONE`).'],
         '409' => ['Conflict', 'The object exists or is in use (`E_EXISTS`, `E_INUSE`).'],
-        '422' => ['ValidationFailed', 'The request is invalid (`E_VALIDATION` with `fields`, or a command refused an argument).'],
-        '429' => ['TooManyRequests', 'Too many requests (`E_RATE_LIMIT`, or a package limit `E_LIMIT`); `Retry-After` names the seconds to wait.'],
+        '422' => ['ValidationFailed', 'The request is invalid (`E_VALIDATION` with `fields`, or a command refused an argument), or a package limit is reached (`E_LIMIT`).'],
+        '429' => ['TooManyRequests', 'Too many requests (`E_RATE_LIMIT`); `Retry-After` names the seconds to wait.'],
         '500' => ['ServerError', 'A command failed on the server.'],
         '503' => ['Unavailable', 'The service is disabled or the server is too busy (`E_DISABLED`, `E_LA`).'],
     ];

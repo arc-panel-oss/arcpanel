@@ -62,29 +62,6 @@ final class PlanGate
         return null;
     }
 
-    /**
-     * execute(), with a package limit the command refuses (`E_LIMIT`)
-     * answered as 422 rather than 429: the client has to change its request,
-     * waiting does not help (E34 batch 4 spec §5, as batch 1 does for
-     * reseller quotas).
-     *
-     * @param  list<Step>  $steps
-     * @param  Closure(list<Step>): ApplyResult  $apply
-     * @param  list<string>  $also
-     */
-    public function executeWithLimits(array $steps, Closure $apply, array $also = []): ?JsonResponse
-    {
-        try {
-            return $this->execute($steps, $apply, $also);
-        } catch (ApiException $e) {
-            if ($e->errorCode !== ErrorCode::Limit) {
-                throw $e;
-            }
-
-            throw new ApiException($e->errorCode, $e->getMessage(), 422, $e->details, $e->headers, $e->existing);
-        }
-    }
-
     /** @param  list<Step>  $steps */
     public function preview(array $steps): JsonResponse
     {
