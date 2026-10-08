@@ -9,14 +9,19 @@ use App\Http\Controllers\Api\V2\DockerCatalogController;
 use App\Http\Controllers\Api\V2\DockerEngineController;
 use App\Http\Controllers\Api\V2\FileController;
 use App\Http\Controllers\Api\V2\FileTransferController;
+use App\Http\Controllers\Api\V2\LogController;
 use App\Http\Controllers\Api\V2\MailAccountController;
 use App\Http\Controllers\Api\V2\MailDomainController;
 use App\Http\Controllers\Api\V2\MeController;
 use App\Http\Controllers\Api\V2\NodeAppController;
 use App\Http\Controllers\Api\V2\NodeController;
+use App\Http\Controllers\Api\V2\NotificationController;
 use App\Http\Controllers\Api\V2\PackageController;
 use App\Http\Controllers\Api\V2\PortController;
 use App\Http\Controllers\Api\V2\PortRegistryController;
+use App\Http\Controllers\Api\V2\SearchController;
+use App\Http\Controllers\Api\V2\SshKeyController;
+use App\Http\Controllers\Api\V2\StatsController;
 use App\Http\Controllers\Api\V2\TaskController;
 use App\Http\Controllers\Api\V2\UserController;
 use App\Http\Controllers\Api\V2\WebDomainController;
@@ -43,6 +48,17 @@ Route::pattern('version', '\d{1,3}\.\d{1,3}\.\d{1,3}');
 Route::pattern('range', '\d{1,5}(-\d{1,5})?');
 
 Route::get('/me', MeController::class)->name('me');
+
+// Account of the key's owner (E34 batch 6 §4.2, §4.3)
+Route::get('/notifications', [NotificationController::class, 'index'])->name('notifications.index');
+Route::middleware('not-readonly')->group(function () {
+    Route::post('/notifications/acknowledge', [NotificationController::class, 'acknowledgeAll'])->name('notifications.acknowledge-all');
+    Route::post('/notifications/{id}/acknowledge', [NotificationController::class, 'acknowledge'])->whereNumber('id')->name('notifications.acknowledge');
+    Route::delete('/notifications/{id}', [NotificationController::class, 'destroy'])->whereNumber('id')->name('notifications.destroy');
+    Route::delete('/notifications', [NotificationController::class, 'destroyAll'])->name('notifications.destroy-all');
+});
+Route::get('/stats', [StatsController::class, 'index'])->name('stats.index');
+Route::get('/search', SearchController::class)->name('search');
 
 // Docker catalog (E34 batch 4 spec §4.3, D44)
 Route::get('/docker-catalog', [DockerCatalogController::class, 'index'])->defaults('api_area', 'apps')->name('docker-catalog.index');
@@ -75,6 +91,18 @@ Route::post('/users', [UserController::class, 'store'])->middleware('not-readonl
 Route::middleware('effective-user')->group(function () {
     Route::get('/users/{user}', [UserController::class, 'show'])->name('users.show');
     Route::get('/users/{user}/tasks', [TaskController::class, 'index'])->defaults('api_area', 'backup')->name('users.tasks.index');
+
+    // Logs, statistics and SSH keys of a user (E34 batch 6 §4.1, §4.2, §4.4)
+    Route::get('/users/{user}/logs', [LogController::class, 'index'])->name('logs.index');
+    Route::get('/users/{user}/auth-logs', [LogController::class, 'logins'])->name('auth-logs.index');
+    Route::get('/users/{user}/stats', [StatsController::class, 'show'])->name('users.stats');
+    Route::get('/users/{user}/ssh-keys', [SshKeyController::class, 'index'])->name('ssh-keys.index');
+    Route::middleware('not-readonly')->group(function () {
+        Route::delete('/users/{user}/logs', [LogController::class, 'destroy'])->name('logs.destroy');
+        Route::delete('/users/{user}/auth-logs', [LogController::class, 'destroyLogins'])->name('auth-logs.destroy');
+        Route::post('/users/{user}/ssh-keys', [SshKeyController::class, 'store'])->name('ssh-keys.store');
+        Route::delete('/users/{user}/ssh-keys/{id}', [SshKeyController::class, 'destroy'])->where('id', '.{1,255}')->name('ssh-keys.destroy');
+    });
     Route::middleware('not-readonly')->group(function () {
         Route::patch('/users/{user}', [UserController::class, 'update'])->name('users.update');
         Route::put('/users/{user}/package', [UserController::class, 'package'])->name('users.package');
@@ -330,6 +358,7 @@ foreach (Route::getRoutes() as $route) {
         str_contains($uri, '/ports') => 'apps',
         str_contains($uri, '/node') => 'apps',
         str_starts_with($uri, 'api/v2/users'), str_starts_with($uri, 'api/v2/packages') => 'accounts',
+        in_array($uri, ['api/v2/stats', 'api/v2/search'], true), str_starts_with($uri, 'api/v2/notifications') => 'accounts',
         default => null,
     };
     if ($area !== null) {

@@ -66,11 +66,19 @@ final class PaletteSearch
         return $groups;
     }
 
-    /** @return array<string, list<array{label: string, meta: string, url: string, icon: string}>> */
-    private function objects(string $query): array
+    /**
+     * The objects of `v-search-object` (admins and resellers) or
+     * `v-search-user-object` (everyone else) that the principal may see,
+     * in the order of the command. The search page and API v2 (E34 batch 6
+     * §4.3) share it.
+     *
+     * @return list<array{type: string, key: string, result: string, owner: string, parent: string, link: string}>
+     */
+    public function objectRows(string $query): array
     {
         // v-search-* accept one word (is_format_valid 'object').
-        if (preg_match('/^[\w.@-]+$/u', $query) !== 1) {
+        $query = trim($query);
+        if (mb_strlen($query) < 2 || preg_match('/^[\w.@-]+$/u', $query) !== 1) {
             return [];
         }
         $role = $this->principal->actingRole();
@@ -78,7 +86,7 @@ final class PaletteSearch
             ? $this->arc->json('v-search-object', [$query], Options::allowFailure())
             : $this->arc->json('v-search-user-object', [$this->principal->effectiveUser(), $query], Options::allowFailure());
 
-        $groups = [];
+        $objects = [];
         foreach ($rows as $row) {
             if (! is_array($row)) {
                 continue;
@@ -88,17 +96,62 @@ final class PaletteSearch
             if (! isset(self::OBJECT_TYPES[$type]) || ! $this->scope->canSee($owner)) {
                 continue;
             }
-            [$label, $icon, $capability] = self::OBJECT_TYPES[$type];
-            if (! Capabilities::allows($role, $capability) || $this->isProtectedAdmin($owner)) {
+            if (! Capabilities::allows($role, self::OBJECT_TYPES[$type][2]) || $this->isProtectedAdmin($owner)) {
                 continue;
             }
-            $url = $this->panelUrl($type, $row);
+            $objects[] = [
+                'type' => $type,
+                'key' => (string) ($row['KEY'] ?? ''),
+                'result' => (string) ($row['RESULT'] ?? ''),
+                'owner' => $owner,
+                'parent' => (string) ($row['PARENT'] ?? ''),
+                'link' => (string) ($row['LINK'] ?? ''),
+            ];
+        }
+
+        return $objects;
+    }
+
+    /**
+     * Users whose name, full name or contact contains the query, among those
+     * the principal manages.
+     *
+     * @return list<array{name: string, full_name: string}>
+     */
+    public function userRows(string $query): array
+    {
+        if (! Capabilities::allows($this->principal->actingRole(), 'users.view')) {
+            return [];
+        }
+        $users = [];
+        foreach ($this->users->all() as $name => $record) {
+            $name = (string) $name;
+            $haystack = $name.' '.($record['NAME'] ?? '').' '.($record['CONTACT'] ?? '');
+            if (mb_stripos($haystack, $query) === false || $this->isProtectedAdmin($name) || ! $this->scope->canManageAccount($name)) {
+                continue;
+            }
+            $users[] = ['name' => $name, 'full_name' => (string) ($record['NAME'] ?? '')];
+        }
+
+        return $users;
+    }
+
+    /** @return array<string, list<array{label: string, meta: string, url: string, icon: string}>> */
+    private function objects(string $query): array
+    {
+        $groups = [];
+        foreach ($this->objectRows($query) as $object) {
+            [$label, $icon] = self::OBJECT_TYPES[$object['type']];
+            $url = $this->panelUrl($object['type'], [
+                'USER' => $object['owner'], 'KEY' => $object['key'], 'RESULT' => $object['result'],
+                'PARENT' => $object['parent'], 'LINK' => $object['link'],
+            ]);
             if ($url === null) {
                 continue;
             }
             $groups[__($label)][] = [
-                'label' => (string) ($row['RESULT'] ?? ''),
-                'meta' => $owner,
+                'label' => $object['result'],
+                'meta' => $object['owner'],
                 'url' => $url,
                 'icon' => $icon,
             ];
@@ -139,24 +192,12 @@ final class PaletteSearch
     /** @return list<array{label: string, meta: string, url: string, icon: string}> */
     private function matchingUsers(string $query): array
     {
-        if (! Capabilities::allows($this->principal->actingRole(), 'users.view')) {
-            return [];
-        }
-        $items = [];
-        foreach ($this->users->all() as $name => $record) {
-            $haystack = $name.' '.($record['NAME'] ?? '').' '.($record['CONTACT'] ?? '');
-            if (mb_stripos($haystack, $query) === false || $this->isProtectedAdmin($name) || ! $this->scope->canManageAccount($name)) {
-                continue;
-            }
-            $items[] = [
-                'label' => $name,
-                'meta' => (string) ($record['NAME'] ?? ''),
-                'url' => route('users.show', ['user' => $name]),
-                'icon' => 'user',
-            ];
-        }
-
-        return $items;
+        return array_map(fn (array $user) => [
+            'label' => $user['name'],
+            'meta' => $user['full_name'],
+            'url' => route('users.show', ['user' => $user['name']]),
+            'icon' => 'user',
+        ], $this->userRows($query));
     }
 
     /** @return list<array{label: string, meta: string, url: string, icon: string}> */

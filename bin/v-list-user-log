@@ -1,10 +1,12 @@
 #!/bin/bash
 # info: list user log
-# options: USER [FORMAT]
+# options: USER [FORMAT] [LINES]
 #
-# example: v-list-user-log
+# example: v-list-user-log alice json 100
 #
-# This function of obtaining the list of 100 last users commands.
+# This function prints the last LINES entries of the user's action log
+# (default 300, at most 10000), oldest first. USER 'system' reads the
+# activity log of the server.
 
 #----------------------------------------------------------#
 #                Variables & Functions                     #
@@ -13,6 +15,7 @@
 # Argument definition
 user=$1
 format=${2-shell}
+lines=${3-300}
 
 # Includes
 # shellcheck source=/etc/arcpanel/arcpanel.conf
@@ -101,10 +104,13 @@ csv_list() {
 #                    Verifications                         #
 #----------------------------------------------------------#
 
-check_args '1' "$#" 'USER [FORMAT]'
+check_args '1' "$#" 'USER [FORMAT] [LINES]'
 is_format_valid 'user'
 if [ "$user" != "system" ]; then
 	is_object_valid 'user' 'USER' "$user"
+fi
+if [[ ! "$lines" =~ ^[0-9]{1,5}$ ]] || [ "$lines" -lt 1 ] || [ "$lines" -gt 10000 ]; then
+	check_result "$E_INVALID" "invalid number of lines :: $lines (1 to 10000)"
 fi
 
 #----------------------------------------------------------#
@@ -117,7 +123,7 @@ if [ "$user" = "system" ]; then
 else
 	log_file="$USER_DATA/history.log"
 fi
-logs=$(tail -n 300 $log_file 2> /dev/null)
+logs=$(tail -n "$lines" $log_file 2> /dev/null)
 
 case $format in
 	json) json_list ;;

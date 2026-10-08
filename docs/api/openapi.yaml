@@ -22042,9 +22042,10 @@ paths:
       operationId: v-list-user-auth-log
       tags:
         - Users
-      summary: List user log
+      summary: List user login log
       description: |-
-        This function of obtaining the list of 10 last users commands.
+        This function prints the last LINES entries of the user's login history
+        (default 10, at most 10000), oldest first.
 
         **Arguments**
 
@@ -22052,6 +22053,7 @@ paths:
         | --- | --- | --- |
         | `arg1` | `USER` | yes |
         | `arg2` | `FORMAT` | no |
+        | `arg3` | `LINES` | no |
 
         **User argument:** with the access key of a user other than the admin, `arg1` must be the key's user.
       x-arcpanel-user-arg: 1
@@ -22499,7 +22501,9 @@ paths:
         - Users
       summary: List user log
       description: |-
-        This function of obtaining the list of 100 last users commands.
+        This function prints the last LINES entries of the user's action log
+        (default 300, at most 10000), oldest first. USER 'system' reads the
+        activity log of the server.
 
         **Arguments**
 
@@ -22507,6 +22511,7 @@ paths:
         | --- | --- | --- |
         | `arg1` | `USER` | yes |
         | `arg2` | `FORMAT` | no |
+        | `arg3` | `LINES` | no |
 
         **User argument:** with the access key of a user other than the admin, `arg1` must be the key's user.
       x-arcpanel-user-arg: 1
@@ -47746,7 +47751,7 @@ components:
               title: USER
               description: "`USER`"
               examples:
-                - ""
+                - alice
             arg2:
               type: string
               title: FORMAT
@@ -47758,6 +47763,12 @@ components:
                 - shell
               examples:
                 - json
+            arg3:
+              type: string
+              title: LINES
+              description: "`LINES`, optional"
+              examples:
+                - "100"
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-list-user-backup:
@@ -48004,7 +48015,7 @@ components:
               title: USER
               description: "`USER`"
               examples:
-                - ""
+                - alice
             arg2:
               type: string
               title: FORMAT
@@ -48016,6 +48027,12 @@ components:
                 - shell
               examples:
                 - json
+            arg3:
+              type: string
+              title: LINES
+              description: "`LINES`, optional"
+              examples:
+                - "100"
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-list-user-node-task:

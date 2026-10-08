@@ -28,6 +28,28 @@ final class LogService
             return [['date' => '', 'time' => '', 'level' => 'Error', 'category' => 'System', 'message' => __('Unable to load logs')]];
         }
 
+        return self::actionRows($data);
+    }
+
+    /**
+     * `v-list-user-log USER json LINES`: the LINES newest entries, newest
+     * first (E34 batch 6 D60). A failure of the command is thrown.
+     *
+     * @return list<array{date: string, time: string, level: string, category: string, message: string}>
+     */
+    public function latestActions(string $user, int $lines): array
+    {
+        $data = json_decode($this->arc->run('v-list-user-log', [$user, 'json', (string) $lines])->stdout, true);
+
+        return self::actionRows(is_array($data) ? $data : []);
+    }
+
+    /**
+     * @param  array<array-key, mixed>  $data
+     * @return list<array{date: string, time: string, level: string, category: string, message: string}>
+     */
+    private static function actionRows(array $data): array
+    {
         $rows = [];
         foreach ($data as $row) {
             if (is_array($row)) {
@@ -51,8 +73,30 @@ final class LogService
      */
     public function logins(string $user): array
     {
+        return self::loginRows($this->arc->json('v-list-user-auth-log', [$user]));
+    }
+
+    /**
+     * `v-list-user-auth-log USER json LINES`: the LINES newest entries,
+     * newest first (E34 batch 6 D60).
+     *
+     * @return list<array{date: string, time: string, ip: string, success: bool, browser: string}>
+     */
+    public function latestLogins(string $user, int $lines): array
+    {
+        $data = json_decode($this->arc->run('v-list-user-auth-log', [$user, 'json', (string) $lines])->stdout, true);
+
+        return self::loginRows(is_array($data) ? $data : []);
+    }
+
+    /**
+     * @param  array<array-key, mixed>  $data
+     * @return list<array{date: string, time: string, ip: string, success: bool, browser: string}>
+     */
+    private static function loginRows(array $data): array
+    {
         $rows = [];
-        foreach ($this->arc->json('v-list-user-auth-log', [$user]) as $row) {
+        foreach ($data as $row) {
             if (is_array($row)) {
                 $rows[] = [
                     'date' => (string) ($row['DATE'] ?? ''),

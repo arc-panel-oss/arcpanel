@@ -261,6 +261,12 @@ it('documents pagination and error.existing', function () {
 
                 continue;
             }
+            if (in_array($id, ['listUserLogs', 'listUserAuthLogs'], true)) {
+                $schema = $operation['responses']['200']['content']['application/json']['schema']['properties']['meta'] ?? null;
+                expect($schema)->toBe(['$ref' => '#/components/schemas/LogListMeta'], $id);
+
+                continue;
+            }
             if ($id === 'listDockerCatalog') {
                 $names = array_column($operation['parameters'] ?? [], 'name');
                 expect($names)->not->toContain('limit')->not->toContain('offset');
@@ -316,6 +322,7 @@ it('declares an area on the batch 1 routes', function () {
             str_contains($uri, '/ports') => 'apps',
             str_contains($uri, '/node') => 'apps',
             str_starts_with($uri, 'api/v2/users'), str_starts_with($uri, 'api/v2/packages') => 'accounts',
+            in_array($uri, ['api/v2/stats', 'api/v2/search'], true), str_starts_with($uri, 'api/v2/notifications') => 'accounts',
             default => null,
         };
         expect($route->defaults['api_area'] ?? null)->toBe($area, $uri);

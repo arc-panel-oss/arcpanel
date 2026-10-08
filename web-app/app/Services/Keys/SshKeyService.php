@@ -72,6 +72,20 @@ final class SshKeyService
         return $key;
     }
 
+    /**
+     * The SHA256 fingerprint of a public key line as `ssh-keygen -l`
+     * prints it (`SHA256:…`), or null when the key part is not base64.
+     */
+    public static function fingerprint(string $line): ?string
+    {
+        $blob = base64_decode((string) (preg_split('/\s+/', trim($line))[1] ?? ''), true);
+        if ($blob === false || $blob === '') {
+            return null;
+        }
+
+        return 'SHA256:'.rtrim(base64_encode(hash('sha256', $blob, true)), '=');
+    }
+
     /** `v-add-user-ssh-key USER KEY` */
     public function create(string $user, string $key): CommandResult
     {

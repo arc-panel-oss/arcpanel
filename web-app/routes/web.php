@@ -128,9 +128,10 @@ Route::middleware('auth.arc')->group(function () {
     // Search page (E7 batch 3 spec §12.1)
     Route::get('/search', SearchController::class)->name('search');
     Route::get('/_notifications', [NotificationController::class, 'index'])->name('shell.notifications');
-    Route::post('/_notifications/{id}/acknowledge', [NotificationController::class, 'acknowledge'])->whereNumber('id')->name('shell.notifications.acknowledge');
-    Route::delete('/_notifications/{id}', [NotificationController::class, 'destroy'])->whereNumber('id')->name('shell.notifications.destroy');
+    // Acknowledging and deleting are changes (E34 batch 6 D64)
     Route::middleware('not-readonly')->group(function () {
+        Route::post('/_notifications/{id}/acknowledge', [NotificationController::class, 'acknowledge'])->whereNumber('id')->name('shell.notifications.acknowledge');
+        Route::delete('/_notifications/{id}', [NotificationController::class, 'destroy'])->whereNumber('id')->name('shell.notifications.destroy');
         Route::post('/_notifications/acknowledge', [NotificationController::class, 'acknowledgeAll'])->name('shell.notifications.acknowledge-all');
         Route::delete('/_notifications', [NotificationController::class, 'destroyAll'])->name('shell.notifications.destroy-all');
     });

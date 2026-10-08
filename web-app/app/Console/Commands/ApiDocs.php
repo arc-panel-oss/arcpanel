@@ -35,8 +35,11 @@ final class ApiDocs extends Command
         'startDockerAppTask',
     ];
 
-    /** List operations whose `meta` is not paginated `ListMeta` (E34 batch 3 §5, batch 4 §4.2). */
-    private const LIST_WITHOUT_PAGINATION = ['listSystemTasks', 'listNodeApps', 'listDockerApps', 'listDockerCatalog', 'listPorts'];
+    /** List operations whose `meta` is not paginated `ListMeta` (E34 batch 3 §5, batch 4 §4.2, batch 6 D60). */
+    private const LIST_WITHOUT_PAGINATION = ['listSystemTasks', 'listNodeApps', 'listDockerApps', 'listDockerCatalog', 'listPorts', 'listUserLogs', 'listUserAuthLogs'];
+
+    /** Logs page through the newest entries with `LogListMeta` (E34 batch 6 D60). */
+    private const LOG_LISTS = ['listUserLogs', 'listUserAuthLogs'];
 
     /** Operations that answer the ports of one account with `PortListMeta` (E34 batch 4 §4.5). */
     private const PORT_LISTS = ['listPorts', 'givePorts', 'releasePort', 'setPortPublicOk', 'reclaimPorts', 'allocatePorts', 'registerPort'];
@@ -281,6 +284,9 @@ final class ApiDocs extends Command
         if (str_starts_with($operationId, 'list') && ! in_array($operationId, self::LIST_WITHOUT_PAGINATION, true)) {
             $operation['parameters'] = [...($operation['parameters'] ?? []), ...self::pageParameters()];
         }
+        if (in_array($operationId, self::LOG_LISTS, true)) {
+            $operation['parameters'] = [...($operation['parameters'] ?? []), ...self::logPageParameters()];
+        }
 
         if ($write && ! in_array($operationId, self::WITHOUT_DRY_RUN, true)) {
             $operation['parameters'] = [...($operation['parameters'] ?? []), [
@@ -495,6 +501,11 @@ final class ApiDocs extends Command
         }
         if ($operationId === 'getDockerAppLogs') {
             $schema['properties']['meta'] = ['$ref' => '#/components/schemas/DockerAppLogMeta'];
+
+            return $schema;
+        }
+        if (in_array($operationId, self::LOG_LISTS, true)) {
+            $schema['properties']['meta'] = ['$ref' => '#/components/schemas/LogListMeta'];
 
             return $schema;
         }
@@ -971,6 +982,29 @@ final class ApiDocs extends Command
         ];
     }
 
+    /**
+     * `limit` and `offset` of the logs (E34 batch 6 D60): a page of the newest entries.
+     *
+     * @return list<array<string, mixed>>
+     */
+    private static function logPageParameters(): array
+    {
+        return [
+            [
+                'name' => 'limit',
+                'in' => 'query',
+                'description' => 'Entries to return, from 1 to 1000. Defaults to 100.',
+                'schema' => ['type' => 'integer', 'minimum' => 1, 'maximum' => 1000, 'default' => 100],
+            ],
+            [
+                'name' => 'offset',
+                'in' => 'query',
+                'description' => 'Newer entries to skip, from 0 to 8999.',
+                'schema' => ['type' => 'integer', 'minimum' => 0, 'maximum' => 8999, 'default' => 0],
+            ],
+        ];
+    }
+
     /** @return array<string, array{'$ref': string}> */
     private static function successHeaders(string $status): array
     {
@@ -1142,6 +1176,16 @@ final class ApiDocs extends Command
                     'room' => ['type' => 'boolean', 'description' => 'Whether another app fits under the limit.'],
                 ],
                 'required' => ['engine', 'totals', 'limit', 'room'],
+            ],
+            'LogListMeta' => [
+                'type' => 'object',
+                'description' => 'A page of the newest log entries (E34 batch 6 D60): `limit` (default 100) entries after `offset` newer ones.',
+                'properties' => [
+                    'limit' => ['type' => 'integer', 'minimum' => 1, 'maximum' => 1000],
+                    'offset' => ['type' => 'integer', 'minimum' => 0, 'maximum' => 8999],
+                    'more' => ['type' => 'boolean', 'description' => 'Whether older entries exist after this page.'],
+                ],
+                'required' => ['limit', 'offset', 'more'],
             ],
             'FileSearchMeta' => [
                 'type' => 'object',

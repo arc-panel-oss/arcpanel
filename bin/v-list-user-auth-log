@@ -1,8 +1,11 @@
 #!/bin/bash
-# info: list user log
-# options: USER [FORMAT]
+# info: list user login log
+# options: USER [FORMAT] [LINES]
 #
-# This function of obtaining the list of 10 last users commands.
+# example: v-list-user-auth-log alice json 100
+#
+# This function prints the last LINES entries of the user's login history
+# (default 10, at most 10000), oldest first.
 
 #----------------------------------------------------------#
 #                Variables & Functions                     #
@@ -11,6 +14,7 @@
 # Argument definition
 user=$1
 format=${2-shell}
+lines=${3-10}
 
 # Includes
 # shellcheck source=/etc/arcpanel/arcpanel.conf
@@ -110,9 +114,12 @@ csv_list() {
 #                    Verifications                         #
 #----------------------------------------------------------#
 
-check_args '1' "$#" 'USER [FORMAT]'
+check_args '1' "$#" 'USER [FORMAT] [LINES]'
 is_format_valid 'user'
 is_object_valid 'user' 'USER' "$user"
+if [[ ! "$lines" =~ ^[0-9]{1,5}$ ]] || [ "$lines" -lt 1 ] || [ "$lines" -gt 10000 ]; then
+	check_result "$E_INVALID" "invalid number of lines :: $lines (1 to 10000)"
+fi
 
 check_arcpanel_demo_mode
 
@@ -121,7 +128,7 @@ check_arcpanel_demo_mode
 #----------------------------------------------------------#
 
 # Parsing history log
-logs=$(tail -n 10 $USER_DATA/auth.log 2> /dev/null)
+logs=$(tail -n "$lines" $USER_DATA/auth.log 2> /dev/null)
 
 case $format in
 	json) json_list ;;

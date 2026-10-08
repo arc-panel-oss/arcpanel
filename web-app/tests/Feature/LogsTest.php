@@ -135,6 +135,10 @@ it('refuses tray changes in read-only mode', function () {
 
     $this->postJson('/_notifications/acknowledge')->assertForbidden();
     $this->deleteJson('/_notifications')->assertForbidden();
+    // single notifications too (E34 batch 6 D64)
+    $this->postJson('/_notifications/2/acknowledge')->assertForbidden();
+    $this->deleteJson('/_notifications/1')->assertForbidden();
+    $this->fake->assertNotRan('v-acknowledge-user-notification');
     $this->fake->assertNotRan('v-delete-user-notification');
 });
 
