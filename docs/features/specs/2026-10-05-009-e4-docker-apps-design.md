@@ -326,3 +326,4 @@ These notes win over the sections above where they differ.
     - Done when 3 to 5 are covered in BATS. shellcheck at severity `error`, Pint and Biome are clean on the changed files.
     - `prepare.sh` gained `dockerapps`, `dockerapps-clean`, `dockerapp-port` and `port-app`.
     - A catalog run that overlapped a `dev-sync.sh` of another change failed with `required file not found` and passed once rerun alone. Do not sync while a suite runs.
+16. **REST API v2 (2026-10-08).** The catalog, the apps and the engine are also reachable under `/api/v2/docker-catalog`, `/api/v2/users/{user}/docker-apps` and `/api/v2/system/docker` (permission sets `v2-apps` and `v2-server`); the variable checks and the catalog filter moved into `DockerAppActions`, which the island controller calls too. See the [E34 batch 4 spec](./2026-10-08-002-e34-api-v2-batch4-design.md) §4.3, §4.4.

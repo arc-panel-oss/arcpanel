@@ -7,6 +7,11 @@
 # API_ALLOWED_IP=allow-all) and restores both at the end. Creates access
 # keys and throw-away users (arcsmoke*), and deletes them.
 #
+# Batch 4 needs the internet (or NODE_NVM_URL and NODE_RELEASES_URL mirrors):
+# it installs nvm and the Node.js LTS for a throw-away user. It installs a
+# Docker app only when the server has the Docker engine (DOCKER_SYSTEM) and
+# says so otherwise.
+#
 # Run as root on a test server, never on production.
 
 set -euo pipefail
@@ -17,6 +22,8 @@ API="$PANEL/api/v2"
 CONF="$ARCPANEL/conf/arcpanel.conf"
 SMOKE_USER="arcsmoke$RANDOM"
 SMOKE_PACKAGE="arcsmoke-pkg$RANDOM"
+APPS_USER="${SMOKE_USER}a"
+APPS_PACKAGE="$SMOKE_PACKAGE-apps"
 SMOKE_PASS="$(head -c 18 /dev/urandom | base64 | tr -dc 'A-Za-z0-9' | head -c 20)Aa1"
 ROOT_USER=$(grep "^ROOT_USER=" "$CONF" | cut -d"'" -f2)
 OLD_API_SYSTEM=$(grep "^API_SYSTEM=" "$CONF" | cut -d"'" -f2 || true)
@@ -33,7 +40,15 @@ clear_panel_cache() {
 
 cleanup() {
 	"$ARCPANEL/bin/v-delete-user" "$SMOKE_USER" > /dev/null 2>&1 || true
-	for package in "$SMOKE_PACKAGE" "$SMOKE_PACKAGE-copy"; do
+	# The apps user runs a pm2 daemon under systemd --user (E14)
+	if id "$APPS_USER" > /dev/null 2>&1; then
+		loginctl disable-linger "$APPS_USER" > /dev/null 2>&1 || true
+		systemctl stop "user@$(id -u "$APPS_USER").service" > /dev/null 2>&1 || true
+		pkill -9 -u "$APPS_USER" > /dev/null 2>&1 || true
+	fi
+	"$ARCPANEL/bin/v-delete-user" "$APPS_USER" > /dev/null 2>&1 || true
+	rm -f "/etc/logrotate.d/arcpanel-node-$APPS_USER"
+	for package in "$SMOKE_PACKAGE" "$SMOKE_PACKAGE-copy" "$APPS_PACKAGE"; do
 		"$ARCPANEL/bin/v-delete-user-package" "$package" > /dev/null 2>&1 || true
 		"$ARCPANEL/bin/v-delete-package-tenancy" "$package" > /dev/null 2>&1 || true
 	done
@@ -44,12 +59,13 @@ cleanup() {
 	"$ARCPANEL/bin/v-change-sys-config-value" API_ALLOWED_IP "$OLD_API_ALLOWED_IP"
 	clear_panel_cache
 	# A queued certificate of a smoke domain
-	sed -i "/ $SMOKE_USER\.example\.test /d" "$ARCPANEL/data/queue/letsencrypt.pipe" 2> /dev/null || true
+	sed -i "/ $SMOKE_USER\.example\.test /d; / $APPS_USER\.example\.test /d" "$ARCPANEL/data/queue/letsencrypt.pipe" 2> /dev/null || true
 	rm -rf "$BODY" "$CERT_DIR"
 }
 trap cleanup EXIT
 
 ok() { echo "ok   - $1"; }
+skip() { echo "skip - $1"; }
 fail() {
 	echo "FAIL - $1"
 	failures=$((failures + 1))
@@ -320,6 +336,87 @@ else
 fi
 
 check "the user of the web domains is deleted" 204 "$(call "$ADMIN" DELETE "/users/$SMOKE_USER")"
+
+# Batch 4: ports, Node.js and Docker apps (spec 2026-10-08-002 §6)
+conf_value() { grep "^$1=" "$CONF" | tail -n1 | cut -d"'" -f2; }
+pkg_file="$(mktemp)"
+sed "s/^SHELL=.*/SHELL='bash'/" "$ARCPANEL/data/packages/default.pkg" > "$pkg_file"
+"$ARCPANEL/bin/v-add-user-package" "$pkg_file" "$APPS_PACKAGE" > /dev/null
+rm -f "$pkg_file"
+for setting in NODE=yes NODE_VERSIONS=1 'NODE_ALLOWED=*' NODE_APPS=1 PORTS=5 DOCKER=yes DOCKER_APPS=1; do
+	"$ARCPANEL/bin/v-change-package-tenancy" "$APPS_PACKAGE" "${setting%%=*}" "${setting#*=}"
+done
+check "a user for the apps" 201 "$(call "$ADMIN" POST /users "{\"username\": \"$APPS_USER\", \"password\": \"$SMOKE_PASS\", \"email\": \"$APPS_USER@example.invalid\", \"name\": \"Smoke Apps\", \"package\": \"$APPS_PACKAGE\"}")"
+APPS_KEY=$(new_key "$APPS_USER" v2-apps)
+APPS_WRITER=$(new_key "$APPS_USER" v2-write)
+
+# Ports (§4.5)
+PORTS="/users/$APPS_USER/ports"
+if [ "$(conf_value PORT_REGISTRY)" = no ]; then
+	skip "ports: PORT_REGISTRY is off on this server"
+else
+	check "getPortRegistry answers 200 for the administrator" 200 "$(call "$ADMIN" GET /system/ports)"
+	check "a user key may not read the registry" 403 "$(call "$APPS_KEY" GET /system/ports)"
+	check "reservePort with only v2-apps answers 200" 200 "$(call "$APPS_KEY" POST "$PORTS/reserve" '{"proto": "tcp", "comment": "arcsmoke"}')"
+	SMOKE_PORT="$(json .data.port)"
+	check "the reserved port is manual" manual "$(json .data.app)"
+	check "listPorts shows the reserved port" arcsmoke "$(
+		call "$APPS_KEY" GET "$PORTS" > /dev/null
+		json ".data[] | select(.port == \"$SMOKE_PORT\") | .comment"
+	)"
+	check "releasePort answers 200" 200 "$(call "$APPS_KEY" POST "$PORTS/$SMOKE_PORT/release")"
+	check "the port is free again" null "$(json "[.data[] | select(.start <= ${SMOKE_PORT:-0} and .end >= ${SMOKE_PORT:-0})][0].app")"
+fi
+
+# Node.js runtimes and apps (§4.1, §4.2)
+NODE="/users/$APPS_USER/node"
+APPS_DOMAIN="$APPS_USER.example.test"
+NODE_APP="/users/$APPS_USER/node-apps/$APPS_DOMAIN"
+check "setNodeEnabled answers 200" 200 "$(call "$APPS_KEY" PUT "$NODE" '{"enabled": true}')"
+check "installNodeVersion answers 202" 202 "$(call "$APPS_KEY" POST "$NODE/versions" '{"spec": "lts"}')"
+NODE_TASK="$(json .data.id)"
+if [[ "$NODE_TASK" == node:"$APPS_USER":* ]] && wait_v2_task "$APPS_KEY" "$NODE_TASK" 600; then
+	check "a web domain for the Node.js app" 201 "$(call "$APPS_WRITER" POST "/users/$APPS_USER/web-domains" "{\"domain\": \"$APPS_DOMAIN\"}")"
+	app_dir="/home/$APPS_USER/web/$APPS_DOMAIN/public_html"
+	cat > "$app_dir/server.js" << 'EOF'
+const http = require('http');
+http.createServer((req, res) => {
+	console.log('arcsmoke request ' + req.url);
+	res.end('arcsmoke');
+}).listen(process.env.PORT, process.env.HOST);
+EOF
+	printf '%s\n' '{"name": "arcsmoke", "version": "1.0.0", "private": true, "scripts": {"start": "node server.js"}}' > "$app_dir/package.json"
+	chown "$APPS_USER:$APPS_USER" "$app_dir/server.js" "$app_dir/package.json"
+	check "createNodeApp answers 201" 201 "$(call "$APPS_KEY" POST "/users/$APPS_USER/node-apps" "{\"domain\": \"$APPS_DOMAIN\", \"start\": \"server.js\"}")"
+	check "installNodeApp answers 202" 202 "$(call "$APPS_KEY" POST "$NODE_APP/install")"
+	INSTALL_TASK="$(json .data.id)"
+	wait_v2_task "$APPS_KEY" "$INSTALL_TASK" 600 || true
+	check "startNodeApp answers 200" 200 "$(call "$APPS_KEY" POST "$NODE_APP/start")"
+	check "getNodeAppLogs answers 200" 200 "$(call "$APPS_KEY" GET "$NODE_APP/logs?lines=20")"
+	check "the log answer has a cursor" 1 "$([ -n "$(json '.meta.next // empty')" ] && echo 1 || echo 0)"
+	check "stopNodeApp answers 200" 200 "$(call "$APPS_KEY" POST "$NODE_APP/stop")"
+	check "deleteNodeApp answers 204" 204 "$(call "$APPS_KEY" DELETE "$NODE_APP")"
+	check "the Node.js app is gone" 404 "$(call "$APPS_KEY" GET "$NODE_APP")"
+else
+	fail "the Node.js runtime was not installed (task '$NODE_TASK'); skipping the Node.js app"
+fi
+
+# Docker catalog and apps (§4.3)
+check "listDockerCatalog answers 200" 200 "$(call "$APPS_KEY" GET /docker-catalog)"
+check "the catalog lists apps" 1 "$([ "$(json '.data | length')" -gt 0 ] && echo 1 || echo 0)"
+DOCKER_SLUG="$(json '[.data[] | select(.admin_only | not)][0].slug')"
+if [ -z "$(conf_value DOCKER_SYSTEM)" ]; then
+	skip "Docker app install and delete: the Docker engine is not installed (DOCKER_SYSTEM is empty)"
+else
+	DOCKER_APP="/users/$APPS_USER/docker-apps"
+	check "createDockerApp answers 202" 202 "$(call "$APPS_KEY" POST "$DOCKER_APP" "{\"slug\": \"$DOCKER_SLUG\", \"name\": \"arcsmoke\"}")"
+	DOCKER_TASK="$(json .data.id)"
+	wait_v2_task "$APPS_KEY" "$DOCKER_TASK" 900 || true
+	check "getDockerApp answers 200" 200 "$(call "$APPS_KEY" GET "$DOCKER_APP/arcsmoke")"
+	check "deleteDockerApp answers 204" 204 "$(call "$APPS_KEY" DELETE "$DOCKER_APP/arcsmoke")"
+fi
+
+check "the apps user is deleted" 204 "$(call "$ADMIN" DELETE "/users/$APPS_USER")"
 
 if [ "$failures" -gt 0 ]; then
 	echo "$failures check(s) failed"
