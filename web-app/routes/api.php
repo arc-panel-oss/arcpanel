@@ -13,6 +13,8 @@ use App\Http\Controllers\Api\V2\MeController;
 use App\Http\Controllers\Api\V2\NodeAppController;
 use App\Http\Controllers\Api\V2\NodeController;
 use App\Http\Controllers\Api\V2\PackageController;
+use App\Http\Controllers\Api\V2\PortController;
+use App\Http\Controllers\Api\V2\PortRegistryController;
 use App\Http\Controllers\Api\V2\TaskController;
 use App\Http\Controllers\Api\V2\UserController;
 use App\Http\Controllers\Api\V2\WebDomainController;
@@ -36,6 +38,7 @@ Route::pattern('backup', '[A-Za-z0-9][A-Za-z0-9_.-]{0,250}');
 Route::pattern('snapshot', '[0-9a-f]{8,64}');
 Route::pattern('alias', '[^/\s]{1,253}');
 Route::pattern('version', '\d{1,3}\.\d{1,3}\.\d{1,3}');
+Route::pattern('range', '\d{1,5}(-\d{1,5})?');
 
 Route::get('/me', MeController::class)->name('me');
 
@@ -48,6 +51,21 @@ Route::get('/system/tasks', [TaskController::class, 'system'])->defaults('api_ar
 
 Route::get('/system/docker', [DockerEngineController::class, 'show'])->defaults('api_area', 'server')->name('system.docker.show');
 Route::post('/system/docker/install', [DockerEngineController::class, 'install'])->middleware('not-readonly')->defaults('api_area', 'server')->name('system.docker.install');
+
+// Port registry of the server (E34 batch 4 spec §4.5); PORT_REGISTRY=no answers 404
+Route::middleware('sys-config:PORT_REGISTRY!=no')->prefix('/system/ports')->name('system.ports.')->group(function () {
+    Route::get('/', [PortRegistryController::class, 'show'])->defaults('api_area', 'server')->name('show');
+    Route::middleware('not-readonly')->group(function () {
+        Route::post('/allocate', [PortRegistryController::class, 'allocate'])->defaults('api_area', 'server')->name('allocate');
+        Route::put('/range', [PortRegistryController::class, 'range'])->defaults('api_area', 'server')->name('range');
+        Route::post('/reserved', [PortRegistryController::class, 'storeReserved'])->defaults('api_area', 'server')->name('reserved.store');
+        Route::delete('/reserved/{range}', [PortRegistryController::class, 'destroyReserved'])->defaults('api_area', 'server')->name('reserved.destroy');
+        Route::post('/repair', [PortRegistryController::class, 'repair'])->defaults('api_area', 'server')->name('repair');
+        Route::post('/register', [PortRegistryController::class, 'register'])->defaults('api_area', 'server')->name('register');
+        Route::post('/adopt', [PortRegistryController::class, 'adopt'])->defaults('api_area', 'server')->name('adopt');
+        Route::post('/close-rule', [PortRegistryController::class, 'closeRule'])->defaults('api_area', 'server')->name('close-rule');
+    });
+});
 
 // Users (spec §6.1); {user} outside the principal's tree answers 404
 Route::get('/users', [UserController::class, 'index'])->name('users.index');
@@ -219,6 +237,21 @@ Route::middleware('effective-user')->group(function () {
         Route::put('/{name}/domain', [DockerAppController::class, 'domain'])->name('domain');
     });
 
+    // Ports of a user (E34 batch 4 spec §4.5); PORT_REGISTRY=no answers 404
+    Route::middleware('sys-config:PORT_REGISTRY!=no')->prefix('/users/{user}/ports')->name('ports.')->group(function () {
+        Route::get('/', [PortController::class, 'index'])->name('index');
+        Route::middleware('not-readonly')->group(function () {
+            Route::post('/reserve', [PortController::class, 'reserve'])->name('reserve');
+            Route::post('/give', [PortController::class, 'give'])->name('give');
+            Route::post('/request', [PortController::class, 'request'])->name('request');
+            Route::post('/{range}/release', [PortController::class, 'release'])->name('release');
+            Route::put('/{range}/public', [PortController::class, 'public'])->name('public');
+            Route::put('/{range}/public-ok', [PortController::class, 'publicOk'])->name('public-ok');
+            Route::post('/{range}/reclaim', [PortController::class, 'reclaim'])->name('reclaim');
+            Route::delete('/{range}', [PortController::class, 'destroy'])->name('destroy');
+        });
+    });
+
     // Cron jobs (E34 batch 2 spec §6.5)
     Route::get('/users/{user}/cron-jobs', [CronController::class, 'index'])->name('cron-jobs.index');
     Route::get('/users/{user}/cron-jobs/{id}', [CronController::class, 'show'])->where('id', '[0-9]{1,9}')->name('cron-jobs.show');
@@ -260,6 +293,7 @@ foreach (Route::getRoutes() as $route) {
         str_contains($uri, '/tasks') => 'backup',
         str_contains($uri, '/system/docker') || str_contains($uri, '/system/ports') => 'server',
         str_contains($uri, '/docker-catalog') || str_contains($uri, '/docker-apps') => 'apps',
+        str_contains($uri, '/ports') => 'apps',
         str_contains($uri, '/node') => 'apps',
         str_starts_with($uri, 'api/v2/users'), str_starts_with($uri, 'api/v2/packages') => 'accounts',
         default => null,

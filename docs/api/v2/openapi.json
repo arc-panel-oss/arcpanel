@@ -868,6 +868,753 @@
                 ]
             }
         },
+        "/system/ports": {
+            "get": {
+                "operationId": "getPortRegistry",
+                "description": "The server range, the firewall, every account with its totals, every\nentry, the reserved ports, the sockets that listen in the range and the\nreconciliation findings.",
+                "summary": "Get the port registry",
+                "tags": [
+                    "Server"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "`PortRegistry`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/PortRegistry"
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    }
+                }
+            }
+        },
+        "/system/ports/adopt": {
+            "post": {
+                "operationId": "adoptPortRule",
+                "description": "For an `unmanaged-rule` finding: the assigned single port becomes\npublic through that rule. Answers the port.",
+                "summary": "Link a firewall rule to its port",
+                "tags": [
+                    "Server"
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/AdoptPortRuleRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "`PortEntry`; with `dry_run`, the planned steps.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "oneOf": [
+                                        {
+                                            "type": "object",
+                                            "properties": {
+                                                "data": {
+                                                    "$ref": "#/components/schemas/PortEntry"
+                                                }
+                                            },
+                                            "required": [
+                                                "data"
+                                            ]
+                                        },
+                                        {
+                                            "$ref": "#/components/schemas/DryRun"
+                                        }
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "409": {
+                        "$ref": "#/components/responses/Conflict"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    },
+                    "503": {
+                        "$ref": "#/components/responses/Unavailable"
+                    }
+                },
+                "parameters": [
+                    {
+                        "name": "dry_run",
+                        "in": "query",
+                        "description": "Validate, authorize and plan the change, and answer with its steps instead of running them.",
+                        "schema": {
+                            "type": "boolean",
+                            "default": false
+                        }
+                    }
+                ]
+            }
+        },
+        "/system/ports/allocate": {
+            "post": {
+                "operationId": "allocatePorts",
+                "description": "A `range` of the server range, or `count` ports as one block (from the\nreseller's pool for a customer of a reseller). Answers the user's ports.",
+                "summary": "Allocate ports to a user",
+                "tags": [
+                    "Server"
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/AllocatePortsRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "The ports of the account with the totals of its pool; with `dry_run`, the planned steps.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "oneOf": [
+                                        {
+                                            "type": "object",
+                                            "properties": {
+                                                "data": {
+                                                    "type": "array",
+                                                    "items": {
+                                                        "$ref": "#/components/schemas/PortEntry"
+                                                    }
+                                                },
+                                                "meta": {
+                                                    "$ref": "#/components/schemas/PortListMeta"
+                                                }
+                                            },
+                                            "required": [
+                                                "data",
+                                                "meta"
+                                            ]
+                                        },
+                                        {
+                                            "$ref": "#/components/schemas/DryRun"
+                                        }
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "409": {
+                        "$ref": "#/components/responses/Conflict"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    },
+                    "503": {
+                        "$ref": "#/components/responses/Unavailable"
+                    }
+                },
+                "parameters": [
+                    {
+                        "name": "dry_run",
+                        "in": "query",
+                        "description": "Validate, authorize and plan the change, and answer with its steps instead of running them.",
+                        "schema": {
+                            "type": "boolean",
+                            "default": false
+                        }
+                    }
+                ]
+            }
+        },
+        "/system/ports/close-rule": {
+            "post": {
+                "operationId": "closePortRule",
+                "description": "For a `stale-rule` finding: deletes the rule that opens no public port.",
+                "summary": "Delete a firewall rule",
+                "tags": [
+                    "Server"
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/ClosePortRuleRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "With `dry_run`: the planned steps; nothing ran.",
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/DryRun"
+                                }
+                            }
+                        }
+                    },
+                    "204": {
+                        "description": "No content.",
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "409": {
+                        "$ref": "#/components/responses/Conflict"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    },
+                    "503": {
+                        "$ref": "#/components/responses/Unavailable"
+                    }
+                },
+                "parameters": [
+                    {
+                        "name": "dry_run",
+                        "in": "query",
+                        "description": "Validate, authorize and plan the change, and answer with its steps instead of running them.",
+                        "schema": {
+                            "type": "boolean",
+                            "default": false
+                        }
+                    }
+                ]
+            }
+        },
+        "/system/ports/range": {
+            "put": {
+                "operationId": "setPortRange",
+                "summary": "Change the server port range",
+                "tags": [
+                    "Server"
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/SetPortRangeRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "`PortRegistry`; with `dry_run`, the planned steps.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "oneOf": [
+                                        {
+                                            "type": "object",
+                                            "properties": {
+                                                "data": {
+                                                    "$ref": "#/components/schemas/PortRegistry"
+                                                }
+                                            },
+                                            "required": [
+                                                "data"
+                                            ]
+                                        },
+                                        {
+                                            "$ref": "#/components/schemas/DryRun"
+                                        }
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "409": {
+                        "$ref": "#/components/responses/Conflict"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    },
+                    "503": {
+                        "$ref": "#/components/responses/Unavailable"
+                    }
+                },
+                "parameters": [
+                    {
+                        "name": "dry_run",
+                        "in": "query",
+                        "description": "Validate, authorize and plan the change, and answer with its steps instead of running them.",
+                        "schema": {
+                            "type": "boolean",
+                            "default": false
+                        }
+                    }
+                ]
+            }
+        },
+        "/system/ports/register": {
+            "post": {
+                "operationId": "registerPort",
+                "description": "For an `orphan-socket` finding: allocates the port to `user` and\nreserves it there. Answers the user's ports.",
+                "summary": "Register a listening port to its account",
+                "tags": [
+                    "Server"
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/RegisterPortRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "The ports of the account with the totals of its pool; with `dry_run`, the planned steps.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "oneOf": [
+                                        {
+                                            "type": "object",
+                                            "properties": {
+                                                "data": {
+                                                    "type": "array",
+                                                    "items": {
+                                                        "$ref": "#/components/schemas/PortEntry"
+                                                    }
+                                                },
+                                                "meta": {
+                                                    "$ref": "#/components/schemas/PortListMeta"
+                                                }
+                                            },
+                                            "required": [
+                                                "data",
+                                                "meta"
+                                            ]
+                                        },
+                                        {
+                                            "$ref": "#/components/schemas/DryRun"
+                                        }
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "409": {
+                        "$ref": "#/components/responses/Conflict"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    },
+                    "503": {
+                        "$ref": "#/components/responses/Unavailable"
+                    }
+                },
+                "parameters": [
+                    {
+                        "name": "dry_run",
+                        "in": "query",
+                        "description": "Validate, authorize and plan the change, and answer with its steps instead of running them.",
+                        "schema": {
+                            "type": "boolean",
+                            "default": false
+                        }
+                    }
+                ]
+            }
+        },
+        "/system/ports/repair": {
+            "post": {
+                "operationId": "repairPorts",
+                "description": "Runs `v-check-sys-ports repair` and answers the findings that are left.",
+                "summary": "Repair the registry",
+                "tags": [
+                    "Server"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "The findings left after the repair; with `dry_run`, the planned steps.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "oneOf": [
+                                        {
+                                            "type": "object",
+                                            "properties": {
+                                                "data": {
+                                                    "type": "array",
+                                                    "items": {
+                                                        "$ref": "#/components/schemas/PortFinding"
+                                                    }
+                                                }
+                                            },
+                                            "required": [
+                                                "data"
+                                            ]
+                                        },
+                                        {
+                                            "$ref": "#/components/schemas/DryRun"
+                                        }
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "409": {
+                        "$ref": "#/components/responses/Conflict"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    },
+                    "503": {
+                        "$ref": "#/components/responses/Unavailable"
+                    }
+                },
+                "parameters": [
+                    {
+                        "name": "dry_run",
+                        "in": "query",
+                        "description": "Validate, authorize and plan the change, and answer with its steps instead of running them.",
+                        "schema": {
+                            "type": "boolean",
+                            "default": false
+                        }
+                    }
+                ]
+            }
+        },
+        "/system/ports/reserved": {
+            "post": {
+                "operationId": "addReservedPorts",
+                "description": "Keeps a port or a range out of every allocation.",
+                "summary": "Reserve ports of the server",
+                "tags": [
+                    "Server"
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/AddReservedPortsRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "`PortRegistry`; with `dry_run`, the planned steps.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "oneOf": [
+                                        {
+                                            "type": "object",
+                                            "properties": {
+                                                "data": {
+                                                    "$ref": "#/components/schemas/PortRegistry"
+                                                }
+                                            },
+                                            "required": [
+                                                "data"
+                                            ]
+                                        },
+                                        {
+                                            "$ref": "#/components/schemas/DryRun"
+                                        }
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "409": {
+                        "$ref": "#/components/responses/Conflict"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    },
+                    "503": {
+                        "$ref": "#/components/responses/Unavailable"
+                    }
+                },
+                "parameters": [
+                    {
+                        "name": "dry_run",
+                        "in": "query",
+                        "description": "Validate, authorize and plan the change, and answer with its steps instead of running them.",
+                        "schema": {
+                            "type": "boolean",
+                            "default": false
+                        }
+                    }
+                ]
+            }
+        },
+        "/system/ports/reserved/{range}": {
+            "delete": {
+                "operationId": "deleteReservedPorts",
+                "description": "Reservations of the panel's own services (`kind` `system`) stay.",
+                "summary": "Delete a reservation",
+                "tags": [
+                    "Server"
+                ],
+                "parameters": [
+                    {
+                        "name": "range",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "pattern": "^\\d{1,5}(-\\d{1,5})?$"
+                        },
+                        "description": "A port (`30005`) or a range (`30010-30019`)."
+                    },
+                    {
+                        "name": "dry_run",
+                        "in": "query",
+                        "description": "Validate, authorize and plan the change, and answer with its steps instead of running them.",
+                        "schema": {
+                            "type": "boolean",
+                            "default": false
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "With `dry_run`: the planned steps; nothing ran.",
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/DryRun"
+                                }
+                            }
+                        }
+                    },
+                    "204": {
+                        "description": "No content.",
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "409": {
+                        "$ref": "#/components/responses/Conflict"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    },
+                    "503": {
+                        "$ref": "#/components/responses/Unavailable"
+                    }
+                }
+            }
+        },
         "/system/tasks": {
             "get": {
                 "operationId": "listSystemTasks",
@@ -11785,6 +12532,950 @@
                 }
             }
         },
+        "/users/{user}/ports": {
+            "get": {
+                "operationId": "listPorts",
+                "description": "The entries of the user's pool: single ports (free or assigned to an\napp) and free ranges. `meta` holds the totals of the pool and the\nserver range; the list is not paginated.",
+                "summary": "List the ports of a user",
+                "tags": [
+                    "Ports"
+                ],
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "The ports of the account with the totals of its pool.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/components/schemas/PortEntry"
+                                            }
+                                        },
+                                        "meta": {
+                                            "$ref": "#/components/schemas/PortListMeta"
+                                        }
+                                    },
+                                    "required": [
+                                        "data",
+                                        "meta"
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    }
+                }
+            }
+        },
+        "/users/{user}/ports/give": {
+            "post": {
+                "operationId": "givePorts",
+                "description": "Moves free ports of `{user}`'s pool to `to`, one of its customers: a\n`range` of free ports, or the `count` lowest free ones. Administrators\nand resellers only (`PortPolicy::give`). Answers the ports of `to`.",
+                "summary": "Give ports to a customer",
+                "tags": [
+                    "Ports"
+                ],
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "dry_run",
+                        "in": "query",
+                        "description": "Validate, authorize and plan the change, and answer with its steps instead of running them.",
+                        "schema": {
+                            "type": "boolean",
+                            "default": false
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/GivePortsRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "The ports of the account with the totals of its pool; with `dry_run`, the planned steps.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "oneOf": [
+                                        {
+                                            "type": "object",
+                                            "properties": {
+                                                "data": {
+                                                    "type": "array",
+                                                    "items": {
+                                                        "$ref": "#/components/schemas/PortEntry"
+                                                    }
+                                                },
+                                                "meta": {
+                                                    "$ref": "#/components/schemas/PortListMeta"
+                                                }
+                                            },
+                                            "required": [
+                                                "data",
+                                                "meta"
+                                            ]
+                                        },
+                                        {
+                                            "$ref": "#/components/schemas/DryRun"
+                                        }
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "409": {
+                        "$ref": "#/components/responses/Conflict"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    },
+                    "503": {
+                        "$ref": "#/components/responses/Unavailable"
+                    }
+                }
+            }
+        },
+        "/users/{user}/ports/request": {
+            "post": {
+                "operationId": "requestPorts",
+                "description": "Sends a notification to the owner of the user (its reseller, or the\nadministrator). Only for the key's own account, never by an\nadministrator.",
+                "summary": "Ask for more ports",
+                "tags": [
+                    "Ports"
+                ],
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "dry_run",
+                        "in": "query",
+                        "description": "Validate, authorize and plan the change, and answer with its steps instead of running them.",
+                        "schema": {
+                            "type": "boolean",
+                            "default": false
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/RequestPortsRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "The owner that was notified and the count asked for; with `dry_run`, the planned steps.",
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "oneOf": [
+                                        {
+                                            "type": "object",
+                                            "properties": {
+                                                "data": {
+                                                    "type": "object",
+                                                    "properties": {
+                                                        "owner": {
+                                                            "type": "string",
+                                                            "description": "The reseller or administrator that received the notification."
+                                                        },
+                                                        "count": {
+                                                            "type": "integer",
+                                                            "minimum": 1
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "owner",
+                                                        "count"
+                                                    ]
+                                                }
+                                            },
+                                            "required": [
+                                                "data"
+                                            ]
+                                        },
+                                        {
+                                            "$ref": "#/components/schemas/DryRun"
+                                        }
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "409": {
+                        "$ref": "#/components/responses/Conflict"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    },
+                    "503": {
+                        "$ref": "#/components/responses/Unavailable"
+                    }
+                }
+            }
+        },
+        "/users/{user}/ports/reserve": {
+            "post": {
+                "operationId": "reservePort",
+                "description": "Assigns a port of the user's own pool (the first free one, or `port`)\nto `manual` use, as \"Reserve a port\" on the page.",
+                "summary": "Reserve a port",
+                "tags": [
+                    "Ports"
+                ],
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "dry_run",
+                        "in": "query",
+                        "description": "Validate, authorize and plan the change, and answer with its steps instead of running them.",
+                        "schema": {
+                            "type": "boolean",
+                            "default": false
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/ReservePortRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "`PortEntry`; with `dry_run`, the planned steps.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "oneOf": [
+                                        {
+                                            "type": "object",
+                                            "properties": {
+                                                "data": {
+                                                    "$ref": "#/components/schemas/PortEntry"
+                                                }
+                                            },
+                                            "required": [
+                                                "data"
+                                            ]
+                                        },
+                                        {
+                                            "$ref": "#/components/schemas/DryRun"
+                                        }
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "409": {
+                        "$ref": "#/components/responses/Conflict"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    },
+                    "503": {
+                        "$ref": "#/components/responses/Unavailable"
+                    }
+                }
+            }
+        },
+        "/users/{user}/ports/{range}": {
+            "delete": {
+                "operationId": "deletePorts",
+                "description": "Administrators only. `?force=1` also deletes assigned ports.",
+                "summary": "Delete ports of a user",
+                "tags": [
+                    "Ports"
+                ],
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "range",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "pattern": "^\\d{1,5}(-\\d{1,5})?$"
+                        },
+                        "description": "A port (`30005`) or a range (`30010-30019`)."
+                    },
+                    {
+                        "name": "force",
+                        "in": "query",
+                        "schema": {
+                            "type": "boolean",
+                            "default": false
+                        }
+                    },
+                    {
+                        "name": "dry_run",
+                        "in": "query",
+                        "description": "Validate, authorize and plan the change, and answer with its steps instead of running them.",
+                        "schema": {
+                            "type": "boolean",
+                            "default": false
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "With `dry_run`: the planned steps; nothing ran.",
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/DryRun"
+                                }
+                            }
+                        }
+                    },
+                    "204": {
+                        "description": "No content.",
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "409": {
+                        "$ref": "#/components/responses/Conflict"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    },
+                    "503": {
+                        "$ref": "#/components/responses/Unavailable"
+                    }
+                }
+            }
+        },
+        "/users/{user}/ports/{range}/public": {
+            "put": {
+                "operationId": "setPortPublic",
+                "description": "Only an assigned single port; opening needs `public_ok`.",
+                "summary": "Open or close a port to the internet",
+                "tags": [
+                    "Ports"
+                ],
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "range",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "pattern": "^\\d{1,5}(-\\d{1,5})?$"
+                        },
+                        "description": "A port (`30005`) or a range (`30010-30019`)."
+                    },
+                    {
+                        "name": "dry_run",
+                        "in": "query",
+                        "description": "Validate, authorize and plan the change, and answer with its steps instead of running them.",
+                        "schema": {
+                            "type": "boolean",
+                            "default": false
+                        }
+                    },
+                    {
+                        "name": "proto",
+                        "in": "query",
+                        "description": "Act only when the port is used with this protocol (404 otherwise).",
+                        "schema": {
+                            "type": "string",
+                            "enum": [
+                                "tcp",
+                                "udp"
+                            ]
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/SetPortPublicRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "`PortEntry`; with `dry_run`, the planned steps.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "oneOf": [
+                                        {
+                                            "type": "object",
+                                            "properties": {
+                                                "data": {
+                                                    "$ref": "#/components/schemas/PortEntry"
+                                                }
+                                            },
+                                            "required": [
+                                                "data"
+                                            ]
+                                        },
+                                        {
+                                            "$ref": "#/components/schemas/DryRun"
+                                        }
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "409": {
+                        "$ref": "#/components/responses/Conflict"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    },
+                    "503": {
+                        "$ref": "#/components/responses/Unavailable"
+                    }
+                }
+            }
+        },
+        "/users/{user}/ports/{range}/public-ok": {
+            "put": {
+                "operationId": "setPortPublicOk",
+                "description": "Administrators either way; a reseller may only forbid them on its\ncustomers' ports.",
+                "summary": "Allow or forbid public ports",
+                "tags": [
+                    "Ports"
+                ],
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "range",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "pattern": "^\\d{1,5}(-\\d{1,5})?$"
+                        },
+                        "description": "A port (`30005`) or a range (`30010-30019`)."
+                    },
+                    {
+                        "name": "dry_run",
+                        "in": "query",
+                        "description": "Validate, authorize and plan the change, and answer with its steps instead of running them.",
+                        "schema": {
+                            "type": "boolean",
+                            "default": false
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/SetPortPublicOkRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "The ports of the account with the totals of its pool; with `dry_run`, the planned steps.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "oneOf": [
+                                        {
+                                            "type": "object",
+                                            "properties": {
+                                                "data": {
+                                                    "type": "array",
+                                                    "items": {
+                                                        "$ref": "#/components/schemas/PortEntry"
+                                                    }
+                                                },
+                                                "meta": {
+                                                    "$ref": "#/components/schemas/PortListMeta"
+                                                }
+                                            },
+                                            "required": [
+                                                "data",
+                                                "meta"
+                                            ]
+                                        },
+                                        {
+                                            "$ref": "#/components/schemas/DryRun"
+                                        }
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "409": {
+                        "$ref": "#/components/responses/Conflict"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    },
+                    "503": {
+                        "$ref": "#/components/responses/Unavailable"
+                    }
+                }
+            }
+        },
+        "/users/{user}/ports/{range}/reclaim": {
+            "post": {
+                "operationId": "reclaimPorts",
+                "description": "Moves free ports of a customer back into its reseller's pool.",
+                "summary": "Take free ports back",
+                "tags": [
+                    "Ports"
+                ],
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "range",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "pattern": "^\\d{1,5}(-\\d{1,5})?$"
+                        },
+                        "description": "A port (`30005`) or a range (`30010-30019`)."
+                    },
+                    {
+                        "name": "dry_run",
+                        "in": "query",
+                        "description": "Validate, authorize and plan the change, and answer with its steps instead of running them.",
+                        "schema": {
+                            "type": "boolean",
+                            "default": false
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "The ports of the account with the totals of its pool; with `dry_run`, the planned steps.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "oneOf": [
+                                        {
+                                            "type": "object",
+                                            "properties": {
+                                                "data": {
+                                                    "type": "array",
+                                                    "items": {
+                                                        "$ref": "#/components/schemas/PortEntry"
+                                                    }
+                                                },
+                                                "meta": {
+                                                    "$ref": "#/components/schemas/PortListMeta"
+                                                }
+                                            },
+                                            "required": [
+                                                "data",
+                                                "meta"
+                                            ]
+                                        },
+                                        {
+                                            "$ref": "#/components/schemas/DryRun"
+                                        }
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "409": {
+                        "$ref": "#/components/responses/Conflict"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    },
+                    "503": {
+                        "$ref": "#/components/responses/Unavailable"
+                    }
+                }
+            }
+        },
+        "/users/{user}/ports/{range}/release": {
+            "post": {
+                "operationId": "releasePort",
+                "description": "Frees a port the user reserved or an app holds; it stays in the pool.",
+                "summary": "Release a port",
+                "tags": [
+                    "Ports"
+                ],
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "range",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string",
+                            "pattern": "^\\d{1,5}(-\\d{1,5})?$"
+                        },
+                        "description": "A port (`30005`) or a range (`30010-30019`)."
+                    },
+                    {
+                        "name": "dry_run",
+                        "in": "query",
+                        "description": "Validate, authorize and plan the change, and answer with its steps instead of running them.",
+                        "schema": {
+                            "type": "boolean",
+                            "default": false
+                        }
+                    },
+                    {
+                        "name": "proto",
+                        "in": "query",
+                        "description": "Act only when the port is used with this protocol (404 otherwise).",
+                        "schema": {
+                            "type": "string",
+                            "enum": [
+                                "tcp",
+                                "udp"
+                            ]
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "The ports of the account with the totals of its pool; with `dry_run`, the planned steps.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "oneOf": [
+                                        {
+                                            "type": "object",
+                                            "properties": {
+                                                "data": {
+                                                    "type": "array",
+                                                    "items": {
+                                                        "$ref": "#/components/schemas/PortEntry"
+                                                    }
+                                                },
+                                                "meta": {
+                                                    "$ref": "#/components/schemas/PortListMeta"
+                                                }
+                                            },
+                                            "required": [
+                                                "data",
+                                                "meta"
+                                            ]
+                                        },
+                                        {
+                                            "$ref": "#/components/schemas/DryRun"
+                                        }
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "409": {
+                        "$ref": "#/components/responses/Conflict"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    },
+                    "503": {
+                        "$ref": "#/components/responses/Unavailable"
+                    }
+                }
+            }
+        },
         "/users/{user}/snapshots": {
             "post": {
                 "operationId": "createSnapshot",
@@ -14000,6 +15691,86 @@
     },
     "components": {
         "schemas": {
+            "AddReservedPortsRequest": {
+                "type": "object",
+                "properties": {
+                    "range": {
+                        "type": "string",
+                        "pattern": "^\\d{1,5}(-\\d{1,5})?$"
+                    },
+                    "comment": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "pattern": "^[[:alnum:]][[:alnum:][:space:]._-]{0,64}[[:alnum:]]$"
+                    }
+                },
+                "required": [
+                    "range"
+                ],
+                "title": "AddReservedPortsRequest"
+            },
+            "AdoptPortRuleRequest": {
+                "type": "object",
+                "properties": {
+                    "port": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 65535
+                    },
+                    "rule": {
+                        "type": "integer",
+                        "minimum": 1
+                    }
+                },
+                "required": [
+                    "port",
+                    "rule"
+                ],
+                "title": "AdoptPortRuleRequest"
+            },
+            "AllocatePortsRequest": {
+                "type": "object",
+                "properties": {
+                    "user": {
+                        "type": "string",
+                        "pattern": "^[[:alnum:]][-.\\w]{0,28}[[:alnum:]]$"
+                    },
+                    "range": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "pattern": "^\\d{1,5}(-\\d{1,5})?$"
+                    },
+                    "count": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ],
+                        "minimum": 1,
+                        "maximum": 10000
+                    },
+                    "public_ok": {
+                        "type": [
+                            "boolean",
+                            "null"
+                        ]
+                    },
+                    "comment": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "pattern": "^[[:alnum:]][[:alnum:][:space:]._-]{0,64}[[:alnum:]]$"
+                    }
+                },
+                "required": [
+                    "user"
+                ],
+                "title": "AllocatePortsRequest"
+            },
             "ApiRole": {
                 "type": "string",
                 "description": "Role of a user in API v2 answers and requests.\n",
@@ -14180,6 +15951,19 @@
                     "password"
                 ],
                 "title": "ChangeMailAccountPasswordRequest"
+            },
+            "ClosePortRuleRequest": {
+                "type": "object",
+                "properties": {
+                    "rule": {
+                        "type": "integer",
+                        "minimum": 1
+                    }
+                },
+                "required": [
+                    "rule"
+                ],
+                "title": "ClosePortRuleRequest"
             },
             "CopyPackageRequest": {
                 "type": "object",
@@ -15269,6 +17053,34 @@
                     "E_UPDATE",
                     "E_RESTART"
                 ]
+            },
+            "GivePortsRequest": {
+                "type": "object",
+                "properties": {
+                    "to": {
+                        "type": "string",
+                        "pattern": "^[[:alnum:]][-.\\w]{0,28}[[:alnum:]]$"
+                    },
+                    "range": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "pattern": "^\\d{1,5}(-\\d{1,5})?$"
+                    },
+                    "count": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ],
+                        "minimum": 1,
+                        "maximum": 10000
+                    }
+                },
+                "required": [
+                    "to"
+                ],
+                "title": "GivePortsRequest"
             },
             "InstallNodePackageRequest": {
                 "type": "object",
@@ -16376,6 +18188,472 @@
                     "command"
                 ]
             },
+            "PortEntry": {
+                "type": "object",
+                "title": "PortEntry",
+                "description": "One entry of the port registry: a single port or a free range of a user.",
+                "properties": {
+                    "port": {
+                        "type": "string",
+                        "description": "`30001`, or `30010-30019` for a range."
+                    },
+                    "start": {
+                        "type": "integer"
+                    },
+                    "end": {
+                        "type": "integer"
+                    },
+                    "size": {
+                        "type": "integer",
+                        "minimum": 1
+                    },
+                    "proto": {
+                        "type": "string",
+                        "enum": [
+                            "tcp",
+                            "udp"
+                        ]
+                    },
+                    "owner": {
+                        "type": "string",
+                        "description": "The account that holds the port."
+                    },
+                    "app": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "`manual`, `node:<domain>` or `docker:<app>`; null for a free port or range."
+                    },
+                    "assigned": {
+                        "type": "boolean"
+                    },
+                    "public": {
+                        "type": "boolean",
+                        "description": "Open to the internet in the registry (closed while the owner is suspended)."
+                    },
+                    "public_ok": {
+                        "type": "boolean",
+                        "description": "Whether the port may be opened to the internet."
+                    },
+                    "rule": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "Id of the port's firewall rule, null without one."
+                    },
+                    "comment": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
+                    "suspended": {
+                        "type": "boolean"
+                    },
+                    "listen": {
+                        "type": "string",
+                        "enum": [
+                            "no",
+                            "local",
+                            "any"
+                        ],
+                        "description": "Live state: nothing listens, loopback only, or all addresses."
+                    },
+                    "created_at": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    }
+                },
+                "required": [
+                    "port",
+                    "start",
+                    "end",
+                    "size",
+                    "proto",
+                    "owner",
+                    "app",
+                    "assigned",
+                    "public",
+                    "public_ok",
+                    "rule",
+                    "comment",
+                    "suspended",
+                    "listen",
+                    "created_at"
+                ]
+            },
+            "PortFinding": {
+                "type": "object",
+                "title": "PortFinding",
+                "description": "A reconciliation finding of the port registry.",
+                "properties": {
+                    "type": {
+                        "type": "string",
+                        "enum": [
+                            "orphan-socket",
+                            "foreign-socket",
+                            "exposed-private",
+                            "missing-rule",
+                            "stale-rule",
+                            "unmanaged-rule",
+                            "orphan-file",
+                            "over-limit",
+                            "orphan-web"
+                        ]
+                    },
+                    "title": {
+                        "type": "string"
+                    },
+                    "user": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
+                    "port": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
+                    "proto": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
+                    "rule": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
+                    "detail": {
+                        "type": "string"
+                    }
+                },
+                "required": [
+                    "type",
+                    "title",
+                    "user",
+                    "port",
+                    "proto",
+                    "rule",
+                    "detail"
+                ]
+            },
+            "PortListMeta": {
+                "type": "object",
+                "description": "The totals of a user's port pool and the server range; the port list is not paginated (E34 batch 4 §4.5).",
+                "properties": {
+                    "user": {
+                        "type": "string"
+                    },
+                    "owner": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "The reseller or administrator whose pool gives and takes back ports; null for administrators."
+                    },
+                    "limit": {
+                        "type": "string",
+                        "description": "PORTS of the package (`unlimited` or a number)."
+                    },
+                    "allocated": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "description": "Ports in the pool."
+                    },
+                    "assigned": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "description": "Ports reserved or held by an app."
+                    },
+                    "public": {
+                        "type": "integer",
+                        "minimum": 0
+                    },
+                    "free": {
+                        "type": "integer",
+                        "minimum": 0
+                    },
+                    "tree_total": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ],
+                        "description": "A reseller: ports of the reseller and its customers."
+                    },
+                    "tree_used": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ],
+                        "description": "A reseller: ports given to its customers."
+                    },
+                    "firewall": {
+                        "type": "boolean",
+                        "description": "Whether the firewall is on; without it every listening port is reachable."
+                    },
+                    "range": {
+                        "type": "object",
+                        "properties": {
+                            "start": {
+                                "type": "integer"
+                            },
+                            "end": {
+                                "type": "integer"
+                            }
+                        },
+                        "required": [
+                            "start",
+                            "end"
+                        ]
+                    }
+                },
+                "required": [
+                    "user",
+                    "owner",
+                    "limit",
+                    "allocated",
+                    "assigned",
+                    "public",
+                    "free",
+                    "tree_total",
+                    "tree_used",
+                    "firewall",
+                    "range"
+                ]
+            },
+            "PortRegistry": {
+                "type": "object",
+                "title": "PortRegistry",
+                "description": "The port registry of the server (Admin → Server → Ports).",
+                "properties": {
+                    "range": {
+                        "type": "object",
+                        "properties": {
+                            "start": {
+                                "type": "integer"
+                            },
+                            "end": {
+                                "type": "integer"
+                            }
+                        },
+                        "required": [
+                            "start",
+                            "end"
+                        ]
+                    },
+                    "firewall": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "FIREWALL_SYSTEM; null when the firewall is off and every listening port is reachable."
+                    },
+                    "users": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "user": {
+                                    "type": "string"
+                                },
+                                "owner": {
+                                    "type": [
+                                        "string",
+                                        "null"
+                                    ]
+                                },
+                                "role": {
+                                    "type": "string"
+                                },
+                                "suspended": {
+                                    "type": "boolean"
+                                },
+                                "limit": {
+                                    "type": "string",
+                                    "description": "PORTS of the package (`unlimited` or a number)."
+                                },
+                                "allocated": {
+                                    "type": "integer"
+                                },
+                                "assigned": {
+                                    "type": "integer"
+                                },
+                                "public": {
+                                    "type": "integer"
+                                },
+                                "free": {
+                                    "type": "integer"
+                                },
+                                "tree_total": {
+                                    "type": [
+                                        "integer",
+                                        "null"
+                                    ]
+                                },
+                                "tree_used": {
+                                    "type": [
+                                        "integer",
+                                        "null"
+                                    ]
+                                }
+                            },
+                            "required": [
+                                "user",
+                                "owner",
+                                "role",
+                                "suspended",
+                                "limit",
+                                "allocated",
+                                "assigned",
+                                "public",
+                                "free",
+                                "tree_total",
+                                "tree_used"
+                            ]
+                        }
+                    },
+                    "entries": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/PortEntry"
+                        }
+                    },
+                    "reserved": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "port": {
+                                    "type": "string"
+                                },
+                                "start": {
+                                    "type": "integer"
+                                },
+                                "end": {
+                                    "type": "integer"
+                                },
+                                "kind": {
+                                    "type": "string",
+                                    "enum": [
+                                        "system",
+                                        "admin"
+                                    ],
+                                    "description": "`system`: a service of the panel (kept); `admin`: reserved by an administrator."
+                                },
+                                "comment": {
+                                    "type": [
+                                        "string",
+                                        "null"
+                                    ]
+                                }
+                            },
+                            "required": [
+                                "port",
+                                "start",
+                                "end",
+                                "kind",
+                                "comment"
+                            ]
+                        }
+                    },
+                    "sockets": {
+                        "type": "array",
+                        "description": "Sockets that listen in the server range.",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "proto": {
+                                    "type": "string",
+                                    "enum": [
+                                        "tcp",
+                                        "udp"
+                                    ]
+                                },
+                                "port": {
+                                    "type": "integer"
+                                },
+                                "scope": {
+                                    "type": "string",
+                                    "enum": [
+                                        "local",
+                                        "any"
+                                    ]
+                                },
+                                "uid": {
+                                    "type": [
+                                        "integer",
+                                        "null"
+                                    ]
+                                },
+                                "account": {
+                                    "type": [
+                                        "string",
+                                        "null"
+                                    ]
+                                }
+                            },
+                            "required": [
+                                "proto",
+                                "port",
+                                "scope",
+                                "uid",
+                                "account"
+                            ]
+                        }
+                    },
+                    "findings": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/components/schemas/PortFinding"
+                        }
+                    }
+                },
+                "required": [
+                    "range",
+                    "firewall",
+                    "users",
+                    "entries",
+                    "reserved",
+                    "sockets",
+                    "findings"
+                ]
+            },
+            "RegisterPortRequest": {
+                "type": "object",
+                "properties": {
+                    "user": {
+                        "type": "string",
+                        "pattern": "^[[:alnum:]][-.\\w]{0,28}[[:alnum:]]$"
+                    },
+                    "port": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 65535
+                    },
+                    "proto": {
+                        "type": "string",
+                        "enum": [
+                            "tcp",
+                            "udp"
+                        ]
+                    }
+                },
+                "required": [
+                    "user",
+                    "port",
+                    "proto"
+                ],
+                "title": "RegisterPortRequest"
+            },
             "RequestMailLetsEncryptRequest": {
                 "type": "object",
                 "description": "POST /users/{user}/mail-domains/{domain}/letsencrypt.",
@@ -16393,6 +18671,58 @@
                     }
                 },
                 "title": "RequestMailLetsEncryptRequest"
+            },
+            "RequestPortsRequest": {
+                "type": "object",
+                "properties": {
+                    "count": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 1000
+                    },
+                    "reason": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "maxLength": 200
+                    }
+                },
+                "required": [
+                    "count"
+                ],
+                "title": "RequestPortsRequest"
+            },
+            "ReservePortRequest": {
+                "type": "object",
+                "properties": {
+                    "port": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ],
+                        "minimum": 1,
+                        "maximum": 65535
+                    },
+                    "proto": {
+                        "type": "string",
+                        "enum": [
+                            "tcp",
+                            "udp"
+                        ]
+                    },
+                    "comment": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "pattern": "^[[:alnum:]][[:alnum:][:space:]._-]{0,64}[[:alnum:]]$"
+                    }
+                },
+                "required": [
+                    "proto"
+                ],
+                "title": "ReservePortRequest"
             },
             "RestoreBackupRequest": {
                 "type": "object",
@@ -16707,6 +19037,49 @@
                     "enabled"
                 ],
                 "title": "SetNodeEnabledRequest"
+            },
+            "SetPortPublicOkRequest": {
+                "type": "object",
+                "properties": {
+                    "public_ok": {
+                        "type": "boolean"
+                    }
+                },
+                "required": [
+                    "public_ok"
+                ],
+                "title": "SetPortPublicOkRequest"
+            },
+            "SetPortPublicRequest": {
+                "type": "object",
+                "properties": {
+                    "public": {
+                        "type": "boolean"
+                    }
+                },
+                "required": [
+                    "public"
+                ],
+                "title": "SetPortPublicRequest"
+            },
+            "SetPortRangeRequest": {
+                "type": "object",
+                "properties": {
+                    "start": {
+                        "type": "integer",
+                        "minimum": 1024,
+                        "maximum": 65534
+                    },
+                    "end": {
+                        "type": "integer",
+                        "maximum": 65535
+                    }
+                },
+                "required": [
+                    "start",
+                    "end"
+                ],
+                "title": "SetPortRangeRequest"
             },
             "Snapshot": {
                 "type": "object",

@@ -24,6 +24,7 @@ final class PortEntry
         /** no, local (loopback) or any */
         public readonly string $listen,
         public readonly string $date,
+        public readonly string $time = '',
     ) {}
 
     /** @param  array<string, mixed>  $data */
@@ -44,6 +45,7 @@ final class PortEntry
             suspended: $value('SUSPENDED') === 'yes',
             listen: $value('LISTEN') !== '' ? $value('LISTEN') : 'no',
             date: $value('DATE'),
+            time: $value('TIME'),
         );
     }
 

@@ -155,16 +155,17 @@ final class PortService
     public function apply(Step|array $steps): ApplyResult
     {
         $applied = [];
+        $stdout = [];
         foreach (is_array($steps) ? $steps : [$steps] as $step) {
             try {
-                $this->arc->run($step->command, $step->args);
+                $stdout[$step->command] = $this->arc->run($step->command, $step->args)->stdout;
             } catch (ArcCommandException $e) {
-                return new ApplyResult($applied, $step, self::message($e));
+                return new ApplyResult($applied, $step, self::message($e), (int) $e->getCode(), $stdout, $e->invalidArgument);
             }
             $applied[] = $step;
         }
 
-        return new ApplyResult($applied);
+        return new ApplyResult($applied, stdoutByCommand: $stdout);
     }
 
     /** The command's message without the "Error: " prefix of func/main.sh. */

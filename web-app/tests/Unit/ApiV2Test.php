@@ -180,9 +180,10 @@ it('keeps every area set inside v2-write and its reads inside v2-read', function
     foreach ($areas as $area) {
         $commands = apiSetCommands($area);
         expect(array_values(array_diff($commands, $write)))->toBe([], "{$area} is not part of v2-write");
+        // v-check-sys-ports runs only as `repair` (repairPorts), a write: it stays out of v2-read.
         $reads = array_values(array_filter(
             $commands,
-            fn (string $command) => str_starts_with($command, 'v-list-') || str_starts_with($command, 'v-check-'),
+            fn (string $command) => (str_starts_with($command, 'v-list-') || str_starts_with($command, 'v-check-')) && $command !== 'v-check-sys-ports',
         ));
         expect(array_values(array_diff($reads, $read)))->toBe([], "{$area} has a read command outside v2-read");
         $content = (string) file_get_contents(base_path('../install/common/api/'.$area));
@@ -238,8 +239,8 @@ it('documents pagination and error.existing', function () {
             if (in_array($id, ['listSystemTasks'], true)) {
                 continue;
             }
-            if (in_array($id, ['listNodeApps', 'listDockerApps'], true)) {
-                $ref = $id === 'listNodeApps' ? '#/components/schemas/NodeAppListMeta' : '#/components/schemas/DockerAppListMeta';
+            if (in_array($id, ['listNodeApps', 'listDockerApps', 'listPorts'], true)) {
+                $ref = ['listNodeApps' => '#/components/schemas/NodeAppListMeta', 'listDockerApps' => '#/components/schemas/DockerAppListMeta', 'listPorts' => '#/components/schemas/PortListMeta'][$id];
                 $schema = $operation['responses']['200']['content']['application/json']['schema']['properties']['meta'] ?? null;
                 expect($schema)->toBe(['$ref' => $ref]);
                 $names = array_column($operation['parameters'] ?? [], 'name');
@@ -298,6 +299,7 @@ it('declares an area on the batch 1 routes', function () {
             str_contains($uri, '/tasks') => 'backup',
             str_contains($uri, '/system/docker') || str_contains($uri, '/system/ports') => 'server',
             str_contains($uri, '/docker-catalog') || str_contains($uri, '/docker-apps') => 'apps',
+            str_contains($uri, '/ports') => 'apps',
             str_contains($uri, '/node') => 'apps',
             str_starts_with($uri, 'api/v2/users'), str_starts_with($uri, 'api/v2/packages') => 'accounts',
             default => null,

@@ -36,7 +36,10 @@ final class ApiDocs extends Command
     ];
 
     /** List operations whose `meta` is not paginated `ListMeta` (E34 batch 3 §5, batch 4 §4.2). */
-    private const LIST_WITHOUT_PAGINATION = ['listSystemTasks', 'listNodeApps', 'listDockerApps', 'listDockerCatalog'];
+    private const LIST_WITHOUT_PAGINATION = ['listSystemTasks', 'listNodeApps', 'listDockerApps', 'listDockerCatalog', 'listPorts'];
+
+    /** Operations that answer the ports of one account with `PortListMeta` (E34 batch 4 §4.5). */
+    private const PORT_LISTS = ['listPorts', 'givePorts', 'releasePort', 'setPortPublicOk', 'reclaimPorts', 'allocatePorts', 'registerPort'];
 
     private const ERROR_STATUSES = [
         '401' => ['Unauthenticated', 'The access key is missing, unknown or wrong (`E_UNAUTHENTICATED`).'],
@@ -216,6 +219,11 @@ final class ApiDocs extends Command
             $spec['components']['schemas']['DockerApp'] = self::dockerAppSchema();
         }
         unset($spec['components']['schemas']['DockerAppResource']);
+        // Scramble types the fields of the port resources as strings; the schemas are written out (E34 batch 4 §4.5).
+        foreach (self::portComponentSchemas() as $name => $schema) {
+            $spec['components']['schemas'][$name] = $schema;
+        }
+        ksort($spec['components']['schemas']);
 
         return $spec;
     }
@@ -340,6 +348,7 @@ final class ApiDocs extends Command
         }
         self::tailorNodeAppOpenApi($operationId, $operation, $responses);
         self::tailorDockerAppOpenApi($operationId, $operation, $responses);
+        self::tailorPortOpenApi($operationId, $operation, $responses);
         uksort($responses, fn ($a, $b) => (int) $a <=> (int) $b);
         $operation['responses'] = $responses;
 
@@ -443,6 +452,16 @@ final class ApiDocs extends Command
      */
     private static function applyListMeta(array $schema, string $operationId): array
     {
+        if (in_array($operationId, self::PORT_LISTS, true)) {
+            return [
+                'type' => 'object',
+                'properties' => [
+                    'data' => ['type' => 'array', 'items' => ['$ref' => '#/components/schemas/PortEntry']],
+                    'meta' => ['$ref' => '#/components/schemas/PortListMeta'],
+                ],
+                'required' => ['data', 'meta'],
+            ];
+        }
         if (! isset($schema['properties']['meta'])) {
             return $schema;
         }
@@ -645,6 +664,159 @@ final class ApiDocs extends Command
      * @param  array<string, mixed>  $operation
      * @param  array<string, mixed>  $responses
      */
+    /**
+     * @param  array<string, mixed>  $operation
+     * @param  array<string, mixed>  $responses
+     */
+    private static function tailorPortOpenApi(string $operationId, array &$operation, array &$responses): void
+    {
+        $dryRun = ['$ref' => '#/components/schemas/DryRun'];
+        if (in_array($operationId, ['releasePort', 'setPortPublic'], true)) {
+            $operation['parameters'] = [...($operation['parameters'] ?? []), [
+                'name' => 'proto',
+                'in' => 'query',
+                'description' => 'Act only when the port is used with this protocol (404 otherwise).',
+                'schema' => ['type' => 'string', 'enum' => ['tcp', 'udp']],
+            ]];
+        }
+        foreach ($operation['parameters'] ?? [] as $i => $parameter) {
+            if (($parameter['name'] ?? '') === 'range' && ($parameter['in'] ?? '') === 'path') {
+                $operation['parameters'][$i]['description'] = 'A port (`30005`) or a range (`30010-30019`).';
+                $operation['parameters'][$i]['schema'] = ['type' => 'string', 'pattern' => '^\d{1,5}(-\d{1,5})?$'];
+            }
+        }
+        if (in_array($operationId, self::PORT_LISTS, true) && isset($responses['200'])) {
+            $write = isset($responses['200']['content']['application/json']['schema']['oneOf']);
+            $responses['200']['description'] = 'The ports of the account with the totals of its pool'.($write ? '; with `dry_run`, the planned steps.' : '.');
+        }
+        if ($operationId === 'requestPorts') {
+            $responses['200']['description'] = 'The owner that was notified and the count asked for; with `dry_run`, the planned steps.';
+            $responses['200']['content']['application/json']['schema'] = ['oneOf' => [[
+                'type' => 'object',
+                'properties' => ['data' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'owner' => ['type' => 'string', 'description' => 'The reseller or administrator that received the notification.'],
+                        'count' => ['type' => 'integer', 'minimum' => 1],
+                    ],
+                    'required' => ['owner', 'count'],
+                ]],
+                'required' => ['data'],
+            ], $dryRun]];
+        }
+        if ($operationId === 'repairPorts') {
+            $responses['200']['description'] = 'The findings left after the repair; with `dry_run`, the planned steps.';
+            $responses['200']['content']['application/json']['schema'] = ['oneOf' => [[
+                'type' => 'object',
+                'properties' => ['data' => ['type' => 'array', 'items' => ['$ref' => '#/components/schemas/PortFinding']]],
+                'required' => ['data'],
+            ], $dryRun]];
+        }
+    }
+
+    /** @return array<string, array<string, mixed>> */
+    private static function portComponentSchemas(): array
+    {
+        $nullableString = ['type' => ['string', 'null']];
+        $range = [
+            'type' => 'object',
+            'properties' => ['start' => ['type' => 'integer'], 'end' => ['type' => 'integer']],
+            'required' => ['start', 'end'],
+        ];
+
+        return [
+            'PortEntry' => [
+                'type' => 'object',
+                'title' => 'PortEntry',
+                'description' => 'One entry of the port registry: a single port or a free range of a user.',
+                'properties' => [
+                    'port' => ['type' => 'string', 'description' => '`30001`, or `30010-30019` for a range.'],
+                    'start' => ['type' => 'integer'],
+                    'end' => ['type' => 'integer'],
+                    'size' => ['type' => 'integer', 'minimum' => 1],
+                    'proto' => ['type' => 'string', 'enum' => ['tcp', 'udp']],
+                    'owner' => ['type' => 'string', 'description' => 'The account that holds the port.'],
+                    'app' => ['type' => ['string', 'null'], 'description' => '`manual`, `node:<domain>` or `docker:<app>`; null for a free port or range.'],
+                    'assigned' => ['type' => 'boolean'],
+                    'public' => ['type' => 'boolean', 'description' => 'Open to the internet in the registry (closed while the owner is suspended).'],
+                    'public_ok' => ['type' => 'boolean', 'description' => 'Whether the port may be opened to the internet.'],
+                    'rule' => ['type' => ['string', 'null'], 'description' => 'Id of the port\'s firewall rule, null without one.'],
+                    'comment' => $nullableString,
+                    'suspended' => ['type' => 'boolean'],
+                    'listen' => ['type' => 'string', 'enum' => ['no', 'local', 'any'], 'description' => 'Live state: nothing listens, loopback only, or all addresses.'],
+                    'created_at' => ['type' => ['string', 'null']],
+                ],
+                'required' => ['port', 'start', 'end', 'size', 'proto', 'owner', 'app', 'assigned', 'public', 'public_ok', 'rule', 'comment', 'suspended', 'listen', 'created_at'],
+            ],
+            'PortFinding' => [
+                'type' => 'object',
+                'title' => 'PortFinding',
+                'description' => 'A reconciliation finding of the port registry.',
+                'properties' => [
+                    'type' => ['type' => 'string', 'enum' => ['orphan-socket', 'foreign-socket', 'exposed-private', 'missing-rule', 'stale-rule', 'unmanaged-rule', 'orphan-file', 'over-limit', 'orphan-web']],
+                    'title' => ['type' => 'string'],
+                    'user' => $nullableString,
+                    'port' => $nullableString,
+                    'proto' => $nullableString,
+                    'rule' => $nullableString,
+                    'detail' => ['type' => 'string'],
+                ],
+                'required' => ['type', 'title', 'user', 'port', 'proto', 'rule', 'detail'],
+            ],
+            'PortRegistry' => [
+                'type' => 'object',
+                'title' => 'PortRegistry',
+                'description' => 'The port registry of the server (Admin → Server → Ports).',
+                'properties' => [
+                    'range' => $range,
+                    'firewall' => ['type' => ['string', 'null'], 'description' => 'FIREWALL_SYSTEM; null when the firewall is off and every listening port is reachable.'],
+                    'users' => ['type' => 'array', 'items' => [
+                        'type' => 'object',
+                        'properties' => [
+                            'user' => ['type' => 'string'],
+                            'owner' => $nullableString,
+                            'role' => ['type' => 'string'],
+                            'suspended' => ['type' => 'boolean'],
+                            'limit' => ['type' => 'string', 'description' => 'PORTS of the package (`unlimited` or a number).'],
+                            'allocated' => ['type' => 'integer'],
+                            'assigned' => ['type' => 'integer'],
+                            'public' => ['type' => 'integer'],
+                            'free' => ['type' => 'integer'],
+                            'tree_total' => ['type' => ['integer', 'null']],
+                            'tree_used' => ['type' => ['integer', 'null']],
+                        ],
+                        'required' => ['user', 'owner', 'role', 'suspended', 'limit', 'allocated', 'assigned', 'public', 'free', 'tree_total', 'tree_used'],
+                    ]],
+                    'entries' => ['type' => 'array', 'items' => ['$ref' => '#/components/schemas/PortEntry']],
+                    'reserved' => ['type' => 'array', 'items' => [
+                        'type' => 'object',
+                        'properties' => [
+                            'port' => ['type' => 'string'],
+                            'start' => ['type' => 'integer'],
+                            'end' => ['type' => 'integer'],
+                            'kind' => ['type' => 'string', 'enum' => ['system', 'admin'], 'description' => '`system`: a service of the panel (kept); `admin`: reserved by an administrator.'],
+                            'comment' => $nullableString,
+                        ],
+                        'required' => ['port', 'start', 'end', 'kind', 'comment'],
+                    ]],
+                    'sockets' => ['type' => 'array', 'description' => 'Sockets that listen in the server range.', 'items' => [
+                        'type' => 'object',
+                        'properties' => [
+                            'proto' => ['type' => 'string', 'enum' => ['tcp', 'udp']],
+                            'port' => ['type' => 'integer'],
+                            'scope' => ['type' => 'string', 'enum' => ['local', 'any']],
+                            'uid' => ['type' => ['integer', 'null']],
+                            'account' => $nullableString,
+                        ],
+                        'required' => ['proto', 'port', 'scope', 'uid', 'account'],
+                    ]],
+                    'findings' => ['type' => 'array', 'items' => ['$ref' => '#/components/schemas/PortFinding']],
+                ],
+                'required' => ['range', 'firewall', 'users', 'entries', 'reserved', 'sockets', 'findings'],
+            ],
+        ];
+    }
+
     private static function tailorNodeAppOpenApi(string $operationId, array &$operation, array &$responses): void
     {
         if ($operationId === 'getNodeAppLogs') {
@@ -814,6 +986,28 @@ final class ApiDocs extends Command
                     'room' => ['type' => 'boolean', 'description' => 'Whether another app fits under the limit.'],
                 ],
                 'required' => ['daemon', 'totals', 'limit', 'room'],
+            ],
+            'PortListMeta' => [
+                'type' => 'object',
+                'description' => 'The totals of a user\'s port pool and the server range; the port list is not paginated (E34 batch 4 §4.5).',
+                'properties' => [
+                    'user' => ['type' => 'string'],
+                    'owner' => ['type' => ['string', 'null'], 'description' => 'The reseller or administrator whose pool gives and takes back ports; null for administrators.'],
+                    'limit' => ['type' => 'string', 'description' => 'PORTS of the package (`unlimited` or a number).'],
+                    'allocated' => ['type' => 'integer', 'minimum' => 0, 'description' => 'Ports in the pool.'],
+                    'assigned' => ['type' => 'integer', 'minimum' => 0, 'description' => 'Ports reserved or held by an app.'],
+                    'public' => ['type' => 'integer', 'minimum' => 0],
+                    'free' => ['type' => 'integer', 'minimum' => 0],
+                    'tree_total' => ['type' => ['integer', 'null'], 'description' => 'A reseller: ports of the reseller and its customers.'],
+                    'tree_used' => ['type' => ['integer', 'null'], 'description' => 'A reseller: ports given to its customers.'],
+                    'firewall' => ['type' => 'boolean', 'description' => 'Whether the firewall is on; without it every listening port is reachable.'],
+                    'range' => [
+                        'type' => 'object',
+                        'properties' => ['start' => ['type' => 'integer'], 'end' => ['type' => 'integer']],
+                        'required' => ['start', 'end'],
+                    ],
+                ],
+                'required' => ['user', 'owner', 'limit', 'allocated', 'assigned', 'public', 'free', 'tree_total', 'tree_used', 'firewall', 'range'],
             ],
             'NodeAppLogMeta' => [
                 'type' => 'object',

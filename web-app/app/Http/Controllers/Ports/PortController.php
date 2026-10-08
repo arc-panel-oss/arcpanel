@@ -6,6 +6,7 @@ use App\Auth\Principal;
 use App\Auth\Role;
 use App\Http\Controllers\Controller;
 use App\Policies\PortPolicy;
+use App\Services\Ports\PortActions;
 use App\Services\Ports\PortService;
 use App\Services\WebDomains\ApplyResult;
 use App\Tenancy\TenancyDirectory;
@@ -16,14 +17,14 @@ use Illuminate\View\View;
 /**
  * Ports of a user or a reseller (E12 spec §7.4, §7.5) and the actions on
  * one user's ports, also used from Admin → Server → Ports. Routes with
- * {user} run through `effective-user` (404 outside the scope).
+ * {user} run through `effective-user` (404 outside the scope). The rules
+ * are those of PortActions, shared with API v2 (E34 batch 4 spec D47).
  */
 final class PortController extends Controller
 {
-    private const COMMENT = '/^[[:alnum:]][[:alnum:][:space:]._-]{0,64}[[:alnum:]]$/';
-
     public function __construct(
         private readonly PortService $ports,
+        private readonly PortActions $actions,
         private readonly TenancyDirectory $tenancy,
     ) {}
 
@@ -48,18 +49,14 @@ final class PortController extends Controller
             'isReseller' => $isReseller,
             'abilities' => $abilities,
             'canRequest' => $policy->request($principal),
-            'owner' => $this->tenancy->ownerOf($user),
+            'owner' => $this->actions->ownerOf($user),
         ]);
     }
 
     public function reserve(Request $request, string $user, Principal $principal, PortPolicy $policy): RedirectResponse
     {
         abort_unless($policy->reserve($principal, $user), 403);
-        $data = $request->validate([
-            'port' => ['nullable', 'integer', 'min:1', 'max:65535'],
-            'proto' => ['required', 'in:tcp,udp'],
-            'comment' => ['nullable', 'string', 'regex:'.self::COMMENT],
-        ]);
+        $data = $request->validate($this->actions->reserveRules());
         $port = isset($data['port']) ? (int) $data['port'] : null;
 
         return $this->done($this->ports->apply($this->ports->planReserve($user, $port, $data['proto'], (string) ($data['comment'] ?? ''))), __('The port has been reserved.'));
@@ -68,20 +65,20 @@ final class PortController extends Controller
     public function release(string $user, string $range, Principal $principal, PortPolicy $policy): RedirectResponse
     {
         abort_unless($policy->reserve($principal, $user), 403);
-        [$start] = PortService::bounds($range);
+        $bounds = $this->actions->bounds($range);
+        abort_if($bounds === null, 404);
 
-        return $this->done($this->ports->apply($this->ports->planRelease($user, $start)), __('The port has been released.'));
+        return $this->done($this->ports->apply($this->ports->planRelease($user, $bounds[0])), __('The port has been released.'));
     }
 
     public function public(Request $request, string $user, string $range, Principal $principal, PortPolicy $policy): RedirectResponse
     {
         $public = (string) $request->validate(['public' => ['required', 'in:yes,no']])['public'] === 'yes';
-        [$port] = PortService::bounds($range);
-        $entry = $this->ports->account($user)->entry($port);
+        $entry = $this->actions->entry($this->ports->account($user), $range);
         abort_if($entry === null, 404);
         abort_unless($policy->setPublic($principal, $user, $entry, $public), 403);
 
-        return $this->done($this->ports->apply($this->ports->planPublic($user, $port, $public)),
+        return $this->done($this->ports->apply($this->ports->planPublic($user, $entry->start, $public)),
             $public ? __('The port is open to the internet.') : __('The port is private.'));
     }
 
@@ -104,30 +101,22 @@ final class PortController extends Controller
     public function give(Request $request, string $user, Principal $principal, PortPolicy $policy): RedirectResponse
     {
         abort_unless($policy->give($principal, $user), 403);
-        $data = $request->validate([
-            'mode' => ['required', 'in:range,count'],
-            'range' => ['nullable', 'required_if:mode,range', 'string', 'regex:/^\d{1,5}(-\d{1,5})?$/'],
-            'count' => ['nullable', 'required_if:mode,count', 'integer', 'min:1', 'max:10000'],
-        ]);
-        $what = $data['mode'] === 'count' ? '+'.(int) $data['count'] : (string) $data['range'];
+        [$range, $count] = $this->actions->rangeOrCount($request->validate($this->actions->giveFormRules()));
 
-        return $this->done($this->ports->apply($this->ports->planMove($this->tenancy->ownerOf($user), $what, $user)), __('Ports have been given.'));
+        return $this->done($this->ports->apply($this->ports->planMove($this->actions->ownerOf($user), $this->actions->moveSpec($range, $count), $user)), __('Ports have been given.'));
     }
 
     public function reclaim(string $user, string $range, Principal $principal, PortPolicy $policy): RedirectResponse
     {
         abort_unless($policy->reclaim($principal, $user), 403);
 
-        return $this->done($this->ports->apply($this->ports->planMove($user, $range, $this->tenancy->ownerOf($user))), __('Ports have been taken back.'));
+        return $this->done($this->ports->apply($this->ports->planMove($user, $range, $this->actions->ownerOf($user))), __('Ports have been taken back.'));
     }
 
     public function request(Request $request, Principal $principal, PortPolicy $policy): RedirectResponse
     {
         abort_unless($policy->request($principal), 403);
-        $data = $request->validate([
-            'count' => ['required', 'integer', 'min:1', 'max:1000'],
-            'reason' => ['nullable', 'string', 'max:200', 'not_regex:/[<>\r\n]/'],
-        ]);
+        $data = $request->validate($this->actions->requestRules());
 
         return $this->done($this->ports->apply($this->ports->planRequest($principal->effectiveUser(), (int) $data['count'], trim((string) ($data['reason'] ?? '')))),
             __('Your request has been sent.'));
@@ -135,8 +124,8 @@ final class PortController extends Controller
 
     private function done(ApplyResult $result, string $ok): RedirectResponse
     {
-        return $result->ok()
-            ? back()->with('ok', $ok)
-            : back()->withInput()->with('error', sprintf(__('%s failed'), $result->failed?->label))->with('error_detail', $result->error);
+        $flash = $this->actions->flash($result, $ok);
+
+        return $result->ok() ? back()->with($flash) : back()->withInput()->with($flash);
     }
 }

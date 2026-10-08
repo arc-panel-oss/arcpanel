@@ -5,9 +5,9 @@ namespace App\Http\Controllers\Ports;
 use App\Auth\Principal;
 use App\Http\Controllers\Controller;
 use App\Policies\PortPolicy;
+use App\Services\Ports\PortActions;
 use App\Services\Ports\PortService;
 use App\Services\WebDomains\ApplyResult;
-use App\Tenancy\TenancyDirectory;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
@@ -16,17 +16,14 @@ use Illuminate\View\View;
 /**
  * Admin → Server → Ports (E12 spec §7.3): allocations per user, live
  * sockets with the reconciliation findings, the server range and the
- * reserved ports.
+ * reserved ports. The rules are those of PortActions, shared with API v2
+ * (E34 batch 4 spec D47).
  */
 final class ServerPortController extends Controller
 {
-    private const RANGE = '/^\d{1,5}(-\d{1,5})?$/';
-
-    private const COMMENT = '/^[[:alnum:]][[:alnum:][:space:]._-]{0,64}[[:alnum:]]$/';
-
     public function __construct(
         private readonly PortService $ports,
-        private readonly TenancyDirectory $tenancy,
+        private readonly PortActions $actions,
     ) {}
 
     public function index(Principal $principal, PortPolicy $policy): View
@@ -60,19 +57,11 @@ final class ServerPortController extends Controller
     public function allocate(Request $request, Principal $principal, PortPolicy $policy): RedirectResponse
     {
         abort_unless($policy->allocate($principal), 403);
-        $data = $request->validate([
-            'user' => ['required', 'string', 'regex:/^[[:alnum:]][-.\w]{0,28}[[:alnum:]]$/'],
-            'mode' => ['required', 'in:range,count'],
-            'range' => ['nullable', 'required_if:mode,range', 'string', 'regex:'.self::RANGE],
-            'count' => ['nullable', 'required_if:mode,count', 'integer', 'min:1', 'max:10000'],
-            'public_ok' => ['nullable', 'boolean'],
-            'comment' => ['nullable', 'string', 'regex:'.self::COMMENT],
-        ]);
-        if (! $this->tenancy->exists($data['user'])) {
+        $data = $request->validate($this->actions->allocateFormRules());
+        if (! $this->actions->userExists($data['user'])) {
             throw ValidationException::withMessages(['user' => __('This user does not exist.')]);
         }
-        $range = $data['mode'] === 'range' ? (string) $data['range'] : null;
-        $count = $data['mode'] === 'count' ? (int) $data['count'] : null;
+        [$range, $count] = $this->actions->rangeOrCount($data);
 
         return $this->done($this->ports->apply($this->ports->planAllocate(
             $data['user'], $range, $count, (bool) ($data['public_ok'] ?? false), (string) ($data['comment'] ?? ''),
@@ -82,10 +71,7 @@ final class ServerPortController extends Controller
     public function range(Request $request, Principal $principal, PortPolicy $policy): RedirectResponse
     {
         abort_unless($policy->allocate($principal), 403);
-        $data = $request->validate([
-            'start' => ['required', 'integer', 'min:1024', 'max:65534'],
-            'end' => ['required', 'integer', 'gt:start', 'max:65535'],
-        ]);
+        $data = $request->validate($this->actions->serverRangeRules());
 
         return $this->done($this->ports->apply($this->ports->planRange((int) $data['start'], (int) $data['end'])), __('The port range has been changed.'));
     }
@@ -93,10 +79,7 @@ final class ServerPortController extends Controller
     public function storeReserved(Request $request, Principal $principal, PortPolicy $policy): RedirectResponse
     {
         abort_unless($policy->allocate($principal), 403);
-        $data = $request->validate([
-            'range' => ['required', 'string', 'regex:'.self::RANGE],
-            'comment' => ['nullable', 'string', 'regex:'.self::COMMENT],
-        ]);
+        $data = $request->validate($this->actions->reservedRules());
 
         return $this->done($this->ports->apply($this->ports->planAddReserved($data['range'], (string) ($data['comment'] ?? ''))), __('Ports have been reserved.'));
     }
@@ -119,12 +102,8 @@ final class ServerPortController extends Controller
     public function register(Request $request, Principal $principal, PortPolicy $policy): RedirectResponse
     {
         abort_unless($policy->allocate($principal), 403);
-        $data = $request->validate([
-            'user' => ['required', 'string', 'regex:/^[[:alnum:]][-.\w]{0,28}[[:alnum:]]$/'],
-            'port' => ['required', 'integer', 'min:1', 'max:65535'],
-            'proto' => ['required', 'in:tcp,udp'],
-        ]);
-        abort_unless($this->tenancy->exists($data['user']), 404);
+        $data = $request->validate($this->actions->registerRules());
+        abort_unless($this->actions->userExists($data['user']), 404);
 
         return $this->done($this->ports->apply($this->ports->planRegister($data['user'], (int) $data['port'], $data['proto'])), __('The port has been registered.'));
     }
@@ -133,12 +112,9 @@ final class ServerPortController extends Controller
     public function adopt(Request $request, Principal $principal, PortPolicy $policy): RedirectResponse
     {
         abort_unless($policy->allocate($principal), 403);
-        $data = $request->validate([
-            'port' => ['required', 'integer', 'min:1', 'max:65535'],
-            'rule' => ['required', 'integer', 'min:1'],
-        ]);
-        $holder = $this->ports->registry()->holderOf((int) $data['port']);
-        if ($holder === null || ! $holder->assigned() || $holder->isRange()) {
+        $data = $request->validate($this->actions->adoptRules());
+        $holder = $this->actions->adoptable((int) $data['port']);
+        if ($holder === null) {
             return back()->with('error', __('Reserve the port for its user first, then link the rule.'));
         }
 
@@ -148,15 +124,15 @@ final class ServerPortController extends Controller
     public function closeRule(Request $request, Principal $principal, PortPolicy $policy): RedirectResponse
     {
         abort_unless($policy->allocate($principal), 403);
-        $data = $request->validate(['rule' => ['required', 'integer', 'min:1']]);
+        $data = $request->validate($this->actions->closeRuleRules());
 
         return $this->done($this->ports->apply($this->ports->planCloseRule((string) $data['rule'])), __('The firewall rule has been deleted.'));
     }
 
     private function done(ApplyResult $result, string $ok): RedirectResponse
     {
-        return $result->ok()
-            ? back()->with('ok', $ok)
-            : back()->withInput()->with('error', sprintf(__('%s failed'), $result->failed?->label))->with('error_detail', $result->error);
+        $flash = $this->actions->flash($result, $ok);
+
+        return $result->ok() ? back()->with($flash) : back()->withInput()->with($flash);
     }
 }
