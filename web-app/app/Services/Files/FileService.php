@@ -6,6 +6,8 @@ use App\Arc\ArcCommand;
 use App\Arc\ArcCommandException;
 use App\Arc\ExitCode;
 use App\Arc\Options;
+use App\Services\WebDomains\ApplyResult;
+use App\Services\WebDomains\Step;
 use JsonException;
 
 /**
@@ -14,6 +16,11 @@ use JsonException;
  * command reads and writes as the user; FilePolicy decides who may call
  * what. Copy, move and rename check the destination first and never
  * overwrite unless asked (D12).
+ *
+ * Changes are planned first (E34 batch 5 spec §5): each plan… method runs
+ * the reads an operation depends on (conflicts, file or folder) and returns
+ * the change commands as a FilePlan, which REST API v2 checks, previews and
+ * runs through apply(); the methods the page calls run the same plan.
  */
 final class FileService
 {
@@ -28,6 +35,12 @@ final class FileService
 
     /** Seconds for commands that copy, pack or unpack whole trees */
     private const LONG = 600;
+
+    /** Commands that run with the LONG timeout */
+    private const LONG_COMMANDS = [
+        'v-delete-fs-file', 'v-delete-fs-directory', 'v-copy-fs-file', 'v-copy-fs-directory', 'v-move-fs-file',
+        'v-move-fs-directory', 'v-change-fs-directory-permission', 'v-add-fs-zip', 'v-extract-fs-archive',
+    ];
 
     public const CONFLICT_MODES = ['skip', 'overwrite', 'rename'];
 
@@ -132,25 +145,68 @@ final class FileService
      */
     public function save(string $user, FilePath $path, string $content, ?string $hash): array
     {
-        $token = FileStaging::token();
-        $dir = $this->staging->newSessionDir($token);
+        $file = $this->stageContent($content);
         try {
-            $file = $dir.'/file';
-            file_put_contents($file, $content);
-            chmod($file, 0600);
-            $stdout = $this->arc->run('v-save-fs-file', [$user, $file, $this->absolute($user, $path), $hash ?? ''])->stdout;
+            $stdout = $this->arc->run('v-save-fs-file', $this->planSave($user, $path, $file, $hash)->args)->stdout;
         } finally {
-            FileStaging::removeTree($dir);
+            FileStaging::removeTree(dirname($file));
         }
-        $header = $this->decode('v-save-fs-file', trim($stdout));
+        $header = $this->header('v-save-fs-file', $stdout);
 
         return ['hash' => (string) ($header['HASH'] ?? ''), 'size' => (int) ($header['SIZE'] ?? 0), 'mtime' => (int) ($header['MTIME'] ?? 0)];
     }
 
+    /**
+     * Write $content into a new private folder of the staging tree; the
+     * caller removes it with FileStaging::removeTree(dirname($file)).
+     */
+    public function stageContent(string $content, ?string $token = null): string
+    {
+        $file = $this->staging->newSessionDir($token ?? FileStaging::token()).'/file';
+        file_put_contents($file, $content);
+        chmod($file, 0600);
+
+        return $file;
+    }
+
+    /** Where stageContent() writes the content of $token. */
+    public function stagedFile(string $token): string
+    {
+        return $this->staging->uploads().'/'.$token.'/file';
+    }
+
+    /** The command that saves the staged file over $path (see save()). */
+    public function planSave(string $user, FilePath $path, string $staged, ?string $hash): Step
+    {
+        return new Step(sprintf(__('Save %s'), $path->relative()), 'v-save-fs-file', [$user, $staged, $this->absolute($user, $path), $hash ?? '']);
+    }
+
+    /**
+     * The JSON header line that v-read-fs-file and v-save-fs-file print
+     * first: SIZE, MTIME, MIME and HASH.
+     *
+     * @return array<mixed>
+     */
+    public function header(string $command, string $stdout): array
+    {
+        $newline = strpos($stdout, "\n");
+
+        return $this->decode($command, trim($newline === false ? $stdout : substr($stdout, 0, $newline)));
+    }
+
     public function mkdir(string $user, FilePath $path): void
     {
+        $this->runPlan($this->planMkdir($user, $path));
+    }
+
+    /** A new folder; an existing name stops it with FileConflict. */
+    public function planMkdir(string $user, FilePath $path): FilePlan
+    {
         $this->refuseExisting($user, [$path]);
-        $this->arc->run('v-add-fs-directory', [$user, $this->absolute($user, $path)]);
+
+        return new FilePlan([['path' => $path, 'steps' => [
+            new Step(sprintf(__('Create the folder %s'), $path->relative()), 'v-add-fs-directory', [$user, $this->absolute($user, $path)]),
+        ]]], $path);
     }
 
     /** Folders of $path that may already exist (folder uploads). */
@@ -163,17 +219,31 @@ final class FileService
 
     public function touch(string $user, FilePath $path): void
     {
+        $this->runPlan($this->planTouch($user, $path));
+    }
+
+    /** A new empty file; an existing name stops it with FileConflict. */
+    public function planTouch(string $user, FilePath $path): FilePlan
+    {
         $this->refuseExisting($user, [$path]);
-        $this->arc->run('v-add-fs-file', [$user, $this->absolute($user, $path)]);
+
+        return new FilePlan([['path' => $path, 'steps' => [
+            new Step(sprintf(__('Create the file %s'), $path->relative()), 'v-add-fs-file', [$user, $this->absolute($user, $path)]),
+        ]]], $path);
     }
 
     public function rename(string $user, FilePath $path, string $name): FilePath
     {
+        return $this->runPlan($this->planRename($user, $path, $name));
+    }
+
+    /** A new name within the folder; the result is the new path. */
+    public function planRename(string $user, FilePath $path, string $name): FilePlan
+    {
         $target = $path->parent()->child($name);
         $this->refuseExisting($user, [$target]);
-        $this->moveEntry($user, $this->info($user, $path), $path, $target);
 
-        return $target;
+        return new FilePlan([['path' => $path, 'steps' => [$this->moveStep($user, $this->info($user, $path), $path, $target)]]], $target);
     }
 
     /**
@@ -186,7 +256,7 @@ final class FileService
      */
     public function copy(string $user, array $paths, FilePath $dest, ?string $onConflict): array
     {
-        return $this->transfer($user, $paths, $dest, $onConflict, false);
+        return $this->runPlan($this->planTransfer($user, $paths, $dest, $onConflict, false));
     }
 
     /**
@@ -195,19 +265,95 @@ final class FileService
      */
     public function move(string $user, array $paths, FilePath $dest, ?string $onConflict): array
     {
-        return $this->transfer($user, $paths, $dest, $onConflict, true);
+        return $this->runPlan($this->planTransfer($user, $paths, $dest, $onConflict, true));
+    }
+
+    /**
+     * Copy or move entries into $dest (see copy()); the result is the names
+     * created in $dest.
+     *
+     * @param  list<FilePath>  $paths
+     */
+    public function planTransfer(string $user, array $paths, FilePath $dest, ?string $onConflict, bool $move): FilePlan
+    {
+        foreach ($paths as $path) {
+            if ($path->isRoot() || $path->contains($dest)) {
+                throw new InvalidFilePath;
+            }
+        }
+        $taken = $this->names($user, $dest);
+        // Within the same folder a copy gets a free name and a move does nothing
+        $conflicts = array_values(array_map(
+            fn (FilePath $p) => $p->name(),
+            array_filter($paths, fn (FilePath $p) => ! $p->parent()->equals($dest) && in_array($p->name(), $taken, true)),
+        ));
+        if ($conflicts !== [] && $onConflict === null) {
+            throw new FileConflict($conflicts);
+        }
+
+        $items = [];
+        $created = [];
+        foreach ($paths as $path) {
+            $name = $path->name();
+            $target = $dest->child($name);
+            $steps = [];
+            if (in_array($name, $taken, true)) {
+                if (($path->parent()->equals($dest) && $move) || $onConflict === 'skip') {
+                    $items[] = ['path' => $path, 'steps' => []];
+
+                    continue;
+                }
+                if ($onConflict === 'rename' || $path->parent()->equals($dest)) {
+                    $name = self::freeName($name, $taken);
+                    $target = $dest->child($name);
+                } else {
+                    // overwrite: cp and mv put a folder inside an existing folder
+                    $steps = $this->planDelete($user, [$target])->steps();
+                }
+            }
+            $entry = $this->info($user, $path);
+            $steps[] = $move
+                ? $this->moveStep($user, $entry, $path, $target)
+                : new Step(
+                    sprintf(__('Copy %s to %s'), $path->relative(), $target->relative()),
+                    $entry->type === 'd' ? 'v-copy-fs-directory' : 'v-copy-fs-file',
+                    [$user, $this->absolute($user, $path), $this->absolute($user, $target)],
+                );
+            $items[] = ['path' => $path, 'steps' => $steps];
+            $taken[] = $name;
+            $created[] = $name;
+        }
+
+        return new FilePlan($items, $created);
     }
 
     /** @param  list<FilePath>  $paths */
     public function delete(string $user, array $paths): void
     {
+        $this->runPlan($this->planDelete($user, $paths));
+    }
+
+    /**
+     * One delete command per path, for a file or a folder.
+     *
+     * @param  list<FilePath>  $paths
+     */
+    public function planDelete(string $user, array $paths): FilePlan
+    {
+        $items = [];
         foreach ($paths as $path) {
             if ($path->isRoot()) {
                 throw new InvalidFilePath;
             }
             $entry = $this->info($user, $path);
-            $this->arc->run($entry->type === 'd' ? 'v-delete-fs-directory' : 'v-delete-fs-file', [$user, $this->absolute($user, $path)], new Options(self::LONG));
+            $items[] = ['path' => $path, 'steps' => [new Step(
+                sprintf(__('Delete %s'), $path->relative()),
+                $entry->type === 'd' ? 'v-delete-fs-directory' : 'v-delete-fs-file',
+                [$user, $this->absolute($user, $path)],
+            )]];
         }
+
+        return new FilePlan($items);
     }
 
     /**
@@ -216,14 +362,22 @@ final class FileService
      */
     public function chmod(string $user, FilePath $path, string $mode, bool $recursive = false, ?string $filesMode = null): void
     {
-        $entry = $this->info($user, $path);
-        if ($entry->type === 'd') {
-            $this->arc->run('v-change-fs-directory-permission', [
-                $user, $this->absolute($user, $path), $mode, $filesMode ?? $mode, $recursive ? 'yes' : 'no',
-            ], new Options(self::LONG));
-        } else {
-            $this->arc->run('v-change-fs-file-permission', [$user, $this->absolute($user, $path), $mode]);
+        $this->runPlan($this->planChmod($user, [$path], $mode, $recursive, $filesMode));
+    }
+
+    /** @param  list<FilePath>  $paths */
+    public function planChmod(string $user, array $paths, string $mode, bool $recursive = false, ?string $filesMode = null): FilePlan
+    {
+        $items = [];
+        foreach ($paths as $path) {
+            $entry = $this->info($user, $path);
+            $label = sprintf(__('Change the permissions of %s'), $path->isRoot() ? '~' : $path->relative());
+            $items[] = ['path' => $path, 'steps' => [$entry->type === 'd'
+                ? new Step($label, 'v-change-fs-directory-permission', [$user, $this->absolute($user, $path), $mode, $filesMode ?? $mode, $recursive ? 'yes' : 'no'])
+                : new Step($label, 'v-change-fs-file-permission', [$user, $this->absolute($user, $path), $mode])]];
         }
+
+        return new FilePlan($items);
     }
 
     /**
@@ -233,18 +387,71 @@ final class FileService
      */
     public function compress(string $user, array $paths, string $name): FilePath
     {
-        $parent = $paths[0]->parent();
-        $archive = $parent->child($name);
-        $this->arc->run('v-add-fs-zip', [
-            $user, $this->absolute($user, $archive), ...array_map(fn (FilePath $p) => $this->absolute($user, $p), $paths),
-        ], new Options(self::LONG));
+        return $this->runPlan($this->planCompress($user, $paths, $name));
+    }
 
-        return $archive;
+    /**
+     * The zip command; the result is the archive's path. The command refuses
+     * an archive that exists (E_EXISTS).
+     *
+     * @param  list<FilePath>  $paths
+     */
+    public function planCompress(string $user, array $paths, string $name): FilePlan
+    {
+        $archive = $paths[0]->parent()->child($name);
+
+        return new FilePlan([['path' => $archive, 'steps' => [new Step(
+            sprintf(__('Compress into %s'), $archive->relative()),
+            'v-add-fs-zip',
+            [$user, $this->absolute($user, $archive), ...array_map(fn (FilePath $p) => $this->absolute($user, $p), $paths)],
+        )]]], $archive);
     }
 
     public function extract(string $user, FilePath $archive, FilePath $dest): void
     {
-        $this->arc->run('v-extract-fs-archive', [$user, $this->absolute($user, $archive), $this->absolute($user, $dest)], new Options(self::LONG));
+        $this->runPlan($this->planExtract($user, $archive, $dest));
+    }
+
+    /**
+     * Unpack $archive into $dest; the result is $dest. With $create the plan
+     * creates $dest first (E34 batch 5 D52: REST API v2 extracts into a new
+     * folder only); without it the command creates a missing folder itself.
+     */
+    public function planExtract(string $user, FilePath $archive, FilePath $dest, bool $create = false): FilePlan
+    {
+        $steps = [];
+        if ($create) {
+            $steps[] = new Step(sprintf(__('Create the folder %s'), $dest->relative()), 'v-add-fs-directory', [$user, $this->absolute($user, $dest)]);
+        }
+        $steps[] = new Step(
+            sprintf(__('Extract %s into %s'), $archive->relative(), $dest->isRoot() ? '~' : $dest->relative()),
+            'v-extract-fs-archive',
+            [$user, $this->absolute($user, $archive), $this->absolute($user, $dest)],
+        );
+
+        return new FilePlan([['path' => $archive, 'steps' => $steps]], $dest);
+    }
+
+    /**
+     * Run Steps in order with the timeouts of their commands. The first
+     * failure stops the run; the Steps before it stay applied (D49).
+     *
+     * @param  list<Step>  $steps
+     */
+    public function apply(array $steps): ApplyResult
+    {
+        $applied = [];
+        $stdout = [];
+        foreach ($steps as $step) {
+            try {
+                $stdout[$step->command] = $this->arc->run($step->command, $step->args, $this->options($step->command))->stdout;
+            } catch (ArcCommandException $e) {
+                return new ApplyResult($applied, $step, $e->userMessage(), $e->getCode(), $stdout, $e->invalidArgument);
+            }
+            $applied[] = $step;
+        }
+
+        return new ApplyResult($applied, stdoutByCommand: $stdout);
     }
 
     /**
@@ -308,13 +515,14 @@ final class FileService
     }
 
     /**
-     * Names of $dir, for conflict checks and free names.
+     * Names of $dir, for conflict checks and free names: every entry, also
+     * in folders above LIST_MAX entries.
      *
      * @return list<string>
      */
     public function names(string $user, FilePath $dir): array
     {
-        return array_map(fn (FileEntry $e) => $e->name, $this->list($user, $dir, 0, 5000)['entries']);
+        return array_map(fn (FileEntry $e) => $e->name, $this->listAll($user, $dir)['entries']);
     }
 
     /** First free "name (n).ext" among $taken. */
@@ -331,74 +539,40 @@ final class FileService
     }
 
     /**
+     * Stop with FileConflict (the names) when one of $paths exists.
+     *
      * @param  list<FilePath>  $paths
-     * @return list<string>
      */
-    private function transfer(string $user, array $paths, FilePath $dest, ?string $onConflict, bool $move): array
-    {
-        foreach ($paths as $path) {
-            if ($path->isRoot() || $path->contains($dest)) {
-                throw new InvalidFilePath;
-            }
-        }
-        $taken = $this->names($user, $dest);
-        // Within the same folder a copy gets a free name and a move does nothing
-        $conflicts = array_values(array_map(
-            fn (FilePath $p) => $p->name(),
-            array_filter($paths, fn (FilePath $p) => ! $p->parent()->equals($dest) && in_array($p->name(), $taken, true)),
-        ));
-        if ($conflicts !== [] && $onConflict === null) {
-            throw new FileConflict($conflicts);
-        }
-
-        $done = [];
-        foreach ($paths as $path) {
-            $name = $path->name();
-            $target = $dest->child($name);
-            if (in_array($name, $taken, true)) {
-                if ($path->parent()->equals($dest) && $move) {
-                    continue;
-                }
-                if ($onConflict === 'skip') {
-                    continue;
-                }
-                if ($onConflict === 'rename' || $path->parent()->equals($dest)) {
-                    $name = self::freeName($name, $taken);
-                    $target = $dest->child($name);
-                } else {
-                    // overwrite: cp and mv put a folder inside an existing folder
-                    $this->delete($user, [$target]);
-                }
-            }
-            $entry = $this->info($user, $path);
-            if ($move) {
-                $this->moveEntry($user, $entry, $path, $target);
-            } else {
-                $this->arc->run($entry->type === 'd' ? 'v-copy-fs-directory' : 'v-copy-fs-file', [
-                    $user, $this->absolute($user, $path), $this->absolute($user, $target),
-                ], new Options(self::LONG));
-            }
-            $taken[] = $name;
-            $done[] = $name;
-        }
-
-        return $done;
-    }
-
-    private function moveEntry(string $user, FileEntry $entry, FilePath $from, FilePath $to): void
-    {
-        $this->arc->run($entry->type === 'd' ? 'v-move-fs-directory' : 'v-move-fs-file', [
-            $user, $this->absolute($user, $from), $this->absolute($user, $to),
-        ], new Options(self::LONG));
-    }
-
-    /** @param  list<FilePath>  $paths */
-    private function refuseExisting(string $user, array $paths): void
+    public function refuseExisting(string $user, array $paths): void
     {
         $existing = array_values(array_map(fn (FilePath $p) => $p->name(), array_filter($paths, fn (FilePath $p) => $this->find($user, $p) !== null)));
         if ($existing !== []) {
             throw new FileConflict($existing);
         }
+    }
+
+    private function moveStep(string $user, FileEntry $entry, FilePath $from, FilePath $to): Step
+    {
+        return new Step(
+            sprintf(__('Move %s to %s'), $from->relative(), $to->relative()),
+            $entry->type === 'd' ? 'v-move-fs-directory' : 'v-move-fs-file',
+            [$user, $this->absolute($user, $from), $this->absolute($user, $to)],
+        );
+    }
+
+    /** Run the Steps of $plan and answer its result; a failed command throws. */
+    private function runPlan(FilePlan $plan): mixed
+    {
+        foreach ($plan->steps() as $step) {
+            $this->arc->run($step->command, $step->args, $this->options($step->command));
+        }
+
+        return $plan->result;
+    }
+
+    private function options(string $command): ?Options
+    {
+        return in_array($command, self::LONG_COMMANDS, true) ? new Options(self::LONG) : null;
     }
 
     /** @return array<mixed> */

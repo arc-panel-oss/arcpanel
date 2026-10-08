@@ -253,13 +253,25 @@ Route::middleware('effective-user')->group(function () {
         });
     });
 
-    // Files of a user's home directory (E34 batch 5 spec §4.1); FILE_MANAGER off answers 404
+    // Files of a user's home directory (E34 batch 5 spec §4.1, §4.2); FILE_MANAGER off answers 404
     Route::middleware('files.enabled')->prefix('/users/{user}/files')->name('files.')->group(function () {
         Route::get('/', [FileController::class, 'index'])->name('index');
         Route::get('/info', [FileController::class, 'info'])->name('info');
         Route::get('/content', [FileController::class, 'read'])->name('content.show');
         Route::get('/search', [FileController::class, 'search'])->name('search');
         Route::get('/size', [FileController::class, 'size'])->name('size');
+        Route::middleware('not-readonly')->group(function () {
+            Route::put('/content', [FileController::class, 'save'])->name('content.update');
+            Route::post('/directories', [FileController::class, 'createDirectory'])->name('directories.store');
+            Route::post('/touch', [FileController::class, 'touch'])->name('touch');
+            Route::post('/rename', [FileController::class, 'rename'])->name('rename');
+            Route::post('/copy', [FileController::class, 'copy'])->name('copy');
+            Route::post('/move', [FileController::class, 'move'])->name('move');
+            Route::post('/delete', [FileController::class, 'delete'])->name('delete');
+            Route::post('/chmod', [FileController::class, 'chmod'])->name('chmod');
+            Route::post('/compress', [FileController::class, 'compress'])->name('compress');
+            Route::post('/extract', [FileController::class, 'extract'])->name('extract');
+        });
     });
 
     // Cron jobs (E34 batch 2 spec §6.5)

@@ -52,10 +52,11 @@ final class ApiDocs extends Command
         '429' => ['TooManyRequests', 'Too many requests (`E_RATE_LIMIT`); `Retry-After` names the seconds to wait.'],
         '500' => ['ServerError', 'A command failed on the server.'],
         '503' => ['Unavailable', 'The service is disabled or the server is too busy (`E_DISABLED`, `E_LA`).'],
+        '507' => ['InsufficientStorage', 'The panel has too little space to stage the data now (`E_DISK`).'],
     ];
 
-    /** File operations that answer 413 (E34 batch 5 D55). */
-    private const FILE_ERRORS = ['readFile' => ['413']];
+    /** File operations that answer 413 or 507 (E34 batch 5 D55). */
+    private const FILE_ERRORS = ['readFile' => ['413'], 'saveFile' => ['413', '507']];
 
     private const DESCRIPTION = <<<'MD'
         Resource API of an ArcPanel server, served by the panel at `/api/v2/` (port 8083 by default). Every call acts as the owner of the access key, with the role and the reach that user has in the panel: objects outside its reach answer `404`, refused actions `403`.
@@ -66,7 +67,7 @@ final class ApiDocs extends Command
 
         **Dry run.** Every write accepts `?dry_run=1`: the request is validated, authorized and checked against the permission sets, and the answer lists the commands it would run, without running any.
 
-        **Errors.** Every error answers `{"error": {"code": "E_…", "message": "…"}}`; `code` is one of `ErrorCode`. Validation errors add `fields`, refused permission sets add `commands`, a duplicate the server can point at adds `existing` (the path of that object, or a queued backup or restore task), and a failed step of a change adds `step` and the steps that ran before it (`applied`), which stay applied.
+        **Errors.** Every error answers `{"error": {"code": "E_…", "message": "…"}}`; `code` is one of `ErrorCode`. Validation errors add `fields`, refused permission sets add `commands`, a duplicate the server can point at adds `existing` (the path of that object, or a queued backup or restore task), and a failed step of a change adds `step` and the steps that ran before it (`applied`), which stay applied. File operations add the names that exist in the destination (`conflicts`) and, when they stop part-way, the path that failed (`path`) and the paths already finished (`done`).
 
         **Headers.** Every answer carries `ArcPanel-Version` and `X-Request-Id` (the client's own value, or a new one). `429` carries `Retry-After`; `201` and `202` carry `Location`. Each key may make 60 requests a minute; ten failed authentications a minute block the client's address for a minute.
 
@@ -741,6 +742,9 @@ final class ApiDocs extends Command
                 }
             }
         }
+        if (in_array($operationId, ['copyFiles', 'moveFiles'], true) && isset($responses['200'])) {
+            $responses['200']['description'] = 'The folder and the names created in it; with `dry_run`, the planned steps.';
+        }
         if ($operationId === 'getFolderSize' && isset($responses['200'])) {
             $responses['200']['description'] = 'The bytes of the folder and everything in it.';
         }
@@ -982,6 +986,20 @@ final class ApiDocs extends Command
                             ],
                             'step' => ['description' => 'The step of a change that failed.', 'anyOf' => [['$ref' => '#/components/schemas/PlanStep'], ['type' => 'null']]],
                             'applied' => ['type' => 'array', 'description' => 'The steps that ran before the failed one; they stay applied.', 'items' => ['$ref' => '#/components/schemas/PlanStep']],
+                            'conflicts' => [
+                                'type' => 'array',
+                                'description' => 'E_EXISTS of a file operation: the names that exist in the destination.',
+                                'items' => ['type' => 'string'],
+                            ],
+                            'path' => [
+                                'type' => ['string', 'null'],
+                                'description' => 'A failed file operation: the path (relative to the home directory) whose step failed.',
+                            ],
+                            'done' => [
+                                'type' => 'array',
+                                'description' => 'A failed file operation over several paths: the paths finished before the failure; they stay changed.',
+                                'items' => ['type' => 'string'],
+                            ],
                         ],
                         'required' => ['code', 'message'],
                     ],

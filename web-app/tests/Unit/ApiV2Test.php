@@ -193,12 +193,15 @@ it('keeps every area set inside v2-write and its reads inside v2-read', function
     expect(array_values(array_diff($write, $union)))->toBe([]);
 });
 
-it('puts the file reads of v2-files in v2-read (E34 batch 5 D56)', function () {
+it('puts the file reads of v2-files in v2-read and its changes in v2-write only (E34 batch 5 D56)', function () {
     $files = apiSetCommands('v2-files');
     $reads = ['v-list-fs-directory-json', 'v-get-fs-file-info', 'v-read-fs-file', 'v-search-fs-object', 'v-list-fs-disk-usage'];
+    $changes = array_values(array_diff(array_filter($files, fn (string $c) => str_contains($c, '-fs-')), $reads));
 
     expect($files)->toContain(...$reads)
-        ->and(array_values(array_diff($reads, apiSetCommands('v2-read'))))->toBe([]);
+        ->and(array_values(array_diff($reads, apiSetCommands('v2-read'))))->toBe([])
+        ->and(array_values(array_intersect($changes, apiSetCommands('v2-read'))))->toBe([])
+        ->and($changes)->toContain('v-save-fs-file', 'v-delete-fs-directory', 'v-extract-fs-archive');
 });
 
 it('pages a list and refuses a limit or offset outside its range', function () {

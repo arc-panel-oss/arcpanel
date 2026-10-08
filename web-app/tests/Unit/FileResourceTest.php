@@ -6,10 +6,13 @@ use App\Http\Resources\V2\FileSearchResultResource;
 use App\Http\Resources\V2\LocatedFileEntry;
 use App\Services\Files\FileEntry;
 use App\Services\Files\FilePath;
+use App\Services\Files\FilePlan;
 use App\Services\Files\InvalidFilePath;
+use App\Services\WebDomains\Step;
 use Illuminate\Http\Request;
 
-// REST API v2 files: paths (D48) and the Resources of E34 batch 5 spec §4.1.
+// REST API v2 files: paths (D48), the plan of a change (D49) and the
+// Resources of E34 batch 5 spec §4.1.
 
 it('keeps the path rules of the page for API paths (D48)', function () {
     expect(FilePath::from('public_html/index.php')->absolute('/home/bob'))->toBe('/home/bob/public_html/index.php')
@@ -20,6 +23,28 @@ it('keeps the path rules of the page for API paths (D48)', function () {
     foreach (['../../etc/passwd', '/etc/passwd', 'web/../../carol', "web/\x01", "a\x7fb", str_repeat('a', 256), str_repeat('a/', 2049)] as $bad) {
         expect(fn () => FilePath::from($bad))->toThrow(InvalidFilePath::class);
     }
+});
+
+it('names the paths a plan finished before a failed step', function () {
+    $step = fn (string $name) => new Step($name, 'v-x', []);
+    $plan = new FilePlan([
+        ['path' => FilePath::from('a'), 'steps' => [$step('copy a')]],
+        ['path' => FilePath::from('skipped'), 'steps' => []],
+        ['path' => FilePath::from('b'), 'steps' => [$step('delete target b'), $step('copy b')]],
+        ['path' => FilePath::from('c'), 'steps' => [$step('copy c')]],
+    ], ['a', 'b', 'c']);
+    $relative = fn (array $paths) => array_map(fn (FilePath $p) => $p->relative(), $paths);
+
+    expect(array_map(fn (Step $s) => $s->label, $plan->steps()))->toBe(['copy a', 'delete target b', 'copy b', 'copy c'])
+        ->and($relative($plan->done(0)))->toBe([])
+        ->and($plan->failedPath(0)?->relative())->toBe('a')
+        ->and($relative($plan->done(2)))->toBe(['a'])
+        ->and($plan->failedPath(2)?->relative())->toBe('b')
+        ->and($relative($plan->done(3)))->toBe(['a', 'b'])
+        ->and($plan->failedPath(3)?->relative())->toBe('c')
+        ->and($relative($plan->done(4)))->toBe(['a', 'b', 'c'])
+        ->and($plan->failedPath(4))->toBeNull()
+        ->and($plan->result)->toBe(['a', 'b', 'c']);
 });
 
 it('shapes a file entry in snake case with nulls where a value is not known', function () {

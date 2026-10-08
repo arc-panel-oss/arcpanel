@@ -51,6 +51,9 @@ $app = Application::configure(basePath: dirname(__DIR__))
         // reset/mail is posted by the webmail clients of the server, without
         // a session (MailPasswordController).
         $middleware->validateCsrfTokens(except: ['list/*', 'add/*', 'edit/*', 'download/*', 'generate/*', 'fm', 'fm/*', 'reset/mail']);
+        // File names and file content of REST API v2 keep their white space
+        // (E34 batch 5): "a.txt " is another file than "a.txt".
+        $middleware->trimStrings(except: [fn (Request $request) => $request->is('api/v2/users/*/files', 'api/v2/users/*/files/*')]);
         $middleware->web(append: [
             ResolvePrincipal::class,
             SetLocale::class,

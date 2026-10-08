@@ -3,7 +3,7 @@
     "info": {
         "title": "ArcPanel REST API v2",
         "version": "2",
-        "description": "Resource API of an ArcPanel server, served by the panel at `/api/v2/` (port 8083 by default). Every call acts as the owner of the access key, with the role and the reach that user has in the panel: objects outside its reach answer `404`, refused actions `403`.\n\n**Authentication.** `Authorization: Bearer ACCESS_KEY_ID:SECRET_ACCESS_KEY`, an access key of the panel (Account → Access keys). The API must be on (`API_SYSTEM` 1 for the administrator's keys, 2 for every key) and accept the client's address (`API_ALLOWED_IP`). A key with permission sets may only run their commands. `v2-read` allows every read endpoint and `v2-write` every endpoint; each area also has its own set (`v2-accounts`, `v2-web`, and the sets of later areas). A change that touches another area needs that area's set too. API v1 refuses every set marked for v2. `GET /me` describes the key.\n\n**Pagination.** Every list accepts `limit` (1–1000) and `offset` (0 or more). `meta.total` is the number of items. Without `limit` the list is complete, as before pagination existed.\n\n**Dry run.** Every write accepts `?dry_run=1`: the request is validated, authorized and checked against the permission sets, and the answer lists the commands it would run, without running any.\n\n**Errors.** Every error answers `{\"error\": {\"code\": \"E_…\", \"message\": \"…\"}}`; `code` is one of `ErrorCode`. Validation errors add `fields`, refused permission sets add `commands`, a duplicate the server can point at adds `existing` (the path of that object, or a queued backup or restore task), and a failed step of a change adds `step` and the steps that ran before it (`applied`), which stay applied.\n\n**Headers.** Every answer carries `ArcPanel-Version` and `X-Request-Id` (the client's own value, or a new one). `429` carries `Retry-After`; `201` and `202` carry `Location`. Each key may make 60 requests a minute; ten failed authentications a minute block the client's address for a minute.\n\n**Compatibility.** Within v2 the document only grows: new operations, new optional fields, new enum values. Clients should ignore unknown fields."
+        "description": "Resource API of an ArcPanel server, served by the panel at `/api/v2/` (port 8083 by default). Every call acts as the owner of the access key, with the role and the reach that user has in the panel: objects outside its reach answer `404`, refused actions `403`.\n\n**Authentication.** `Authorization: Bearer ACCESS_KEY_ID:SECRET_ACCESS_KEY`, an access key of the panel (Account → Access keys). The API must be on (`API_SYSTEM` 1 for the administrator's keys, 2 for every key) and accept the client's address (`API_ALLOWED_IP`). A key with permission sets may only run their commands. `v2-read` allows every read endpoint and `v2-write` every endpoint; each area also has its own set (`v2-accounts`, `v2-web`, and the sets of later areas). A change that touches another area needs that area's set too. API v1 refuses every set marked for v2. `GET /me` describes the key.\n\n**Pagination.** Every list accepts `limit` (1–1000) and `offset` (0 or more). `meta.total` is the number of items. Without `limit` the list is complete, as before pagination existed.\n\n**Dry run.** Every write accepts `?dry_run=1`: the request is validated, authorized and checked against the permission sets, and the answer lists the commands it would run, without running any.\n\n**Errors.** Every error answers `{\"error\": {\"code\": \"E_…\", \"message\": \"…\"}}`; `code` is one of `ErrorCode`. Validation errors add `fields`, refused permission sets add `commands`, a duplicate the server can point at adds `existing` (the path of that object, or a queued backup or restore task), and a failed step of a change adds `step` and the steps that ran before it (`applied`), which stay applied. File operations add the names that exist in the destination (`conflicts`) and, when they stop part-way, the path that failed (`path`) and the paths already finished (`done`).\n\n**Headers.** Every answer carries `ArcPanel-Version` and `X-Request-Id` (the client's own value, or a new one). `429` carries `Retry-After`; `201` and `202` carry `Location`. Each key may make 60 requests a minute; ten failed authentications a minute block the client's address for a minute.\n\n**Compatibility.** Within v2 the document only grows: new operations, new optional fields, new enum values. Clients should ignore unknown fields."
     },
     "servers": [
         {
@@ -7681,6 +7681,212 @@
                 }
             }
         },
+        "/users/{user}/files/chmod": {
+            "post": {
+                "operationId": "changeFileMode",
+                "description": "Sets the octal `mode` of `paths`. A folder changes alone, or with\n`recursive` everything inside it too: folders get `mode` and files\n`files_mode` (default `mode`); symbolic links are skipped. The change\nstops at the first failure: `error.path` names it and `error.done`\nlists the paths changed before. A change longer than 600 seconds\nanswers `504` from the web server and may leave part of the work\ndone.",
+                "summary": "Change permissions",
+                "tags": [
+                    "Files"
+                ],
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "dry_run",
+                        "in": "query",
+                        "description": "Validate, authorize and plan the change, and answer with its steps instead of running them.",
+                        "schema": {
+                            "type": "boolean",
+                            "default": false
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/ChangeFileModeRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "With `dry_run`: the planned steps; nothing ran.",
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/DryRun"
+                                }
+                            }
+                        }
+                    },
+                    "204": {
+                        "description": "No content.",
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "409": {
+                        "$ref": "#/components/responses/Conflict"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    },
+                    "503": {
+                        "$ref": "#/components/responses/Unavailable"
+                    }
+                }
+            }
+        },
+        "/users/{user}/files/compress": {
+            "post": {
+                "operationId": "compressFiles",
+                "description": "Zips `paths`, entries of one folder, into the new archive `name` in\nthat folder; an archive that exists answers `409` `E_EXISTS` with\n`conflicts`. Symbolic links are stored as links. Answers the\narchive's entry. Compressing longer than 600 seconds answers `504`\nfrom the web server and may leave the archive behind.",
+                "summary": "Compress into a zip archive",
+                "tags": [
+                    "Files"
+                ],
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "dry_run",
+                        "in": "query",
+                        "description": "Validate, authorize and plan the change, and answer with its steps instead of running them.",
+                        "schema": {
+                            "type": "boolean",
+                            "default": false
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/CompressFilesRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "With `dry_run`: the planned steps; nothing ran.",
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/DryRun"
+                                }
+                            }
+                        }
+                    },
+                    "201": {
+                        "description": "`FileEntry`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/FileEntry"
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            },
+                            "Location": {
+                                "$ref": "#/components/headers/Location"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "409": {
+                        "$ref": "#/components/responses/Conflict"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    },
+                    "503": {
+                        "$ref": "#/components/responses/Unavailable"
+                    }
+                }
+            }
+        },
         "/users/{user}/files/content": {
             "get": {
                 "operationId": "readFile",
@@ -7755,6 +7961,541 @@
                     },
                     "500": {
                         "$ref": "#/components/responses/ServerError"
+                    }
+                }
+            },
+            "put": {
+                "operationId": "saveFile",
+                "description": "Writes `content` over the file at `path`, or creates it when `hash`\nis null. `hash` is the hash of the version read: when the file\nchanged since, nothing is written and the answer is `409` `E_INUSE`;\nan existing file with a null `hash` answers `409` `E_EXISTS`. The\nfile keeps its mode, owner and the line endings sent. Content above\n2 MiB answers `413` `E_LIMIT`, a full disk quota `422` `E_LIMIT`, too\nlittle space in the panel's staging folder `507` `E_DISK`.",
+                "summary": "Save a text file",
+                "tags": [
+                    "Files"
+                ],
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "dry_run",
+                        "in": "query",
+                        "description": "Validate, authorize and plan the change, and answer with its steps instead of running them.",
+                        "schema": {
+                            "type": "boolean",
+                            "default": false
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/SaveFileRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "`FileContent`; with `dry_run`, the planned steps.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "oneOf": [
+                                        {
+                                            "type": "object",
+                                            "properties": {
+                                                "data": {
+                                                    "$ref": "#/components/schemas/FileContent"
+                                                }
+                                            },
+                                            "required": [
+                                                "data"
+                                            ]
+                                        },
+                                        {
+                                            "$ref": "#/components/schemas/DryRun"
+                                        }
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "409": {
+                        "$ref": "#/components/responses/Conflict"
+                    },
+                    "413": {
+                        "$ref": "#/components/responses/TooLarge"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    },
+                    "503": {
+                        "$ref": "#/components/responses/Unavailable"
+                    },
+                    "507": {
+                        "$ref": "#/components/responses/InsufficientStorage"
+                    }
+                }
+            }
+        },
+        "/users/{user}/files/copy": {
+            "post": {
+                "operationId": "copyFiles",
+                "description": "Copies `paths` into the folder `destination`. A name that exists\nthere stops the copy before anything changes, with `409` `E_EXISTS`\nand `conflicts`, unless `on_conflict` says otherwise; within its own\nfolder a copy always gets a free name. The copy stops at the first\nfailure: `error.path` names it and `error.done` lists the paths\ncopied before. A copy longer than 600 seconds answers `504` from the\nweb server and may leave part of the work done.",
+                "summary": "Copy files and folders",
+                "tags": [
+                    "Files"
+                ],
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "dry_run",
+                        "in": "query",
+                        "description": "Validate, authorize and plan the change, and answer with its steps instead of running them.",
+                        "schema": {
+                            "type": "boolean",
+                            "default": false
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/TransferFilesRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "The folder and the names created in it; with `dry_run`, the planned steps.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "oneOf": [
+                                        {
+                                            "type": "object",
+                                            "properties": {
+                                                "data": {
+                                                    "type": "object",
+                                                    "properties": {
+                                                        "destination": {
+                                                            "type": "string",
+                                                            "description": "the folder, relative to the home directory"
+                                                        },
+                                                        "names": {
+                                                            "type": "array",
+                                                            "description": "the names created in the folder, in the order of `paths`; skipped entries are left out",
+                                                            "items": {
+                                                                "type": "string"
+                                                            }
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "destination",
+                                                        "names"
+                                                    ]
+                                                }
+                                            },
+                                            "required": [
+                                                "data"
+                                            ]
+                                        },
+                                        {
+                                            "$ref": "#/components/schemas/DryRun"
+                                        }
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "409": {
+                        "$ref": "#/components/responses/Conflict"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    },
+                    "503": {
+                        "$ref": "#/components/responses/Unavailable"
+                    }
+                }
+            }
+        },
+        "/users/{user}/files/delete": {
+            "post": {
+                "operationId": "deleteFiles",
+                "description": "Deletes `paths`, folders with their content; there is no trash. The\ndelete stops at the first failure: `error.path` names it and\n`error.done` lists the paths deleted before. A delete longer than 600\nseconds answers `504` from the web server and may leave part of the\nwork done.",
+                "summary": "Delete files and folders",
+                "tags": [
+                    "Files"
+                ],
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "dry_run",
+                        "in": "query",
+                        "description": "Validate, authorize and plan the change, and answer with its steps instead of running them.",
+                        "schema": {
+                            "type": "boolean",
+                            "default": false
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/DeleteFilesRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "With `dry_run`: the planned steps; nothing ran.",
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/DryRun"
+                                }
+                            }
+                        }
+                    },
+                    "204": {
+                        "description": "No content.",
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "409": {
+                        "$ref": "#/components/responses/Conflict"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    },
+                    "503": {
+                        "$ref": "#/components/responses/Unavailable"
+                    }
+                }
+            }
+        },
+        "/users/{user}/files/directories": {
+            "post": {
+                "operationId": "createDirectory",
+                "description": "A new folder `name` in the folder `path`; a name that exists answers\n`409` `E_EXISTS` with `conflicts`.",
+                "summary": "Create a folder",
+                "tags": [
+                    "Files"
+                ],
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "dry_run",
+                        "in": "query",
+                        "description": "Validate, authorize and plan the change, and answer with its steps instead of running them.",
+                        "schema": {
+                            "type": "boolean",
+                            "default": false
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/CreateFileRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "With `dry_run`: the planned steps; nothing ran.",
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/DryRun"
+                                }
+                            }
+                        }
+                    },
+                    "201": {
+                        "description": "`FileEntry`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/FileEntry"
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            },
+                            "Location": {
+                                "$ref": "#/components/headers/Location"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "409": {
+                        "$ref": "#/components/responses/Conflict"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    },
+                    "503": {
+                        "$ref": "#/components/responses/Unavailable"
+                    }
+                }
+            }
+        },
+        "/users/{user}/files/extract": {
+            "post": {
+                "operationId": "extractArchive",
+                "description": "Unpacks the archive `path` (zip, tar.gz, tgz, tar.bz2, tbz, tar.zst\nor 7z) into `destination`, a folder that must not exist yet: the plan\ncreates it, so nothing is overwritten. An existing `destination`\nanswers `409` `E_EXISTS` with `conflicts`; single-file `.gz`, `.bz2`\nand `.zst` are refused. Answers the new folder's entry. Extracting\nlonger than 600 seconds answers `504` from the web server and may\nleave part of the content behind.",
+                "summary": "Extract an archive",
+                "tags": [
+                    "Files"
+                ],
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "dry_run",
+                        "in": "query",
+                        "description": "Validate, authorize and plan the change, and answer with its steps instead of running them.",
+                        "schema": {
+                            "type": "boolean",
+                            "default": false
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/ExtractArchiveRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "With `dry_run`: the planned steps; nothing ran.",
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/DryRun"
+                                }
+                            }
+                        }
+                    },
+                    "201": {
+                        "description": "`FileEntry`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/FileEntry"
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            },
+                            "Location": {
+                                "$ref": "#/components/headers/Location"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "409": {
+                        "$ref": "#/components/responses/Conflict"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    },
+                    "503": {
+                        "$ref": "#/components/responses/Unavailable"
                     }
                 }
             }
@@ -7832,6 +8573,219 @@
                     },
                     "500": {
                         "$ref": "#/components/responses/ServerError"
+                    }
+                }
+            }
+        },
+        "/users/{user}/files/move": {
+            "post": {
+                "operationId": "moveFiles",
+                "description": "Moves `paths` into the folder `destination`, with the conflict rules\nof copyFiles; an entry already in `destination` stays where it is.\nThe move stops at the first failure: `error.path` names it and\n`error.done` lists the paths moved before. A move longer than 600\nseconds answers `504` from the web server and may leave part of the\nwork done.",
+                "summary": "Move files and folders",
+                "tags": [
+                    "Files"
+                ],
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "dry_run",
+                        "in": "query",
+                        "description": "Validate, authorize and plan the change, and answer with its steps instead of running them.",
+                        "schema": {
+                            "type": "boolean",
+                            "default": false
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/TransferFilesRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "The folder and the names created in it; with `dry_run`, the planned steps.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "oneOf": [
+                                        {
+                                            "type": "object",
+                                            "properties": {
+                                                "data": {
+                                                    "type": "object",
+                                                    "properties": {
+                                                        "destination": {
+                                                            "type": "string",
+                                                            "description": "the folder, relative to the home directory"
+                                                        },
+                                                        "names": {
+                                                            "type": "array",
+                                                            "description": "the names created in the folder, in the order of `paths`; skipped entries are left out",
+                                                            "items": {
+                                                                "type": "string"
+                                                            }
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "destination",
+                                                        "names"
+                                                    ]
+                                                }
+                                            },
+                                            "required": [
+                                                "data"
+                                            ]
+                                        },
+                                        {
+                                            "$ref": "#/components/schemas/DryRun"
+                                        }
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "409": {
+                        "$ref": "#/components/responses/Conflict"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    },
+                    "503": {
+                        "$ref": "#/components/responses/Unavailable"
+                    }
+                }
+            }
+        },
+        "/users/{user}/files/rename": {
+            "post": {
+                "operationId": "renameFile",
+                "description": "A new name in the same folder; a name that exists answers `409`\n`E_EXISTS` with `conflicts`. Answers the entry at its new path.",
+                "summary": "Rename a file or folder",
+                "tags": [
+                    "Files"
+                ],
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "dry_run",
+                        "in": "query",
+                        "description": "Validate, authorize and plan the change, and answer with its steps instead of running them.",
+                        "schema": {
+                            "type": "boolean",
+                            "default": false
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/RenameFileRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "`FileEntry`; with `dry_run`, the planned steps.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "oneOf": [
+                                        {
+                                            "type": "object",
+                                            "properties": {
+                                                "data": {
+                                                    "$ref": "#/components/schemas/FileEntry"
+                                                }
+                                            },
+                                            "required": [
+                                                "data"
+                                            ]
+                                        },
+                                        {
+                                            "$ref": "#/components/schemas/DryRun"
+                                        }
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "409": {
+                        "$ref": "#/components/responses/Conflict"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    },
+                    "503": {
+                        "$ref": "#/components/responses/Unavailable"
                     }
                 }
             }
@@ -8018,6 +8972,118 @@
                     },
                     "500": {
                         "$ref": "#/components/responses/ServerError"
+                    }
+                }
+            }
+        },
+        "/users/{user}/files/touch": {
+            "post": {
+                "operationId": "createFile",
+                "description": "A new empty file `name` in the folder `path`; a name that exists\nanswers `409` `E_EXISTS` with `conflicts`.",
+                "summary": "Create an empty file",
+                "tags": [
+                    "Files"
+                ],
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "dry_run",
+                        "in": "query",
+                        "description": "Validate, authorize and plan the change, and answer with its steps instead of running them.",
+                        "schema": {
+                            "type": "boolean",
+                            "default": false
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/CreateFileRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "With `dry_run`: the planned steps; nothing ran.",
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/DryRun"
+                                }
+                            }
+                        }
+                    },
+                    "201": {
+                        "description": "`FileEntry`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/FileEntry"
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            },
+                            "Location": {
+                                "$ref": "#/components/headers/Location"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "409": {
+                        "$ref": "#/components/responses/Conflict"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    },
+                    "503": {
+                        "$ref": "#/components/responses/Unavailable"
                     }
                 }
             }
@@ -16415,6 +17481,44 @@
                 ],
                 "title": "ChangeDatabasePasswordRequest"
             },
+            "ChangeFileModeRequest": {
+                "type": "object",
+                "description": "Body of `changeFileMode` (E34 batch 5 spec §4.2).",
+                "properties": {
+                    "paths": {
+                        "type": "array",
+                        "description": "Entries relative to the home directory.",
+                        "items": {
+                            "type": "string"
+                        },
+                        "minItems": 1,
+                        "maxItems": 1000,
+                        "uniqueItems": true
+                    },
+                    "mode": {
+                        "type": "string",
+                        "description": "Octal mode, e.g. `0644` or `755`.",
+                        "pattern": "^[0-7]?[0-7]{3}$"
+                    },
+                    "files_mode": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "With `recursive`: the mode of the files inside a folder (default `mode`).",
+                        "pattern": "^[0-7]?[0-7]{3}$"
+                    },
+                    "recursive": {
+                        "type": "boolean",
+                        "description": "A folder: change everything inside too (folders get `mode`, files `files_mode`; symbolic links are skipped). Without it only the folder itself changes."
+                    }
+                },
+                "required": [
+                    "paths",
+                    "mode"
+                ],
+                "title": "ChangeFileModeRequest"
+            },
             "ChangeMailAccountPasswordRequest": {
                 "type": "object",
                 "description": "PUT /users/{user}/mail-domains/{domain}/accounts/{account}/password.",
@@ -16442,6 +17546,33 @@
                 ],
                 "title": "ClosePortRuleRequest"
             },
+            "CompressFilesRequest": {
+                "type": "object",
+                "description": "Body of `compressFiles` (E34 batch 5 spec §4.2).",
+                "properties": {
+                    "paths": {
+                        "type": "array",
+                        "description": "Entries of one folder, relative to the home directory.",
+                        "items": {
+                            "type": "string"
+                        },
+                        "minItems": 1,
+                        "maxItems": 1000,
+                        "uniqueItems": true
+                    },
+                    "name": {
+                        "type": "string",
+                        "description": "Name of the new zip archive in that folder, ending in `.zip`.",
+                        "pattern": "\\.zip$",
+                        "maxLength": 255
+                    }
+                },
+                "required": [
+                    "paths",
+                    "name"
+                ],
+                "title": "CompressFilesRequest"
+            },
             "CopyPackageRequest": {
                 "type": "object",
                 "description": "POST /packages/{package}/copy",
@@ -16457,6 +17588,28 @@
                     "name"
                 ],
                 "title": "CopyPackageRequest"
+            },
+            "CreateFileRequest": {
+                "type": "object",
+                "description": "Body of `createDirectory` and `createFile` (E34 batch 5 spec §4.2).",
+                "properties": {
+                    "path": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "Parent folder relative to the home directory; the home directory when left out."
+                    },
+                    "name": {
+                        "type": "string",
+                        "description": "Name of the new entry: no slash, not `.` or `..`.",
+                        "maxLength": 255
+                    }
+                },
+                "required": [
+                    "name"
+                ],
+                "title": "CreateFileRequest"
             },
             "CronJob": {
                 "type": "object",
@@ -16546,6 +17699,26 @@
                     "created_at"
                 ],
                 "title": "Database"
+            },
+            "DeleteFilesRequest": {
+                "type": "object",
+                "description": "Body of `deleteFiles` (E34 batch 5 spec §4.2).",
+                "properties": {
+                    "paths": {
+                        "type": "array",
+                        "description": "Entries relative to the home directory; a folder is deleted with its content.",
+                        "items": {
+                            "type": "string"
+                        },
+                        "minItems": 1,
+                        "maxItems": 1000,
+                        "uniqueItems": true
+                    }
+                },
+                "required": [
+                    "paths"
+                ],
+                "title": "DeleteFilesRequest"
             },
             "DnsRecord": {
                 "type": "object",
@@ -17486,6 +18659,27 @@
                                 "items": {
                                     "$ref": "#/components/schemas/PlanStep"
                                 }
+                            },
+                            "conflicts": {
+                                "type": "array",
+                                "description": "E_EXISTS of a file operation: the names that exist in the destination.",
+                                "items": {
+                                    "type": "string"
+                                }
+                            },
+                            "path": {
+                                "type": [
+                                    "string",
+                                    "null"
+                                ],
+                                "description": "A failed file operation: the path (relative to the home directory) whose step failed."
+                            },
+                            "done": {
+                                "type": "array",
+                                "description": "A failed file operation over several paths: the paths finished before the failure; they stay changed.",
+                                "items": {
+                                    "type": "string"
+                                }
                             }
                         },
                         "required": [
@@ -17530,6 +18724,26 @@
                     "E_UPDATE",
                     "E_RESTART"
                 ]
+            },
+            "ExtractArchiveRequest": {
+                "type": "object",
+                "description": "Body of `extractArchive` (E34 batch 5 spec §4.2, D52).",
+                "properties": {
+                    "path": {
+                        "type": "string",
+                        "description": "Archive relative to the home directory: `.zip`, `.tar.gz`, `.tgz`, `.tar.bz2`, `.tbz`, `.tar.zst` or `.7z`.",
+                        "pattern": "\\.(zip|tar\\.gz|tgz|tar\\.bz2|tbz|tar\\.zst|7z)$"
+                    },
+                    "destination": {
+                        "type": "string",
+                        "description": "A folder that does not exist yet, relative to the home directory; it is created with its missing parents."
+                    }
+                },
+                "required": [
+                    "path",
+                    "destination"
+                ],
+                "title": "ExtractArchiveRequest"
             },
             "FileContent": {
                 "type": "object",
@@ -19325,6 +20539,26 @@
                 ],
                 "title": "RegisterPortRequest"
             },
+            "RenameFileRequest": {
+                "type": "object",
+                "description": "Body of `renameFile` (E34 batch 5 spec §4.2).",
+                "properties": {
+                    "path": {
+                        "type": "string",
+                        "description": "Entry relative to the home directory."
+                    },
+                    "name": {
+                        "type": "string",
+                        "description": "New name in the same folder: no slash, not `.` or `..`.",
+                        "maxLength": 255
+                    }
+                },
+                "required": [
+                    "path",
+                    "name"
+                ],
+                "title": "RenameFileRequest"
+            },
             "RequestMailLetsEncryptRequest": {
                 "type": "object",
                 "description": "POST /users/{user}/mail-domains/{domain}/letsencrypt.",
@@ -19473,6 +20707,37 @@
                     }
                 },
                 "title": "RestoreSnapshotRequest"
+            },
+            "SaveFileRequest": {
+                "type": "object",
+                "description": "Body of `saveFile` (E34 batch 5 spec §4.2). `content` may span lines; a\nNUL byte is refused, because binary content is out of scope (§8).",
+                "properties": {
+                    "path": {
+                        "type": "string",
+                        "description": "File relative to the home directory."
+                    },
+                    "content": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "The new text, at most 2 MiB as UTF-8 (`413` above). Line endings are written as sent."
+                    },
+                    "hash": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "`hash` of the version read (readFile), or null to create a new file. A file that changed since answers `409` `E_INUSE`.",
+                        "pattern": "^[a-f0-9]{64}$"
+                    }
+                },
+                "required": [
+                    "path",
+                    "content",
+                    "hash"
+                ],
+                "title": "SaveFileRequest"
             },
             "SetBackupExclusionsRequest": {
                 "type": "object",
@@ -20924,6 +22189,44 @@
                 ],
                 "title": "Task"
             },
+            "TransferFilesRequest": {
+                "type": "object",
+                "description": "Body of `copyFiles` and `moveFiles` (E34 batch 5 spec §4.2).",
+                "properties": {
+                    "paths": {
+                        "type": "array",
+                        "description": "Entries relative to the home directory.",
+                        "items": {
+                            "type": "string"
+                        },
+                        "minItems": 1,
+                        "maxItems": 1000,
+                        "uniqueItems": true
+                    },
+                    "destination": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "Folder relative to the home directory; empty or null for the home directory."
+                    },
+                    "on_conflict": {
+                        "type": "string",
+                        "description": "A name that exists in the destination: `fail` (default; `409` with `conflicts`), `skip`, `overwrite` or `rename` (first free \"name (n).ext\").",
+                        "enum": [
+                            "fail",
+                            "skip",
+                            "overwrite",
+                            "rename"
+                        ]
+                    }
+                },
+                "required": [
+                    "paths",
+                    "destination"
+                ],
+                "title": "TransferFilesRequest"
+            },
             "UpdateCronJobRequest": {
                 "type": "object",
                 "description": "PATCH /users/{user}/cron-jobs/{id}. Fields left out keep their value.",
@@ -22274,6 +23577,24 @@
             },
             "Unavailable": {
                 "description": "The service is disabled or the server is too busy (`E_DISABLED`, `E_LA`).",
+                "headers": {
+                    "X-Request-Id": {
+                        "$ref": "#/components/headers/RequestId"
+                    },
+                    "ArcPanel-Version": {
+                        "$ref": "#/components/headers/Version"
+                    }
+                },
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/Error"
+                        }
+                    }
+                }
+            },
+            "InsufficientStorage": {
+                "description": "The panel has too little space to stage the data now (`E_DISK`).",
                 "headers": {
                     "X-Request-Id": {
                         "$ref": "#/components/headers/RequestId"
