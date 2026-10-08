@@ -39,7 +39,7 @@
                             <li>
                                 <span class="ap-tree-who">
                                     <x-ap-icon :name="$record->role()->value === 'reseller' ? 'users' : 'user'" />
-                                    <a href="{{ route('users.show', ['user' => $record->name]) }}"><b>{{ $record->name }}</b></a>
+                                    <a href="{{ $record->name === $self ? route('account.edit') : route('users.show', ['user' => $record->name]) }}"><b>{{ $record->name }}</b></a>
                                     <x-ap-badge :tone="$record->role()->value === 'user' ? null : 'info'">{{ $roleLabels[$record->role()->value] ?? $record->role()->value }}</x-ap-badge>
                                     @if ($record->suspended())<x-ap-badge tone="danger">{{ __('Suspended') }}</x-ap-badge>@endif
                                 </span>

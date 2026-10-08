@@ -69,3 +69,14 @@ teardown_file() {
         assert_failure 2
     done
 }
+
+@test "v-log-user-login records IPv6 addresses (sign-ins over ::1 or IPv6 were lost)" {
+    run v-log-user-login "$LOGUSER" '2001:db8::7' success 0123abcd 'bats ipv6'
+    assert_success
+    run jq -r '[.[]] | last | "\(.IP) \(.STATUS) \(.SESSION)"' <<< "$(v-list-user-auth-log "$LOGUSER" json)"
+    assert_output '2001:db8::7 success 0123abcd'
+    run v-log-user-login "$LOGUSER" '::1' success 0123abce 'bats ipv6'
+    assert_success
+    run v-log-user-login "$LOGUSER" 'not-an-ip' success 0123abcf 'bats'
+    assert_failure 2
+}

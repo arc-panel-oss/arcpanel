@@ -252,7 +252,9 @@ final class DashboardService
     public function expiringCertificates(int $withinDays = 14, ?array $users = null): array
     {
         $expiring = [];
-        foreach ($users ?? $this->users->names() as $user) {
+        // Accounts without web domains need no v-list-web-domains call
+        $users ??= array_keys(array_filter($this->users->all(), fn ($u) => (int) ($u['U_WEB_DOMAINS'] ?? 1) > 0));
+        foreach ($users as $user) {
             foreach ($this->web->forUser($user) as $record) {
                 if (! $record->ssl) {
                     continue;

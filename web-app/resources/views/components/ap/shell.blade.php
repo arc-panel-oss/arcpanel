@@ -49,6 +49,11 @@
                     <span class="subtle ap-server-brand">ArcPanel</span>
                 </div>
             </div>
+            {{-- Wide screens: folds the sidebar to its icon rail and back, as the menu button of the top bar --}}
+            <button type="button" class="ap-sidebar-collapse" x-on:click="toggleRail()" aria-controls="sidebar" x-bind:aria-expanded="(!rail).toString()"
+                x-bind:aria-label="rail ? @js(__('Expand sidebar')) : @js(__('Collapse sidebar'))" x-bind:title="rail ? @js(__('Expand sidebar')) : null">
+                <x-ap-icon name="chevron-left" /><span>{{ __('Collapse sidebar') }}</span>
+            </button>
         </aside>
         {{-- Phone drawer: the page behind is dimmed, a tap on it closes the menu --}}
         <div class="ap-sidebar-backdrop" x-show="open" x-cloak x-on:click="close()" aria-hidden="true"></div>
@@ -86,6 +91,9 @@
                     <button type="button" class="ap-search-trigger" x-on:click="show()" x-cloak>
                         <x-ap-icon name="search" size="sm" /><span class="ap-search-label">{{ __('Search or jump to…') }}</span><span class="ap-kbd">Ctrl K</span>
                     </button>
+                    {{-- Moved to the end of .ap-root: inside the top bar, whose backdrop blur makes it the box of fixed
+                         children, the overlay covered only the bar and a click beside the dialog did not close it --}}
+                    <template x-teleport=".ap-root">
                     <div class="ap-overlay ap-overlay-palette" x-show="open" x-cloak x-on:click.self="close()" x-on:keydown="onKeydown($event)">
                         <div class="ap-palette" role="dialog" aria-modal="true" aria-label="{{ __('Search') }}" x-ref="dialog">
                             <div class="ap-palette-input">
@@ -93,7 +101,7 @@
                                 <input type="text" x-model="query" x-on:input="onInput()" autocomplete="off" role="combobox" aria-expanded="true"
                                     aria-controls="ap-palette-results" x-bind:aria-activedescendant="items.length ? 'ap-palette-item-' + active : null"
                                     aria-label="{{ __('Search users, domains, mail and pages') }}" placeholder="{{ __('Search users, domains, mail and pages') }}">
-                                <span class="ap-kbd">Esc</span>
+                                <button type="button" class="ap-kbd ap-palette-close" x-on:click="close()" aria-label="{{ __('Close') }}" title="{{ __('Close') }}">Esc</button>
                             </div>
                             <div class="ap-palette-body" id="ap-palette-results" role="listbox" aria-label="{{ __('Results') }}">
                                 <template x-for="group in groups" x-bind:key="group.label">
@@ -122,6 +130,7 @@
                             </div>
                         </div>
                     </div>
+                    </template>
                 </div>
 
                 @if ($shell['canSwitchUser'])

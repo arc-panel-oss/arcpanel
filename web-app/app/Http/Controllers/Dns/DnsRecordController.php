@@ -32,7 +32,8 @@ final class DnsRecordController extends Controller
         $edit = (string) $request->query('edit', '');
         if ($edit !== '') {
             abort_unless(preg_match('/^\d{1,9}$/', $edit) === 1, 404);
-            $editing = $this->dns->findRecord($user, $domain, $edit);
+            // From the list already read: findRecord() would run v-list-dns-records again
+            $editing = array_find($records, fn ($record) => $record->id === $edit) ?? abort(404);
         }
 
         return view('dns.records', [

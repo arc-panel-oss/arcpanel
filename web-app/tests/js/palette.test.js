@@ -39,6 +39,19 @@ afterEach(() => {
 });
 
 describe('apPalette', () => {
+	it('leaves no focus in the hidden dialog when it was opened from the page', async () => {
+		mount(markup);
+		document.activeElement?.blur();
+
+		key(window, { key: 'k', ctrlKey: true });
+		await tick();
+		expect(document.activeElement.id).toBe('q');
+
+		palette().close();
+		expect(palette().open).toBe(false);
+		expect(document.activeElement).toBe(document.body);
+	});
+
 	it('opens with Ctrl+K or ⌘K, focuses the input and closes on Escape', async () => {
 		mount(markup);
 		document.getElementById('trigger').focus();

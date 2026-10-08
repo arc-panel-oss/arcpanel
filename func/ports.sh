@@ -247,6 +247,18 @@ ports_sum() {
 		END { print total + 0 }'
 }
 
+# The four sums of ports_sum in one pass: "ALL ASSIGNED PUBLIC FREE"
+ports_sums() {
+	awk -F'|' '
+		NF {
+			n = $2 - $1 + 1
+			all += n
+			if ($4 == "") free += n; else assigned += n
+			if ($5 == "yes") public += n
+		}
+		END { print all + 0, assigned + 0, public + 0, free + 0 }'
+}
+
 ports_count() {
 	ports_read "$1" | ports_sum "${2:-all}"
 }

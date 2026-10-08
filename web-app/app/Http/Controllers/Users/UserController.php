@@ -73,6 +73,8 @@ final class UserController extends Controller
             'ownerFilter' => $ownerFilter,
             'resellers' => $isAdmin ? $this->tenancy->resellers() : [],
             'tree' => $isAdmin ? $this->tree($records) : [],
+            // The own account opens the account page: users.show answers 404 for it
+            'self' => $principal->effectiveUser(),
             'rootUser' => $this->config->get('ROOT_USER'),
             'canCreate' => $policy->create($principal),
             'canBulk' => ! $principal->isReadOnly(),

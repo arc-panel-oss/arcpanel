@@ -92,6 +92,10 @@
 	margin-top: auto;
 	padding-top: var(--ap-space-6);
 }
+/* Phones and pages without scripts have no icon rail */
+.ap-sidebar-collapse {
+	display: none;
+}
 .ap-server {
 	display: flex;
 	flex-direction: column;
@@ -142,6 +146,10 @@
 .has-js .ap-topbar .ap-menu-toggle {
 	display: inline-flex;
 }
+/* Fallback controls of pages without scripts (the owner picker's submit) */
+.has-js .ap-no-js {
+	display: none;
+}
 
 .ap-crumbs {
 	display: flex;
@@ -189,6 +197,17 @@
 }
 .ap-search-trigger .ap-kbd {
 	margin-inline-start: auto;
+}
+/* One line at any width: the label is cut, the key cap never wraps */
+.ap-search-label {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+.ap-search-trigger .ap-kbd {
+	flex: none;
+	white-space: nowrap;
 }
 
 .ap-content {
@@ -1446,8 +1465,13 @@
 .ap-tabs {
 	display: flex;
 	gap: var(--ap-space-1);
-	border-bottom: 1px solid var(--ap-border);
+	/* The rule is an inset shadow so the selected tab's bar covers it inside
+	   the scroll box: a border plus a bar at -1px overflowed by one pixel and
+	   put a vertical scroll bar next to the tabs. */
+	box-shadow: inset 0 -1px 0 var(--ap-border);
 	overflow-x: auto;
+	overflow-y: hidden;
+	scrollbar-width: thin;
 }
 .ap-tab {
 	position: relative;
@@ -1473,7 +1497,7 @@
 	content: "";
 	position: absolute;
 	inset-inline: 8px;
-	bottom: -1px;
+	bottom: 0;
 	height: 2px;
 	border-radius: 2px 2px 0 0;
 	background: var(--ap-accent);
@@ -1755,6 +1779,25 @@
 }
 .ap-palette-input input::placeholder {
 	color: var(--ap-fg-subtle);
+}
+/* Touch screens have no keys to hint at; "View all results" stays */
+@media (pointer: coarse) {
+	.ap-palette-foot > span {
+		display: none;
+	}
+}
+/* The Esc key cap beside the input closes the palette when clicked */
+.ap-palette-close {
+	flex: none;
+	cursor: pointer;
+}
+.ap-palette-close:hover {
+	border-color: var(--ap-fg-subtle);
+	color: var(--ap-fg);
+}
+.ap-palette-close:focus-visible {
+	outline: 2px solid var(--ap-accent);
+	outline-offset: 2px;
 }
 .ap-palette-body {
 	display: flex;
@@ -2450,9 +2493,44 @@ a.ap-pick:focus-visible {
 
 /* ---------- Responsive ---------- */
 
-@media (max-width: 1080px) {
+/* Tablets and small laptops: the top bar keeps one row beside the sidebar.
+   The search box and the breadcrumb give way first, then the user's name
+   and the "Switch user" label (the avatar and the icons stay). */
+@media (min-width: 768px) {
+	.ap-topbar {
+		flex-wrap: nowrap;
+	}
 	.ap-search-trigger {
-		width: 220px;
+		flex: 0 1 300px;
+		min-width: 0;
+	}
+	.ap-crumbs {
+		min-width: 0;
+		overflow: hidden;
+	}
+	.ap-crumbs li {
+		white-space: nowrap;
+	}
+}
+@media (min-width: 768px) and (max-width: 1080px) {
+	.ap-topbar {
+		padding-inline: var(--ap-space-4);
+	}
+	.ap-search-trigger {
+		flex: none;
+		width: auto;
+	}
+	.ap-user-btn .who {
+		display: none;
+	}
+	.ap-search-label,
+	.ap-switch-label {
+		position: absolute;
+		width: 1px;
+		height: 1px;
+		overflow: hidden;
+		clip: rect(0 0 0 0);
+		white-space: nowrap;
 	}
 }
 
@@ -2687,6 +2765,14 @@ a.ap-pick:focus-visible {
  * menu button folds it to an icon rail (data-sidebar="rail" on <html>).
  */
 @media (min-width: 768px) {
+	/* Side by side at every width from here: with wrapping, the page dropped
+	   below the sidebar when sidebar and page did not fit (768–1080px) */
+	.ap-shell {
+		flex-wrap: nowrap;
+	}
+	.ap-sidebar {
+		flex-shrink: 0;
+	}
 	.ap-sidebar {
 		position: sticky;
 		top: 0;
@@ -2734,6 +2820,44 @@ a.ap-pick:focus-visible {
 	}
 	[data-sidebar="rail"] .ap-sidebar-foot {
 		display: none;
+	}
+	/* The fold button at the foot of the sidebar (with scripts) */
+	.has-js .ap-sidebar-collapse {
+		display: flex;
+		align-items: center;
+		gap: var(--ap-space-2-5);
+		min-height: 36px;
+		margin-top: var(--ap-space-3);
+		padding: 0 var(--ap-space-2-5);
+		border: 0;
+		border-radius: var(--ap-radius-md);
+		background: none;
+		color: var(--ap-fg-muted);
+		font: 500 var(--ap-text-sm) / 1 var(--ap-font-sans);
+		cursor: pointer;
+	}
+	.has-js .ap-sidebar-collapse:hover {
+		background: var(--ap-surface-hover);
+		color: var(--ap-fg);
+	}
+	[dir="rtl"] .ap-sidebar-collapse .ic {
+		scale: -1 1;
+	}
+	[data-sidebar="rail"] .ap-sidebar-collapse {
+		justify-content: center;
+		margin-top: auto;
+		padding: 0;
+	}
+	[data-sidebar="rail"] .ap-sidebar-collapse .ic {
+		rotate: 180deg;
+	}
+	[data-sidebar="rail"] .ap-sidebar-collapse > span {
+		position: absolute;
+		width: 1px;
+		height: 1px;
+		overflow: hidden;
+		clip: rect(0 0 0 0);
+		white-space: nowrap;
 	}
 }
 
@@ -3396,7 +3520,7 @@ a.ap-pick:focus-visible {
 	content: "";
 	position: absolute;
 	inset-inline: 8px;
-	bottom: -1px;
+	bottom: 0;
 	height: 2px;
 	border-radius: 2px 2px 0 0;
 	background: var(--ap-accent);
@@ -3563,9 +3687,12 @@ a.ap-pick:focus-visible {
 
 /* ---------- File manager (E3, Nocturne files*.html) ---------- */
 
+/* The details column narrows first, and below 1440px it moves under the
+   list: beside the sidebar and the tree, a fixed 300px left the list too
+   narrow for its columns and it scrolled sideways. */
 .ap-fm {
 	display: grid;
-	grid-template-columns: 232px minmax(0, 1fr) 300px;
+	grid-template-columns: 232px minmax(0, 1fr) clamp(240px, 22%, 300px);
 	min-height: 560px;
 }
 .ap-fm.is-wide {
@@ -4076,7 +4203,7 @@ a.ap-pick:focus-visible {
 	white-space: pre-wrap;
 }
 
-@media (max-width: 1180px) {
+@media (max-width: 1440px) {
 	.ap-fm {
 		grid-template-columns: 220px minmax(0, 1fr);
 	}

@@ -1,6 +1,7 @@
 // apRrdGraph: server graphs from `v-export-rrd` (port of rrdCharts.js).
 // chart.js is loaded on demand as a separate chunk.
 import { request } from '../http.js';
+import { __ } from '../i18n.js';
 
 export const PERIODS = ['daily', 'weekly', 'monthly', 'yearly', 'biennially', 'triennially'];
 
@@ -34,6 +35,23 @@ export function chartData(rrd, colours) {
 			borderWidth: 2,
 			borderColor: colours[legendIndex % colours.length],
 		})),
+	};
+}
+
+/**
+ * The load graph: v-update-sys-rrd-la stores the load average times 100, and
+ * the process count would flatten it on a shared axis. The load is scaled
+ * back and the other series get their own axis on the right.
+ */
+export function loadAverage(data) {
+	const [load, ...rest] = data.datasets;
+	if (!load) {
+		return data;
+	}
+	const scaled = (value) => (value === null || value === undefined || value === '' ? value : Number(value) / 100);
+	return {
+		...data,
+		datasets: [{ ...load, data: load.data.map(scaled), yAxisID: 'y' }, ...rest.map((dataset) => ({ ...dataset, yAxisID: 'y1' }))],
 	};
 }
 
@@ -75,7 +93,9 @@ export default function apRrdGraph({ url = '', service = 'la', period = 'daily' 
 					`${this.url}?service=${encodeURIComponent(this.service)}&period=${encodeURIComponent(this.period)}`,
 				);
 				const { Chart } = await import('chart.js/auto');
-				const data = chartData(rrd, [cssVar('--ap-accent'), cssVar('--ap-ok'), cssVar('--ap-warn'), cssVar('--ap-info')]);
+				const series = chartData(rrd, [cssVar('--ap-accent'), cssVar('--ap-ok'), cssVar('--ap-warn'), cssVar('--ap-info')]);
+				const isLoad = this.service === 'la' && series.datasets.length > 1;
+				const data = isLoad ? loadAverage(series) : series;
 				const text = cssVar('--ap-fg-muted');
 				const grid = cssVar('--ap-border');
 				const labels = labelFormat(this.period);
@@ -90,10 +110,22 @@ export default function apRrdGraph({ url = '', service = 'la', period = 'daily' 
 						scales: {
 							x: { ticks: { color: text, maxTicksLimit: 8 }, grid: { color: grid } },
 							y: {
-								title: { display: Boolean(rrd?.unit), text: rrd?.unit ?? '', color: text },
+								title: isLoad
+									? { display: true, text: __('Load Average'), color: text }
+									: { display: Boolean(rrd?.unit), text: rrd?.unit ?? '', color: text },
 								ticks: { color: text },
 								grid: { color: grid },
 							},
+							...(isLoad
+								? {
+										y1: {
+											position: 'right',
+											title: { display: true, text: data.datasets[1].label, color: text },
+											ticks: { color: text, precision: 0 },
+											grid: { drawOnChartArea: false },
+										},
+									}
+								: {}),
 						},
 					},
 				});

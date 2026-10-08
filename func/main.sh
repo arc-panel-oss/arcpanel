@@ -624,8 +624,41 @@ EOPHP
 	eval "$validated_output"
 }
 
+# Fast path of parse_object_kv_list for the lines the v-* commands write:
+# only KEY='value' pairs (no quote in a value, no backslash escapes) separated
+# by blanks. The pairs are checked first and loaded only when the whole line
+# matches, with the reserved-key rules of the PHP parser; any other line
+# returns 1 and goes to the PHP parser. A PHP process per object made lists
+# of records cost ~15 ms a row.
+_parse_object_kv_list_simple() {
+	local LC_ALL=C
+	local __kv_rest __kv_i __kv_key __kv_blank=$' \t'
+	local __kv_re="^[${__kv_blank}]*([A-Za-z][A-Za-z0-9_]*)='([^']*)'([${__kv_blank}]+|\$)"
+	local -a __kv_keys=() __kv_values=()
+	__kv_rest=${*//$'\n'/ }
+	while [[ -n "${__kv_rest//[${__kv_blank}]/}" ]]; do
+		[[ "$__kv_rest" =~ $__kv_re ]] || return 1
+		__kv_key=${BASH_REMATCH[1]}
+		# Keys that would land in this function's own variables go to PHP
+		if [[ "$__kv_key" == __kv_* || "$__kv_key" == LC_ALL ]]; then
+			return 1
+		fi
+		__kv_keys+=("$__kv_key")
+		__kv_values+=("${BASH_REMATCH[2]}")
+		__kv_rest=${__kv_rest:${#BASH_REMATCH[0]}}
+	done
+	for __kv_i in "${!__kv_keys[@]}"; do
+		__kv_key=${__kv_keys[__kv_i]}
+		if [[ " $ARCPANEL_OBJECT_KEY_EXCEPTIONS " != *" $__kv_key "* ]] \
+			&& { [[ " $ARCPANEL_RESERVED_CONF_KEYS " == *" $__kv_key "* ]] || [[ "$__kv_key" == BASH_FUNC_* ]]; }; then
+			continue
+		fi
+		printf -v "$__kv_key" '%s' "${__kv_values[__kv_i]}"
+	done
+}
+
 parse_object_kv_list() {
-	_parse_object_kv_list_php "$@"
+	_parse_object_kv_list_simple "$@" || _parse_object_kv_list_php "$@"
 }
 
 # Check if object is supended

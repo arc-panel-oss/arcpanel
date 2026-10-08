@@ -118,8 +118,12 @@ arc_tpl_meta_json() {
 		version="${BASH_REMATCH[1]}.${BASH_REMATCH[2]}"
 	fi
 	if [ -n "$file" ]; then
+		# Built once per command: two jq processes a template added up on lists
+		if [ -z "${ARC_TPL_CATEGORIES_JSON-}" ]; then
+			ARC_TPL_CATEGORIES_JSON=$(arc_tpl_categories_json)
+		fi
 		entry=$(jq -c --arg name "$name" --arg version "$version" \
-			--argjson cats "$(arc_tpl_categories_json)" "$ARC_TPL_JQ" "$file" 2> /dev/null)
+			--argjson cats "$ARC_TPL_CATEGORIES_JSON" "$ARC_TPL_JQ" "$file" 2> /dev/null)
 		if [ -n "$entry" ]; then
 			echo "$entry"
 			return 0

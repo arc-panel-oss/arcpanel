@@ -20,8 +20,10 @@ vmstat -S m -s
 echo -en "\n---------------------------------------------"
 echo -en "---------------------------------------------\n\n"
 
-# Displaying ram information
-dmidecode -t 17 2> /dev/null
+# Displaying ram information (dmidecode is missing in containers and WSL)
+if command -v dmidecode > /dev/null 2>&1; then
+	dmidecode -t 17 2> /dev/null || true
+fi
 
 #----------------------------------------------------------#
 #                         ArcPanel                         #

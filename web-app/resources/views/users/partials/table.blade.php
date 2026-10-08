@@ -56,6 +56,8 @@
                     <td data-col="user" data-label="{{ __('Username') }}" data-sort-value="{{ $name }}">
                         @if ($can['view'])
                             <a class="mono" href="{{ route('users.show', ['user' => $name]) }}">{{ $name }}</a>
+                        @elseif ($name === ($self ?? null))
+                            <a class="mono" href="{{ route('account.edit') }}" title="{{ __('Account') }}">{{ $name }}</a>
                         @else
                             <span class="mono">{{ $name }}</span>
                         @endif

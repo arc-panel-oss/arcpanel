@@ -5,8 +5,9 @@
 @if ($owners !== null)
     <x-ap-card>
         <form method="get" action="{{ route($route, $params) }}" class="ap-row ap-owner-pick">
-            <x-ap-select name="owner" :label="__('Owner')" :options="array_combine($owners, $owners)" :value="$owner" id="pick-owner" />
-            <x-ap-button type="submit" size="sm">{{ __('Use this owner') }}</x-ap-button>
+            {{-- The page reloads as soon as another owner is chosen; the button is for pages without scripts --}}
+            <x-ap-select name="owner" :label="__('Owner')" :options="array_combine($owners, $owners)" :value="$owner" id="pick-owner" onchange="this.form.requestSubmit()" />
+            <x-ap-button type="submit" size="sm" class="ap-no-js">{{ __('Use this owner') }}</x-ap-button>
         </form>
     </x-ap-card>
 @endif

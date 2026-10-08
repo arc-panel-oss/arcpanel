@@ -74,13 +74,19 @@ tenancy_conf_set() {
 
 # Escape a value for a JSON string
 tenancy_json_escape() {
+	tenancy_json_escape_reply "$1"
+	printf '%s' "$REPLY"
+}
+
+# Same as tenancy_json_escape, into REPLY instead of standard output
+tenancy_json_escape_reply() {
 	local s="$1"
 	s="${s//\\/\\\\}"
 	s="${s//\"/\\\"}"
 	s="${s//$'\t'/\\t}"
 	s="${s//$'\r'/}"
 	s="${s//$'\n'/\\n}"
-	printf '%s' "$s"
+	REPLY=$s
 }
 
 #----------------------------------------------------------#
@@ -161,19 +167,26 @@ tenancy_customers() {
 #                         Packages                         #
 #----------------------------------------------------------#
 
+# Default of a tenancy key of a package (empty when it has none), in REPLY;
+# no subshell, so loops over many keys stay cheap
+tenancy_pkg_default() {
+	case "$1" in
+		USERS | PORTS | DOCKER_APPS) REPLY='0' ;;
+		RESELLER_VISIBLE | NODE | DOCKER) REPLY='no' ;;
+		DOCKER_CPUS | DOCKER_MEMORY) REPLY='unlimited' ;;
+		NODE_VERSIONS | NODE_APPS) REPLY='3' ;;
+		NODE_ALLOWED) REPLY='lts' ;;
+		*) REPLY='' ;;
+	esac
+}
+
 # Tenancy value of a package with its default
 tenancy_pkg_get() {
 	local value
 	value=$(tenancy_conf_get "$(tenancy_package_file "$1")" "$2")
 	if [ -z "$value" ]; then
-		case "$2" in
-			USERS | PORTS) value='0' ;;
-			RESELLER_VISIBLE | NODE | DOCKER) value='no' ;;
-			DOCKER_APPS) value='0' ;;
-			DOCKER_CPUS | DOCKER_MEMORY) value='unlimited' ;;
-			NODE_VERSIONS | NODE_APPS) value='3' ;;
-			NODE_ALLOWED) value='lts' ;;
-		esac
+		tenancy_pkg_default "$2"
+		value=$REPLY
 	fi
 	echo "$value"
 }
@@ -422,26 +435,45 @@ tenancy_user_json() {
 # Fields of v-list-user-packages json plus the tenancy keys
 TENANCY_PACKAGE_JSON_KEYS="WEB_TEMPLATE BACKEND_TEMPLATE PROXY_TEMPLATE DNS_TEMPLATE WEB_DOMAINS WEB_ALIASES DNS_DOMAINS DNS_RECORDS MAIL_DOMAINS MAIL_ACCOUNTS RATE_LIMIT DATABASES CRON_JOBS DISK_QUOTA CPU_QUOTA CPU_QUOTA_PERIOD MEMORY_LIMIT SWAP_LIMIT BANDWIDTH NS SHELL BACKUPS BACKUPS_INCREMENTAL TIME DATE"
 
+# Tenancy keys of tenancy_package_json, in output order
+TENANCY_PACKAGE_TENANCY_KEYS="USERS RESELLER_PACKAGES RESELLER_VISIBLE PORTS NODE NODE_VERSIONS NODE_ALLOWED NODE_APPS DOCKER DOCKER_APPS DOCKER_CPUS DOCKER_MEMORY RESELLER_OWNER"
+
+# The sidecar is read once, in bash, with the semantics of tenancy_conf_get
+# (the first KEY='value' line wins): `v-list-package-tenancy all json` runs on
+# several panel pages, and a subshell per key made it cost ~70 ms a package.
 tenancy_package_json() {
 	(
-		local package="$1" key
+		local package="$1" key line value sep=','
+		local -A sidecar=()
+		local re="^([A-Za-z0-9_]+)='([^']*)"
+		local file
+		file=$(tenancy_package_file "$package")
 		source_conf "$ARCPANEL/data/packages/$package.pkg"
-		printf '    "%s": {\n' "$(tenancy_json_escape "$package")"
+		if [ -f "$file" ]; then
+			while IFS= read -r line || [ -n "$line" ]; do
+				if [[ "$line" =~ $re ]] && [ -z "${sidecar[${BASH_REMATCH[1]}]+set}" ]; then
+					sidecar[${BASH_REMATCH[1]}]=${BASH_REMATCH[2]}
+				fi
+			done < "$file"
+		fi
+		tenancy_json_escape_reply "$package"
+		printf '    "%s": {\n' "$REPLY"
 		for key in $TENANCY_PACKAGE_JSON_KEYS; do
-			printf '        "%s": "%s",\n' "$key" "$(tenancy_json_escape "${!key}")"
+			tenancy_json_escape_reply "${!key}"
+			printf '        "%s": "%s",\n' "$key" "$REPLY"
 		done
-		printf '        "USERS": "%s",\n' "$(tenancy_json_escape "$(tenancy_pkg_get "$package" USERS)")"
-		printf '        "RESELLER_PACKAGES": "%s",\n' "$(tenancy_json_escape "$(tenancy_pkg_get "$package" RESELLER_PACKAGES)")"
-		printf '        "RESELLER_VISIBLE": "%s",\n' "$(tenancy_json_escape "$(tenancy_pkg_get "$package" RESELLER_VISIBLE)")"
-		printf '        "PORTS": "%s",\n' "$(tenancy_json_escape "$(tenancy_pkg_get "$package" PORTS)")"
-		printf '        "NODE": "%s",\n' "$(tenancy_json_escape "$(tenancy_pkg_get "$package" NODE)")"
-		printf '        "NODE_VERSIONS": "%s",\n' "$(tenancy_json_escape "$(tenancy_pkg_get "$package" NODE_VERSIONS)")"
-		printf '        "NODE_ALLOWED": "%s",\n' "$(tenancy_json_escape "$(tenancy_pkg_get "$package" NODE_ALLOWED)")"
-		printf '        "NODE_APPS": "%s",\n' "$(tenancy_json_escape "$(tenancy_pkg_get "$package" NODE_APPS)")"
-		printf '        "DOCKER": "%s",\n' "$(tenancy_json_escape "$(tenancy_pkg_get "$package" DOCKER)")"
-		printf '        "DOCKER_APPS": "%s",\n' "$(tenancy_json_escape "$(tenancy_pkg_get "$package" DOCKER_APPS)")"
-		printf '        "DOCKER_CPUS": "%s",\n' "$(tenancy_json_escape "$(tenancy_pkg_get "$package" DOCKER_CPUS)")"
-		printf '        "DOCKER_MEMORY": "%s",\n' "$(tenancy_json_escape "$(tenancy_pkg_get "$package" DOCKER_MEMORY)")"
-		printf '        "RESELLER_OWNER": "%s"\n    }' "$(tenancy_json_escape "$(tenancy_pkg_get "$package" RESELLER_OWNER)")"
+		for key in $TENANCY_PACKAGE_TENANCY_KEYS; do
+			value=${sidecar[$key]-}
+			if [ -z "$value" ]; then
+				tenancy_pkg_default "$key"
+				value=$REPLY
+			fi
+			tenancy_json_escape_reply "$value"
+			if [ "$key" = RESELLER_OWNER ]; then
+				sep=''
+			fi
+			printf '        "%s": "%s"%s\n' "$key" "$REPLY" "$sep"
+		done
+		printf '    }'
 	)
 }

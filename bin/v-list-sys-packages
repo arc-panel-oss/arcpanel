@@ -43,11 +43,15 @@ esac
 #                       Action                             #
 #----------------------------------------------------------#
 
+# The release and the packages of each slug are read once: the checks of an
+# entry asked for them several times each (one subshell and one jq a time)
+ARC_SYS_PACKAGES_RELEASE=${ARC_SYS_PACKAGES_RELEASE:-$(sp_release)}
 upgradable=$(sp_upgradable)
 map=$(sp_domain_runtimes)
 entries=$(
 	for slug in $(sp_slugs); do
 		if [ -z "$(sp_manifest_errors "$(sp_manifest "$slug")" "$slug")" ]; then
+			sp_remember_packages "$slug"
 			sp_entry_json "$slug" "$upgradable" "$map"
 		fi
 	done | jq -sc .

@@ -31,21 +31,22 @@ source $ARCPANEL/func/ports.sh
 source_conf "$ARCPANEL/conf/arcpanel.conf"
 
 users_json() {
-	local sep='' user records tree_total tree_used
+	local sep='' user records tree_total tree_used role all assigned public free
 	while read -r user; do
 		[ -n "$user" ] || continue
 		records=$(ports_read "$user")
+		role=$(tenancy_role "$user")
 		tree_total=''
 		tree_used=''
-		if tenancy_is_reseller "$user"; then
+		if [ "$role" = 'reseller' ]; then
 			tree_total=$(ports_tree_total "$user")
 			tree_used=$(ports_tree_used "$user")
 		fi
+		read -r all assigned public free <<< "$(printf '%s\n' "$records" | ports_sums)"
 		printf '%s        "%s": {"OWNER": "%s", "ROLE": "%s", "SUSPENDED": "%s", "LIMIT": "%s", "ALLOCATED": "%s", "ASSIGNED": "%s", "PUBLIC": "%s", "FREE": "%s", "TREE_TOTAL": "%s", "TREE_USED": "%s"}' \
 			"$sep" "$(ports_json_escape "$user")" "$(ports_json_escape "$(tenancy_get_owner "$user")")" \
-			"$(tenancy_role "$user")" "$(tenancy_user_value "$user" SUSPENDED)" "$(ports_limit "$user")" \
-			"$(printf '%s\n' "$records" | ports_sum all)" "$(printf '%s\n' "$records" | ports_sum assigned)" \
-			"$(printf '%s\n' "$records" | ports_sum public)" "$(printf '%s\n' "$records" | ports_sum free)" \
+			"$role" "$(tenancy_user_value "$user" SUSPENDED)" "$(ports_limit "$user")" \
+			"$all" "$assigned" "$public" "$free" \
 			"$tree_total" "$tree_used"
 		sep=$',\n'
 	done < <(tenancy_all_users)
@@ -53,10 +54,12 @@ users_json() {
 }
 
 sockets_json() {
-	local sep='' proto port scope uid
+	local sep='' proto port scope uid start end
+	start=$(ports_range_start)
+	end=$(ports_range_end)
 	while IFS='|' read -r proto port scope uid; do
 		[ -n "$port" ] || continue
-		if [ "$port" -lt "$(ports_range_start)" ] || [ "$port" -gt "$(ports_range_end)" ]; then
+		if [ "$port" -lt "$start" ] || [ "$port" -gt "$end" ]; then
 			continue
 		fi
 		printf '%s        {"PROTO": "%s", "PORT": "%s", "SCOPE": "%s", "UID": "%s", "ACCOUNT": "%s"}' \

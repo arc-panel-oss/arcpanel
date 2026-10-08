@@ -53,7 +53,7 @@ final class FilePageController extends Controller
         'This file is too large to edit; download it instead.', 'This folder is empty.',
         'This link points outside the home directory and cannot be opened.', 'This name is not valid UTF-8; rename it over SSH or FTP.',
         'Unsaved changes', 'Up one folder', 'Upload', 'Upload a folder', 'Upload files', 'Upload progress', 'Uploaded', 'Uploaded as %s', 'Uploads',
-        'Video', 'View', 'Waiting', 'Who', 'Wrap lines', 'Write', 'You cannot change this folder.', 'Your changes to %s are not saved.',
+        'Video', 'View', 'Waiting', 'Who', 'Wrap lines', 'Write', 'You cannot change this folder.', 'You cannot open this folder.', 'Your changes to %s are not saved.',
     ];
 
     public function __construct(

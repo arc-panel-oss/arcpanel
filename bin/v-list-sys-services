@@ -21,6 +21,17 @@ source $ARCPANEL/func/main.sh
 # load config file
 source_conf "$ARCPANEL/conf/arcpanel.conf"
 
+# Load the keys of one row of $data. The rows are built below from service
+# names and numbers (no quotes in the values), so a bash regex reads them
+# without the PHP parser of parse_object_kv_list, which costs a process a row.
+load_row() {
+	local rest="$1" re="^ *([A-Z_]+)='([^']*)'(.*)$"
+	while [[ "$rest" =~ $re ]]; do
+		printf -v "${BASH_REMATCH[1]}" '%s' "${BASH_REMATCH[2]}"
+		rest=${BASH_REMATCH[3]}
+	done
+}
+
 # JSON list function
 json_list() {
 	IFS=$'\n'
@@ -28,7 +39,7 @@ json_list() {
 	objects=$(echo -e "$data" | grep NAME | wc -l)
 	echo "{"
 	while read str; do
-		parse_object_kv_list "$str"
+		load_row "$str"
 		echo -n '    "'$NAME'": {
         "SYSTEM": "'$SYSTEM'",
         "STATE": "'$STATE'",
@@ -52,7 +63,7 @@ shell_list() {
 	echo "NAME   STATE   CPU   MEM   UPTIME"
 	echo "----   -----   ---   ---   ------"
 	while read str; do
-		parse_object_kv_list "$str"
+		load_row "$str"
 		echo "$NAME $STATE $CPU $MEM $RTIME"
 	done < <(echo -e "$data" | grep NAME)
 }
@@ -61,7 +72,7 @@ shell_list() {
 plain_list() {
 	IFS=$'\n'
 	while read str; do
-		parse_object_kv_list "$str"
+		load_row "$str"
 		echo -e "$NAME\t$SYSTEM\t$STATE\t$CPU\t$MEM\t$RTIME"
 	done < <(echo -e "$data" | grep NAME)
 }
@@ -71,7 +82,7 @@ csv_list() {
 	IFS=$'\n'
 	echo "NAME,SYSTEM,STATE,CPU,MEM,RTIME"
 	while read str; do
-		parse_object_kv_list "$str"
+		load_row "$str"
 		echo "$NAME,\"$SYSTEM\",$STATE,$CPU,$MEM,$RTIME"
 	done < <(echo -e "$data" | grep NAME)
 }

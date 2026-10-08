@@ -110,6 +110,25 @@ it('throws on a non-zero exit, or returns the result when failure is allowed', f
         ->and($result->exit())->toBe(ExitCode::NotExist);
 });
 
+it('answers v-list-user once until a command changes something', function () {
+    $count = sys_get_temp_dir().'/arc-count-'.bin2hex(random_bytes(4));
+    [$runner] = localRunner([
+        'v-list-user' => "echo x >> {$count}; printf '{\"%s\": {\"N\": \"%s\"}}' \"\$1\" \"\$(wc -l < {$count})\"",
+        'v-list-users' => 'echo "{}"',
+        'v-change-user-shell' => 'true',
+    ]);
+
+    expect($runner->json('v-list-user', ['bob'])['bob']['N'])->toBe('1')
+        ->and($runner->json('v-list-user', ['bob'])['bob']['N'])->toBe('1');
+    $runner->json('v-list-users');
+    expect($runner->json('v-list-user', ['bob'])['bob']['N'])->toBe('1')
+        ->and($runner->json('v-list-user', ['ann'])['ann']['N'])->toBe('2');
+
+    $runner->run('v-change-user-shell', ['bob', 'bash']);
+    expect($runner->json('v-list-user', ['bob'])['bob']['N'])->toBe('3');
+    @unlink($count);
+});
+
 it('never writes a secret to the log', function () {
     $log = memoryLogger();
     [$runner] = localRunner(['v-fail' => 'exit 9'], $log);

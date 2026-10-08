@@ -181,7 +181,11 @@ async function load(next, { push = true, select: pick = null } = {}) {
 			}
 		});
 	} catch (error) {
-		if (request === listing) {
+		if (request === listing && error?.status === 403) {
+			// Folders such as ~/mail or ~/conf belong to the system: the user may
+			// pass through them but not list them
+			api.toast('warn', t('You cannot open this folder.'), error.message);
+		} else if (request === listing) {
 			api.fail(error);
 		}
 	} finally {

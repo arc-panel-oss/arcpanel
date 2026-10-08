@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { chartData, labelFormat, PERIODS } from '../../resources/js/alpine/rrd-graph.js';
+import { chartData, labelFormat, loadAverage, PERIODS } from '../../resources/js/alpine/rrd-graph.js';
 import { data, jsonResponse, mount, tick, unmount } from './helpers.js';
 
 const { Chart, charts } = vi.hoisted(() => {
@@ -60,6 +60,18 @@ describe('chartData', () => {
 	});
 });
 
+describe('loadAverage', () => {
+	it('scales the load back from hundredths and moves the processes to the right axis', () => {
+		const la = { meta: { start: 0, step: 1, legend: ['Load', 'Processes'] }, data: [[24, 80], [null, 81], [135, '82']] };
+		const result = loadAverage(chartData(la, ['x', 'y']));
+		expect(result.datasets.map((d) => [d.label, d.data, d.yAxisID])).toEqual([
+			['Load', [0.24, null, 1.35], 'y'],
+			['Processes', [80, 81, '82'], 'y1'],
+		]);
+		expect(loadAverage({ labels: [], datasets: [] })).toEqual({ labels: [], datasets: [] });
+	});
+});
+
 describe('apRrdGraph', () => {
 	it('loads the daily graph and draws it on the canvas', async () => {
 		mount(markup);
@@ -69,7 +81,10 @@ describe('apRrdGraph', () => {
 		expect(charts[0].canvas).toBe(document.querySelector('canvas'));
 		expect(charts[0].config.type).toBe('line');
 		expect(charts[0].config.data.datasets).toHaveLength(2);
-		expect(charts[0].config.options.scales.y.title.text).toBe('Points');
+		// The load graph names its axes instead of the RRD unit "Points"
+		expect(charts[0].config.options.scales.y.title.text).toBe('Load Average');
+		expect(charts[0].config.options.scales.y1.title.text).toBe('5 min');
+		expect(charts[0].config.data.datasets[0].data.map((v) => Number(v.toFixed(4)))).toEqual([0.005, 0.007]);
 		expect(data(document.getElementById('graph')).loading).toBe(false);
 	});
 

@@ -128,9 +128,24 @@ sp_release() {
 	)
 }
 
+# Packages of SLUG by slug, filled by sp_remember_packages: a list answers
+# the status, version and upgrade checks of a slug from one jq run
+declare -gA SP_PACKAGES_OF=()
+
+# Read the packages of SLUG once, for the rest of this command
+sp_remember_packages() {
+	SP_PACKAGES_OF[$1]=$(sp_packages "$1")
+}
+
 # Packages of SLUG on this release, one per line; nothing when the release's
 # override is null (not available)
 sp_packages() {
+	if [ -n "${SP_PACKAGES_OF[$1]+set}" ]; then
+		if [ -n "${SP_PACKAGES_OF[$1]}" ]; then
+			printf '%s\n' "${SP_PACKAGES_OF[$1]}"
+		fi
+		return 0
+	fi
 	jq -r --arg r "$(sp_release)" 'if (.os // {}) | has($r) then .os[$r] else .packages end | (. // [])[]' \
 		"$(sp_manifest "$1")"
 }

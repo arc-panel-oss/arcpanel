@@ -52,7 +52,12 @@ export default function apPalette({ url = '', searchUrl = '', delay = 150, minLe
 				return;
 			}
 			this.open = false;
-			this.returnFocus?.focus?.();
+			if (this.returnFocus && this.returnFocus !== document.body) {
+				this.returnFocus.focus?.();
+			} else if (this.$refs.dialog?.contains(document.activeElement)) {
+				// Opened with Ctrl K from the page: focus must not stay in the hidden dialog
+				document.activeElement.blur();
+			}
 			this.returnFocus = null;
 		},
 
