@@ -2,6 +2,7 @@
 
 namespace App\Services\Files;
 
+use App\Auth\Principal;
 use RuntimeException;
 
 /**
@@ -16,6 +17,17 @@ final class FileStaging
     public static function fromConfig(): self
     {
         return new self(rtrim((string) config('arc.files_staging'), '/'));
+    }
+
+    /**
+     * Who owns the upload sessions and download tickets of a request: the
+     * login user on the page, `api:KEY_ID` for a REST API v2 key (E34
+     * batch 5 D50), so another key of the same user cannot use them. A
+     * user name never holds a colon.
+     */
+    public static function owner(Principal $principal): string
+    {
+        return $principal->accessKey !== null ? 'api:'.$principal->accessKey : $principal->loginUser;
     }
 
     public static function token(): string

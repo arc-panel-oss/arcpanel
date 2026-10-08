@@ -9,6 +9,7 @@ use App\Policies\FilePolicy;
 use App\Services\Files\DownloadTickets;
 use App\Services\Files\FilePath;
 use App\Services\Files\FileService;
+use App\Services\Files\FileStaging;
 use App\Services\Files\UploadSessions;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -19,7 +20,7 @@ use Illuminate\Validation\ValidationException;
 /**
  * Uploads in resumable chunks and download tickets of the file manager
  * (E3 spec §6.2, §6.3). Sessions and tickets belong to the login user that
- * created them.
+ * created them (FileStaging::owner()).
  */
 final class FileTransferController extends Controller
 {
@@ -50,7 +51,7 @@ final class FileTransferController extends Controller
             $path->join($relative);
         }
 
-        return response()->json($this->uploads->init($principal->loginUser, $user, [
+        return response()->json($this->uploads->init(FileStaging::owner($principal), $user, [
             'path' => $path,
             'name' => $name,
             'relativePath' => $relative,
@@ -65,7 +66,7 @@ final class FileTransferController extends Controller
         // The request body as a stream (php://input), never read into memory
         $stream = $request->getContent(true);
         try {
-            $received = $this->uploads->putChunk($principal->loginUser, $user, $token, $index, $stream);
+            $received = $this->uploads->putChunk(FileStaging::owner($principal), $user, $token, $index, $stream);
         } finally {
             fclose($stream);
         }
@@ -77,7 +78,7 @@ final class FileTransferController extends Controller
     {
         abort_unless($policy->manage($principal, $user), 403);
         $data = $request->validate(['onConflict' => ['nullable', Rule::in(FileService::CONFLICT_MODES)]]);
-        $result = $this->uploads->finish($principal->loginUser, $user, $token, $data['onConflict'] ?? null);
+        $result = $this->uploads->finish(FileStaging::owner($principal), $user, $token, $data['onConflict'] ?? null);
 
         return response()->json(['path' => $result['path']->relative(), 'name' => $result['name']], 201);
     }
@@ -85,7 +86,7 @@ final class FileTransferController extends Controller
     public function cancel(string $user, string $token, Principal $principal, FilePolicy $policy): JsonResponse
     {
         abort_unless($policy->manage($principal, $user), 403);
-        $this->uploads->cancel($principal->loginUser, $user, $token);
+        $this->uploads->cancel(FileStaging::owner($principal), $user, $token);
 
         return response()->json(['cancelled' => true]);
     }
@@ -102,7 +103,7 @@ final class FileTransferController extends Controller
                 throw ValidationException::withMessages(['paths' => __('Select items of one folder.')]);
             }
         }
-        $ticket = $this->tickets->create($principal->loginUser, $user, $paths);
+        $ticket = $this->tickets->create(FileStaging::owner($principal), $user, $paths);
 
         return response()->json([
             'url' => route('files.download', ['user' => $user, 'ticket' => $ticket['ticket']]),
@@ -116,23 +117,8 @@ final class FileTransferController extends Controller
     public function show(Request $request, string $user, string $ticket, Principal $principal, FilePolicy $policy): Response
     {
         abort_unless($policy->view($principal, $user), 403);
-        $meta = $this->tickets->resolve($principal->loginUser, $user, $ticket);
-        $inline = $request->boolean('inline') && preg_match('#^(image/|video/|audio/|application/pdf$|text/plain$)#', $meta['mime']) === 1;
-        // SVG can carry scripts: never inline
-        if ($meta['mime'] === 'image/svg+xml') {
-            $inline = false;
-        }
-        $fallback = preg_replace('/[^\x20-\x7e]|["\\\\]/', '_', $meta['name']) ?: 'download';
+        $meta = $this->tickets->resolve(FileStaging::owner($principal), $user, $ticket);
 
-        return response('', 200, [
-            'X-Accel-Redirect' => DownloadTickets::ACCEL_PREFIX.$ticket,
-            'Content-Type' => $meta['mime'],
-            'Content-Disposition' => sprintf('%s; filename="%s"; filename*=UTF-8\'\'%s', $inline ? 'inline' : 'attachment', $fallback, rawurlencode($meta['name'])),
-            'X-Content-Type-Options' => 'nosniff',
-            // Browsers refuse to show a PDF in a sandbox; their PDF viewer runs no page scripts
-            'Content-Security-Policy' => "default-src 'none'; img-src 'self'; media-src 'self'; style-src 'unsafe-inline'"
-                .($meta['mime'] === 'application/pdf' ? '' : '; sandbox'),
-            'Cache-Control' => 'private, no-store',
-        ]);
+        return response('', 200, DownloadTickets::headers($ticket, $meta, $request->boolean('inline')));
     }
 }

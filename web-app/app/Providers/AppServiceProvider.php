@@ -100,6 +100,10 @@ class AppServiceProvider extends ServiceProvider
         RateLimiter::for('api-v2', fn (Request $request) => Limit::perMinute(60)->by('api-v2:'.(app()->bound(KeyPermissions::class)
             ? app(KeyPermissions::class)->keyId
             : ClientIp::of($request))));
+        // Upload chunks: 600 a minute per access key instead (E34 batch 5 D50)
+        RateLimiter::for('api-v2-upload', fn (Request $request) => Limit::perMinute(600)->by('api-v2-upload:'.(app()->bound(KeyPermissions::class)
+            ? app(KeyPermissions::class)->keyId
+            : ClientIp::of($request))));
 
         // resources/views/components/ap/NAME.blade.php is used as <x-ap-NAME> (docs/design/05 §5).
         foreach (glob(resource_path('views/components/ap/*.blade.php')) ?: [] as $file) {

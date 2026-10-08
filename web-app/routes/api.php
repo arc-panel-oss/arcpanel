@@ -8,6 +8,7 @@ use App\Http\Controllers\Api\V2\DockerAppController;
 use App\Http\Controllers\Api\V2\DockerCatalogController;
 use App\Http\Controllers\Api\V2\DockerEngineController;
 use App\Http\Controllers\Api\V2\FileController;
+use App\Http\Controllers\Api\V2\FileTransferController;
 use App\Http\Controllers\Api\V2\MailAccountController;
 use App\Http\Controllers\Api\V2\MailDomainController;
 use App\Http\Controllers\Api\V2\MeController;
@@ -253,14 +254,24 @@ Route::middleware('effective-user')->group(function () {
         });
     });
 
-    // Files of a user's home directory (E34 batch 5 spec §4.1, §4.2); FILE_MANAGER off answers 404
+    // Files of a user's home directory (E34 batch 5 spec §4); FILE_MANAGER off answers 404
     Route::middleware('files.enabled')->prefix('/users/{user}/files')->name('files.')->group(function () {
         Route::get('/', [FileController::class, 'index'])->name('index');
         Route::get('/info', [FileController::class, 'info'])->name('info');
         Route::get('/content', [FileController::class, 'read'])->name('content.show');
         Route::get('/search', [FileController::class, 'search'])->name('search');
         Route::get('/size', [FileController::class, 'size'])->name('size');
+        // A download changes nothing: read-only keys may download (D51)
+        Route::post('/download', [FileTransferController::class, 'download'])->name('download');
         Route::middleware('not-readonly')->group(function () {
+            Route::post('/uploads', [FileTransferController::class, 'start'])->name('uploads.store');
+            // Chunks have their own limiter instead of the 60 a minute of every call (D50)
+            Route::put('/uploads/{token}/{index}', [FileTransferController::class, 'chunk'])
+                ->where(['token' => '[a-f0-9]{32}', 'index' => '[0-9]{1,6}'])
+                ->withoutMiddleware('throttle:api-v2')->middleware('throttle:api-v2-upload')
+                ->name('uploads.chunk');
+            Route::post('/uploads/{token}/finish', [FileTransferController::class, 'finish'])->where('token', '[a-f0-9]{32}')->name('uploads.finish');
+            Route::delete('/uploads/{token}', [FileTransferController::class, 'cancel'])->where('token', '[a-f0-9]{32}')->name('uploads.destroy');
             Route::put('/content', [FileController::class, 'save'])->name('content.update');
             Route::post('/directories', [FileController::class, 'createDirectory'])->name('directories.store');
             Route::post('/touch', [FileController::class, 'touch'])->name('touch');

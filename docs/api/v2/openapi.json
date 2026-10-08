@@ -8388,6 +8388,128 @@
                 }
             }
         },
+        "/users/{user}/files/download": {
+            "post": {
+                "operationId": "downloadFiles",
+                "description": "Answers the bytes in this request: one file as it is, a folder or\nseveral entries of one folder as a zip (symbolic links stored as\nlinks). The panel prepares the download with `v-add-fs-download` as\nthe user and arcpanel-nginx sends it (`X-Accel-Redirect`, with range\nrequests). `inline` shows one image, audio or video file, PDF or plain\ntext in the browser; SVG is always an attachment. Too little space in\nthe panel's staging folder answers `507` `E_DISK`. A zip that takes\nlonger than 600 seconds answers `504` from the web server.",
+                "summary": "Download files",
+                "tags": [
+                    "Files"
+                ],
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "dry_run",
+                        "in": "query",
+                        "description": "Validate, authorize and plan the change, and answer with its steps instead of running them.",
+                        "schema": {
+                            "type": "boolean",
+                            "default": false
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/DownloadFilesRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "The file, or a zip of a folder or several entries: an empty body with `X-Accel-Redirect` so nginx serves the bytes (D51); with `dry_run`, the planned steps.",
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            },
+                            "Content-Type": {
+                                "description": "The type of the file; `application/zip` for a zip.",
+                                "schema": {
+                                    "type": "string"
+                                }
+                            },
+                            "Content-Disposition": {
+                                "description": "`attachment`, or `inline` for a file shown in the browser, with an ASCII `filename` and the RFC 5987 `filename*`.",
+                                "schema": {
+                                    "type": "string"
+                                }
+                            },
+                            "Content-Security-Policy": {
+                                "description": "`default-src 'none'` with `sandbox` for anything but a PDF.",
+                                "schema": {
+                                    "type": "string"
+                                }
+                            },
+                            "X-Content-Type-Options": {
+                                "description": "`nosniff`.",
+                                "schema": {
+                                    "type": "string"
+                                }
+                            },
+                            "X-Accel-Redirect": {
+                                "description": "Internal nginx path `/_arc_files/<ticket>` of the prepared download (D51).",
+                                "schema": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "content": {
+                            "application/octet-stream": {
+                                "schema": {
+                                    "type": "string",
+                                    "format": "binary"
+                                }
+                            },
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/DryRun"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "409": {
+                        "$ref": "#/components/responses/Conflict"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    },
+                    "503": {
+                        "$ref": "#/components/responses/Unavailable"
+                    },
+                    "507": {
+                        "$ref": "#/components/responses/InsufficientStorage"
+                    }
+                }
+            }
+        },
         "/users/{user}/files/extract": {
             "post": {
                 "operationId": "extractArchive",
@@ -9084,6 +9206,430 @@
                     },
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
+                    }
+                }
+            }
+        },
+        "/users/{user}/files/uploads": {
+            "post": {
+                "operationId": "startUpload",
+                "description": "Opens an upload session for one file of `size` bytes in the folder\n`path`, or resumes the session of this access key for the same file\n(folder, name, size and `modified_at`): `received` lists the chunks\nit already holds. Send the file in chunks of `chunk_size` bytes with\nuploadChunk, then finishUpload. A session lives 24 hours. Files above\n`FILE_MANAGER_UPLOAD_MAX` answer `413` `E_LIMIT`, a full disk quota\n`422` `E_LIMIT` (when the server enforces quotas), too little space\nin the panel's staging folder `507` `E_DISK`.",
+                "summary": "Start or resume an upload",
+                "tags": [
+                    "Files"
+                ],
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "dry_run",
+                        "in": "query",
+                        "description": "Validate, authorize and plan the change, and answer with its steps instead of running them.",
+                        "schema": {
+                            "type": "boolean",
+                            "default": false
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/StartUploadRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "The session, new or resumed; with `dry_run`, the planned steps of finishUpload.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "oneOf": [
+                                        {
+                                            "type": "object",
+                                            "properties": {
+                                                "data": {
+                                                    "type": "object",
+                                                    "properties": {
+                                                        "token": {
+                                                            "type": "string",
+                                                            "description": "the session's token for uploadChunk, finishUpload and cancelUpload"
+                                                        },
+                                                        "chunk_size": {
+                                                            "type": "integer",
+                                                            "description": "bytes of every chunk but the last"
+                                                        },
+                                                        "chunks": {
+                                                            "type": "integer",
+                                                            "description": "number of chunks, indexes 0 to `chunks` − 1"
+                                                        },
+                                                        "received": {
+                                                            "type": "array",
+                                                            "description": "indexes of the chunks the session already holds",
+                                                            "items": {
+                                                                "type": "integer"
+                                                            }
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "token",
+                                                        "chunk_size",
+                                                        "chunks",
+                                                        "received"
+                                                    ]
+                                                }
+                                            },
+                                            "required": [
+                                                "data"
+                                            ]
+                                        },
+                                        {
+                                            "$ref": "#/components/schemas/DryRun"
+                                        }
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "409": {
+                        "$ref": "#/components/responses/Conflict"
+                    },
+                    "413": {
+                        "$ref": "#/components/responses/TooLarge"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    },
+                    "503": {
+                        "$ref": "#/components/responses/Unavailable"
+                    },
+                    "507": {
+                        "$ref": "#/components/responses/InsufficientStorage"
+                    }
+                }
+            }
+        },
+        "/users/{user}/files/uploads/{token}": {
+            "delete": {
+                "operationId": "cancelUpload",
+                "description": "Ends the session and removes its chunks. Takes no `dry_run`.",
+                "summary": "Cancel an upload",
+                "tags": [
+                    "Files"
+                ],
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "token",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No content.",
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "409": {
+                        "$ref": "#/components/responses/Conflict"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    },
+                    "503": {
+                        "$ref": "#/components/responses/Unavailable"
+                    }
+                }
+            }
+        },
+        "/users/{user}/files/uploads/{token}/finish": {
+            "post": {
+                "operationId": "finishUpload",
+                "description": "Assembles the chunks and writes the file as the user, with mode\n`0644`, creating the folders of `relative_path`. A file that exists\nanswers `409` `E_EXISTS` with `conflicts` unless `on_conflict` says\notherwise; with `skip` the upload is dropped and the answer is `200`\nwith the existing file. All chunks must have arrived (`422`\notherwise). The session ends here, also when the write fails; a full\ndisk quota answers `422` `E_LIMIT`.",
+                "summary": "Finish an upload",
+                "tags": [
+                    "Files"
+                ],
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "token",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "dry_run",
+                        "in": "query",
+                        "description": "Validate, authorize and plan the change, and answer with its steps instead of running them.",
+                        "schema": {
+                            "type": "boolean",
+                            "default": false
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/FinishUploadRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "The existing file when `on_conflict` is `skip` and a file was in the way (nothing was written); with `dry_run`, the planned steps.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "oneOf": [
+                                        {
+                                            "type": "object",
+                                            "properties": {
+                                                "data": {
+                                                    "$ref": "#/components/schemas/FileEntry"
+                                                }
+                                            },
+                                            "required": [
+                                                "data"
+                                            ]
+                                        },
+                                        {
+                                            "$ref": "#/components/schemas/DryRun"
+                                        }
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "201": {
+                        "description": "The uploaded file.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/FileEntry"
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            },
+                            "Location": {
+                                "$ref": "#/components/headers/Location"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "409": {
+                        "$ref": "#/components/responses/Conflict"
+                    },
+                    "413": {
+                        "$ref": "#/components/responses/TooLarge"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    },
+                    "503": {
+                        "$ref": "#/components/responses/Unavailable"
+                    },
+                    "507": {
+                        "$ref": "#/components/responses/InsufficientStorage"
+                    }
+                }
+            }
+        },
+        "/users/{user}/files/uploads/{token}/{index}": {
+            "put": {
+                "operationId": "uploadChunk",
+                "description": "The raw bytes of chunk `index` (from 0) as the request body\n(`application/octet-stream`): exactly `chunk_size` bytes, the last\nchunk the rest of the file. A chunk sent again replaces the one\nstored. Chunks have their own rate limit of 600 requests a minute per\naccess key. Takes no `dry_run`.",
+                "summary": "Upload a chunk",
+                "tags": [
+                    "Files"
+                ],
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "token",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "index",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No content.",
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "409": {
+                        "$ref": "#/components/responses/Conflict"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    },
+                    "503": {
+                        "$ref": "#/components/responses/Unavailable"
+                    },
+                    "507": {
+                        "$ref": "#/components/responses/InsufficientStorage"
+                    }
+                },
+                "requestBody": {
+                    "required": true,
+                    "description": "The bytes of the chunk: `chunk_size` bytes, the last chunk the rest of the file.",
+                    "content": {
+                        "application/octet-stream": {
+                            "schema": {
+                                "type": "string",
+                                "format": "binary"
+                            }
+                        }
                     }
                 }
             }
@@ -18553,6 +19099,30 @@
                 ],
                 "title": "DockerEngine"
             },
+            "DownloadFilesRequest": {
+                "type": "object",
+                "description": "Body of `downloadFiles` (E34 batch 5 spec §4.4).",
+                "properties": {
+                    "paths": {
+                        "type": "array",
+                        "description": "Entries of one folder, relative to the home directory; not the home directory itself. One file is sent as it is, a folder or several entries as a zip.",
+                        "items": {
+                            "type": "string"
+                        },
+                        "minItems": 1,
+                        "maxItems": 1000,
+                        "uniqueItems": true
+                    },
+                    "inline": {
+                        "type": "boolean",
+                        "description": "Show one file in the browser when its type allows it (images, audio, video, PDF, plain text; never SVG). Ignored for a zip."
+                    }
+                },
+                "required": [
+                    "paths"
+                ],
+                "title": "DownloadFilesRequest"
+            },
             "DryRun": {
                 "type": "object",
                 "properties": {
@@ -18938,6 +19508,23 @@
                     "size"
                 ],
                 "title": "FileSearchResult"
+            },
+            "FinishUploadRequest": {
+                "type": "object",
+                "description": "Body of `finishUpload` (E34 batch 5 spec §4.3).",
+                "properties": {
+                    "on_conflict": {
+                        "type": "string",
+                        "description": "A file that exists at the target: `fail` (default; `409` with `conflicts`), `skip` (the upload is dropped), `overwrite` or `rename` (first free \"name (n).ext\").",
+                        "enum": [
+                            "fail",
+                            "skip",
+                            "overwrite",
+                            "rename"
+                        ]
+                    }
+                },
+                "title": "FinishUploadRequest"
             },
             "GivePortsRequest": {
                 "type": "object",
@@ -21219,6 +21806,50 @@
                     "action"
                 ],
                 "title": "StartDockerAppTaskRequest"
+            },
+            "StartUploadRequest": {
+                "type": "object",
+                "description": "Body of `startUpload` (E34 batch 5 spec §4.3).",
+                "properties": {
+                    "path": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "Folder relative to the home directory; the home directory when left out."
+                    },
+                    "name": {
+                        "type": "string",
+                        "description": "Name of the file: no slash, not `.` or `..`.",
+                        "maxLength": 255
+                    },
+                    "size": {
+                        "type": "integer",
+                        "description": "Bytes of the whole file.",
+                        "minimum": 0
+                    },
+                    "relative_path": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "For a file of a folder upload: its path below `path`, ending in `name`; the missing folders are created when the upload finishes.",
+                        "maxLength": 4096
+                    },
+                    "modified_at": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ],
+                        "description": "The file's modification time as the client knows it (for example Unix milliseconds). With the folder, the name and the size it finds the session to resume.",
+                        "minimum": 0
+                    }
+                },
+                "required": [
+                    "name",
+                    "size"
+                ],
+                "title": "StartUploadRequest"
             },
             "StoreCronJobRequest": {
                 "type": "object",

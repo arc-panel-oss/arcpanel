@@ -7,9 +7,11 @@ use Symfony\Component\HttpKernel\Exception\HttpException;
 
 /**
  * Resumable chunked uploads (E3 spec §6.2). A session is a private folder
- * uploads/<token>/ with meta.json and chunks/<index>; it belongs to the login
- * user that started it and lives 24 hours. finish() assembles the chunks and
- * hands the file to v-add-fs-upload, which writes it as the target user.
+ * uploads/<token>/ with meta.json and chunks/<index>; it belongs to the owner
+ * that started it (FileStaging::owner(): the login user on the page, the
+ * access key in REST API v2, E34 batch 5 D50) and lives 24 hours. finish()
+ * assembles the chunks and hands the file to v-add-fs-upload, which writes
+ * it as the target user.
  */
 final class UploadSessions
 {
@@ -47,13 +49,13 @@ final class UploadSessions
      * @param  array{path: FilePath, name: string, relativePath: string, size: int, lastModified: int}  $file
      * @return array{token: string, chunkSize: int, received: list<int>}
      */
-    public function init(string $login, string $user, array $file, int $maxBytes, bool $quotaEnforced): array
+    public function init(string $owner, string $user, array $file, int $maxBytes, bool $quotaEnforced): array
     {
         if ($file['size'] > $maxBytes) {
-            throw new HttpException(413, sprintf(__('Files larger than %s cannot be uploaded.'), self::human($maxBytes)));
+            throw new HttpException(413, self::tooLarge($maxBytes));
         }
         $meta = [
-            'login' => $login,
+            'owner' => $owner,
             'user' => $user,
             'path' => $file['path']->relative(),
             'name' => $file['name'],
@@ -67,12 +69,7 @@ final class UploadSessions
             return ['token' => $existing['token'], 'chunkSize' => (int) $existing['chunkSize'], 'received' => $this->received($existing['token'])];
         }
 
-        if ($quotaEnforced && $this->files->account($user)->exceedsQuota($file['size'])) {
-            throw new UploadRefused('E_DISK', __('Disk quota exceeded.'), 422);
-        }
-        if ($this->staging->freeBytes() < (int) ceil($file['size'] * 1.05)) {
-            throw new UploadRefused('E_DISK', __('The server cannot take this upload now.'), 507);
-        }
+        $this->admit($user, $file['size'], $quotaEnforced);
         if (count($this->tokens()) > 100) {
             $this->gc();
         }
@@ -88,14 +85,35 @@ final class UploadSessions
     }
 
     /**
+     * The checks of a new session: the package's disk quota when quotas are
+     * enforced (422) and free space for the chunks and the assembled file
+     * in the staging tree (507).
+     */
+    public function admit(string $user, int $size, bool $quotaEnforced): void
+    {
+        if ($quotaEnforced && $this->files->account($user)->exceedsQuota($size)) {
+            throw new UploadRefused('E_DISK', __('Disk quota exceeded.'), 422);
+        }
+        if ($this->staging->freeBytes() < (int) ceil($size * 1.05)) {
+            throw new UploadRefused('E_DISK', __('The server cannot take this upload now.'), 507);
+        }
+    }
+
+    /** The message of an upload above FILE_MANAGER_UPLOAD_MAX (413). */
+    public static function tooLarge(int $maxBytes): string
+    {
+        return sprintf(__('Files larger than %s cannot be uploaded.'), self::human($maxBytes));
+    }
+
+    /**
      * Store one chunk from $stream (the request body).
      *
      * @param  resource  $stream
      * @return list<int> indexes received so far
      */
-    public function putChunk(string $login, string $user, string $token, int $index, $stream): array
+    public function putChunk(string $owner, string $user, string $token, int $index, $stream): array
     {
-        $meta = $this->session($login, $user, $token);
+        $meta = $this->session($owner, $user, $token);
         $chunks = (int) $meta['chunks'];
         if ($index < 0 || $index >= $chunks) {
             throw new UploadRefused('E_INVALID', __('Invalid upload chunk.'), 422);
@@ -121,15 +139,15 @@ final class UploadSessions
     }
 
     /**
-     * Assemble and hand off. Without $onConflict an existing destination
-     * answers FileConflict before anything is assembled. The session is
-     * gone afterwards, also when the hand-off fails.
+     * Where a complete session goes: its folder (with the folders of a
+     * folder upload when nested), the file's path and the staged file the
+     * hand-off reads. An incomplete session answers 422.
      *
-     * @return array{path: FilePath, name: string}
+     * @return array{folder: FilePath, target: FilePath, nested: bool, staged: string}
      */
-    public function finish(string $login, string $user, string $token, ?string $onConflict): array
+    public function target(string $owner, string $user, string $token): array
     {
-        $meta = $this->session($login, $user, $token);
+        $meta = $this->session($owner, $user, $token);
         if (count($this->received($token)) !== (int) $meta['chunks']) {
             throw new UploadRefused('E_INVALID', __('The upload is not complete.'), 422);
         }
@@ -141,13 +159,32 @@ final class UploadSessions
         if ($nested) {
             $folder = $folder->join(substr($relative, 0, (int) strrpos($relative, '/')));
         }
-        $target = $folder->child((string) $meta['name']);
+
+        return [
+            'folder' => $folder,
+            'target' => $folder->child((string) $meta['name']),
+            'nested' => $nested,
+            'staged' => $this->staging->uploads().'/'.$token.'/file',
+        ];
+    }
+
+    /**
+     * Assemble and hand off. Without $onConflict an existing destination
+     * answers FileConflict before anything is assembled. The session is
+     * gone afterwards, also when the hand-off fails.
+     *
+     * @return array{path: FilePath, name: string}
+     */
+    public function finish(string $owner, string $user, string $token, ?string $onConflict): array
+    {
+        ['folder' => $folder, 'target' => $target, 'nested' => $nested] = $this->target($owner, $user, $token);
+        $meta = $this->session($owner, $user, $token);
 
         if ($onConflict === null && $this->files->find($user, $target) !== null) {
             throw new FileConflict([$target->name()]);
         }
         if ($onConflict === 'skip') {
-            $this->cancel($login, $user, $token);
+            $this->cancel($owner, $user, $token);
 
             return ['path' => $target, 'name' => $target->name()];
         }
@@ -172,9 +209,9 @@ final class UploadSessions
         return ['path' => $final, 'name' => $final->name()];
     }
 
-    public function cancel(string $login, string $user, string $token): void
+    public function cancel(string $owner, string $user, string $token): void
     {
-        $this->session($login, $user, $token);
+        $this->session($owner, $user, $token);
         FileStaging::removeTree($this->staging->uploads().'/'.$token);
     }
 
@@ -215,14 +252,14 @@ final class UploadSessions
     }
 
     /** @return array<string, mixed> */
-    private function session(string $login, string $user, string $token): array
+    private function session(string $owner, string $user, string $token): array
     {
         $file = $this->staging->uploads().'/'.$token.'/meta.json';
         $meta = FileStaging::validToken($token) && is_file($file) ? json_decode((string) file_get_contents($file), true) : null;
         if (! is_array($meta) || time() - (int) ($meta['created'] ?? 0) > self::TTL) {
             throw new UploadRefused('E_NOTEXIST', __('This upload has expired; it starts again.'), 404);
         }
-        if (($meta['login'] ?? '') !== $login || ($meta['user'] ?? '') !== $user) {
+        if (($meta['owner'] ?? '') !== $owner || ($meta['user'] ?? '') !== $user) {
             throw new UploadRefused('E_FORBIDEN', __('This upload belongs to another session.'), 403);
         }
 

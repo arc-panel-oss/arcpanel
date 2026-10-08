@@ -500,6 +500,40 @@ final class FileService
     }
 
     /**
+     * The commands of an upload hand-off (E34 batch 5 spec §4.3), as
+     * UploadSessions::finish() runs them: the folders of a folder upload,
+     * then v-add-fs-upload of the staged file. The result is $target.
+     */
+    public function planUpload(string $user, string $staged, FilePath $folder, FilePath $target, bool $nested, string $onConflict): FilePlan
+    {
+        $steps = [];
+        if ($nested && ! $folder->isRoot()) {
+            $steps[] = new Step(sprintf(__('Create the folder %s'), $folder->relative()), 'v-add-fs-directory', [$user, $this->absolute($user, $folder)]);
+        }
+        $steps[] = new Step(sprintf(__('Upload %s'), $target->relative()), 'v-add-fs-upload', [$user, $staged, $this->absolute($user, $target), '0644', $onConflict]);
+
+        return new FilePlan([['path' => $target, 'steps' => $steps]], $target);
+    }
+
+    /**
+     * The command that writes a download ticket (see prepareDownload()).
+     *
+     * @param  list<FilePath>  $paths
+     */
+    public function planDownload(string $user, string $ticket, array $paths): Step
+    {
+        $folder = $paths[0]->parent();
+
+        return new Step(
+            count($paths) === 1
+                ? sprintf(__('Prepare the download of %s'), $paths[0]->relative())
+                : sprintf(__('Prepare the download of %d items of %s'), count($paths), $folder->isRoot() ? '~' : $folder->relative()),
+            'v-add-fs-download',
+            [$user, $ticket, ...array_map(fn (FilePath $p) => $this->absolute($user, $p), $paths)],
+        );
+    }
+
+    /**
      * Write a download ticket (v-add-fs-download).
      *
      * @param  list<FilePath>  $paths
@@ -507,9 +541,8 @@ final class FileService
      */
     public function prepareDownload(string $user, string $ticket, array $paths): array
     {
-        $data = $this->decode('v-add-fs-download', trim($this->arc->run('v-add-fs-download', [
-            $user, $ticket, ...array_map(fn (FilePath $p) => $this->absolute($user, $p), $paths),
-        ], new Options(self::LONG))->stdout));
+        $step = $this->planDownload($user, $ticket, $paths);
+        $data = $this->decode('v-add-fs-download', trim($this->arc->run($step->command, $step->args, new Options(self::LONG))->stdout));
 
         return ['name' => (string) ($data['NAME'] ?? 'download'), 'size' => (int) ($data['SIZE'] ?? 0), 'mime' => (string) ($data['MIME'] ?? 'application/octet-stream')];
     }

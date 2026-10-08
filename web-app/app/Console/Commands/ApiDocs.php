@@ -56,7 +56,13 @@ final class ApiDocs extends Command
     ];
 
     /** File operations that answer 413 or 507 (E34 batch 5 D55). */
-    private const FILE_ERRORS = ['readFile' => ['413'], 'saveFile' => ['413', '507']];
+    private const FILE_ERRORS = [
+        'readFile' => ['413'], 'saveFile' => ['413', '507'], 'startUpload' => ['413', '507'], 'uploadChunk' => ['507'],
+        'finishUpload' => ['413', '507'], 'downloadFiles' => ['507'],
+    ];
+
+    /** Writes without a dry run: chunks are not planned (E34 batch 5 §4.3). */
+    private const WITHOUT_DRY_RUN = ['uploadChunk', 'cancelUpload'];
 
     private const DESCRIPTION = <<<'MD'
         Resource API of an ArcPanel server, served by the panel at `/api/v2/` (port 8083 by default). Every call acts as the owner of the access key, with the role and the reach that user has in the panel: objects outside its reach answer `404`, refused actions `403`.
@@ -276,7 +282,7 @@ final class ApiDocs extends Command
             $operation['parameters'] = [...($operation['parameters'] ?? []), ...self::pageParameters()];
         }
 
-        if ($write) {
+        if ($write && ! in_array($operationId, self::WITHOUT_DRY_RUN, true)) {
             $operation['parameters'] = [...($operation['parameters'] ?? []), [
                 'name' => 'dry_run',
                 'in' => 'query',
@@ -747,6 +753,37 @@ final class ApiDocs extends Command
         }
         if ($operationId === 'getFolderSize' && isset($responses['200'])) {
             $responses['200']['description'] = 'The bytes of the folder and everything in it.';
+        }
+        if ($operationId === 'startUpload' && isset($responses['200'])) {
+            $responses['200']['description'] = 'The session, new or resumed; with `dry_run`, the planned steps of finishUpload.';
+        }
+        if ($operationId === 'finishUpload' && isset($responses['201'], $responses['200'])) {
+            $responses['201']['description'] = 'The uploaded file.';
+            $responses['200']['description'] = 'The existing file when `on_conflict` is `skip` and a file was in the way (nothing was written); with `dry_run`, the planned steps.';
+        }
+        // The raw bytes of a chunk; the SDK sends a Blob or a Uint8Array (§4.3)
+        if ($operationId === 'uploadChunk') {
+            $operation['requestBody'] = [
+                'required' => true,
+                'description' => 'The bytes of the chunk: `chunk_size` bytes, the last chunk the rest of the file.',
+                'content' => ['application/octet-stream' => ['schema' => ['type' => 'string', 'format' => 'binary']]],
+            ];
+        }
+        if ($operationId === 'downloadFiles') {
+            $responses['200'] = [
+                'description' => 'The file, or a zip of a folder or several entries: an empty body with `X-Accel-Redirect` so nginx serves the bytes (D51); with `dry_run`, the planned steps.',
+                'headers' => self::successHeaders('200') + [
+                    'Content-Type' => ['description' => 'The type of the file; `application/zip` for a zip.', 'schema' => ['type' => 'string']],
+                    'Content-Disposition' => ['description' => '`attachment`, or `inline` for a file shown in the browser, with an ASCII `filename` and the RFC 5987 `filename*`.', 'schema' => ['type' => 'string']],
+                    'Content-Security-Policy' => ['description' => '`default-src \'none\'` with `sandbox` for anything but a PDF.', 'schema' => ['type' => 'string']],
+                    'X-Content-Type-Options' => ['description' => '`nosniff`.', 'schema' => ['type' => 'string']],
+                    'X-Accel-Redirect' => ['description' => 'Internal nginx path `/_arc_files/<ticket>` of the prepared download (D51).', 'schema' => ['type' => 'string']],
+                ],
+                'content' => [
+                    'application/octet-stream' => ['schema' => ['type' => 'string', 'format' => 'binary']],
+                    'application/json' => ['schema' => ['$ref' => '#/components/schemas/DryRun']],
+                ],
+            ];
         }
     }
 
