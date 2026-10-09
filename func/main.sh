@@ -1563,6 +1563,14 @@ is_object_format_valid() {
 	fi
 }
 
+# Restic snapshot validator: a hexadecimal ID or "latest", so that the value
+# can never be read as an option (E39 W1 D4)
+is_snapshot_id_valid() {
+	if ! [[ "$1" =~ ^([0-9a-f]{8,64}|latest)$ ]]; then
+		check_result "$E_INVALID" "invalid snapshot format :: $1"
+	fi
+}
+
 # Role validator
 is_role_valid() {
 	if ! [[ "$1" =~ ^admin$|^user$|^reseller$|^dns-cluster$ ]]; then
@@ -1694,7 +1702,7 @@ is_format_valid() {
 				rule) is_int_format_valid "$arg" "rule id" ;;
 				service) is_service_format_valid "$arg" "$arg_name" ;;
 				secret_access_key) is_secret_access_key_format_valid "$arg" "$arg_name" ;;
-				snapshot) is_object_format_valid "$arg" 'snapshot' ;;
+				snapshot) is_snapshot_id_valid "$arg" ;;
 				soa) is_domain_format_valid "$arg" 'SOA' ;;
 				#missing command: is_format_valid_shell
 				shell) is_format_valid_shell "$arg" ;;
