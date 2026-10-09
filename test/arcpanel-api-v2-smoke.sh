@@ -428,9 +428,12 @@ fi
 # Docker catalog and apps (§4.3)
 check "listDockerCatalog answers 200" 200 "$(call "$APPS_KEY" GET /docker-catalog)"
 check "the catalog lists apps" 1 "$([ "$(json '.data | length')" -gt 0 ] && echo 1 || echo 0)"
-DOCKER_SLUG="$(json '[.data[] | select(.admin_only | not)][0].slug')"
+# An app without a web port: one with a web port needs a web domain (v-add-docker-app exits 1)
+DOCKER_SLUG="$(json '[.data[] | select((.admin_only | not) and (.web | not))][0].slug // empty')"
 if [ -z "$(conf_value DOCKER_SYSTEM)" ]; then
 	skip "Docker app install and delete: the Docker engine is not installed (DOCKER_SYSTEM is empty)"
+elif [ -z "$DOCKER_SLUG" ]; then
+	fail "the catalog has no app without a web port for a user"
 else
 	DOCKER_APP="/users/$APPS_USER/docker-apps"
 	check "createDockerApp answers 202" 202 "$(call "$APPS_KEY" POST "$DOCKER_APP" "{\"slug\": \"$DOCKER_SLUG\", \"name\": \"arcsmoke\"}")"
