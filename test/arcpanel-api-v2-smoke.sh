@@ -435,7 +435,10 @@ else
 	DOCKER_APP="/users/$APPS_USER/docker-apps"
 	check "createDockerApp answers 202" 202 "$(call "$APPS_KEY" POST "$DOCKER_APP" "{\"slug\": \"$DOCKER_SLUG\", \"name\": \"arcsmoke\"}")"
 	DOCKER_TASK="$(json .data.id)"
-	wait_v2_task "$APPS_KEY" "$DOCKER_TASK" 900 || true
+	# A refused install has no task to wait for
+	if [ -n "$DOCKER_TASK" ] && [ "$DOCKER_TASK" != null ]; then
+		wait_v2_task "$APPS_KEY" "$DOCKER_TASK" 900 || true
+	fi
 	check "getDockerApp answers 200" 200 "$(call "$APPS_KEY" GET "$DOCKER_APP/arcsmoke")"
 	check "deleteDockerApp answers 204" 204 "$(call "$APPS_KEY" DELETE "$DOCKER_APP/arcsmoke")"
 fi
@@ -556,6 +559,31 @@ check "listSshKeys holds the key" 1 "$(
 	json '[.data[] | select(.id == "arcsmoke@smoke.test")] | length'
 )"
 check "deleteSshKey answers 204" 204 "$(call "$ACCOUNTS_KEY" DELETE "$ACCOUNTS/ssh-keys/arcsmoke%40smoke.test")"
+
+# Secret store (E38 spec §8): a key with only v2-secrets; no answer holds a value
+if ! command -v age > /dev/null 2>&1 || [ ! -f "$ARCPANEL/data/secrets/.master/identity" ]; then
+	skip "secrets: the secret store is not set up on this server"
+else
+	SECRETS_KEY="$(new_key "$ACCOUNTS_USER" v2-secrets)"
+	secret_value="arcsmoke-$(date +%s)-value"
+	check "createSecret answers 201" 201 "$(call "$SECRETS_KEY" POST "$ACCOUNTS/secrets" "$(jq -n --arg v "$secret_value" '{name: "/smoke/db", value: $v, description: "Smoke"}')")"
+	check "the answer holds the reference" '{{secret:/smoke/db}}' "$(json .data.reference)"
+	if grep -qF -- "$secret_value" "$BODY"; then fail "createSecret answered the value"; else ok "createSecret holds no value"; fi
+	check "the same name again answers 409" 409 "$(call "$SECRETS_KEY" POST "$ACCOUNTS/secrets" '{"name": "/smoke/db", "value": "x"}')"
+	check "putSecretValue answers 200" 200 "$(call "$SECRETS_KEY" PUT "$ACCOUNTS/secrets/smoke/db/value" "$(jq -n --arg v "$secret_value-2" '{value: $v}')")"
+	check "the secret has version 2" 2 "$(json .data.secret.version)"
+	check "getSecret answers 200" 200 "$(call "$SECRETS_KEY" GET "$ACCOUNTS/secrets/smoke/db")"
+	check "two versions are kept" 2 "$(json '.data.versions | length')"
+	check "rollbackSecret answers 200" 200 "$(call "$SECRETS_KEY" POST "$ACCOUNTS/secrets/smoke/db/rollback" '{"version": 1}')"
+	check "listSecrets holds the secret at version 3" 3 "$(
+		call "$SECRETS_KEY" GET "$ACCOUNTS/secrets" > /dev/null
+		json '[.data[] | select(.name == "/smoke/db")][0].version'
+	)"
+	if grep -qF -- "$secret_value" "$BODY"; then fail "listSecrets answered a value"; else ok "listSecrets holds no value"; fi
+	check "the v2-secrets key may not list web domains" 403 "$(call "$SECRETS_KEY" GET "$ACCOUNTS/web-domains")"
+	check "deleteSecret answers 204" 204 "$(call "$SECRETS_KEY" DELETE "$ACCOUNTS/secrets/smoke/db")"
+	check "the secret is gone" 404 "$(call "$SECRETS_KEY" GET "$ACCOUNTS/secrets/smoke/db")"
+fi
 
 # Access keys (§4.6, D62): a v2-read+v2-accounts key gives a v2-read key, which deletes itself
 check "createAccessKey answers 201" 201 "$(call "$ACCOUNTS_KEY" POST "$ACCOUNTS/access-keys" '{"permissions": ["v2-read"], "comment": "arcsmoke-child"}')"

@@ -176,7 +176,7 @@ it('keeps every area set inside v2-write and its reads inside v2-read', function
     $areas = apiAreaSets();
     $union = [];
 
-    expect($areas)->toContain('v2-accounts', 'v2-web', 'v2-backup', 'v2-apps', 'v2-server', 'v2-files');
+    expect($areas)->toContain('v2-accounts', 'v2-web', 'v2-backup', 'v2-apps', 'v2-server', 'v2-files', 'v2-secrets');
     foreach ($areas as $area) {
         $commands = apiSetCommands($area);
         expect(array_values(array_diff($commands, $write)))->toBe([], "{$area} is not part of v2-write");
@@ -312,6 +312,7 @@ it('declares an area on the batch 1 routes', function () {
             // The settings host path names a database host, not the db area
             str_starts_with($uri, 'api/v2/system/settings/') => 'server',
             str_contains($uri, '/web-domains') => 'web',
+            str_contains($uri, '/secrets') => 'secrets',
             str_contains($uri, '/dns-zones') => 'dns',
             str_contains($uri, '/mail-domains') => 'mail',
             str_contains($uri, '/databases') => 'db',

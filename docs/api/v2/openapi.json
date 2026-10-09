@@ -20405,6 +20405,760 @@
                 }
             }
         },
+        "/users/{user}/secrets": {
+            "get": {
+                "operationId": "listSecrets",
+                "description": "Sorted by name; values are never listed.",
+                "summary": "List the secrets of a user",
+                "tags": [
+                    "Secrets"
+                ],
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "limit",
+                        "in": "query",
+                        "description": "Page size, from 1 to 1000. Without it the list is complete.",
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 1000
+                        }
+                    },
+                    {
+                        "name": "offset",
+                        "in": "query",
+                        "description": "Items to skip. Used when `limit` is set; 0 when omitted.",
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 0
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Array of `UserSecret`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/components/schemas/UserSecret"
+                                            }
+                                        },
+                                        "meta": {
+                                            "$ref": "#/components/schemas/ListMeta"
+                                        }
+                                    },
+                                    "required": [
+                                        "data",
+                                        "meta"
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    }
+                }
+            },
+            "post": {
+                "operationId": "createSecret",
+                "description": "The value is stored as version 1, encrypted with the user's key.\nA name that exists answers 409 `E_EXISTS`, more secrets than the\nserver allows 422 `E_LIMIT`.",
+                "summary": "Create a secret",
+                "tags": [
+                    "Secrets"
+                ],
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "dry_run",
+                        "in": "query",
+                        "description": "Validate, authorize and plan the change, and answer with its steps instead of running them.",
+                        "schema": {
+                            "type": "boolean",
+                            "default": false
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/CreateUserSecretRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "With `dry_run`: the planned steps; nothing ran.",
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/DryRun"
+                                }
+                            }
+                        }
+                    },
+                    "201": {
+                        "description": "`UserSecret`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/UserSecret"
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            },
+                            "Location": {
+                                "$ref": "#/components/headers/Location"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "409": {
+                        "$ref": "#/components/responses/Conflict"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    },
+                    "503": {
+                        "$ref": "#/components/responses/Unavailable"
+                    }
+                }
+            }
+        },
+        "/users/{user}/secrets/{name}": {
+            "get": {
+                "operationId": "getSecret",
+                "description": "Its kept versions and the apps that reference it; never the value.",
+                "summary": "Show a secret",
+                "tags": [
+                    "Secrets"
+                ],
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "name",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "`UserSecret`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/UserSecret"
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    }
+                }
+            },
+            "patch": {
+                "operationId": "updateSecret",
+                "summary": "Change the description of a secret",
+                "tags": [
+                    "Secrets"
+                ],
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "name",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "dry_run",
+                        "in": "query",
+                        "description": "Validate, authorize and plan the change, and answer with its steps instead of running them.",
+                        "schema": {
+                            "type": "boolean",
+                            "default": false
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/UpdateUserSecretRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "`UserSecret`; with `dry_run`, the planned steps.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "oneOf": [
+                                        {
+                                            "type": "object",
+                                            "properties": {
+                                                "data": {
+                                                    "$ref": "#/components/schemas/UserSecret"
+                                                }
+                                            },
+                                            "required": [
+                                                "data"
+                                            ]
+                                        },
+                                        {
+                                            "$ref": "#/components/schemas/DryRun"
+                                        }
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "409": {
+                        "$ref": "#/components/responses/Conflict"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    },
+                    "503": {
+                        "$ref": "#/components/responses/Unavailable"
+                    }
+                }
+            },
+            "delete": {
+                "operationId": "deleteSecret",
+                "description": "A secret that an app references answers 409 `E_INUSE` with `used_by`,\nunless `force=1`; such apps then fail to start until the reference is\nremoved or the secret is added again.",
+                "summary": "Delete a secret",
+                "tags": [
+                    "Secrets"
+                ],
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "name",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "force",
+                        "in": "query",
+                        "schema": {
+                            "type": "boolean",
+                            "default": false
+                        }
+                    },
+                    {
+                        "name": "dry_run",
+                        "in": "query",
+                        "description": "Validate, authorize and plan the change, and answer with its steps instead of running them.",
+                        "schema": {
+                            "type": "boolean",
+                            "default": false
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "With `dry_run`: the planned steps; nothing ran.",
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/DryRun"
+                                }
+                            }
+                        }
+                    },
+                    "204": {
+                        "description": "No content.",
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "409": {
+                        "$ref": "#/components/responses/Conflict"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    },
+                    "503": {
+                        "$ref": "#/components/responses/Unavailable"
+                    }
+                }
+            }
+        },
+        "/users/{user}/secrets/{name}/rollback": {
+            "post": {
+                "operationId": "rollbackSecret",
+                "description": "Copies the version into a new one, like putSecretValue.",
+                "summary": "Roll a secret back to a kept version",
+                "tags": [
+                    "Secrets"
+                ],
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "name",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "dry_run",
+                        "in": "query",
+                        "description": "Validate, authorize and plan the change, and answer with its steps instead of running them.",
+                        "schema": {
+                            "type": "boolean",
+                            "default": false
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/RollbackUserSecretRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "; with `dry_run`, the planned steps.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "oneOf": [
+                                        {
+                                            "type": "object",
+                                            "properties": {
+                                                "data": {
+                                                    "type": "object",
+                                                    "properties": {
+                                                        "secret": {
+                                                            "type": "array",
+                                                            "items": {}
+                                                        },
+                                                        "apps": {
+                                                            "type": "array",
+                                                            "description": "the apps that reference the secret",
+                                                            "items": {
+                                                                "type": "object",
+                                                                "properties": {
+                                                                    "type": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "id": {
+                                                                        "type": "string"
+                                                                    }
+                                                                },
+                                                                "required": [
+                                                                    "type",
+                                                                    "id"
+                                                                ]
+                                                            }
+                                                        },
+                                                        "restarted": {
+                                                            "type": "boolean",
+                                                            "description": "whether the running ones were restarted"
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "secret",
+                                                        "apps",
+                                                        "restarted"
+                                                    ]
+                                                }
+                                            },
+                                            "required": [
+                                                "data"
+                                            ]
+                                        },
+                                        {
+                                            "$ref": "#/components/schemas/DryRun"
+                                        }
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "409": {
+                        "$ref": "#/components/responses/Conflict"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    },
+                    "503": {
+                        "$ref": "#/components/responses/Unavailable"
+                    }
+                }
+            }
+        },
+        "/users/{user}/secrets/{name}/value": {
+            "put": {
+                "operationId": "putSecretValue",
+                "description": "Stores the next version (the last five are kept) and answers the apps\nthat reference the secret. With `restart` the running ones are\nrestarted, so they read the new value; otherwise they keep the old\nvalue until their next start. A value that one of those apps cannot\ntake (several lines, or quotes for a Docker app) answers 422\n`E_INVALID` and changes nothing.",
+                "summary": "Replace the value of a secret",
+                "tags": [
+                    "Secrets"
+                ],
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "name",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "dry_run",
+                        "in": "query",
+                        "description": "Validate, authorize and plan the change, and answer with its steps instead of running them.",
+                        "schema": {
+                            "type": "boolean",
+                            "default": false
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/PutUserSecretValueRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "; with `dry_run`, the planned steps.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "oneOf": [
+                                        {
+                                            "type": "object",
+                                            "properties": {
+                                                "data": {
+                                                    "type": "object",
+                                                    "properties": {
+                                                        "secret": {
+                                                            "type": "array",
+                                                            "items": {}
+                                                        },
+                                                        "apps": {
+                                                            "type": "array",
+                                                            "description": "the apps that reference the secret",
+                                                            "items": {
+                                                                "type": "object",
+                                                                "properties": {
+                                                                    "type": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "id": {
+                                                                        "type": "string"
+                                                                    }
+                                                                },
+                                                                "required": [
+                                                                    "type",
+                                                                    "id"
+                                                                ]
+                                                            }
+                                                        },
+                                                        "restarted": {
+                                                            "type": "boolean",
+                                                            "description": "whether the running ones were restarted"
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "secret",
+                                                        "apps",
+                                                        "restarted"
+                                                    ]
+                                                }
+                                            },
+                                            "required": [
+                                                "data"
+                                            ]
+                                        },
+                                        {
+                                            "$ref": "#/components/schemas/DryRun"
+                                        }
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "409": {
+                        "$ref": "#/components/responses/Conflict"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    },
+                    "503": {
+                        "$ref": "#/components/responses/Unavailable"
+                    }
+                }
+            }
+        },
         "/users/{user}/snapshots": {
             "post": {
                 "operationId": "createSnapshot",
@@ -23824,6 +24578,36 @@
                     "name"
                 ],
                 "title": "CreateFileRequest"
+            },
+            "CreateUserSecretRequest": {
+                "type": "object",
+                "description": "POST /users/{user}/secrets: a new secret of the secret store (E38).",
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "description": "A path of one to five parts of letters, digits, `_`, `.` and `-`, for example `/shop/db_password`; at most 128 characters.",
+                        "pattern": "#^(/[A-Za-z0-9_.-]{1,64}){1,5}$#",
+                        "maxLength": 128
+                    },
+                    "value": {
+                        "type": "string",
+                        "description": "The value, 1 byte to 32 KiB; it is never returned. One final line break is dropped.",
+                        "maxLength": 32768
+                    },
+                    "description": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "At most 255 characters, without quotes, `$`, backquote or backslash.",
+                        "maxLength": 255
+                    }
+                },
+                "required": [
+                    "name",
+                    "value"
+                ],
+                "title": "CreateUserSecretRequest"
             },
             "CronJob": {
                 "type": "object",
@@ -27622,6 +28406,25 @@
                     "findings"
                 ]
             },
+            "PutUserSecretValueRequest": {
+                "type": "object",
+                "description": "PUT /users/{user}/secrets/{name}/value: the next version of a secret (E38).",
+                "properties": {
+                    "value": {
+                        "type": "string",
+                        "description": "The new value, 1 byte to 32 KiB; it is never returned.",
+                        "maxLength": 32768
+                    },
+                    "restart": {
+                        "type": "boolean",
+                        "description": "Restart the running apps that reference the secret, so they read the new value. Default false."
+                    }
+                },
+                "required": [
+                    "value"
+                ],
+                "title": "PutUserSecretValueRequest"
+            },
             "RegisterPortRequest": {
                 "type": "object",
                 "properties": {
@@ -27832,6 +28635,26 @@
                     }
                 },
                 "title": "RestoreSnapshotRequest"
+            },
+            "RollbackUserSecretRequest": {
+                "type": "object",
+                "description": "POST /users/{user}/secrets/{name}/rollback: copy a kept version into a new one (E38).",
+                "properties": {
+                    "version": {
+                        "type": "integer",
+                        "description": "A kept version (see `versions` of getSecret).",
+                        "minimum": 1,
+                        "maximum": 999999999
+                    },
+                    "restart": {
+                        "type": "boolean",
+                        "description": "Restart the running apps that reference the secret. Default false."
+                    }
+                },
+                "required": [
+                    "version"
+                ],
+                "title": "RollbackUserSecretRequest"
             },
             "RunUpdatesRequest": {
                 "type": "object",
@@ -31279,6 +32102,24 @@
                 },
                 "title": "UpdateUserRequest"
             },
+            "UpdateUserSecretRequest": {
+                "type": "object",
+                "description": "PATCH /users/{user}/secrets/{name}: the description of a secret (E38).",
+                "properties": {
+                    "description": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "At most 255 characters, without quotes, `$`, backquote or backslash; empty removes it.",
+                        "maxLength": 255
+                    }
+                },
+                "required": [
+                    "description"
+                ],
+                "title": "UpdateUserSecretRequest"
+            },
             "UpdateWebDomainRequest": {
                 "type": "object",
                 "description": "PATCH /users/{user}/web-domains/{domain}: the fields of the General tab\n(IP address, document root) and of the Advanced tab; the fields left out\nkeep their value. Aliases have their own operations.",
@@ -31605,6 +32446,71 @@
                     "password"
                 ],
                 "title": "UserPasswordRequest"
+            },
+            "UserSecret": {
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "description": "the path name, for example `/shop/db_password`"
+                    },
+                    "description": {
+                        "type": "string"
+                    },
+                    "version": {
+                        "type": "integer",
+                        "description": "the current version"
+                    },
+                    "fingerprint": {
+                        "type": "string",
+                        "description": "8 hex characters of a keyed hash of the value: equal values of one user have equal fingerprints"
+                    },
+                    "reference": {
+                        "type": "string",
+                        "description": "what an app environment writes to use the secret"
+                    },
+                    "updated_at": {
+                        "type": "string",
+                        "description": "date and time of the current version, server time"
+                    },
+                    "versions": {
+                        "type": "array",
+                        "items": {}
+                    },
+                    "used_by": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "type": {
+                                    "type": "string"
+                                },
+                                "id": {
+                                    "type": "string"
+                                }
+                            },
+                            "required": [
+                                "type",
+                                "id"
+                            ]
+                        }
+                    },
+                    "used_by_count": {
+                        "type": "integer"
+                    }
+                },
+                "required": [
+                    "name",
+                    "description",
+                    "version",
+                    "fingerprint",
+                    "reference",
+                    "updated_at",
+                    "versions",
+                    "used_by",
+                    "used_by_count"
+                ],
+                "title": "UserSecret"
             },
             "WebDomain": {
                 "type": "object",

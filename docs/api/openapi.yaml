@@ -72,7 +72,7 @@ info:
     | `sync-dns-cluster` | admin | `v-list-users`, `v-list-sys-config`, `v-list-user`, `v-add-cron-restart-job`, `v-delete-dns-domains-src`, `v-insert-dns-domain`, `v-insert-dns-record`, `v-insert-dns-records`, `v-rebuild-dns-domains`, `v-rebuild-dns-domain`, `v-delete-dns-record`, `v-make-tmp-file`, `v-delete-dns-domain` |
     | `update-dns-records` | user | `v-list-dns-records`, `v-change-dns-record` |
 
-    The sets `v2-accounts` and `v2-apps` and `v2-backup` and `v2-cron` and `v2-db` and `v2-dns` and `v2-files` and `v2-mail` and `v2-read` and `v2-server` and `v2-web` and `v2-write` belong to REST API v2 (`/api/v2/`, documented in `docs/api/v2/openapi.json`): this API ignores them, so a key with only those sets may run no command here.
+    The sets `v2-accounts` and `v2-apps` and `v2-backup` and `v2-cron` and `v2-db` and `v2-dns` and `v2-files` and `v2-mail` and `v2-read` and `v2-secrets` and `v2-server` and `v2-web` and `v2-write` belong to REST API v2 (`/api/v2/`, documented in `docs/api/v2/openapi.json`): this API ignores them, so a key with only those sets may run no command here.
   license:
     name: GPL-3.0-or-later
     identifier: GPL-3.0-or-later
@@ -3483,6 +3483,49 @@ paths:
           $ref: "#/components/responses/InvalidRequest"
         "422":
           $ref: "#/components/responses/Unprocessable"
+  "/api/#v-add-sys-secret-key":
+    post:
+      operationId: v-add-sys-secret-key
+      tags:
+        - System
+      summary: Set up the secret store (E38)
+      description: |-
+        This function creates the master key of the secret store once:
+        $ARCPANEL/data/secrets/.master/identity (an age identity, root 0400) and
+        its public recipient. An existing key is kept, so the command is safe to
+        run on every upgrade. Keep a copy of the identity off the server: without
+        it no secret can be decrypted, also not from backups.
+
+        **Arguments:** none.
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-add-sys-secret-key"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-add-sys-secret-key"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
   "/api/#v-add-sys-sftp-jail":
     post:
       operationId: v-add-sys-sftp-jail
@@ -4309,6 +4352,59 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/v-add-user-port-pool"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+  "/api/#v-add-user-secret":
+    post:
+      operationId: v-add-user-secret
+      tags:
+        - Users
+      summary: Add a secret to the secret store of a user (E38)
+      description: |-
+        This function stores the value held in VALUE_FILE as version 1 of the
+        secret NAME (/path/name: one to five segments of letters, digits, _ . -)
+        of USER, encrypted with the user's key. One trailing newline of the file
+        is dropped; the value is 1 byte to 32 KiB without NUL bytes. The value is
+        never printed or logged; apps reference it as {{secret:NAME}}.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `USER` | yes |
+        | `arg2` | `NAME` | yes |
+        | `arg3` | `VALUE_FILE` | yes |
+        | `arg4` | `DESCRIPTION` | no |
+
+        **User argument:** with the access key of a user other than the admin, `arg1` must be the key's user.
+      x-arcpanel-user-arg: 1
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-add-user-secret"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-add-user-secret"
       responses:
         "200":
           description: "The output of the command; `OK` for an empty output with legacy authentication."
@@ -6959,7 +7055,9 @@ paths:
         This function replaces the .env file of the app with FILE: KEY=value
         lines (blank lines and # comments are kept), at most 200 lines and 64 KB.
         PORT, HOST, NODE_ENV and PATH are set by the panel and cannot be set
-        here. A running app is restarted. Values are never logged.
+        here. A running app is restarted. Values are never logged. A value may
+        reference secrets of the user as {{secret:NAME}} (E38): they must exist and
+        be single-line, and are resolved only when the app starts.
 
         **Arguments**
 
@@ -9019,6 +9117,107 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/v-change-user-role"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+  "/api/#v-change-user-secret":
+    post:
+      operationId: v-change-user-secret
+      tags:
+        - Users
+      summary: Change the value of a secret of a user (E38)
+      description: |-
+        This function stores the value held in VALUE_FILE as the next version of
+        the secret NAME of USER and keeps the last five versions. It prints the
+        apps that reference the secret (node:DOMAIN, docker:NAME); with RESTART
+        set to yes it restarts the ones that run, so they get the new value.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `USER` | yes |
+        | `arg2` | `NAME` | yes |
+        | `arg3` | `VALUE_FILE` | yes |
+        | `arg4` | `RESTART` | no |
+
+        **User argument:** with the access key of a user other than the admin, `arg1` must be the key's user.
+      x-arcpanel-user-arg: 1
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-change-user-secret"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-change-user-secret"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+  "/api/#v-change-user-secret-description":
+    post:
+      operationId: v-change-user-secret-description
+      tags:
+        - Users
+      summary: Change the description of a secret of a user (E38)
+      description: |-
+        This function changes the description of the secret NAME of USER. The
+        value and its version stay as they are.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `USER` | yes |
+        | `arg2` | `NAME` | yes |
+        | `arg3` | `DESCRIPTION` | yes |
+
+        **User argument:** with the access key of a user other than the admin, `arg1` must be the key's user.
+      x-arcpanel-user-arg: 1
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-change-user-secret-description"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-change-user-secret-description"
       responses:
         "200":
           description: "The output of the command; `OK` for an empty output with legacy authentication."
@@ -14806,6 +15005,57 @@ paths:
           $ref: "#/components/responses/InvalidRequest"
         "422":
           $ref: "#/components/responses/Unprocessable"
+  "/api/#v-delete-user-secret":
+    post:
+      operationId: v-delete-user-secret
+      tags:
+        - Users
+      summary: Delete a secret of a user (E38)
+      description: |-
+        This function deletes the secret NAME of USER with all its versions. A
+        secret that an app references is refused with E_INUSE and the list of
+        those apps, unless FORCE is yes; such apps then fail to start until the
+        reference is removed or the secret is added again.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `USER` | yes |
+        | `arg2` | `NAME` | yes |
+        | `arg3` | `FORCE` | no |
+
+        **User argument:** with the access key of a user other than the admin, `arg1` must be the key's user.
+      x-arcpanel-user-arg: 1
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-delete-user-secret"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-delete-user-secret"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
   "/api/#v-delete-user-sftp-jail":
     post:
       operationId: v-delete-user-sftp-jail
@@ -16490,6 +16740,56 @@ paths:
           $ref: "#/components/responses/InvalidRequest"
         "422":
           $ref: "#/components/responses/Unprocessable"
+  "/api/#v-get-user-secret":
+    post:
+      operationId: v-get-user-secret
+      tags:
+        - Users
+      summary: Print the value of a secret of a user (E38)
+      description: |-
+        This function prints the value of the secret NAME of USER, or of a kept
+        VERSION. It is for root on the shell only: it refuses to run through sudo,
+        so neither the panel nor the APIs can read a value (spec D7).
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `USER` | yes |
+        | `arg2` | `NAME` | yes |
+        | `arg3` | `VERSION` | no |
+
+        **User argument:** with the access key of a user other than the admin, `arg1` must be the key's user.
+      x-arcpanel-user-arg: 1
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-get-user-secret"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-get-user-secret"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
   "/api/#v-get-user-value":
     post:
       operationId: v-get-user-value
@@ -18069,7 +18369,8 @@ paths:
         This function lists the variables that the catalog manifest of the Docker
         app NAME of USER declares, with their label, type, options and current
         value. Values of secret (password) variables are never printed: VALUE is
-        empty and SET tells whether one is stored.
+        empty and SET tells whether one is stored, except for a reference to the
+        secret store ({{secret:NAME}}, E38), which is shown as written.
 
         **Arguments**
 
@@ -23076,6 +23377,111 @@ paths:
           $ref: "#/components/responses/InvalidRequest"
         "422":
           $ref: "#/components/responses/Unprocessable"
+  "/api/#v-list-user-secret":
+    post:
+      operationId: v-list-user-secret
+      tags:
+        - Users
+      summary: List one secret of a user (E38)
+      description: |-
+        This function lists the secret NAME of USER: description, current version,
+        fingerprint, the kept versions with their fingerprints and dates, and the
+        apps that reference it (node:DOMAIN, docker:NAME). It never prints a value.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `USER` | yes |
+        | `arg2` | `NAME` | yes |
+        | `arg3` | `FORMAT` | no |
+
+        **User argument:** with the access key of a user other than the admin, `arg1` must be the key's user.
+      x-arcpanel-user-arg: 1
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-list-user-secret"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-list-user-secret"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+            application/json:
+              schema:
+                type: object
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+  "/api/#v-list-user-secret-store":
+    post:
+      operationId: v-list-user-secret-store
+      tags:
+        - Users
+      summary: List the secrets of a user (E38)
+      description: |-
+        This function lists the secrets of USER with their description, current
+        version, fingerprint (8 hex characters of a keyed hash of the value) and
+        the number of apps that reference them. It never prints a value.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `USER` | yes |
+        | `arg2` | `FORMAT` | no |
+
+        **User argument:** with the access key of a user other than the admin, `arg1` must be the key's user.
+      x-arcpanel-user-arg: 1
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-list-user-secret-store"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-list-user-secret-store"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+            application/json:
+              schema:
+                type: object
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
   "/api/#v-list-user-ssh-key":
     post:
       operationId: v-list-user-ssh-key
@@ -26925,6 +27331,58 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/v-revoke-api-key"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+  "/api/#v-rollback-user-secret":
+    post:
+      operationId: v-rollback-user-secret
+      tags:
+        - Users
+      summary: Roll a secret of a user back to an earlier version (E38)
+      description: |-
+        This function copies VERSION of the secret NAME of USER into a new
+        version, so the history only moves forward. Like v-change-user-secret it
+        prints the apps that reference the secret and, with RESTART set to yes,
+        restarts the ones that run.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `USER` | yes |
+        | `arg2` | `NAME` | yes |
+        | `arg3` | `VERSION` | yes |
+        | `arg4` | `RESTART` | no |
+
+        **User argument:** with the access key of a user other than the admin, `arg1` must be the key's user.
+      x-arcpanel-user-arg: 1
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-rollback-user-secret"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-rollback-user-secret"
       responses:
         "200":
           description: "The output of the command; `OK` for an empty output with legacy authentication."
@@ -35898,6 +36356,20 @@ components:
                 - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
+    v-add-sys-secret-key:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-add-sys-secret-key
+              default: v-add-sys-secret-key
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
     v-add-sys-sftp-jail:
       allOf:
         - $ref: "#/components/schemas/Credentials"
@@ -36417,6 +36889,47 @@ components:
               description: "`PUBLIC_OK`, optional"
               examples:
                 - ""
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
+    v-add-user-secret:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+            - arg2
+            - arg3
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-add-user-secret
+              default: v-add-user-secret
+            arg1:
+              type: string
+              title: USER
+              description: "`USER`"
+              examples:
+                - alice
+            arg2:
+              type: string
+              title: NAME
+              description: "`NAME`"
+              examples:
+                - /shop/db_password
+            arg3:
+              type: string
+              title: VALUE_FILE
+              description: "`VALUE_FILE`"
+              examples:
+                - /tmp/value
+            arg4:
+              type: string
+              title: DESCRIPTION
+              description: "`DESCRIPTION`, optional"
+              examples:
+                - Shop database
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-add-user-sftp-jail:
@@ -39811,6 +40324,85 @@ components:
               description: "`ROLE`"
               examples:
                 - administrator
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
+    v-change-user-secret:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+            - arg2
+            - arg3
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-change-user-secret
+              default: v-change-user-secret
+            arg1:
+              type: string
+              title: USER
+              description: "`USER`"
+              examples:
+                - alice
+            arg2:
+              type: string
+              title: NAME
+              description: "`NAME`"
+              examples:
+                - /shop/db_password
+            arg3:
+              type: string
+              title: VALUE_FILE
+              description: "`VALUE_FILE`"
+              examples:
+                - /tmp/value
+            arg4:
+              type: string
+              title: RESTART
+              description: "`RESTART`, optional"
+              enum:
+                - "yes"
+                - "no"
+              examples:
+                - "yes"
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
+    v-change-user-secret-description:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+            - arg2
+            - arg3
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-change-user-secret-description
+              default: v-change-user-secret-description
+            arg1:
+              type: string
+              title: USER
+              description: "`USER`"
+              examples:
+                - alice
+            arg2:
+              type: string
+              title: NAME
+              description: "`NAME`"
+              examples:
+                - /shop/db_password
+            arg3:
+              type: string
+              title: DESCRIPTION
+              description: "`DESCRIPTION`"
+              examples:
+                - Shop DB
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-change-user-shell:
@@ -43389,6 +43981,40 @@ components:
                 - alice
             returncode:
               $ref: "#/components/schemas/ReturnCode"
+    v-delete-user-secret:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+            - arg2
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-delete-user-secret
+              default: v-delete-user-secret
+            arg1:
+              type: string
+              title: USER
+              description: "`USER`"
+              examples:
+                - alice
+            arg2:
+              type: string
+              title: NAME
+              description: "`NAME`"
+              examples:
+                - /shop/db_password
+            arg3:
+              type: string
+              title: FORCE
+              description: "`FORCE`, optional"
+              examples:
+                - ""
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
     v-delete-user-sftp-jail:
       allOf:
         - $ref: "#/components/schemas/Credentials"
@@ -44591,6 +45217,40 @@ components:
                 - shell
               examples:
                 - json
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
+    v-get-user-secret:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+            - arg2
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-get-user-secret
+              default: v-get-user-secret
+            arg1:
+              type: string
+              title: USER
+              description: "`USER`"
+              examples:
+                - alice
+            arg2:
+              type: string
+              title: NAME
+              description: "`NAME`"
+              examples:
+                - /shop/db_password
+            arg3:
+              type: string
+              title: VERSION
+              description: "`VERSION`, optional"
+              examples:
+                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-get-user-value:
@@ -48360,6 +49020,77 @@ components:
                 - json
             returncode:
               $ref: "#/components/schemas/ReturnCode"
+    v-list-user-secret:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+            - arg2
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-list-user-secret
+              default: v-list-user-secret
+            arg1:
+              type: string
+              title: USER
+              description: "`USER`"
+              examples:
+                - alice
+            arg2:
+              type: string
+              title: NAME
+              description: "`NAME`"
+              examples:
+                - /shop/db_password
+            arg3:
+              type: string
+              title: FORMAT
+              description: "`FORMAT`, optional"
+              enum:
+                - json
+                - plain
+                - csv
+                - shell
+              examples:
+                - json
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
+    v-list-user-secret-store:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-list-user-secret-store
+              default: v-list-user-secret-store
+            arg1:
+              type: string
+              title: USER
+              description: "`USER`"
+              examples:
+                - alice
+            arg2:
+              type: string
+              title: FORMAT
+              description: "`FORMAT`, optional"
+              enum:
+                - json
+                - plain
+                - csv
+                - shell
+              examples:
+                - json
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
     v-list-user-ssh-key:
       allOf:
         - $ref: "#/components/schemas/Credentials"
@@ -50686,6 +51417,48 @@ components:
               description: "`HASH`, optional"
               examples:
                 - mykey
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
+    v-rollback-user-secret:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+            - arg2
+            - arg3
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-rollback-user-secret
+              default: v-rollback-user-secret
+            arg1:
+              type: string
+              title: USER
+              description: "`USER`"
+              examples:
+                - alice
+            arg2:
+              type: string
+              title: NAME
+              description: "`NAME`"
+              examples:
+                - /shop/db_password
+            arg3:
+              type: string
+              title: VERSION
+              description: "`VERSION`"
+              examples:
+                - "2"
+            arg4:
+              type: string
+              title: RESTART
+              description: "`RESTART`, optional"
+              enum:
+                - "yes"
+                - "no"
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-run-cli-cmd:

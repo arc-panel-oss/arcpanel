@@ -26,6 +26,7 @@ use App\Http\Controllers\Api\V2\PackageController;
 use App\Http\Controllers\Api\V2\PortController;
 use App\Http\Controllers\Api\V2\PortRegistryController;
 use App\Http\Controllers\Api\V2\SearchController;
+use App\Http\Controllers\Api\V2\SecretController;
 use App\Http\Controllers\Api\V2\ServerSettingsController;
 use App\Http\Controllers\Api\V2\ServiceController;
 use App\Http\Controllers\Api\V2\SshKeyController;
@@ -191,6 +192,18 @@ Route::middleware('effective-user')->group(function () {
         Route::delete('/users/{user}/auth-logs', [LogController::class, 'destroyLogins'])->name('auth-logs.destroy');
         Route::post('/users/{user}/ssh-keys', [SshKeyController::class, 'store'])->name('ssh-keys.store');
         Route::delete('/users/{user}/ssh-keys/{id}', [SshKeyController::class, 'destroy'])->where('id', '.{1,255}')->name('ssh-keys.destroy');
+    });
+
+    // Secret store of a user (E38 spec §8); {name} is the secret name without its leading slash
+    $secret = '[A-Za-z0-9_.\/-]{1,127}';
+    Route::get('/users/{user}/secrets', [SecretController::class, 'index'])->name('secrets.index');
+    Route::get('/users/{user}/secrets/{name}', [SecretController::class, 'show'])->where('name', $secret)->name('secrets.show');
+    Route::middleware('not-readonly')->group(function () use ($secret) {
+        Route::post('/users/{user}/secrets', [SecretController::class, 'store'])->name('secrets.store');
+        Route::put('/users/{user}/secrets/{name}/value', [SecretController::class, 'value'])->where('name', $secret)->name('secrets.value');
+        Route::post('/users/{user}/secrets/{name}/rollback', [SecretController::class, 'rollback'])->where('name', $secret)->name('secrets.rollback');
+        Route::patch('/users/{user}/secrets/{name}', [SecretController::class, 'update'])->where('name', $secret)->name('secrets.update');
+        Route::delete('/users/{user}/secrets/{name}', [SecretController::class, 'destroy'])->where('name', $secret)->name('secrets.destroy');
     });
 
     // Access keys and two-factor authentication of a user (E34 batch 6 §4.5, §4.6)
@@ -447,6 +460,7 @@ foreach (Route::getRoutes() as $route) {
         // The settings host path names a database host, not the db area
         str_starts_with($uri, 'api/v2/system/settings/') => 'server',
         str_contains($uri, '/web-domains') => 'web',
+        str_contains($uri, '/secrets') => 'secrets',
         str_contains($uri, '/dns-zones') => 'dns',
         str_contains($uri, '/mail-domains') => 'mail',
         str_contains($uri, '/databases') => 'db',

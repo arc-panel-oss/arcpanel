@@ -30,6 +30,7 @@ final class AccessKeySets
             'v2-apps' => __('REST API v2 only: Node.js, Docker apps and ports.'),
             'v2-server' => __('REST API v2 only: server-wide operations of administrators.'),
             'v2-files' => __('REST API v2 only: files of the home directory.'),
+            'v2-secrets' => __('REST API v2 only: the secret store; values go in, never out.'),
         ];
     }
 
@@ -52,6 +53,7 @@ final class AccessKeySets
             'v2-apps' => __('Node.js, Docker apps and ports.'),
             'v2-server' => __('Server-wide operations of administrators.'),
             'v2-files' => __('Files of the home directory.'),
+            'v2-secrets' => __('The secret store; values go in, never out.'),
             'billing' => __('User accounts and packages for a billing system.'),
             'mail-accounts' => __('Mail accounts.'),
             'phpmyadmin-sso' => __('phpMyAdmin single sign-on.'),
