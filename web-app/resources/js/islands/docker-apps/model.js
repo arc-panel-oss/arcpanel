@@ -2,6 +2,8 @@
 // same checks as func/docker.sh, so the forms refuse what the commands
 // would.
 
+import { isOnlySecretReference } from '../shared/secret-reference.js';
+
 /** App instance name (dockerapp_name_valid) */
 export function isAppName(value) {
 	return /^[a-z][a-z0-9-]{0,30}[a-z0-9]$/.test(value);
@@ -102,6 +104,18 @@ export function formErrors(variables, values) {
 		}
 	}
 	return errors;
+}
+
+/**
+ * The value a settings field starts with: the stored value, but for a secret
+ * variable only a value that is one reference to the secret store (E38),
+ * never a secret, also not one that mixes text and a reference.
+ */
+export function shownValue(variable) {
+	if (!variable.secret) {
+		return variable.value;
+	}
+	return isOnlySecretReference(variable.value ?? '') ? variable.value : '';
 }
 
 const ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789';

@@ -11,6 +11,7 @@ import {
 	isAppName,
 	mergeLogs,
 	mergeTask,
+	shownValue,
 	varError,
 } from '../../resources/js/islands/docker-apps/model.js';
 
@@ -77,6 +78,16 @@ describe('variables (as docker_var_check)', () => {
 		const secret = generateSecret(32);
 		expect(secret).toMatch(/^[A-Za-z0-9]{32}$/);
 		expect(generateSecret(32)).not.toBe(secret);
+	});
+});
+
+describe('values shown in the settings (E38)', () => {
+	it('shows plain values and references to the secret store, never a stored secret', () => {
+		expect(shownValue({ secret: false, value: 'hello' })).toBe('hello');
+		expect(shownValue({ secret: true, value: '' })).toBe('');
+		expect(shownValue({ secret: true, value: '{{secret:/shop/db}}' })).toBe('{{secret:/shop/db}}');
+		// a password that only contains a reference stays hidden
+		expect(shownValue({ secret: true, value: 'hunter2pw-{{secret:/x}}' })).toBe('');
 	});
 });
 

@@ -92,7 +92,13 @@ it('shows the store, a catalog app with its form and the page of an app', functi
         ->and($props['app']['ports'][0]['container'])->toBe('3001')
         ->and($props['app']['catalog']['changelog'])->toBe('https://example.com/releases')
         ->and($props['task']['status'])->toBe('')
-        ->and($props['pages']['files'])->toBe('http://localhost/files/bob');
+        ->and($props['pages']['files'])->toBe('http://localhost/files/bob')
+        ->and($props['secrets'])->toBe([]);
+
+    // The names of the account's secrets feed the "Use a secret" pickers (E38)
+    $this->fake->on('v-list-user-secret-store')->returnsJson(['/shop/db' => ['NAME' => '/shop/db']]);
+    $props = dockerIslandProps($this->get('/docker/bob/apps/kuma')->assertOk()->getContent());
+    expect($props['secrets'])->toBe(['/shop/db'])->and($props['strings'])->toHaveKey('Use a secret');
     $this->get('/docker/bob/apps/none')->assertNotFound();
 });
 

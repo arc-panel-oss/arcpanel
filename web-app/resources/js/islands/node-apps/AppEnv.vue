@@ -1,15 +1,18 @@
 <script setup>
 // Environment of an app (E14 spec D13): KEY=value rows of .env, values
 // masked until revealed, saved as a whole; the app restarts to read them.
+// Values may reference the secret store as {{secret:NAME}} (E38): they are
+// shown as written, and a picker adds a row with such a reference.
 import { computed, onMounted, ref } from 'vue';
 import ApIcon from '../shared/ApIcon.vue';
 import { fieldErrors } from './api.js';
-import { envChanged, envErrors } from './model.js';
+import { envChanged, envErrors, isSecretReference, secretReference } from './model.js';
 
 const props = defineProps({
 	api: { type: Object, required: true },
 	domain: { type: String, required: true },
 	canManage: { type: Boolean, default: false },
+	secrets: { type: Array, default: () => [] },
 	t: { type: Function, required: true },
 });
 
@@ -20,6 +23,7 @@ const revealed = ref(new Set());
 const loading = ref(true);
 const busy = ref(false);
 const serverErrors = ref({});
+const picked = ref('');
 
 const errors = computed(() => envErrors(rows.value));
 const changed = computed(() => envChanged(saved.value, rows.value));
@@ -34,6 +38,14 @@ function load(vars) {
 function add() {
 	rows.value.push({ key: '', value: '' });
 	revealed.value.add(rows.value.length - 1);
+}
+
+function addSecret() {
+	if (picked.value === '') {
+		return;
+	}
+	rows.value.push({ key: '', value: secretReference(picked.value) });
+	picked.value = '';
 }
 
 function remove(index) {
@@ -83,6 +95,7 @@ onMounted(async () => {
 <template>
 	<form class="ap-stack" novalidate @submit.prevent="save">
 		<p class="muted">{{ t('Variables of the .env file of the app. PORT, HOST and NODE_ENV are set by the panel.') }}</p>
+		<p class="muted">{{ t('A value can reference a secret of the account as %s; the app gets its value when it starts.', secretReference('NAME')) }}</p>
 		<p v-if="loading" class="muted">{{ t('Loading…') }}</p>
 		<div v-else class="ap-table-wrap">
 			<table class="ap-table">
@@ -113,7 +126,7 @@ onMounted(async () => {
 								:id="`env-value-${index}`"
 								v-model="row.value"
 								class="ap-input ap-input-mono"
-								:type="revealed.has(index) ? 'text' : 'password'"
+								:type="revealed.has(index) || isSecretReference(row.value) ? 'text' : 'password'"
 								spellcheck="false"
 								autocomplete="off"
 								:disabled="!canManage"
@@ -147,6 +160,13 @@ onMounted(async () => {
 		</div>
 		<div v-if="canManage" class="ap-actions">
 			<button type="button" class="ap-btn ap-btn-sm" :disabled="loading || rows.length >= 200" @click="add"><ApIcon name="plus" />{{ t('Add a variable') }}</button>
+			<template v-if="secrets.length > 0">
+				<label class="sr-only" for="env-secret-pick">{{ t('Insert a secret') }}</label>
+				<select id="env-secret-pick" v-model="picked" class="ap-select" :disabled="loading || rows.length >= 200" @change="addSecret">
+					<option value="">{{ t('Insert a secret') }}</option>
+					<option v-for="name in secrets" :key="name" :value="name">{{ name }}</option>
+				</select>
+			</template>
 			<button type="submit" class="ap-btn ap-btn-primary ap-btn-sm" :disabled="busy || !changed || Object.keys(errors).length > 0">
 				<span v-if="busy" class="ap-spinner" aria-hidden="true" /><ApIcon v-else name="save" />{{ t('Save and restart') }}
 			</button>

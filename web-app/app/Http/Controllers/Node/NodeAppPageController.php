@@ -7,6 +7,8 @@ use App\Auth\Principal;
 use App\Http\Controllers\Controller;
 use App\Policies\FilePolicy;
 use App\Policies\NodePolicy;
+use App\Policies\UserSecretPolicy;
+use App\Services\Keys\UserSecretManager;
 use App\Services\Node\NodeAppService;
 use App\Services\Node\NodeService;
 use Illuminate\Http\RedirectResponse;
@@ -22,6 +24,7 @@ final class NodeAppPageController extends Controller
 {
     /** Strings of the island, translated for the page */
     private const STRINGS = [
+        'A value can reference a secret of the account as %s; the app gets its value when it starts.', 'Insert a secret',
         '%d of %s apps', '%d online · %d stopped · %d errored', '%d selected', '%s is set by the panel.', 'A file', 'A port of my pool',
         'A script of package.json', 'A value fits on one line.', 'Actions', 'Add a variable', 'Add a web domain first; an app runs for one domain.',
         'An app runs a Node.js server for one of your web domains, with its own port, logs and restart on failure.', 'App',
@@ -92,7 +95,7 @@ final class NodeAppPageController extends Controller
         ]);
     }
 
-    public function show(string $user, string $domain, Principal $principal, NodePolicy $policy): View
+    public function show(string $user, string $domain, Principal $principal, NodePolicy $policy, UserSecretManager $secrets, UserSecretPolicy $secretPolicy): View
     {
         abort_unless($policy->viewApps($principal, $user), 403);
         $app = $this->apps->show($user, $domain);
@@ -109,6 +112,8 @@ final class NodeAppPageController extends Controller
                 'defaultRuntime' => $account->default,
                 'maxInstances' => $apps->maxInstances,
                 'memoryLimit' => $apps->memoryLimit,
+                // Names for the reference picker of the environment (E38)
+                'secrets' => $secretPolicy->manage($principal, $user) ? $secrets->names($user) : [],
             ],
         ]);
     }

@@ -8,8 +8,10 @@ use App\Http\Controllers\Controller;
 use App\Policies\DockerPolicy;
 use App\Policies\FilePolicy;
 use App\Policies\PortPolicy;
+use App\Policies\UserSecretPolicy;
 use App\Services\Docker\DockerAppService;
 use App\Services\Docker\DockerCatalog;
+use App\Services\Keys\UserSecretManager;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\View\View;
 
@@ -23,6 +25,7 @@ final class DockerAppPageController extends Controller
 {
     /** Strings of the island, translated for the page */
     public const STRINGS = [
+        'Use a secret', 'Use a secret for %s',
         '%d of %s apps', '%d running · %d stopped · %d failed', '%d selected', 'A new version is available.', 'Actions', 'Add a web domain first.',
         'Administrators only', 'All', 'All categories', 'All services', 'An app with the same name exists.', 'App', 'App name', 'Apps',
         'At most 1024 characters, without quotes, $, ` or \\.', 'Back', 'Backups', 'CPU', 'CPUs', 'Cancel', 'Category', 'Changelog',
@@ -114,7 +117,7 @@ final class DockerAppPageController extends Controller
         ]);
     }
 
-    public function show(string $user, string $name, Principal $principal, DockerPolicy $policy): View
+    public function show(string $user, string $name, Principal $principal, DockerPolicy $policy, UserSecretManager $secrets, UserSecretPolicy $secretPolicy): View
     {
         abort_unless($policy->viewApps($principal, $user), 403);
         $app = $this->apps->show($user, $name)->toArray();
@@ -127,6 +130,8 @@ final class DockerAppPageController extends Controller
                 'app' => $app,
                 'task' => $this->apps->task($user, $name)->toArray(),
                 'domains' => $policy->manageApps($principal, $user) ? $this->apps->freeDomains($user, $this->apps->apps($user)) : [],
+                // Names for the "Use a secret" pickers of the variables (E38)
+                'secrets' => $secretPolicy->manage($principal, $user) ? $secrets->names($user) : [],
             ],
         ]);
     }

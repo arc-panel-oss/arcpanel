@@ -268,7 +268,7 @@ onBeforeUnmount(() => clearTimeout(timer));
 			</section>
 
 			<section v-if="tab === 'settings'" id="app-panel-settings" class="ap-card" role="tabpanel" aria-labelledby="app-tab-settings">
-				<DockerSettings :api="api" :app="app" :domains="initial.domains" :can-manage="canManage" :t="t" @update="apply" />
+				<DockerSettings :api="api" :app="app" :domains="initial.domains" :secrets="initial.secrets ?? []" :can-manage="canManage" :t="t" @update="apply" />
 			</section>
 
 			<section v-show="tab === 'updates'" id="app-panel-updates" class="ap-card ap-stack" role="tabpanel" aria-labelledby="app-tab-updates">

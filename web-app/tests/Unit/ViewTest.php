@@ -122,11 +122,11 @@ it('shows the batch 2 pages by capability, API_SYSTEM and log policy', function 
 
     // API_SYSTEM=1: only the ROOT_USER has access keys; the log policy hides Logs for users
     $user = $items(principal('bob', Role::User));
-    expect($user)->toHaveKeys(['stats.index', 'ssh-keys.index'])
+    expect($user)->toHaveKeys(['stats.index', 'ssh-keys.index', 'secrets.index'])
         ->and($user)->not->toHaveKeys(['server.ips', 'server.firewall', 'server.rrd', 'access-keys.index', 'logs.index']);
 
     withSysConfig($fake, ['API_SYSTEM' => '2']);
-    expect($items(principal('hostco', Role::Reseller)))->toHaveKeys(['access-keys.index', 'ssh-keys.index', 'logs.index', 'stats.index']);
+    expect($items(principal('hostco', Role::Reseller)))->toHaveKeys(['access-keys.index', 'ssh-keys.index', 'secrets.index', 'logs.index', 'stats.index']);
 });
 
 it('hides the web terminal while a reseller acts as a customer', function () {

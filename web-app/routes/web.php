@@ -31,6 +31,7 @@ use App\Http\Controllers\Firewall\FirewallIpsetController;
 use App\Http\Controllers\ImpersonationController;
 use App\Http\Controllers\Ips\IpController;
 use App\Http\Controllers\Keys\AccessKeyController;
+use App\Http\Controllers\Keys\SecretController;
 use App\Http\Controllers\Keys\SshKeyController;
 use App\Http\Controllers\LegacyRedirectController;
 use App\Http\Controllers\Logs\LogController;
@@ -245,6 +246,20 @@ Route::middleware('auth.arc')->group(function () {
         Route::middleware('not-readonly')->group(function () {
             Route::post('/', [SshKeyController::class, 'store'])->name('store');
             Route::delete('/{id}', [SshKeyController::class, 'destroy'])->where('id', '[^/]{1,255}')->name('destroy');
+        });
+    });
+
+    // Secret store (E38 spec §7); the secret name travels as `name`
+    Route::get('/secrets', [SecretController::class, 'entry'])->name('secrets.index');
+    Route::prefix('secrets/{user}')->name('secrets.')->middleware('effective-user')->group(function () {
+        Route::get('/', [SecretController::class, 'index'])->name('list');
+        Route::get('/item', [SecretController::class, 'show'])->name('show');
+        Route::middleware('not-readonly')->group(function () {
+            Route::post('/', [SecretController::class, 'store'])->name('store');
+            Route::post('/item/value', [SecretController::class, 'value'])->name('value');
+            Route::post('/item/rollback', [SecretController::class, 'rollback'])->name('rollback');
+            Route::patch('/item', [SecretController::class, 'describe'])->name('describe');
+            Route::delete('/item', [SecretController::class, 'destroy'])->name('destroy');
         });
     });
 

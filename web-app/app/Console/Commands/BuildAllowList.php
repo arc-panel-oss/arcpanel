@@ -14,6 +14,9 @@ use Illuminate\Console\Command;
 #[Description('Generate config/arc-commands.php from the v-* scripts in bin/')]
 final class BuildAllowList extends Command
 {
+    /** Commands the panel must never run: v-get-user-secret prints a secret value (E38 D7). */
+    private const NEVER = ['v-get-user-secret'];
+
     public function handle(): int
     {
         $bin = $this->option('bin') ?: base_path('../bin');
@@ -25,7 +28,7 @@ final class BuildAllowList extends Command
 
         $commands = [];
         foreach (scandir($bin) ?: [] as $file) {
-            if (preg_match('/^v-[a-z0-9-]+$/', $file) === 1 && is_file($bin.'/'.$file)) {
+            if (preg_match('/^v-[a-z0-9-]+$/', $file) === 1 && is_file($bin.'/'.$file) && ! in_array($file, self::NEVER, true)) {
                 $commands[] = $file;
             }
         }

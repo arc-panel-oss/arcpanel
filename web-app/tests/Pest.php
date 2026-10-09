@@ -102,6 +102,8 @@ function fakeArc(array $config = []): ArcCommandFake
     $fake->on('v-delete-node-app')->returnsExit(ExitCode::NotExist);
     // The same for Docker apps (E4)
     $fake->on('v-list-docker-apps')->using(fn (array $args) => [0, (string) json_encode(dockerAppList($args[0]))]);
+    // The app pages list the secret names for their reference pickers (E38); none by default.
+    $fake->on('v-list-user-secret-store')->returnsJson([]);
 
     return $fake;
 }

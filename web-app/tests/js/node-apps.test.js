@@ -8,9 +8,11 @@ import {
 	formatUptime,
 	isAppName,
 	isRelativePath,
+	isSecretReference,
 	isStart,
 	mergeLog,
 	parseStart,
+	secretReference,
 	templateFor,
 } from '../../resources/js/islands/node-apps/model.js';
 import { taskLabel } from '../../resources/js/islands/node-manager/model.js';
@@ -73,6 +75,14 @@ describe('environment table', () => {
 		expect(envChanged(before, [{ key: ' A ', value: '1' }])).toBe(false);
 		expect(envChanged(before, [{ key: 'A', value: '2' }])).toBe(true);
 		expect(envChanged(before, [])).toBe(true);
+	});
+
+	it('writes and recognises references to the secret store (E38)', () => {
+		expect(secretReference('/shop/db')).toBe('{{secret:/shop/db}}');
+		expect(isSecretReference('{{secret:/shop/db}}')).toBe(true);
+		expect(isSecretReference('mysql://app:{{secret:/shop/db}}@127.0.0.1/app')).toBe(true);
+		expect(isSecretReference('plain-password')).toBe(false);
+		expect(isSecretReference('{{secret:}}')).toBe(false);
 	});
 });
 

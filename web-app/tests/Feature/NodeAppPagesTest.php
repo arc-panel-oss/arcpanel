@@ -64,7 +64,14 @@ it('opens the wizard and the page of an app', function () {
         ->and($props['app']['domain'])->toBe('api.bob.example')
         ->and($props['runtimes'][0]['version'])->toBe('24.21.0')
         ->and($props['maxInstances'])->toBe(4)
-        ->and($props['pages']['files'])->toBe('http://localhost/files/bob');
+        ->and($props['pages']['files'])->toBe('http://localhost/files/bob')
+        ->and($props['secrets'])->toBe([]);
+
+    // The names of the account's secrets feed the reference picker (E38)
+    $this->fake->on('v-list-user-secret-store')->returnsJson(['/shop/db' => ['NAME' => '/shop/db']]);
+    $props = islandProps($this->get('/node/bob/apps/api.bob.example')->assertOk()->getContent());
+    expect($props['secrets'])->toBe(['/shop/db'])->and($props['strings'])->toHaveKey('Insert a secret');
+    $this->fake->assertRan('v-list-user-secret-store', fn ($a) => $a === ['bob', 'json', 'no']);
 
     $this->get('/node/bob/apps/none.bob.example')->assertNotFound();
 });

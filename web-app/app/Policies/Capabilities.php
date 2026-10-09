@@ -135,6 +135,11 @@ final class Capabilities
         'ssh-keys.view' => self::OWN,
         'ssh-keys.manage' => self::OWN,
 
+        // Secret store (E38 spec D11): every account, resellers for their
+        // tree, administrators any
+        'secrets.view' => self::ALL_ROLES,
+        'secrets.manage' => self::ALL_ROLES,
+
         // Web terminal (E7 batch 2 spec D11); TerminalPolicy adds the shell
         'terminal.use' => self::ALL_ROLES,
 

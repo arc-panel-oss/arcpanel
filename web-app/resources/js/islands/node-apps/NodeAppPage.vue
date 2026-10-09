@@ -266,7 +266,7 @@ onBeforeUnmount(() => {
 			</section>
 
 			<section v-if="tab === 'env'" id="app-panel-env" class="ap-card" role="tabpanel" aria-labelledby="app-tab-env">
-				<AppEnv :api="api" :domain="app.domain" :can-manage="canManage" :t="t" />
+				<AppEnv :api="api" :domain="app.domain" :can-manage="canManage" :secrets="props.initial.secrets ?? []" :t="t" />
 			</section>
 
 			<section v-show="tab === 'settings'" id="app-panel-settings" class="ap-card" role="tabpanel" aria-labelledby="app-tab-settings">

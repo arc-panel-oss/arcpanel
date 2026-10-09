@@ -85,6 +85,7 @@ final class Navigation
                 ['route' => 'stats.index', 'label' => 'Statistics', 'icon' => 'trend', 'cap' => 'stats.view', 'section' => 'stats.'],
                 ['route' => 'access-keys.index', 'label' => 'Access keys', 'icon' => 'key', 'cap' => 'access-keys.view', 'api' => true, 'section' => 'access-keys.'],
                 ['route' => 'ssh-keys.index', 'label' => 'SSH keys', 'icon' => 'lock', 'cap' => 'ssh-keys.view', 'section' => 'ssh-keys.'],
+                ['route' => 'secrets.index', 'label' => 'Secrets', 'icon' => 'shield-check', 'cap' => 'secrets.view', 'section' => 'secrets.'],
                 ['route' => 'account.edit', 'label' => 'My account', 'icon' => 'user-circle', 'cap' => 'account.view', 'section' => 'account.'],
             ],
         ],

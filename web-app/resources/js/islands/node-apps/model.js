@@ -66,6 +66,8 @@ export function envErrors(rows) {
 	return errors;
 }
 
+export { isSecretReference, secretReference } from '../shared/secret-reference.js';
+
 /** Whether two environment tables differ (order counts: it is the file) */
 export function envChanged(before, after) {
 	if (before.length !== after.length) {

@@ -4,14 +4,16 @@
 // saves on its own; the app starts again with the new values.
 import { computed, onMounted, reactive, ref } from 'vue';
 import ApIcon from '../shared/ApIcon.vue';
+import { secretReference } from '../shared/secret-reference.js';
 import { appPath, fieldErrors } from './api.js';
-import { generateSecret, varError } from './model.js';
+import { generateSecret, shownValue, varError } from './model.js';
 
 const props = defineProps({
 	api: { type: Object, required: true },
 	app: { type: Object, required: true },
 	domains: { type: Array, default: () => [] },
 	canManage: { type: Boolean, default: false },
+	secrets: { type: Array, default: () => [] },
 	t: { type: Function, required: true },
 });
 const emit = defineEmits(['update']);
@@ -31,7 +33,7 @@ async function load() {
 	try {
 		variables.value = (await props.api.call('GET', appPath(props.app.name, '/env'))).variables;
 		for (const variable of variables.value) {
-			values[variable.name] = variable.secret ? '' : variable.value;
+			values[variable.name] = shownValue(variable);
 		}
 	} catch (error) {
 		props.api.fail(error);
@@ -43,7 +45,7 @@ async function saveVariables() {
 	const changed = {};
 	for (const variable of variables.value) {
 		const value = values[variable.name] ?? '';
-		if (variable.immutable || (!variable.secret && value === variable.value) || (variable.secret && value === '')) {
+		if (variable.immutable || value === variable.value || (variable.secret && value === '')) {
 			continue;
 		}
 		const problem = varError(variable, value);
@@ -60,7 +62,7 @@ async function saveVariables() {
 	try {
 		variables.value = (await props.api.call('PUT', appPath(props.app.name, '/env'), { vars: changed })).variables;
 		for (const variable of variables.value) {
-			values[variable.name] = variable.secret ? '' : variable.value;
+			values[variable.name] = shownValue(variable);
 		}
 		props.api.saved();
 	} catch (error) {
@@ -118,6 +120,21 @@ onMounted(load);
 							<button v-if="!variable.immutable" type="button" class="ap-btn ap-btn-sm" @click="values[variable.name] = generateSecret(24); shown[variable.name] = true">
 								<ApIcon name="key" />{{ t('Generate') }}
 							</button>
+							<template v-if="!variable.immutable && secrets.length > 0">
+								<label class="sr-only" :for="`set-secret-${variable.name}`">{{ t('Use a secret for %s', variable.label) }}</label>
+								<select
+									:id="`set-secret-${variable.name}`"
+									class="ap-select"
+									@change="
+										values[variable.name] = secretReference($event.target.value);
+										shown[variable.name] = true;
+										$event.target.value = '';
+									"
+								>
+									<option value="">{{ t('Use a secret') }}</option>
+									<option v-for="name in secrets" :key="name" :value="name">{{ name }}</option>
+								</select>
+							</template>
 						</div>
 						<input
 							v-else
