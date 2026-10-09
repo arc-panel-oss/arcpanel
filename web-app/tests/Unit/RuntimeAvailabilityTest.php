@@ -39,6 +39,8 @@ it('reads the package catalog once and the Node.js runtimes once per owner', fun
     }
     $runtimes->available('node', 'carol');
 
+    // Only the installed entries: the full list asks apt for updates (~650 ms)
+    $this->fake->assertRan('v-list-sys-packages', fn ($a) => $a === ['json', 'installed'], times: 1);
     $this->fake->assertRan('v-list-sys-packages', times: 1);
     $this->fake->assertRan('v-list-user-node-versions', fn ($a) => $a[0] === 'bob', times: 1);
     $this->fake->assertRan('v-list-user-node-versions', fn ($a) => $a[0] === 'carol', times: 1);

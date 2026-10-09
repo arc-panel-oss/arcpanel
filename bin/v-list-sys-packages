@@ -1,9 +1,10 @@
 #!/bin/bash
 # info: list the system packages of the catalog (E5)
-# options: [FORMAT]
+# options: [FORMAT] [SCOPE]
 #
 # example: v-list-sys-packages
 # example: v-list-sys-packages json
+# example: v-list-sys-packages json installed
 #
 # This function lists every entry of the system package catalog with its
 # state on this server: the packages it installs on this release, whether
@@ -11,7 +12,9 @@
 # (arcpanel when ArcPanel installed it, system when it was there before,
 # "-" otherwise), the version, whether apt's local lists have an update
 # (UPGRADABLE) and the web domains whose template needs a runtime it
-# provides (DOMAINS, USED_BY).
+# provides (DOMAINS, USED_BY). SCOPE "installed" lists only the installed
+# and partial entries and skips the slow checks for the panel's runtime
+# badges: UPGRADABLE is "no" and DOMAINS empty.
 
 #----------------------------------------------------------#
 #                Variables & Functions                     #
@@ -19,6 +22,7 @@
 
 # Argument definition
 format=${1-shell}
+scope=${2-all}
 
 # Includes
 # shellcheck source=/etc/arcpanel/arcpanel.conf
@@ -38,6 +42,10 @@ case "$format" in
 	json | plain | csv | shell) ;;
 	*) check_result "$E_INVALID" "invalid format :: $format (json, plain, csv, shell)" ;;
 esac
+case "$scope" in
+	all | installed) ;;
+	*) check_result "$E_INVALID" "invalid scope :: $scope (all, installed)" ;;
+esac
 
 #----------------------------------------------------------#
 #                       Action                             #
@@ -46,15 +54,20 @@ esac
 # The release and the packages of each slug are read once: the checks of an
 # entry asked for them several times each (one subshell and one jq a time)
 ARC_SYS_PACKAGES_RELEASE=${ARC_SYS_PACKAGES_RELEASE:-$(sp_release)}
-upgradable=$(sp_upgradable)
-map=$(sp_domain_runtimes)
+# apt list --upgradable alone takes about 240 ms
+upgradable=''
+map=''
+if [ "$scope" = all ]; then
+	upgradable=$(sp_upgradable)
+	map=$(sp_domain_runtimes)
+fi
 entries=$(
 	for slug in $(sp_slugs); do
 		if [ -z "$(sp_manifest_errors "$(sp_manifest "$slug")" "$slug")" ]; then
 			sp_remember_packages "$slug"
 			sp_entry_json "$slug" "$upgradable" "$map"
 		fi
-	done | jq -sc .
+	done | jq -sc --arg scope "$scope" 'if $scope == "installed" then map(select(.STATUS != "missing")) else . end'
 )
 
 columns='[.SLUG, .NAME, .CATEGORY, .STATUS, .SOURCE, (if .VERSION == "" then "-" else .VERSION end), .AVAILABLE, .UPGRADABLE, (.USED_BY | tostring)]'

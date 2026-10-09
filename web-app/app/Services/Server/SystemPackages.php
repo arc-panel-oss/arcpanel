@@ -21,6 +21,9 @@ final class SystemPackages
     /** @var list<array<string, mixed>>|null per request (v-list-sys-packages is not cached) */
     private ?array $entries = null;
 
+    /** @var list<array<string, mixed>>|null the installed entries, per request */
+    private ?array $installed = null;
+
     public function __construct(private readonly ArcCommand $arc) {}
 
     /**
@@ -30,11 +33,17 @@ final class SystemPackages
      */
     public function all(): array
     {
-        if ($this->entries !== null) {
-            return $this->entries;
-        }
+        return $this->entries ??= $this->read($this->arc->json('v-list-sys-packages', [], Options::allowFailure()));
+    }
+
+    /**
+     * @param  array<mixed>  $rows  of `v-list-sys-packages json`
+     * @return list<array{slug: string, name: string, summary: string, category: string, provides: list<string>, packages: list<string>, available: bool, status: string, source: string, version: string, upgradable: bool, domains: list<string>, usedBy: int}>
+     */
+    private function read(array $rows): array
+    {
         $entries = [];
-        foreach ($this->arc->json('v-list-sys-packages', [], Options::allowFailure()) as $row) {
+        foreach ($rows as $row) {
             if (! is_array($row) || ! isset($row['SLUG'])) {
                 continue;
             }
@@ -55,7 +64,7 @@ final class SystemPackages
             ];
         }
 
-        return $this->entries = $entries;
+        return $entries;
     }
 
     /**
@@ -93,13 +102,31 @@ final class SystemPackages
     public function installedRuntimes(): array
     {
         $runtimes = [];
-        foreach ($this->all() as $entry) {
+        foreach ($this->entries ?? $this->installed() as $entry) {
             if ($entry['status'] === 'installed') {
                 array_push($runtimes, ...$entry['provides']);
             }
         }
 
         return array_values(array_unique($runtimes));
+    }
+
+    /**
+     * The installed and partial entries, without the update and domain checks
+     * of the full list (`v-list-sys-packages json installed`), for the
+     * runtime badges of the template picker.
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function installed(): array
+    {
+        if ($this->installed === null) {
+            $result = $this->arc->run('v-list-sys-packages', ['json', 'installed'], Options::allowFailure());
+            $rows = $result->ok() ? json_decode($result->stdout, true) : [];
+            $this->installed = $this->read(is_array($rows) ? $rows : []);
+        }
+
+        return $this->installed;
     }
 
     /** `v-start-sys-task package SLUG add|delete` */

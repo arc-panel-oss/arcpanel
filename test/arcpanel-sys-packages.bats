@@ -130,7 +130,8 @@ teardown_file() {
     run field arctest-hello STATUS
     assert_output "missing"
     run field arctest-hello SOURCE
-    assert_output "-"
+    # assert_output "-" would read the expected value from stdin
+    assert_equal "$output" "-"
     run field arctest-present STATUS
     assert_output "installed"
     run field arctest-present SOURCE
@@ -147,6 +148,24 @@ teardown_file() {
     assert_output --partial "SLUG"
     run v-list-sys-packages yaml
     assert_failure 2
+}
+
+@test "System packages: the installed scope lists installed entries without asking apt for updates" {
+    shim=$(mktemp -d)
+    printf '#!/bin/sh\ntouch %s/apt-ran\n' "$shim" > "$shim/apt"
+    chmod +x "$shim/apt"
+    run bash -c "PATH=$shim:\$PATH v-list-sys-packages json installed | jq -c '[.[] | {SLUG, STATUS, UPGRADABLE, USED_BY}]'"
+    assert_success
+    assert_output '[{"SLUG":"arctest-present","STATUS":"installed","UPGRADABLE":"no","USED_BY":0}]'
+    assert_file_not_exists "$shim/apt-ran"
+    # The full list asks apt (the shim is used)
+    PATH="$shim:$PATH" v-list-sys-packages json > /dev/null
+    assert_file_exists "$shim/apt-ran"
+    run bash -c "v-list-sys-packages plain installed | cut -f1"
+    assert_output "arctest-present"
+    run v-list-sys-packages json upgradable
+    assert_failure 2
+    rm -rf "$shim"
 }
 
 #----------------------------------------------------------#

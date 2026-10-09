@@ -322,8 +322,12 @@ case "${1:-}" in
 		if [ "$(dpkg-query -W -f='${db:Status-Status}' hello 2> /dev/null || true)" = installed ]; then
 			DEBIAN_FRONTEND=noninteractive apt-get -y -qq remove hello > /dev/null
 		fi
-		install -m 0644 "$(dirname "$(readlink -f "$0")")/../fixtures/sys-packages-e2e/arctest-e2e.json" \
-			"$ARCPANEL/install/common/apps/system/"
+		# Next to this script when it runs as a file; from the checkout (the
+		# working directory) when server.js passes it on stdin (bash -s)
+		for fixtures in "$(dirname "$(readlink -f "$0")")/../fixtures" "$PWD/test/fixtures"; do
+			[ -f "$fixtures/sys-packages-e2e/arctest-e2e.json" ] && break
+		done
+		install -m 0644 "$fixtures/sys-packages-e2e/arctest-e2e.json" "$ARCPANEL/install/common/apps/system/"
 		exit 0
 		;;
 	syspackages-clean)
