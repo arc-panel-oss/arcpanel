@@ -27,6 +27,9 @@ use const DIRECTORY_SEPARATOR;
 
 class ArcPanelApp
 {
+    /** @var list<string>|null installed PHP versions, read once: every installer asks */
+    private ?array $installedPHPVersions = null;
+
     public function addDirectory(string $path): void
     {
         try {
@@ -344,10 +347,10 @@ class ArcPanelApp
     {
         try {
             // Load installed PHP Versions
-            $result = $this->run('v-list-sys-php', ['json']);
+            $this->installedPHPVersions ??= array_values($this->run('v-list-sys-php', ['json'])->getOutputJson());
 
             $installedPHPVersions = array_filter(
-                $result->getOutputJson(),
+                $this->installedPHPVersions,
                 fn(string $installedPHP) => in_array($installedPHP, $supportedPHP, true),
             );
 
