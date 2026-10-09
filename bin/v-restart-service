@@ -4,7 +4,8 @@
 #
 # example: v-restart-service apache2
 #
-# This function restarts system service.
+# This function restarts system service. The panel's own unit (arcpanel) is
+# restarted two seconds later in the background, so the caller gets its answer.
 
 #----------------------------------------------------------#
 #                Variables & Functions                     #
@@ -52,7 +53,15 @@ else
 fi
 
 for service in $service_list; do
-	if [ "$service" = "iptables" ]; then
+	if [ "$service" = "arcpanel" ]; then
+		# The panel's own unit: restart it a moment later, outside the request
+		# of the page or the API call that asked for it, which would end with it
+		if [ -d /run/systemd/system ]; then
+			systemd-run --quiet --collect --on-active=2 --unit="arcpanel-restart-$(date +%s%N)" /usr/bin/systemctl restart arcpanel >> $log 2>&1
+		else
+			setsid sh -c 'sleep 2; service arcpanel restart' > /dev/null 2>&1 < /dev/null &
+		fi
+	elif [ "$service" = "iptables" ]; then
 		# Run the restart rules for iptables firewall
 		$BIN/v-stop-firewall
 		$BIN/v-update-firewall

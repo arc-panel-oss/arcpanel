@@ -351,6 +351,12 @@ if [ -n "$FIREWALL_EXTENSION" ]; then
 	data="$data STATE='$state' CPU='$cpu' MEM='$mem' RTIME='$rtime'"
 fi
 
+# The panel's own unit (its NGINX and PHP-FPM); the panel restarts it but
+# never stops it
+get_srv_state arcpanel arcpanel-nginx
+data="$data\nNAME='arcpanel' SYSTEM='panel web server' STATE='$state'"
+data="$data CPU='$cpu' MEM='$mem' RTIME='$rtime'"
+
 # Checking WEB_TERMINAL
 if [ -n "$WEB_TERMINAL" ] && [ "$WEB_TERMINAL" != 'false' ]; then
 	get_srv_state arcpanel-web-terminal

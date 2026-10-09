@@ -381,3 +381,31 @@ teardown_file() {
     assert_output --regexp '"app.css": "app\.[0-9a-f]{10}\.css"'
     assert_file_exists /usr/local/arcpanel/web-app/public/build/fonts/inter-latin-400-normal.woff2
 }
+
+@test "The services list shows the panel's own unit" {
+    run bash -c "v-list-sys-services json | jq -r '.arcpanel | \"\(.SYSTEM) \(.STATE)\"'"
+    assert_output "panel web server running"
+}
+
+@test "Restarting the panel answers first and restarts it a moment later" {
+    before=$(systemctl show arcpanel -p ActiveEnterTimestampMonotonic --value)
+    start=$(date +%s%N)
+    run v-restart-service arcpanel yes
+    assert_success
+    # The command does not wait for the restart, which would end the request
+    # of the page or the API call that asked for it
+    [ $((($(date +%s%N) - start) / 1000000)) -lt 1500 ]
+    assert_equal "$(systemctl show arcpanel -p ActiveEnterTimestampMonotonic --value)" "$before"
+    for _ in $(seq 1 30); do
+        now=$(systemctl show arcpanel -p ActiveEnterTimestampMonotonic --value)
+        [ "$now" != "$before" ] && break
+        sleep 1
+    done
+    [ "$now" != "$before" ]
+    for _ in $(seq 1 30); do
+        curl -sk "$PANEL/_health" | grep -q '"status":"ok"' && break
+        sleep 1
+    done
+    run curl -sk "$PANEL/_health"
+    assert_output --partial '"status":"ok"'
+}
