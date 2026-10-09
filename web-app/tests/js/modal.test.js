@@ -1,5 +1,5 @@
-import { afterEach, describe, expect, it } from 'vitest';
-import { data, mount, tick, unmount } from './helpers.js';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { data, mount, unmount } from './helpers.js';
 
 const markup = `
 <div>
@@ -19,11 +19,13 @@ const key = (target, init) => {
 	return event;
 };
 
-// The dialog gets the focus a frame after it opens (x-show)
-const shown = async () => {
-	await tick();
-	await tick();
-};
+// The dialog gets the focus a frame after it opens (x-show). A frame can take
+// longer than a few timer rounds when the whole suite runs in parallel, so wait
+// for the focus itself.
+const shown = () =>
+	vi.waitFor(() => {
+		expect(document.activeElement.id).toBe('first');
+	});
 
 afterEach(() => unmount());
 
