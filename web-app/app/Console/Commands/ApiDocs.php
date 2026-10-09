@@ -398,6 +398,11 @@ final class ApiDocs extends Command
         self::tailorPortOpenApi($operationId, $operation, $responses);
         self::tailorFileOpenApi($operationId, $operation, $responses);
         self::tailorServerSettingsOpenApi($operationId, $responses);
+        foreach ($operation['parameters'] ?? [] as $i => $parameter) {
+            if (str_contains($path, '/secrets/{name}') && ($parameter['name'] ?? '') === 'name' && ($parameter['in'] ?? '') === 'path') {
+                $operation['parameters'][$i]['description'] = 'The secret name, with or without its leading slash: `/shop/db` (encoded as `%2Fshop%2Fdb`) or `shop/db`.';
+            }
+        }
         if ($operationId === 'createAccessKey' && isset($responses['201']['headers'])) {
             $responses['201']['headers']['Cache-Control'] = ['description' => '`no-store`: the answer carries the secret of the new key, which no other answer shows (E34 batch 6 D62).', 'schema' => ['type' => 'string']];
         }

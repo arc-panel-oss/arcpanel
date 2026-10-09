@@ -343,3 +343,16 @@ it('declares an area on the batch 1 routes', function () {
         expect($route->defaults['api_area'] ?? null)->toBe($area, $uri);
     }
 });
+
+it('describes the secret name of the path, with or without its leading slash', function () {
+    $spec = json_decode((string) file_get_contents(base_path('../docs/api/v2/openapi.json')), true);
+    foreach ($spec['paths'] as $path => $operations) {
+        if (! str_contains($path, '/secrets/{name}')) {
+            continue;
+        }
+        foreach ($operations as $operation) {
+            $name = collect($operation['parameters'] ?? [])->firstWhere('name', 'name');
+            expect($name['description'] ?? '')->toContain('leading slash');
+        }
+    }
+});

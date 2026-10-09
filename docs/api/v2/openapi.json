@@ -20630,7 +20630,8 @@
                         "required": true,
                         "schema": {
                             "type": "string"
-                        }
+                        },
+                        "description": "The secret name, with or without its leading slash: `/shop/db` (encoded as `%2Fshop%2Fdb`) or `shop/db`."
                     }
                 ],
                 "responses": {
@@ -20698,7 +20699,8 @@
                         "required": true,
                         "schema": {
                             "type": "string"
-                        }
+                        },
+                        "description": "The secret name, with or without its leading slash: `/shop/db` (encoded as `%2Fshop%2Fdb`) or `shop/db`."
                     },
                     {
                         "name": "dry_run",
@@ -20802,7 +20804,8 @@
                         "required": true,
                         "schema": {
                             "type": "string"
-                        }
+                        },
+                        "description": "The secret name, with or without its leading slash: `/shop/db` (encoded as `%2Fshop%2Fdb`) or `shop/db`."
                     },
                     {
                         "name": "force",
@@ -20902,7 +20905,8 @@
                         "required": true,
                         "schema": {
                             "type": "string"
-                        }
+                        },
+                        "description": "The secret name, with or without its leading slash: `/shop/db` (encoded as `%2Fshop%2Fdb`) or `shop/db`."
                     },
                     {
                         "name": "dry_run",
@@ -21062,7 +21066,8 @@
                         "required": true,
                         "schema": {
                             "type": "string"
-                        }
+                        },
+                        "description": "The secret name, with or without its leading slash: `/shop/db` (encoded as `%2Fshop%2Fdb`) or `shop/db`."
                     },
                     {
                         "name": "dry_run",

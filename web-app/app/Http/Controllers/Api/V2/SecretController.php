@@ -227,7 +227,7 @@ final class SecretController extends Controller
      */
     private function found(string $user, string $name): array
     {
-        $secret = $this->secrets->find($user, '/'.$name);
+        $secret = $this->secrets->find($user, '/'.ltrim($name, '/'));
         abort_if($secret === null, 404);
 
         return $secret;

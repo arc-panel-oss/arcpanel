@@ -194,8 +194,9 @@ Route::middleware('effective-user')->group(function () {
         Route::delete('/users/{user}/ssh-keys/{id}', [SshKeyController::class, 'destroy'])->where('id', '.{1,255}')->name('ssh-keys.destroy');
     });
 
-    // Secret store of a user (E38 spec §8); {name} is the secret name without its leading slash
-    $secret = '[A-Za-z0-9_.\/-]{1,127}';
+    // Secret store of a user (E38 spec §8); {name} is the secret name, with or
+    // without its leading slash (the SDK sends the name as listed, encoded)
+    $secret = '[A-Za-z0-9_.\/-]{1,128}';
     Route::get('/users/{user}/secrets', [SecretController::class, 'index'])->name('secrets.index');
     Route::get('/users/{user}/secrets/{name}', [SecretController::class, 'show'])->where('name', $secret)->name('secrets.show');
     Route::middleware('not-readonly')->group(function () use ($secret) {

@@ -73,6 +73,15 @@ it('shows one secret with its versions and the apps that use it', function (?str
     $this->getJson('/api/v2/users/bob/secrets/a/../b', apiAs($this->fake, 'bob', 'user'))->assertNotFound();
 })->with('secret keys');
 
+it('takes the name in the path with its leading slash too, as the SDK encodes it', function () {
+    $headers = apiAs($this->fake, 'bob', 'user');
+    // The name as listed, encoded as a whole (encodeURIComponent)
+    $this->getJson('/api/v2/users/bob/secrets/'.rawurlencode('/shop/db'), $headers)->assertOk()
+        ->assertJsonPath('data.name', '/shop/db');
+    $this->getJson('/api/v2/users/bob/secrets/'.rawurlencode('shop/db'), $headers)->assertOk();
+    $this->getJson('/api/v2/users/bob/secrets/'.rawurlencode('/a/../b'), $headers)->assertNotFound();
+});
+
 it('creates a secret with the value in a file', function (?string $area) {
     $this->fake->on('v-add-user-secret')->using(function (array $args) {
         $this->store['bob'][$args[1]] = ['NAME' => $args[1], 'DESCRIPTION' => $args[3], 'VERSION' => '1', 'FINGERPRINT' => '12345678',
@@ -149,8 +158,7 @@ it('replaces a value, restarts the apps on request and rolls back', function (?s
     $this->putJson('/api/v2/users/bob/secrets/ghost/value', ['value' => 'x'], $headers)->assertNotFound();
 
     // an app that does not restart is named; the value is changed anyway
-    $this->fake->on('v-change-user-secret')->returns("node:shop.bob.example
-failed:node:shop.bob.example");
+    $this->fake->on('v-change-user-secret')->returns("node:shop.bob.example\nfailed:node:shop.bob.example");
     $this->putJson('/api/v2/users/bob/secrets/shop/db/value', ['value' => 'x', 'restart' => true], $headers)->assertOk()
         ->assertJsonPath('data.apps', [['type' => 'node', 'id' => 'shop.bob.example']])
         ->assertJsonPath('data.failed', [['type' => 'node', 'id' => 'shop.bob.example']]);
