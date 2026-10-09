@@ -20963,12 +20963,32 @@
                                                         "restarted": {
                                                             "type": "boolean",
                                                             "description": "whether the running ones were restarted"
+                                                        },
+                                                        "failed": {
+                                                            "type": "array",
+                                                            "description": "running apps that did not restart; the value is changed anyway",
+                                                            "items": {
+                                                                "type": "object",
+                                                                "properties": {
+                                                                    "type": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "id": {
+                                                                        "type": "string"
+                                                                    }
+                                                                },
+                                                                "required": [
+                                                                    "type",
+                                                                    "id"
+                                                                ]
+                                                            }
                                                         }
                                                     },
                                                     "required": [
                                                         "secret",
                                                         "apps",
-                                                        "restarted"
+                                                        "restarted",
+                                                        "failed"
                                                     ]
                                                 }
                                             },
@@ -21103,12 +21123,32 @@
                                                         "restarted": {
                                                             "type": "boolean",
                                                             "description": "whether the running ones were restarted"
+                                                        },
+                                                        "failed": {
+                                                            "type": "array",
+                                                            "description": "running apps that did not restart; the value is changed anyway",
+                                                            "items": {
+                                                                "type": "object",
+                                                                "properties": {
+                                                                    "type": {
+                                                                        "type": "string"
+                                                                    },
+                                                                    "id": {
+                                                                        "type": "string"
+                                                                    }
+                                                                },
+                                                                "required": [
+                                                                    "type",
+                                                                    "id"
+                                                                ]
+                                                            }
                                                         }
                                                     },
                                                     "required": [
                                                         "secret",
                                                         "apps",
-                                                        "restarted"
+                                                        "restarted",
+                                                        "failed"
                                                     ]
                                                 }
                                             },
@@ -24599,7 +24639,7 @@
                             "string",
                             "null"
                         ],
-                        "description": "At most 255 characters, without quotes, `$`, backquote or backslash.",
+                        "description": "At most 255 characters, without quotes, `$`, backquote, backslash or `|`.",
                         "maxLength": 255
                     }
                 },
@@ -32111,7 +32151,7 @@
                             "string",
                             "null"
                         ],
-                        "description": "At most 255 characters, without quotes, `$`, backquote or backslash; empty removes it.",
+                        "description": "At most 255 characters, without quotes, `$`, backquote, backslash or `|`; empty removes it.",
                         "maxLength": 255
                     }
                 },
