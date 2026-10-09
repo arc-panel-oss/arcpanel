@@ -86,6 +86,11 @@ final class FilePageController extends Controller
             $listing = $this->files->list($user, $path);
             $dir = $this->files->info($user, $path);
         } catch (ArcCommandException $e) {
+            // A folder the account cannot read (~/mail): back to its parent
+            if ($e->exit() === ExitCode::Forbidden && ! $path->isRoot()) {
+                return redirect()->route('files.show', array_filter(['user' => $user, 'path' => $path->parent()->relative()], fn ($v) => $v !== ''))
+                    ->with('error', __('You cannot open this folder.'));
+            }
             if ($e->exit() !== ExitCode::NotExist) {
                 throw $e;
             }

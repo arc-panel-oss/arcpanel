@@ -64,6 +64,19 @@ it('opens a link to a file in its folder with the editor, and 404 for what does 
     $this->get('/files/bob?path=../carol')->assertNotFound();
 });
 
+it('sends a folder the account cannot read back to its parent with a message', function () {
+    signIn('bob', 'user');
+    $this->fake->on('v-list-fs-directory-json', fn ($a) => str_ends_with($a[1], '/mail'))->returnsExit(ExitCode::Forbidden, 'Error: /home/bob/mail is not readable');
+    $this->get('/files/bob?path=mail')->assertRedirect('/files/bob')->assertSessionHas('error', 'You cannot open this folder.');
+
+    $this->fake->on('v-list-fs-directory-json', fn ($a) => str_ends_with($a[1], '/conf/dns'))->returnsExit(ExitCode::Forbidden);
+    $this->get('/files/bob?path=conf/dns')->assertRedirect('/files/bob?path=conf');
+
+    // The home folder has no parent: the refusal stays
+    $this->fake->on('v-list-fs-directory-json', fn ($a) => $a[1] === '/home/bob')->returnsExit(ExitCode::Forbidden);
+    $this->get('/files/bob')->assertForbidden();
+});
+
 it('answers 404 when the file manager is off', function () {
     $this->fake->on('v-list-sys-config', ['json'])->returnsJson(sysConfig(['FILE_MANAGER' => 'false']));
     cache()->flush();
