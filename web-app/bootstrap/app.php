@@ -55,6 +55,8 @@ $app = Application::configure(basePath: dirname(__DIR__))
         // (E34 batch 5): "a.txt " is another file than "a.txt".
         $middleware->trimStrings(except: [
             fn (Request $request) => $request->is('api/v2/users/*/files', 'api/v2/users/*/files/*'),
+            // The editor of the file manager saves the content as typed
+            fn (Request $request) => $request->is('files/*/api/save'),
             // A secret value keeps its spaces (E38)
             fn (Request $request) => $request->is('secrets/*', 'api/v2/users/*/secrets', 'api/v2/users/*/secrets/*'),
         ]);

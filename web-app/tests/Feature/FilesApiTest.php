@@ -138,6 +138,20 @@ it('reads and saves with the hash guard', function () {
     $this->putJson('/files/bob/api/save', ['path' => 'a', 'content' => 'x', 'hash' => 'nothex'])->assertUnprocessable();
 });
 
+it('saves the content with its leading and trailing white space', function () {
+    signIn('bob', 'user');
+    $content = "\n  indented\n\ttabbed  \n\n";
+    $staged = null;
+    $this->fake->on('v-save-fs-file', function ($a) use (&$staged) {
+        $staged = file_get_contents($a[1]);
+
+        return true;
+    })->returns('{"SIZE":21,"MTIME":6,"MIME":"text/plain","HASH":"'.str_repeat('b', 64).'"}');
+
+    $this->putJson('/files/bob/api/save', ['path' => 'web/a.txt', 'content' => $content])->assertOk();
+    expect($staged)->toBe($content);
+});
+
 it('asks before overwriting on copy, move and rename', function () {
     signIn('bob', 'user');
     $this->fake->on('v-list-fs-directory-json')->returns(json_encode(['TOTAL' => 1, 'OFFSET' => 0, 'ENTRIES' => [['NAME' => 'a.txt', 'TYPE' => 'f']]]));
