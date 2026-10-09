@@ -87,6 +87,9 @@ upgrade_roundcube | tee -a $LOG
 # Upgrade PHP dependencies
 upgrade_dependencies | tee -a $LOG
 
+# Secret store (E38): create the master key once; an existing key is kept
+$BIN/v-add-sys-secret-key | tee -a $LOG
+
 # Update Cloudflare IPs if applicable
 upgrade_cloudflare_ip | tee -a $LOG
 

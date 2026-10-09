@@ -599,7 +599,7 @@ docker_env_read() {
 dockerapp_env_render() {
 	local manifest="$1" user="$2" name="$3" domain="$4" input="$5" current="$6" out="$7" mode="$8" spec="$9"
 	local -A given=() now=()
-	local var vname type value required immutable key count i volume reason text word pname
+	local var vname type value required immutable key count i volume reason text word pname resolved rc
 	docker_env_read "$input" given
 	docker_env_read "$current" now
 	if [ "$mode" != 'keep' ]; then
@@ -637,7 +637,26 @@ dockerapp_env_render() {
 		if [ "$mode" = 'install' ] && [ -z "$value" ]; then
 			value=$(docker_interpolate "$(jq -r '.default // ""' <<< "$var")" "$user" "$domain")
 		fi
-		if ! reason=$(docker_var_check "$var" "$value"); then
+		# A value that references secrets (E38) is checked as the value it
+		# resolves to; the .env keeps the reference
+		resolved=$value
+		if [[ "$value" == *'{{secret:'* ]]; then
+			if ! secret_store_ready; then
+				echo "$vname: the secret store is not set up"
+				return "$E_NOTEXIST"
+			fi
+			secret_resolve_into "$user" "$value" resolved
+			rc=$?
+			if [ "$rc" -ne 0 ]; then
+				echo "$vname: $SECRET_REASON"
+				return "$rc"
+			fi
+			if ! docker_secret_value_ok "$value"; then
+				echo "$vname: at most 1024 characters, without quotes, \$, \` or \\"
+				return "$E_INVALID"
+			fi
+		fi
+		if ! reason=$(docker_var_check "$var" "$resolved"); then
 			echo "$reason"
 			return "$E_INVALID"
 		fi
@@ -668,20 +687,88 @@ dockerapp_env_render() {
 
 # docker compose for the rendered project in DIR (project PROJECT)
 docker_compose_in() {
-	local dir="$1" project="$2" files=(-f "$1/compose.yaml")
+	local dir="$1" project="$2" files=(-f "$1/compose.yaml") env="$1/.env"
 	shift 2
 	if [ -f "$dir/compose.arcpanel.yaml" ]; then
 		files+=(-f "$dir/compose.arcpanel.yaml")
 	fi
+	if [ -f "$dir/.env.run" ]; then
+		env="$dir/.env.run"
+	fi
 	"${DOCKER_ENV[@]}" docker compose --ansi never --progress plain -p "$project" --project-directory "$dir" \
-		"${files[@]}" --env-file "$dir/.env" "$@"
+		"${files[@]}" --env-file "$env" "$@"
 }
 
-# docker compose for USER's NAME
+DOCKER_SECRET_REFUSED='a secret it references holds quotes, $, ` or \ or more than 1024 characters'
+
+# Whether VALUE can stand in the single quotes of a .env line
+docker_secret_value_ok() {
+	[ "${#1}" -le 1024 ] && [[ "$1" != *[\'\"\$\`\\]* ]] && [[ "$1" != *$'\n'* ]] && [[ "$1" != *$'\r'* ]]
+}
+
+# Write .env.run of USER's NAME (root 0600): its .env with the secrets it
+# references resolved (E38). The .env keeps the references, so the panel,
+# the copy in the home and backups never hold a value. Without references
+# there is no .env.run and compose reads .env. Prints the reason on failure.
+# dockerapp_dc writes it only for a command that starts containers and
+# removes it right after.
+dockerapp_env_run() {
+	local user="$1" name="$2" rdir line key value resolved out='' rc
+	rdir=$(dockerapp_rdir "$user" "$name")
+	if ! grep -qF '{{secret:' "$rdir/.env" 2> /dev/null; then
+		rm -f "$rdir/.env.run"
+		return 0
+	fi
+	while IFS= read -r line || [ -n "$line" ]; do
+		if [[ "$line" == *'{{secret:'* ]] && [[ "$line" =~ ^([A-Za-z_][A-Za-z0-9_]*)=\'(.*)\'$ ]]; then
+			key=${BASH_REMATCH[1]}
+			value=${BASH_REMATCH[2]}
+			if ! secret_store_ready; then
+				echo "$key: the secret store is not set up"
+				return "$E_NOTEXIST"
+			fi
+			secret_resolve_into "$user" "$value" resolved
+			rc=$?
+			if [ "$rc" -ne 0 ]; then
+				echo "$key: $SECRET_REASON"
+				return "$rc"
+			fi
+			if ! docker_secret_value_ok "$resolved"; then
+				echo "$key: $DOCKER_SECRET_REFUSED"
+				return "$E_INVALID"
+			fi
+			line="$key='$resolved'"
+		fi
+		out+="$line"$'\n'
+	done < "$rdir/.env"
+	(umask 077 && printf '%s' "$out" > "$rdir/.env.run.tmp") && mv -f "$rdir/.env.run.tmp" "$rdir/.env.run"
+}
+
+# docker compose for USER's NAME. A command that starts containers gets the
+# secrets of the .env resolved for its run and stops when one cannot be; the
+# other commands (ps, logs, down, config, …) read the .env with its
+# references, so no value is decrypted or left on disk for them.
 dockerapp_dc() {
-	local user="$1" name="$2"
+	local user="$1" name="$2" rdir out rc
 	shift 2
-	docker_compose_in "$(dockerapp_rdir "$user" "$name")" "$(dockerapp_project "$user" "$name")" "$@"
+	rdir=$(dockerapp_rdir "$user" "$name")
+	case "$1" in
+		up | create | start | restart | run)
+			out=$(dockerapp_env_run "$user" "$name")
+			rc=$?
+			if [ "$rc" -ne 0 ]; then
+				rm -f "$rdir/.env.run"
+				echo "$out"
+				return "$rc"
+			fi
+			docker_compose_in "$rdir" "$(dockerapp_project "$user" "$name")" "$@"
+			rc=$?
+			rm -f "$rdir/.env.run"
+			return "$rc"
+			;;
+	esac
+	rm -f "$rdir/.env.run"
+	docker_compose_in "$rdir" "$(dockerapp_project "$user" "$name")" "$@"
 }
 
 # Write compose.arcpanel.yaml in DIR for the services of the catalog file:

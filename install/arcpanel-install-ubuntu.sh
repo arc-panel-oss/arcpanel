@@ -86,7 +86,7 @@ software="acl apache2 apache2.2-common apache2-suexec-custom apache2-utils appar
   php$fpm_v-imagick php$fpm_v-imap php$fpm_v-intl php$fpm_v-ldap php$fpm_v-mbstring php$fpm_v-mysql
   php$fpm_v-pgsql php$fpm_v-pspell php$fpm_v-readline php$fpm_v-xml php$fpm_v-zip postgresql postgresql-contrib
   proftpd-core proftpd-mod-crypto quota rrdtool rsyslog util-linux spamassassin
-  sysstat unzip vim-common vsftpd whois zip zstd bubblewrap restic"
+  sysstat unzip vim-common vsftpd whois zip zstd bubblewrap restic age"
 
 installer_dependencies="apt-transport-https ca-certificates curl dirmngr gnupg openssl software-properties-common wget sudo"
 
@@ -2515,6 +2515,8 @@ $ARCPANEL/bin/v-add-sys-port-registry
 $ARCPANEL/bin/v-add-sys-node
 # File manager staging tree and the panel app's scheduler (E3)
 $ARCPANEL/bin/v-add-sys-panel-files
+# Secret store: the master key (E38); keep a copy of it off the server
+$ARCPANEL/bin/v-add-sys-secret-key
 
 chmod 600 /var/spool/cron/crontabs/arcpanelweb
 chown arcpanelweb:arcpanelweb /var/spool/cron/crontabs/arcpanelweb

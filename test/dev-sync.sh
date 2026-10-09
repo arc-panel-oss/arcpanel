@@ -111,6 +111,9 @@ done
 "$ARCPANEL/bin/v-add-sys-node"
 "$ARCPANEL/bin/v-add-sys-web-templates-meta"
 "$ARCPANEL/bin/v-add-sys-panel-files"
+if command -v age > /dev/null 2>&1; then
+	"$ARCPANEL/bin/v-add-sys-secret-key"
+fi
 if grep -q "^DOCKER_SYSTEM='yes'" "$ARCPANEL/conf/arcpanel.conf"; then
 	"$ARCPANEL/bin/v-add-sys-docker"
 fi

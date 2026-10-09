@@ -7,7 +7,8 @@
 # This function lists the variables that the catalog manifest of the Docker
 # app NAME of USER declares, with their label, type, options and current
 # value. Values of secret (password) variables are never printed: VALUE is
-# empty and SET tells whether one is stored.
+# empty and SET tells whether one is stored, except for a value that is one
+# reference to the secret store ({{secret:NAME}}, E38), shown as written.
 
 #----------------------------------------------------------#
 #                Variables & Functions                     #
@@ -63,7 +64,7 @@ json=$(jq -c --argjson values "$values" '{ VARIABLES: [ (.variables // [])[] | .
 	REQUIRED: (if .required then "yes" else "no" end),
 	PATTERN: (.pattern // ""),
 	SET: $values[.name].set,
-	VALUE: (if .type == "password" then "" else $values[.name].value end) } ] }' "$manifest")
+	VALUE: (if .type == "password" and ($values[.name].value | test("^[{][{]secret:[^}]+[}][}]$") | not) then "" else $values[.name].value end) } ] }' "$manifest")
 
 node_print "$format" "$json" '.VARIABLES' 'NAME TYPE SECRET IMMUTABLE VALUE'
 

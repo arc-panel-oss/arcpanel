@@ -34,6 +34,8 @@ source /etc/arcpanel/arcpanel.conf
 source $ARCPANEL/func/main.sh
 # shellcheck source=/usr/local/arcpanel/func/backup.sh
 source $ARCPANEL/func/backup.sh
+# shellcheck source=/usr/local/arcpanel/func/secret.sh
+source $ARCPANEL/func/secret.sh
 # shellcheck source=/usr/local/arcpanel/func/domain.sh
 source $ARCPANEL/func/domain.sh
 # shellcheck source=/usr/local/arcpanel/func/ip.sh
@@ -183,6 +185,11 @@ if [ "$create_user" = 'yes' ]; then
 	cp $tmpdir/$backup_system/user.conf $USER_DATA/
 	cp -r $tmpdir/$backup_system/ssl $USER_DATA/ > /dev/null 2>&1
 	cp $tmpdir/$backup_system/backup-excludes.conf $USER_DATA/ > /dev/null 2>&1
+
+	# Secret store (E38): restored only with the master key that encrypted it
+	if [ -d "$tmpdir/$backup_system/secret-store" ]; then
+		echo -e "$(date "+%F %T") $(secret_restore_from "$user" "$tmpdir/$backup_system/secret-store")" | tee -a $tmpdir/restore.log
+	fi
 
 	# Rebuilding user
 	rebuild_user_conf

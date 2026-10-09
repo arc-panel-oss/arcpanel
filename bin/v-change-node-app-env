@@ -7,7 +7,9 @@
 # This function replaces the .env file of the app with FILE: KEY=value
 # lines (blank lines and # comments are kept), at most 200 lines and 64 KB.
 # PORT, HOST, NODE_ENV and PATH are set by the panel and cannot be set
-# here. A running app is restarted. Values are never logged.
+# here. A running app is restarted. Values are never logged. A value may
+# reference secrets of the user as {{secret:NAME}} (E38): they must exist and
+# be single-line, and are resolved only when the app starts.
 
 #----------------------------------------------------------#
 #                Variables & Functions                     #
@@ -69,6 +71,10 @@ while IFS= read -r line; do
 			;;
 	esac
 done <<< "$content"
+if [[ "$content" == *'{{secret:'* ]]; then
+	secret_check_text "$user" "$(grep -v '^[[:space:]]*#' <<< "$content")"
+	check_result $? "$SECRET_REASON"
+fi
 
 # Perform verification if read-only mode is enabled
 check_arcpanel_demo_mode

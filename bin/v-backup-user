@@ -25,6 +25,8 @@ source $ARCPANEL/func/domain.sh
 source $ARCPANEL/func/db.sh
 # shellcheck source=/usr/local/arcpanel/func/backup.sh
 source $ARCPANEL/func/backup.sh
+# shellcheck source=/usr/local/arcpanel/func/secret.sh
+source $ARCPANEL/func/secret.sh
 # load config file
 source_conf "$ARCPANEL/conf/arcpanel.conf"
 
@@ -224,6 +226,12 @@ fi
 if [ -e "$USER_DATA/backup-excludes.conf" ]; then
 	echo -e "$(date "+%F %T") backup-excludes.conf" | tee -a $BACKUP/$user.log
 	cp -r $USER_DATA/backup-excludes.conf $tmpdir/arcpanel/
+fi
+
+# Secret store (E38): encrypted as on disk, never with the master key
+if [ -d "$SECRET_STORE/$user" ]; then
+	echo -e "$(date "+%F %T") secret store (encrypted)" | tee -a $BACKUP/$user.log
+	secret_backup_to "$user" "$tmpdir/arcpanel/secret-store"
 fi
 
 # Backup PAM
@@ -658,6 +666,9 @@ if [ "$USER" != '*' ]; then
 			fargs+=(--exclude="$xpath")
 		fi
 	done
+	# pm2 keeps the environment of running apps, resolved secrets included
+	# (E38 D14); the apps start again from their ecosystem files
+	fargs+=(--exclude=".pm2/dump.pm2*")
 
 	IFS=$'\n'
 	set -f

@@ -6,7 +6,7 @@ Section: admin
 Maintainer: ArcPanel <info@arcpanel.top>
 Homepage: https://arcpanel.top
 Architecture: amd64
-Depends: bash, awk, sed, acl, sysstat, setpriv | util-linux (>= 2.33), zstd, lsb-release, idn2, jq, bubblewrap, at
+Depends: bash, awk, sed, acl, sysstat, setpriv | util-linux (>= 2.33), zstd, lsb-release, idn2, jq, bubblewrap, at, age
 Conflicts: hestia
 Description: ArcPanel web hosting control panel
  ArcPanel is an open-source web hosting control panel for Debian and Ubuntu.
