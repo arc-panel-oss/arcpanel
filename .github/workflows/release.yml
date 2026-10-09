@@ -90,12 +90,14 @@ jobs:
 
       # arcpanel-nginx, arcpanel-php and arcpanel-web-terminal are compiled from source and rarely change:
       # reuse them while their sources (src/deb/<package>/) and the build script (library versions) are unchanged.
+      # The build script stamps every package with the pre-release tag (~alpha.4), so each channel has its own
+      # cache: a stable release never ships engines labelled with a pre-release.
       - name: Restore engine packages
         id: engines
         uses: actions/cache/restore@v4
         with:
           path: engines
-          key: engines-${{ matrix.image }}-${{ matrix.arch }}-${{ hashFiles('src/arcpanel-build.sh', 'src/deb/nginx/**', 'src/deb/php/**', 'src/deb/web-terminal/**') }}
+          key: engines-${{ needs.check-version.outputs.channel }}-${{ matrix.image }}-${{ matrix.arch }}-${{ hashFiles('src/arcpanel-build.sh', 'src/deb/nginx/**', 'src/deb/php/**', 'src/deb/web-terminal/**') }}
 
       - name: Build packages
         working-directory: src
