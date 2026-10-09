@@ -15,6 +15,7 @@ import apPalette from './palette.js';
 import apPassword from './password.js';
 import { autoTrim, focusFirst } from './plugins.js';
 import apRrdGraph from './rrd-graph.js';
+import apSecretStore from './secret-store.js';
 import apSidebar from './sidebar.js';
 import apTable from './table.js';
 import apTabs from './tabs.js';
@@ -41,6 +42,7 @@ export const modules = {
 	apPalette,
 	apPassword,
 	apRrdGraph,
+	apSecretStore,
 	apSidebar,
 	apTable,
 	apTabs,

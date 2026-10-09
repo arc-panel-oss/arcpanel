@@ -1621,6 +1621,13 @@
 	background: var(--ap-surface);
 	box-shadow: var(--ap-shadow-2);
 }
+/* the body takes the free height, so the actions sit at the bottom edge */
+.ap-drawer > .ap-modal-body {
+	flex: 1 1 auto;
+}
+.ap-drawer > .ap-modal-foot {
+	border-radius: 0;
+}
 .ap-drawer-head {
 	display: flex;
 	align-items: center;
@@ -4690,4 +4697,251 @@ a.ap-pick:focus-visible {
 	gap: var(--ap-space-2);
 	font-size: var(--ap-text-xs);
 	color: var(--ap-fg-muted);
+}
+
+/* Secret store (E38 spec §7): reference, details, apps that use a secret,
+   the steps of the empty state and the add and replace forms */
+.ap-secret-code {
+	padding: var(--ap-space-0-5) var(--ap-space-1-5);
+	border: 1px solid var(--ap-border);
+	border-radius: var(--ap-radius-sm);
+	background: var(--ap-bg-sunken);
+	color: var(--ap-fg);
+	font-family: var(--ap-font-mono);
+	font-size: 0.9em;
+	overflow-wrap: anywhere;
+}
+.ap-secret-head h1 {
+	overflow-wrap: anywhere;
+}
+.ap-secret-head .ap-row {
+	gap: var(--ap-space-2) var(--ap-space-3);
+	font-size: var(--ap-text-sm);
+}
+.ap-secret-lead {
+	margin: 0;
+	font-size: var(--ap-text-sm);
+}
+.ap-secret-ref > .ap-btn {
+	flex: none;
+}
+.ap-secret-ref > .ap-input {
+	font-size: var(--ap-text-md);
+}
+.ap-secret-facts {
+	margin: 0;
+}
+.ap-secret-describe {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: baseline;
+	gap: var(--ap-space-1) var(--ap-space-3);
+}
+.ap-secret-hint {
+	display: block;
+	margin-top: var(--ap-space-1);
+}
+.ap-secret-unused {
+	display: flex;
+	flex-direction: column;
+	gap: var(--ap-space-1);
+	padding: var(--ap-space-5);
+	font-size: var(--ap-text-sm);
+}
+.ap-secret-apps .ap-list-main a {
+	color: var(--ap-fg);
+	text-decoration: none;
+}
+.ap-secret-apps .ap-list-main a:hover b {
+	color: var(--ap-accent);
+}
+.ap-secret-keep {
+	font-size: var(--ap-text-xs);
+}
+.ap-table tr.is-current td {
+	background: var(--ap-accent-subtle);
+}
+
+/* list: key icon, name and description in one cell; copy and open at the end */
+.ap-secret-name {
+	display: flex;
+	align-items: flex-start;
+	gap: var(--ap-space-2-5);
+	min-width: 0;
+}
+.ap-secret-name > div {
+	display: flex;
+	flex-direction: column;
+	gap: var(--ap-space-0-5);
+	min-width: 0;
+}
+.ap-secret-name a {
+	font-weight: 500;
+	overflow-wrap: anywhere;
+}
+.ap-secret-name .muted {
+	font-size: var(--ap-text-xs);
+}
+.ap-secret-icon {
+	display: grid;
+	place-items: center;
+	flex: none;
+	width: 26px;
+	height: 26px;
+	border-radius: var(--ap-radius-md);
+	background: var(--ap-accent-subtle);
+	color: var(--ap-accent);
+}
+.ap-secret-row-actions {
+	flex-wrap: nowrap;
+	justify-content: flex-end;
+	gap: var(--ap-space-1);
+}
+
+/* empty state: how a secret reaches an app */
+.ap-secret-steps {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr));
+	gap: var(--ap-space-3);
+	margin: 0;
+	padding: 0 var(--ap-space-5) var(--ap-space-5);
+	list-style: none;
+}
+.ap-secret-steps li {
+	display: flex;
+	align-items: flex-start;
+	gap: var(--ap-space-3);
+	padding: var(--ap-space-3-5) var(--ap-space-4);
+	border: 1px solid var(--ap-border);
+	border-radius: var(--ap-radius-md);
+	background: var(--ap-bg-sunken);
+}
+.ap-secret-steps li > div {
+	display: flex;
+	flex-direction: column;
+	gap: var(--ap-space-1);
+	min-width: 0;
+	font-size: var(--ap-text-sm);
+}
+.ap-secret-steps li span:not(.ap-secret-step-num) {
+	color: var(--ap-fg-muted);
+	overflow-wrap: anywhere;
+}
+.ap-secret-step-num {
+	display: grid;
+	place-items: center;
+	flex: none;
+	width: 24px;
+	height: 24px;
+	border-radius: 50%;
+	background: var(--ap-accent-subtle);
+	color: var(--ap-accent);
+	font-size: var(--ap-text-xs);
+	font-weight: 600;
+}
+
+/* add and replace forms */
+.ap-secret-form {
+	gap: var(--ap-space-4);
+}
+.ap-secret-preview {
+	min-height: 1.6em;
+	font-size: var(--ap-text-xs);
+	color: var(--ap-fg-muted);
+}
+.ap-secret-preview.is-invalid {
+	color: var(--ap-warn);
+}
+.ap-secret-preview .ic {
+	vertical-align: -2px;
+}
+.ap-secret-restart {
+	display: flex;
+	flex-direction: column;
+	gap: var(--ap-space-2);
+	padding: var(--ap-space-3) var(--ap-space-3-5);
+	border: 1px solid var(--ap-border);
+	border-radius: var(--ap-radius-md);
+	background: var(--ap-bg-sunken);
+}
+.ap-secret-restart-apps {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--ap-space-1-5) var(--ap-space-3);
+	margin: 0;
+	padding: 0 0 0 var(--ap-space-6-5);
+	list-style: none;
+	font-size: var(--ap-text-xs);
+	color: var(--ap-fg-muted);
+}
+.ap-secret-restart-apps li {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--ap-space-1);
+}
+
+/* add and replace drawers: a little wider, the head text under the title */
+.ap-drawer.ap-secret-drawer {
+	max-width: 480px;
+}
+.ap-secret-drawer .ap-drawer-head {
+	align-items: flex-start;
+}
+.ap-secret-drawer .ap-drawer-head p {
+	font-size: var(--ap-text-sm);
+}
+.ap-secret-drawer .ap-input-mono::placeholder,
+.ap-secret-drawer .ap-input::placeholder {
+	color: var(--ap-fg-subtle);
+}
+.ap-secret-value-head {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	justify-content: space-between;
+	gap: var(--ap-space-2);
+}
+.ap-secret-value-head .ap-label {
+	margin: 0;
+}
+.ap-secret-mode {
+	padding: var(--ap-space-0-5);
+}
+.ap-secret-mode button {
+	height: 24px;
+	padding: 0 var(--ap-space-2-5);
+	font-size: var(--ap-text-xs);
+}
+.ap-secret-value-foot {
+	display: flex;
+	align-items: flex-start;
+	justify-content: space-between;
+	gap: var(--ap-space-3);
+}
+.ap-secret-value-foot .ap-hint {
+	display: inline-flex;
+	align-items: flex-start;
+	gap: var(--ap-space-1-5);
+}
+.ap-secret-value-foot .ap-hint .ic {
+	flex: none;
+	margin-top: var(--ap-space-0-5);
+}
+.ap-secret-value-foot .ap-link-btn {
+	flex: none;
+	font-size: var(--ap-text-xs);
+}
+.ap-secret-value textarea {
+	min-height: 160px;
+	resize: vertical;
+}/* rolling back and describing are not destructive: accent, not danger */
+.ap-secret-modal .ap-modal-icon {
+	background: var(--ap-accent-subtle);
+	color: var(--ap-accent);
+}
+/* phones: the copy button keeps its icon, the name keeps the room */
+@media (max-width: 767px) {
+	.ap-secret-copy-text {
+		display: none;
+	}
 }

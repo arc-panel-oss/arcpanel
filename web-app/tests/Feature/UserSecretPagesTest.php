@@ -51,6 +51,7 @@ it('lists the secrets of an account without values', function () {
     $this->get('/secrets/bob')->assertOk()
         ->assertSee('/shop/db_password')->assertSee('Shop database')->assertSee('a1b2c3d4')
         ->assertSee('/mail/token')->assertSee('2 secrets')
+        ->assertSee('2 apps')->assertSee('Not used')
         ->assertDontSee(STORE_VALUE);
     $this->get('/secrets/carol')->assertNotFound();
 
@@ -74,6 +75,9 @@ it('shows one secret with its versions, its reference and the apps that use it',
     $this->get('/secrets/bob/item?name=/shop/db_password')->assertOk()
         ->assertSee('{{secret:/shop/db_password}}')->assertSee('eeee1111')->assertSee('Version 2')
         ->assertSee('shop.bob.example')->assertSee('Restart the 2 apps that use it')
+        ->assertSee('Used by 2 apps')->assertSee('Roll back to version 2?')
+        ->assertSee('name="version" value="2"', false)
+        ->assertSee(route('node.apps.show', ['user' => 'bob', 'domain' => 'shop.bob.example']), false)
         ->assertDontSee(STORE_VALUE);
     $this->get('/secrets/bob/item?name=/nope')->assertNotFound();
     $this->get('/secrets/bob/item?name=bad name')->assertNotFound();
@@ -137,6 +141,9 @@ it('rolls back to a kept version and changes the description', function () {
     $this->post('/secrets/bob/item/rollback', ['name' => '/shop/db_password', 'version' => '2'])
         ->assertSessionHas('ok', 'Secret /shop/db_password has been rolled back to version 2.');
     $this->fake->assertRan('v-rollback-user-secret', fn ($a) => $a === ['bob', '/shop/db_password', '2', 'no']);
+    $this->post('/secrets/bob/item/rollback', ['name' => '/shop/db_password', 'version' => '2', 'restart' => '1'])
+        ->assertSessionHas('ok', 'Secret /shop/db_password has been rolled back to version 2.');
+    $this->fake->assertRan('v-rollback-user-secret', fn ($a) => $a === ['bob', '/shop/db_password', '2', 'yes']);
     $this->post('/secrets/bob/item/rollback', ['name' => '/shop/db_password', 'version' => 'x'])->assertSessionHasErrors(['version']);
 
     $this->patch('/secrets/bob/item', ['name' => '/shop/db_password', 'description' => 'Shop DB'])
