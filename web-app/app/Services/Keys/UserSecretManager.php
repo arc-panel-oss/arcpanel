@@ -15,8 +15,11 @@ use App\Arc\Secret;
  */
 final class UserSecretManager
 {
-    /** D3: one to five /segments of [A-Za-z0-9_.-], at most 128 characters. */
-    public const NAME_PATTERN = '#^(/[A-Za-z0-9_.-]{1,64}){1,5}$#';
+    /**
+     * D3: one to five /segments of [A-Za-z0-9_.-], at most 128 characters.
+     * "/" delimiters: the API document keeps any other one in its pattern.
+     */
+    public const NAME_PATTERN = '/^(\/[A-Za-z0-9_.-]{1,64}){1,5}$/';
 
     /** D4: 32 KiB. */
     public const MAX_VALUE = 32768;

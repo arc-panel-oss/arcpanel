@@ -15,7 +15,8 @@ final class NodeAppActions
     /** A start file or npm:<script> (func/nodeapp.sh). */
     public static function startRule(): string
     {
-        return '#^(npm:[A-Za-z0-9][A-Za-z0-9:._-]{0,63}|[A-Za-z0-9_][A-Za-z0-9._/@+-]{0,199})$#';
+        // "/" delimiters: the API document keeps any other one in its pattern
+        return '/^(npm:[A-Za-z0-9][A-Za-z0-9:._-]{0,63}|[A-Za-z0-9_][A-Za-z0-9._\/@+-]{0,199})$/';
     }
 
     /** @return array<string, mixed> */

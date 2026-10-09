@@ -22,8 +22,11 @@ final class NodeAppService
     /** pm2 process names (func/nodeapp.sh nodeapp_name_valid) */
     public const NAME = '/^[a-z0-9][a-z0-9._-]{0,39}$/';
 
-    /** A relative path without "..", or "." (nodeapp_relpath_valid) */
-    public const PATH = '#^(\.|[A-Za-z0-9_][A-Za-z0-9._/@+-]{0,199})$#';
+    /**
+     * A relative path without "..", or "." (nodeapp_relpath_valid); "/"
+     * delimiters: the API document keeps any other one in its pattern.
+     */
+    public const PATH = '/^(\.|[A-Za-z0-9_][A-Za-z0-9._\/@+-]{0,199})$/';
 
     /** A package.json script */
     public const SCRIPT = '/^[A-Za-z0-9][A-Za-z0-9:._-]{0,63}$/';

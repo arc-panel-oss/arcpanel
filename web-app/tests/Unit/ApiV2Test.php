@@ -283,6 +283,17 @@ it('documents pagination and error.existing', function () {
     }
 });
 
+it('documents regex rules without their PHP delimiters', function () {
+    // Scramble strips only "/" delimiters: "#^a$#" would reach the clients as a
+    // pattern that matches nothing
+    $json = (string) file_get_contents(base_path('../docs/api/v2/openapi.json'));
+    preg_match_all('/"pattern": ("(?:[^"\\\\]|\\\\.)*")/', $json, $matches);
+    expect($matches[1])->not->toBeEmpty();
+    foreach ($matches[1] as $pattern) {
+        expect(json_decode($pattern))->not->toMatch('/^[#~!@%]/');
+    }
+});
+
 it('types a DNS zone and a record, with nulls where a value does not apply', function () {
     fakeArc();
     $zone = (new DnsZoneResource(DnsZoneRecord::fromArray('bob', 'example.com', [
