@@ -18369,8 +18369,8 @@ paths:
         This function lists the variables that the catalog manifest of the Docker
         app NAME of USER declares, with their label, type, options and current
         value. Values of secret (password) variables are never printed: VALUE is
-        empty and SET tells whether one is stored, except for a reference to the
-        secret store ({{secret:NAME}}, E38), which is shown as written.
+        empty and SET tells whether one is stored, except for a value that is one
+        reference to the secret store ({{secret:NAME}}, E38), shown as written.
 
         **Arguments**
 
@@ -21359,13 +21359,16 @@ paths:
         (arcpanel when ArcPanel installed it, system when it was there before,
         "-" otherwise), the version, whether apt's local lists have an update
         (UPGRADABLE) and the web domains whose template needs a runtime it
-        provides (DOMAINS, USED_BY).
+        provides (DOMAINS, USED_BY). SCOPE "installed" lists only the installed
+        and partial entries and skips the slow checks for the panel's runtime
+        badges: UPGRADABLE is "no" and DOMAINS empty.
 
         **Arguments**
 
         | Field | Option | Required |
         | --- | --- | --- |
         | `arg1` | `FORMAT` | no |
+        | `arg2` | `SCOPE` | no |
       requestBody:
         required: true
         content:
@@ -23439,7 +23442,9 @@ paths:
       description: |-
         This function lists the secrets of USER with their description, current
         version, fingerprint (8 hex characters of a keyed hash of the value) and
-        the number of apps that reference them. It never prints a value.
+        the number of apps that reference them. It never prints a value. With
+        USAGE set to no, USED_BY stays empty and the apps are not read (the
+        reference pickers of the panel need the names only).
 
         **Arguments**
 
@@ -23447,6 +23452,7 @@ paths:
         | --- | --- | --- |
         | `arg1` | `USER` | yes |
         | `arg2` | `FORMAT` | no |
+        | `arg3` | `USAGE` | no |
 
         **User argument:** with the access key of a user other than the admin, `arg1` must be the key's user.
       x-arcpanel-user-arg: 1
@@ -26452,7 +26458,8 @@ paths:
         - System
       summary: Restart service
       description: |-
-        This function restarts system service.
+        This function restarts system service. The panel's own unit (arcpanel) is
+        restarted two seconds later in the background, so the caller gets its answer.
 
         **Arguments**
 
@@ -47933,6 +47940,12 @@ components:
                 - shell
               examples:
                 - json
+            arg2:
+              type: string
+              title: SCOPE
+              description: "`SCOPE`, optional"
+              examples:
+                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-list-sys-pgsql-config:
@@ -49089,6 +49102,12 @@ components:
                 - shell
               examples:
                 - json
+            arg3:
+              type: string
+              title: USAGE
+              description: "`USAGE`, optional"
+              examples:
+                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-list-user-ssh-key:
