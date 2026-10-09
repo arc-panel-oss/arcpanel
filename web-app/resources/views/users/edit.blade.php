@@ -80,7 +80,7 @@
                         </div>
                         <div x-show="iplist">
                             <x-ap-textarea name="allowed_ips" :label="__('Allowed IP addresses')" :value="str_replace(',', PHP_EOL, $record->get('LOGIN_ALLOW_IPS'))" rows="3" mono bag="security"
-                                :hint="__('One IP address or network per line.')" />
+                                :hint="__('One IPv4 address per line.')" />
                         </div>
                         @if ($record->twoFactor() && ($isSelf || $can['manageSecurity']))
                             <div class="ap-settings">

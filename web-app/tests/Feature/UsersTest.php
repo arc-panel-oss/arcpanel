@@ -242,8 +242,14 @@ it('lets every user edit their own account', function () {
     $this->get('/users/bob/edit')->assertOk()->assertSee('My account');
 
     $this->post('/users/bob/general', ['name' => 'Bob B', 'email' => 'bob@example.com', 'language' => 'en'])->assertRedirect('/account#general');
-    $this->post('/users/bob/security', ['use_iplist' => '1', 'allowed_ips' => "203.0.113.5\n198.51.100.0/24"])->assertRedirect('/account#security');
-    $this->fake->assertRan('v-change-user-config-value', fn ($a) => $a === ['bob', 'LOGIN_ALLOW_IPS', '203.0.113.5,198.51.100.0/24']);
+    $this->post('/users/bob/security', ['use_iplist' => '1', 'allowed_ips' => "203.0.113.5\n198.51.100.7"])->assertRedirect('/account#security');
+    $this->fake->assertRan('v-change-user-config-value', fn ($a) => $a === ['bob', 'LOGIN_ALLOW_IPS', '203.0.113.5,198.51.100.7']);
+    // The user record and the login take IPv4 addresses only, compared exactly (as API v2)
+    foreach (['198.51.100.0/24', '2001:db8::1', 'example.com'] as $invalid) {
+        $this->post('/users/bob/security', ['use_iplist' => '1', 'allowed_ips' => "203.0.113.5\n$invalid"])
+            ->assertSessionHasErrors(['allowed_ips' => sprintf('%s is not an IPv4 address.', $invalid)], null, 'security');
+    }
+    $this->fake->assertRan('v-change-user-config-value', fn ($a) => $a[1] === 'LOGIN_ALLOW_IPS', times: 1);
     $this->post('/users/bob/package', ['package' => 'default'])->assertForbidden();
 });
 
