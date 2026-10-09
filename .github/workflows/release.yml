@@ -6,6 +6,10 @@ name: Release
 #   Version 1.0.0        -> tag v1.0.0        -> stable repository  https://apt.arcpanel.top/
 #   Version 1.0.1~beta1  -> tag v1.0.1-beta1  -> beta repository    https://apt.arcpanel.top/beta/
 #
+# A stable release builds every supported distribution on amd64 and arm64; a pre-release builds
+# Ubuntu 24.04 amd64 only. arcpanel-nginx, arcpanel-php and arcpanel-web-terminal come from the
+# Actions cache while their sources and src/arcpanel-build.sh are unchanged.
+#
 # Required secrets of the release environment (see docs/operations/release-signing.md):
 #   APT_SIGNING_KEY         ASCII-armored private signing subkey
 #   APT_SIGNING_KEY_ID      fingerprint of that subkey
@@ -31,6 +35,7 @@ jobs:
     runs-on: ubuntu-24.04
     outputs:
       channel: ${{ steps.version.outputs.channel }}
+      matrix: ${{ steps.version.outputs.matrix }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v7
@@ -52,10 +57,13 @@ jobs:
               exit 1
             fi
           done
+          # A pre-release builds Ubuntu 24.04 amd64 only, to save Actions minutes; a stable release builds them all.
           if [[ "${pkg_ver}" == *"~"* ]]; then
             echo "channel=beta" >> "$GITHUB_OUTPUT"
+            echo 'matrix={"image":["ubuntu:24.04"],"arch":["amd64"]}' >> "$GITHUB_OUTPUT"
           else
             echo "channel=stable" >> "$GITHUB_OUTPUT"
+            echo 'matrix={"image":["debian:12","debian:13","ubuntu:22.04","ubuntu:24.04","ubuntu:26.04"],"arch":["amd64","arm64"]}' >> "$GITHUB_OUTPUT"
           fi
 
   build:
@@ -70,9 +78,7 @@ jobs:
         shell: bash
     strategy:
       fail-fast: true
-      matrix:
-        image: ["debian:12", "debian:13", "ubuntu:22.04", "ubuntu:24.04", "ubuntu:26.04"]
-        arch: [amd64, arm64]
+      matrix: ${{ fromJSON(needs.check-version.outputs.matrix) }}
     steps:
       - name: Install build prerequisites
         run: |
@@ -82,9 +88,23 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v7
 
+      # arcpanel-nginx, arcpanel-php and arcpanel-web-terminal are compiled from source and rarely change:
+      # reuse them while their sources (src/deb/<package>/) and the build script (library versions) are unchanged.
+      - name: Restore engine packages
+        id: engines
+        uses: actions/cache/restore@v4
+        with:
+          path: engines
+          key: engines-${{ matrix.image }}-${{ matrix.arch }}-${{ hashFiles('src/arcpanel-build.sh', 'src/deb/nginx/**', 'src/deb/php/**', 'src/deb/web-terminal/**') }}
+
       - name: Build packages
         working-directory: src
-        run: bash ./arcpanel-build.sh --all --noinstall --keepbuild '~localsrc'
+        run: |
+          if [ "${{ steps.engines.outputs.cache-hit }}" = "true" ]; then
+            bash ./arcpanel-build.sh --arcpanel --noinstall --keepbuild '~localsrc'
+          else
+            bash ./arcpanel-build.sh --all --noinstall --keepbuild '~localsrc'
+          fi
 
       - name: Collect packages by distribution codename
         run: |
@@ -92,14 +112,30 @@ jobs:
           . /etc/os-release
           mkdir -p "out/${VERSION_CODENAME}"
           cp /tmp/arcpanel-src/deb/*.deb "out/${VERSION_CODENAME}/"
+          if [ "${{ steps.engines.outputs.cache-hit }}" = "true" ]; then
+            cp engines/*.deb "out/${VERSION_CODENAME}/"
+          else
+            mkdir -p engines
+            cp /tmp/arcpanel-src/deb/arcpanel-nginx_*.deb /tmp/arcpanel-src/deb/arcpanel-php_*.deb \
+              /tmp/arcpanel-src/deb/arcpanel-web-terminal_*.deb engines/
+          fi
           ls -l "out/${VERSION_CODENAME}"
           echo "ARTIFACT_NAME=debs-${VERSION_CODENAME}-${{ matrix.arch }}" >> "$GITHUB_ENV"
+
+      - name: Save engine packages
+        if: steps.engines.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: engines
+          key: ${{ steps.engines.outputs.cache-primary-key }}
 
       - name: Upload packages
         uses: actions/upload-artifact@v4
         with:
           name: ${{ env.ARTIFACT_NAME }}
           path: out/
+          # Only the publish job of this run needs them; long retention fills the storage quota.
+          retention-days: 1
           if-no-files-found: error
 
   publish:
