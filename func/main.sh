@@ -823,6 +823,16 @@ update_user_value() {
 	fi
 }
 
+# Set user value, adding the key when user.conf does not have it yet
+set_user_value() {
+	key="${2//$/}"
+	if grep -q "^$key='" "$ARCPANEL/data/users/$1/user.conf"; then
+		update_user_value "$1" "$key" "$3"
+	else
+		echo "$key='${3}'" >> "$ARCPANEL/data/users/$1/user.conf"
+	fi
+}
+
 # Increase user counter
 increase_user_value() {
 	key="${2//$/}"
@@ -2081,6 +2091,15 @@ no_symlink_chmod() {
 
 		chmod "${filemode}" "${i}"
 	done
+}
+
+# Print $1 fit for a log line instead of refusing it: quotes, pipes,
+# backslashes, $, backticks and control characters become "_", and the value
+# is cut at 256 characters (E39 W2 spec D5)
+log_safe() {
+	local value="${1//[\'\"|\\\$\`]/_}"
+	value="${value//[[:cntrl:]]/_}"
+	printf '%s' "${value:0:256}"
 }
 
 format_no_quotes() {

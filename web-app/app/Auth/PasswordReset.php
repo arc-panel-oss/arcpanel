@@ -6,7 +6,6 @@ use App\Arc\ArcCommand;
 use App\Arc\Options;
 use App\Arc\Secret;
 use App\Services\Mail\PasswordResetMailer;
-use Illuminate\Support\Sleep;
 use Illuminate\Support\Str;
 
 /**
@@ -92,12 +91,6 @@ final class PasswordReset
         if (preg_match(self::USER_FORMAT, $username) === 1) {
             $this->arc->run('v-log-user-login', [$username, $context->ip, 'failed', $context->fingerprint, $context->userAgent, 'yes', $reason], Options::allowFailure());
         }
-    }
-
-    /** Slow down guessing, as the legacy pages do. */
-    public static function delay(): void
-    {
-        Sleep::sleep(2);
     }
 
     /** @return array<string, string>|null */

@@ -10663,7 +10663,9 @@ paths:
         - Users
       summary: Check user token
       description: |-
-        This function verifies user 2fa token.
+        This function verifies user 2fa token. A token is accepted once: the time
+        step of the last accepted token is kept as TWOFA_STEP. A wrong token is
+        written to the auth log that fail2ban reads.
 
         **Arguments**
 
@@ -10671,6 +10673,7 @@ paths:
         | --- | --- | --- |
         | `arg1` | `USER` | yes |
         | `arg2` | `TOKEN` | yes |
+        | `arg3` | `IP` | no |
 
         **User argument:** with the access key of a user other than the admin, `arg1` must be the key's user.
       x-arcpanel-user-arg: 1
@@ -14556,6 +14559,54 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/v-delete-user-log"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+  "/api/#v-delete-user-login-limits":
+    post:
+      operationId: v-delete-user-login-limits
+      tags:
+        - Users
+      summary: Clear the login limits of a user
+      description: |-
+        This function clears the hourly login limit and the 2FA limit that the
+        panel keeps for a user name, so a user locked out by failed attempts of
+        someone else can log in again.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `USER` | yes |
+
+        **User argument:** with the access key of a user other than the admin, `arg1` must be the key's user.
+      x-arcpanel-user-arg: 1
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-delete-user-login-limits"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-delete-user-login-limits"
       responses:
         "200":
           description: "The output of the command; `OK` for an empty output with legacy authentication."
@@ -24634,6 +24685,51 @@ paths:
           $ref: "#/components/responses/InvalidRequest"
         "422":
           $ref: "#/components/responses/Unprocessable"
+  "/api/#v-log-sys-login-failure":
+    post:
+      operationId: v-log-sys-login-failure
+      tags:
+        - System
+      summary: Log a failed panel login that names no valid user
+      description: |-
+        This function writes a failed login to the auth log for a user name that
+        no other command accepts, so fail2ban counts it like any other failure.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `IP` | yes |
+        | `arg2` | `REASON` | no |
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-log-sys-login-failure"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-log-sys-login-failure"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
   "/api/#v-log-user-login":
     post:
       operationId: v-log-user-login
@@ -24641,6 +24737,10 @@ paths:
         - Users
       summary: Add user login
       description: |-
+        The user agent and the reason are made log-safe (quotes and control
+        characters replaced) instead of refused, so a failure always reaches the
+        auth log that fail2ban reads.
+
         **Arguments**
 
         | Field | Option | Required |
@@ -24649,6 +24749,9 @@ paths:
         | `arg2` | `IP` | yes |
         | `arg3` | `STATUS` | yes |
         | `arg4` | `FINGERPRINT` | no |
+        | `arg5` | `USER_AGENT` | no |
+        | `arg6` | `AUTHLOG` | no |
+        | `arg7` | `REASON` | no |
 
         **User argument:** with the access key of a user other than the admin, `arg1` must be the key's user.
       x-arcpanel-user-arg: 1
@@ -41590,6 +41693,12 @@ components:
               description: "`TOKEN`"
               examples:
                 - "493690"
+            arg3:
+              type: string
+              title: IP
+              description: "`IP`, optional"
+              examples:
+                - "203.0.113.7"
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-check-user-hash:
@@ -43795,6 +43904,27 @@ components:
               description: "`USER`"
               examples:
                 - user
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
+    v-delete-user-login-limits:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-delete-user-login-limits
+              default: v-delete-user-login-limits
+            arg1:
+              type: string
+              title: USER
+              description: "`USER`"
+              examples:
+                - admin
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-delete-user-node-apps:
@@ -49695,6 +49825,33 @@ components:
                 - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
+    v-log-sys-login-failure:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-log-sys-login-failure
+              default: v-log-sys-login-failure
+            arg1:
+              type: string
+              title: IP
+              description: "`IP`"
+              examples:
+                - "203.0.113.7"
+            arg2:
+              type: string
+              title: REASON
+              description: "`REASON`, optional"
+              examples:
+                - Invalid user name
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
     v-log-user-login:
       allOf:
         - $ref: "#/components/schemas/Credentials"
@@ -49732,6 +49889,24 @@ components:
               type: string
               title: FINGERPRINT
               description: "`FINGERPRINT`, optional"
+              examples:
+                - ""
+            arg5:
+              type: string
+              title: USER_AGENT
+              description: "`USER_AGENT`, optional"
+              examples:
+                - ""
+            arg6:
+              type: string
+              title: AUTHLOG
+              description: "`AUTHLOG`, optional"
+              examples:
+                - ""
+            arg7:
+              type: string
+              title: REASON
+              description: "`REASON`, optional"
               examples:
                 - ""
             returncode:

@@ -1,6 +1,10 @@
 #!/bin/bash
 # info: add user login
-# options: USER IP STATUS [FINGERPRINT]
+# options: USER IP STATUS [FINGERPRINT] [USER_AGENT] [AUTHLOG] [REASON]
+#
+# The user agent and the reason are made log-safe (quotes and control
+# characters replaced) instead of refused, so a failure always reaches the
+# auth log that fail2ban reads.
 
 #----------------------------------------------------------#
 #                Variables & Functions                     #
@@ -35,11 +39,12 @@ source_conf "$ARCPANEL/conf/arcpanel.conf"
 check_args '2' "$#" 'USER IP SESSION_ID USER_AGENT [AUTHLOG] [REASON]'
 is_format_valid 'user' 'ip46'
 is_common_format_valid "$session_id" "SESSION_ID"
-format_no_quotes "$user_agent" "USER_AGENT"
 is_common_format_valid "$authlog" "AUTHLOG"
-format_no_quotes "$reason" "REASON"
 
 is_object_valid 'user' 'USER' "$user"
+
+user_agent=$(log_safe "$user_agent")
+reason=$(log_safe "$reason")
 
 # Generating timestamp
 time_n_date=$(date +'%T %F')

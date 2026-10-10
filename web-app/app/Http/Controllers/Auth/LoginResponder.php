@@ -20,6 +20,12 @@ final class LoginResponder
         private readonly LegacySession $legacy,
     ) {}
 
+    /** The text of a 429 answer, in whole minutes as the reset pages say it. */
+    public static function tooMany(int $seconds): string
+    {
+        return sprintf(__('Too many attempts. Try again in %d minutes.'), (int) ceil($seconds / 60));
+    }
+
     public function context(Request $request): LoginContext
     {
         return new LoginContext(

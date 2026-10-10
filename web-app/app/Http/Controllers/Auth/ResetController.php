@@ -105,13 +105,10 @@ final class ResetController extends Controller
         $state = $this->reset->check($data['user'], $data['code']);
         if ($state !== 'ok') {
             $this->reset->logFailure($data['user'], $context, $state === 'expired' ? 'Reset code has been expired' : 'Invalid Username or Code');
-            PasswordReset::delay();
 
             return $back->with('error', $state === 'expired' ? __('Code has been expired') : __('Invalid username or code'));
         }
         if (! $this->reset->reset($data['user'], $data['password'])) {
-            PasswordReset::delay();
-
             return $back->with('error', __('An internal error occurred'));
         }
 
@@ -132,7 +129,6 @@ final class ResetController extends Controller
 
         if (! $this->reset->resetTwoFactor($data['user'], trim($data['twofa']))) {
             $this->reset->logFailure($data['user'], $this->responder->context($request), 'Failed to enter correct 2FA reset key');
-            PasswordReset::delay();
 
             return redirect()->route('reset2fa')->withInput($request->only('user'))->with('error', __('Invalid username or code'));
         }

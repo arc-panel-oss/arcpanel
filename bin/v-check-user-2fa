@@ -1,10 +1,12 @@
 #!/bin/bash
 # info: check user token
-# options: USER TOKEN
+# options: USER TOKEN [IP]
 #
-# example: v-check-user-2fa admin 493690
+# example: v-check-user-2fa admin 493690 203.0.113.7
 #
-# This function verifies user 2fa token.
+# This function verifies user 2fa token. A token is accepted once: the time
+# step of the last accepted token is kept as TWOFA_STEP. A wrong token is
+# written to the auth log that fail2ban reads.
 
 #----------------------------------------------------------#
 #                Variables & Functions                     #
@@ -13,6 +15,7 @@
 # Argument definition
 user=$1
 token=$2
+ip46=${3-127.0.0.1}
 
 # Includes
 # shellcheck source=/etc/arcpanel/arcpanel.conf
@@ -22,17 +25,31 @@ source $ARCPANEL/func/main.sh
 # load config file
 source_conf "$ARCPANEL/conf/arcpanel.conf"
 
+# Write the failure line of the auth log and stop
+token_mismatch() {
+	echo "$(date +'%F %T') $user $ip46 failed to login (Invalid or missing 2FA token)" >> "$ARCPANEL/log/auth.log"
+	echo "Error: Authentication token mismatch."
+	exit 9
+}
+
 #----------------------------------------------------------#
 #                    Verifications                         #
 #----------------------------------------------------------#
 
-check_args '2' "$#" 'USER TOKEN'
-is_format_valid 'user' 'system'
+check_args '2' "$#" 'USER TOKEN [IP]'
+is_format_valid 'user' 'ip46'
 is_object_valid 'user' 'USER' "$user"
 
 #----------------------------------------------------------#
 #                       Action                             #
 #----------------------------------------------------------#
+
+# One check at a time per user, so a token cannot be used twice in parallel
+exec {lock_fd}> "$USER_DATA/.twofa.lock"
+if ! flock -w 10 "$lock_fd"; then
+	echo "Error: 2FA check is busy"
+	exit "$E_UPDATE"
+fi
 
 # Reading user values
 source $USER_DATA/user.conf
@@ -43,12 +60,20 @@ if [ -z "$TWOFA" ]; then
 	exit "$E_NOTEXIST"
 fi
 
-# Check if token is valid
-result=$($ARCPANEL_PHP $ARCPANEL/lib/2fa/check.php "$TWOFA" "$token")
-if [ "$result" != "ok" ]; then
-	echo "Error: Authentication token mismatch."
-	exit 9
+if [[ ! "$token" =~ ^[0-9]{6}$ ]]; then
+	token_mismatch
 fi
+last_step="${TWOFA_STEP:-0}"
+if [[ ! "$last_step" =~ ^[0-9]+$ ]]; then
+	last_step=0
+fi
+
+# Check the token; the secret goes to the helper on stdin, not in argv
+result=$(printf '%s\n%s\n%s\n' "$TWOFA" "$token" "$last_step" | $ARCPANEL_PHP $ARCPANEL/lib/2fa/check.php)
+if [[ ! "$result" =~ ^ok\ ([0-9]+)$ ]]; then
+	token_mismatch
+fi
+set_user_value "$user" '$TWOFA_STEP' "${BASH_REMATCH[1]}"
 
 #----------------------------------------------------------#
 #                         ArcPanel                         #

@@ -6,7 +6,6 @@ use App\Arc\ArcCommand;
 use App\Arc\Options;
 use App\Arc\Secret;
 use App\Arc\SysConfig;
-use Illuminate\Support\Sleep;
 
 /**
  * The login algorithm of web/login/index.php (authenticate_user()), without
@@ -22,9 +21,6 @@ final class LoginService
 
     public const INVALID_2FA = 'Invalid or missing 2FA token';
 
-    /** Wrong 2FA codes allowed before failures are logged and the attempt ends. */
-    public const MAX_2FA_FAILURES = 3;
-
     /** web/login/index.php accepts only names matching this. */
     public const USERNAME_PATTERN = '/^[[:alnum:]][-|\.|_[:alnum:]]{0,28}[[:alnum:]]$/';
 
@@ -35,7 +31,13 @@ final class LoginService
 
     public function attempt(string $username, string $password, LoginContext $context): LoginResult
     {
-        if (preg_match(self::USERNAME_PATTERN, $username) !== 1 || $password === '') {
+        if (preg_match(self::USERNAME_PATTERN, $username) !== 1) {
+            // No command can log a name it refuses, so fail2ban hears of it here (M7).
+            $this->arc->run('v-log-sys-login-failure', [$context->ip, 'Invalid user name'], Options::allowFailure());
+
+            return $this->fail(self::INVALID_CREDENTIALS);
+        }
+        if ($password === '') {
             return $this->fail(self::INVALID_CREDENTIALS);
         }
 
@@ -85,21 +87,20 @@ final class LoginService
     }
 
     /**
-     * Check a 2FA code for a user who already passed attempt().
-     *
-     * @param  int  $failuresBefore  wrong codes already entered in this attempt
+     * Check a 2FA code for a user who already passed attempt(). The caller
+     * limits the attempts (LoginThrottle); v-check-user-2fa writes the
+     * auth.log line of a wrong code itself.
      */
-    public function verifySecondFactor(string $username, string $code, int $failuresBefore, LoginContext $context): LoginResult
+    public function verifySecondFactor(string $username, string $code, LoginContext $context): LoginResult
     {
         if ($code === '' || strlen($code) >= 10) {
             return $this->fail(self::INVALID_2FA);
         }
 
-        $check = $this->arc->run('v-check-user-2fa', [$username, $code], Options::allowFailure());
+        $check = $this->arc->run('v-check-user-2fa', [$username, $code, $context->ip], Options::allowFailure());
         if (! $check->ok()) {
-            if ($failuresBefore >= self::MAX_2FA_FAILURES) {
-                $this->logFailure($username, $context, self::INVALID_2FA);
-            }
+            // Login history only: the auth.log line is already written.
+            $this->logFailure($username, $context);
 
             return $this->fail(self::INVALID_2FA);
         }
@@ -168,11 +169,27 @@ final class LoginService
         $this->arc->run('v-log-user-login', $args, Options::allowFailure());
     }
 
+    /**
+     * Whether the user restricts logins to an address list that holds $ip
+     * (LoginThrottle skips the hourly user limit for it, E39 W2 D2).
+     */
+    public function allowListed(string $username, string $ip): bool
+    {
+        if (preg_match(self::USERNAME_PATTERN, $username) !== 1) {
+            return false;
+        }
+        $data = $this->arc->json('v-list-user', [$username], Options::allowFailure());
+        $user = $data[$username] ?? [];
+        if (! is_array($user) || ($user['LOGIN_USE_IPLIST'] ?? '') !== 'yes') {
+            return false;
+        }
+
+        return in_array($ip, array_map('trim', explode(',', (string) ($user['LOGIN_ALLOW_IPS'] ?? ''))), true);
+    }
+
+    /** Guessing is slowed down by LoginThrottle before any work, not by a sleep in the worker (M7). */
     private function fail(string $error): LoginResult
     {
-        // Slow down guessing, as the legacy login does.
-        Sleep::sleep(2);
-
         return LoginResult::failed($error);
     }
 }
