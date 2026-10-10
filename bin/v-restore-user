@@ -50,6 +50,12 @@ source $ARCPANEL/func/rebuild.sh
 source $ARCPANEL/func/syshealth.sh
 # shellcheck source=/usr/local/arcpanel/func/safe-fs.sh
 source $ARCPANEL/func/safe-fs.sh
+# shellcheck source=/usr/local/arcpanel/func/tenancy.sh
+source $ARCPANEL/func/tenancy.sh
+# shellcheck source=/usr/local/arcpanel/func/ports.sh
+source $ARCPANEL/func/ports.sh
+# shellcheck source=/usr/local/arcpanel/func/docker.sh
+source $ARCPANEL/func/docker.sh
 # load config file
 source_conf "$ARCPANEL/conf/arcpanel.conf"
 
@@ -1043,6 +1049,38 @@ if [ "$udir" != 'no' ]; then
 		done <<< "$user_dirs"
 	fi
 fi
+
+# Restoring the data of Docker apps (E39 W1): root unpacks each archive in
+# its working folder, the user copies the volumes into the data folder
+if [ "$udir" != 'no' ] && tar -tf "$BACKUP/$backup" ./docker_data > /dev/null 2>&1; then
+	echo -e "\n-- DOCKER DATA --" | tee -a $tmpdir/restore.log
+	tar xf "$BACKUP/$backup" -C "$tmpdir" ./docker_data 2> /dev/null
+	find "$tmpdir/docker_data" \( -type l -o \( ! -type f ! -type d \) \) -delete 2> /dev/null
+	for app_archive in "$tmpdir"/docker_data/*.tar.zst "$tmpdir"/docker_data/*.tar.gz; do
+		[ -f "$app_archive" ] || continue
+		app=$(basename -- "$app_archive")
+		app=${app%.tar.*}
+		if ! [[ "$app" =~ ^[a-z0-9][a-z0-9-]{1,31}$ ]]; then
+			restore_skip "Docker app data" "$app" "invalid name" | tee -a $tmpdir/restore.log
+			continue
+		fi
+		echo -e "$(date "+%F %T") $app" | tee -a $tmpdir/restore.log
+		mkdir -p "$tmpdir/docker_data/$app"
+		if [[ "$app_archive" == *.zst ]]; then
+			tar -I pzstd -xpf "$app_archive" -C "$tmpdir/docker_data/$app"
+		else
+			tar -xzpf "$app_archive" -C "$tmpdir/docker_data/$app"
+		fi
+		if ! dockerapp_data_fill "$user" "$app" "$tmpdir/docker_data/$app"; then
+			echo "[ ! ] The data of the Docker app $app was not restored completely" | tee -a $tmpdir/restore.log
+		fi
+		rm -rf -- "$tmpdir/docker_data/$app"
+	done
+fi
+
+# Data of Docker apps unpacked into the home by an archive made before
+# E39 W1 moves out of it
+$BIN/v-update-sys-user-homes "$user" | tee -a $tmpdir/restore.log
 
 # Create tmp/
 if [ ! -e "$HOMEDIR/$user/tmp" ] && [ ! -L "$HOMEDIR/$user/tmp" ]; then

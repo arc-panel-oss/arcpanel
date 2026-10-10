@@ -38,6 +38,12 @@ source $ARCPANEL/func/rebuild.sh
 source $ARCPANEL/func/syshealth.sh
 # shellcheck source=/usr/local/arcpanel/func/safe-fs.sh
 source $ARCPANEL/func/safe-fs.sh
+# shellcheck source=/usr/local/arcpanel/func/tenancy.sh
+source $ARCPANEL/func/tenancy.sh
+# shellcheck source=/usr/local/arcpanel/func/ports.sh
+source $ARCPANEL/func/ports.sh
+# shellcheck source=/usr/local/arcpanel/func/docker.sh
+source $ARCPANEL/func/docker.sh
 # load config file
 source_conf "$ARCPANEL/conf/arcpanel.conf"
 
@@ -82,7 +88,17 @@ if [ "$udir" = "yes" ]; then
 	if [ -d "$SAFE_WORKDIR/home/$user" ]; then
 		copy_into_home "$SAFE_WORKDIR/home/$user" "$HOMEDIR/$user" || echo "[ ! ] Some user files could not be restored"
 	fi
+	# The data of Docker apps, outside the home (E39 W1)
+	restic_restore_data "$SAFE_WORKDIR" "$snapshot" --include="$HOMEDIR/.arcpanel-apps/$user" > /dev/null 2>&1
+	for app_dir in "$SAFE_WORKDIR$HOMEDIR/.arcpanel-apps/$user"/*/; do
+		app=$(basename -- "$app_dir")
+		if [ -d "$app_dir" ] && [[ "$app" =~ ^[a-z0-9][a-z0-9-]{1,31}$ ]]; then
+			dockerapp_data_fill "$user" "$app" "${app_dir%/}" || echo "[ ! ] The data of the Docker app $app was not restored completely"
+		fi
+	done
 	safe_workdir_cleanup
+	# Data unpacked into the home from a snapshot made before E39 W1
+	$BIN/v-update-sys-user-homes "$user"
 fi
 
 # Rebuilding user

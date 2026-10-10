@@ -73,9 +73,14 @@ fi
 $BIN/v-backup-user-config $user
 export GOMAXPROCS=2
 export RESTIC_READ_CONCURRENCY=2
+# The data of Docker apps lives outside the home (E39 W1)
+paths=("/home/$user")
+if [ -d "$HOMEDIR/.arcpanel-apps/$user" ] && [ ! -L "$HOMEDIR/.arcpanel-apps/$user" ]; then
+	paths+=("$HOMEDIR/.arcpanel-apps/$user")
+fi
 # pm2 keeps the environment of running apps, resolved secrets included (E38 D14)
-ionice -c2 -n7 nice -n 19 restic --repo "${REPO%/}/$user" --limit-upload 10240 --read-concurrency 2 --password-file $USER_DATA/restic.conf backup /home/$user \
-	--exclude "/home/$user/.pm2/dump.pm2*"
+ionice -c2 -n7 nice -n 19 restic --repo "${REPO%/}/$user" --limit-upload 10240 --read-concurrency 2 --password-file $USER_DATA/restic.conf backup "${paths[@]}" \
+	--exclude "/home/$user/.pm2/dump.pm2*" --exclude "$HOMEDIR/.arcpanel-apps/$user/*/.incoming"
 
 if [ $? -ne 0 ]; then
 	echo "Unable to create the backup" | $SENDMAIL -s "$subj" "$email" "yes"

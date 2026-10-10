@@ -43,6 +43,7 @@ is_object_valid 'user' 'USER' "$user"
 #----------------------------------------------------------#
 
 if [ "$(dockerapp_count "$user")" -eq 0 ]; then
+	rm -rf -- "$(dockerapp_data_root)/${user:?}"
 	exit
 fi
 dockerapp_lock "$user"
@@ -56,6 +57,8 @@ for name in $(dockerapp_names "$user"); do
 	"$BIN/v-delete-docker-app" "$user" "$name" keep-data > /dev/null 2>&1
 done
 rm -rf "$ARCPANEL/data/users/$user/docker"
+# The data tree of the user (E39 W1); the account goes away
+rm -rf -- "$(dockerapp_data_root)/${user:?}"
 
 #----------------------------------------------------------#
 #                         ArcPanel                         #

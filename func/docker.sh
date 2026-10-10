@@ -10,8 +10,9 @@
 #   $ARCPANEL/data/users/<user>/docker/<name>/   compose.yaml (catalog copy), #
 #                                              compose.arcpanel.yaml,       #
 #                                              .env, task.*, root only      #
-#   ~/apps/<name>/                             data/, app.conf and .env     #
-#                                              copies, .snapshots/          #
+#   ~/apps/<name>/                             app.conf and .env copies,    #
+#                                              .snapshots/, data -> below   #
+#   $HOMEDIR/.arcpanel-apps/<user>/<name>/     the volume folders (E39 W1)  #
 # Everything in a home directory is read and written as the user. Every    #
 # service runs as the user's uid:gid without capabilities, in the user's   #
 # slice (spec D3, D12).                                                     #
@@ -21,6 +22,8 @@
 
 # shellcheck source=/usr/local/arcpanel/func/nodeapp.sh
 source "$ARCPANEL/func/nodeapp.sh"
+# shellcheck source=/usr/local/arcpanel/func/safe-fs.sh
+source "$ARCPANEL/func/safe-fs.sh"
 
 DOCKERAPP_KEYS="NAME SLUG VERSION DOMAIN WEB_PORT EXTRA_PORTS STATE STATUS REASON SUSPENDED TEMPLATE PREV_TPL PREV_VERSION CPUS MEMORY TIME DATE"
 DOCKERAPP_TEMPLATE="docker-proxy"
@@ -258,13 +261,150 @@ dockerapp_rdir() {
 	echo "$ARCPANEL/data/users/$1/docker/$2"
 }
 
-# Folder of USER's NAME in the home directory
+# Folder of USER's NAME in the home directory: the app.conf and .env copies,
+# .snapshots/ and the link data, which points at the data folder
 dockerapp_home() {
 	echo "$HOMEDIR/$1/apps/$2"
 }
 
+# Data of the Docker apps, outside the homes (E39 W1 D11): the root
+# $HOMEDIR/.arcpanel-apps is root:root 0711, <user>/ and <user>/<name>/ are
+# root:<user> 0750, and the volume folders in <user>/<name>/ are the user's
+# (0700). The user writes in a volume but cannot rename or replace it, so a
+# bind source cannot become a link after it was checked. The folders stay
+# on the file system of the homes, so quotas and free space count them.
+dockerapp_data_root() {
+	echo "$HOMEDIR/.arcpanel-apps"
+}
+
 dockerapp_data_dir() {
-	echo "$HOMEDIR/$1/apps/$2/data"
+	echo "$(dockerapp_data_root)/$1/$2"
+}
+
+# Create the root-owned folders above the volumes of USER's NAME, or check
+# them. Prints the reason and returns E_FORBIDEN.
+dockerapp_data_tree() {
+	local user="$1" name="$2" root gid dir
+	root=$(dockerapp_data_root)
+	gid=$(id -g "$user" 2> /dev/null) || {
+		echo "$user does not exist"
+		return "$E_NOTEXIST"
+	}
+	for dir in "$root" "$root/$user" "$root/$user/$name"; do
+		if [ -L "$dir" ] || { [ -e "$dir" ] && [ ! -d "$dir" ]; }; then
+			echo "$dir is not a folder"
+			return "$E_FORBIDEN"
+		fi
+		if [ ! -d "$dir" ]; then
+			mkdir -m 700 -- "$dir" || return "$E_FORBIDEN"
+		fi
+	done
+	chown root:root "$root" && chmod 711 "$root"
+	chown "root:$gid" "$root/$user" "$root/$user/$name" && chmod 750 "$root/$user" "$root/$user/$name"
+}
+
+# Create the volume folder VOLUME of USER's NAME for the user, or check it
+dockerapp_data_volume() {
+	local user="$1" name="$2" volume="$3" dir
+	dir="$(dockerapp_data_dir "$user" "$name")/$volume"
+	if ! [[ "$volume" =~ ^\.?[a-z0-9][a-z0-9_-]{0,63}$ ]]; then
+		return "$E_INVALID"
+	fi
+	if [ ! -e "$dir" ] && [ ! -L "$dir" ]; then
+		install -d -m 700 -o "$user" -g "$(id -g "$user")" -- "$dir" || return "$E_FORBIDEN"
+	fi
+	[ ! -L "$dir" ] && [ -d "$dir" ] && [ "$(stat -c %u -- "$dir")" = "$(id -u "$user")" ]
+}
+
+# Point ~/apps/NAME/data of USER at the data folder (as the user); an old
+# data folder that still holds files is left for dockerapp_data_migrate
+dockerapp_data_link() {
+	node_as_user "$1" bash -c '
+		if [ -L "$1" ]; then
+			[ "$(readlink "$1")" = "$2" ] && exit 0
+			rm -f "$1"
+		elif [ -d "$1" ]; then
+			rmdir "$1" 2> /dev/null || exit 0
+		fi
+		ln -s "$2" "$1"' link "$(dockerapp_home "$1" "$2")/data" "$(dockerapp_data_dir "$1" "$2")" > /dev/null 2>&1
+	return 0
+}
+
+# Fill the data folder of USER's NAME from SRC, a folder of root that holds
+# volume folders (a restore): each volume is created for the user, and the
+# user copies the files into it
+dockerapp_data_fill() {
+	local user="$1" name="$2" src="$3" data entry
+	data=$(dockerapp_data_dir "$user" "$name")
+	dockerapp_data_tree "$user" "$name" > /dev/null || return "$E_FORBIDEN"
+	while IFS= read -r -d '' entry; do
+		[ -d "$src/$entry" ] && [ ! -L "$src/$entry" ] || continue
+		dockerapp_data_volume "$user" "$name" "$entry" || continue
+		[ -n "$(find "$src/$entry" -mindepth 1 -maxdepth 1 -printf x -quit)" ] || continue
+		(cd -- "$src/$entry" && find . -mindepth 1 -maxdepth 1 -printf '%P\0' | tar --null -T - -cf -) \
+			| user_exec tar -C "$data/$entry" -xpf - --no-same-owner --overwrite
+	done < <(find "$src" -mindepth 1 -maxdepth 1 -printf '%P\0')
+	dockerapp_data_link "$user" "$name"
+}
+
+# Move the data of USER's NAME from ~/apps/NAME/data, the layout before
+# E39 W1, into the data folder. The app is stopped while its data moves.
+# The user moves the entries into .incoming/ (a folder of theirs in the
+# data folder); root renames each one out of it, and checks it only once
+# it sits in a folder of root: a link put there by the user is removed.
+# Nothing is copied. Prints what it did.
+dockerapp_data_migrate() {
+	local user="$1" name="$2" home old data incoming entry running=no out
+	home=$(dockerapp_home "$user" "$name")
+	old="$home/data"
+	data=$(dockerapp_data_dir "$user" "$name")
+	if [ -L "$HOMEDIR/$user/apps" ] || [ -L "$home" ]; then
+		echo "$name: $home or a folder above it is a link, the data was not moved"
+		return "$E_FORBIDEN"
+	fi
+	if [ -L "$old" ] || [ ! -d "$old" ]; then
+		return 0
+	fi
+	out=$(dockerapp_data_tree "$user" "$name") || {
+		echo "$name: $out"
+		return "$E_FORBIDEN"
+	}
+	if [ "$(dockerapp_get "$user" "$name" STATE)" = 'running' ] && [ "$(dockerapp_get "$user" "$name" SUSPENDED)" = 'no' ]; then
+		running=yes
+		dockerapp_halt "$user" "$name"
+	fi
+	incoming="$data/.incoming"
+	rm -rf -- "$incoming"
+	install -d -m 700 -o "$user" -g "$(id -g "$user")" -- "$incoming" || return "$E_FORBIDEN"
+	node_as_user "$user" bash -c '
+		cd "$1" || exit 1
+		for e in * .[!.]* ..?*; do
+			[ -e "$e" ] || [ -L "$e" ] || continue
+			mv -- "$e" "$2/" || exit 1
+		done' move "$old" "$incoming"
+	while IFS= read -r -d '' entry; do
+		if ! is_restore_name_valid segment "$entry" || [ "$entry" = '.incoming' ]; then
+			continue
+		fi
+		if [ -e "$data/$entry" ] || [ -L "$data/$entry" ]; then
+			echo "$name: $entry exists in $data, left in $incoming"
+			continue
+		fi
+		mv -T -- "$incoming/$entry" "$data/$entry" || continue
+		if [ -L "$data/$entry" ] || { [ ! -f "$data/$entry" ] && [ ! -d "$data/$entry" ]; }; then
+			rm -f -- "$data/$entry"
+			echo "$name: $entry was a link or a special file, removed"
+		fi
+	done < <(find "$incoming" -mindepth 1 -maxdepth 1 -printf '%P\0')
+	rmdir -- "$incoming" 2> /dev/null
+	dockerapp_data_link "$user" "$name"
+	# The rendered project names the new folders
+	sed -i "s#='$old/#='$data/#" "$(dockerapp_rdir "$user" "$name")/.env" 2> /dev/null
+	if [ "$running" = 'yes' ] && command -v docker > /dev/null 2>&1; then
+		out=$(dockerapp_up "$user" "$name") || echo "$name: $out"
+	fi
+	echo "$name: data moved to $data"
+	return 0
 }
 
 dockerapp_name_valid() {
@@ -914,31 +1054,36 @@ dockerapp_render() {
 		"$(nodeapp_field "$line" MEMORY)" "$(dockerapp_ports_spec "$user" "$name")"
 }
 
-# Create the data folders of USER's NAME as the user and check every bind
-# source of the rendered project (spec §5.4 step 4). Prints the reason and
-# returns E_FORBIDEN.
+# Create the data folders of USER's NAME and check every bind source of the
+# rendered project (spec §5.4 step 4, E39 W1 D11): the folders above the
+# volumes belong to root, each volume to the user, and a bind source must
+# be exactly one volume folder. Prints the reason and returns E_FORBIDEN.
 dockerapp_binds_check() {
-	local user="$1" name="$2" home data source real uid volume
+	local user="$1" name="$2" home data source uid volume out
 	home=$(dockerapp_home "$user" "$name")
 	data=$(dockerapp_data_dir "$user" "$name")
 	uid=$(id -u "$user")
-	if [ -L "$HOMEDIR/$user/apps" ] || [ -L "$home" ] || [ -L "$data" ]; then
+	if [ -L "$HOMEDIR/$user/apps" ] || [ -L "$home" ]; then
 		echo "$home or a folder above it is a symbolic link"
 		return "$E_FORBIDEN"
 	fi
-	node_as_user "$user" bash -c 'umask 077; mkdir -p "$1"' mk "$data" || {
-		echo "$data could not be created"
+	out=$(dockerapp_data_tree "$user" "$name") || {
+		echo "$out"
 		return "$E_FORBIDEN"
 	}
 	for volume in $(jq -r '(.volumes // [])[].name' "$(docker_manifest "$(dockerapp_get "$user" "$name" SLUG)" "$(dockerapp_get "$user" "$name" VERSION)")"); do
-		node_as_user "$user" bash -c 'umask 077; [ -L "$1" ] || mkdir -p "$1"' mk "$data/$volume" > /dev/null 2>&1
+		if ! dockerapp_data_volume "$user" "$name" "$volume"; then
+			echo "$data/$volume must be a folder of $user, not a link"
+			return "$E_FORBIDEN"
+		fi
 	done
+	dockerapp_data_link "$user" "$name"
 	while IFS= read -r source; do
 		[ -n "$source" ] || continue
-		real=$(readlink -m "$source")
-		if [ -L "$source" ] || [ ! -d "$source" ] || [ "$(stat -c %u "$source")" != "$uid" ] \
-			|| [ "$real" != "$source" ] || [[ "$real" != "$data"/* ]]; then
-			echo "bind source $source must be a folder of $user inside $data, not a link"
+		volume=${source#"$data"/}
+		if [ "$volume" = "$source" ] || [[ "$volume" == */* ]] || [ -z "$volume" ] \
+			|| [ -L "$source" ] || [ ! -d "$source" ] || [ "$(stat -c %u -- "$source")" != "$uid" ]; then
+			echo "bind source $source must be a volume folder of $user in $data, not a link"
 			return "$E_FORBIDEN"
 		fi
 	done < <(dockerapp_dc "$user" "$name" config --format json 2> /dev/null | jq -r '.services[].volumes // [] | .[] | select(.type == "bind") | .source')
@@ -1613,22 +1758,37 @@ dockerapp_data_mb() {
 	node_as_user "$1" du -sm "$(dockerapp_data_dir "$1" "$2")" 2> /dev/null | awk '{ print $1 }'
 }
 
-# Replace the snapshots of USER's NAME with one of its data folder for
-# VERSION (as the user)
+# Replace the snapshots of USER's NAME with one of its volume folders for
+# VERSION (as the user, who may read the data folder through its group)
 dockerapp_snapshot_take() {
 	local user="$1" name="$2" version="$3" home
 	home=$(dockerapp_home "$user" "$name")
 	node_as_user "$user" bash -c 'umask 077; [ ! -L "$1" ] && [ ! -L "$1/.snapshots" ] && mkdir -p "$1/.snapshots" \
-		&& rm -f "$1"/.snapshots/*.tar.zst && tar -C "$1" --zstd -cf "$2.tmp" data && mv -f "$2.tmp" "$2"' \
-		snap "$home" "$(dockerapp_snapshot_file "$user" "$name" "$version")"
+		&& rm -f "$1"/.snapshots/*.tar.zst && cd "$3" \
+		&& find . -mindepth 1 -maxdepth 1 ! -name .incoming -printf "./%P\0" | tar --null -T - --zstd -cf "$2.tmp" \
+		&& mv -f "$2.tmp" "$2"' \
+		snap "$home" "$(dockerapp_snapshot_file "$user" "$name" "$version")" "$(dockerapp_data_dir "$user" "$name")"
 }
 
-# Put the data folder of USER's NAME back from the snapshot of VERSION
+# Put the volume folders of USER's NAME back from the snapshot of VERSION:
+# each one is emptied and filled again by the user. Snapshots made since
+# E39 W1 name their members ./<volume>/…; older ones hold them below data/.
 dockerapp_snapshot_restore() {
-	local user="$1" name="$2" version="$3" home
-	home=$(dockerapp_home "$user" "$name")
-	node_as_user "$user" bash -c '[ -f "$2" ] && [ ! -L "$2" ] && rm -rf "$1/data" && tar -C "$1" --zstd -xf "$2"' \
-		snap "$home" "$(dockerapp_snapshot_file "$user" "$name" "$version")"
+	local user="$1" name="$2" version="$3" data volume file strip=0
+	data=$(dockerapp_data_dir "$user" "$name")
+	file=$(dockerapp_snapshot_file "$user" "$name" "$version")
+	dockerapp_data_tree "$user" "$name" > /dev/null || return "$E_FORBIDEN"
+	for volume in $(jq -r '(.volumes // [])[].name' "$(docker_manifest "$(dockerapp_get "$user" "$name" SLUG)" "$version")" 2> /dev/null); do
+		dockerapp_data_volume "$user" "$name" "$volume" || return "$E_FORBIDEN"
+	done
+	if node_as_user "$user" bash -c '[ -f "$1" ] && [ ! -L "$1" ] && tar --zstd -tf "$1" | head -n 1 | grep -q "^data"' list "$file"; then
+		strip=1
+	fi
+	node_as_user "$user" bash -c '[ -f "$2" ] && [ ! -L "$2" ] || exit 1
+		for v in "$1"/*/ "$1"/.dumps/; do
+			[ -d "$v" ] && [ ! -L "${v%/}" ] && find "$v" -mindepth 1 -delete
+		done
+		tar -C "$1" --zstd -xf "$2" --overwrite --strip-components="$3"' snap "$data" "$file" "$strip"
 }
 
 # Render VERSION of USER's NAME (variables kept, new ones get their
@@ -1763,7 +1923,7 @@ dockerapp_dump() {
 		return 0
 	fi
 	dir="$(dockerapp_data_dir "$user" "$name")/.dumps"
-	node_as_user "$user" bash -c 'umask 077; [ ! -L "$1" ] && mkdir -p "$1" && [ ! -L "$1" ]' dumps "$dir" || return "$E_FORBIDEN"
+	dockerapp_data_tree "$user" "$name" > /dev/null && dockerapp_data_volume "$user" "$name" .dumps || return "$E_FORBIDEN"
 	for ((i = 0; i < count; i++)); do
 		service=$(jq -r ".dumps[$i].service" "$manifest")
 		command=$(jq -r ".dumps[$i].command" "$manifest")

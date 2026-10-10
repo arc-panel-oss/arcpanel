@@ -706,6 +706,27 @@ if [ "$USER" != '*' ]; then
 	fi
 fi
 
+# Docker app data (E39 W1): the volume folders live outside the home, one
+# archive per app in ./docker_data/
+docker_data="$HOMEDIR/.arcpanel-apps/$user"
+if [ -d "$docker_data" ] && [ ! -L "$docker_data" ]; then
+	for app_dir in "$docker_data"/*/; do
+		app=$(basename -- "$app_dir")
+		if ! [[ "$app" =~ ^[a-z0-9][a-z0-9-]{1,31}$ ]] || [ -L "${app_dir%/}" ]; then
+			continue
+		fi
+		mkdir -p "$tmpdir/docker_data"
+		echo -e "$(date "+%F %T") adding the data of the Docker app $app" | tee -a $BACKUP/$user.log
+		if [ "$BACKUP_MODE" = 'zstd' ]; then
+			(cd -- "$app_dir" && find . -mindepth 1 -maxdepth 1 ! -name .incoming -printf './%P\0' | tar --null -T - -cpf-) \
+				| pzstd -"$BACKUP_GZIP" - > "$tmpdir/docker_data/$app.tar.zst"
+		else
+			(cd -- "$app_dir" && find . -mindepth 1 -maxdepth 1 ! -name .incoming -printf './%P\0' | tar --null -T - -cpf-) \
+				| gzip -"$BACKUP_GZIP" - > "$tmpdir/docker_data/$app.tar.gz"
+		fi
+	done
+fi
+
 if [ "$BACKUP_MODE" = 'zstd' ]; then
 	touch $tmpdir/.zstd
 fi

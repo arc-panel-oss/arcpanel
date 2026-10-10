@@ -7,8 +7,10 @@
 # This function removes from the homes of users what older versions left
 # there for root to manage: the private key of the legacy file manager in
 # ~/.ssh, its line in authorized_keys and the ACL that let arcpanelweb into
-# ~/.ssh. Every change in a home runs as the user. Without USER it works on
-# every user. It is safe to run on every upgrade.
+# ~/.ssh. It moves the data of Docker apps from ~/apps/<name>/data to
+# $HOMEDIR/.arcpanel-apps/<user>/<name>/ (stopping a running app while its
+# data moves). Every change in a home runs as the user. Without USER it
+# works on every user. It is safe to run on every upgrade.
 # See docs/features/specs/2026-10-10-001-e39-w1-root-in-user-paths-design.md.
 
 #----------------------------------------------------------#
@@ -23,8 +25,29 @@ only_user=$1
 source /etc/arcpanel/arcpanel.conf
 # shellcheck source=/usr/local/arcpanel/func/main.sh
 source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/tenancy.sh
+source $ARCPANEL/func/tenancy.sh
+# shellcheck source=/usr/local/arcpanel/func/ports.sh
+source $ARCPANEL/func/ports.sh
 # load config file
 source_conf "$ARCPANEL/conf/arcpanel.conf"
+# shellcheck source=/usr/local/arcpanel/func/docker.sh
+source $ARCPANEL/func/docker.sh
+
+# The data of USER's Docker apps out of the home
+homes_move_docker_data() {
+	local name
+	if [ "$(dockerapp_count "$user")" -eq 0 ]; then
+		return 0
+	fi
+	dockerapp_lock "$user"
+	for name in $(dockerapp_names "$user"); do
+		dockerapp_data_migrate "$user" "$name"
+	done
+	flock -u "$DOCKERAPP_LOCK_FD"
+	exec {DOCKERAPP_LOCK_FD}>&-
+	unset ARC_DOCKERAPPS_LOCKED
+}
 
 # The legacy file manager key of USER's home, removed as the user
 homes_drop_filemanager_key() {
@@ -74,6 +97,7 @@ for user_dir in "$ARCPANEL"/data/users/*/; do
 		continue
 	fi
 	homes_drop_filemanager_key
+	homes_move_docker_data
 done
 
 #----------------------------------------------------------#

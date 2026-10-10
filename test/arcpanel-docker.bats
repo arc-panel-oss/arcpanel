@@ -343,7 +343,8 @@ teardown_file() {
         and .cgroup_parent == "user-4321.slice" and .restart == "unless-stopped"' "$dir/config.json"
     jq -e '[.services.web.ports[] | "\(.host_ip):\(.published):\(.target)"] | sort == ["0.0.0.0:30101:8081", "127.0.0.1:30100:8080"]' "$dir/config.json"
     grep -q "^ARC_PORT_WEB='30100'" "$dir/.env"
-    grep -q "^ARC_DATA_WWW='/home/someone/apps/tiny/data/www'" "$dir/.env"
+    # E39 W1: the data of Docker apps lives outside the homes
+    grep -q "^ARC_DATA_WWW='/home/.arcpanel-apps/someone/tiny/www'" "$dir/.env"
     grep -qE "^SECRET='[A-Za-z0-9]{16}'" "$dir/.env"
     rm -rf "$dir"
 }
@@ -534,14 +535,50 @@ teardown_file() {
 }
 
 @test "Lifecycle: a symlinked data folder is refused" {
-    mv "/home/$U1/apps/tiny/data/www" "/home/$U1/apps/tiny/data/www.real"
-    ln -s /etc "/home/$U1/apps/tiny/data/www"
+    local data="/home/.arcpanel-apps/$U1/tiny"
+    # E39 W1: the folders above the volumes are root's, so the user cannot
+    # put a link in place of a volume
+    assert_equal "$(stat -c '%U %a' /home/.arcpanel-apps)" "root 711"
+    assert_equal "$(stat -c '%U %G %a' "$data")" "root $(id -gn $U1) 750"
+    assert_equal "$(stat -c '%U %a' "$data/www")" "$U1 700"
+    assert_equal "$(readlink "/home/$U1/apps/tiny/data")" "$data"
+    run runuser -u $U1 -- mv "$data/www" "$data/www.moved"
+    assert_failure
+    # root does it: the check refuses the link
+    mv "$data/www" "$data/www.real"
+    ln -s /etc "$data/www"
     run v-restart-docker-app $U1 tiny
     assert_failure 10
-    rm "/home/$U1/apps/tiny/data/www"
-    mv "/home/$U1/apps/tiny/data/www.real" "/home/$U1/apps/tiny/data/www"
+    rm "$data/www"
+    mv "$data/www.real" "$data/www"
     run v-start-docker-app $U1 tiny
     assert_success
+}
+
+@test "Layout: v-update-sys-user-homes moves data from ~/apps/<name>/data and restarts the app" {
+    local data="/home/.arcpanel-apps/$U1/tiny" home="/home/$U1/apps/tiny"
+    echo moved > "$data/www/moved.txt"
+    chown $U1:$U1 "$data/www/moved.txt"
+    # The layout before E39 W1: the data in the home, the project naming it
+    rm -f "$home/data"
+    mkdir "$home/data"
+    mv "$data/www" "$home/data/www"
+    ln -s /etc "$home/data/evil"
+    chown -hR $U1:$U1 "$home/data"
+    sed -i "s#='$data/#='$home/data/#" "$ARCPANEL/data/users/$U1/docker/tiny/.env"
+    run v-update-sys-user-homes $U1
+    assert_success
+    assert_output --partial 'tiny: data moved to'
+    assert_equal "$(readlink "$home/data")" "$data"
+    assert_equal "$(stat -c %U "$data/www/moved.txt")" "$U1"
+    assert [ ! -e "$data/evil" ]
+    assert [ ! -e "$data/.incoming" ]
+    grep -q "^ARC_DATA_WWW='$data/www'" "$ARCPANEL/data/users/$U1/docker/tiny/.env"
+    assert_equal "$(eventually 200 fetch_status $U1 $DA)" "200"
+    # a second run changes nothing
+    run v-update-sys-user-homes $U1
+    assert_success
+    refute_output --partial 'data moved'
 }
 
 @test "Domain: move an app to another domain" {
@@ -736,6 +773,7 @@ teardown_file() {
     assert_equal "$(port_app $U2 "$port")" "docker:keep"
     assert_equal "$(eventually "hello v1" fetch $U2 $DC)" "hello v1"
     assert_file_exists "/home/$U2/apps/keep/data/www/marker.txt"
+    assert_equal "$(stat -c %U "/home/.arcpanel-apps/$U2/keep/www/marker.txt")" "$U2"
     assert_equal "$(app_field $U2 keep STATUS)" "running"
     rm -f /backup/$U2.*.tar
 }
@@ -752,11 +790,30 @@ teardown_file() {
     rm -rf "/home/$U2/apps/forged"
 }
 
+@test "Persistence: a copy's PREV_TPL is checked, and a suspended user imports nothing" {
+    mkdir -p "/home/$U2/apps/prevtpl"
+    printf "%s\n" "NAME='prevtpl' SLUG='tiny' VERSION='1.0.0' DOMAIN='' WEB_PORT='' EXTRA_PORTS='' STATE='stopped' PREV_TPL='../../../etc/x'" \
+        > "/home/$U2/apps/prevtpl/app.conf"
+    chown -R $U2:$U2 "/home/$U2/apps/prevtpl"
+    v-suspend-user $U2 > /dev/null
+    run v-rebuild-docker-apps $U2
+    [ -z "$(app_field $U2 prevtpl NAME)" ]
+    v-unsuspend-user $U2 > /dev/null
+    run v-rebuild-docker-apps $U2
+    assert_success
+    assert_equal "$(app_field $U2 prevtpl NAME)" prevtpl
+    [ "$(app_field $U2 prevtpl PREV_TPL)" != '../../../etc/x' ]
+    [[ "$(app_field $U2 prevtpl PREV_TPL)" =~ ^[A-Za-z0-9_.-]+$ ]]
+    v-delete-docker-app $U2 prevtpl > /dev/null 2>&1
+    rm -rf "/home/$U2/apps/prevtpl"
+}
+
 @test "Delete: the user's apps go with the user" {
     run v-delete-user $U2
     assert_success
     [ -z "$(docker ps -aq --filter label=top.arcpanel.user=$U2)" ]
     [ ! -d "$ARCPANEL/data/users/$U2" ]
+    [ ! -e "/home/.arcpanel-apps/$U2" ]
     v-add-user $U2 "$PASS" "$U2@example.invalid" tdk-dev > /dev/null
 }
 
@@ -772,9 +829,11 @@ teardown_file() {
     assert_equal "$(app_field tdkjail tiny STATUS)" "running"
     assert_equal "$(stat -c %U:%G:%a /home/tdkjail/apps)" "tdkjail:tdkjail:711"
     assert_equal "$(stat -c %U /home/tdkjail/apps/tiny/data/www/index.html)" "tdkjail"
+    assert_equal "$(stat -c %U /home/.arcpanel-apps/tdkjail/tiny/www/index.html)" "tdkjail"
     assert_equal "$(stat -c %U /home/tdkjail)" "root"
     assert_equal "$(eventually 200 fetch_status tdkjail $DJ)" "200"
     run v-delete-docker-app tdkjail tiny
     assert_success
     assert_dir_not_exists /home/tdkjail/apps/tiny
+    assert_dir_not_exists /home/.arcpanel-apps/tdkjail/tiny
 }
