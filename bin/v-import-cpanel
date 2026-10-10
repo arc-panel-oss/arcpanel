@@ -14,6 +14,8 @@
 
 # shellcheck source=/usr/local/arcpanel/func/main.sh
 source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/safe-fs.sh
+source $ARCPANEL/func/safe-fs.sh
 # shellcheck source=/etc/arcpanel/arcpanel.conf
 source /etc/arcpanel/arcpanel.conf
 # load config file
@@ -48,8 +50,9 @@ else
 	exit 1
 fi
 
-# Creating temporary directory
-tmpdir=$(mktemp -p "$BACKUP_TEMP" -d)
+# Creating temporary directory, root's only (E39 W1)
+safe_workdir import-cpanel
+tmpdir=$SAFE_WORKDIR
 
 tput setaf 2
 echo "Checking provided file..."
@@ -199,16 +202,18 @@ function get_domain_path() {
 			if [ $? -ne 0 ]; then
 				check_result "1" "Unable to create domain it allready exists"
 			fi
-			rm -f /home/$new_user/web/$cp_domain/public_html/index.html
-			rm -f /home/$new_user/web/$cp_domain/public_html/robots.txt
-			sync_count=0
-			rsync -av homedir/$path/ /home/$new_user/web/$cp_domain/public_html 2>&1 \
-				| while read file_dm; do
-					sync_count=$(($sync_count + 1))
-					echo -en "-- $sync_count restored files\r"
-				done
-			chown $new_user:$new_user -R /home/$new_user/web/$cp_domain/public_html
-			chown $new_user:www-data /home/$new_user/web/$cp_domain/public_html
+			user=$new_user user_exec rm -f -- /home/$new_user/web/$cp_domain/public_html/index.html
+			user=$new_user user_exec rm -f -- /home/$new_user/web/$cp_domain/public_html/robots.txt
+			# Copied into the home by the user (E39 W1)
+			if [[ "$path" =~ ^[A-Za-z0-9_.-]+(/[A-Za-z0-9_.-]+)*$ ]] && [[ "/$path/" != */../* ]]; then
+				(
+					user=$new_user
+					copy_into_home "$main_dir/homedir/$path" "/home/$new_user/web/$cp_domain/public_html"
+				)
+			else
+				echo "Skipped $cp_domain: invalid path $path"
+			fi
+			chown -h $new_user:www-data /home/$new_user/web/$cp_domain/public_html
 			chmod 751 /home/$new_user/web/$cp_domain/public_html
 			echo "$cp_domain" >> exclude_path
 		fi
@@ -228,17 +233,15 @@ if [ ! -e exclude_path ]; then
 	touch exclude_path
 fi
 echo "Restore main domain: $main_domain1"
-rm -f /home/$new_user/web/$main_domain1/public_html/index.html
-rm -f /home/$new_user/web/$main_domain1/public_html/robots.txt
+user=$new_user user_exec rm -f -- /home/$new_user/web/$main_domain1/public_html/index.html
+user=$new_user user_exec rm -f -- /home/$new_user/web/$main_domain1/public_html/robots.txt
 
-rsync -av --exclude-from='exclude_path' homedir/public_html/ /home/$new_user/web/$main_domain1/public_html 2>&1 \
-	| while read file_dm; do
-		sync_count=$(($sync_count + 1))
-		echo -en "-- $sync_count restored files\r"
-	done
-
-chown $new_user:$new_user -R /home/$new_user/web/$main_domain1/public_html
-chown $new_user:www-data /home/$new_user/web/$main_domain1/public_html
+# Copied into the home by the user (E39 W1)
+(
+	user=$new_user
+	copy_into_home "$main_dir/homedir/public_html" "/home/$new_user/web/$main_domain1/public_html" "$main_dir/exclude_path"
+)
+chown -h $new_user:www-data /home/$new_user/web/$main_domain1/public_html
 chmod 751 /home/$new_user/web/$main_domain1/public_html
 
 ####### Set Domain PHP version
@@ -344,21 +347,21 @@ for folder in *; do
 				# Doesn't really matter but we don't know the unhashed one
 				tmp_pass=$(generate_password)
 				$BIN/v-add-mail-account $new_user $folder $mail_account $tmp_pass
-				mv $mail_account /home/$new_user/mail/$folder/
-				chown -R $new_user:mail /home/$new_user/mail/$folder/
+				# Copied into the home by the user, then given the mail group
+				(
+					user=$new_user
+					copy_into_home "$PWD/$mail_account" "/home/$new_user/mail/$folder/$mail_account"
+				)
+				find /home/$new_user/mail/$folder -user $new_user -exec chown -h $new_user:mail {} +
 
-				# Decompress gzipped emails
+				# Decompress gzipped emails, as the user
 				decompressed_count=0
-				for mail_file in $(find /home/$new_user/mail/$folder -type f); do
+				while IFS= read -r -d '' mail_file; do
 					if file "$mail_file" | grep -q "gzip compressed"; then
-						original_time=$(stat -c %y "$mail_file" 2> /dev/null)
-						gunzip -c "$mail_file" > "${mail_file}.decompressed" && mv "${mail_file}.decompressed" "$mail_file"
-						if [ ! -z "$original_time" ]; then
-							touch -d "$original_time" "$mail_file"
-						fi
-						let decompressed_count++
+						user=$new_user user_exec sh -c 't=$(stat -c %y "$1"); gunzip -c "$1" > "$1.decompressed" && mv "$1.decompressed" "$1" && touch -d "$t" "$1"' sh "$mail_file"
+						decompressed_count=$((decompressed_count + 1))
 					fi
-				done
+				done < <(find /home/$new_user/mail/$folder -type f -print0)
 
 				echo "$decompressed_count emails decompressed for $mail_account@$folder"
 

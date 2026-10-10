@@ -4472,53 +4472,6 @@ paths:
           $ref: "#/components/responses/InvalidRequest"
         "422":
           $ref: "#/components/responses/Unprocessable"
-  "/api/#v-add-user-sftp-key":
-    post:
-      operationId: v-add-user-sftp-key
-      tags:
-        - Users
-      summary: Add user sftp key
-      description: |-
-        This function creates and updates SSH keys for used with the File Manager.
-
-        **Arguments**
-
-        | Field | Option | Required |
-        | --- | --- | --- |
-        | `arg1` | `USER` | yes |
-        | `arg2` | `TTL` | no |
-
-        **User argument:** with the access key of a user other than the admin, `arg1` must be the key's user.
-      x-arcpanel-user-arg: 1
-      requestBody:
-        required: true
-        content:
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: "#/components/schemas/v-add-user-sftp-key"
-          application/json:
-            schema:
-              $ref: "#/components/schemas/v-add-user-sftp-key"
-      responses:
-        "200":
-          description: "The output of the command; `OK` for an empty output with legacy authentication."
-          headers:
-            ArcPanel-Exit-Code:
-              $ref: "#/components/headers/ArcPanel-Exit-Code"
-          content:
-            text/plain:
-              schema:
-                type: string
-        "204":
-          $ref: "#/components/responses/NoContent"
-        "400":
-          $ref: "#/components/responses/BadRequest"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "405":
-          $ref: "#/components/responses/InvalidRequest"
-        "422":
-          $ref: "#/components/responses/Unprocessable"
   "/api/#v-add-user-ssh-key":
     post:
       operationId: v-add-user-ssh-key
@@ -4527,7 +4480,8 @@ paths:
       summary: Add ssh key
       description: |-
         Function check if $user/.ssh/authorized_keys exists and create it.
-        After that it append the new key(s)
+        After that it append the new key. Every read and write of the file runs as
+        the user, so a link in ~/.ssh cannot make root write elsewhere (E39 W1).
 
         **Arguments**
 
@@ -5575,6 +5529,9 @@ paths:
       summary: Backup system user config only
       description: |-
         This function is used for backing up user with all its domains and databases.
+        The configuration is staged in a working folder of root and then copied
+        into ~/backup as the user, where the restic backup of the home picks it
+        up (E39 W1): root never writes into the user's home.
 
         **Arguments**
 
@@ -9889,7 +9846,8 @@ paths:
       summary: Change domain ssl certificate
       description: |-
         This function changes SSL domain certificate and the key. If ca file present
-        it will be replaced as well.
+        it will be replaced as well. The previous certificate is handed to the user
+        in a folder below private/, copied there by the user (E39 W1).
 
         **Arguments**
 
@@ -22521,16 +22479,20 @@ paths:
       operationId: v-list-user-backup-restic
       tags:
         - Users
-      summary: Backup system user with all its objects
+      summary: List what a restic snapshot of a user holds
       description: |-
-        This function is used for backing up user with all its domains and databases.
+        This function prints the backup.conf stored in a restic snapshot of USER:
+        the web, DNS and mail domains, databases, cron jobs and folders it holds.
+        The file is read into a working folder of root and parsed as untrusted
+        input (E39 W1).
 
         **Arguments**
 
         | Field | Option | Required |
         | --- | --- | --- |
         | `arg1` | `USER` | yes |
-        | `arg2` | `NOTIFY` | yes |
+        | `arg2` | `SNAPSHOT` | yes |
+        | `arg3` | `FORMAT` | no |
 
         **User argument:** with the access key of a user other than the admin, `arg1` must be the key's user.
       x-arcpanel-user-arg: 1
@@ -22553,6 +22515,9 @@ paths:
             text/plain:
               schema:
                 type: string
+            application/json:
+              schema:
+                type: object
         "204":
           $ref: "#/components/responses/NoContent"
         "400":
@@ -22692,9 +22657,11 @@ paths:
       operationId: v-list-user-files-restic
       tags:
         - Users
-      summary: Backup system user with all its objects
+      summary: List a folder of a restic snapshot
       description: |-
-        This function is used for backing up user with all its domains and databases.
+        This function prints `restic ls --json` for FOLDER of a snapshot of USER.
+        FOLDER is /home/USER or a folder below it; every argument reaches restic
+        quoted and after "--" (E39 W1).
 
         **Arguments**
 
@@ -26680,7 +26647,8 @@ paths:
       summary: Restore single cron job
       description: |-
         This function allows the user to restore a cron jobs
-        from a snapshot.
+        from a snapshot. The jobs are read from the snapshot as untrusted
+        records: each line is rebuilt from the known keys (E39 W1 D6).
 
         **Arguments**
 
@@ -26778,7 +26746,9 @@ paths:
         - Databases
       summary: Restore Database
       description: |-
-        This function for restoring database from restic snapshot.
+        This function for restoring database from restic snapshot. The records and
+        dumps of a snapshot are untrusted: names must carry the user's prefix, and
+        the dump is imported with an account limited to the database (E39 W1).
 
         **Arguments**
 
@@ -26876,7 +26846,8 @@ paths:
         - DNS
       summary: Restore DNS domain
       description: |-
-        This function for restoring database from restic snapshot.
+        This function for restoring DNS domains from restic snapshot. Names and
+        records read from the snapshot are validated and rebuilt (E39 W1).
 
         **Arguments**
 
@@ -26922,9 +26893,13 @@ paths:
       operationId: v-restore-file-restic
       tags:
         - Backups
-      summary: Restore file or folder
+      summary: Restore a file or folder from a restic snapshot
       description: |-
-        This function for restoring database from restic snapshot.
+        This function restores PATH, a file or folder in the home directory of
+        USER, from a restic snapshot. restic restores into a working folder of
+        root; the user copies the result into the home, so the files belong to
+        the user and nothing outside the user's permissions is written (E39 W1).
+        The restore overwrites the current file.
 
         **Arguments**
 
@@ -26932,7 +26907,8 @@ paths:
         | --- | --- | --- |
         | `arg1` | `USER` | yes |
         | `arg2` | `SNAPSHOT` | yes |
-        | `arg3` | `path` | yes |
+        | `arg3` | `PATH` | yes |
+        | `arg4` | `NOTIFY` | no |
 
         **User argument:** with the access key of a user other than the admin, `arg1` must be the key's user.
       x-arcpanel-user-arg: 1
@@ -27020,8 +26996,12 @@ paths:
       operationId: v-restore-mail-domain-restic
       tags:
         - Mail
-      summary: Restore WEB domain
+      summary: Restore mail domain
       description: |-
+        This function for restoring mail domains from restic snapshot. Names,
+        records and certificates read from the snapshot are validated; the
+        mailboxes are copied into the home as the user (E39 W1).
+
         **Arguments**
 
         | Field | Option | Required |
@@ -27029,6 +27009,7 @@ paths:
         | `arg1` | `USER` | yes |
         | `arg2` | `SNAPSHOT` | yes |
         | `arg3` | `DOMAIN` | yes |
+        | `arg4` | `NOTIFY` | no |
 
         **User argument:** with the access key of a user other than the admin, `arg1` must be the key's user.
       x-arcpanel-user-arg: 1
@@ -27069,7 +27050,9 @@ paths:
       summary: Restore user
       description: |-
         This function for restoring user from backup. To be able to restore the backup,
-        the archive needs to be placed in /backup.
+        the archive needs to be placed in /backup. Root unpacks the archive in a
+        working folder of its own; names and records read from it are validated,
+        and the user's files are unpacked into the home by the user (E39 W1).
 
         **Arguments**
 
@@ -27171,7 +27154,9 @@ paths:
         - Users
       summary: Restore user via Restic
       description: |-
-        This function for restoring database from restic snapshot.
+        This function for restoring a user from restic snapshot: domains,
+        databases and cron jobs through their own commands, then the user's own
+        folders, copied into the home as the user (E39 W1).
 
         **Arguments**
 
@@ -27274,7 +27259,11 @@ paths:
         - Web
       summary: Restore WEB domain
       description: |-
-        This function for restoring database from restic snapshot.
+        This function for restoring web domains from restic snapshot. The record,
+        certificates and paths read from the snapshot are validated; the site
+        files are copied into the home as the user. Custom web server
+        configuration is not restored from a snapshot, because the user can
+        change it in ~/backup before the backup runs (E39 W1).
 
         **Arguments**
 
@@ -27283,6 +27272,8 @@ paths:
         | `arg1` | `USER` | yes |
         | `arg2` | `SNAPSHOT` | yes |
         | `arg3` | `DOMAIN` | yes |
+        | `arg4` | `NOTIFY` | no |
+        | `arg5` | `NEW_USER` | no |
 
         **User argument:** with the access key of a user other than the admin, `arg1` must be the key's user.
       x-arcpanel-user-arg: 1
@@ -28255,7 +28246,8 @@ paths:
         - Users
       summary: Schedule user backup restoration
       description: |-
-        This function for scheduling user backup restoration.
+        This function for scheduling user backup restoration from a restic
+        snapshot.
 
         **Arguments**
 
@@ -32838,6 +32830,59 @@ paths:
           $ref: "#/components/responses/InvalidRequest"
         "422":
           $ref: "#/components/responses/Unprocessable"
+  "/api/#v-update-sys-user-homes":
+    post:
+      operationId: v-update-sys-user-homes
+      tags:
+        - System
+      summary: Bring user homes to the current layout (E39 W1)
+      description: |-
+        This function removes from the homes of users what older versions left
+        there for root to manage: the private key of the legacy file manager in
+        ~/.ssh, its line in authorized_keys and the ACL that let arcpanelweb into
+        ~/.ssh. It moves the data of Docker apps from ~/apps/<name>/data to
+        $HOMEDIR/.arcpanel-apps/<user>/<name>/ (stopping a running app while its
+        data moves). Every change in a home runs as the user. Without USER it
+        works on every user. It is safe to run on every upgrade.
+        See docs/features/specs/2026-10-10-001-e39-w1-root-in-user-paths-design.md.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `USER` | no |
+
+        **User argument:** with the access key of a user other than the admin, `arg1` must be the key's user.
+      x-arcpanel-user-arg: 1
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-update-sys-user-homes"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-update-sys-user-homes"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
   "/api/#v-update-user-backup-exclusions":
     post:
       operationId: v-update-user-backup-exclusions
@@ -36965,33 +37010,6 @@ components:
               enum:
                 - "yes"
                 - "no"
-            returncode:
-              $ref: "#/components/schemas/ReturnCode"
-    v-add-user-sftp-key:
-      allOf:
-        - $ref: "#/components/schemas/Credentials"
-        - type: object
-          required:
-            - cmd
-            - arg1
-          properties:
-            cmd:
-              type: string
-              enum:
-                - v-add-user-sftp-key
-              default: v-add-user-sftp-key
-            arg1:
-              type: string
-              title: USER
-              description: "`USER`"
-              examples:
-                - ""
-            arg2:
-              type: string
-              title: TTL
-              description: "`TTL`, optional"
-              examples:
-                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-add-user-ssh-key:
@@ -48534,13 +48552,24 @@ components:
               title: USER
               description: "`USER`"
               examples:
-                - admin
+                - alice
             arg2:
               type: string
-              title: NOTIFY
-              description: "`NOTIFY`"
+              title: SNAPSHOT
+              description: "`SNAPSHOT`"
               examples:
-                - "yes"
+                - "4f2a91c0"
+            arg3:
+              type: string
+              title: FORMAT
+              description: "`FORMAT`, optional"
+              enum:
+                - json
+                - plain
+                - csv
+                - shell
+              examples:
+                - json
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-list-user-backups:
@@ -48623,19 +48652,19 @@ components:
               title: USER
               description: "`USER`"
               examples:
-                - admin
+                - alice
             arg2:
               type: string
               title: SNAPSHOT
               description: "`SNAPSHOT`"
               examples:
-                - "yes"
+                - "4f2a91c0"
             arg3:
               type: string
               title: FOLDER
               description: "`FOLDER`"
               examples:
-                - ""
+                - /home/alice/web
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-list-user-ips:
@@ -51076,19 +51105,25 @@ components:
               title: USER
               description: "`USER`"
               examples:
-                - user
+                - alice
             arg2:
               type: string
               title: SNAPSHOT
               description: "`SNAPSHOT`"
               examples:
-                - snapshot
+                - "4f2a91c0"
             arg3:
               type: string
-              title: path
-              description: "`path`"
+              title: PATH
+              description: "`PATH`"
               examples:
-                - path
+                - /home/alice/web/example.com/public_html/index.php
+            arg4:
+              type: string
+              title: NOTIFY
+              description: "`NOTIFY`, optional"
+              examples:
+                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-restore-mail-domain:
@@ -51165,6 +51200,12 @@ components:
               description: "`DOMAIN`"
               examples:
                 - domain.com
+            arg4:
+              type: string
+              title: NOTIFY
+              description: "`NOTIFY`, optional"
+              examples:
+                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-restore-user:
@@ -51416,6 +51457,18 @@ components:
               description: "`DOMAIN`"
               examples:
                 - domain.com
+            arg4:
+              type: string
+              title: NOTIFY
+              description: "`NOTIFY`, optional"
+              examples:
+                - ""
+            arg5:
+              type: string
+              title: NEW_USER
+              description: "`NEW_USER`, optional"
+              examples:
+                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-revoke-api-key:
@@ -52258,25 +52311,25 @@ components:
               title: USER
               description: "`USER`"
               examples:
-                - "2019-04-22_01-00-00.tar"
+                - alice
             arg2:
               type: string
               title: SNAPSHOT
               description: "`SNAPSHOT`"
               examples:
-                - ""
+                - "4f2a91c0"
             arg3:
               type: string
               title: OBJECT
               description: "`OBJECT`, optional"
               examples:
-                - ""
+                - web
             arg4:
               type: string
               title: VALUE
               description: "`VALUE`, optional"
               examples:
-                - ""
+                - example.com
             arg5:
               type: string
               title: FORMAT
@@ -54981,6 +55034,26 @@ components:
               type: string
               title: PERIOD
               description: "`PERIOD`"
+              examples:
+                - ""
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
+    v-update-sys-user-homes:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-update-sys-user-homes
+              default: v-update-sys-user-homes
+            arg1:
+              type: string
+              title: USER
+              description: "`USER`, optional"
               examples:
                 - ""
             returncode:

@@ -424,10 +424,9 @@ class ArcPanelApp
     {
         $cli_script = realpath(ARCPANEL_DIR_BIN . $cmd);
 
+        // Each argument reaches the command as it is: the command line is an
+        // array, and v-run-cli-cmd keeps its arguments in an array too (E39 W1)
         $command = ['/usr/bin/sudo', $cli_script, ...$arguments];
-
-        // Escape spaces to disallow splitting commands and allow spaces in names like site names
-        $command = array_map(fn(string $argument) => str_replace(' ', '\\ ', $argument), $command);
 
         $process = new Process($command);
         // Increase the timeout from the default 60 seconds to 5 minutes to handle long install processes

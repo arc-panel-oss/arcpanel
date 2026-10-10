@@ -2,9 +2,10 @@
 # info: restore DNS domain
 # options: USER SNAPSHOT DOMAIN
 #
-# example: v-restore-user user snapshot domain.com
+# example: v-restore-dns-domain-restic user snapshot domain.com
 #
-# This function for restoring database from restic snapshot.
+# This function for restoring DNS domains from restic snapshot. Names and
+# records read from the snapshot are validated and rebuilt (E39 W1).
 
 #----------------------------------------------------------#
 #                Variables & Functions                     #
@@ -29,6 +30,8 @@ source $ARCPANEL/func/ip.sh
 source $ARCPANEL/func/rebuild.sh
 # shellcheck source=/usr/local/arcpanel/func/syshealth.sh
 source $ARCPANEL/func/syshealth.sh
+# shellcheck source=/usr/local/arcpanel/func/safe-fs.sh
+source $ARCPANEL/func/safe-fs.sh
 # load config file
 source_conf "$ARCPANEL/conf/arcpanel.conf"
 
@@ -38,7 +41,7 @@ source_conf "$ARCPANEL/conf/arcpanel.conf"
 
 args_usage='USER SNAPSHOT DOMAIN [NOTIFY]'
 check_args '3' "$#" "$args_usage"
-is_format_valid 'user'
+is_format_valid 'user' 'snapshot'
 is_object_valid 'user' 'USER' "$user"
 
 source_conf $ARCPANEL/conf/restic.conf
@@ -47,49 +50,59 @@ source_conf $ARCPANEL/conf/restic.conf
 #                       Action                             #
 #----------------------------------------------------------#
 
-tmpdir=$(mktemp -p /home/$user/tmp/ -d)
-if [ ! -f "$tmpdir/backup.conf" ]; then
-	restic --repo "${REPO%/}/$user" --password-file "$USER_DATA/restic.conf" dump "$snapshot" "/home/$user/backup/backup.conf" > "$tmpdir/backup.conf"
-	if [ "$?" -ne 0 ]; then
-		check_result "$E_NOTEXIST" "Unable to download snapshot data"
-	fi
-fi
+safe_workdir restore-dns
+tmpdir=$SAFE_WORKDIR
+read_snapshot_index "$tmpdir" "$snapshot"
+check_result $? "Unable to download snapshot data"
 
-parse_object_kv_list $(cat "$tmpdir/backup.conf")
 domains=''
-IFS=',' read -a domains <<< "$DNS"
+IFS=',' read -r -a domains <<< "$DNS"
 for domain in "${domains[@]}"; do
 	if [[ ",$dns," == *",$domain,"* || "$dns" = '*' ]]; then
+		if ! is_restore_name_valid domain "$domain"; then
+			restore_skip "DNS domain" "$domain" "invalid name"
+			continue
+		fi
 		# Cleanup previous config keys
-		unset -v DOMAIN IP TPL TTL EXP SOA RECORDS DNSSEC KEY SLAVE MASTER
+		restore_record_reset dns
+		unset -v old_ip
 		# Checking domain existence
-		check_config=$(grep "DOMAIN='$domain'" $USER_DATA/dns.conf)
+		check_config=$(grep -F "DOMAIN='$domain'" $USER_DATA/dns.conf)
 		if [ -z "$check_config" ]; then
 			check_new=$(is_domain_new 'dns' "$domain")
 			if [ "$check_new" = "yes" ]; then
-				rm -rf $tmpdir
 				error="$domain belongs to another user"
 				echo "$error" | $SENDMAIL -s "$subj" "$email" "$notify"
 				sed -i "/ $user /d" $ARCPANEL/data/queue/backup.pipe
 				check_result "$E_PARSING" "$error"
 			fi
 		fi
-		restic --repo "${REPO%/}/$user" --password-file "$USER_DATA/restic.conf" restore "$snapshot" --include "/home/$user/backup/dns/$domain" --target "$tmpdir"
-		if [ "$?" -ne 0 ]; then
-			check_result $E_NOTEXIST "Unable to download domain from snapshot"
-		fi
+		restic_restore_config "$tmpdir" "$snapshot" --include="/home/$user/backup/dns/$domain"
+		check_result $? "Unable to download domain from snapshot"
+		src="$tmpdir/home/$user/backup/dns/$domain"
 
 		# Restoring dns.conf
 		if [ -z "$check_config" ]; then
-			parse_object_kv_list $(cat $tmpdir/home/$user/backup/dns/$domain/arcpanel/dns.conf)
+			if ! parse_backup_record "$(restore_record_keys dns)" "$(head -n 1 -- "$src/arcpanel/dns.conf" 2> /dev/null)"; then
+				restore_skip "DNS domain" "$domain" "invalid record"
+				continue
+			fi
+			DOMAIN=$domain
 
-			# Checking IP address
+			# Checking IP address (an address only: it becomes a sed pattern)
+			if ! is_restore_ip_valid "$IP"; then
+				IP=''
+			fi
 			check_ip=$(is_ip_valid $IP $user)
 			if [ -n "$check_ip" ]; then
 				export local_ip=''
 				get_user_ip $user
 				old_ip=$IP
 				IP=$ip
+			fi
+			if ! is_restore_ip_valid "$IP"; then
+				restore_skip "DNS domain" "$domain" "no valid IP address"
+				continue
 			fi
 
 			# Checking DNS template
@@ -99,26 +112,38 @@ for domain in "${domains[@]}"; do
 			fi
 
 			# Merging dns.conf keys
-			str="DOMAIN='$domain' IP='$IP' TPL='$TPL' TTL='$TTL' EXP='$EXP'"
-			str="$str SOA='$SOA' RECORDS='$RECORDS'  DNSSEC='$DNSSEC'"
-			str="$str KEY='$KEY' SLAVE='$SLAVE' MASTER='$MASTER' SUSPENDED='no'"
-			str="$str TIME='$(date +%T)' DATE='$(date +%F)'"
-			echo $str >> $USER_DATA/dns.conf
+			str=$(restore_record dns "SUSPENDED='no' TIME='$(date +%T)' DATE='$(date +%F)'")
+			if [ -z "$str" ]; then
+				restore_skip "DNS domain" "$domain" "invalid record"
+				continue
+			fi
+			echo "$str" >> $USER_DATA/dns.conf
+		else
+			parse_object_kv_list "$check_config"
 		fi
 		if [ "$DNSSEC" = "yes" ]; then
+			domain_idn=$domain
 			format_domain_idn
-			# Probably need to change the cache dir for RHEL
-			cp $tmpdir/home/$user/backup//dns/$domain/conf/keys/* /var/cache/bind/
-			chown bind:bind /var/cache/bind/K$domain_idn*
-			chmod 644 /var/cache/bind/K$domain_idn*
+			# Only the key files of this domain, as regular files
+			for key_file in "$src"/conf/keys/K"$domain_idn".+*; do
+				key_name=$(basename -- "$key_file")
+				if [[ "$key_name" =~ ^K[A-Za-z0-9.-]+\.\+[0-9]+\+[0-9]+\.(key|private)$ ]]; then
+					copy_from_work "$key_file" "/var/cache/bind/$key_name" || continue
+					chown bind:bind "/var/cache/bind/$key_name"
+					chmod 644 "/var/cache/bind/$key_name"
+				fi
+			done
 		fi
 
 		# Restoring DNS records
-		cp -f "$tmpdir/home/$user/backup/dns/$domain/arcpanel/$domain.conf" "$USER_DATA/dns/"
+		dropped=$(restore_records_file dnsrec "$src/arcpanel/$domain.conf" "$USER_DATA/dns/$domain.conf")
+		if [ "${dropped:-0}" -gt 0 ]; then
+			restore_skip "DNS records of" "$domain" "$dropped invalid records"
+		fi
 
 		# Update IP in records
 		if [ -n "$old_ip" ]; then
-			sed -i s/$old_ip/$IP/g $USER_DATA/dns/$domain.conf
+			sed -i "s/$old_ip/$IP/g" "$USER_DATA/dns/$domain.conf"
 		fi
 
 		# Rebuilding DNS domain
@@ -136,7 +161,7 @@ done
 #                         ArcPanel                         #
 #----------------------------------------------------------#
 
-rm -fr $tmpdir
+safe_workdir_cleanup
 
 # Update user counters
 $BIN/v-update-user-counters $user

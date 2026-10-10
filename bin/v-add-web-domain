@@ -110,24 +110,23 @@ $BIN/v-add-fs-directory "$user" "$HOMEDIR/$user/web/$domain/logs"
 touch /var/log/$WEB_SYSTEM/domains/$domain.bytes \
 	/var/log/$WEB_SYSTEM/domains/$domain.log \
 	/var/log/$WEB_SYSTEM/domains/$domain.error.log
-ln -f -s /var/log/$WEB_SYSTEM/domains/$domain.*log \
+# The user links the logs and fills the skeleton: the domain folder is
+# theirs, so root does not work in it (E39 W1)
+user_exec ln -f -s /var/log/$WEB_SYSTEM/domains/$domain.*log \
 	$HOMEDIR/$user/web/$domain/logs/
 
 # Adding domain skeleton
 user_exec cp -r $WEBTPL/skel/* "$HOMEDIR/$user/web/$domain/" > /dev/null 2>&1
-for file in $(find "$HOMEDIR/$user/web/$domain/" -type f); do
-	sed -i "s/%domain%/$domain/g" $file
-done
+user_exec find "$HOMEDIR/$user/web/$domain/" -type f -exec sed -i "s/%domain%/$domain/g" {} +
 
 # Changing file owner & permission
-chown -R $user:$user $HOMEDIR/$user/web/$domain
 chown root:$user /var/log/$WEB_SYSTEM/domains/$domain.* $conf
 chmod 640 /var/log/$WEB_SYSTEM/domains/$domain.*
 user_exec chmod 751 $HOMEDIR/$user/web/$domain/*
 user_exec chmod 551 $HOMEDIR/$user/web/$domain/stats $HOMEDIR/$user/web/$domain/logs
 # Apply 755 to directories (excluding public_html) and 644 to files
-find "$HOMEDIR/$user/web/$domain/public_html" -mindepth 1 -type d -print0 | xargs -0 -r chmod 755
-find "$HOMEDIR/$user/web/$domain/public_html" -type f -print0 | xargs -0 -r chmod 644
+user_exec find "$HOMEDIR/$user/web/$domain/public_html" -mindepth 1 -type d -exec chmod 755 {} +
+user_exec find "$HOMEDIR/$user/web/$domain/public_html" -type f -exec chmod 644 {} +
 
 # domain folder permissions: DOMAINDIR_WRITABLE: default-val:no source:arcpanel.conf
 DOMAINDIR_MODE=551

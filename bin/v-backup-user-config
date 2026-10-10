@@ -5,6 +5,9 @@
 # example: v-backup-user admin yes
 #
 # This function is used for backing up user with all its domains and databases.
+# The configuration is staged in a working folder of root and then copied
+# into ~/backup as the user, where the restic backup of the home picks it
+# up (E39 W1): root never writes into the user's home.
 
 #----------------------------------------------------------#
 #                Variables & Functions                     #
@@ -24,6 +27,8 @@ source $ARCPANEL/func/domain.sh
 source $ARCPANEL/func/db.sh
 # shellcheck source=/usr/local/arcpanel/func/backup.sh
 source $ARCPANEL/func/backup.sh
+# shellcheck source=/usr/local/arcpanel/func/safe-fs.sh
+source $ARCPANEL/func/safe-fs.sh
 # load config file
 source_conf "$ARCPANEL/conf/arcpanel.conf"
 
@@ -46,11 +51,8 @@ check_arcpanel_demo_mode
 # Get current time
 start_time=$(date '+%s')
 
-tmpdir="/home/$user/backup/"
-
-# We delete the backup dir first make sure all old database has been cleared
-rm -fr "/home/$user/backup/"
-mkdir -p "$tmpdir"
+safe_workdir backup-config
+tmpdir=$SAFE_WORKDIR
 
 # Backup sys configs
 echo "-- SYSTEM --" | tee $BACKUP/$user.log
@@ -458,5 +460,15 @@ backup_str="$backup_str UDIR='${udir_list// /,}'"
 backup_str="$backup_str RUNTIME='$run_time' TIME='$time' DATE='$date'"
 backup_str="$backup_str BACKUP_MODE='$BACKUP_MODE'"
 echo "$backup_str" > $tmpdir/backup.conf
+
+# Publish the staged configuration in ~/backup; the old copy goes first so
+# that no database of an earlier run stays behind. rm without a trailing
+# slash never follows a link.
+cd /
+rm -rf -- "$HOMEDIR/$user/backup"
+copy_into_home "$tmpdir" "$HOMEDIR/$user/backup"
+check_result $? "the configuration could not be copied into $HOMEDIR/$user/backup" "$E_FORBIDEN"
+user_exec chmod 700 -- "$HOMEDIR/$user/backup"
+safe_workdir_cleanup
 
 exit

@@ -2560,7 +2560,7 @@ chown arcpanelweb:arcpanelweb $ARCPANEL/data/sessions
 
 # Create backup folder and set correct permission
 mkdir -p /backup/
-chmod 755 /backup/
+chmod 711 /backup/
 
 # Create cronjob to generate ssl
 echo "@reboot root sleep 10 && rm /etc/cron.d/arcpanel-ssl && PATH='/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:' && /usr/local/arcpanel/bin/v-add-letsencrypt-host" > /etc/cron.d/arcpanel-ssl

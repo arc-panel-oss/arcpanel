@@ -102,6 +102,9 @@ jobs:
       - name: Build packages
         working-directory: src
         run: |
+          # The build folder must be root's with mode 0700 (E39 W1 D13)
+          install -d -m 700 /tmp/arcpanel-src
+          export BUILD_DIR=/tmp/arcpanel-src
           if [ "${{ steps.engines.outputs.cache-hit }}" = "true" ]; then
             bash ./arcpanel-build.sh --arcpanel --noinstall --keepbuild '~localsrc'
           else

@@ -1,13 +1,14 @@
 #!/bin/bash
-# info: restore WEB domain
-# options: USER SNAPSHOT DOMAIN
+# info: restore mail domain
+# options: USER SNAPSHOT DOMAIN [NOTIFY]
 #
 # example: v-restore-mail-domain-restic user snapshot domain.com
 # example: v-restore-mail-domain-restic user snapshot 'domain.com,domain2.com'
 # example: v-restore-mail-domain-restic user snapshot '*'
-
 #
-# This function for restoring database from restic snapshot.
+# This function for restoring mail domains from restic snapshot. Names,
+# records and certificates read from the snapshot are validated; the
+# mailboxes are copied into the home as the user (E39 W1).
 
 #----------------------------------------------------------#
 #                Variables & Functions                     #
@@ -32,6 +33,8 @@ source $ARCPANEL/func/ip.sh
 source $ARCPANEL/func/rebuild.sh
 # shellcheck source=/usr/local/arcpanel/func/syshealth.sh
 source $ARCPANEL/func/syshealth.sh
+# shellcheck source=/usr/local/arcpanel/func/safe-fs.sh
+source $ARCPANEL/func/safe-fs.sh
 # load config file
 source_conf "$ARCPANEL/conf/arcpanel.conf"
 
@@ -41,7 +44,7 @@ source_conf "$ARCPANEL/conf/arcpanel.conf"
 
 args_usage='USER SNAPSHOT DOMAIN [NOTIFY]'
 check_args '3' "$#" "$args_usage"
-is_format_valid 'user'
+is_format_valid 'user' 'snapshot'
 is_object_valid 'user' 'USER' "$user"
 
 source_conf $ARCPANEL/conf/restic.conf
@@ -50,17 +53,13 @@ source_conf $ARCPANEL/conf/restic.conf
 #                       Action                             #
 #----------------------------------------------------------#
 
-tmpdir=$(mktemp -p "/home/$user/tmp/" -d)
-if [ ! -f "$tmpdir/backup.conf" ]; then
-	restic --repo "${REPO%/}/$user" --password-file "$USER_DATA/restic.conf" dump "$snapshot" "/home/$user/backup/backup.conf" > $tmpdir/backup.conf
-	if [ "$?" -ne 0 ]; then
-		check_result "$E_NOTEXIST" "Unable to download snapshot"
-	fi
-fi
+safe_workdir restore-mail
+tmpdir=$SAFE_WORKDIR
+read_snapshot_index "$tmpdir" "$snapshot"
+check_result $? "Unable to download snapshot"
 
 domains=""
-parse_object_kv_list $(cat "$tmpdir/backup.conf")
-IFS=',' read -a domains <<< "$MAIL"
+IFS=',' read -r -a domains <<< "$MAIL"
 
 # Checking exim username for later chowning
 exim_user="exim"
@@ -71,12 +70,16 @@ fi
 
 for domain in "${domains[@]}"; do
 	if [[ ",$mail," == *",$domain,"* || "$mail" = '*' ]]; then
+		if ! is_restore_name_valid domain "$domain"; then
+			restore_skip "mail domain" "$domain" "invalid name"
+			continue
+		fi
+
 		# Checking domain existance
-		check_config=$(grep "DOMAIN='$domain'" $USER_DATA/mail.conf)
+		check_config=$(grep -F "DOMAIN='$domain'" $USER_DATA/mail.conf)
 		if [ -z "$check_config" ]; then
 			check_new=$(is_domain_new 'mail' $domain)
 			if [ "$check_new" = 'yes' ]; then
-				rm -rf $tmpdir
 				error="$domain belongs to another user"
 				echo "$error" | $SENDMAIL -s "$subj" $email $notify
 				sed -i "/ $user /d" $ARCPANEL/data/queue/backup.pipe
@@ -84,133 +87,149 @@ for domain in "${domains[@]}"; do
 			fi
 		fi
 
-		restic --repo "${REPO%/}/$user" --password-file "$USER_DATA/restic.conf" restore "$snapshot" --include "/home/$user/backup/mail/$domain" --target "$tmpdir"
-		if [ "$?" -ne 0 ]; then
-			check_result $E_NOTEXIST "Unable to download domain from snapshot"
-		fi
+		restic_restore_config "$tmpdir" "$snapshot" --include="/home/$user/backup/mail/$domain"
+		check_result $? "Unable to download domain from snapshot"
+		src="$tmpdir/home/$user/backup/mail/$domain"
 
 		# Restoring mail.conf
 		if [ -z "$check_config" ]; then
-			cat $tmpdir/home/$user/backup/mail/$domain/arcpanel/mail.conf >> $USER_DATA/mail.conf
+			restore_record_reset mail
+			if ! parse_backup_record "$(restore_record_keys mail)" "$(head -n 1 -- "$src/arcpanel/mail.conf" 2> /dev/null)"; then
+				restore_skip "mail domain" "$domain" "invalid record"
+				continue
+			fi
+			DOMAIN=$domain
+			str=$(restore_record mail "SUSPENDED='no' TIME='$(date +%T)' DATE='$(date +%F)'")
+			if [ -z "$str" ]; then
+				restore_skip "mail domain" "$domain" "invalid record"
+				continue
+			fi
+			echo "$str" >> $USER_DATA/mail.conf
 		fi
-		# $tmpdir/home/$user/backup
 
 		# Restoring DKIM
-		if [ -e "$tmpdir/home/$user/backup/mail/$domain/arcpanel/$domain.pem" ]; then
-			cp -f $tmpdir/home/$user/backup/mail/$domain/arcpanel/$domain.pem $USER_DATA/mail/
-			cp -f $tmpdir/home/$user/backup/mail/$domain/arcpanel/$domain.pub $USER_DATA/mail/
+		if [ -f "$src/arcpanel/$domain.pem" ]; then
+			copy_from_work "$src/arcpanel/$domain.pem" "$USER_DATA/mail/$domain.pem"
+			copy_from_work "$src/arcpanel/$domain.pub" "$USER_DATA/mail/$domain.pub"
 		fi
 
 		# Restore SSL
-		check_config=$(grep "DOMAIN='$domain'" $USER_DATA/mail.conf | grep -o "SSL='yes'")
+		check_config=$(grep -F "DOMAIN='$domain'" $USER_DATA/mail.conf | grep -o "SSL='yes'")
 		if [ -n "$check_config" ]; then
 			if [ ! -e "$ARCPANEL/data/users/$user/ssl/" ]; then
 				mkdir -p $ARCPANEL/data/users/$user/ssl/
 			fi
 
-			if [ ! -e "$HOMEDIR/$user/conf/mail/$domain/ssl/" ]; then
-				mkdir -p $HOMEDIR/$user/conf/mail/$domain/ssl/
-			fi
-
 			# Add certificate to ArcPanel user configuration data directory
-			if [ -f $tmpdir/home/$user/backup/mail/$domain/arcpanel/ssl/$domain.crt ]; then
-				cp -f $tmpdir/home/$user/backup/mail/$domain/arcpanel/ssl/$domain.crt $USER_DATA/ssl/mail.$domain.crt
-				cp -f $tmpdir/home/$user/backup/mail/$domain/arcpanel/ssl/$domain.key $USER_DATA/ssl/mail.$domain.key
-				cp -f $tmpdir/home/$user/backup/mail/$domain/arcpanel/ssl/$domain.crt $USER_DATA/ssl/mail.$domain.pem
-				if [ -e "$tmpdir/home/$user/backup/mail/$domain/arcpanel/ssl/$domain.ca" ]; then
-					cp -f $tmpdir/home/$user/backup/mail/$domain/arcpanel/ssl/$domain.ca $USER_DATA/ssl/mail.$domain.ca
+			ssl_src=''
+			if [ -f "$src/arcpanel/ssl/$domain.crt" ]; then
+				ssl_src="$src/arcpanel/ssl"
+			elif [ -f "$src/conf/ssl/$domain.crt" ]; then
+				ssl_src="$src/conf/ssl"
+			fi
+			if [ -n "$ssl_src" ]; then
+				copy_from_work "$ssl_src/$domain.crt" "$USER_DATA/ssl/mail.$domain.crt"
+				copy_from_work "$ssl_src/$domain.key" "$USER_DATA/ssl/mail.$domain.key"
+				copy_from_work "$ssl_src/$domain.crt" "$USER_DATA/ssl/mail.$domain.pem"
+				if copy_from_work "$ssl_src/$domain.ca" "$USER_DATA/ssl/mail.$domain.ca"; then
 					echo >> $USER_DATA/ssl/mail.$domain.pem
 					cat $USER_DATA/ssl/mail.$domain.ca >> $USER_DATA/ssl/mail.$domain.pem
 				fi
-			elif [ -f "$tmpdir/home/$user/backup/mail/$domain/conf/ssl/$domain.crt" ]; then
-				cp -f $tmpdir/home/$user/backup/mail/$domain/conf/ssl/$domain.crt $USER_DATA/ssl/mail.$domain.crt
-				cp -f $tmpdir/home/$user/backup/mail/$domain/conf/ssl/$domain.key $USER_DATA/ssl/mail.$domain.key
-				cp -f $tmpdir/home/$user/backup/mail/$domain/conf/ssl/$domain.crt $USER_DATA/ssl/mail.$domain.pem
-				if [ -e "$tmpdir/mail/$domain/conf/ssl/$domain.ca" ]; then
-					cp -f $tmpdir/mail/$domain/conf/ssl/$domain.ca $USER_DATA/ssl/mail.$domain.ca
-					echo >> $USER_DATA/ssl/mail.$domain.pem
-					cat $USER_DATA/ssl/mail.$domain.ca >> $USER_DATA/ssl/mail.$domain.pem
-				fi
-
 			fi
 
 			chmod 660 $USER_DATA/ssl/mail.$domain.*
 
-			# Add certificate to user home directory
-			cp -f $USER_DATA/ssl/mail.$domain.crt $HOMEDIR/$user/conf/mail/$domain/ssl/$domain.crt
-			cp -f $USER_DATA/ssl/mail.$domain.key $HOMEDIR/$user/conf/mail/$domain/ssl/$domain.key
-			cp -f $USER_DATA/ssl/mail.$domain.pem $HOMEDIR/$user/conf/mail/$domain/ssl/$domain.pem
-			if [ -e "$USER_DATA/ssl/mail.$domain.ca" ]; then
-				cp -f $USER_DATA/ssl/mail.$domain.ca $HOMEDIR/$user/conf/mail/$domain/ssl/$domain.ca
+			# Add certificate to the configuration folder in the home, which
+			# root owns down from ~/conf
+			ssl_dir="$HOMEDIR/$user/conf/mail/$domain/ssl"
+			if [ ! -d "$HOMEDIR/$user/conf/mail/$domain" ]; then
+				mkdir -p "$HOMEDIR/$user/conf/mail/$domain"
 			fi
-
-			if [ ! -d /etc/dovecot/conf.d/domains ]; then
-				mkdir /etc/dovecot/conf.d/domains
-			fi
-
-			# Add domain SSL configuration to dovecot
-			if [ -f /etc/dovecot/conf.d/domains/$domain.conf ]; then
-				rm -f /etc/dovecot/conf.d/domains/$domain.conf
-			fi
-
-			dovecot_version="$(dovecot --version | cut -f -2 -d .)"
-			if [[ "$dovecot_version" = "2.4" ]]; then
-				echo "" >> /etc/dovecot/conf.d/domains/$domain.conf
-				echo "local_name mail.$domain {" >> /etc/dovecot/conf.d/domains/$domain.conf
-				echo "  sssl_server_cert_file = $HOMEDIR/$user/conf/mail/$domain/ssl/$domain.pem" >> /etc/dovecot/conf.d/domains/$domain.conf
-				echo "  ssl_server_key_file = $HOMEDIR/$user/conf/mail/$domain/ssl/$domain.key" >> /etc/dovecot/conf.d/domains/$domain.conf
-				echo "}" >> /etc/dovecot/conf.d/domains/$domain.conf
+			if ! root_dir_safe "$HOMEDIR/$user/conf/mail/$domain"; then
+				restore_skip "mail certificate of" "$domain" "$HOMEDIR/$user/conf/mail/$domain is not root's"
 			else
-				echo "" >> /etc/dovecot/conf.d/domains/$domain.conf
-				echo "local_name mail.$domain {" >> /etc/dovecot/conf.d/domains/$domain.conf
-				echo "  ssl_cert = <$HOMEDIR/$user/conf/mail/$domain/ssl/$domain.pem" >> /etc/dovecot/conf.d/domains/$domain.conf
-				echo "  ssl_key = <$HOMEDIR/$user/conf/mail/$domain/ssl/$domain.key" >> /etc/dovecot/conf.d/domains/$domain.conf
-				echo "}" >> /etc/dovecot/conf.d/domains/$domain.conf
+				if [ ! -d "$ssl_dir" ] || [ -L "$ssl_dir" ]; then
+					rm -f -- "$ssl_dir"
+					mkdir -- "$ssl_dir"
+				fi
+				for ext in crt key pem ca; do
+					copy_from_work "$USER_DATA/ssl/mail.$domain.$ext" "$ssl_dir/$domain.$ext"
+				done
+
+				if [ ! -d /etc/dovecot/conf.d/domains ]; then
+					mkdir /etc/dovecot/conf.d/domains
+				fi
+
+				# Add domain SSL configuration to dovecot
+				if [ -f /etc/dovecot/conf.d/domains/$domain.conf ]; then
+					rm -f /etc/dovecot/conf.d/domains/$domain.conf
+				fi
+
+				dovecot_version="$(dovecot --version | cut -f -2 -d .)"
+				if [[ "$dovecot_version" = "2.4" ]]; then
+					echo "" >> /etc/dovecot/conf.d/domains/$domain.conf
+					echo "local_name mail.$domain {" >> /etc/dovecot/conf.d/domains/$domain.conf
+					echo "  sssl_server_cert_file = $ssl_dir/$domain.pem" >> /etc/dovecot/conf.d/domains/$domain.conf
+					echo "  ssl_server_key_file = $ssl_dir/$domain.key" >> /etc/dovecot/conf.d/domains/$domain.conf
+					echo "}" >> /etc/dovecot/conf.d/domains/$domain.conf
+				else
+					echo "" >> /etc/dovecot/conf.d/domains/$domain.conf
+					echo "local_name mail.$domain {" >> /etc/dovecot/conf.d/domains/$domain.conf
+					echo "  ssl_cert = <$ssl_dir/$domain.pem" >> /etc/dovecot/conf.d/domains/$domain.conf
+					echo "  ssl_key = <$ssl_dir/$domain.key" >> /etc/dovecot/conf.d/domains/$domain.conf
+					echo "}" >> /etc/dovecot/conf.d/domains/$domain.conf
+				fi
+
+				if [ ! -d /usr/local/arcpanel/ssl/mail ]; then
+					mkdir /usr/local/arcpanel/ssl/mail
+				fi
+
+				# Add domain SSL configuration to exim4
+				# Cleanup broken symlinks
+				find /usr/local/arcpanel/ssl/mail -xtype l -delete
+
+				ln -s -f $ssl_dir/$domain.pem /usr/local/arcpanel/ssl/mail/mail.$domain.crt
+				ln -s -f $ssl_dir/$domain.key /usr/local/arcpanel/ssl/mail/mail.$domain.key
+
+				# Set correct permissions on certificates
+				chmod 750 "$ssl_dir"
+				chown -hR $MAIL_USER:mail "$ssl_dir"
+				chmod 0644 "$ssl_dir"/*
+				chown -h $user:mail "$ssl_dir"/*
+				chmod -R 0644 /usr/local/arcpanel/ssl/mail/*
+				chown -h $user:mail /usr/local/arcpanel/ssl/mail/*
 			fi
-
-			if [ ! -d /usr/local/arcpanel/ssl/mail ]; then
-				mkdir /usr/local/arcpanel/ssl/mail
-			fi
-
-			# Add domain SSL configuration to exim4
-			# Cleanup broken symlinks
-			find /usr/local/arcpanel/ssl/mail -xtype l -delete
-
-			ln -s -f $HOMEDIR/$user/conf/mail/$domain/ssl/$domain.pem /usr/local/arcpanel/ssl/mail/mail.$domain.crt
-			ln -s -f $HOMEDIR/$user/conf/mail/$domain/ssl/$domain.key /usr/local/arcpanel/ssl/mail/mail.$domain.key
-
-			# Set correct permissions on certificates
-			chmod 750 $HOMEDIR/$user/conf/mail/$domain/ssl
-			chown -R $MAIL_USER:mail $HOMEDIR/$user/conf/mail/$domain/ssl
-			chmod 0644 $HOMEDIR/$user/conf/mail/$domain/ssl/*
-			chown -h $user:mail $HOMEDIR/$user/conf/mail/$domain/ssl/*
-			chmod -R 0644 /usr/local/arcpanel/ssl/mail/*
-			chown -h $user:mail /usr/local/arcpanel/ssl/mail/*
 		fi
 
 		# Restoring email accounts
-		cp -f $tmpdir/home/$user/backup/mail/$domain/arcpanel/$domain.conf $USER_DATA/mail/
+		dropped=$(restore_records_file mailacc "$src/arcpanel/$domain.conf" "$USER_DATA/mail/$domain.conf")
+		if [ "${dropped:-0}" -gt 0 ]; then
+			restore_skip "mail accounts of" "$domain" "$dropped invalid records"
+		fi
 
 		domain_idn=$domain
 		format_domain_idn
 
-		if [ ! -d "$HOMEDIR/$user/mail/$domain_idn" ]; then
-			mkdir $HOMEDIR/$user/mail/$domain_idn
+		# ~/mail belongs to root, so root may create the domain folder in it;
+		# the mailboxes are copied into it by the user
+		if [ ! -e "$HOMEDIR/$user/mail/$domain_idn" ] && [ ! -L "$HOMEDIR/$user/mail/$domain_idn" ]; then
+			mkdir "$HOMEDIR/$user/mail/$domain_idn"
+			chown -h "$user:mail" "$HOMEDIR/$user/mail/$domain_idn"
+			chmod 770 "$HOMEDIR/$user/mail/$domain_idn"
 		fi
 
-		# Current ArcPanel store email in the $HOMEDIR/$user/mail/$domain_idn
-		chmod u+w "$HOMEDIR/$user/mail/$domain_idn"
-		chown $user:$user "$HOMEDIR/$user/mail/$domain_idn"
-
-		restic --repo "${REPO%/}/$user" --password-file "$USER_DATA/restic.conf" restore "$snapshot" --include /home/$user/mail/$domain_idn --target /
-		if [ "$?" -ne 0 ]; then
-			check_result "$E_NOTEXIST" "Unable to download user data"
+		restic_restore_data "$tmpdir" "$snapshot" --include="/home/$user/mail/$domain_idn"
+		check_result $? "Unable to download user data"
+		if [ -d "$tmpdir/home/$user/mail/$domain_idn" ]; then
+			copy_into_home "$tmpdir/home/$user/mail/$domain_idn" "$HOMEDIR/$user/mail/$domain_idn"
+			check_result $? "the mailboxes could not be copied into the home" "$E_FORBIDEN"
+			rm -rf -- "$tmpdir/home/$user/mail/$domain_idn"
 		fi
 
 		# Chowning mail conf files to exim user
-		if [ -d "$HOMEDIR/$user/conf/mail/$domain" ]; then
-			find $HOMEDIR/$user/conf/mail/$domain -user root \
-				-exec chown $exim_user {} \;
+		if [ -d "$HOMEDIR/$user/conf/mail/$domain" ] && root_dir_safe "$HOMEDIR/$user/conf/mail/$domain"; then
+			find "$HOMEDIR/$user/conf/mail/$domain" -user root \
+				-exec chown -h $exim_user {} \;
 		fi
 
 		$BIN/v-rebuild-mail-domain "$user" "$domain"
@@ -220,7 +239,7 @@ done
 #                         ArcPanel                         #
 #----------------------------------------------------------#
 
-rm -fr $tmpdir
+safe_workdir_cleanup
 
 # Update user counters
 $BIN/v-update-user-counters $user
@@ -230,7 +249,7 @@ $BIN/v-update-sys-ip-counters
 sed -i "/v-restore-mail-domain-restic '$user' '$snapshot' '$mail' /d" $ARCPANEL/data/queue/backup.pipe
 
 # Logging
-$BIN/v-log-action "system" "Info" "Backup" "Mail domain successfully restored (User: $user, Snapshot: $snapshot, Databse: $database)."
-$BIN/v-log-action "$user" "Info" "Backup" "Mail domain successfully restored (User: $user, Snapshot: $snapshot, Databse: $database)."
+$BIN/v-log-action "system" "Info" "Backup" "Mail domain successfully restored (User: $user, Snapshot: $snapshot, Domain: $mail)."
+$BIN/v-log-action "$user" "Info" "Backup" "Mail domain successfully restored (User: $user, Snapshot: $snapshot, Domain: $mail)."
 log_event "$OK" "$ARGUMENTS"
 exit

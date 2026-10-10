@@ -459,6 +459,10 @@ nodeapp_pm2_install() {
 		fi
 	fi
 	version=$(node_as_user "$user" jq -r '.version // ""' "$(node_version_dir "$user" "$runtime")/lib/node_modules/pm2/package.json" 2> /dev/null)
+	# The file belongs to the user; the value goes into a record of root's
+	if ! [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.+-][A-Za-z0-9.]+)?$ ]]; then
+		version=''
+	fi
 	printf "PM2_RUNTIME='%s'\nPM2_VERSION='%s'\n" "$runtime" "$version" > "$(nodeapp_pm2_conf "$user")"
 	chmod 640 "$(nodeapp_pm2_conf "$user")"
 }

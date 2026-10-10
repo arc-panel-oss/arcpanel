@@ -32,14 +32,13 @@ is_format_valid 'user'
 is_no_new_line_format "$keyid"
 is_object_valid 'user' 'USER' "$user"
 
-source "$USER_DATA/user.conf"
-
 AUTHKEY_FILE="$HOMEDIR/$user/.ssh/authorized_keys"
+# An early, readable error; the safety comes from working as the user
 if ! readlink -f "$AUTHKEY_FILE" | grep -Eq "^$HOMEDIR/$user/.ssh/"; then
 	check_result "$E_FORBIDEN" "Invalid authorized keys path"
 fi
 
-if [ ! -f "$AUTHKEY_FILE" ]; then
+if ! user_exec test -f "$AUTHKEY_FILE"; then
 	exit
 fi
 
@@ -50,20 +49,19 @@ check_arcpanel_demo_mode
 #                       Action                             #
 #----------------------------------------------------------#
 
-TMP_AUTHKEY_FILE=$(mktemp)
-trap 'rm -f "$TMP_AUTHKEY_FILE"' EXIT
-
-awk -v id="$keyid" '{
+# Filter the file into a new one next to it and rename it over the old
+# one, all as the user (E39 W1)
+user_exec sh -c 'umask 077
+f="$1/authorized_keys"
+t=$(mktemp "$1/.authorized_keys.XXXXXX") || exit 1
+awk -v id="$2" '"'"'{
     value = $0
     sub(/^[^[:space:]]+[[:space:]]+[^[:space:]]+[[:space:]]+/, "", value)
 
     if (value != id)
         print
-}' "$AUTHKEY_FILE" > "$TMP_AUTHKEY_FILE"
-chown --reference="$AUTHKEY_FILE" "$TMP_AUTHKEY_FILE"
-chmod --reference="$AUTHKEY_FILE" "$TMP_AUTHKEY_FILE"
-mv "$TMP_AUTHKEY_FILE" "$AUTHKEY_FILE"
-trap - EXIT
+}'"'"' "$f" > "$t" && chmod --reference="$f" "$t" && mv -f "$t" "$f" || { rm -f "$t"; exit 1; }' sh "$HOMEDIR/$user/.ssh" "$keyid"
+check_result $? "the key could not be removed from $AUTHKEY_FILE" "$E_FORBIDEN"
 
 #----------------------------------------------------------#
 #                         ArcPanel                         #

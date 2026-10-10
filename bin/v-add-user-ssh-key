@@ -5,7 +5,8 @@
 # example: v-add-user-ssh-key user 'valid ssh key'
 #
 # Function check if $user/.ssh/authorized_keys exists and create it.
-# After that it append the new key(s)
+# After that it append the new key. Every read and write of the file runs as
+# the user, so a link in ~/.ssh cannot make root write elsewhere (E39 W1).
 
 #----------------------------------------------------------#
 #                Variables & Functions                     #
@@ -39,28 +40,37 @@ check_arcpanel_demo_mode
 #                       Action                             #
 #----------------------------------------------------------#
 
-# Reading user values
-source $USER_DATA/user.conf
-
-AUTHKEY_FILE="$HOMEDIR/$user/.ssh/authorized_keys"
-[ -z "$(readlink -f "$AUTHKEY_FILE" | egrep "^$HOMEDIR/$user/.ssh/")" ] && check_result "$E_FORBIDEN" "Invalid authorized keys path"
-
-# Check if file exits
-if [ ! -f "$AUTHKEY_FILE" ]; then
-	v-add-fs-file "$user" "${AUTHKEY_FILE}"
-fi
+SSH_DIR="$HOMEDIR/$user/.ssh"
+AUTHKEY_FILE="$SSH_DIR/authorized_keys"
+# An early, readable error; the safety comes from writing as the user
+[ -z "$(readlink -f "$AUTHKEY_FILE" | grep -E "^$HOMEDIR/$user/.ssh/")" ] && check_result "$E_FORBIDEN" "Invalid authorized keys path"
 
 [ -z "$key" ] && check_result "$E_NOTEXIST" "Empty ssh public key"
+if [[ "$key" == *$'\n'* ]] || [[ "$key" == *$'\r'* ]]; then
+	check_result "$E_INVALID" "One ssh public key per call"
+fi
 
 if ! echo "$key" | ssh-keygen -l -f - > /dev/null 2>&1; then
 	check_result "$E_PARSING" "Validating user private key"
 fi
 
-# Make sure authorized_keys ends with EOL
-[ -f "${AUTHKEY_FILE}" ] && sed -i '$a\' "${AUTHKEY_FILE}"
+# ~/.ssh: in a home of root (users without a shell) root creates it for the
+# user, which cannot race because the user cannot write in that home
+if [ ! -e "$SSH_DIR" ] && [ ! -L "$SSH_DIR" ]; then
+	if [ "$(stat -c %u -- "$HOMEDIR/$user")" = 0 ]; then
+		mkdir -m 700 -- "$SSH_DIR"
+		chown -h "$user:$user" -- "$SSH_DIR"
+	else
+		user_exec mkdir -m 700 -- "$SSH_DIR"
+	fi
+fi
 
-# Append key data to file
-echo "$key" >> "$AUTHKEY_FILE"
+# Append the key as the user, after a missing end of line
+printf '%s\n' "$key" | user_exec sh -c 'umask 077
+f="$1/authorized_keys"
+if [ -s "$f" ] && [ -n "$(tail -c 1 "$f")" ]; then echo >> "$f" || exit 1; fi
+cat >> "$f"' sh "$SSH_DIR"
+check_result $? "the key could not be written to $AUTHKEY_FILE" "$E_FORBIDEN"
 
 #----------------------------------------------------------#
 #                         ArcPanel                         #

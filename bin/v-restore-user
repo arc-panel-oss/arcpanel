@@ -5,7 +5,9 @@
 # example: v-restore-user admin 2019-04-22_01-00-00.tar
 #
 # This function for restoring user from backup. To be able to restore the backup,
-# the archive needs to be placed in /backup.
+# the archive needs to be placed in /backup. Root unpacks the archive in a
+# working folder of its own; names and records read from it are validated,
+# and the user's files are unpacked into the home by the user (E39 W1).
 
 #----------------------------------------------------------#
 #                Variables & Functions                     #
@@ -46,6 +48,8 @@ source $ARCPANEL/func/db.sh
 source $ARCPANEL/func/rebuild.sh
 # shellcheck source=/usr/local/arcpanel/func/syshealth.sh
 source $ARCPANEL/func/syshealth.sh
+# shellcheck source=/usr/local/arcpanel/func/safe-fs.sh
+source $ARCPANEL/func/safe-fs.sh
 # load config file
 source_conf "$ARCPANEL/conf/arcpanel.conf"
 
@@ -61,12 +65,13 @@ is_format_valid 'user' 'backup'
 #                       Action                             #
 #----------------------------------------------------------#
 
-# Check if backup folder exists and have the correct permission
+# Check if backup folder exists and have the correct permission: users may
+# not list the archives of others (E39 W1 D8)
 if [[ ! -d "$BACKUP" ]]; then
 	mkdir -p "$BACKUP"
 fi
-if [ $(stat -c %a "$BACKUP") != 755 ]; then
-	chmod 755 "$BACKUP"
+if [ "$(stat -c %a "$BACKUP")" != 711 ]; then
+	chmod 711 "$BACKUP"
 fi
 
 # Checking local backup
@@ -135,9 +140,10 @@ if [ -z "$BACKUP_TEMP" ]; then
 	BACKUP_TEMP=$BACKUP
 fi
 
-# Creating temporary directory
-tmpdir=$(mktemp -p $BACKUP_TEMP -d)
-if [ "$?" -ne 0 ]; then
+# Creating temporary directory, root's only
+safe_workdir restore-user
+tmpdir=$SAFE_WORKDIR
+if [ -z "$tmpdir" ]; then
 	echo "Can't create tmp dir $tmpdir" | $SENDMAIL -s "$subj" $email $notify
 	sed -i "/ $user /d" $ARCPANEL/data/queue/backup.pipe
 	check_result "$E_NOTEXIST" "Can't create tmp dir"
@@ -173,7 +179,9 @@ if [ "$create_user" = 'yes' ]; then
 
 	# Unpacking user container
 	tar xf "$BACKUP/$backup" -C "$tmpdir" --no-wildcards "./$backup_system" 2> /dev/null
-	if [ "$?" -ne 0 ]; then
+	tar_status=$?
+	find "$tmpdir/$backup_system" \( -type l -o \( ! -type f ! -type d \) \) -delete 2> /dev/null
+	if [ "$tar_status" -ne 0 ]; then
 		rm -rf $tmpdir
 		echo "Can't unpack user container" | $SENDMAIL -s "$subj" $email $notify
 		sed -i "/ $user /d" $ARCPANEL/data/queue/backup.pipe
@@ -196,7 +204,6 @@ if [ "$create_user" = 'yes' ]; then
 fi
 
 # Unpacking pam container
-chown "$user" "$tmpdir"
 tar xf $BACKUP/$backup -C $tmpdir ./pam
 if [ "$?" -ne 0 ]; then
 	rm -rf $tmpdir
@@ -204,9 +211,16 @@ if [ "$?" -ne 0 ]; then
 	sed -i "/ $user /d" $ARCPANEL/data/queue/backup.pipe
 	check_result "$E_PARSING" "Can't unpack PAM container"
 fi
-old_user=$(cut -f 1 -d : $tmpdir/pam/passwd)
-old_uid=$(cut -f 3 -d : $tmpdir/pam/passwd)
+old_user=$(head -n 1 $tmpdir/pam/passwd | cut -f 1 -d :)
+old_uid=$(head -n 1 $tmpdir/pam/passwd | cut -f 3 -d :)
 new_uid=$(grep "^$user:" /etc/passwd | cut -f 3 -d :)
+# The old name ends up in patterns, the uid in find
+if ! is_restore_name_valid user "$old_user"; then
+	old_user=$user
+fi
+if ! [[ "$old_uid" =~ ^[0-9]{1,10}$ ]]; then
+	old_uid=$new_uid
+fi
 
 # Restoring web domains
 if [ "$web" != 'no' ] && [ -n "$WEB_SYSTEM" ]; then
@@ -229,13 +243,18 @@ if [ "$web" != 'no' ] && [ -n "$WEB_SYSTEM" ]; then
 
 	# Restoring web domain
 	for domain in $domains; do
+		if ! is_restore_name_valid domain "$domain"; then
+			restore_skip "web domain" "$domain" "invalid name" | tee -a $tmpdir/restore.log
+			continue
+		fi
 		echo -e "$(date "+%F %T") $domain" | tee -a $tmpdir/restore.log
 
 		# Cleanup previous domain keys
-		unset -v DOMAIN IP IP6 ALIAS TPL SSL SSL_HOME LETSENCRYPT FTP_USER FTP_MD5 BACKEND PROXY PROXY_EXT STATS STATS_USER STATS_CRYPT U_DISK CUSTOM_DOCROOT CUSTOM_PHPROOT
+		restore_record_reset web
+		unset -v old_ip
 
 		# Checking domain existence
-		check_config=$(grep "DOMAIN='$domain'" $USER_DATA/web.conf)
+		check_config=$(grep -F "DOMAIN='$domain'" $USER_DATA/web.conf)
 		if [ -z "$check_config" ]; then
 			check_new=$(is_domain_new 'web' $domain)
 			if [ -n "$check_new" ]; then
@@ -249,7 +268,9 @@ if [ "$web" != 'no' ] && [ -n "$WEB_SYSTEM" ]; then
 
 		# Unpacking domain container
 		tar xf $BACKUP/$backup -C $tmpdir ./web/$domain
-		if [ "$?" -ne 0 ]; then
+		tar_status=$?
+		find "$tmpdir/web/$domain" \( -type l -o \( ! -type f ! -type d \) \) -delete 2> /dev/null
+		if [ "$tar_status" -ne 0 ]; then
 			rm -rf $tmpdir
 			error="Can't unpack $domain web container"
 			echo "$error" | $SENDMAIL -s "$subj" $email $notify
@@ -259,21 +280,25 @@ if [ "$web" != 'no' ] && [ -n "$WEB_SYSTEM" ]; then
 
 		# Restoring web.conf
 		if [ -z "$check_config" ]; then
-			parse_object_kv_list $(cat $tmpdir/web/$domain/$backup_system/web.conf)
+			if ! parse_backup_record "$(restore_record_keys web)" "$(head -n 1 -- "$tmpdir/web/$domain/$backup_system/web.conf" 2> /dev/null)"; then
+				restore_skip "web domain" "$domain" "invalid record" | tee -a $tmpdir/restore.log
+				continue
+			fi
+			DOMAIN=$domain
 
-			# Deleting conflicting aliases
+			# Aliases: valid names that no other user holds
+			aliases=''
 			for dom_alias in ${ALIAS//,/ }; do
-				check_new=$(is_domain_new 'web' $dom_alias)
-				if [ -n "$check_new" ]; then
-					ALIAS=$(echo "$ALIAS" \
-						| sed "s/,/\n/g" \
-						| sed "s/^$dom_alias$//g" \
-						| sed "/^$/d" \
-						| sed ':a;N;$!ba;s/\n/,/g')
+				if is_restore_name_valid domain "$dom_alias" && [ -z "$(is_domain_new 'web' "$dom_alias")" ]; then
+					aliases+=",$dom_alias"
 				fi
 			done
+			ALIAS=${aliases#,}
 
 			# Checking IP address
+			if ! is_restore_ip_valid "$IP"; then
+				IP=''
+			fi
 			check_ip=$(is_ip_valid $IP $user)
 			if [ -n "$check_ip" ]; then
 				local_ip=''
@@ -281,69 +306,61 @@ if [ "$web" != 'no' ] && [ -n "$WEB_SYSTEM" ]; then
 				old_ip=$IP
 				IP=$ip
 			fi
+			if [ -n "$IP6" ] && ! is_restore_ip_valid "$IP6"; then
+				IP6=''
+			fi
 
-			# Checking web template
-			check_tpl=$(is_web_template_valid $TPL)
-			if [ -n "$check_tpl" ]; then
+			# Checking web, proxy and backend templates
+			if ! is_restore_template_valid "$TPL" || [ -n "$(is_web_template_valid "$TPL")" ]; then
 				TPL='default'
 			fi
-
-			# Checking proxy template
-			check_proxy_tpl=$(is_proxy_template_valid $PROXY)
-			if [ -n "$check_proxy_tpl" ]; then
+			if ! is_restore_template_valid "$PROXY" || [ -n "$(is_proxy_template_valid "$PROXY")" ]; then
 				PROXY='default'
 			fi
-
-			# Checking backend template
-			check_backend_tpl=$(is_backend_template_valid $BACKEND)
-			if [ -n "$check_backend_tpl" ]; then
+			if ! is_restore_template_valid "$BACKEND" || [ -n "$(is_backend_template_valid "$BACKEND")" ]; then
 				BACKEND='default'
 			fi
 
-			if [ -n "$CUSTOM_DOCROOT" ]; then
-				CUSTOM_DOCROOT=$(echo "$CUSTOM_DOCROOT" | sed -e "s|/home/${old_user}/web/|/home/${user}/web/|g")
+			# Custom roots move to the new name and stay below ~/web
+			old_web="$HOMEDIR/$old_user/web/"
+			CUSTOM_DOCROOT=${CUSTOM_DOCROOT/#"$old_web"/"$HOMEDIR/$user/web/"}
+			CUSTOM_PHPROOT=${CUSTOM_PHPROOT/#"$old_web"/"$HOMEDIR/$user/web/"}
+			if ! is_restore_web_root_valid "$CUSTOM_DOCROOT"; then
+				CUSTOM_DOCROOT=''
 			fi
-			if [ -n "$CUSTOM_PHPROOT" ]; then
-				CUSTOM_PHPROOT=$(echo "$CUSTOM_PHPROOT" | sed -e "s|/home/${old_user}/web/|/home/${user}/web/|g")
+			if ! is_restore_web_root_valid "$CUSTOM_PHPROOT"; then
+				CUSTOM_PHPROOT=''
 			fi
 
-			# Converting FTP users
+			# Converting FTP users to the new name, then keeping the valid ones
 			if [ -n "$FTP_USER" ]; then
-				FTP_USER=$(echo "$FTP_USER" | sed -e "s/${old_user}_//")
-				FTP_USER="${user}_${FTP_USER}"
+				ftp_users=''
+				for ftp_user in ${FTP_USER//:/ }; do
+					ftp_users+=":${user}_${ftp_user#"${old_user}"_}"
+				done
+				FTP_USER=${ftp_users#:}
 			fi
+			restore_web_ftp_filter
 
 			# Copying SSL certificates
 			if [ "$SSL" = 'yes' ]; then
 
-				if [ -f "$tmpdir/web/$domain/$backup_system/$domain.crt" ]; then
-					for crt in $(ls $tmpdir/web/$domain/$backup_system | grep -E '^'$domain'\.(crt|key|ca|pem)$'); do
-						cp -f "$tmpdir/web/$domain/$backup_system/$crt" "$USER_DATA/ssl/"
-					done
-				elif [ -f "$tmpdir/web/$domain/conf/ssl.$domain.crt" ]; then
-					certificates=$(ls $tmpdir/web/$domain/conf | grep ssl)
-					certificates=$(echo "$certificates" | grep $domain)
-					for crt in $certificates; do
-						crt=$(echo $crt | sed -e "s/ssl.//")
-						cp -f $tmpdir/web/$domain/conf/ssl.$crt $USER_DATA/ssl/$crt
-					done
-				fi
+				for ext in crt key ca pem; do
+					if [ -f "$tmpdir/web/$domain/$backup_system/$domain.crt" ]; then
+						copy_from_work "$tmpdir/web/$domain/$backup_system/$domain.$ext" "$USER_DATA/ssl/$domain.$ext"
+					else
+						copy_from_work "$tmpdir/web/$domain/conf/ssl.$domain.$ext" "$USER_DATA/ssl/$domain.$ext"
+					fi
+				done
 			fi
 
 			# Merging web.conf keys
-			str="DOMAIN='$domain' IP='$IP' IP6='$IP6' ALIAS='$ALIAS'"
-			str="$str CUSTOM_DOCROOT='$CUSTOM_DOCROOT' CUSTOM_PHPROOT='$CUSTOM_PHPROOT'"
-			str="$str REDIRECT='$REDIRECT' REDIRECT_CODE='$REDIRECT_CODE'"
-			str="$str FASTCGI_CACHE='$FASTCGI_CACHE' FASTCGI_DURATION='$FASTCGI_DURATION'"
-			str="$str TPL='$TPL' SSL='$SSL' SSL_HOME='$SSL_HOME' SSL_HSTS='$SSL_HSTS'"
-			str="$str SSL_FORCE='$SSL_FORCE' LETSENCRYPT='$LETSENCRYPT' FTP_USER='$FTP_USER'"
-			str="$str FTP_MD5='$FTP_MD5' FTP_PATH='$FTP_PATH'"
-			str="$str BACKEND='$BACKEND' PROXY='$PROXY'"
-			str="$str PROXY_EXT='$PROXY_EXT' STATS='$STATS'"
-			str="$str STATS_USER='$STATS_USER' STATS_CRYPT='$STATS_CRYPT'"
-			str="$str U_DISK='$U_DISK' U_BANDWIDTH='0' SUSPENDED='no'"
-			str="$str TIME='$(date +%T)' DATE='$(date +%F)'"
-			echo $str >> $USER_DATA/web.conf
+			str=$(restore_record web "U_BANDWIDTH='0' SUSPENDED='no' TIME='$(date +%T)' DATE='$(date +%F)'")
+			if [ -z "$str" ]; then
+				restore_skip "web domain" "$domain" "invalid record" | tee -a $tmpdir/restore.log
+				continue
+			fi
+			echo "$str" >> $USER_DATA/web.conf
 
 			# Rebuilding backend
 			if [ -n "$WEB_BACKEND" ]; then
@@ -356,38 +373,42 @@ if [ "$web" != 'no' ] && [ -n "$WEB_SYSTEM" ]; then
 		if [ ! -d "$HOMEDIR/$user/conf/web/$domain/" ]; then
 			mkdir -p $HOMEDIR/$user/conf/web/$domain/
 		fi
-		for file in $tmpdir/web/$domain/conf/*; do
-			if [[ "$file" == *.ca ]] || [[ "$file" == *.crt ]] || [[ "$file" == *.key ]] || [[ "$file" == *.pem ]] || [[ "$file" == *.conf ]]; then
-				continue
-			fi
-			if grep "fastcgi_pass" "$file"; then
-				# Do not allow to run php under a different user
-				continue
-			fi
-			filename=$(basename "$file")
-			cp -f "$file" "$HOMEDIR/$user/conf/web/$domain/$filename"
-		done
+		if root_dir_safe "$HOMEDIR/$user/conf/web/$domain"; then
+			for file in "$tmpdir/web/$domain/conf"/*; do
+				if [[ "$file" == *.ca ]] || [[ "$file" == *.crt ]] || [[ "$file" == *.key ]] || [[ "$file" == *.pem ]] || [[ "$file" == *.conf ]]; then
+					continue
+				fi
+				if grep -qs "fastcgi_pass" "$file"; then
+					# Do not allow to run php under a different user
+					continue
+				fi
+				filename=$(basename -- "$file")
+				copy_from_work "$file" "$HOMEDIR/$user/conf/web/$domain/$filename"
+			done
+		fi
 
 		# Rebuilding vhost to prevent user overwrite default config changes not ideal
 		rebuild_web_domain_conf
 
-		# Restoring web domain data
+		# Restoring web domain data as the user; root reads the archive from
+		# its working folder. The web root is emptied by the user, so a link
+		# in its place cannot make root delete elsewhere.
 		if [ -d "$HOMEDIR/$user/web/$domain/public_html" ]; then
-			rm -rf $HOMEDIR/$user/web/$domain/public_html/*
+			user_exec find "$HOMEDIR/$user/web/$domain/public_html/" -mindepth 1 -delete
 		fi
-		chmod u+w "$HOMEDIR/$user/web/$domain"
-		[[ -d $HOMEDIR/$user/web/$domain/stats ]] && chmod u+w "$HOMEDIR/$user/web/$domain/stats"
+		user_exec chmod u+w "$HOMEDIR/$user/web/$domain"
+		[[ -d $HOMEDIR/$user/web/$domain/stats ]] && user_exec chmod u+w "$HOMEDIR/$user/web/$domain/stats"
 
 		if [ "$backup_mode" = "zstd" ]; then
-			user_exec tar -I pzstd -xpf $tmpdir/web/$domain/domain_data.tar.zst \
+			user_exec tar -I pzstd -xpf - \
 				-C "$HOMEDIR/$user/web/$domain/" \
 				--anchored \
-				--exclude='logs/*'
+				--exclude='logs/*' < "$tmpdir/web/$domain/domain_data.tar.zst"
 		else
-			user_exec tar -xzpf $tmpdir/web/$domain/domain_data.tar.gz \
+			user_exec tar -xzpf - \
 				-C "$HOMEDIR/$user/web/$domain/" \
 				--anchored \
-				--exclude='logs/*'
+				--exclude='logs/*' < "$tmpdir/web/$domain/domain_data.tar.gz"
 		fi
 
 		if [ "$?" -ne 0 ]; then
@@ -438,13 +459,18 @@ if [ "$dns" != 'no' ] && [ -n "$DNS_SYSTEM" ]; then
 
 	# Restoring DNS domain
 	for domain in $domains; do
+		if ! is_restore_name_valid domain "$domain"; then
+			restore_skip "DNS domain" "$domain" "invalid name" | tee -a $tmpdir/restore.log
+			continue
+		fi
 		echo -e "$(date "+%F %T") $domain" | tee -a $tmpdir/restore.log
 		domain_idn="$domain"
 		# Cleanup previous config keys
-		unset -v DOMAIN IP TPL TTL EXP SOA RECORDS DNSSEC KEY SLAVE MASTER
+		restore_record_reset dns
+		unset -v old_ip
 
 		# Checking domain existence
-		check_config=$(grep "DOMAIN='$domain'" $USER_DATA/dns.conf)
+		check_config=$(grep -F "DOMAIN='$domain'" $USER_DATA/dns.conf)
 		if [ -z "$check_config" ]; then
 			check_new=$(is_domain_new 'dns' $domain)
 			if [ -n "$check_new" ]; then
@@ -458,7 +484,9 @@ if [ "$dns" != 'no' ] && [ -n "$DNS_SYSTEM" ]; then
 
 		# Unpacking domain container
 		tar xf $BACKUP/$backup -C $tmpdir ./dns/$domain
-		if [ "$?" -ne 0 ]; then
+		tar_status=$?
+		find "$tmpdir/dns/$domain" \( -type l -o \( ! -type f ! -type d \) \) -delete 2> /dev/null
+		if [ "$tar_status" -ne 0 ]; then
 			rm -rf $tmpdir
 			error="Can't unpack $domain dns container"
 			echo "$error" | $SENDMAIL -s "$subj" $email $notify
@@ -468,9 +496,16 @@ if [ "$dns" != 'no' ] && [ -n "$DNS_SYSTEM" ]; then
 
 		# Restoring dns.conf
 		if [ -z "$check_config" ]; then
-			parse_object_kv_list $(cat $tmpdir/dns/$domain/$backup_system/dns.conf)
+			if ! parse_backup_record "$(restore_record_keys dns)" "$(head -n 1 -- "$tmpdir/dns/$domain/$backup_system/dns.conf" 2> /dev/null)"; then
+				restore_skip "DNS domain" "$domain" "invalid record" | tee -a $tmpdir/restore.log
+				continue
+			fi
+			DOMAIN=$domain
 
-			# Checking IP address
+			# Checking IP address (an address only: it becomes a sed pattern)
+			if ! is_restore_ip_valid "$IP"; then
+				IP=''
+			fi
 			check_ip=$(is_ip_valid $IP $user)
 			if [ -n "$check_ip" ]; then
 				export local_ip=''
@@ -485,28 +520,47 @@ if [ "$dns" != 'no' ] && [ -n "$DNS_SYSTEM" ]; then
 				TPL='default'
 			fi
 
+			if ! is_restore_template_valid "$TPL"; then
+				TPL='default'
+			fi
+			if ! is_restore_ip_valid "$IP"; then
+				restore_skip "DNS domain" "$domain" "no valid IP address" | tee -a $tmpdir/restore.log
+				continue
+			fi
+
 			# Merging dns.conf keys
-			str="DOMAIN='$domain' IP='$IP' TPL='$TPL' TTL='$TTL' EXP='$EXP'"
-			str="$str SOA='$SOA' RECORDS='$RECORDS'  DNSSEC='$DNSSEC'"
-			str="$str KEY='$KEY' SLAVE='$SLAVE' MASTER='$MASTER' SUSPENDED='no'"
-			str="$str TIME='$(date +%T)' DATE='$(date +%F)'"
-			echo $str >> $USER_DATA/dns.conf
+			str=$(restore_record dns "SUSPENDED='no' TIME='$(date +%T)' DATE='$(date +%F)'")
+			if [ -z "$str" ]; then
+				restore_skip "DNS domain" "$domain" "invalid record" | tee -a $tmpdir/restore.log
+				continue
+			fi
+			echo "$str" >> $USER_DATA/dns.conf
+		else
+			parse_object_kv_list "$check_config"
 		fi
 
 		if [ "$DNSSEC" = "yes" ]; then
 			format_domain_idn
-			# Probably need to change the cache dir for RHEL
-			cp $tmpdir/dns/$domain/conf/keys/* /var/cache/bind/
-			chown bind:bind /var/cache/bind/K$domain_idn*
-			chmod 644 /var/cache/bind/K$domain_idn*
+			# Only the key files of this domain, as regular files
+			for key_file in "$tmpdir/dns/$domain/conf/keys"/K"$domain_idn".+*; do
+				key_name=$(basename -- "$key_file")
+				if [[ "$key_name" =~ ^K[A-Za-z0-9.-]+\.\+[0-9]+\+[0-9]+\.(key|private)$ ]]; then
+					copy_from_work "$key_file" "/var/cache/bind/$key_name" || continue
+					chown bind:bind "/var/cache/bind/$key_name"
+					chmod 644 "/var/cache/bind/$key_name"
+				fi
+			done
 		fi
 
 		# Restoring DNS records
-		cp -f $tmpdir/dns/$domain/$backup_system/$domain.conf $USER_DATA/dns/
+		dropped=$(restore_records_file dnsrec "$tmpdir/dns/$domain/$backup_system/$domain.conf" "$USER_DATA/dns/$domain.conf")
+		if [ "${dropped:-0}" -gt 0 ]; then
+			restore_skip "DNS records of" "$domain" "$dropped invalid records" | tee -a $tmpdir/restore.log
+		fi
 
 		# Update IP in records
-		if [ -n "$old_ip" ]; then
-			sed -i s/$old_ip/$IP/g $USER_DATA/dns/$domain.conf
+		if [ -n "$old_ip" ] && is_restore_ip_valid "$old_ip"; then
+			sed -i "s/$old_ip/$IP/g" "$USER_DATA/dns/$domain.conf"
 		fi
 
 		# Rebuilding DNS domain
@@ -546,12 +600,16 @@ if [ "$mail" != 'no' ] && [ -n "$MAIL_SYSTEM" ]; then
 		exim_user="Debian-exim"
 	fi
 
-	# Restoring DNS domain
+	# Restoring mail domain
 	for domain in $domains; do
+		if ! is_restore_name_valid domain "$domain"; then
+			restore_skip "mail domain" "$domain" "invalid name" | tee -a $tmpdir/restore.log
+			continue
+		fi
 		echo -e "$(date "+%F %T") $domain" | tee -a $tmpdir/restore.log
 
 		# Checking domain existence
-		check_config=$(grep "DOMAIN='$domain'" $USER_DATA/mail.conf)
+		check_config=$(grep -F "DOMAIN='$domain'" $USER_DATA/mail.conf)
 		if [ -z "$check_config" ]; then
 			check_new=$(is_domain_new 'mail' $domain)
 			if [ -n "$check_new" ]; then
@@ -565,8 +623,9 @@ if [ "$mail" != 'no' ] && [ -n "$MAIL_SYSTEM" ]; then
 
 		# Unpacking domain container
 		tar xf $BACKUP/$backup -C $tmpdir ./mail/$domain
-
-		if [ "$?" -ne 0 ]; then
+		tar_status=$?
+		find "$tmpdir/mail/$domain" \( -type l -o \( ! -type f ! -type d \) \) -delete 2> /dev/null
+		if [ "$tar_status" -ne 0 ]; then
 			rm -rf $tmpdir
 			error="Can't unpack $domain mail container"
 			echo "$error" | $SENDMAIL -s "$subj" $email $notify
@@ -576,13 +635,24 @@ if [ "$mail" != 'no' ] && [ -n "$MAIL_SYSTEM" ]; then
 
 		# Restoring mail.conf
 		if [ -z "$check_config" ]; then
-			cat $tmpdir/mail/$domain/$backup_system/mail.conf >> $USER_DATA/mail.conf
+			restore_record_reset mail
+			if ! parse_backup_record "$(restore_record_keys mail)" "$(head -n 1 -- "$tmpdir/mail/$domain/$backup_system/mail.conf" 2> /dev/null)"; then
+				restore_skip "mail domain" "$domain" "invalid record" | tee -a $tmpdir/restore.log
+				continue
+			fi
+			DOMAIN=$domain
+			str=$(restore_record mail "SUSPENDED='no' TIME='$(date +%T)' DATE='$(date +%F)'")
+			if [ -z "$str" ]; then
+				restore_skip "mail domain" "$domain" "invalid record" | tee -a $tmpdir/restore.log
+				continue
+			fi
+			echo "$str" >> $USER_DATA/mail.conf
 		fi
 
 		# Restoring DKIM
-		if [ -e "$tmpdir/mail/$domain/$backup_system/$domain.pem" ]; then
-			cp -f $tmpdir/mail/$domain/$backup_system/$domain.pem $USER_DATA/mail/
-			cp -f $tmpdir/mail/$domain/$backup_system/$domain.pub $USER_DATA/mail/
+		if [ -f "$tmpdir/mail/$domain/$backup_system/$domain.pem" ]; then
+			copy_from_work "$tmpdir/mail/$domain/$backup_system/$domain.pem" "$USER_DATA/mail/$domain.pem"
+			copy_from_work "$tmpdir/mail/$domain/$backup_system/$domain.pub" "$USER_DATA/mail/$domain.pub"
 		fi
 
 		# Restore SSL
@@ -592,8 +662,15 @@ if [ "$mail" != 'no' ] && [ -n "$MAIL_SYSTEM" ]; then
 				mkdir -p $ARCPANEL/data/users/$user/ssl/
 			fi
 
-			if [ ! -e "$HOMEDIR/$user/conf/mail/$domain/ssl/" ]; then
-				mkdir -p $HOMEDIR/$user/conf/mail/$domain/ssl/
+			if [ ! -e "$HOMEDIR/$user/conf/mail/$domain/" ]; then
+				mkdir -p "$HOMEDIR/$user/conf/mail/$domain/"
+			fi
+			if ! root_dir_safe "$HOMEDIR/$user/conf/mail/$domain"; then
+				check_result "$E_FORBIDEN" "$HOMEDIR/$user/conf/mail/$domain is not root's"
+			fi
+			if [ ! -d "$HOMEDIR/$user/conf/mail/$domain/ssl/" ] || [ -L "$HOMEDIR/$user/conf/mail/$domain/ssl" ]; then
+				rm -f -- "$HOMEDIR/$user/conf/mail/$domain/ssl"
+				mkdir -p "$HOMEDIR/$user/conf/mail/$domain/ssl/"
 			fi
 
 			# Add certificate to ArcPanel user configuration data directory
@@ -665,7 +742,7 @@ if [ "$mail" != 'no' ] && [ -n "$MAIL_SYSTEM" ]; then
 
 			# Set correct permissions on certificates
 			chmod 750 $HOMEDIR/$user/conf/mail/$domain/ssl
-			chown -R $MAIL_USER:mail $HOMEDIR/$user/conf/mail/$domain/ssl
+			chown -hR $MAIL_USER:mail $HOMEDIR/$user/conf/mail/$domain/ssl
 			chmod 0644 $HOMEDIR/$user/conf/mail/$domain/ssl/*
 			chown -h $user:mail $HOMEDIR/$user/conf/mail/$domain/ssl/*
 			chmod -R 0644 /usr/local/arcpanel/ssl/mail/*
@@ -673,25 +750,27 @@ if [ "$mail" != 'no' ] && [ -n "$MAIL_SYSTEM" ]; then
 		fi
 
 		# Restoring email accounts
-		cp -f $tmpdir/mail/$domain/$backup_system/$domain.conf $USER_DATA/mail/
+		dropped=$(restore_records_file mailacc "$tmpdir/mail/$domain/$backup_system/$domain.conf" "$USER_DATA/mail/$domain.conf")
+		if [ "${dropped:-0}" -gt 0 ]; then
+			restore_skip "mail accounts of" "$domain" "$dropped invalid records" | tee -a $tmpdir/restore.log
+		fi
 
 		domain_idn=$domain
 		format_domain_idn
 
-		if [ ! -d "$HOMEDIR/$user/mail/$domain_idn" ]; then
+		# ~/mail belongs to root, so root may create the domain folder in it
+		if [ ! -e "$HOMEDIR/$user/mail/$domain_idn" ] && [ ! -L "$HOMEDIR/$user/mail/$domain_idn" ]; then
 			mkdir $HOMEDIR/$user/mail/$domain_idn
 		fi
 
 		# Current ArcPanel store email in the $HOMEDIR/$user/mail/$domain_idn
-		chmod u+w "$HOMEDIR/$user/mail/$domain_idn"
-		chown $user:$user "$HOMEDIR/$user/mail/$domain_idn"
+		chown -h $user:$user "$HOMEDIR/$user/mail/$domain_idn"
+		user_exec chmod u+w "$HOMEDIR/$user/mail/$domain_idn"
 
-		# Restoring emails
+		# Restoring emails, unpacked by the user from root's working folder
 		if [ $backup_mode = 'zstd' ]; then
 			if [ -e "$tmpdir/mail/$domain/accounts.tar.zst" ]; then
-				# Unpacked as the user (v-extract-fs-archive only reads archives
-				# inside the home)
-				user_exec tar -I pzstd -xf "$tmpdir/mail/$domain/accounts.tar.zst" -C "$HOMEDIR/$user/mail/$domain_idn/"
+				user_exec tar -I pzstd -xf - -C "$HOMEDIR/$user/mail/$domain_idn/" < "$tmpdir/mail/$domain/accounts.tar.zst"
 				if [ "$?" -ne 0 ]; then
 					rm -rf $tmpdir
 					error="Can't unpack $domain mail account container"
@@ -706,7 +785,7 @@ if [ "$mail" != 'no' ] && [ -n "$MAIL_SYSTEM" ]; then
 			fi
 		else
 			if [ -e "$tmpdir/mail/$domain/accounts.tar.gz" ]; then
-				user_exec tar -xzf "$tmpdir/mail/$domain/accounts.tar.gz" -C "$HOMEDIR/$user/mail/$domain_idn/"
+				user_exec tar -xzf - -C "$HOMEDIR/$user/mail/$domain_idn/" < "$tmpdir/mail/$domain/accounts.tar.gz"
 				if [ "$?" -ne 0 ]; then
 					rm -rf $tmpdir
 					error="Can't unpack $domain mail account container"
@@ -721,9 +800,9 @@ if [ "$mail" != 'no' ] && [ -n "$MAIL_SYSTEM" ]; then
 			fi
 		fi
 		# Chowning mail conf files to exim user
-		if [ -d "$HOMEDIR/$user/conf/mail/$domain" ]; then
+		if [ -d "$HOMEDIR/$user/conf/mail/$domain" ] && root_dir_safe "$HOMEDIR/$user/conf/mail/$domain"; then
 			find $HOMEDIR/$user/conf/mail/$domain -user root \
-				-exec chown $exim_user {} \;
+				-exec chown -h $exim_user {} \;
 		fi
 
 		$BIN/v-rebuild-mail-domain $user $domain
@@ -756,17 +835,23 @@ if [ "$db" != 'no' ] && [ -n "$DB_SYSTEM" ]; then
 
 	# Restoring database
 	for database in $databases; do
+		if ! is_restore_name_valid database "$database"; then
+			restore_skip database "$database" "invalid name" | tee -a $tmpdir/restore.log
+			continue
+		fi
 		echo -e "$(date "+%F %T") $database" | tee -a $tmpdir/restore.log
 
 		# Cleanup previous config keys
 		unset -v DB DBUSER MD5 HOST TYPE CHARSET U_DISK
 
 		# Checking database existence
-		check_config=$(grep "DB='$database'" $USER_DATA/db.conf)
+		check_config=$(grep -F "DB='$database'" $USER_DATA/db.conf)
 
 		# Unpacking database container
 		tar xf $BACKUP/$backup -C $tmpdir ./db/$database
-		if [ "$?" -ne 0 ]; then
+		tar_status=$?
+		find "$tmpdir/db/$database" \( -type l -o \( ! -type f ! -type d \) \) -delete 2> /dev/null
+		if [ "$tar_status" -ne 0 ]; then
 			rm -rf $tmpdir
 			error="Can't unpack $database database container"
 			echo "$error" | $SENDMAIL -s "$subj" $email $notify
@@ -776,23 +861,30 @@ if [ "$db" != 'no' ] && [ -n "$DB_SYSTEM" ]; then
 
 		# Restore database config
 		if [ -z "$check_config" ]; then
-			parse_object_kv_list $(cat $tmpdir/db/$database/$backup_system/db.conf)
+			if ! parse_backup_record "$(restore_record_keys db)" "$(head -n 1 -- "$tmpdir/db/$database/$backup_system/db.conf" 2> /dev/null)"; then
+				restore_skip database "$database" "invalid record" | tee -a $tmpdir/restore.log
+				continue
+			fi
 
 			if [ -z "$MD5" ]; then
 				echo "Warning!: Database ${DB} backup does not contain a password for user ${DBUSER}."
 				echo "- Please use the web interface to set a password after the restore process finishes."
 			fi
 
-			DB=$(echo "$DB" | sed -e "s/${old_user}_//")
-			DB="${user}_${DB}"
-			DBUSER=$(echo "$DBUSER" | sed -e "s/${old_user}_//")
-			DBUSER="${user}_${DBUSER}"
-			str="DB='$DB' DBUSER='$DBUSER' MD5='$MD5' HOST='$HOST'"
-			str="$str TYPE='$TYPE' CHARSET='$CHARSET' U_DISK='$U_DISK'"
-			str="$str SUSPENDED='no' TIME='$(date +%T)' DATE='$(date +%F)'"
-			echo $str >> $USER_DATA/db.conf
+			DB="${user}_${DB#"${old_user}"_}"
+			DBUSER="${user}_${DBUSER#"${old_user}"_}"
+			if ! is_restore_database_valid || is_database_of_other_user "$DB"; then
+				restore_skip database "$database" "invalid user, type, host or charset" | tee -a $tmpdir/restore.log
+				continue
+			fi
+			str=$(restore_record db "SUSPENDED='no' TIME='$(date +%T)' DATE='$(date +%F)'")
+			if [ -z "$str" ]; then
+				restore_skip database "$database" "invalid record" | tee -a $tmpdir/restore.log
+				continue
+			fi
+			echo "$str" >> $USER_DATA/db.conf
 		else
-			parse_object_kv_list $(grep "DB='$database'" $USER_DATA/db.conf)
+			parse_object_kv_list "$check_config"
 		fi
 
 		# Unzipping database dump
@@ -802,20 +894,21 @@ if [ "$db" != 'no' ] && [ -n "$DB_SYSTEM" ]; then
 			gzip -d $tmpdir/db/$database/$database.*.sql.gz
 		fi
 
-		# Importing database dump
+		# Importing database dump, with an account limited to the database
 		database_dump="$tmpdir/db/$database/$database.$TYPE.sql"
 		case $TYPE in
 			mysql)
 				delete_mysql_database
 				rebuild_mysql_database
-				import_mysql_database $database_dump
 				;;
 			pgsql)
 				delete_pgsql_database
 				rebuild_pgsql_database
-				import_pgsql_database $database_dump
 				;;
 		esac
+		if ! restore_import_database "$database_dump"; then
+			echo "[ ! ] The dump of $database was not imported completely" | tee -a $tmpdir/restore.log
+		fi
 	done
 fi
 
@@ -825,7 +918,9 @@ if [ "$cron" != 'no' ] && [ -n "$CRON_SYSTEM" ]; then
 
 	# Unpacking cron container
 	tar xf $BACKUP/$backup -C $tmpdir ./cron
-	if [ "$?" -ne 0 ]; then
+	tar_status=$?
+	find "$tmpdir/cron" \( -type l -o \( ! -type f ! -type d \) \) -delete 2> /dev/null
+	if [ "$tar_status" -ne 0 ]; then
 		rm -rf $tmpdir
 		error="Can't unpack cron container"
 		echo "$error" | $SENDMAIL -s "$subj" $email $notify
@@ -847,8 +942,11 @@ if [ "$cron" != 'no' ] && [ -n "$CRON_SYSTEM" ]; then
 		sed -i "s/$backup_system/arcpanel/g" $tmpdir/cron/cron.conf
 	fi
 
-	# Restoring cron jobs
-	cp $tmpdir/cron/cron.conf $USER_DATA/cron.conf
+	# Restoring cron jobs, rebuilt from known keys
+	dropped=$(restore_records_file cron "$tmpdir/cron/cron.conf" "$USER_DATA/cron.conf")
+	if [ "${dropped:-0}" -gt 0 ]; then
+		restore_skip "cron jobs" "$dropped" "invalid records" | tee -a $tmpdir/restore.log
+	fi
 
 	# Rebuilding cron jobs
 	sync_cron_jobs
@@ -884,6 +982,11 @@ if [ "$udir" != 'no' ]; then
 		fi
 
 		while IFS= read -r user_dir; do
+			[ -n "$user_dir" ] || continue
+			if ! is_restore_name_valid segment "$user_dir"; then
+				restore_skip "user folder" "$user_dir" "invalid name" | tee -a $tmpdir/restore.log
+				continue
+			fi
 			echo -e "$(date "+%F %T") $user_dir" | tee -a $tmpdir/restore.log
 			if [ "$backup_mode" = 'zstd' ]; then
 				tar xf "$BACKUP/$backup" -C "$tmpdir" --no-wildcards "./user_dir/$user_dir.tar.zst"
@@ -898,18 +1001,32 @@ if [ "$udir" != 'no' ]; then
 				check_result "$E_PARSING" "$error"
 			fi
 
-			chown "$user" "$tmpdir/user_dir"
-			chown "$user" "$HOMEDIR/$user"
-			[ -e "$HOMEDIR/$user/$user_dir" ] && chown "$user" "$HOMEDIR/$user/$user_dir"
-			# Unpacked as the user (v-extract-fs-archive only reads archives
-			# inside the home)
+			# A home of root (users without a shell) gets the folder from root,
+			# owned by the user; the user cannot replace entries of a folder
+			# they cannot write, so this does not race. The content is
+			# unpacked by the user, reading the archive root opened.
 			if [ "$backup_mode" = 'zstd' ]; then
-				user_exec tar -I pzstd -xf "$tmpdir/user_dir/$user_dir.tar.zst" -C "$HOMEDIR/$user"
+				udir_archive="$tmpdir/user_dir/$user_dir.tar.zst"
+				udir_filter='-I pzstd'
 			else
-				user_exec tar -xzf "$tmpdir/user_dir/$user_dir.tar.gz" -C "$HOMEDIR/$user"
+				udir_archive="$tmpdir/user_dir/$user_dir.tar.gz"
+				udir_filter='-z'
 			fi
+			home_owner=$(stat -c %u -- "$HOMEDIR/$user")
+			if [ "$home_owner" = 0 ] && [ ! -e "$HOMEDIR/$user/$user_dir" ] && [ ! -L "$HOMEDIR/$user/$user_dir" ]; then
+				# A folder when the archive holds entries below the name
+				# shellcheck disable=SC2086
+				if tar $udir_filter -tf - < "$udir_archive" 2> /dev/null \
+					| awk -v p="$user_dir/" 'index($0, p) == 1 || index($0, "./" p) == 1 { found = 1 } END { exit !found }'; then
+					mkdir -m 700 -- "$HOMEDIR/$user/$user_dir"
+				else
+					install -m 600 /dev/null "$HOMEDIR/$user/$user_dir"
+				fi
+				chown -h "$user:$user" -- "$HOMEDIR/$user/$user_dir"
+			fi
+			# shellcheck disable=SC2086
+			user_exec tar $udir_filter -xf - --overwrite -C "$HOMEDIR/$user" < "$udir_archive"
 			cmdstatus="$?"
-			chown root:root "$HOMEDIR/$user"
 			if [ "$cmdstatus" -ne 0 ]; then
 				rm -rf "$tmpdir"
 				error="Can't unpack $user_dir user dir container"
@@ -928,12 +1045,13 @@ if [ "$udir" != 'no' ]; then
 fi
 
 # Create tmp/
-mkdir -p $HOMEDIR/$user/tmp
-chmod 700 $HOMEDIR/$user/tmp
-chown -R $user:$user $HOMEDIR/$user/tmp
+if [ ! -e "$HOMEDIR/$user/tmp" ] && [ ! -L "$HOMEDIR/$user/tmp" ]; then
+	mkdir -m 700 "$HOMEDIR/$user/tmp"
+	chown -h $user:$user "$HOMEDIR/$user/tmp"
+fi
 
 # Delete ArcPanel File manager key
-rm -f $HOMEDIR/$user/.ssh/arcpanel-filemanager-key
+user_exec rm -f -- "$HOMEDIR/$user/.ssh/arcpanel-filemanager-key" "$HOMEDIR/$user/.ssh/arcpanel-filemanager-key.pub"
 
 # Sending mail notification
 subj="$user → restore has been completed"

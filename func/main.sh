@@ -707,25 +707,34 @@ is_object_value_exist() {
 	fi
 }
 
+# Prints the first line of a value file that the panel (arcpanelweb) or root
+# wrote into /tmp: a plain name directly in /tmp, a regular file, not a link
+# (E39 W1 L3). Returns non-zero for anything else, which then stays the
+# value itself.
+read_value_file() {
+	local path=$1
+	[[ "$path" =~ ^/tmp/[A-Za-z0-9._-]+$ ]] || return 1
+	[ -f "$path" ] && [ ! -L "$path" ] || return 1
+	case "$(stat -c %U -- "$path")" in
+		arcpanelweb | root) ;;
+		*) return 1 ;;
+	esac
+	head -n 1 -- "$path"
+}
+
 # Check if password is transmitted via file
 is_password_valid() {
-	if [[ "$password" =~ ^/tmp/ ]]; then
-		if ! [[ "$password" == *../* ]]; then
-			if [ -f "$password" ]; then
-				password="$(head -n1 $password)"
-			fi
-		fi
+	local value
+	if [[ "$password" =~ ^/tmp/ ]] && value=$(read_value_file "$password"); then
+		password=$value
 	fi
 }
 
 # Check if hash is transmitted via file
 is_hash_valid() {
-	if [[ "$hash" =~ ^/tmp/ ]]; then
-		if ! [[ "$hash" == *../* ]]; then
-			if [ -f "$hash" ]; then
-				hash="$(head -n1 $hash)"
-			fi
-		fi
+	local value
+	if [[ "$hash" =~ ^/tmp/ ]] && value=$(read_value_file "$hash"); then
+		hash=$value
 	fi
 }
 
@@ -2032,7 +2041,34 @@ user_exec() {
 	local user_groups=$(id -G "$user")
 	user_groups=${user_groups//\ /,}
 
-	setpriv --groups "$user_groups" --reuid "$user" --regid "$user" -- "${@}"
+	# Only standard input, output and error reach the user's process: the
+	# lock files and other descriptors root holds stay with root (E39 W1)
+	(
+		for fd in /proc/$BASHPID/fd/*; do
+			fd=${fd##*/}
+			if [[ "$fd" =~ ^[0-9]+$ ]] && [ "$fd" -gt 2 ]; then
+				eval "exec $fd>&-"
+			fi
+		done
+		exec setpriv --groups "$user_groups" --reuid "$user" --regid "$user" -- "${@}"
+	)
+}
+
+# Copies standard input to standard output up to MAX bytes (default 2 MiB)
+# and drops the rest while it keeps reading, so the writer is not stopped:
+# logs root keeps of a user's output cannot fill the disk (E39 W1)
+log_cap() {
+	awk -v max="${1:-2097152}" '{
+		n += length($0) + 1
+		if (n <= max) {
+			print
+			fflush()
+		} else if (!cut) {
+			print "[output truncated]"
+			fflush()
+			cut = 1
+		}
+	}'
 }
 
 # Simple chmod wrapper that skips symlink files after glob expand

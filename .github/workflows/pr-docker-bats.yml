@@ -61,7 +61,9 @@ jobs:
             set -euxo pipefail
             export TERM=xterm
             cd /arcpanel-git/src
-            bash ./arcpanel-build.sh --arcpanel --noinstall --keepbuild "~localsrc"
+            # The build folder must be root's with mode 0700 (E39 W1 D13)
+            install -d -m 700 /tmp/arcpanel-src
+            BUILD_DIR=/tmp/arcpanel-src bash ./arcpanel-build.sh --arcpanel --noinstall --keepbuild "~localsrc"
             DEB_PATH=""
             if [[ -f "/tmp/arcpanel-src/deb" ]]; then
               pkg="$(dpkg-deb -f /tmp/arcpanel-src/deb Package)"

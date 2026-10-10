@@ -112,6 +112,10 @@ upgrade_set_branch $new_version
 # Perform upgrade clean-up tasks (rebuild domains and users, restart services, delete temporary files)
 upgrade_cleanup_message | tee -a $LOG
 upgrade_rebuild_users | tee -a $LOG
+
+# Homes to the current layout (E39 W1): old file manager keys go, Docker app
+# data moves out of the homes; safe to run on every upgrade
+$BIN/v-update-sys-user-homes | tee -a $LOG
 upgrade_restart_services | tee -a $LOG
 
 # Add upgrade notification to admin user's panel and display completion message

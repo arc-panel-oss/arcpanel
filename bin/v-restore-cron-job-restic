@@ -5,7 +5,8 @@
 # example: v-restore-cron-job USER BACKUP [NOTIFY]
 #
 # This function allows the user to restore a cron jobs
-# from a snapshot.
+# from a snapshot. The jobs are read from the snapshot as untrusted
+# records: each line is rebuilt from the known keys (E39 W1 D6).
 
 #----------------------------------------------------------#
 #                Variables & Functions                     #
@@ -29,6 +30,8 @@ source $ARCPANEL/func/ip.sh
 source $ARCPANEL/func/rebuild.sh
 # shellcheck source=/usr/local/arcpanel/func/syshealth.sh
 source $ARCPANEL/func/syshealth.sh
+# shellcheck source=/usr/local/arcpanel/func/safe-fs.sh
+source $ARCPANEL/func/safe-fs.sh
 # load config file
 source_conf "$ARCPANEL/conf/arcpanel.conf"
 
@@ -38,7 +41,7 @@ source_conf "$ARCPANEL/conf/arcpanel.conf"
 
 args_usage='USER SNAPSHOT [NOTIFY]'
 check_args '2' "$#" "$args_usage"
-is_format_valid 'user'
+is_format_valid 'user' 'snapshot'
 is_object_valid 'user' 'USER' "$user"
 
 source_conf $ARCPANEL/conf/restic.conf
@@ -47,12 +50,18 @@ source_conf $ARCPANEL/conf/restic.conf
 #                       Action                             #
 #----------------------------------------------------------#
 
-tmpdir=$(mktemp -p /home/$user/tmp/ -d)
+safe_workdir restore-cron
+tmpdir=$SAFE_WORKDIR
 
-restic --repo "${REPO%/}/$user" --password-file "$USER_DATA/restic.conf" --json dump "$snapshot" "/home/$user/backup/cron/cron.conf" > "$tmpdir/cron.conf"
+restic_restore_config "$tmpdir" "$snapshot" --include="/home/$user/backup/cron/cron.conf"
+check_result $? "Unable to download cron jobs from snapshot"
 
 # Restoring cron jobs
-cp "$tmpdir/cron.conf" "$USER_DATA/cron.conf"
+dropped=$(restore_records_file cron "$tmpdir/home/$user/backup/cron/cron.conf" "$USER_DATA/cron.conf")
+check_result $? "the snapshot holds no cron jobs" "$E_NOTEXIST"
+if [ "$dropped" -gt 0 ]; then
+	restore_skip "cron jobs" "$dropped" "invalid records"
+fi
 
 # Rebuilding cron jobs
 sync_cron_jobs
@@ -65,7 +74,7 @@ check_result $? "CRON restart failed"
 #                         ArcPanel                         #
 #----------------------------------------------------------#
 
-rm -fr "$tmpdir"
+safe_workdir_cleanup
 
 # Update user counters
 $BIN/v-update-user-counters $user

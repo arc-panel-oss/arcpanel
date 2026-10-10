@@ -1,10 +1,13 @@
 #!/bin/bash
-# info: backup system user with all its objects
-# options: USER NOTIFY
+# info: list what a restic snapshot of a user holds
+# options: USER SNAPSHOT [FORMAT]
 #
-# example: v-backup-user admin yes
+# example: v-list-user-backup-restic alice 4f2a91c0 json
 #
-# This function is used for backing up user with all its domains and databases.
+# This function prints the backup.conf stored in a restic snapshot of USER:
+# the web, DNS and mail domains, databases, cron jobs and folders it holds.
+# The file is read into a working folder of root and parsed as untrusted
+# input (E39 W1).
 
 #----------------------------------------------------------#
 #                Variables & Functions                     #
@@ -19,12 +22,8 @@ format=${3-plain}
 source /etc/arcpanel/arcpanel.conf
 # shellcheck source=/usr/local/arcpanel/func/main.sh
 source $ARCPANEL/func/main.sh
-# shellcheck source=/usr/local/arcpanel/func/domain.sh
-source $ARCPANEL/func/domain.sh
-# shellcheck source=/usr/local/arcpanel/func/db.sh
-source $ARCPANEL/func/db.sh
-# shellcheck source=/usr/local/arcpanel/func/backup.sh
-source $ARCPANEL/func/backup.sh
+# shellcheck source=/usr/local/arcpanel/func/safe-fs.sh
+source $ARCPANEL/func/safe-fs.sh
 # load config file
 source_conf "$ARCPANEL/conf/arcpanel.conf"
 
@@ -32,8 +31,8 @@ source_conf "$ARCPANEL/conf/arcpanel.conf"
 #                    Verifications                         #
 #----------------------------------------------------------#
 
-check_args '1' "$#" 'USER'
-is_format_valid 'user'
+check_args '2' "$#" 'USER SNAPSHOT [FORMAT]'
+is_format_valid 'user' 'snapshot'
 is_system_enabled "$BACKUP_SYSTEM" 'BACKUP_SYSTEM'
 is_object_valid 'user' 'USER' "$user"
 is_object_unsuspended 'user' 'USER' "$user"
@@ -48,7 +47,7 @@ check_arcpanel_demo_mode
 # JSON list function
 json_list() {
 	echo '{'
-	echo '    "'$BACKUP'": {
+	echo '    "snapshot": {
 		"TYPE": "'$TYPE'",
 		"WEB": "'$WEB'",
 		"DNS": "'$DNS'",
@@ -65,7 +64,7 @@ json_list() {
 
 # SHELL list function
 shell_list() {
-	echo "BACKUP:         $BACKUP"
+	echo "BACKUP:         snapshot"
 	echo "TYPE:           $TYPE"
 	echo "RUNTIME:        $RUNTIME min"
 	echo "WEB:            ${WEB//,/ }"
@@ -80,17 +79,20 @@ shell_list() {
 
 # PLAIN list function
 plain_list() {
-	echo -ne "$BACKUP\t$TYPE\t$WEB\t$DNS\t$MAIL\t$DB\t$CRON\t"
+	echo -ne "snapshot\t$TYPE\t$WEB\t$DNS\t$MAIL\t$DB\t$CRON\t"
 	echo -e "$UDIR\t$RUNTIME\t$TIME\t$DATE"
 }
 
 source_conf $ARCPANEL/conf/restic.conf
 
-restic --repo "${REPO%/}/$user" --password-file $USER_DATA/restic.conf --json dump $snapshot /home/$user/backup/backup.conf > /home/$user/tmp/backup.conf
+safe_workdir list-backup
+read_snapshot_index "$SAFE_WORKDIR" "$snapshot"
+check_result $? "snapshot $snapshot cannot be read"
+unset -v TYPE RUNTIME TIME DATE
+parse_backup_record 'TYPE RUNTIME TIME DATE' "$(head -n 1 -- "$SAFE_WORKDIR/backup.conf")"
+check_result $? "invalid backup.conf in snapshot $snapshot" "$E_PARSING"
+safe_workdir_cleanup
 
-parse_object_kv_list $(cat /home/$user/tmp/backup.conf)
-
-rm /home/$user/tmp/backup.conf
 # Listing data
 case $format in
 	json) json_list ;;

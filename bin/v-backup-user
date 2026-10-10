@@ -163,12 +163,13 @@ if [ -z "$BACKUP" ]; then
 	BACKUP=/backup
 fi
 
-# Check if backup folder exists and have the correct permission
+# Check if backup folder exists and have the correct permission: users may
+# not list the archives of others (E39 W1 D8)
 if [[ ! -d "$BACKUP" ]]; then
 	mkdir -p $BACKUP
 fi
-if [ "$(stat -c %a "$BACKUP")" != 755 ]; then
-	chmod 755 $BACKUP
+if [ "$(stat -c %a "$BACKUP")" != 711 ]; then
+	chmod 711 $BACKUP
 fi
 
 # Get current time

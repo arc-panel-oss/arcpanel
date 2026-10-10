@@ -104,11 +104,59 @@ is_restore_name_valid() {
 	) > /dev/null 2>&1
 }
 
+# Whether VALUE is an IPv4 or IPv6 address in form only (restores use it in
+# sed patterns and paths)
+is_restore_ip_valid() {
+	[[ "$1" =~ ^[0-9A-Fa-f:.]{2,45}$ ]]
+}
+
+# Whether NAME can be a template name (it becomes part of a path)
+is_restore_template_valid() {
+	[[ "$1" =~ ^[A-Za-z0-9_][A-Za-z0-9_.-]{0,63}$ ]] && [[ "$1" != *..* ]]
+}
+
+# Whether PATH is empty or a folder below ~/web of $user (custom document
+# and PHP roots of a web domain)
+is_restore_web_root_valid() {
+	[ -z "$1" ] && return 0
+	[[ "$1" =~ ^[A-Za-z0-9_./-]+$ ]] && [[ "$1/" != */../* ]] && [[ "$1" == "$HOMEDIR/$user/web/"* ]]
+}
+
+# Keeps the FTP accounts of the parsed web record whose name carries the
+# user's prefix and whose hash and path are plain; FTP_USER, FTP_MD5 and
+# FTP_PATH are colon-separated lists of the same length. The hash ends up
+# in a sed expression on /etc/shadow.
+restore_web_ftp_filter() {
+	local -a names hashes paths
+	local i name hash path out_user='' out_md5='' out_path=''
+	IFS=':' read -r -a names <<< "$FTP_USER"
+	IFS=':' read -r -a hashes <<< "$FTP_MD5"
+	IFS=':' read -r -a paths <<< "$FTP_PATH"
+	for i in "${!names[@]}"; do
+		name=${names[i]}
+		hash=${hashes[i]}
+		path=${paths[i]}
+		[[ "$name" =~ ^[A-Za-z0-9_.-]{1,64}$ ]] && [[ "$name" == "${user}_"* ]] || continue
+		[[ "$hash" =~ $SAFE_CRYPT_RE ]] || continue
+		[[ "$path" =~ ^[A-Za-z0-9_./-]*$ ]] && [[ "/$path/" != */../* ]] || continue
+		out_user+=":$name"
+		out_md5+=":$hash"
+		out_path+=":$path"
+	done
+	FTP_USER=${out_user#:}
+	FTP_MD5=${out_md5#:}
+	FTP_PATH=${out_path#:}
+}
+
+# Characters of password hashes (crypt, hex, {SCHEME} prefixes)
+SAFE_HASH_RE='^[A-Za-z0-9./$*{}=+:_-]*$'
+# Characters of one FTP password hash
+SAFE_CRYPT_RE='^[A-Za-z0-9./$]*$'
 # Keys whose values are password hashes and may hold $
 SAFE_HASH_KEYS=' MD5 FTP_MD5 STATS_CRYPT '
-# Keys whose values are free text (a cron command, a relay password): only
-# a single quote and control characters are refused
-SAFE_FREE_KEYS=' CMD U_SMTP_RELAY_PASSWORD '
+# Keys whose values are free text (a cron command, a TXT record, a name, a
+# relay password): only a single quote and control characters are refused
+SAFE_FREE_KEYS=' CMD VALUE NAME U_SMTP_RELAY_PASSWORD '
 
 # Whether VALUE of KEY can be written into a configuration record: no
 # quote, backslash, backtick or control character, $ only in hashes.
@@ -119,6 +167,12 @@ is_record_value_valid() {
 	fi
 	if [[ "$SAFE_FREE_KEYS" == *" $key "* ]]; then
 		[[ "$value" != *\'* ]]
+		return
+	fi
+	# Hashes reach sed expressions (/etc/shadow) and SQL: crypt and hex
+	# characters only
+	if [[ "$SAFE_HASH_KEYS" == *" $key "* ]]; then
+		[[ "$value" =~ $SAFE_HASH_RE ]]
 		return
 	fi
 	case "$value" in
@@ -168,11 +222,19 @@ SAFE_RECORD_KEYS_web='DOMAIN IP IP6 ALIAS CUSTOM_DOCROOT CUSTOM_PHPROOT REDIRECT
 SAFE_RECORD_KEYS_dns='DOMAIN IP TPL TTL EXP SOA RECORDS DNSSEC KEY SLAVE MASTER'
 SAFE_RECORD_KEYS_mail='DOMAIN ANTIVIRUS ANTISPAM REJECT DKIM WEBMAIL SSL LETSENCRYPT CATCHALL ACCOUNTS RATE_LIMIT U_DISK'
 SAFE_RECORD_KEYS_db='DB DBUSER MD5 HOST TYPE CHARSET U_DISK'
-SAFE_RECORD_KEYS_cron='JOB MIN HOUR DAY MONTH WDAY CMD'
+SAFE_RECORD_KEYS_cron='JOB MIN HOUR DAY MONTH WDAY CMD SUSPENDED TIME DATE'
+# Lines of the per-domain files: DNS records and mail accounts
+SAFE_RECORD_KEYS_dnsrec='ID RECORD TYPE PRIORITY VALUE SUSPENDED TIME DATE'
+SAFE_RECORD_KEYS_mailacc='ACCOUNT ALIAS AUTOREPLY FWD FWD_ONLY MD5 QUOTA U_DISK SUSPENDED TIME DATE'
+# The account record of a full restore; ROLE is never taken from a backup
+SAFE_RECORD_KEYS_user='NAME CONTACT PACKAGE MD5 RKEY TWOFA QRCODE LANGUAGE THEME NOTIFICATIONS PREF_UI_SORT WEB_TEMPLATE BACKEND_TEMPLATE PROXY_TEMPLATE DNS_TEMPLATE WEB_DOMAINS WEB_ALIASES DNS_DOMAINS DNS_RECORDS MAIL_DOMAINS MAIL_ACCOUNTS RATE_LIMIT DATABASES CRON_JOBS DISK_QUOTA BANDWIDTH BACKUPS BACKUPS_INCREMENTAL NS SHELL CPU_QUOTA CPU_QUOTA_PERIOD MEMORY_LIMIT SWAP_LIMIT PHPCLI CRON_REPORTS LOGIN_DISABLED LOGIN_USE_IPLIST LOGIN_ALLOW_IPS SUSPENDED SUSPENDED_USERS SUSPENDED_WEB SUSPENDED_DNS SUSPENDED_MAIL SUSPENDED_DB SUSPENDED_CRON IP_AVAIL IP_OWNED U_USERS U_DISK U_DISK_DIRS U_DISK_WEB U_DISK_MAIL U_DISK_DB U_BANDWIDTH U_WEB_DOMAINS U_WEB_SSL U_WEB_ALIASES U_DNS_DOMAINS U_DNS_RECORDS U_MAIL_DOMAINS U_MAIL_DKIM U_MAIL_ACCOUNTS U_MAIL_SSL U_DATABASES U_CRON_JOBS U_BACKUPS TIME DATE'
 # Keys written only when the record has them
 SAFE_RECORD_OPTIONAL_mail='LETSENCRYPT_FAIL_COUNT SSL_KEY_ALGO U_SMTP_RELAY U_SMTP_RELAY_HOST U_SMTP_RELAY_PORT U_SMTP_RELAY_USERNAME U_SMTP_RELAY_PASSWORD'
+SAFE_RECORD_OPTIONAL_dns='SERIAL SRC'
+SAFE_RECORD_OPTIONAL_dnsrec='TTL'
 
-# Keys of TYPE (web, dns, mail, db, cron), the optional ones included
+# Keys of TYPE (web, dns, mail, db, cron, dnsrec, mailacc, user), the
+# optional ones included
 restore_record_keys() {
 	local var="SAFE_RECORD_KEYS_$1" opt="SAFE_RECORD_OPTIONAL_$1"
 	echo "${!var} ${!opt}"
@@ -201,7 +263,32 @@ restore_record() {
 		is_record_value_valid "$key" "$value" || return 1
 		out+="$key='$value' "
 	done
-	echo "${out}${extra}"
+	out+="$extra"
+	echo "${out% }"
+}
+
+# Rewrites SRC, a file of records of TYPE read from a backup, into DST:
+# every line goes through parse_backup_record and restore_record, and lines
+# that fail are dropped. Prints the number of dropped lines. DST is written
+# by root, so it must be a path of root's (data/users/…).
+restore_records_file() {
+	local type=$1 src=$2 dst=$3 line out dropped=0
+	if [ -L "$src" ] || [ ! -f "$src" ]; then
+		echo 0
+		return 1
+	fi
+	: > "$dst.restore"
+	while IFS= read -r line || [ -n "$line" ]; do
+		[ -n "${line//[[:space:]]/}" ] || continue
+		restore_record_reset "$type"
+		if parse_backup_record "$(restore_record_keys "$type")" "$line" && out=$(restore_record "$type") && [ -n "$out" ]; then
+			echo "$out" >> "$dst.restore"
+		else
+			dropped=$((dropped + 1))
+		fi
+	done < "$src"
+	mv -f -- "$dst.restore" "$dst"
+	echo "$dropped"
 }
 
 #----------------------------------------------------------#
@@ -233,6 +320,72 @@ is_snapshot_path_valid() {
 	[ "$path" = "$home" ] || [ "${path#"$home"/}" != "$path" ]
 }
 
+# Restores paths of SNAPSHOT of $user into DIR, a working folder:
+#   restic_restore_config DIR SNAPSHOT --include=PATH…
+# The configuration the backup staged in ~/backup is read by root, so every
+# link and special file is removed from the result: root then reads only
+# regular files and folders that came from the snapshot.
+restic_restore_config() {
+	local dir=$1 snapshot=$2
+	shift 2
+	restic_user "$user" restore --target "$dir" "$@" -- "$snapshot" > /dev/null || return "$E_NOTEXIST"
+	find "$dir" -mindepth 1 \( -type l -o \( ! -type f ! -type d \) \) -delete
+}
+
+# Restores user data (web, mail, files) of SNAPSHOT into DIR, links kept:
+# the result only reaches the home through copy_into_home.
+restic_restore_data() {
+	local dir=$1 snapshot=$2
+	shift 2
+	restic_user "$user" restore --target "$dir" "$@" -- "$snapshot" > /dev/null || return "$E_NOTEXIST"
+}
+
+# Reads ~/backup/backup.conf of SNAPSHOT into DIR and sets WEB, DNS, MAIL,
+# DB, CRON, UDIR (lists of the objects in the snapshot) and BACKUP_MODE
+# from it. Returns
+# E_NOTEXIST when the snapshot cannot be read and E_PARSING when the file
+# is not a valid record.
+read_snapshot_index() {
+	local dir=$1 snapshot=$2
+	unset -v WEB DNS MAIL DB CRON UDIR BACKUP_MODE
+	restic_user "$user" dump -- "$snapshot" "/home/$user/backup/backup.conf" > "$dir/backup.conf" 2> /dev/null || return "$E_NOTEXIST"
+	parse_backup_record 'WEB DNS MAIL DB CRON UDIR BACKUP_MODE' "$(head -n 1 -- "$dir/backup.conf")" || return "$E_PARSING"
+}
+
+# Copies SRC, a regular file in a working folder, to DST, a path of root's.
+# Links and other file types are refused.
+copy_from_work() {
+	local src=$1 dst=$2
+	if [ -L "$src" ] || [ ! -f "$src" ]; then
+		return 1
+	fi
+	cp -f --no-dereference -- "$src" "$dst"
+}
+
+# Rewrites SRC, a backup-excludes.conf read from a backup, into DST: one
+# KEY='value' line per known key with a plain value. The file is sourced by
+# the backups, so nothing else may reach it.
+restore_excludes_file() {
+	local src=$1 dst=$2 line key value re="^(WEB|DNS|MAIL|DB|CRON|USER)='([^']*)'$"
+	if [ -L "$src" ] || [ ! -f "$src" ]; then
+		return 1
+	fi
+	: > "$dst.restore"
+	while IFS= read -r line || [ -n "$line" ]; do
+		[[ "$line" =~ $re ]] || continue
+		key=${BASH_REMATCH[1]}
+		value=${BASH_REMATCH[2]}
+		is_record_value_valid "$key" "$value" || continue
+		echo "$key='$value'" >> "$dst.restore"
+	done < "$src"
+	mv -f -- "$dst.restore" "$dst"
+}
+
+# Restore log line: names an object of a backup that was skipped
+restore_skip() {
+	echo "[ ! ] Skipped $1 $2: $3"
+}
+
 #----------------------------------------------------------#
 #                     Into the home                        #
 #----------------------------------------------------------#
@@ -240,15 +393,50 @@ is_snapshot_path_valid() {
 # Copies the content of SRC (a folder root owns) into DST in the home of
 # $user. The copy runs as the user, so the user owns every file and nothing
 # outside the user's permissions can be reached. DST must resolve inside
-# the home; missing folders are created by the user.
+# the home; missing folders are created by the user. Existing files are
+# overwritten in place; existing folders keep their owner.
+#
+# When DST is a folder of root the user cannot write in (the home of a user
+# without a shell is root:root 0751), root first creates the missing
+# top-level entries, owned by the user: the user cannot replace entries of
+# a folder they cannot write, so this does not race. Links at the top of
+# such a folder are not restored. EXCLUDE, a file of tar patterns, leaves
+# entries out.
+#   copy_into_home SRC DST [EXCLUDE]
 copy_into_home() {
-	local src=$1 dst=$2
+	local src=$1 dst=$2 exclude=${3:-/dev/null} name parent
 	if [ -L "$src" ] || [ ! -d "$src" ]; then
 		check_result "$E_NOTEXIST" "$src is not a folder"
 	fi
 	fs_check_new_path "$dst"
-	user_exec mkdir -p -- "$dst" || return "$E_FORBIDEN"
-	tar -C "$src" -cf - . | user_exec tar -C "$dst" -xpf - --no-same-owner --no-overwrite-dir
+	if [ ! -e "$dst" ] && [ ! -L "$dst" ]; then
+		parent=$(dirname -- "$dst")
+		if [ -d "$parent" ] && [ ! -L "$parent" ] && [ "$(stat -c %u -- "$parent")" = 0 ] && ! user_exec test -w "$parent"; then
+			mkdir -m 700 -- "$dst" && chown -h "$user:$user" -- "$dst" || return "$E_FORBIDEN"
+		else
+			user_exec mkdir -p -- "$dst" || return "$E_FORBIDEN"
+		fi
+	fi
+	if [ ! -L "$dst" ] && [ "$(stat -c %u -- "$dst")" = 0 ] && ! user_exec test -w "$dst"; then
+		while IFS= read -r -d '' name; do
+			if [ -e "$dst/$name" ] || [ -L "$dst/$name" ] || [ -L "$src/$name" ]; then
+				continue
+			fi
+			if [ -d "$src/$name" ]; then
+				mkdir -m "$(stat -c %a -- "$src/$name")" -- "$dst/$name"
+			elif [ -f "$src/$name" ]; then
+				install -m "$(stat -c %a -- "$src/$name")" /dev/null "$dst/$name"
+			else
+				continue
+			fi
+			chown -h "$user:$user" -- "$dst/$name"
+		done < <(find "$src" -mindepth 1 -maxdepth 1 -printf '%P\0')
+	fi
+	if [ -z "$(find "$src" -mindepth 1 -maxdepth 1 -printf x -quit)" ]; then
+		return 0
+	fi
+	(cd -- "$src" && find . -mindepth 1 -maxdepth 1 -printf '%P\0' | tar --null -X "$exclude" -T - -cf -) \
+		| user_exec tar -C "$dst" -xpf - --no-same-owner --overwrite
 	return "${PIPESTATUS[1]}"
 }
 
@@ -278,4 +466,83 @@ root_dir_safe() {
 		cur="$cur/$seg"
 	done
 	return 0
+}
+
+#----------------------------------------------------------#
+#                Databases from snapshots                  #
+#----------------------------------------------------------#
+
+# Whether the database record set by parse_backup_record (DB, DBUSER, TYPE,
+# HOST, CHARSET) may be restored for $user: both names carry the user's
+# prefix, the type and host are configured on this server and the charset
+# is a plain name. DB and CHARSET end up in SQL statements.
+is_restore_database_valid() {
+	is_restore_name_valid database "$DB" && is_restore_name_valid database "$DBUSER" || return 1
+	[[ "$DB" == "${user}_"* ]] && [[ "$DBUSER" == "${user}_"* ]] || return 1
+	case "$TYPE" in
+		mysql | pgsql) ;;
+		*) return 1 ;;
+	esac
+	[[ "$CHARSET" =~ ^[A-Za-z0-9_]{0,32}$ ]] || return 1
+	[ -n "$HOST" ] && grep -qF "HOST='$HOST'" "$ARCPANEL/conf/$TYPE.conf" 2> /dev/null
+}
+
+# Whether database DB is a database of another user
+is_database_of_other_user() {
+	local file
+	for file in "$ARCPANEL"/data/users/*/db.conf; do
+		[ "$file" = "$ARCPANEL/data/users/$user/db.conf" ] && continue
+		grep -qF "DB='$1'" "$file" 2> /dev/null && return 0
+	done
+	return 1
+}
+
+# Imports DUMP into $DB ($TYPE on $HOST) through a temporary account that
+# holds privileges on $DB only and is removed afterwards. A dump read from a
+# snapshot is untrusted: with the server's administrator account it could
+# reach every database (E39 W1). Needs a working folder (safe_workdir).
+restore_import_database() {
+	local dump=$1 account secret
+	account="arcrestore$(tr -dc 'a-z0-9' < /dev/urandom | head -c 12)"
+	secret=$(tr -dc 'A-Za-z0-9' < /dev/urandom | head -c 32)
+	case "$TYPE" in
+		mysql) restore_import_mysql "$dump" "$account" "$secret" ;;
+		pgsql) restore_import_pgsql "$dump" "$account" "$secret" ;;
+		*) return 1 ;;
+	esac
+}
+
+restore_import_mysql() {
+	local dump=$1 account=$2 secret=$3 cnf client=mysql rc
+	[ -f /usr/bin/mariadb ] && client=mariadb
+	mysql_connect "$HOST"
+	mysql_query "CREATE USER '$account'@'localhost' IDENTIFIED BY '$secret';
+CREATE USER '$account'@'%' IDENTIFIED BY '$secret';
+GRANT ALL PRIVILEGES ON \`$DB\`.* TO '$account'@'localhost';
+GRANT ALL PRIVILEGES ON \`$DB\`.* TO '$account'@'%';" || return "$E_DB"
+	cnf="$SAFE_WORKDIR/restore-$account.cnf"
+	(
+		umask 077
+		printf '[client]\nhost=%s\nport=%s\nuser=%s\npassword=%s\n' "$HOST" "${PORT:-3306}" "$account" "$secret" > "$cnf"
+	)
+	# Definers name other accounts, which the temporary one may not use
+	sed -E 's/DEFINER=`[^`]*`@`[^`]*`//g' -- "$dump" | "$client" --defaults-file="$cnf" "$DB" > /dev/null 2>&1
+	rc=${PIPESTATUS[1]}
+	mysql_query "DROP USER IF EXISTS '$account'@'localhost';
+DROP USER IF EXISTS '$account'@'%';" > /dev/null
+	rm -f -- "$cnf"
+	return "$rc"
+}
+
+restore_import_pgsql() {
+	local dump=$1 account=$2 secret=$3 rc
+	psql_connect "$HOST"
+	psql -h "$HOST" -U "$USER" -p "$PORT" -q -c "CREATE ROLE $account LOGIN PASSWORD '$secret'" > /dev/null 2>&1 || return "$E_DB"
+	psql -h "$HOST" -U "$USER" -p "$PORT" -q -c "GRANT \"$DBUSER\" TO $account" > /dev/null 2>&1
+	# Objects are created as the database's own role
+	PGPASSWORD="$secret" PGOPTIONS="-c role=$DBUSER" psql -h "$HOST" -U "$account" -p "$PORT" -d "$DB" -q -f "$dump" > /dev/null 2>&1
+	rc=$?
+	psql -h "$HOST" -U "$USER" -p "$PORT" -d "$DB" -q -c "REASSIGN OWNED BY $account TO \"$DBUSER\"; DROP OWNED BY $account" > /dev/null 2>&1
+	psql -h "$HOST" -U "$USER" -p "$PORT" -q -c "DROP ROLE IF EXISTS $account" > /dev/null 2>&1
+	return "$rc"
 }

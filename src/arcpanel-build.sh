@@ -215,7 +215,8 @@ detect_pkg_from_elf() {
 
 # Set compiling directory
 REPO='arc-panel-oss/arcpanel'
-BUILD_DIR="${BUILD_DIR:-/tmp/arcpanel-src}"
+# BUILD_DIR may be given; otherwise a new folder of root (see below)
+BUILD_DIR="${BUILD_DIR:-}"
 INSTALL_DIR='/usr/local/arcpanel'
 SRC_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 ARCHIVE_DIR="$SRC_DIR/src/archive/"
@@ -225,8 +226,6 @@ if [ $architecture == 'aarch64' ]; then
 else
 	BUILD_ARCH='amd64'
 fi
-
-DEB_DIR="${DEB_DIR:-$BUILD_DIR/deb}"
 
 # Set packages to compile
 for i in $*; do
@@ -365,11 +364,30 @@ OPENSSL_V='3.5.9'
 PCRE_V='10.49'
 ZLIB_V='1.3.2'
 
-# Create build directories
-if [ "$KEEPBUILD" != 'true' ]; then
-	rm -rf $BUILD_DIR
+# Create build directories. The build runs as root and its packages are
+# installed, so the folder belongs to root alone: a new one by default, a
+# fixed one only for --keepbuild, and a given one only when it is root's,
+# 0700 and not a link (E39 W1 D13).
+build_dir_check() {
+	if [ -L "$1" ] || [ ! -d "$1" ] || [ "$(stat -c '%u %a' "$1")" != '0 700' ]; then
+		echo "Error: build folder $1 must belong to root with mode 0700 and not be a link" >&2
+		exit 1
+	fi
+}
+if [ -n "$BUILD_DIR" ]; then
+	if [ "$KEEPBUILD" != 'true' ] && [ -e "$BUILD_DIR" ]; then
+		build_dir_check "$BUILD_DIR"
+		rm -rf -- "${BUILD_DIR:?}"
+	fi
+	[ -e "$BUILD_DIR" ] || [ -L "$BUILD_DIR" ] || mkdir -m 700 -p -- "$BUILD_DIR"
+elif [ "$KEEPBUILD" = 'true' ]; then
+	BUILD_DIR='/var/cache/arcpanel-build'
+	[ -e "$BUILD_DIR" ] || [ -L "$BUILD_DIR" ] || mkdir -m 700 -p -- "$BUILD_DIR"
+else
+	BUILD_DIR=$(mktemp -d /tmp/arcpanel-build.XXXXXXXX)
 fi
-mkdir -p $BUILD_DIR
+build_dir_check "$BUILD_DIR"
+DEB_DIR="${DEB_DIR:-$BUILD_DIR/deb}"
 mkdir -p $DEB_DIR
 mkdir -p $ARCHIVE_DIR
 
