@@ -31,6 +31,18 @@ export async function login(page, user, theme = 'nocturne') {
 	await expect(page).toHaveURL(/^https?:\/\/[^/]+\/$/);
 }
 
+/**
+ * Sudo mode (E39 W2 spec §7): confirm the password when the panel asks for
+ * it before a sensitive change, and land back on the form.
+ */
+export async function confirmPassword(page) {
+	await expect(page).toHaveURL(/\/sudo$/);
+	await expectAccessible(page);
+	await page.getByLabel('Password').fill(process.env.E2E_PASSWORD);
+	await page.getByRole('button', { name: 'Confirm' }).click();
+	await expect(page).not.toHaveURL(/\/sudo$/);
+}
+
 /** No axe violations (WCAG 2.1 A and AA) on the current page. */
 export async function expectAccessible(page) {
 	const results = await new AxeBuilder({ page })

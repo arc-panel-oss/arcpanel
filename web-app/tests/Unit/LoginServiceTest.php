@@ -173,7 +173,9 @@ it('builds the legacy session keys on completion', function () {
         'token' => str_repeat('ab', 16),
         'language' => 'vi',
         'userTheme' => 'dark',
-    ])->and($patch)->not->toHaveKeys(['userSortOrder', 'login', 'failed_twofa']);
+    ])->and($patch)->not->toHaveKeys(['userSortOrder', 'login', 'failed_twofa'])
+        // A later password change ends sessions older than this (M8)
+        ->and($patch['LOGIN_TIME'])->toBeGreaterThanOrEqual((time() - 5) * 1000);
     $this->fake->assertRan('v-log-user-login', fn ($args) => $args === [
         'bob', '203.0.113.7', 'success', str_repeat('ab', 16), 'Mozilla/5.0 test',
     ]);

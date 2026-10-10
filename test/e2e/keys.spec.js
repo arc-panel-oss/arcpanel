@@ -1,7 +1,7 @@
 // Happy paths of the Access keys and SSH keys pages (E7 batch 2 spec §8).
 // prepare.sh sets API_SYSTEM=2 for the run, so every account may have keys.
 import { expect, test } from '@playwright/test';
-import { expectAccessible, expectToast, login, USER } from './helpers.js';
+import { confirmPassword, expectAccessible, expectToast, login, USER } from './helpers.js';
 import { runOnServer } from './server.js';
 
 test.describe.configure({ mode: 'serial' });
@@ -19,6 +19,11 @@ test('user: create an access key, see the secret once, delete it', async ({ page
 
 	await page.getByRole('link', { name: 'Add Access Key' }).first().click();
 	await expectAccessible(page);
+	await page.getByRole('checkbox', { name: 'purge-nginx-cache' }).check();
+	await page.getByRole('textbox', { name: 'Comment' }).fill('e2e key');
+	await page.getByRole('button', { name: 'Save' }).click();
+	// A new key outlives a password change: the panel asks for the password first
+	await confirmPassword(page);
 	await page.getByRole('checkbox', { name: 'purge-nginx-cache' }).check();
 	await page.getByRole('textbox', { name: 'Comment' }).fill('e2e key');
 	await page.getByRole('button', { name: 'Save' }).click();
@@ -54,6 +59,11 @@ test('user: add and delete an SSH key', async ({ page }) => {
 	await expect(page).toHaveURL(new RegExp(`/ssh-keys/${USER}$`));
 	await expectAccessible(page);
 
+	await page.getByRole('button', { name: 'Add SSH Key' }).first().click();
+	await page.getByRole('dialog').getByRole('textbox', { name: 'SSH Key' }).fill(key);
+	await page.getByRole('dialog').getByRole('button', { name: 'Save' }).click();
+	// A new key outlives a password change: the panel asks for the password first
+	await confirmPassword(page);
 	await page.getByRole('button', { name: 'Add SSH Key' }).first().click();
 	await page.getByRole('dialog').getByRole('textbox', { name: 'SSH Key' }).fill(key);
 	await page.getByRole('dialog').getByRole('button', { name: 'Save' }).click();

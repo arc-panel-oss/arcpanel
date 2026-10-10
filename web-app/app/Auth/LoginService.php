@@ -41,23 +41,9 @@ final class LoginService
             return $this->fail(self::INVALID_CREDENTIALS);
         }
 
-        $salt = $this->arc->run('v-get-user-salt', [$username, $context->ip, 'json'], Options::allowFailure());
-        if (! $salt->ok()) {
-            // Suspension is told only after the password matched (L6)
-            return $this->fail($salt->exitCode === 1 ? self::UNSUPPORTED_HASH : self::INVALID_CREDENTIALS);
-        }
-        $pam = json_decode($salt->stdout, true)[$username] ?? [];
-        $hash = $this->hash($username, $password, (string) ($pam['SALT'] ?? ''), (string) ($pam['METHOD'] ?? ''), $context);
-
-        $check = $this->arc->run(
-            'v-check-user-hash',
-            [$username, Secret::file($hash), $context->ip],
-            Options::allowFailure(),
-        );
-        if (! $check->ok()) {
-            $this->logFailure($username, $context);
-
-            return $this->fail($check->exitCode === 5 ? self::SUSPENDED : self::INVALID_CREDENTIALS);
+        $error = $this->passwordError($username, $password, $context);
+        if ($error !== null) {
+            return $this->fail($error);
         }
 
         $user = $this->userRecord($username);
@@ -127,6 +113,8 @@ final class LoginService
             'look' => '',
             'userContext' => $user['ROLE'] ?? Role::User->value,
             'LAST_ACTIVITY' => time(),
+            // Compared with SESSIONS_VALID_AFTER, which a password change sets (M8)
+            'LOGIN_TIME' => self::loginTime(),
             'user_combined_ip' => $context->ip,
             'token' => $context->fingerprint,
             'language' => $language,
@@ -164,6 +152,52 @@ final class LoginService
             array_push($args, 'yes', $reason);
         }
         $this->arc->run('v-log-user-login', $args, Options::allowFailure());
+    }
+
+    /**
+     * The LOGIN_TIME of a session: Unix time in milliseconds, the unit of
+     * SESSIONS_VALID_AFTER (E39 W2 spec D10).
+     */
+    public static function loginTime(): int
+    {
+        return (int) floor(microtime(true) * 1000);
+    }
+
+    /**
+     * Check the password of a logged-in user for sudo mode (E39 W2 spec §7):
+     * the password steps of attempt() without the account checks. A wrong
+     * password is logged like a failed login.
+     */
+    public function verifyPassword(string $username, string $password, LoginContext $context): bool
+    {
+        return preg_match(self::USERNAME_PATTERN, $username) === 1
+            && $password !== ''
+            && $this->passwordError($username, $password, $context) === null;
+    }
+
+    /** Null when the password is right, else the message to show. */
+    private function passwordError(string $username, string $password, LoginContext $context): ?string
+    {
+        $salt = $this->arc->run('v-get-user-salt', [$username, $context->ip, 'json'], Options::allowFailure());
+        if (! $salt->ok()) {
+            // Suspension is told only after the password matched (L6)
+            return $salt->exitCode === 1 ? self::UNSUPPORTED_HASH : self::INVALID_CREDENTIALS;
+        }
+        $pam = json_decode($salt->stdout, true)[$username] ?? [];
+        $hash = $this->hash($username, $password, (string) ($pam['SALT'] ?? ''), (string) ($pam['METHOD'] ?? ''), $context);
+
+        $check = $this->arc->run(
+            'v-check-user-hash',
+            [$username, Secret::file($hash), $context->ip],
+            Options::allowFailure(),
+        );
+        if (! $check->ok()) {
+            $this->logFailure($username, $context);
+
+            return $check->exitCode === 5 ? self::SUSPENDED : self::INVALID_CREDENTIALS;
+        }
+
+        return null;
     }
 
     /**

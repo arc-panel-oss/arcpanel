@@ -4,6 +4,7 @@ use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\LogoutController;
 use App\Http\Controllers\Auth\MailPasswordController;
 use App\Http\Controllers\Auth\ResetController;
+use App\Http\Controllers\Auth\SudoController;
 use App\Http\Controllers\Auth\TwoFactorController;
 use App\Http\Controllers\Backups\BackupController;
 use App\Http\Controllers\Backups\ExclusionController;
@@ -122,6 +123,10 @@ Route::middleware('guest.arc')->group(function () {
 Route::post('/reset/mail', MailPasswordController::class)->name('reset.mail');
 
 Route::middleware('auth.arc')->group(function () {
+    // Sudo mode: the password before a sensitive change of one's own account (E39 W2 spec §7)
+    Route::get('/sudo', [SudoController::class, 'show'])->name('sudo.show');
+    Route::post('/sudo', [SudoController::class, 'store'])->name('sudo.store');
+
     Route::get('/', DashboardController::class)->name('dashboard');
     Route::post('/logout', LogoutController::class)->name('logout');
     Route::post('/impersonate/stop', [ImpersonationController::class, 'stop'])->name('impersonate.stop');

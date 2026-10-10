@@ -823,13 +823,18 @@ update_user_value() {
 	fi
 }
 
-# Set user value, adding the key when user.conf does not have it yet
+# Set user value in place, adding the key when user.conf does not have it yet.
+# Unlike update_user_value it keeps a key on the last line. For values
+# without quotes or line breaks (time stamps, counters).
 set_user_value() {
-	key="${2//$/}"
-	if grep -q "^$key='" "$ARCPANEL/data/users/$1/user.conf"; then
-		update_user_value "$1" "$key" "$3"
+	local key="${2//$/}" conf="$ARCPANEL/data/users/$1/user.conf" value="$3"
+	if grep -q "^$key='" "$conf"; then
+		value="${value//\\/\\\\}"
+		value="${value//|/\\|}"
+		value="${value//&/\\&}"
+		sed -i "s|^$key='[^']*'|$key='$value'|" "$conf"
 	else
-		echo "$key='${3}'" >> "$ARCPANEL/data/users/$1/user.conf"
+		echo "$key='$3'" >> "$conf"
 	fi
 }
 

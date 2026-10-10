@@ -85,6 +85,14 @@ user_value() {
     assert_failure 9
     run tail -n 1 "$AUTHLOG"
     assert_output --partial "$AUTHUSER 203.0.113.12 failed to login"
+
+    # The next step's code is accepted and replaces the stored step
+    local step
+    step=$(user_value "$AUTHUSER" TWOFA_STEP)
+    run v-check-user-2fa "$AUTHUSER" "$(totp "$secret" $((step + 1)))" 203.0.113.11
+    assert_success
+    run user_value "$AUTHUSER" TWOFA_STEP
+    assert_output "$((step + 1))"
 }
 
 @test "v-check-user-2fa refuses the code of an older time step" {
@@ -134,6 +142,28 @@ user_value() {
     assert_success
     run v-check-user-password "$AUTHUSER" "$PASS" 203.0.113.21
     assert_success
+}
+
+@test "v-change-user-password stamps the time from which sessions are valid" {
+    local before
+    before=$(date +%s%3N)
+    run v-change-user-password "$AUTHUSER" "$PASS"
+    assert_success
+    run user_value "$AUTHUSER" SESSIONS_VALID_AFTER
+    assert_output --regexp '^[0-9]+$'
+    [ "$output" -ge "$before" ]
+    run jq -r ".\"$AUTHUSER\".SESSIONS_VALID_AFTER" <<< "$(v-list-user "$AUTHUSER" json)"
+    assert_output --regexp '^[0-9]+$'
+
+    # A second change replaces the stamp, also when it is the last line
+    local first=$output
+    sleep 0.01
+    v-change-user-password "$AUTHUSER" "$PASS" > /dev/null
+    run user_value "$AUTHUSER" SESSIONS_VALID_AFTER
+    assert_output --regexp '^[0-9]+$'
+    [ "$output" -gt "$first" ]
+    run grep -c '^SESSIONS_VALID_AFTER=' "$ARCPANEL/data/users/$AUTHUSER/user.conf"
+    assert_output '1'
 }
 
 @test "v-list-sys-config prints PANEL_HOSTNAMES" {

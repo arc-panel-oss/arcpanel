@@ -53,7 +53,7 @@ final class LoginController extends Controller
         }
 
         if (! $result->succeeded()) {
-            $this->throttle->failed($username);
+            $this->throttle->failed($username, $context->ip);
 
             return redirect()->route('login')
                 ->withInput($request->only('user'))

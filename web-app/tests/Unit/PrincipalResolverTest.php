@@ -93,6 +93,33 @@ it('ends the session of a deleted user with a message', function () {
     $session->assertDestroyed();
 });
 
+it('ends a session that logged in before the last password change (M8)', function () {
+    fakeUsers($this->fake, ['bob' => userRecord(['SHELL' => 'bash', 'SESSIONS_VALID_AFTER' => (string) (NOW - 100)])]);
+    $session = ArrayLegacySession::install(loggedInSession(['LOGIN_TIME' => NOW - 3600]));
+    $resolver = resolver();
+
+    expect($resolver->resolve('203.0.113.7', NOW))->toBeNull();
+    expect($resolver->logoutMessage)->toBe(PrincipalResolver::LOGGED_OUT);
+    $session->assertDestroyed();
+});
+
+it('ends a session from before the upgrade once the password changed', function () {
+    fakeUsers($this->fake, ['bob' => userRecord(['SHELL' => 'bash', 'SESSIONS_VALID_AFTER' => (string) (NOW - 100)])]);
+    ArrayLegacySession::install(loggedInSession());
+
+    expect(resolver()->resolve('203.0.113.7', NOW))->toBeNull();
+});
+
+it('keeps a session that logged in after the last password change, and any session without one', function () {
+    fakeUsers($this->fake, ['bob' => userRecord(['SHELL' => 'bash', 'SESSIONS_VALID_AFTER' => (string) (NOW - 100)])]);
+    ArrayLegacySession::install(loggedInSession(['LOGIN_TIME' => NOW - 100]));
+    expect(resolver()->resolve('203.0.113.7', NOW))->not->toBeNull();
+
+    fakeUsers($this->fake, ['bob' => userRecord(['SHELL' => 'bash'])]);
+    ArrayLegacySession::install(loggedInSession());
+    expect(resolver()->resolve('203.0.113.7', NOW))->not->toBeNull();
+});
+
 it('ends the session of an admin who is no longer admin', function () {
     $session = ArrayLegacySession::install(loggedInSession(['userContext' => 'admin']));
 

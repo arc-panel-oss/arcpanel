@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Keys;
 
 use App\Auth\Principal;
 use App\Auth\Role;
+use App\Auth\SudoMode;
 use App\Http\Controllers\Controller;
 use App\Policies\AccessKeyPolicy;
 use App\Services\Keys\AccessKey;
@@ -57,9 +58,13 @@ final class AccessKeyController extends Controller
      * The new key with its secret, answered directly (no redirect): the
      * secret is never stored in the session or a flash (spec §8.2).
      */
-    public function store(Request $request, string $user, Principal $principal, AccessKeyPolicy $policy): Response|RedirectResponse
+    public function store(Request $request, string $user, Principal $principal, AccessKeyPolicy $policy, SudoMode $sudo): Response|RedirectResponse
     {
         $this->authorizeManage($user, $principal, $policy);
+        // A key outlives a password change, so it needs the password (E39 W2 D12)
+        if ($sudo->required($principal, $user)) {
+            return $sudo->challenge($request);
+        }
         $allowed = $policy->allowedSets($user, $this->keys->permissionSets());
         $data = $request->validate([
             'sets' => ['required', 'array', 'min:1'],

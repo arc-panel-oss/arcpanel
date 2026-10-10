@@ -1,6 +1,7 @@
 <?php
 
 use App\Arc\ExitCode;
+use App\Auth\SudoMode;
 use App\Services\Mail\AccountMailer;
 
 // Users and customers (E11 spec §7): hostco owns bob, resb owns carol and dave.
@@ -234,7 +235,7 @@ it('moves a customer back to the administrator before it becomes a reseller', fu
 });
 
 it('lets every user edit their own account', function () {
-    signIn('bob', 'user');
+    signIn('bob', 'user', ['SUDO_UNTIL' => time() + SudoMode::SECONDS]);
     $this->fake->on('v-change-user-name')->returns();
     $this->fake->on('v-change-user-config-value')->returns();
 

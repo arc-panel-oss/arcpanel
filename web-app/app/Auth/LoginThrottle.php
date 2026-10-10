@@ -16,10 +16,10 @@ use Illuminate\Contracts\Cache\Repository;
  */
 final class LoginThrottle
 {
-    /** Attempts per user name and address in a minute. */
+    /** Failed attempts per user name and address in a minute. */
     public const PAIR_ATTEMPTS = 5;
 
-    /** Attempts per address in a minute, whatever the user name. */
+    /** Failed attempts per address in a minute, whatever the user name. */
     public const IP_ATTEMPTS = 20;
 
     /** Failed attempts per user name in an hour. */
@@ -43,9 +43,10 @@ final class LoginThrottle
     ) {}
 
     /**
-     * Check the limits of a password attempt and count it on the address
-     * keys. Returns the seconds to wait when a limit is reached, null when
-     * the attempt may go ahead.
+     * Check the limits before a password attempt. Returns the seconds to
+     * wait when a limit is reached, null when the attempt may go ahead.
+     * Only failures are counted (failed()): a right password is never
+     * slowed down, and guessing and floods of bad user names are failures.
      *
      * @param  Closure(): bool  $allowListed  whether the client address is in
      *                                        the user's login allow list (D2); called only when the user limit is full
@@ -65,18 +66,22 @@ final class LoginThrottle
             if ($this->limiter->tooManyAttempts($userKey, self::USER_FAILURES) && ! $allowListed()) {
                 return max(1, $this->limiter->availableIn($userKey));
             }
-            $this->limiter->hit($pair, self::MINUTE);
-            $this->limiter->hit($address, self::MINUTE);
 
             return null;
         });
     }
 
-    /** Count a failed password attempt on the user name. */
-    public function failed(string $user): void
+    /** Count a failed password attempt on the user name and address, the address and the user name. */
+    public function failed(string $user, string $ip): void
     {
-        $key = self::userKey($user);
-        $this->locked('user:'.strtolower($user), fn () => $this->limiter->hit($key, self::HOUR));
+        $pair = self::pairKey($user, $ip);
+        $address = 'login:ip:'.$ip;
+        $userKey = self::userKey($user);
+        $this->locked('ip:'.$ip, function () use ($pair, $address, $userKey): void {
+            $this->limiter->hit($pair, self::MINUTE);
+            $this->limiter->hit($address, self::MINUTE);
+            $this->limiter->hit($userKey, self::HOUR);
+        });
     }
 
     /**

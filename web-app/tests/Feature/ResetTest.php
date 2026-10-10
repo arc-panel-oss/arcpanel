@@ -183,7 +183,7 @@ it('clears the login limits of the user after a successful reset', function () {
     $this->fake->on('v-change-user-password')->returns();
     $throttle = app(LoginThrottle::class);
     foreach (range(1, LoginThrottle::USER_FAILURES) as $attempt) {
-        $throttle->failed('bob');
+        $throttle->failed('bob', '198.51.100.'.$attempt);
     }
 
     $this->post('/reset/confirm', ['user' => 'bob', 'code' => 'Code12345678', 'password' => 'N3w-Passw0rd', 'password_confirm' => 'N3w-Passw0rd'])
