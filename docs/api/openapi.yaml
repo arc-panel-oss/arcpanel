@@ -3872,6 +3872,52 @@ paths:
           $ref: "#/components/responses/InvalidRequest"
         "422":
           $ref: "#/components/responses/Unprocessable"
+  "/api/#v-add-sys-web-terminal-key":
+    post:
+      operationId: v-add-sys-web-terminal-key
+      tags:
+        - System
+      summary: Add the key of the web terminal tickets
+      description: |-
+        This function writes the key with which the panel signs web terminal
+        tickets and the web terminal server checks them, readable by root and the
+        panel user only. It keeps an existing key unless ROTATE is "yes", and can
+        run on every upgrade.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `ROTATE` | no |
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-add-sys-web-terminal-key"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-add-sys-web-terminal-key"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
   "/api/#v-add-user":
     post:
       operationId: v-add-user
@@ -36721,6 +36767,26 @@ components:
               enum:
                 - v-add-sys-web-terminal
               default: v-add-sys-web-terminal
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
+    v-add-sys-web-terminal-key:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-add-sys-web-terminal-key
+              default: v-add-sys-web-terminal-key
+            arg1:
+              type: string
+              title: ROTATE
+              description: "`ROTATE`, optional"
+              examples:
+                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-add-user:

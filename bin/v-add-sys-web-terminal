@@ -59,6 +59,9 @@ else
 	fi
 fi
 
+# The server refuses to start without the ticket key (E39 W2)
+$BIN/v-add-sys-web-terminal-key
+
 if [ ! -f "$ARCPANEL/web-terminal/server.js" ]; then
 	apt-get -qq update
 	apt-get -qq install arcpanel-web-terminal -y

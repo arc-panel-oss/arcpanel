@@ -55,7 +55,8 @@ check_arcpanel_demo_mode
 #----------------------------------------------------------#
 
 # Get original port
-ORIGINAL_PORT=$(cat ${NGINX_CONFIG} | grep -m1 "proxy_pass http://localhost:" | sed 's/[^0-9]*//g')
+# The proxy target is 127.0.0.1 since E39 W2 (localhost in older configurations)
+ORIGINAL_PORT=$(grep -m1 -E "proxy_pass http://(127\.0\.0\.1|localhost):" ${NGINX_CONFIG} | sed 's/.*://; s/[^0-9]*//g')
 
 # Check if port is different to nginx.conf
 if [ "$ORIGINAL_PORT" = "$PORT" ]; then
@@ -65,7 +66,7 @@ else
 	# Set new port in config via v-change-sys-config-value
 	$BIN/v-change-sys-config-value "WEB_TERMINAL_PORT" "$PORT"
 	# Replace port in config files.
-	sed -i "s/\(proxy_pass http:\/\/localhost:\)[0-9][0-9]*\([^0-9]*\;$\)/\1$PORT\2/" ${NGINX_CONFIG}
+	sed -i -E "s/(proxy_pass http:\/\/)(127\.0\.0\.1|localhost):[0-9]+([^0-9]*;$)/\1127.0.0.1:$PORT\3/" ${NGINX_CONFIG}
 
 	# Check if the web terminal backend is running
 	if [[ $(ps -eaf | grep -i arcpanel/web-terminal | sed '/^$/d' | wc -l) -gt 1 ]]; then

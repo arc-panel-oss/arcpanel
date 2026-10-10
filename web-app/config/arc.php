@@ -24,8 +24,13 @@ return [
     // Real installation directory, passed to commands as $ARCPANEL.
     'install_dir' => env('ARC_INSTALL_DIR', '/usr/local/arcpanel'),
 
-    // Legacy PHP session files shared with web/ and the web terminal.
+    // Legacy PHP session files of the panel.
     'sessions_path' => env('ARC_SESSIONS_PATH', '/usr/local/arcpanel/data/sessions'),
+
+    // Key that signs web terminal tickets (E39 W2 spec D13), written by
+    // v-add-sys-web-terminal-key: root:arcpanelweb 0640, outside data/keys,
+    // whose files API v1 takes for API keys.
+    'terminal_key' => env('ARC_TERMINAL_KEY', '/usr/local/arcpanel/data/web-terminal/ticket.key'),
 
     // v-* commands only read secret files below /tmp/ (func/main.sh,
     // is_password_valid and is_hash_valid).

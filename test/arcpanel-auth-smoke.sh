@@ -1,7 +1,7 @@
 #!/bin/bash
 # HTTP smoke test of E39 W2 (docs/features/specs/2026-10-10-002-e39-w2-authentication-and-sessions-design.md)
 # against a running ArcPanel server: login limits, trusted hosts, sudo mode,
-# sessions ended by a password change.
+# sessions ended by a password change, web terminal tickets.
 #
 # Run as root on a test server, never on production. It counts failed logins
 # of a throw-away user from 127.0.0.1 and clears that user's limits at the end.
@@ -97,6 +97,58 @@ check "the other session is ended" "302 $PANEL/login" "$(request "$JAR2" GET /ac
 "$ARCPANEL/bin/v-change-user-password" "$AUTH_USER" "$AUTH_PASS" > /dev/null
 sleep 1
 check "a password change on the command line ends the session" "302 $PANEL/login" "$(request "$JAR" GET /account)"
+
+# ---------- Web terminal tickets (M4) ----------
+if systemctl is-active --quiet arcpanel-web-terminal && [ -d "$ARCPANEL/web-terminal/node_modules/ws" ]; then
+	WS_CLIENT="$(mktemp --suffix=.cjs)"
+	cat > "$WS_CLIENT" << 'CLIENT'
+// node client.cjs URL ORIGIN [TICKET]: "open USER" once the shell answers, else "refused CODE"
+const WebSocket = require(`${process.env.ARCPANEL}/web-terminal/node_modules/ws`);
+const [url, origin, ticket] = process.argv.slice(2);
+const ws = new WebSocket(url, ticket ? [`arcpanel.ticket.${ticket}`] : [], { origin, rejectUnauthorized: false });
+let out = '';
+ws.on('open', () => setTimeout(() => ws.send('echo "W2:$(whoami):OK"\r'), 300));
+ws.on('message', (data) => {
+	out += data.toString();
+	const match = out.match(/W2:([a-z0-9]+):OK\r?\n/);
+	if (match) {
+		console.log(`open ${match[1]}`);
+		process.exit(0);
+	}
+});
+ws.on('unexpected-response', (req, res) => {
+	console.log(`refused ${res.statusCode}`);
+	process.exit(0);
+});
+ws.on('error', (error) => {
+	console.log(`error ${error.message}`);
+	process.exit(0);
+});
+setTimeout(() => {
+	console.log('timeout');
+	process.exit(0);
+}, 8000);
+CLIENT
+	"$ARCPANEL/bin/v-change-user-shell" "$AUTH_USER" bash > /dev/null
+	JAR3="$(mktemp)"
+	login "$JAR3" "$AUTH_PASS" > /dev/null
+	request "$JAR3" GET /terminal > /dev/null
+	csrf="$(grep -o 'name="csrf-token" content="[^"]*"' "$PAGE" | sed 's/.*content="\([^"]*\)"/\1/')"
+	ticket() {
+		curl -sk -b "$JAR3" -c "$JAR3" -X POST -H "X-CSRF-TOKEN: $csrf" -H 'Accept: application/json' "$PANEL/terminal/ticket" | jq -r .ticket
+	}
+	origin="https://$(hostname):$port"
+	shell_url="wss://${PANEL#https://}/_shell/"
+	first="$(ticket)"
+	check "a fresh ticket opens a shell as the user" "open $AUTH_USER" "$(ARCPANEL=$ARCPANEL node "$WS_CLIENT" "$shell_url" "$origin" "$first")"
+	check "a used ticket is refused" "refused 401" "$(ARCPANEL=$ARCPANEL node "$WS_CLIENT" "$shell_url" "$origin" "$first")"
+	check "no ticket is refused" "refused 401" "$(ARCPANEL=$ARCPANEL node "$WS_CLIENT" "$shell_url" "$origin")"
+	check "a foreign origin is refused" "refused 403" "$(ARCPANEL=$ARCPANEL node "$WS_CLIENT" "$shell_url" "https://evil.example" "$(ticket)")"
+	if ss -ltn | grep -qE '127\.0\.0\.1:8085 '; then ok "the terminal server listens on the loopback address only"; else fail "the terminal server listens on the loopback address only"; fi
+	rm -f "$WS_CLIENT" "$JAR3"
+else
+	echo "skip - web terminal checks (service not running)"
+fi
 
 if [ "$failures" -gt 0 ]; then
 	echo "$failures check(s) failed"

@@ -340,6 +340,7 @@ Route::middleware('auth.arc')->group(function () {
 
     // Web terminal (E7 batch 2 spec §10.4)
     Route::get('/terminal', TerminalController::class)->middleware('sys-config:WEB_TERMINAL=true')->name('terminal.index');
+    Route::post('/terminal/ticket', [TerminalController::class, 'ticket'])->name('terminal.ticket');
 
     // Port registry (E12 spec §7)
     Route::get('/server/ports', [ServerPortController::class, 'index'])->name('server.ports');

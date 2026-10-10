@@ -6,6 +6,11 @@ if [ "$1" != "configure" ]; then
 	exit 0
 fi
 
+# The ticket key the server needs to start (E39 W2), on install and upgrade
+if [ -x /usr/local/arcpanel/bin/v-add-sys-web-terminal-key ]; then
+	/usr/local/arcpanel/bin/v-add-sys-web-terminal-key > /dev/null 2>&1 || true
+fi
+
 # Run triggers below only on updates
 if [ ! -e "/usr/local/arcpanel/data/users/admin" ]; then
 	exit

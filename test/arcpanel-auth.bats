@@ -166,6 +166,32 @@ user_value() {
     assert_output '1'
 }
 
+@test "v-add-sys-web-terminal-key writes a key only root and the panel can read, and keeps it" {
+    local key="$ARCPANEL/data/web-terminal/ticket.key" first
+    run v-add-sys-web-terminal-key
+    assert_success
+    run stat -c '%a %U:%G' "$ARCPANEL/data/web-terminal" "$key"
+    assert_output $'750 root:arcpanelweb
+640 root:arcpanelweb'
+    run grep -cE '^[0-9a-f]{64}$' "$key"
+    assert_output '1'
+    first=$(cat "$key")
+
+    v-add-sys-web-terminal-key
+    [ "$(cat "$key")" = "$first" ]
+    v-add-sys-web-terminal-key yes
+    [ "$(cat "$key")" != "$first" ]
+    run v-add-sys-web-terminal-key maybe
+    assert_failure
+}
+
+@test "the ticket key stays out of the API key folder" {
+    run test -e "$ARCPANEL/data/keys/ticket.key"
+    assert_failure
+    run v-check-api-key ticket.key 127.0.0.1
+    assert_failure
+}
+
 @test "v-list-sys-config prints PANEL_HOSTNAMES" {
     run jq -e '.config | has("PANEL_HOSTNAMES")' <<< "$(v-list-sys-config json)"
     assert_success

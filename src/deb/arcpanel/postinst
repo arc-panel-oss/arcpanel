@@ -117,6 +117,9 @@ upgrade_rebuild_users | tee -a $LOG
 # data moves out of the homes; safe to run on every upgrade
 $BIN/v-update-sys-user-homes | tee -a $LOG
 
+# Web terminal tickets need their key (E39 W2); safe to run on every upgrade
+$BIN/v-add-sys-web-terminal-key | tee -a $LOG
+
 # phpMyAdmin single sign-on takes its token from a POST since E39 W2:
 # reinstall an older copy of the sign-on page
 if [ -e /usr/share/phpmyadmin/arcpanel-sso.php ] && ! grep -q 'signOn' /usr/share/phpmyadmin/arcpanel-sso.php; then

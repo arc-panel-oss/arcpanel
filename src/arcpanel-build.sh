@@ -799,9 +799,8 @@ if [ "$WEB_TERMINAL_B" = true ]; then
 	get_branch_file 'src/deb/web-terminal/package.json' "${BUILD_DIR_ARCPANEL_TERMINAL}/usr/local/arcpanel/web-terminal/package.json"
 	get_branch_file 'src/deb/web-terminal/package-lock.json' "${BUILD_DIR_ARCPANEL_TERMINAL}/usr/local/arcpanel/web-terminal/package-lock.json"
 	get_branch_file 'src/deb/web-terminal/server.js' "${BUILD_DIR_ARCPANEL_TERMINAL}/usr/local/arcpanel/web-terminal/server.js"
-	get_branch_file 'src/deb/web-terminal/web-terminal-session-auth.php' "${BUILD_DIR_ARCPANEL_TERMINAL}/usr/local/arcpanel/web-terminal/web-terminal-session-auth.php"
+	get_branch_file 'src/deb/web-terminal/ticket.js' "${BUILD_DIR_ARCPANEL_TERMINAL}/usr/local/arcpanel/web-terminal/ticket.js"
 	chmod +x "${BUILD_DIR_ARCPANEL_TERMINAL}/usr/local/arcpanel/web-terminal/server.js"
-	chmod +x "${BUILD_DIR_ARCPANEL_TERMINAL}/usr/local/arcpanel/web-terminal/web-terminal-session-auth.php"
 
 	cd $BUILD_DIR_ARCPANEL_TERMINAL/usr/local/arcpanel/web-terminal
 	npm ci --omit=dev

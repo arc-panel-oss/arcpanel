@@ -1,0 +1,77 @@
+#!/bin/bash
+# info: add the key of the web terminal tickets
+# options: [ROTATE]
+#
+# example: v-add-sys-web-terminal-key
+#
+# This function writes the key with which the panel signs web terminal
+# tickets and the web terminal server checks them, readable by root and the
+# panel user only. It keeps an existing key unless ROTATE is "yes", and can
+# run on every upgrade.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+rotate=${1-no}
+
+# Includes
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# load config file
+source_conf "$ARCPANEL/conf/arcpanel.conf"
+
+# Not in data/keys: API v1 takes every file there for an API key
+key_dir="$ARCPANEL/data/web-terminal"
+key_file="$key_dir/ticket.key"
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '0' "$#" '[ROTATE]'
+if [ "$rotate" != 'yes' ] && [ "$rotate" != 'no' ]; then
+	check_result "$E_INVALID" "ROTATE must be yes or no"
+fi
+if [ -L "$key_dir" ] || [ -L "$key_file" ]; then
+	check_result "$E_FORBIDEN" "$key_dir must not be a link"
+fi
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+mkdir -p "$key_dir"
+chown root:arcpanelweb "$key_dir"
+chmod 0750 "$key_dir"
+
+if [ "$rotate" = 'yes' ] || ! grep -qE '^[0-9a-f]{64}$' "$key_file" 2> /dev/null; then
+	tmp_file=$(mktemp "$key_dir/.ticket.key.XXXXXX")
+	head -c 32 /dev/urandom | od -An -tx1 | tr -d ' \n' > "$tmp_file"
+	echo >> "$tmp_file"
+	chown root:arcpanelweb "$tmp_file"
+	chmod 0640 "$tmp_file"
+	mv -f "$tmp_file" "$key_file"
+	changed='yes'
+fi
+chown root:arcpanelweb "$key_file"
+chmod 0640 "$key_file"
+
+# The server reads the key when it starts
+if [ "$changed" = 'yes' ] && systemctl is-active --quiet arcpanel-web-terminal 2> /dev/null; then
+	systemctl restart arcpanel-web-terminal
+fi
+
+#----------------------------------------------------------#
+#                         ArcPanel                         #
+#----------------------------------------------------------#
+
+if [ "$changed" = 'yes' ]; then
+	$BIN/v-log-action "system" "Info" "Web Terminal" "Web terminal ticket key written."
+fi
+log_event "$OK" "$ARGUMENTS"
+
+exit
