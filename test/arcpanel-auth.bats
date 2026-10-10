@@ -13,7 +13,8 @@ load 'test_helper/bats-assert/load'
 
 ARCPANEL=/usr/local/arcpanel
 AUTHUSER=tauthw2
-PASS="Ta-$(date +%s)-Pass"
+# Fixed: the file is read again for every test, so a time-based value would change
+PASS="Ta-W2-auth-Pass-7b1e"
 AUTHLOG="$ARCPANEL/log/auth.log"
 
 setup_file() {
@@ -36,23 +37,6 @@ totp() {
 
 user_value() {
     grep "^$2=" "$ARCPANEL/data/users/$1/user.conf" | cut -d "'" -f 2
-}
-
-# The hash of PASSWORD as the panel computes it for v-check-user-hash.
-panel_hash() {
-    local shadow salt
-    shadow=$(grep "^$1:" /etc/shadow | cut -d : -f 2)
-    shadow=${shadow#!}
-    salt=$(cut -d '$' -f 3 <<< "$shadow")
-    "$ARCPANEL/php/bin/php" -r 'echo str_replace("\$rounds=5000", "", crypt($argv[1], "\$6\$rounds=5000\$".$argv[2]."\$"));' "$2" "$salt"
-}
-
-hash_file() {
-    local file
-    file=$(mktemp /tmp/arcpanel-hash.XXXXXX)
-    panel_hash "$1" "$2" > "$file"
-    chown arcpanelweb: "$file"
-    echo "$file"
 }
 
 @test "v-log-user-login writes a user agent with quotes and pipes instead of failing" {
@@ -114,6 +98,47 @@ hash_file() {
 @test "v-check-user-2fa keeps the secret out of the process arguments" {
     run grep -c 'check.php "\$TWOFA"' "$ARCPANEL/bin/v-check-user-2fa"
     assert_output '0'
+}
+
+@test "v-get-user-salt answers a suspended account like an active one" {
+    v-suspend-user "$AUTHUSER" > /dev/null
+    run grep -c "^$AUTHUSER:!" /etc/shadow
+    assert_output '1'
+
+    run v-get-user-salt "$AUTHUSER" 203.0.113.20 json
+    assert_success
+    run jq -r ".\"$AUTHUSER\".METHOD" <<< "$output"
+    assert_output --regexp '^(sha-512|yescrypt)$'
+}
+
+@test "the password commands say suspended only for the right password" {
+    run v-check-user-password "$AUTHUSER" wrong-password 203.0.113.21
+    assert_failure 9
+    refute_output --partial 'suspended'
+    run v-check-user-password "$AUTHUSER" "$PASS" 203.0.113.21
+    assert_failure 5
+    assert_output --partial 'Account has been suspended'
+
+    # The panel's path: the hash of the typed password, then the hash check
+    local hash
+    hash=$(v-check-user-password "$AUTHUSER" "$PASS" 203.0.113.21 yes)
+    run v-check-user-hash "$AUTHUSER" "$hash" 203.0.113.21
+    assert_failure 5
+    assert_output --partial 'Account has been suspended'
+    run v-check-user-hash "$AUTHUSER" "${hash}x" 203.0.113.21
+    assert_failure 9
+    refute_output --partial 'suspended'
+
+    v-unsuspend-user "$AUTHUSER" > /dev/null
+    run v-check-user-hash "$AUTHUSER" "$hash" 203.0.113.21
+    assert_success
+    run v-check-user-password "$AUTHUSER" "$PASS" 203.0.113.21
+    assert_success
+}
+
+@test "v-list-sys-config prints PANEL_HOSTNAMES" {
+    run jq -e '.config | has("PANEL_HOSTNAMES")' <<< "$(v-list-sys-config json)"
+    assert_success
 }
 
 @test "v-delete-user-login-limits runs for an existing user and refuses an unknown one" {

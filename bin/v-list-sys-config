@@ -47,6 +47,7 @@ json_list() {
 		"DEMO_MODE": "'$DEMO_MODE'",
 		"DISABLE_IP_CHECK": "'$DISABLE_IP_CHECK'",
 		"DISK_QUOTA": "'$DISK_QUOTA'",
+		"PANEL_HOSTNAMES": "'$PANEL_HOSTNAMES'",
 		"RESOURCES_LIMIT": "'$RESOURCES_LIMIT'",
 		"DNS_CLUSTER": "'$DNS_CLUSTER'",
 		"DNS_CLUSTER_SYSTEM": "'$DNS_CLUSTER_SYSTEM'",
@@ -206,6 +207,9 @@ shell_list() {
 		echo "System Language:                  $LANGUAGE"
 	fi
 	echo "ArcPanel version:                 $VERSION"
+	if [ -n "$PANEL_HOSTNAMES" ]; then
+		echo "Panel host names:                 $PANEL_HOSTNAMES"
+	fi
 	if [ -n "$POLICY_RESELLER_CREATE_PACKAGES" ]; then
 		echo "Resellers create packages:        $POLICY_RESELLER_CREATE_PACKAGES"
 	fi

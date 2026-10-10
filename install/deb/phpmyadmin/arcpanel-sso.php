@@ -181,7 +181,10 @@ function find_pma_server_id($host) {
 }
 
 $api = new ArcPanel_API();
-if (!empty($_GET)) {
+// The panel posts the sign-on fields; a token in a query string is refused,
+// so it never lands in an access log or a browser history (E39 W2 spec D9).
+$signOn = $_SERVER["REQUEST_METHOD"] === "POST" ? $_POST : [];
+if (!empty($_GET) || !empty($signOn)) {
 	if (isset($_GET["logout"])) {
 		$api->delete_temp_user(
 			$_SESSION["ARCPANEL_sso_database"],
@@ -192,13 +195,13 @@ if (!empty($_GET)) {
 		//remove session
 		session_invalid();
 	} else {
-		if (isset($_GET["user"]) && isset($_GET["arcpanel_token"])) {
-			$database = $_GET["database"];
-			$user = $_GET["user"];
-			$host = !empty($_GET["host"]) ? $_GET["host"] : "localhost";
-			$token = $_GET["arcpanel_token"];
-			if (is_numeric($_GET["exp"])) {
-				$time = $_GET["exp"];
+		if (isset($signOn["user"]) && isset($signOn["arcpanel_token"])) {
+			$database = (string) ($signOn["database"] ?? "");
+			$user = (string) $signOn["user"];
+			$host = !empty($signOn["host"]) ? (string) $signOn["host"] : "localhost";
+			$token = (string) $signOn["arcpanel_token"];
+			if (is_numeric($signOn["exp"] ?? null)) {
+				$time = (int) $signOn["exp"];
 			} else {
 				$time = 0;
 			}
@@ -243,6 +246,8 @@ if (!empty($_GET)) {
 				);
 				session_invalid();
 			}
+		} else {
+			session_invalid();
 		}
 	}
 } else {

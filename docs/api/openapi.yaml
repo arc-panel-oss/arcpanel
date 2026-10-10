@@ -10713,7 +10713,8 @@ paths:
         - Users
       summary: Check user hash
       description: |-
-        This function verifies user hash
+        This function verifies user hash. It exits with 5 when the hash matches a
+        suspended (locked) account and with 9 when it does not match.
 
         **Arguments**
 
@@ -10809,7 +10810,10 @@ paths:
         - Users
       summary: Check user password
       description: |-
-        This function verifies user password from file
+        This function verifies user password from file. A suspended (locked)
+        account is checked without its lock mark: with RETURN_HASH the hash is
+        printed as for any account (v-check-user-hash then says it is suspended),
+        without it the command exits with 5 when the password matches.
 
         **Arguments**
 

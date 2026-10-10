@@ -116,6 +116,12 @@ upgrade_rebuild_users | tee -a $LOG
 # Homes to the current layout (E39 W1): old file manager keys go, Docker app
 # data moves out of the homes; safe to run on every upgrade
 $BIN/v-update-sys-user-homes | tee -a $LOG
+
+# phpMyAdmin single sign-on takes its token from a POST since E39 W2:
+# reinstall an older copy of the sign-on page
+if [ -e /usr/share/phpmyadmin/arcpanel-sso.php ] && ! grep -q 'signOn' /usr/share/phpmyadmin/arcpanel-sso.php; then
+	$BIN/v-delete-sys-pma-sso quiet && $BIN/v-add-sys-pma-sso quiet | tee -a $LOG
+fi
 upgrade_restart_services | tee -a $LOG
 
 # Add upgrade notification to admin user's panel and display completion message

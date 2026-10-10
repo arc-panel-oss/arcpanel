@@ -9,12 +9,14 @@ use App\Http\Middleware\Api\AuthenticateAccessKey;
 use App\Http\Middleware\Api\StartApiRequest;
 use App\Http\Middleware\BindEffectiveUser;
 use App\Http\Middleware\FilesEnabled;
+use App\Http\Middleware\NoReferrer;
 use App\Http\Middleware\NotReadOnly;
 use App\Http\Middleware\RedirectIfLoggedIn;
 use App\Http\Middleware\RequirePrincipal;
 use App\Http\Middleware\RequireSysConfig;
 use App\Http\Middleware\ResolvePrincipal;
 use App\Http\Middleware\SetLocale;
+use App\Support\PanelHost;
 use App\View\UiPreferences;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -44,6 +46,9 @@ $app = Application::configure(basePath: dirname(__DIR__))
         },
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        // Only the configured names reach the panel, so no link or redirect
+        // is built from a forged Host header (E39 W2 spec D6).
+        $middleware->trustHosts(at: fn () => app(PanelHost::class)->trusted(), subdomains: false);
         // The legacy session cookie is PHP's own, never encrypted by Laravel;
         // arc_ui (theme, density) is written by the user menu script.
         $middleware->encryptCookies(except: [(string) ini_get('session.name'), UiPreferences::COOKIE]);
@@ -68,6 +73,7 @@ $app = Application::configure(basePath: dirname(__DIR__))
             'auth.arc' => RequirePrincipal::class,
             'guest.arc' => RedirectIfLoggedIn::class,
             'not-readonly' => NotReadOnly::class,
+            'no-referrer' => NoReferrer::class,
             'effective-user' => BindEffectiveUser::class,
             'files.enabled' => FilesEnabled::class,
             'sys-config' => RequireSysConfig::class,

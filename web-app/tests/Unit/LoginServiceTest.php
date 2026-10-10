@@ -81,10 +81,23 @@ it('maps v-get-user-salt failures to the legacy messages', function (int $exit, 
     expect($this->service->attempt('bob', 'pw', $this->context)->error)->toBe($message);
     $this->fake->assertNotRan('v-log-user-login');
 })->with([
-    'suspended' => [5, LoginService::SUSPENDED],
+    // v-get-user-salt answers a locked account like any other now; an
+    // older 5 must not tell that the account exists (L6)
+    'suspended' => [5, LoginService::INVALID_CREDENTIALS],
     'unsupported hash' => [1, LoginService::UNSUPPORTED_HASH],
     'unknown user' => [9, LoginService::INVALID_CREDENTIALS],
 ]);
+
+it('says an account is suspended only after the right password (L6)', function () {
+    saltFor($this->fake, 'des', 'xy');
+    $this->fake->on('v-check-user-hash')->using(
+        fn (array $args) => $args[1] === crypt('pw', 'xy') ? [5, 'Error: Account has been suspended'] : [9, 'Error: password missmatch'],
+    );
+    $this->fake->on('v-log-user-login')->returns();
+
+    expect($this->service->attempt('bob', 'wrong', $this->context)->error)->toBe(LoginService::INVALID_CREDENTIALS)
+        ->and($this->service->attempt('bob', 'pw', $this->context)->error)->toBe(LoginService::SUSPENDED);
+});
 
 it('refuses users with login disabled or outside their IP list', function (array $user, string $reason) {
     saltFor($this->fake, 'des', 'xy');

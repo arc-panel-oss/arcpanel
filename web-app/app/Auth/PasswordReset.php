@@ -6,6 +6,7 @@ use App\Arc\ArcCommand;
 use App\Arc\Options;
 use App\Arc\Secret;
 use App\Services\Mail\PasswordResetMailer;
+use App\Support\PanelHost;
 use Illuminate\Support\Str;
 
 /**
@@ -23,6 +24,7 @@ final class PasswordReset
     public function __construct(
         private readonly ArcCommand $arc,
         private readonly PasswordResetMailer $mailer,
+        private readonly PanelHost $host,
     ) {}
 
     /**
@@ -30,7 +32,7 @@ final class PasswordReset
      * contact address and no code was sent in the last 15 minutes. Does
      * nothing otherwise; the caller shows the same answer in every case.
      */
-    public function request(string $username, string $email, string $host): void
+    public function request(string $username, string $email): void
     {
         $user = $this->user($username);
         if ($user === null || ($user['SUSPENDED'] ?? '') === 'yes'
@@ -42,7 +44,7 @@ final class PasswordReset
         $code = Str::random(12);
         $result = $this->arc->run('v-change-user-rkey', [$username, Secret::file(password_hash($code, PASSWORD_DEFAULT))], Options::allowFailure());
         if ($result->ok()) {
-            $this->mailer->sendPasswordReset($user['CONTACT'], $user['NAME'] ?? '', $username, $code, $user['LANGUAGE'] ?? '', $host);
+            $this->mailer->sendPasswordReset($user['CONTACT'], $user['NAME'] ?? '', $username, $code, $user['LANGUAGE'] ?? '', $this->host->link());
         }
     }
 

@@ -43,11 +43,8 @@ final class LoginService
 
         $salt = $this->arc->run('v-get-user-salt', [$username, $context->ip, 'json'], Options::allowFailure());
         if (! $salt->ok()) {
-            return $this->fail(match ($salt->exitCode) {
-                5 => self::SUSPENDED,
-                1 => self::UNSUPPORTED_HASH,
-                default => self::INVALID_CREDENTIALS,
-            });
+            // Suspension is told only after the password matched (L6)
+            return $this->fail($salt->exitCode === 1 ? self::UNSUPPORTED_HASH : self::INVALID_CREDENTIALS);
         }
         $pam = json_decode($salt->stdout, true)[$username] ?? [];
         $hash = $this->hash($username, $password, (string) ($pam['SALT'] ?? ''), (string) ($pam['METHOD'] ?? ''), $context);
@@ -60,7 +57,7 @@ final class LoginService
         if (! $check->ok()) {
             $this->logFailure($username, $context);
 
-            return $this->fail(self::INVALID_CREDENTIALS);
+            return $this->fail($check->exitCode === 5 ? self::SUSPENDED : self::INVALID_CREDENTIALS);
         }
 
         $user = $this->userRecord($username);

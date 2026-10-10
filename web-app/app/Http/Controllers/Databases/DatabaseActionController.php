@@ -14,6 +14,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Validation\Rule;
+use Illuminate\View\View;
 
 /**
  * Single and bulk actions on databases (web/bulk/db, web/suspend/db,
@@ -78,13 +79,13 @@ final class DatabaseActionController extends Controller
     }
 
     /** Single sign-on into phpMyAdmin (templates/pages/list_db.php, install/deb/phpmyadmin/arcpanel-sso.php). */
-    public function phpMyAdmin(Request $request, string $user, string $database, Principal $principal, DatabasePolicy $policy, DbAdminLinks $links): RedirectResponse
+    public function phpMyAdmin(Request $request, string $user, string $database, Principal $principal, DatabasePolicy $policy, DbAdminLinks $links): View
     {
         abort_unless($policy->update($principal, $user) && $links->ssoAvailable(), 403);
         $record = $this->databases->find($user, $database);
         abort_unless($record->type === 'mysql' && ! $record->suspended, 404);
 
-        return redirect()->away($links->ssoUrl($record, ClientIp::of($request)));
+        return view('db.sso', $links->ssoForm($record, ClientIp::of($request)));
     }
 
     private function single(string $action, string $user, string $database, bool $allowed): RedirectResponse

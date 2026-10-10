@@ -66,20 +66,27 @@ final class DbAdminLinks
     }
 
     /**
-     * The arcpanel-sso.php link of templates/pages/list_db.php: a token over the
-     * database, its owner, the client IP and the time, valid for a minute.
+     * The arcpanel-sso.php sign-on of templates/pages/list_db.php: a token over
+     * the database, its owner, the client IP and the time, valid for a minute.
+     * The fields are posted by a form, never sent in a query string, so the
+     * token reaches no access log or browser history (E39 W2 spec D9).
+     *
+     * @return array{action: string, fields: array<string, string>}
      */
-    public function ssoUrl(DatabaseRecord $record, string $clientIp): string
+    public function ssoForm(DatabaseRecord $record, string $clientIp): array
     {
         $time = time();
         $token = password_hash($record->database.$record->user.$clientIp.$time.$this->config->get('PHPMYADMIN_KEY'), PASSWORD_DEFAULT);
 
-        return 'https:'.$this->base('mysql').'arcpanel-sso.php?'.http_build_query([
-            'host' => $record->host,
-            'database' => $record->database,
-            'user' => $record->user,
-            'exp' => $time,
-            'arcpanel_token' => $token,
-        ]);
+        return [
+            'action' => 'https:'.$this->base('mysql').'arcpanel-sso.php',
+            'fields' => [
+                'host' => $record->host,
+                'database' => $record->database,
+                'user' => $record->user,
+                'exp' => (string) $time,
+                'arcpanel_token' => $token,
+            ],
+        ];
     }
 }

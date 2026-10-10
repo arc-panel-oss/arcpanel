@@ -93,6 +93,9 @@ function fakeArc(array $config = []): ArcCommandFake
     app()->forgetInstance(SysConfig::class);
     cache()->flush();
     $fake->on('v-list-sys-config', ['json'])->returnsJson(sysConfig($config));
+    // Trusted hosts (E39 W2) read the server addresses outside unit tests
+    // (an "env = production" test); none by default.
+    $fake->on('v-list-sys-ips', ['json'])->returnsJson([]);
     // The sidebar asks whether the account's package includes Node.js (E13);
     // without a package entry it does not.
     $fake->on('v-list-user')->returnsExit(ExitCode::NotExist);

@@ -103,14 +103,18 @@ Route::middleware('guest.arc')->group(function () {
     Route::get('/login/2fa', [TwoFactorController::class, 'show'])->name('login.2fa');
     Route::post('/login/2fa', [TwoFactorController::class, 'store'])->name('login.2fa.store');
 
-    // Password and 2FA reset (E7 batch 3 spec §11)
-    Route::get('/reset', [ResetController::class, 'show'])->name('reset');
-    Route::post('/reset', [ResetController::class, 'request'])->name('reset.request');
-    Route::get('/reset/code', [ResetController::class, 'code'])->name('reset.code');
-    Route::get('/reset/confirm', [ResetController::class, 'confirm'])->name('reset.confirm');
-    Route::post('/reset/confirm', [ResetController::class, 'update'])->name('reset.update');
-    Route::get('/reset2fa', [ResetController::class, 'twoFactor'])->name('reset2fa');
-    Route::post('/reset2fa', [ResetController::class, 'twoFactorStore'])->name('reset2fa.store');
+    // Password and 2FA reset (E7 batch 3 spec §11); codes never leave in a
+    // Referer and never stay in a URL (E39 W2 spec D9)
+    Route::middleware('no-referrer')->group(function () {
+        Route::get('/reset', [ResetController::class, 'show'])->name('reset');
+        Route::post('/reset', [ResetController::class, 'request'])->name('reset.request');
+        Route::get('/reset/code', [ResetController::class, 'code'])->name('reset.code');
+        Route::post('/reset/code', [ResetController::class, 'enterCode'])->name('reset.code.store');
+        Route::get('/reset/confirm', [ResetController::class, 'confirm'])->name('reset.confirm');
+        Route::post('/reset/confirm', [ResetController::class, 'update'])->name('reset.update');
+        Route::get('/reset2fa', [ResetController::class, 'twoFactor'])->name('reset2fa');
+        Route::post('/reset2fa', [ResetController::class, 'twoFactorStore'])->name('reset2fa.store');
+    });
 });
 
 // Mail password change for the webmail clients of this server (1.x
@@ -519,7 +523,7 @@ Route::middleware('auth.arc')->group(function () {
                 Route::post('/suspend', [DatabaseActionController::class, 'suspend'])->name('suspend');
                 Route::post('/unsuspend', [DatabaseActionController::class, 'unsuspend'])->name('unsuspend');
                 Route::post('/download', [DatabaseActionController::class, 'download'])->name('download');
-                Route::post('/phpmyadmin', [DatabaseActionController::class, 'phpMyAdmin'])->name('phpmyadmin');
+                Route::post('/phpmyadmin', [DatabaseActionController::class, 'phpMyAdmin'])->middleware('no-referrer')->name('phpmyadmin');
                 Route::delete('/', [DatabaseActionController::class, 'destroy'])->name('destroy');
             });
         });

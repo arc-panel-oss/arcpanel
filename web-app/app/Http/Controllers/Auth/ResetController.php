@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Arc\SysConfig;
+use App\Auth\LoginThrottle;
 use App\Auth\PasswordReset;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\RedirectResponse;
@@ -14,7 +15,9 @@ use Illuminate\View\View;
 /**
  * Password reset and 2FA reset for guests (web/reset, web/reset2fa), E7
  * batch 3 spec §11: the same answer for every user name, rate limits per IP
- * and per user, single-use codes.
+ * and per user, single-use codes. A reset code never stays in a URL: the
+ * link of the e-mail and the code form put it into the session, and the
+ * confirm page reads it from there (E39 W2 spec §5.3).
  */
 final class ResetController extends Controller
 {
@@ -29,6 +32,7 @@ final class ResetController extends Controller
         private readonly PasswordReset $reset,
         private readonly LoginResponder $responder,
         private readonly SysConfig $config,
+        private readonly LoginThrottle $throttle,
     ) {}
 
     /**
@@ -44,7 +48,7 @@ final class ResetController extends Controller
         $user = (string) $request->query('user', '');
         $code = (string) $request->query('code', '');
         if ($action === 'confirm' && $user !== '' && $code !== '') {
-            return redirect()->route('reset.confirm', ['user' => $user, 'code' => $code]);
+            return $this->holdCode($request, $user, $code);
         }
         if ($action === 'code') {
             return redirect()->route('reset.code', ['user' => $user]);
@@ -61,7 +65,11 @@ final class ResetController extends Controller
             return $limited;
         }
 
-        $this->reset->request($data['user'], $data['email'], $request->getHttpHost());
+        // The lookup and the mail run after the answer is sent, so the
+        // answer takes the same time for every user name (L6).
+        $user = $data['user'];
+        $email = $data['email'];
+        defer(fn () => $this->reset->request($user, $email));
 
         return redirect()->route('reset.code', ['user' => $data['user']])->with('ok', __(self::SENT));
     }
@@ -73,15 +81,33 @@ final class ResetController extends Controller
         return $this->page('auth.reset-code', ['user' => (string) $request->query('user', '')]);
     }
 
-    /** The link of the e-mail: the new password form. */
-    public function confirm(Request $request): View
+    /** The code typed on the code page. */
+    public function enterCode(Request $request): RedirectResponse
+    {
+        $this->requireEnabled();
+        $data = $request->validate(['user' => ['required', 'string', 'max:64'], 'code' => ['required', 'string', 'max:64']]);
+
+        return $this->holdCode($request, $data['user'], $data['code']);
+    }
+
+    /** The new password form, for the code held in the session. */
+    public function confirm(Request $request): View|RedirectResponse
     {
         $this->requireEnabled();
 
-        return $this->page('auth.reset-confirm', [
-            'user' => (string) $request->query('user', ''),
-            'code' => (string) $request->query('code', ''),
-        ]);
+        // A link straight to this page (older mails) is cleaned up first
+        $user = (string) $request->query('user', '');
+        $code = (string) $request->query('code', '');
+        if ($user !== '' && $code !== '') {
+            return $this->holdCode($request, $user, $code);
+        }
+
+        $held = $this->heldCode($request);
+        if ($held === null) {
+            return redirect()->route('reset.code');
+        }
+
+        return $this->page('auth.reset-confirm', $held);
     }
 
     public function update(Request $request): RedirectResponse|Response
@@ -93,7 +119,8 @@ final class ResetController extends Controller
             'password' => ['required', 'string', 'max:256'],
             'password_confirm' => ['required', 'string', 'max:256'],
         ]);
-        $back = redirect()->route('reset.confirm', ['user' => $data['user'], 'code' => $data['code']]);
+        $request->session()->put('reset', ['user' => $data['user'], 'code' => $data['code']]);
+        $back = redirect()->route('reset.confirm');
         if ($limited = $this->limited($request, $data['user'], 'auth.reset-confirm', ['user' => $data['user'], 'code' => $data['code']])) {
             return $limited;
         }
@@ -111,6 +138,9 @@ final class ResetController extends Controller
         if (! $this->reset->reset($data['user'], $data['password'])) {
             return $back->with('error', __('An internal error occurred'));
         }
+
+        $request->session()->forget('reset');
+        $this->throttle->clear($data['user']);
 
         return redirect()->route('login')->with('ok', __('Your password has been changed. You can now log in.'));
     }
@@ -134,6 +164,24 @@ final class ResetController extends Controller
         }
 
         return $this->page('auth.reset2fa', ['unlocked' => true]);
+    }
+
+    private function holdCode(Request $request, string $user, string $code): RedirectResponse
+    {
+        $request->session()->put('reset', ['user' => mb_substr($user, 0, 64), 'code' => mb_substr($code, 0, 64)]);
+
+        return redirect()->route('reset.confirm');
+    }
+
+    /** @return array{user: string, code: string}|null */
+    private function heldCode(Request $request): ?array
+    {
+        $held = $request->session()->get('reset');
+        if (! is_array($held) || ! is_string($held['user'] ?? null) || ! is_string($held['code'] ?? null)) {
+            return null;
+        }
+
+        return ['user' => $held['user'], 'code' => $held['code']];
     }
 
     /** 404 when POLICY_SYSTEM_PASSWORD_RESET is "no", as the login page hides the link. */
