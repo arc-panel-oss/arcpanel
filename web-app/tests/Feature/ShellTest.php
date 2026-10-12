@@ -89,8 +89,11 @@ it('lists, acknowledges and deletes notifications as JSON', function () {
     signIn('bob', 'user');
 
     $this->getJson('/_notifications')->assertOk()->assertJsonPath('notifications.0', [
-        'id' => '2', 'title' => 'Maintenance tonight', 'body' => 'Services restart at 02:00.', 'acknowledged' => false, 'date' => '2026-10-04', 'time' => '11:00:00',
-    ])->assertJsonPath('notifications.1.body', 'Read the guide to get started.');
+        'id' => '2', 'title' => 'Maintenance tonight', 'body' => 'Services restart at 02:00.',
+        'parts' => [['text' => 'Services restart at 02:00.', 'url' => null, 'external' => false]],
+        'acknowledged' => false, 'date' => '2026-10-04', 'time' => '11:00:00',
+    ])->assertJsonPath('notifications.1.body', 'Read the guide to get started.')
+        ->assertJsonPath('notifications.1.parts.1', ['text' => 'guide', 'url' => '/docs/', 'external' => false]);
 
     $this->postJson('/_notifications/2/acknowledge')->assertOk();
     $this->deleteJson('/_notifications/1')->assertOk();

@@ -109,6 +109,25 @@ it('reads notifications as plain text, newest first, and plans their changes', f
         ->and(NotificationService::delete('bob', '2')->command)->toBe('v-delete-user-notification');
 });
 
+it('keeps the spaces between paragraphs and the safe links of a notice', function () {
+    // The welcome notice of install/arcpanel-install-ubuntu.sh
+    $html = '<p>Start adding <a href="/users/create">user accounts</a>. For help, <a href="https://docs.arcpanel.top/docs/" target="_blank">view the documentation</a>.</p>'
+        .'<p>Please <a href="javascript:alert(1)">report issues</a>.</p><p class="u-text-bold">Have a wonderful day!</p><p><i class="fas fa-heart"></i> The team</p>';
+
+    $parts = NotificationService::parts($html);
+    expect(implode('', array_column($parts, 'text')))
+        ->toBe('Start adding user accounts. For help, view the documentation. Please report issues. Have a wonderful day! The team')
+        ->and(array_values(array_filter($parts, fn ($part) => $part['url'] !== null)))->toBe([
+            ['text' => 'user accounts', 'url' => '/users/create', 'external' => false],
+            ['text' => 'view the documentation', 'url' => 'https://docs.arcpanel.top/docs/', 'external' => true],
+        ])
+        ->and(NotificationService::parts('<a href="//evil.example/">x</a> <a href="/ok">y</a>'))->toBe([
+            ['text' => 'x ', 'url' => null, 'external' => false],
+            ['text' => 'y', 'url' => '/ok', 'external' => false],
+        ])
+        ->and(NotificationService::parts(''))->toBe([]);
+});
+
 it('computes the fingerprint of a public key line as ssh-keygen prints it', function () {
     // `ssh-keygen -l` printed this fingerprint for the key (OpenSSH 9.6)
     $line = 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIJOoo+WKdBVdvmwFmv+yskige6TmkXGHox6GQbX9mgc5 test@example';

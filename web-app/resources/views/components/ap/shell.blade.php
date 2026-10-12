@@ -164,7 +164,7 @@
                         </div>
                         <template x-for="item in items" x-bind:key="item.id">
                             <article class="ap-notice" x-bind:class="{ 'is-unread': !item.acknowledged }">
-                                <div class="ap-notice-body"><b x-text="item.title"></b><p x-text="item.body"></p><span class="subtle" x-text="item.date + ' ' + item.time"></span></div>
+                                <div class="ap-notice-body"><b x-text="item.title"></b><p><template x-for="(part, index) in item.parts ?? [{ text: item.body }]" x-bind:key="index"><span><template x-if="part.url"><a x-bind:href="part.url" x-bind:target="part.external ? '_blank' : null" x-bind:rel="part.external ? 'noopener noreferrer' : null" x-text="part.text"></a></template><template x-if="!part.url"><span x-text="part.text"></span></template></span></template></p><span class="subtle" x-text="item.date + ' ' + item.time"></span></div>
                                 <div class="ap-actions">
                                     <button type="button" class="ap-btn ap-btn-icon ap-btn-ghost ap-btn-sm" x-show="!item.acknowledged" x-on:click="acknowledge(item)" aria-label="{{ __('Mark as read') }}" title="{{ __('Mark as read') }}"><x-ap-icon name="check" /></button>
                                     <button type="button" class="ap-btn ap-btn-icon ap-btn-ghost ap-btn-sm" x-on:click="remove(item)" aria-label="{{ __('Delete') }}" title="{{ __('Delete') }}"><x-ap-icon name="trash" /></button>
