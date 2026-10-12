@@ -24084,8 +24084,8 @@ paths:
         This function lists the suspicious files that the last scans found and
         that were neither quarantined nor ignored, most severe first: ID, DOMAIN,
         PATH (relative to public_html), SHA256, SIZE, MTIME, SEVERITY, RULES,
-        LINE, SNIPPET (the matching line, attacker-controlled text), DETECTED and
-        SCAN.
+        LINE, SNIPPET (the matching line, attacker-controlled text), DETECTED,
+        SCAN and DESCRIPTIONS (the description of each rule).
 
         **Arguments**
 

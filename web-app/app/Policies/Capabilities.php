@@ -142,6 +142,13 @@ final class Capabilities
         'secrets.view' => self::ALL_ROLES,
         'secrets.manage' => self::ALL_ROLES,
 
+        // Malware scan (E25 batch 1 spec D8): every account its own sites,
+        // resellers their tree, administrators any; the summary of users
+        // for administrators and resellers
+        'malware.summary' => self::MANAGERS,
+        'malware.view' => self::ALL_ROLES,
+        'malware.manage' => self::ALL_ROLES,
+
         // Web terminal (E7 batch 2 spec D11); TerminalPolicy adds the shell
         'terminal.use' => self::ALL_ROLES,
 

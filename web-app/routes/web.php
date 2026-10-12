@@ -40,6 +40,7 @@ use App\Http\Controllers\Mail\MailAccountController;
 use App\Http\Controllers\Mail\MailActionController;
 use App\Http\Controllers\Mail\MailDomainController;
 use App\Http\Controllers\Mail\MailDomainEditController;
+use App\Http\Controllers\Malware\MalwareController;
 use App\Http\Controllers\Node\NodeAppController;
 use App\Http\Controllers\Node\NodeAppPageController;
 use App\Http\Controllers\Node\NodeController;
@@ -540,6 +541,25 @@ Route::middleware('auth.arc')->group(function () {
             Route::post('/snapshots/{snapshot}/restore', [SnapshotController::class, 'restore'])->name('snapshots.restore');
             Route::delete('/snapshots/{snapshot}', [SnapshotController::class, 'destroy'])->name('snapshots.destroy');
             Route::post('/exclusions', [ExclusionController::class, 'update'])->name('exclusions.update');
+        });
+    });
+
+    // Malware scan (E25 batch 1 spec §8); 404 while the plugin is off
+    Route::middleware('sys-config:MALWARE_SCAN=yes')->group(function () {
+        Route::get('/malware', [MalwareController::class, 'entry'])->name('malware.index');
+        Route::prefix('malware/{user}')->name('malware.')->middleware('effective-user')->group(function () {
+            $finding = ['finding' => '[a-f0-9]{16}'];
+            $quarantined = ['id' => '[0-9]{14}'];
+            Route::get('/', [MalwareController::class, 'show'])->name('show');
+            Route::get('/task', [MalwareController::class, 'task'])->name('task');
+            Route::middleware('not-readonly')->group(function () use ($finding, $quarantined) {
+                Route::post('/scan', [MalwareController::class, 'scan'])->name('scan');
+                Route::post('/findings/{finding}/quarantine', [MalwareController::class, 'quarantine'])->where($finding)->name('quarantine');
+                Route::post('/findings/{finding}/ignore', [MalwareController::class, 'ignore'])->where($finding)->name('ignore');
+                Route::post('/quarantine/{id}/restore', [MalwareController::class, 'restore'])->where($quarantined)->name('restore');
+                Route::delete('/quarantine/{id}', [MalwareController::class, 'destroyQuarantined'])->where($quarantined)->name('quarantine.destroy');
+                Route::delete('/ignores/{sha256}', [MalwareController::class, 'destroyIgnore'])->where('sha256', '[a-f0-9]{64}')->name('ignores.destroy');
+            });
         });
     });
 

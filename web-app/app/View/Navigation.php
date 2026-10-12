@@ -54,6 +54,7 @@ final class Navigation
                 ['route' => 'db.index', 'label' => 'Databases', 'icon' => 'db', 'cap' => 'db.view', 'requires' => 'DB_SYSTEM', 'section' => 'db.'],
                 ['route' => 'cron.index', 'label' => 'Cron Jobs', 'icon' => 'clock', 'cap' => 'cron.view', 'requires' => 'CRON_SYSTEM', 'section' => 'cron.'],
                 ['route' => 'backups.index', 'label' => 'Backups', 'icon' => 'archive', 'cap' => 'backups.view', 'requires' => 'BACKUP_SYSTEM', 'section' => 'backups.'],
+                ['route' => 'malware.index', 'label' => 'Malware scan', 'icon' => 'shield', 'cap' => 'malware.view', 'requires' => 'MALWARE_SCAN=yes', 'section' => 'malware.'],
                 ['route' => 'files.index', 'label' => 'File manager', 'icon' => 'folder', 'cap' => 'files.view', 'requires' => 'FILE_MANAGER=true', 'writable' => true],
                 ['route' => 'terminal.index', 'label' => 'Web terminal', 'icon' => 'terminal', 'cap' => 'terminal.use', 'requires' => 'WEB_TERMINAL=true', 'writable' => true, 'shell' => true,
                     'own' => true, 'section' => 'terminal.'],

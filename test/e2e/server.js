@@ -5,10 +5,14 @@ import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
-const script = fileURLToPath(new URL('./prepare.sh', import.meta.url));
+const prepare = fileURLToPath(new URL('./prepare.sh', import.meta.url));
 
-/** @param {string[]} args */
-export function runOnServer(args) {
+/**
+ * @param {string[]} args
+ * @param {string} [name] another script of this folder, for example malware.sh
+ */
+export function runOnServer(args, name) {
+	const script = name ? fileURLToPath(new URL(`./${name}`, import.meta.url)) : prepare;
 	const source = readFileSync(script, 'utf8').replace(/\r\n/g, '\n');
 	if (process.env.E2E_LOCAL === '1' || process.platform !== 'win32') {
 		return execFileSync('bash', ['-s', '--', ...args], { input: source, encoding: 'utf8' });

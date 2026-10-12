@@ -26,6 +26,7 @@ final class ServerSettings
         'cgroups' => ['RESOURCES_LIMIT', 'yes'],
         'quota' => ['DISK_QUOTA', 'yes'],
         'firewall' => ['FIREWALL_SYSTEM', 'iptables'],
+        'malware-scan' => ['MALWARE_SCAN', 'yes'],
     ];
 
     /** yes/no policies of the Security tab, by group. */

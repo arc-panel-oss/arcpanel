@@ -6,6 +6,7 @@
         'cgroups' => [__('Resource Limits'), __('Limit CPU and memory of each user with cgroups.')],
         'quota' => [__('Disk Quota'), __('Enforce the disk quota of each user with file system quotas.')],
         'firewall' => [__('Firewall'), __('The iptables firewall of the panel.')],
+        'malware-scan' => [__('Malware scan'), __('Find PHP web shells in the web domains of every account, every night and on demand.')],
     ];
 @endphp
 <x-ap-page :title="__('Server settings')" :crumbs="[['label' => __('Server')], ['label' => __('Server settings')], ['label' => __('Plugins')]]">
