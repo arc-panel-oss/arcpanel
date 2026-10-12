@@ -40,6 +40,7 @@ php_ext_check_args "$version"
 #                       Action                             #
 #----------------------------------------------------------#
 
+php_ext_load
 names=$(php_ext_names "$version")
 
 # One apt-cache and one dpkg-query call for every package
@@ -50,62 +51,68 @@ for name in $names; do
 		packages+=("$pkg")
 	fi
 done
+installed_pkgs=''
 if [ "${#packages[@]}" -gt 0 ]; then
 	php_apt_refresh "${packages[@]}"
-	installed_pkgs=$(php_dpkg_installed "${packages[@]}")
+	installed_pkgs=" $(php_dpkg_installed "${packages[@]}" | tr '\n' ' ') "
 fi
-fpm_mods=$(php_mods_enabled "$version" fpm)
-cli_mods=$(php_mods_enabled "$version" cli)
+fpm_mods=" $(php_mods_enabled "$version" fpm | tr '\n' ' ') "
+cli_mods=" $(php_mods_enabled "$version" cli | tr '\n' ' ') "
 
-json='{}'
-modules=''
+# Tab-separated rows, turned into JSON by one jq call:
+# NAME PACKAGE MODULE GROUP REQUIRED CONFLICTS NOTE CATALOG TOGGLE_ONLY INSTALLED AVAILABLE FPM CLI
+rows=''
+modules=' '
 for name in $names; do
-	line=$(php_ext_line "$name")
+	line=${PHP_EXT[$name]}
 	module=$(php_kv "$line" MODULE)
-	modules="$modules $module"
-	pkg=$(php_ext_package "$name" "$version")
+	modules="$modules$module "
+	pkg=$(php_kv "$line" PACKAGE)
+	pkg=${pkg//%v/$version}
+	toggle=no
+	if [ -z "$pkg" ]; then
+		toggle=yes
+	fi
 	installed=no
-	if php_mod_present "$version" "$module" \
-		&& { [ -z "$pkg" ] || grep -qxF "$pkg" <<< "$installed_pkgs"; }; then
+	if php_mod_present "$version" "$module" && { [ -z "$pkg" ] || [[ "$installed_pkgs" == *" $pkg "* ]]; }; then
 		installed=yes
 	fi
 	available=no
-	if [ "$installed" = 'yes' ] || { [ -n "$pkg" ] && php_apt_candidate "$pkg"; }; then
+	if [ "$installed" = 'yes' ] || { [ -n "$pkg" ] && [ "${PHP_APT[$pkg]-}" = 'yes' ]; }; then
 		available=yes
 	fi
 	fpm=off
-	if grep -qxF "$module" <<< "$fpm_mods"; then
+	if [[ "$fpm_mods" == *" $module "* ]]; then
 		fpm=on
 	fi
 	cli=off
-	if grep -qxF "$module" <<< "$cli_mods"; then
+	if [[ "$cli_mods" == *" $module "* ]]; then
 		cli=on
 	fi
-	json=$(jq -c --arg n "$name" --arg p "$pkg" --arg m "$module" --arg g "$(php_kv "$line" GROUP)" \
-		--arg r "$(php_kv "$line" REQUIRED)" --arg c "$(php_kv "$line" CONFLICTS)" --arg o "$(php_kv "$line" NOTE)" \
-		--arg i "$installed" --arg a "$available" --arg f "$fpm" --arg l "$cli" \
-		'. + {($n): {PACKAGE: $p, MODULE: $m, GROUP: $g, REQUIRED: $r, CONFLICTS: $c, NOTE: $o,
-			CATALOG: "yes", TOGGLE_ONLY: (if $p == "" then "yes" else "no" end), INSTALLED: $i,
-			AVAILABLE: $a, FPM: $f, CLI: $l}}' <<< "$json")
+	rows+="$name"$'\t'"$pkg"$'\t'"$module"$'\t'"$(php_kv "$line" GROUP)"$'\t'"$(php_kv "$line" REQUIRED)"$'\t'
+	rows+="$(php_kv "$line" CONFLICTS)"$'\t'"$(php_kv "$line" NOTE)"$'\t'"yes"$'\t'"$toggle"$'\t'"$installed"$'\t'
+	rows+="$available"$'\t'"$fpm"$'\t'"$cli"$'\n'
 done
 
 # Modules enabled on the server that the catalog does not list
-for module in $(printf '%s\n' "$fpm_mods" "$cli_mods" | sort -u); do
-	if grep -qwF "$module" <<< "$modules" || [ "$(jq -r --arg m "$module" 'has($m)' <<< "$json")" = 'true' ]; then
+for module in $(printf '%s\n' $fpm_mods $cli_mods | sort -u); do
+	if [[ "$modules" == *" $module "* ]] || [ -n "${PHP_EXT[$module]+set}" ]; then
 		continue
 	fi
 	fpm=off
-	if grep -qxF "$module" <<< "$fpm_mods"; then
+	if [[ "$fpm_mods" == *" $module "* ]]; then
 		fpm=on
 	fi
 	cli=off
-	if grep -qxF "$module" <<< "$cli_mods"; then
+	if [[ "$cli_mods" == *" $module "* ]]; then
 		cli=on
 	fi
-	json=$(jq -c --arg m "$module" --arg f "$fpm" --arg l "$cli" \
-		'. + {($m): {PACKAGE: "", MODULE: $m, GROUP: "other", REQUIRED: "no", CONFLICTS: "", NOTE: "",
-			CATALOG: "no", TOGGLE_ONLY: "no", INSTALLED: "yes", AVAILABLE: "yes", FPM: $f, CLI: $l}}' <<< "$json")
+	rows+="$module"$'\t\t'"$module"$'\tother\tno\t\t\tno\tno\tyes\tyes\t'"$fpm"$'\t'"$cli"$'\n'
 done
+
+json=$(printf '%s' "$rows" | jq -Rn '[inputs | split("\t") | {key: .[0], value: {
+	PACKAGE: .[1], MODULE: .[2], GROUP: .[3], REQUIRED: .[4], CONFLICTS: .[5], NOTE: .[6], CATALOG: .[7],
+	TOGGLE_ONLY: .[8], INSTALLED: .[9], AVAILABLE: .[10], FPM: .[11], CLI: .[12]}}] | from_entries')
 
 case "$format" in
 	json) jq . <<< "$json" ;;

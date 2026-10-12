@@ -11,9 +11,19 @@ PHP_EXT_CATALOG="${ARC_PHP_EXT_CATALOG:-$ARCPANEL/install/common/php/extensions.
 PHP_DATA="$ARCPANEL/data/php"
 PHP_FPM_TPL_DIR="$ARCPANEL/data/templates/web/php-fpm"
 
-# Value of KEY in a KEY='value' line
+# Value of KEY in a KEY='value' line (no subshell: list commands call it
+# for every catalog entry)
 php_kv() {
-	grep -oE "(^| )$2='[^']*'" <<< "$1" | head -n1 | cut -d\' -f2
+	local re="(^| )$2='([^']*)'"
+	if [[ "$1" =~ $re ]]; then
+		echo "${BASH_REMATCH[2]}"
+	fi
+}
+
+# Whether version A <= version B (X.Y)
+php_version_le() {
+	local a1=${1%%.*} a2=${1#*.} b1=${2%%.*} b2=${2#*.}
+	((10#$a1 < 10#$b1 || (10#$a1 == 10#$b1 && 10#$a2 <= 10#$b2)))
 }
 
 # Create data/php (root only)
@@ -29,14 +39,35 @@ php_data_dir() {
 #                    Version catalog                       #
 #----------------------------------------------------------#
 
+# The catalog lines by version, read once per shell
+declare -gA PHP_CAT=()
+PHP_CAT_LOADED=''
+php_catalog_load() {
+	local line re="^VERSION='([0-9]{1,2}\.[0-9]{1,2})' "
+	if [ -n "$PHP_CAT_LOADED" ]; then
+		return 0
+	fi
+	PHP_CAT_LOADED=yes
+	[ -f "$PHP_CATALOG" ] || return 0
+	while IFS= read -r line || [ -n "$line" ]; do
+		if [[ "$line" =~ $re ]]; then
+			PHP_CAT[${BASH_REMATCH[1]}]=$line
+		fi
+	done < "$PHP_CATALOG"
+}
+
 # Versions of the catalog, one per line, oldest first
 php_catalog_versions() {
-	grep -oE "^VERSION='[0-9]{1,2}\.[0-9]{1,2}'" "$PHP_CATALOG" 2> /dev/null | cut -d\' -f2 | sort -V
+	php_catalog_load
+	if [ "${#PHP_CAT[@]}" -gt 0 ]; then
+		printf '%s\n' "${!PHP_CAT[@]}" | sort -V
+	fi
 }
 
 # The catalog line of a version (exact match)
 php_catalog_line() {
-	grep -F "VERSION='$1' " "$PHP_CATALOG" 2> /dev/null | grep -E "^VERSION=" | head -n1
+	php_catalog_load
+	echo "${PHP_CAT[$1]-}"
 }
 
 # A catalog value: php_catalog_get VERSION KEY
@@ -51,7 +82,9 @@ php_version_format_valid() {
 
 # The format is right and the catalog lists the version (exact match)
 php_version_valid() {
-	php_version_format_valid "$1" && php_catalog_versions | grep -qxF "$1"
+	php_version_format_valid "$1" || return 1
+	php_catalog_load
+	[ -n "${PHP_CAT[$1]+set}" ]
 }
 
 # Listed with INSTALLABLE='yes'
@@ -152,6 +185,7 @@ php_apt_cache_file() {
 # Forget the cached install candidates (after apt-get update)
 php_apt_cache_clear() {
 	rm -f "$(php_apt_cache_file)"
+	PHP_APT=()
 }
 
 # Look up the install candidates of packages that the cache does not hold or
@@ -159,17 +193,25 @@ php_apt_cache_clear() {
 php_apt_refresh() {
 	local file now pkg line time out current tmp
 	local -a missing=()
-	local -A found=()
+	local -A found=() cached=()
+	local re="^PACKAGE='([^']+)' CANDIDATE='[a-z]+' TIME='([0-9]+)'"
 	file=$(php_apt_cache_file)
 	now=$(date +%s)
+	if [ -f "$file" ]; then
+		while IFS= read -r line; do
+			if [[ "$line" =~ $re ]]; then
+				cached[${BASH_REMATCH[1]}]=${BASH_REMATCH[2]}
+			fi
+		done < "$file"
+	fi
 	for pkg in "$@"; do
-		line=$(grep -F "PACKAGE='$pkg' " "$file" 2> /dev/null | tail -n1)
-		time=$(php_kv "$line" TIME)
-		if [ -z "$line" ] || [ $((now - ${time:-0})) -ge "$PHP_APT_CACHE_TTL" ]; then
+		time=${cached[$pkg]-}
+		if [ -z "$time" ] || [ $((now - time)) -ge "$PHP_APT_CACHE_TTL" ]; then
 			missing+=("$pkg")
 		fi
 	done
 	if [ "${#missing[@]}" -eq 0 ]; then
+		php_apt_load
 		return 0
 	fi
 	out=$(LC_ALL=C apt-cache policy "${missing[@]}" 2> /dev/null)
@@ -198,14 +240,29 @@ php_apt_refresh() {
 		chmod 640 "$tmp"
 		mv -f "$tmp" "$file"
 	) 9> "$file.lock"
+	php_apt_load
 }
 
-# Whether a package has an install candidate in the configured repositories
+# The cached candidates by package, read after each refresh
+declare -gA PHP_APT=()
+php_apt_load() {
+	local line re="^PACKAGE='([^']+)' CANDIDATE='([a-z]+)' "
+	PHP_APT=()
+	[ -f "$(php_apt_cache_file)" ] || return 0
+	while IFS= read -r line; do
+		if [[ "$line" =~ $re ]]; then
+			PHP_APT[${BASH_REMATCH[1]}]=${BASH_REMATCH[2]}
+		fi
+	done < "$(php_apt_cache_file)"
+}
+
+# Whether a package has an install candidate in the configured repositories;
+# a package that php_apt_refresh looked up in this shell is not read again
 php_apt_candidate() {
-	local line
-	php_apt_refresh "$1"
-	line=$(grep -F "PACKAGE='$1' " "$(php_apt_cache_file)" 2> /dev/null | tail -n1)
-	[ "$(php_kv "$line" CANDIDATE)" = 'yes' ]
+	if [ -z "${PHP_APT[$1]+set}" ]; then
+		php_apt_refresh "$1"
+	fi
+	[ "${PHP_APT[$1]-}" = 'yes' ]
 }
 
 # Whether the PHP repository of the server provides a version (phpX.Y-fpm)
@@ -216,11 +273,6 @@ php_version_available() {
 # Installed Debian packages among the arguments, one per line
 php_dpkg_installed() {
 	dpkg-query -W -f='${Package} ${db:Status-Status}\n' "$@" 2> /dev/null | awk '$2 == "installed" { print $1 }'
-}
-
-# Whether version A <= version B
-php_version_le() {
-	[ "$(printf '%s\n' "$1" "$2" | sort -V | head -n1)" = "$1" ]
 }
 
 #----------------------------------------------------------#
@@ -299,13 +351,36 @@ php_ext_lines() {
 	grep -E "^NAME='[a-z0-9_]{1,32}' " "$PHP_EXT_CATALOG" 2> /dev/null
 }
 
+# The catalog lines by name, and the names in catalog order, read once per
+# shell
+declare -gA PHP_EXT=()
+PHP_EXT_NAMES=()
+PHP_EXT_LOADED=''
+php_ext_load() {
+	local line re="^NAME='([a-z0-9_]{1,32})' "
+	if [ -n "$PHP_EXT_LOADED" ]; then
+		return 0
+	fi
+	PHP_EXT_LOADED=yes
+	[ -f "$PHP_EXT_CATALOG" ] || return 0
+	while IFS= read -r line || [ -n "$line" ]; do
+		if [[ "$line" =~ $re ]] && [ -z "${PHP_EXT[${BASH_REMATCH[1]}]+set}" ]; then
+			PHP_EXT[${BASH_REMATCH[1]}]=$line
+			PHP_EXT_NAMES+=("${BASH_REMATCH[1]}")
+		fi
+	done < "$PHP_EXT_CATALOG"
+}
+
 # The catalog line of an extension (exact match)
 php_ext_line() {
-	php_ext_lines | grep -F "NAME='$1' " | head -n1
+	php_ext_load
+	echo "${PHP_EXT[$1]-}"
 }
 
 php_ext_name_valid() {
-	[[ "$1" =~ ^[a-z0-9_]{1,32}$ ]] && [ -n "$(php_ext_line "$1")" ]
+	[[ "$1" =~ ^[a-z0-9_]{1,32}$ ]] || return 1
+	php_ext_load
+	[ -n "${PHP_EXT[$1]+set}" ]
 }
 
 # A catalog value: php_ext_get NAME KEY
@@ -331,7 +406,8 @@ php_ext_applies() {
 # Names of the catalog entries that apply to a version
 php_ext_names() {
 	local name
-	for name in $(php_ext_lines | cut -d\' -f2); do
+	php_ext_load
+	for name in "${PHP_EXT_NAMES[@]}"; do
 		if php_ext_applies "$name" "$1"; then
 			echo "$name"
 		fi
@@ -349,7 +425,8 @@ php_mods_enabled() {
 	local file module
 	for file in "/etc/php/$1/$2/conf.d/"*.ini; do
 		[ -e "$file" ] || continue
-		module=$(basename "$file" .ini)
+		module=${file##*/}
+		module=${module%.ini}
 		module=${module#*-}
 		if [[ "$module" =~ ^[A-Za-z0-9_]+$ ]] && [ -f "/etc/php/$1/mods-available/$module.ini" ]; then
 			echo "$module"
@@ -514,24 +591,27 @@ php_ini_validate() {
 		fi
 
 		# 3. PHP starts with the candidate: no startup warning (an extension
-		# that does not load); deprecations are warnings
-		out=$(PHP_INI_SCAN_DIR="$scan" "php$version" -c "$file" -d display_startup_errors=1 \
-			-d display_errors=stderr -d log_errors=0 -d auto_prepend_file= -d auto_append_file= \
-			-r 'exit(0);' 2>&1)
+		# that does not load); deprecations are warnings. Skipped when a value
+		# is already wrong: PHP would only repeat it without a line.
 		echo '[]' > "$dir/start.json"
-		while IFS= read -r line; do
-			line=$(sed -e 's/^PHP //' <<< "$line")
-			[ -n "${line// /}" ] || continue
-			level=error
-			if [[ "$line" == *Deprecated* ]]; then
-				level=warning
-			fi
-			jq -c --arg l "$level" --arg m "$line" '. + [{line: 0, level: $l, directive: "", message: $m}]' \
-				"$dir/start.json" > "$dir/start.tmp" && mv -f "$dir/start.tmp" "$dir/start.json"
-		done <<< "$out"
+		if ! jq -e 'any(.[]; .level == "error")' "$dir/semantic.json" > /dev/null; then
+			out=$(PHP_INI_SCAN_DIR="$scan" "php$version" -c "$file" -d display_startup_errors=1 \
+				-d display_errors=stderr -d log_errors=0 -d auto_prepend_file= -d auto_append_file= \
+				-r 'exit(0);' 2>&1)
+			while IFS= read -r line; do
+				line=$(sed -e 's/^PHP //' <<< "$line")
+				[ -n "${line// /}" ] || continue
+				level=error
+				if [[ "$line" == *Deprecated* ]]; then
+					level=warning
+				fi
+				jq -c --arg l "$level" --arg m "$line" '. + [{line: 0, level: $l, directive: "", message: $m}]' \
+					"$dir/start.json" > "$dir/start.tmp" && mv -f "$dir/start.tmp" "$dir/start.json"
+			done <<< "$out"
+		fi
 		parts+=("$dir/start.json")
 
-		if [ "$sapi" = 'fpm' ] && ! jq -e 'any(.[]; .level == "error")' "$dir/start.json" > /dev/null; then
+		if [ "$sapi" = 'fpm' ] && ! jq -s -e 'add | any(.[]; .level == "error")' "$dir/semantic.json" "$dir/start.json" > /dev/null; then
 			if ! out=$(php_fpm_test "$version" "$file"); then
 				jq -n --arg m "php-fpm$version -t failed: $(grep -vE 'NOTICE' <<< "$out" | head -n 3 | tr '\n' ' ')" \
 					'[{line: 0, level: "error", directive: "", message: $m}]' > "$dir/fpm.json"
