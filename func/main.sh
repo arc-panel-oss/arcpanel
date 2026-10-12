@@ -2020,7 +2020,7 @@ multiphp_versions() {
 
 multiphp_default_version() {
 	# Get system wide default php version (set by update-alternatives)
-	local sys_phpversion=$(php -r "echo substr(phpversion(),0,3);")
+	local sys_phpversion=$(php -r "echo PHP_MAJOR_VERSION . \".\" . PHP_MINOR_VERSION;")
 
 	# Check if the system php also has php-fpm enabled, otherwise return
 	# the most recent php version which does have it installed.

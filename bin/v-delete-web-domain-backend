@@ -79,11 +79,7 @@ delete_web_backend
 #----------------------------------------------------------#
 
 # Detect prev version
-if [[ $BACKEND =~ ^.*PHP-([0-9])\_([0-9])$ ]]; then
-	version="${BASH_REMATCH[1]}.${BASH_REMATCH[2]}"
-else
-	version=$(multiphp_default_version)
-fi
+version=$(php_backend_version "$BACKEND")
 # Restarting php interpreter
 $BIN/v-restart-web-backend "$restart" "$version"
 check_result $? "PHP restart failed" > /dev/null

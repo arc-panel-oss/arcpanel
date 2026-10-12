@@ -6,6 +6,10 @@
 #                                                                           #
 #===========================================================================#
 
+# PHP versions of backend templates (E41)
+# shellcheck source=/usr/local/arcpanel/func/php.sh
+source "$ARCPANEL/func/php.sh"
+
 #----------------------------------------------------------#
 #                        WEB                               #
 #----------------------------------------------------------#
@@ -104,9 +108,8 @@ prepare_web_backend() {
 
 	pool=$(find -L /etc/php/ -name "$domain.conf" -exec dirname {} \;)
 	# Check if multiple-PHP installed
-	regex="socket-(\d+)_(\d+)"
-	if [[ $backend_template =~ ^.*PHP-([0-9])\_([0-9])$ ]]; then
-		backend_version="${BASH_REMATCH[1]}.${BASH_REMATCH[2]}"
+	if [[ $backend_template =~ ^.*PHP-([0-9]{1,2})_([0-9]{1,2})$ ]]; then
+		backend_version=$(php_backend_version "$backend_template")
 		pool=$(find -L /etc/php/$backend_version -type d \( -name "pool.d" -o -name "*fpm.d" \))
 	else
 		backend_version=$(multiphp_default_version)

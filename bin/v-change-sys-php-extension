@@ -1,0 +1,135 @@
+#!/bin/bash
+# info: turn a PHP extension on or off (E41)
+# options: VERSION NAME STATE [SAPI]
+#
+# example: v-change-sys-php-extension 8.4 xdebug off fpm
+#
+# This function enables (on) or disables (off) the module of an installed
+# extension of the catalog (install/common/php/extensions.conf) with phpenmod
+# or phpdismod, for PHP-FPM (fpm), the command line (cli) or both (empty).
+# Required extensions cannot be turned off; turning one on checks its
+# conflicts. A PHP-FPM change is tested with php-fpm -t and a reload, a CLI
+# change by starting the CLI binary; on a failure the change is undone
+# (E_INVALID, or E_RESTART when PHP-FPM stopped).
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+version=$1
+name=$2
+state=$3
+sapi=$4
+
+# Includes
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/php.sh
+source $ARCPANEL/func/php.sh
+# load config file
+source_conf "$ARCPANEL/conf/arcpanel.conf"
+
+# Set the module of every SAPI of the list: mod_set on|off SAPI...
+mod_set() {
+	local tool=phpdismod s
+	if [ "$1" = 'on' ]; then
+		tool=phpenmod
+	fi
+	for s in "${@:2}"; do
+		"$tool" -v "$version" -s "$s" "$module"
+	done
+}
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '3' "$#" 'VERSION NAME STATE [SAPI]'
+php_ext_check_args "$version" "$name"
+
+if [ "$state" != 'on' ] && [ "$state" != 'off' ]; then
+	check_result "$E_INVALID" "invalid state :: $state (on or off)"
+fi
+case "$sapi" in
+	fpm | cli) sapis=("$sapi") ;;
+	'') sapis=(fpm cli) ;;
+	*) check_result "$E_INVALID" "invalid SAPI :: $sapi (fpm, cli or empty for both)" ;;
+esac
+
+module=$(php_ext_get "$name" MODULE)
+if ! php_ext_installed "$name" "$version"; then
+	check_result "$E_NOTEXIST" "the extension $name is not installed for PHP $version"
+fi
+if [ "$state" = 'off' ] && [ "$(php_ext_get "$name" REQUIRED)" = 'yes' ]; then
+	check_result "$E_FORBIDEN" "the extension $name is required and cannot be turned off"
+fi
+if [ "$state" = 'on' ]; then
+	conflicts=$(php_ext_conflicts_enabled "$name" "$version" | paste -sd, -)
+	if [ -n "$conflicts" ]; then
+		check_result "$E_INUSE" "the extension $name cannot be enabled together with $conflicts"
+	fi
+fi
+
+# Perform verification if read-only mode is enabled
+check_arcpanel_demo_mode
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+php_lock "$version"
+
+# Only the SAPIs whose state changes
+changed=()
+for s in "${sapis[@]}"; do
+	if php_mod_enabled "$version" "$s" "$module"; then
+		current=on
+	else
+		current=off
+	fi
+	if [ "$current" != "$state" ]; then
+		changed+=("$s")
+	fi
+done
+
+if [ "${#changed[@]}" -gt 0 ]; then
+	undo=on
+	if [ "$state" = 'on' ]; then
+		undo=off
+	fi
+	mod_set "$state" "${changed[@]}"
+
+	if printf '%s\n' "${changed[@]}" | grep -qx cli; then
+		if ! out=$(php_cli_test "$version"); then
+			echo "$out"
+			mod_set "$undo" "${changed[@]}"
+			check_result "$E_INVALID" "PHP $version does not start with $name $state; the change was undone"
+		fi
+	fi
+	if printf '%s\n' "${changed[@]}" | grep -qx fpm; then
+		if ! out=$(php_fpm_test "$version"); then
+			echo "$out"
+			mod_set "$undo" "${changed[@]}"
+			check_result "$E_INVALID" "PHP-FPM $version does not start with $name $state; the change was undone"
+		fi
+		if ! php_fpm_reload "$version"; then
+			php_fpm_log "$version"
+			mod_set "$undo" "${changed[@]}"
+			"$BIN/v-restart-service" "php$version-fpm" > /dev/null 2>&1
+			check_result "$E_RESTART" "PHP-FPM $version stopped after turning $name $state; the change was undone"
+		fi
+	fi
+fi
+
+#----------------------------------------------------------#
+#                         ArcPanel                         #
+#----------------------------------------------------------#
+
+# Logging
+$BIN/v-log-action "system" "Info" "System" "PHP extension turned $state (Version: $version, Extension: $name, SAPI: ${sapi:-fpm,cli})."
+log_event "$OK" "$ARGUMENTS"
+
+exit

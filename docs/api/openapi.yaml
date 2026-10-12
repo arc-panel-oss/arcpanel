@@ -3224,6 +3224,55 @@ paths:
           $ref: "#/components/responses/InvalidRequest"
         "422":
           $ref: "#/components/responses/Unprocessable"
+  "/api/#v-add-sys-php-extension":
+    post:
+      operationId: v-add-sys-php-extension
+      tags:
+        - System
+      summary: Install a PHP extension for a version (E41)
+      description: |-
+        This function installs the Debian package of an extension of the catalog
+        (install/common/php/extensions.conf) for one PHP version; the package
+        enables the module for PHP-FPM and the CLI. A conflicting extension that is
+        enabled stops the install. When php-fpm -t fails afterwards the package is
+        removed again (E_INVALID); when PHP-FPM does not run after the reload, the
+        package is removed and the service restarted (E_RESTART).
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `VERSION` | yes |
+        | `arg2` | `NAME` | yes |
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-add-sys-php-extension"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-add-sys-php-extension"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
   "/api/#v-add-sys-pma-restrict":
     post:
       operationId: v-add-sys-pma-restrict
@@ -5379,7 +5428,9 @@ paths:
         - Web
       summary: Add php fpm version
       description: |-
-        Install php-fpm for provided version.
+        Install php-fpm for provided version. The version must be listed as
+        installable in the version catalog (install/common/php/versions.conf) and
+        provided by the PHP repository of the server (E41).
 
         **Arguments**
 
@@ -8066,6 +8117,58 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/v-change-sys-php"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+  "/api/#v-change-sys-php-extension":
+    post:
+      operationId: v-change-sys-php-extension
+      tags:
+        - System
+      summary: Turn a PHP extension on or off (E41)
+      description: |-
+        This function enables (on) or disables (off) the module of an installed
+        extension of the catalog (install/common/php/extensions.conf) with phpenmod
+        or phpdismod, for PHP-FPM (fpm), the command line (cli) or both (empty).
+        Required extensions cannot be turned off; turning one on checks its
+        conflicts. A PHP-FPM change is tested with php-fpm -t and a reload, a CLI
+        change by starting the CLI binary; on a failure the change is undone
+        (E_INVALID, or E_RESTART when PHP-FPM stopped).
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `VERSION` | yes |
+        | `arg2` | `NAME` | yes |
+        | `arg3` | `STATE` | yes |
+        | `arg4` | `SAPI` | no |
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-change-sys-php-extension"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-change-sys-php-extension"
       responses:
         "200":
           description: "The output of the command; `OK` for an empty output with legacy authentication."
@@ -13796,6 +13899,54 @@ paths:
           $ref: "#/components/responses/InvalidRequest"
         "422":
           $ref: "#/components/responses/Unprocessable"
+  "/api/#v-delete-sys-php-extension":
+    post:
+      operationId: v-delete-sys-php-extension
+      tags:
+        - System
+      summary: Remove a PHP extension of a version (E41)
+      description: |-
+        This function purges the Debian package of an extension of the catalog
+        (install/common/php/extensions.conf) for one PHP version and reloads
+        PHP-FPM. Required extensions and modules that ship with PHP (toggle only)
+        cannot be removed; neither can a package that other installed packages
+        need (E_INUSE, naming them).
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `VERSION` | yes |
+        | `arg2` | `NAME` | yes |
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-delete-sys-php-extension"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-delete-sys-php-extension"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
   "/api/#v-delete-sys-pma-restrict":
     post:
       operationId: v-delete-sys-pma-restrict
@@ -15995,7 +16146,9 @@ paths:
         - Web
       summary: Delete php fpm version
       description: |-
-        This function checks and delete a fpm php version if not used by any domain.
+        This function removes an installed PHP-FPM version with its extension
+        packages. It refuses the default version and a version that web domains use
+        (E41).
 
         **Arguments**
 
@@ -21651,18 +21804,73 @@ paths:
           $ref: "#/components/responses/InvalidRequest"
         "422":
           $ref: "#/components/responses/Unprocessable"
+  "/api/#v-list-sys-php-extensions":
+    post:
+      operationId: v-list-sys-php-extensions
+      tags:
+        - System
+      summary: List the PHP extensions of a version (E41)
+      description: |-
+        This function lists the extension catalog entries
+        (install/common/php/extensions.conf) that apply to an installed PHP version,
+        with INSTALLED and AVAILABLE (yes or no), FPM and CLI (on or off, whether the
+        module is enabled for that SAPI) and CATALOG='yes', followed by the modules
+        enabled on the server that the catalog does not list (CATALOG='no', read
+        only).
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `VERSION` | yes |
+        | `arg2` | `FORMAT` | no |
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-list-sys-php-extensions"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-list-sys-php-extensions"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+            application/json:
+              schema:
+                type: object
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
   "/api/#v-list-sys-php-versions":
     post:
       operationId: v-list-sys-php-versions
       tags:
         - System
-      summary: List the PHP versions the server supports and their state (E7 batch 3)
+      summary: List the PHP versions the panel knows and their state (E7 batch 3, E41)
       description: |-
-        This function lists every PHP version that v-add-web-php accepts with
-        INSTALLED (yes or no), DEFAULT (yes for the version of the system php
-        binary) and USED_BY (the USER/DOMAIN web domains whose backend template
-        uses it, comma-separated). The server settings page locks a version that
-        is the default or in use, as v-start-sys-task does.
+        This function lists every version of the PHP version catalog
+        (install/common/php/versions.conf) and any installed version the catalog
+        does not list, with INSTALLED (yes or no), DEFAULT (yes for the version of
+        the system php binary), USED_BY (the USER/DOMAIN web domains whose backend
+        template uses it, comma-separated), STATUS (active, security, eol or
+        unknown), RELEASED, ACTIVE_UNTIL, EOL, INSTALLABLE (the catalog allows new
+        installs), AVAILABLE (the PHP repository of the server provides it) and
+        EXTENSIONS (the number of modules enabled for PHP-FPM).
 
         **Arguments**
 
@@ -28976,6 +29184,9 @@ paths:
         php ADD DELETE            PHP versions to install and to remove, comma
         lists or "-"; a version in use by a web domain
         or the system default is not removed
+        php-ext VERSION ADD DELETE  PHP extensions of one installed version to
+        install and to remove (E41), comma lists of
+        catalog names or "-"
         plugin NAME on|off        filemanager, web-terminal, quota, cgroups or
         firewall: v-add-sys-NAME or v-delete-sys-NAME
         arcpanel-update [PACKAGE]   v-update-sys-arcpanel PACKAGE, or every package
@@ -36446,6 +36657,34 @@ components:
               default: v-add-sys-panel-files
             returncode:
               $ref: "#/components/schemas/ReturnCode"
+    v-add-sys-php-extension:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+            - arg2
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-add-sys-php-extension
+              default: v-add-sys-php-extension
+            arg1:
+              type: string
+              title: VERSION
+              description: "`VERSION`"
+              examples:
+                - "8.4"
+            arg2:
+              type: string
+              title: NAME
+              description: "`NAME`"
+              examples:
+                - redis
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
     v-add-sys-pma-restrict:
       allOf:
         - $ref: "#/components/schemas/Credentials"
@@ -39844,6 +40083,47 @@ components:
               description: "`VERSION`"
               examples:
                 - ""
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
+    v-change-sys-php-extension:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+            - arg2
+            - arg3
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-change-sys-php-extension
+              default: v-change-sys-php-extension
+            arg1:
+              type: string
+              title: VERSION
+              description: "`VERSION`"
+              examples:
+                - "8.4"
+            arg2:
+              type: string
+              title: NAME
+              description: "`NAME`"
+              examples:
+                - xdebug
+            arg3:
+              type: string
+              title: STATE
+              description: "`STATE`"
+              examples:
+                - "off"
+            arg4:
+              type: string
+              title: SAPI
+              description: "`SAPI`, optional"
+              examples:
+                - fpm
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-change-sys-port:
@@ -43599,6 +43879,34 @@ components:
               description: "`FORCE`, optional"
               examples:
                 - ""
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
+    v-delete-sys-php-extension:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+            - arg2
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-delete-sys-php-extension
+              default: v-delete-sys-php-extension
+            arg1:
+              type: string
+              title: VERSION
+              description: "`VERSION`"
+              examples:
+                - "8.4"
+            arg2:
+              type: string
+              title: NAME
+              description: "`NAME`"
+              examples:
+                - redis
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-delete-sys-pma-restrict:
@@ -48229,6 +48537,38 @@ components:
                 - v-list-sys-php-config
               default: v-list-sys-php-config
             arg1:
+              type: string
+              title: FORMAT
+              description: "`FORMAT`, optional"
+              enum:
+                - json
+                - plain
+                - csv
+                - shell
+              examples:
+                - json
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
+    v-list-sys-php-extensions:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-list-sys-php-extensions
+              default: v-list-sys-php-extensions
+            arg1:
+              type: string
+              title: VERSION
+              description: "`VERSION`"
+              examples:
+                - "8.4"
+            arg2:
               type: string
               title: FORMAT
               description: "`FORMAT`, optional"

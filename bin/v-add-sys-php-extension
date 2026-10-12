@@ -1,0 +1,95 @@
+#!/bin/bash
+# info: install a PHP extension for a version (E41)
+# options: VERSION NAME
+#
+# example: v-add-sys-php-extension 8.4 redis
+#
+# This function installs the Debian package of an extension of the catalog
+# (install/common/php/extensions.conf) for one PHP version; the package
+# enables the module for PHP-FPM and the CLI. A conflicting extension that is
+# enabled stops the install. When php-fpm -t fails afterwards the package is
+# removed again (E_INVALID); when PHP-FPM does not run after the reload, the
+# package is removed and the service restarted (E_RESTART).
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+version=$1
+name=$2
+
+# Includes
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/php.sh
+source $ARCPANEL/func/php.sh
+# load config file
+source_conf "$ARCPANEL/conf/arcpanel.conf"
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '2' "$#" 'VERSION NAME'
+php_ext_check_args "$version" "$name"
+
+pkg=$(php_ext_package "$name" "$version")
+if [ -z "$pkg" ]; then
+	check_result "$E_FORBIDEN" "$name ships with PHP $version and can only be turned on and off"
+fi
+if php_ext_installed "$name" "$version"; then
+	check_result "$E_EXISTS" "the extension $name is already installed for PHP $version"
+fi
+if ! php_ext_available "$name" "$version"; then
+	check_result "$E_NOTEXIST" "the extension $name is not available for PHP $version from the PHP repository"
+fi
+conflicts=$(php_ext_conflicts_enabled "$name" "$version" | paste -sd, -)
+if [ -n "$conflicts" ]; then
+	check_result "$E_INUSE" "the extension $name cannot be enabled together with $conflicts"
+fi
+
+# Perform verification if read-only mode is enabled
+check_arcpanel_demo_mode
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+php_lock "$version"
+
+echo "Installing $pkg..."
+if ! DEBIAN_FRONTEND=noninteractive apt-get -y -o Dpkg::Options::="--force-confold" install "$pkg" 2>&1; then
+	check_result "$E_UPDATE" "$pkg could not be installed"
+fi
+
+# The package keeps a module that an administrator turned off before: enable
+# it for PHP-FPM and the CLI explicitly
+module=$(php_ext_get "$name" MODULE)
+phpenmod -v "$version" -s fpm "$module"
+phpenmod -v "$version" -s cli "$module"
+
+# The new module must load: test PHP-FPM, then reload it and check it runs
+if ! out=$(php_fpm_test "$version"); then
+	echo "$out"
+	DEBIAN_FRONTEND=noninteractive apt-get -y purge "$pkg" > /dev/null 2>&1
+	check_result "$E_INVALID" "PHP-FPM $version does not start with $name; the package was removed"
+fi
+if ! php_fpm_reload "$version"; then
+	php_fpm_log "$version"
+	DEBIAN_FRONTEND=noninteractive apt-get -y purge "$pkg" > /dev/null 2>&1
+	"$BIN/v-restart-service" "php$version-fpm" > /dev/null 2>&1
+	check_result "$E_RESTART" "PHP-FPM $version stopped after enabling $name; the package was removed"
+fi
+
+#----------------------------------------------------------#
+#                         ArcPanel                         #
+#----------------------------------------------------------#
+
+# Logging
+$BIN/v-log-action "system" "Info" "System" "PHP extension installed (Version: $version, Extension: $name)."
+log_event "$OK" "$ARGUMENTS"
+
+exit

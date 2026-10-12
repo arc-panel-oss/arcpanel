@@ -3,6 +3,7 @@
 # options: KIND [ARG...]
 #
 # example: v-start-sys-task php 8.3,8.4 -
+# example: v-start-sys-task php-ext 8.4 redis,apcu -
 # example: v-start-sys-task plugin web-terminal on
 # example: v-start-sys-task arcpanel-update arcpanel
 # example: v-start-sys-task package python add
@@ -14,6 +15,9 @@
 #   php ADD DELETE            PHP versions to install and to remove, comma
 #                             lists or "-"; a version in use by a web domain
 #                             or the system default is not removed
+#   php-ext VERSION ADD DELETE  PHP extensions of one installed version to
+#                             install and to remove (E41), comma lists of
+#                             catalog names or "-"
 #   plugin NAME on|off        filemanager, web-terminal, quota, cgroups or
 #                             firewall: v-add-sys-NAME or v-delete-sys-NAME
 #   arcpanel-update [PACKAGE]   v-update-sys-arcpanel PACKAGE, or every package
@@ -45,8 +49,19 @@ php_list() {
 	if [ "$1" = '-' ]; then
 		return
 	fi
-	if [[ ! "$1" =~ ^[0-9]\.[0-9](,[0-9]\.[0-9])*$ ]]; then
+	if [[ ! "$1" =~ ^[0-9]{1,2}\.[0-9]{1,2}(,[0-9]{1,2}\.[0-9]{1,2})*$ ]]; then
 		check_result "$E_INVALID" "invalid PHP version list :: $1"
+	fi
+	echo "${1//,/ }"
+}
+
+# A comma list of PHP extension names, or "-" for none
+ext_list() {
+	if [ "$1" = '-' ]; then
+		return
+	fi
+	if [[ ! "$1" =~ ^[a-z0-9_]{1,32}(,[a-z0-9_]{1,32})*$ ]]; then
+		check_result "$E_INVALID" "invalid PHP extension list :: $1"
 	fi
 	echo "${1//,/ }"
 }
@@ -76,6 +91,9 @@ case "$kind" in
 			if st_php_installed "$version"; then
 				check_result "$E_EXISTS" "PHP $version is already installed"
 			fi
+			if ! php_version_available "$version"; then
+				check_result "$E_NOTEXIST" "PHP $version is not available from the PHP repository of this system"
+			fi
 		done
 		for version in $delete; do
 			if ! st_php_installed "$version"; then
@@ -89,6 +107,37 @@ case "$kind" in
 			fi
 		done
 		args="$2 $3"
+		;;
+	php-ext)
+		check_args '4' "$#" 'php-ext VERSION ADD DELETE'
+		php_ext_check_args "$2"
+		add=$(ext_list "$3")
+		delete=$(ext_list "$4")
+		if [ -z "$add$delete" ]; then
+			check_result "$E_ARGS" "no PHP extension to install or remove"
+		fi
+		for name in $add; do
+			php_ext_check_args "$2" "$name"
+			if [ -z "$(php_ext_package "$name" "$2")" ]; then
+				check_result "$E_FORBIDEN" "$name ships with PHP $2 and can only be turned on and off"
+			fi
+			if php_ext_installed "$name" "$2"; then
+				check_result "$E_EXISTS" "the extension $name is already installed for PHP $2"
+			fi
+			if ! php_ext_available "$name" "$2"; then
+				check_result "$E_NOTEXIST" "the extension $name is not available for PHP $2 from the PHP repository"
+			fi
+		done
+		for name in $delete; do
+			php_ext_check_args "$2" "$name"
+			if [ "$(php_ext_get "$name" REQUIRED)" = 'yes' ] || [ -z "$(php_ext_package "$name" "$2")" ]; then
+				check_result "$E_FORBIDEN" "the extension $name cannot be removed"
+			fi
+			if ! php_ext_installed "$name" "$2"; then
+				check_result "$E_NOTEXIST" "the extension $name is not installed for PHP $2"
+			fi
+		done
+		args="$2 $3 $4"
 		;;
 	plugin)
 		check_args '3' "$#" 'plugin NAME on|off'
@@ -137,7 +186,7 @@ case "$kind" in
 		args="$2 $3"
 		;;
 	*)
-		check_result "$E_INVALID" "invalid task kind :: $kind (php, plugin, arcpanel-update, package)"
+		check_result "$E_INVALID" "invalid task kind :: $kind (php, php-ext, plugin, arcpanel-update, package)"
 		;;
 esac
 

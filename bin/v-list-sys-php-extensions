@@ -1,0 +1,128 @@
+#!/bin/bash
+# info: list the PHP extensions of a version (E41)
+# options: VERSION [FORMAT]
+#
+# example: v-list-sys-php-extensions 8.4 json
+#
+# This function lists the extension catalog entries
+# (install/common/php/extensions.conf) that apply to an installed PHP version,
+# with INSTALLED and AVAILABLE (yes or no), FPM and CLI (on or off, whether the
+# module is enabled for that SAPI) and CATALOG='yes', followed by the modules
+# enabled on the server that the catalog does not list (CATALOG='no', read
+# only).
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+version=$1
+format=${2-shell}
+
+# Includes
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/php.sh
+source $ARCPANEL/func/php.sh
+# load config file
+source_conf "$ARCPANEL/conf/arcpanel.conf"
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '1' "$#" 'VERSION [FORMAT]'
+php_ext_check_args "$version"
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+names=$(php_ext_names "$version")
+
+# One apt-cache and one dpkg-query call for every package
+packages=()
+for name in $names; do
+	pkg=$(php_ext_package "$name" "$version")
+	if [ -n "$pkg" ]; then
+		packages+=("$pkg")
+	fi
+done
+if [ "${#packages[@]}" -gt 0 ]; then
+	php_apt_refresh "${packages[@]}"
+	installed_pkgs=$(php_dpkg_installed "${packages[@]}")
+fi
+fpm_mods=$(php_mods_enabled "$version" fpm)
+cli_mods=$(php_mods_enabled "$version" cli)
+
+json='{}'
+modules=''
+for name in $names; do
+	line=$(php_ext_line "$name")
+	module=$(php_kv "$line" MODULE)
+	modules="$modules $module"
+	pkg=$(php_ext_package "$name" "$version")
+	installed=no
+	if php_mod_present "$version" "$module" \
+		&& { [ -z "$pkg" ] || grep -qxF "$pkg" <<< "$installed_pkgs"; }; then
+		installed=yes
+	fi
+	available=no
+	if [ "$installed" = 'yes' ] || { [ -n "$pkg" ] && php_apt_candidate "$pkg"; }; then
+		available=yes
+	fi
+	fpm=off
+	if grep -qxF "$module" <<< "$fpm_mods"; then
+		fpm=on
+	fi
+	cli=off
+	if grep -qxF "$module" <<< "$cli_mods"; then
+		cli=on
+	fi
+	json=$(jq -c --arg n "$name" --arg p "$pkg" --arg m "$module" --arg g "$(php_kv "$line" GROUP)" \
+		--arg r "$(php_kv "$line" REQUIRED)" --arg c "$(php_kv "$line" CONFLICTS)" --arg o "$(php_kv "$line" NOTE)" \
+		--arg i "$installed" --arg a "$available" --arg f "$fpm" --arg l "$cli" \
+		'. + {($n): {PACKAGE: $p, MODULE: $m, GROUP: $g, REQUIRED: $r, CONFLICTS: $c, NOTE: $o,
+			CATALOG: "yes", TOGGLE_ONLY: (if $p == "" then "yes" else "no" end), INSTALLED: $i,
+			AVAILABLE: $a, FPM: $f, CLI: $l}}' <<< "$json")
+done
+
+# Modules enabled on the server that the catalog does not list
+for module in $(printf '%s\n' "$fpm_mods" "$cli_mods" | sort -u); do
+	if grep -qwF "$module" <<< "$modules" || [ "$(jq -r --arg m "$module" 'has($m)' <<< "$json")" = 'true' ]; then
+		continue
+	fi
+	fpm=off
+	if grep -qxF "$module" <<< "$fpm_mods"; then
+		fpm=on
+	fi
+	cli=off
+	if grep -qxF "$module" <<< "$cli_mods"; then
+		cli=on
+	fi
+	json=$(jq -c --arg m "$module" --arg f "$fpm" --arg l "$cli" \
+		'. + {($m): {PACKAGE: "", MODULE: $m, GROUP: "other", REQUIRED: "no", CONFLICTS: "", NOTE: "",
+			CATALOG: "no", TOGGLE_ONLY: "no", INSTALLED: "yes", AVAILABLE: "yes", FPM: $f, CLI: $l}}' <<< "$json")
+done
+
+case "$format" in
+	json) jq . <<< "$json" ;;
+	plain) jq -r 'to_entries[] | [.key, .value.GROUP, .value.INSTALLED, .value.AVAILABLE, .value.FPM,
+		.value.CLI, .value.REQUIRED, .value.CATALOG, .value.PACKAGE] | join("\t")' <<< "$json" ;;
+	*)
+		{
+			echo "NAME GROUP INSTALLED AVAILABLE FPM CLI REQUIRED CATALOG"
+			echo "---- ----- --------- --------- --- --- -------- -------"
+			jq -r 'to_entries[] | [.key, .value.GROUP, .value.INSTALLED, .value.AVAILABLE, .value.FPM,
+				.value.CLI, .value.REQUIRED, .value.CATALOG] | join(" ")' <<< "$json"
+		} | column -t
+		;;
+esac
+
+#----------------------------------------------------------#
+#                         ArcPanel                         #
+#----------------------------------------------------------#
+
+exit

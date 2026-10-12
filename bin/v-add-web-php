@@ -4,7 +4,9 @@
 #
 # example: v-add-web-php 8.0
 #
-# Install php-fpm for provided version.
+# Install php-fpm for provided version. The version must be listed as
+# installable in the version catalog (install/common/php/versions.conf) and
+# provided by the PHP repository of the server (E41).
 
 #----------------------------------------------------------#
 #                Variables & Functions                     #
@@ -18,9 +20,10 @@ version=$1
 source /etc/arcpanel/arcpanel.conf
 # shellcheck source=/usr/local/arcpanel/func/main.sh
 source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/php.sh
+source $ARCPANEL/func/php.sh
 # load config file
 source_conf "$ARCPANEL/conf/arcpanel.conf"
-source_conf "$ARCPANEL/install/upgrade/upgrade.conf"
 #----------------------------------------------------------#
 #                    Verifications                         #
 #----------------------------------------------------------#
@@ -34,23 +37,27 @@ fi
 # Set file locations
 php_fpm="/etc/init.d/php$version-fpm"
 
-# Verify php version format
-if [[ ! $version =~ ^[0-9]+\.[0-9]+ ]]; then
-	echo "The specified PHP version format is invalid, it should look like [0-9].[0-9]."
-	echo "Example: 7.0, 7.4, 8.0"
-	exit "$E_INVALID"
+# The version must be in the catalog (exact match), installable and provided
+# by the PHP repository
+if ! php_version_format_valid "$version"; then
+	check_result "$E_INVALID" "invalid PHP version :: $version (for example 8.3)"
 fi
-
-# Check if php version already exists
-if [ -f "$php_fpm" ] && [ -f "$ARCPANEL/data/templates/web/php-fpm/PHP-${version/\./_}.tpl" ]; then
-	echo "ERROR: Specified PHP version is already installed."
-	exit "$E_INVALID"
+if ! php_version_valid "$version"; then
+	check_result "$E_INVALID" "PHP $version is not in the version catalog"
 fi
-
-# Check if php version is supported
-if [[ ! "$multiphp_v" =~ $version ]]; then
-	echo "ERROR: Specified PHP version is not supported or does not exist."
-	exit "$E_INVALID"
+if php_version_installed "$version"; then
+	check_result "$E_EXISTS" "PHP $version is already installed"
+fi
+if ! php_version_installable "$version"; then
+	check_result "$E_FORBIDEN" "PHP $version has reached its end of life and can no longer be installed"
+fi
+if ! php_version_available "$version"; then
+	# The package lists may be older than the repository: read them again once
+	apt-get -qq update > /dev/null 2>&1
+	php_apt_cache_clear
+	if ! php_version_available "$version"; then
+		check_result "$E_NOTEXIST" "PHP $version is not available from the PHP repository of this system"
+	fi
 fi
 
 # Perform verification if read-only mode is enabled
@@ -65,13 +72,11 @@ mph="php$version-common php$version-mbstring php$version-bcmath php$version-cli 
      php$version-soap php$version-xml php$version-zip php$version-json php$version-bz2
      php$version-pspell php$version-imagick php$version-pgsql php$version-imap php$version-ldap php$version-apcu"
 
-# Check if version is 7.1 or below to add mcrypt
-if [[ $(echo "$version 7.2" | awk '{print ($1 < $2)}') == 1 ]]; then
+# Versions below 7.2 add mcrypt; json is part of the core from 8.0
+if [ "$(printf '%s\n' "$version" 7.2 | sort -V | head -n1)" != '7.2' ]; then
 	mph="$mph php$version-mcrypt"
 fi
-
-# Check if version is 8.0 or higher and drop json
-if [[ ${version:0:1} == "8" ]]; then
+if [ "$(printf '%s\n' "$version" 8.0 | sort -V | head -n1)" = '8.0' ]; then
 	mph=$(echo "$mph" | sed -e "s/php$version-json//")
 fi
 
@@ -83,8 +88,20 @@ if ! echo "$DB_SYSTEM" | grep -w 'pgsql' > /dev/null; then
 	mph=$(echo "$mph" | sed -e "s/php$version-pgsql//")
 fi
 
-# Install php packages
+# Install only the packages the repository provides for this version (for
+# example imap and pspell left the core in 8.4)
 apt-get -qq update
+php_apt_cache_clear
+# shellcheck disable=SC2086
+php_apt_refresh $mph
+available=''
+for pkg in $mph; do
+	if php_apt_candidate "$pkg"; then
+		available="$available $pkg"
+	fi
+done
+mph=$available
+
 apt-get -y -qq -o Dpkg::Options::="--force-confold" install $mph > /dev/null 2>&1 &
 
 BACK_PID=$!
@@ -105,6 +122,7 @@ echo
 if [ ! -f "$php_fpm" ]; then
 	echo "ERROR: Installation failed, please run the following command manually for debugging:"
 	echo "apt-get install $mph"
+	check_result "$E_UPDATE" "PHP $version could not be installed"
 fi
 
 # Check if required modules for apache2 are enabled
@@ -145,7 +163,7 @@ sed -i "s/;opcache.max_accelerated_files=10000/opcache.max_accelerated_files=100
 
 # Install backend template
 cp -f $ARCPANEL_INSTALL_DIR/php-fpm/multiphp.tpl \
-	$ARCPANEL/data/templates/web/php-fpm/PHP-${version/\./_}.tpl
+	"$PHP_FPM_TPL_DIR/$(php_tpl_name "$version").tpl"
 
 #----------------------------------------------------------#
 #                         ArcPanel                         #
