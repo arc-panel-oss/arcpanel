@@ -469,7 +469,8 @@ final class ServerSettings
         $config = $this->config();
         $steps = [];
 
-        $api = ['API_SYSTEM' => $values['API_SYSTEM'], 'API' => $values['API'], 'API_ALLOWED_IP' => $values['API_ALLOWED_IP']];
+        // A form without API_ALLOWED_IP keeps the current list
+        $api = ['API_SYSTEM' => $values['API_SYSTEM'], 'API' => $values['API'], 'API_ALLOWED_IP' => $values['API_ALLOWED_IP'] ?? $config['API_ALLOWED_IP'] ?? ''];
         $apiChanged = array_filter($api, fn ($value, $key) => $value !== ($config[$key] ?? ''), ARRAY_FILTER_USE_BOTH);
         if ($apiChanged !== []) {
             if ($api['API_SYSTEM'] === '0' && $api['API'] === 'no') {

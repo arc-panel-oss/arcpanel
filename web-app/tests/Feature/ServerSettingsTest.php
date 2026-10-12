@@ -341,6 +341,20 @@ it('turns the API off with one command and keeps System Protection for the ROOT_
     $this->fake->assertRan('v-change-sys-config-value', fn ($a) => $a[0] === 'POLICY_SYSTEM_PROTECTED_ADMIN', 0);
 });
 
+it('shows the allowed API addresses one per line and keeps them when the form leaves them out', function () {
+    $this->fake->on('v-change-sys-api')->returns();
+    withSysConfig($this->fake, ['API_SYSTEM' => '2', 'API_ALLOWED_IP' => '203.0.113.5,allow-all']);
+    signIn('arcadmin', 'admin');
+
+    $html = $this->get('/server/settings/security')->assertOk()->getContent();
+    expect($html)->not->toContain('<x-ap-')
+        ->and($html)->toMatch('#<textarea[^>]*name="API_ALLOWED_IP"[^>]*>203\.0\.113\.5\nallow-all</textarea>#');
+
+    $form = ['API_SYSTEM' => '2', 'API' => 'no', 'LOGIN_STYLE' => 'default', 'INACTIVE_SESSION_TIMEOUT' => '60', 'POLICY_CSRF_STRICTNESS' => '1'];
+    $this->post('/server/settings/security', $form)->assertSessionHas('ok');
+    $this->fake->assertRan('v-change-sys-config-value', fn ($a) => $a[0] === 'API_ALLOWED_IP', 0);
+});
+
 // Plugins and White Label
 
 it('installs plugins in the background and changes the app installer flag', function () {

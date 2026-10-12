@@ -39,17 +39,24 @@ final class SecuritySettingsRequest extends ServerSettingsRequest
         }];
     }
 
-    /** @return array<string, string> key => value */
+    /**
+     * API_ALLOWED_IP is left out when the form did not send it, so a form
+     * without the field keeps the current list instead of clearing it.
+     *
+     * @return array<string, string> key => value
+     */
     public function values(): array
     {
         $values = [
             'API_SYSTEM' => (string) $this->input('API_SYSTEM'),
             'API' => (string) $this->input('API'),
-            'API_ALLOWED_IP' => implode(',', $this->allowedIps()),
             'LOGIN_STYLE' => (string) $this->input('LOGIN_STYLE'),
             'INACTIVE_SESSION_TIMEOUT' => (string) (int) $this->input('INACTIVE_SESSION_TIMEOUT'),
             'POLICY_CSRF_STRICTNESS' => (string) $this->input('POLICY_CSRF_STRICTNESS'),
         ];
+        if ($this->has('API_ALLOWED_IP')) {
+            $values['API_ALLOWED_IP'] = implode(',', $this->allowedIps());
+        }
         foreach (ServerSettings::SECURITY_POLICIES as $keys) {
             foreach ($keys as $key) {
                 if ($this->has($key)) {

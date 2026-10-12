@@ -25,6 +25,8 @@
     ];
     $bacon = ($config['POLICY_SYSTEM_ENABLE_BACON'] ?? '') === 'true';
     $value = fn (string $key) => ($config[$key] ?? '') === 'yes' ? 'yes' : 'no';
+    // One address per line; built here because a "\n" inside the component attribute breaks the tag
+    $allowedIps = str_replace(',', PHP_EOL, $config['API_ALLOWED_IP'] ?? '');
 @endphp
 <x-ap-page :title="__('Server settings')" :crumbs="[['label' => __('Server')], ['label' => __('Server settings')], ['label' => __('Security')]]">
     @include('server.settings.partials.nav')
@@ -38,7 +40,7 @@
                     <x-ap-select name="API" :label="__('Legacy API')" :options="$yesNo" :value="($config['API'] ?? '') === 'yes' ? 'yes' : 'no'"
                         :hint="__('The older API that signs in with a user name and password or a hash key.')" />
                 </div>
-                <x-ap-textarea name="API_ALLOWED_IP" :label="__('Allowed IP addresses for API')" :value="str_replace(',', "\n", $config['API_ALLOWED_IP'] ?? '')" rows="3" mono
+                <x-ap-textarea name="API_ALLOWED_IP" :label="__('Allowed IP addresses for API')" :value="$allowedIps" rows="3" mono
                     :hint="__('One address per line; allow-all accepts every address.')" />
             </x-ap-card>
 
