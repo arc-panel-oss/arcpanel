@@ -10,6 +10,7 @@ export const islands = {
 	'file-manager': () => import('./file-manager/index.js'),
 	'docker-apps': () => import('./docker-apps/index.js'),
 	'service-editor': () => import('./service-editor/index.js'),
+	'php-ini-editor': () => import('./php-ini-editor/index.js'),
 };
 
 /** @param {ParentNode} root */

@@ -2,6 +2,9 @@
 
 namespace App\Services\WebDomains;
 
+use App\Auth\Principal;
+use App\Auth\Role;
+use App\Services\Php\PhpManager;
 use App\Services\Ports\PortService;
 use App\Services\UserDirectory;
 use App\Services\WebDomains\Tabs\AdvancedTab;
@@ -27,7 +30,42 @@ final class WebDomainActions
         private readonly TemplateVarsTab $vars,
         private readonly GeneralTab $general,
         private readonly SslTab $ssl,
+        private readonly PhpManager $php,
     ) {}
+
+    /**
+     * The backend templates a principal may choose for a domain of $user
+     * (E41 §7.5): administrators every template; others a template that names
+     * a PHP version only when the user's package allows that version, and
+     * the domain's current template.
+     *
+     * @return list<string>
+     */
+    public function backendTemplatesFor(Principal $principal, string $user, string $current = ''): array
+    {
+        $all = $this->web->backendTemplates();
+        if ($principal->loginRole === Role::Admin) {
+            return $all;
+        }
+        $keys = $this->php->packageOf((string) ($this->directory->all()[$user]['PACKAGE'] ?? ''));
+
+        return array_values(array_filter($all, fn (string $template) => $template === $current || $this->php->templateAllowed($template, $keys)));
+    }
+
+    /**
+     * Refuse a backend template of a PHP version the package does not allow.
+     *
+     * @throws ValidationException
+     */
+    public function checkBackendTemplate(Principal $principal, string $user, ?string $template, string $current = ''): void
+    {
+        if ($template === null || $template === '' || $template === $current) {
+            return;
+        }
+        if (! in_array($template, $this->backendTemplatesFor($principal, $user, $current), true)) {
+            throw ValidationException::withMessages(['backend_template' => __('The package does not allow this PHP version.')]);
+        }
+    }
 
     /**
      * The IP addresses of $user, refusing $ip when it is not one of them.

@@ -64,7 +64,8 @@ it('shows every tab to administrators', function () {
     $this->get('/server/settings')->assertRedirect('/server/settings/general');
     $this->get('/server/settings/general')->assertOk()->assertSee('srv1.example.net')->assertSee('Europe/Berlin')
         ->assertSee('Web Server')->assertSee('White Label');
-    $this->get('/server/settings/web')->assertOk()->assertSee('PHP 8.2')->assertSee('Default version')->assertSee('Used by bob/shop.example');
+    // Versions are installed and removed on the PHP page (E41 §8)
+    $this->get('/server/settings/web')->assertOk()->assertSee('Default PHP Version')->assertSee(route('server.php.index'), false)->assertDontSee('Apply PHP versions');
     $this->get('/server/settings/dns')->assertOk()->assertSee('No DNS cluster hosts');
     $this->get('/server/settings/mail')->assertOk()->assertSee('Global SMTP Relay')->assertSee('webmail');
     $this->get('/server/settings/databases')->assertOk()->assertSee('db2.example.net')->assertSee('phpmyadmin');

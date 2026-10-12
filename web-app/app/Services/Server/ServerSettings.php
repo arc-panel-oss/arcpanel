@@ -114,7 +114,9 @@ final class ServerSettings
     {
         $versions = [];
         foreach ($this->arc->json('v-list-sys-php-versions') as $version => $row) {
-            if (is_array($row)) {
+            // Versions at their end of life stay listed in the catalog (E41 D3);
+            // only installed ones are versions of this server
+            if (is_array($row) && (($row['INSTALLED'] ?? '') === 'yes' || ($row['INSTALLABLE'] ?? 'yes') !== 'no')) {
                 $versions[(string) $version] = [
                     'installed' => ($row['INSTALLED'] ?? '') === 'yes',
                     'default' => ($row['DEFAULT'] ?? '') === 'yes',

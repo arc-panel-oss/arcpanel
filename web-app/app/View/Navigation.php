@@ -73,6 +73,7 @@ final class Navigation
                 ['route' => 'server.firewall', 'label' => 'Firewall', 'icon' => 'shield', 'cap' => 'server.firewall', 'requires' => 'FIREWALL_SYSTEM', 'section' => 'server.firewall'],
                 ['route' => 'server.ports', 'label' => 'Ports', 'icon' => 'plug', 'cap' => 'server.ports', 'section' => 'server.ports'],
                 ['route' => 'server.docker', 'label' => 'Docker', 'icon' => 'container', 'cap' => 'docker.engine.manage', 'section' => 'server.docker'],
+                ['route' => 'server.php.index', 'label' => 'PHP', 'icon' => 'code', 'cap' => 'server.php', 'section' => 'server.php.'],
                 ['route' => 'server.packages', 'label' => 'System packages', 'icon' => 'package', 'cap' => 'server.packages', 'section' => 'server.packages'],
                 ['route' => 'server.updates', 'label' => 'Updates', 'icon' => 'refresh', 'cap' => 'server.updates', 'section' => 'server.updates'],
                 ['route' => 'server.rrd', 'label' => 'Task Monitor', 'icon' => 'chart', 'cap' => 'server.rrd', 'section' => 'server.rrd'],

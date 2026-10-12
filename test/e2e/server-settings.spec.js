@@ -82,8 +82,12 @@ test('admin: the plugin list and the PHP versions show their state', async ({ pa
 	await expect(page.getByRole('row', { name: /Firewall/ })).toContainText(
 		/Installed|Not installed/,
 	);
+	// the versions themselves are on the PHP page (E41)
 	await page.goto('/server/settings/web');
-	await expect(page.getByText('Default version')).toBeVisible();
+	await expect(page.getByRole('combobox', { name: 'Default PHP Version' })).toBeVisible();
+	await page.getByRole('link', { name: 'Open the PHP page' }).click();
+	await expect(page).toHaveURL(/\/server\/php$/);
+	await expect(page.locator('[data-php-version]').first()).toBeVisible();
 });
 
 test('user: no server settings, 403 on the page', async ({ page }) => {

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Packages;
 
+use App\Arc\SysConfig;
 use App\Auth\Principal;
 use App\Auth\Role;
 use App\Http\Controllers\Controller;
@@ -10,6 +11,7 @@ use App\Policies\PackagePolicy;
 use App\Services\Packages\PackageActions;
 use App\Services\Packages\PackageRecord;
 use App\Services\Packages\PackageService;
+use App\Services\Php\PhpManager;
 use App\Services\Users\UserService;
 use App\Services\WebDomains\ApplyResult;
 use App\Services\WebDomains\Step;
@@ -28,6 +30,8 @@ final class PackageController extends Controller
         private readonly PackageService $packages,
         private readonly PackageActions $actions,
         private readonly UserService $users,
+        private readonly PhpManager $php,
+        private readonly SysConfig $config,
     ) {}
 
     public function index(Principal $principal, PackagePolicy $policy): View
@@ -63,7 +67,7 @@ final class PackageController extends Controller
         abort_unless($policy->create($principal), 403);
         $steps = $this->actions->planCreate($principal, (string) $request->input('name'),
             $request->packageValues([], $this->packages->resourcesLimit()), $request->tenancyValues(),
-            $request->portsValue(), $request->nodeValues(), $request->dockerValues());
+            $request->portsValue(), $request->nodeValues(), $request->dockerValues(), $request->phpValues());
 
         $result = $this->users->apply($steps);
         if (! $result->ok()) {
@@ -88,7 +92,7 @@ final class PackageController extends Controller
         $newName = PackageActions::resellerOf($principal) !== '' ? $record->name : (string) $request->input('name');
         $steps = $this->actions->planUpdate($principal, $record, $newName,
             $request->packageValues($record->data, $this->packages->resourcesLimit()), $request->tenancyValues(),
-            $request->portsValue(), $request->nodeValues(), $request->dockerValues());
+            $request->portsValue(), $request->nodeValues(), $request->dockerValues(), $request->phpValues());
 
         $result = $this->users->apply($steps);
         if (! $result->ok()) {
@@ -142,7 +146,33 @@ final class PackageController extends Controller
             'ownPorts' => $reseller !== '' ? $this->actions->ownPorts($reseller) : null,
             'ownNode' => $reseller !== '' ? $this->actions->ownNode($reseller) : null,
             'ownDocker' => $reseller !== '' ? $this->actions->ownDocker($reseller) : null,
+            // PHP of the package (E41 §8): the installed versions and the profiles
+            'php' => $this->phpOptions($reseller),
         ]);
+    }
+
+    /**
+     * The PHP choices of the form, null without PHP-FPM: installed versions
+     * with their status and the profiles; a reseller sees what its own
+     * package allows.
+     *
+     * @return array{versions: array<string, string>, profiles: list<string>, own: array<string, string>|null}|null
+     */
+    private function phpOptions(string $reseller): ?array
+    {
+        if ($this->config->get('WEB_BACKEND') === '') {
+            return null;
+        }
+        $own = $reseller !== '' ? $this->actions->ownPhp($reseller) : null;
+        $versions = [];
+        foreach ($this->php->versions() as $version => $state) {
+            if ($state['installed'] && ($own === null || PhpManager::allows($own['PHP_VERSIONS'], $version))) {
+                $versions[$version] = $state['status'];
+            }
+        }
+        $profiles = array_values(array_filter(array_keys($this->php->profiles()), fn (string $name) => $own === null || PhpManager::allows($own['PHP_PROFILES'], $name)));
+
+        return ['versions' => $versions, 'profiles' => $profiles, 'own' => $own];
     }
 
     private function failed(ApplyResult $result): RedirectResponse

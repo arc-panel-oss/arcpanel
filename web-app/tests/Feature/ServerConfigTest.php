@@ -51,10 +51,10 @@ it('opens an editor with its file, the basic options and the save URL', function
             'content' => "worker_processes auto;\n", 'writable' => true,
         ]]);
 
-    // PHP lists the php.ini of every version and opens the first
-    $props = editorProps($this->get('/server/services/php/config')->assertOk());
-    expect($props['files'][0]['path'])->toBe('/etc/php/8.4/fpm/php.ini')->and($props['options'])->toBe('php');
-    expect(editorProps($this->get('/server/services/php-fpm/config'))['files'][0]['arg'])->toBe('php');
+    // Each version's php.ini is edited on the PHP page (E41 §6.5): the PHP
+    // editors open the php.ini of the default version there
+    $this->get('/server/services/php/config')->assertRedirect('/server/php/8.3/ini-fpm');
+    $this->get('/server/services/php-fpm/config')->assertRedirect('/server/php/8.3/ini-fpm');
 
     // Files the server does not have are left out
     $props = editorProps($this->get('/server/services/dovecot/config')->assertOk());
@@ -136,5 +136,7 @@ it('links the services to their editors', function () {
 
     $this->get('/server/services')->assertOk()
         ->assertSee(route('server.services.config', ['service' => 'nginx']), false)
-        ->assertSee(route('server.services.config', ['service' => 'php']), false);
+        // PHP-FPM opens the php.ini of its version on the PHP page (E41 §6.5)
+        ->assertSee(route('server.php.show', ['version' => '8.4', 'tab' => 'ini-fpm']), false)
+        ->assertDontSee(route('server.services.config', ['service' => 'php']), false);
 });

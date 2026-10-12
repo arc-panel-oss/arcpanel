@@ -33,8 +33,11 @@ final class ServiceController extends Controller
         $services = [];
         foreach ($this->services->all() as $name => $service) {
             $editor = $editors ? ServiceConfigs::editorFor($name) : null;
+            // A PHP-FPM version opens its php.ini on the PHP page (E41 §6.5)
+            $phpIni = preg_match('/^php(\d{1,2}\.\d{1,2})-fpm$/', $name, $m) === 1 && $policy->viewPhp($principal)
+                ? route('server.php.show', ['version' => $m[1], 'tab' => 'ini-fpm']) : null;
             $services[] = $service + [
-                'editor' => $editor === null ? null : route('server.services.config', ['service' => $editor]),
+                'editor' => $phpIni ?? ($editor === null ? null : route('server.services.config', ['service' => $editor])),
                 'canStop' => $policy->stopService($principal, $name),
             ];
         }

@@ -4945,3 +4945,63 @@ a.ap-pick:focus-visible {
 		display: none;
 	}
 }
+
+/* PHP Manager (E41): extensions, the disable_functions list, the php.ini
+   editor's findings and line markers, profile cards of the domain PHP tab */
+.ap-php-extensions > li {
+	flex-wrap: wrap;
+}
+.ap-php-extension-name {
+	display: flex;
+	flex: 1 1 260px;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: var(--ap-space-2);
+}
+.ap-php-extension-name small {
+	flex-basis: 100%;
+}
+.ap-php-extension .ap-error {
+	flex-basis: 100%;
+	margin: 0;
+}
+.ap-chips {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--ap-space-1-5);
+	margin: 0 0 var(--ap-space-2);
+	padding: 0;
+	list-style: none;
+}
+.ap-php-backup {
+	justify-content: space-between;
+	padding-block: var(--ap-space-2);
+	border-bottom: 1px solid var(--ap-border);
+}
+.ap-ini-findings .ap-list > li {
+	min-height: 40px;
+	padding-inline: 0;
+}
+.ap-ini-ok {
+	display: flex;
+	align-items: center;
+	gap: var(--ap-space-2);
+	color: var(--ap-ok);
+}
+.ap-ini-marker.is-error {
+	background: var(--ap-danger-subtle);
+}
+.ap-ini-marker.is-warning {
+	background: var(--ap-warn-subtle);
+}
+.ap-php-profiles {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+	gap: var(--ap-space-3);
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+.ap-php-profiles .ap-pick {
+	height: 100%;
+}

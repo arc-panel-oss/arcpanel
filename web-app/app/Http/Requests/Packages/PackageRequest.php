@@ -4,6 +4,7 @@ namespace App\Http\Requests\Packages;
 
 use App\Services\Packages\PackageRecord;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 /**
  * Add or edit a package (web/add/package, web/edit/package). Limits come
@@ -45,6 +46,14 @@ final class PackageRequest extends FormRequest
             'docker_apps' => ['nullable', 'integer', 'min:0', 'max:999'],
             'docker_cpus' => ['nullable', 'string', 'max:20', 'regex:/^(unlimited|\d{1,3}(\.\d{1,2})?)$/'],
             'docker_memory' => ['nullable', 'string', 'max:20', 'regex:/^(unlimited|\d{1,7}[MG]?)$/'],
+            // PHP of the package (E41 §7.5), sent with the php_group marker
+            'php_versions_all' => ['nullable', 'boolean'],
+            'php_versions' => ['nullable', 'array', Rule::requiredIf(fn () => $this->boolean('php_group') && ! $this->boolean('php_versions_all'))],
+            'php_versions.*' => ['string', 'regex:/^\d{1,2}\.\d{1,2}$/'],
+            'php_profiles_all' => ['nullable', 'boolean'],
+            'php_profiles' => ['nullable', 'array', Rule::requiredIf(fn () => $this->boolean('php_group') && ! $this->boolean('php_profiles_all'))],
+            'php_profiles.*' => ['string', 'regex:/^[a-z0-9][a-z0-9-]{0,31}$/'],
+            'php_default_profile' => ['nullable', 'required_if:php_group,1', 'string', 'regex:/^[a-z0-9][a-z0-9-]{0,31}$/'],
         ];
         foreach (PackageRecord::COUNTED as $key) {
             $rules[strtolower($key)] = ['nullable', 'required_without:'.strtolower($key).'_unlimited', 'integer', 'min:0', 'max:100000000'];
@@ -85,6 +94,34 @@ final class PackageRequest extends FormRequest
         }
 
         return $values;
+    }
+
+    /**
+     * PHP keys of the package sidecar (E41 §7.5), or null when the form has
+     * no PHP group (a server without PHP-FPM).
+     *
+     * @return array{PHP_VERSIONS: string, PHP_PROFILES: string, PHP_DEFAULT_PROFILE: string}|null
+     */
+    public function phpValues(): ?array
+    {
+        if (! $this->boolean('php_group')) {
+            return null;
+        }
+        $list = function (string $field): string {
+            if ($this->boolean($field.'_all')) {
+                return '*';
+            }
+            $items = array_values(array_unique(array_map('strval', (array) $this->input($field, []))));
+            $field === 'php_versions' ? usort($items, 'version_compare') : sort($items);
+
+            return implode(',', $items);
+        };
+
+        return [
+            'PHP_VERSIONS' => $list('php_versions'),
+            'PHP_PROFILES' => $list('php_profiles'),
+            'PHP_DEFAULT_PROFILE' => (string) $this->input('php_default_profile', 'default'),
+        ];
     }
 
     /** @return array{USERS: string, RESELLER_PACKAGES: string, RESELLER_VISIBLE: string} */

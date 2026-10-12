@@ -6,6 +6,7 @@ use App\Arc\ArcCommand;
 use App\Arc\Options;
 use App\Arc\Secret;
 use App\Arc\SysConfig;
+use App\Services\Php\PhpManager;
 use App\Services\UserDirectory;
 use App\Services\WebDomains\Step;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
@@ -41,6 +42,7 @@ final class PackageService
             'USERS' => '0', 'RESELLER_PACKAGES' => '', 'RESELLER_VISIBLE' => 'no', 'PORTS' => '0',
             'NODE' => 'no', 'NODE_VERSIONS' => '3', 'NODE_ALLOWED' => 'lts', 'NODE_APPS' => '3',
             'DOCKER' => 'no', 'DOCKER_APPS' => '0', 'DOCKER_CPUS' => 'unlimited', 'DOCKER_MEMORY' => 'unlimited',
+            'PHP_VERSIONS' => '*', 'PHP_PROFILES' => 'default', 'PHP_DEFAULT_PROFILE' => 'default',
         ];
     }
 
@@ -120,7 +122,7 @@ final class PackageService
      * @param  array{NODE: string, NODE_VERSIONS: string, NODE_ALLOWED: string, NODE_APPS: string}|null  $node  Node.js keys (E13), null to keep them
      * @return list<Step>
      */
-    public function planCreate(string $name, array $values, ?array $tenancy, string $reseller = '', string $ports = '0', ?array $node = null, ?array $docker = null): array
+    public function planCreate(string $name, array $values, ?array $tenancy, string $reseller = '', string $ports = '0', ?array $node = null, ?array $docker = null, ?array $php = null): array
     {
         $file = Secret::file($this->file($values));
         if ($reseller !== '') {
@@ -129,6 +131,7 @@ final class PackageService
                 ...$this->portsStep($reseller.'_'.$name, $ports, null),
                 ...$this->nodeSteps($reseller.'_'.$name, $node, null),
                 ...$this->dockerSteps($reseller.'_'.$name, $docker, null),
+                ...$this->phpSteps($reseller.'_'.$name, $php, null),
             ];
         }
 
@@ -138,6 +141,7 @@ final class PackageService
             ...$this->portsStep($name, $ports, null),
             ...$this->nodeSteps($name, $node, null),
             ...$this->dockerSteps($name, $docker, null),
+            ...$this->phpSteps($name, $php, null),
         ];
     }
 
@@ -148,7 +152,7 @@ final class PackageService
      * @param  array{NODE: string, NODE_VERSIONS: string, NODE_ALLOWED: string, NODE_APPS: string}|null  $node  Node.js keys (E13), null to keep them
      * @return list<Step>
      */
-    public function planUpdate(PackageRecord $current, string $newName, array $values, ?array $tenancy, string $reseller = '', ?string $ports = null, ?array $node = null, ?array $docker = null): array
+    public function planUpdate(PackageRecord $current, string $newName, array $values, ?array $tenancy, string $reseller = '', ?string $ports = null, ?array $node = null, ?array $docker = null, ?array $php = null): array
     {
         $file = Secret::file($this->file($values));
         if ($reseller !== '') {
@@ -157,6 +161,7 @@ final class PackageService
                 ...$this->portsStep($current->name, $ports, $current),
                 ...$this->nodeSteps($current->name, $node, $current),
                 ...$this->dockerSteps($current->name, $docker, $current),
+                ...$this->phpSteps($current->name, $php, $current),
             ];
         }
 
@@ -167,6 +172,7 @@ final class PackageService
             ...$this->portsStep($current->name, $ports, $current),
             ...$this->nodeSteps($current->name, $node, $current),
             ...$this->dockerSteps($current->name, $docker, $current),
+            ...$this->phpSteps($current->name, $php, $current),
         ];
         if ($newName !== $current->name) {
             $steps[] = new Step(__('Rename the package'), 'v-rename-user-package', [$current->name, $newName]);
@@ -199,6 +205,7 @@ final class PackageService
                 'DOCKER_CPUS' => $current->get('DOCKER_CPUS', 'unlimited'),
                 'DOCKER_MEMORY' => $current->get('DOCKER_MEMORY', 'unlimited'),
             ], null),
+            ...$this->phpSteps($newName, PhpManager::packageKeys($current->data), null),
         ];
     }
 
@@ -286,6 +293,45 @@ final class PackageService
             $before = $current?->get($key, $defaults[$key]) ?? $defaults[$key];
             if ($docker[$key] !== $before) {
                 $steps[] = new Step(sprintf(__('Set %s'), $key), 'v-change-package-tenancy', [$name, $key, $docker[$key]]);
+            }
+        }
+
+        return $steps;
+    }
+
+    /**
+     * PHP keys of the package sidecar (E41 §7.5) that are set or changed.
+     * The default profile must stay among the allowed profiles at every
+     * step, so a new list first keeps the old default, then the default
+     * changes, then the list becomes the new one. The command checks a
+     * reseller's package against the reseller's keys.
+     *
+     * @param  array{PHP_VERSIONS: string, PHP_PROFILES: string, PHP_DEFAULT_PROFILE: string}|null  $php
+     * @return list<Step>
+     */
+    private function phpSteps(string $name, ?array $php, ?PackageRecord $current): array
+    {
+        if ($php === null) {
+            return [];
+        }
+        $before = PhpManager::packageKeys($current?->data ?? []);
+        $set = fn (string $key, string $value) => new Step(sprintf(__('Set %s'), $key), 'v-change-package-tenancy', [$name, $key, $value]);
+        $steps = [];
+        if ($php['PHP_VERSIONS'] !== $before['PHP_VERSIONS']) {
+            $steps[] = $set('PHP_VERSIONS', $php['PHP_VERSIONS']);
+        }
+        $profiles = $php['PHP_PROFILES'];
+        $default = $php['PHP_DEFAULT_PROFILE'];
+        if ($profiles !== $before['PHP_PROFILES'] || $default !== $before['PHP_DEFAULT_PROFILE']) {
+            $keepOld = PhpManager::allows($profiles, $before['PHP_DEFAULT_PROFILE']) ? $profiles : $profiles.','.$before['PHP_DEFAULT_PROFILE'];
+            if ($keepOld !== $before['PHP_PROFILES']) {
+                $steps[] = $set('PHP_PROFILES', $keepOld);
+            }
+            if ($default !== $before['PHP_DEFAULT_PROFILE']) {
+                $steps[] = $set('PHP_DEFAULT_PROFILE', $default);
+            }
+            if ($keepOld !== $profiles) {
+                $steps[] = $set('PHP_PROFILES', $profiles);
             }
         }
 

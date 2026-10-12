@@ -81,6 +81,8 @@ final class Capabilities
         'web.delete' => self::ALL_ROLES,
         // Users and resellers also need POLICY_USER_EDIT_WEB_TEMPLATES (WebDomainPolicy).
         'web.templates.edit' => self::ALL_ROLES,
+        // PHP version and PHP-FPM profile of a domain within the package (E41 §8)
+        'web.domains.php' => self::ALL_ROLES,
 
         // Databases (E7 batch 1 spec §5.1)
         'db.view' => self::ALL_ROLES,
@@ -157,6 +159,8 @@ final class Capabilities
 
         // System packages of the catalog (E5 spec 2026-10-06-006 §7)
         'server.packages' => self::ADMIN,
+        // PHP Manager: versions, extensions, php.ini and profiles (E41 §8)
+        'server.php' => self::ADMIN,
 
         // Search page and the CSR generator of a web domain (E7 batch 3 spec §5.1)
         'search.use' => self::ALL_ROLES,

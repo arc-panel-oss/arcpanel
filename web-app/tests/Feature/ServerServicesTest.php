@@ -44,7 +44,7 @@ it('lists the services with the system facts and the config editors', function (
         ->assertSee('6 services');
 
     if (Route::has('server.services.config')) {
-        $response->assertSee(route('server.services.config', ['service' => 'php']), false)
+        $response->assertSee(route('server.php.show', ['version' => '8.4', 'tab' => 'ini-fpm']), false)
             ->assertDontSee(route('server.services.config', ['service' => 'memcached']), false);
     }
 });

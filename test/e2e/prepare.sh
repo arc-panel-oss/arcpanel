@@ -52,6 +52,13 @@
 #                                 arctest-e2e (GNU hello, provides ruby)
 #                                 without hello installed (E5);
 #                                 syspackages-clean removes both again
+#   prepare.sh php                PHP Manager spec (E41): saves the php.ini
+#                                 files of PHP 8.4, removes the profile
+#                                 arce2e and the uuid extension of 8.4;
+#                                 php-clean restores the files, deletes the
+#                                 profile, the extension and PHP 8.3 when the
+#                                 spec installed them, and resets the PHP
+#                                 keys of the default package
 set -euo pipefail
 
 ARCPANEL="${ARCPANEL:-/usr/local/arcpanel}"
@@ -316,7 +323,45 @@ syspackages_clean() {
 	rm -f "$ARCPANEL/install/common/apps/system/arctest-e2e.json"
 }
 
+# E41: the state the PHP Manager spec changes
+PHP_SAVE=/root/.arcpanel-e2e-php
+php_reset() {
+	"$B/v-delete-sys-php-profile" arce2e yes > /dev/null 2>&1 || true
+	if [ "$(dpkg-query -W -f='${db:Status-Status}' php8.4-uuid 2> /dev/null || true)" = installed ]; then
+		"$B/v-delete-sys-php-extension" 8.4 uuid > /dev/null 2>&1 || true
+	fi
+	"$B/v-change-package-tenancy" default PHP_PROFILES default > /dev/null 2>&1 || true
+	"$B/v-change-package-tenancy" default PHP_DEFAULT_PROFILE default > /dev/null 2>&1 || true
+	"$B/v-change-package-tenancy" default PHP_VERSIONS '*' > /dev/null 2>&1 || true
+}
+
 case "${1:-}" in
+	php)
+		php_reset
+		mkdir -p "$PHP_SAVE"
+		cp -p /etc/php/8.4/fpm/php.ini "$PHP_SAVE/fpm.ini"
+		cp -p /etc/php/8.4/cli/php.ini "$PHP_SAVE/cli.ini"
+		if [ ! -f /etc/init.d/php8.3-fpm ]; then
+			touch "$PHP_SAVE/remove-8.3"
+		fi
+		exit 0
+		;;
+	php-clean)
+		php_reset
+		if [ -f "$PHP_SAVE/fpm.ini" ]; then
+			cp -p "$PHP_SAVE/fpm.ini" /etc/php/8.4/fpm/php.ini
+			cp -p "$PHP_SAVE/cli.ini" /etc/php/8.4/cli/php.ini
+			systemctl restart php8.4-fpm
+		fi
+		if [ -f "$PHP_SAVE/remove-8.3" ] && [ -f /etc/init.d/php8.3-fpm ]; then
+			for domain in $("$B/v-list-web-domains" arce2euser plain | cut -f1); do
+				"$B/v-change-web-domain-backend-tpl" arce2euser "$domain" default > /dev/null 2>&1 || true
+			done
+			"$B/v-delete-web-php" 8.3 > /dev/null 2>&1 || true
+		fi
+		rm -rf "$PHP_SAVE"
+		exit 0
+		;;
 	syspackages)
 		syspackages_clean
 		if [ "$(dpkg-query -W -f='${db:Status-Status}' hello 2> /dev/null || true)" = installed ]; then

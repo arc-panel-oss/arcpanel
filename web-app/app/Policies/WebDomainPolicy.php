@@ -52,6 +52,18 @@ final class WebDomainPolicy
             && ($principal->loginRole === Role::Admin || $this->config->is('POLICY_USER_EDIT_WEB_TEMPLATES'));
     }
 
+    /** The PHP version and PHP-FPM profile of a domain, within its package (E41 §8). */
+    public function viewPhp(Principal $principal, string $owner): bool
+    {
+        return Capabilities::allows($principal->actingRole(), 'web.domains.php', fn () => $this->scope->canSee($owner));
+    }
+
+    public function changePhp(Principal $principal, string $owner): bool
+    {
+        return Capabilities::allows($principal->actingRole(), 'web.domains.php', fn () => $this->scope->canManage($owner))
+            && ! $principal->isReadOnly();
+    }
+
     /** Quick Install of an application on the owner's domain (E7 batch 2 spec §10). */
     public function installApp(Principal $principal, string $owner): bool
     {
@@ -97,6 +109,8 @@ final class WebDomainPolicy
             'delete' => $this->delete($principal, $owner),
             'suspend' => $this->suspend($principal, $owner),
             'rebuild' => $this->rebuild($principal, $owner),
+            'viewPhp' => $this->viewPhp($principal, $owner),
+            'changePhp' => $this->changePhp($principal, $owner),
         ];
     }
 }
