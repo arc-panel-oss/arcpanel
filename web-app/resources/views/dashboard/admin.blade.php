@@ -91,12 +91,12 @@
     </div>
 
     <div class="ap-split">
-        <x-ap-card :title="__('SSL expiring in 14 days')" icon="shield-check" :flush="true">
+        <x-ap-card :title="__('Expiring certificates')" icon="shield-check" :flush="true">
             @php($ssl = $widgets['ssl'])
             @if (! $ssl->ok())
                 <div class="ap-card-body"><x-ap-alert tone="danger">{{ $ssl->error }}</x-ap-alert></div>
             @elseif ($ssl->data === [])
-                <x-ap-empty icon="shield-check" :title="__('No certificate expires soon')" />
+                <x-ap-empty icon="shield-check" :title="__('No certificate expires in the next 14 days')" />
             @else
                 <div class="ap-table-wrap">
                     <table class="ap-table ap-table-cards">

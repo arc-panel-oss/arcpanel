@@ -17,8 +17,8 @@
         'POLICY_SYNC_SKELETON' => __('Sync the skeleton directory on update'),
         'ENFORCE_SUBDOMAIN_OWNERSHIP' => __('Enforce subdomain ownership'),
     ];
+    // The login policies sit in the Login card above
     $groups = [
-        'login' => __('Login'),
         'protection' => __('System Protection'),
         'users' => __('Users'),
         'domains' => __('Domains'),
@@ -50,6 +50,9 @@
                     <x-ap-input name="INACTIVE_SESSION_TIMEOUT" type="number" :label="__('Inactive session timeout')" :value="$config['INACTIVE_SESSION_TIMEOUT'] ?? '60'" :suffix="__('minutes')" />
                     <x-ap-select name="POLICY_CSRF_STRICTNESS" :label="__('Prevent CSRF')" :value="$config['POLICY_CSRF_STRICTNESS'] ?? '1'"
                         :options="['0' => __('Disabled'), '1' => __('Enabled'), '2' => __('Strict')]" />
+                    @foreach (\App\Services\Server\ServerSettings::SECURITY_POLICIES['login'] as $key)
+                        <x-ap-select :name="$key" :label="$labels[$key]" :options="$yesNo" :value="$value($key)" />
+                    @endforeach
                 </div>
             </x-ap-card>
 

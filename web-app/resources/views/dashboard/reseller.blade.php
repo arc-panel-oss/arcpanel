@@ -77,11 +77,11 @@
                 @endif
             </x-ap-card>
 
-            <x-ap-card :title="__('SSL expiring in 14 days')" icon="shield-check" :flush="true">
+            <x-ap-card :title="__('Expiring certificates')" icon="shield-check" :flush="true">
                 @if (! $ssl->ok())
                     <div class="ap-card-body"><x-ap-alert tone="danger">{{ $ssl->error }}</x-ap-alert></div>
                 @elseif ($ssl->data === [])
-                    <x-ap-empty icon="shield-check" :title="__('No certificate expires soon')" />
+                    <x-ap-empty icon="shield-check" :title="__('No certificate expires in the next 14 days')" />
                 @else
                     <ul class="ap-list">
                         @foreach ($ssl->data as $row)

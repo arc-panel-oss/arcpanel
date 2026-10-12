@@ -71,7 +71,10 @@ it('shows every tab to administrators', function () {
     $this->get('/server/settings/databases')->assertOk()->assertSee('db2.example.net')->assertSee('phpmyadmin');
     $this->get('/server/settings/backups')->assertOk()->assertSee('Incremental Backups');
     $this->get('/server/settings/ssl')->assertOk()->assertSee('Example CA')->assertDontSee('SECRETKEY');
-    $this->get('/server/settings/security')->assertOk()->assertSee('System Protection')->assertSee('Allow users to delete log history');
+    $security = $this->get('/server/settings/security')->assertOk()->assertSee('System Protection')->assertSee('Allow users to delete log history')
+        ->assertSeeInOrder(['Login screen style', 'Allow users to reset their passwords', 'System Protection'])->getContent();
+    // One Login card: the password reset policy sits in it
+    expect(substr_count($security, '>Login</h2>'))->toBe(1);
     $this->get('/server/settings/plugins')->assertOk()->assertSee('Disk Quota')->assertSee('Install');
     $this->get('/server/settings/white-label')->assertOk()->assertSee('{{page}} - {{hostname}} - {{appname}}', false);
     $this->get('/server/settings/nope')->assertNotFound();
