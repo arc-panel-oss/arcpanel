@@ -3,116 +3,230 @@
 	<head>
 		<meta charset="utf-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
-		<title>Success!</title>
+		<meta name="robots" content="noindex" />
+		<meta name="color-scheme" content="light dark" />
+		<title>Web server ready</title>
 		<style>
+			:root {
+				--bg: #f6f7fb;
+				--surface: #ffffff;
+				--border: #e3e6ef;
+				--text: #141824;
+				--muted: #555d70;
+				--accent: #2f55d4;
+				--accent-subtle: #eef2fe;
+				--accent-line: #b9c7f5;
+				--status: #1d7f45;
+				--logo-ring: #0f1320;
+				--shadow: 0 1px 2px rgba(20, 24, 36, 0.04), 0 12px 32px rgba(20, 24, 36, 0.06);
+			}
+
+			@media (prefers-color-scheme: dark) {
+				:root {
+					--bg: #0b0d12;
+					--surface: #12151d;
+					--border: #232838;
+					--text: #eef1f7;
+					--muted: #a3abbd;
+					--accent: #8ea4ff;
+					--accent-subtle: #19203d;
+					--accent-line: #36468a;
+					--status: #5fd38d;
+					--logo-ring: #2c355a;
+					--shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 12px 32px rgba(0, 0, 0, 0.35);
+				}
+			}
+
+			*,
+			*::before,
+			*::after {
+				box-sizing: border-box;
+			}
+
+			html,
 			body {
-				background-color: #f5f5f5;
-				margin-top: 8%;
-				color: #5d5d5d;
+				height: 100%;
+			}
+
+			body {
+				margin: 0;
+				display: flex;
+				flex-direction: column;
+				align-items: center;
+				justify-content: center;
+				min-height: 100vh;
+				min-height: 100dvh;
+				padding: 24px 16px;
+				background-color: var(--bg);
+				background-image: radial-gradient(
+					ellipse 80% 60% at 50% 0%,
+					var(--accent-subtle) 0%,
+					transparent 70%
+				);
+				color: var(--text);
 				font-family:
 					-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial,
-					"Noto Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol",
-					"Noto Color Emoji";
-				text-shadow: 0px 1px 1px rgba(255, 255, 255, 0.75);
+					"Noto Sans", sans-serif;
+				font-size: 16px;
+				line-height: 1.6;
+				-webkit-font-smoothing: antialiased;
+				text-rendering: optimizeLegibility;
+			}
+
+			main {
+				width: 100%;
+				max-width: 520px;
+				padding: 48px 32px 40px;
+				background: var(--surface);
+				border: 1px solid var(--border);
+				border-radius: 16px;
+				box-shadow: var(--shadow);
 				text-align: center;
+				animation: rise 0.4s ease-out both;
+			}
+
+			/* Same lockup and colours as the panel logo (web-app logo component) */
+			.logo {
+				display: block;
+				height: 32px;
+				width: auto;
+				margin: 0 auto 32px;
+			}
+
+			.logo .lg-tile {
+				fill: #0f1320;
+			}
+
+			.logo .lg-ring {
+				fill: none;
+				stroke: var(--logo-ring);
+				stroke-width: 2;
+			}
+
+			.logo .lg-a {
+				fill: none;
+				stroke: #9db0ff;
+				stroke-width: 8;
+				stroke-linecap: round;
+				stroke-linejoin: round;
+			}
+
+			.logo .lg-star {
+				fill: #f2b451;
+			}
+
+			.logo .lg-word {
+				fill: none;
+				stroke: var(--text);
+				stroke-width: 12;
+				stroke-linecap: round;
+				stroke-linejoin: round;
+			}
+
+			.status {
+				display: inline-flex;
+				align-items: center;
+				gap: 8px;
+				margin: 0 0 12px;
+				font-size: 13px;
+				font-weight: 600;
+				letter-spacing: 0.06em;
+				text-transform: uppercase;
+				color: var(--status);
+			}
+
+			.status::before {
+				content: "";
+				width: 8px;
+				height: 8px;
+				border-radius: 50%;
+				background: currentColor;
+				animation: pulse 2s ease-in-out infinite;
 			}
 
 			h1 {
-				font-size: 2.45em;
+				margin: 0 0 12px;
+				font-size: clamp(1.75rem, 5vw, 2.25rem);
 				font-weight: 700;
-				color: #5d5d5d;
+				line-height: 1.2;
 				letter-spacing: -0.02em;
-				margin-bottom: 30px;
-				margin-top: 30px;
+				text-wrap: balance;
 			}
 
-			.container {
-				width: 100%;
-				margin-right: auto;
-				margin-left: auto;
+			.lead {
+				margin: 0 auto;
+				max-width: 38ch;
+				font-size: 1.0625rem;
+				color: var(--muted);
+				text-wrap: pretty;
 			}
 
-			.animate__animated {
-				animation-duration: 1s;
-				animation-fill-mode: both;
+			.owner {
+				margin: 32px 0 0;
+				padding-top: 24px;
+				border-top: 1px solid var(--border);
+				font-size: 14px;
+				color: var(--muted);
 			}
 
-			.animate__fadeIn {
-				animation-name: fadeIn;
-			}
-
-			.info {
-				color: #5594cf;
-				fill: #5594cf;
-			}
-
-			.error {
-				color: #c92127;
-				fill: #c92127;
-			}
-
-			.warning {
-				color: #ffcc33;
-				fill: #ffcc33;
-			}
-
-			.success {
-				color: #5aba47;
-				fill: #5aba47;
-			}
-
-			.icon-large {
-				height: 132px;
-				width: 132px;
-			}
-
-			.description-text {
-				color: #707070;
-				letter-spacing: -0.01em;
-				font-size: 1.25em;
-				line-height: 20px;
-			}
-
-			.footer {
-				margin-top: 40px;
-				font-size: 0.7em;
-			}
-
-			@keyframes fadeIn {
+			@keyframes rise {
 				from {
 					opacity: 0;
+					transform: translateY(8px);
 				}
 				to {
 					opacity: 1;
+					transform: none;
+				}
+			}
+
+			@keyframes pulse {
+				0%,
+				100% {
+					opacity: 1;
+				}
+				50% {
+					opacity: 0.35;
+				}
+			}
+
+			@media (max-width: 480px) {
+				main {
+					padding: 40px 20px 32px;
+					border-radius: 12px;
+				}
+			}
+
+			@media (prefers-reduced-motion: reduce) {
+				main,
+				.status::before {
+					animation: none;
 				}
 			}
 		</style>
 	</head>
 	<body>
-		<div class="container">
-			<div class="row">
-				<div class="col">
-					<div class="animate__animated animate__fadeIn">
-						<i class="success">
-							<svg
-								aria-hidden="true"
-								focusable="false"
-								class="success icon-large fa-check-circle"
-								xmlns="http://www.w3.org/2000/svg"
-								viewBox="0 0 512 512"
-							>
-								<path
-									d="M504 256c0 136.967-111.033 248-248 248S8 392.967 8 256 119.033 8 256 8s248 111.033 248 248zM227.314 387.314l184-184c6.248-6.248 6.248-16.379 0-22.627l-22.627-22.627c-6.248-6.249-16.379-6.249-22.628 0L216 308.118l-70.059-70.059c-6.248-6.248-16.379-6.248-22.628 0l-22.627 22.627c-6.248 6.248-6.248 16.379 0 22.627l104 104c6.249 6.249 16.379 6.249 22.628.001z"
-								></path>
-							</svg>
-						</i>
-					</div>
-					<h1 class="animate__animated animate__fadeIn">Success!</h1>
-					<div class="description-text animate__animated animate__fadeIn">
-						<p>Your new web server is ready to use.</p>
-					</div>
-				</div>
-			</div>
-		</div>
+		<main>
+			<svg class="logo" viewBox="0 -15 720.5 130" role="img" aria-label="ArcPanel">
+				<g transform="translate(0 -15) scale(2.03125)">
+					<rect class="lg-tile" width="64" height="64" rx="14" />
+					<rect class="lg-ring" x="1" y="1" width="62" height="62" rx="13" />
+					<path class="lg-a" d="M20 47.5V28.5a12 12 0 0 1 24 0v19M20 36h24" />
+					<circle class="lg-star" cx="50.5" cy="13.5" r="3.2" />
+				</g>
+				<g transform="translate(170 0)">
+					<path
+						class="lg-word"
+						d="M6 94V38A32 32 0 0 1 70 38V94M6 66H70M97.4 94V34M97.4 56A22 22 0 0 1 119.4 34H125.4M199.09 43.93A30 30 0 1 0 199.09 84.07M228.49 94V6H240.49A24 24 0 0 1 240.49 54H228.49M289.89 64a30 30 0 1 0 60 0a30 30 0 1 0 -60 0M349.89 34V94M377.29 94V34M377.29 60A26 26 0 0 1 429.29 60V94M456.69 64H516.69A30 30 0 1 0 509.68 83.28M544.09 6V94"
+					/>
+				</g>
+			</svg>
+			<p class="status">Server online</p>
+			<h1>Your web server is ready</h1>
+			<p class="lead">No website is set up for this address yet.</p>
+			<p class="owner">
+				Server admin? Add a web domain in ArcPanel and point its DNS to this server.
+			</p>
+		</main>
 	</body>
 </html>
