@@ -34,6 +34,11 @@ if [ ! -e "$src" ]; then
 	check_result "$E_NOTEXIST" "$src config doesn't exist"
 fi
 
+# Each php.ini is changed on its own, validated and backed up (E41)
+if [ "$service" = 'php' ]; then
+	check_result "$E_FORBIDEN" "php.ini files are changed per version with v-change-sys-php-ini or v-change-sys-php-ini-values"
+fi
+
 # Perform verification if read-only mode is enabled
 check_arcpanel_demo_mode
 
@@ -50,7 +55,6 @@ case $service in
 	exim4) dst='/etc/exim4/exim4.conf.template' ;;
 	vsftpd) dst=$(find /etc/vsftpd* -name 'vsftpd.conf') ;;
 	proftpd) dst=$(find /etc/proftpd* -name 'proftpd.conf') ;;
-	php) dst=$(find /etc/php* -name php.ini) ;;
 	mysql) dst=$(find /etc/my* -name my.cnf) ;;
 	mysqld) dst=$(find /etc/my* -name my.cnf) ;;
 	mariadb) dst=$(find /etc/my* -name my.cnf) ;;

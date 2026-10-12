@@ -264,8 +264,13 @@ php_cli_test() {
 	fi
 }
 
-# Whether the PHP-FPM service of a version runs
+# Whether the PHP-FPM service of a version runs. ARC_PHP_TEST_INACTIVE (a
+# version) makes the check fail, for the BATS suites; sudo drops it, so the
+# panel cannot set it
 php_fpm_active() {
+	if [ -n "$ARC_PHP_TEST_INACTIVE" ] && [ "$ARC_PHP_TEST_INACTIVE" = "$1" ]; then
+		return 1
+	fi
 	if command -v systemctl > /dev/null 2>&1 && [ -d /run/systemd/system ]; then
 		systemctl is-active --quiet "php$1-fpm"
 	else
@@ -276,7 +281,7 @@ php_fpm_active() {
 # Reload PHP-FPM of a version and check that it still runs three seconds later
 php_fpm_reload() {
 	"$BIN/v-restart-web-backend" yes "$1" > /dev/null 2>&1
-	sleep "${PHP_HEALTH_DELAY:-3}"
+	sleep "${ARC_PHP_HEALTH_DELAY:-3}"
 	php_fpm_active "$1"
 }
 
@@ -408,4 +413,191 @@ php_ext_check_args() {
 			check_result "$E_INVALID" "the extension $2 does not apply to PHP $1"
 		fi
 	fi
+}
+
+#----------------------------------------------------------#
+#                       php.ini                            #
+#----------------------------------------------------------#
+
+PHP_INI_HELPER="$ARCPANEL/func/php-ini.php"
+PHP_INI_MAX_SIZE=1048576
+PHP_INI_KEEP=10
+
+php_ini_file() {
+	echo "/etc/php/$1/$2/php.ini"
+}
+
+php_ini_backup_dir() {
+	echo "$PHP_DATA/ini-backups/$1/$2"
+}
+
+# Validate VERSION (installed) and SAPI (fpm or cli)
+php_ini_check_args() {
+	if ! php_version_format_valid "$1"; then
+		check_result "$E_INVALID" "invalid PHP version :: $1"
+	fi
+	if ! php_version_installed "$1"; then
+		check_result "$E_NOTEXIST" "PHP $1 is not installed"
+	fi
+	if [ "$2" != 'fpm' ] && [ "$2" != 'cli' ]; then
+		check_result "$E_INVALID" "invalid SAPI :: $2 (fpm or cli)"
+	fi
+	if [ ! -f "$(php_ini_file "$1" "$2")" ]; then
+		check_result "$E_NOTEXIST" "$(php_ini_file "$1" "$2") does not exist"
+	fi
+}
+
+# A private temp file under data/php/tmp (root, 0600)
+php_tmp_file() {
+	php_data_dir
+	mkdir -p "$PHP_DATA/tmp"
+	chmod 700 "$PHP_DATA/tmp"
+	mktemp "$PHP_DATA/tmp/$1.XXXXXX"
+}
+
+# Read a file given by the caller once into a private temp file, whose path
+# goes into PHP_INI_CANDIDATE: a regular file of at most 1 MiB without NUL
+# bytes (§11)
+php_ini_intake() {
+	local src="$1" tmp
+	if [ ! -f "$src" ]; then
+		check_result "$E_NOTEXIST" "$src does not exist"
+	fi
+	if [ "$(stat -c %s "$src")" -gt "$PHP_INI_MAX_SIZE" ]; then
+		check_result "$E_INVALID" "the file is larger than 1 MiB"
+	fi
+	tmp=$(php_tmp_file ini)
+	cat "$src" > "$tmp"
+	if [ "$(tr -d '\000' < "$tmp" | wc -c)" -ne "$(stat -c %s "$tmp")" ]; then
+		rm -f "$tmp"
+		check_result "$E_INVALID" "the file contains NUL bytes"
+	fi
+	PHP_INI_CANDIDATE=$tmp
+}
+
+# Run the helper with the version's binary and no php.ini
+php_ini_helper() {
+	local version="$1"
+	shift
+	"php$version" -n -d display_errors=stderr "$PHP_INI_HELPER" "$@"
+}
+
+# Validate a candidate php.ini (§6.3 steps 1-3) and print the findings as a
+# JSON array of {line, level, directive, message}; fails when one of them is
+# an error
+php_ini_validate() {
+	local version="$1" sapi="$2" file="$3" scan dir out known level line
+	local -a parts=()
+	scan="/etc/php/$version/$sapi/conf.d"
+	dir=$(php_tmp_file check)
+	rm -f "$dir"
+	mkdir -m 700 "$dir"
+
+	# 1-2. Syntax and semantics of known directives
+	if ! php_ini_helper "$version" check "$file" "$sapi" > "$dir/semantic.json" 2> "$dir/err" \
+		|| ! jq -e 'type == "array"' "$dir/semantic.json" > /dev/null 2>&1; then
+		jq -n --arg m "$(head -c 500 "$dir/err")" '[{line: 0, level: "error", directive: "", message: ("The check failed: " + $m)}]'
+		rm -rf "$dir"
+		return 1
+	fi
+	parts+=("$dir/semantic.json")
+
+	# A syntax error stops here: PHP would not read the rest
+	if ! jq -e 'any(.[]; .level == "error" and .directive == "")' "$dir/semantic.json" > /dev/null; then
+		# Unknown directives, with the extensions the candidate loads
+		PHP_INI_SCAN_DIR="$scan" "php$version" -c "$file" -d display_startup_errors=0 -d display_errors=0 \
+			-d log_errors=0 -d disable_functions= -d disable_classes= -d open_basedir= \
+			-d auto_prepend_file= -d auto_append_file= "$PHP_INI_HELPER" known > "$dir/known.json" 2> /dev/null
+		if jq -e 'type == "array"' "$dir/known.json" > /dev/null 2>&1; then
+			php_ini_helper "$version" unknown "$file" "$dir/known.json" "$(php_ini_file "$version" "$sapi")" > "$dir/unknown.json" 2> /dev/null \
+				&& parts+=("$dir/unknown.json")
+		fi
+
+		# 3. PHP starts with the candidate: no startup warning (an extension
+		# that does not load); deprecations are warnings
+		out=$(PHP_INI_SCAN_DIR="$scan" "php$version" -c "$file" -d display_startup_errors=1 \
+			-d display_errors=stderr -d log_errors=0 -d auto_prepend_file= -d auto_append_file= \
+			-r 'exit(0);' 2>&1)
+		echo '[]' > "$dir/start.json"
+		while IFS= read -r line; do
+			line=$(sed -e 's/^PHP //' <<< "$line")
+			[ -n "${line// /}" ] || continue
+			level=error
+			if [[ "$line" == *Deprecated* ]]; then
+				level=warning
+			fi
+			jq -c --arg l "$level" --arg m "$line" '. + [{line: 0, level: $l, directive: "", message: $m}]' \
+				"$dir/start.json" > "$dir/start.tmp" && mv -f "$dir/start.tmp" "$dir/start.json"
+		done <<< "$out"
+		parts+=("$dir/start.json")
+
+		if [ "$sapi" = 'fpm' ] && ! jq -e 'any(.[]; .level == "error")' "$dir/start.json" > /dev/null; then
+			if ! out=$(php_fpm_test "$version" "$file"); then
+				jq -n --arg m "php-fpm$version -t failed: $(grep -vE 'NOTICE' <<< "$out" | head -n 3 | tr '\n' ' ')" \
+					'[{line: 0, level: "error", directive: "", message: $m}]' > "$dir/fpm.json"
+				parts+=("$dir/fpm.json")
+			fi
+		fi
+	fi
+
+	jq -s 'add | sort_by(.line)' "${parts[@]}" > "$dir/all.json"
+	cat "$dir/all.json"
+	if jq -e 'any(.[]; .level == "error")' "$dir/all.json" > /dev/null; then
+		rm -rf "$dir"
+		return 1
+	fi
+	rm -rf "$dir"
+}
+
+# Findings as text lines: "line 12: error: message"
+php_ini_findings_text() {
+	jq -r '.[] | "line \(.line): \(.level): \(.message)"'
+}
+
+# Remove all but the ten newest backups of a file
+php_ini_prune() {
+	local dir
+	dir=$(php_ini_backup_dir "$1" "$2")
+	ls -1 "$dir" 2> /dev/null | grep -E '^[0-9]{8}-[0-9]{6}(-[0-9]+)?\.ini$' | sort -V \
+		| head -n "-$PHP_INI_KEEP" | while read -r old; do
+		rm -f "${dir:?}/$old"
+	done
+}
+
+# §6.3 step 4: back up the current file, replace it atomically, reload
+# PHP-FPM and check it runs; restore the previous file when it does not.
+# Prints the backup id; returns E_RESTART after a rollback.
+php_ini_apply() {
+	local version="$1" sapi="$2" candidate="$3" target dir id
+	target=$(php_ini_file "$version" "$sapi")
+	dir=$(php_ini_backup_dir "$version" "$sapi")
+	php_data_dir
+	mkdir -p "$dir"
+	chmod 750 "$PHP_DATA/ini-backups" "$PHP_DATA/ini-backups/$version" "$dir"
+	id=$(date +%Y%m%d-%H%M%S)
+	if [ -e "$dir/$id.ini" ]; then
+		local n=2
+		while [ -e "$dir/$id-$n.ini" ]; do
+			n=$((n + 1))
+		done
+		id="$id-$n"
+	fi
+	cp -p "$target" "$dir/$id.ini"
+	chmod 640 "$dir/$id.ini"
+
+	cp "$candidate" "$target.arcpanel-new"
+	chown root:root "$target.arcpanel-new"
+	chmod 644 "$target.arcpanel-new"
+	mv -f "$target.arcpanel-new" "$target"
+	php_ini_prune "$version" "$sapi"
+
+	if [ "$sapi" = 'fpm' ] && ! php_fpm_reload "$version"; then
+		php_fpm_log "$version"
+		cp "$dir/$id.ini" "$target.arcpanel-new"
+		chmod 644 "$target.arcpanel-new"
+		mv -f "$target.arcpanel-new" "$target"
+		"$BIN/v-restart-service" "php$version-fpm" > /dev/null 2>&1
+		return "$E_RESTART"
+	fi
+	echo "$id"
 }

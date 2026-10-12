@@ -1,0 +1,67 @@
+#!/bin/bash
+# info: check a php.ini candidate without saving it (E41)
+# options: VERSION SAPI FILE [FORMAT]
+#
+# example: v-check-sys-php-ini 8.4 fpm /tmp/php.ini json
+#
+# This function validates a candidate php.ini for the PHP-FPM (fpm) or
+# command line (cli) of an installed version, as v-change-sys-php-ini does
+# before saving: the syntax with the version's parser, the values of known
+# directives, unknown directives (warnings), a start of PHP with the file and,
+# for fpm, php-fpm -t. It prints the findings with their line (json: an array
+# of {line, level, directive, message}, level error or warning) and exits 0
+# when the check ran; the file is valid when no finding is an error.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+version=$1
+sapi=$2
+src=$3
+format=${4-shell}
+
+# Includes
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/php.sh
+source $ARCPANEL/func/php.sh
+# load config file
+source_conf "$ARCPANEL/conf/arcpanel.conf"
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '3' "$#" 'VERSION SAPI FILE [FORMAT]'
+php_ini_check_args "$version" "$sapi"
+php_ini_intake "$src"
+candidate=$PHP_INI_CANDIDATE
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+findings=$(php_ini_validate "$version" "$sapi" "$candidate")
+rm -f "$candidate"
+
+case "$format" in
+	json) jq . <<< "$findings" ;;
+	plain) jq -r '.[] | [(.line | tostring), .level, .directive, .message] | join("\t")' <<< "$findings" ;;
+	*)
+		if [ "$(jq length <<< "$findings")" -eq 0 ]; then
+			echo "The file is valid."
+		else
+			php_ini_findings_text <<< "$findings"
+		fi
+		;;
+esac
+
+#----------------------------------------------------------#
+#                         ArcPanel                         #
+#----------------------------------------------------------#
+
+exit

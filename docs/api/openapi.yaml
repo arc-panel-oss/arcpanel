@@ -8189,6 +8189,107 @@ paths:
           $ref: "#/components/responses/InvalidRequest"
         "422":
           $ref: "#/components/responses/Unprocessable"
+  "/api/#v-change-sys-php-ini":
+    post:
+      operationId: v-change-sys-php-ini
+      tags:
+        - System
+      summary: Replace the php.ini of a PHP version (E41)
+      description: |-
+        This function replaces the PHP-FPM (fpm) or command line (cli) php.ini of
+        an installed version with FILE. The file is validated first as
+        v-check-sys-php-ini does: errors stop the change (E_INVALID, with the
+        findings), warnings are printed and accepted. The current file is backed up
+        (the ten newest backups are kept), the new one is moved into place and, for
+        fpm, PHP-FPM is reloaded; when it does not run afterwards the previous file
+        comes back (E_RESTART).
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `VERSION` | yes |
+        | `arg2` | `SAPI` | yes |
+        | `arg3` | `FILE` | yes |
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-change-sys-php-ini"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-change-sys-php-ini"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+  "/api/#v-change-sys-php-ini-values":
+    post:
+      operationId: v-change-sys-php-ini-values
+      tags:
+        - System
+      summary: Change php.ini directives of a PHP version (E41)
+      description: |-
+        This function changes directives of the php.ini form in the PHP-FPM (fpm)
+        or command line (cli) php.ini of an installed version. FILE holds
+        directive=value lines (memory_limit=256M); each directive is replaced in
+        place, or added at the end of the [PHP] section when the file does not set
+        it, and comments are kept. The result is validated, saved and applied as
+        v-change-sys-php-ini does.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `VERSION` | yes |
+        | `arg2` | `SAPI` | yes |
+        | `arg3` | `FILE` | yes |
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-change-sys-php-ini-values"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-change-sys-php-ini-values"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
   "/api/#v-change-sys-port":
     post:
       operationId: v-change-sys-port
@@ -10733,6 +10834,61 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/v-check-sys-packages"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+            application/json:
+              schema:
+                type: object
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+  "/api/#v-check-sys-php-ini":
+    post:
+      operationId: v-check-sys-php-ini
+      tags:
+        - System
+      summary: Check a php.ini candidate without saving it (E41)
+      description: |-
+        This function validates a candidate php.ini for the PHP-FPM (fpm) or
+        command line (cli) of an installed version, as v-change-sys-php-ini does
+        before saving: the syntax with the version's parser, the values of known
+        directives, unknown directives (warnings), a start of PHP with the file and,
+        for fpm, php-fpm -t. It prints the findings with their line (json: an array
+        of {line, level, directive, message}, level error or warning) and exits 0
+        when the check ran; the file is valid when no finding is an error.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `VERSION` | yes |
+        | `arg2` | `SAPI` | yes |
+        | `arg3` | `FILE` | yes |
+        | `arg4` | `FORMAT` | no |
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-check-sys-php-ini"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-check-sys-php-ini"
       responses:
         "200":
           description: "The output of the command; `OK` for an empty output with legacy authentication."
@@ -21765,7 +21921,9 @@ paths:
         - System
       summary: List php config parameters
       description: |-
-        This function for obtaining the list of php config parameters.
+        This function for obtaining the list of php config parameters of the
+        default PHP version (REST API v1). The PHP Manager lists every version with
+        v-list-sys-php-ini (E41).
 
         **Arguments**
 
@@ -21833,6 +21991,108 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/v-list-sys-php-extensions"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+            application/json:
+              schema:
+                type: object
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+  "/api/#v-list-sys-php-ini":
+    post:
+      operationId: v-list-sys-php-ini
+      tags:
+        - System
+      summary: List the php.ini settings of a PHP version (E41)
+      description: |-
+        This function lists the directives of the php.ini form for the PHP-FPM
+        (fpm) or command line (cli) php.ini of an installed version: VALUE, SOURCE
+        (file, or default when the file does not set it) and LINE, with the file's
+        path, SIZE and MTIME. The format raw prints the file itself.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `VERSION` | yes |
+        | `arg2` | `SAPI` | yes |
+        | `arg3` | `FORMAT` | no |
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-list-sys-php-ini"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-list-sys-php-ini"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+            application/json:
+              schema:
+                type: object
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+  "/api/#v-list-sys-php-ini-backups":
+    post:
+      operationId: v-list-sys-php-ini-backups
+      tags:
+        - System
+      summary: List the php.ini backups of a PHP version (E41)
+      description: |-
+        This function lists the backups that the php.ini commands keep of the
+        PHP-FPM (fpm) or command line (cli) php.ini of a version (the ten newest),
+        newest first, with their DATE and SIZE. The ID is what
+        v-rollback-sys-php-ini takes.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `VERSION` | yes |
+        | `arg2` | `SAPI` | yes |
+        | `arg3` | `FORMAT` | no |
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-list-sys-php-ini-backups"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-list-sys-php-ini-backups"
       responses:
         "200":
           description: "The output of the command; `OK` for an empty output with legacy authentication."
@@ -27690,6 +27950,53 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/v-revoke-api-key"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+  "/api/#v-rollback-sys-php-ini":
+    post:
+      operationId: v-rollback-sys-php-ini
+      tags:
+        - System
+      summary: Restore a php.ini backup of a PHP version (E41)
+      description: |-
+        This function restores a backup listed by v-list-sys-php-ini-backups. The
+        backup is validated and applied as v-change-sys-php-ini does, so the current
+        file is backed up first and the history only moves forward.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `VERSION` | yes |
+        | `arg2` | `SAPI` | yes |
+        | `arg3` | `ID` | yes |
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-rollback-sys-php-ini"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-rollback-sys-php-ini"
       responses:
         "200":
           description: "The output of the command; `OK` for an empty output with legacy authentication."
@@ -40126,6 +40433,76 @@ components:
                 - fpm
             returncode:
               $ref: "#/components/schemas/ReturnCode"
+    v-change-sys-php-ini:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+            - arg2
+            - arg3
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-change-sys-php-ini
+              default: v-change-sys-php-ini
+            arg1:
+              type: string
+              title: VERSION
+              description: "`VERSION`"
+              examples:
+                - "8.4"
+            arg2:
+              type: string
+              title: SAPI
+              description: "`SAPI`"
+              examples:
+                - fpm
+            arg3:
+              type: string
+              title: FILE
+              description: "`FILE`"
+              examples:
+                - /tmp/php.ini
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
+    v-change-sys-php-ini-values:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+            - arg2
+            - arg3
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-change-sys-php-ini-values
+              default: v-change-sys-php-ini-values
+            arg1:
+              type: string
+              title: VERSION
+              description: "`VERSION`"
+              examples:
+                - "8.4"
+            arg2:
+              type: string
+              title: SAPI
+              description: "`SAPI`"
+              examples:
+                - fpm
+            arg3:
+              type: string
+              title: FILE
+              description: "`FILE`"
+              examples:
+                - /tmp/values
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
     v-change-sys-port:
       allOf:
         - $ref: "#/components/schemas/Credentials"
@@ -41985,6 +42362,52 @@ components:
               examples:
                 - ""
             arg2:
+              type: string
+              title: FORMAT
+              description: "`FORMAT`, optional"
+              enum:
+                - json
+                - plain
+                - csv
+                - shell
+              examples:
+                - json
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
+    v-check-sys-php-ini:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+            - arg2
+            - arg3
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-check-sys-php-ini
+              default: v-check-sys-php-ini
+            arg1:
+              type: string
+              title: VERSION
+              description: "`VERSION`"
+              examples:
+                - "8.4"
+            arg2:
+              type: string
+              title: SAPI
+              description: "`SAPI`"
+              examples:
+                - fpm
+            arg3:
+              type: string
+              title: FILE
+              description: "`FILE`"
+              examples:
+                - /tmp/php.ini
+            arg4:
               type: string
               title: FORMAT
               description: "`FORMAT`, optional"
@@ -48581,6 +49004,84 @@ components:
                 - json
             returncode:
               $ref: "#/components/schemas/ReturnCode"
+    v-list-sys-php-ini:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+            - arg2
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-list-sys-php-ini
+              default: v-list-sys-php-ini
+            arg1:
+              type: string
+              title: VERSION
+              description: "`VERSION`"
+              examples:
+                - "8.4"
+            arg2:
+              type: string
+              title: SAPI
+              description: "`SAPI`"
+              examples:
+                - fpm
+            arg3:
+              type: string
+              title: FORMAT
+              description: "`FORMAT`, optional"
+              enum:
+                - json
+                - plain
+                - csv
+                - shell
+              examples:
+                - json
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
+    v-list-sys-php-ini-backups:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+            - arg2
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-list-sys-php-ini-backups
+              default: v-list-sys-php-ini-backups
+            arg1:
+              type: string
+              title: VERSION
+              description: "`VERSION`"
+              examples:
+                - "8.4"
+            arg2:
+              type: string
+              title: SAPI
+              description: "`SAPI`"
+              examples:
+                - fpm
+            arg3:
+              type: string
+              title: FORMAT
+              description: "`FORMAT`, optional"
+              enum:
+                - json
+                - plain
+                - csv
+                - shell
+              examples:
+                - json
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
     v-list-sys-php-versions:
       allOf:
         - $ref: "#/components/schemas/Credentials"
@@ -52074,6 +52575,41 @@ components:
               description: "`HASH`, optional"
               examples:
                 - mykey
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
+    v-rollback-sys-php-ini:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+            - arg2
+            - arg3
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-rollback-sys-php-ini
+              default: v-rollback-sys-php-ini
+            arg1:
+              type: string
+              title: VERSION
+              description: "`VERSION`"
+              examples:
+                - "8.4"
+            arg2:
+              type: string
+              title: SAPI
+              description: "`SAPI`"
+              examples:
+                - fpm
+            arg3:
+              type: string
+              title: ID
+              description: "`ID`"
+              examples:
+                - "20261012-143000"
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-rollback-user-secret:

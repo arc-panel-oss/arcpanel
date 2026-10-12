@@ -4,7 +4,9 @@
 #
 # example: v-list-sys-php-config
 #
-# This function for obtaining the list of php config parameters.
+# This function for obtaining the list of php config parameters of the
+# default PHP version (REST API v1). The PHP Manager lists every version with
+# v-list-sys-php-ini (E41).
 
 #----------------------------------------------------------#
 #                Variables & Functions                     #
@@ -62,16 +64,15 @@ csv_list() {
 #                       Action                             #
 #----------------------------------------------------------#
 
-# Defining config path
-config_path=$(find /etc/php* -name php.ini)
-config_count=$(echo "$config_path" | wc -l)
-if [ "$config_count" -gt 1 ]; then
-	multiphp_versions=$(ls -d /etc/php/*/fpm/pool.d 2> /dev/null | wc -l)
-	if [ "$WEB_BACKEND" = 'php-fpm' ] || [ "$multiphp_versions" -gt 0 ]; then
-		config_path=$(echo "$config_path" | grep fpm)
-	else
-		config_path=$(echo "$config_path" | grep apache)
-	fi
+# Defining config path: the PHP-FPM php.ini of the default version, or the
+# Apache one without PHP-FPM (E41; each version has its own php.ini)
+default_version=$(multiphp_default_version)
+config_path="/etc/php/$default_version/fpm/php.ini"
+if [ ! -f "$config_path" ]; then
+	config_path="/etc/php/$default_version/apache2/php.ini"
+fi
+if [ ! -f "$config_path" ]; then
+	config_path=$(find /etc/php* -name php.ini | grep -E '/(fpm|apache2)/' | head -n1)
 fi
 
 # Defining keys
