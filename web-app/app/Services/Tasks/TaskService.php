@@ -12,7 +12,7 @@ use App\Arc\Options;
 use App\Arc\SysConfig;
 
 /**
- * Reads the six task sources of the panel (E34 batch 3 spec §5).
+ * Reads the seven task sources of the panel (E34 batch 3 spec §5).
  */
 final class TaskService
 {
@@ -30,6 +30,7 @@ final class TaskService
             TaskId::SOURCE_DOCKER => $this->getDockerApp($id, $lines),
             TaskId::SOURCE_INSTALL => $this->getInstall($id, $lines),
             TaskId::SOURCE_QUEUE => $this->getQueue($id, $lines),
+            TaskId::SOURCE_MALWARE => $this->getMalware($id, $lines),
         };
     }
 
@@ -45,6 +46,11 @@ final class TaskService
         $install = $this->readJson('v-list-user-quick-install-task', [$user, (string) $lines]);
         if ((string) ($install['ID'] ?? '') !== '') {
             $tasks[] = $this->mapRow(new TaskId(TaskId::SOURCE_INSTALL, (string) $install['ID'], $user), $install, $lines);
+        }
+
+        $malware = $this->readJson('v-list-user-malware-task', [$user, (string) $lines]);
+        if ((string) ($malware['ID'] ?? '') !== '') {
+            $tasks[] = $this->mapRow(new TaskId(TaskId::SOURCE_MALWARE, (string) $malware['ID'], $user), $malware, $lines);
         }
 
         foreach ($this->dockerApps($user) as $app) {
@@ -196,6 +202,17 @@ final class TaskService
     private function getInstall(TaskId $id, int $lines): TaskView
     {
         $row = $this->readJson('v-list-user-quick-install-task', [$id->user, (string) $lines]);
+        $current = (string) ($row['ID'] ?? '');
+        if ($current === '' || $current !== $id->recordId) {
+            throw new ApiException(ErrorCode::Gone, 'The task result is no longer kept.', 410);
+        }
+
+        return $this->mapRow($id, $row, $lines);
+    }
+
+    private function getMalware(TaskId $id, int $lines): TaskView
+    {
+        $row = $this->readJson('v-list-user-malware-task', [$id->user, (string) $lines]);
         $current = (string) ($row['ID'] ?? '');
         if ($current === '' || $current !== $id->recordId) {
             throw new ApiException(ErrorCode::Gone, 'The task result is no longer kept.', 410);

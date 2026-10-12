@@ -43,6 +43,7 @@ final class TaskMapper
             TaskId::SOURCE_SYS => (string) ($row['KIND'] ?? ''),
             TaskId::SOURCE_DOCKER_ENGINE => 'docker-engine',
             TaskId::SOURCE_INSTALL => 'quick-install',
+            TaskId::SOURCE_MALWARE => 'malware-scan',
             TaskId::SOURCE_NODE, TaskId::SOURCE_DOCKER => (string) ($row['ACTION'] ?? $row['KIND'] ?? ''),
             TaskId::SOURCE_QUEUE => (string) ($row['KIND'] ?? ''),
         };
@@ -74,6 +75,7 @@ final class TaskMapper
             TaskId::SOURCE_NODE => self::nodeResource($user, (string) ($row['ACTION'] ?? ''), (string) ($row['ARGS'] ?? '')),
             TaskId::SOURCE_DOCKER => '/users/'.$user.'/docker-apps/'.$id->app,
             TaskId::SOURCE_INSTALL => self::installResource($user, (string) ($row['DOMAIN'] ?? '')),
+            TaskId::SOURCE_MALWARE => '/users/'.$user.'/malware/scans',
             TaskId::SOURCE_QUEUE => self::queueResource($user, (string) ($row['KIND'] ?? ''), (string) ($row['ARGS'] ?? '')),
             default => null,
         };

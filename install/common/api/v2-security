@@ -1,0 +1,4 @@
+# REST API v2 (E25 batch 1): malware scan of web files, plus the foundation reads. API v1 skips this set.
+ROLE='user'
+API_VERSION='2'
+COMMANDS='v-list-sys-config,v-list-users,v-list-user-owners,v-list-user,v-list-sys-languages,v-list-reseller-packages,v-list-package-tenancy,v-check-reseller-quota,v-list-web-domains,v-list-sys-malware-summary,v-list-user-malware-findings,v-list-user-malware-scans,v-list-user-malware-quarantine,v-list-user-malware-ignores,v-list-user-malware-task,v-start-user-malware-scan,v-add-user-malware-quarantine,v-add-user-malware-ignore,v-restore-user-malware-quarantine,v-delete-user-malware-quarantine,v-delete-user-malware-ignore'

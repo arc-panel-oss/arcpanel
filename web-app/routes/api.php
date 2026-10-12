@@ -18,6 +18,7 @@ use App\Http\Controllers\Api\V2\IpController;
 use App\Http\Controllers\Api\V2\LogController;
 use App\Http\Controllers\Api\V2\MailAccountController;
 use App\Http\Controllers\Api\V2\MailDomainController;
+use App\Http\Controllers\Api\V2\MalwareController;
 use App\Http\Controllers\Api\V2\MeController;
 use App\Http\Controllers\Api\V2\NodeAppController;
 use App\Http\Controllers\Api\V2\NodeController;
@@ -73,6 +74,9 @@ Route::middleware('not-readonly')->group(function () {
 });
 Route::get('/stats', [StatsController::class, 'index'])->name('stats.index');
 Route::get('/search', SearchController::class)->name('search');
+
+// Malware scan summary of the principal's tree (E25 batch 1 spec §9)
+Route::get('/malware', [MalwareController::class, 'summary'])->middleware('sys-config:MALWARE_SCAN=yes')->name('malware.summary');
 Route::get('/access-key-sets', [AccessKeyController::class, 'sets'])->name('access-key-sets.index');
 
 // Docker catalog (E34 batch 4 spec §4.3, D44)
@@ -237,6 +241,24 @@ Route::middleware('effective-user')->group(function () {
         Route::post('/users/{user}/secrets/{name}/rollback', [SecretController::class, 'rollback'])->where('name', $secret)->name('secrets.rollback');
         Route::patch('/users/{user}/secrets/{name}', [SecretController::class, 'update'])->where('name', $secret)->name('secrets.update');
         Route::delete('/users/{user}/secrets/{name}', [SecretController::class, 'destroy'])->where('name', $secret)->name('secrets.destroy');
+    });
+
+    // Malware scan of a user (E25 batch 1 spec §9); 404 while the plugin is off
+    Route::middleware('sys-config:MALWARE_SCAN=yes')->prefix('/users/{user}/malware')->name('malware.')->group(function () {
+        $finding = ['finding' => '[a-f0-9]{16}'];
+        $quarantined = ['id' => '[0-9]{14}'];
+        Route::get('/findings', [MalwareController::class, 'findings'])->name('findings.index');
+        Route::get('/scans', [MalwareController::class, 'scans'])->name('scans.index');
+        Route::get('/quarantine', [MalwareController::class, 'quarantined'])->name('quarantine.index');
+        Route::get('/ignores', [MalwareController::class, 'ignores'])->name('ignores.index');
+        Route::middleware('not-readonly')->group(function () use ($finding, $quarantined) {
+            Route::post('/scans', [MalwareController::class, 'start'])->name('scans.store');
+            Route::post('/findings/{finding}/quarantine', [MalwareController::class, 'quarantine'])->where($finding)->name('findings.quarantine');
+            Route::post('/findings/{finding}/ignore', [MalwareController::class, 'ignore'])->where($finding)->name('findings.ignore');
+            Route::post('/quarantine/{id}/restore', [MalwareController::class, 'restore'])->where($quarantined)->name('quarantine.restore');
+            Route::delete('/quarantine/{id}', [MalwareController::class, 'destroyQuarantined'])->where($quarantined)->name('quarantine.destroy');
+            Route::delete('/ignores/{sha256}', [MalwareController::class, 'destroyIgnore'])->where('sha256', '[a-f0-9]{64}')->name('ignores.destroy');
+        });
     });
 
     // Access keys and two-factor authentication of a user (E34 batch 6 §4.5, §4.6)
@@ -497,6 +519,7 @@ foreach (Route::getRoutes() as $route) {
         str_starts_with($uri, 'api/v2/system/settings/') => 'server',
         str_contains($uri, '/web-domains') => 'web',
         str_contains($uri, '/secrets') => 'secrets',
+        str_contains($uri, '/malware') => 'security',
         str_contains($uri, '/dns-zones') => 'dns',
         str_contains($uri, '/mail-domains') => 'mail',
         str_contains($uri, '/databases') => 'db',

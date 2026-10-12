@@ -239,6 +239,63 @@
                 }
             }
         },
+        "/malware": {
+            "get": {
+                "operationId": "getMalwareSummary",
+                "description": "One row per user of the principal's tree: open findings by severity,\nquarantined files and the newest scan. Administrators and resellers.",
+                "summary": "Summarise the malware scan of the users",
+                "tags": [
+                    "Malware scan"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Array of `MalwareSummary`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/components/schemas/MalwareSummary"
+                                            }
+                                        },
+                                        "meta": {
+                                            "$ref": "#/components/schemas/ListMeta"
+                                        }
+                                    },
+                                    "required": [
+                                        "data",
+                                        "meta"
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    }
+                }
+            }
+        },
         "/me": {
             "get": {
                 "operationId": "getMe",
@@ -18206,6 +18263,944 @@
                 }
             }
         },
+        "/users/{user}/malware/findings": {
+            "get": {
+                "operationId": "listMalwareFindings",
+                "description": "Most severe first. Quarantined and ignored files are not listed.",
+                "summary": "List the open malware findings of a user",
+                "tags": [
+                    "Malware scan"
+                ],
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "limit",
+                        "in": "query",
+                        "description": "Page size, from 1 to 1000. Without it the list is complete.",
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 1000
+                        }
+                    },
+                    {
+                        "name": "offset",
+                        "in": "query",
+                        "description": "Items to skip. Used when `limit` is set; 0 when omitted.",
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 0
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Array of `MalwareFinding`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/components/schemas/MalwareFinding"
+                                            }
+                                        },
+                                        "meta": {
+                                            "$ref": "#/components/schemas/ListMeta"
+                                        }
+                                    },
+                                    "required": [
+                                        "data",
+                                        "meta"
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    }
+                }
+            }
+        },
+        "/users/{user}/malware/findings/{finding}/ignore": {
+            "post": {
+                "operationId": "ignoreMalwareFinding",
+                "description": "Adds the SHA-256 of the file to the ignore list of the user: files\nwith this content are not reported again.",
+                "summary": "Mark a finding as not malware",
+                "tags": [
+                    "Malware scan"
+                ],
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "finding",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "dry_run",
+                        "in": "query",
+                        "description": "Validate, authorize and plan the change, and answer with its steps instead of running them.",
+                        "schema": {
+                            "type": "boolean",
+                            "default": false
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "With `dry_run`: the planned steps; nothing ran.",
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/DryRun"
+                                }
+                            }
+                        }
+                    },
+                    "204": {
+                        "description": "No content.",
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "409": {
+                        "$ref": "#/components/responses/Conflict"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    },
+                    "503": {
+                        "$ref": "#/components/responses/Unavailable"
+                    }
+                }
+            }
+        },
+        "/users/{user}/malware/findings/{finding}/quarantine": {
+            "post": {
+                "operationId": "quarantineMalwareFinding",
+                "description": "The file is read and removed as the user and kept in a root-only\nstore. A file that changed since the scan answers 422 `E_INVALID`:\nscan again first.",
+                "summary": "Move the file of a finding to quarantine",
+                "tags": [
+                    "Malware scan"
+                ],
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "finding",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "dry_run",
+                        "in": "query",
+                        "description": "Validate, authorize and plan the change, and answer with its steps instead of running them.",
+                        "schema": {
+                            "type": "boolean",
+                            "default": false
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "`MalwareQuarantine`; with `dry_run`, the planned steps.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "oneOf": [
+                                        {
+                                            "type": "object",
+                                            "properties": {
+                                                "data": {
+                                                    "$ref": "#/components/schemas/MalwareQuarantine"
+                                                }
+                                            },
+                                            "required": [
+                                                "data"
+                                            ]
+                                        },
+                                        {
+                                            "$ref": "#/components/schemas/DryRun"
+                                        }
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "409": {
+                        "$ref": "#/components/responses/Conflict"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    },
+                    "503": {
+                        "$ref": "#/components/responses/Unavailable"
+                    }
+                }
+            }
+        },
+        "/users/{user}/malware/ignores": {
+            "get": {
+                "operationId": "listMalwareIgnores",
+                "summary": "List the files a user marked as not malware",
+                "tags": [
+                    "Malware scan"
+                ],
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "limit",
+                        "in": "query",
+                        "description": "Page size, from 1 to 1000. Without it the list is complete.",
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 1000
+                        }
+                    },
+                    {
+                        "name": "offset",
+                        "in": "query",
+                        "description": "Items to skip. Used when `limit` is set; 0 when omitted.",
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 0
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Array of `MalwareIgnore`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/components/schemas/MalwareIgnore"
+                                            }
+                                        },
+                                        "meta": {
+                                            "$ref": "#/components/schemas/ListMeta"
+                                        }
+                                    },
+                                    "required": [
+                                        "data",
+                                        "meta"
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    }
+                }
+            }
+        },
+        "/users/{user}/malware/ignores/{sha256}": {
+            "delete": {
+                "operationId": "deleteMalwareIgnore",
+                "description": "Removes a SHA-256 from the ignore list of the user.",
+                "summary": "Report a file content again",
+                "tags": [
+                    "Malware scan"
+                ],
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "sha256",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "dry_run",
+                        "in": "query",
+                        "description": "Validate, authorize and plan the change, and answer with its steps instead of running them.",
+                        "schema": {
+                            "type": "boolean",
+                            "default": false
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "With `dry_run`: the planned steps; nothing ran.",
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/DryRun"
+                                }
+                            }
+                        }
+                    },
+                    "204": {
+                        "description": "No content.",
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "409": {
+                        "$ref": "#/components/responses/Conflict"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    },
+                    "503": {
+                        "$ref": "#/components/responses/Unavailable"
+                    }
+                }
+            }
+        },
+        "/users/{user}/malware/quarantine": {
+            "get": {
+                "operationId": "listMalwareQuarantine",
+                "summary": "List the quarantined files of a user",
+                "tags": [
+                    "Malware scan"
+                ],
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "limit",
+                        "in": "query",
+                        "description": "Page size, from 1 to 1000. Without it the list is complete.",
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 1000
+                        }
+                    },
+                    {
+                        "name": "offset",
+                        "in": "query",
+                        "description": "Items to skip. Used when `limit` is set; 0 when omitted.",
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 0
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Array of `MalwareQuarantine`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/components/schemas/MalwareQuarantine"
+                                            }
+                                        },
+                                        "meta": {
+                                            "$ref": "#/components/schemas/ListMeta"
+                                        }
+                                    },
+                                    "required": [
+                                        "data",
+                                        "meta"
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    }
+                }
+            }
+        },
+        "/users/{user}/malware/quarantine/{id}": {
+            "delete": {
+                "operationId": "deleteMalwareQuarantine",
+                "summary": "Delete a quarantined file",
+                "tags": [
+                    "Malware scan"
+                ],
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "dry_run",
+                        "in": "query",
+                        "description": "Validate, authorize and plan the change, and answer with its steps instead of running them.",
+                        "schema": {
+                            "type": "boolean",
+                            "default": false
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "With `dry_run`: the planned steps; nothing ran.",
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/DryRun"
+                                }
+                            }
+                        }
+                    },
+                    "204": {
+                        "description": "No content.",
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "409": {
+                        "$ref": "#/components/responses/Conflict"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    },
+                    "503": {
+                        "$ref": "#/components/responses/Unavailable"
+                    }
+                }
+            }
+        },
+        "/users/{user}/malware/quarantine/{id}/restore": {
+            "post": {
+                "operationId": "restoreMalwareQuarantine",
+                "description": "Writes the file back to its path as the user, with its permissions.\nA file at that path answers 409 `E_EXISTS`, a missing folder 404\n`E_NOTEXIST`. The next scan reports the file again unless it is\nignored.",
+                "summary": "Restore a quarantined file",
+                "tags": [
+                    "Malware scan"
+                ],
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "dry_run",
+                        "in": "query",
+                        "description": "Validate, authorize and plan the change, and answer with its steps instead of running them.",
+                        "schema": {
+                            "type": "boolean",
+                            "default": false
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "With `dry_run`: the planned steps; nothing ran.",
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/DryRun"
+                                }
+                            }
+                        }
+                    },
+                    "204": {
+                        "description": "No content.",
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "409": {
+                        "$ref": "#/components/responses/Conflict"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    },
+                    "503": {
+                        "$ref": "#/components/responses/Unavailable"
+                    }
+                }
+            }
+        },
+        "/users/{user}/malware/scans": {
+            "get": {
+                "operationId": "listMalwareScans",
+                "description": "The 30 newest scan records, newest first.",
+                "summary": "List the malware scans of a user",
+                "tags": [
+                    "Malware scan"
+                ],
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "limit",
+                        "in": "query",
+                        "description": "Page size, from 1 to 1000. Without it the list is complete.",
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 1000
+                        }
+                    },
+                    {
+                        "name": "offset",
+                        "in": "query",
+                        "description": "Items to skip. Used when `limit` is set; 0 when omitted.",
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 0
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Array of `MalwareScan`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/components/schemas/MalwareScan"
+                                            }
+                                        },
+                                        "meta": {
+                                            "$ref": "#/components/schemas/ListMeta"
+                                        }
+                                    },
+                                    "required": [
+                                        "data",
+                                        "meta"
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    }
+                }
+            },
+            "post": {
+                "operationId": "startMalwareScan",
+                "description": "A full scan of one web domain, or of every web domain of the user, in\nthe background; follow the task. A scan of the user that is already\nrunning answers 409 `E_INUSE` with the running task in `existing`.",
+                "summary": "Start a malware scan",
+                "tags": [
+                    "Malware scan"
+                ],
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "dry_run",
+                        "in": "query",
+                        "description": "Validate, authorize and plan the change, and answer with its steps instead of running them.",
+                        "schema": {
+                            "type": "boolean",
+                            "default": false
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/StartMalwareScanRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "With `dry_run`: the planned steps; nothing ran.",
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/DryRun"
+                                }
+                            }
+                        }
+                    },
+                    "202": {
+                        "description": "`Task`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/Task"
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            },
+                            "Location": {
+                                "$ref": "#/components/headers/Location"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "409": {
+                        "$ref": "#/components/responses/Conflict"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    },
+                    "503": {
+                        "$ref": "#/components/responses/Unavailable"
+                    }
+                }
+            }
+        },
         "/users/{user}/node": {
             "get": {
                 "operationId": "getNodeAccount",
@@ -28781,6 +29776,354 @@
                     "relay_password"
                 ]
             },
+            "MalwareFinding": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "description": "16 hex characters, stable across scans of the same file"
+                    },
+                    "domain": {
+                        "type": "string"
+                    },
+                    "path": {
+                        "type": "string",
+                        "description": "relative to the domain's public_html"
+                    },
+                    "sha256": {
+                        "type": "string"
+                    },
+                    "size": {
+                        "type": "integer",
+                        "description": "bytes"
+                    },
+                    "modified_at": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "modification time of the file when it was scanned, server time"
+                    },
+                    "severity": {
+                        "type": "string",
+                        "description": "critical, high or medium: the most severe of the rules"
+                    },
+                    "rules": {
+                        "type": "array",
+                        "description": "ids of the rules that matched",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "descriptions": {
+                        "type": "array",
+                        "description": "what each rule detects, in the order of `rules`",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "line": {
+                        "type": "integer",
+                        "description": "the line of the most severe match"
+                    },
+                    "snippet": {
+                        "type": "string",
+                        "description": "that line, at most 200 characters, control characters replaced"
+                    },
+                    "detected_at": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "first reported, server time"
+                    },
+                    "scan_id": {
+                        "type": "string",
+                        "description": "the scan that reported the current content"
+                    }
+                },
+                "required": [
+                    "id",
+                    "domain",
+                    "path",
+                    "sha256",
+                    "size",
+                    "modified_at",
+                    "severity",
+                    "rules",
+                    "descriptions",
+                    "line",
+                    "snippet",
+                    "detected_at",
+                    "scan_id"
+                ],
+                "title": "MalwareFinding"
+            },
+            "MalwareIgnore": {
+                "type": "object",
+                "properties": {
+                    "sha256": {
+                        "type": "string"
+                    },
+                    "domain": {
+                        "type": "string",
+                        "description": "the domain of the finding that was marked"
+                    },
+                    "path": {
+                        "type": "string",
+                        "description": "the path of the finding that was marked"
+                    },
+                    "rules": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "added_at": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "server time"
+                    }
+                },
+                "required": [
+                    "sha256",
+                    "domain",
+                    "path",
+                    "rules",
+                    "added_at"
+                ],
+                "title": "MalwareIgnore"
+            },
+            "MalwareQuarantine": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "description": "14 digits"
+                    },
+                    "domain": {
+                        "type": "string"
+                    },
+                    "path": {
+                        "type": "string",
+                        "description": "where the file goes back on restore, relative to public_html"
+                    },
+                    "sha256": {
+                        "type": "string"
+                    },
+                    "size": {
+                        "type": "integer",
+                        "description": "bytes"
+                    },
+                    "mode": {
+                        "type": "string",
+                        "description": "octal permissions it gets back on restore, for example `644`"
+                    },
+                    "severity": {
+                        "type": "string",
+                        "description": "critical, high or medium"
+                    },
+                    "rules": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "quarantined_at": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "server time"
+                    }
+                },
+                "required": [
+                    "id",
+                    "domain",
+                    "path",
+                    "sha256",
+                    "size",
+                    "mode",
+                    "severity",
+                    "rules",
+                    "quarantined_at"
+                ],
+                "title": "MalwareQuarantine"
+            },
+            "MalwareScan": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "description": "14 digits"
+                    },
+                    "domain": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "null when every web domain of the user was scanned"
+                    },
+                    "mode": {
+                        "type": "string",
+                        "description": "full or incremental (only new and changed files)"
+                    },
+                    "trigger": {
+                        "type": "string",
+                        "description": "manual or nightly"
+                    },
+                    "status": {
+                        "type": "string",
+                        "description": "running, done or failed"
+                    },
+                    "started_at": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "server time"
+                    },
+                    "finished_at": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "server time"
+                    },
+                    "files": {
+                        "type": "integer",
+                        "description": "candidate files"
+                    },
+                    "changed": {
+                        "type": "integer",
+                        "description": "files read (the others were unchanged since the last scan)"
+                    },
+                    "skipped": {
+                        "type": "integer",
+                        "description": "files above 2 MiB, not read"
+                    },
+                    "errors": {
+                        "type": "integer",
+                        "description": "files the user cannot read"
+                    },
+                    "findings": {
+                        "type": "integer",
+                        "description": "open findings of the scanned domains after the scan"
+                    },
+                    "new": {
+                        "type": "integer",
+                        "description": "findings not reported before"
+                    },
+                    "new_summary": {
+                        "type": "array",
+                        "description": "new findings per domain",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "domain": {
+                                    "type": "string"
+                                },
+                                "critical": {
+                                    "type": "integer"
+                                },
+                                "high": {
+                                    "type": "integer"
+                                },
+                                "medium": {
+                                    "type": "integer"
+                                }
+                            },
+                            "required": [
+                                "domain",
+                                "critical",
+                                "high",
+                                "medium"
+                            ]
+                        }
+                    },
+                    "rules_version": {
+                        "type": "string",
+                        "description": "version of the rules"
+                    },
+                    "error": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "domains that could not be scanned, and why"
+                    }
+                },
+                "required": [
+                    "id",
+                    "domain",
+                    "mode",
+                    "trigger",
+                    "status",
+                    "started_at",
+                    "finished_at",
+                    "files",
+                    "changed",
+                    "skipped",
+                    "errors",
+                    "findings",
+                    "new",
+                    "new_summary",
+                    "rules_version",
+                    "error"
+                ],
+                "title": "MalwareScan"
+            },
+            "MalwareSummary": {
+                "type": "object",
+                "properties": {
+                    "user": {
+                        "type": "string"
+                    },
+                    "findings": {
+                        "type": "integer",
+                        "description": "open findings"
+                    },
+                    "critical": {
+                        "type": "integer"
+                    },
+                    "high": {
+                        "type": "integer"
+                    },
+                    "medium": {
+                        "type": "integer"
+                    },
+                    "quarantined": {
+                        "type": "integer"
+                    },
+                    "last_scan_at": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "start of the newest scan, server time; null when never scanned"
+                    },
+                    "last_status": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "running, done or failed"
+                    }
+                },
+                "required": [
+                    "user",
+                    "findings",
+                    "critical",
+                    "high",
+                    "medium",
+                    "quarantined",
+                    "last_scan_at",
+                    "last_status"
+                ],
+                "title": "MalwareSummary"
+            },
             "Me": {
                 "type": "object",
                 "properties": {
@@ -30271,6 +31614,9 @@
                             },
                             "firewall": {
                                 "type": "boolean"
+                            },
+                            "malware-scan": {
+                                "type": "boolean"
                             }
                         },
                         "required": [
@@ -30278,7 +31624,8 @@
                             "web-terminal",
                             "cgroups",
                             "quota",
-                            "firewall"
+                            "firewall",
+                            "malware-scan"
                         ]
                     }
                 },
@@ -32038,6 +33385,21 @@
                     "action"
                 ],
                 "title": "StartDockerAppTaskRequest"
+            },
+            "StartMalwareScanRequest": {
+                "type": "object",
+                "description": "POST /users/{user}/malware/scans (E25 batch 1 spec §9).",
+                "properties": {
+                    "domain": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "A web domain of the user; every web domain when left out.",
+                        "maxLength": 253
+                    }
+                },
+                "title": "StartMalwareScanRequest"
             },
             "StartUploadRequest": {
                 "type": "object",

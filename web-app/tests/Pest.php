@@ -112,6 +112,9 @@ function fakeArc(array $config = []): ArcCommandFake
     $fake->on('v-list-sys-php-versions')->returnsJson(phpVersionRows());
     $fake->on('v-list-sys-php-profiles')->returnsJson(phpProfileRows());
     $fake->on('v-list-web-domain-php')->returnsExit(ExitCode::NotExist);
+    // Task lists read the background malware scan of a user (E25); none by default.
+    $fake->on('v-list-user-malware-task')->using(fn (array $args) => [0, (string) json_encode(['USER' => $args[0], 'ID' => '',
+        'DOMAIN' => '', 'STATUS' => '', 'EXIT' => '', 'START' => '', 'END' => '', 'LOG' => ''])]);
 
     return $fake;
 }

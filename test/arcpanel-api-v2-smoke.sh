@@ -36,12 +36,14 @@ APPS_USER="${SMOKE_USER}a"
 FILES_USER="${SMOKE_USER}f"
 ACCOUNTS_USER="${SMOKE_USER}c"
 PHP_USER="${SMOKE_USER}p"
+MALWARE_USER="${SMOKE_USER}m"
 PHP_PACKAGE="$SMOKE_PACKAGE-php"
 APPS_PACKAGE="$SMOKE_PACKAGE-apps"
 SMOKE_PASS="$(head -c 18 /dev/urandom | base64 | tr -dc 'A-Za-z0-9' | head -c 20)Aa1"
 ROOT_USER=$(grep "^ROOT_USER=" "$CONF" | cut -d"'" -f2)
 OLD_API_SYSTEM=$(grep "^API_SYSTEM=" "$CONF" | cut -d"'" -f2 || true)
 OLD_API_ALLOWED_IP=$(grep "^API_ALLOWED_IP=" "$CONF" | cut -d"'" -f2 || true)
+OLD_MALWARE_SCAN=$(grep "^MALWARE_SCAN=" "$CONF" | cut -d"'" -f2 || true)
 BODY="$(mktemp)"
 CERT_DIR="$(mktemp -d)"
 FILES_DIR="$(mktemp -d)"
@@ -64,6 +66,12 @@ cleanup() {
 	"$ARCPANEL/bin/v-delete-user" "$FILES_USER" > /dev/null 2>&1 || true
 	"$ARCPANEL/bin/v-delete-user" "$ACCOUNTS_USER" > /dev/null 2>&1 || true
 	"$ARCPANEL/bin/v-delete-user" "$PHP_USER" > /dev/null 2>&1 || true
+	"$ARCPANEL/bin/v-delete-user" "$MALWARE_USER" > /dev/null 2>&1 || true
+	if [ "$OLD_MALWARE_SCAN" = yes ]; then
+		"$ARCPANEL/bin/v-add-sys-malware-scan" quiet
+	else
+		"$ARCPANEL/bin/v-delete-sys-malware-scan" quiet
+	fi
 	# A firewall rule left by a failed run (the last one first: ids are positions)
 	for rule in $("$ARCPANEL/bin/v-list-firewall" json 2> /dev/null | jq -r 'to_entries[] | select(.value.COMMENT == "arcsmoke") | .key' | sort -rn); do
 		"$ARCPANEL/bin/v-delete-firewall-rule" "$rule" > /dev/null 2>&1 || true
@@ -673,6 +681,43 @@ check "the pool has the small profile" 1 "$(grep -c '^pm.max_children = 4$' "$(f
 check "a profile the package does not allow answers 403" 403 "$(call "$PHP_KEY" PUT "/users/$PHP_USER/web-domains/$PHP_DOMAIN/php" '{"profile": "large"}')"
 check "the PHP user is deleted" 204 "$(call "$ADMIN" DELETE "/users/$PHP_USER")"
 check "the PHP package is deleted" 204 "$(call "$ADMIN" DELETE "/packages/$PHP_PACKAGE")"
+
+# Malware scan (E25 batch 1 spec §9): a key with only v2-security. The sample
+# is base64 only (tests/Fixtures/malware/samples.php "eval-post").
+"$ARCPANEL/bin/v-add-sys-malware-scan" quiet
+clear_panel_cache
+check "a user for the malware scan" 201 "$(call "$ADMIN" POST /users "{\"username\": \"$MALWARE_USER\", \"password\": \"$SMOKE_PASS\", \"email\": \"$MALWARE_USER@example.invalid\", \"name\": \"Smoke malware\", \"package\": \"default\"}")"
+MALWARE_DOMAIN="$MALWARE_USER.example.test"
+check "a web domain of that user" 201 "$(call "$ADMIN" POST "/users/$MALWARE_USER/web-domains" "{\"domain\": \"$MALWARE_DOMAIN\"}")"
+malware_file="/home/$MALWARE_USER/web/$MALWARE_DOMAIN/public_html/smoke-sample.php"
+printf '%s' 'PD9waHAgQGV2YWwoJF9QT1NUWydwJ10pOwo=' | base64 -d > "$malware_file"
+chown "$MALWARE_USER:$MALWARE_USER" "$malware_file"
+MALWARE_KEY="$(new_key "$MALWARE_USER" v2-security)"
+MALWARE="/users/$MALWARE_USER/malware"
+check "startMalwareScan answers 202" 202 "$(call "$MALWARE_KEY" POST "$MALWARE/scans" "{\"domain\": \"$MALWARE_DOMAIN\"}")"
+malware_task="$(json .data.id)"
+malware_status=running
+for _ in $(seq 1 60); do
+	call "$MALWARE_KEY" GET "/tasks/$malware_task" > /dev/null
+	malware_status="$(json .data.status)"
+	[ "$malware_status" = running ] || [ "$malware_status" = queued ] || break
+	sleep 1
+done
+check "the scan task succeeds" succeeded "$malware_status"
+check "listMalwareFindings answers 200" 200 "$(call "$MALWARE_KEY" GET "$MALWARE/findings")"
+check "the sample is a critical finding" "smoke-sample.php critical" "$(json '.data[0] | "\(.path) \(.severity)"')"
+malware_finding="$(json '.data[0].id')"
+check "quarantineMalwareFinding answers 200" 200 "$(call "$MALWARE_KEY" POST "$MALWARE/findings/$malware_finding/quarantine")"
+malware_quarantined="$(json .data.id)"
+check "the file left the site" no "$([ -e "$malware_file" ] && echo yes || echo no)"
+check "restoreMalwareQuarantine answers 204" 204 "$(call "$MALWARE_KEY" POST "$MALWARE/quarantine/$malware_quarantined/restore")"
+check "the file is back, owned by the user" "$MALWARE_USER" "$(stat -c %U "$malware_file")"
+check "listMalwareScans answers 200" 200 "$(call "$MALWARE_KEY" GET "$MALWARE/scans")"
+check "the scan was a full manual one" "full manual" "$(json '.data[0] | "\(.mode) \(.trigger)"')"
+check "the v2-security key may not delete the domain" 403 "$(call "$MALWARE_KEY" DELETE "/users/$MALWARE_USER/web-domains/$MALWARE_DOMAIN")"
+check "getMalwareSummary answers 200" 200 "$(call "$ADMIN" GET "/malware?limit=200")"
+check "the summary has the user, with no open finding after the quarantine" 0 "$(json "[.data[] | select(.user == \"$MALWARE_USER\")][0].findings")"
+check "the malware user is deleted" 204 "$(call "$ADMIN" DELETE "/users/$MALWARE_USER")"
 
 if [ "$failures" -gt 0 ]; then
 	echo "$failures check(s) failed"
