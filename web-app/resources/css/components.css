@@ -1288,7 +1288,7 @@
 	border-bottom: 1px solid var(--ap-border);
 	background: var(--ap-surface);
 	text-align: start;
-	font: 500 11px/1 var(--ap-font-mono);
+	font: 500 var(--ap-text-xs) / 1 var(--ap-font-mono);
 	letter-spacing: 0.08em;
 	text-transform: uppercase;
 	color: var(--ap-fg-subtle);
@@ -1541,6 +1541,29 @@
 	background: var(--ap-surface-raised);
 	color: var(--ap-fg);
 	box-shadow: 0 0 0 1px var(--ap-border-strong);
+}
+/* The graph periods wrap on phones rather than scroll out of sight */
+@media (max-width: 767px) {
+	.ap-rrd .ap-segment {
+		flex-wrap: wrap;
+		overflow-x: visible;
+	}
+}
+/* Touch screens: segment options, file names and the dashboard figures
+   reach the 44px touch target */
+@media (pointer: coarse) {
+	.ap-segment button,
+	.ap-segment a {
+		height: 44px;
+	}
+	.ap-file {
+		min-height: 44px;
+	}
+	.ap-root .ap-stat-meta a {
+		display: inline-flex;
+		align-items: center;
+		min-height: 44px;
+	}
 }
 
 /* ---------- Overlays: modal, drawer, menu, toast, palette ---------- */

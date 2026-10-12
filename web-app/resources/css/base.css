@@ -74,7 +74,7 @@ body {
 	font-variant-numeric: tabular-nums;
 }
 .eyebrow {
-	font: 500 11px/1.2 var(--ap-font-mono);
+	font: 500 var(--ap-text-xs) / 1.2 var(--ap-font-mono);
 	letter-spacing: 0.09em;
 	text-transform: uppercase;
 	color: var(--ap-fg-subtle);

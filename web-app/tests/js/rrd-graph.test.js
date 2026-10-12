@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { chartData, labelFormat, loadAverage, PERIODS } from '../../resources/js/alpine/rrd-graph.js';
+import { chartData, labelFormat, loadAverage, memoryStack, PERIODS, trimEmpty } from '../../resources/js/alpine/rrd-graph.js';
 import { data, jsonResponse, mount, tick, unmount } from './helpers.js';
 
 const { Chart, charts } = vi.hoisted(() => {
@@ -67,6 +67,39 @@ describe('loadAverage', () => {
 		expect(result.data.datasets.map((d) => [d.label, d.data])).toEqual([['Load', [0.24, null, 1.35, 1.4]]]);
 		expect(result.note).toBe('Processes: 82');
 		expect(loadAverage({ labels: [], datasets: [] })).toEqual({ data: { labels: [], datasets: [] }, note: '' });
+	});
+});
+
+describe('trimEmpty', () => {
+	it('drops the rows before the first value and after the last one', () => {
+		const fresh = { meta: { start: 0, step: 1, legend: ['a', 'b'] }, data: [[null, null], [null, null], [1, null], [null, 2], [null, null]] };
+		const result = trimEmpty(chartData(fresh, ['x']));
+		expect(result.labels).toEqual([new Date(2000), new Date(3000)]);
+		expect(result.datasets.map((d) => d.data)).toEqual([
+			[1, null],
+			[null, 2],
+		]);
+	});
+
+	it('keeps a graph without any value as it is', () => {
+		const empty = chartData({ meta: { start: 0, step: 1, legend: ['a'] }, data: [[null], [null]] }, ['x']);
+		expect(trimEmpty(empty)).toBe(empty);
+		expect(trimEmpty({ labels: [], datasets: [] })).toEqual({ labels: [], datasets: [] });
+	});
+});
+
+describe('memoryStack', () => {
+	it('stacks used and free RAM as areas and keeps swap apart', () => {
+		const mem = { meta: { start: 0, step: 1, legend: ['Used', 'Swap', 'Free'] }, data: [[650, 0, 5250]] };
+		const result = memoryStack(chartData(mem, ['#2f55d4', '#1a7a44', 'oklch(0.7 0.1 200)']));
+		expect(result.stacked).toBe(true);
+		expect(result.data.datasets.map((d) => [d.label, d.stack, d.fill, d.backgroundColor])).toEqual([
+			['Used', 'ram', 'origin', '#2f55d433'],
+			['Free', 'ram', '-1', 'oklch(0.7 0.1 200)'],
+			['Swap', 'swap', false, undefined],
+		]);
+		const other = chartData({ meta: { start: 0, step: 1, legend: ['a'] }, data: [[1]] }, ['x']);
+		expect(memoryStack(other)).toEqual({ data: other, stacked: false });
 	});
 });
 
