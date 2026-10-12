@@ -69,6 +69,29 @@ it('restores a whole archive or the objects ticked on its page', function () {
     $this->get('/backups/bob/archives/bob.missing.tar')->assertNotFound();
 });
 
+it('leaves mail and DNS out of the backup pages on a server without them', function () {
+    $this->fake = fakeArc(['DNS_SYSTEM' => '', 'MAIL_SYSTEM' => '']);
+    fakeServerUsers($this->fake, ['bob' => ['BACKUPS' => '3', 'BACKUPS_INCREMENTAL' => 'yes']]);
+    fakeBackupData($this->fake);
+    signIn('bob', 'user');
+
+    $this->get('/backups/bob')->assertOk()->assertSee('Daily backups of websites, databases, cron jobs and files.');
+    // The archive holds neither; the snapshot holds a DNS zone, so its card stays
+    $this->get('/backups/bob/archives/'.BK_ARCHIVE)->assertOk()
+        ->assertSee('Current websites, databases and files are replaced.')
+        ->assertDontSee('Mail Domains')->assertDontSee('DNS Domains')->assertSee('Web Domains');
+    $this->get('/backups/bob/snapshots/'.BK_SNAPSHOT)->assertOk()
+        ->assertSee('Current websites, databases and files are replaced.')
+        ->assertDontSee('Mail Domains')->assertSee('DNS Domains');
+});
+
+it('names mail in the backup pages on a server with mail', function () {
+    signIn('bob', 'user');
+
+    $this->get('/backups/bob')->assertOk()->assertSee('Daily backups of websites, mail, databases, cron jobs and files.');
+    $this->get('/backups/bob/archives/'.BK_ARCHIVE)->assertOk()->assertSee('Mail Domains')->assertSee('DNS Domains');
+});
+
 it('deletes one archive or several, and only archives of the user', function () {
     $this->fake->on('v-delete-user-backup')->returns();
     signIn('bob', 'user');

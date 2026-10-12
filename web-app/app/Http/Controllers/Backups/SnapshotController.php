@@ -73,6 +73,7 @@ final class SnapshotController extends Controller
             'browse' => $this->config->is('FILE_MANAGER', 'true'),
             'snapshot' => $this->backups->snapshot($user, $snapshot),
             'content' => $this->backups->snapshotContent($user, $snapshot),
+            'systems' => ['dns' => $this->config->get('DNS_SYSTEM') !== '', 'mail' => $this->config->get('MAIL_SYSTEM') !== ''],
         ]);
     }
 

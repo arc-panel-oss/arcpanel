@@ -8,6 +8,8 @@
         'db' => __('Databases'),
         'cron' => __('Cron Jobs'),
     ];
+    // No DNS or mail card on a server without them, unless the snapshot holds some
+    $sections = array_filter($sections, fn ($type) => ($systems[$type] ?? true) || $content->items[$type] !== [], ARRAY_FILTER_USE_KEY);
 @endphp
 <x-ap-page :title="sprintf(__('Snapshot %s'), $snapshot->shortId)"
     :crumbs="[['label' => __('Backups'), 'url' => route('backups.archives.index', ['user' => $user])], ['label' => __('Snapshots'), 'url' => route('backups.snapshots.index', ['user' => $user])], ['label' => $snapshot->shortId]]"
@@ -18,7 +20,9 @@
         @endif
         @if ($can['restore'])
             <x-ap-button :form-action="route('backups.snapshots.restore', $params)" variant="primary" icon="history"
-                :confirm="__('Restore everything in this snapshot? Current websites, mail, databases and files are replaced.')">{{ __('Restore All') }}</x-ap-button>
+                :confirm="$content->items['mail'] !== []
+                    ? __('Restore everything in this snapshot? Current websites, mail, databases and files are replaced.')
+                    : __('Restore everything in this snapshot? Current websites, databases and files are replaced.')">{{ __('Restore All') }}</x-ap-button>
         @endif
     </x-slot:actions>
 

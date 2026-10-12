@@ -24,6 +24,15 @@ it('renders the shell with the theme from the legacy THEME and the arc_ui cookie
         ->assertSee('data-density="compact"', false);
 });
 
+it('names mail in the search box only where the server runs it', function () {
+    signIn('bob', 'user');
+    $this->get('/web/domains')->assertSee('placeholder="Search users, domains, mail and pages"', false);
+
+    withSysConfig($this->fake, ['MAIL_SYSTEM' => '']);
+    $this->get('/web/domains')->assertSee('placeholder="Search users, domains and pages"', false)
+        ->assertDontSee('Search users, domains, mail and pages');
+});
+
 it('renders right to left for RTL languages', function () {
     signIn('bob', 'user', ['language' => 'ar']);
     file_put_contents(lang_path('ar.json'), '{}');

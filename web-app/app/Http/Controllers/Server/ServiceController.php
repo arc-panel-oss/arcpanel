@@ -46,7 +46,7 @@ final class ServiceController extends Controller
             'info' => $this->services->info(),
             'php' => $this->services->phpVersions(),
             'services' => $services,
-            'reports' => array_keys(SystemServices::REPORTS),
+            'reports' => $this->services->reports(),
             'canManage' => $policy->manageServices($principal),
         ]);
     }
@@ -55,11 +55,12 @@ final class ServiceController extends Controller
     public function status(string $kind, Principal $principal, ServerPolicy $policy): View
     {
         abort_unless($policy->viewServices($principal), 403);
-        abort_unless(isset(SystemServices::REPORTS[$kind]), 404);
+        $reports = $this->services->reports();
+        abort_unless(in_array($kind, $reports, true), 404);
 
         return view('server.services.status', [
             'kind' => $kind,
-            'reports' => array_keys(SystemServices::REPORTS),
+            'reports' => $reports,
             'report' => $this->services->report($kind),
         ]);
     }

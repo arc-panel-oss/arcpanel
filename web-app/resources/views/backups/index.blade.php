@@ -11,7 +11,9 @@
     $canBulk = $can['delete'];
 @endphp
 <x-ap-page :title="__('Backups')" :crumbs="[['label' => __('Backups')]]" :eyebrow="__('Owner').': '.$user"
-    :description="__('Daily backups of websites, mail, databases, cron jobs and files. New backups and restores are queued and run in the background.')">
+    :description="$systems['mail']
+        ? __('Daily backups of websites, mail, databases, cron jobs and files. New backups and restores are queued and run in the background.')
+        : __('Daily backups of websites, databases, cron jobs and files. New backups and restores are queued and run in the background.')">
     <x-slot:actions>
         @if ($can['create'])
             <x-ap-button :form-action="route('backups.archives.store', ['user' => $user])" variant="primary" icon="plus">{{ __('Create Backup') }}</x-ap-button>

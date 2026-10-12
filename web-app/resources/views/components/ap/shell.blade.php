@@ -100,7 +100,7 @@
                                 <x-ap-icon name="search" />
                                 <input type="text" x-model="query" x-on:input="onInput()" autocomplete="off" role="combobox" aria-expanded="true"
                                     aria-controls="ap-palette-results" x-bind:aria-activedescendant="items.length ? 'ap-palette-item-' + active : null"
-                                    aria-label="{{ __('Search users, domains, mail and pages') }}" placeholder="{{ __('Search users, domains, mail and pages') }}">
+                                    aria-label="{{ $shell['searchLabel'] }}" placeholder="{{ $shell['searchLabel'] }}">
                                 <button type="button" class="ap-kbd ap-palette-close" x-on:click="close()" aria-label="{{ __('Close') }}" title="{{ __('Close') }}">Esc</button>
                             </div>
                             <div class="ap-palette-body" id="ap-palette-results" role="listbox" aria-label="{{ __('Results') }}">

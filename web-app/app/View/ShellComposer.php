@@ -72,6 +72,10 @@ final class ShellComposer
             'canSwitchUser' => $canSwitch,
             'switchUsers' => $switchUsers,
             'languages' => self::languages(),
+            // Mail is searched only where the server runs it
+            'searchLabel' => $this->config->get('MAIL_SYSTEM') !== ''
+                ? __('Search users, domains, mail and pages')
+                : __('Search users, domains and pages'),
         ]);
     }
 

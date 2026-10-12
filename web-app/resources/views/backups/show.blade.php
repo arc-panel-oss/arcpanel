@@ -9,6 +9,8 @@
         'cron' => __('Cron Jobs'),
         'udir' => __('User Directories'),
     ];
+    // No DNS or mail card on a server without them, unless the backup holds some
+    $sections = array_filter($sections, fn ($type) => ($systems[$type] ?? true) || $archive->items[$type] !== [], ARRAY_FILTER_USE_KEY);
 @endphp
 <x-ap-page :title="$archive->name" :crumbs="[['label' => __('Backups'), 'url' => route('backups.archives.index', ['user' => $user])], ['label' => $archive->name]]"
     :eyebrow="__('Owner').': '.$user.' · '.$archive->date.' '.$archive->time">
@@ -18,7 +20,9 @@
         @endif
         @if ($can['restore'])
             <x-ap-button :form-action="route('backups.archives.restore', $params)" variant="primary" icon="history"
-                :confirm="__('Restore everything in this backup? Current websites, mail, databases and files are replaced.')">{{ __('Restore All') }}</x-ap-button>
+                :confirm="$archive->items['mail'] !== []
+                    ? __('Restore everything in this backup? Current websites, mail, databases and files are replaced.')
+                    : __('Restore everything in this backup? Current websites, databases and files are replaced.')">{{ __('Restore All') }}</x-ap-button>
         @endif
     </x-slot:actions>
 
