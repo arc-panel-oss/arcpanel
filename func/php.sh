@@ -601,3 +601,521 @@ php_ini_apply() {
 	fi
 	echo "$id"
 }
+
+#----------------------------------------------------------#
+#                  PHP-FPM profiles                        #
+#----------------------------------------------------------#
+
+PHP_PROFILE_KEYS="NAME DESCRIPTION PM MAX_CHILDREN START_SERVERS MIN_SPARE MAX_SPARE MAX_REQUESTS IDLE_TIMEOUT REQUEST_TERMINATE_TIMEOUT MEMORY_LIMIT UPLOAD_MAX_FILESIZE POST_MAX_SIZE MAX_EXECUTION_TIME MAX_INPUT_VARS BUILTIN"
+# Profile keys written as php_admin_value lines, with their directive
+PHP_PROFILE_LIMITS="MEMORY_LIMIT:memory_limit UPLOAD_MAX_FILESIZE:upload_max_filesize POST_MAX_SIZE:post_max_size MAX_EXECUTION_TIME:max_execution_time MAX_INPUT_VARS:max_input_vars"
+PHP_PROFILE_PLACEHOLDER='%php_profile%'
+
+php_profiles_file() {
+	echo "$PHP_DATA/profiles.conf"
+}
+
+# The four shipped profiles (§7.1); "default" renders the pool lines of the
+# templates before E41
+php_profiles_builtin() {
+	cat << 'EOF'
+NAME='default' DESCRIPTION='The pool settings of ArcPanel before profiles' PM='ondemand' MAX_CHILDREN='8' START_SERVERS='' MIN_SPARE='' MAX_SPARE='' MAX_REQUESTS='4000' IDLE_TIMEOUT='10s' REQUEST_TERMINATE_TIMEOUT='' MEMORY_LIMIT='' UPLOAD_MAX_FILESIZE='' POST_MAX_SIZE='' MAX_EXECUTION_TIME='' MAX_INPUT_VARS='' BUILTIN='yes'
+NAME='small' DESCRIPTION='Small sites with little traffic' PM='ondemand' MAX_CHILDREN='4' START_SERVERS='' MIN_SPARE='' MAX_SPARE='' MAX_REQUESTS='500' IDLE_TIMEOUT='10s' REQUEST_TERMINATE_TIMEOUT='120s' MEMORY_LIMIT='128M' UPLOAD_MAX_FILESIZE='32M' POST_MAX_SIZE='32M' MAX_EXECUTION_TIME='60' MAX_INPUT_VARS='2000' BUILTIN='yes'
+NAME='medium' DESCRIPTION='Busy sites' PM='dynamic' MAX_CHILDREN='20' START_SERVERS='4' MIN_SPARE='2' MAX_SPARE='6' MAX_REQUESTS='1000' IDLE_TIMEOUT='' REQUEST_TERMINATE_TIMEOUT='300s' MEMORY_LIMIT='512M' UPLOAD_MAX_FILESIZE='128M' POST_MAX_SIZE='128M' MAX_EXECUTION_TIME='300' MAX_INPUT_VARS='5000' BUILTIN='yes'
+NAME='large' DESCRIPTION='Large shops and applications' PM='dynamic' MAX_CHILDREN='50' START_SERVERS='10' MIN_SPARE='5' MAX_SPARE='15' MAX_REQUESTS='2000' IDLE_TIMEOUT='' REQUEST_TERMINATE_TIMEOUT='600s' MEMORY_LIMIT='1024M' UPLOAD_MAX_FILESIZE='512M' POST_MAX_SIZE='512M' MAX_EXECUTION_TIME='600' MAX_INPUT_VARS='10000' BUILTIN='yes'
+EOF
+}
+
+# Create the profile store with the shipped profiles; a shipped profile that
+# is missing (deleted, or added in a later release) comes back except when an
+# administrator deleted it (data/php/profiles.deleted)
+php_profiles_ensure() {
+	local file line name
+	file=$(php_profiles_file)
+	if [ -s "$file" ] && grep -q "^NAME='default' " "$file"; then
+		return 0
+	fi
+	php_data_dir
+	(
+		flock -x 9
+		touch "$file"
+		while IFS= read -r line; do
+			name=$(php_kv "$line" NAME)
+			if ! grep -q "^NAME='$name' " "$file" \
+				&& { [ "$name" = 'default' ] || ! grep -qx "$name" "$PHP_DATA/profiles.deleted" 2> /dev/null; }; then
+				echo "$line" >> "$file"
+			fi
+		done < <(php_profiles_builtin)
+		chmod 644 "$file"
+	) 9> "$(php_profiles_file).lock"
+}
+
+php_profile_names() {
+	php_profiles_ensure
+	grep -oE "^NAME='[a-z0-9][a-z0-9-]{0,31}'" "$(php_profiles_file)" | cut -d\' -f2
+}
+
+php_profile_line() {
+	php_profiles_ensure
+	grep -F "NAME='$1' " "$(php_profiles_file)" | grep -E "^NAME=" | head -n1
+}
+
+php_profile_name_valid() {
+	[[ "$1" =~ ^[a-z0-9][a-z0-9-]{0,31}$ ]]
+}
+
+php_profile_exists() {
+	php_profile_name_valid "$1" && [ -n "$(php_profile_line "$1")" ]
+}
+
+php_profile_get() {
+	php_kv "$(php_profile_line "$1")" "$2"
+}
+
+# The pool lines of a profile (§7.3)
+php_profile_block() {
+	local line pm pair key directive value
+	line=$(php_profile_line "$1")
+	if [ -z "$line" ]; then
+		line=$(php_profile_line default)
+	fi
+	pm=$(php_kv "$line" PM)
+	echo "pm = $pm"
+	echo "pm.max_children = $(php_kv "$line" MAX_CHILDREN)"
+	if [ "$pm" = 'dynamic' ]; then
+		echo "pm.start_servers = $(php_kv "$line" START_SERVERS)"
+		echo "pm.min_spare_servers = $(php_kv "$line" MIN_SPARE)"
+		echo "pm.max_spare_servers = $(php_kv "$line" MAX_SPARE)"
+	fi
+	echo "pm.max_requests = $(php_kv "$line" MAX_REQUESTS)"
+	if [ "$pm" = 'ondemand' ]; then
+		echo "pm.process_idle_timeout = $(php_kv "$line" IDLE_TIMEOUT)"
+	fi
+	value=$(php_kv "$line" REQUEST_TERMINATE_TIMEOUT)
+	if [ -n "$value" ]; then
+		echo "request_terminate_timeout = $value"
+	fi
+	for pair in $PHP_PROFILE_LIMITS; do
+		key=${pair%%:*}
+		directive=${pair#*:}
+		value=$(php_kv "$line" "$key")
+		if [ -n "$value" ]; then
+			echo "php_admin_value[$directive] = $value"
+		fi
+	done
+}
+
+# Whether a pool template has the profile placeholder
+php_template_has_profile() {
+	grep -qE "^[[:space:]]*${PHP_PROFILE_PLACEHOLDER}[[:space:]]*$" "$1" 2> /dev/null
+}
+
+# A pool template with the placeholder replaced by the lines of a profile;
+# a template without the placeholder is printed as it is
+php_pool_template() {
+	local tpl="$1" profile="$2" block
+	block=$(php_profile_block "$profile")
+	PHP_POOL_BLOCK="$block" awk -v ph="$PHP_PROFILE_PLACEHOLDER" '
+		{ line = $0; gsub(/^[ \t]+|[ \t]+$/, "", line) }
+		line == ph { print ENVIRON["PHP_POOL_BLOCK"]; next }
+		{ print }
+	' "$tpl"
+}
+
+# Size in bytes for comparisons: 128M -> 134217728; -1 stays -1
+php_size_bytes() {
+	if [[ "$1" =~ ^(-?[0-9]+)([KMGkmg]?)$ ]]; then
+		local n=${BASH_REMATCH[1]}
+		case "${BASH_REMATCH[2]^^}" in
+			G) n=$((n * 1073741824)) ;;
+			M) n=$((n * 1048576)) ;;
+			K) n=$((n * 1024)) ;;
+		esac
+		echo "$n"
+	fi
+}
+
+# Validate the profile in the associative array PROFILE (keys of §7.1);
+# clears the keys the process manager does not use. Fails with the first
+# error in PHP_ERROR.
+php_profile_validate() {
+	local key value post upload memory
+	for key in DESCRIPTION PM MAX_CHILDREN START_SERVERS MIN_SPARE MAX_SPARE MAX_REQUESTS IDLE_TIMEOUT \
+		REQUEST_TERMINATE_TIMEOUT MEMORY_LIMIT UPLOAD_MAX_FILESIZE POST_MAX_SIZE MAX_EXECUTION_TIME MAX_INPUT_VARS; do
+		value=${PROFILE[$key]-}
+		if [[ "$value" == *"'"* || "$value" == *$'\n'* || "$value" == *'\'* ]]; then
+			PHP_ERROR="$key contains a quote, a backslash or a line break"
+			return 1
+		fi
+	done
+	if [ "${#PROFILE[DESCRIPTION]}" -gt 100 ]; then
+		PHP_ERROR="DESCRIPTION is longer than 100 characters"
+		return 1
+	fi
+	case "${PROFILE[PM]-}" in
+		ondemand | dynamic | static) ;;
+		*)
+			PHP_ERROR="PM must be ondemand, dynamic or static"
+			return 1
+			;;
+	esac
+	if [[ ! "${PROFILE[MAX_CHILDREN]-}" =~ ^[0-9]{1,3}$ ]] || [ "${PROFILE[MAX_CHILDREN]}" -lt 1 ] || [ "${PROFILE[MAX_CHILDREN]}" -gt 500 ]; then
+		PHP_ERROR="MAX_CHILDREN must be between 1 and 500"
+		return 1
+	fi
+	if [[ ! "${PROFILE[MAX_REQUESTS]-}" =~ ^[0-9]{1,6}$ ]] || [ "${PROFILE[MAX_REQUESTS]}" -gt 100000 ]; then
+		PHP_ERROR="MAX_REQUESTS must be between 0 and 100000"
+		return 1
+	fi
+	if [ "${PROFILE[PM]}" = 'dynamic' ]; then
+		for key in START_SERVERS MIN_SPARE MAX_SPARE; do
+			if [[ ! "${PROFILE[$key]-}" =~ ^[0-9]{1,3}$ ]] || [ "${PROFILE[$key]}" -lt 1 ]; then
+				PHP_ERROR="$key must be a number of at least 1 for PM dynamic"
+				return 1
+			fi
+		done
+		if [ "${PROFILE[MIN_SPARE]}" -gt "${PROFILE[START_SERVERS]}" ] \
+			|| [ "${PROFILE[START_SERVERS]}" -gt "${PROFILE[MAX_SPARE]}" ] \
+			|| [ "${PROFILE[MAX_SPARE]}" -gt "${PROFILE[MAX_CHILDREN]}" ]; then
+			PHP_ERROR="MIN_SPARE <= START_SERVERS <= MAX_SPARE <= MAX_CHILDREN must hold"
+			return 1
+		fi
+	else
+		PROFILE[START_SERVERS]=''
+		PROFILE[MIN_SPARE]=''
+		PROFILE[MAX_SPARE]=''
+	fi
+	if [ "${PROFILE[PM]}" = 'ondemand' ]; then
+		PROFILE[IDLE_TIMEOUT]=${PROFILE[IDLE_TIMEOUT]:-10s}
+		if [[ ! "${PROFILE[IDLE_TIMEOUT]}" =~ ^[0-9]{1,5}s$ ]]; then
+			PHP_ERROR="IDLE_TIMEOUT must be seconds such as 10s"
+			return 1
+		fi
+	else
+		PROFILE[IDLE_TIMEOUT]=''
+	fi
+	if [ -n "${PROFILE[REQUEST_TERMINATE_TIMEOUT]-}" ] && [[ ! "${PROFILE[REQUEST_TERMINATE_TIMEOUT]}" =~ ^[0-9]{1,5}s$ ]]; then
+		PHP_ERROR="REQUEST_TERMINATE_TIMEOUT must be empty or seconds such as 300s"
+		return 1
+	fi
+	value=${PROFILE[MEMORY_LIMIT]-}
+	if [ -n "$value" ] && [[ ! "$value" =~ ^[0-9]{1,6}[KMG]?$ ]] && [ "$value" != '-1' ]; then
+		PHP_ERROR="MEMORY_LIMIT must be empty, -1 or a size such as 256M"
+		return 1
+	fi
+	for key in UPLOAD_MAX_FILESIZE POST_MAX_SIZE; do
+		value=${PROFILE[$key]-}
+		if [ -n "$value" ] && [[ ! "$value" =~ ^[0-9]{1,6}[KMG]?$ ]]; then
+			PHP_ERROR="$key must be empty or a size such as 64M"
+			return 1
+		fi
+	done
+	value=${PROFILE[MAX_EXECUTION_TIME]-}
+	if [ -n "$value" ] && [[ ! "$value" =~ ^[0-9]{1,6}$ ]]; then
+		PHP_ERROR="MAX_EXECUTION_TIME must be empty or seconds"
+		return 1
+	fi
+	value=${PROFILE[MAX_INPUT_VARS]-}
+	if [ -n "$value" ] && { [[ ! "$value" =~ ^[0-9]{1,7}$ ]] || [ "$value" -lt 1 ]; }; then
+		PHP_ERROR="MAX_INPUT_VARS must be empty or a number of at least 1"
+		return 1
+	fi
+	post=$(php_size_bytes "${PROFILE[POST_MAX_SIZE]-}")
+	upload=$(php_size_bytes "${PROFILE[UPLOAD_MAX_FILESIZE]-}")
+	if [ -n "$post" ] && [ -n "$upload" ] && [ "$post" -gt 0 ] && [ "$post" -lt "$upload" ]; then
+		PHP_ERROR="POST_MAX_SIZE must be at least UPLOAD_MAX_FILESIZE"
+		return 1
+	fi
+}
+
+# Warnings of a valid profile, one per line: memory_limit below post_max_size,
+# and MAX_CHILDREN x MEMORY_LIMIT above the server's memory (§7.2)
+php_profile_warnings() {
+	local post memory ram
+	post=$(php_size_bytes "${PROFILE[POST_MAX_SIZE]-}")
+	memory=$(php_size_bytes "${PROFILE[MEMORY_LIMIT]-}")
+	if [ -n "$post" ] && [ -n "$memory" ] && [ "$memory" -ge 0 ] && [ "$post" -gt 0 ] && [ "$memory" -lt "$post" ]; then
+		echo "Warning: MEMORY_LIMIT is lower than POST_MAX_SIZE"
+	fi
+	ram=$(awk '/^MemTotal:/ { print $2 * 1024 }' /proc/meminfo 2> /dev/null)
+	if [ -n "$memory" ] && [ "$memory" -gt 0 ] && [ -n "$ram" ] \
+		&& [ "$((memory * PROFILE[MAX_CHILDREN]))" -gt "$ram" ]; then
+		echo "Warning: MAX_CHILDREN x MEMORY_LIMIT ($((memory * PROFILE[MAX_CHILDREN] / 1048576))M) is more than the memory of the server ($((ram / 1048576))M)"
+	fi
+}
+
+# Read a KEY='value' file into PROFILE; unknown keys fail (PHP_ERROR)
+php_profile_read() {
+	local file="$1" line key
+	local re="^([A-Z_]+)='([^']*)'$"
+	PROFILE=()
+	while IFS= read -r line || [ -n "$line" ]; do
+		line=${line%$'\r'}
+		[ -n "${line// /}" ] || continue
+		if [[ ! "$line" =~ $re ]]; then
+			PHP_ERROR="invalid line :: $line"
+			return 1
+		fi
+		key=${BASH_REMATCH[1]}
+		case " $PHP_PROFILE_KEYS " in
+			*" $key "*) ;;
+			*)
+				PHP_ERROR="unknown key :: $key"
+				return 1
+				;;
+		esac
+		if [ "$key" != 'NAME' ] && [ "$key" != 'BUILTIN' ]; then
+			PROFILE[$key]=${BASH_REMATCH[2]}
+		fi
+	done < "$file"
+}
+
+# Load an existing profile into PROFILE
+php_profile_load() {
+	local line key
+	line=$(php_profile_line "$1")
+	PROFILE=()
+	for key in $PHP_PROFILE_KEYS; do
+		PROFILE[$key]=$(php_kv "$line" "$key")
+	done
+}
+
+# Write PROFILE as the line of NAME (added or replaced) under the store's lock
+php_profile_save() {
+	local name="$1" builtin="$2" line='' key file tmp
+	PROFILE[NAME]=$name
+	PROFILE[BUILTIN]=$builtin
+	for key in $PHP_PROFILE_KEYS; do
+		line="$line$key='${PROFILE[$key]-}' "
+	done
+	line=${line% }
+	file=$(php_profiles_file)
+	php_profiles_ensure
+	(
+		flock -x 9
+		tmp=$(mktemp "$file.XXXXXX")
+		awk -v name="NAME='$name' " -v line="$line" '
+			index($0, name) == 1 { if (!done) print line; done = 1; next }
+			{ print }
+			END { if (!done) print line }
+		' "$file" > "$tmp"
+		chmod 644 "$tmp"
+		mv -f "$tmp" "$file"
+	) 9> "$file.lock"
+}
+
+php_profile_remove() {
+	local name="$1" file tmp
+	file=$(php_profiles_file)
+	(
+		flock -x 9
+		tmp=$(mktemp "$file.XXXXXX")
+		grep -vF "NAME='$name' " "$file" > "$tmp"
+		chmod 644 "$tmp"
+		mv -f "$tmp" "$file"
+		if [ "$(php_kv "$(php_profiles_builtin | grep -F "NAME='$name' ")" BUILTIN)" = 'yes' ]; then
+			echo "$name" >> "$PHP_DATA/profiles.deleted"
+		fi
+	) 9> "$file.lock"
+}
+
+#----------------------------------------------------------#
+#                  Domains and packages                    #
+#----------------------------------------------------------#
+
+php_domain_sidecar() {
+	echo "$ARCPANEL/data/users/$1/web.php.conf"
+}
+
+# The sidecar key of a domain: the domain, or * for the user's shared pool
+php_domain_key() {
+	if [ "$WEB_BACKEND_POOL" = 'user' ]; then
+		echo '*'
+	else
+		echo "$1"
+	fi
+}
+
+# The profile of a domain's pool (default without a line)
+php_domain_profile() {
+	local key line profile
+	key=$(php_domain_key "$2")
+	line=$(grep -F "DOMAIN='$key' " "$(php_domain_sidecar "$1")" 2> /dev/null | head -n1)
+	profile=$(php_kv "$line" PROFILE)
+	echo "${profile:-default}"
+}
+
+# Set the profile of a domain's pool; default removes the line
+php_domain_profile_set() {
+	local user="$1" key="$2" profile="$3" file tmp
+	file=$(php_domain_sidecar "$user")
+	(
+		flock -x 9
+		tmp=$(mktemp "$file.XXXXXX")
+		grep -vF "DOMAIN='$key' " "$file" 2> /dev/null > "$tmp"
+		if [ "$profile" != 'default' ]; then
+			echo "DOMAIN='$key' PROFILE='$profile'" >> "$tmp"
+		fi
+		chmod 640 "$tmp"
+		mv -f "$tmp" "$file"
+	) 9> "$file.lock"
+}
+
+php_domain_profile_delete() {
+	php_domain_profile_set "$1" "$2" default
+}
+
+# Web domains with their pool's profile: "USER DOMAIN BACKEND PROFILE" lines;
+# in user-pool mode the profile of the shared pool
+php_domain_pools() {
+	local conf user line domain backend
+	for conf in "$ARCPANEL"/data/users/*/web.conf; do
+		[ -f "$conf" ] || continue
+		user=$(basename "$(dirname "$conf")")
+		while IFS= read -r line; do
+			domain=$(php_kv "$line" DOMAIN)
+			backend=$(php_kv "$line" BACKEND)
+			[ -n "$domain" ] || continue
+			echo "$user $domain ${backend:-default} $(php_domain_profile "$user" "$domain")"
+		done < "$conf"
+	done
+}
+
+# Domains whose pool uses a profile: "USER DOMAIN BACKEND" lines (one domain
+# per user in user-pool mode, which rewrites the shared pool)
+php_profile_domains() {
+	local user domain backend profile seen=' '
+	while read -r user domain backend profile; do
+		[ "$profile" = "$1" ] || continue
+		[ "$backend" != 'no-php' ] || continue
+		if [ "$WEB_BACKEND_POOL" = 'user' ]; then
+			[[ "$seen" != *" $user "* ]] || continue
+			seen="$seen$user "
+		fi
+		echo "$user $domain $backend"
+	done < <(php_domain_pools)
+}
+
+# Count of domains per form directive that their profile overrides, for
+# the php.ini page of a version (§6.4), as JSON
+php_profile_overrides() {
+	local version="$1" user domain backend profile pair key directive
+	local -A count=() has=()
+	for profile in $(php_profile_names); do
+		for pair in $PHP_PROFILE_LIMITS; do
+			key=${pair%%:*}
+			if [ -n "$(php_profile_get "$profile" "$key")" ]; then
+				has["$profile:${pair#*:}"]=1
+			fi
+		done
+	done
+	while read -r user domain backend profile; do
+		[ "$backend" != 'no-php' ] || continue
+		[ "$(php_backend_version "$backend")" = "$version" ] || continue
+		php_template_has_profile "$PHP_FPM_TPL_DIR/$backend.tpl" || continue
+		for pair in $PHP_PROFILE_LIMITS; do
+			directive=${pair#*:}
+			if [ -n "${has["$profile:$directive"]-}" ]; then
+				count[$directive]=$((${count[$directive]:-0} + 1))
+			fi
+		done
+	done < <(php_domain_pools)
+	for directive in "${!count[@]}"; do
+		echo "$directive ${count[$directive]}"
+	done | jq -Rn '[inputs | split(" ") | {(.[0]): (.[1] | tonumber)}] | add // {}'
+}
+
+# The package of a user
+php_user_package() {
+	grep -m1 "^PACKAGE='" "$ARCPANEL/data/users/$1/user.conf" 2> /dev/null | cut -d\' -f2
+}
+
+# A PHP key of a package sidecar with its default (§7.5)
+php_pkg_get() {
+	local value
+	value=$(grep -m1 "^$2='" "$ARCPANEL/data/packages/$1.tenancy" 2> /dev/null | cut -d\' -f2)
+	if [ -z "$value" ]; then
+		case "$2" in
+			PHP_VERSIONS) value='*' ;;
+			PHP_PROFILES | PHP_DEFAULT_PROFILE) value='default' ;;
+		esac
+	fi
+	echo "$value"
+}
+
+# Whether a package allows a version: * means every installed version that
+# has not reached its end of life; a list names versions exactly
+php_pkg_allows_version() {
+	local list
+	list=$(php_pkg_get "$1" PHP_VERSIONS)
+	if [ "$list" = '*' ]; then
+		php_version_installed "$2" && [ "$(php_version_status "$2")" != 'eol' ]
+	else
+		[[ ",$list," == *",$2,"* ]]
+	fi
+}
+
+php_pkg_allows_profile() {
+	local list
+	list=$(php_pkg_get "$1" PHP_PROFILES)
+	if [ "$list" = '*' ]; then
+		php_profile_exists "$2"
+	else
+		[[ ",$list," == *",$2,"* ]]
+	fi
+}
+
+# Installed versions a package allows, one per line
+php_pkg_versions() {
+	local version
+	for version in $(php_installed_versions); do
+		if php_pkg_allows_version "$1" "$version"; then
+			echo "$version"
+		fi
+	done
+}
+
+# Profiles a package allows, one per line
+php_pkg_profiles() {
+	local profile
+	for profile in $(php_profile_names); do
+		if php_pkg_allows_profile "$1" "$profile"; then
+			echo "$profile"
+		fi
+	done
+}
+
+# Profiles as a JSON object keyed by name, with DOMAINS (pools using each,
+# from the "USER DOMAIN BACKEND PROFILE" lines of php_domain_pools in $1) and
+# PACKAGES (packages allowing each); only NAME when $2 is set
+php_profiles_json() {
+	local pools="$1" only="$2" name line key packages package count json='{}' args
+	for name in $(php_profile_names); do
+		if [ -n "$only" ] && [ "$name" != "$only" ]; then
+			continue
+		fi
+		line=$(php_profile_line "$name")
+		count=$(awk -v p="$name" '$4 == p && $3 != "no-php"' <<< "$pools" | grep -c .)
+		packages=''
+		for package in "$ARCPANEL"/data/packages/*.pkg; do
+			[ -f "$package" ] || continue
+			package=$(basename "$package" .pkg)
+			if php_pkg_allows_profile "$package" "$name"; then
+				packages="$packages,$package"
+			fi
+		done
+		args=()
+		for key in $PHP_PROFILE_KEYS; do
+			args+=(--arg "$key" "$(php_kv "$line" "$key")")
+		done
+		json=$(jq -c "${args[@]}" --arg n "$name" --arg d "$count" --arg p "${packages#,}" \
+			'. + {($n): {NAME: $NAME, DESCRIPTION: $DESCRIPTION, PM: $PM, MAX_CHILDREN: $MAX_CHILDREN,
+				START_SERVERS: $START_SERVERS, MIN_SPARE: $MIN_SPARE, MAX_SPARE: $MAX_SPARE,
+				MAX_REQUESTS: $MAX_REQUESTS, IDLE_TIMEOUT: $IDLE_TIMEOUT,
+				REQUEST_TERMINATE_TIMEOUT: $REQUEST_TERMINATE_TIMEOUT, MEMORY_LIMIT: $MEMORY_LIMIT,
+				UPLOAD_MAX_FILESIZE: $UPLOAD_MAX_FILESIZE, POST_MAX_SIZE: $POST_MAX_SIZE,
+				MAX_EXECUTION_TIME: $MAX_EXECUTION_TIME, MAX_INPUT_VARS: $MAX_INPUT_VARS,
+				BUILTIN: $BUILTIN, DOMAINS: $d, PACKAGES: $p}}' <<< "$json")
+	done
+	echo "$json"
+}

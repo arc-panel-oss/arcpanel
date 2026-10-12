@@ -3273,6 +3273,101 @@ paths:
           $ref: "#/components/responses/InvalidRequest"
         "422":
           $ref: "#/components/responses/Unprocessable"
+  "/api/#v-add-sys-php-profile":
+    post:
+      operationId: v-add-sys-php-profile
+      tags:
+        - System
+      summary: Add a PHP-FPM profile (E41)
+      description: |-
+        This function adds a PHP-FPM profile. FILE holds KEY='value' lines with the
+        keys DESCRIPTION, PM (ondemand, dynamic or static), MAX_CHILDREN (1-500),
+        START_SERVERS, MIN_SPARE and MAX_SPARE (dynamic), MAX_REQUESTS (0-100000),
+        IDLE_TIMEOUT (ondemand, like 10s), REQUEST_TERMINATE_TIMEOUT (empty or like
+        300s) and the PHP limits MEMORY_LIMIT, UPLOAD_MAX_FILESIZE, POST_MAX_SIZE,
+        MAX_EXECUTION_TIME and MAX_INPUT_VARS (empty: from php.ini). It prints a
+        warning when MAX_CHILDREN x MEMORY_LIMIT is above the server's memory.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `NAME` | yes |
+        | `arg2` | `FILE` | yes |
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-add-sys-php-profile"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-add-sys-php-profile"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+  "/api/#v-add-sys-php-profiles":
+    post:
+      operationId: v-add-sys-php-profiles
+      tags:
+        - System
+      summary: Set up the PHP-FPM profiles (E41)
+      description: |-
+        This function creates the profile store ($ARCPANEL/data/php/profiles.conf)
+        with the shipped profiles default, small, medium and large, and rewrites the
+        pool templates of $ARCPANEL/data/templates/web/php-fpm that still carry the
+        pool lines of ArcPanel 2.0.0 (pm = ondemand, 8 children, 4000 requests, 10s
+        idle) to the %php_profile% placeholder. The default profile renders exactly
+        those lines, so existing pools do not change. Templates an administrator
+        changed are left alone. Safe to run on every upgrade.
+
+        **Arguments:** none.
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-add-sys-php-profiles"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-add-sys-php-profiles"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
   "/api/#v-add-sys-pma-restrict":
     post:
       operationId: v-add-sys-pma-restrict
@@ -7320,7 +7415,12 @@ paths:
         unlimited) of a package. PORTS, NODE_VERSIONS, NODE_APPS, DOCKER_APPS,
         DOCKER_CPUS and DOCKER_MEMORY of a reseller's own package cannot be above
         the reseller's, and its NODE and DOCKER cannot be yes when the reseller's
-        are no.
+        are no. PHP_VERSIONS (* or a comma list of catalog versions),
+        PHP_PROFILES (* or a comma list of PHP-FPM profiles) and
+        PHP_DEFAULT_PROFILE (one of the allowed profiles) choose the PHP of the
+        package's web domains (E41): a reseller's own package may only allow what
+        the reseller's package allows, * only when that is *, and the package's
+        BACKEND_TEMPLATE must name an allowed version.
 
         **Arguments**
 
@@ -8270,6 +8370,55 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/v-change-sys-php-ini-values"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+  "/api/#v-change-sys-php-profile":
+    post:
+      operationId: v-change-sys-php-profile
+      tags:
+        - System
+      summary: Change a PHP-FPM profile (E41)
+      description: |-
+        This function changes a PHP-FPM profile from FILE (the KEY='value' lines of
+        v-add-sys-php-profile), rewrites the pool of every web domain that uses it
+        and reloads the PHP-FPM versions concerned (unless RESTART is no). When a
+        version does not run after the reload, the previous profile and pools come
+        back (E_RESTART).
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `NAME` | yes |
+        | `arg2` | `FILE` | yes |
+        | `arg3` | `RESTART` | no |
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-change-sys-php-profile"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-change-sys-php-profile"
       responses:
         "200":
           description: "The output of the command; `OK` for an empty output with legacy authentication."
@@ -10018,6 +10167,62 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/v-change-web-domain-name"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+  "/api/#v-change-web-domain-php":
+    post:
+      operationId: v-change-web-domain-php
+      tags:
+        - Web
+      summary: Change the PHP version and PHP-FPM profile of a web domain (E41)
+      description: |-
+        This function sets the PHP version and the PHP-FPM profile of a web
+        domain's pool. Both must be allowed by the user's package (PHP_VERSIONS and
+        PHP_PROFILES) unless the domain already has them: a version or profile that
+        the package no longer allows is kept but cannot be chosen again. A new
+        version changes the backend template to PHP-X_Y; the pool is written with
+        the profile. With WEB_BACKEND_POOL='user' the profile is the one of the
+        user's shared pool.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `USER` | yes |
+        | `arg2` | `DOMAIN` | yes |
+        | `arg3` | `VERSION` | yes |
+        | `arg4` | `PROFILE` | yes |
+        | `arg5` | `RESTART` | no |
+
+        **User argument:** with the access key of a user other than the admin, `arg1` must be the key's user.
+      x-arcpanel-user-arg: 1
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-change-web-domain-php"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-change-web-domain-php"
       responses:
         "200":
           description: "The output of the command; `OK` for an empty output with legacy authentication."
@@ -14083,6 +14288,53 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/v-delete-sys-php-extension"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+  "/api/#v-delete-sys-php-profile":
+    post:
+      operationId: v-delete-sys-php-profile
+      tags:
+        - System
+      summary: Delete a PHP-FPM profile (E41)
+      description: |-
+        This function deletes a PHP-FPM profile. The default profile cannot be
+        deleted. A profile that web domains use or that packages name is refused
+        (E_INUSE, with the list) unless FORCE is yes: the domains then move to the
+        default profile and the packages no longer name it.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `NAME` | yes |
+        | `arg2` | `FORCE` | no |
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-delete-sys-php-profile"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-delete-sys-php-profile"
       responses:
         "200":
           description: "The output of the command; `OK` for an empty output with legacy authentication."
@@ -22116,6 +22368,103 @@ paths:
           $ref: "#/components/responses/InvalidRequest"
         "422":
           $ref: "#/components/responses/Unprocessable"
+  "/api/#v-list-sys-php-profile":
+    post:
+      operationId: v-list-sys-php-profile
+      tags:
+        - System
+      summary: List one PHP-FPM profile (E41)
+      description: |-
+        This function lists a PHP-FPM profile with its pool settings, PHP limits,
+        DOMAINS (the number of web domain pools that use it), PACKAGES (the
+        packages that allow it) and BLOCK (the lines it writes into a pool).
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `NAME` | yes |
+        | `arg2` | `FORMAT` | no |
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-list-sys-php-profile"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-list-sys-php-profile"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+            application/json:
+              schema:
+                type: object
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+  "/api/#v-list-sys-php-profiles":
+    post:
+      operationId: v-list-sys-php-profiles
+      tags:
+        - System
+      summary: List the PHP-FPM profiles (E41)
+      description: |-
+        This function lists the PHP-FPM profiles with their pool settings and PHP
+        limits, DOMAINS (the number of web domain pools that use the profile) and
+        PACKAGES (the packages that allow it, comma-separated).
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `FORMAT` | no |
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-list-sys-php-profiles"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-list-sys-php-profiles"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+            application/json:
+              schema:
+                type: object
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
   "/api/#v-list-sys-php-versions":
     post:
       operationId: v-list-sys-php-versions
@@ -24513,6 +24862,63 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/v-list-web-domain-errorlog"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+            application/json:
+              schema:
+                type: object
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+  "/api/#v-list-web-domain-php":
+    post:
+      operationId: v-list-web-domain-php
+      tags:
+        - Web
+      summary: List the PHP settings of a web domain (E41)
+      description: |-
+        This function lists the PHP version and PHP-FPM profile of a web domain:
+        VERSION (empty for no-php), BACKEND, PROFILE, PROFILE_APPLIED (no when the
+        backend template has no %php_profile% line), VERSION_ALLOWED and
+        PROFILE_ALLOWED (no when the package no longer allows the domain's value),
+        ALLOWED (both), the VERSIONS (installed, with STATUS and EOL) and PROFILES
+        the package allows, DEFAULT_PROFILE, and EFFECTIVE: the values of the PHP
+        limits with their SOURCE (php.ini of the version, or the profile).
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `USER` | yes |
+        | `arg2` | `DOMAIN` | yes |
+        | `arg3` | `FORMAT` | no |
+
+        **User argument:** with the access key of a user other than the admin, `arg1` must be the key's user.
+      x-arcpanel-user-arg: 1
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-list-web-domain-php"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-list-web-domain-php"
       responses:
         "200":
           description: "The output of the command; `OK` for an empty output with legacy authentication."
@@ -36992,6 +37398,48 @@ components:
                 - redis
             returncode:
               $ref: "#/components/schemas/ReturnCode"
+    v-add-sys-php-profile:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+            - arg2
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-add-sys-php-profile
+              default: v-add-sys-php-profile
+            arg1:
+              type: string
+              title: NAME
+              description: "`NAME`"
+              examples:
+                - shop
+            arg2:
+              type: string
+              title: FILE
+              description: "`FILE`"
+              examples:
+                - /tmp/profile
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
+    v-add-sys-php-profiles:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-add-sys-php-profiles
+              default: v-add-sys-php-profiles
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
     v-add-sys-pma-restrict:
       allOf:
         - $ref: "#/components/schemas/Credentials"
@@ -40503,6 +40951,41 @@ components:
                 - /tmp/values
             returncode:
               $ref: "#/components/schemas/ReturnCode"
+    v-change-sys-php-profile:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+            - arg2
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-change-sys-php-profile
+              default: v-change-sys-php-profile
+            arg1:
+              type: string
+              title: NAME
+              description: "`NAME`"
+              examples:
+                - medium
+            arg2:
+              type: string
+              title: FILE
+              description: "`FILE`"
+              examples:
+                - /tmp/profile
+            arg3:
+              type: string
+              title: RESTART
+              description: "`RESTART`, optional"
+              enum:
+                - "yes"
+                - "no"
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
     v-change-sys-port:
       allOf:
         - $ref: "#/components/schemas/Credentials"
@@ -41722,6 +42205,55 @@ components:
                 - "no"
               examples:
                 - "yes"
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
+    v-change-web-domain-php:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+            - arg2
+            - arg3
+            - arg4
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-change-web-domain-php
+              default: v-change-web-domain-php
+            arg1:
+              type: string
+              title: USER
+              description: "`USER`"
+              examples:
+                - alice
+            arg2:
+              type: string
+              title: DOMAIN
+              description: "`DOMAIN`"
+              examples:
+                - example.com
+            arg3:
+              type: string
+              title: VERSION
+              description: "`VERSION`"
+              examples:
+                - "8.4"
+            arg4:
+              type: string
+              title: PROFILE
+              description: "`PROFILE`"
+              examples:
+                - medium
+            arg5:
+              type: string
+              title: RESTART
+              description: "`RESTART`, optional"
+              enum:
+                - "yes"
+                - "no"
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-change-web-domain-proxy-tpl:
@@ -44330,6 +44862,33 @@ components:
               description: "`NAME`"
               examples:
                 - redis
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
+    v-delete-sys-php-profile:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-delete-sys-php-profile
+              default: v-delete-sys-php-profile
+            arg1:
+              type: string
+              title: NAME
+              description: "`NAME`"
+              examples:
+                - shop
+            arg2:
+              type: string
+              title: FORCE
+              description: "`FORCE`, optional"
+              examples:
+                - "yes"
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-delete-sys-pma-restrict:
@@ -49082,6 +49641,63 @@ components:
                 - json
             returncode:
               $ref: "#/components/schemas/ReturnCode"
+    v-list-sys-php-profile:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-list-sys-php-profile
+              default: v-list-sys-php-profile
+            arg1:
+              type: string
+              title: NAME
+              description: "`NAME`"
+              examples:
+                - medium
+            arg2:
+              type: string
+              title: FORMAT
+              description: "`FORMAT`, optional"
+              enum:
+                - json
+                - plain
+                - csv
+                - shell
+              examples:
+                - json
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
+    v-list-sys-php-profiles:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-list-sys-php-profiles
+              default: v-list-sys-php-profiles
+            arg1:
+              type: string
+              title: FORMAT
+              description: "`FORMAT`, optional"
+              enum:
+                - json
+                - plain
+                - csv
+                - shell
+              examples:
+                - json
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
     v-list-sys-php-versions:
       allOf:
         - $ref: "#/components/schemas/Credentials"
@@ -50455,6 +51071,45 @@ components:
               examples:
                 - ""
             arg4:
+              type: string
+              title: FORMAT
+              description: "`FORMAT`, optional"
+              enum:
+                - json
+                - plain
+                - csv
+                - shell
+              examples:
+                - json
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
+    v-list-web-domain-php:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+            - arg2
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-list-web-domain-php
+              default: v-list-web-domain-php
+            arg1:
+              type: string
+              title: USER
+              description: "`USER`"
+              examples:
+                - alice
+            arg2:
+              type: string
+              title: DOMAIN
+              description: "`DOMAIN`"
+              examples:
+                - example.com
+            arg3:
               type: string
               title: FORMAT
               description: "`FORMAT`, optional"

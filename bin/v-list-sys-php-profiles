@@ -1,0 +1,54 @@
+#!/bin/bash
+# info: list the PHP-FPM profiles (E41)
+# options: [FORMAT]
+#
+# example: v-list-sys-php-profiles json
+#
+# This function lists the PHP-FPM profiles with their pool settings and PHP
+# limits, DOMAINS (the number of web domain pools that use the profile) and
+# PACKAGES (the packages that allow it, comma-separated).
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+format=${1-shell}
+
+# Includes
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/php.sh
+source $ARCPANEL/func/php.sh
+# load config file
+source_conf "$ARCPANEL/conf/arcpanel.conf"
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+php_profiles_ensure
+pools=$(php_domain_pools)
+json=$(php_profiles_json "$pools")
+
+case "$format" in
+	json) jq . <<< "$json" ;;
+	plain) jq -r 'to_entries[] | [.key, .value.PM, .value.MAX_CHILDREN, .value.MEMORY_LIMIT, .value.DOMAINS,
+		.value.PACKAGES, .value.DESCRIPTION] | join("\t")' <<< "$json" ;;
+	*)
+		{
+			echo "NAME PM CHILDREN MEMORY DOMAINS BUILTIN"
+			echo "---- -- -------- ------ ------- -------"
+			jq -r 'to_entries[] | [.key, .value.PM, .value.MAX_CHILDREN, (if .value.MEMORY_LIMIT == "" then "-" else .value.MEMORY_LIMIT end),
+				.value.DOMAINS, .value.BUILTIN] | join(" ")' <<< "$json"
+		} | column -t
+		;;
+esac
+
+#----------------------------------------------------------#
+#                         ArcPanel                         #
+#----------------------------------------------------------#
+
+exit

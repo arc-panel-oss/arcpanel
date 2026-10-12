@@ -14,7 +14,9 @@
 #                                              NODE_ALLOWED (E13),          #
 #                                              NODE_APPS (E14), DOCKER,     #
 #                                              DOCKER_APPS, DOCKER_CPUS,    #
-#                                              DOCKER_MEMORY (E4)           #
+#                                              DOCKER_MEMORY (E4),          #
+#                                              PHP_VERSIONS, PHP_PROFILES,  #
+#                                              PHP_DEFAULT_PROFILE (E41)    #
 # See docs/features/specs/2026-10-05-003-e11-reseller-design.md.            #
 #                                                                           #
 #===========================================================================#
@@ -176,6 +178,8 @@ tenancy_pkg_default() {
 		DOCKER_CPUS | DOCKER_MEMORY) REPLY='unlimited' ;;
 		NODE_VERSIONS | NODE_APPS) REPLY='3' ;;
 		NODE_ALLOWED) REPLY='lts' ;;
+		PHP_VERSIONS) REPLY='*' ;;
+		PHP_PROFILES | PHP_DEFAULT_PROFILE) REPLY='default' ;;
 		*) REPLY='' ;;
 	esac
 }
@@ -244,6 +248,15 @@ tenancy_pkg_value_valid() {
 			;;
 		NODE_ALLOWED)
 			[ "$value" = 'lts' ] || [ "$value" = '*' ] || [[ "$value" =~ ^[0-9]{1,3}(,[0-9]{1,3})*$ ]]
+			;;
+		PHP_VERSIONS)
+			[ "$value" = '*' ] || [[ "$value" =~ ^[0-9]{1,2}\.[0-9]{1,2}(,[0-9]{1,2}\.[0-9]{1,2})*$ ]]
+			;;
+		PHP_PROFILES)
+			[ "$value" = '*' ] || [[ "$value" =~ ^[a-z0-9][a-z0-9-]{0,31}(,[a-z0-9][a-z0-9-]{0,31})*$ ]]
+			;;
+		PHP_DEFAULT_PROFILE)
+			[[ "$value" =~ ^[a-z0-9][a-z0-9-]{0,31}$ ]]
 			;;
 		RESELLER_PACKAGES)
 			if [ -z "$value" ] || [ "$value" = '*' ]; then
@@ -436,7 +449,7 @@ tenancy_user_json() {
 TENANCY_PACKAGE_JSON_KEYS="WEB_TEMPLATE BACKEND_TEMPLATE PROXY_TEMPLATE DNS_TEMPLATE WEB_DOMAINS WEB_ALIASES DNS_DOMAINS DNS_RECORDS MAIL_DOMAINS MAIL_ACCOUNTS RATE_LIMIT DATABASES CRON_JOBS DISK_QUOTA CPU_QUOTA CPU_QUOTA_PERIOD MEMORY_LIMIT SWAP_LIMIT BANDWIDTH NS SHELL BACKUPS BACKUPS_INCREMENTAL TIME DATE"
 
 # Tenancy keys of tenancy_package_json, in output order
-TENANCY_PACKAGE_TENANCY_KEYS="USERS RESELLER_PACKAGES RESELLER_VISIBLE PORTS NODE NODE_VERSIONS NODE_ALLOWED NODE_APPS DOCKER DOCKER_APPS DOCKER_CPUS DOCKER_MEMORY RESELLER_OWNER"
+TENANCY_PACKAGE_TENANCY_KEYS="USERS RESELLER_PACKAGES RESELLER_VISIBLE PORTS NODE NODE_VERSIONS NODE_ALLOWED NODE_APPS DOCKER DOCKER_APPS DOCKER_CPUS DOCKER_MEMORY PHP_VERSIONS PHP_PROFILES PHP_DEFAULT_PROFILE RESELLER_OWNER"
 
 # The sidecar is read once, in bash, with the semantics of tenancy_conf_get
 # (the first KEY='value' line wins): `v-list-package-tenancy all json` runs on

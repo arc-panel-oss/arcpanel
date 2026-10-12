@@ -1,0 +1,122 @@
+#!/bin/bash
+# info: list the PHP settings of a web domain (E41)
+# options: USER DOMAIN [FORMAT]
+#
+# example: v-list-web-domain-php alice example.com json
+#
+# This function lists the PHP version and PHP-FPM profile of a web domain:
+# VERSION (empty for no-php), BACKEND, PROFILE, PROFILE_APPLIED (no when the
+# backend template has no %php_profile% line), VERSION_ALLOWED and
+# PROFILE_ALLOWED (no when the package no longer allows the domain's value),
+# ALLOWED (both), the VERSIONS (installed, with STATUS and EOL) and PROFILES
+# the package allows, DEFAULT_PROFILE, and EFFECTIVE: the values of the PHP
+# limits with their SOURCE (php.ini of the version, or the profile).
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+user=$1
+domain=$2
+format=${3-shell}
+
+# Includes
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/domain.sh
+source $ARCPANEL/func/domain.sh
+# load config file
+source_conf "$ARCPANEL/conf/arcpanel.conf"
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '2' "$#" 'USER DOMAIN [FORMAT]'
+is_format_valid 'user' 'domain'
+is_object_valid 'user' 'USER' "$user"
+is_object_valid 'web' 'DOMAIN' "$domain"
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+get_domain_values 'web'
+backend=${BACKEND:-default}
+package=$(php_user_package "$user")
+profile=$(php_domain_profile "$user" "$domain")
+
+version=''
+applied=no
+if [ -n "$WEB_BACKEND" ] && [ "$backend" != 'no-php' ]; then
+	version=$(php_backend_version "$backend")
+	if php_template_has_profile "$PHP_FPM_TPL_DIR/$backend.tpl"; then
+		applied=yes
+	fi
+fi
+version_allowed=yes
+if [ -n "$version" ] && ! php_pkg_allows_version "$package" "$version"; then
+	version_allowed=no
+fi
+profile_allowed=yes
+if ! php_pkg_allows_profile "$package" "$profile"; then
+	profile_allowed=no
+fi
+allowed=yes
+if [ "$version_allowed" = 'no' ] || [ "$profile_allowed" = 'no' ]; then
+	allowed=no
+fi
+
+versions='{}'
+for v in $(php_pkg_versions "$package"); do
+	versions=$(jq -c --arg v "$v" --arg s "$(php_version_status "$v")" --arg e "$(php_catalog_get "$v" EOL)" \
+		'. + {($v): {STATUS: $s, EOL: $e}}' <<< "$versions")
+done
+profiles=$(php_pkg_profiles "$package" | jq -Rn '[inputs]')
+
+# Effective PHP limits: the profile's php_admin_value wins over php.ini (D16)
+effective='{}'
+if [ -n "$version" ] && php_version_installed "$version"; then
+	ini=$(php_ini_helper "$version" values "$(php_ini_file "$version" fpm)" fpm 2> /dev/null)
+	for pair in $PHP_PROFILE_LIMITS; do
+		key=${pair%%:*}
+		directive=${pair#*:}
+		value=$(php_profile_get "$profile" "$key")
+		if [ "$applied" = 'yes' ] && [ -n "$value" ]; then
+			origin='profile'
+		else
+			value=$(jq -r --arg d "$directive" '.[$d].VALUE // ""' <<< "${ini:-"{}"}")
+			origin='php.ini'
+		fi
+		effective=$(jq -c --arg d "$directive" --arg v "$value" --arg s "$origin" \
+			'. + {($d): {VALUE: $v, SOURCE: $s}}' <<< "$effective")
+	done
+fi
+
+json=$(jq -n --arg d "$domain" --arg v "$version" --arg b "$backend" --arg p "$profile" --arg a "$applied" \
+	--arg va "$version_allowed" --arg pa "$profile_allowed" --arg al "$allowed" \
+	--arg dp "$(php_pkg_get "$package" PHP_DEFAULT_PROFILE)" --arg pk "$package" \
+	--argjson versions "$versions" --argjson profiles "$profiles" --argjson effective "$effective" \
+	'{DOMAIN: $d, VERSION: $v, BACKEND: $b, PROFILE: $p, PROFILE_APPLIED: $a, VERSION_ALLOWED: $va,
+		PROFILE_ALLOWED: $pa, ALLOWED: $al, PACKAGE: $pk, DEFAULT_PROFILE: $dp, VERSIONS: $versions,
+		PROFILES: $profiles, EFFECTIVE: $effective}')
+
+case "$format" in
+	json) jq . <<< "$json" ;;
+	plain) jq -r '[.DOMAIN, .VERSION, .PROFILE, .PROFILE_APPLIED, .ALLOWED] | join("\t")' <<< "$json" ;;
+	*)
+		jq -r '"VERSION: \(.VERSION)", "BACKEND: \(.BACKEND)", "PROFILE: \(.PROFILE)",
+			"PROFILE_APPLIED: \(.PROFILE_APPLIED)", "ALLOWED: \(.ALLOWED)",
+			"VERSIONS: \(.VERSIONS | keys | join(","))", "PROFILES: \(.PROFILES | join(","))",
+			(.EFFECTIVE | to_entries[] | "\(.key): \(.value.VALUE) (\(.value.SOURCE))")' <<< "$json"
+		;;
+esac
+
+#----------------------------------------------------------#
+#                         ArcPanel                         #
+#----------------------------------------------------------#
+
+exit

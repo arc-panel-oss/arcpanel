@@ -1,0 +1,119 @@
+#!/bin/bash
+# info: delete a PHP-FPM profile (E41)
+# options: NAME [FORCE]
+#
+# example: v-delete-sys-php-profile shop yes
+#
+# This function deletes a PHP-FPM profile. The default profile cannot be
+# deleted. A profile that web domains use or that packages name is refused
+# (E_INUSE, with the list) unless FORCE is yes: the domains then move to the
+# default profile and the packages no longer name it.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+name=$1
+force=$2
+
+# Includes
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/tenancy.sh
+source $ARCPANEL/func/tenancy.sh
+# shellcheck source=/usr/local/arcpanel/func/php.sh
+source $ARCPANEL/func/php.sh
+# load config file
+source_conf "$ARCPANEL/conf/arcpanel.conf"
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '1' "$#" 'NAME [FORCE]'
+if ! php_profile_name_valid "$name"; then
+	check_result "$E_INVALID" "invalid profile name :: $name"
+fi
+if [ -n "$force" ] && [ "$force" != 'yes' ] && [ "$force" != 'no' ]; then
+	check_result "$E_INVALID" "invalid FORCE value :: $force (yes or no)"
+fi
+if [ "$name" = 'default' ]; then
+	check_result "$E_FORBIDEN" "the default profile cannot be deleted"
+fi
+if ! php_profile_exists "$name"; then
+	check_result "$E_NOTEXIST" "profile $name does not exist"
+fi
+
+# Domains that use it and packages that name it
+used=$(php_domain_pools | awk -v p="$name" '$4 == p { print $1 "/" $2 }')
+packages=''
+for file in "$ARCPANEL"/data/packages/*.pkg; do
+	[ -f "$file" ] || continue
+	package=$(basename "$file" .pkg)
+	list=$(php_pkg_get "$package" PHP_PROFILES)
+	if [[ ",$list," == *",$name,"* ]] || [ "$(php_pkg_get "$package" PHP_DEFAULT_PROFILE)" = "$name" ]; then
+		packages="$packages $package"
+	fi
+done
+if [ "$force" != 'yes' ] && [ -n "$used$packages" ]; then
+	message="profile $name is in use"
+	if [ -n "$used" ]; then
+		message="$message by web domains $(head -n 10 <<< "$used" | paste -sd, -)"
+	fi
+	if [ -n "$packages" ]; then
+		message="$message; packages name it: $(echo $packages | tr ' ' ',')"
+	fi
+	check_result "$E_INUSE" "$message"
+fi
+
+# Perform verification if read-only mode is enabled
+check_arcpanel_demo_mode
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+# Packages: drop the name; an emptied list and the default profile fall back
+# to default
+for package in $packages; do
+	list=$(php_pkg_get "$package" PHP_PROFILES)
+	if [ "$list" != '*' ]; then
+		list=$(tr ',' '\n' <<< "$list" | grep -vxF "$name" | paste -sd, -)
+		tenancy_pkg_set "$package" PHP_PROFILES "${list:-default}"
+	fi
+	if [ "$(php_pkg_get "$package" PHP_DEFAULT_PROFILE)" = "$name" ]; then
+		tenancy_pkg_set "$package" PHP_DEFAULT_PROFILE default
+	fi
+done
+
+# Domains: back to the default profile
+pools=$(php_profile_domains "$name")
+while read -r user domain backend; do
+	[ -n "$user" ] || continue
+	php_domain_profile_set "$user" "$(php_domain_key "$domain")" default
+done <<< "$(php_domain_pools | awk -v p="$name" '$4 == p { print $1, $2, $3 }')"
+
+php_profile_remove "$name"
+
+versions=''
+while read -r user domain backend; do
+	[ -n "$user" ] || continue
+	"$BIN/v-add-web-domain-backend" "$user" "$domain" "$backend" no > /dev/null 2>&1
+	versions="$versions $(php_backend_version "$backend")"
+done <<< "$pools"
+for version in $(tr ' ' '\n' <<< "$versions" | sort -u); do
+	"$BIN/v-restart-web-backend" yes "$version" > /dev/null 2>&1
+done
+
+#----------------------------------------------------------#
+#                         ArcPanel                         #
+#----------------------------------------------------------#
+
+# Logging
+$BIN/v-log-action "system" "Info" "System" "PHP-FPM profile deleted (Profile: $name)."
+log_event "$OK" "$ARGUMENTS"
+
+exit

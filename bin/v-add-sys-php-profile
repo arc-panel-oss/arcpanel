@@ -1,0 +1,71 @@
+#!/bin/bash
+# info: add a PHP-FPM profile (E41)
+# options: NAME FILE
+#
+# example: v-add-sys-php-profile shop /tmp/profile
+#
+# This function adds a PHP-FPM profile. FILE holds KEY='value' lines with the
+# keys DESCRIPTION, PM (ondemand, dynamic or static), MAX_CHILDREN (1-500),
+# START_SERVERS, MIN_SPARE and MAX_SPARE (dynamic), MAX_REQUESTS (0-100000),
+# IDLE_TIMEOUT (ondemand, like 10s), REQUEST_TERMINATE_TIMEOUT (empty or like
+# 300s) and the PHP limits MEMORY_LIMIT, UPLOAD_MAX_FILESIZE, POST_MAX_SIZE,
+# MAX_EXECUTION_TIME and MAX_INPUT_VARS (empty: from php.ini). It prints a
+# warning when MAX_CHILDREN x MEMORY_LIMIT is above the server's memory.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+name=$1
+src=$2
+
+# Includes
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/php.sh
+source $ARCPANEL/func/php.sh
+# load config file
+source_conf "$ARCPANEL/conf/arcpanel.conf"
+
+declare -A PROFILE
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '2' "$#" 'NAME FILE'
+if ! php_profile_name_valid "$name"; then
+	check_result "$E_INVALID" "invalid profile name :: $name (a-z, 0-9 and -, up to 32)"
+fi
+if php_profile_exists "$name"; then
+	check_result "$E_EXISTS" "profile $name already exists"
+fi
+if [ ! -f "$src" ] || [ "$(stat -c %s "$src")" -gt 4096 ]; then
+	check_result "$E_NOTEXIST" "$src does not exist or is too large"
+fi
+if ! php_profile_read "$src" || ! php_profile_validate; then
+	check_result "$E_INVALID" "$PHP_ERROR"
+fi
+
+# Perform verification if read-only mode is enabled
+check_arcpanel_demo_mode
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+php_profile_save "$name" no
+php_profile_warnings
+
+#----------------------------------------------------------#
+#                         ArcPanel                         #
+#----------------------------------------------------------#
+
+# Logging
+$BIN/v-log-action "system" "Info" "System" "PHP-FPM profile added (Profile: $name)."
+log_event "$OK" "$ARGUMENTS"
+
+exit

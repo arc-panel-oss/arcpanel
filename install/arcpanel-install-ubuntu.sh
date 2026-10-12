@@ -1801,6 +1801,8 @@ if [ "$phpfpm" = "yes" ]; then
 	check_result $? "php-fpm start failed"
 	# Set default php version to $fpm_v
 	update-alternatives --set php /usr/bin/php$fpm_v > /dev/null 2>&1
+	# PHP-FPM profiles (E41)
+	$ARCPANEL/bin/v-add-sys-php-profiles > /dev/null 2>&1
 fi
 
 #----------------------------------------------------------#

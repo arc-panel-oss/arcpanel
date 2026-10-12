@@ -1,0 +1,106 @@
+#!/bin/bash
+# info: change a PHP-FPM profile (E41)
+# options: NAME FILE [RESTART]
+#
+# example: v-change-sys-php-profile medium /tmp/profile
+#
+# This function changes a PHP-FPM profile from FILE (the KEY='value' lines of
+# v-add-sys-php-profile), rewrites the pool of every web domain that uses it
+# and reloads the PHP-FPM versions concerned (unless RESTART is no). When a
+# version does not run after the reload, the previous profile and pools come
+# back (E_RESTART).
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+name=$1
+src=$2
+restart=${3:-yes}
+
+# Includes
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/php.sh
+source $ARCPANEL/func/php.sh
+# load config file
+source_conf "$ARCPANEL/conf/arcpanel.conf"
+
+declare -A PROFILE
+
+# Write the pools of the profile's domains; print their PHP versions
+rewrite_pools() {
+	local user domain backend
+	while read -r user domain backend; do
+		[ -n "$user" ] || continue
+		"$BIN/v-add-web-domain-backend" "$user" "$domain" "$backend" no > /dev/null 2>&1
+		php_backend_version "$backend"
+	done <<< "$domains"
+}
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '2' "$#" 'NAME FILE [RESTART]'
+is_format_valid 'restart'
+if ! php_profile_name_valid "$name"; then
+	check_result "$E_INVALID" "invalid profile name :: $name"
+fi
+if ! php_profile_exists "$name"; then
+	check_result "$E_NOTEXIST" "profile $name does not exist"
+fi
+if [ ! -f "$src" ] || [ "$(stat -c %s "$src")" -gt 4096 ]; then
+	check_result "$E_NOTEXIST" "$src does not exist or is too large"
+fi
+if ! php_profile_read "$src" || ! php_profile_validate; then
+	check_result "$E_INVALID" "$PHP_ERROR"
+fi
+
+# Perform verification if read-only mode is enabled
+check_arcpanel_demo_mode
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+store=$(php_profiles_file)
+previous=$(php_tmp_file profiles)
+trap 'rm -f "$previous"' EXIT
+cp -p "$store" "$previous"
+
+php_profile_save "$name" "$(php_profile_get "$name" BUILTIN)"
+domains=$(php_profile_domains "$name")
+versions=$(rewrite_pools | sort -u)
+
+if [ "$restart" != 'no' ]; then
+	for version in $versions; do
+		if ! php_fpm_reload "$version"; then
+			php_fpm_log "$version"
+			# Back to the previous profile and pools
+			(
+				flock -x 9
+				cp -p "$previous" "$store"
+			) 9> "$store.lock"
+			rewrite_pools > /dev/null
+			for v in $versions; do
+				"$BIN/v-restart-service" "php$v-fpm" > /dev/null 2>&1
+			done
+			check_result "$E_RESTART" "PHP-FPM $version did not run with the changed profile; the previous profile was restored"
+		fi
+	done
+fi
+php_profile_warnings
+
+#----------------------------------------------------------#
+#                         ArcPanel                         #
+#----------------------------------------------------------#
+
+# Logging
+$BIN/v-log-action "system" "Info" "System" "PHP-FPM profile changed (Profile: $name, Pools: $(grep -c . <<< "$domains"))."
+log_event "$OK" "$ARGUMENTS"
+
+exit
