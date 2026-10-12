@@ -23,6 +23,8 @@ use App\Http\Controllers\Api\V2\NodeAppController;
 use App\Http\Controllers\Api\V2\NodeController;
 use App\Http\Controllers\Api\V2\NotificationController;
 use App\Http\Controllers\Api\V2\PackageController;
+use App\Http\Controllers\Api\V2\PhpController;
+use App\Http\Controllers\Api\V2\PhpProfileController;
 use App\Http\Controllers\Api\V2\PortController;
 use App\Http\Controllers\Api\V2\PortRegistryController;
 use App\Http\Controllers\Api\V2\SearchController;
@@ -36,6 +38,7 @@ use App\Http\Controllers\Api\V2\TaskController;
 use App\Http\Controllers\Api\V2\UpdateController;
 use App\Http\Controllers\Api\V2\UserController;
 use App\Http\Controllers\Api\V2\WebDomainController;
+use App\Http\Controllers\Api\V2\WebDomainPhpController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -130,6 +133,35 @@ Route::prefix('/system')->name('system.')->group(function () {
         Route::put('/updates/settings', [UpdateController::class, 'settings'])->name('updates.settings');
         Route::post('/packages/{slug}', [SystemPackageController::class, 'install'])->where($slug)->name('packages.install');
         Route::delete('/packages/{slug}', [SystemPackageController::class, 'remove'])->where($slug)->name('packages.remove');
+    });
+});
+
+// PHP Manager (E41 spec 2026-10-12-001 §9): versions, extensions, php.ini and
+// PHP-FPM profiles; administrators only. {php} is a version such as 8.4.
+Route::prefix('/system/php')->name('system.php.')->group(function () {
+    $php = ['php' => '\d{1,2}\.\d{1,2}'];
+    $sapi = ['sapi' => 'fpm|cli'];
+    $name = ['name' => '[a-z0-9_]{1,32}'];
+    $profile = ['profile' => '[a-z0-9][a-z0-9-]{0,31}'];
+    Route::get('/versions', [PhpController::class, 'index'])->name('versions.index');
+    Route::get('/versions/{php}', [PhpController::class, 'show'])->where($php)->name('versions.show');
+    Route::get('/versions/{php}/extensions', [PhpController::class, 'extensions'])->where($php)->name('extensions.index');
+    Route::get('/versions/{php}/ini/{sapi}', [PhpController::class, 'ini'])->where($php + $sapi)->name('ini.show');
+    Route::get('/versions/{php}/ini/{sapi}/backups', [PhpController::class, 'backups'])->where($php + $sapi)->name('ini.backups.index');
+    Route::get('/profiles', [PhpProfileController::class, 'index'])->name('profiles.index');
+    Route::get('/profiles/{profile}', [PhpProfileController::class, 'show'])->where($profile)->name('profiles.show');
+    Route::middleware('not-readonly')->group(function () use ($php, $sapi, $name, $profile) {
+        Route::post('/versions/{php}', [PhpController::class, 'install'])->where($php)->name('versions.install');
+        Route::delete('/versions/{php}', [PhpController::class, 'remove'])->where($php)->name('versions.remove');
+        Route::put('/versions/{php}/extensions/{name}', [PhpController::class, 'setExtension'])->where($php + $name)->name('extensions.update');
+        Route::delete('/versions/{php}/extensions/{name}', [PhpController::class, 'removeExtension'])->where($php + $name)->name('extensions.destroy');
+        Route::put('/versions/{php}/ini/{sapi}', [PhpController::class, 'replaceIni'])->where($php + $sapi)->name('ini.replace');
+        Route::patch('/versions/{php}/ini/{sapi}', [PhpController::class, 'updateIni'])->where($php + $sapi)->name('ini.update');
+        Route::post('/versions/{php}/ini/{sapi}/backups/{backup}/restore', [PhpController::class, 'restore'])
+            ->where($php + $sapi + ['backup' => '\d{8}-\d{6}(-\d+)?'])->name('ini.backups.restore');
+        Route::post('/profiles', [PhpProfileController::class, 'store'])->name('profiles.store');
+        Route::put('/profiles/{profile}', [PhpProfileController::class, 'update'])->where($profile)->name('profiles.update');
+        Route::delete('/profiles/{profile}', [PhpProfileController::class, 'destroy'])->where($profile)->name('profiles.destroy');
     });
 });
 
@@ -228,6 +260,8 @@ Route::middleware('effective-user')->group(function () {
     Route::get('/users/{user}/web-domains', [WebDomainController::class, 'index'])->name('web-domains.index');
     Route::get('/users/{user}/web-domains/{domain}', [WebDomainController::class, 'show'])->name('web-domains.show');
     Route::get('/users/{user}/web-domains/{domain}/logs', [WebDomainController::class, 'logs'])->name('web-domains.logs');
+    // PHP version and PHP-FPM profile (E41 §9)
+    Route::get('/users/{user}/web-domains/{domain}/php', [WebDomainPhpController::class, 'show'])->name('web-domains.php.show');
     Route::middleware('not-readonly')->prefix('/users/{user}/web-domains')->name('web-domains.')->group(function () {
         Route::post('/', [WebDomainController::class, 'store'])->name('store');
         Route::patch('/{domain}', [WebDomainController::class, 'update'])->name('update');
@@ -241,6 +275,7 @@ Route::middleware('effective-user')->group(function () {
         Route::put('/{domain}/ssl', [WebDomainController::class, 'setSsl'])->name('ssl.update');
         Route::delete('/{domain}/ssl', [WebDomainController::class, 'deleteSsl'])->name('ssl.destroy');
         Route::post('/{domain}/letsencrypt', [WebDomainController::class, 'letsEncrypt'])->name('letsencrypt');
+        Route::put('/{domain}/php', [WebDomainPhpController::class, 'update'])->name('php.update');
     });
 
     // DNS zones and records (E34 batch 2 spec §6.1)

@@ -3757,6 +3757,1575 @@
                 }
             }
         },
+        "/system/php/profiles": {
+            "get": {
+                "operationId": "listPhpProfiles",
+                "summary": "List the PHP-FPM profiles",
+                "tags": [
+                    "Server"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Array of `PhpProfile`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/components/schemas/PhpProfile"
+                                            }
+                                        },
+                                        "meta": {
+                                            "$ref": "#/components/schemas/ListMeta"
+                                        }
+                                    },
+                                    "required": [
+                                        "data",
+                                        "meta"
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    }
+                },
+                "parameters": [
+                    {
+                        "name": "limit",
+                        "in": "query",
+                        "description": "Page size, from 1 to 1000. Without it the list is complete.",
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 1000
+                        }
+                    },
+                    {
+                        "name": "offset",
+                        "in": "query",
+                        "description": "Items to skip. Used when `limit` is set; 0 when omitted.",
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 0
+                        }
+                    }
+                ]
+            },
+            "post": {
+                "operationId": "createPhpProfile",
+                "description": "A name in use answers `409 E_EXISTS`; relations the command checks\n(spare servers, upload limits) answer `422 E_INVALID`.",
+                "summary": "Create a PHP-FPM profile",
+                "tags": [
+                    "Server"
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/PhpProfileRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "With `dry_run`: the planned steps; nothing ran.",
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/DryRun"
+                                }
+                            }
+                        }
+                    },
+                    "201": {
+                        "description": "`PhpProfile`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/PhpProfile"
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            },
+                            "Location": {
+                                "$ref": "#/components/headers/Location"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "409": {
+                        "$ref": "#/components/responses/Conflict"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    },
+                    "503": {
+                        "$ref": "#/components/responses/Unavailable"
+                    }
+                },
+                "parameters": [
+                    {
+                        "name": "dry_run",
+                        "in": "query",
+                        "description": "Validate, authorize and plan the change, and answer with its steps instead of running them.",
+                        "schema": {
+                            "type": "boolean",
+                            "default": false
+                        }
+                    }
+                ]
+            }
+        },
+        "/system/php/profiles/{profile}": {
+            "get": {
+                "operationId": "getPhpProfile",
+                "summary": "Get a PHP-FPM profile",
+                "tags": [
+                    "Server"
+                ],
+                "parameters": [
+                    {
+                        "name": "profile",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "`PhpProfile`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/PhpProfile"
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    }
+                }
+            },
+            "put": {
+                "operationId": "updatePhpProfile",
+                "description": "Rewrites the pool of every web domain on the profile and reloads PHP-FPM;\nwhen a version does not run afterwards, the previous profile comes back\n(`500 E_RESTART`).",
+                "summary": "Change a PHP-FPM profile",
+                "tags": [
+                    "Server"
+                ],
+                "parameters": [
+                    {
+                        "name": "profile",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "dry_run",
+                        "in": "query",
+                        "description": "Validate, authorize and plan the change, and answer with its steps instead of running them.",
+                        "schema": {
+                            "type": "boolean",
+                            "default": false
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/PhpProfileRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "`PhpProfile`; with `dry_run`, the planned steps.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "oneOf": [
+                                        {
+                                            "type": "object",
+                                            "properties": {
+                                                "data": {
+                                                    "$ref": "#/components/schemas/PhpProfile"
+                                                }
+                                            },
+                                            "required": [
+                                                "data"
+                                            ]
+                                        },
+                                        {
+                                            "$ref": "#/components/schemas/DryRun"
+                                        }
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "409": {
+                        "$ref": "#/components/responses/Conflict"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    },
+                    "503": {
+                        "$ref": "#/components/responses/Unavailable"
+                    }
+                }
+            },
+            "delete": {
+                "operationId": "deletePhpProfile",
+                "description": "The `default` profile cannot be deleted (`403`). A profile that web\ndomains use or packages name answers `409 E_INUSE` unless `force=1`,\nwhich moves the domains to `default` and removes it from the packages.",
+                "summary": "Delete a PHP-FPM profile",
+                "tags": [
+                    "Server"
+                ],
+                "parameters": [
+                    {
+                        "name": "profile",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "force",
+                        "in": "query",
+                        "schema": {
+                            "type": "boolean",
+                            "default": false
+                        }
+                    },
+                    {
+                        "name": "dry_run",
+                        "in": "query",
+                        "description": "Validate, authorize and plan the change, and answer with its steps instead of running them.",
+                        "schema": {
+                            "type": "boolean",
+                            "default": false
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "With `dry_run`: the planned steps; nothing ran.",
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/DryRun"
+                                }
+                            }
+                        }
+                    },
+                    "204": {
+                        "description": "No content",
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "409": {
+                        "$ref": "#/components/responses/Conflict"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    },
+                    "503": {
+                        "$ref": "#/components/responses/Unavailable"
+                    }
+                }
+            }
+        },
+        "/system/php/versions": {
+            "get": {
+                "operationId": "listPhpVersions",
+                "description": "Every version of the panel's catalog and every installed one, oldest\nfirst, with its support status, end of life, whether it may be\ninstalled and the web domains that use it.",
+                "summary": "List the PHP versions",
+                "tags": [
+                    "Server"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Array of `PhpVersion`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/components/schemas/PhpVersion"
+                                            }
+                                        },
+                                        "meta": {
+                                            "$ref": "#/components/schemas/ListMeta"
+                                        }
+                                    },
+                                    "required": [
+                                        "data",
+                                        "meta"
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    }
+                },
+                "parameters": [
+                    {
+                        "name": "limit",
+                        "in": "query",
+                        "description": "Page size, from 1 to 1000. Without it the list is complete.",
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 1000
+                        }
+                    },
+                    {
+                        "name": "offset",
+                        "in": "query",
+                        "description": "Items to skip. Used when `limit` is set; 0 when omitted.",
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 0
+                        }
+                    }
+                ]
+            }
+        },
+        "/system/php/versions/{php}": {
+            "get": {
+                "operationId": "getPhpVersion",
+                "summary": "Get a PHP version",
+                "tags": [
+                    "Server"
+                ],
+                "parameters": [
+                    {
+                        "name": "php",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "`PhpVersion`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/PhpVersion"
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    }
+                }
+            },
+            "post": {
+                "operationId": "installPhpVersion",
+                "description": "Installs the version from the PHP repository of the server as the\nsystem task. An installed version answers `409 E_EXISTS`, one at its\nend of life `422`, one the repository does not have `404`; another\nrunning system task answers `409 E_INUSE` with `existing`.",
+                "summary": "Install a PHP version",
+                "tags": [
+                    "Server"
+                ],
+                "parameters": [
+                    {
+                        "name": "php",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "dry_run",
+                        "in": "query",
+                        "description": "Validate, authorize and plan the change, and answer with its steps instead of running them.",
+                        "schema": {
+                            "type": "boolean",
+                            "default": false
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "With `dry_run`: the planned steps; nothing ran.",
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/DryRun"
+                                }
+                            }
+                        }
+                    },
+                    "202": {
+                        "description": "`Task`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/Task"
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            },
+                            "Location": {
+                                "$ref": "#/components/headers/Location"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "409": {
+                        "$ref": "#/components/responses/Conflict"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    },
+                    "503": {
+                        "$ref": "#/components/responses/Unavailable"
+                    }
+                }
+            },
+            "delete": {
+                "operationId": "removePhpVersion",
+                "description": "Removes an installed version with its extensions, as the system task.\nThe default version and a version that web domains use answer `403`.",
+                "summary": "Remove a PHP version",
+                "tags": [
+                    "Server"
+                ],
+                "parameters": [
+                    {
+                        "name": "php",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "dry_run",
+                        "in": "query",
+                        "description": "Validate, authorize and plan the change, and answer with its steps instead of running them.",
+                        "schema": {
+                            "type": "boolean",
+                            "default": false
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "With `dry_run`: the planned steps; nothing ran.",
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/DryRun"
+                                }
+                            }
+                        }
+                    },
+                    "202": {
+                        "description": "`Task`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/Task"
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            },
+                            "Location": {
+                                "$ref": "#/components/headers/Location"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "409": {
+                        "$ref": "#/components/responses/Conflict"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    },
+                    "503": {
+                        "$ref": "#/components/responses/Unavailable"
+                    }
+                }
+            }
+        },
+        "/system/php/versions/{php}/extensions": {
+            "get": {
+                "operationId": "listPhpExtensions",
+                "description": "The extension catalog entries that apply to the version with their\nstate for PHP-FPM and the command line, then the modules enabled on\nthe server that the catalog does not list (`catalog` false).",
+                "summary": "List the extensions of a PHP version",
+                "tags": [
+                    "Server"
+                ],
+                "parameters": [
+                    {
+                        "name": "php",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "limit",
+                        "in": "query",
+                        "description": "Page size, from 1 to 1000. Without it the list is complete.",
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 1000
+                        }
+                    },
+                    {
+                        "name": "offset",
+                        "in": "query",
+                        "description": "Items to skip. Used when `limit` is set; 0 when omitted.",
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 0
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Array of `PhpExtension`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/components/schemas/PhpExtension"
+                                            }
+                                        },
+                                        "meta": {
+                                            "$ref": "#/components/schemas/ListMeta"
+                                        }
+                                    },
+                                    "required": [
+                                        "data",
+                                        "meta"
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    }
+                }
+            }
+        },
+        "/system/php/versions/{php}/extensions/{name}": {
+            "put": {
+                "operationId": "setPhpExtension",
+                "description": "`installed: true` installs a catalog extension as the system task\n(`202`). `fpm` and `cli` turn the module of an installed extension on\nor off for that SAPI; the answer is the extension. Required modules\ncannot be turned off (`403`), conflicting ones not on together\n(`409 E_INUSE`). A change that stops PHP-FPM is undone.",
+                "summary": "Install or turn on and off a PHP extension",
+                "tags": [
+                    "Server"
+                ],
+                "parameters": [
+                    {
+                        "name": "php",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "name",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "dry_run",
+                        "in": "query",
+                        "description": "Validate, authorize and plan the change, and answer with its steps instead of running them.",
+                        "schema": {
+                            "type": "boolean",
+                            "default": false
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/SetPhpExtensionRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "`PhpExtension`; with `dry_run`, the planned steps.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "oneOf": [
+                                        {
+                                            "type": "object",
+                                            "properties": {
+                                                "data": {
+                                                    "$ref": "#/components/schemas/PhpExtension"
+                                                }
+                                            },
+                                            "required": [
+                                                "data"
+                                            ]
+                                        },
+                                        {
+                                            "$ref": "#/components/schemas/DryRun"
+                                        }
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "409": {
+                        "$ref": "#/components/responses/Conflict"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    },
+                    "503": {
+                        "$ref": "#/components/responses/Unavailable"
+                    }
+                }
+            },
+            "delete": {
+                "operationId": "removePhpExtension",
+                "description": "Purges the package of a catalog extension as the system task. Required\nextensions, modules that ship with PHP and packages that others need\nanswer `403` or `409`.",
+                "summary": "Remove a PHP extension",
+                "tags": [
+                    "Server"
+                ],
+                "parameters": [
+                    {
+                        "name": "php",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "name",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "dry_run",
+                        "in": "query",
+                        "description": "Validate, authorize and plan the change, and answer with its steps instead of running them.",
+                        "schema": {
+                            "type": "boolean",
+                            "default": false
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "With `dry_run`: the planned steps; nothing ran.",
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/DryRun"
+                                }
+                            }
+                        }
+                    },
+                    "202": {
+                        "description": "`Task`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/Task"
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            },
+                            "Location": {
+                                "$ref": "#/components/headers/Location"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "409": {
+                        "$ref": "#/components/responses/Conflict"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    },
+                    "503": {
+                        "$ref": "#/components/responses/Unavailable"
+                    }
+                }
+            }
+        },
+        "/system/php/versions/{php}/ini/{sapi}": {
+            "get": {
+                "operationId": "getPhpIni",
+                "description": "The directives of the php.ini form of PHP-FPM (`fpm`) or of the command\nline (`cli`) with their value and source; `?raw=1` adds the file.",
+                "summary": "Get the php.ini of a PHP version",
+                "tags": [
+                    "Server"
+                ],
+                "parameters": [
+                    {
+                        "name": "php",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "sapi",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "raw",
+                        "in": "query",
+                        "schema": {
+                            "type": "boolean",
+                            "default": false
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "`PhpIni`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/PhpIni"
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    }
+                }
+            },
+            "put": {
+                "operationId": "replacePhpIni",
+                "description": "The file is validated with the version's PHP first: syntax, the values\nof known directives, unknown directives (warnings), a start of PHP and,\nfor PHP-FPM, `php-fpm -t`. Errors answer `422 E_VALIDATION` with\n`fields` keyed by `line:<n>`; warnings are saved and returned as\n`findings`. The previous file is kept as a backup and comes back when\nPHP-FPM does not run afterwards (`500 E_RESTART`).",
+                "summary": "Replace the php.ini of a PHP version",
+                "tags": [
+                    "Server"
+                ],
+                "parameters": [
+                    {
+                        "name": "php",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "sapi",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "dry_run",
+                        "in": "query",
+                        "description": "Validate, authorize and plan the change, and answer with its steps instead of running them.",
+                        "schema": {
+                            "type": "boolean",
+                            "default": false
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/ReplacePhpIniRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "`PhpIni`; with `dry_run`, the planned steps.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "oneOf": [
+                                        {
+                                            "type": "object",
+                                            "properties": {
+                                                "data": {
+                                                    "$ref": "#/components/schemas/PhpIni"
+                                                }
+                                            },
+                                            "required": [
+                                                "data"
+                                            ]
+                                        },
+                                        {
+                                            "$ref": "#/components/schemas/DryRun"
+                                        }
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "409": {
+                        "$ref": "#/components/responses/Conflict"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    },
+                    "503": {
+                        "$ref": "#/components/responses/Unavailable"
+                    }
+                }
+            },
+            "patch": {
+                "operationId": "updatePhpIniValues",
+                "description": "Directives of the php.ini form are changed in place (or added to the\n`[PHP]` section) and the result is validated and saved as for\n`replacePhpIni`.",
+                "summary": "Change directives of the php.ini of a PHP version",
+                "tags": [
+                    "Server"
+                ],
+                "parameters": [
+                    {
+                        "name": "php",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "sapi",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "dry_run",
+                        "in": "query",
+                        "description": "Validate, authorize and plan the change, and answer with its steps instead of running them.",
+                        "schema": {
+                            "type": "boolean",
+                            "default": false
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/UpdatePhpIniValuesRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "`PhpIni`; with `dry_run`, the planned steps.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "oneOf": [
+                                        {
+                                            "type": "object",
+                                            "properties": {
+                                                "data": {
+                                                    "$ref": "#/components/schemas/PhpIni"
+                                                }
+                                            },
+                                            "required": [
+                                                "data"
+                                            ]
+                                        },
+                                        {
+                                            "$ref": "#/components/schemas/DryRun"
+                                        }
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "409": {
+                        "$ref": "#/components/responses/Conflict"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    },
+                    "503": {
+                        "$ref": "#/components/responses/Unavailable"
+                    }
+                }
+            }
+        },
+        "/system/php/versions/{php}/ini/{sapi}/backups": {
+            "get": {
+                "operationId": "listPhpIniBackups",
+                "description": "The ten newest earlier versions of the file, newest first.",
+                "summary": "List the php.ini backups",
+                "tags": [
+                    "Server"
+                ],
+                "parameters": [
+                    {
+                        "name": "php",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "sapi",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "limit",
+                        "in": "query",
+                        "description": "Page size, from 1 to 1000. Without it the list is complete.",
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 1000
+                        }
+                    },
+                    {
+                        "name": "offset",
+                        "in": "query",
+                        "description": "Items to skip. Used when `limit` is set; 0 when omitted.",
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 0
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Array of `PhpIniBackup`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/components/schemas/PhpIniBackup"
+                                            }
+                                        },
+                                        "meta": {
+                                            "$ref": "#/components/schemas/ListMeta"
+                                        }
+                                    },
+                                    "required": [
+                                        "data",
+                                        "meta"
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    }
+                }
+            }
+        },
+        "/system/php/versions/{php}/ini/{sapi}/backups/{backup}/restore": {
+            "post": {
+                "operationId": "restorePhpIniBackup",
+                "description": "The backup is validated and saved as for `replacePhpIni`; the current\nfile becomes a backup itself.",
+                "summary": "Restore a php.ini backup",
+                "tags": [
+                    "Server"
+                ],
+                "parameters": [
+                    {
+                        "name": "php",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "sapi",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "backup",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "dry_run",
+                        "in": "query",
+                        "description": "Validate, authorize and plan the change, and answer with its steps instead of running them.",
+                        "schema": {
+                            "type": "boolean",
+                            "default": false
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "`PhpIni`; with `dry_run`, the planned steps.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "oneOf": [
+                                        {
+                                            "type": "object",
+                                            "properties": {
+                                                "data": {
+                                                    "$ref": "#/components/schemas/PhpIni"
+                                                }
+                                            },
+                                            "required": [
+                                                "data"
+                                            ]
+                                        },
+                                        {
+                                            "$ref": "#/components/schemas/DryRun"
+                                        }
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "409": {
+                        "$ref": "#/components/responses/Conflict"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    },
+                    "503": {
+                        "$ref": "#/components/responses/Unavailable"
+                    }
+                }
+            }
+        },
         "/system/ports": {
             "get": {
                 "operationId": "getPortRegistry",
@@ -23420,6 +24989,180 @@
                 }
             }
         },
+        "/users/{user}/web-domains/{domain}/php": {
+            "get": {
+                "operationId": "getWebDomainPhp",
+                "description": "Its version and profile, the versions and profiles the package allows,\nand the effective PHP limits with their source.",
+                "summary": "Get the PHP of a web domain",
+                "tags": [
+                    "Web domains"
+                ],
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "domain",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "`WebDomainPhp`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/WebDomainPhp"
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    }
+                }
+            },
+            "put": {
+                "operationId": "setWebDomainPhp",
+                "description": "A new version changes the backend template to `PHP-X_Y`; the pool is\nwritten with the profile. Both must be allowed by the package of the\nowner unless the domain already has them (`403`).",
+                "summary": "Set the PHP of a web domain",
+                "tags": [
+                    "Web domains"
+                ],
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "domain",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "dry_run",
+                        "in": "query",
+                        "description": "Validate, authorize and plan the change, and answer with its steps instead of running them.",
+                        "schema": {
+                            "type": "boolean",
+                            "default": false
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/SetWebDomainPhpRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "`WebDomainPhp`; with `dry_run`, the planned steps.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "oneOf": [
+                                        {
+                                            "type": "object",
+                                            "properties": {
+                                                "data": {
+                                                    "$ref": "#/components/schemas/WebDomainPhp"
+                                                }
+                                            },
+                                            "required": [
+                                                "data"
+                                            ]
+                                        },
+                                        {
+                                            "$ref": "#/components/schemas/DryRun"
+                                        }
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "409": {
+                        "$ref": "#/components/responses/Conflict"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    },
+                    "503": {
+                        "$ref": "#/components/responses/Unavailable"
+                    }
+                }
+            }
+        },
         "/users/{user}/web-domains/{domain}/purge-cache": {
             "post": {
                 "operationId": "purgeWebDomainCache",
@@ -27841,6 +29584,28 @@
                             "memory"
                         ]
                     },
+                    "php": {
+                        "type": "object",
+                        "properties": {
+                            "versions": {
+                                "type": "string",
+                                "description": "`*` (every installed version that has not reached its end of life) or a comma list of versions (E41)"
+                            },
+                            "profiles": {
+                                "type": "string",
+                                "description": "`*` or a comma list of PHP-FPM profiles"
+                            },
+                            "default_profile": {
+                                "type": "string",
+                                "description": "the profile of new web domains"
+                            }
+                        },
+                        "required": [
+                            "versions",
+                            "profiles",
+                            "default_profile"
+                        ]
+                    },
                     "created_at": {
                         "type": [
                             "string",
@@ -27864,6 +29629,7 @@
                     "ports",
                     "node",
                     "docker",
+                    "php",
                     "created_at"
                 ],
                 "title": "Package"
@@ -27907,6 +29673,478 @@
                 ],
                 "title": "PanelPackage"
             },
+            "PhpExtension": {
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "description": "the name the paths take, for example `redis`"
+                    },
+                    "module": {
+                        "type": "string",
+                        "description": "the module name of phpenmod"
+                    },
+                    "package": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "the Debian package; null for a module that ships with PHP (on and off only)"
+                    },
+                    "group": {
+                        "type": "string",
+                        "description": "`cache`, `database`, `image`, `format`, `network`, `security`, `async`, `debug` or `other`"
+                    },
+                    "required": {
+                        "type": "boolean",
+                        "description": "required modules cannot be removed or turned off"
+                    },
+                    "conflicts": {
+                        "type": "array",
+                        "description": "extensions that cannot be enabled at the same time",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "note": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "a warning, for example for xdebug"
+                    },
+                    "catalog": {
+                        "type": "boolean",
+                        "description": "false for a module of the server that the panel does not manage"
+                    },
+                    "installed": {
+                        "type": "boolean"
+                    },
+                    "available": {
+                        "type": "boolean",
+                        "description": "whether it can be installed for this version"
+                    },
+                    "fpm": {
+                        "type": "boolean",
+                        "description": "enabled for PHP-FPM"
+                    },
+                    "cli": {
+                        "type": "boolean",
+                        "description": "enabled for the command line"
+                    }
+                },
+                "required": [
+                    "name",
+                    "module",
+                    "package",
+                    "group",
+                    "required",
+                    "conflicts",
+                    "note",
+                    "catalog",
+                    "installed",
+                    "available",
+                    "fpm",
+                    "cli"
+                ],
+                "title": "PhpExtension"
+            },
+            "PhpIni": {
+                "type": "object",
+                "properties": {
+                    "version": {
+                        "type": "string"
+                    },
+                    "sapi": {
+                        "type": "string",
+                        "description": "`fpm` or `cli`"
+                    },
+                    "file": {
+                        "type": "string",
+                        "description": "the path of the file"
+                    },
+                    "size": {
+                        "type": "integer",
+                        "description": "bytes"
+                    },
+                    "modified_at": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "`YYYY-MM-DD HH:MM:SS`"
+                    },
+                    "values": {
+                        "type": "object",
+                        "description": "The directives of the form: value, source (`file` or `default`,\nPHP's built-in value), line in the file, and the number of web\ndomains whose profile sets their own value (PHP-FPM only).",
+                        "additionalProperties": {
+                            "type": "object",
+                            "properties": {
+                                "value": {
+                                    "type": "string"
+                                },
+                                "source": {
+                                    "type": "string"
+                                },
+                                "line": {
+                                    "type": [
+                                        "integer",
+                                        "null"
+                                    ]
+                                },
+                                "profile_overrides": {
+                                    "type": "integer"
+                                }
+                            },
+                            "required": [
+                                "value",
+                                "source",
+                                "line",
+                                "profile_overrides"
+                            ]
+                        }
+                    },
+                    "content": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "the file itself, with `?raw=1`"
+                    },
+                    "findings": {
+                        "type": "array",
+                        "description": "warnings of the saved file",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "line": {
+                                    "type": "integer"
+                                },
+                                "level": {
+                                    "type": "string"
+                                },
+                                "directive": {
+                                    "type": "string"
+                                },
+                                "message": {
+                                    "type": "string"
+                                }
+                            },
+                            "required": [
+                                "line",
+                                "level",
+                                "directive",
+                                "message"
+                            ]
+                        }
+                    }
+                },
+                "required": [
+                    "version",
+                    "sapi",
+                    "file",
+                    "size",
+                    "modified_at",
+                    "values"
+                ],
+                "title": "PhpIni"
+            },
+            "PhpIniBackup": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "description": "the id the restore path takes, `YYYYmmdd-HHMMSS`"
+                    },
+                    "created_at": {
+                        "type": "string",
+                        "description": "`YYYY-MM-DD HH:MM:SS`"
+                    },
+                    "size": {
+                        "type": "integer",
+                        "description": "bytes"
+                    }
+                },
+                "required": [
+                    "id",
+                    "created_at",
+                    "size"
+                ],
+                "title": "PhpIniBackup"
+            },
+            "PhpProfile": {
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string"
+                    },
+                    "description": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
+                    "pm": {
+                        "type": "string",
+                        "description": "`ondemand`, `dynamic` or `static`"
+                    },
+                    "max_children": {
+                        "type": "integer",
+                        "description": "pm.max_children"
+                    },
+                    "start_servers": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ],
+                        "description": "pm.start_servers (dynamic)"
+                    },
+                    "min_spare": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ],
+                        "description": "pm.min_spare_servers (dynamic)"
+                    },
+                    "max_spare": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ],
+                        "description": "pm.max_spare_servers (dynamic)"
+                    },
+                    "max_requests": {
+                        "type": "integer",
+                        "description": "pm.max_requests; 0 never recycles a process"
+                    },
+                    "idle_timeout": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "pm.process_idle_timeout (ondemand), for example `10s`"
+                    },
+                    "request_terminate_timeout": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "request_terminate_timeout, for example `300s`"
+                    },
+                    "limits": {
+                        "type": "object",
+                        "description": "PHP limits written as php_admin_value; null takes the value of php.ini.",
+                        "properties": {
+                            "memory_limit": {
+                                "type": [
+                                    "string",
+                                    "null"
+                                ]
+                            },
+                            "upload_max_filesize": {
+                                "type": [
+                                    "string",
+                                    "null"
+                                ]
+                            },
+                            "post_max_size": {
+                                "type": [
+                                    "string",
+                                    "null"
+                                ]
+                            },
+                            "max_execution_time": {
+                                "type": [
+                                    "integer",
+                                    "null"
+                                ]
+                            },
+                            "max_input_vars": {
+                                "type": [
+                                    "integer",
+                                    "null"
+                                ]
+                            }
+                        },
+                        "required": [
+                            "memory_limit",
+                            "upload_max_filesize",
+                            "post_max_size",
+                            "max_execution_time",
+                            "max_input_vars"
+                        ]
+                    },
+                    "builtin": {
+                        "type": "boolean",
+                        "description": "one of the shipped profiles; `default` cannot be deleted"
+                    },
+                    "domains": {
+                        "type": "integer",
+                        "description": "web domain pools that use it"
+                    },
+                    "packages": {
+                        "type": "array",
+                        "description": "packages that allow it",
+                        "items": {
+                            "type": "string"
+                        }
+                    }
+                },
+                "required": [
+                    "name",
+                    "description",
+                    "pm",
+                    "max_children",
+                    "start_servers",
+                    "min_spare",
+                    "max_spare",
+                    "max_requests",
+                    "idle_timeout",
+                    "request_terminate_timeout",
+                    "limits",
+                    "builtin",
+                    "domains",
+                    "packages"
+                ],
+                "title": "PhpProfile"
+            },
+            "PhpProfileRequest": {
+                "type": "object",
+                "description": "POST /system/php/profiles and PUT /system/php/profiles/{name} (E41 §7.1).\nThe shape is checked here; the command checks the relations (spare\nservers, upload limits) and answers with the first error.",
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "description": "Lower-case letters, digits and `-`, up to 32 characters. Only when creating.",
+                        "pattern": "^[a-z0-9][a-z0-9-]{0,31}$"
+                    },
+                    "description": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "maxLength": 100
+                    },
+                    "pm": {
+                        "type": "string",
+                        "description": "`ondemand`, `dynamic` or `static`.",
+                        "enum": [
+                            "ondemand",
+                            "dynamic",
+                            "static"
+                        ]
+                    },
+                    "max_children": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 500
+                    },
+                    "start_servers": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ],
+                        "description": "Dynamic only: min_spare ≤ start_servers ≤ max_spare ≤ max_children.",
+                        "minimum": 1,
+                        "maximum": 500
+                    },
+                    "min_spare": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ],
+                        "minimum": 1,
+                        "maximum": 500
+                    },
+                    "max_spare": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ],
+                        "minimum": 1,
+                        "maximum": 500
+                    },
+                    "max_requests": {
+                        "type": "integer",
+                        "description": "0 never recycles a process.",
+                        "minimum": 0,
+                        "maximum": 100000
+                    },
+                    "idle_timeout": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "Ondemand only, for example `10s`.",
+                        "pattern": "^\\d{1,5}s$"
+                    },
+                    "request_terminate_timeout": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "For example `300s`; null for none.",
+                        "pattern": "^\\d{1,5}s$"
+                    },
+                    "limits": {
+                        "type": [
+                            "object",
+                            "null"
+                        ],
+                        "description": "PHP limits written as php_admin_value; null takes the value of php.ini.",
+                        "properties": {
+                            "memory_limit": {
+                                "type": [
+                                    "string",
+                                    "null"
+                                ],
+                                "description": "A size such as `256M`, or `-1` for no limit.",
+                                "pattern": "^(-1|\\d{1,6}[KMG]?)$",
+                                "maxLength": 16
+                            },
+                            "upload_max_filesize": {
+                                "type": [
+                                    "string",
+                                    "null"
+                                ],
+                                "pattern": "^\\d{1,6}[KMG]?$",
+                                "maxLength": 16
+                            },
+                            "post_max_size": {
+                                "type": [
+                                    "string",
+                                    "null"
+                                ],
+                                "description": "At least upload_max_filesize.",
+                                "pattern": "^\\d{1,6}[KMG]?$",
+                                "maxLength": 16
+                            },
+                            "max_execution_time": {
+                                "type": [
+                                    "integer",
+                                    "null"
+                                ],
+                                "minimum": 0,
+                                "maximum": 999999
+                            },
+                            "max_input_vars": {
+                                "type": [
+                                    "integer",
+                                    "null"
+                                ],
+                                "minimum": 1,
+                                "maximum": 9999999
+                            }
+                        }
+                    }
+                },
+                "required": [
+                    "name",
+                    "pm",
+                    "max_children",
+                    "max_requests"
+                ],
+                "title": "PhpProfileRequest"
+            },
             "PhpVersion": {
                 "type": "object",
                 "properties": {
@@ -27927,6 +30165,43 @@
                         "items": {
                             "type": "string"
                         }
+                    },
+                    "status": {
+                        "type": "string",
+                        "description": "`active`, `security` (security fixes only), `eol` (end of life) or `unknown`"
+                    },
+                    "released": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "release date, `YYYY-MM-DD`"
+                    },
+                    "active_until": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "end of active support, `YYYY-MM-DD`"
+                    },
+                    "eol": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "end of life, `YYYY-MM-DD`"
+                    },
+                    "installable": {
+                        "type": "boolean",
+                        "description": "whether the catalog allows new installs (7.4 and later)"
+                    },
+                    "available": {
+                        "type": "boolean",
+                        "description": "whether the PHP repository of the server provides it"
+                    },
+                    "extensions": {
+                        "type": "integer",
+                        "description": "modules enabled for PHP-FPM; 0 when not installed"
                     }
                 },
                 "required": [
@@ -28516,6 +30791,24 @@
                     "name"
                 ],
                 "title": "RenameFileRequest"
+            },
+            "ReplacePhpIniRequest": {
+                "type": "object",
+                "description": "PUT /system/php/versions/{php}/ini/{sapi} (E41 §6, §9): the whole file.",
+                "properties": {
+                    "content": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "The new php.ini, at most 1 MiB.",
+                        "maxLength": 1048576
+                    }
+                },
+                "required": [
+                    "content"
+                ],
+                "title": "ReplacePhpIniRequest"
             },
             "RequestMailLetsEncryptRequest": {
                 "type": "object",
@@ -29335,6 +31628,32 @@
                 ],
                 "title": "SetNodeEnabledRequest"
             },
+            "SetPhpExtensionRequest": {
+                "type": "object",
+                "description": "PUT /system/php/versions/{php}/extensions/{name} (E41 §9).",
+                "properties": {
+                    "installed": {
+                        "description": "`true` installs the extension as the system task (`202`); an installed one stays. Removing is `DELETE`.",
+                        "enum": [
+                            "yes",
+                            "on",
+                            "1",
+                            1,
+                            "true",
+                            true
+                        ]
+                    },
+                    "fpm": {
+                        "type": "boolean",
+                        "description": "Turn the module on or off for PHP-FPM."
+                    },
+                    "cli": {
+                        "type": "boolean",
+                        "description": "Turn the module on or off for the command line."
+                    }
+                },
+                "title": "SetPhpExtensionRequest"
+            },
             "SetPhpVersionsRequest": {
                 "type": "object",
                 "description": "PUT /system/settings/web/php (E34 batch 6 spec §5.7): the full list of\nPHP versions the server should have.",
@@ -29430,6 +31749,23 @@
                     }
                 },
                 "title": "SetUpdateSettingsRequest"
+            },
+            "SetWebDomainPhpRequest": {
+                "type": "object",
+                "description": "PUT /users/{user}/web-domains/{domain}/php (E41 §7.2, §9).",
+                "properties": {
+                    "version": {
+                        "type": "string",
+                        "description": "An installed version the package allows, for example `8.4`; the current one when left out.",
+                        "pattern": "^\\d{1,2}\\.\\d{1,2}$"
+                    },
+                    "profile": {
+                        "type": "string",
+                        "description": "A PHP-FPM profile the package allows; the current one when left out.",
+                        "pattern": "^[a-z0-9][a-z0-9-]{0,31}$"
+                    }
+                },
+                "title": "SetWebDomainPhpRequest"
             },
             "Snapshot": {
                 "type": "object",
@@ -30736,6 +33072,25 @@
                                 "maxLength": 20
                             }
                         }
+                    },
+                    "php": {
+                        "type": "object",
+                        "properties": {
+                            "versions": {
+                                "type": "string",
+                                "pattern": "^(\\*|\\d{1,2}\\.\\d{1,2}(,\\d{1,2}\\.\\d{1,2})*)$",
+                                "maxLength": 200
+                            },
+                            "profiles": {
+                                "type": "string",
+                                "pattern": "^(\\*|[a-z0-9][a-z0-9-]{0,31}(,[a-z0-9][a-z0-9-]{0,31})*)$",
+                                "maxLength": 500
+                            },
+                            "default_profile": {
+                                "type": "string",
+                                "pattern": "^[a-z0-9][a-z0-9-]{0,31}$"
+                            }
+                        }
                     }
                 },
                 "required": [
@@ -31709,9 +34064,58 @@
                                 "maxLength": 20
                             }
                         }
+                    },
+                    "php": {
+                        "type": "object",
+                        "properties": {
+                            "versions": {
+                                "type": "string",
+                                "pattern": "^(\\*|\\d{1,2}\\.\\d{1,2}(,\\d{1,2}\\.\\d{1,2})*)$",
+                                "maxLength": 200
+                            },
+                            "profiles": {
+                                "type": "string",
+                                "pattern": "^(\\*|[a-z0-9][a-z0-9-]{0,31}(,[a-z0-9][a-z0-9-]{0,31})*)$",
+                                "maxLength": 500
+                            },
+                            "default_profile": {
+                                "type": "string",
+                                "pattern": "^[a-z0-9][a-z0-9-]{0,31}$"
+                            }
+                        }
                     }
                 },
                 "title": "UpdatePackageRequest"
+            },
+            "UpdatePhpIniValuesRequest": {
+                "type": "object",
+                "description": "PATCH /system/php/versions/{php}/ini/{sapi} (E41 §6.2, §9): directives of\nthe php.ini form.",
+                "properties": {
+                    "values": {
+                        "type": "object",
+                        "description": "Directives of the form and their new values, for example\n`{\"memory_limit\": \"256M\", \"display_errors\": false}`. Switches take\nbooleans, `disable_functions` a list of function names.",
+                        "additionalProperties": {
+                            "anyOf": [
+                                {
+                                    "type": "string"
+                                },
+                                {
+                                    "type": "boolean"
+                                },
+                                {
+                                    "type": "array",
+                                    "items": {
+                                        "type": "string"
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                },
+                "required": [
+                    "values"
+                ],
+                "title": "UpdatePhpIniValuesRequest"
             },
             "UpdateServerSettingsRequest": {
                 "type": "object",
@@ -32867,6 +35271,122 @@
                     "type",
                     "lines"
                 ]
+            },
+            "WebDomainPhp": {
+                "type": "object",
+                "properties": {
+                    "version": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "the PHP version; null for a domain without PHP (`no-php`)"
+                    },
+                    "backend_template": {
+                        "type": "string",
+                        "description": "the backend template"
+                    },
+                    "profile": {
+                        "type": "string",
+                        "description": "the PHP-FPM profile of the pool"
+                    },
+                    "profile_applied": {
+                        "type": "boolean",
+                        "description": "false when the backend template has no profile line, so the pool keeps its own settings"
+                    },
+                    "allowed": {
+                        "type": "object",
+                        "description": "Whether the package allows the domain's version and profile; a\nvalue the package no longer allows stays but cannot be chosen again.",
+                        "properties": {
+                            "version": {
+                                "type": "boolean"
+                            },
+                            "profile": {
+                                "type": "boolean"
+                            }
+                        },
+                        "required": [
+                            "version",
+                            "profile"
+                        ]
+                    },
+                    "package": {
+                        "type": "string",
+                        "description": "the package of the owner"
+                    },
+                    "default_profile": {
+                        "type": "string",
+                        "description": "the profile of new web domains of the package"
+                    },
+                    "versions": {
+                        "type": "array",
+                        "description": "installed versions the package allows",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "version": {
+                                    "type": "string"
+                                },
+                                "status": {
+                                    "type": "string"
+                                },
+                                "eol": {
+                                    "type": [
+                                        "string",
+                                        "null"
+                                    ]
+                                }
+                            },
+                            "required": [
+                                "version",
+                                "status",
+                                "eol"
+                            ]
+                        }
+                    },
+                    "profiles": {
+                        "type": "array",
+                        "description": "profiles the package allows",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "effective": {
+                        "type": "object",
+                        "description": "memory_limit, upload_max_filesize, post_max_size, max_execution_time and max_input_vars\nwith their source: `profile` or `php.ini`.",
+                        "additionalProperties": {
+                            "type": "object",
+                            "properties": {
+                                "value": {
+                                    "type": [
+                                        "string",
+                                        "null"
+                                    ]
+                                },
+                                "source": {
+                                    "type": "string"
+                                }
+                            },
+                            "required": [
+                                "value",
+                                "source"
+                            ]
+                        }
+                    }
+                },
+                "required": [
+                    "version",
+                    "backend_template",
+                    "profile",
+                    "profile_applied",
+                    "allowed",
+                    "package",
+                    "default_profile",
+                    "versions",
+                    "profiles",
+                    "effective"
+                ],
+                "title": "WebDomainPhp"
             },
             "WebDomainSslRequest": {
                 "type": "object",

@@ -11075,7 +11075,9 @@ paths:
         directives, unknown directives (warnings), a start of PHP with the file and,
         for fpm, php-fpm -t. It prints the findings with their line (json: an array
         of {line, level, directive, message}, level error or warning) and exits 0
-        when the check ran; the file is valid when no finding is an error.
+        when the check ran; the file is valid when no finding is an error. With
+        MODE values, FILE holds directive=value lines that are applied to the
+        current php.ini first, as v-change-sys-php-ini-values does.
 
         **Arguments**
 
@@ -11085,6 +11087,7 @@ paths:
         | `arg2` | `SAPI` | yes |
         | `arg3` | `FILE` | yes |
         | `arg4` | `FORMAT` | no |
+        | `arg5` | `MODE` | no |
       requestBody:
         required: true
         content:
@@ -42950,6 +42953,12 @@ components:
                 - shell
               examples:
                 - json
+            arg5:
+              type: string
+              title: MODE
+              description: "`MODE`, optional"
+              examples:
+                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-check-sys-ports:

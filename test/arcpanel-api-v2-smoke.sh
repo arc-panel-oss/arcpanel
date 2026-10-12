@@ -18,6 +18,10 @@
 # Batch 6 adds and deletes a firewall rule (when FIREWALL_SYSTEM is on) and
 # restarts the cron service; it changes no server setting.
 #
+# The PHP Manager (E41) reads the versions, extensions, php.ini and profiles,
+# validates a php.ini change without saving it, and moves a web domain of a
+# throw-away user to the small profile; it installs nothing.
+#
 # Run as root on a test server, never on production.
 
 set -euo pipefail
@@ -31,6 +35,8 @@ SMOKE_PACKAGE="arcsmoke-pkg$RANDOM"
 APPS_USER="${SMOKE_USER}a"
 FILES_USER="${SMOKE_USER}f"
 ACCOUNTS_USER="${SMOKE_USER}c"
+PHP_USER="${SMOKE_USER}p"
+PHP_PACKAGE="$SMOKE_PACKAGE-php"
 APPS_PACKAGE="$SMOKE_PACKAGE-apps"
 SMOKE_PASS="$(head -c 18 /dev/urandom | base64 | tr -dc 'A-Za-z0-9' | head -c 20)Aa1"
 ROOT_USER=$(grep "^ROOT_USER=" "$CONF" | cut -d"'" -f2)
@@ -57,12 +63,13 @@ cleanup() {
 	"$ARCPANEL/bin/v-delete-user" "$APPS_USER" > /dev/null 2>&1 || true
 	"$ARCPANEL/bin/v-delete-user" "$FILES_USER" > /dev/null 2>&1 || true
 	"$ARCPANEL/bin/v-delete-user" "$ACCOUNTS_USER" > /dev/null 2>&1 || true
+	"$ARCPANEL/bin/v-delete-user" "$PHP_USER" > /dev/null 2>&1 || true
 	# A firewall rule left by a failed run (the last one first: ids are positions)
 	for rule in $("$ARCPANEL/bin/v-list-firewall" json 2> /dev/null | jq -r 'to_entries[] | select(.value.COMMENT == "arcsmoke") | .key' | sort -rn); do
 		"$ARCPANEL/bin/v-delete-firewall-rule" "$rule" > /dev/null 2>&1 || true
 	done
 	rm -f "/etc/logrotate.d/arcpanel-node-$APPS_USER"
-	for package in "$SMOKE_PACKAGE" "$SMOKE_PACKAGE-copy" "$APPS_PACKAGE"; do
+	for package in "$SMOKE_PACKAGE" "$SMOKE_PACKAGE-copy" "$APPS_PACKAGE" "$PHP_PACKAGE"; do
 		"$ARCPANEL/bin/v-delete-user-package" "$package" > /dev/null 2>&1 || true
 		"$ARCPANEL/bin/v-delete-package-tenancy" "$package" > /dev/null 2>&1 || true
 	done
@@ -634,6 +641,38 @@ check "the panel key answers a set flag" boolean "$(json '.data.ssl.key.set | ty
 check "a key may not change the API switches" 403 "$(call "$ADMIN" PATCH /system/settings/security '{"API_SYSTEM": "0"}')"
 
 check "the accounts user is deleted" 204 "$(call "$ADMIN" DELETE "$ACCOUNTS")"
+
+# PHP Manager (E41 spec 2026-10-12-001 §9)
+check "listPhpVersions answers 200" 200 "$(call "$ADMIN" GET /system/php/versions)"
+PHP_DEFAULT="$(json '[.data[] | select(.default)][0].version')"
+check "the default version is installed" true "$(json "[.data[] | select(.version == \"$PHP_DEFAULT\")][0].installed")"
+check "5.6 is at its end of life" eol "$(json '[.data[] | select(.version == "5.6")][0].status')"
+check "listPhpExtensions answers 200" 200 "$(call "$ADMIN" GET "/system/php/versions/$PHP_DEFAULT/extensions?limit=200")"
+check "curl is required" true "$(json '[.data[] | select(.name == "curl")][0].required')"
+check "getPhpIni answers 200" 200 "$(call "$ADMIN" GET "/system/php/versions/$PHP_DEFAULT/ini/fpm")"
+check "the php.ini is the PHP-FPM one" "/etc/php/$PHP_DEFAULT/fpm/php.ini" "$(json .data.file)"
+php_ini_sum="$(md5sum < "/etc/php/$PHP_DEFAULT/fpm/php.ini")"
+check "updatePhpIniValues dry run answers 200" 200 "$(call "$ADMIN" PATCH "/system/php/versions/$PHP_DEFAULT/ini/fpm?dry_run=1" '{"values": {"max_input_vars": "4321"}}')"
+check "the values are valid" true "$(json .data.valid)"
+check "a size that is no size answers 422 by line" 422 "$(call "$ADMIN" PATCH "/system/php/versions/$PHP_DEFAULT/ini/fpm" '{"values": {"memory_limit": "lots"}}')"
+check "the error names the line" true "$(json '.error.fields | keys | all(startswith("line:"))')"
+check "the php.ini did not change" "$php_ini_sum" "$(md5sum < "/etc/php/$PHP_DEFAULT/fpm/php.ini")"
+check "listPhpProfiles answers 200" 200 "$(call "$ADMIN" GET /system/php/profiles)"
+check "the profiles start with default" default "$(json '.data[0].name')"
+check "a package that allows the small profile" 201 "$(call "$ADMIN" POST /packages "{\"name\": \"$PHP_PACKAGE\", \"php\": {\"profiles\": \"default,small\"}}")"
+check "the package lists its profiles" default,small "$(json .data.php.profiles)"
+check "a user on that package" 201 "$(call "$ADMIN" POST /users "{\"username\": \"$PHP_USER\", \"password\": \"$SMOKE_PASS\", \"email\": \"$PHP_USER@example.invalid\", \"name\": \"Smoke PHP\", \"package\": \"$PHP_PACKAGE\"}")"
+PHP_KEY=$(new_key "$PHP_USER" v2-read,v2-web)
+PHP_DOMAIN="$PHP_USER.example.test"
+check "a web domain of that user" 201 "$(call "$PHP_KEY" POST "/users/$PHP_USER/web-domains" "{\"domain\": \"$PHP_DOMAIN\"}")"
+check "getWebDomainPhp answers 200" 200 "$(call "$PHP_KEY" GET "/users/$PHP_USER/web-domains/$PHP_DOMAIN/php")"
+check "the domain starts on the default profile" default "$(json .data.profile)"
+check "setWebDomainPhp answers 200" 200 "$(call "$PHP_KEY" PUT "/users/$PHP_USER/web-domains/$PHP_DOMAIN/php" '{"profile": "small"}')"
+check "the domain is on the small profile" small "$(json .data.profile)"
+check "the pool has the small profile" 1 "$(grep -c '^pm.max_children = 4$' "$(find /etc/php/*/fpm/pool.d -name "$PHP_DOMAIN.conf" | head -n1)")"
+check "a profile the package does not allow answers 403" 403 "$(call "$PHP_KEY" PUT "/users/$PHP_USER/web-domains/$PHP_DOMAIN/php" '{"profile": "large"}')"
+check "the PHP user is deleted" 204 "$(call "$ADMIN" DELETE "/users/$PHP_USER")"
+check "the PHP package is deleted" 204 "$(call "$ADMIN" DELETE "/packages/$PHP_PACKAGE")"
 
 if [ "$failures" -gt 0 ]; then
 	echo "$failures check(s) failed"

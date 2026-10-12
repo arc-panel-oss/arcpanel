@@ -291,3 +291,16 @@ value() {
     run bash -c "v-list-sys-php-config json | jq -r .CONFIG.config_path"
     assert_output "/etc/php/$default/fpm/php.ini"
 }
+
+@test "v-check-sys-php-ini: values mode checks the file the directives would give" {
+    before=$(md5sum < "$FPM_INI")
+    printf 'memory_limit=lots\n' > "$BATS_TEST_TMPDIR/values"
+    run bash -c "v-check-sys-php-ini $V fpm $BATS_TEST_TMPDIR/values json values | jq -r '.[] | select(.level == \"error\") | .directive'"
+    assert_output 'memory_limit'
+    printf 'memory_limit=256M\n' > "$BATS_TEST_TMPDIR/values"
+    run bash -c "v-check-sys-php-ini $V fpm $BATS_TEST_TMPDIR/values json values | jq '[.[] | select(.level == \"error\")] | length'"
+    assert_output 0
+    run v-check-sys-php-ini $V fpm "$BATS_TEST_TMPDIR/values" json nosuch
+    assert_failure 2
+    [ "$(md5sum < "$FPM_INI")" = "$before" ]
+}

@@ -51,6 +51,13 @@ final class PhpManager
 
     public function __construct(private readonly ArcCommand $arc) {}
 
+    /** Read the versions and profiles again after a change. */
+    public function forget(): void
+    {
+        $this->versions = null;
+        $this->profiles = null;
+    }
+
     public static function validVersion(string $version): bool
     {
         return preg_match('/^\d{1,2}\.\d{1,2}$/', $version) === 1;
@@ -285,6 +292,46 @@ final class PhpManager
             'directive' => (string) ($row['directive'] ?? ''),
             'message' => (string) ($row['message'] ?? ''),
         ], array_filter($rows, 'is_array')));
+    }
+
+    /**
+     * Findings of the php.ini that directives of the form would give
+     * (`v-check-sys-php-ini VERSION SAPI FILE json values`), or null.
+     *
+     * @param  array<string, string>  $values  directive => value
+     * @return list<array{line: int, level: string, directive: string, message: string}>|null
+     */
+    public function checkIniValues(string $version, string $sapi, array $values): ?array
+    {
+        $result = $this->arc->run('v-check-sys-php-ini', [$version, $sapi, Secret::file(self::valuesFile($values)), 'json', 'values'], new Options(120, true));
+        $rows = $result->ok() ? json_decode($result->stdout, true) : null;
+
+        return is_array($rows) ? self::findings($rows) : null;
+    }
+
+    /**
+     * @param  array<mixed>  $rows
+     * @return list<array{line: int, level: string, directive: string, message: string}>
+     */
+    private static function findings(array $rows): array
+    {
+        return array_values(array_map(fn ($row) => [
+            'line' => (int) ($row['line'] ?? 0),
+            'level' => ($row['level'] ?? '') === 'warning' ? 'warning' : 'error',
+            'directive' => (string) ($row['directive'] ?? ''),
+            'message' => (string) ($row['message'] ?? ''),
+        ], array_filter($rows, 'is_array')));
+    }
+
+    /** @param  array<string, string>  $values */
+    public static function valuesFile(array $values): string
+    {
+        $lines = [];
+        foreach ($values as $directive => $value) {
+            $lines[] = $directive.'='.str_replace(["\r", "\n"], '', $value);
+        }
+
+        return implode("\n", $lines)."\n";
     }
 
     /** `v-change-sys-php-ini VERSION SAPI FILE`: the whole file. */

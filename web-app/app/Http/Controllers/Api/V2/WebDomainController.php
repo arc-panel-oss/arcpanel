@@ -85,11 +85,13 @@ final class WebDomainController extends Controller
         $values = $request->advancedValues($this->actions->predictRecord($user, $domain, '', []));
         $ip = (string) $request->input('ip', array_key_first($this->web->userIps($user)) ?? '');
         $aliases = $request->aliases();
-        $userIps = WebDomainRequest::withApiFields(function () use ($user, $domain, $ip, $values, $templates, $request) {
+        $userIps = WebDomainRequest::withApiFields(function () use ($user, $domain, $ip, $values, $templates, $request, $principal) {
             $userIps = $this->actions->checkIp($user, $ip);
             if ($templates) {
                 $this->checkSystems($request);
                 $this->actions->checkTemplates($values);
+                // A PHP version of the package only (E41 §7.5)
+                $this->actions->checkBackendTemplate($principal, $user, $values['backend_template'] ?? null);
                 $this->actions->checkPort($user, $domain, null, $values, $request->backendPort());
             }
 
@@ -172,7 +174,7 @@ final class WebDomainController extends Controller
         $record = $this->web->find($user, $domain);
         $templates = $this->assertTemplatesAllowed($request, $user, $principal, $policy);
 
-        $steps = WebDomainRequest::withApiFields(function () use ($request, $record, $user, $domain, $templates) {
+        $steps = WebDomainRequest::withApiFields(function () use ($request, $record, $user, $domain, $templates, $principal) {
             $steps = [];
             if ($request->setsGeneral()) {
                 $values = $request->generalValues($record);
@@ -186,6 +188,7 @@ final class WebDomainController extends Controller
                 $values = $request->advancedValues($record);
                 $this->checkSystems($request);
                 $this->actions->checkTemplates($values);
+                $this->actions->checkBackendTemplate($principal, $user, $values['backend_template'] ?? null, $record->backendTemplate);
                 $this->actions->checkPort($user, $domain, $record, $values, $request->backendPort());
                 $steps = [...$steps, ...$this->actions->planTemplates($record, $values, $request->backendPort())];
             }
