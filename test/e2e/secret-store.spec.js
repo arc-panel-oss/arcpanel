@@ -45,7 +45,10 @@ test('user: add, replace, roll back and delete a secret', async ({ page }) => {
 		.getByRole('row', { name: /Version 1/ })
 		.getByRole('button', { name: 'Roll back' })
 		.click();
-	await page.getByRole('alertdialog').getByRole('button', { name: 'Confirm' }).click();
+	await page
+		.getByRole('dialog', { name: 'Roll back to version 1?' })
+		.getByRole('button', { name: 'Roll back' })
+		.click();
 	await expectToast(page, `Secret ${NAME} has been rolled back to version 1.`);
 	await expect(page.getByRole('cell', { name: /Version 3/ })).toBeVisible();
 

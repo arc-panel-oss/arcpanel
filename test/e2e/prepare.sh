@@ -19,7 +19,7 @@
 #                                 /root/arce2e-ipset.txt is written (E7
 #                                 batch 2 Firewall); API_SYSTEM is 2 and the
 #                                 test users have no access keys (E7 batch 2
-#                                 Keys)
+#                                 Keys) and no secrets (E38)
 #   prepare.sh cleanup            deletes them again and restores API_SYSTEM
 #   prepare.sh ssh-key            prints a fresh public SSH key
 #   prepare.sh terminal-on        WEB_TERMINAL=true and a bash shell for
@@ -615,6 +615,10 @@ for user in $USERS; do
 	# ... and without mail domains
 	for domain in $("$B/v-list-mail-domains" "$user" plain | awk '{print $1}'); do
 		"$B/v-delete-mail-domain" "$user" "$domain" > /dev/null
+	done
+	# ... and without secrets (E38): a failed run must not leave one behind
+	for name in $("$B/v-list-user-secret-store" "$user" plain 2> /dev/null | cut -f1); do
+		"$B/v-delete-user-secret" "$user" "$name" yes > /dev/null
 	done
 done
 "$B/v-change-user-role" arce2eadmin admin > /dev/null
