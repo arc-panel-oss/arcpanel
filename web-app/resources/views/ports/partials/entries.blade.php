@@ -1,7 +1,8 @@
 {{--
     Port entries with their actions (E12 spec §7.3–7.5). $entries: list of
     PortEntry; $abilitiesFor: fn (user) => PortPolicy::abilities(); $showUser
-    adds the user column (Admin → Ports); $id names the table.
+    adds the user column (Admin → Ports), where $self links to Account;
+    $id names the table.
 --}}
 @php
     $showUser ??= false;
@@ -27,7 +28,7 @@
             @endphp
             <tr data-row data-search="{{ $entry->user }} {{ $range }} {{ $entry->app }} {{ $entry->comment }}" @class(['is-disabled' => $entry->suspended])>
                 @if ($showUser)
-                    <td data-col="user" data-label="{{ __('User') }}" data-sort-value="{{ $entry->user }}"><a class="mono" href="{{ route('users.show', ['user' => $entry->user]) }}">{{ $entry->user }}</a></td>
+                    <td data-col="user" data-label="{{ __('User') }}" data-sort-value="{{ $entry->user }}"><a class="mono" href="{{ $entry->user === ($self ?? null) ? route('account.edit') : route('users.show', ['user' => $entry->user]) }}">{{ $entry->user }}</a></td>
                 @endif
                 <td data-col="port" data-label="{{ __('Port') }}" data-sort-value="{{ $entry->start }}" class="mono">
                     {{ $range }}@if ($entry->isRange()) <span class="muted">({{ $entry->size() }})</span>@endif

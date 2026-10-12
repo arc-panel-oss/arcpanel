@@ -69,7 +69,7 @@
                                             <tr @class(['is-disabled' => ($row['SUSPENDED'] ?? 'no') === 'yes'])>
                                                 <td data-label="{{ __('Account') }}">
                                                     @if ($child)<span class="muted" aria-hidden="true">└ </span>@endif
-                                                    <a class="mono" href="{{ route('users.show', ['user' => $user]) }}">{{ $user }}</a>
+                                                    <a class="mono" href="{{ $user === $self ? route('account.edit') : route('users.show', ['user' => $user]) }}">{{ $user }}</a>
                                                 </td>
                                                 <td data-label="{{ __('Role') }}"><x-ap-badge :tone="($row['ROLE'] ?? '') === 'reseller' ? 'info' : null">{{ $roleLabels[$row['ROLE'] ?? ''] ?? ($row['ROLE'] ?? '') }}</x-ap-badge></td>
                                                 <td data-label="{{ __('Allocated') }}" class="col-num mono">

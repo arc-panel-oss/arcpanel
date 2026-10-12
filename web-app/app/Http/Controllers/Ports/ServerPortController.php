@@ -51,6 +51,8 @@ final class ServerPortController extends Controller
             'tree' => $tree,
             'userNames' => array_keys(array_filter($users, fn (array $row) => in_array($row['ROLE'] ?? '', ['user', 'reseller', 'admin'], true))),
             'canChange' => $policy->allocate($principal),
+            // The signed-in account links to Account: its own user page is refused
+            'self' => $principal->effectiveUser(),
         ]);
     }
 

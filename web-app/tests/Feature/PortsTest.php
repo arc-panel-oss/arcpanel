@@ -51,6 +51,18 @@ it('shows Admin → Server → Ports with entries, findings and their actions', 
         ->assertSee('Allocate ports');
 });
 
+it('links the signed-in administrator to Account on Server → Ports, not to its refused user page', function () {
+    $sys = json_decode($this->fake->run('v-list-sys-ports', ['json'])->stdout, true);
+    $sys['ENTRIES'][] = portEntry('31500', ['USER' => 'arcadmin', 'APP' => 'manual']);
+    $this->fake->on('v-list-sys-ports', ['json'])->returnsJson($sys);
+    signIn('arcadmin', 'admin');
+
+    $this->get('/server/ports')->assertOk()
+        ->assertSee(route('users.show', ['user' => 'hostco']), false)
+        ->assertSee(route('account.edit').'">arcadmin<', false)
+        ->assertDontSee(route('users.show', ['user' => 'arcadmin']), false);
+});
+
 it('keeps Server → Ports for administrators and sends them there from /ports', function () {
     signIn('bob', 'user');
     $this->get('/server/ports')->assertForbidden();
