@@ -3089,6 +3089,51 @@ paths:
           $ref: "#/components/responses/InvalidRequest"
         "422":
           $ref: "#/components/responses/Unprocessable"
+  "/api/#v-add-sys-malware-scan":
+    post:
+      operationId: v-add-sys-malware-scan
+      tags:
+        - System
+      summary: Turn the malware scan of web files on (E25)
+      description: |-
+        This function turns the malware scan plugin on (MALWARE_SCAN='yes') and
+        adds the nightly incremental scan of every user (v-scan-sys-web) to the
+        crontab of arcpanelweb. It can run again without harm.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `MODE` | no |
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-add-sys-malware-scan"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-add-sys-malware-scan"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
   "/api/#v-add-sys-node":
     post:
       operationId: v-add-sys-node
@@ -4190,6 +4235,106 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/v-add-user-composer"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+  "/api/#v-add-user-malware-ignore":
+    post:
+      operationId: v-add-user-malware-ignore
+      tags:
+        - Users
+      summary: Mark a malware finding of a user as not malware (E25)
+      description: |-
+        This function adds the SHA-256 of a finding to the ignore list of the
+        user and drops every open finding with that content. A file with the same
+        content is not reported again; a changed file is scanned as usual.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `USER` | yes |
+        | `arg2` | `FINDING` | yes |
+
+        **User argument:** with the access key of a user other than the admin, `arg1` must be the key's user.
+      x-arcpanel-user-arg: 1
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-add-user-malware-ignore"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-add-user-malware-ignore"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+  "/api/#v-add-user-malware-quarantine":
+    post:
+      operationId: v-add-user-malware-quarantine
+      tags:
+        - Users
+      summary: Move a suspicious file of a user to quarantine (E25)
+      description: |-
+        This function moves the file of an open finding into the root-only
+        quarantine store data/quarantine/USER/. The file is read and removed as
+        the user, never opened by root in the user's tree. When its content
+        changed since the scan (another SHA-256), nothing is moved and the
+        command answers E_INVALID: scan again first. Prints the quarantine ID.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `USER` | yes |
+        | `arg2` | `FINDING` | yes |
+
+        **User argument:** with the access key of a user other than the admin, `arg1` must be the key's user.
+      x-arcpanel-user-arg: 1
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-add-user-malware-quarantine"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-add-user-malware-quarantine"
       responses:
         "200":
           description: "The output of the command; `OK` for an empty output with legacy authentication."
@@ -14170,6 +14315,51 @@ paths:
           $ref: "#/components/responses/InvalidRequest"
         "422":
           $ref: "#/components/responses/Unprocessable"
+  "/api/#v-delete-sys-malware-scan":
+    post:
+      operationId: v-delete-sys-malware-scan
+      tags:
+        - System
+      summary: Turn the malware scan of web files off (E25)
+      description: |-
+        This function turns the malware scan plugin off (MALWARE_SCAN='no') and
+        removes the nightly scan from the crontab of arcpanelweb. Findings,
+        quarantined files and ignore lists are kept.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `MODE` | no |
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-delete-sys-malware-scan"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-delete-sys-malware-scan"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
   "/api/#v-delete-sys-node-cache":
     post:
       operationId: v-delete-sys-node-cache
@@ -15219,6 +15409,101 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/v-delete-user-login-limits"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+  "/api/#v-delete-user-malware-ignore":
+    post:
+      operationId: v-delete-user-malware-ignore
+      tags:
+        - Users
+      summary: Remove an entry of the malware ignore list of a user (E25)
+      description: |-
+        This function removes a SHA-256 from the ignore list of the user. The
+        next scan reports a file with that content again.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `USER` | yes |
+        | `arg2` | `SHA256` | yes |
+
+        **User argument:** with the access key of a user other than the admin, `arg1` must be the key's user.
+      x-arcpanel-user-arg: 1
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-delete-user-malware-ignore"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-delete-user-malware-ignore"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+  "/api/#v-delete-user-malware-quarantine":
+    post:
+      operationId: v-delete-user-malware-quarantine
+      tags:
+        - Users
+      summary: Delete a quarantined file of a user (E25)
+      description: |-
+        This function deletes a quarantined file and its entry for good.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `USER` | yes |
+        | `arg2` | `ID` | yes |
+
+        **User argument:** with the access key of a user other than the admin, `arg1` must be the key's user.
+      x-arcpanel-user-arg: 1
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-delete-user-malware-quarantine"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-delete-user-malware-quarantine"
       responses:
         "200":
           description: "The output of the command; `OK` for an empty output with legacy authentication."
@@ -21749,6 +22034,55 @@ paths:
           $ref: "#/components/responses/InvalidRequest"
         "422":
           $ref: "#/components/responses/Unprocessable"
+  "/api/#v-list-sys-malware-summary":
+    post:
+      operationId: v-list-sys-malware-summary
+      tags:
+        - System
+      summary: List the malware scan state of every user (E25)
+      description: |-
+        This function prints one row per user: USER, FINDINGS, CRITICAL, HIGH,
+        MEDIUM (open findings), QUARANTINED, LAST_SCAN (start of the newest scan)
+        and LAST_STATUS. Users that were never scanned have zeros and empty
+        values. The panel narrows the list to the users a principal may see.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `FORMAT` | no |
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-list-sys-malware-summary"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-list-sys-malware-summary"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+            application/json:
+              schema:
+                type: object
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
   "/api/#v-list-sys-memory-status":
     post:
       operationId: v-list-sys-memory-status
@@ -22227,7 +22561,8 @@ paths:
         This function lists the extension catalog entries
         (install/common/php/extensions.conf) that apply to an installed PHP version,
         with INSTALLED and AVAILABLE (yes or no), FPM and CLI (on or off, whether the
-        module is enabled for that SAPI) and CATALOG='yes', followed by the modules
+        module is enabled for that SAPI), BUILTIN ('yes' for a module compiled into
+        the PHP binary, always on) and CATALOG='yes', followed by the modules
         enabled on the server that the catalog does not list (CATALOG='no', read
         only).
 
@@ -23716,6 +24051,270 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/v-list-user-log"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+            application/json:
+              schema:
+                type: object
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+  "/api/#v-list-user-malware-findings":
+    post:
+      operationId: v-list-user-malware-findings
+      tags:
+        - Users
+      summary: List the open malware findings of a user (E25)
+      description: |-
+        This function lists the suspicious files that the last scans found and
+        that were neither quarantined nor ignored, most severe first: ID, DOMAIN,
+        PATH (relative to public_html), SHA256, SIZE, MTIME, SEVERITY, RULES,
+        LINE, SNIPPET (the matching line, attacker-controlled text), DETECTED and
+        SCAN.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `USER` | yes |
+        | `arg2` | `FORMAT` | no |
+
+        **User argument:** with the access key of a user other than the admin, `arg1` must be the key's user.
+      x-arcpanel-user-arg: 1
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-list-user-malware-findings"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-list-user-malware-findings"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+            application/json:
+              schema:
+                type: object
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+  "/api/#v-list-user-malware-ignores":
+    post:
+      operationId: v-list-user-malware-ignores
+      tags:
+        - Users
+      summary: List the files a user marked as not malware (E25)
+      description: |-
+        This function lists the ignore list of the user: SHA256, DOMAIN, PATH,
+        RULES and ADDED. A file with one of these SHA-256 values is not reported.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `USER` | yes |
+        | `arg2` | `FORMAT` | no |
+
+        **User argument:** with the access key of a user other than the admin, `arg1` must be the key's user.
+      x-arcpanel-user-arg: 1
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-list-user-malware-ignores"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-list-user-malware-ignores"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+            application/json:
+              schema:
+                type: object
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+  "/api/#v-list-user-malware-quarantine":
+    post:
+      operationId: v-list-user-malware-quarantine
+      tags:
+        - Users
+      summary: List the quarantined files of a user (E25)
+      description: |-
+        This function lists the files moved to quarantine: ID, DOMAIN, PATH,
+        SHA256, SIZE, MODE, SEVERITY, RULES and QUARANTINED, newest first.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `USER` | yes |
+        | `arg2` | `FORMAT` | no |
+
+        **User argument:** with the access key of a user other than the admin, `arg1` must be the key's user.
+      x-arcpanel-user-arg: 1
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-list-user-malware-quarantine"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-list-user-malware-quarantine"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+            application/json:
+              schema:
+                type: object
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+  "/api/#v-list-user-malware-scans":
+    post:
+      operationId: v-list-user-malware-scans
+      tags:
+        - Users
+      summary: List the malware scans of a user (E25)
+      description: |-
+        This function lists the records of the last scans of the user, newest
+        first: ID, DOMAIN (empty for every domain), MODE, TRIGGER, STATUS, START,
+        END, FILES, CHANGED, SKIPPED, ERRORS, FINDINGS, NEW, NEW_SUMMARY, RULES
+        and ERROR.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `USER` | yes |
+        | `arg2` | `FORMAT` | no |
+
+        **User argument:** with the access key of a user other than the admin, `arg1` must be the key's user.
+      x-arcpanel-user-arg: 1
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-list-user-malware-scans"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-list-user-malware-scans"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+            application/json:
+              schema:
+                type: object
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+  "/api/#v-list-user-malware-task":
+    post:
+      operationId: v-list-user-malware-task
+      tags:
+        - Users
+      summary: Show the current or last background malware scan of a user (E25)
+      description: |-
+        This function prints the task record (ID, DOMAIN, STATUS, EXIT, START,
+        END) of the scan started by v-start-user-malware-scan and the last LINES
+        lines of its output (default 100, at most 1000). STATUS is running, done
+        or failed; a running task whose process is gone is reported, and stored,
+        as failed. Without a task, STATUS is empty.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `USER` | yes |
+        | `arg2` | `LINES` | no |
+        | `arg3` | `FORMAT` | no |
+
+        **User argument:** with the access key of a user other than the admin, `arg1` must be the key's user.
+      x-arcpanel-user-arg: 1
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-list-user-malware-task"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-list-user-malware-task"
       responses:
         "200":
           description: "The output of the command; `OK` for an empty output with legacy authentication."
@@ -28177,6 +28776,56 @@ paths:
           $ref: "#/components/responses/InvalidRequest"
         "422":
           $ref: "#/components/responses/Unprocessable"
+  "/api/#v-restore-user-malware-quarantine":
+    post:
+      operationId: v-restore-user-malware-quarantine
+      tags:
+        - Users
+      summary: Put a quarantined file of a user back in place (E25)
+      description: |-
+        This function writes a quarantined file back to its path, as the user and
+        with its mode, and removes it from the quarantine. It refuses when a file
+        exists at that path (E_EXISTS) or its folder is gone (E_NOTEXIST). The
+        next scan reports the file again unless the user ignores it.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `USER` | yes |
+        | `arg2` | `ID` | yes |
+
+        **User argument:** with the access key of a user other than the admin, `arg1` must be the key's user.
+      x-arcpanel-user-arg: 1
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-restore-user-malware-quarantine"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-restore-user-malware-quarantine"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
   "/api/#v-restore-user-restic":
     post:
       operationId: v-restore-user-restic
@@ -28982,6 +29631,112 @@ paths:
             text/plain:
               schema:
                 type: string
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+  "/api/#v-scan-sys-web":
+    post:
+      operationId: v-scan-sys-web
+      tags:
+        - System
+      summary: Scan the web files of every user for malware (E25)
+      description: |-
+        This function is the nightly run of the malware scan: an incremental scan
+        (v-scan-user-web USER '' incremental nightly) of every user, one after the
+        other. A user whose scan is already running is skipped. When the run finds
+        new suspicious files, the administrator gets one e-mail with the number of
+        new findings per user and domain (no file names, no contents). Prints one
+        line per user.
+
+        **Arguments:** none.
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-scan-sys-web"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-scan-sys-web"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+  "/api/#v-scan-user-web":
+    post:
+      operationId: v-scan-user-web
+      tags:
+        - Users
+      summary: Scan the web files of a user for malware (E25)
+      description: |-
+        This function scans the public_html folder of one web domain, or of every
+        web domain of the user when DOMAIN is empty, with the malware scanner
+        (func/malware-scan.php) running as the user under nice and ionice. MODE is
+        full (default) or incremental (only new and changed files since the last
+        scan with the same rules). TRIGGER is manual (default) or nightly.
+
+        The open findings of the scanned domains are replaced by the result;
+        ignored and quarantined files are left out. New findings send a panel
+        notification to the user and the administrator. Prints the scan record.
+        A scan of the user that is already running answers E_INUSE.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `USER` | yes |
+        | `arg2` | `DOMAIN` | no |
+        | `arg3` | `MODE` | no |
+        | `arg4` | `TRIGGER` | no |
+        | `arg5` | `FORMAT` | no |
+
+        **User argument:** with the access key of a user other than the admin, `arg1` must be the key's user.
+      x-arcpanel-user-arg: 1
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-scan-user-web"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-scan-user-web"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+            application/json:
+              schema:
+                type: object
         "204":
           $ref: "#/components/responses/NoContent"
         "400":
@@ -29903,8 +30658,9 @@ paths:
         php-ext VERSION ADD DELETE  PHP extensions of one installed version to
         install and to remove (E41), comma lists of
         catalog names or "-"
-        plugin NAME on|off        filemanager, web-terminal, quota, cgroups or
-        firewall: v-add-sys-NAME or v-delete-sys-NAME
+        plugin NAME on|off        filemanager, web-terminal, quota, cgroups,
+        firewall or malware-scan: v-add-sys-NAME or
+        v-delete-sys-NAME
         arcpanel-update [PACKAGE]   v-update-sys-arcpanel PACKAGE, or every package
         package SLUG add|delete   v-add-sys-package or v-delete-sys-package of a
         system package of the catalog (E5)
@@ -29925,6 +30681,56 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/v-start-sys-task"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+  "/api/#v-start-user-malware-scan":
+    post:
+      operationId: v-start-user-malware-scan
+      tags:
+        - Users
+      summary: Start a malware scan of a user in the background (E25)
+      description: |-
+        This function starts a full v-scan-user-web of one web domain, or of every
+        web domain of the user when DOMAIN is empty, detached from the caller, and
+        prints the task ID. One scan per user runs at a time; the state and the
+        output are read with v-list-user-malware-task.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `USER` | yes |
+        | `arg2` | `DOMAIN` | no |
+
+        **User argument:** with the access key of a user other than the admin, `arg1` must be the key's user.
+      x-arcpanel-user-arg: 1
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-start-user-malware-scan"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-start-user-malware-scan"
       responses:
         "200":
           description: "The output of the command; `OK` for an empty output with legacy authentication."
@@ -37324,6 +38130,26 @@ components:
                 - "no"
             returncode:
               $ref: "#/components/schemas/ReturnCode"
+    v-add-sys-malware-scan:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-add-sys-malware-scan
+              default: v-add-sys-malware-scan
+            arg1:
+              type: string
+              title: MODE
+              description: "`MODE`, optional"
+              examples:
+                - quiet
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
     v-add-sys-node:
       allOf:
         - $ref: "#/components/schemas/Credentials"
@@ -37879,6 +38705,62 @@ components:
               description: "`USER`"
               examples:
                 - user
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
+    v-add-user-malware-ignore:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+            - arg2
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-add-user-malware-ignore
+              default: v-add-user-malware-ignore
+            arg1:
+              type: string
+              title: USER
+              description: "`USER`"
+              examples:
+                - alice
+            arg2:
+              type: string
+              title: FINDING
+              description: "`FINDING`"
+              examples:
+                - "3f2a9c0d1b4e5f60"
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
+    v-add-user-malware-quarantine:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+            - arg2
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-add-user-malware-quarantine
+              default: v-add-user-malware-quarantine
+            arg1:
+              type: string
+              title: USER
+              description: "`USER`"
+              examples:
+                - alice
+            arg2:
+              type: string
+              title: FINDING
+              description: "`FINDING`"
+              examples:
+                - "3f2a9c0d1b4e5f60"
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-add-user-node-version:
@@ -44798,6 +45680,26 @@ components:
               default: v-delete-sys-mail-queue
             returncode:
               $ref: "#/components/schemas/ReturnCode"
+    v-delete-sys-malware-scan:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-delete-sys-malware-scan
+              default: v-delete-sys-malware-scan
+            arg1:
+              type: string
+              title: MODE
+              description: "`MODE`, optional"
+              examples:
+                - quiet
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
     v-delete-sys-node-cache:
       allOf:
         - $ref: "#/components/schemas/Credentials"
@@ -45294,6 +46196,62 @@ components:
               description: "`USER`"
               examples:
                 - admin
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
+    v-delete-user-malware-ignore:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+            - arg2
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-delete-user-malware-ignore
+              default: v-delete-user-malware-ignore
+            arg1:
+              type: string
+              title: USER
+              description: "`USER`"
+              examples:
+                - alice
+            arg2:
+              type: string
+              title: SHA256
+              description: "`SHA256`"
+              examples:
+                - "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
+    v-delete-user-malware-quarantine:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+            - arg2
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-delete-user-malware-quarantine
+              default: v-delete-user-malware-quarantine
+            arg1:
+              type: string
+              title: USER
+              description: "`USER`"
+              examples:
+                - alice
+            arg2:
+              type: string
+              title: ID
+              description: "`ID`"
+              examples:
+                - "17602000001234"
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-delete-user-node-apps:
@@ -49331,6 +50289,31 @@ components:
               default: v-list-sys-mail-status
             returncode:
               $ref: "#/components/schemas/ReturnCode"
+    v-list-sys-malware-summary:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-list-sys-malware-summary
+              default: v-list-sys-malware-summary
+            arg1:
+              type: string
+              title: FORMAT
+              description: "`FORMAT`, optional"
+              enum:
+                - json
+                - plain
+                - csv
+                - shell
+              examples:
+                - json
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
     v-list-sys-memory-status:
       allOf:
         - $ref: "#/components/schemas/Credentials"
@@ -50401,6 +51384,172 @@ components:
               description: "`LINES`, optional"
               examples:
                 - "100"
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
+    v-list-user-malware-findings:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-list-user-malware-findings
+              default: v-list-user-malware-findings
+            arg1:
+              type: string
+              title: USER
+              description: "`USER`"
+              examples:
+                - alice
+            arg2:
+              type: string
+              title: FORMAT
+              description: "`FORMAT`, optional"
+              enum:
+                - json
+                - plain
+                - csv
+                - shell
+              examples:
+                - json
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
+    v-list-user-malware-ignores:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-list-user-malware-ignores
+              default: v-list-user-malware-ignores
+            arg1:
+              type: string
+              title: USER
+              description: "`USER`"
+              examples:
+                - alice
+            arg2:
+              type: string
+              title: FORMAT
+              description: "`FORMAT`, optional"
+              enum:
+                - json
+                - plain
+                - csv
+                - shell
+              examples:
+                - json
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
+    v-list-user-malware-quarantine:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-list-user-malware-quarantine
+              default: v-list-user-malware-quarantine
+            arg1:
+              type: string
+              title: USER
+              description: "`USER`"
+              examples:
+                - alice
+            arg2:
+              type: string
+              title: FORMAT
+              description: "`FORMAT`, optional"
+              enum:
+                - json
+                - plain
+                - csv
+                - shell
+              examples:
+                - json
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
+    v-list-user-malware-scans:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-list-user-malware-scans
+              default: v-list-user-malware-scans
+            arg1:
+              type: string
+              title: USER
+              description: "`USER`"
+              examples:
+                - alice
+            arg2:
+              type: string
+              title: FORMAT
+              description: "`FORMAT`, optional"
+              enum:
+                - json
+                - plain
+                - csv
+                - shell
+              examples:
+                - json
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
+    v-list-user-malware-task:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-list-user-malware-task
+              default: v-list-user-malware-task
+            arg1:
+              type: string
+              title: USER
+              description: "`USER`"
+              examples:
+                - alice
+            arg2:
+              type: string
+              title: LINES
+              description: "`LINES`, optional"
+              examples:
+                - "100"
+            arg3:
+              type: string
+              title: FORMAT
+              description: "`FORMAT`, optional"
+              enum:
+                - json
+                - plain
+                - csv
+                - shell
+              examples:
+                - json
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-list-user-node-task:
@@ -53063,6 +54212,34 @@ components:
                 - key
             returncode:
               $ref: "#/components/schemas/ReturnCode"
+    v-restore-user-malware-quarantine:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+            - arg2
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-restore-user-malware-quarantine
+              default: v-restore-user-malware-quarantine
+            arg1:
+              type: string
+              title: USER
+              description: "`USER`"
+              examples:
+                - alice
+            arg2:
+              type: string
+              title: ID
+              description: "`ID`"
+              examples:
+                - "17602000001234"
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
     v-restore-user-restic:
       allOf:
         - $ref: "#/components/schemas/Credentials"
@@ -53794,6 +54971,70 @@ components:
               description: "`EXPECTED_HASH`, optional"
               examples:
                 - "9f86d0…"
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
+    v-scan-sys-web:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-scan-sys-web
+              default: v-scan-sys-web
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
+    v-scan-user-web:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-scan-user-web
+              default: v-scan-user-web
+            arg1:
+              type: string
+              title: USER
+              description: "`USER`"
+              examples:
+                - alice
+            arg2:
+              type: string
+              title: DOMAIN
+              description: "`DOMAIN`, optional"
+              examples:
+                - example.com
+            arg3:
+              type: string
+              title: MODE
+              description: "`MODE`, optional"
+              examples:
+                - full
+            arg4:
+              type: string
+              title: TRIGGER
+              description: "`TRIGGER`, optional"
+              examples:
+                - manual
+            arg5:
+              type: string
+              title: FORMAT
+              description: "`FORMAT`, optional"
+              enum:
+                - json
+                - plain
+                - csv
+                - shell
+              examples:
+                - json
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-schedule-letsencrypt-domain:
@@ -54582,6 +55823,33 @@ components:
               description: "`ARG`, repeatable, optional"
               examples:
                 - ""
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
+    v-start-user-malware-scan:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-start-user-malware-scan
+              default: v-start-user-malware-scan
+            arg1:
+              type: string
+              title: USER
+              description: "`USER`"
+              examples:
+                - alice
+            arg2:
+              type: string
+              title: DOMAIN
+              description: "`DOMAIN`, optional"
+              examples:
+                - example.com
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-start-user-node-task:

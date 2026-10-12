@@ -1,0 +1,79 @@
+#!/bin/bash
+# info: scan the web files of every user for malware (E25)
+# options: NONE
+#
+# example: v-scan-sys-web
+#
+# This function is the nightly run of the malware scan: an incremental scan
+# (v-scan-user-web USER '' incremental nightly) of every user, one after the
+# other. A user whose scan is already running is skipped. When the run finds
+# new suspicious files, the administrator gets one e-mail with the number of
+# new findings per user and domain (no file names, no contents). Prints one
+# line per user.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Includes
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/malware.sh
+source $ARCPANEL/func/malware.sh
+# load config file
+source_conf "$ARCPANEL/conf/arcpanel.conf"
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+is_malware_scan_enabled
+
+# Perform verification if read-only mode is enabled
+check_arcpanel_demo_mode
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+report=''
+total=0
+for user in $("$BIN/v-list-users" json | jq -r 'keys[]'); do
+	result=$("$BIN/v-scan-user-web" "$user" '' incremental nightly json 2> /dev/null)
+	rc=$?
+	if [ "$rc" -eq "$E_INUSE" ]; then
+		echo "$user: skipped, a scan is running"
+		continue
+	fi
+	if ! jq -e 'type == "object"' <<< "$result" > /dev/null 2>&1; then
+		echo "$user: failed (exit code $rc)"
+		continue
+	fi
+	new=$(jq -r '.NEW' <<< "$result")
+	echo "$user: $(jq -r '"\(.FILES) files, \(.CHANGED) read, \(.FINDINGS) open, \(.NEW) new"' <<< "$result")"
+	if [ "$new" -gt 0 ]; then
+		total=$((total + new))
+		report+=$(jq -r --arg user "$user" '.NEW_SUMMARY[] |
+			"\($user) / \(.DOMAIN): \(.CRITICAL) critical, \(.HIGH) high, \(.MEDIUM) medium"' <<< "$result")
+		report+=$'\n'
+	fi
+done
+
+if [ "$total" -gt 0 ]; then
+	email=$(grep CONTACT "$ARCPANEL/data/users/$ROOT_USER/user.conf" | cut -f 2 -d \')
+	subject="Malware scan: $total new suspicious file(s) on $(hostname -f 2> /dev/null || hostname)"
+	if [ -n "$email" ]; then
+		printf '%s\n%s\n%s\n' "The nightly malware scan found new suspicious files:" "" "$report" \
+			| $SENDMAIL -s "$subject" "$email" 'yes'
+	fi
+fi
+
+#----------------------------------------------------------#
+#                         ArcPanel                         #
+#----------------------------------------------------------#
+
+log_event "$OK" "$ARGUMENTS"
+
+exit
