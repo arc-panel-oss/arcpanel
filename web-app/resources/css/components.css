@@ -4988,6 +4988,37 @@ a.ap-pick:focus-visible {
 	flex-basis: 100%;
 	margin: 0;
 }
+/* the PHP-FPM and CLI checkboxes and the action keep their columns, so the
+   rows line up whether an extension can be removed or not */
+.ap-php-extension-sapis {
+	flex: 0 0 auto;
+	justify-content: flex-end;
+	min-width: 160px;
+}
+.ap-php-extension-actions {
+	flex: 0 0 auto;
+	justify-content: flex-end;
+	min-width: 104px;
+}
+.ap-php-extension-tools {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: var(--ap-space-3);
+}
+.ap-php-extension-tools .ap-input-affix {
+	flex: 1 1 260px;
+	max-width: 420px;
+}
+@media (max-width: 767px) {
+	.ap-php-extension-sapis,
+	.ap-php-extension-actions {
+		min-width: 0;
+	}
+	.ap-php-extension-actions:empty {
+		display: none;
+	}
+}
 .ap-chips {
 	display: flex;
 	flex-wrap: wrap;
@@ -5017,14 +5048,36 @@ a.ap-pick:focus-visible {
 .ap-ini-marker.is-warning {
 	background: var(--ap-warn-subtle);
 }
-.ap-php-profiles {
-	display: grid;
-	grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+/* topics of the php.ini form */
+.ap-ini-section {
+	display: flex;
+	flex-direction: column;
 	gap: var(--ap-space-3);
-	margin: 0;
-	padding: 0;
-	list-style: none;
+	padding-block: var(--ap-space-4);
+	border-bottom: 1px solid var(--ap-border);
 }
-.ap-php-profiles .ap-pick {
-	height: 100%;
+.ap-ini-section:first-of-type {
+	padding-top: 0;
+}
+.ap-ini-section-title {
+	margin: 0;
+	color: var(--ap-fg-muted);
+	font-size: var(--ap-text-xs);
+	font-weight: 600;
+	letter-spacing: 0.06em;
+	text-transform: uppercase;
+}
+/* Edit and Delete of a profile side by side */
+.ap-php-profile-actions {
+	flex-wrap: nowrap;
+	justify-content: flex-end;
+}
+/* the description of a profile on its own line under the name */
+.ap-cell-note {
+	display: block;
+	margin-top: var(--ap-space-0-5);
+}
+/* profile cards of the domain PHP tab: one card does not stretch over the row */
+.ap-php-profile-picker .ap-picker {
+	grid-template-columns: repeat(auto-fill, minmax(min(240px, 100%), 1fr));
 }

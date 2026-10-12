@@ -3,6 +3,9 @@
     $statusTone = ['active' => 'ok', 'security' => 'warn', 'eol' => 'danger'];
     $statusLabel = ['active' => __('Active support'), 'security' => __('Security fixes only'), 'eol' => __('End of life'), 'unknown' => __('Unknown')];
     $installed = array_filter($versions, fn ($v) => $v['installed']);
+    // Newest first; versions that are gone for good (not installed, no longer installable) are named in the footer only
+    $retired = array_keys(array_filter($versions, fn ($v) => ! $v['installed'] && ! $v['installable']));
+    $rows = array_reverse(array_diff_key($versions, array_flip($retired)), true);
 @endphp
 <x-ap-page :title="__('PHP')" :crumbs="[['label' => __('Server')], ['label' => __('PHP')]]"
     :description="__('PHP versions, their extensions and php.ini, and the PHP-FPM profiles that packages offer to web domains.')">
@@ -17,8 +20,10 @@
     @if ($fpm && $installed !== [])
         <x-ap-card :title="__('Default PHP Version')" icon="hexagon">
             <x-ap-form :action="route('server.php.default')">
-                <x-ap-select name="version" :label="__('Default PHP Version')" :options="array_combine(array_keys($installed), array_keys($installed))" :value="$default"
-                    :hint="__('Version of the php command and of web domains on the default backend template.')" :disabled="! $canManage" />
+                <div class="ap-form-grid">
+                    <x-ap-select name="version" :label="__('Default PHP Version')" :options="array_combine(array_keys($installed), array_keys($installed))" :value="$default"
+                        :hint="__('Version of the php command and of web domains on the default backend template.')" :disabled="! $canManage" />
+                </div>
                 @if ($canManage)
                     <div class="ap-form-actions"><x-ap-button type="submit" variant="primary" icon="check">{{ __('Save') }}</x-ap-button></div>
                 @endif
@@ -29,6 +34,11 @@
     <x-ap-task-panel :task="$task" :title="__('Changing PHP')"
         :done-message="__('The task has finished.')" :fail-message="__('The task failed.')">
         <x-ap-card :title="__('PHP versions')" icon="layers" flush>
+            @if ($retired !== [])
+                <x-slot:footer>
+                    <span class="muted">{{ sprintf(__('Not shown: PHP %s, which reached their end of life and can no longer be installed.'), implode(', ', $retired)) }}</span>
+                </x-slot:footer>
+            @endif
             <x-ap-table id="php-versions" :searchable="false" :caption="__('PHP versions')" :columns="[
                 ['key' => 'version', 'label' => __('Version')],
                 ['key' => 'status', 'label' => __('Support')],
@@ -36,7 +46,7 @@
                 ['key' => 'domains', 'label' => __('Web domains'), 'type' => 'number'],
                 ['key' => 'extensions', 'label' => __('Extensions'), 'type' => 'number'],
             ]">
-                @foreach ($versions as $version => $state)
+                @foreach ($rows as $version => $state)
                     <tr data-row data-php-version="{{ $version }}">
                         <td data-col="version" data-label="{{ __('Version') }}">
                             @if ($state['installed'])
@@ -66,11 +76,11 @@
                         <td class="col-actions">
                             @if ($canManage && $fpm)
                                 @if (! $state['installed'] && $state['installable'] && $state['available'])
-                                    <form method="post" action="{{ route('server.php.versions') }}" data-confirm="{{ sprintf(__('Install PHP %s from the PHP repository now?'), $version) }}">
+                                    <form method="post" action="{{ route('server.php.versions') }}" data-confirm="{{ $state['status'] === 'eol' ? sprintf(__('PHP %s has reached its end of life and gets no security fixes. Install it anyway?'), $version) : sprintf(__('Install PHP %s from the PHP repository now?'), $version) }}">
                                         @csrf
                                         <input type="hidden" name="action" value="install">
                                         <input type="hidden" name="version" value="{{ $version }}">
-                                        <x-ap-button type="submit" size="sm" variant="primary" icon="download" x-bind:disabled="running">{{ __('Install') }}</x-ap-button>
+                                        <x-ap-button type="submit" size="sm" :variant="$state['status'] === 'eol' ? null : 'primary'" icon="download" x-bind:disabled="running">{{ __('Install') }}</x-ap-button>
                                     </form>
                                 @elseif ($state['installed'] && ($state['default'] || $state['usedBy'] !== []))
                                     <x-ap-button size="sm" icon="trash" disabled :title="$state['default'] ? __('Default version') : sprintf(__('Used by %s'), implode(', ', array_slice($state['usedBy'], 0, 5)))">{{ __('Remove') }}</x-ap-button>

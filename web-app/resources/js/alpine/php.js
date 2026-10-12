@@ -37,6 +37,37 @@ export function apPhpExtension({ url = '', fpm = false, cli = false } = {}) {
 	};
 }
 
+/**
+ * apPhpExtensionFilter: the search box and the state chips of the extension
+ * list. items maps each extension name to whether it is installed.
+ */
+export function apPhpExtensionFilter({ items = {} } = {}) {
+	return {
+		items,
+		query: '',
+		state: 'all',
+
+		shows(name) {
+			const query = this.query.trim().toLowerCase();
+			if (query !== '' && !name.toLowerCase().includes(query)) {
+				return false;
+			}
+			const installed = Boolean(this.items[name]);
+			return this.state === 'all' || (this.state === 'installed' ? installed : !installed);
+		},
+
+		/** Whether a group has an extension to show */
+		any(names) {
+			return names.some((name) => this.shows(name));
+		},
+
+		count(state) {
+			return Object.values(this.items).filter((installed) => state === 'all' || (state === 'installed') === installed)
+				.length;
+		},
+	};
+}
+
 /** apPhpProfile: the fields of the chosen process manager (spare servers for dynamic, idle timeout for ondemand). */
 export function apPhpProfile({ pm = 'ondemand' } = {}) {
 	return {

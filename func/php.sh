@@ -438,6 +438,22 @@ php_mod_enabled() {
 	php_mods_enabled "$1" "$2" | grep -qxF "$3"
 }
 
+# Modules compiled into the PHP binary of a version, one per line in lower
+# case: they have no mods-available file and are always on (sodium in the
+# Sury builds, opcache since PHP 8.5)
+php_mods_builtin() {
+	[ -x "/usr/bin/php$1" ] || return 0
+	"/usr/bin/php$1" -n -m 2> /dev/null | sed -n '/^\[PHP Modules\]/,/^\[Zend Modules\]/p' \
+		| grep -v '^\[' | tr '[:upper:]' '[:lower:]' | sed -e 's/^zend opcache$/opcache/' -e '/^$/d' | sort -u
+}
+
+# Whether the module of an extension is built into the binary of a version
+php_ext_builtin() {
+	local module
+	module=$(php_ext_get "$1" MODULE)
+	! php_mod_present "$2" "$module" && php_mods_builtin "$2" | grep -qxF "$module"
+}
+
 # Whether an extension is installed for a version: its package, or for a
 # toggle its module
 php_ext_installed() {

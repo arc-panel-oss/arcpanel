@@ -79,7 +79,7 @@ final class PackageController extends Controller
 
     public function edit(string $package, Principal $principal, PackagePolicy $policy): View
     {
-        $record = $this->actions->visibleOr404($principal, $package);
+        $record = $this->visibleOr404($principal, $policy, $package);
         abort_unless($policy->update($principal, $record), 403);
 
         return $this->form($principal, $policy, $record);
@@ -87,7 +87,7 @@ final class PackageController extends Controller
 
     public function update(PackageRequest $request, string $package, Principal $principal, PackagePolicy $policy): RedirectResponse
     {
-        $record = $this->actions->visibleOr404($principal, $package);
+        $record = $this->visibleOr404($principal, $policy, $package);
         abort_unless($policy->update($principal, $record), 403);
         $newName = PackageActions::resellerOf($principal) !== '' ? $record->name : (string) $request->input('name');
         $steps = $this->actions->planUpdate($principal, $record, $newName,
@@ -104,7 +104,7 @@ final class PackageController extends Controller
 
     public function copy(Request $request, string $package, Principal $principal, PackagePolicy $policy): RedirectResponse
     {
-        $record = $this->actions->visibleOr404($principal, $package);
+        $record = $this->visibleOr404($principal, $policy, $package);
         abort_unless($policy->abilities($principal, $record)['copy'], 403);
         $name = (string) $request->validate(['name' => ['required', 'string', 'max:60', 'regex:/^[[:alnum:]][-.\w]*$/']])['name'];
 
@@ -117,7 +117,7 @@ final class PackageController extends Controller
 
     public function destroy(string $package, Principal $principal, PackagePolicy $policy): RedirectResponse
     {
-        $record = $this->actions->visibleOr404($principal, $package);
+        $record = $this->visibleOr404($principal, $policy, $package);
         abort_unless($policy->delete($principal, $record), 403);
         if (($reason = $this->actions->deleteRefusal($record)) !== null) {
             return back()->with('error', $reason);
@@ -128,6 +128,14 @@ final class PackageController extends Controller
         return $result->ok()
             ? redirect()->route('packages.index')->with('ok', __('Package has been deleted.'))
             : back()->with('error', $result->error);
+    }
+
+    /** 403 for a principal without packages (a user), 404 for a package outside the tree */
+    private function visibleOr404(Principal $principal, PackagePolicy $policy, string $package): PackageRecord
+    {
+        abort_unless($policy->viewAny($principal), 403);
+
+        return $this->actions->visibleOr404($principal, $package);
     }
 
     private function form(Principal $principal, PackagePolicy $policy, ?PackageRecord $record): View

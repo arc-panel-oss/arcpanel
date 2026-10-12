@@ -29,20 +29,42 @@
         <x-ap-button icon="history" x-data x-on:click="$dispatch('ap-modal', { id: 'php-ini-backups' })">{{ sprintf(__('Backups (%d)'), count($backups)) }}</x-ap-button>
     </x-slot:actions>
     <p class="muted mono">{{ $ini['file'] }} · {{ sprintf(__('%s bytes'), number_format($ini['size'])) }} · {{ $ini['mtime'] }}</p>
+    @php
+        // The form directives by topic; a directive missing here goes to Other
+        $sections = [
+            __('Resource limits') => ['memory_limit', 'max_execution_time', 'max_input_time', 'max_input_vars', 'upload_max_filesize', 'post_max_size', 'max_file_uploads'],
+            __('Errors') => ['display_errors', 'log_errors', 'error_reporting'],
+            __('OPcache') => ['opcache.enable', 'opcache.validate_timestamps', 'opcache.memory_consumption', 'opcache.max_accelerated_files', 'opcache.revalidate_freq'],
+        ];
+        $grouped = array_merge(...array_values($sections));
+        $sections[__('Other')] = array_values(array_filter(\App\Services\Php\PhpManager::FORM_DIRECTIVES, fn ($d) => ! in_array($d, $grouped, true) && $d !== 'disable_functions'));
+    @endphp
     <x-ap-form :action="route('server.php.ini.values', ['version' => $version, 'sapi' => $sapi])">
-        <div class="ap-settings">
-            @foreach ($booleans as $directive)
-                <x-ap-switch :name="$field($directive)" :label="$labels[$directive]" :description="$directive.' · '.$hint($directive)"
-                    :checked="\App\Http\Controllers\Server\PhpController::truthy($ini['values'][$directive]['value'])" :disabled="! $canManage" />
-            @endforeach
-        </div>
-        <div class="ap-form-grid">
-            @foreach (\App\Services\Php\PhpManager::FORM_DIRECTIVES as $directive)
-                @continue(in_array($directive, $booleans, true) || $directive === 'disable_functions')
-                <x-ap-input :name="$field($directive)" :label="$labels[$directive]" :value="old($field($directive), $ini['values'][$directive]['value'])"
-                    :hint="$directive.' · '.$hint($directive)" mono :disabled="! $canManage" />
-            @endforeach
-        </div>
+        @foreach ($sections as $sectionLabel => $directives)
+            @php($directives = array_values(array_filter($directives, fn ($d) => isset($ini['values'][$d]))))
+            @continue($directives === [])
+            <div class="ap-ini-section">
+                <h3 class="ap-ini-section-title">{{ $sectionLabel }}</h3>
+                @php($switches = array_values(array_filter($directives, fn ($d) => in_array($d, $booleans, true))))
+                @if ($switches !== [])
+                    <div class="ap-settings">
+                        @foreach ($switches as $directive)
+                            <x-ap-switch :name="$field($directive)" :label="$labels[$directive]" :description="$directive.' · '.$hint($directive)"
+                                :checked="\App\Http\Controllers\Server\PhpController::truthy($ini['values'][$directive]['value'])" :disabled="! $canManage" />
+                        @endforeach
+                    </div>
+                @endif
+                @php($inputs = array_values(array_diff($directives, $switches)))
+                @if ($inputs !== [])
+                    <div class="ap-form-grid">
+                        @foreach ($inputs as $directive)
+                            <x-ap-input :name="$field($directive)" :label="$labels[$directive]" :value="old($field($directive), $ini['values'][$directive]['value'])"
+                                :hint="$directive.' · '.$hint($directive)" mono :disabled="! $canManage" />
+                        @endforeach
+                    </div>
+                @endif
+            </div>
+        @endforeach
         <div class="ap-field" x-data="apNameList({ items: @js($disabled) })">
             <input type="hidden" name="disable_functions_editor" value="1">
             <span class="ap-label">{{ $labels['disable_functions'] }} <span class="muted mono">disable_functions</span></span>

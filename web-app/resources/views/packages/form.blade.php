@@ -115,14 +115,14 @@
                 @if ($php['own'] !== null)
                     <p class="muted">{{ sprintf(__('Your plan: versions %1$s, profiles %2$s.'), $php['own']['PHP_VERSIONS'], $php['own']['PHP_PROFILES']) }}</p>
                 @endif
-                <fieldset class="ap-field ap-fieldset">
+                <fieldset class="ap-field ap-fieldset" x-data="{ all: false }" x-init="all = Boolean($el.querySelector('input[name=php_versions_all]')?.checked)">
                     <legend class="ap-label">{{ __('PHP versions') }}</legend>
                     @if ($php['own'] === null || $php['own']['PHP_VERSIONS'] === '*')
                         <div class="ap-settings">
-                            <x-ap-switch name="php_versions_all" :label="__('Every installed version')" :description="__('New versions too; versions at their end of life only when ticked below.')" :checked="$allVersions" />
+                            <x-ap-switch name="php_versions_all" :label="__('Every installed version')" :description="__('Versions installed later too, but no version at its end of life: to allow one, turn this off and tick the versions.')" :checked="$allVersions" x-model="all" />
                         </div>
                     @endif
-                    <div class="ap-check-grid">
+                    <div class="ap-check-grid" x-show="! all">
                         @foreach (array_unique([...array_keys($php['versions']), ...array_filter($phpVersions)]) as $version)
                             <x-ap-checkbox name="php_versions[]" :id="'pkg-php-'.str_replace('.', '-', $version)" :value="$version" :label="'PHP '.$version"
                                 :checked="in_array($version, $phpVersions, true)" :hint="$statusNote[$php['versions'][$version] ?? ''] ?? null" />
@@ -130,14 +130,14 @@
                     </div>
                     @error('php_versions')<p class="ap-error" role="alert">{{ $message }}</p>@enderror
                 </fieldset>
-                <fieldset class="ap-field ap-fieldset">
+                <fieldset class="ap-field ap-fieldset" x-data="{ all: false }" x-init="all = Boolean($el.querySelector('input[name=php_profiles_all]')?.checked)">
                     <legend class="ap-label">{{ __('PHP-FPM profiles') }}</legend>
                     @if ($php['own'] === null || $php['own']['PHP_PROFILES'] === '*')
                         <div class="ap-settings">
-                            <x-ap-switch name="php_profiles_all" :label="__('Every profile')" :description="__('Profiles added later too.')" :checked="$allProfiles" />
+                            <x-ap-switch name="php_profiles_all" :label="__('Every profile')" :description="__('Profiles added later too.')" :checked="$allProfiles" x-model="all" />
                         </div>
                     @endif
-                    <div class="ap-check-grid">
+                    <div class="ap-check-grid" x-show="! all">
                         @foreach ($profileChoices as $profile)
                             <x-ap-checkbox name="php_profiles[]" :id="'pkg-profile-'.$profile" :value="$profile" :label="$profile" :checked="in_array($profile, $phpProfiles, true)" />
                         @endforeach

@@ -60,6 +60,9 @@ case "$sapi" in
 esac
 
 module=$(php_ext_get "$name" MODULE)
+if php_ext_builtin "$name" "$version"; then
+	check_result "$E_FORBIDEN" "the extension $name is built into PHP $version and is always on"
+fi
 if ! php_ext_installed "$name" "$version"; then
 	check_result "$E_NOTEXIST" "the extension $name is not installed for PHP $version"
 fi

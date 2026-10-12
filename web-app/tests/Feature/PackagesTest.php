@@ -61,6 +61,11 @@ it('keeps users out of packages', function () {
     signIn('bob', 'user');
 
     $this->get('/packages')->assertForbidden();
+    // the package pages refuse before looking for the package
+    $this->get('/packages/default/edit')->assertForbidden();
+    $this->get('/packages/nosuch/edit')->assertForbidden();
+    $this->post('/packages/default/copy', ['name' => 'copy'])->assertForbidden();
+    $this->delete('/packages/default')->assertForbidden();
 });
 
 it('creates a package with reseller settings for an admin', function () {

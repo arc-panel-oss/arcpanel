@@ -37,7 +37,9 @@ test('admin: the PHP page lists the catalog and installs a version through the t
 		.getByRole('link', { name: 'PHP', exact: true })
 		.click();
 	await expect(page).toHaveURL(/\/server\/php$/);
-	await expect(page.locator('[data-php-version="7.3"]')).toContainText('No longer installable');
+	// versions that can no longer be installed are named under the table only
+	await expect(page.locator('[data-php-version="7.3"]')).toHaveCount(0);
+	await expect(page.getByText(/Not shown: PHP .*7\.3/)).toBeVisible();
 	await expect(page.locator('[data-php-version="8.4"]')).toContainText('Installed');
 	await expectAccessible(page);
 
@@ -61,6 +63,9 @@ test('admin: install an extension, turn it off for the command line, remove it',
 	await login(page, ADMIN);
 	await page.goto('/server/php/8.4/extensions');
 	await expectAccessible(page);
+	// the filter keeps the matching extensions and their groups only
+	await page.getByRole('searchbox', { name: 'Filter extensions' }).fill('uuid');
+	await expect(page.locator('li.ap-php-extension:visible')).toHaveCount(1);
 	const uuid = page.locator('[data-extension="uuid"]');
 	await uuid.getByRole('button', { name: 'Install' }).click();
 	await confirm(page);

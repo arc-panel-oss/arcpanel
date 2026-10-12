@@ -24,14 +24,14 @@
                 <div class="ap-form-grid">
                     <x-ap-select name="pm" :label="__('Process manager')" :value="$value('PM')" x-model="pm"
                         :options="['ondemand' => __('On demand: start processes when requests come'), 'dynamic' => __('Dynamic: keep spare processes ready'), 'static' => __('Static: a fixed number of processes')]" />
-                    <x-ap-input name="max_children" type="number" :label="__('Maximum processes')" :value="$value('MAX_CHILDREN')" mono required :hint="__('pm.max_children, 1 to 500.')" />
-                    <x-ap-input name="max_requests" type="number" :label="__('Requests per process')" :value="$value('MAX_REQUESTS')" mono required :hint="__('pm.max_requests; 0 never recycles a process.')" />
+                    <x-ap-input name="max_children" type="number" :label="__('Maximum processes')" :value="$value('MAX_CHILDREN')" min="1" max="500" mono required :hint="__('pm.max_children, 1 to 500.')" />
+                    <x-ap-input name="max_requests" type="number" :label="__('Requests per process')" :value="$value('MAX_REQUESTS')" min="0" max="100000" mono required :hint="__('pm.max_requests; 0 never recycles a process.')" />
                     <x-ap-input name="request_terminate_timeout" :label="__('Request timeout')" :value="$value('REQUEST_TERMINATE_TIMEOUT')" mono :hint="__('request_terminate_timeout, for example 300s; empty for none.')" />
                 </div>
                 <div class="ap-form-grid" x-show="pm === 'dynamic'" data-pm="dynamic">
-                    <x-ap-input name="start_servers" type="number" :label="__('Processes at start')" :value="$value('START_SERVERS')" mono x-bind:disabled="pm !== 'dynamic'" />
-                    <x-ap-input name="min_spare" type="number" :label="__('Minimum spare processes')" :value="$value('MIN_SPARE')" mono x-bind:disabled="pm !== 'dynamic'" />
-                    <x-ap-input name="max_spare" type="number" :label="__('Maximum spare processes')" :value="$value('MAX_SPARE')" mono x-bind:disabled="pm !== 'dynamic'"
+                    <x-ap-input name="start_servers" type="number" :label="__('Processes at start')" :value="$value('START_SERVERS')" min="1" max="500" mono x-bind:disabled="pm !== 'dynamic'" />
+                    <x-ap-input name="min_spare" type="number" :label="__('Minimum spare processes')" :value="$value('MIN_SPARE')" min="1" max="500" mono x-bind:disabled="pm !== 'dynamic'" />
+                    <x-ap-input name="max_spare" type="number" :label="__('Maximum spare processes')" :value="$value('MAX_SPARE')" min="1" max="500" mono x-bind:disabled="pm !== 'dynamic'"
                         :hint="__('Minimum spare ≤ at start ≤ maximum spare ≤ maximum processes.')" />
                 </div>
                 <div class="ap-form-grid" x-show="pm === 'ondemand'" data-pm="ondemand">
@@ -46,8 +46,8 @@
                     <x-ap-input name="memory_limit" :label="__('Memory limit')" :value="$value('MEMORY_LIMIT')" mono :hint="__('For example 256M; -1 for no limit.')" />
                     <x-ap-input name="upload_max_filesize" :label="__('Maximum upload size')" :value="$value('UPLOAD_MAX_FILESIZE')" mono />
                     <x-ap-input name="post_max_size" :label="__('Maximum POST size')" :value="$value('POST_MAX_SIZE')" mono :hint="__('At least the upload size.')" />
-                    <x-ap-input name="max_execution_time" type="number" :label="__('Maximum execution time')" :value="$value('MAX_EXECUTION_TIME')" mono :hint="__('Seconds.')" />
-                    <x-ap-input name="max_input_vars" type="number" :label="__('Maximum input variables')" :value="$value('MAX_INPUT_VARS')" mono />
+                    <x-ap-input name="max_execution_time" type="number" :label="__('Maximum execution time')" :value="$value('MAX_EXECUTION_TIME')" min="0" mono :hint="__('Seconds.')" />
+                    <x-ap-input name="max_input_vars" type="number" :label="__('Maximum input variables')" :value="$value('MAX_INPUT_VARS')" min="1" mono />
                 </div>
             </x-ap-card>
         </div>

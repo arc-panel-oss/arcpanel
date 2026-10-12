@@ -64,7 +64,8 @@ it('changes the version and the profile within the package', function () {
 
     $this->post('/web/domains/bob/example.com/php', ['php_version' => '8.3', 'php_profile' => 'small'])->assertSessionHas('ok', 'Nothing has changed.');
     $this->post('/web/domains/bob/example.com/php', ['php_version' => '8.2', 'php_profile' => 'small'])->assertSessionHasErrors('php_version', null, 'php');
-    $this->post('/web/domains/bob/example.com/php', ['php_version' => '8.4', 'php_profile' => 'large'])->assertSessionHasErrors('php_profile', null, 'php');
+    $this->post('/web/domains/bob/example.com/php', ['php_version' => '8.4', 'php_profile' => 'large'])
+        ->assertSessionHasErrors(['php_profile' => 'The package of this domain does not offer this profile.'], null, 'php');
     $this->fake->assertRan('v-change-web-domain-php', null, 1);
 
     $this->fake->on('v-change-web-domain-php')->returnsExit(ExitCode::Forbidden, 'Error: PHP 8.4 is not allowed by the package default');

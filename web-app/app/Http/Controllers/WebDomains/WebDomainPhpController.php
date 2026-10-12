@@ -37,6 +37,9 @@ final class WebDomainPhpController extends Controller
             $data = $request->validate([
                 'php_version' => ['required', 'string', Rule::in(array_values(array_unique($versions)))],
                 'php_profile' => ['required', 'string', Rule::in(array_values(array_unique($profiles)))],
+            ], [
+                'php_version.in' => __('The package of this domain does not offer this PHP version.'),
+                'php_profile.in' => __('The package of this domain does not offer this profile.'),
             ]);
         } catch (ValidationException $e) {
             throw $e->errorBag('php')->redirectTo($tab);

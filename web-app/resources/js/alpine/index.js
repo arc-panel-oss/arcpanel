@@ -13,7 +13,7 @@ import apNameServers from './name-servers.js';
 import apNotifications from './notifications.js';
 import apPalette from './palette.js';
 import apPassword from './password.js';
-import { apNameList, apPhpExtension, apPhpProfile } from './php.js';
+import { apNameList, apPhpExtension, apPhpExtensionFilter, apPhpProfile } from './php.js';
 import { autoTrim, focusFirst } from './plugins.js';
 import apRrdGraph from './rrd-graph.js';
 import apSecretStore from './secret-store.js';
@@ -44,6 +44,7 @@ export const modules = {
 	apPalette,
 	apPassword,
 	apPhpExtension,
+	apPhpExtensionFilter,
 	apPhpProfile,
 	apRrdGraph,
 	apSecretStore,

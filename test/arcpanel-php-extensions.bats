@@ -91,6 +91,20 @@ teardown_file() {
     assert_failure 2
 }
 
+@test "v-list-sys-php-extensions: a module built into PHP is on and cannot be changed" {
+    # The Sury builds compile sodium into the binary: no mods-available file
+    if [ -f /etc/php/$V/mods-available/sodium.ini ]; then
+        skip "sodium is a loadable module on this server"
+    fi
+    run bash -c "v-list-sys-php-extensions $V json | jq -r '.sodium | [.BUILTIN, .INSTALLED, .AVAILABLE, .FPM, .CLI] | join(\" \")'"
+    assert_output 'yes yes yes on on'
+    run bash -c "v-list-sys-php-extensions $V json | jq -r '.curl.BUILTIN'"
+    assert_output 'no'
+    run v-change-sys-php-extension $V sodium off
+    assert_failure 10
+    assert_output --partial 'built into PHP'
+}
+
 #----------------------------------------------------------#
 #                   Install and toggle                     #
 #----------------------------------------------------------#

@@ -198,10 +198,23 @@ final class PhpController extends Controller
             return $back->with('ok', __('Nothing has changed.'));
         }
         $result = $this->php->saveIniValues($version, $sapi, $changes);
+        if ($result->ok()) {
+            return $back->with('ok', __('Changes have been saved.'))->with('ok_detail', trim($result->stdout));
+        }
 
-        return $result->ok()
-            ? $back->with('ok', __('Changes have been saved.'))->with('ok_detail', trim($result->stdout))
-            : $back->withInput()->with('error', __('The php.ini was not saved.'))->with('error_detail', trim($result->stdout."\n".$result->stderr));
+        // The errors of the form's directives go to their fields; the rest stays in the notice
+        $fieldErrors = [];
+        foreach ($this->php->checkIniValues($version, $sapi, $changes) ?? [] as $finding) {
+            if ($finding['level'] === 'error' && in_array($finding['directive'], PhpManager::FORM_DIRECTIVES, true)) {
+                $fieldErrors[self::field($finding['directive'])] ??= $finding['message'];
+            }
+        }
+        if ($fieldErrors !== []) {
+            return $back->withInput()->withErrors($fieldErrors)
+                ->with('error', trans_choice('The php.ini was not saved: :count setting needs a change.|The php.ini was not saved: :count settings need a change.', count($fieldErrors), ['count' => count($fieldErrors)]));
+        }
+
+        return $back->withInput()->with('error', __('The php.ini was not saved.'))->with('error_detail', trim($result->stdout."\n".$result->stderr));
     }
 
     /** POST (JSON) ini/{sapi}/check: {content} → {findings} */

@@ -7,7 +7,8 @@
 # This function lists the extension catalog entries
 # (install/common/php/extensions.conf) that apply to an installed PHP version,
 # with INSTALLED and AVAILABLE (yes or no), FPM and CLI (on or off, whether the
-# module is enabled for that SAPI) and CATALOG='yes', followed by the modules
+# module is enabled for that SAPI), BUILTIN ('yes' for a module compiled into
+# the PHP binary, always on) and CATALOG='yes', followed by the modules
 # enabled on the server that the catalog does not list (CATALOG='no', read
 # only).
 
@@ -58,9 +59,10 @@ if [ "${#packages[@]}" -gt 0 ]; then
 fi
 fpm_mods=" $(php_mods_enabled "$version" fpm | tr '\n' ' ') "
 cli_mods=" $(php_mods_enabled "$version" cli | tr '\n' ' ') "
+builtin_mods=" $(php_mods_builtin "$version" | tr '\n' ' ') "
 
 # Tab-separated rows, turned into JSON by one jq call:
-# NAME PACKAGE MODULE GROUP REQUIRED CONFLICTS NOTE CATALOG TOGGLE_ONLY INSTALLED AVAILABLE FPM CLI
+# NAME PACKAGE MODULE GROUP REQUIRED CONFLICTS NOTE CATALOG TOGGLE_ONLY INSTALLED AVAILABLE FPM CLI BUILTIN
 rows=''
 modules=' '
 for name in $names; do
@@ -89,9 +91,18 @@ for name in $names; do
 	if [[ "$cli_mods" == *" $module "* ]]; then
 		cli=on
 	fi
+	# A module compiled into the binary is always on and cannot be changed
+	builtin=no
+	if [ "$installed" = 'no' ] && [[ "$builtin_mods" == *" $module "* ]] && ! php_mod_present "$version" "$module"; then
+		builtin=yes
+		installed=yes
+		available=yes
+		fpm=on
+		cli=on
+	fi
 	rows+="$name"$'\t'"$pkg"$'\t'"$module"$'\t'"$(php_kv "$line" GROUP)"$'\t'"$(php_kv "$line" REQUIRED)"$'\t'
 	rows+="$(php_kv "$line" CONFLICTS)"$'\t'"$(php_kv "$line" NOTE)"$'\t'"yes"$'\t'"$toggle"$'\t'"$installed"$'\t'
-	rows+="$available"$'\t'"$fpm"$'\t'"$cli"$'\n'
+	rows+="$available"$'\t'"$fpm"$'\t'"$cli"$'\t'"$builtin"$'\n'
 done
 
 # Modules enabled on the server that the catalog does not list
@@ -107,12 +118,12 @@ for module in $(printf '%s\n' $fpm_mods $cli_mods | sort -u); do
 	if [[ "$cli_mods" == *" $module "* ]]; then
 		cli=on
 	fi
-	rows+="$module"$'\t\t'"$module"$'\tother\tno\t\t\tno\tno\tyes\tyes\t'"$fpm"$'\t'"$cli"$'\n'
+	rows+="$module"$'\t\t'"$module"$'\tother\tno\t\t\tno\tno\tyes\tyes\t'"$fpm"$'\t'"$cli"$'\tno\n'
 done
 
 json=$(printf '%s' "$rows" | jq -Rn '[inputs | split("\t") | {key: .[0], value: {
 	PACKAGE: .[1], MODULE: .[2], GROUP: .[3], REQUIRED: .[4], CONFLICTS: .[5], NOTE: .[6], CATALOG: .[7],
-	TOGGLE_ONLY: .[8], INSTALLED: .[9], AVAILABLE: .[10], FPM: .[11], CLI: .[12]}}] | from_entries')
+	TOGGLE_ONLY: .[8], INSTALLED: .[9], AVAILABLE: .[10], FPM: .[11], CLI: .[12], BUILTIN: .[13]}}] | from_entries')
 
 case "$format" in
 	json) jq . <<< "$json" ;;

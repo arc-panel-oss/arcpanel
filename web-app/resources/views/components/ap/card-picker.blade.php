@@ -1,7 +1,8 @@
 {{--
     Cards as a radio group (apCardPicker): template and app selection
     (docs/design/09, 08). options: [value => [title, description?, logo?,
-    category?, badge?, badgeTone?, note?, meta?]]; categories: [key => label]
+    icon?, category?, badge?, badgeTone?, note?, meta?]]; icon shows an icon
+    instead of the logo letters; categories: [key => label]
     adds filter chips for the categories that have options; meta is shown in
     small print. The note of the picked option shows under the cards, followed
     by noteLink: [url, label] as a link, or [label] alone as text.
@@ -9,6 +10,10 @@
 @props(['name', 'label', 'options' => [], 'value' => null, 'searchable' => false, 'categories' => [], 'bag' => null, 'noteLink' => null])
 @php
     $current = (string) \App\View\FormField::old($name, $value);
+    // a refused value that is not one of the cards keeps the saved choice picked
+    if (! array_key_exists($current, $options)) {
+        $current = (string) $value;
+    }
     $error = \App\View\FormField::error($errors ?? null, $name, $bag);
     $used = array_unique(array_filter(array_map(fn ($option) => $option['category'] ?? null, $options)));
     $chips = array_intersect_key($categories, array_flip($used));
@@ -36,7 +41,11 @@
             <label class="ap-pick" data-card data-category="{{ $option['category'] ?? '' }}"
                 data-search="{{ mb_strtolower($optionValue.' '.($option['title'] ?? '').' '.($option['description'] ?? '')) }}">
                 <input type="radio" name="{{ $name }}" value="{{ $optionValue }}" @checked((string) $optionValue === $current)>
-                <span class="ap-pick-logo">{{ $option['logo'] ?? strtoupper(substr((string) ($option['title'] ?? $optionValue), 0, 2)) }}</span>
+                @if ($option['icon'] ?? null)
+                    <span class="ap-pick-logo"><x-ap-icon :name="$option['icon']" /></span>
+                @else
+                    <span class="ap-pick-logo">{{ $option['logo'] ?? strtoupper(substr((string) ($option['title'] ?? $optionValue), 0, 2)) }}</span>
+                @endif
                 <b>{{ $option['title'] ?? $optionValue }}</b>
                 @if ($option['description'] ?? null)<span>{{ $option['description'] }}</span>@endif
                 @if (($option['badge'] ?? null) || ($option['meta'] ?? null))

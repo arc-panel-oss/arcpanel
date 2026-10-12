@@ -85,6 +85,27 @@ describe('apPhpExtension', () => {
 	});
 });
 
+describe('apPhpExtensionFilter', () => {
+	it('filters the extensions by name and by state, and counts them', () => {
+		mount(`<div id="filter" x-data="apPhpExtensionFilter({ items: { redis: true, apcu: false, 'pdo_mysql': true } })"></div>`);
+		const filter = data(document.getElementById('filter'));
+		expect(filter.count('all')).toBe(3);
+		expect(filter.count('installed')).toBe(2);
+		expect(filter.count('available')).toBe(1);
+		expect(filter.shows('apcu')).toBe(true);
+
+		filter.state = 'installed';
+		expect(filter.shows('apcu')).toBe(false);
+		expect(filter.any(['apcu'])).toBe(false);
+		expect(filter.any(['apcu', 'redis'])).toBe(true);
+
+		filter.state = 'all';
+		filter.query = ' PDO ';
+		expect(filter.shows('pdo_mysql')).toBe(true);
+		expect(filter.shows('redis')).toBe(false);
+	});
+});
+
 describe('apPhpProfile', () => {
 	it('shows the fields of the chosen process manager', async () => {
 		mount(`<div id="form" x-data="apPhpProfile({ pm: 'ondemand' })">

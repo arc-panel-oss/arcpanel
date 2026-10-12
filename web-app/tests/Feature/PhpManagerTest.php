@@ -59,8 +59,11 @@ it('lists the versions of the catalog with support, end of life, usage and actio
     signIn('arcadmin', 'admin');
 
     $this->get('/server/php')->assertOk()
-        ->assertSeeInOrder(['PHP 7.3', 'No longer installable', 'End of life', 'PHP 8.2', 'Installed', 'Security fixes only', '2026-12-31', 'PHP 8.3', 'Default', 'PHP 8.4', 'Active support', 'PHP 8.5'])
+        ->assertSeeInOrder(['PHP 8.5', 'Active support', 'PHP 8.4', 'Installed', 'PHP 8.3', 'Default', 'PHP 8.2', 'Installed', 'Security fixes only', '2026-12-31'])
         ->assertSee('Install PHP 8.5 from the PHP repository now?')
+        // gone for good: named in the footer only
+        ->assertSee('Not shown: PHP 7.3, which reached their end of life and can no longer be installed.')
+        ->assertDontSee('No longer installable')
         ->assertDontSee('Install PHP 7.3')
         ->assertSee('Remove PHP 8.4 with its extensions?')
         ->assertDontSee('Remove PHP 8.3 with its extensions?')
@@ -119,7 +122,25 @@ it('lists the extensions by group with their notes and toggles', function () {
         ->assertSee('Install redis for PHP 8.4?')
         ->assertDontSee('Remove curl from PHP 8.4?')
         ->assertDontSee('Remove opcache from PHP 8.4?')
-        ->assertSee('php\/8.4\/extensions\/opcache', false);
+        ->assertSee('php\/8.4\/extensions\/opcache', false)
+        // the filter knows every extension and whether it is installed
+        ->assertSee('apPhpExtensionFilter', false)
+        ->assertSee('Filter extensions');
+});
+
+it('shows a module built into PHP as on and locked', function () {
+    $this->fake->on('v-list-sys-php-extensions')->returnsJson(phpExtensionRows() + [
+        'sodium' => ['PACKAGE' => '', 'MODULE' => 'sodium', 'GROUP' => 'security', 'REQUIRED' => 'no', 'CONFLICTS' => '', 'NOTE' => '', 'CATALOG' => 'yes',
+            'TOGGLE_ONLY' => 'yes', 'INSTALLED' => 'yes', 'AVAILABLE' => 'yes', 'FPM' => 'on', 'CLI' => 'on', 'BUILTIN' => 'yes'],
+    ]);
+    signIn('arcadmin', 'admin');
+
+    $html = $this->get('/server/php/8.4/extensions')->assertOk()
+        ->assertSeeInOrder(['Security', 'sodium', 'Built in'])
+        ->assertDontSee('Not available for this version')
+        ->getContent();
+    preg_match('/<li class="ap-php-extension" data-extension="sodium".*?<\/li>/s', $html, $row);
+    expect($row[0] ?? '')->toContain('aria-label="sodium for PHP-FPM"')->toContain('x-bind:disabled="busy || true"');
 });
 
 it('installs and removes an extension as the system task', function () {
@@ -194,7 +215,15 @@ it('saves only the changed directives of the form', function () {
         && $a[2] === "memory_limit=256M\ndisplay_errors=On\ndisable_functions=exec,system,passthru\n");
 
     $this->fake->on('v-change-sys-php-ini-values')->returnsExit(ExitCode::Invalid, "line 435: error: memory_limit must be a size such as 128M\nError: the php.ini was not saved");
+    $this->fake->on('v-check-sys-php-ini')->returnsJson([['line' => 435, 'level' => 'error', 'directive' => 'memory_limit', 'message' => 'memory_limit must be a size such as 128M']]);
     $form['memory_limit'] = 'lots';
+    // the findings of the form's directives go to their fields
+    $this->post('/server/php/8.4/ini/fpm', $form)->assertSessionHas('error', 'The php.ini was not saved: 1 setting needs a change.')
+        ->assertSessionHasErrors(['memory_limit' => 'memory_limit must be a size such as 128M']);
+    $this->fake->assertRan('v-check-sys-php-ini', fn ($a) => $a[0] === '8.4' && $a[1] === 'fpm' && $a[4] === 'values' && str_contains($a[2], 'memory_limit=lots'));
+
+    // a failure the check cannot place keeps the output of the command
+    $this->fake->on('v-check-sys-php-ini')->returnsJson([]);
     $this->post('/server/php/8.4/ini/fpm', $form)->assertSessionHas('error', 'The php.ini was not saved.')
         ->assertSessionHas('error_detail', fn ($detail) => str_contains($detail, 'memory_limit must be a size'));
 
@@ -241,7 +270,8 @@ it('lists the profiles with their usage', function () {
     signIn('arcadmin', 'admin');
 
     $this->get('/server/php/profiles')->assertOk()
-        ->assertSeeInOrder(['default', 'Shipped', 'large', 'medium', 'shop', 'Shops', 'Dynamic', '512M', '3', 'gold', 'small'])
+        ->assertSeeInOrder(['default', 'Shipped', 'small', 'medium', 'large', 'shop', 'Shops', 'Dynamic', '512M', '3', 'gold'])
+        ->assertSee(route('server.php.profiles.edit', ['profile' => 'shop']), false)
         ->assertSee('Profile shop is used by 3 web domains and named by packages gold. Delete it and move them to the default profile?')
         ->assertSee('Delete profile small?')
         ->assertDontSee('Delete profile default?');
@@ -268,9 +298,19 @@ it('creates, changes and deletes a profile', function () {
     ])->assertRedirect('/server/php/profiles');
     $this->fake->assertRan('v-change-sys-php-profile', fn ($a) => $a[0] === 'medium' && str_contains($a[1], "MAX_CHILDREN='30'"));
 
-    $this->fake->on('v-change-sys-php-profile')->returnsExit(ExitCode::Invalid, 'Error: MIN_SPARE <= START_SERVERS <= MAX_SPARE <= MAX_CHILDREN must hold');
+    // the relations of the fields are checked before the command runs, each at its field
     $this->from('/server/php/profiles/medium/edit')->put('/server/php/profiles/medium', [
-        'pm' => 'dynamic', 'max_children' => '3', 'max_requests' => '1000', 'start_servers' => '4', 'min_spare' => '2', 'max_spare' => '6',
+        'pm' => 'dynamic', 'max_children' => '3', 'max_requests' => '1000', 'start_servers' => '4', 'min_spare' => '5', 'max_spare' => '6',
+        'upload_max_filesize' => '1G', 'post_max_size' => '512M',
+    ])->assertRedirect('/server/php/profiles/medium/edit')
+        ->assertSessionHasErrors(['min_spare' => 'At most the processes at start.', 'max_spare' => 'At most the maximum processes.', 'post_max_size' => 'At least the upload size.']);
+    $this->put('/server/php/profiles/medium', ['pm' => 'dynamic', 'max_children' => '30', 'max_requests' => '1', 'start_servers' => '8', 'min_spare' => '2', 'max_spare' => '6'])
+        ->assertSessionHasErrors(['start_servers' => 'At most the maximum spare processes.']);
+
+    // what the form cannot check stays the command's
+    $this->fake->on('v-change-sys-php-profile')->returnsExit(ExitCode::Invalid, 'Error: the profile is not valid');
+    $this->from('/server/php/profiles/medium/edit')->put('/server/php/profiles/medium', [
+        'pm' => 'dynamic', 'max_children' => '30', 'max_requests' => '1000', 'start_servers' => '4', 'min_spare' => '2', 'max_spare' => '6',
     ])->assertRedirect('/server/php/profiles/medium/edit')->assertSessionHas('error');
 
     $this->put('/server/php/profiles/medium', ['pm' => 'dynamic', 'max_children' => '30', 'max_requests' => '1'])->assertSessionHasErrors(['start_servers', 'min_spare', 'max_spare']);

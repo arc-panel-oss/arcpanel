@@ -14,7 +14,7 @@
         $v = $profile['values'];
         $profileOptions[$name] = [
             'title' => $name,
-            'logo' => strtoupper(substr($name, 0, 2)),
+            'icon' => 'cpu',
             'description' => $v['DESCRIPTION'],
             'meta' => sprintf(__('%1$s · up to %2$s processes · memory %3$s'), $pmLabel[$v['PM']] ?? $v['PM'], $v['MAX_CHILDREN'], $v['MEMORY_LIMIT'] !== '' ? $v['MEMORY_LIMIT'] : __('from php.ini')),
             'badge' => ! in_array($name, $php['profiles'], true) ? __('Outside the package') : null,
@@ -47,7 +47,10 @@
             :placeholder="$php['version'] === '' ? __('Choose a version') : null"
             :hint="isset($php['versions'][$php['version']]['eol']) && $php['versions'][$php['version']]['eol'] !== '' ? sprintf(__('Supported until %s.'), $php['versions'][$php['version']]['eol']) : null"
             :disabled="! $canChange" />
-        <x-ap-card-picker name="php_profile" :label="__('PHP-FPM profile')" :options="$profileOptions" :value="$php['profile']" bag="php" />
+        <x-ap-card-picker name="php_profile" :label="__('PHP-FPM profile')" :options="$profileOptions" :value="$php['profile']" bag="php" class="ap-php-profile-picker" />
+        @if (count($profileOptions) === 1)
+            <p class="ap-hint">{{ __('The package of this domain offers this profile only.') }}</p>
+        @endif
         @if ($canChange)
             <div class="ap-form-actions"><x-ap-button type="submit" variant="primary" icon="check">{{ __('Save') }}</x-ap-button></div>
         @endif

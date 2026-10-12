@@ -28,7 +28,7 @@
                             <x-ap-badge>{{ __('Shipped') }}</x-ap-badge>
                         @endif
                         @if ($v['DESCRIPTION'] !== '')
-                            <small class="muted">{{ $v['DESCRIPTION'] }}</small>
+                            <small class="muted ap-cell-note">{{ $v['DESCRIPTION'] }}</small>
                         @endif
                     </td>
                     <td data-col="pm" data-label="{{ __('Process manager') }}">{{ $pmLabel[$v['PM']] ?? $v['PM'] }}</td>
@@ -37,6 +37,10 @@
                     <td data-col="domains" data-label="{{ __('Web domains') }}" class="col-num mono">{{ $profile['domains'] }}</td>
                     <td data-col="packages" data-label="{{ __('Packages') }}" class="muted">{{ $profile['packages'] !== [] ? implode(', ', $profile['packages']) : '—' }}</td>
                     <td class="col-actions">
+                        <div class="ap-row ap-php-profile-actions">
+                        @if ($canManage)
+                            <x-ap-button size="sm" icon="edit" :href="route('server.php.profiles.edit', ['profile' => $name])" :aria-label="sprintf(__('Edit profile %s'), $name)">{{ __('Edit') }}</x-ap-button>
+                        @endif
                         @if ($canManage && $name !== 'default')
                             @if ($profile['domains'] > 0 || $profile['packages'] !== [])
                                 <form method="post" action="{{ route('server.php.profiles.destroy', ['profile' => $name]) }}" data-confirm-danger
@@ -51,6 +55,7 @@
                                     :confirm="sprintf(__('Delete profile %s?'), $name)">{{ __('Delete') }}</x-ap-button>
                             @endif
                         @endif
+                        </div>
                     </td>
                 </tr>
             @endforeach

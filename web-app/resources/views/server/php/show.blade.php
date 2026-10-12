@@ -61,74 +61,98 @@
             'cache' => __('Caching'), 'database' => __('Databases'), 'image' => __('Images'), 'format' => __('Formats and text'),
             'network' => __('Network'), 'security' => __('Security'), 'async' => __('Queues and async'), 'debug' => __('Debugging'), 'other' => __('Other'),
         ])
+        @php($filterItems = [])
+        @foreach ($groups as $extensions)
+            @foreach ($extensions as $ext)
+                @php($filterItems[$ext['name']] = $ext['installed'])
+            @endforeach
+        @endforeach
         <x-ap-task-panel :task="$task" :title="__('Changing extensions')"
             :done-message="__('The task has finished.')" :fail-message="__('The task failed.')">
-            @foreach ($groups as $group => $extensions)
-                <x-ap-card :title="$groupLabels[$group] ?? $group" icon="package" flush>
-                    <ul class="ap-list ap-php-extensions" role="list">
-                        @foreach ($extensions as $ext)
-                            @php($toggle = route('server.php.extensions.toggle', ['version' => $version, 'name' => $ext['name']]))
-                            <li class="ap-php-extension" data-extension="{{ $ext['name'] }}"
-                                x-data="apPhpExtension({ url: @js($toggle), fpm: @js($ext['fpm']), cli: @js($ext['cli']) })">
-                                <div class="ap-php-extension-name">
-                                    <b class="mono">{{ $ext['name'] }}</b>
-                                    @if ($ext['required'])
-                                        <x-ap-badge tone="info">{{ __('Required') }}</x-ap-badge>
-                                    @endif
-                                    @if (! $ext['catalog'])
-                                        <x-ap-badge>{{ __('Not managed by the panel') }}</x-ap-badge>
-                                    @elseif ($ext['installed'])
-                                        <x-ap-badge tone="ok">{{ __('Installed') }}</x-ap-badge>
-                                    @elseif (! $ext['available'])
-                                        <x-ap-badge>{{ __('Not available for this version') }}</x-ap-badge>
-                                    @endif
-                                    @if ($ext['note'] !== '')
-                                        <small class="muted">{{ $ext['note'] }}</small>
-                                    @endif
-                                    @if ($ext['conflicts'] !== [])
-                                        <small class="muted">{{ sprintf(__('Cannot be enabled together with %s'), implode(', ', $ext['conflicts'])) }}</small>
-                                    @endif
-                                </div>
-                                @if ($ext['installed'])
-                                    <div class="ap-row ap-php-extension-sapis">
-                                        @foreach (['fpm' => 'PHP-FPM', 'cli' => __('CLI')] as $sapi => $sapiLabel)
-                                            <label class="ap-check">
-                                                <input type="checkbox" x-model="{{ $sapi }}" x-on:change="toggle('{{ $sapi }}')"
-                                                    @disabled(! $canManage || ! $ext['catalog'] || ($ext['required'] && $ext[$sapi]))
-                                                    x-bind:disabled="busy || {{ ! $canManage || ! $ext['catalog'] || ($ext['required'] && $ext[$sapi]) ? 'true' : 'false' }}"
-                                                    aria-label="{{ sprintf(__('%1$s for %2$s'), $ext['name'], $sapiLabel) }}">
-                                                <span>{{ $sapiLabel }}</span>
-                                            </label>
-                                        @endforeach
-                                    </div>
-                                @endif
-                                @if ($canManage && $ext['catalog'] && ! $ext['toggleOnly'])
-                                    <div class="ap-row">
-                                        @if (! $ext['installed'] && $ext['available'])
-                                            <form method="post" action="{{ route('server.php.extensions', ['version' => $version]) }}"
-                                                data-confirm="{{ sprintf(__('Install %1$s for PHP %2$s?'), $ext['name'], $version) }}">
-                                                @csrf
-                                                <input type="hidden" name="action" value="install">
-                                                <input type="hidden" name="name" value="{{ $ext['name'] }}">
-                                                <x-ap-button type="submit" size="sm" variant="primary" icon="download" x-bind:disabled="running">{{ __('Install') }}</x-ap-button>
-                                            </form>
-                                        @elseif ($ext['installed'] && ! $ext['required'])
-                                            <form method="post" action="{{ route('server.php.extensions', ['version' => $version]) }}"
-                                                data-confirm="{{ sprintf(__('Remove %1$s from PHP %2$s?'), $ext['name'], $version) }}" data-confirm-danger>
-                                                @csrf
-                                                <input type="hidden" name="action" value="remove">
-                                                <input type="hidden" name="name" value="{{ $ext['name'] }}">
-                                                <x-ap-button type="submit" size="sm" icon="trash" x-bind:disabled="running">{{ __('Remove') }}</x-ap-button>
-                                            </form>
+            <div class="ap-stack" x-data="apPhpExtensionFilter({ items: @js($filterItems) })">
+                <div class="ap-php-extension-tools">
+                    <div class="ap-input-affix">
+                        <x-ap-icon name="search" size="sm" />
+                        <input class="ap-input" type="search" x-model="query" placeholder="{{ __('Filter extensions') }}" aria-label="{{ __('Filter extensions') }}">
+                    </div>
+                    <div class="ap-row ap-picker-chips" role="group" aria-label="{{ __('Show') }}">
+                        @foreach (['all' => __('All'), 'installed' => __('Installed'), 'available' => __('Not installed')] as $state => $stateLabel)
+                            <button type="button" class="ap-chip" x-bind:class="{ 'is-on': state === @js($state) }" x-bind:aria-pressed="state === @js($state)"
+                                x-on:click="state = @js($state)">{{ $stateLabel }} <span class="muted" x-text="count(@js($state))"></span></button>
+                        @endforeach
+                    </div>
+                </div>
+                @foreach ($groups as $group => $extensions)
+                    <x-ap-card :title="$groupLabels[$group] ?? $group" icon="package" flush :x-show="'any('.json_encode(array_column($extensions, 'name')).')'">
+                        <ul class="ap-list ap-php-extensions" role="list">
+                            @foreach ($extensions as $ext)
+                                @php($toggle = route('server.php.extensions.toggle', ['version' => $version, 'name' => $ext['name']]))
+                                @php($locked = ! $canManage || ! $ext['catalog'] || $ext['builtin'])
+                                <li class="ap-php-extension" data-extension="{{ $ext['name'] }}" x-show="shows(@js($ext['name']))"
+                                    x-data="apPhpExtension({ url: @js($toggle), fpm: @js($ext['fpm']), cli: @js($ext['cli']) })">
+                                    <div class="ap-php-extension-name">
+                                        <b class="mono">{{ $ext['name'] }}</b>
+                                        @if ($ext['required'])
+                                            <x-ap-badge tone="info">{{ __('Required') }}</x-ap-badge>
+                                        @endif
+                                        @if (! $ext['catalog'])
+                                            <x-ap-badge>{{ __('Not managed by the panel') }}</x-ap-badge>
+                                        @elseif ($ext['builtin'])
+                                            <x-ap-badge tone="ok" :title="__('Compiled into PHP: always on')">{{ __('Built in') }}</x-ap-badge>
+                                        @elseif ($ext['installed'])
+                                            <x-ap-badge tone="ok">{{ __('Installed') }}</x-ap-badge>
+                                        @elseif (! $ext['available'])
+                                            <x-ap-badge>{{ __('Not available for this version') }}</x-ap-badge>
+                                        @endif
+                                        @if ($ext['note'] !== '' && ! $ext['builtin'])
+                                            <small class="muted">{{ $ext['note'] }}</small>
+                                        @endif
+                                        @if ($ext['conflicts'] !== [])
+                                            <small class="muted">{{ sprintf(__('Cannot be enabled together with %s'), implode(', ', $ext['conflicts'])) }}</small>
                                         @endif
                                     </div>
-                                @endif
-                                <p class="ap-error" role="alert" x-show="error" x-text="error" x-cloak></p>
-                            </li>
-                        @endforeach
-                    </ul>
-                </x-ap-card>
-            @endforeach
+                                    <div class="ap-row ap-php-extension-sapis">
+                                        @if ($ext['installed'])
+                                            @foreach (['fpm' => 'PHP-FPM', 'cli' => __('CLI')] as $sapi => $sapiLabel)
+                                                <label class="ap-check">
+                                                    <input type="checkbox" x-model="{{ $sapi }}" x-on:change="toggle('{{ $sapi }}')"
+                                                        @disabled($locked || ($ext['required'] && $ext[$sapi]))
+                                                        x-bind:disabled="busy || {{ $locked || ($ext['required'] && $ext[$sapi]) ? 'true' : 'false' }}"
+                                                        aria-label="{{ sprintf(__('%1$s for %2$s'), $ext['name'], $sapiLabel) }}">
+                                                    <span>{{ $sapiLabel }}</span>
+                                                </label>
+                                            @endforeach
+                                        @endif
+                                    </div>
+                                    <div class="ap-row ap-php-extension-actions">
+                                        @if ($canManage && $ext['catalog'] && ! $ext['toggleOnly'])
+                                            @if (! $ext['installed'] && $ext['available'])
+                                                <form method="post" action="{{ route('server.php.extensions', ['version' => $version]) }}"
+                                                    data-confirm="{{ sprintf(__('Install %1$s for PHP %2$s?'), $ext['name'], $version) }}">
+                                                    @csrf
+                                                    <input type="hidden" name="action" value="install">
+                                                    <input type="hidden" name="name" value="{{ $ext['name'] }}">
+                                                    <x-ap-button type="submit" size="sm" variant="primary" icon="download" x-bind:disabled="running">{{ __('Install') }}</x-ap-button>
+                                                </form>
+                                            @elseif ($ext['installed'] && ! $ext['required'])
+                                                <form method="post" action="{{ route('server.php.extensions', ['version' => $version]) }}"
+                                                    data-confirm="{{ sprintf(__('Remove %1$s from PHP %2$s?'), $ext['name'], $version) }}" data-confirm-danger>
+                                                    @csrf
+                                                    <input type="hidden" name="action" value="remove">
+                                                    <input type="hidden" name="name" value="{{ $ext['name'] }}">
+                                                    <x-ap-button type="submit" size="sm" icon="trash" x-bind:disabled="running">{{ __('Remove') }}</x-ap-button>
+                                                </form>
+                                            @endif
+                                        @endif
+                                    </div>
+                                    <p class="ap-error" role="alert" x-show="error" x-text="error" x-cloak></p>
+                                </li>
+                            @endforeach
+                        </ul>
+                    </x-ap-card>
+                @endforeach
+                <x-ap-empty icon="search" :title="__('No extension matches')" x-show="! any(Object.keys(items))" x-cloak>{{ __('Change the filter to see more extensions.') }}</x-ap-empty>
+            </div>
         </x-ap-task-panel>
     @else
         @include('server.php.partials.ini')

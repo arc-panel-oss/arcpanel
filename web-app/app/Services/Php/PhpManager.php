@@ -43,6 +43,9 @@ final class PhpManager
 
     public const PROFILE_MANAGERS = ['ondemand', 'dynamic', 'static'];
 
+    /** The shipped profiles from the smallest pool to the largest, the order of the lists */
+    public const SHIPPED_PROFILE_ORDER = ['default', 'small', 'medium', 'large'];
+
     /** @var array<string, array<string, mixed>>|null per request */
     private ?array $versions = null;
 
@@ -164,7 +167,7 @@ final class PhpManager
     /**
      * The extensions of an installed version (`v-list-sys-php-extensions VERSION json`).
      *
-     * @return array<string, array{name: string, package: string, module: string, group: string, required: bool, conflicts: list<string>, note: string, catalog: bool, toggleOnly: bool, installed: bool, available: bool, fpm: bool, cli: bool}>
+     * @return array<string, array{name: string, package: string, module: string, group: string, required: bool, conflicts: list<string>, note: string, catalog: bool, toggleOnly: bool, installed: bool, available: bool, fpm: bool, cli: bool, builtin: bool}>
      */
     public function extensions(string $version): array
     {
@@ -187,6 +190,8 @@ final class PhpManager
                 'available' => ($row['AVAILABLE'] ?? '') === 'yes',
                 'fpm' => ($row['FPM'] ?? '') === 'on',
                 'cli' => ($row['CLI'] ?? '') === 'on',
+                // compiled into the binary: always on (E41)
+                'builtin' => ($row['BUILTIN'] ?? '') === 'yes',
             ];
         }
         ksort($extensions);
@@ -395,7 +400,13 @@ final class PhpManager
                     $this->profiles[(string) $name] = self::profileRow((string) $name, $row);
                 }
             }
-            uksort($this->profiles, fn (string $a, string $b) => [$a !== 'default', $a] <=> [$b !== 'default', $b]);
+            // default, the shipped sizes from small to large, then the others by name
+            $rank = function (string $name): array {
+                $position = array_search($name, self::SHIPPED_PROFILE_ORDER, true);
+
+                return [$position === false ? count(self::SHIPPED_PROFILE_ORDER) : $position, $name];
+            };
+            uksort($this->profiles, fn (string $a, string $b) => $rank($a) <=> $rank($b));
         }
 
         return $this->profiles;
