@@ -544,13 +544,15 @@ Route::middleware('auth.arc')->group(function () {
         });
     });
 
-    // Malware scan (E25 batch 1 spec §8); 404 while the plugin is off
-    Route::middleware('sys-config:MALWARE_SCAN=yes')->group(function () {
-        Route::get('/malware', [MalwareController::class, 'entry'])->name('malware.index');
-        Route::prefix('malware/{user}')->name('malware.')->middleware('effective-user')->group(function () {
-            $finding = ['finding' => '[a-f0-9]{16}'];
-            $quarantined = ['id' => '[0-9]{14}'];
-            Route::get('/', [MalwareController::class, 'show'])->name('show');
+    // Malware scan (E25 batch 1 spec §8). While the plugin is off the two
+    // pages say so (links of earlier notifications land there) and every
+    // other route answers 404.
+    Route::get('/malware', [MalwareController::class, 'entry'])->name('malware.index');
+    Route::prefix('malware/{user}')->name('malware.')->middleware('effective-user')->group(function () {
+        $finding = ['finding' => '[a-f0-9]{16}'];
+        $quarantined = ['id' => '[0-9]{14}'];
+        Route::get('/', [MalwareController::class, 'show'])->name('show');
+        Route::middleware('sys-config:MALWARE_SCAN=yes')->group(function () use ($finding, $quarantined) {
             Route::get('/task', [MalwareController::class, 'task'])->name('task');
             Route::middleware('not-readonly')->group(function () use ($finding, $quarantined) {
                 Route::post('/scan', [MalwareController::class, 'scan'])->name('scan');
