@@ -3,7 +3,7 @@
 // ruby) as the system task, sees the Rails template's Ruby badge turn from
 // red to green in the web domain form, and removes the entry again.
 import { expect, test } from '@playwright/test';
-import { ADMIN, expectAccessible, expectToast, login, USER } from './helpers.js';
+import { ADMIN, expectAccessible, expectToast, login, openSection, USER } from './helpers.js';
 import { runOnServer } from './server.js';
 
 test.describe.configure({ mode: 'serial' });
@@ -52,10 +52,7 @@ test('admin: install the entry as the system task and see the badge turn green',
 }) => {
 	test.setTimeout(300_000);
 	await login(page, ADMIN);
-	await page
-		.getByRole('navigation', { name: 'Sections' })
-		.getByRole('link', { name: 'System packages' })
-		.click();
+	await openSection(page, 'System packages', 'Updates', 'System packages');
 	await expect(page).toHaveURL(/\/server\/packages$/);
 	const entry = page.locator('[data-package="arctest-e2e"]');
 	await expect(entry).toContainText('Not installed');

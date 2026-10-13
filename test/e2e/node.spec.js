@@ -4,7 +4,7 @@
 // no entry and cannot change anything. Downloads come from nodejs.org and
 // the npm registry (cached on the server after the first run).
 import { expect, test } from '@playwright/test';
-import { DEV, expectAccessible, expectToast, login, USER } from './helpers.js';
+import { DEV, expectAccessible, expectToast, login, openSection, USER } from './helpers.js';
 
 test.describe.configure({ timeout: 900_000 });
 
@@ -30,10 +30,7 @@ test('a developer installs runtimes and global packages from the Node.js page', 
 	page,
 }) => {
 	await login(page, DEV);
-	await page
-		.getByRole('navigation', { name: 'Sections' })
-		.getByRole('link', { name: 'Node.js' })
-		.click();
+	await openSection(page, 'Node.js', 'Node apps', 'Runtimes');
 	await expect(page.getByRole('heading', { name: 'Node.js', level: 1 })).toBeVisible();
 	await expectAccessible(page);
 

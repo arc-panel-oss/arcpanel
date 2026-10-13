@@ -13,6 +13,7 @@ import {
 	expectAccessible,
 	expectToast,
 	login,
+	openSection,
 	RESELLER,
 	SITE,
 	USER,
@@ -66,10 +67,7 @@ test('a user browses, creates and uploads a folder and a 200 MB file that surviv
 }) => {
 	const started = Date.now();
 	await login(page, USER);
-	await page
-		.getByRole('navigation', { name: 'Sections' })
-		.getByRole('link', { name: 'File manager' })
-		.click();
+	await openSection(page, 'File manager', 'Files', 'File manager');
 	await expect(page).toHaveURL(new RegExp(`/files/${USER}`));
 	await openFolder(page);
 	await expect(row(page, 'edit.php')).toBeVisible();

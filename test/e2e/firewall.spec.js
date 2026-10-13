@@ -1,6 +1,6 @@
 // Happy paths of the Firewall pages (E7 batch 2 spec §6).
 import { expect, test } from '@playwright/test';
-import { ADMIN, expectAccessible, expectToast, login, USER } from './helpers.js';
+import { ADMIN, expectAccessible, expectToast, login, openSection, USER } from './helpers.js';
 
 test.describe.configure({ mode: 'serial' });
 
@@ -11,10 +11,7 @@ const row = (page, text) => page.getByRole('row', { name: new RegExp(text) });
 
 test('admin: add, edit, move, suspend and delete a firewall rule', async ({ page }) => {
 	await login(page, ADMIN);
-	await page
-		.getByRole('navigation', { name: 'Sections' })
-		.getByRole('link', { name: 'Firewall' })
-		.click();
+	await openSection(page, 'Firewall', 'Network', 'Firewall');
 	await expect(page).toHaveURL(/\/server\/firewall$/);
 	await expect(page.getByRole('heading', { name: 'Firewall' })).toBeVisible();
 	await expectAccessible(page);

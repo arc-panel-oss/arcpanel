@@ -1,7 +1,14 @@
 // Happy paths of the Access keys and SSH keys pages (E7 batch 2 spec §8).
 // prepare.sh sets API_SYSTEM=2 for the run, so every account may have keys.
 import { expect, test } from '@playwright/test';
-import { confirmPassword, expectAccessible, expectToast, login, USER } from './helpers.js';
+import {
+	confirmPassword,
+	expectAccessible,
+	expectToast,
+	login,
+	openSection,
+	USER,
+} from './helpers.js';
 import { runOnServer } from './server.js';
 
 test.describe.configure({ mode: 'serial' });
@@ -10,10 +17,7 @@ const SSH_ID = 'e2e-key@arcpanel';
 
 test('user: create an access key, see the secret once, delete it', async ({ page }) => {
 	await login(page, USER);
-	await page
-		.getByRole('navigation', { name: 'Sections' })
-		.getByRole('link', { name: 'Access keys' })
-		.click();
+	await openSection(page, 'Access keys', 'Keys', 'Access keys');
 	await expect(page).toHaveURL(new RegExp(`/access-keys/${USER}$`));
 	await expectAccessible(page);
 
@@ -52,10 +56,7 @@ test('user: create an access key, see the secret once, delete it', async ({ page
 test('user: add and delete an SSH key', async ({ page }) => {
 	const key = runOnServer(['ssh-key']).trim();
 	await login(page, USER);
-	await page
-		.getByRole('navigation', { name: 'Sections' })
-		.getByRole('link', { name: 'SSH keys' })
-		.click();
+	await openSection(page, 'SSH keys', 'Keys', 'SSH keys');
 	await expect(page).toHaveURL(new RegExp(`/ssh-keys/${USER}$`));
 	await expectAccessible(page);
 
