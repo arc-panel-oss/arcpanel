@@ -4,6 +4,7 @@ use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\LogoutController;
 use App\Http\Controllers\Auth\MailPasswordController;
 use App\Http\Controllers\Auth\ResetController;
+use App\Http\Controllers\Auth\SudoController;
 use App\Http\Controllers\Auth\TwoFactorController;
 use App\Http\Controllers\Backups\BackupController;
 use App\Http\Controllers\Backups\ExclusionController;
@@ -39,6 +40,7 @@ use App\Http\Controllers\Mail\MailAccountController;
 use App\Http\Controllers\Mail\MailActionController;
 use App\Http\Controllers\Mail\MailDomainController;
 use App\Http\Controllers\Mail\MailDomainEditController;
+use App\Http\Controllers\Malware\MalwareController;
 use App\Http\Controllers\Node\NodeAppController;
 use App\Http\Controllers\Node\NodeAppPageController;
 use App\Http\Controllers\Node\NodeController;
@@ -46,6 +48,8 @@ use App\Http\Controllers\Packages\PackageController;
 use App\Http\Controllers\Ports\PortController;
 use App\Http\Controllers\Ports\ServerPortController;
 use App\Http\Controllers\SearchController;
+use App\Http\Controllers\Server\PhpController;
+use App\Http\Controllers\Server\PhpProfileController;
 use App\Http\Controllers\Server\RrdPageController;
 use App\Http\Controllers\Server\ServerSettingsController;
 use App\Http\Controllers\Server\ServiceConfigController;
@@ -68,6 +72,7 @@ use App\Http\Controllers\WebDomains\WebDomainActionController;
 use App\Http\Controllers\WebDomains\WebDomainController;
 use App\Http\Controllers\WebDomains\WebDomainEditController;
 use App\Http\Controllers\WebDomains\WebDomainLogController;
+use App\Http\Controllers\WebDomains\WebDomainPhpController;
 use App\Services\Docker\DockerAppService;
 use App\Services\Node\NodeAppService;
 use App\Services\Server\ServerSettings;
@@ -103,14 +108,18 @@ Route::middleware('guest.arc')->group(function () {
     Route::get('/login/2fa', [TwoFactorController::class, 'show'])->name('login.2fa');
     Route::post('/login/2fa', [TwoFactorController::class, 'store'])->name('login.2fa.store');
 
-    // Password and 2FA reset (E7 batch 3 spec §11)
-    Route::get('/reset', [ResetController::class, 'show'])->name('reset');
-    Route::post('/reset', [ResetController::class, 'request'])->name('reset.request');
-    Route::get('/reset/code', [ResetController::class, 'code'])->name('reset.code');
-    Route::get('/reset/confirm', [ResetController::class, 'confirm'])->name('reset.confirm');
-    Route::post('/reset/confirm', [ResetController::class, 'update'])->name('reset.update');
-    Route::get('/reset2fa', [ResetController::class, 'twoFactor'])->name('reset2fa');
-    Route::post('/reset2fa', [ResetController::class, 'twoFactorStore'])->name('reset2fa.store');
+    // Password and 2FA reset (E7 batch 3 spec §11); codes never leave in a
+    // Referer and never stay in a URL (E39 W2 spec D9)
+    Route::middleware('no-referrer')->group(function () {
+        Route::get('/reset', [ResetController::class, 'show'])->name('reset');
+        Route::post('/reset', [ResetController::class, 'request'])->name('reset.request');
+        Route::get('/reset/code', [ResetController::class, 'code'])->name('reset.code');
+        Route::post('/reset/code', [ResetController::class, 'enterCode'])->name('reset.code.store');
+        Route::get('/reset/confirm', [ResetController::class, 'confirm'])->name('reset.confirm');
+        Route::post('/reset/confirm', [ResetController::class, 'update'])->name('reset.update');
+        Route::get('/reset2fa', [ResetController::class, 'twoFactor'])->name('reset2fa');
+        Route::post('/reset2fa', [ResetController::class, 'twoFactorStore'])->name('reset2fa.store');
+    });
 });
 
 // Mail password change for the webmail clients of this server (1.x
@@ -118,6 +127,10 @@ Route::middleware('guest.arc')->group(function () {
 Route::post('/reset/mail', MailPasswordController::class)->name('reset.mail');
 
 Route::middleware('auth.arc')->group(function () {
+    // Sudo mode: the password before a sensitive change of one's own account (E39 W2 spec §7)
+    Route::get('/sudo', [SudoController::class, 'show'])->name('sudo.show');
+    Route::post('/sudo', [SudoController::class, 'store'])->name('sudo.store');
+
     Route::get('/', DashboardController::class)->name('dashboard');
     Route::post('/logout', LogoutController::class)->name('logout');
     Route::post('/impersonate/stop', [ImpersonationController::class, 'stop'])->name('impersonate.stop');
@@ -314,6 +327,32 @@ Route::middleware('auth.arc')->group(function () {
     Route::post('/server/packages/{slug}/{action}', [SystemPackageController::class, 'start'])->middleware('not-readonly')
         ->where(['slug' => '[a-z][a-z0-9-]{1,31}', 'action' => 'add|delete'])->name('server.packages.start');
 
+    // PHP Manager (E41 spec 2026-10-12-001 §8): versions, extensions, php.ini and profiles
+    Route::prefix('server/php')->name('server.php.')->group(function () {
+        $version = ['version' => '\d{1,2}\.\d{1,2}'];
+        $profile = ['profile' => '[a-z0-9][a-z0-9-]{0,31}'];
+        Route::get('/', [PhpController::class, 'index'])->name('index');
+        Route::get('/profiles', [PhpProfileController::class, 'index'])->name('profiles.index');
+        Route::get('/profiles/create', [PhpProfileController::class, 'create'])->name('profiles.create');
+        Route::get('/profiles/{profile}/edit', [PhpProfileController::class, 'edit'])->where($profile)->name('profiles.edit');
+        Route::get('/{version}/{tab?}', [PhpController::class, 'show'])->where($version + ['tab' => 'overview|extensions|ini-fpm|ini-cli'])->name('show');
+        Route::middleware('not-readonly')->group(function () use ($version, $profile) {
+            Route::post('/versions', [PhpController::class, 'versions'])->name('versions');
+            Route::post('/default', [PhpController::class, 'default'])->name('default');
+            Route::post('/profiles', [PhpProfileController::class, 'store'])->name('profiles.store');
+            Route::put('/profiles/{profile}', [PhpProfileController::class, 'update'])->where($profile)->name('profiles.update');
+            Route::delete('/profiles/{profile}', [PhpProfileController::class, 'destroy'])->where($profile)->name('profiles.destroy');
+            Route::post('/{version}/reload', [PhpController::class, 'reload'])->where($version)->name('reload');
+            Route::post('/{version}/extensions', [PhpController::class, 'extensions'])->where($version)->name('extensions');
+            Route::post('/{version}/extensions/{name}', [PhpController::class, 'toggle'])->where($version + ['name' => '[a-z0-9_]{1,32}'])->name('extensions.toggle');
+            Route::post('/{version}/ini/{sapi}', [PhpController::class, 'iniValues'])->where($version + ['sapi' => 'fpm|cli'])->name('ini.values');
+            Route::post('/{version}/ini/{sapi}/check', [PhpController::class, 'iniCheck'])->where($version + ['sapi' => 'fpm|cli'])->name('ini.check');
+            Route::post('/{version}/ini/{sapi}/file', [PhpController::class, 'iniFile'])->where($version + ['sapi' => 'fpm|cli'])->name('ini.file');
+            Route::post('/{version}/ini/{sapi}/backups/{backup}', [PhpController::class, 'iniRestore'])
+                ->where($version + ['sapi' => 'fpm|cli', 'backup' => '\d{8}-\d{6}(-\d+)?'])->name('ini.restore');
+        });
+    });
+
     // Services (E7 batch 3 spec §7)
     Route::prefix('server/services')->group(function () {
         Route::get('/', [ServiceController::class, 'index'])->name('server.services');
@@ -331,6 +370,7 @@ Route::middleware('auth.arc')->group(function () {
 
     // Web terminal (E7 batch 2 spec §10.4)
     Route::get('/terminal', TerminalController::class)->middleware('sys-config:WEB_TERMINAL=true')->name('terminal.index');
+    Route::post('/terminal/ticket', [TerminalController::class, 'ticket'])->name('terminal.ticket');
 
     // Port registry (E12 spec §7)
     Route::get('/server/ports', [ServerPortController::class, 'index'])->name('server.ports');
@@ -504,6 +544,27 @@ Route::middleware('auth.arc')->group(function () {
         });
     });
 
+    // Malware scan (E25 batch 1 spec §8). While the plugin is off the two
+    // pages say so (links of earlier notifications land there) and every
+    // other route answers 404.
+    Route::get('/malware', [MalwareController::class, 'entry'])->name('malware.index');
+    Route::prefix('malware/{user}')->name('malware.')->middleware('effective-user')->group(function () {
+        $finding = ['finding' => '[a-f0-9]{16}'];
+        $quarantined = ['id' => '[0-9]{14}'];
+        Route::get('/', [MalwareController::class, 'show'])->name('show');
+        Route::middleware('sys-config:MALWARE_SCAN=yes')->group(function () use ($finding, $quarantined) {
+            Route::get('/task', [MalwareController::class, 'task'])->name('task');
+            Route::middleware('not-readonly')->group(function () use ($finding, $quarantined) {
+                Route::post('/scan', [MalwareController::class, 'scan'])->name('scan');
+                Route::post('/findings/{finding}/quarantine', [MalwareController::class, 'quarantine'])->where($finding)->name('quarantine');
+                Route::post('/findings/{finding}/ignore', [MalwareController::class, 'ignore'])->where($finding)->name('ignore');
+                Route::post('/quarantine/{id}/restore', [MalwareController::class, 'restore'])->where($quarantined)->name('restore');
+                Route::delete('/quarantine/{id}', [MalwareController::class, 'destroyQuarantined'])->where($quarantined)->name('quarantine.destroy');
+                Route::delete('/ignores/{sha256}', [MalwareController::class, 'destroyIgnore'])->where('sha256', '[a-f0-9]{64}')->name('ignores.destroy');
+            });
+        });
+    });
+
     // Databases (E7 batch 1 spec §6)
     Route::prefix('db')->name('db.')->group(function () {
         Route::get('/', [DatabaseController::class, 'index'])->name('index');
@@ -519,7 +580,7 @@ Route::middleware('auth.arc')->group(function () {
                 Route::post('/suspend', [DatabaseActionController::class, 'suspend'])->name('suspend');
                 Route::post('/unsuspend', [DatabaseActionController::class, 'unsuspend'])->name('unsuspend');
                 Route::post('/download', [DatabaseActionController::class, 'download'])->name('download');
-                Route::post('/phpmyadmin', [DatabaseActionController::class, 'phpMyAdmin'])->name('phpmyadmin');
+                Route::post('/phpmyadmin', [DatabaseActionController::class, 'phpMyAdmin'])->middleware('no-referrer')->name('phpmyadmin');
                 Route::delete('/', [DatabaseActionController::class, 'destroy'])->name('destroy');
             });
         });
@@ -636,6 +697,8 @@ Route::middleware('auth.arc')->group(function () {
                 foreach (['general', 'ssl', 'redirect', 'advanced', 'ftp', 'stats'] as $tab) {
                     Route::post('/'.$tab, [WebDomainEditController::class, $tab])->name('update.'.$tab);
                 }
+                // PHP version and PHP-FPM profile (E41 §8)
+                Route::post('/php', [WebDomainPhpController::class, 'update'])->name('update.php');
                 // CSR generator of the SSL tab (E7 batch 3 spec §12.2)
                 Route::post('/ssl/generate', [CsrController::class, 'webDomain'])->name('ssl.generate');
                 Route::post('/suspend', [WebDomainActionController::class, 'suspend'])->name('suspend');
@@ -648,7 +711,7 @@ Route::middleware('auth.arc')->group(function () {
     });
 });
 
-// Old URLs for one release (E8 spec §5.3): the /app prefix of 1.x and the
+// Old URLs (E8 spec §5.3, still in 2.1): the /app prefix of 1.x and the
 // legacy page paths answer 301. Registered last, so no panel route is shadowed.
 Route::get('/app/{path?}', [LegacyRedirectController::class, 'app'])->where('path', '.*')->name('legacy.app');
 Route::get('/logout', [LegacyRedirectController::class, 'logout'])->name('legacy.logout');

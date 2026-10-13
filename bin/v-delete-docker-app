@@ -87,12 +87,28 @@ dockerapp_ports_release "$user" "$name"
 # Files
 rm -rf "$rdir"
 dockerapp_remove "$user" "$name"
+data=$(dockerapp_data_dir "$user" "$name")
+stamp="$name-$(date +'%Y%m%d-%H%M%S')"
 if [ -d "$home" ] && [ ! -L "$home" ]; then
-	if [ "$keep" = 'keep-data' ]; then
+	if [ "$keep" = 'keep-data' ] && [ -d "$home/data" ] && [ ! -L "$home/data" ]; then
+		# data still in the home (layout before E39 W1): the user moves it
 		node_as_user "$user" bash -c 'umask 077; mkdir -p "$1" && [ ! -L "$1" ] && [ -d "$2" ] && [ ! -L "$2" ] && mv "$2" "$3"' keep \
-			"$HOMEDIR/$user/apps/.removed" "$home/data" "$HOMEDIR/$user/apps/.removed/$name-$(date +'%Y%m%d-%H%M%S')"
+			"$HOMEDIR/$user/apps/.removed" "$home/data" "$HOMEDIR/$user/apps/.removed/$stamp"
 	fi
 	node_as_user "$user" rm -rf "$home"
+fi
+if [ -d "$data" ] && [ ! -L "$data" ]; then
+	if [ "$keep" = 'keep-data' ]; then
+		# Kept in the user's folder of the data tree, which root owns: the
+		# rename stays in root's folders; ~/apps/.removed/ gets a link to it
+		removed="$(dockerapp_data_root)/$user/.removed"
+		[ -d "$removed" ] && [ ! -L "$removed" ] || install -d -m 750 -o root -g "$(id -g "$user")" -- "$removed"
+		mv -T -- "$data" "$removed/$stamp"
+		node_as_user "$user" bash -c 'umask 077; mkdir -p "$1" && [ ! -L "$1" ] && ln -s "$2" "$1/$3"' keep \
+			"$HOMEDIR/$user/apps/.removed" "$removed/$stamp" "$stamp" > /dev/null 2>&1
+	else
+		rm -rf -- "$data"
+	fi
 fi
 
 #----------------------------------------------------------#

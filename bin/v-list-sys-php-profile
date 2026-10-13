@@ -1,0 +1,58 @@
+#!/bin/bash
+# info: list one PHP-FPM profile (E41)
+# options: NAME [FORMAT]
+#
+# example: v-list-sys-php-profile medium json
+#
+# This function lists a PHP-FPM profile with its pool settings, PHP limits,
+# DOMAINS (the number of web domain pools that use it), PACKAGES (the
+# packages that allow it) and BLOCK (the lines it writes into a pool).
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+name=$1
+format=${2-shell}
+
+# Includes
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/php.sh
+source $ARCPANEL/func/php.sh
+# load config file
+source_conf "$ARCPANEL/conf/arcpanel.conf"
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '1' "$#" 'NAME [FORMAT]'
+if ! php_profile_name_valid "$name"; then
+	check_result "$E_INVALID" "invalid profile name :: $name"
+fi
+if ! php_profile_exists "$name"; then
+	check_result "$E_NOTEXIST" "profile $name does not exist"
+fi
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+json=$(php_profiles_json "$(php_domain_pools)" "$name" \
+	| jq -c --arg n "$name" --arg b "$(php_profile_block "$name")" '.[$n] + {BLOCK: $b}')
+
+case "$format" in
+	json) jq . <<< "$json" ;;
+	plain) jq -r 'to_entries[] | select(.key != "BLOCK") | [.key, .value] | join("\t")' <<< "$json" ;;
+	*) jq -r 'to_entries[] | select(.key != "BLOCK") | "\(.key): \(.value)"' <<< "$json" ;;
+esac
+
+#----------------------------------------------------------#
+#                         ArcPanel                         #
+#----------------------------------------------------------#
+
+exit

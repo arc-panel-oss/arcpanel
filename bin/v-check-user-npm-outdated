@@ -54,9 +54,10 @@ node_check_path "$user" "$dir"
 
 echo "Checking the global packages of Node.js v$version for updates"
 tmp=$(mktemp)
+# At most 1 MiB of output reaches root's file (E39 W1)
 NODE_RUN_VERSION="$version" node_as_user_long "$user" \
-	npm outdated --global --json --prefix "$dir" > "$tmp" 2> /dev/null
-rc=$?
+	npm outdated --global --json --prefix "$dir" 2> /dev/null | head -c 1048576 > "$tmp"
+rc=${PIPESTATUS[0]}
 # npm outdated exits with 1 when it found outdated packages
 if [ "$rc" -gt 1 ]; then
 	rm -f "$tmp"

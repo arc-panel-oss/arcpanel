@@ -17,14 +17,16 @@
         'POLICY_SYNC_SKELETON' => __('Sync the skeleton directory on update'),
         'ENFORCE_SUBDOMAIN_OWNERSHIP' => __('Enforce subdomain ownership'),
     ];
+    // The login policies sit in the Login card above
     $groups = [
-        'login' => __('Login'),
         'protection' => __('System Protection'),
         'users' => __('Users'),
         'domains' => __('Domains'),
     ];
     $bacon = ($config['POLICY_SYSTEM_ENABLE_BACON'] ?? '') === 'true';
     $value = fn (string $key) => ($config[$key] ?? '') === 'yes' ? 'yes' : 'no';
+    // One address per line; built here because a "\n" inside the component attribute breaks the tag
+    $allowedIps = str_replace(',', PHP_EOL, $config['API_ALLOWED_IP'] ?? '');
 @endphp
 <x-ap-page :title="__('Server settings')" :crumbs="[['label' => __('Server')], ['label' => __('Server settings')], ['label' => __('Security')]]">
     @include('server.settings.partials.nav')
@@ -38,7 +40,7 @@
                     <x-ap-select name="API" :label="__('Legacy API')" :options="$yesNo" :value="($config['API'] ?? '') === 'yes' ? 'yes' : 'no'"
                         :hint="__('The older API that signs in with a user name and password or a hash key.')" />
                 </div>
-                <x-ap-textarea name="API_ALLOWED_IP" :label="__('Allowed IP addresses for API')" :value="str_replace(',', "\n", $config['API_ALLOWED_IP'] ?? '')" rows="3" mono
+                <x-ap-textarea name="API_ALLOWED_IP" :label="__('Allowed IP addresses for API')" :value="$allowedIps" rows="3" mono
                     :hint="__('One address per line; allow-all accepts every address.')" />
             </x-ap-card>
 
@@ -48,6 +50,9 @@
                     <x-ap-input name="INACTIVE_SESSION_TIMEOUT" type="number" :label="__('Inactive session timeout')" :value="$config['INACTIVE_SESSION_TIMEOUT'] ?? '60'" :suffix="__('minutes')" />
                     <x-ap-select name="POLICY_CSRF_STRICTNESS" :label="__('Prevent CSRF')" :value="$config['POLICY_CSRF_STRICTNESS'] ?? '1'"
                         :options="['0' => __('Disabled'), '1' => __('Enabled'), '2' => __('Strict')]" />
+                    @foreach (\App\Services\Server\ServerSettings::SECURITY_POLICIES['login'] as $key)
+                        <x-ap-select :name="$key" :label="$labels[$key]" :options="$yesNo" :value="$value($key)" />
+                    @endforeach
                 </div>
             </x-ap-card>
 

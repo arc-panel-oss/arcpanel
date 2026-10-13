@@ -7,7 +7,7 @@ import ApBadge from '../shared/ApBadge.vue';
 import ApIcon from '../shared/ApIcon.vue';
 import { translator } from '../shared/strings.js';
 import { appPath, createApi, pageUrl } from './api.js';
-import { appStatus } from './model.js';
+import { appStatus, canOpenStore } from './model.js';
 
 const props = defineProps({
 	initial: { type: Object, required: true },
@@ -122,14 +122,14 @@ onBeforeUnmount(() => clearTimeout(timer));
 							<ApIcon name="pause" />{{ t('Stop') }}
 						</button>
 					</template>
-					<a v-if="abilities.engine" class="ap-btn ap-btn-primary ap-btn-sm" :href="pages.store"><ApIcon name="plus" />{{ t('Open the store') }}</a>
+					<a v-if="canOpenStore(abilities)" class="ap-btn ap-btn-primary ap-btn-sm" :href="pages.store"><ApIcon name="plus" />{{ t('Open the store') }}</a>
 				</div>
 			</div>
 
 			<div v-if="apps.length === 0" class="ap-empty">
 				<div class="ap-empty-art"><ApIcon name="container" /></div>
 				<h3>{{ t('No Docker app yet.') }}</h3>
-				<p v-if="abilities.engine && abilities.available"><a :href="pages.store">{{ t('Open the store') }}</a></p>
+				<p v-if="canOpenStore(abilities)"><a :href="pages.store">{{ t('Open the store') }}</a></p>
 			</div>
 			<div v-else class="ap-table-wrap">
 				<table class="ap-table ap-table-cards">

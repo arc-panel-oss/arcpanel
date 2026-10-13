@@ -1,0 +1,74 @@
+#!/bin/bash
+# info: replace the php.ini of a PHP version (E41)
+# options: VERSION SAPI FILE
+#
+# example: v-change-sys-php-ini 8.4 fpm /tmp/php.ini
+#
+# This function replaces the PHP-FPM (fpm) or command line (cli) php.ini of
+# an installed version with FILE. The file is validated first as
+# v-check-sys-php-ini does: errors stop the change (E_INVALID, with the
+# findings), warnings are printed and accepted. The current file is backed up
+# (the ten newest backups are kept), the new one is moved into place and, for
+# fpm, PHP-FPM is reloaded; when it does not run afterwards the previous file
+# comes back (E_RESTART).
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+version=$1
+sapi=$2
+src=$3
+
+# Includes
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/php.sh
+source $ARCPANEL/func/php.sh
+# load config file
+source_conf "$ARCPANEL/conf/arcpanel.conf"
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '3' "$#" 'VERSION SAPI FILE'
+php_ini_check_args "$version" "$sapi"
+
+# Perform verification if read-only mode is enabled
+check_arcpanel_demo_mode
+
+php_lock "$version"
+php_ini_intake "$src"
+candidate=$PHP_INI_CANDIDATE
+trap 'rm -f "$candidate"' EXIT
+
+if ! findings=$(php_ini_validate "$version" "$sapi" "$candidate"); then
+	php_ini_findings_text <<< "$findings"
+	check_result "$E_INVALID" "the php.ini was not saved"
+fi
+php_ini_findings_text <<< "$findings"
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+id=$(php_ini_apply "$version" "$sapi" "$candidate")
+rc=$?
+if [ "$rc" -ne 0 ]; then
+	echo "$id"
+	check_result "$rc" "PHP-FPM $version did not run with the new php.ini; the previous file was restored"
+fi
+
+#----------------------------------------------------------#
+#                         ArcPanel                         #
+#----------------------------------------------------------#
+
+# Logging
+$BIN/v-log-action "system" "Info" "System" "php.ini changed (Version: $version, SAPI: $sapi, Backup: $id)."
+log_event "$OK" "$ARGUMENTS"
+
+exit

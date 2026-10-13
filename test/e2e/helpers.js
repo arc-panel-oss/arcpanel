@@ -31,6 +31,40 @@ export async function login(page, user, theme = 'nocturne') {
 	await expect(page).toHaveURL(/^https?:\/\/[^/]+\/$/);
 }
 
+/**
+ * Open a page from the sidebar. A page in a hub (sidebar hubs spec) is a tab
+ * of the hub when the hub shows two or more pages, and its own sidebar item
+ * otherwise; `hub` and `tab` name the hub item and the tab.
+ */
+export async function openSection(page, item, hub, tab) {
+	const sections = page.getByRole('navigation', { name: 'Sections' });
+	const direct = sections.getByRole('link', { name: item, exact: true });
+	if (!hub || (await direct.count()) > 0) {
+		await direct.click();
+		return;
+	}
+	await sections.getByRole('link', { name: hub, exact: true }).click();
+	const link = page
+		.getByRole('navigation', { name: hub })
+		.getByRole('link', { name: tab, exact: true });
+	if ((await link.getAttribute('aria-current')) !== 'page') {
+		await link.click();
+	}
+	await expect(link).toHaveAttribute('aria-current', 'page');
+}
+
+/**
+ * Sudo mode (E39 W2 spec §7): confirm the password when the panel asks for
+ * it before a sensitive change, and land back on the form.
+ */
+export async function confirmPassword(page) {
+	await expect(page).toHaveURL(/\/sudo$/);
+	await expectAccessible(page);
+	await page.getByLabel('Password').fill(process.env.E2E_PASSWORD);
+	await page.getByRole('button', { name: 'Confirm' }).click();
+	await expect(page).not.toHaveURL(/\/sudo$/);
+}
+
 /** No axe violations (WCAG 2.1 A and AA) on the current page. */
 export async function expectAccessible(page) {
 	const results = await new AxeBuilder({ page })

@@ -6,6 +6,8 @@ use App\Arc\SysConfig;
 use App\Auth\ArrayLegacySession;
 use App\Auth\Principal;
 use App\Auth\Role;
+use App\View\Navigation;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Sleep;
 use Tests\TestCase;
 
@@ -93,6 +95,9 @@ function fakeArc(array $config = []): ArcCommandFake
     app()->forgetInstance(SysConfig::class);
     cache()->flush();
     $fake->on('v-list-sys-config', ['json'])->returnsJson(sysConfig($config));
+    // Trusted hosts (E39 W2) read the server addresses outside unit tests
+    // (an "env = production" test); none by default.
+    $fake->on('v-list-sys-ips', ['json'])->returnsJson([]);
     // The sidebar asks whether the account's package includes Node.js (E13);
     // without a package entry it does not.
     $fake->on('v-list-user')->returnsExit(ExitCode::NotExist);
@@ -104,6 +109,14 @@ function fakeArc(array $config = []): ArcCommandFake
     $fake->on('v-list-docker-apps')->using(fn (array $args) => [0, (string) json_encode(dockerAppList($args[0]))]);
     // The app pages list the secret names for their reference pickers (E38); none by default.
     $fake->on('v-list-user-secret-store')->returnsJson([]);
+    // PHP Manager (E41): installed versions 8.2 to 8.4 (8.3 the default), the
+    // shipped profiles; web domains have no PHP tab unless a test answers it.
+    $fake->on('v-list-sys-php-versions')->returnsJson(phpVersionRows());
+    $fake->on('v-list-sys-php-profiles')->returnsJson(phpProfileRows());
+    $fake->on('v-list-web-domain-php')->returnsExit(ExitCode::NotExist);
+    // Task lists read the background malware scan of a user (E25); none by default.
+    $fake->on('v-list-user-malware-task')->using(fn (array $args) => [0, (string) json_encode(['USER' => $args[0], 'ID' => '',
+        'DOMAIN' => '', 'STATUS' => '', 'EXIT' => '', 'START' => '', 'END' => '', 'LOG' => ''])]);
 
     return $fake;
 }
@@ -738,4 +751,67 @@ function apiAs(ArcCommandFake $fake, string $user, string $role, bool $readOnly 
     $sets = $area !== null ? ['v2-'.$area] : ($role === 'admin' ? [] : [$readOnly ? 'v2-read' : 'v2-write']);
 
     return apiKey($fake, $user, $role, $sets);
+}
+
+/**
+ * Rows of `v-list-sys-php-versions json` (E41): 8.2 to 8.4 installed, 8.3
+ * the default, 7.3 at its end of life, 8.5 available.
+ *
+ * @param  array<string, array<string, string>>  $overrides  version => keys
+ * @return array<string, array<string, string>>
+ */
+function phpVersionRows(array $overrides = []): array
+{
+    $row = fn (string $installed, string $status, string $eol, string $installable = 'yes', string $extensions = '40') => [
+        'INSTALLED' => $installed, 'DEFAULT' => 'no', 'USED_BY' => '', 'STATUS' => $status, 'RELEASED' => '2023-11-23',
+        'ACTIVE_UNTIL' => '2025-12-31', 'EOL' => $eol, 'INSTALLABLE' => $installable, 'AVAILABLE' => 'yes',
+        'EXTENSIONS' => $installed === 'yes' ? $extensions : '0',
+    ];
+    $rows = [
+        '7.3' => $row('no', 'eol', '2021-12-06', 'no'),
+        '8.2' => $row('yes', 'security', '2026-12-31'),
+        '8.3' => ['DEFAULT' => 'yes', 'USED_BY' => 'bob/bob.example'] + $row('yes', 'security', '2027-12-31'),
+        '8.4' => $row('yes', 'active', '2028-12-31'),
+        '8.5' => $row('no', 'active', '2029-12-31'),
+    ];
+    foreach ($overrides as $version => $keys) {
+        $rows[$version] = array_replace($rows[$version] ?? $row('no', 'active', ''), $keys);
+    }
+
+    return $rows;
+}
+
+/**
+ * Rows of `v-list-sys-php-profiles json` (E41): the shipped profiles.
+ *
+ * @return array<string, array<string, string>>
+ */
+function phpProfileRows(array $extra = []): array
+{
+    $profile = fn (string $name, string $pm, string $children, string $memory, string $description) => [
+        'NAME' => $name, 'DESCRIPTION' => $description, 'PM' => $pm, 'MAX_CHILDREN' => $children,
+        'START_SERVERS' => $pm === 'dynamic' ? '4' : '', 'MIN_SPARE' => $pm === 'dynamic' ? '2' : '', 'MAX_SPARE' => $pm === 'dynamic' ? '6' : '',
+        'MAX_REQUESTS' => '1000', 'IDLE_TIMEOUT' => $pm === 'ondemand' ? '10s' : '', 'REQUEST_TERMINATE_TIMEOUT' => '',
+        'MEMORY_LIMIT' => $memory, 'UPLOAD_MAX_FILESIZE' => '', 'POST_MAX_SIZE' => '', 'MAX_EXECUTION_TIME' => '', 'MAX_INPUT_VARS' => '',
+        'BUILTIN' => 'yes', 'DOMAINS' => '0', 'PACKAGES' => '',
+    ];
+
+    return [
+        'default' => ['PACKAGES' => 'default'] + $profile('default', 'ondemand', '8', '', 'The pool settings of ArcPanel before profiles'),
+        'small' => $profile('small', 'ondemand', '4', '128M', 'Small sites with little traffic'),
+        'medium' => $profile('medium', 'dynamic', '20', '512M', 'Busy sites'),
+        'large' => $profile('large', 'dynamic', '50', '1024M', 'Large shops and applications'),
+    ] + $extra;
+}
+
+/**
+ * Sidebar items of a principal keyed by key, with the pages of each hub
+ * (sidebar hubs spec H1) listed next to it.
+ */
+function navItems(Principal $principal, ?string $route = null): Collection
+{
+    return collect(app(Navigation::class)->for($principal, $route))
+        ->flatMap(fn ($group) => $group['items'])
+        ->flatMap(fn ($item) => [$item, ...($item['children'] ?? [])])
+        ->keyBy('key');
 }

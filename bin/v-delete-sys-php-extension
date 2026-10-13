@@ -1,0 +1,84 @@
+#!/bin/bash
+# info: remove a PHP extension of a version (E41)
+# options: VERSION NAME
+#
+# example: v-delete-sys-php-extension 8.4 redis
+#
+# This function purges the Debian package of an extension of the catalog
+# (install/common/php/extensions.conf) for one PHP version and reloads
+# PHP-FPM. Required extensions and modules that ship with PHP (toggle only)
+# cannot be removed; neither can a package that other installed packages
+# need (E_INUSE, naming them).
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+version=$1
+name=$2
+
+# Includes
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/php.sh
+source $ARCPANEL/func/php.sh
+# load config file
+source_conf "$ARCPANEL/conf/arcpanel.conf"
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '2' "$#" 'VERSION NAME'
+php_ext_check_args "$version" "$name"
+
+pkg=$(php_ext_package "$name" "$version")
+if [ "$(php_ext_get "$name" REQUIRED)" = 'yes' ]; then
+	check_result "$E_FORBIDEN" "the extension $name is required and cannot be removed"
+fi
+if [ -z "$pkg" ]; then
+	check_result "$E_FORBIDEN" "$name ships with PHP $version and can only be turned on and off"
+fi
+if ! php_ext_installed "$name" "$version"; then
+	check_result "$E_NOTEXIST" "the extension $name is not installed for PHP $version"
+fi
+
+# Packages that apt would remove together with this one
+others=$(LC_ALL=C apt-get -s purge "$pkg" 2> /dev/null | awk '$1 == "Purg" || $1 == "Remv" { print $2 }' \
+	| grep -vxF "$pkg" | paste -sd, -)
+if [ -n "$others" ]; then
+	check_result "$E_INUSE" "$pkg is needed by $others"
+fi
+
+# Perform verification if read-only mode is enabled
+check_arcpanel_demo_mode
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+php_lock "$version"
+
+echo "Removing $pkg..."
+if ! DEBIAN_FRONTEND=noninteractive apt-get -y purge "$pkg" 2>&1; then
+	check_result "$E_UPDATE" "$pkg could not be removed"
+fi
+
+if ! php_fpm_reload "$version"; then
+	php_fpm_log "$version"
+	"$BIN/v-restart-service" "php$version-fpm" > /dev/null 2>&1
+	check_result "$E_RESTART" "PHP-FPM $version stopped after removing $name"
+fi
+
+#----------------------------------------------------------#
+#                         ArcPanel                         #
+#----------------------------------------------------------#
+
+# Logging
+$BIN/v-log-action "system" "Info" "System" "PHP extension removed (Version: $version, Extension: $name)."
+log_event "$OK" "$ARGUMENTS"
+
+exit

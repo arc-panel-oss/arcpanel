@@ -4,14 +4,18 @@ namespace App\Http\Controllers\Auth;
 
 use App\Arc\SysConfig;
 use App\Auth\LoginService;
+use App\Auth\LoginThrottle;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use Illuminate\View\View;
 
 /**
  * Second login step. The pending state lives in the panel-app session only
  * and never holds the password (the legacy login kept it in the session).
+ * Wrong codes are counted per user in LoginThrottle, not in the session, so
+ * a new login does not start a new count (E39 W2 spec D3).
  */
 final class TwoFactorController extends Controller
 {
@@ -19,6 +23,7 @@ final class TwoFactorController extends Controller
         private readonly LoginService $login,
         private readonly LoginResponder $responder,
         private readonly SysConfig $config,
+        private readonly LoginThrottle $throttle,
     ) {}
 
     public function show(Request $request): View|RedirectResponse
@@ -27,42 +32,48 @@ final class TwoFactorController extends Controller
             return redirect()->route('login');
         }
 
-        return view('auth.two-factor', [
-            'appName' => $this->config->get('APP_NAME', 'ArcPanel'),
-        ]);
+        return $this->page();
     }
 
-    public function store(Request $request): RedirectResponse
+    public function store(Request $request): RedirectResponse|Response
     {
         $pending = $this->pending($request);
         if ($pending === null) {
             return redirect()->route('login')->with('error', __(LoginService::INVALID_2FA));
         }
 
+        $wait = $this->throttle->attemptSecondFactor($pending['user']);
+        if ($wait !== null) {
+            $request->session()->forget('pending_2fa');
+
+            return response($this->page(LoginResponder::tooMany($wait)), 429);
+        }
+
         $context = $this->responder->context($request);
         $result = $this->login->verifySecondFactor(
             $pending['user'],
             trim((string) $request->input('twofa', '')),
-            $pending['failures'],
             $context,
         );
 
         if ($result->succeeded()) {
+            $this->throttle->clearSecondFactor($pending['user']);
+
             return $this->responder->complete($request, $result->username, $result->user, $context);
         }
-
-        $pending['failures']++;
-        if ($pending['failures'] > LoginService::MAX_2FA_FAILURES) {
-            $request->session()->forget('pending_2fa');
-
-            return redirect()->route('login')->with('error', __($result->error));
-        }
-        $request->session()->put('pending_2fa', $pending);
 
         return redirect()->route('login.2fa')->with('error', __($result->error));
     }
 
-    /** @return array{user: string, expires_at: int, failures: int}|null */
+    private function page(?string $tooMany = null): View
+    {
+        return view('auth.two-factor', [
+            'appName' => $this->config->get('APP_NAME', 'ArcPanel'),
+            'tooMany' => $tooMany,
+        ]);
+    }
+
+    /** @return array{user: string, expires_at: int}|null */
     private function pending(Request $request): ?array
     {
         $pending = $request->session()->get('pending_2fa');
@@ -78,7 +89,6 @@ final class TwoFactorController extends Controller
         return [
             'user' => $pending['user'],
             'expires_at' => (int) $pending['expires_at'],
-            'failures' => (int) ($pending['failures'] ?? 0),
         ];
     }
 }

@@ -2,7 +2,7 @@
 // DokuWiki on a fresh domain, watches the task and opens the wiki. DokuWiki
 // is downloaded from dokuwiki.org and needs PHP 8.0–8.4 on the server.
 import { expect, test } from '@playwright/test';
-import { expectAccessible, expectToast, login, USER } from './helpers.js';
+import { expectAccessible, expectToast, login, openSection, USER } from './helpers.js';
 import { runOnServer } from './server.js';
 
 test.describe.configure({ mode: 'serial', timeout: 600_000 });
@@ -51,10 +51,7 @@ test('user: install DokuWiki from the domain page', async ({ page }) => {
 test('user: the web terminal page loads xterm and reaches for the shell', async ({ page }) => {
 	runOnServer(['terminal-on']);
 	await login(page, USER);
-	await page
-		.getByRole('navigation', { name: 'Sections' })
-		.getByRole('link', { name: 'Web terminal' })
-		.click();
+	await openSection(page, 'Web terminal', 'Files', 'Terminal');
 	await expect(page).toHaveURL(/\/terminal$/);
 	// xterm draws its screen; this server has no terminal service, so the
 	// WebSocket fails with the legacy message

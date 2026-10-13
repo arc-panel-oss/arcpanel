@@ -48,6 +48,8 @@ it('lists the rules in order with the managed port rule locked', function () {
 
     $this->get('/server/firewall')->assertOk()
         ->assertSeeInOrder(['PING', 'ARCPANEL', 'SMTP-OUT', 'arcpanel-port-30005-bob'])
+        // ICMP has no port
+        ->assertSee('data-label="Port" class="mono">—</td>', false)->assertDontSee('data-label="Port" class="mono">0</td>', false)
         ->assertSee('Managed by Ports')->assertSee('Add Rule')->assertSee('IPset IP Lists')
         ->assertDontSee('Banned IP Addresses')
         ->assertSee('Are you sure you want to move rule #2 up?')

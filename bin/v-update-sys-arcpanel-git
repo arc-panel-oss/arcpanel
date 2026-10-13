@@ -109,11 +109,16 @@ get_branch_file() {
 	fi
 }
 
-# Set compiling directory
-BUILD_DIR='/tmp/arcpanel-src'
-INSTALL_DIR='/tmp/arcpanel-src'
+# Set compiling directory: a new folder of root, never a fixed path in /tmp
+# that a local user could create first (E39 W1 D13)
+BUILD_DIR=$(mktemp -d /tmp/arcpanel-build.XXXXXXXX) || exit 1
+if [ -L "$BUILD_DIR" ] || [ "$(stat -c '%u %a' "$BUILD_DIR")" != '0 700' ]; then
+	echo "Error: build folder $BUILD_DIR must belong to root with mode 0700" >&2
+	exit 1
+fi
+trap 'rm -rf -- "${BUILD_DIR:?}"' EXIT
 SRC_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-ARCHIVE_DIR="/tmp/arcpanel-src/archive/"
+ARCHIVE_DIR="$BUILD_DIR/archive/"
 architecture="$(arch)"
 if [ $architecture == 'aarch64' ]; then
 	BUILD_ARCH='arm64'
@@ -139,7 +144,6 @@ BUILD_VER=$(curl -s https://raw.githubusercontent.com/$fork/arcpanel/$branch/src
 ARCPANEL_V="${BUILD_VER}_${BUILD_ARCH}"
 
 # Create build directories
-rm -rf $BUILD_DIR
 mkdir -p $DEB_DIR
 mkdir -p $ARCHIVE_DIR
 

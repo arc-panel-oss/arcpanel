@@ -4,6 +4,7 @@
 @section('heading', __('Two-factor Authentication'))
 
 @section('content')
+@include('auth.partials.too-many')
 <form class="ap-form" action="{{ route('login.2fa.store') }}" method="post">
     @csrf
     <div class="ap-field">

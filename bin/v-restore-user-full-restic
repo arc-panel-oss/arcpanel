@@ -29,6 +29,14 @@ source $ARCPANEL/func/ip.sh
 source $ARCPANEL/func/rebuild.sh
 # shellcheck source=/usr/local/arcpanel/func/syshealth.sh
 source $ARCPANEL/func/syshealth.sh
+# shellcheck source=/usr/local/arcpanel/func/safe-fs.sh
+source $ARCPANEL/func/safe-fs.sh
+# shellcheck source=/usr/local/arcpanel/func/tenancy.sh
+source $ARCPANEL/func/tenancy.sh
+# shellcheck source=/usr/local/arcpanel/func/ports.sh
+source $ARCPANEL/func/ports.sh
+# shellcheck source=/usr/local/arcpanel/func/docker.sh
+source $ARCPANEL/func/docker.sh
 # load config file
 source_conf "$ARCPANEL/conf/arcpanel.conf"
 
@@ -38,7 +46,7 @@ source_conf "$ARCPANEL/conf/arcpanel.conf"
 
 args_usage='USER SNAPSHOT KEY [NOTIFY]'
 check_args '3' "$#" "$args_usage"
-is_format_valid 'user'
+is_format_valid 'user' 'snapshot'
 
 source_conf $ARCPANEL/conf/restic.conf
 
@@ -56,31 +64,44 @@ if [ -n "$check_user" ]; then
 
 	echo "$key" > $USER_DATA/restic.conf
 
-	restic --repo "${REPO%/}/$user" --password-file $USER_DATA/restic.conf snapshots
-	if [ "$?" -ne 0 ]; then
+	if ! restic_user "$user" snapshots > /dev/null; then
 		check_result "$E_PASSWORD" "Invalid Restic repository / encryption key"
 	fi
 fi
 
-tmpdir=$(mktemp -p "/home/$user/tmp/" -d)
-if [ ! -f "$tmpdir/backup.conf" ]; then
-	restic --repo "${REPO%/}/$user" --password-file "$USER_DATA/restic.conf" dump "$snapshot" "/home/$user/backup/backup.conf" > "$tmpdir/backup.conf"
-	if [ "$?" -ne 0 ]; then
-		check_result "$E_NOTEXIST" "Invalid snapshot"
+safe_workdir restore-user-full
+tmpdir=$SAFE_WORKDIR
+if ! restic_user "$user" cat snapshot -- "$snapshot" > /dev/null 2>&1; then
+	check_result "$E_NOTEXIST" "Invalid snapshot"
+fi
+
+# Download the account configuration
+restic_restore_config "$tmpdir" "$snapshot" --include="/home/$user/backup/arcpanel"
+check_result $? "Unable to download user data"
+src="$tmpdir/home/$user/backup/arcpanel"
+
+# The account record is rebuilt from known keys; the role stays the one
+# the account has on this server, never the one of the backup
+role=$(grep -o "ROLE='[a-z-]*'" "$USER_DATA/user.conf" | head -n 1)
+restore_record_reset user
+if parse_backup_record "$(restore_record_keys user)" "$(head -n 1 -- "$src/user.conf" 2> /dev/null)" \
+	&& str=$(restore_record user "${role:-ROLE='user'}") && [ -n "$str" ]; then
+	echo "$str" > "$USER_DATA/user.conf.restore"
+	mv -f "$USER_DATA/user.conf.restore" "$USER_DATA/user.conf"
+else
+	restore_skip "account record of" "$user" "invalid record"
+fi
+
+# Certificates: regular files with known extensions
+mkdir -p "$USER_DATA/ssl"
+for cert in "$src"/ssl/*; do
+	name=$(basename -- "$cert")
+	if [[ "$name" =~ ^[A-Za-z0-9._-]+\.(crt|key|ca|pem)$ ]]; then
+		copy_from_work "$cert" "$USER_DATA/ssl/$name"
 	fi
-fi
+done
+restore_excludes_file "$src/backup-excludes.conf" "$USER_DATA/backup-excludes.conf"
 
-# Download user data
-restic --repo "${REPO%/}/$user" --password-file "$USER_DATA/restic.conf" restore "$snapshot" --include "/home/$user/backup/" --target "$tmpdir"
-if [ "$?" -ne 0 ]; then
-	check_result "$E_NOTEXIST" "Unable to download user data"
-fi
-
-cp "$tmpdir/home/$user/backup/arcpanel/user.conf" "$USER_DATA/"
-cp -r "$tmpdir/home/$user/backup/arcpanel/ssl" "$USER_DATA/" > /dev/null 2>&1
-cp -r "$tmpdir/home/$user/backup/arcpanel/backup-excludes.conf" "$USER_DATA"/ > /dev/null 2>&1
-
-old_uid=$(cut -f 3 -d : $tmpdir/home/$user/backup/pam/passwd)
 # Rebuilding user
 rebuild_user_conf
 
@@ -96,16 +117,22 @@ $BIN/v-restore-database-restic "$user" "$snapshot" '*'
 echo "[ * ] Restore Cronjobs"
 $BIN/v-restore-cron-job-restic "$user" "$snapshot"
 echo "[ * ] Restore user files"
-restic --repo "${REPO%/}/$user" --password-file "$USER_DATA/restic.conf" restore "$snapshot" --exclude "/home/$user/web/" --exclude "/home/$user/conf" --exclude "/home/$user/mail" --target /
-if [ "$?" -ne 0 ]; then
-	check_result "$E_NOTEXIST" "Unable to download user folders"
+restic_restore_data "$tmpdir" "$snapshot" --include="/home/$user" --exclude="/home/$user/web" \
+	--exclude="/home/$user/conf" --exclude="/home/$user/mail" --exclude="/home/$user/backup"
+check_result $? "Unable to download user folders"
+if [ -d "$tmpdir/home/$user" ]; then
+	copy_into_home "$tmpdir/home/$user" "$HOMEDIR/$user" || echo "[ ! ] Some user files could not be restored"
 fi
-
-find $HOMEDIR/$user/ -user $old_uid \
-	-exec chown -h "$user":"$user" {} \;
-
-find $HOMEDIR/$user/ -group $old_uid \
-	-exec chown -h "$user":"$user" {} \;
+# The data of Docker apps, outside the home (E39 W1)
+restic_restore_data "$tmpdir" "$snapshot" --include="$HOMEDIR/.arcpanel-apps/$user" > /dev/null 2>&1
+for app_dir in "$tmpdir$HOMEDIR/.arcpanel-apps/$user"/*/; do
+	app=$(basename -- "$app_dir")
+	if [ -d "$app_dir" ] && [[ "$app" =~ ^[a-z0-9][a-z0-9-]{1,31}$ ]]; then
+		dockerapp_data_fill "$user" "$app" "${app_dir%/}" || echo "[ ! ] The data of the Docker app $app was not restored completely"
+	fi
+done
+# Data unpacked into the home from a snapshot made before E39 W1
+$BIN/v-update-sys-user-homes "$user"
 
 # Rebuilding user
 rebuild_user_conf
@@ -114,7 +141,7 @@ rebuild_user_conf
 #                         ArcPanel                         #
 #----------------------------------------------------------#
 
-rm -fr $tmpdir
+safe_workdir_cleanup
 
 # Update user counters
 $BIN/v-update-user-counters $user
@@ -124,7 +151,7 @@ $BIN/v-update-sys-ip-counters
 sed -i "/v-restore-user-full-restic '$user' /d" $ARCPANEL/data/queue/backup.pipe
 
 # Logging
-$BIN/v-log-action "system" "Info" "Backup" "Mail domain successfully restored (User: $user, Snapshot: $snapshot, Databse: $database)."
-$BIN/v-log-action "$user" "Info" "Backup" "Mail domain successfully restored (User: $user, Snapshot: $snapshot, Databse: $database)."
+$BIN/v-log-action "system" "Info" "Backup" "User successfully restored (User: $user, Snapshot: $snapshot)."
+$BIN/v-log-action "$user" "Info" "Backup" "User successfully restored (Snapshot: $snapshot)."
 log_event "$OK" "$ARGUMENTS"
 exit

@@ -24,6 +24,15 @@ it('renders the shell with the theme from the legacy THEME and the arc_ui cookie
         ->assertSee('data-density="compact"', false);
 });
 
+it('names mail in the search box only where the server runs it', function () {
+    signIn('bob', 'user');
+    $this->get('/web/domains')->assertSee('placeholder="Search users, domains, mail and pages"', false);
+
+    withSysConfig($this->fake, ['MAIL_SYSTEM' => '']);
+    $this->get('/web/domains')->assertSee('placeholder="Search users, domains and pages"', false)
+        ->assertDontSee('Search users, domains, mail and pages');
+});
+
 it('renders right to left for RTL languages', function () {
     signIn('bob', 'user', ['language' => 'ar']);
     file_put_contents(lang_path('ar.json'), '{}');
@@ -71,6 +80,16 @@ it('searches objects, users and pages for the command palette', function () {
     expect(collect($pages['Pages and actions']['items'])->pluck('label'))->toContain('Web', 'Add Web Domain');
 });
 
+it('lists the pages of each hub in the command palette (sidebar hubs spec H8)', function () {
+    $this->fake->on('v-search-object')->returnsJson([]);
+    withSysConfig($this->fake, ['API_SYSTEM' => '2']); // access keys and SSH keys: the Keys hub
+    signIn('arcadmin', 'admin');
+    $pages = fn (string $query) => collect(collect($this->getJson('/_palette?q='.$query)->json('groups'))->keyBy('label')['Pages and actions']['items']);
+
+    expect($pages('firewall')->firstWhere('label', 'Firewall'))->toMatchArray(['meta' => 'Network', 'url' => route('server.firewall')])
+        ->and($pages('ssh')->firstWhere('label', 'SSH keys'))->toMatchArray(['meta' => 'Keys', 'url' => route('ssh-keys.index')]);
+});
+
 it('keeps palette results of a user to their own objects', function () {
     $this->fake->on('v-search-user-object', ['bob', 'example', 'json'])->returnsFixture('v-search-object/example.json');
     signIn('bob', 'user');
@@ -89,8 +108,11 @@ it('lists, acknowledges and deletes notifications as JSON', function () {
     signIn('bob', 'user');
 
     $this->getJson('/_notifications')->assertOk()->assertJsonPath('notifications.0', [
-        'id' => '2', 'title' => 'Maintenance tonight', 'body' => 'Services restart at 02:00.', 'acknowledged' => false, 'date' => '2026-10-04', 'time' => '11:00:00',
-    ])->assertJsonPath('notifications.1.body', 'Read the guide to get started.');
+        'id' => '2', 'title' => 'Maintenance tonight', 'body' => 'Services restart at 02:00.',
+        'parts' => [['text' => 'Services restart at 02:00.', 'url' => null, 'external' => false]],
+        'acknowledged' => false, 'date' => '2026-10-04', 'time' => '11:00:00',
+    ])->assertJsonPath('notifications.1.body', 'Read the guide to get started.')
+        ->assertJsonPath('notifications.1.parts.1', ['text' => 'guide', 'url' => '/docs/', 'external' => false]);
 
     $this->postJson('/_notifications/2/acknowledge')->assertOk();
     $this->deleteJson('/_notifications/1')->assertOk();

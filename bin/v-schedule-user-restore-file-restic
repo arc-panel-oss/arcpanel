@@ -28,6 +28,8 @@ source /etc/arcpanel/arcpanel.conf
 source $ARCPANEL/func/main.sh
 # shellcheck source=/usr/local/arcpanel/func/queuetask.sh
 source $ARCPANEL/func/queuetask.sh
+# shellcheck source=/usr/local/arcpanel/func/safe-fs.sh
+source $ARCPANEL/func/safe-fs.sh
 # load config file
 source_conf "$ARCPANEL/conf/arcpanel.conf"
 
@@ -82,7 +84,7 @@ source_conf $ARCPANEL/conf/restic.conf
 log=$ARCPANEL/log/restore.log
 
 # The snapshot must exist (as v-schedule-user-restore-restic checks it).
-if ! restic --repo "${REPO%/}/$user" --password-file "$USER_DATA/restic.conf" cat snapshot "$snapshot" > /dev/null 2>&1; then
+if ! restic_user "$user" cat snapshot -- "$snapshot" > /dev/null 2>&1; then
 	check_result "$E_NOTEXIST" "snapshot $snapshot doesn't exist"
 fi
 

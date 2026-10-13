@@ -71,13 +71,12 @@ case $SSL_HOME in
 	*) check_args '3' "2" 'USER DOMAIN SSLHOME' ;;
 esac
 
+# The folder and its skeleton are made by the user, in a folder the user
+# owns (E39 W1)
 if [ "$SSL_HOME" = 'single' ] && [ ! -d "$HOMEDIR/$user/web/$domain/public_shtml" ]; then
-	mkdir $HOMEDIR/$user/web/$domain/public_shtml
-	chown $user:$user $HOMEDIR/$user/web/$domain/public_shtml
+	$BIN/v-add-fs-directory "$user" "$HOMEDIR/$user/web/$domain/public_shtml"
 	user_exec cp $WEBTPL/skel/public_html/* "$HOMEDIR/$user/web/$domain/public_shtml" > /dev/null 2>&1
-	for file in $(find "$HOMEDIR/$user/web/$domain/public_shtml" -type f); do
-		sed -i "s/%domain%/$domain/g" $file
-	done
+	user_exec find "$HOMEDIR/$user/web/$domain/public_shtml" -type f -exec sed -i "s/%domain%/$domain/g" {} +
 fi
 
 # Changing sslhome directory

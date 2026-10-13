@@ -1,0 +1,53 @@
+#!/bin/bash
+# info: clear the login limits of a user
+# options: USER
+#
+# example: v-delete-user-login-limits admin
+#
+# This function clears the hourly login limit and the 2FA limit that the
+# panel keeps for a user name, so a user locked out by failed attempts of
+# someone else can log in again.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+user=$1
+
+# Includes
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# load config file
+source_conf "$ARCPANEL/conf/arcpanel.conf"
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '1' "$#" 'USER'
+is_format_valid 'user'
+is_object_valid 'user' 'USER' "$user"
+
+# Perform verification if read-only mode is enabled
+check_arcpanel_demo_mode
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+# The limits live in the panel's cache, owned by the panel user
+runuser -u arcpanelweb -- "$ARCPANEL/php/bin/php" "$ARCPANEL/web-app/artisan" arcpanel:login-limits:clear "$user" > /dev/null
+check_result $? "Clearing the login limits failed" "$E_UPDATE"
+
+#----------------------------------------------------------#
+#                         ArcPanel                         #
+#----------------------------------------------------------#
+
+# Logging
+$BIN/v-log-action "system" "Info" "Security" "Login limits cleared (User: $user)."
+log_event "$OK" "$ARGUMENTS"
+
+exit

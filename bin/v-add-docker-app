@@ -51,6 +51,7 @@ rollback() {
 	if [ "$recorded" = 'yes' ]; then
 		dockerapp_remove "$user" "$name"
 		rm -rf "$(dockerapp_rdir "$user" "$name")"
+		rm -rf -- "$(dockerapp_data_dir "$user" "$name")"
 		node_as_user "$user" rm -rf "$(dockerapp_home "$user" "$name")" 2> /dev/null
 	fi
 	if [ "$switched" = 'yes' ]; then
@@ -191,7 +192,10 @@ mkdir -p "$rdir"
 chmod 700 "$(dirname "$rdir")" "$rdir"
 node_home_dir_add "$user" apps 711 && node_as_user "$user" chmod 711 "$HOMEDIR/$user/apps"
 check_result $? "$HOMEDIR/$user/apps could not be created" "$E_FORBIDEN"
-node_as_user "$user" bash -c 'umask 077; mkdir -p "$1/data" && [ ! -L "$1" ] && [ ! -L "$1/data" ]' app "$(dockerapp_home "$user" "$name")"
+node_as_user "$user" bash -c 'umask 077; mkdir -p "$1" && [ ! -L "$1" ]' app "$(dockerapp_home "$user" "$name")"
+out=$(dockerapp_data_tree "$user" "$name")
+check_result $? "$out" "$E_FORBIDEN"
+dockerapp_data_link "$user" "$name"
 dockerapp_set "$user" "$name" "SLUG=$slug" "VERSION=$version" "DOMAIN=$domain" "WEB_PORT=$web_port" \
 	"EXTRA_PORTS=$extra" STATE=running STATUS=installing REASON= SUSPENDED=no \
 	"TEMPLATE=$([ -n "$domain" ] && echo "$DOCKERAPP_TEMPLATE")" "PREV_TPL=$prev_tpl" PREV_VERSION= \

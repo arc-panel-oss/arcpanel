@@ -111,6 +111,7 @@ const theme = EditorView.theme({
  * @param {boolean} options.wrap
  * @param {() => void} options.onSave  Ctrl+S / Cmd+S
  * @param {(state: {dirty: boolean, line: number, column: number}) => void} options.onUpdate
+ * @param {import('@codemirror/state').Extension[]} [options.extensions]  added after the panel's own
  */
 export function createEditor(parent, options) {
 	const wrapping = new Compartment();
@@ -153,6 +154,8 @@ export function createEditor(parent, options) {
 					}
 				}),
 				EditorView.contentAttributes.of({ 'aria-label': options.label ?? 'Editor' }),
+				// Extensions of the caller (the line markers of the php.ini editor, E41)
+				...(options.extensions ?? []),
 			],
 		}),
 	});

@@ -2,9 +2,10 @@
 # info: schedule user backup restoration
 # options: USER SNAPSHOT [OBJECT] [VALUE] [FORMAT]
 #
-# example: v-schedule-user-restore 2019-04-22_01-00-00.tar
+# example: v-schedule-user-restore-restic alice 4f2a91c0 web example.com
 #
-# This function for scheduling user backup restoration.
+# This function for scheduling user backup restoration from a restic
+# snapshot.
 
 #----------------------------------------------------------#
 #                Variables & Functions                     #
@@ -24,6 +25,8 @@ source /etc/arcpanel/arcpanel.conf
 source $ARCPANEL/func/main.sh
 # shellcheck source=/usr/local/arcpanel/func/queuetask.sh
 source $ARCPANEL/func/queuetask.sh
+# shellcheck source=/usr/local/arcpanel/func/safe-fs.sh
+source $ARCPANEL/func/safe-fs.sh
 # load config file
 source_conf "$ARCPANEL/conf/arcpanel.conf"
 
@@ -53,14 +56,10 @@ source_conf $ARCPANEL/conf/restic.conf
 
 log=$ARCPANEL/log/restore.log
 
-#Verify if snapshot / repo exists
-tmpdir=$(mktemp -p /home/$user/tmp/ -d)
 # Check if snapshot exists
-restic --repo "${REPO%/}/$user" --password-file "$USER_DATA/restic.conf" dump "$snapshot" "/home/$user/backup/backup.conf" > "$tmpdir/backup.conf"
-if [ "$?" -ne 0 ]; then
+if ! restic_user "$user" cat snapshot -- "$snapshot" > /dev/null 2>&1; then
 	check_result "$E_NOTEXIST" "Unable to download from snapshot"
 fi
-rm -fr "$tmpdir"
 
 pipe="$ARCPANEL/data/queue/backup.pipe"
 if [ -z "$object" ]; then

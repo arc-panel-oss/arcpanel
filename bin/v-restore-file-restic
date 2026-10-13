@@ -1,10 +1,14 @@
 #!/bin/bash
-# info: restore file or folder
-# options: USER SNAPSHOT path
+# info: restore a file or folder from a restic snapshot
+# options: USER SNAPSHOT PATH [NOTIFY]
 #
-# example: v-restore-user user snapshot path
+# example: v-restore-file-restic alice 4f2a91c0 /home/alice/web/example.com/public_html/index.php
 #
-# This function for restoring database from restic snapshot.
+# This function restores PATH, a file or folder in the home directory of
+# USER, from a restic snapshot. restic restores into a working folder of
+# root; the user copies the result into the home, so the files belong to
+# the user and nothing outside the user's permissions is written (E39 W1).
+# The restore overwrites the current file.
 
 #----------------------------------------------------------#
 #                Variables & Functions                     #
@@ -21,14 +25,8 @@ notify=${4-no}
 source /etc/arcpanel/arcpanel.conf
 # shellcheck source=/usr/local/arcpanel/func/main.sh
 source $ARCPANEL/func/main.sh
-# shellcheck source=/usr/local/arcpanel/func/domain.sh
-source $ARCPANEL/func/domain.sh
-# shellcheck source=/usr/local/arcpanel/func/ip.sh
-source $ARCPANEL/func/ip.sh
-# shellcheck source=/usr/local/arcpanel/func/rebuild.sh
-source $ARCPANEL/func/rebuild.sh
-# shellcheck source=/usr/local/arcpanel/func/syshealth.sh
-source $ARCPANEL/func/syshealth.sh
+# shellcheck source=/usr/local/arcpanel/func/safe-fs.sh
+source $ARCPANEL/func/safe-fs.sh
 # load config file
 source_conf "$ARCPANEL/conf/arcpanel.conf"
 
@@ -36,10 +34,18 @@ source_conf "$ARCPANEL/conf/arcpanel.conf"
 #                    Verifications                         #
 #----------------------------------------------------------#
 
-args_usage='USER SNAPSHOT DOMAIN [NOTIFY]'
+args_usage='USER SNAPSHOT PATH [NOTIFY]'
 check_args '3' "$#" "$args_usage"
-is_format_valid 'user'
+is_format_valid 'user' 'snapshot'
 is_object_valid 'user' 'USER' "$user"
+
+file="${file%/}"
+if [ "$file" = "$HOMEDIR/$user" ] || ! is_snapshot_path_valid "$file"; then
+	check_result "$E_FORBIDEN" "the path is outside the home directory of $user"
+fi
+
+# Perform verification if read-only mode is enabled
+check_arcpanel_demo_mode
 
 source_conf $ARCPANEL/conf/restic.conf
 
@@ -47,31 +53,33 @@ source_conf $ARCPANEL/conf/restic.conf
 #                       Action                             #
 #----------------------------------------------------------#
 
-tmpdir=$(mktemp -p /home/$user/tmp/ -d)
-if [ ! -f "$tmpdir/backup.conf" ]; then
-	restic --repo "${REPO%/}/$user" --password-file $USER_DATA/restic.conf dump $snapshot /home/$user/backup/backup.conf > $tmpdir/backup.conf
-	if [ "$?" -ne 0 ]; then
-		check_result "$E_NOTEXIST" "Unable to download snapshot data"
-	fi
+if ! restic_user "$user" cat snapshot -- "$snapshot" > /dev/null 2>&1; then
+	check_result "$E_NOTEXIST" "snapshot $snapshot doesn't exist"
 fi
 
-restic --repo "${REPO%/}/$user" --password-file $USER_DATA/restic.conf restore $snapshot --include $file --target /
+safe_workdir restore-file
+tmpdir=$SAFE_WORKDIR
+restic_user "$user" restore --target "$tmpdir" --include="$file" -- "$snapshot" > /dev/null
+check_result $? "restic restore failed" "$E_NOTEXIST"
+
+parent=$(dirname -- "$file")
+if [ ! -e "$tmpdir$file" ]; then
+	check_result "$E_NOTEXIST" "$file is not in snapshot $snapshot"
+fi
+copy_into_home "$tmpdir$parent" "$parent"
+check_result $? "the restored files could not be copied into the home" "$E_FORBIDEN"
 
 #----------------------------------------------------------#
 #                         ArcPanel                         #
 #----------------------------------------------------------#
 
-rm -fr $tmpdir
+safe_workdir_cleanup
 
 # Update user counters
-$BIN/v-update-user-counters $user
-$BIN/v-update-user-counters "$ROOT_USER"
-$BIN/v-update-sys-ip-counters
-
-sed -i "/v-restore-file-restic '$user' '$snapshot' '$file' /d" $ARCPANEL/data/queue/backup.pipe
+$BIN/v-update-user-counters "$user"
 
 # Logging
-$BIN/v-log-action "system" "Info" "Backup" "DNS Domain successfully restored (User: $user, Snapshot: $snapshot, Databse: $database)."
-$BIN/v-log-action "$user" "Info" "Backup" "DNS Domain successfully restored (User: $user, Snapshot: $snapshot, Databse: $database)."
+$BIN/v-log-action "system" "Info" "Backup" "File restored from a snapshot (User: $user, Snapshot: $snapshot, Path: $file)."
+$BIN/v-log-action "$user" "Info" "Backup" "File restored from a snapshot (Snapshot: $snapshot, Path: $file)."
 log_event "$OK" "$ARGUMENTS"
 exit

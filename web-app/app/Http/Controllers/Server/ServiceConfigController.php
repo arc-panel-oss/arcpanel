@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Server;
 use App\Auth\Principal;
 use App\Http\Controllers\Controller;
 use App\Policies\ServerPolicy;
+use App\Services\Php\PhpManager;
 use App\Services\Server\ServiceConfigs;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -21,13 +22,24 @@ final class ServiceConfigController extends Controller
     /** Legacy editors that are pages of their own. */
     private const REDIRECTS = ['iptables' => 'server.firewall', 'web-terminal' => 'server.services'];
 
+    /** Editors of php.ini, which the PHP page replaces (E41 §6.5). */
+    private const PHP_EDITORS = ['php', 'php-fpm', 'php5-fpm'];
+
     public function __construct(private readonly ServiceConfigs $configs) {}
 
-    public function show(string $service, Principal $principal, ServerPolicy $policy): View|RedirectResponse
+    public function show(string $service, Principal $principal, ServerPolicy $policy, PhpManager $php): View|RedirectResponse
     {
         abort_unless($policy->viewConfig($principal), 403);
         if (isset(self::REDIRECTS[$service])) {
             return redirect()->route(self::REDIRECTS[$service]);
+        }
+        // Each version has its own php.ini, edited on the PHP page (E41 §6.5)
+        if (in_array($service, self::PHP_EDITORS, true)) {
+            $default = $php->defaultVersion();
+
+            return $default !== ''
+                ? redirect()->route('server.php.show', ['version' => $default, 'tab' => 'ini-fpm'])
+                : redirect()->route('server.php.index');
         }
         abort_unless(ServiceConfigs::exists($service), 404);
         $editor = $this->configs->load($service);

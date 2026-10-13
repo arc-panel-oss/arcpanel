@@ -1,6 +1,7 @@
 <?php
 
 use App\Arc\ExitCode;
+use App\Auth\SudoMode;
 use App\Policies\Capabilities;
 use Illuminate\Support\Facades\Route;
 
@@ -141,7 +142,7 @@ it('creates a key and shows its secret once, without storing it', function () {
     $created = ['ACCESS_KEY_ID' => 'NeWkEyNeWkEyNeWkEy01', 'SECRET_ACCESS_KEY' => 'fresh-secret-abcdef', 'USER' => 'bob',
         'PERMISSIONS' => ['purge-nginx-cache', 'update-dns-records'], 'COMMENT' => 'ci', 'TIME' => '12:00:00', 'DATE' => '2026-10-06'];
     $this->fake->on('v-add-access-key')->returnsJson($created);
-    signIn('bob', 'user');
+    signIn('bob', 'user', ['SUDO_UNTIL' => time() + SudoMode::SECONDS]);
 
     $this->post('/access-keys/bob', ['sets' => ['purge-nginx-cache', 'update-dns-records'], 'comment' => ' ci '])
         ->assertOk()->assertHeader('Cache-Control', 'no-store, private')
@@ -158,7 +159,7 @@ it('creates a key and shows its secret once, without storing it', function () {
 it('shows how to call REST API v2 with a new v2 key', function () {
     $this->fake->on('v-add-access-key')->returnsJson(['ACCESS_KEY_ID' => 'NeWkEyNeWkEyNeWkEy02', 'SECRET_ACCESS_KEY' => 'v2-secret_abc=',
         'USER' => 'bob', 'PERMISSIONS' => ['v2-read'], 'COMMENT' => '', 'TIME' => '12:00:00', 'DATE' => '2026-10-06']);
-    signIn('bob', 'user');
+    signIn('bob', 'user', ['SUDO_UNTIL' => time() + SudoMode::SECONDS]);
 
     $this->post('/access-keys/bob', ['sets' => ['v2-read']])->assertOk()
         ->assertSee("curl -H 'Authorization: Bearer NeWkEyNeWkEyNeWkEy02:v2-secret_abc=' http://localhost/api/v2/me")
@@ -167,7 +168,7 @@ it('shows how to call REST API v2 with a new v2 key', function () {
 });
 
 it('requires permissions and refuses sets of other roles', function () {
-    signIn('bob', 'user');
+    signIn('bob', 'user', ['SUDO_UNTIL' => time() + SudoMode::SECONDS]);
 
     $this->post('/access-keys/bob', ['comment' => 'x'])->assertSessionHasErrors(['sets' => 'Field "Permissions" can not be blank.']);
     $this->post('/access-keys/bob', ['sets' => ['billing']])->assertSessionHasErrors(['sets' => 'API billing not allowed']);
@@ -175,7 +176,7 @@ it('requires permissions and refuses sets of other roles', function () {
 });
 
 it('refuses a comment that v-add-access-key would refuse, next to the field', function () {
-    signIn('bob', 'user');
+    signIn('bob', 'user', ['SUDO_UNTIL' => time() + SudoMode::SECONDS]);
 
     foreach (['x', 'deploy bot!', '-ci', str_repeat('a', 67)] as $comment) {
         $this->post('/access-keys/bob', ['sets' => ['v2-read'], 'comment' => $comment])->assertSessionHasErrors('comment');
@@ -211,7 +212,7 @@ it('lists SSH keys without the file manager key', function () {
 
 it('adds SSH keys as web/add/key does', function () {
     $this->fake->on('v-add-user-ssh-key')->returns();
-    signIn('bob', 'user');
+    signIn('bob', 'user', ['SUDO_UNTIL' => time() + SudoMode::SECONDS]);
 
     $this->post('/ssh-keys/bob', ['key' => 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOk bob@desktop'])
         ->assertRedirect('/ssh-keys/bob')->assertSessionHas('ok', 'SSH Key has been created successfully.');

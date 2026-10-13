@@ -707,25 +707,34 @@ is_object_value_exist() {
 	fi
 }
 
+# Prints the first line of a value file that the panel (arcpanelweb) or root
+# wrote into /tmp: a plain name directly in /tmp, a regular file, not a link
+# (E39 W1 L3). Returns non-zero for anything else, which then stays the
+# value itself.
+read_value_file() {
+	local path=$1
+	[[ "$path" =~ ^/tmp/[A-Za-z0-9._-]+$ ]] || return 1
+	[ -f "$path" ] && [ ! -L "$path" ] || return 1
+	case "$(stat -c %U -- "$path")" in
+		arcpanelweb | root) ;;
+		*) return 1 ;;
+	esac
+	head -n 1 -- "$path"
+}
+
 # Check if password is transmitted via file
 is_password_valid() {
-	if [[ "$password" =~ ^/tmp/ ]]; then
-		if ! [[ "$password" == *../* ]]; then
-			if [ -f "$password" ]; then
-				password="$(head -n1 $password)"
-			fi
-		fi
+	local value
+	if [[ "$password" =~ ^/tmp/ ]] && value=$(read_value_file "$password"); then
+		password=$value
 	fi
 }
 
 # Check if hash is transmitted via file
 is_hash_valid() {
-	if [[ "$hash" =~ ^/tmp/ ]]; then
-		if ! [[ "$hash" == *../* ]]; then
-			if [ -f "$hash" ]; then
-				hash="$(head -n1 $hash)"
-			fi
-		fi
+	local value
+	if [[ "$hash" =~ ^/tmp/ ]] && value=$(read_value_file "$hash"); then
+		hash=$value
 	fi
 }
 
@@ -811,6 +820,21 @@ update_user_value() {
 	if [ -n "$lnr" ]; then
 		sed -i "$lnr d" $ARCPANEL/data/users/$1/user.conf
 		sed -i "$lnr i\\$key='${3}'" $ARCPANEL/data/users/$1/user.conf
+	fi
+}
+
+# Set user value in place, adding the key when user.conf does not have it yet.
+# Unlike update_user_value it keeps a key on the last line. For values
+# without quotes or line breaks (time stamps, counters).
+set_user_value() {
+	local key="${2//$/}" conf="$ARCPANEL/data/users/$1/user.conf" value="$3"
+	if grep -q "^$key='" "$conf"; then
+		value="${value//\\/\\\\}"
+		value="${value//|/\\|}"
+		value="${value//&/\\&}"
+		sed -i "s|^$key='[^']*'|$key='$value'|" "$conf"
+	else
+		echo "$key='$3'" >> "$conf"
 	fi
 }
 
@@ -1563,6 +1587,14 @@ is_object_format_valid() {
 	fi
 }
 
+# Restic snapshot validator: a hexadecimal ID or "latest", so that the value
+# can never be read as an option (E39 W1 D4)
+is_snapshot_id_valid() {
+	if ! [[ "$1" =~ ^([0-9a-f]{8,64}|latest)$ ]]; then
+		check_result "$E_INVALID" "invalid snapshot format :: $1"
+	fi
+}
+
 # Role validator
 is_role_valid() {
 	if ! [[ "$1" =~ ^admin$|^user$|^reseller$|^dns-cluster$ ]]; then
@@ -1694,7 +1726,7 @@ is_format_valid() {
 				rule) is_int_format_valid "$arg" "rule id" ;;
 				service) is_service_format_valid "$arg" "$arg_name" ;;
 				secret_access_key) is_secret_access_key_format_valid "$arg" "$arg_name" ;;
-				snapshot) is_object_format_valid "$arg" 'snapshot' ;;
+				snapshot) is_snapshot_id_valid "$arg" ;;
 				soa) is_domain_format_valid "$arg" 'SOA' ;;
 				#missing command: is_format_valid_shell
 				shell) is_format_valid_shell "$arg" ;;
@@ -1988,7 +2020,7 @@ multiphp_versions() {
 
 multiphp_default_version() {
 	# Get system wide default php version (set by update-alternatives)
-	local sys_phpversion=$(php -r "echo substr(phpversion(),0,3);")
+	local sys_phpversion=$(php -r "echo PHP_MAJOR_VERSION . \".\" . PHP_MINOR_VERSION;")
 
 	# Check if the system php also has php-fpm enabled, otherwise return
 	# the most recent php version which does have it installed.
@@ -2024,7 +2056,34 @@ user_exec() {
 	local user_groups=$(id -G "$user")
 	user_groups=${user_groups//\ /,}
 
-	setpriv --groups "$user_groups" --reuid "$user" --regid "$user" -- "${@}"
+	# Only standard input, output and error reach the user's process: the
+	# lock files and other descriptors root holds stay with root (E39 W1)
+	(
+		for fd in /proc/$BASHPID/fd/*; do
+			fd=${fd##*/}
+			if [[ "$fd" =~ ^[0-9]+$ ]] && [ "$fd" -gt 2 ]; then
+				eval "exec $fd>&-"
+			fi
+		done
+		exec setpriv --groups "$user_groups" --reuid "$user" --regid "$user" -- "${@}"
+	)
+}
+
+# Copies standard input to standard output up to MAX bytes (default 2 MiB)
+# and drops the rest while it keeps reading, so the writer is not stopped:
+# logs root keeps of a user's output cannot fill the disk (E39 W1)
+log_cap() {
+	awk -v max="${1:-2097152}" '{
+		n += length($0) + 1
+		if (n <= max) {
+			print
+			fflush()
+		} else if (!cut) {
+			print "[output truncated]"
+			fflush()
+			cut = 1
+		}
+	}'
 }
 
 # Simple chmod wrapper that skips symlink files after glob expand
@@ -2037,6 +2096,15 @@ no_symlink_chmod() {
 
 		chmod "${filemode}" "${i}"
 	done
+}
+
+# Print $1 fit for a log line instead of refusing it: quotes, pipes,
+# backslashes, $, backticks and control characters become "_", and the value
+# is cut at 256 characters (E39 W2 spec D5)
+log_safe() {
+	local value="${1//[\'\"|\\\$\`]/_}"
+	value="${value//[[:cntrl:]]/_}"
+	printf '%s' "${value:0:256}"
 }
 
 format_no_quotes() {

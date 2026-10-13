@@ -39,9 +39,10 @@ note() {
 }
 
 # Validate the copy LINE of NAME; prints the pairs to record, or the reason
-# and returns 1
+# and returns 1. The copy is a file of the user: it gets the checks of
+# v-add-docker-app (E39 W1 D12).
 copy_check() {
-	local name="$1" line="$2" slug version domain cpus memory state pair port
+	local name="$1" line="$2" slug version domain cpus memory state pair port manifest prev need free path
 	slug=$(nodeapp_field "$line" SLUG)
 	version=$(nodeapp_field "$line" VERSION)
 	domain=$(nodeapp_field "$line" DOMAIN)
@@ -51,6 +52,30 @@ copy_check() {
 	if ! docker_slug_valid "$slug" || ! docker_version_valid "$version"; then
 		echo "invalid app or version"
 		return 1
+	fi
+	manifest=$(docker_manifest "$slug" "$version")
+	if [ -f "$manifest" ]; then
+		if [ "$(jq -r '.admin_only // false' "$manifest")" = 'true' ] && [ "$(tenancy_user_value "$user" ROLE)" != 'admin' ]; then
+			echo "$slug can only be installed by an administrator"
+			return 1
+		fi
+		if ! jq -e --arg a "$(docker_arch)" '.arch | index($a) != null' "$manifest" > /dev/null; then
+			echo "$slug is not available for $(docker_arch)"
+			return 1
+		fi
+		need=$(docker_mb "$(jq -r .requirements.disk "$manifest")")
+		for path in "$HOMEDIR/$user" "${DOCKER_DATA_ROOT:-/var/lib/docker}"; do
+			free=$(docker_free_mb "$path")
+			if [ -n "$free" ] && [ -n "$need" ] && [ "$free" -lt "$need" ]; then
+				echo "$slug needs $need MB of free disk, $path has $free MB"
+				return 1
+			fi
+		done
+	fi
+	# The web template to go back to: a plain name of an existing template
+	prev=$(nodeapp_field "$line" PREV_TPL)
+	if ! [[ "$prev" =~ ^[A-Za-z0-9_.-]{1,64}$ ]] || [[ "$prev" == *..* ]] || ! nodeapp_tpl_exists "$prev"; then
+		prev=$(nodeapp_package_template "$user")
 	fi
 	if [ -n "$domain" ] && { ! [[ "$domain" =~ ^[a-z0-9][a-z0-9.-]{0,252}$ ]] || ! arc_tpl_domain_exists "$user" "$domain" \
 		|| nodeapp_exists "$user" "$domain" || [ -n "$(dockerapp_of_domain "$user" "$domain")" ]; }; then
@@ -75,7 +100,7 @@ copy_check() {
 	done
 	printf '%s\n' "SLUG=$slug" "VERSION=$version" "DOMAIN=$domain" "WEB_PORT=$port" \
 		"EXTRA_PORTS=$(nodeapp_field "$line" EXTRA_PORTS)" "STATE=$state" STATUS=installing REASON= SUSPENDED=no \
-		"TEMPLATE=$([ -n "$domain" ] && echo "$DOCKERAPP_TEMPLATE")" "PREV_TPL=$(nodeapp_field "$line" PREV_TPL)" \
+		"TEMPLATE=$([ -n "$domain" ] && echo "$DOCKERAPP_TEMPLATE")" "PREV_TPL=$prev" \
 		PREV_VERSION= "CPUS=$cpus" "MEMORY=$memory" "TIME=$(nodeapp_field "$line" TIME)" "DATE=$(nodeapp_field "$line" DATE)"
 }
 
@@ -95,8 +120,13 @@ is_object_valid 'user' 'USER' "$user"
 
 dockerapp_lock "$user"
 
-# 1. Copies without a record
-if [ -d "$HOMEDIR/$user/apps" ] && [ ! -L "$HOMEDIR/$user/apps" ]; then
+# 1. Copies without a record; a suspended user gets none (an imported app
+# would start)
+user_suspended=no
+if grep -q "SUSPENDED='yes'" "$USER_DATA/user.conf" 2> /dev/null; then
+	user_suspended=yes
+fi
+if [ "$user_suspended" = 'no' ] && [ -d "$HOMEDIR/$user/apps" ] && [ ! -L "$HOMEDIR/$user/apps" ]; then
 	for name in $(node_as_user "$user" find "$HOMEDIR/$user/apps" -mindepth 2 -maxdepth 2 -name app.conf -type f -printf '%h\n' 2> /dev/null \
 		| xargs -r -n1 basename | sort); do
 		if ! dockerapp_name_valid "$name" || dockerapp_exists "$user" "$name"; then

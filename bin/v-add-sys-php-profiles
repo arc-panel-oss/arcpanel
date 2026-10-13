@@ -1,0 +1,64 @@
+#!/bin/bash
+# info: set up the PHP-FPM profiles (E41)
+# options: NONE
+#
+# example: v-add-sys-php-profiles
+#
+# This function creates the profile store ($ARCPANEL/data/php/profiles.conf)
+# with the shipped profiles default, small, medium and large, and rewrites the
+# pool templates of $ARCPANEL/data/templates/web/php-fpm that still carry the
+# pool lines of ArcPanel 2.0.0 (pm = ondemand, 8 children, 4000 requests, 10s
+# idle) to the %php_profile% placeholder. The default profile renders exactly
+# those lines, so existing pools do not change. Templates an administrator
+# changed are left alone. Safe to run on every upgrade.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Includes
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/php.sh
+source $ARCPANEL/func/php.sh
+# load config file
+source_conf "$ARCPANEL/conf/arcpanel.conf"
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+# Perform verification if read-only mode is enabled
+check_arcpanel_demo_mode
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+php_data_dir
+php_profiles_ensure
+
+changed=0
+for tpl in "$PHP_FPM_TPL_DIR"/*.tpl; do
+	[ -f "$tpl" ] || continue
+	if php_template_has_profile "$tpl"; then
+		continue
+	fi
+	sed -z -i 's/\npm = ondemand\npm.max_children = 8\npm.max_requests = 4000\npm.process_idle_timeout = 10s\n/\n%php_profile%\n/' "$tpl"
+	if php_template_has_profile "$tpl"; then
+		changed=$((changed + 1))
+	fi
+done
+if [ "$changed" -gt 0 ]; then
+	echo "[ * ] PHP-FPM pool templates now take their settings from profiles ($changed)"
+fi
+
+#----------------------------------------------------------#
+#                         ArcPanel                         #
+#----------------------------------------------------------#
+
+log_event "$OK" "$ARGUMENTS"
+
+exit

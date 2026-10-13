@@ -6,7 +6,9 @@
 # example: v-restore-database-restic user snapshot 'user_database,user_database2'
 # example: v-restore-database-restic user snapshot '*'
 #
-# This function for restoring database from restic snapshot.
+# This function for restoring database from restic snapshot. The records and
+# dumps of a snapshot are untrusted: names must carry the user's prefix, and
+# the dump is imported with an account limited to the database (E39 W1).
 
 #----------------------------------------------------------#
 #                Variables & Functions                     #
@@ -29,6 +31,8 @@ source $ARCPANEL/func/db.sh
 source $ARCPANEL/func/rebuild.sh
 # shellcheck source=/usr/local/arcpanel/func/syshealth.sh
 source $ARCPANEL/func/syshealth.sh
+# shellcheck source=/usr/local/arcpanel/func/safe-fs.sh
+source $ARCPANEL/func/safe-fs.sh
 # load config file
 source_conf "$ARCPANEL/conf/arcpanel.conf"
 
@@ -38,7 +42,7 @@ source_conf "$ARCPANEL/conf/arcpanel.conf"
 
 args_usage='USER SNAPSHOT DATABSE [NOTIFY]'
 check_args '3' "$#" "$args_usage"
-is_format_valid 'user'
+is_format_valid 'user' 'snapshot'
 is_object_valid 'user' 'USER' "$user"
 
 source_conf $ARCPANEL/conf/restic.conf
@@ -47,70 +51,87 @@ source_conf $ARCPANEL/conf/restic.conf
 #                       Action                             #
 #----------------------------------------------------------#
 
-tmpdir=$(mktemp -p /home/$user/tmp/ -d)
-if [ ! -f "$tmpdir/backup.conf" ]; then
-	restic --repo "${REPO%/}/$user" --password-file "$USER_DATA/restic.conf" --json dump "$snapshot" "/home/$user/backup/backup.conf" > "$tmpdir/backup.conf"
-	if [ "$?" -ne 0 ]; then
-		check_result "$E_NOTEXIST" "Unable to download snapshot"
-	fi
-fi
+safe_workdir restore-db
+tmpdir=$SAFE_WORKDIR
+read_snapshot_index "$tmpdir" "$snapshot"
+check_result $? "Unable to download snapshot"
+snapshot_mode=$BACKUP_MODE
 
-parse_object_kv_list $(cat "$tmpdir/backup.conf")
-
-IFS=',' read -a databases <<< "$DB"
+IFS=',' read -r -a databases <<< "$DB"
 
 for db in "${databases[@]}"; do
 	if [[ ",$database," == *",$db,"* || "$database" = '*' ]]; then
-		check_config=$(grep "DB='$db'" $USER_DATA/db.conf)
+		if ! is_restore_name_valid database "$db" || [[ "$db" != "${user}_"* ]]; then
+			restore_skip database "$db" "invalid name"
+			continue
+		fi
+		unset -v DB DBUSER MD5 HOST TYPE CHARSET U_DISK
+		check_config=$(grep -F "DB='$db'" $USER_DATA/db.conf)
 		if [ -z "$check_config" ]; then
-			restic --repo "${REPO%/}/$user" --password-file "$USER_DATA/restic.conf" --json dump "$snapshot" "/home/$user/backup/db/$db/arcpanel/db.conf" > "$tmpdir/db.conf"
-			if [ "$?" -ne 0 ]; then
-				check_result "$E_NOTEXIST" "Unable to download user data"
+			if is_database_of_other_user "$db"; then
+				restore_skip database "$db" "belongs to another user"
+				continue
 			fi
-			parse_object_kv_list $(cat "$tmpdir/db.conf")
-			# @todo add support for renaming user
-			str="DB='$DB' DBUSER='$DBUSER' MD5='$MD5' HOST='$HOST'"
-			str="$str TYPE='$TYPE' CHARSET='$CHARSET' U_DISK='$U_DISK'"
-			str="$str SUSPENDED='no' TIME='$(date +%T)' DATE='$(date +%F)'"
+			restic_restore_config "$tmpdir" "$snapshot" --include="/home/$user/backup/db/$db/arcpanel/db.conf"
+			check_result $? "Unable to download user data"
+			if ! parse_backup_record "$(restore_record_keys db)" "$(head -n 1 -- "$tmpdir/home/$user/backup/db/$db/arcpanel/db.conf" 2> /dev/null)"; then
+				restore_skip database "$db" "invalid record"
+				continue
+			fi
+			DB=$db
+			if ! is_restore_database_valid; then
+				restore_skip database "$db" "invalid user, type, host or charset"
+				continue
+			fi
+			str=$(restore_record db "SUSPENDED='no' TIME='$(date +%T)' DATE='$(date +%F)'")
+			if [ -z "$str" ]; then
+				restore_skip database "$db" "invalid record"
+				continue
+			fi
 			echo "$str" >> $USER_DATA/db.conf
 		else
-			parse_object_kv_list $(grep "DB='$db'" $USER_DATA/db.conf)
+			parse_object_kv_list "$check_config"
 		fi
 
-		# Download databse
-		if [ "$BACKUP_MODE" = "zstd" ]; then
-			restic --repo "${REPO%/}/$user" --password-file "$USER_DATA/restic.conf" dump "$snapshot" "/home/$user/backup/db/$db/$db.$TYPE.sql.zst" > $tmpdir/$db.$TYPE.sql.zst
-			if [ "$?" -ne 0 ]; then
-				check_result $E_NOTEXIST "Unable to download database"
-			fi
-			pzstd -d "$tmpdir/$db.$TYPE.sql.zst"
+		# Download database
+		if [ "$snapshot_mode" = "zstd" ]; then
+			ext=zst
 		else
-			restic --repo "${REPO%/}/$user" --password-file "$USER_DATA/restic.conf" dump "$snapshot" "/home/$user/backup/db/$db/$db.$TYPE.sql.gz" > $tmpdir/$db.$TYPE.sql.gz
-			if [ "$?" -ne 0 ]; then
-				check_result $E_NOTEXIST "Unable to download database"
-			fi
-			gzip -d "$tmpdir/$db.$TYPE.sql.gz"
+			ext=gz
+		fi
+		restic_restore_config "$tmpdir" "$snapshot" --include="/home/$user/backup/db/$db/$db.$TYPE.sql.$ext"
+		check_result $? "Unable to download database"
+		dump="$tmpdir/home/$user/backup/db/$db/$db.$TYPE.sql"
+		if [ ! -f "$dump.$ext" ]; then
+			restore_skip database "$db" "no dump in the snapshot"
+			continue
+		fi
+		if [ "$ext" = zst ]; then
+			pzstd -q -d "$dump.$ext"
+		else
+			gzip -d "$dump.$ext"
 		fi
 
 		# Restore and rebuild
 		echo "- Restore database: $db (Type: $TYPE)"
-		database_dump="$tmpdir/$db.$TYPE.sql"
 		case $TYPE in
 			mysql)
 				delete_mysql_database
 				rebuild_mysql_database
-				import_mysql_database $database_dump
 				;;
 			pgsql)
 				delete_pgsql_database
 				rebuild_pgsql_database
-				import_pgsql_database $database_dump
 				;;
 		esac
+		restore_import_database "$dump"
+		if [ $? -ne 0 ]; then
+			echo "[ ! ] The dump of $db was not imported completely"
+		fi
 	fi
 done
 
-rm -fr $tmpdir
+safe_workdir_cleanup
 #----------------------------------------------------------#
 #                         ArcPanel                         #
 #----------------------------------------------------------#

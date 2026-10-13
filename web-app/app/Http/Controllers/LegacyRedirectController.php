@@ -8,8 +8,9 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 
 /**
- * Old URLs for one release (E8 spec §5.3): the /app prefix of 1.x and the
- * page paths of the ArcPanel 1.x interface answer 301. Removed in 2.1.
+ * Old URLs (E8 spec §5.3): the /app prefix of 1.x and the
+ * page paths of the ArcPanel 1.x interface answer 301. Kept in 2.1; a later
+ * release removes them and says so in the changelog.
  */
 final class LegacyRedirectController extends Controller
 {

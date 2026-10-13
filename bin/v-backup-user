@@ -163,12 +163,13 @@ if [ -z "$BACKUP" ]; then
 	BACKUP=/backup
 fi
 
-# Check if backup folder exists and have the correct permission
+# Check if backup folder exists and have the correct permission: users may
+# not list the archives of others (E39 W1 D8)
 if [[ ! -d "$BACKUP" ]]; then
 	mkdir -p $BACKUP
 fi
-if [ "$(stat -c %a "$BACKUP")" != 755 ]; then
-	chmod 755 $BACKUP
+if [ "$(stat -c %a "$BACKUP")" != 711 ]; then
+	chmod 711 $BACKUP
 fi
 
 # Get current time
@@ -282,6 +283,8 @@ if [ -n "$WEB_SYSTEM" ] && [ "$WEB" != '*' ]; then
 		cd $tmpdir/web/$domain/
 		conf="$USER_DATA/web.conf"
 		grep "DOMAIN='$domain'" $conf > arcpanel/web.conf
+		# PHP-FPM profile of the domain (E41)
+		grep -F "DOMAIN='$domain' " "$USER_DATA/web.php.conf" > arcpanel/web.php.conf 2> /dev/null
 
 		# Backup vhost config
 		if [ -e "$HOMEDIR/$user/conf/web/$domain/$WEB_SYSTEM.conf" ]; then
@@ -703,6 +706,27 @@ if [ "$USER" != '*' ]; then
 		echo -e "$(date "+%F %T") *** $i directories ***" \
 			| tee -a $BACKUP/$user.log
 	fi
+fi
+
+# Docker app data (E39 W1): the volume folders live outside the home, one
+# archive per app in ./docker_data/
+docker_data="$HOMEDIR/.arcpanel-apps/$user"
+if [ -d "$docker_data" ] && [ ! -L "$docker_data" ]; then
+	for app_dir in "$docker_data"/*/; do
+		app=$(basename -- "$app_dir")
+		if ! [[ "$app" =~ ^[a-z0-9][a-z0-9-]{1,31}$ ]] || [ -L "${app_dir%/}" ]; then
+			continue
+		fi
+		mkdir -p "$tmpdir/docker_data"
+		echo -e "$(date "+%F %T") adding the data of the Docker app $app" | tee -a $BACKUP/$user.log
+		if [ "$BACKUP_MODE" = 'zstd' ]; then
+			(cd -- "$app_dir" && find . -mindepth 1 -maxdepth 1 ! -name .incoming -printf './%P\0' | tar --null -T - -cpf-) \
+				| pzstd -"$BACKUP_GZIP" - > "$tmpdir/docker_data/$app.tar.zst"
+		else
+			(cd -- "$app_dir" && find . -mindepth 1 -maxdepth 1 ! -name .incoming -printf './%P\0' | tar --null -T - -cpf-) \
+				| gzip -"$BACKUP_GZIP" - > "$tmpdir/docker_data/$app.tar.gz"
+		fi
+	done
 fi
 
 if [ "$BACKUP_MODE" = 'zstd' ]; then

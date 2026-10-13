@@ -39,29 +39,9 @@
             </x-ap-form>
         </x-ap-card>
 
-        <x-ap-task-panel :task="$task" :title="__('Changing PHP versions')"
-            :done-message="__('The PHP versions have been changed.')" :fail-message="__('Changing the PHP versions failed.')">
-            <x-ap-card :title="__('PHP Versions')" icon="layers">
-                <x-ap-form :action="route('server.settings.php')">
-                    <p class="muted">{{ __('Installing or removing a version can take a few minutes. It runs in the background.') }}</p>
-                    <div class="ap-check-grid">
-                        @foreach ($php as $version => $state)
-                            @php($locked = $state['installed'] && ($state['default'] || $state['usedBy'] !== []))
-                            @php($reason = $state['default'] ? __('Default version') : ($state['usedBy'] !== [] ? sprintf(__('Used by %s'), implode(', ', array_slice($state['usedBy'], 0, 5)).(count($state['usedBy']) > 5 ? ' …' : '')) : null))
-                            @if ($locked)
-                                <input type="hidden" name="versions[]" value="{{ $version }}">
-                            @endif
-                            <x-ap-checkbox name="versions[]" :id="'php-'.str_replace('.', '-', $version)" :value="$version" :label="'PHP '.$version"
-                                :checked="$state['installed']" :hint="$reason" x-bind:disabled="running || {{ $locked || ! $canEdit ? 'true' : 'false' }}" />
-                        @endforeach
-                    </div>
-                    @if ($canEdit)
-                        <div class="ap-form-actions">
-                            <x-ap-button type="submit" variant="primary" icon="check" x-bind:disabled="running">{{ __('Apply PHP versions') }}</x-ap-button>
-                        </div>
-                    @endif
-                </x-ap-form>
-            </x-ap-card>
-        </x-ap-task-panel>
+        <x-ap-card :title="__('PHP Versions')" icon="layers">
+            <p class="muted">{{ __('Install and remove PHP versions, their extensions and php.ini, and the PHP-FPM profiles on the PHP page.') }}</p>
+            <div class="ap-form-actions"><x-ap-button :href="route('server.php.index')" icon="code">{{ __('Open the PHP page') }}</x-ap-button></div>
+        </x-ap-card>
     @endif
 </x-ap-page>

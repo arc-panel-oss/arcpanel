@@ -29,7 +29,9 @@ it('shows a user its runtimes and mounts the island', function () {
     $this->get('/node/bob')->assertOk()
         ->assertSee('data-island="node-manager"', false)
         ->assertSee('v24.21.0')->assertSee('v22.23.3')
-        ->assertSee('href="'.route('node.index').'"', false);
+        // The Node apps hub in the sidebar, its Runtimes tab current (sidebar hubs spec H4)
+        ->assertSee('href="'.route('node-apps').'"', false)
+        ->assertSee('<a class="ap-tab" href="'.route('node.show', ['user' => 'bob']).'" aria-current="page">Runtimes</a>', false);
 });
 
 it('sends /node to the page of the effective account', function () {

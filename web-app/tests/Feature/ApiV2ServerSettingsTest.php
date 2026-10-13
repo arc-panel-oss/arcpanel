@@ -136,7 +136,7 @@ it('answers the values of every tab, and set flags for the secrets', function ()
         ->assertJsonPath('data.backups.keep_daily', 7)
         ->assertJsonPath('data.ssl.key', ['set' => true])->assertJsonPath('data.ssl.issuer', 'Example CA')
         ->assertJsonPath('data.security.API_SYSTEM', '2')->assertJsonPath('data.security.POLICY_SYSTEM_HIDE_SERVICES', 'no')
-        ->assertJsonPath('data.plugins', ['app_installer' => true, 'plugins' => ['filemanager' => true, 'web-terminal' => false, 'cgroups' => false, 'quota' => false, 'firewall' => true]])
+        ->assertJsonPath('data.plugins', ['app_installer' => true, 'plugins' => ['filemanager' => true, 'web-terminal' => false, 'cgroups' => false, 'quota' => false, 'firewall' => true, 'malware-scan' => false]])
         ->assertJsonPath('data.white-label.TITLE', '{{page}} - {{hostname}} - {{appname}}');
 });
 

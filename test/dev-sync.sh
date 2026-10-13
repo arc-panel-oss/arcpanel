@@ -82,9 +82,10 @@ chmod 644 "$ARCPANEL"/install/*.sh
 copy_file 0644 "$SRC/src/deb/nginx/nginx.conf" "$ARCPANEL/nginx/conf/nginx.conf"
 copy_file 0644 "$SRC/src/deb/php/php.ini" "$ARCPANEL/php/lib/php.ini"
 if [ -d "$ARCPANEL/web-terminal" ]; then
-	copy_file 0644 "$SRC/src/deb/web-terminal/server.js" "$ARCPANEL/web-terminal/server.js"
-	copy_file 0755 "$SRC/src/deb/web-terminal/web-terminal-session-auth.php" \
-		"$ARCPANEL/web-terminal/web-terminal-session-auth.php"
+	# server.js is the ExecStart of the service, so it must stay executable
+	copy_file 0755 "$SRC/src/deb/web-terminal/server.js" "$ARCPANEL/web-terminal/server.js"
+	copy_file 0644 "$SRC/src/deb/web-terminal/ticket.js" "$ARCPANEL/web-terminal/ticket.js"
+	rm -f "$ARCPANEL/web-terminal/web-terminal-session-auth.php"
 fi
 
 # Line endings: the repository stores LF only

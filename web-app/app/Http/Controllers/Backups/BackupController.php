@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Backups;
 
 use App\Arc\CommandResult;
 use App\Arc\ExitCode;
+use App\Arc\SysConfig;
 use App\Auth\Principal;
 use App\Http\Controllers\Controller;
 use App\Policies\BackupPolicy;
@@ -24,7 +25,10 @@ use Illuminate\View\View;
  */
 final class BackupController extends Controller
 {
-    public function __construct(private readonly BackupService $backups) {}
+    public function __construct(
+        private readonly BackupService $backups,
+        private readonly SysConfig $config,
+    ) {}
 
     /** /backups: the effective account, or the owner picked by an administrator or reseller. */
     public function entry(Request $request, OwnerList $owners): RedirectResponse
@@ -174,6 +178,8 @@ final class BackupController extends Controller
             'can' => $policy->abilities($principal, $user),
             'incremental' => $settings['incremental'],
             'limit' => $settings['backups'],
+            // DNS and mail sections of a backup are shown when the server runs them or the backup holds some
+            'systems' => ['dns' => $this->config->get('DNS_SYSTEM') !== '', 'mail' => $this->config->get('MAIL_SYSTEM') !== ''],
         ];
     }
 

@@ -1,9 +1,7 @@
 {{-- Docker apps of an account (E4 spec §7); the docker-apps island takes over the content. --}}
 <x-ap-page :title="__('Docker apps')" :crumbs="[['label' => __('Docker apps')], ['label' => $user]]"
     :description="__('Apps of the store, each running for one of your web domains with its own ports, logs and backups.')">
-    <x-slot:actions>
-        <x-ap-button :href="route('docker.store', ['user' => $user])" variant="primary" icon="plus">{{ __('Open the store') }}</x-ap-button>
-    </x-slot:actions>
+    {{-- The store link is in the card of the island, shown when the package allows installs --}}
     <x-ap-island name="docker-apps" :props="$props" class="ap-stack">
         {{-- Without scripts: the apps and their state --}}
         <x-ap-card :title="__('Docker apps')" icon="container" :flush="true">

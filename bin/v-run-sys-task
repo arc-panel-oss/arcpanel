@@ -72,6 +72,18 @@ case "$kind" in
 			done
 		fi
 		;;
+	php-ext)
+		if [ "${args[1]}" != '-' ]; then
+			for name in ${args[1]//,/ }; do
+				step v-add-sys-php-extension "${args[0]}" "$name"
+			done
+		fi
+		if [ "${args[2]}" != '-' ]; then
+			for name in ${args[2]//,/ }; do
+				step v-delete-sys-php-extension "${args[0]}" "$name"
+			done
+		fi
+		;;
 	plugin)
 		if [ "${args[1]}" = 'on' ]; then
 			step "v-add-sys-${args[0]}"

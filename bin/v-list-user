@@ -86,6 +86,7 @@ json_list() {
         "LOGIN_DISABLED": "'$LOGIN_DISABLED'",
         "LOGIN_USE_IPLIST": "'$LOGIN_USE_IPLIST'",
         "LOGIN_ALLOW_IPS": "'$LOGIN_ALLOW_IPS'",
+        "SESSIONS_VALID_AFTER": "'$SESSIONS_VALID_AFTER'",
         "PHPCLI": "'$PHPCLI'",
         "TIME": "'$TIME'",
         "DATE": "'$DATE'"

@@ -1,12 +1,16 @@
 #!/bin/bash
 # info: restore WEB domain
-# options: USER SNAPSHOT DOMAIN
+# options: USER SNAPSHOT DOMAIN [NOTIFY] [NEW_USER]
 #
 # example: v-restore-web-domain-restic user snapshot domain.com
 # example: v-restore-web-domain-restic user snapshot 'domain.com,domain2.com'
-# example: v-restore-web-domain-restic user snapsho '*'
+# example: v-restore-web-domain-restic user snapshot '*'
 #
-# This function for restoring database from restic snapshot.
+# This function for restoring web domains from restic snapshot. The record,
+# certificates and paths read from the snapshot are validated; the site
+# files are copied into the home as the user. Custom web server
+# configuration is not restored from a snapshot, because the user can
+# change it in ~/backup before the backup runs (E39 W1).
 
 #----------------------------------------------------------#
 #                Variables & Functions                     #
@@ -32,10 +36,10 @@ source $ARCPANEL/func/ip.sh
 source $ARCPANEL/func/rebuild.sh
 # shellcheck source=/usr/local/arcpanel/func/syshealth.sh
 source $ARCPANEL/func/syshealth.sh
+# shellcheck source=/usr/local/arcpanel/func/safe-fs.sh
+source $ARCPANEL/func/safe-fs.sh
 # load config file
 source_conf "$ARCPANEL/conf/arcpanel.conf"
-
-source_conf $ARCPANEL/conf/restic.conf
 
 #----------------------------------------------------------#
 #                    Verifications                         #
@@ -43,7 +47,7 @@ source_conf $ARCPANEL/conf/restic.conf
 
 args_usage='USER SNAPSHOT DOMAIN [NOTIFY] [NEW_USER]'
 check_args '3' "$#" "$args_usage"
-is_format_valid 'user'
+is_format_valid 'user' 'snapshot'
 is_object_valid 'user' 'USER' "$user"
 
 source_conf $ARCPANEL/conf/restic.conf
@@ -52,170 +56,155 @@ source_conf $ARCPANEL/conf/restic.conf
 #                       Action                             #
 #----------------------------------------------------------#
 
-tmpdir=$(mktemp -p /home/$user/tmp/ -d)
-if [ ! -f "$tmpdir/backup.conf" ]; then
-	restic --repo "${REPO%/}/$user" --password-file "$USER_DATA/restic.conf" dump "$snapshot" "/home/$user/backup/backup.conf" > "$tmpdir/backup.conf"
-	if [ "$?" -ne 0 ]; then
-		check_result "$E_NOTEXIST" "Unable to download from snapshot"
-	fi
-fi
-restic --repo "${REPO%/}/$user" --password-file "$USER_DATA/restic.conf" dump "$snapshot" "/home/$user/backup/pam/passwd" > "$tmpdir/passwd"
-old_uid=$(cut -f 3 -d : $tmpdir/passwd)
+safe_workdir restore-web
+tmpdir=$SAFE_WORKDIR
+read_snapshot_index "$tmpdir" "$snapshot"
+check_result $? "Unable to download from snapshot"
+
+# Folders of a web domain the user writes; logs and stats are rebuilt
+web_folders='public_html public_shtml private cgi-bin document_errors'
 
 domains=""
-parse_object_kv_list $(cat $tmpdir/backup.conf)
-IFS=',' read -a domains <<< "$WEB"
+IFS=',' read -r -a domains <<< "$WEB"
 for domain in "${domains[@]}"; do
 	if [[ ",$web," == *",$domain,"* || "$web" = '*' ]]; then
+		if ! is_restore_name_valid domain "$domain"; then
+			restore_skip "web domain" "$domain" "invalid name"
+			continue
+		fi
 		# Cleanup previous domain keys
-		unset -v DOMAIN IP IP6 ALIAS TPL SSL SSL_HOME LETSENCRYPT FTP_USER FTP_MD5 BACKEND PROXY PROXY_EXT STATS STATS_USER STATS_CRYPT U_DISK CUSTOM_DOCROOT CUSTOM_PHPROOT
+		restore_record_reset web
 
 		# Checking domain existence
-		check_config=$(grep "DOMAIN='$domain'" $USER_DATA/web.conf)
+		check_config=$(grep -F "DOMAIN='$domain'" $USER_DATA/web.conf)
 		if [ -z "$check_config" ]; then
 			check_new=$(is_domain_new 'web' $domain)
 			if [ "$check_new" = 'yes' ]; then
-				rm -rf $tmpdir
 				error="$domain belongs to another user"
 				echo "$error" | $SENDMAIL -s "$subj" $email $notify
 				sed -i "/ $user /d" $ARCPANEL/data/queue/backup.pipe
 				check_result "$E_PARSING" "$error"
 			fi
 		fi
-		restic --repo "${REPO%/}/$user" --password-file "$USER_DATA/restic.conf" restore "$snapshot" --include "/home/$user/backup/web/$domain" --target "$tmpdir"
-		if [ "$?" -ne 0 ]; then
-			check_result $E_NOTEXIST "Unable to download domain from snapshot"
-		fi
+		restic_restore_config "$tmpdir" "$snapshot" --include="/home/$user/backup/web/$domain"
+		check_result $? "Unable to download domain from snapshot"
+		src="$tmpdir/home/$user/backup/web/$domain"
 
 		# Restoring web.conf
 		if [ -z "$check_config" ]; then
-			parse_object_kv_list $(cat $tmpdir/home/$user/backup/web/$domain/arcpanel/web.conf)
+			if ! parse_backup_record "$(restore_record_keys web)" "$(head -n 1 -- "$src/arcpanel/web.conf" 2> /dev/null)"; then
+				restore_skip "web domain" "$domain" "invalid record"
+				continue
+			fi
+			DOMAIN=$domain
 
-			# Deleting conflicting aliases
+			# Aliases: valid names that no other user holds
+			aliases=''
 			for dom_alias in ${ALIAS//,/ }; do
-				check_new=$(is_domain_new 'web' $dom_alias)
-				if [ -n "$check_new" ]; then
-					ALIAS=$(echo "$ALIAS" \
-						| sed "s/,/\n/g" \
-						| sed "s/^$dom_alias$//g" \
-						| sed "/^$/d" \
-						| sed ':a;N;$!ba;s/\n/,/g')
+				if is_restore_name_valid domain "$dom_alias" && [ -z "$(is_domain_new 'web' "$dom_alias")" ]; then
+					aliases+=",$dom_alias"
 				fi
 			done
+			ALIAS=${aliases#,}
 
 			# Checking IP address
+			if ! is_restore_ip_valid "$IP"; then
+				IP=''
+			fi
 			check_ip=$(is_ip_valid $IP $user)
 			if [ -n "$check_ip" ]; then
 				local_ip=''
 				get_user_ip $user
-				old_ip=$IP
 				IP=$ip
 			fi
+			if ! is_restore_ip_valid "$IP"; then
+				restore_skip "web domain" "$domain" "no valid IP address"
+				continue
+			fi
+			if [ -n "$IP6" ] && ! is_restore_ip_valid "$IP6"; then
+				IP6=''
+			fi
 
-			# Checking web template
-			check_tpl=$(is_web_template_valid $TPL)
-			if [ -n "$check_tpl" ]; then
+			# Checking web, proxy and backend templates
+			if ! is_restore_template_valid "$TPL" || [ -n "$(is_web_template_valid "$TPL")" ]; then
 				TPL='default'
 			fi
-
-			# Checking proxy template
-			check_proxy_tpl=$(is_proxy_template_valid $PROXY)
-			if [ -n "$check_proxy_tpl" ]; then
+			if ! is_restore_template_valid "$PROXY" || [ -n "$(is_proxy_template_valid "$PROXY")" ]; then
 				PROXY='default'
 			fi
-
-			# Checking backend template
-			check_backend_tpl=$(is_backend_template_valid $BACKEND)
-			if [ -n "$check_backend_tpl" ]; then
+			if ! is_restore_template_valid "$BACKEND" || [ -n "$(is_backend_template_valid "$BACKEND")" ]; then
 				BACKEND='default'
 			fi
 
-			if [ -n "$CUSTOM_DOCROOT" ]; then
-				CUSTOM_DOCROOT=$(echo "$CUSTOM_DOCROOT" | sed -e "s|/home/${old_user}/web/|/home/${user}/web/")
+			# Custom roots stay below ~/web of the user
+			if ! is_restore_web_root_valid "$CUSTOM_DOCROOT"; then
+				CUSTOM_DOCROOT=''
 			fi
-			if [ -n "$CUSTOM_PHPROOT" ]; then
-				CUSTOM_PHPROOT=$(echo "$CUSTOM_PHPROOT" | sed -e "s|/home/${old_user}/web/|/home/${user}/web/")
+			if ! is_restore_web_root_valid "$CUSTOM_PHPROOT"; then
+				CUSTOM_PHPROOT=''
 			fi
 
-			# Converting FTP users
-			if [ -n "$FTP_USER" ]; then
-				FTP_USER=$(echo "$FTP_USER" | sed -e "s/${old_user}_//")
-				FTP_USER="${user}_${FTP_USER}"
-			fi
+			# FTP accounts of this user only
+			restore_web_ftp_filter
+
 			# Copying SSL certificates
 			if [ "$SSL" = 'yes' ]; then
-
-				if [ -f "$tmpdir/home/$user/backup/web/$domain/arcpanel/$domain.crt" ]; then
-					cp -f "$tmpdir/home/$user/backup/web/$domain/arcpanel/$domain.crt" "$USER_DATA/ssl/"
-					if [ -f "$tmpdir/home/$user/backup/web/$domain/arcpanel/$domain.ca" ]; then
-						cp -f "$tmpdir/home/$user/backup/web/$domain/arcpanel/$domain.ca" "$USER_DATA/ssl/"
-					fi
-					if [ -f "$tmpdir/home/$user/backup/web/$domain/arcpanel/$domain.pem" ]; then
-						cp -f "$tmpdir/home/$user/backup/web/$domain/arcpanel/$domain.pem" "$USER_DATA/ssl/"
-					fi
-					if [ -f "$tmpdir/home/$user/backup/web/$domain/arcpanel/$domain.key" ]; then
-						cp -f "$tmpdir/home/$user/backup/web/$domain/arcpanel/$domain.key" "$USER_DATA/ssl/"
-					fi
+				if copy_from_work "$src/arcpanel/$domain.crt" "$USER_DATA/ssl/$domain.crt"; then
+					for ext in ca pem key; do
+						copy_from_work "$src/arcpanel/$domain.$ext" "$USER_DATA/ssl/$domain.$ext"
+					done
 				fi
 			fi
 
 			# Merging web.conf keys
-			str="DOMAIN='$domain' IP='$IP' IP6='$IP6' ALIAS='$ALIAS'"
-			str="$str CUSTOM_DOCROOT='$CUSTOM_DOCROOT' CUSTOM_PHPROOT='$CUSTOM_PHPROOT'"
-			str="$str REDIRECT='$REDIRECT' REDIRECT_CODE='$REDIRECT_CODE'"
-			str="$str FASTCGI_CACHE='$FASTCGI_CACHE' FASTCGI_DURATION='$FASTCGI_DURATION'"
-			str="$str TPL='$TPL' SSL='$SSL' SSL_HOME='$SSL_HOME' SSL_HSTS='$SSL_HSTS'"
-			str="$str SSL_FORCE='$SSL_FORCE' LETSENCRYPT='$LETSENCRYPT' FTP_USER='$FTP_USER'"
-			str="$str FTP_MD5='$FTP_MD5' FTP_PATH='$FTP_PATH'"
-			str="$str BACKEND='$BACKEND' PROXY='$PROXY'"
-			str="$str PROXY_EXT='$PROXY_EXT' STATS='$STATS'"
-			str="$str STATS_USER='$STATS_USER' STATS_CRYPT='$STATS_CRYPT'"
-			str="$str U_DISK='$U_DISK' U_BANDWIDTH='0' SUSPENDED='no'"
-			str="$str TIME='$(date +%T)' DATE='$(date +%F)'"
-			echo $str >> $USER_DATA/web.conf
+			str=$(restore_record web "U_BANDWIDTH='0' SUSPENDED='no' TIME='$(date +%T)' DATE='$(date +%F)'")
+			if [ -z "$str" ]; then
+				restore_skip "web domain" "$domain" "invalid record"
+				continue
+			fi
+			echo "$str" >> $USER_DATA/web.conf
+
+			# PHP-FPM profile of the domain (E41): a profile this server does not
+			# have falls back to default
+			php_profile=$(grep -oE "PROFILE='[a-z0-9][a-z0-9-]{0,31}'" "$src/arcpanel/web.php.conf" 2> /dev/null | head -n1 | cut -d\' -f2)
+			if [ -n "$php_profile" ] && [ "$WEB_BACKEND_POOL" != 'user' ]; then
+				if php_profile_exists "$php_profile"; then
+					php_domain_profile_set "$user" "$domain" "$php_profile"
+				else
+					restore_skip "PHP-FPM profile $php_profile of" "$domain" "it does not exist on this server, the domain uses default"
+				fi
+			fi
 
 			# Rebuilding backend
 			if [ -n "$WEB_BACKEND" ]; then
 				$BIN/v-add-web-domain-backend $user $domain $BACKEND
 			fi
-
-			# Restoring custom user config
-			# Except certificates, .conf files
 		fi
 
-		if [ ! -d "$HOMEDIR/$user/conf/web/$domain/" ]; then
-			mkdir -p $HOMEDIR/$user/conf/web/$domain/
+		if [ -n "$(find "$src/conf" -mindepth 1 -maxdepth 1 -type f ! -name '*.ca' ! -name '*.crt' ! -name '*.key' ! -name '*.pem' ! -name '*.conf' 2> /dev/null)" ]; then
+			restore_skip "custom web server configuration of" "$domain" "not restored from snapshots"
 		fi
-		for file in $tmpdir/home/$user/backup/web/$domain/conf/*; do
-			if [[ "$file" == *.ca ]] || [[ "$file" == *.crt ]] || [[ "$file" == *.key ]] || [[ "$file" == *.pem ]] || [[ "$file" == *.conf ]]; then
-				continue
-			fi
-			if grep "fastcgi_pass" "$file"; then
-				# Do not allow to run php under a different user
-				continue
-			fi
-			filename=$(basename "$file")
-			cp -f "$file" "$HOMEDIR/$user/conf/web/$domain/$filename"
-		done
 
 		# Rebuilding vhost to prevent user overwrite default config changes not ideal
 		rebuild_web_domain_conf
 
-		if [ -d "$HOMEDIR/$user/web/$domain/public_html" ]; then
-			rm -rf $HOMEDIR/$user/web/$domain/public_html/*
-		fi
+		# The site files: emptied and copied back by the user
+		restic_restore_data "$tmpdir" "$snapshot" --include="/home/$user/web/$domain"
+		check_result $? "Unable to download user data"
+		for folder in $web_folders; do
+			if [ -d "$tmpdir/home/$user/web/$domain/$folder" ] && [ -d "$HOMEDIR/$user/web/$domain/$folder" ]; then
+				if [ "$folder" = 'public_html' ]; then
+					user_exec find "$HOMEDIR/$user/web/$domain/public_html/" -mindepth 1 -delete
+				fi
+				copy_into_home "$tmpdir/home/$user/web/$domain/$folder" "$HOMEDIR/$user/web/$domain/$folder"
+				check_result $? "the files of $domain could not be copied into the home" "$E_FORBIDEN"
+			fi
+		done
+		rm -rf -- "$tmpdir/home/$user/web/$domain"
 
-		[[ -d $HOMEDIR/$user/web/$domain/stats ]] && chmod u+w "$HOMEDIR/$user/web/$domain/stats"
-
-		restic --repo "${REPO%/}/$user" --password-file "$USER_DATA/restic.conf" restore "$snapshot" --include "/home/$user/web/$domain" --target /
-		if [ "$?" -ne 0 ]; then
-			check_result "$E_NOTEXIST" "Unable to download user data"
-		fi
 		if [ "$new_user" = "yes" ]; then
 			echo "[ * ] Fix permissions"
 			chown --no-dereference $user:$user \
-				$HOMEDIR/$user/ \
-				$HOMEDIR/$user/web/ \
 				$HOMEDIR/$user/web/$domain \
 				$HOMEDIR/$user/web/$domain/private \
 				$HOMEDIR/$user/web/$domain/cgi-bin \
@@ -223,7 +212,6 @@ for domain in "${domains[@]}"; do
 				$HOMEDIR/$user/web/$domain/logs \
 				$HOMEDIR/$user/web/$domain/stats
 
-			chown -R $user:$user $HOMEDIR/$user/web/$domain/document_errors
 			chown root:$user /var/log/$WEB_SYSTEM/domains/$domain.*
 		fi
 		# Rebuilding web config for the second time to make sure ftp users keep working
@@ -237,7 +225,7 @@ done
 if [ "$new_user" = "yes" ]; then
 	rebuild_user_conf
 fi
-rm -fr $tmpdir
+safe_workdir_cleanup
 
 # Update user counters
 $BIN/v-update-user-counters $user
@@ -247,7 +235,7 @@ $BIN/v-update-sys-ip-counters
 sed -i "/v-restore-web-domain-restic '$user' '$snapshot' '$web' /d" $ARCPANEL/data/queue/backup.pipe
 
 # Logging
-$BIN/v-log-action "system" "Info" "Backup" "Web domain successfully restored (User: $user, Snapshot: $snapshot, Databse: $database)."
-$BIN/v-log-action "$user" "Info" "Backup" "Web domain successfully restored (User: $user, Snapshot: $snapshot, Databse: $database)."
+$BIN/v-log-action "system" "Info" "Backup" "Web domain successfully restored (User: $user, Snapshot: $snapshot, Domain: $web)."
+$BIN/v-log-action "$user" "Info" "Backup" "Web domain successfully restored (User: $user, Snapshot: $snapshot, Domain: $web)."
 log_event "$OK" "$ARGUMENTS"
 exit

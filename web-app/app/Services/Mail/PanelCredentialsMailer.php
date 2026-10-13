@@ -101,8 +101,8 @@ final class PanelCredentialsMailer implements AccountMailer, CredentialsMailer, 
 
     /**
      * web/reset: the "reset_password" template or the built-in text, with the
-     * link of the e-mail on the host the request came to (E7 batch 3 spec
-     * §11.2). The code reaches no log.
+     * link of the e-mail on $host, the configured panel host (E7 batch 3
+     * spec §11.2 as amended by E39 W2 §5.1). The code reaches no log.
      */
     public function sendPasswordReset(string $to, string $name, string $username, string $code, string $language, string $host): void
     {

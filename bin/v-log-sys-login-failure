@@ -1,0 +1,43 @@
+#!/bin/bash
+# info: log a failed panel login that names no valid user
+# options: IP [REASON]
+#
+# example: v-log-sys-login-failure 203.0.113.7 'Invalid user name'
+#
+# This function writes a failed login to the auth log for a user name that
+# no other command accepts, so fail2ban counts it like any other failure.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+ip46=$1
+reason=${2-Invalid user name}
+
+# Includes
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# load config file
+source_conf "$ARCPANEL/conf/arcpanel.conf"
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '1' "$#" 'IP [REASON]'
+is_format_valid 'ip46'
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+echo "$(date +'%F %T') - $ip46 failed to login ($(log_safe "$reason"))" >> "$ARCPANEL/log/auth.log"
+
+#----------------------------------------------------------#
+#                         ArcPanel                         #
+#----------------------------------------------------------#
+
+exit

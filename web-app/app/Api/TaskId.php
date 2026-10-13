@@ -20,6 +20,9 @@ final class TaskId
 
     public const SOURCE_QUEUE = 'queue';
 
+    /** A background malware scan of a user (E25 batch 1 spec D10). */
+    public const SOURCE_MALWARE = 'malware';
+
     public function __construct(
         public readonly string $source,
         public readonly string $recordId,
@@ -31,7 +34,7 @@ final class TaskId
     {
         return match ($this->source) {
             self::SOURCE_SYS, self::SOURCE_DOCKER_ENGINE => $this->source.':'.$this->recordId,
-            self::SOURCE_NODE, self::SOURCE_INSTALL, self::SOURCE_QUEUE => $this->source.':'.$this->user.':'.$this->recordId,
+            self::SOURCE_NODE, self::SOURCE_INSTALL, self::SOURCE_QUEUE, self::SOURCE_MALWARE => $this->source.':'.$this->user.':'.$this->recordId,
             self::SOURCE_DOCKER => $this->source.':'.$this->user.':'.$this->app.':'.$this->recordId,
         };
     }
@@ -59,7 +62,7 @@ final class TaskId
             self::SOURCE_SYS, self::SOURCE_DOCKER_ENGINE => count($parts) === 2 && $parts[1] !== ''
                 ? new self($parts[0], $parts[1])
                 : null,
-            self::SOURCE_NODE, self::SOURCE_INSTALL, self::SOURCE_QUEUE => count($parts) === 3
+            self::SOURCE_NODE, self::SOURCE_INSTALL, self::SOURCE_QUEUE, self::SOURCE_MALWARE => count($parts) === 3
                 && $parts[1] !== '' && $parts[2] !== ''
                 ? new self($parts[0], $parts[2], $parts[1])
                 : null,

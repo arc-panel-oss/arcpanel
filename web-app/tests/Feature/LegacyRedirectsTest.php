@@ -84,7 +84,9 @@ it('answers 404 for unknown legacy paths, invalid parameters and form posts', fu
 
 it('sends the 1.x logout link and the reset e-mail links to the panel pages', function () {
     $this->get('/logout/')->assertStatus(301)->assertRedirect('/login');
-    $this->get('/reset/?action=confirm&user=bob&code=abc123')->assertRedirect('/reset/confirm?user=bob&code=abc123');
+    // The code goes into the session, not into the next URL (E39 W2 D9)
+    $this->get('/reset/?action=confirm&user=bob&code=abc123')->assertRedirect('/reset/confirm');
+    expect(session('reset'))->toBe(['user' => 'bob', 'code' => 'abc123']);
     $this->get('/reset/?action=code&user=bob')->assertRedirect('/reset/code?user=bob');
     $this->get('/reset/')->assertOk();
 });

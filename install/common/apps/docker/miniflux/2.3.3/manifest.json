@@ -46,6 +46,12 @@
 		}
 	],
 	"healthcheck": { "type": "http", "path": "/healthcheck", "expect": [200], "timeout": 180 },
-	"dumps": [{ "service": "db", "command": "pg_dump -U miniflux --no-owner miniflux", "file": "miniflux.sql" }],
+	"dumps": [
+		{
+			"service": "db",
+			"command": "pg_dump -U miniflux --no-owner miniflux",
+			"file": "miniflux.sql"
+		}
+	],
 	"post_install": "Open {{url}} and log in with the administrator name and password you chose."
 }

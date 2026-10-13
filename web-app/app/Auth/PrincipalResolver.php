@@ -70,6 +70,13 @@ final class PrincipalResolver
             return $this->end($user, $data, message: self::LOGGED_OUT);
         }
 
+        // 3b. Password changed since this session logged in (E39 W2 spec D10):
+        // v-change-user-password stamps SESSIONS_VALID_AFTER
+        $validAfter = (int) ($record['SESSIONS_VALID_AFTER'] ?? 0);
+        if ($validAfter > 0 && (int) ($data['LOGIN_TIME'] ?? 0) < $validAfter) {
+            return $this->end($user, $data, logLogout: true, message: self::LOGGED_OUT);
+        }
+
         // 4. Admin or reseller demoted since login
         $loginRole = Role::fromValue($data['userContext'] ?? '');
         if (in_array($loginRole, [Role::Admin, Role::Reseller], true) && ($record['ROLE'] ?? '') !== $loginRole->value) {

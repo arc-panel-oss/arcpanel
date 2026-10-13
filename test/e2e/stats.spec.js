@@ -1,6 +1,14 @@
 // Happy paths of the Statistics and Task Monitor pages (E7 batch 2 spec §9.4, §9.5).
 import { expect, test } from '@playwright/test';
-import { ADMIN, CUSTOMER, expectAccessible, login, RESELLER, USER } from './helpers.js';
+import {
+	ADMIN,
+	CUSTOMER,
+	expectAccessible,
+	login,
+	openSection,
+	RESELLER,
+	USER,
+} from './helpers.js';
 
 test('user: statistics of the own account', async ({ page }) => {
 	await login(page, USER);
@@ -35,10 +43,7 @@ test('admin: server totals and the Task Monitor graphs', async ({ page }) => {
 	await expect(page.getByText('Totals of every account on this server, per month.')).toBeVisible();
 	await expectAccessible(page);
 
-	await page
-		.getByRole('navigation', { name: 'Sections' })
-		.getByRole('link', { name: 'Task Monitor' })
-		.click();
+	await openSection(page, 'Task Monitor', 'Services', 'Task monitor');
 	await expect(page).toHaveURL(/\/server\/rrd$/);
 	await expect(page.getByRole('heading', { name: 'Load Average' })).toBeVisible();
 	// The graph draws once its data arrived

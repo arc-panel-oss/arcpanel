@@ -112,6 +112,23 @@ upgrade_set_branch $new_version
 # Perform upgrade clean-up tasks (rebuild domains and users, restart services, delete temporary files)
 upgrade_cleanup_message | tee -a $LOG
 upgrade_rebuild_users | tee -a $LOG
+
+# Homes to the current layout (E39 W1): old file manager keys go, Docker app
+# data moves out of the homes; safe to run on every upgrade
+$BIN/v-update-sys-user-homes | tee -a $LOG
+
+# PHP-FPM profiles (E41): the profile store and the %php_profile% placeholder
+# in the pool templates; pools render as before; safe to run on every upgrade
+$BIN/v-add-sys-php-profiles | tee -a $LOG
+
+# Web terminal tickets need their key (E39 W2); safe to run on every upgrade
+$BIN/v-add-sys-web-terminal-key | tee -a $LOG
+
+# phpMyAdmin single sign-on takes its token from a POST since E39 W2:
+# reinstall an older copy of the sign-on page
+if [ -e /usr/share/phpmyadmin/arcpanel-sso.php ] && ! grep -q 'signOn' /usr/share/phpmyadmin/arcpanel-sso.php; then
+	$BIN/v-delete-sys-pma-sso quiet && $BIN/v-add-sys-pma-sso quiet | tee -a $LOG
+fi
 upgrade_restart_services | tee -a $LOG
 
 # Add upgrade notification to admin user's panel and display completion message

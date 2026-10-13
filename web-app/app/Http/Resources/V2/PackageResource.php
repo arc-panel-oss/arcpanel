@@ -100,6 +100,14 @@ final class PackageResource extends JsonResource
                 /** @var string|null memory per app (512M, 2G) */
                 'memory' => self::value($get('DOCKER_MEMORY', 'unlimited')),
             ],
+            'php' => [
+                /** @var string `*` (every installed version that has not reached its end of life) or a comma list of versions (E41) */
+                'versions' => $get('PHP_VERSIONS', '*') ?: '*',
+                /** @var string `*` or a comma list of PHP-FPM profiles */
+                'profiles' => $get('PHP_PROFILES', 'default') ?: 'default',
+                /** @var string the profile of new web domains */
+                'default_profile' => $get('PHP_DEFAULT_PROFILE', 'default') ?: 'default',
+            ],
             /** @var string|null creation time in the server's time zone, YYYY-MM-DDTHH:MM:SS */
             'created_at' => UserResource::localTime($get('DATE'), $get('TIME')),
         ];

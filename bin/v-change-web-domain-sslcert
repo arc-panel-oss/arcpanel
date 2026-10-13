@@ -5,7 +5,8 @@
 # example: v-change-web-domain-sslcert admin example.com /home/admin/tmp
 #
 # This function changes SSL domain certificate and the key. If ca file present
-# it will be replaced as well.
+# it will be replaced as well. The previous certificate is handed to the user
+# in a folder below private/, copied there by the user (E39 W1).
 
 #----------------------------------------------------------#
 #                Variables & Functions                     #
@@ -25,6 +26,8 @@ source /etc/arcpanel/arcpanel.conf
 source $ARCPANEL/func/main.sh
 # shellcheck source=/usr/local/arcpanel/func/domain.sh
 source $ARCPANEL/func/domain.sh
+# shellcheck source=/usr/local/arcpanel/func/safe-fs.sh
+source $ARCPANEL/func/safe-fs.sh
 # load config file
 source_conf "$ARCPANEL/conf/arcpanel.conf"
 
@@ -48,6 +51,12 @@ is_object_value_exist 'web' 'DOMAIN' "$domain" '$SSL'
 if [ -n "$restart" ]; then
 	is_restart_format_valid "$restart" 'restart'
 fi
+# Root reads the new files: regular files only, never a link
+for ext in crt key ca; do
+	if [ -L "$ssl_dir/$domain.$ext" ]; then
+		check_result "$E_FORBIDEN" "$ssl_dir/$domain.$ext is a link"
+	fi
+done
 is_web_domain_cert_valid
 
 # Perform verification if read-only mode is enabled
@@ -57,11 +66,20 @@ check_arcpanel_demo_mode
 #                       Action                             #
 #----------------------------------------------------------#
 
-# Deleting old certificate
-tmpdir=$(mktemp -p $HOMEDIR/$user/web/$domain/private -d)
+# The certificate folder in the home must be root's all the way down
+if ! root_dir_safe "$HOMEDIR/$user/conf/web/$domain/ssl"; then
+	check_result "$E_FORBIDEN" "$HOMEDIR/$user/conf/web/$domain/ssl is not root's"
+fi
+
+# Deleting old certificate; the user gets a copy of it below private/
+safe_workdir sslcert
+tmpdir=$SAFE_WORKDIR
+mkdir "$tmpdir/ssl-previous"
+mv $USER_DATA/ssl/$domain.* "$tmpdir/ssl-previous/"
 rm -f $HOMEDIR/$user/conf/web/$domain/ssl/$domain.*
-mv $USER_DATA/ssl/$domain.* $tmpdir
-chown -R $user:$user $tmpdir
+if [ -d "$HOMEDIR/$user/web/$domain/private" ]; then
+	copy_into_home "$tmpdir/ssl-previous" "$HOMEDIR/$user/web/$domain/private/ssl-previous-$(date +%Y%m%d%H%M%S)" > /dev/null 2>&1
+fi
 
 # Adding new certificate to user data directory
 cp -f $ssl_dir/$domain.crt $USER_DATA/ssl/$domain.crt
@@ -79,6 +97,7 @@ cp -f $USER_DATA/ssl/$domain.pem $HOMEDIR/$user/conf/web/$domain/ssl/$domain.pem
 if [ -e "$USER_DATA/ssl/$domain.ca" ]; then
 	cp -f $USER_DATA/ssl/$domain.ca $HOMEDIR/$user/conf/web/$domain/ssl/$domain.ca
 fi
+safe_workdir_cleanup
 
 #----------------------------------------------------------#
 #                         ArcPanel                         #

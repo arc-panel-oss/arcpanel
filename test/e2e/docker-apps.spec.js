@@ -5,7 +5,7 @@
 // Docker apps in the package has no entry, and a reseller outside the tree
 // gets 404. The image comes from Docker Hub.
 import { expect, test } from '@playwright/test';
-import { ADMIN, DEV, expectAccessible, login, RESELLER, USER } from './helpers.js';
+import { ADMIN, DEV, expectAccessible, login, openSection, RESELLER, USER } from './helpers.js';
 import { runOnServer } from './server.js';
 
 // The tests build on each other (install, use, delete): one worker, in order.
@@ -29,10 +29,7 @@ function https(domain) {
 
 test('an administrator sees the Docker engine on Server → Docker', async ({ page }) => {
 	await login(page, ADMIN);
-	await page
-		.getByRole('navigation', { name: 'Sections' })
-		.getByRole('link', { name: 'Docker', exact: true })
-		.click();
+	await openSection(page, 'Docker engine', 'Docker apps', 'Engine');
 	await expect(page.getByRole('heading', { name: 'Docker', level: 1 })).toBeVisible();
 	await expect(page.getByRole('heading', { name: 'Docker engine' })).toBeVisible();
 	await expect(page.locator('#docker-engine-title').locator('..')).toContainText('Running');

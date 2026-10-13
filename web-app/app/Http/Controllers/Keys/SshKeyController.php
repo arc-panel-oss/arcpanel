@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Keys;
 
 use App\Auth\Principal;
 use App\Auth\Role;
+use App\Auth\SudoMode;
 use App\Http\Controllers\Controller;
 use App\Policies\SshKeyPolicy;
 use App\Services\Keys\SshKeyService;
@@ -37,9 +38,13 @@ final class SshKeyController extends Controller
         ]);
     }
 
-    public function store(Request $request, string $user, Principal $principal, SshKeyPolicy $policy): RedirectResponse
+    public function store(Request $request, string $user, Principal $principal, SshKeyPolicy $policy, SudoMode $sudo): RedirectResponse
     {
         abort_unless($policy->manage($principal, $user), 403);
+        // A key outlives a password change, so it needs the password (E39 W2 D12)
+        if ($sudo->required($principal, $user)) {
+            return $sudo->challenge($request);
+        }
         $data = $request->validate([
             'key' => ['required', 'string', 'max:16384', 'not_regex:/[\r\n\x00]/'],
         ], ['key.required' => sprintf(__('Field "%s" can not be blank.'), __('SSH Key'))]);

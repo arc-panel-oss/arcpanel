@@ -83,6 +83,13 @@ abstract class PackageRequest extends ApiRequest
             'docker.cpus' => ['sometimes', 'nullable', 'string', 'max:20', 'regex:/^\d{1,3}(\.\d{1,2})?$/'],
             /** Memory per app, such as 512M or 2G; null for unlimited. */
             'docker.memory' => ['sometimes', 'nullable', 'string', 'max:20', 'regex:/^\d{1,7}[MG]?$/'],
+            'php' => ['sometimes', 'array'],
+            /** `*` (every installed version that has not reached its end of life) or a comma list of versions such as `8.3,8.4` (E41). */
+            'php.versions' => ['sometimes', 'string', 'max:200', 'regex:/^(\*|\d{1,2}\.\d{1,2}(,\d{1,2}\.\d{1,2})*)$/'],
+            /** `*` or a comma list of PHP-FPM profiles; it must keep the default profile. */
+            'php.profiles' => ['sometimes', 'string', 'max:500', 'regex:/^(\*|[a-z0-9][a-z0-9-]{0,31}(,[a-z0-9][a-z0-9-]{0,31})*)$/'],
+            /** The profile of new web domains, one of the allowed profiles. */
+            'php.default_profile' => ['sometimes', 'string', 'regex:/^[a-z0-9][a-z0-9-]{0,31}$/'],
         ];
         foreach (array_keys(self::TEMPLATES) as $field) {
             $rules['templates.'.$field] = $object;
@@ -193,6 +200,26 @@ abstract class PackageRequest extends ApiRequest
     }
 
     /**
+     * PHP keys of the package sidecar (E41 §7.5), or null when the request
+     * has no `php` object, so they stay as they are.
+     *
+     * @param  array<string, string>  $base
+     * @return array{PHP_VERSIONS: string, PHP_PROFILES: string, PHP_DEFAULT_PROFILE: string}|null
+     */
+    public function phpValues(array $base): ?array
+    {
+        if (! $this->has('php')) {
+            return null;
+        }
+
+        return [
+            'PHP_VERSIONS' => $this->has('php.versions') ? (string) $this->input('php.versions') : (($base['PHP_VERSIONS'] ?? '') ?: '*'),
+            'PHP_PROFILES' => $this->has('php.profiles') ? (string) $this->input('php.profiles') : (($base['PHP_PROFILES'] ?? '') ?: 'default'),
+            'PHP_DEFAULT_PROFILE' => $this->has('php.default_profile') ? (string) $this->input('php.default_profile') : (($base['PHP_DEFAULT_PROFILE'] ?? '') ?: 'default'),
+        ];
+    }
+
+    /**
      * Run a check of PackageActions; its errors, named after the fields of
      * the package form, are renamed to the fields of this request.
      *
@@ -213,6 +240,7 @@ abstract class PackageRequest extends ApiRequest
                 'dns_template' => 'templates.dns', 'rate_limit' => 'limits.rate_limit', 'backups' => 'limits.backups',
                 'node' => 'node.enabled', 'node_versions' => 'node.versions', 'node_apps' => 'node.apps',
                 'docker' => 'docker.enabled', 'docker_apps' => 'docker.apps', 'docker_cpus' => 'docker.cpus', 'docker_memory' => 'docker.memory',
+                'php_versions' => 'php.versions', 'php_profiles' => 'php.profiles', 'php_default_profile' => 'php.default_profile',
             ];
             foreach (self::LIMITS as $field => $key) {
                 $names[strtolower($key)] = 'limits.'.$field;

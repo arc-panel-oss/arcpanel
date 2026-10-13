@@ -76,8 +76,11 @@ fi
 #                       Action                             #
 #----------------------------------------------------------#
 
-# Parsing user's salt
+# Parsing user's salt. A locked (suspended) account answers like any other,
+# so the answer does not tell it apart before the password is checked;
+# v-check-user-hash says it is suspended once the password matches (L6).
 shadow=$(grep "^$user:" /etc/shadow | cut -f 2 -d :)
+shadow="${shadow#!}"
 
 if echo "$shadow" | grep -qE '^\$[0-9a-z]+\$[^\$]+\$'; then
 	salt=$(echo "$shadow" | cut -f 3 -d \$)
@@ -95,9 +98,9 @@ if echo "$shadow" | grep -qE '^\$[0-9a-z]+\$[^\$]+\$'; then
 		exit 9
 	fi
 elif [[ "$shadow" =~ ! ]]; then
-	echo "Error: Account has been suspended"
-	echo "$date $time $user $ip46 has been suspended" >> $ARCPANEL/log/auth.log
-	exit 5
+	echo "Error: password missmatch"
+	echo "$date $time $user $ip46 failed to login" >> $ARCPANEL/log/auth.log
+	exit 9
 else
 	salt=${shadow:0:2}
 	method='des'

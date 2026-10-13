@@ -100,6 +100,55 @@
             </div>
         </x-ap-card>
 
+        @if ($php !== null)
+            {{-- PHP of the package (E41 §7.5, §8) --}}
+            @php
+                $phpVersions = old('php_versions', ($values['PHP_VERSIONS'] ?? '*') === '*' ? [] : explode(',', $values['PHP_VERSIONS']));
+                $phpProfiles = old('php_profiles', ($values['PHP_PROFILES'] ?? 'default') === '*' ? [] : explode(',', $values['PHP_PROFILES']));
+                $allVersions = (bool) old('php_versions_all', ($values['PHP_VERSIONS'] ?? '*') === '*');
+                $allProfiles = (bool) old('php_profiles_all', ($values['PHP_PROFILES'] ?? 'default') === '*');
+                $statusNote = ['security' => __('security fixes only'), 'eol' => __('end of life')];
+                $profileChoices = array_values(array_unique([...$php['profiles'], ...array_filter($phpProfiles)]));
+            @endphp
+            <x-ap-card :title="__('PHP')" icon="code">
+                <input type="hidden" name="php_group" value="1">
+                @if ($php['own'] !== null)
+                    <p class="muted">{{ sprintf(__('Your plan: versions %1$s, profiles %2$s.'), $php['own']['PHP_VERSIONS'], $php['own']['PHP_PROFILES']) }}</p>
+                @endif
+                <fieldset class="ap-field ap-fieldset" x-data="{ all: false }" x-init="all = Boolean($el.querySelector('input[name=php_versions_all]')?.checked)">
+                    <legend class="ap-label">{{ __('PHP versions') }}</legend>
+                    @if ($php['own'] === null || $php['own']['PHP_VERSIONS'] === '*')
+                        <div class="ap-settings">
+                            <x-ap-switch name="php_versions_all" :label="__('Every installed version')" :description="__('Versions installed later too, but no version at its end of life: to allow one, turn this off and tick the versions.')" :checked="$allVersions" x-model="all" />
+                        </div>
+                    @endif
+                    <div class="ap-check-grid" x-show="! all">
+                        @foreach (array_unique([...array_keys($php['versions']), ...array_filter($phpVersions)]) as $version)
+                            <x-ap-checkbox name="php_versions[]" :id="'pkg-php-'.str_replace('.', '-', $version)" :value="$version" :label="'PHP '.$version"
+                                :checked="in_array($version, $phpVersions, true)" :hint="$statusNote[$php['versions'][$version] ?? ''] ?? null" />
+                        @endforeach
+                    </div>
+                    @error('php_versions')<p class="ap-error" role="alert">{{ $message }}</p>@enderror
+                </fieldset>
+                <fieldset class="ap-field ap-fieldset" x-data="{ all: false }" x-init="all = Boolean($el.querySelector('input[name=php_profiles_all]')?.checked)">
+                    <legend class="ap-label">{{ __('PHP-FPM profiles') }}</legend>
+                    @if ($php['own'] === null || $php['own']['PHP_PROFILES'] === '*')
+                        <div class="ap-settings">
+                            <x-ap-switch name="php_profiles_all" :label="__('Every profile')" :description="__('Profiles added later too.')" :checked="$allProfiles" x-model="all" />
+                        </div>
+                    @endif
+                    <div class="ap-check-grid" x-show="! all">
+                        @foreach ($profileChoices as $profile)
+                            <x-ap-checkbox name="php_profiles[]" :id="'pkg-profile-'.$profile" :value="$profile" :label="$profile" :checked="in_array($profile, $phpProfiles, true)" />
+                        @endforeach
+                    </div>
+                    @error('php_profiles')<p class="ap-error" role="alert">{{ $message }}</p>@enderror
+                </fieldset>
+                <x-ap-select name="php_default_profile" :label="__('Default profile')" :options="array_combine($profileChoices, $profileChoices)"
+                    :value="$values['PHP_DEFAULT_PROFILE'] ?? 'default'" :hint="__('The profile of new web domains; it must be one of the allowed profiles.')" />
+            </x-ap-card>
+        @endif
+
         @if ($resellerSettings)
             <x-ap-card :title="__('Reseller')" icon="users">
                 <p class="muted">{{ __('A user on this package can resell hosting when the package allows customers.') }}</p>

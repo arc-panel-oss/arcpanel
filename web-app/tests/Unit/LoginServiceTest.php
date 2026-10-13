@@ -60,7 +60,7 @@ it('asks v-check-user-password for a yescrypt hash', function () {
     expect($this->service->attempt('bob', 'pa55word', $this->context)->succeeded())->toBeTrue();
 });
 
-it('rejects a wrong password, logs it and slows down', function () {
+it('rejects a wrong password and logs it without sleeping in the worker', function () {
     saltFor($this->fake, 'sha-512');
     acceptHash($this->fake, 'something else');
     $this->fake->on('v-log-user-login')->returns();
@@ -72,7 +72,7 @@ it('rejects a wrong password, logs it and slows down', function () {
     $this->fake->assertRan('v-log-user-login', fn ($args) => $args === [
         'bob', '203.0.113.7', 'failed', str_repeat('ab', 16), 'Mozilla/5.0 test',
     ]);
-    Sleep::assertSlept(fn ($duration) => $duration->totalSeconds == 2, 1);
+    Sleep::assertNeverSlept();
 });
 
 it('maps v-get-user-salt failures to the legacy messages', function (int $exit, string $message) {
@@ -81,10 +81,23 @@ it('maps v-get-user-salt failures to the legacy messages', function (int $exit, 
     expect($this->service->attempt('bob', 'pw', $this->context)->error)->toBe($message);
     $this->fake->assertNotRan('v-log-user-login');
 })->with([
-    'suspended' => [5, LoginService::SUSPENDED],
+    // v-get-user-salt answers a locked account like any other now; an
+    // older 5 must not tell that the account exists (L6)
+    'suspended' => [5, LoginService::INVALID_CREDENTIALS],
     'unsupported hash' => [1, LoginService::UNSUPPORTED_HASH],
     'unknown user' => [9, LoginService::INVALID_CREDENTIALS],
 ]);
+
+it('says an account is suspended only after the right password (L6)', function () {
+    saltFor($this->fake, 'des', 'xy');
+    $this->fake->on('v-check-user-hash')->using(
+        fn (array $args) => $args[1] === crypt('pw', 'xy') ? [5, 'Error: Account has been suspended'] : [9, 'Error: password missmatch'],
+    );
+    $this->fake->on('v-log-user-login')->returns();
+
+    expect($this->service->attempt('bob', 'wrong', $this->context)->error)->toBe(LoginService::INVALID_CREDENTIALS)
+        ->and($this->service->attempt('bob', 'pw', $this->context)->error)->toBe(LoginService::SUSPENDED);
+});
 
 it('refuses users with login disabled or outside their IP list', function (array $user, string $reason) {
     saltFor($this->fake, 'des', 'xy');
@@ -117,27 +130,32 @@ it('asks for a second factor when the user has 2FA', function () {
     expect($this->service->attempt('bob', 'pw', $this->context)->needsSecondFactor())->toBeTrue();
 });
 
-it('refuses malformed user names without running a command', function (string $name) {
+it('refuses malformed user names and only logs the address for fail2ban', function (string $name) {
+    $this->fake->on('v-log-sys-login-failure')->returns();
+
     expect($this->service->attempt($name, 'pw', $this->context)->succeeded())->toBeFalse();
-    expect($this->fake->calls())->toBe([]);
+    expect(array_column($this->fake->calls(), 'command'))->toBe(['v-log-sys-login-failure']);
+    $this->fake->assertRan('v-log-sys-login-failure', fn ($args) => $args === ['203.0.113.7', 'Invalid user name']);
 })->with(['', 'a', '-bob', "bob'; id", str_repeat('a', 31)]);
 
-it('checks 2FA codes and logs failures only after three wrong codes', function () {
+it('checks 2FA codes with the client address and records every wrong code in the login history', function () {
     $this->fake->on('v-check-user-2fa')->returnsExit(9, 'Error');
     $this->fake->on('v-log-user-login')->returns();
 
-    foreach ([0, 1, 2] as $failures) {
-        $this->service->verifySecondFactor('bob', '123456', $failures, $this->context);
-    }
-    $this->fake->assertNotRan('v-log-user-login');
+    $result = $this->service->verifySecondFactor('bob', '123456', $this->context);
 
-    $result = $this->service->verifySecondFactor('bob', '123456', 3, $this->context);
     expect($result->error)->toBe(LoginService::INVALID_2FA);
-    $this->fake->assertRan('v-log-user-login', fn ($args) => $args[6] === LoginService::INVALID_2FA, 1);
+    $this->fake->assertRan('v-check-user-2fa', fn ($args) => $args === ['bob', '123456', '203.0.113.7'], 1);
+    // v-check-user-2fa writes the auth.log line for fail2ban itself, so the
+    // history entry must not write a second one.
+    $this->fake->assertRan('v-log-user-login', fn ($args) => $args === [
+        'bob', '203.0.113.7', 'failed', str_repeat('ab', 16), 'Mozilla/5.0 test',
+    ], 1);
+    Sleep::assertNeverSlept();
 });
 
 it('refuses 2FA codes of ten characters or more without running a command', function () {
-    expect($this->service->verifySecondFactor('bob', '1234567890', 0, $this->context)->succeeded())->toBeFalse();
+    expect($this->service->verifySecondFactor('bob', '1234567890', $this->context)->succeeded())->toBeFalse();
     $this->fake->assertNotRan('v-check-user-2fa');
 });
 
@@ -155,7 +173,9 @@ it('builds the legacy session keys on completion', function () {
         'token' => str_repeat('ab', 16),
         'language' => 'vi',
         'userTheme' => 'dark',
-    ])->and($patch)->not->toHaveKeys(['userSortOrder', 'login', 'failed_twofa']);
+    ])->and($patch)->not->toHaveKeys(['userSortOrder', 'login', 'failed_twofa'])
+        // A later password change ends sessions older than this (M8)
+        ->and($patch['LOGIN_TIME'])->toBeGreaterThanOrEqual((time() - 5) * 1000);
     $this->fake->assertRan('v-log-user-login', fn ($args) => $args === [
         'bob', '203.0.113.7', 'success', str_repeat('ab', 16), 'Mozilla/5.0 test',
     ]);

@@ -223,11 +223,13 @@ it('signs into phpMyAdmin with a short-lived token when single sign-on is set up
     signIn('bob', 'user');
 
     $this->get('/db')->assertOk()->assertSee('/db/bob/bob_wp/phpmyadmin');
+    // A form posts the token, so it reaches no access log or history (L9)
     $response = $this->post('/db/bob/bob_wp/phpmyadmin');
-    $response->assertRedirect();
-    $url = $response->headers->get('Location');
-    expect($url)->toStartWith('https://localhost/phpmyadmin/arcpanel-sso.php?');
-    parse_str((string) parse_url($url, PHP_URL_QUERY), $query);
+    $response->assertOk()->assertHeaderMissing('Location')->assertHeader('Referrer-Policy', 'no-referrer')
+        ->assertSee('action="https://localhost/phpmyadmin/arcpanel-sso.php"', false)
+        ->assertSee('method="post"', false);
+    preg_match_all('/<input type="hidden" name="([a-z_]+)" value="([^"]*)">/', $response->getContent(), $fields, PREG_SET_ORDER);
+    $query = array_column(array_map(fn ($f) => [$f[1], html_entity_decode($f[2])], $fields), 1, 0);
     expect($query['database'])->toBe('bob_wp')->and($query['user'])->toBe('bob')
         ->and(password_verify('bob_wp'.'bob'.'127.0.0.1'.$query['exp'].'pma-key', $query['arcpanel_token']))->toBeTrue();
 

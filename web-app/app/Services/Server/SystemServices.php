@@ -5,6 +5,7 @@ namespace App\Services\Server;
 use App\Arc\ArcCommand;
 use App\Arc\CommandResult;
 use App\Arc\Options;
+use App\Arc\SysConfig;
 use App\Services\Support\BulkResult;
 use App\Services\Support\BulkRunner;
 use App\Services\Support\PlanRunner;
@@ -29,6 +30,9 @@ final class SystemServices
         'db' => 'v-list-sys-db-status',
     ];
 
+    /** Reports about one installed system: shown only when the server runs it. */
+    private const REPORT_SYSTEMS = ['web' => 'WEB_SYSTEM', 'dns' => 'DNS_SYSTEM', 'mail' => 'MAIL_SYSTEM', 'db' => 'DB_SYSTEM'];
+
     public const ACTIONS = ['start', 'stop', 'restart'];
 
     /** @var array<string, array{name: string, system: string, running: bool, cpu: float, memory: int, uptime: int}>|null per-request cache */
@@ -38,7 +42,20 @@ final class SystemServices
         private readonly ArcCommand $arc,
         private readonly BulkRunner $bulk,
         private readonly PlanRunner $plans,
+        private readonly SysConfig $config,
     ) {}
+
+    /**
+     * Report kinds of this server: the DNS, mail, web and database reports
+     * only when that system is installed.
+     *
+     * @return list<string>
+     */
+    public function reports(): array
+    {
+        return array_values(array_filter(array_keys(self::REPORTS),
+            fn (string $kind) => ! isset(self::REPORT_SYSTEMS[$kind]) || $this->config->get(self::REPORT_SYSTEMS[$kind]) !== ''));
+    }
 
     /** @return array{hostname: string, os: string, version: string, arch: string, uptime: int, load: string, release: string, arcpanel: string} */
     public function info(): array

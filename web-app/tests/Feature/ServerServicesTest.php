@@ -44,7 +44,7 @@ it('lists the services with the system facts and the config editors', function (
         ->assertSee('6 services');
 
     if (Route::has('server.services.config')) {
-        $response->assertSee(route('server.services.config', ['service' => 'php']), false)
+        $response->assertSee(route('server.php.show', ['version' => '8.4', 'tab' => 'ini-fpm']), false)
             ->assertDontSee(route('server.services.config', ['service' => 'memcached']), false);
     }
 });
@@ -56,6 +56,27 @@ it('shows a status report', function () {
     $this->get('/server/services/status/mem')->assertOk()->assertSee('MiB Mem :  15921.5 total');
     $this->get('/server/services/status/swap')->assertNotFound();
     $this->fake->assertRan('v-list-sys-memory-status');
+});
+
+it('offers the DNS, mail, web and database reports only for installed systems', function () {
+    $this->fake = fakeArc(['DNS_SYSTEM' => '', 'MAIL_SYSTEM' => '']);
+    fakeServerUsers($this->fake);
+    $this->fake->on('v-list-sys-info')->returnsJson(['sysinfo' => ['HOSTNAME' => 'srv1.example.net', 'UPTIME' => '3000']]);
+    $this->fake->on('v-list-sys-php')->returnsJson(['8.4']);
+    $this->fake->on('v-list-sys-services')->returnsJson([]);
+    $this->fake->on('v-list-sys-web-status')->returns("nginx status\n");
+    signIn('arcadmin', 'admin');
+
+    $this->get('/server/services')->assertOk()
+        ->assertSee(route('server.services.status', ['kind' => 'web']), false)
+        ->assertSee(route('server.services.status', ['kind' => 'db']), false)
+        ->assertDontSee(route('server.services.status', ['kind' => 'dns']), false)
+        ->assertDontSee(route('server.services.status', ['kind' => 'mail']), false);
+    $this->get('/server/services/status/web')->assertOk()->assertSee('nginx status')
+        ->assertDontSee(route('server.services.status', ['kind' => 'mail']), false);
+    $this->get('/server/services/status/mail')->assertNotFound();
+    $this->get('/server/services/status/dns')->assertNotFound();
+    $this->fake->assertNotRan('v-list-sys-mail-status');
 });
 
 it('starts, stops and restarts a service with the legacy commands', function () {

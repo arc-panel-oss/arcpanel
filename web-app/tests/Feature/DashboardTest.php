@@ -34,7 +34,7 @@ it('shows the admin dashboard: health, services, graphs, accounts, sign-ins, cer
         ->assertSee('Load Average')->assertSee('Memory Usage')->assertDontSee('Bandwidth Usage eth0')
         ->assertSee('192.0.2.191')->assertSee('Failed')
         ->assertSee('arcpanel-php')
-        ->assertSee('No certificate expires soon');
+        ->assertSee('Expiring certificates')->assertSee('No certificate expires in the next 14 days');
 });
 
 it('lists stopped services first with a count, and links the account figures', function () {
@@ -50,11 +50,12 @@ it('lists stopped services first with a count, and links the account figures', f
 
 it('lists certificates of every user expiring within 14 days', function () {
     fakeServerHealth($this->fake);
-    $soon = gmdate('M j H:i:s Y', time() + 5 * 86400).' GMT';
+    // An hour past five days, so the second the request takes cannot make it four
+    $soon = gmdate('M j H:i:s Y', time() + 5 * 86400 + 3600).' GMT';
     $this->fake->on('v-list-web-domain-ssl', ['bob', 'example.com', 'json'])->returnsJson(['example.com' => ['CRT' => 'x', 'KEY' => 'k', 'CA' => '', 'NOT_AFTER' => $soon]]);
     signIn('arcadmin', 'admin');
 
-    $this->get('/')->assertOk()->assertSee('example.com')->assertSee('4 days');
+    $this->get('/')->assertOk()->assertSee('example.com')->assertSee(' · 5 days');
     // Only SSL domains are asked
     $this->fake->assertRan('v-list-web-domain-ssl', times: 1);
 });

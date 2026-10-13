@@ -72,7 +72,7 @@ info:
     | `sync-dns-cluster` | admin | `v-list-users`, `v-list-sys-config`, `v-list-user`, `v-add-cron-restart-job`, `v-delete-dns-domains-src`, `v-insert-dns-domain`, `v-insert-dns-record`, `v-insert-dns-records`, `v-rebuild-dns-domains`, `v-rebuild-dns-domain`, `v-delete-dns-record`, `v-make-tmp-file`, `v-delete-dns-domain` |
     | `update-dns-records` | user | `v-list-dns-records`, `v-change-dns-record` |
 
-    The sets `v2-accounts` and `v2-apps` and `v2-backup` and `v2-cron` and `v2-db` and `v2-dns` and `v2-files` and `v2-mail` and `v2-read` and `v2-secrets` and `v2-server` and `v2-web` and `v2-write` belong to REST API v2 (`/api/v2/`, documented in `docs/api/v2/openapi.json`): this API ignores them, so a key with only those sets may run no command here.
+    The sets `v2-accounts` and `v2-apps` and `v2-backup` and `v2-cron` and `v2-db` and `v2-dns` and `v2-files` and `v2-mail` and `v2-read` and `v2-secrets` and `v2-security` and `v2-server` and `v2-web` and `v2-write` belong to REST API v2 (`/api/v2/`, documented in `docs/api/v2/openapi.json`): this API ignores them, so a key with only those sets may run no command here.
   license:
     name: GPL-3.0-or-later
     identifier: GPL-3.0-or-later
@@ -3089,6 +3089,51 @@ paths:
           $ref: "#/components/responses/InvalidRequest"
         "422":
           $ref: "#/components/responses/Unprocessable"
+  "/api/#v-add-sys-malware-scan":
+    post:
+      operationId: v-add-sys-malware-scan
+      tags:
+        - System
+      summary: Turn the malware scan of web files on (E25)
+      description: |-
+        This function turns the malware scan plugin on (MALWARE_SCAN='yes') and
+        adds the nightly incremental scan of every user (v-scan-sys-web) to the
+        crontab of arcpanelweb. It can run again without harm.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `MODE` | no |
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-add-sys-malware-scan"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-add-sys-malware-scan"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
   "/api/#v-add-sys-node":
     post:
       operationId: v-add-sys-node
@@ -3204,6 +3249,150 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/v-add-sys-panel-files"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+  "/api/#v-add-sys-php-extension":
+    post:
+      operationId: v-add-sys-php-extension
+      tags:
+        - System
+      summary: Install a PHP extension for a version (E41)
+      description: |-
+        This function installs the Debian package of an extension of the catalog
+        (install/common/php/extensions.conf) for one PHP version; the package
+        enables the module for PHP-FPM and the CLI. A conflicting extension that is
+        enabled stops the install. When php-fpm -t fails afterwards the package is
+        removed again (E_INVALID); when PHP-FPM does not run after the reload, the
+        package is removed and the service restarted (E_RESTART).
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `VERSION` | yes |
+        | `arg2` | `NAME` | yes |
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-add-sys-php-extension"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-add-sys-php-extension"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+  "/api/#v-add-sys-php-profile":
+    post:
+      operationId: v-add-sys-php-profile
+      tags:
+        - System
+      summary: Add a PHP-FPM profile (E41)
+      description: |-
+        This function adds a PHP-FPM profile. FILE holds KEY='value' lines with the
+        keys DESCRIPTION, PM (ondemand, dynamic or static), MAX_CHILDREN (1-500),
+        START_SERVERS, MIN_SPARE and MAX_SPARE (dynamic), MAX_REQUESTS (0-100000),
+        IDLE_TIMEOUT (ondemand, like 10s), REQUEST_TERMINATE_TIMEOUT (empty or like
+        300s) and the PHP limits MEMORY_LIMIT, UPLOAD_MAX_FILESIZE, POST_MAX_SIZE,
+        MAX_EXECUTION_TIME and MAX_INPUT_VARS (empty: from php.ini). It prints a
+        warning when MAX_CHILDREN x MEMORY_LIMIT is above the server's memory.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `NAME` | yes |
+        | `arg2` | `FILE` | yes |
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-add-sys-php-profile"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-add-sys-php-profile"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+  "/api/#v-add-sys-php-profiles":
+    post:
+      operationId: v-add-sys-php-profiles
+      tags:
+        - System
+      summary: Set up the PHP-FPM profiles (E41)
+      description: |-
+        This function creates the profile store ($ARCPANEL/data/php/profiles.conf)
+        with the shipped profiles default, small, medium and large, and rewrites the
+        pool templates of $ARCPANEL/data/templates/web/php-fpm that still carry the
+        pool lines of ArcPanel 2.0.0 (pm = ondemand, 8 children, 4000 requests, 10s
+        idle) to the %php_profile% placeholder. The default profile renders exactly
+        those lines, so existing pools do not change. Templates an administrator
+        changed are left alone. Safe to run on every upgrade.
+
+        **Arguments:** none.
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-add-sys-php-profiles"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-add-sys-php-profiles"
       responses:
         "200":
           description: "The output of the command; `OK` for an empty output with legacy authentication."
@@ -3872,6 +4061,52 @@ paths:
           $ref: "#/components/responses/InvalidRequest"
         "422":
           $ref: "#/components/responses/Unprocessable"
+  "/api/#v-add-sys-web-terminal-key":
+    post:
+      operationId: v-add-sys-web-terminal-key
+      tags:
+        - System
+      summary: Add the key of the web terminal tickets
+      description: |-
+        This function writes the key with which the panel signs web terminal
+        tickets and the web terminal server checks them, readable by root and the
+        panel user only. It keeps an existing key unless ROTATE is "yes", and can
+        run on every upgrade.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `ROTATE` | no |
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-add-sys-web-terminal-key"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-add-sys-web-terminal-key"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
   "/api/#v-add-user":
     post:
       operationId: v-add-user
@@ -4000,6 +4235,106 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/v-add-user-composer"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+  "/api/#v-add-user-malware-ignore":
+    post:
+      operationId: v-add-user-malware-ignore
+      tags:
+        - Users
+      summary: Mark a malware finding of a user as not malware (E25)
+      description: |-
+        This function adds the SHA-256 of a finding to the ignore list of the
+        user and drops every open finding with that content. A file with the same
+        content is not reported again; a changed file is scanned as usual.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `USER` | yes |
+        | `arg2` | `FINDING` | yes |
+
+        **User argument:** with the access key of a user other than the admin, `arg1` must be the key's user.
+      x-arcpanel-user-arg: 1
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-add-user-malware-ignore"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-add-user-malware-ignore"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+  "/api/#v-add-user-malware-quarantine":
+    post:
+      operationId: v-add-user-malware-quarantine
+      tags:
+        - Users
+      summary: Move a suspicious file of a user to quarantine (E25)
+      description: |-
+        This function moves the file of an open finding into the root-only
+        quarantine store data/quarantine/USER/. The file is read and removed as
+        the user, never opened by root in the user's tree. When its content
+        changed since the scan (another SHA-256), nothing is moved and the
+        command answers E_INVALID: scan again first. Prints the quarantine ID.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `USER` | yes |
+        | `arg2` | `FINDING` | yes |
+
+        **User argument:** with the access key of a user other than the admin, `arg1` must be the key's user.
+      x-arcpanel-user-arg: 1
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-add-user-malware-quarantine"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-add-user-malware-quarantine"
       responses:
         "200":
           description: "The output of the command; `OK` for an empty output with legacy authentication."
@@ -4472,53 +4807,6 @@ paths:
           $ref: "#/components/responses/InvalidRequest"
         "422":
           $ref: "#/components/responses/Unprocessable"
-  "/api/#v-add-user-sftp-key":
-    post:
-      operationId: v-add-user-sftp-key
-      tags:
-        - Users
-      summary: Add user sftp key
-      description: |-
-        This function creates and updates SSH keys for used with the File Manager.
-
-        **Arguments**
-
-        | Field | Option | Required |
-        | --- | --- | --- |
-        | `arg1` | `USER` | yes |
-        | `arg2` | `TTL` | no |
-
-        **User argument:** with the access key of a user other than the admin, `arg1` must be the key's user.
-      x-arcpanel-user-arg: 1
-      requestBody:
-        required: true
-        content:
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: "#/components/schemas/v-add-user-sftp-key"
-          application/json:
-            schema:
-              $ref: "#/components/schemas/v-add-user-sftp-key"
-      responses:
-        "200":
-          description: "The output of the command; `OK` for an empty output with legacy authentication."
-          headers:
-            ArcPanel-Exit-Code:
-              $ref: "#/components/headers/ArcPanel-Exit-Code"
-          content:
-            text/plain:
-              schema:
-                type: string
-        "204":
-          $ref: "#/components/responses/NoContent"
-        "400":
-          $ref: "#/components/responses/BadRequest"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "405":
-          $ref: "#/components/responses/InvalidRequest"
-        "422":
-          $ref: "#/components/responses/Unprocessable"
   "/api/#v-add-user-ssh-key":
     post:
       operationId: v-add-user-ssh-key
@@ -4527,7 +4815,8 @@ paths:
       summary: Add ssh key
       description: |-
         Function check if $user/.ssh/authorized_keys exists and create it.
-        After that it append the new key(s)
+        After that it append the new key. Every read and write of the file runs as
+        the user, so a link in ~/.ssh cannot make root write elsewhere (E39 W1).
 
         **Arguments**
 
@@ -5379,7 +5668,9 @@ paths:
         - Web
       summary: Add php fpm version
       description: |-
-        Install php-fpm for provided version.
+        Install php-fpm for provided version. The version must be listed as
+        installable in the version catalog (install/common/php/versions.conf) and
+        provided by the PHP repository of the server (E41).
 
         **Arguments**
 
@@ -5575,6 +5866,9 @@ paths:
       summary: Backup system user config only
       description: |-
         This function is used for backing up user with all its domains and databases.
+        The configuration is staged in a working folder of root and then copied
+        into ~/backup as the user, where the restic backup of the home picks it
+        up (E39 W1): root never writes into the user's home.
 
         **Arguments**
 
@@ -7266,7 +7560,12 @@ paths:
         unlimited) of a package. PORTS, NODE_VERSIONS, NODE_APPS, DOCKER_APPS,
         DOCKER_CPUS and DOCKER_MEMORY of a reseller's own package cannot be above
         the reseller's, and its NODE and DOCKER cannot be yes when the reseller's
-        are no.
+        are no. PHP_VERSIONS (* or a comma list of catalog versions),
+        PHP_PROFILES (* or a comma list of PHP-FPM profiles) and
+        PHP_DEFAULT_PROFILE (one of the allowed profiles) choose the PHP of the
+        package's web domains (E41): a reseller's own package may only allow what
+        the reseller's package allows, * only when that is *, and the package's
+        BACKEND_TEMPLATE must name an allowed version.
 
         **Arguments**
 
@@ -8063,6 +8362,208 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/v-change-sys-php"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+  "/api/#v-change-sys-php-extension":
+    post:
+      operationId: v-change-sys-php-extension
+      tags:
+        - System
+      summary: Turn a PHP extension on or off (E41)
+      description: |-
+        This function enables (on) or disables (off) the module of an installed
+        extension of the catalog (install/common/php/extensions.conf) with phpenmod
+        or phpdismod, for PHP-FPM (fpm), the command line (cli) or both (empty).
+        Required extensions cannot be turned off; turning one on checks its
+        conflicts. A PHP-FPM change is tested with php-fpm -t and a reload, a CLI
+        change by starting the CLI binary; on a failure the change is undone
+        (E_INVALID, or E_RESTART when PHP-FPM stopped).
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `VERSION` | yes |
+        | `arg2` | `NAME` | yes |
+        | `arg3` | `STATE` | yes |
+        | `arg4` | `SAPI` | no |
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-change-sys-php-extension"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-change-sys-php-extension"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+  "/api/#v-change-sys-php-ini":
+    post:
+      operationId: v-change-sys-php-ini
+      tags:
+        - System
+      summary: Replace the php.ini of a PHP version (E41)
+      description: |-
+        This function replaces the PHP-FPM (fpm) or command line (cli) php.ini of
+        an installed version with FILE. The file is validated first as
+        v-check-sys-php-ini does: errors stop the change (E_INVALID, with the
+        findings), warnings are printed and accepted. The current file is backed up
+        (the ten newest backups are kept), the new one is moved into place and, for
+        fpm, PHP-FPM is reloaded; when it does not run afterwards the previous file
+        comes back (E_RESTART).
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `VERSION` | yes |
+        | `arg2` | `SAPI` | yes |
+        | `arg3` | `FILE` | yes |
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-change-sys-php-ini"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-change-sys-php-ini"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+  "/api/#v-change-sys-php-ini-values":
+    post:
+      operationId: v-change-sys-php-ini-values
+      tags:
+        - System
+      summary: Change php.ini directives of a PHP version (E41)
+      description: |-
+        This function changes directives of the php.ini form in the PHP-FPM (fpm)
+        or command line (cli) php.ini of an installed version. FILE holds
+        directive=value lines (memory_limit=256M); each directive is replaced in
+        place, or added at the end of the [PHP] section when the file does not set
+        it, and comments are kept. The result is validated, saved and applied as
+        v-change-sys-php-ini does.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `VERSION` | yes |
+        | `arg2` | `SAPI` | yes |
+        | `arg3` | `FILE` | yes |
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-change-sys-php-ini-values"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-change-sys-php-ini-values"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+  "/api/#v-change-sys-php-profile":
+    post:
+      operationId: v-change-sys-php-profile
+      tags:
+        - System
+      summary: Change a PHP-FPM profile (E41)
+      description: |-
+        This function changes a PHP-FPM profile from FILE (the KEY='value' lines of
+        v-add-sys-php-profile), rewrites the pool of every web domain that uses it
+        and reloads the PHP-FPM versions concerned (unless RESTART is no). When a
+        version does not run after the reload, the previous profile and pools come
+        back (E_RESTART).
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `NAME` | yes |
+        | `arg2` | `FILE` | yes |
+        | `arg3` | `RESTART` | no |
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-change-sys-php-profile"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-change-sys-php-profile"
       responses:
         "200":
           description: "The output of the command; `OK` for an empty output with legacy authentication."
@@ -9831,6 +10332,62 @@ paths:
           $ref: "#/components/responses/InvalidRequest"
         "422":
           $ref: "#/components/responses/Unprocessable"
+  "/api/#v-change-web-domain-php":
+    post:
+      operationId: v-change-web-domain-php
+      tags:
+        - Web
+      summary: Change the PHP version and PHP-FPM profile of a web domain (E41)
+      description: |-
+        This function sets the PHP version and the PHP-FPM profile of a web
+        domain's pool. Both must be allowed by the user's package (PHP_VERSIONS and
+        PHP_PROFILES) unless the domain already has them: a version or profile that
+        the package no longer allows is kept but cannot be chosen again. A new
+        version changes the backend template to PHP-X_Y; the pool is written with
+        the profile. With WEB_BACKEND_POOL='user' the profile is the one of the
+        user's shared pool.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `USER` | yes |
+        | `arg2` | `DOMAIN` | yes |
+        | `arg3` | `VERSION` | yes |
+        | `arg4` | `PROFILE` | yes |
+        | `arg5` | `RESTART` | no |
+
+        **User argument:** with the access key of a user other than the admin, `arg1` must be the key's user.
+      x-arcpanel-user-arg: 1
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-change-web-domain-php"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-change-web-domain-php"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
   "/api/#v-change-web-domain-proxy-tpl":
     post:
       operationId: v-change-web-domain-proxy-tpl
@@ -9889,7 +10446,8 @@ paths:
       summary: Change domain ssl certificate
       description: |-
         This function changes SSL domain certificate and the key. If ca file present
-        it will be replaced as well.
+        it will be replaced as well. The previous certificate is handed to the user
+        in a folder below private/, copied there by the user (E39 W1).
 
         **Arguments**
 
@@ -10649,6 +11207,64 @@ paths:
           $ref: "#/components/responses/InvalidRequest"
         "422":
           $ref: "#/components/responses/Unprocessable"
+  "/api/#v-check-sys-php-ini":
+    post:
+      operationId: v-check-sys-php-ini
+      tags:
+        - System
+      summary: Check a php.ini candidate without saving it (E41)
+      description: |-
+        This function validates a candidate php.ini for the PHP-FPM (fpm) or
+        command line (cli) of an installed version, as v-change-sys-php-ini does
+        before saving: the syntax with the version's parser, the values of known
+        directives, unknown directives (warnings), a start of PHP with the file and,
+        for fpm, php-fpm -t. It prints the findings with their line (json: an array
+        of {line, level, directive, message}, level error or warning) and exits 0
+        when the check ran; the file is valid when no finding is an error. With
+        MODE values, FILE holds directive=value lines that are applied to the
+        current php.ini first, as v-change-sys-php-ini-values does.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `VERSION` | yes |
+        | `arg2` | `SAPI` | yes |
+        | `arg3` | `FILE` | yes |
+        | `arg4` | `FORMAT` | no |
+        | `arg5` | `MODE` | no |
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-check-sys-php-ini"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-check-sys-php-ini"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+            application/json:
+              schema:
+                type: object
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
   "/api/#v-check-sys-ports":
     post:
       operationId: v-check-sys-ports
@@ -10705,7 +11321,9 @@ paths:
         - Users
       summary: Check user token
       description: |-
-        This function verifies user 2fa token.
+        This function verifies user 2fa token. A token is accepted once: the time
+        step of the last accepted token is kept as TWOFA_STEP. A wrong token is
+        written to the auth log that fail2ban reads.
 
         **Arguments**
 
@@ -10713,6 +11331,7 @@ paths:
         | --- | --- | --- |
         | `arg1` | `USER` | yes |
         | `arg2` | `TOKEN` | yes |
+        | `arg3` | `IP` | no |
 
         **User argument:** with the access key of a user other than the admin, `arg1` must be the key's user.
       x-arcpanel-user-arg: 1
@@ -10752,7 +11371,8 @@ paths:
         - Users
       summary: Check user hash
       description: |-
-        This function verifies user hash
+        This function verifies user hash. It exits with 5 when the hash matches a
+        suspended (locked) account and with 9 when it does not match.
 
         **Arguments**
 
@@ -10848,7 +11468,10 @@ paths:
         - Users
       summary: Check user password
       description: |-
-        This function verifies user password from file
+        This function verifies user password from file. A suspended (locked)
+        account is checked without its lock mark: with RETURN_HASH the hash is
+        printed as for any account (v-check-user-hash then says it is suspended),
+        without it the command exits with 5 when the password matches.
 
         **Arguments**
 
@@ -13692,6 +14315,51 @@ paths:
           $ref: "#/components/responses/InvalidRequest"
         "422":
           $ref: "#/components/responses/Unprocessable"
+  "/api/#v-delete-sys-malware-scan":
+    post:
+      operationId: v-delete-sys-malware-scan
+      tags:
+        - System
+      summary: Turn the malware scan of web files off (E25)
+      description: |-
+        This function turns the malware scan plugin off (MALWARE_SCAN='no') and
+        removes the nightly scan from the crontab of arcpanelweb. Findings,
+        quarantined files and ignore lists are kept.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `MODE` | no |
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-delete-sys-malware-scan"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-delete-sys-malware-scan"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
   "/api/#v-delete-sys-node-cache":
     post:
       operationId: v-delete-sys-node-cache
@@ -13765,6 +14433,101 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/v-delete-sys-package"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+  "/api/#v-delete-sys-php-extension":
+    post:
+      operationId: v-delete-sys-php-extension
+      tags:
+        - System
+      summary: Remove a PHP extension of a version (E41)
+      description: |-
+        This function purges the Debian package of an extension of the catalog
+        (install/common/php/extensions.conf) for one PHP version and reloads
+        PHP-FPM. Required extensions and modules that ship with PHP (toggle only)
+        cannot be removed; neither can a package that other installed packages
+        need (E_INUSE, naming them).
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `VERSION` | yes |
+        | `arg2` | `NAME` | yes |
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-delete-sys-php-extension"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-delete-sys-php-extension"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+  "/api/#v-delete-sys-php-profile":
+    post:
+      operationId: v-delete-sys-php-profile
+      tags:
+        - System
+      summary: Delete a PHP-FPM profile (E41)
+      description: |-
+        This function deletes a PHP-FPM profile. The default profile cannot be
+        deleted. A profile that web domains use or that packages name is refused
+        (E_INUSE, with the list) unless FORCE is yes: the domains then move to the
+        default profile and the packages no longer name it.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `NAME` | yes |
+        | `arg2` | `FORCE` | no |
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-delete-sys-php-profile"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-delete-sys-php-profile"
       responses:
         "200":
           description: "The output of the command; `OK` for an empty output with legacy authentication."
@@ -14598,6 +15361,149 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/v-delete-user-log"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+  "/api/#v-delete-user-login-limits":
+    post:
+      operationId: v-delete-user-login-limits
+      tags:
+        - Users
+      summary: Clear the login limits of a user
+      description: |-
+        This function clears the hourly login limit and the 2FA limit that the
+        panel keeps for a user name, so a user locked out by failed attempts of
+        someone else can log in again.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `USER` | yes |
+
+        **User argument:** with the access key of a user other than the admin, `arg1` must be the key's user.
+      x-arcpanel-user-arg: 1
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-delete-user-login-limits"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-delete-user-login-limits"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+  "/api/#v-delete-user-malware-ignore":
+    post:
+      operationId: v-delete-user-malware-ignore
+      tags:
+        - Users
+      summary: Remove an entry of the malware ignore list of a user (E25)
+      description: |-
+        This function removes a SHA-256 from the ignore list of the user. The
+        next scan reports a file with that content again.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `USER` | yes |
+        | `arg2` | `SHA256` | yes |
+
+        **User argument:** with the access key of a user other than the admin, `arg1` must be the key's user.
+      x-arcpanel-user-arg: 1
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-delete-user-malware-ignore"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-delete-user-malware-ignore"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+  "/api/#v-delete-user-malware-quarantine":
+    post:
+      operationId: v-delete-user-malware-quarantine
+      tags:
+        - Users
+      summary: Delete a quarantined file of a user (E25)
+      description: |-
+        This function deletes a quarantined file and its entry for good.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `USER` | yes |
+        | `arg2` | `ID` | yes |
+
+        **User argument:** with the access key of a user other than the admin, `arg1` must be the key's user.
+      x-arcpanel-user-arg: 1
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-delete-user-malware-quarantine"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-delete-user-malware-quarantine"
       responses:
         "200":
           description: "The output of the command; `OK` for an empty output with legacy authentication."
@@ -15936,7 +16842,9 @@ paths:
         - Web
       summary: Delete php fpm version
       description: |-
-        This function checks and delete a fpm php version if not used by any domain.
+        This function removes an installed PHP-FPM version with its extension
+        packages. It refuses the default version and a version that web domains use
+        (E41).
 
         **Arguments**
 
@@ -21126,6 +22034,55 @@ paths:
           $ref: "#/components/responses/InvalidRequest"
         "422":
           $ref: "#/components/responses/Unprocessable"
+  "/api/#v-list-sys-malware-summary":
+    post:
+      operationId: v-list-sys-malware-summary
+      tags:
+        - System
+      summary: List the malware scan state of every user (E25)
+      description: |-
+        This function prints one row per user: USER, FINDINGS, CRITICAL, HIGH,
+        MEDIUM (open findings), QUARANTINED, LAST_SCAN (start of the newest scan)
+        and LAST_STATUS. Users that were never scanned have zeros and empty
+        values. The panel narrows the list to the users a principal may see.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `FORMAT` | no |
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-list-sys-malware-summary"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-list-sys-malware-summary"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+            application/json:
+              schema:
+                type: object
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
   "/api/#v-list-sys-memory-status":
     post:
       operationId: v-list-sys-memory-status
@@ -21553,7 +22510,9 @@ paths:
         - System
       summary: List php config parameters
       description: |-
-        This function for obtaining the list of php config parameters.
+        This function for obtaining the list of php config parameters of the
+        default PHP version (REST API v1). The PHP Manager lists every version with
+        v-list-sys-php-ini (E41).
 
         **Arguments**
 
@@ -21592,18 +22551,273 @@ paths:
           $ref: "#/components/responses/InvalidRequest"
         "422":
           $ref: "#/components/responses/Unprocessable"
+  "/api/#v-list-sys-php-extensions":
+    post:
+      operationId: v-list-sys-php-extensions
+      tags:
+        - System
+      summary: List the PHP extensions of a version (E41)
+      description: |-
+        This function lists the extension catalog entries
+        (install/common/php/extensions.conf) that apply to an installed PHP version,
+        with INSTALLED and AVAILABLE (yes or no), FPM and CLI (on or off, whether the
+        module is enabled for that SAPI), BUILTIN ('yes' for a module compiled into
+        the PHP binary, always on) and CATALOG='yes', followed by the modules
+        enabled on the server that the catalog does not list (CATALOG='no', read
+        only).
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `VERSION` | yes |
+        | `arg2` | `FORMAT` | no |
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-list-sys-php-extensions"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-list-sys-php-extensions"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+            application/json:
+              schema:
+                type: object
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+  "/api/#v-list-sys-php-ini":
+    post:
+      operationId: v-list-sys-php-ini
+      tags:
+        - System
+      summary: List the php.ini settings of a PHP version (E41)
+      description: |-
+        This function lists the directives of the php.ini form for the PHP-FPM
+        (fpm) or command line (cli) php.ini of an installed version: VALUE, SOURCE
+        (file, or default when the file does not set it) and LINE, with the file's
+        path, SIZE and MTIME. The format raw prints the file itself.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `VERSION` | yes |
+        | `arg2` | `SAPI` | yes |
+        | `arg3` | `FORMAT` | no |
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-list-sys-php-ini"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-list-sys-php-ini"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+            application/json:
+              schema:
+                type: object
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+  "/api/#v-list-sys-php-ini-backups":
+    post:
+      operationId: v-list-sys-php-ini-backups
+      tags:
+        - System
+      summary: List the php.ini backups of a PHP version (E41)
+      description: |-
+        This function lists the backups that the php.ini commands keep of the
+        PHP-FPM (fpm) or command line (cli) php.ini of a version (the ten newest),
+        newest first, with their DATE and SIZE. The ID is what
+        v-rollback-sys-php-ini takes.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `VERSION` | yes |
+        | `arg2` | `SAPI` | yes |
+        | `arg3` | `FORMAT` | no |
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-list-sys-php-ini-backups"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-list-sys-php-ini-backups"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+            application/json:
+              schema:
+                type: object
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+  "/api/#v-list-sys-php-profile":
+    post:
+      operationId: v-list-sys-php-profile
+      tags:
+        - System
+      summary: List one PHP-FPM profile (E41)
+      description: |-
+        This function lists a PHP-FPM profile with its pool settings, PHP limits,
+        DOMAINS (the number of web domain pools that use it), PACKAGES (the
+        packages that allow it) and BLOCK (the lines it writes into a pool).
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `NAME` | yes |
+        | `arg2` | `FORMAT` | no |
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-list-sys-php-profile"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-list-sys-php-profile"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+            application/json:
+              schema:
+                type: object
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+  "/api/#v-list-sys-php-profiles":
+    post:
+      operationId: v-list-sys-php-profiles
+      tags:
+        - System
+      summary: List the PHP-FPM profiles (E41)
+      description: |-
+        This function lists the PHP-FPM profiles with their pool settings and PHP
+        limits, DOMAINS (the number of web domain pools that use the profile) and
+        PACKAGES (the packages that allow it, comma-separated).
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `FORMAT` | no |
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-list-sys-php-profiles"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-list-sys-php-profiles"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+            application/json:
+              schema:
+                type: object
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
   "/api/#v-list-sys-php-versions":
     post:
       operationId: v-list-sys-php-versions
       tags:
         - System
-      summary: List the PHP versions the server supports and their state (E7 batch 3)
+      summary: List the PHP versions the panel knows and their state (E7 batch 3, E41)
       description: |-
-        This function lists every PHP version that v-add-web-php accepts with
-        INSTALLED (yes or no), DEFAULT (yes for the version of the system php
-        binary) and USED_BY (the USER/DOMAIN web domains whose backend template
-        uses it, comma-separated). The server settings page locks a version that
-        is the default or in use, as v-start-sys-task does.
+        This function lists every version of the PHP version catalog
+        (install/common/php/versions.conf) and any installed version the catalog
+        does not list, with INSTALLED (yes or no), DEFAULT (yes for the version of
+        the system php binary), USED_BY (the USER/DOMAIN web domains whose backend
+        template uses it, comma-separated), STATUS (active, security, eol or
+        unknown), RELEASED, ACTIVE_UNTIL, EOL, INSTALLABLE (the catalog allows new
+        installs), AVAILABLE (the PHP repository of the server provides it) and
+        EXTENSIONS (the number of modules enabled for PHP-FPM).
 
         **Arguments**
 
@@ -22521,16 +23735,20 @@ paths:
       operationId: v-list-user-backup-restic
       tags:
         - Users
-      summary: Backup system user with all its objects
+      summary: List what a restic snapshot of a user holds
       description: |-
-        This function is used for backing up user with all its domains and databases.
+        This function prints the backup.conf stored in a restic snapshot of USER:
+        the web, DNS and mail domains, databases, cron jobs and folders it holds.
+        The file is read into a working folder of root and parsed as untrusted
+        input (E39 W1).
 
         **Arguments**
 
         | Field | Option | Required |
         | --- | --- | --- |
         | `arg1` | `USER` | yes |
-        | `arg2` | `NOTIFY` | yes |
+        | `arg2` | `SNAPSHOT` | yes |
+        | `arg3` | `FORMAT` | no |
 
         **User argument:** with the access key of a user other than the admin, `arg1` must be the key's user.
       x-arcpanel-user-arg: 1
@@ -22553,6 +23771,9 @@ paths:
             text/plain:
               schema:
                 type: string
+            application/json:
+              schema:
+                type: object
         "204":
           $ref: "#/components/responses/NoContent"
         "400":
@@ -22692,9 +23913,11 @@ paths:
       operationId: v-list-user-files-restic
       tags:
         - Users
-      summary: Backup system user with all its objects
+      summary: List a folder of a restic snapshot
       description: |-
-        This function is used for backing up user with all its domains and databases.
+        This function prints `restic ls --json` for FOLDER of a snapshot of USER.
+        FOLDER is /home/USER or a folder below it; every argument reaches restic
+        quoted and after "--" (E39 W1).
 
         **Arguments**
 
@@ -22828,6 +24051,270 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/v-list-user-log"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+            application/json:
+              schema:
+                type: object
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+  "/api/#v-list-user-malware-findings":
+    post:
+      operationId: v-list-user-malware-findings
+      tags:
+        - Users
+      summary: List the open malware findings of a user (E25)
+      description: |-
+        This function lists the suspicious files that the last scans found and
+        that were neither quarantined nor ignored, most severe first: ID, DOMAIN,
+        PATH (relative to public_html), SHA256, SIZE, MTIME, SEVERITY, RULES,
+        LINE, SNIPPET (the matching line, attacker-controlled text), DETECTED,
+        SCAN and DESCRIPTIONS (the description of each rule).
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `USER` | yes |
+        | `arg2` | `FORMAT` | no |
+
+        **User argument:** with the access key of a user other than the admin, `arg1` must be the key's user.
+      x-arcpanel-user-arg: 1
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-list-user-malware-findings"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-list-user-malware-findings"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+            application/json:
+              schema:
+                type: object
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+  "/api/#v-list-user-malware-ignores":
+    post:
+      operationId: v-list-user-malware-ignores
+      tags:
+        - Users
+      summary: List the files a user marked as not malware (E25)
+      description: |-
+        This function lists the ignore list of the user: SHA256, DOMAIN, PATH,
+        RULES and ADDED. A file with one of these SHA-256 values is not reported.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `USER` | yes |
+        | `arg2` | `FORMAT` | no |
+
+        **User argument:** with the access key of a user other than the admin, `arg1` must be the key's user.
+      x-arcpanel-user-arg: 1
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-list-user-malware-ignores"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-list-user-malware-ignores"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+            application/json:
+              schema:
+                type: object
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+  "/api/#v-list-user-malware-quarantine":
+    post:
+      operationId: v-list-user-malware-quarantine
+      tags:
+        - Users
+      summary: List the quarantined files of a user (E25)
+      description: |-
+        This function lists the files moved to quarantine: ID, DOMAIN, PATH,
+        SHA256, SIZE, MODE, SEVERITY, RULES and QUARANTINED, newest first.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `USER` | yes |
+        | `arg2` | `FORMAT` | no |
+
+        **User argument:** with the access key of a user other than the admin, `arg1` must be the key's user.
+      x-arcpanel-user-arg: 1
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-list-user-malware-quarantine"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-list-user-malware-quarantine"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+            application/json:
+              schema:
+                type: object
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+  "/api/#v-list-user-malware-scans":
+    post:
+      operationId: v-list-user-malware-scans
+      tags:
+        - Users
+      summary: List the malware scans of a user (E25)
+      description: |-
+        This function lists the records of the last scans of the user, newest
+        first: ID, DOMAIN (empty for every domain), MODE, TRIGGER, STATUS, START,
+        END, FILES, CHANGED, SKIPPED, ERRORS, FINDINGS, NEW, NEW_SUMMARY, RULES
+        and ERROR.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `USER` | yes |
+        | `arg2` | `FORMAT` | no |
+
+        **User argument:** with the access key of a user other than the admin, `arg1` must be the key's user.
+      x-arcpanel-user-arg: 1
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-list-user-malware-scans"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-list-user-malware-scans"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+            application/json:
+              schema:
+                type: object
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+  "/api/#v-list-user-malware-task":
+    post:
+      operationId: v-list-user-malware-task
+      tags:
+        - Users
+      summary: Show the current or last background malware scan of a user (E25)
+      description: |-
+        This function prints the task record (ID, DOMAIN, STATUS, EXIT, START,
+        END) of the scan started by v-start-user-malware-scan and the last LINES
+        lines of its output (default 100, at most 1000). STATUS is running, done
+        or failed; a running task whose process is gone is reported, and stored,
+        as failed. Without a task, STATUS is empty.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `USER` | yes |
+        | `arg2` | `LINES` | no |
+        | `arg3` | `FORMAT` | no |
+
+        **User argument:** with the access key of a user other than the admin, `arg1` must be the key's user.
+      x-arcpanel-user-arg: 1
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-list-user-malware-task"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-list-user-malware-task"
       responses:
         "200":
           description: "The output of the command; `OK` for an empty output with legacy authentication."
@@ -24000,6 +25487,63 @@ paths:
           $ref: "#/components/responses/InvalidRequest"
         "422":
           $ref: "#/components/responses/Unprocessable"
+  "/api/#v-list-web-domain-php":
+    post:
+      operationId: v-list-web-domain-php
+      tags:
+        - Web
+      summary: List the PHP settings of a web domain (E41)
+      description: |-
+        This function lists the PHP version and PHP-FPM profile of a web domain:
+        VERSION (empty for no-php), BACKEND, PROFILE, PROFILE_APPLIED (no when the
+        backend template has no %php_profile% line), VERSION_ALLOWED and
+        PROFILE_ALLOWED (no when the package no longer allows the domain's value),
+        ALLOWED (both), the VERSIONS (installed, with STATUS and EOL) and PROFILES
+        the package allows, DEFAULT_PROFILE, and EFFECTIVE: the values of the PHP
+        limits with their SOURCE (php.ini of the version, or the profile).
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `USER` | yes |
+        | `arg2` | `DOMAIN` | yes |
+        | `arg3` | `FORMAT` | no |
+
+        **User argument:** with the access key of a user other than the admin, `arg1` must be the key's user.
+      x-arcpanel-user-arg: 1
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-list-web-domain-php"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-list-web-domain-php"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+            application/json:
+              schema:
+                type: object
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
   "/api/#v-list-web-domain-ssl":
     post:
       operationId: v-list-web-domain-ssl
@@ -24667,6 +26211,51 @@ paths:
           $ref: "#/components/responses/InvalidRequest"
         "422":
           $ref: "#/components/responses/Unprocessable"
+  "/api/#v-log-sys-login-failure":
+    post:
+      operationId: v-log-sys-login-failure
+      tags:
+        - System
+      summary: Log a failed panel login that names no valid user
+      description: |-
+        This function writes a failed login to the auth log for a user name that
+        no other command accepts, so fail2ban counts it like any other failure.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `IP` | yes |
+        | `arg2` | `REASON` | no |
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-log-sys-login-failure"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-log-sys-login-failure"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
   "/api/#v-log-user-login":
     post:
       operationId: v-log-user-login
@@ -24674,6 +26263,10 @@ paths:
         - Users
       summary: Add user login
       description: |-
+        The user agent and the reason are made log-safe (quotes and control
+        characters replaced) instead of refused, so a failure always reaches the
+        auth log that fail2ban reads.
+
         **Arguments**
 
         | Field | Option | Required |
@@ -24682,6 +26275,9 @@ paths:
         | `arg2` | `IP` | yes |
         | `arg3` | `STATUS` | yes |
         | `arg4` | `FINGERPRINT` | no |
+        | `arg5` | `USER_AGENT` | no |
+        | `arg6` | `AUTHLOG` | no |
+        | `arg7` | `REASON` | no |
 
         **User argument:** with the access key of a user other than the admin, `arg1` must be the key's user.
       x-arcpanel-user-arg: 1
@@ -26680,7 +28276,8 @@ paths:
       summary: Restore single cron job
       description: |-
         This function allows the user to restore a cron jobs
-        from a snapshot.
+        from a snapshot. The jobs are read from the snapshot as untrusted
+        records: each line is rebuilt from the known keys (E39 W1 D6).
 
         **Arguments**
 
@@ -26778,7 +28375,9 @@ paths:
         - Databases
       summary: Restore Database
       description: |-
-        This function for restoring database from restic snapshot.
+        This function for restoring database from restic snapshot. The records and
+        dumps of a snapshot are untrusted: names must carry the user's prefix, and
+        the dump is imported with an account limited to the database (E39 W1).
 
         **Arguments**
 
@@ -26876,7 +28475,8 @@ paths:
         - DNS
       summary: Restore DNS domain
       description: |-
-        This function for restoring database from restic snapshot.
+        This function for restoring DNS domains from restic snapshot. Names and
+        records read from the snapshot are validated and rebuilt (E39 W1).
 
         **Arguments**
 
@@ -26922,9 +28522,13 @@ paths:
       operationId: v-restore-file-restic
       tags:
         - Backups
-      summary: Restore file or folder
+      summary: Restore a file or folder from a restic snapshot
       description: |-
-        This function for restoring database from restic snapshot.
+        This function restores PATH, a file or folder in the home directory of
+        USER, from a restic snapshot. restic restores into a working folder of
+        root; the user copies the result into the home, so the files belong to
+        the user and nothing outside the user's permissions is written (E39 W1).
+        The restore overwrites the current file.
 
         **Arguments**
 
@@ -26932,7 +28536,8 @@ paths:
         | --- | --- | --- |
         | `arg1` | `USER` | yes |
         | `arg2` | `SNAPSHOT` | yes |
-        | `arg3` | `path` | yes |
+        | `arg3` | `PATH` | yes |
+        | `arg4` | `NOTIFY` | no |
 
         **User argument:** with the access key of a user other than the admin, `arg1` must be the key's user.
       x-arcpanel-user-arg: 1
@@ -27020,8 +28625,12 @@ paths:
       operationId: v-restore-mail-domain-restic
       tags:
         - Mail
-      summary: Restore WEB domain
+      summary: Restore mail domain
       description: |-
+        This function for restoring mail domains from restic snapshot. Names,
+        records and certificates read from the snapshot are validated; the
+        mailboxes are copied into the home as the user (E39 W1).
+
         **Arguments**
 
         | Field | Option | Required |
@@ -27029,6 +28638,7 @@ paths:
         | `arg1` | `USER` | yes |
         | `arg2` | `SNAPSHOT` | yes |
         | `arg3` | `DOMAIN` | yes |
+        | `arg4` | `NOTIFY` | no |
 
         **User argument:** with the access key of a user other than the admin, `arg1` must be the key's user.
       x-arcpanel-user-arg: 1
@@ -27069,7 +28679,9 @@ paths:
       summary: Restore user
       description: |-
         This function for restoring user from backup. To be able to restore the backup,
-        the archive needs to be placed in /backup.
+        the archive needs to be placed in /backup. Root unpacks the archive in a
+        working folder of its own; names and records read from it are validated,
+        and the user's files are unpacked into the home by the user (E39 W1).
 
         **Arguments**
 
@@ -27164,6 +28776,56 @@ paths:
           $ref: "#/components/responses/InvalidRequest"
         "422":
           $ref: "#/components/responses/Unprocessable"
+  "/api/#v-restore-user-malware-quarantine":
+    post:
+      operationId: v-restore-user-malware-quarantine
+      tags:
+        - Users
+      summary: Put a quarantined file of a user back in place (E25)
+      description: |-
+        This function writes a quarantined file back to its path, as the user and
+        with its mode, and removes it from the quarantine. It refuses when a file
+        exists at that path (E_EXISTS) or its folder is gone (E_NOTEXIST). The
+        next scan reports the file again unless the user ignores it.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `USER` | yes |
+        | `arg2` | `ID` | yes |
+
+        **User argument:** with the access key of a user other than the admin, `arg1` must be the key's user.
+      x-arcpanel-user-arg: 1
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-restore-user-malware-quarantine"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-restore-user-malware-quarantine"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
   "/api/#v-restore-user-restic":
     post:
       operationId: v-restore-user-restic
@@ -27171,7 +28833,9 @@ paths:
         - Users
       summary: Restore user via Restic
       description: |-
-        This function for restoring database from restic snapshot.
+        This function for restoring a user from restic snapshot: domains,
+        databases and cron jobs through their own commands, then the user's own
+        folders, copied into the home as the user (E39 W1).
 
         **Arguments**
 
@@ -27274,7 +28938,11 @@ paths:
         - Web
       summary: Restore WEB domain
       description: |-
-        This function for restoring database from restic snapshot.
+        This function for restoring web domains from restic snapshot. The record,
+        certificates and paths read from the snapshot are validated; the site
+        files are copied into the home as the user. Custom web server
+        configuration is not restored from a snapshot, because the user can
+        change it in ~/backup before the backup runs (E39 W1).
 
         **Arguments**
 
@@ -27283,6 +28951,8 @@ paths:
         | `arg1` | `USER` | yes |
         | `arg2` | `SNAPSHOT` | yes |
         | `arg3` | `DOMAIN` | yes |
+        | `arg4` | `NOTIFY` | no |
+        | `arg5` | `NEW_USER` | no |
 
         **User argument:** with the access key of a user other than the admin, `arg1` must be the key's user.
       x-arcpanel-user-arg: 1
@@ -27338,6 +29008,53 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/v-revoke-api-key"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+  "/api/#v-rollback-sys-php-ini":
+    post:
+      operationId: v-rollback-sys-php-ini
+      tags:
+        - System
+      summary: Restore a php.ini backup of a PHP version (E41)
+      description: |-
+        This function restores a backup listed by v-list-sys-php-ini-backups. The
+        backup is validated and applied as v-change-sys-php-ini does, so the current
+        file is backed up first and the history only moves forward.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `VERSION` | yes |
+        | `arg2` | `SAPI` | yes |
+        | `arg3` | `ID` | yes |
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-rollback-sys-php-ini"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-rollback-sys-php-ini"
       responses:
         "200":
           description: "The output of the command; `OK` for an empty output with legacy authentication."
@@ -27924,6 +29641,112 @@ paths:
           $ref: "#/components/responses/InvalidRequest"
         "422":
           $ref: "#/components/responses/Unprocessable"
+  "/api/#v-scan-sys-web":
+    post:
+      operationId: v-scan-sys-web
+      tags:
+        - System
+      summary: Scan the web files of every user for malware (E25)
+      description: |-
+        This function is the nightly run of the malware scan: an incremental scan
+        (v-scan-user-web USER '' incremental nightly) of every user, one after the
+        other. A user whose scan is already running is skipped. When the run finds
+        new suspicious files, the administrator gets one e-mail with the number of
+        new findings per user and domain (no file names, no contents). Prints one
+        line per user.
+
+        **Arguments:** none.
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-scan-sys-web"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-scan-sys-web"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+  "/api/#v-scan-user-web":
+    post:
+      operationId: v-scan-user-web
+      tags:
+        - Users
+      summary: Scan the web files of a user for malware (E25)
+      description: |-
+        This function scans the public_html folder of one web domain, or of every
+        web domain of the user when DOMAIN is empty, with the malware scanner
+        (func/malware-scan.php) running as the user under nice and ionice. MODE is
+        full (default) or incremental (only new and changed files since the last
+        scan with the same rules). TRIGGER is manual (default) or nightly.
+
+        The open findings of the scanned domains are replaced by the result;
+        ignored and quarantined files are left out. New findings send a panel
+        notification to the user and the administrator. Prints the scan record.
+        A scan of the user that is already running answers E_INUSE.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `USER` | yes |
+        | `arg2` | `DOMAIN` | no |
+        | `arg3` | `MODE` | no |
+        | `arg4` | `TRIGGER` | no |
+        | `arg5` | `FORMAT` | no |
+
+        **User argument:** with the access key of a user other than the admin, `arg1` must be the key's user.
+      x-arcpanel-user-arg: 1
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-scan-user-web"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-scan-user-web"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+            application/json:
+              schema:
+                type: object
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
   "/api/#v-schedule-letsencrypt-domain":
     post:
       operationId: v-schedule-letsencrypt-domain
@@ -28255,7 +30078,8 @@ paths:
         - Users
       summary: Schedule user backup restoration
       description: |-
-        This function for scheduling user backup restoration.
+        This function for scheduling user backup restoration from a restic
+        snapshot.
 
         **Arguments**
 
@@ -28831,8 +30655,12 @@ paths:
         php ADD DELETE            PHP versions to install and to remove, comma
         lists or "-"; a version in use by a web domain
         or the system default is not removed
-        plugin NAME on|off        filemanager, web-terminal, quota, cgroups or
-        firewall: v-add-sys-NAME or v-delete-sys-NAME
+        php-ext VERSION ADD DELETE  PHP extensions of one installed version to
+        install and to remove (E41), comma lists of
+        catalog names or "-"
+        plugin NAME on|off        filemanager, web-terminal, quota, cgroups,
+        firewall or malware-scan: v-add-sys-NAME or
+        v-delete-sys-NAME
         arcpanel-update [PACKAGE]   v-update-sys-arcpanel PACKAGE, or every package
         package SLUG add|delete   v-add-sys-package or v-delete-sys-package of a
         system package of the catalog (E5)
@@ -28853,6 +30681,56 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/v-start-sys-task"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+  "/api/#v-start-user-malware-scan":
+    post:
+      operationId: v-start-user-malware-scan
+      tags:
+        - Users
+      summary: Start a malware scan of a user in the background (E25)
+      description: |-
+        This function starts a full v-scan-user-web of one web domain, or of every
+        web domain of the user when DOMAIN is empty, detached from the caller, and
+        prints the task ID. One scan per user runs at a time; the state and the
+        output are read with v-list-user-malware-task.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `USER` | yes |
+        | `arg2` | `DOMAIN` | no |
+
+        **User argument:** with the access key of a user other than the admin, `arg1` must be the key's user.
+      x-arcpanel-user-arg: 1
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-start-user-malware-scan"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-start-user-malware-scan"
       responses:
         "200":
           description: "The output of the command; `OK` for an empty output with legacy authentication."
@@ -32838,6 +34716,59 @@ paths:
           $ref: "#/components/responses/InvalidRequest"
         "422":
           $ref: "#/components/responses/Unprocessable"
+  "/api/#v-update-sys-user-homes":
+    post:
+      operationId: v-update-sys-user-homes
+      tags:
+        - System
+      summary: Bring user homes to the current layout (E39 W1)
+      description: |-
+        This function removes from the homes of users what older versions left
+        there for root to manage: the private key of the legacy file manager in
+        ~/.ssh, its line in authorized_keys and the ACL that let arcpanelweb into
+        ~/.ssh. It moves the data of Docker apps from ~/apps/<name>/data to
+        $HOMEDIR/.arcpanel-apps/<user>/<name>/ (stopping a running app while its
+        data moves). Every change in a home runs as the user. Without USER it
+        works on every user. It is safe to run on every upgrade.
+        See docs/features/specs/2026-10-10-001-e39-w1-root-in-user-paths-design.md.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `USER` | no |
+
+        **User argument:** with the access key of a user other than the admin, `arg1` must be the key's user.
+      x-arcpanel-user-arg: 1
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-update-sys-user-homes"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-update-sys-user-homes"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
   "/api/#v-update-user-backup-exclusions":
     post:
       operationId: v-update-user-backup-exclusions
@@ -36199,6 +38130,26 @@ components:
                 - "no"
             returncode:
               $ref: "#/components/schemas/ReturnCode"
+    v-add-sys-malware-scan:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-add-sys-malware-scan
+              default: v-add-sys-malware-scan
+            arg1:
+              type: string
+              title: MODE
+              description: "`MODE`, optional"
+              examples:
+                - quiet
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
     v-add-sys-node:
       allOf:
         - $ref: "#/components/schemas/Credentials"
@@ -36246,6 +38197,76 @@ components:
               enum:
                 - v-add-sys-panel-files
               default: v-add-sys-panel-files
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
+    v-add-sys-php-extension:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+            - arg2
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-add-sys-php-extension
+              default: v-add-sys-php-extension
+            arg1:
+              type: string
+              title: VERSION
+              description: "`VERSION`"
+              examples:
+                - "8.4"
+            arg2:
+              type: string
+              title: NAME
+              description: "`NAME`"
+              examples:
+                - redis
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
+    v-add-sys-php-profile:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+            - arg2
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-add-sys-php-profile
+              default: v-add-sys-php-profile
+            arg1:
+              type: string
+              title: NAME
+              description: "`NAME`"
+              examples:
+                - shop
+            arg2:
+              type: string
+              title: FILE
+              description: "`FILE`"
+              examples:
+                - /tmp/profile
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
+    v-add-sys-php-profiles:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-add-sys-php-profiles
+              default: v-add-sys-php-profiles
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-add-sys-pma-restrict:
@@ -36571,6 +38592,26 @@ components:
               default: v-add-sys-web-terminal
             returncode:
               $ref: "#/components/schemas/ReturnCode"
+    v-add-sys-web-terminal-key:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-add-sys-web-terminal-key
+              default: v-add-sys-web-terminal-key
+            arg1:
+              type: string
+              title: ROTATE
+              description: "`ROTATE`, optional"
+              examples:
+                - ""
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
     v-add-user:
       allOf:
         - $ref: "#/components/schemas/Credentials"
@@ -36664,6 +38705,62 @@ components:
               description: "`USER`"
               examples:
                 - user
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
+    v-add-user-malware-ignore:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+            - arg2
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-add-user-malware-ignore
+              default: v-add-user-malware-ignore
+            arg1:
+              type: string
+              title: USER
+              description: "`USER`"
+              examples:
+                - alice
+            arg2:
+              type: string
+              title: FINDING
+              description: "`FINDING`"
+              examples:
+                - "3f2a9c0d1b4e5f60"
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
+    v-add-user-malware-quarantine:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+            - arg2
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-add-user-malware-quarantine
+              default: v-add-user-malware-quarantine
+            arg1:
+              type: string
+              title: USER
+              description: "`USER`"
+              examples:
+                - alice
+            arg2:
+              type: string
+              title: FINDING
+              description: "`FINDING`"
+              examples:
+                - "3f2a9c0d1b4e5f60"
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-add-user-node-version:
@@ -36965,33 +39062,6 @@ components:
               enum:
                 - "yes"
                 - "no"
-            returncode:
-              $ref: "#/components/schemas/ReturnCode"
-    v-add-user-sftp-key:
-      allOf:
-        - $ref: "#/components/schemas/Credentials"
-        - type: object
-          required:
-            - cmd
-            - arg1
-          properties:
-            cmd:
-              type: string
-              enum:
-                - v-add-user-sftp-key
-              default: v-add-user-sftp-key
-            arg1:
-              type: string
-              title: USER
-              description: "`USER`"
-              examples:
-                - ""
-            arg2:
-              type: string
-              title: TTL
-              description: "`TTL`, optional"
-              examples:
-                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-add-user-ssh-key:
@@ -39655,6 +41725,152 @@ components:
                 - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
+    v-change-sys-php-extension:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+            - arg2
+            - arg3
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-change-sys-php-extension
+              default: v-change-sys-php-extension
+            arg1:
+              type: string
+              title: VERSION
+              description: "`VERSION`"
+              examples:
+                - "8.4"
+            arg2:
+              type: string
+              title: NAME
+              description: "`NAME`"
+              examples:
+                - xdebug
+            arg3:
+              type: string
+              title: STATE
+              description: "`STATE`"
+              examples:
+                - "off"
+            arg4:
+              type: string
+              title: SAPI
+              description: "`SAPI`, optional"
+              examples:
+                - fpm
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
+    v-change-sys-php-ini:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+            - arg2
+            - arg3
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-change-sys-php-ini
+              default: v-change-sys-php-ini
+            arg1:
+              type: string
+              title: VERSION
+              description: "`VERSION`"
+              examples:
+                - "8.4"
+            arg2:
+              type: string
+              title: SAPI
+              description: "`SAPI`"
+              examples:
+                - fpm
+            arg3:
+              type: string
+              title: FILE
+              description: "`FILE`"
+              examples:
+                - /tmp/php.ini
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
+    v-change-sys-php-ini-values:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+            - arg2
+            - arg3
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-change-sys-php-ini-values
+              default: v-change-sys-php-ini-values
+            arg1:
+              type: string
+              title: VERSION
+              description: "`VERSION`"
+              examples:
+                - "8.4"
+            arg2:
+              type: string
+              title: SAPI
+              description: "`SAPI`"
+              examples:
+                - fpm
+            arg3:
+              type: string
+              title: FILE
+              description: "`FILE`"
+              examples:
+                - /tmp/values
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
+    v-change-sys-php-profile:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+            - arg2
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-change-sys-php-profile
+              default: v-change-sys-php-profile
+            arg1:
+              type: string
+              title: NAME
+              description: "`NAME`"
+              examples:
+                - medium
+            arg2:
+              type: string
+              title: FILE
+              description: "`FILE`"
+              examples:
+                - /tmp/profile
+            arg3:
+              type: string
+              title: RESTART
+              description: "`RESTART`, optional"
+              enum:
+                - "yes"
+                - "no"
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
     v-change-sys-port:
       allOf:
         - $ref: "#/components/schemas/Credentials"
@@ -40876,6 +43092,55 @@ components:
                 - "yes"
             returncode:
               $ref: "#/components/schemas/ReturnCode"
+    v-change-web-domain-php:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+            - arg2
+            - arg3
+            - arg4
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-change-web-domain-php
+              default: v-change-web-domain-php
+            arg1:
+              type: string
+              title: USER
+              description: "`USER`"
+              examples:
+                - alice
+            arg2:
+              type: string
+              title: DOMAIN
+              description: "`DOMAIN`"
+              examples:
+                - example.com
+            arg3:
+              type: string
+              title: VERSION
+              description: "`VERSION`"
+              examples:
+                - "8.4"
+            arg4:
+              type: string
+              title: PROFILE
+              description: "`PROFILE`"
+              examples:
+                - medium
+            arg5:
+              type: string
+              title: RESTART
+              description: "`RESTART`, optional"
+              enum:
+                - "yes"
+                - "no"
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
     v-change-web-domain-proxy-tpl:
       allOf:
         - $ref: "#/components/schemas/Credentials"
@@ -41526,6 +43791,58 @@ components:
                 - json
             returncode:
               $ref: "#/components/schemas/ReturnCode"
+    v-check-sys-php-ini:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+            - arg2
+            - arg3
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-check-sys-php-ini
+              default: v-check-sys-php-ini
+            arg1:
+              type: string
+              title: VERSION
+              description: "`VERSION`"
+              examples:
+                - "8.4"
+            arg2:
+              type: string
+              title: SAPI
+              description: "`SAPI`"
+              examples:
+                - fpm
+            arg3:
+              type: string
+              title: FILE
+              description: "`FILE`"
+              examples:
+                - /tmp/php.ini
+            arg4:
+              type: string
+              title: FORMAT
+              description: "`FORMAT`, optional"
+              enum:
+                - json
+                - plain
+                - csv
+                - shell
+              examples:
+                - json
+            arg5:
+              type: string
+              title: MODE
+              description: "`MODE`, optional"
+              examples:
+                - ""
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
     v-check-sys-ports:
       allOf:
         - $ref: "#/components/schemas/Credentials"
@@ -41572,6 +43889,12 @@ components:
               description: "`TOKEN`"
               examples:
                 - "493690"
+            arg3:
+              type: string
+              title: IP
+              description: "`IP`, optional"
+              examples:
+                - "203.0.113.7"
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-check-user-hash:
@@ -43357,6 +45680,26 @@ components:
               default: v-delete-sys-mail-queue
             returncode:
               $ref: "#/components/schemas/ReturnCode"
+    v-delete-sys-malware-scan:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-delete-sys-malware-scan
+              default: v-delete-sys-malware-scan
+            arg1:
+              type: string
+              title: MODE
+              description: "`MODE`, optional"
+              examples:
+                - quiet
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
     v-delete-sys-node-cache:
       allOf:
         - $ref: "#/components/schemas/Credentials"
@@ -43402,6 +45745,61 @@ components:
               description: "`FORCE`, optional"
               examples:
                 - ""
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
+    v-delete-sys-php-extension:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+            - arg2
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-delete-sys-php-extension
+              default: v-delete-sys-php-extension
+            arg1:
+              type: string
+              title: VERSION
+              description: "`VERSION`"
+              examples:
+                - "8.4"
+            arg2:
+              type: string
+              title: NAME
+              description: "`NAME`"
+              examples:
+                - redis
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
+    v-delete-sys-php-profile:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-delete-sys-php-profile
+              default: v-delete-sys-php-profile
+            arg1:
+              type: string
+              title: NAME
+              description: "`NAME`"
+              examples:
+                - shop
+            arg2:
+              type: string
+              title: FORCE
+              description: "`FORCE`, optional"
+              examples:
+                - "yes"
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-delete-sys-pma-restrict:
@@ -43777,6 +46175,83 @@ components:
               description: "`USER`"
               examples:
                 - user
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
+    v-delete-user-login-limits:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-delete-user-login-limits
+              default: v-delete-user-login-limits
+            arg1:
+              type: string
+              title: USER
+              description: "`USER`"
+              examples:
+                - admin
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
+    v-delete-user-malware-ignore:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+            - arg2
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-delete-user-malware-ignore
+              default: v-delete-user-malware-ignore
+            arg1:
+              type: string
+              title: USER
+              description: "`USER`"
+              examples:
+                - alice
+            arg2:
+              type: string
+              title: SHA256
+              description: "`SHA256`"
+              examples:
+                - "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
+    v-delete-user-malware-quarantine:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+            - arg2
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-delete-user-malware-quarantine
+              default: v-delete-user-malware-quarantine
+            arg1:
+              type: string
+              title: USER
+              description: "`USER`"
+              examples:
+                - alice
+            arg2:
+              type: string
+              title: ID
+              description: "`ID`"
+              examples:
+                - "17602000001234"
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-delete-user-node-apps:
@@ -47814,6 +50289,31 @@ components:
               default: v-list-sys-mail-status
             returncode:
               $ref: "#/components/schemas/ReturnCode"
+    v-list-sys-malware-summary:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-list-sys-malware-summary
+              default: v-list-sys-malware-summary
+            arg1:
+              type: string
+              title: FORMAT
+              description: "`FORMAT`, optional"
+              enum:
+                - json
+                - plain
+                - csv
+                - shell
+              examples:
+                - json
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
     v-list-sys-memory-status:
       allOf:
         - $ref: "#/components/schemas/Credentials"
@@ -48010,6 +50510,173 @@ components:
               enum:
                 - v-list-sys-php-config
               default: v-list-sys-php-config
+            arg1:
+              type: string
+              title: FORMAT
+              description: "`FORMAT`, optional"
+              enum:
+                - json
+                - plain
+                - csv
+                - shell
+              examples:
+                - json
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
+    v-list-sys-php-extensions:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-list-sys-php-extensions
+              default: v-list-sys-php-extensions
+            arg1:
+              type: string
+              title: VERSION
+              description: "`VERSION`"
+              examples:
+                - "8.4"
+            arg2:
+              type: string
+              title: FORMAT
+              description: "`FORMAT`, optional"
+              enum:
+                - json
+                - plain
+                - csv
+                - shell
+              examples:
+                - json
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
+    v-list-sys-php-ini:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+            - arg2
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-list-sys-php-ini
+              default: v-list-sys-php-ini
+            arg1:
+              type: string
+              title: VERSION
+              description: "`VERSION`"
+              examples:
+                - "8.4"
+            arg2:
+              type: string
+              title: SAPI
+              description: "`SAPI`"
+              examples:
+                - fpm
+            arg3:
+              type: string
+              title: FORMAT
+              description: "`FORMAT`, optional"
+              enum:
+                - json
+                - plain
+                - csv
+                - shell
+              examples:
+                - json
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
+    v-list-sys-php-ini-backups:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+            - arg2
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-list-sys-php-ini-backups
+              default: v-list-sys-php-ini-backups
+            arg1:
+              type: string
+              title: VERSION
+              description: "`VERSION`"
+              examples:
+                - "8.4"
+            arg2:
+              type: string
+              title: SAPI
+              description: "`SAPI`"
+              examples:
+                - fpm
+            arg3:
+              type: string
+              title: FORMAT
+              description: "`FORMAT`, optional"
+              enum:
+                - json
+                - plain
+                - csv
+                - shell
+              examples:
+                - json
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
+    v-list-sys-php-profile:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-list-sys-php-profile
+              default: v-list-sys-php-profile
+            arg1:
+              type: string
+              title: NAME
+              description: "`NAME`"
+              examples:
+                - medium
+            arg2:
+              type: string
+              title: FORMAT
+              description: "`FORMAT`, optional"
+              enum:
+                - json
+                - plain
+                - csv
+                - shell
+              examples:
+                - json
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
+    v-list-sys-php-profiles:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-list-sys-php-profiles
+              default: v-list-sys-php-profiles
             arg1:
               type: string
               title: FORMAT
@@ -48534,13 +51201,24 @@ components:
               title: USER
               description: "`USER`"
               examples:
-                - admin
+                - alice
             arg2:
               type: string
-              title: NOTIFY
-              description: "`NOTIFY`"
+              title: SNAPSHOT
+              description: "`SNAPSHOT`"
               examples:
-                - "yes"
+                - "4f2a91c0"
+            arg3:
+              type: string
+              title: FORMAT
+              description: "`FORMAT`, optional"
+              enum:
+                - json
+                - plain
+                - csv
+                - shell
+              examples:
+                - json
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-list-user-backups:
@@ -48623,19 +51301,19 @@ components:
               title: USER
               description: "`USER`"
               examples:
-                - admin
+                - alice
             arg2:
               type: string
               title: SNAPSHOT
               description: "`SNAPSHOT`"
               examples:
-                - "yes"
+                - "4f2a91c0"
             arg3:
               type: string
               title: FOLDER
               description: "`FOLDER`"
               examples:
-                - ""
+                - /home/alice/web
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-list-user-ips:
@@ -48706,6 +51384,172 @@ components:
               description: "`LINES`, optional"
               examples:
                 - "100"
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
+    v-list-user-malware-findings:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-list-user-malware-findings
+              default: v-list-user-malware-findings
+            arg1:
+              type: string
+              title: USER
+              description: "`USER`"
+              examples:
+                - alice
+            arg2:
+              type: string
+              title: FORMAT
+              description: "`FORMAT`, optional"
+              enum:
+                - json
+                - plain
+                - csv
+                - shell
+              examples:
+                - json
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
+    v-list-user-malware-ignores:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-list-user-malware-ignores
+              default: v-list-user-malware-ignores
+            arg1:
+              type: string
+              title: USER
+              description: "`USER`"
+              examples:
+                - alice
+            arg2:
+              type: string
+              title: FORMAT
+              description: "`FORMAT`, optional"
+              enum:
+                - json
+                - plain
+                - csv
+                - shell
+              examples:
+                - json
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
+    v-list-user-malware-quarantine:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-list-user-malware-quarantine
+              default: v-list-user-malware-quarantine
+            arg1:
+              type: string
+              title: USER
+              description: "`USER`"
+              examples:
+                - alice
+            arg2:
+              type: string
+              title: FORMAT
+              description: "`FORMAT`, optional"
+              enum:
+                - json
+                - plain
+                - csv
+                - shell
+              examples:
+                - json
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
+    v-list-user-malware-scans:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-list-user-malware-scans
+              default: v-list-user-malware-scans
+            arg1:
+              type: string
+              title: USER
+              description: "`USER`"
+              examples:
+                - alice
+            arg2:
+              type: string
+              title: FORMAT
+              description: "`FORMAT`, optional"
+              enum:
+                - json
+                - plain
+                - csv
+                - shell
+              examples:
+                - json
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
+    v-list-user-malware-task:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-list-user-malware-task
+              default: v-list-user-malware-task
+            arg1:
+              type: string
+              title: USER
+              description: "`USER`"
+              examples:
+                - alice
+            arg2:
+              type: string
+              title: LINES
+              description: "`LINES`, optional"
+              examples:
+                - "100"
+            arg3:
+              type: string
+              title: FORMAT
+              description: "`FORMAT`, optional"
+              enum:
+                - json
+                - plain
+                - csv
+                - shell
+              examples:
+                - json
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-list-user-node-task:
@@ -49397,6 +52241,45 @@ components:
                 - json
             returncode:
               $ref: "#/components/schemas/ReturnCode"
+    v-list-web-domain-php:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+            - arg2
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-list-web-domain-php
+              default: v-list-web-domain-php
+            arg1:
+              type: string
+              title: USER
+              description: "`USER`"
+              examples:
+                - alice
+            arg2:
+              type: string
+              title: DOMAIN
+              description: "`DOMAIN`"
+              examples:
+                - example.com
+            arg3:
+              type: string
+              title: FORMAT
+              description: "`FORMAT`, optional"
+              enum:
+                - json
+                - plain
+                - csv
+                - shell
+              examples:
+                - json
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
     v-list-web-domain-ssl:
       allOf:
         - $ref: "#/components/schemas/Credentials"
@@ -49666,6 +52549,33 @@ components:
                 - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
+    v-log-sys-login-failure:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-log-sys-login-failure
+              default: v-log-sys-login-failure
+            arg1:
+              type: string
+              title: IP
+              description: "`IP`"
+              examples:
+                - "203.0.113.7"
+            arg2:
+              type: string
+              title: REASON
+              description: "`REASON`, optional"
+              examples:
+                - Invalid user name
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
     v-log-user-login:
       allOf:
         - $ref: "#/components/schemas/Credentials"
@@ -49703,6 +52613,24 @@ components:
               type: string
               title: FINGERPRINT
               description: "`FINGERPRINT`, optional"
+              examples:
+                - ""
+            arg5:
+              type: string
+              title: USER_AGENT
+              description: "`USER_AGENT`, optional"
+              examples:
+                - ""
+            arg6:
+              type: string
+              title: AUTHLOG
+              description: "`AUTHLOG`, optional"
+              examples:
+                - ""
+            arg7:
+              type: string
+              title: REASON
+              description: "`REASON`, optional"
               examples:
                 - ""
             returncode:
@@ -51076,19 +54004,25 @@ components:
               title: USER
               description: "`USER`"
               examples:
-                - user
+                - alice
             arg2:
               type: string
               title: SNAPSHOT
               description: "`SNAPSHOT`"
               examples:
-                - snapshot
+                - "4f2a91c0"
             arg3:
               type: string
-              title: path
-              description: "`path`"
+              title: PATH
+              description: "`PATH`"
               examples:
-                - path
+                - /home/alice/web/example.com/public_html/index.php
+            arg4:
+              type: string
+              title: NOTIFY
+              description: "`NOTIFY`, optional"
+              examples:
+                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-restore-mail-domain:
@@ -51165,6 +54099,12 @@ components:
               description: "`DOMAIN`"
               examples:
                 - domain.com
+            arg4:
+              type: string
+              title: NOTIFY
+              description: "`NOTIFY`, optional"
+              examples:
+                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-restore-user:
@@ -51270,6 +54210,34 @@ components:
               description: "`KEY`"
               examples:
                 - key
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
+    v-restore-user-malware-quarantine:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+            - arg2
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-restore-user-malware-quarantine
+              default: v-restore-user-malware-quarantine
+            arg1:
+              type: string
+              title: USER
+              description: "`USER`"
+              examples:
+                - alice
+            arg2:
+              type: string
+              title: ID
+              description: "`ID`"
+              examples:
+                - "17602000001234"
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-restore-user-restic:
@@ -51416,6 +54384,18 @@ components:
               description: "`DOMAIN`"
               examples:
                 - domain.com
+            arg4:
+              type: string
+              title: NOTIFY
+              description: "`NOTIFY`, optional"
+              examples:
+                - ""
+            arg5:
+              type: string
+              title: NEW_USER
+              description: "`NEW_USER`, optional"
+              examples:
+                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-revoke-api-key:
@@ -51436,6 +54416,41 @@ components:
               description: "`HASH`, optional"
               examples:
                 - mykey
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
+    v-rollback-sys-php-ini:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+            - arg2
+            - arg3
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-rollback-sys-php-ini
+              default: v-rollback-sys-php-ini
+            arg1:
+              type: string
+              title: VERSION
+              description: "`VERSION`"
+              examples:
+                - "8.4"
+            arg2:
+              type: string
+              title: SAPI
+              description: "`SAPI`"
+              examples:
+                - fpm
+            arg3:
+              type: string
+              title: ID
+              description: "`ID`"
+              examples:
+                - "20261012-143000"
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-rollback-user-secret:
@@ -51958,6 +54973,70 @@ components:
                 - "9f86d0…"
             returncode:
               $ref: "#/components/schemas/ReturnCode"
+    v-scan-sys-web:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-scan-sys-web
+              default: v-scan-sys-web
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
+    v-scan-user-web:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-scan-user-web
+              default: v-scan-user-web
+            arg1:
+              type: string
+              title: USER
+              description: "`USER`"
+              examples:
+                - alice
+            arg2:
+              type: string
+              title: DOMAIN
+              description: "`DOMAIN`, optional"
+              examples:
+                - example.com
+            arg3:
+              type: string
+              title: MODE
+              description: "`MODE`, optional"
+              examples:
+                - full
+            arg4:
+              type: string
+              title: TRIGGER
+              description: "`TRIGGER`, optional"
+              examples:
+                - manual
+            arg5:
+              type: string
+              title: FORMAT
+              description: "`FORMAT`, optional"
+              enum:
+                - json
+                - plain
+                - csv
+                - shell
+              examples:
+                - json
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
     v-schedule-letsencrypt-domain:
       allOf:
         - $ref: "#/components/schemas/Credentials"
@@ -52258,25 +55337,25 @@ components:
               title: USER
               description: "`USER`"
               examples:
-                - "2019-04-22_01-00-00.tar"
+                - alice
             arg2:
               type: string
               title: SNAPSHOT
               description: "`SNAPSHOT`"
               examples:
-                - ""
+                - "4f2a91c0"
             arg3:
               type: string
               title: OBJECT
               description: "`OBJECT`, optional"
               examples:
-                - ""
+                - web
             arg4:
               type: string
               title: VALUE
               description: "`VALUE`, optional"
               examples:
-                - ""
+                - example.com
             arg5:
               type: string
               title: FORMAT
@@ -52744,6 +55823,33 @@ components:
               description: "`ARG`, repeatable, optional"
               examples:
                 - ""
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
+    v-start-user-malware-scan:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-start-user-malware-scan
+              default: v-start-user-malware-scan
+            arg1:
+              type: string
+              title: USER
+              description: "`USER`"
+              examples:
+                - alice
+            arg2:
+              type: string
+              title: DOMAIN
+              description: "`DOMAIN`, optional"
+              examples:
+                - example.com
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-start-user-node-task:
@@ -54981,6 +58087,26 @@ components:
               type: string
               title: PERIOD
               description: "`PERIOD`"
+              examples:
+                - ""
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
+    v-update-sys-user-homes:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-update-sys-user-homes
+              default: v-update-sys-user-homes
+            arg1:
+              type: string
+              title: USER
+              description: "`USER`, optional"
               examples:
                 - ""
             returncode:

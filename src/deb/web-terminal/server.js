@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 
-import { execFileSync, execSync } from 'node:child_process';
+import { execSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { spawn } from 'node-pty';
 import { WebSocketServer } from 'ws';
+import { createVerifier, parseKey, TICKET_PROTOCOL, ticketFromProtocols } from './ticket.js';
 
-const sessionName = 'ARCPANELSID';
 const hostname = execSync('hostname', { silent: true }).toString().trim();
 const systemIPs = JSON.parse(
 	execSync(`${process.env.ARCPANEL}/bin/v-list-sys-ips json`, { silent: true }).toString(),
@@ -14,52 +14,26 @@ const { config } = JSON.parse(
 	execSync(`${process.env.ARCPANEL}/bin/v-list-sys-config json`, { silent: true }).toString(),
 );
 
-function parseCookies(cookieHeader) {
-	const cookies = {};
-	if (typeof cookieHeader !== 'string' || cookieHeader.length === 0) {
-		return cookies;
-	}
-
-	for (const part of cookieHeader.split(';')) {
-		const cookie = part.trim();
-		if (cookie.length === 0) {
-			continue;
-		}
-
-		const separatorIndex = cookie.indexOf('=');
-		if (separatorIndex < 0) {
-			cookies[cookie] = cookies[cookie] || [];
-			cookies[cookie].push('');
-			continue;
-		}
-
-		if (separatorIndex === 0) {
-			continue;
-		}
-
-		const key = cookie.slice(0, separatorIndex).trim();
-		const value = cookie.slice(separatorIndex + 1).trim();
-		if (key.length === 0) {
-			continue;
-		}
-
-		cookies[key] = cookies[key] || [];
-		cookies[key].push(value);
-	}
-
-	return cookies;
+// The panel signs a single-use ticket for the account of the session after
+// its own checks (E39 W2 spec §8); this server only checks the ticket.
+const keyFile = `${process.env.ARCPANEL}/data/web-terminal/ticket.key`;
+let key = null;
+try {
+	key = parseKey(readFileSync(keyFile, 'utf8'));
+} catch {
+	key = null;
 }
+if (key === null) {
+	console.error(`Missing or invalid ${keyFile}, run v-add-sys-web-terminal-key`);
+	process.exit(1);
+}
+const verifyTicket = createVerifier(key);
 
 const wss = new WebSocketServer({
+	// Only the panel's nginx reaches the server (/_shell/)
+	host: '127.0.0.1',
 	port: Number.parseInt(config.WEB_TERMINAL_PORT, 10),
-	verifyClient: async (info, cb) => {
-		const cookies = parseCookies(info.req.headers.cookie);
-		const sessionIDs = cookies[sessionName] || [];
-		if (sessionIDs.length !== 1 || sessionIDs[0].length === 0) {
-			cb(false, 401, 'Unauthorized');
-			return;
-		}
-
+	verifyClient: (info, cb) => {
 		const origin = info.origin || info.req.headers.origin;
 		let matches = origin === `https://${hostname}:${config.BACKEND_PORT}`;
 
@@ -72,52 +46,41 @@ const wss = new WebSocketServer({
 			}
 		}
 
-		if (matches) {
-			cb(true);
+		if (!matches) {
+			cb(false, 403, 'Forbidden');
 			return;
 		}
-		cb(false, 403, 'Forbidden');
+
+		const user = verifyTicket(ticketFromProtocols(info.req.headers['sec-websocket-protocol']));
+		if (user === null) {
+			cb(false, 401, 'Unauthorized');
+			return;
+		}
+		info.req.arcpanelUser = user;
+		cb(true);
+	},
+	// Answer with the ticket protocol the page asked for
+	handleProtocols: (protocols) => {
+		for (const protocol of protocols) {
+			if (protocol.startsWith(TICKET_PROTOCOL)) {
+				return protocol;
+			}
+		}
+		return false;
 	},
 });
 
 wss.on('connection', (ws, req) => {
 	wss.clients.add(ws);
 
+	// Set by the local nginx only: the server listens on 127.0.0.1
 	const remoteIP = req.headers['x-real-ip'] || req.socket.remoteAddress;
-
-	// Check if session is valid
-	const cookies = parseCookies(req.headers.cookie);
-	const sessionIDs = cookies[sessionName] || [];
-	if (sessionIDs.length !== 1 || sessionIDs[0].length === 0) {
-		console.error(`Missing ${sessionName} cookie from ${remoteIP}, refusing connection`);
+	const username = req.arcpanelUser;
+	if (typeof username !== 'string' || username.length === 0) {
 		ws.close(1000, 'You are not authenticated.');
 		return;
 	}
-	const sessionID = sessionIDs[0];
-	console.log(`New connection from ${remoteIP} (${sessionID})`);
-
-	let authResult;
-	try {
-		const raw = execFileSync(
-			`${process.env.ARCPANEL}/php/bin/php`,
-			[`${process.env.ARCPANEL}/web-terminal/web-terminal-session-auth.php`, sessionID],
-			{ encoding: 'utf8' },
-		);
-		authResult = JSON.parse(raw);
-	} catch (error) {
-		console.error(`Session helper failed for ${sessionID}, refusing connection: ${error.message}`);
-		ws.close(1000, 'Your session has expired.');
-		return;
-	}
-
-	if (!authResult?.ok || typeof authResult.user !== 'string' || authResult.user.length === 0) {
-		console.error(`Unauthenticated session ${sessionID}, refusing connection`);
-		ws.close(1000, 'You are not authenticated.');
-		return;
-	}
-	const login = authResult.user;
-	const impersonating = typeof authResult.look === 'string' ? authResult.look : '';
-	const username = impersonating.length > 0 ? impersonating : login;
+	console.log(`New connection from ${remoteIP} for ${username}`);
 
 	// Get user info
 	const passwd = readFileSync('/etc/passwd').toString();
@@ -164,7 +127,7 @@ wss.on('connection', (ws, req) => {
 		}
 	});
 	ws.on('close', () => {
-		console.log(`Ended connection from ${remoteIP} (${sessionID})`);
+		console.log(`Ended connection from ${remoteIP} for ${username}`);
 		pty.kill();
 		wss.clients.delete(ws);
 	});

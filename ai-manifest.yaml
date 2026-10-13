@@ -4,4 +4,4 @@ project: "ArcPanel"
 
 members:
   - git: "Nam Nguyen"
-    role: TL, PM, PL
+    role: PM

@@ -81,31 +81,29 @@
                 @endif
             </dl>
         </x-ap-card>
-        <x-ap-card :title="__('Node.js')" icon="hexagon">
+        {{-- Apps and runtimes in one card, like the Node apps hub of the sidebar --}}
+        <x-ap-card :title="__('Node apps')" icon="layers" :flush="$nodeApps !== null && $nodeApps->apps !== []">
             <x-slot:actions>
-                <x-ap-button :href="route('node.show', ['user' => $record->name])" variant="ghost" size="sm">{{ __('Node.js') }}<x-ap-icon name="chevron-right" /></x-ap-button>
-            </x-slot:actions>
-            <p class="muted">{{ __('Node.js versions and global npm packages of this account.') }}</p>
-        </x-ap-card>
-        @if ($nodeApps !== null)
-            <x-ap-card :title="__('Node apps')" icon="layers" :flush="$nodeApps->apps !== []">
-                <x-slot:actions>
-                    <x-ap-button :href="route('node.apps.index', ['user' => $record->name])" variant="ghost" size="sm">{{ __('Node apps') }}<x-ap-icon name="chevron-right" /></x-ap-button>
-                </x-slot:actions>
-                @if ($nodeApps->apps === [])
-                    <p class="muted">{{ __('No Node.js app yet.') }}</p>
-                @else
-                    <ul class="ap-list">
-                        @foreach ($nodeApps->apps as $app)
-                            <li>
-                                <div class="ap-list-main"><a class="mono" href="{{ route('node.apps.show', ['user' => $record->name, 'domain' => $app->domain]) }}">{{ $app->domain }}</a><span class="mono">{{ $app->runtime !== '' ? 'v'.$app->runtime : '—' }} · :{{ $app->port }}</span></div>
-                                <x-ap-badge :tone="$app->isSuspended() ? 'warn' : ($app->online() ? 'ok' : ($app->status === 'errored' ? 'danger' : null))">{{ $app->isSuspended() ? __('Suspended') : ($app->online() ? __('Online') : ($app->status === 'errored' ? __('Errored') : __('Stopped'))) }}</x-ap-badge>
-                            </li>
-                        @endforeach
-                    </ul>
+                <x-ap-button :href="route('node.show', ['user' => $record->name])" variant="ghost" size="sm">{{ __('Runtimes') }}</x-ap-button>
+                @if ($nodeApps !== null)
+                    <x-ap-button :href="route('node.apps.index', ['user' => $record->name])" variant="ghost" size="sm">{{ __('All apps') }}<x-ap-icon name="chevron-right" /></x-ap-button>
                 @endif
-            </x-ap-card>
-        @endif
+            </x-slot:actions>
+            @if ($nodeApps === null)
+                <p class="muted">{{ __('The apps of this account cannot be read right now.') }}</p>
+            @elseif ($nodeApps->apps === [])
+                <p class="muted">{{ __('No Node.js app yet.') }}</p>
+            @else
+                <ul class="ap-list">
+                    @foreach ($nodeApps->apps as $app)
+                        <li>
+                            <div class="ap-list-main"><a class="mono" href="{{ route('node.apps.show', ['user' => $record->name, 'domain' => $app->domain]) }}">{{ $app->domain }}</a><span class="mono">{{ $app->runtime !== '' ? 'v'.$app->runtime : '—' }} · :{{ $app->port }}</span></div>
+                            <x-ap-badge :tone="$app->isSuspended() ? 'warn' : ($app->online() ? 'ok' : ($app->status === 'errored' ? 'danger' : null))">{{ $app->isSuspended() ? __('Suspended') : ($app->online() ? __('Online') : ($app->status === 'errored' ? __('Errored') : __('Stopped'))) }}</x-ap-badge>
+                        </li>
+                    @endforeach
+                </ul>
+            @endif
+        </x-ap-card>
 
         @if ($dockerApps !== null && ($dockerApps->allowed || $dockerApps->apps !== []))
             <x-ap-card :title="__('Docker apps')" icon="container" :flush="$dockerApps->apps !== []">

@@ -50,11 +50,69 @@ export function loadAverage(data) {
 	if (!load) {
 		return { data, note: '' };
 	}
-	const missing = (value) => value === null || value === undefined || value === '' || Number.isNaN(Number(value));
 	const latest = processes ? [...processes.data].reverse().find((value) => !missing(value)) : undefined;
 	return {
 		data: { ...data, datasets: [{ ...load, data: load.data.map((value) => (missing(value) ? null : Number(value) / 100)) }] },
 		note: latest === undefined ? '' : `${processes.label}: ${Math.round(Number(latest))}`,
+	};
+}
+
+function missing(value) {
+	return value === null || value === undefined || value === '' || Number.isNaN(Number(value));
+}
+
+/**
+ * Drop the rows before the first value and after the last one: a fresh
+ * server has data for the last hours of a period only, which would otherwise
+ * be squeezed against the right edge.
+ */
+export function trimEmpty(data) {
+	const filled = (index) => data.datasets.some((dataset) => !missing(dataset.data[index]));
+	let first = 0;
+	let last = data.labels.length - 1;
+	while (first <= last && !filled(first)) {
+		first++;
+	}
+	while (last >= first && !filled(last)) {
+		last--;
+	}
+	if (first > last) {
+		return data;
+	}
+	return {
+		...data,
+		labels: data.labels.slice(first, last + 1),
+		datasets: data.datasets.map((dataset) => ({ ...dataset, data: dataset.data.slice(first, last + 1) })),
+	};
+}
+
+/** A #rrggbb colour at 20 % opacity for area fills; other colours unchanged. */
+function translucent(colour) {
+	return /^#[0-9a-f]{6}$/i.test(colour) ? `${colour}33` : colour;
+}
+
+/**
+ * The memory graph (v-update-sys-rrd-mem: used, swap, free in MB): used and
+ * free stacked as areas, so the top edge is the total RAM and the used part
+ * stays visible next to a large free part; swap is a line of its own.
+ *
+ * @returns {{ data: object, stacked: boolean }}
+ */
+export function memoryStack(data) {
+	const [used, swap, free] = data.datasets;
+	if (!used || !swap || !free) {
+		return { data, stacked: false };
+	}
+	return {
+		data: {
+			...data,
+			datasets: [
+				{ ...used, stack: 'ram', fill: 'origin', backgroundColor: translucent(used.borderColor) },
+				{ ...free, stack: 'ram', fill: '-1', backgroundColor: translucent(free.borderColor) },
+				{ ...swap, stack: 'swap', fill: false },
+			],
+		},
+		stacked: true,
 	};
 }
 
@@ -97,10 +155,13 @@ export default function apRrdGraph({ url = '', service = 'la', period = 'daily' 
 					`${this.url}?service=${encodeURIComponent(this.service)}&period=${encodeURIComponent(this.period)}`,
 				);
 				const { Chart } = await import('chart.js/auto');
-				const series = chartData(rrd, [cssVar('--ap-accent'), cssVar('--ap-ok'), cssVar('--ap-warn'), cssVar('--ap-info')]);
+				const series = trimEmpty(
+					chartData(rrd, [cssVar('--ap-accent'), cssVar('--ap-ok'), cssVar('--ap-warn'), cssVar('--ap-info')]),
+				);
 				const isLoad = this.service === 'la' && series.datasets.length > 1;
 				const load = isLoad ? loadAverage(series) : null;
-				const data = load ? load.data : series;
+				const memory = this.service === 'mem' ? memoryStack(series) : { data: series, stacked: false };
+				const data = load ? load.data : memory.data;
 				this.note = load ? load.note : '';
 				const text = cssVar('--ap-fg-muted');
 				const grid = cssVar('--ap-border');
@@ -122,6 +183,8 @@ export default function apRrdGraph({ url = '', service = 'la', period = 'daily' 
 									: { display: Boolean(rrd?.unit), text: rrd?.unit ?? '', color: text },
 								ticks: { color: text },
 								grid: { color: grid },
+								stacked: memory.stacked,
+								beginAtZero: memory.stacked,
 							},
 						},
 					},

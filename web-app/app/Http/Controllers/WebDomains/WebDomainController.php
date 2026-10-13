@@ -87,7 +87,7 @@ final class WebDomainController extends Controller
         ]);
     }
 
-    public function create(Request $request, Principal $principal, WebDomainPolicy $policy, OwnerScope $scope, WebDomainService $web, UserDirectory $directory, TemplateForm $form): View
+    public function create(Request $request, Principal $principal, WebDomainPolicy $policy, OwnerScope $scope, WebDomainService $web, UserDirectory $directory, TemplateForm $form, WebDomainActions $actions): View
     {
         $owner = $this->owner($request->query('owner'), $principal, $scope, $directory);
         abort_unless($policy->create($principal, $owner), 403);
@@ -107,7 +107,7 @@ final class WebDomainController extends Controller
             'ips' => $this->ipOptions($web->userIps($owner)),
             'systems' => $web->systems(),
             'canTemplates' => $canTemplates,
-            'backendTemplates' => $canTemplates ? $web->backendTemplates() : [],
+            'backendTemplates' => $canTemplates ? $actions->backendTemplatesFor($principal, $owner) : [],
             'defaults' => $defaults,
             ...($canTemplates ? $form->data($owner, '', $defaults['template'], $defaults['proxy_template']) : []),
         ]);
@@ -129,6 +129,8 @@ final class WebDomainController extends Controller
         $port = (string) $request->input('backend_port', '');
         if ($canTemplates) {
             $actions->checkPort($owner, $domain, null, ['template' => $request->input('template'), 'proxy_template' => $request->input('proxy_template')], $port);
+            // A PHP version of the package only (E41 §7.5)
+            $actions->checkBackendTemplate($principal, $owner, $request->input('backend_template'));
         }
 
         $steps = $actions->planCreate($owner, $domain, $ip, $request->boolean('dns'), $request->boolean('mail'), Input::list($request->input('aliases')), $userIps);

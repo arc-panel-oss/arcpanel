@@ -102,42 +102,28 @@ st_has_systemd() {
 #                     PHP versions                         #
 #----------------------------------------------------------#
 
-# Versions v-add-web-php accepts (install/upgrade/upgrade.conf)
+# The PHP functions live in func/php.sh (E41)
+# shellcheck source=/usr/local/arcpanel/func/php.sh
+source "$ARCPANEL/func/php.sh"
+
+# Versions v-add-web-php accepts: installable in the catalog
 st_php_supported() {
-	local multiphp_v=()
-	# shellcheck source=/usr/local/arcpanel/install/upgrade/upgrade.conf
-	source "$ARCPANEL/install/upgrade/upgrade.conf"
-	printf '%s\n' "${multiphp_v[@]}"
-}
-
-# Whether a PHP version is installed, as v-add-web-php checks it
-st_php_installed() {
-	[ -f "/etc/init.d/php$1-fpm" ] && [ -f "$ARCPANEL/data/templates/web/php-fpm/PHP-${1/\./_}.tpl" ]
-}
-
-# The PHP version of the system php binary (web/inc/main.php DEFAULT_PHP_VERSION)
-st_php_default() {
-	php -r 'echo substr(phpversion(), 0, 3);' 2> /dev/null
-}
-
-# Web domains that use a PHP version, one USER/DOMAIN per line: the backend
-# template PHP-X_Y, a custom template ending in PHP-X_Y, or "default" for
-# the default version
-st_php_used_by() {
-	local version="$1" tpl conf user default
-	tpl="PHP-${version/\./_}"
-	default=$(st_php_default)
-	for conf in "$ARCPANEL"/data/users/*/web.conf; do
-		[ -f "$conf" ] || continue
-		user=$(basename "$(dirname "$conf")")
-		while IFS= read -r line; do
-			local domain backend
-			domain=$(echo "$line" | grep -oE "^DOMAIN='[^']*'" | cut -d\' -f2)
-			backend=$(echo "$line" | grep -oE " BACKEND='[^']*'" | cut -d\' -f2)
-			if [ "$backend" = "$tpl" ] || [[ "$backend" == *"-$tpl" ]] \
-				|| { [ "$backend" = 'default' ] && [ "$version" = "$default" ]; }; then
-				echo "$user/$domain"
-			fi
-		done < "$conf"
+	local version
+	for version in $(php_catalog_versions); do
+		if php_version_installable "$version"; then
+			echo "$version"
+		fi
 	done
+}
+
+st_php_installed() {
+	php_version_installed "$1"
+}
+
+st_php_default() {
+	php_default_version
+}
+
+st_php_used_by() {
+	php_used_by "$1"
 }

@@ -48,7 +48,8 @@ test('guest: reset the password with the code of the e-mail and log in', async (
 
 	await page.getByLabel('Reset Code').fill(code);
 	await page.getByRole('button', { name: 'Confirm' }).click();
-	await expect(page).toHaveURL(/\/reset\/confirm\?/);
+	// The code is held in the session, not in the URL (E39 W2 D9)
+	await expect(page).toHaveURL(/\/reset\/confirm$/);
 	const password = `${process.env.E2E_PASSWORD}Nw1`;
 	await page.getByLabel('New Password').fill(password);
 	await page.getByLabel('Confirm Password').fill(password);

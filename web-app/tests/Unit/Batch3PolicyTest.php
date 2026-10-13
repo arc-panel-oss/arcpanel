@@ -11,7 +11,6 @@ use App\Policies\SearchPolicy;
 use App\Policies\ServerPolicy;
 use App\Policies\WebDomainPolicy;
 use App\Tenancy\TenancyDirectory;
-use App\View\Navigation;
 
 // E7 batch 3 spec §5: hostco owns bob, resb owns carol and dave.
 
@@ -112,7 +111,7 @@ it('lets every role search and generate a CSR for domains it manages', function 
 });
 
 it('links the batch 3 server pages for administrators only', function () {
-    $items = fn (Principal $principal) => collect(app(Navigation::class)->for($principal, null))->flatMap(fn ($group) => $group['items'])->keyBy('key');
+    $items = fn (Principal $principal) => navItems($principal);
 
     expect($items(principal('arcadmin', Role::Admin)))->toHaveKeys(['server.settings', 'server.services', 'server.updates']);
     foreach ([principal('hostco', Role::Reseller), principal('bob', Role::User)] as $other) {

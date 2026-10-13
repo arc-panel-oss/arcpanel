@@ -14,6 +14,7 @@ use App\Http\Requests\WebDomains\StatsRequest;
 use App\Policies\FilePolicy;
 use App\Policies\WebDomainPolicy;
 use App\Services\Mail\CredentialsMailer;
+use App\Services\Php\PhpManager;
 use App\Services\UserDirectory;
 use App\Services\WebDomains\ApplyResult;
 use App\Services\WebDomains\Input;
@@ -42,7 +43,7 @@ final class WebDomainEditController extends Controller
         private readonly TemplateCatalog $catalog,
     ) {}
 
-    public function edit(string $user, string $domain, Principal $principal, WebDomainPolicy $policy, SysConfig $config, UserDirectory $directory, TemplateForm $form, FilePolicy $files): View
+    public function edit(string $user, string $domain, Principal $principal, WebDomainPolicy $policy, SysConfig $config, UserDirectory $directory, TemplateForm $form, FilePolicy $files, PhpManager $php, WebDomainActions $actions): View
     {
         abort_unless($policy->view($principal, $user), 403);
         $record = $this->web->find($user, $domain);
@@ -65,6 +66,9 @@ final class WebDomainEditController extends Controller
         $portKey = $activeMeta?->portVariable();
         $currentPort = $portKey !== null ? ($this->web->templateVars($user, $domain)['variables'][$portKey] ?? '') : '';
 
+        // PHP tab (E41 §8): the version and profile within the package
+        $domainPhp = $can['viewPhp'] && $config->get('WEB_BACKEND') !== '' ? $php->domain($user, $domain) : null;
+
         return view('web.edit', [
             'record' => $record,
             'ssl' => $record->ssl ? $this->web->ssl($user, $domain) : null,
@@ -75,7 +79,7 @@ final class WebDomainEditController extends Controller
             'domainOptions' => array_combine($ownDomains, $ownDomains),
             'docroot' => $record->customDocrootParts(),
             'redirectChoice' => RedirectTab::choice($record),
-            'backendTemplates' => $can['updateTemplates'] ? $this->web->backendTemplates() : [],
+            'backendTemplates' => $can['updateTemplates'] ? $actions->backendTemplatesFor($principal, $user, $record->backendTemplate) : [],
             'activeTemplate' => $active !== null ? $this->catalog->title((string) $kind, $active) : $this->catalog->title('web', $record->template),
             'activePort' => $currentPort,
             'activePortMissing' => $portKey !== null && $currentPort === '',
@@ -92,6 +96,8 @@ final class WebDomainEditController extends Controller
                 ? route('web.domains.install', ['user' => $user, 'domain' => $domain])
                 : null,
             'isAdminView' => $user !== $principal->effectiveUser(),
+            'php' => $domainPhp,
+            'phpProfiles' => $domainPhp !== null ? array_intersect_key($php->profiles(), array_flip([...$domainPhp['profiles'], $domainPhp['profile']])) : [],
         ]);
     }
 
@@ -151,8 +157,10 @@ final class WebDomainEditController extends Controller
         $values = $request->values();
         $port = (string) $request->input('backend_port', '');
 
-        $steps = $this->onTab('advanced', $user, $domain, function () use ($actions, $record, $values, $port, $user, $domain) {
+        $steps = $this->onTab('advanced', $user, $domain, function () use ($actions, $record, $values, $port, $user, $domain, $principal) {
             $actions->checkTemplates($values);
+            // A PHP version of the package only (E41 §7.5)
+            $actions->checkBackendTemplate($principal, $user, $values['backend_template'] ?? null, $record->backendTemplate);
             // Backend port of the visitor-facing template (E6 spec §7.2)
             $actions->checkPort($user, $domain, $record, $values, $port);
 

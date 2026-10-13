@@ -1,0 +1,75 @@
+#!/bin/bash
+# info: list the php.ini settings of a PHP version (E41)
+# options: VERSION SAPI [FORMAT]
+#
+# example: v-list-sys-php-ini 8.4 fpm json
+#
+# This function lists the directives of the php.ini form for the PHP-FPM
+# (fpm) or command line (cli) php.ini of an installed version: VALUE, SOURCE
+# (file, or default when the file does not set it) and LINE, with the file's
+# path, SIZE and MTIME. The format raw prints the file itself.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+version=$1
+sapi=$2
+format=${3-shell}
+
+# Includes
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/php.sh
+source $ARCPANEL/func/php.sh
+# load config file
+source_conf "$ARCPANEL/conf/arcpanel.conf"
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '2' "$#" 'VERSION SAPI [FORMAT]'
+php_ini_check_args "$version" "$sapi"
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+file=$(php_ini_file "$version" "$sapi")
+if [ "$format" = 'raw' ]; then
+	cat "$file"
+	exit
+fi
+
+values=$(php_ini_helper "$version" values "$file" "$sapi")
+if ! jq -e 'type == "object"' <<< "$values" > /dev/null 2>&1; then
+	check_result "$E_PARSING" "$file could not be read"
+fi
+overrides=$(php_profile_overrides "$version" 2> /dev/null || echo '{}')
+json=$(jq -n --arg v "$version" --arg s "$sapi" --arg f "$file" --arg z "$(stat -c %s "$file")" \
+	--arg m "$(date -r "$file" +'%F %T')" --argjson values "$values" --argjson o "${overrides:-"{}"}" \
+	'{VERSION: $v, SAPI: $s, FILE: $f, SIZE: $z, MTIME: $m,
+		VALUES: ($values | with_entries(.value += {PROFILE_OVERRIDES: (if $s == "fpm" then ($o[.key] // 0) else 0 end)}))}')
+
+case "$format" in
+	json) jq . <<< "$json" ;;
+	plain) jq -r '.VALUES | to_entries[] | [.key, .value.VALUE, .value.SOURCE] | join("\t")' <<< "$json" ;;
+	*)
+		{
+			echo "DIRECTIVE VALUE SOURCE"
+			echo "--------- ----- ------"
+			jq -r '.VALUES | to_entries[] | [.key, (if .value.VALUE == "" then "-" else .value.VALUE end | gsub(" "; "")),
+				.value.SOURCE] | join(" ")' <<< "$json"
+		} | column -t
+		;;
+esac
+
+#----------------------------------------------------------#
+#                         ArcPanel                         #
+#----------------------------------------------------------#
+
+exit

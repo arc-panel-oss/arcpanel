@@ -4,7 +4,9 @@
 #
 # example: v-delete-web-php 7.3
 #
-# This function checks and delete a fpm php version if not used by any domain.
+# This function removes an installed PHP-FPM version with its extension
+# packages. It refuses the default version and a version that web domains use
+# (E41).
 
 #----------------------------------------------------------#
 #                Variables & Functions                     #
@@ -18,6 +20,8 @@ version=$1
 source /etc/arcpanel/arcpanel.conf
 # shellcheck source=/usr/local/arcpanel/func/main.sh
 source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/php.sh
+source $ARCPANEL/func/php.sh
 # load config file
 source_conf "$ARCPANEL/conf/arcpanel.conf"
 
@@ -34,21 +38,18 @@ fi
 # Set file locations
 php_fpm="/etc/init.d/php$version-fpm"
 
-# Verify php version format
-if [[ ! $version =~ ^[0-9]\.[0-9]+ ]]; then
-	echo "The PHP version format is invalid, it should look like [0-9].[0-9]."
-	echo "Example:  7.0, 7.4"
-	exit
+if ! php_version_format_valid "$version"; then
+	check_result "$E_INVALID" "invalid PHP version :: $version (for example 8.3)"
 fi
-
-# Remove backend template
-[ -f $ARCPANEL/data/templates/web/php-fpm/PHP-${version/\./_}.tpl ] && rm -f $ARCPANEL/data/templates/web/php-fpm/PHP-${version/\./_}.tpl
-
-# Check if php version exists
-version_check=$($BIN/v-list-sys-php plain | grep "$version")
-if [ -z "$version_check" ]; then
-	echo "ERROR: Specified PHP version is not installed."
-	exit "$E_INVALID"
+if ! php_version_installed "$version"; then
+	check_result "$E_NOTEXIST" "PHP $version is not installed"
+fi
+if [ "$version" = "$(php_default_version)" ]; then
+	check_result "$E_FORBIDEN" "PHP $version is the default version"
+fi
+used=$(php_used_by "$version" | head -n 5 | paste -sd, -)
+if [ -n "$used" ]; then
+	check_result "$E_FORBIDEN" "PHP $version is used by web domains: $used"
 fi
 
 # Perform verification if read-only mode is enabled
@@ -58,18 +59,12 @@ check_arcpanel_demo_mode
 #                       Action                             #
 #----------------------------------------------------------#
 
-mph="php$version-common php$version-mbstring php$version-bcmath php$version-cli php$version-curl
- php$version-fpm php$version-gd php$version-intl php$version-mysql
- php$version-soap php$version-xml php$version-zip php$version-mbstring
- php$version-json php$version-bz2 php$version-pspell php$version-imagick php$version-pgsql
- php$version-imap php$version-ldap php$version-apcu"
-
-# Check if version is 7.1 or below to remove mcrypt
-if [[ $(echo "$version 7.2" | awk '{print ($1 < $2)}') == 1 ]]; then
-	mph="$mph php$version-mcrypt"
-fi
+# Every installed package of the version, extensions included
+mph=$(dpkg-query -W -f='${Package} ${db:Status-Status}\n' "php$version" "php$version-*" 2> /dev/null \
+	| awk '$2 == "installed" { print $1 }' | tr '\n' ' ')
 
 # Purge php packages
+# shellcheck disable=SC2086
 apt-get -y purge $mph > /dev/null 2>&1 &
 BACK_PID=$!
 
@@ -89,11 +84,14 @@ echo
 if [ -f "$php_fpm" ]; then
 	echo "ERROR: Uninstallation failed, please run the following command manually for debugging:"
 	echo "apt-get purge $mph"
-	exit 1
+	check_result "$E_UPDATE" "PHP $version could not be removed"
 fi
 
-# Cleanup php folder
+# Remove the backend template, the php.ini backups and the folder
+rm -f "$PHP_FPM_TPL_DIR/$(php_tpl_name "$version").tpl"
+rm -rf "$PHP_DATA/ini-backups/$version"
 [[ -d /etc/php/$version ]] && rm -rf "/etc/php/$version"
+php_apt_cache_clear
 
 if [ "$WEB_BACKEND" = "php-fpm" ]; then
 	conf=$(find /etc/php* -name www.conf)

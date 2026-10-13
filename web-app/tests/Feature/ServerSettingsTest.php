@@ -64,13 +64,17 @@ it('shows every tab to administrators', function () {
     $this->get('/server/settings')->assertRedirect('/server/settings/general');
     $this->get('/server/settings/general')->assertOk()->assertSee('srv1.example.net')->assertSee('Europe/Berlin')
         ->assertSee('Web Server')->assertSee('White Label');
-    $this->get('/server/settings/web')->assertOk()->assertSee('PHP 8.2')->assertSee('Default version')->assertSee('Used by bob/shop.example');
+    // Versions are installed and removed on the PHP page (E41 §8)
+    $this->get('/server/settings/web')->assertOk()->assertSee('Default PHP Version')->assertSee(route('server.php.index'), false)->assertDontSee('Apply PHP versions');
     $this->get('/server/settings/dns')->assertOk()->assertSee('No DNS cluster hosts');
     $this->get('/server/settings/mail')->assertOk()->assertSee('Global SMTP Relay')->assertSee('webmail');
     $this->get('/server/settings/databases')->assertOk()->assertSee('db2.example.net')->assertSee('phpmyadmin');
     $this->get('/server/settings/backups')->assertOk()->assertSee('Incremental Backups');
     $this->get('/server/settings/ssl')->assertOk()->assertSee('Example CA')->assertDontSee('SECRETKEY');
-    $this->get('/server/settings/security')->assertOk()->assertSee('System Protection')->assertSee('Allow users to delete log history');
+    $security = $this->get('/server/settings/security')->assertOk()->assertSee('System Protection')->assertSee('Allow users to delete log history')
+        ->assertSeeInOrder(['Login screen style', 'Allow users to reset their passwords', 'System Protection'])->getContent();
+    // One Login card: the password reset policy sits in it
+    expect(substr_count($security, '>Login</h2>'))->toBe(1);
     $this->get('/server/settings/plugins')->assertOk()->assertSee('Disk Quota')->assertSee('Install');
     $this->get('/server/settings/white-label')->assertOk()->assertSee('{{page}} - {{hostname}} - {{appname}}', false);
     $this->get('/server/settings/nope')->assertNotFound();
@@ -339,6 +343,20 @@ it('turns the API off with one command and keeps System Protection for the ROOT_
     $this->get('/server/settings/security')->assertOk()->assertDontSee('System Protection');
     $this->post('/server/settings/security', array_replace($form, ['POLICY_SYSTEM_PROTECTED_ADMIN' => 'yes']))->assertSessionHas('ok');
     $this->fake->assertRan('v-change-sys-config-value', fn ($a) => $a[0] === 'POLICY_SYSTEM_PROTECTED_ADMIN', 0);
+});
+
+it('shows the allowed API addresses one per line and keeps them when the form leaves them out', function () {
+    $this->fake->on('v-change-sys-api')->returns();
+    withSysConfig($this->fake, ['API_SYSTEM' => '2', 'API_ALLOWED_IP' => '203.0.113.5,allow-all']);
+    signIn('arcadmin', 'admin');
+
+    $html = $this->get('/server/settings/security')->assertOk()->getContent();
+    expect($html)->not->toContain('<x-ap-')
+        ->and($html)->toMatch('#<textarea[^>]*name="API_ALLOWED_IP"[^>]*>203\.0\.113\.5\nallow-all</textarea>#');
+
+    $form = ['API_SYSTEM' => '2', 'API' => 'no', 'LOGIN_STYLE' => 'default', 'INACTIVE_SESSION_TIMEOUT' => '60', 'POLICY_CSRF_STRICTNESS' => '1'];
+    $this->post('/server/settings/security', $form)->assertSessionHas('ok');
+    $this->fake->assertRan('v-change-sys-config-value', fn ($a) => $a[0] === 'API_ALLOWED_IP', 0);
 });
 
 // Plugins and White Label

@@ -5,7 +5,8 @@
 @section('heading', __('Forgot Password'))
 
 @section('content')
-<form class="ap-form" action="{{ route('reset.confirm') }}" method="get">
+<form class="ap-form" action="{{ route('reset.code.store') }}" method="post">
+    @csrf
     <div class="ap-field">
         <label class="ap-label" for="user">{{ __('Username') }}</label>
         <div class="ap-input-affix">

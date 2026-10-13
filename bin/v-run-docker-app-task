@@ -54,6 +54,8 @@ fi
 #----------------------------------------------------------#
 
 export ARC_DOCKER_TASK="$user/$name"
+# The task log is written by root from output the app controls: capped
+exec > >(log_cap) 2>&1
 echo "== $action of the Docker app $name ($(date +'%F %T'))"
 case "$action" in
 	install) docker_with_timeout 1800 dockerapp_task_install "$user" "$name" ;;

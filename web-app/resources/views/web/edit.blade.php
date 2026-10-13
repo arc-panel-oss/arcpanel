@@ -10,6 +10,7 @@
         'redirect' => __('Redirect'),
         'advanced' => $can['updateTemplates'] ? __('Advanced') : null,
         'ftp' => $systems['ftp'] ? __('FTP') : null,
+        'php' => $php !== null ? __('PHP') : null,
         'stats' => __('Statistics'),
     ]);
     $locked = ! $can['update'];
@@ -192,6 +193,13 @@
                         <div class="ap-form-actions"><x-ap-button type="submit" variant="primary" icon="check">{{ __('Save') }}</x-ap-button></div>
                     </x-ap-form>
                 </x-ap-card>
+            </x-ap-tab-panel>
+        @endif
+
+        {{-- PHP (E41) --}}
+        @if ($php !== null)
+            <x-ap-tab-panel name="php">
+                @include('web.partials.php')
             </x-ap-tab-panel>
         @endif
 

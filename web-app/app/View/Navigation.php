@@ -15,6 +15,8 @@ use Illuminate\Support\Facades\Route;
 /**
  * The role-aware sidebar (docs/design/05 §4.1, 03 §9.1), generated from
  * Capabilities for the role the panel acts with. Items are route names.
+ * A hub folds related pages into one item whose pages are tabs
+ * (docs/features/specs/2026-10-13-001-e2-sidebar-hubs-design.md).
  */
 final class Navigation
 {
@@ -30,6 +32,12 @@ final class Navigation
      * policy: arcpanel.conf policy that hides the item for everyone but
      * administrators when it is 'no'.
      * api: only when the account may have access keys (API_SYSTEM).
+     *
+     * A hub ('hub' => key) has a label, an icon and 'children': items as
+     * above, each with 'tab' (its tab label; 'label' names it alone, in the
+     * sidebar and the command palette), 'tabs' (the route names of its
+     * landing pages, which show the tab bar) and optionally 'userRoute' (its
+     * landing page of one account, linked with the {user} of the current page).
      */
     private const GROUPS = [
         'main' => [
@@ -54,28 +62,50 @@ final class Navigation
                 ['route' => 'db.index', 'label' => 'Databases', 'icon' => 'db', 'cap' => 'db.view', 'requires' => 'DB_SYSTEM', 'section' => 'db.'],
                 ['route' => 'cron.index', 'label' => 'Cron Jobs', 'icon' => 'clock', 'cap' => 'cron.view', 'requires' => 'CRON_SYSTEM', 'section' => 'cron.'],
                 ['route' => 'backups.index', 'label' => 'Backups', 'icon' => 'archive', 'cap' => 'backups.view', 'requires' => 'BACKUP_SYSTEM', 'section' => 'backups.'],
-                ['route' => 'files.index', 'label' => 'File manager', 'icon' => 'folder', 'cap' => 'files.view', 'requires' => 'FILE_MANAGER=true', 'writable' => true],
-                ['route' => 'terminal.index', 'label' => 'Web terminal', 'icon' => 'terminal', 'cap' => 'terminal.use', 'requires' => 'WEB_TERMINAL=true', 'writable' => true, 'shell' => true,
-                    'own' => true, 'section' => 'terminal.'],
+                ['route' => 'malware.index', 'label' => 'Malware scan', 'icon' => 'shield', 'cap' => 'malware.view', 'requires' => 'MALWARE_SCAN=yes', 'section' => 'malware.'],
+                ['hub' => 'files', 'label' => 'Files', 'icon' => 'folder', 'children' => [
+                    ['route' => 'files.index', 'label' => 'File manager', 'tab' => 'File manager', 'icon' => 'folder', 'cap' => 'files.view', 'requires' => 'FILE_MANAGER=true',
+                        'writable' => true, 'section' => 'files.', 'tabs' => ['files.show'], 'userRoute' => 'files.show'],
+                    ['route' => 'terminal.index', 'label' => 'Web terminal', 'tab' => 'Terminal', 'icon' => 'terminal', 'cap' => 'terminal.use', 'requires' => 'WEB_TERMINAL=true',
+                        'writable' => true, 'shell' => true, 'own' => true, 'section' => 'terminal.', 'tabs' => ['terminal.index']],
+                ]],
                 ['route' => 'ports.index', 'label' => 'Ports', 'icon' => 'plug', 'cap' => 'ports.mine', 'section' => 'ports.'],
-                ['route' => 'node.index', 'label' => 'Node.js', 'icon' => 'hexagon', 'cap' => 'node.view', 'node' => true, 'section' => 'node.show'],
-                ['route' => 'node-apps', 'label' => 'Node apps', 'icon' => 'layers', 'cap' => 'node.apps.view', 'node' => true, 'section' => 'node.apps.'],
-                ['route' => 'docker-apps', 'label' => 'Docker apps', 'icon' => 'container', 'cap' => 'docker.apps.view', 'docker' => true,
-                    'requires' => 'DOCKER_SYSTEM=yes', 'section' => 'docker.'],
+                ['hub' => 'node', 'label' => 'Node apps', 'icon' => 'layers', 'children' => [
+                    ['route' => 'node-apps', 'label' => 'Node apps', 'tab' => 'Apps', 'icon' => 'layers', 'cap' => 'node.apps.view', 'node' => true,
+                        'section' => 'node.apps.', 'tabs' => ['node.apps.index'], 'userRoute' => 'node.apps.index'],
+                    ['route' => 'node.index', 'label' => 'Node.js', 'tab' => 'Runtimes', 'icon' => 'hexagon', 'cap' => 'node.view', 'node' => true,
+                        'section' => 'node.show', 'tabs' => ['node.show'], 'userRoute' => 'node.show'],
+                ]],
+                ['hub' => 'docker', 'label' => 'Docker apps', 'icon' => 'container', 'children' => [
+                    ['route' => 'docker-apps', 'label' => 'Docker apps', 'tab' => 'Apps', 'icon' => 'container', 'cap' => 'docker.apps.view', 'docker' => true,
+                        'requires' => 'DOCKER_SYSTEM=yes', 'section' => 'docker.', 'tabs' => ['docker.apps.index'], 'userRoute' => 'docker.apps.index'],
+                    ['route' => 'server.docker', 'label' => 'Docker engine', 'tab' => 'Engine', 'icon' => 'container', 'cap' => 'docker.engine.manage',
+                        'section' => 'server.docker', 'tabs' => ['server.docker']],
+                ]],
             ],
         ],
         'server' => [
             'label' => 'Server',
             'items' => [
                 ['route' => 'server.settings', 'label' => 'Configure', 'icon' => 'sliders', 'cap' => 'server.settings', 'section' => 'server.settings'],
-                ['route' => 'server.services', 'label' => 'Services', 'icon' => 'activity', 'cap' => 'server.services', 'services' => true, 'section' => 'server.services'],
-                ['route' => 'server.ips', 'label' => 'IP Addresses', 'icon' => 'hash', 'cap' => 'server.ips', 'section' => 'server.ips'],
-                ['route' => 'server.firewall', 'label' => 'Firewall', 'icon' => 'shield', 'cap' => 'server.firewall', 'requires' => 'FIREWALL_SYSTEM', 'section' => 'server.firewall'],
-                ['route' => 'server.ports', 'label' => 'Ports', 'icon' => 'plug', 'cap' => 'server.ports', 'section' => 'server.ports'],
-                ['route' => 'server.docker', 'label' => 'Docker', 'icon' => 'container', 'cap' => 'docker.engine.manage', 'section' => 'server.docker'],
-                ['route' => 'server.packages', 'label' => 'System packages', 'icon' => 'package', 'cap' => 'server.packages', 'section' => 'server.packages'],
-                ['route' => 'server.updates', 'label' => 'Updates', 'icon' => 'refresh', 'cap' => 'server.updates', 'section' => 'server.updates'],
-                ['route' => 'server.rrd', 'label' => 'Task Monitor', 'icon' => 'chart', 'cap' => 'server.rrd', 'section' => 'server.rrd'],
+                ['hub' => 'services', 'label' => 'Services', 'icon' => 'activity', 'children' => [
+                    ['route' => 'server.services', 'label' => 'Services', 'tab' => 'Services', 'icon' => 'activity', 'cap' => 'server.services', 'services' => true,
+                        'section' => 'server.services', 'tabs' => ['server.services']],
+                    ['route' => 'server.rrd', 'label' => 'Task Monitor', 'tab' => 'Task monitor', 'icon' => 'chart', 'cap' => 'server.rrd', 'section' => 'server.rrd', 'tabs' => ['server.rrd']],
+                ]],
+                ['hub' => 'network', 'label' => 'Network', 'icon' => 'hash', 'children' => [
+                    ['route' => 'server.ips', 'label' => 'IP Addresses', 'tab' => 'IP addresses', 'icon' => 'hash', 'cap' => 'server.ips', 'section' => 'server.ips', 'tabs' => ['server.ips']],
+                    ['route' => 'server.firewall', 'label' => 'Firewall', 'tab' => 'Firewall', 'icon' => 'shield', 'cap' => 'server.firewall', 'requires' => 'FIREWALL_SYSTEM',
+                        'section' => 'server.firewall', 'tabs' => ['server.firewall', 'server.firewall.bans', 'server.firewall.ipsets']],
+                    ['route' => 'server.ports', 'label' => 'Ports', 'tab' => 'Ports', 'icon' => 'plug', 'cap' => 'server.ports', 'section' => 'server.ports', 'tabs' => ['server.ports']],
+                ]],
+                ['route' => 'server.php.index', 'label' => 'PHP', 'icon' => 'code', 'cap' => 'server.php', 'section' => 'server.php.'],
+                ['hub' => 'updates', 'label' => 'Updates', 'icon' => 'refresh', 'children' => [
+                    ['route' => 'server.updates', 'label' => 'Updates', 'tab' => 'ArcPanel', 'icon' => 'refresh', 'cap' => 'server.updates', 'section' => 'server.updates',
+                        'tabs' => ['server.updates']],
+                    ['route' => 'server.packages', 'label' => 'System packages', 'tab' => 'System packages', 'icon' => 'package', 'cap' => 'server.packages',
+                        'section' => 'server.packages', 'tabs' => ['server.packages']],
+                ]],
             ],
         ],
         'account' => [
@@ -83,10 +113,14 @@ final class Navigation
             'items' => [
                 ['route' => 'logs.index', 'label' => 'Logs', 'icon' => 'file', 'cap' => 'logs.view', 'policy' => 'POLICY_USER_VIEW_LOGS', 'section' => 'logs.'],
                 ['route' => 'stats.index', 'label' => 'Statistics', 'icon' => 'trend', 'cap' => 'stats.view', 'section' => 'stats.'],
-                ['route' => 'access-keys.index', 'label' => 'Access keys', 'icon' => 'key', 'cap' => 'access-keys.view', 'api' => true, 'section' => 'access-keys.'],
-                ['route' => 'ssh-keys.index', 'label' => 'SSH keys', 'icon' => 'lock', 'cap' => 'ssh-keys.view', 'section' => 'ssh-keys.'],
+                ['hub' => 'keys', 'label' => 'Keys', 'icon' => 'key', 'children' => [
+                    ['route' => 'access-keys.index', 'label' => 'Access keys', 'tab' => 'Access keys', 'icon' => 'key', 'cap' => 'access-keys.view', 'api' => true,
+                        'section' => 'access-keys.', 'tabs' => ['access-keys.list'], 'userRoute' => 'access-keys.list'],
+                    ['route' => 'ssh-keys.index', 'label' => 'SSH keys', 'tab' => 'SSH keys', 'icon' => 'lock', 'cap' => 'ssh-keys.view',
+                        'section' => 'ssh-keys.', 'tabs' => ['ssh-keys.list'], 'userRoute' => 'ssh-keys.list'],
+                ]],
                 ['route' => 'secrets.index', 'label' => 'Secrets', 'icon' => 'shield-check', 'cap' => 'secrets.view', 'section' => 'secrets.'],
-                ['route' => 'account.edit', 'label' => 'My account', 'icon' => 'user-circle', 'cap' => 'account.view', 'section' => 'account.'],
+                // My account is in the user menu of the top bar
             ],
         ],
     ];
@@ -98,7 +132,11 @@ final class Navigation
     ) {}
 
     /**
-     * @return list<array{key: string, label: ?string, items: list<array{key: string, label: string, icon: string, url: string, active: bool}>}>
+     * Groups of sidebar items. A hub with two or more visible pages has the
+     * key "hub.<name>", links to its first page and lists its pages in
+     * 'children'; a hub with one visible page is that page.
+     *
+     * @return list<array{key: string, label: ?string, items: list<array{key: string, label: string, icon: string, url: string, active: bool, children?: list<array<string, mixed>>}>}>
      */
     public function for(Principal $principal, ?string $currentRoute): array
     {
@@ -106,20 +144,26 @@ final class Navigation
         foreach (self::GROUPS as $key => $group) {
             $items = [];
             foreach ($group['items'] as $item) {
-                if (! $this->visible($principal, $item)) {
+                if (! isset($item['hub'])) {
+                    if (($entry = $this->entry($principal, $item, $currentRoute)) !== null) {
+                        $items[] = $entry;
+                    }
+
                     continue;
                 }
-                $url = $this->url($item['route']);
-                if ($url === null) {
-                    continue;
+                $children = $this->visibleChildren($principal, $item, $currentRoute);
+                if (count($children) === 1) {
+                    $items[] = $children[0];
+                } elseif ($children !== []) {
+                    $items[] = [
+                        'key' => 'hub.'.$item['hub'],
+                        'label' => __($item['label']),
+                        'icon' => $item['icon'],
+                        'url' => $children[0]['url'],
+                        'active' => in_array(true, array_column($children, 'active'), true),
+                        'children' => $children,
+                    ];
                 }
-                $items[] = [
-                    'key' => $item['route'],
-                    'label' => __($item['labels'][$principal->actingRole()->value] ?? $item['label']),
-                    'icon' => $item['icon'],
-                    'url' => $url,
-                    'active' => $this->isActive($item, $currentRoute),
-                ];
             }
             if ($items !== []) {
                 $groups[] = ['key' => $key, 'label' => $group['label'] === null ? null : __($group['label']), 'items' => $items];
@@ -152,7 +196,9 @@ final class Navigation
         }
         $items = [];
         foreach (self::GROUPS['hosting']['items'] as $item) {
-            $items[$item['route']] = $item;
+            foreach ($item['children'] ?? [$item] as $page) {
+                $items[$page['route']] = $page;
+            }
         }
         $actions = [];
         foreach (self::QUICK_ACTIONS as $action) {
@@ -167,6 +213,91 @@ final class Navigation
         }
 
         return $actions;
+    }
+
+    /**
+     * The tab bar of the current page: the pages of its hub when the hub has
+     * two or more visible pages and the current route is a landing page of
+     * one of them; null otherwise.
+     *
+     * @param  array<string, mixed>  $parameters  route parameters of the current page
+     * @return array{label: string, items: list<array{key: string, label: string, url: string, current: bool}>}|null
+     */
+    public function tabs(Principal $principal, ?string $currentRoute, array $parameters): ?array
+    {
+        if ($currentRoute === null) {
+            return null;
+        }
+        $user = isset($parameters['user']) && is_string($parameters['user']) ? $parameters['user'] : null;
+        foreach (self::GROUPS as $group) {
+            foreach ($group['items'] as $item) {
+                if (! isset($item['hub'])) {
+                    continue;
+                }
+                $pages = array_values(array_filter($item['children'], fn (array $page) => $this->visible($principal, $page) && $this->url($page['route']) !== null));
+                $landing = array_filter($pages, fn (array $page) => $currentRoute === $page['route'] || in_array($currentRoute, $page['tabs'], true));
+                if (count($pages) < 2 || $landing === []) {
+                    continue;
+                }
+
+                return [
+                    'label' => __($item['label']),
+                    'items' => array_map(fn (array $page) => [
+                        'key' => $page['route'],
+                        'label' => __($page['tab']),
+                        'url' => $user !== null && isset($page['userRoute']) ? route($page['userRoute'], ['user' => $user]) : (string) $this->url($page['route']),
+                        'current' => in_array($page, $landing, true),
+                    ], $pages),
+                ];
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Sidebar entry of one visible item, null when it is hidden.
+     *
+     * @param  array<string, mixed>  $item
+     * @return array{key: string, label: string, icon: string, url: string, active: bool, tab?: string}|null
+     */
+    private function entry(Principal $principal, array $item, ?string $currentRoute): ?array
+    {
+        if (! $this->visible($principal, $item)) {
+            return null;
+        }
+        $url = $this->url($item['route']);
+        if ($url === null) {
+            return null;
+        }
+        $entry = [
+            'key' => $item['route'],
+            'label' => __($item['labels'][$principal->actingRole()->value] ?? $item['label']),
+            'icon' => $item['icon'],
+            'url' => $url,
+            'active' => $this->isActive($item, $currentRoute),
+        ];
+        if (isset($item['tab'])) {
+            $entry['tab'] = __($item['tab']);
+        }
+
+        return $entry;
+    }
+
+    /**
+     * @param  array<string, mixed>  $hub
+     * @return list<array{key: string, label: string, icon: string, url: string, active: bool, tab?: string}>
+     */
+    private function visibleChildren(Principal $principal, array $hub, ?string $currentRoute): array
+    {
+        $children = [];
+        foreach ($hub['children'] as $page) {
+            if (($entry = $this->entry($principal, $page, $currentRoute)) !== null) {
+                $children[] = $entry;
+            }
+        }
+
+        return $children;
     }
 
     /** URL of a route name; null when the route does not exist. */

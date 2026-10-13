@@ -4,6 +4,7 @@
 @section('heading', sprintf(__('Welcome to %s'), $appName))
 
 @section('content')
+@include('auth.partials.too-many')
 <form class="ap-form" action="{{ route('login.store') }}" method="post">
     @csrf
     <div class="ap-field">

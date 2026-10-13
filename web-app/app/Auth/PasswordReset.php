@@ -6,7 +6,7 @@ use App\Arc\ArcCommand;
 use App\Arc\Options;
 use App\Arc\Secret;
 use App\Services\Mail\PasswordResetMailer;
-use Illuminate\Support\Sleep;
+use App\Support\PanelHost;
 use Illuminate\Support\Str;
 
 /**
@@ -24,6 +24,7 @@ final class PasswordReset
     public function __construct(
         private readonly ArcCommand $arc,
         private readonly PasswordResetMailer $mailer,
+        private readonly PanelHost $host,
     ) {}
 
     /**
@@ -31,7 +32,7 @@ final class PasswordReset
      * contact address and no code was sent in the last 15 minutes. Does
      * nothing otherwise; the caller shows the same answer in every case.
      */
-    public function request(string $username, string $email, string $host): void
+    public function request(string $username, string $email): void
     {
         $user = $this->user($username);
         if ($user === null || ($user['SUSPENDED'] ?? '') === 'yes'
@@ -43,7 +44,7 @@ final class PasswordReset
         $code = Str::random(12);
         $result = $this->arc->run('v-change-user-rkey', [$username, Secret::file(password_hash($code, PASSWORD_DEFAULT))], Options::allowFailure());
         if ($result->ok()) {
-            $this->mailer->sendPasswordReset($user['CONTACT'], $user['NAME'] ?? '', $username, $code, $user['LANGUAGE'] ?? '', $host);
+            $this->mailer->sendPasswordReset($user['CONTACT'], $user['NAME'] ?? '', $username, $code, $user['LANGUAGE'] ?? '', $this->host->link());
         }
     }
 
@@ -92,12 +93,6 @@ final class PasswordReset
         if (preg_match(self::USER_FORMAT, $username) === 1) {
             $this->arc->run('v-log-user-login', [$username, $context->ip, 'failed', $context->fingerprint, $context->userAgent, 'yes', $reason], Options::allowFailure());
         }
-    }
-
-    /** Slow down guessing, as the legacy pages do. */
-    public static function delay(): void
-    {
-        Sleep::sleep(2);
     }
 
     /** @return array<string, string>|null */

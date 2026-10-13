@@ -72,6 +72,10 @@ final class ShellComposer
             'canSwitchUser' => $canSwitch,
             'switchUsers' => $switchUsers,
             'languages' => self::languages(),
+            // Mail is searched only where the server runs it
+            'searchLabel' => $this->config->get('MAIL_SYSTEM') !== ''
+                ? __('Search users, domains, mail and pages')
+                : __('Search users, domains and pages'),
         ]);
     }
 
@@ -95,9 +99,7 @@ final class ShellComposer
 
         $languages = [];
         foreach ($codes as $code) {
-            $languages[$code] = class_exists(\Locale::class)
-                ? (string) (\Locale::getDisplayName($code, $code) ?: $code)
-                : strtoupper($code);
+            $languages[$code] = self::languageName($code);
         }
 
         return $languages;
@@ -105,7 +107,7 @@ final class ShellComposer
 
     /**
      * Options of a language select: code => "name in that language (code)",
-     * the code alone when the intl extension is missing.
+     * the code alone for a language without a known name.
      *
      * @param  iterable<string>  $codes
      * @return array<string, string>
@@ -114,10 +116,77 @@ final class ShellComposer
     {
         $options = [];
         foreach ($codes as $code) {
-            $name = class_exists(\Locale::class) ? (string) \Locale::getDisplayName($code, $code) : '';
-            $options[$code] = $name !== '' && $name !== $code ? $name.' ('.$code.')' : $code;
+            $name = self::languageName($code);
+            $options[$code] = $name !== strtoupper($code) ? $name.' ('.$code.')' : $code;
         }
 
         return $options;
     }
+
+    /**
+     * The name of a language in that language: from the list of the shipped
+     * translations, else from intl when the PHP of the panel has it (the
+     * arcpanel-php package does not), else the upper-case code.
+     */
+    public static function languageName(string $code): string
+    {
+        if (isset(self::LANGUAGE_NAMES[$code])) {
+            return self::LANGUAGE_NAMES[$code];
+        }
+        if (class_exists(\Locale::class)) {
+            $name = (string) \Locale::getDisplayName($code, $code);
+            if ($name !== '' && $name !== $code) {
+                return $name;
+            }
+        }
+
+        return strtoupper($code);
+    }
+
+    /** Names of the translations in lang/ (Crowdin), each in its own language */
+    private const LANGUAGE_NAMES = [
+        'ar' => 'العربية',
+        'az' => 'Azərbaycanca',
+        'bg' => 'Български',
+        'bn' => 'বাংলা',
+        'bs' => 'Bosanski',
+        'ca' => 'Català',
+        'cs' => 'Čeština',
+        'da' => 'Dansk',
+        'de' => 'Deutsch',
+        'el' => 'Ελληνικά',
+        'en' => 'English',
+        'es' => 'Español',
+        'et' => 'Eesti',
+        'fa' => 'فارسی',
+        'fi' => 'Suomi',
+        'fr' => 'Français',
+        'hr' => 'Hrvatski',
+        'hu' => 'Magyar',
+        'id' => 'Bahasa Indonesia',
+        'it' => 'Italiano',
+        'ja' => '日本語',
+        'ka' => 'ქართული',
+        'ko' => '한국어',
+        'ku' => 'Kurdî',
+        'lo' => 'ລາວ',
+        'nl' => 'Nederlands',
+        'no' => 'Norsk',
+        'pl' => 'Polski',
+        'pt' => 'Português',
+        'pt-br' => 'Português (Brasil)',
+        'ro' => 'Română',
+        'ru' => 'Русский',
+        'sk' => 'Slovenčina',
+        'sq' => 'Shqip',
+        'sr' => 'Српски',
+        'sv' => 'Svenska',
+        'th' => 'ไทย',
+        'tr' => 'Türkçe',
+        'uk' => 'Українська',
+        'ur' => 'اردو',
+        'vi' => 'Tiếng Việt',
+        'zh-cn' => '简体中文',
+        'zh-tw' => '繁體中文',
+    ];
 }

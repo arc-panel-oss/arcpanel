@@ -1,0 +1,66 @@
+#!/bin/bash
+# info: list the php.ini backups of a PHP version (E41)
+# options: VERSION SAPI [FORMAT]
+#
+# example: v-list-sys-php-ini-backups 8.4 fpm json
+#
+# This function lists the backups that the php.ini commands keep of the
+# PHP-FPM (fpm) or command line (cli) php.ini of a version (the ten newest),
+# newest first, with their DATE and SIZE. The ID is what
+# v-rollback-sys-php-ini takes.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+version=$1
+sapi=$2
+format=${3-shell}
+
+# Includes
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/php.sh
+source $ARCPANEL/func/php.sh
+# load config file
+source_conf "$ARCPANEL/conf/arcpanel.conf"
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '2' "$#" 'VERSION SAPI [FORMAT]'
+php_ini_check_args "$version" "$sapi"
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+dir=$(php_ini_backup_dir "$version" "$sapi")
+json='{}'
+for id in $(ls -1 "$dir" 2> /dev/null | grep -E '^[0-9]{8}-[0-9]{6}(-[0-9]+)?\.ini$' | sed 's/\.ini$//' | sort -rV); do
+	date="${id:0:4}-${id:4:2}-${id:6:2} ${id:9:2}:${id:11:2}:${id:13:2}"
+	json=$(jq -c --arg i "$id" --arg d "$date" --arg s "$(stat -c %s "$dir/$id.ini")" \
+		'. + {($i): {DATE: $d, SIZE: $s}}' <<< "$json")
+done
+
+case "$format" in
+	json) jq . <<< "$json" ;;
+	plain) jq -r 'to_entries[] | [.key, .value.DATE, .value.SIZE] | join("\t")' <<< "$json" ;;
+	*)
+		{
+			echo "ID DATE TIME SIZE"
+			echo "-- ---- ---- ----"
+			jq -r 'to_entries[] | [.key, .value.DATE, .value.SIZE] | join(" ")' <<< "$json"
+		} | column -t
+		;;
+esac
+
+#----------------------------------------------------------#
+#                         ArcPanel                         #
+#----------------------------------------------------------#
+
+exit

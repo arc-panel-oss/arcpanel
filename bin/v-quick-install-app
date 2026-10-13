@@ -26,7 +26,7 @@ require_once __DIR__ . "/../lib/quickinstall/init.php";
 
 define("ARCPANEL_DIR_BIN", "/usr/local/arcpanel/bin/");
 define("ARCPANEL_CMD", "/usr/bin/sudo /usr/local/arcpanel/bin/");
-define("DEFAULT_PHP_VERSION", "php-" . exec('php -r "echo substr(phpversion(),0,3);"'));
+define("DEFAULT_PHP_VERSION", "php-" . exec('php -r "echo PHP_MAJOR_VERSION . \".\" . PHP_MINOR_VERSION;"'));
 
 exec(ARCPANEL_CMD . "v-list-sys-config json", $output, $return_var);
 $data = json_decode(implode("", $output), true);

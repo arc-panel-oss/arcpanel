@@ -15,6 +15,8 @@
 
 # shellcheck source=/usr/local/arcpanel/func/main.sh
 source "$ARCPANEL"/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/safe-fs.sh
+source "$ARCPANEL"/func/safe-fs.sh
 # shellcheck source=/etc/arcpanel/arcpanel.conf
 source /etc/arcpanel/arcpanel.conf
 # load config file
@@ -33,7 +35,7 @@ debug=1
 arcpanel_package=default
 letsencrypt_enable=0
 addusertext="IMPORTED"
-tmp_dir='tmp_dir_da_backup'
+
 time=$(echo "$time_n_date" | cut -f 1 -d \ )
 date=$(echo "$time_n_date" | cut -f 2 -d \ )
 
@@ -48,9 +50,13 @@ else
 	exit 1
 fi
 
+# Root's working folder (E39 W1); removed on exit as well
+safe_workdir import-directadmin
+da_dir=$SAFE_WORKDIR
+
 delete_tmp() {
 	echo "Removing tmp files"
-	rm -rf /backup/${tmp_dir}
+	safe_workdir_cleanup
 }
 
 # URL decoding function
@@ -74,19 +80,19 @@ if file "$backup_file" | grep -q -c "gzip compressed data"; then
 	echo "OK - Gzipped File"
 	tput sgr0
 
-	if [ ! -d /backup/${tmp_dir} ]; then
+	if [ ! -d "$da_dir" ]; then
 		echo "Creating temporary directory..."
-		mkdir /backup/${tmp_dir}
+		mkdir "$da_dir"
 	fi
 
 	echo "Extracting backup..."
 	if [ "$debug" != 0 ]; then
-		tar xzvf "$backup_file" -C /backup/${tmp_dir} 2>&1 | while read -r extracted_file; do
+		tar xzvf "$backup_file" -C "$da_dir" 2>&1 | while read -r extracted_file; do
 			ex=$((ex + 1))
 			echo -en "wait... $ex files extracted\r"
 		done
 	else
-		tar xzf "$backup_file" -C /backup/${tmp_dir}
+		tar xzf "$backup_file" -C "$da_dir"
 	fi
 
 	if [ $? -eq 0 ]; then
@@ -106,19 +112,19 @@ elif file "$backup_file" | grep -q -c "Zstandard compressed data"; then
 	echo "OK - Zstandard Compressed File"
 	tput sgr0
 
-	if [ ! -d /backup/${tmp_dir} ]; then
+	if [ ! -d "$da_dir" ]; then
 		echo "Creating temporary directory..."
-		mkdir /backup/${tmp_dir}
+		mkdir "$da_dir"
 	fi
 
 	echo "Extracting backup..."
 	if [ "$debug" != 0 ]; then
-		tar --use-compress-program=pzstd -xvf "$backup_file" -C /backup/${tmp_dir} 2>&1 | while read -r extracted_file; do
+		tar --use-compress-program=pzstd -xvf "$backup_file" -C "$da_dir" 2>&1 | while read -r extracted_file; do
 			ex=$((ex + 1))
 			echo -en "wait... $ex files extracted\r"
 		done
 	else
-		tar --use-compress-program=pzstd -xf "$backup_file" -C /backup/${tmp_dir}
+		tar --use-compress-program=pzstd -xf "$backup_file" -C "$da_dir"
 	fi
 
 	if [ $? -eq 0 ]; then
@@ -141,7 +147,7 @@ else
 	exit 3
 fi
 
-cd /backup/${tmp_dir}/ || exit
+cd "$da_dir"/ || exit
 main_dir=$(pwd)
 echo "Access tmp directory $main_dir"
 directadmin_user=$(grep username backup/user.conf | cut -d "=" -f 2)
@@ -272,31 +278,22 @@ for directadmin_domain in $directadmin_domain_list; do
 	elif [ -d /home/"${directadmin_user}"/web/"${directadmin_domain}" ]; then
 		echo "Domain $directadmin_domain added, restoring files"
 		echo "$directadmin_domain" >> restored_domains
-		rm -f /home/"$directadmin_user"/web/"$directadmin_domain"/public_html/index.html
-		rm -f /home/"$directadmin_user"/web/"$directadmin_domain"/public_html/robots.txt
+		user=$directadmin_user user_exec rm -f -- /home/"$directadmin_user"/web/"$directadmin_domain"/public_html/index.html
+		user=$directadmin_user user_exec rm -f -- /home/"$directadmin_user"/web/"$directadmin_domain"/public_html/robots.txt
 
-		public_sync_count=0
-		rsync -av domains/"${directadmin_domain}"/public_html/ /home/"$directadmin_user"/web/"$directadmin_domain"/public_html 2>&1 \
-			| while read file_dm; do
-				public_sync_count=$(($public_sync_count + 1))
-				echo -en "-- $public_sync_count restored files\r"
-			done
-
-		chown "${directadmin_user}":"${directadmin_user}" -R /home/"${directadmin_user}"/web/"${directadmin_domain}"/public_html
-		chmod 751 /home/"${directadmin_user}"/web/"${directadmin_domain}"/public_html
+		# Copied into the home by the user (E39 W1)
+		(
+			user=$directadmin_user
+			copy_into_home "$PWD/domains/${directadmin_domain}/public_html" "/home/$directadmin_user/web/$directadmin_domain/public_html"
+		)
 
 		if [[ -L "domains/${directadmin_domain}/private_html" && -d "domains/${directadmin_domain}/private_html" ]]; then
 			echo "private_html is a symlink to public_html so we don't need to copy it."
 		else
-			private_sync_count=0
-
-			rsync -av domains/"${directadmin_domain}"/private_html/ /home/"$directadmin_user"/web/"$directadmin_domain"/private 2>&1 \
-				| while read file_dm; do
-					private_sync_count=$(($private_sync_count + 1))
-					echo -en "-- $private_sync_count restored files\r"
-				done
-			chown "${directadmin_user}":"${directadmin_user}" -R /home/"${directadmin_user}"/web/"${directadmin_domain}"/private
-			chmod 751 /home/"${directadmin_user}"/web/"${directadmin_domain}"/private
+			(
+				user=$directadmin_user
+				copy_into_home "$PWD/domains/${directadmin_domain}/private_html" "/home/$directadmin_user/web/$directadmin_domain/private"
+			)
 		fi
 	else
 		echo "Ups.. cant restore or add domain: $directadmin_domain"
@@ -330,18 +327,13 @@ if [ -e restored_domains ]; then
 			ls -1 imap/"${da_mail_domain}"/ | while read da_imap; do
 				tmp_pass=$(generate_password)
 				"$BIN"/v-add-mail-account "$directadmin_user" "$da_mail_domain" "$da_imap" "$tmp_pass"
-				if [ "$debug" != 0 ]; then
-					rsync -av imap/"${da_mail_domain}"/"${da_imap}"/Maildir/ /home/"${directadmin_user}"/mail/"${da_mail_domain}"/"${da_imap}" 2>&1 \
-						| while read backup_file_dm; do
-							sk_sync=$((sk_sync + 1))
-							echo -en "-- $sk_sync restored files\r"
-						done
-					echo " "
-				else
-					rsync imap/"${da_mail_domain}"/"${da_imap}"/Maildir/ /home/"${directadmin_user}"/mail/"${da_mail_domain}"/"${da_imap}"
-				fi
-				chown "${directadmin_user}":mail -R /home/"${directadmin_user}"/mail/"${da_mail_domain}"/"${da_imap}"
-				find /home/"$directadmin_user"/mail/"$da_mail_domain" -type f -name 'dovecot*' -delete
+				# Copied into the home by the user, then given the mail group
+				(
+					user=$directadmin_user
+					copy_into_home "$PWD/imap/${da_mail_domain}/${da_imap}/Maildir" "/home/$directadmin_user/mail/$da_mail_domain/$da_imap"
+				)
+				find /home/"${directadmin_user}"/mail/"${da_mail_domain}"/"${da_imap}" -user "$directadmin_user" -exec chown -h "${directadmin_user}":mail {} +
+				user=$directadmin_user user_exec find /home/"$directadmin_user"/mail/"$da_mail_domain" -type f -name 'dovecot*' -delete
 				da_restore_imap_pass "$da_imap" "$da_mail_domain" "$directadmin_user"
 			done
 

@@ -4,6 +4,7 @@ namespace App\Services\Packages;
 
 use App\Auth\Principal;
 use App\Auth\Role;
+use App\Services\Php\PhpManager;
 use App\Services\Users\UserService;
 use App\Services\WebDomains\Step;
 use Illuminate\Validation\ValidationException;
@@ -70,7 +71,7 @@ final class PackageActions
      *
      * @throws ValidationException
      */
-    public function planCreate(Principal $principal, string $name, array $values, ?array $tenancy, string $ports, array $node, array $docker): array
+    public function planCreate(Principal $principal, string $name, array $values, ?array $tenancy, string $ports, array $node, array $docker, ?array $php = null): array
     {
         $reseller = self::resellerOf($principal);
         if ($this->packages->exists(self::storedName($principal, $name))) {
@@ -79,7 +80,7 @@ final class PackageActions
         $this->checkValues($values, [], $reseller);
 
         return $this->packages->planCreate($name, $values, $reseller === '' ? $tenancy : null, $reseller,
-            $this->checkPorts($ports, $reseller), $this->checkNode($node, $reseller), $this->checkDocker($docker, $reseller));
+            $this->checkPorts($ports, $reseller), $this->checkNode($node, $reseller), $this->checkDocker($docker, $reseller), $this->checkPhp($php, $reseller));
     }
 
     /**
@@ -93,7 +94,7 @@ final class PackageActions
      *
      * @throws ValidationException
      */
-    public function planUpdate(Principal $principal, PackageRecord $record, string $newName, array $values, ?array $tenancy, string $ports, array $node, array $docker): array
+    public function planUpdate(Principal $principal, PackageRecord $record, string $newName, array $values, ?array $tenancy, string $ports, array $node, array $docker, ?array $php = null): array
     {
         $reseller = self::resellerOf($principal);
         $newName = $reseller !== '' ? $record->name : $newName;
@@ -103,7 +104,7 @@ final class PackageActions
         $this->checkValues($values, $record->data, $reseller);
 
         return $this->packages->planUpdate($record, $newName, $values, $reseller === '' ? $tenancy : null, $reseller,
-            $this->checkPorts($ports, $reseller), $this->checkNode($node, $reseller), $this->checkDocker($docker, $reseller));
+            $this->checkPorts($ports, $reseller), $this->checkNode($node, $reseller), $this->checkDocker($docker, $reseller), $this->checkPhp($php, $reseller));
     }
 
     /**
@@ -191,6 +192,53 @@ final class PackageActions
             'NODE_VERSIONS' => $record?->get('NODE_VERSIONS', '3') ?? '3',
             'NODE_APPS' => $record?->get('NODE_APPS', '3') ?? '3',
         ];
+    }
+
+    /**
+     * PHP keys of the reseller's own package (E41 §7.5).
+     *
+     * @return array{PHP_VERSIONS: string, PHP_PROFILES: string, PHP_DEFAULT_PROFILE: string}
+     */
+    public function ownPhp(string $reseller): array
+    {
+        return PhpManager::packageKeys($this->ownPackage($reseller)?->data ?? []);
+    }
+
+    /**
+     * PHP keys of a package (E41 D12): a reseller allows only versions and
+     * profiles that its own package allows, and * only when that is *.
+     *
+     * @param  array{PHP_VERSIONS: string, PHP_PROFILES: string, PHP_DEFAULT_PROFILE: string}|null  $php
+     * @return array{PHP_VERSIONS: string, PHP_PROFILES: string, PHP_DEFAULT_PROFILE: string}|null
+     *
+     * @throws ValidationException
+     */
+    public function checkPhp(?array $php, string $reseller): ?array
+    {
+        if ($php === null) {
+            return null;
+        }
+        $errors = [];
+        if (! PhpManager::allows($php['PHP_PROFILES'], $php['PHP_DEFAULT_PROFILE'])) {
+            $errors['php_default_profile'] = __('The default profile must be one of the allowed profiles.');
+        }
+        if ($reseller !== '') {
+            $own = $this->ownPhp($reseller);
+            foreach (['PHP_VERSIONS' => 'php_versions', 'PHP_PROFILES' => 'php_profiles'] as $key => $field) {
+                if ($own[$key] === '*') {
+                    continue;
+                }
+                $outside = $php[$key] === '*' ? ['*'] : array_diff(explode(',', $php[$key]), explode(',', $own[$key]));
+                if ($outside !== []) {
+                    $errors[$field] = sprintf(__('Your plan allows only %s.'), str_replace(',', ', ', $own[$key]));
+                }
+            }
+        }
+        if ($errors !== []) {
+            throw ValidationException::withMessages($errors);
+        }
+
+        return $php;
     }
 
     /**

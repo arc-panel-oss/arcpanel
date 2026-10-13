@@ -1,0 +1,115 @@
+#!/bin/bash
+# info: change the PHP version and PHP-FPM profile of a web domain (E41)
+# options: USER DOMAIN VERSION PROFILE [RESTART]
+#
+# example: v-change-web-domain-php alice example.com 8.4 medium
+#
+# This function sets the PHP version and the PHP-FPM profile of a web
+# domain's pool. Both must be allowed by the user's package (PHP_VERSIONS and
+# PHP_PROFILES) unless the domain already has them: a version or profile that
+# the package no longer allows is kept but cannot be chosen again. A new
+# version changes the backend template to PHP-X_Y; the pool is written with
+# the profile. With WEB_BACKEND_POOL='user' the profile is the one of the
+# user's shared pool.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+user=$1
+domain=$2
+domain_idn=$2
+version=$3
+profile=$4
+restart=${5:-yes}
+
+# Includes
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/domain.sh
+source $ARCPANEL/func/domain.sh
+# load config file
+source_conf "$ARCPANEL/conf/arcpanel.conf"
+
+# Additional argument formatting
+format_domain
+format_domain_idn
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '4' "$#" 'USER DOMAIN VERSION PROFILE [RESTART]'
+is_format_valid 'user' 'domain' 'restart'
+is_system_enabled "$WEB_BACKEND" 'WEB_BACKEND'
+is_object_valid 'user' 'USER' "$user"
+is_object_unsuspended 'user' 'USER' "$user"
+is_object_valid 'web' 'DOMAIN' "$domain"
+is_object_unsuspended 'web' 'DOMAIN' "$domain"
+get_domain_values 'web'
+
+if ! php_version_format_valid "$version"; then
+	check_result "$E_INVALID" "invalid PHP version :: $version"
+fi
+if ! php_version_installed "$version"; then
+	check_result "$E_NOTEXIST" "PHP $version is not installed"
+fi
+if ! php_profile_name_valid "$profile"; then
+	check_result "$E_INVALID" "invalid profile name :: $profile"
+fi
+if ! php_profile_exists "$profile"; then
+	check_result "$E_NOTEXIST" "profile $profile does not exist"
+fi
+if [ "$BACKEND" = 'no-php' ]; then
+	current_version=''
+else
+	current_version=$(php_backend_version "$BACKEND")
+fi
+current_profile=$(php_domain_profile "$user" "$domain")
+
+# The package decides, except for what the domain already has (D11)
+package=$(php_user_package "$user")
+if [ "$version" != "$current_version" ] && ! php_pkg_allows_version "$package" "$version"; then
+	check_result "$E_FORBIDEN" "PHP $version is not allowed by the package $package"
+fi
+if [ "$profile" != "$current_profile" ] && ! php_pkg_allows_profile "$package" "$profile"; then
+	check_result "$E_FORBIDEN" "profile $profile is not allowed by the package $package"
+fi
+
+# Perform verification if read-only mode is enabled
+check_arcpanel_demo_mode
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+key=$(php_domain_key "$domain")
+php_domain_profile_set "$user" "$key" "$profile"
+
+if [ "$version" != "$current_version" ]; then
+	# The backend template writes the pool with the profile
+	$BIN/v-change-web-domain-backend-tpl "$user" "$domain" "$(php_tpl_name "$version")" "$restart"
+	rc=$?
+else
+	$BIN/v-add-web-domain-backend "$user" "$domain" "$BACKEND" "$restart"
+	rc=$?
+fi
+if [ "$rc" -ne 0 ]; then
+	# Back to the previous profile
+	php_domain_profile_set "$user" "$key" "$current_profile"
+	$BIN/v-add-web-domain-backend "$user" "$domain" "$BACKEND" "$restart" > /dev/null 2>&1
+	check_result "$rc" "the PHP settings of $domain could not be applied"
+fi
+
+#----------------------------------------------------------#
+#                         ArcPanel                         #
+#----------------------------------------------------------#
+
+# Logging
+$BIN/v-log-action "$user" "Info" "Web" "PHP settings changed (Domain: $domain, Version: $version, Profile: $profile)."
+log_event "$OK" "$ARGUMENTS"
+
+exit

@@ -64,7 +64,8 @@ for port in $ports; do
 done
 
 # Adding backend config
-cat $WEBTPL/$WEB_BACKEND/$template.tpl \
+# The profile of the pool fills the %php_profile% line of the template (E41)
+php_pool_template "$WEBTPL/$WEB_BACKEND/$template.tpl" "$(php_domain_profile "$user" "$domain")" \
 	| sed -e "s|%backend_port%|$backend_port|" \
 		-e "s|%user%|$user|g" \
 		-e "s|%domain%|$domain|g" \

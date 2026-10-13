@@ -135,7 +135,7 @@ onBeforeUnmount(() => clearTimeout(timer));
 				<h3>{{ t('No Node.js app yet.') }}</h3>
 				<p v-if="initial.runtimes === 0">
 					{{ t('Install a Node.js version first.') }}
-					<a v-if="pages.node" :href="pages.node">{{ t('Open the Node.js page') }}</a>
+					<a v-if="pages.node" :href="pages.node">{{ t('Open Runtimes') }}</a>
 				</p>
 				<p v-else>{{ t('An app runs a Node.js server for one of your web domains, with its own port, logs and restart on failure.') }}</p>
 			</div>

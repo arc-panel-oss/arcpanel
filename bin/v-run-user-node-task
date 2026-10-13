@@ -57,9 +57,11 @@ esac
 #                       Action                             #
 #----------------------------------------------------------#
 
+# The task log is written by root from output npm and the user control:
+# capped (E39 W1)
 echo "$ $command $user $*"
-"$BIN/$command" "$user" "$@"
-rc=$?
+"$BIN/$command" "$user" "$@" 2>&1 | log_cap
+rc=${PIPESTATUS[0]}
 if [ "$rc" -eq 0 ]; then
 	status=done
 else

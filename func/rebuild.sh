@@ -279,11 +279,16 @@ rebuild_web_domain_conf() {
 		/var/log/$WEB_SYSTEM/domains/$domain.log \
 		/var/log/$WEB_SYSTEM/domains/$domain.error.log
 
-	# Creating symlinks
-	cd $HOMEDIR/$user/web/$domain/logs/
-	ln -f -s /var/log/$WEB_SYSTEM/domains/$domain.log .
-	ln -f -s /var/log/$WEB_SYSTEM/domains/$domain.error.log .
-	cd /
+	# Creating symlinks, as the user: logs/ belongs to the user, who could
+	# put a link in its place (E39 W1). The folder is read-only for its
+	# owner, so the user opens it for the moment.
+	logs_dir="$HOMEDIR/$user/web/$domain/logs"
+	if [ -L "$logs_dir" ] || [ ! -d "$logs_dir" ]; then
+		echo "Warning: $logs_dir is not a folder; log links not created"
+	else
+		user_exec sh -c 'chmod u+w "$1" && ln -f -s "$2" "$3" "$1"/; chmod 551 "$1"' sh "$logs_dir" \
+			"/var/log/$WEB_SYSTEM/domains/$domain.log" "/var/log/$WEB_SYSTEM/domains/$domain.error.log"
+	fi
 
 	# Set ownership
 	chown --no-dereference $user:$user \
@@ -291,7 +296,7 @@ rebuild_web_domain_conf() {
 		$HOMEDIR/$user/web/$domain/private \
 		$HOMEDIR/$user/web/$domain/cgi-bin \
 		$HOMEDIR/$user/web/$domain/public_*html
-	chown -R $user:$user $HOMEDIR/$user/web/$domain/document_errors
+	chown -hR $user:$user $HOMEDIR/$user/web/$domain/document_errors
 	chown root:$user /var/log/$WEB_SYSTEM/domains/$domain.*
 
 	# Adding vhost configuration

@@ -114,3 +114,13 @@ it('lists the apps on the user detail page', function () {
         ->assertSee('Node apps')
         ->assertSee('href="'.route('node.apps.show', ['user' => 'bob', 'domain' => 'api.bob.example']).'"', false);
 });
+
+it('shows the apps and the runtimes in one Node apps card, like the sidebar hub', function () {
+    fakeWebDomains($this->fake);
+    signIn('hostco', 'reseller');
+
+    $this->get('/users/bob')->assertOk()
+        ->assertSee('href="'.route('node.show', ['user' => 'bob']).'"', false)
+        ->assertSeeInOrder(['Node apps', 'Runtimes', 'All apps'])
+        ->assertDontSee('Node.js versions and global npm packages of this account.');
+});

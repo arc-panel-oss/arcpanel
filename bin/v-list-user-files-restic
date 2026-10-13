@@ -1,10 +1,12 @@
 #!/bin/bash
-# info: backup system user with all its objects
+# info: list a folder of a restic snapshot
 # options: USER SNAPSHOT FOLDER
 #
-# example: v-backup-user admin yes
+# example: v-list-user-files-restic alice 4f2a91c0 /home/alice/web
 #
-# This function is used for backing up user with all its domains and databases.
+# This function prints `restic ls --json` for FOLDER of a snapshot of USER.
+# FOLDER is /home/USER or a folder below it; every argument reaches restic
+# quoted and after "--" (E39 W1).
 
 #----------------------------------------------------------#
 #                Variables & Functions                     #
@@ -19,12 +21,8 @@ folder=$3
 source /etc/arcpanel/arcpanel.conf
 # shellcheck source=/usr/local/arcpanel/func/main.sh
 source $ARCPANEL/func/main.sh
-# shellcheck source=/usr/local/arcpanel/func/domain.sh
-source $ARCPANEL/func/domain.sh
-# shellcheck source=/usr/local/arcpanel/func/db.sh
-source $ARCPANEL/func/db.sh
-# shellcheck source=/usr/local/arcpanel/func/backup.sh
-source $ARCPANEL/func/backup.sh
+# shellcheck source=/usr/local/arcpanel/func/safe-fs.sh
+source $ARCPANEL/func/safe-fs.sh
 # load config file
 source_conf "$ARCPANEL/conf/arcpanel.conf"
 
@@ -32,11 +30,16 @@ source_conf "$ARCPANEL/conf/arcpanel.conf"
 #                    Verifications                         #
 #----------------------------------------------------------#
 
-check_args '1' "$#" 'USER'
-is_format_valid 'user'
+check_args '3' "$#" 'USER SNAPSHOT FOLDER'
+is_format_valid 'user' 'snapshot'
 is_system_enabled "$BACKUP_SYSTEM" 'BACKUP_SYSTEM'
 is_object_valid 'user' 'USER' "$user"
 is_object_unsuspended 'user' 'USER' "$user"
+
+folder="${folder%/}"
+if ! is_snapshot_path_valid "$folder"; then
+	check_result "$E_FORBIDEN" "the folder is outside the home directory of $user"
+fi
 
 # Perform verification if read-only mode is enabled
 check_arcpanel_demo_mode
@@ -47,7 +50,7 @@ check_arcpanel_demo_mode
 
 source_conf $ARCPANEL/conf/restic.conf
 
-restic --repo "${REPO%/}/$user" --password-file $USER_DATA/restic.conf --json ls $snapshot $folder
+restic_user "$user" ls --json -- "$snapshot" "$folder"
 
 #----------------------------------------------------------#
 #                         ArcPanel                         #

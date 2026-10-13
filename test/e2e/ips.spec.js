@@ -1,6 +1,6 @@
 // Happy paths of the IP address pages (E7 batch 2 spec §7).
 import { expect, test } from '@playwright/test';
-import { ADMIN, expectAccessible, expectToast, login, USER } from './helpers.js';
+import { ADMIN, expectAccessible, expectToast, login, openSection, USER } from './helpers.js';
 
 test.describe.configure({ mode: 'serial' });
 
@@ -8,10 +8,7 @@ const NAME = 'e2e-ip.example';
 
 test('admin: list, edit the assigned domain and refresh the addresses', async ({ page }) => {
 	await login(page, ADMIN);
-	await page
-		.getByRole('navigation', { name: 'Sections' })
-		.getByRole('link', { name: 'IP Addresses' })
-		.click();
+	await openSection(page, 'IP Addresses', 'Network', 'IP addresses');
 	await expect(page).toHaveURL(/\/server\/ips$/);
 	await expectAccessible(page);
 

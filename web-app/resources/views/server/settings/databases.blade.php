@@ -39,39 +39,41 @@
         @if ($hosts === [])
             <x-ap-empty icon="db" :title="__('No database hosts')" />
         @else
-            <table class="ap-table">
-                <caption class="sr-only">{{ __('Database hosts') }}</caption>
-                <thead><tr><th scope="col">{{ __('Host') }}</th><th scope="col">{{ __('Type') }}</th><th scope="col">{{ __('Port') }}</th><th scope="col">{{ __('Databases') }}</th><th scope="col">{{ __('Status') }}</th><th scope="col"><span class="sr-only">{{ __('Actions') }}</span></th></tr></thead>
-                <tbody>
-                    @foreach ($hosts as $host)
-                        <tr>
-                            <td class="mono">{{ $host['host'] }}</td>
-                            <td>{{ $host['type'] === 'mysql' ? 'MySQL / MariaDB' : 'PostgreSQL' }}</td>
-                            <td class="mono">{{ $host['port'] }}</td>
-                            <td>{{ max(0, (int) $host['databases']) }} / {{ $host['maxDb'] }}</td>
-                            <td><x-ap-badge :tone="$host['suspended'] ? 'warn' : 'ok'">{{ $host['suspended'] ? __('Suspended') : __('Active') }}</x-ap-badge></td>
-                            <td class="col-actions">
-                                @if ($canEdit && $host['type'] === 'mysql')
-                                    @php($modal = 'dbhost-'.md5($host['host']))
-                                    <x-ap-button size="sm" icon="key" x-data x-on:click="$dispatch('ap-modal', { id: '{{ $modal }}' })">{{ __('Change password') }}</x-ap-button>
-                                    <x-ap-modal :id="$modal" :title="sprintf(__('Change the password of %s'), $host['host'])" icon="key"
-                                        :open="$errors->dbhost->any() && old('host') === $host['host']">
-                                        <x-ap-form :action="route('server.settings.dbhost', ['type' => $host['type'], 'host' => $host['host']])" :id="$modal.'-form'">
-                                            <input type="hidden" name="host" value="{{ $host['host'] }}">
-                                            <x-ap-input name="user" :id="$modal.'-user'" :label="__('Username')" value="root" mono bag="dbhost" required />
-                                            <x-ap-password name="password" :id="$modal.'-password'" :label="__('New password')" bag="dbhost" :generate="true" required />
-                                        </x-ap-form>
-                                        <x-slot:footer>
-                                            <x-ap-button variant="ghost" x-on:click="close()">{{ __('Cancel') }}</x-ap-button>
-                                            <x-ap-button type="submit" :form="$modal.'-form'" variant="primary" icon="check">{{ __('Save') }}</x-ap-button>
-                                        </x-slot:footer>
-                                    </x-ap-modal>
-                                @endif
-                            </td>
-                        </tr>
-                    @endforeach
-                </tbody>
-            </table>
+            <div class="ap-table-wrap">
+                <table class="ap-table">
+                    <caption class="sr-only">{{ __('Database hosts') }}</caption>
+                    <thead><tr><th scope="col">{{ __('Host') }}</th><th scope="col">{{ __('Type') }}</th><th scope="col">{{ __('Port') }}</th><th scope="col">{{ __('Databases') }}</th><th scope="col">{{ __('Status') }}</th><th scope="col"><span class="sr-only">{{ __('Actions') }}</span></th></tr></thead>
+                    <tbody>
+                        @foreach ($hosts as $host)
+                            <tr>
+                                <td class="mono">{{ $host['host'] }}</td>
+                                <td>{{ $host['type'] === 'mysql' ? 'MySQL / MariaDB' : 'PostgreSQL' }}</td>
+                                <td class="mono">{{ $host['port'] }}</td>
+                                <td>{{ max(0, (int) $host['databases']) }} / {{ $host['maxDb'] }}</td>
+                                <td><x-ap-badge :tone="$host['suspended'] ? 'warn' : 'ok'">{{ $host['suspended'] ? __('Suspended') : __('Active') }}</x-ap-badge></td>
+                                <td class="col-actions">
+                                    @if ($canEdit && $host['type'] === 'mysql')
+                                        @php($modal = 'dbhost-'.md5($host['host']))
+                                        <x-ap-button size="sm" icon="key" x-data x-on:click="$dispatch('ap-modal', { id: '{{ $modal }}' })">{{ __('Change password') }}</x-ap-button>
+                                        <x-ap-modal :id="$modal" :title="sprintf(__('Change the password of %s'), $host['host'])" icon="key"
+                                            :open="$errors->dbhost->any() && old('host') === $host['host']">
+                                            <x-ap-form :action="route('server.settings.dbhost', ['type' => $host['type'], 'host' => $host['host']])" :id="$modal.'-form'">
+                                                <input type="hidden" name="host" value="{{ $host['host'] }}">
+                                                <x-ap-input name="user" :id="$modal.'-user'" :label="__('Username')" value="root" mono bag="dbhost" required />
+                                                <x-ap-password name="password" :id="$modal.'-password'" :label="__('New password')" bag="dbhost" :generate="true" required />
+                                            </x-ap-form>
+                                            <x-slot:footer>
+                                                <x-ap-button variant="ghost" x-on:click="close()">{{ __('Cancel') }}</x-ap-button>
+                                                <x-ap-button type="submit" :form="$modal.'-form'" variant="primary" icon="check">{{ __('Save') }}</x-ap-button>
+                                            </x-slot:footer>
+                                        </x-ap-modal>
+                                    @endif
+                                </td>
+                            </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+            </div>
         @endif
     </x-ap-card>
 </x-ap-page>

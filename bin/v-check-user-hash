@@ -4,7 +4,8 @@
 #
 # example: v-check-user-hash admin CN5JY6SMEyNGnyCuvmK5z4r7gtHAC4mRZ...
 #
-# This function verifies user hash
+# This function verifies user hash. It exits with 5 when the hash matches a
+# suspended (locked) account and with 9 when it does not match.
 
 #----------------------------------------------------------#
 #                Variables & Functions                     #
@@ -38,7 +39,7 @@ is_format_valid 'user' 'ip46'
 # Checking user
 if [ ! -d "$ARCPANEL/data/users/$user" ] && [ "$user" != 'root' ]; then
 	echo "Error: password missmatch"
-	echo "$date $time $user $ip failed to login" >> $ARCPANEL/log/auth.log
+	echo "$date $time $user $ip46 failed to login" >> $ARCPANEL/log/auth.log
 	exit 9
 fi
 
@@ -58,6 +59,14 @@ fi
 
 # Parsing user's salt
 shadow=$(grep "^$user:" /etc/shadow | cut -f 2 -d :)
+
+# A locked (suspended) account is compared without its lock mark, and said to
+# be suspended only when the password matches (L6)
+locked='no'
+if [[ "$shadow" == '!'* ]]; then
+	shadow="${shadow#!}"
+	locked='yes'
+fi
 
 if echo "$shadow" | grep -qE '^\$[0-9a-z]+\$[^\$]+\$'; then
 	salt=$(echo "$shadow" | cut -f 3 -d \$)
@@ -97,6 +106,12 @@ fi
 #----------------------------------------------------------#
 
 # Logging
+if [ "$locked" = 'yes' ]; then
+	echo "Error: Account has been suspended"
+	echo "$date $time $user $ip46 has been suspended" >> $ARCPANEL/log/auth.log
+	exit 5
+fi
+
 echo "$date $time $user $ip46 successfully logged in" >> $ARCPANEL/log/auth.log
 
 exit

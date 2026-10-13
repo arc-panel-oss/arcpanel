@@ -33,8 +33,11 @@ final class ServiceController extends Controller
         $services = [];
         foreach ($this->services->all() as $name => $service) {
             $editor = $editors ? ServiceConfigs::editorFor($name) : null;
+            // A PHP-FPM version opens its php.ini on the PHP page (E41 §6.5)
+            $phpIni = preg_match('/^php(\d{1,2}\.\d{1,2})-fpm$/', $name, $m) === 1 && $policy->viewPhp($principal)
+                ? route('server.php.show', ['version' => $m[1], 'tab' => 'ini-fpm']) : null;
             $services[] = $service + [
-                'editor' => $editor === null ? null : route('server.services.config', ['service' => $editor]),
+                'editor' => $phpIni ?? ($editor === null ? null : route('server.services.config', ['service' => $editor])),
                 'canStop' => $policy->stopService($principal, $name),
             ];
         }
@@ -43,7 +46,7 @@ final class ServiceController extends Controller
             'info' => $this->services->info(),
             'php' => $this->services->phpVersions(),
             'services' => $services,
-            'reports' => array_keys(SystemServices::REPORTS),
+            'reports' => $this->services->reports(),
             'canManage' => $policy->manageServices($principal),
         ]);
     }
@@ -52,11 +55,12 @@ final class ServiceController extends Controller
     public function status(string $kind, Principal $principal, ServerPolicy $policy): View
     {
         abort_unless($policy->viewServices($principal), 403);
-        abort_unless(isset(SystemServices::REPORTS[$kind]), 404);
+        $reports = $this->services->reports();
+        abort_unless(in_array($kind, $reports, true), 404);
 
         return view('server.services.status', [
             'kind' => $kind,
-            'reports' => array_keys(SystemServices::REPORTS),
+            'reports' => $reports,
             'report' => $this->services->report($kind),
         ]);
     }

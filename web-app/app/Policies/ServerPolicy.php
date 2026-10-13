@@ -95,4 +95,15 @@ final class ServerPolicy
     {
         return $this->viewPackages($principal) && ! $principal->isReadOnly();
     }
+
+    /** The PHP Manager pages (E41 §8): versions, extensions, php.ini and profiles. */
+    public function viewPhp(Principal $principal): bool
+    {
+        return Capabilities::allows($principal->actingRole(), 'server.php');
+    }
+
+    public function managePhp(Principal $principal): bool
+    {
+        return $this->viewPhp($principal) && ! $principal->isReadOnly();
+    }
 }

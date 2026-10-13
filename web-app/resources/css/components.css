@@ -1288,7 +1288,7 @@
 	border-bottom: 1px solid var(--ap-border);
 	background: var(--ap-surface);
 	text-align: start;
-	font: 500 11px/1 var(--ap-font-mono);
+	font: 500 var(--ap-text-xs) / 1 var(--ap-font-mono);
 	letter-spacing: 0.08em;
 	text-transform: uppercase;
 	color: var(--ap-fg-subtle);
@@ -1542,6 +1542,29 @@
 	color: var(--ap-fg);
 	box-shadow: 0 0 0 1px var(--ap-border-strong);
 }
+/* The graph periods wrap on phones rather than scroll out of sight */
+@media (max-width: 767px) {
+	.ap-rrd .ap-segment {
+		flex-wrap: wrap;
+		overflow-x: visible;
+	}
+}
+/* Touch screens: segment options, file names and the dashboard figures
+   reach the 44px touch target */
+@media (pointer: coarse) {
+	.ap-segment button,
+	.ap-segment a {
+		height: 44px;
+	}
+	.ap-file {
+		min-height: 44px;
+	}
+	.ap-root .ap-stat-meta a {
+		display: inline-flex;
+		align-items: center;
+		min-height: 44px;
+	}
+}
 
 /* ---------- Overlays: modal, drawer, menu, toast, palette ---------- */
 
@@ -1620,6 +1643,13 @@
 	border-inline-start: 1px solid var(--ap-border);
 	background: var(--ap-surface);
 	box-shadow: var(--ap-shadow-2);
+}
+/* the body takes the free height, so the actions sit at the bottom edge */
+.ap-drawer > .ap-modal-body {
+	flex: 1 1 auto;
+}
+.ap-drawer > .ap-modal-foot {
+	border-radius: 0;
 }
 .ap-drawer-head {
 	display: flex;
@@ -4690,4 +4720,435 @@ a.ap-pick:focus-visible {
 	gap: var(--ap-space-2);
 	font-size: var(--ap-text-xs);
 	color: var(--ap-fg-muted);
+}
+
+/* Secret store (E38 spec §7): reference, details, apps that use a secret,
+   the steps of the empty state and the add and replace forms */
+.ap-secret-code {
+	padding: var(--ap-space-0-5) var(--ap-space-1-5);
+	border: 1px solid var(--ap-border);
+	border-radius: var(--ap-radius-sm);
+	background: var(--ap-bg-sunken);
+	color: var(--ap-fg);
+	font-family: var(--ap-font-mono);
+	font-size: 0.9em;
+	overflow-wrap: anywhere;
+}
+.ap-secret-head h1 {
+	overflow-wrap: anywhere;
+}
+.ap-secret-head .ap-row {
+	gap: var(--ap-space-2) var(--ap-space-3);
+	font-size: var(--ap-text-sm);
+}
+.ap-secret-lead {
+	margin: 0;
+	font-size: var(--ap-text-sm);
+}
+.ap-secret-ref > .ap-btn {
+	flex: none;
+}
+.ap-secret-ref > .ap-input {
+	font-size: var(--ap-text-md);
+}
+.ap-secret-facts {
+	margin: 0;
+}
+.ap-secret-describe {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: baseline;
+	gap: var(--ap-space-1) var(--ap-space-3);
+}
+.ap-secret-hint {
+	display: block;
+	margin-top: var(--ap-space-1);
+}
+.ap-secret-unused {
+	display: flex;
+	flex-direction: column;
+	gap: var(--ap-space-1);
+	padding: var(--ap-space-5);
+	font-size: var(--ap-text-sm);
+}
+.ap-secret-apps .ap-list-main a {
+	color: var(--ap-fg);
+	text-decoration: none;
+}
+.ap-secret-apps .ap-list-main a:hover b {
+	color: var(--ap-accent);
+}
+.ap-secret-keep {
+	font-size: var(--ap-text-xs);
+}
+.ap-table tr.is-current td {
+	background: var(--ap-accent-subtle);
+}
+
+/* list: key icon, name and description in one cell; copy and open at the end */
+.ap-secret-name {
+	display: flex;
+	align-items: flex-start;
+	gap: var(--ap-space-2-5);
+	min-width: 0;
+}
+.ap-secret-name > div {
+	display: flex;
+	flex-direction: column;
+	gap: var(--ap-space-0-5);
+	min-width: 0;
+}
+.ap-secret-name a {
+	font-weight: 500;
+	overflow-wrap: anywhere;
+}
+.ap-secret-name .muted {
+	font-size: var(--ap-text-xs);
+}
+.ap-secret-icon {
+	display: grid;
+	place-items: center;
+	flex: none;
+	width: 26px;
+	height: 26px;
+	border-radius: var(--ap-radius-md);
+	background: var(--ap-accent-subtle);
+	color: var(--ap-accent);
+}
+.ap-secret-row-actions {
+	flex-wrap: nowrap;
+	justify-content: flex-end;
+	gap: var(--ap-space-1);
+}
+
+/* empty state: how a secret reaches an app */
+.ap-secret-steps {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr));
+	gap: var(--ap-space-3);
+	margin: 0;
+	padding: 0 var(--ap-space-5) var(--ap-space-5);
+	list-style: none;
+}
+.ap-secret-steps li {
+	display: flex;
+	align-items: flex-start;
+	gap: var(--ap-space-3);
+	padding: var(--ap-space-3-5) var(--ap-space-4);
+	border: 1px solid var(--ap-border);
+	border-radius: var(--ap-radius-md);
+	background: var(--ap-bg-sunken);
+}
+.ap-secret-steps li > div {
+	display: flex;
+	flex-direction: column;
+	gap: var(--ap-space-1);
+	min-width: 0;
+	font-size: var(--ap-text-sm);
+}
+.ap-secret-steps li span:not(.ap-secret-step-num) {
+	color: var(--ap-fg-muted);
+	overflow-wrap: anywhere;
+}
+.ap-secret-step-num {
+	display: grid;
+	place-items: center;
+	flex: none;
+	width: 24px;
+	height: 24px;
+	border-radius: 50%;
+	background: var(--ap-accent-subtle);
+	color: var(--ap-accent);
+	font-size: var(--ap-text-xs);
+	font-weight: 600;
+}
+
+/* add and replace forms */
+.ap-secret-form {
+	gap: var(--ap-space-4);
+}
+.ap-secret-preview {
+	min-height: 1.6em;
+	font-size: var(--ap-text-xs);
+	color: var(--ap-fg-muted);
+}
+.ap-secret-preview.is-invalid {
+	color: var(--ap-warn);
+}
+.ap-secret-preview .ic {
+	vertical-align: -2px;
+}
+.ap-secret-restart {
+	display: flex;
+	flex-direction: column;
+	gap: var(--ap-space-2);
+	padding: var(--ap-space-3) var(--ap-space-3-5);
+	border: 1px solid var(--ap-border);
+	border-radius: var(--ap-radius-md);
+	background: var(--ap-bg-sunken);
+}
+.ap-secret-restart-apps {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--ap-space-1-5) var(--ap-space-3);
+	margin: 0;
+	padding: 0 0 0 var(--ap-space-6-5);
+	list-style: none;
+	font-size: var(--ap-text-xs);
+	color: var(--ap-fg-muted);
+}
+.ap-secret-restart-apps li {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--ap-space-1);
+}
+
+/* add and replace drawers: a little wider, the head text under the title */
+.ap-drawer.ap-secret-drawer {
+	max-width: 480px;
+}
+.ap-secret-drawer .ap-drawer-head {
+	align-items: flex-start;
+}
+.ap-secret-drawer .ap-drawer-head p {
+	font-size: var(--ap-text-sm);
+}
+.ap-secret-drawer .ap-input-mono::placeholder,
+.ap-secret-drawer .ap-input::placeholder {
+	color: var(--ap-fg-subtle);
+}
+.ap-secret-value-head {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	justify-content: space-between;
+	gap: var(--ap-space-2);
+}
+.ap-secret-value-head .ap-label {
+	margin: 0;
+}
+.ap-secret-mode {
+	padding: var(--ap-space-0-5);
+}
+.ap-secret-mode button {
+	height: 24px;
+	padding: 0 var(--ap-space-2-5);
+	font-size: var(--ap-text-xs);
+}
+.ap-secret-value-foot {
+	display: flex;
+	align-items: flex-start;
+	justify-content: space-between;
+	gap: var(--ap-space-3);
+}
+.ap-secret-value-foot .ap-hint {
+	display: inline-flex;
+	align-items: flex-start;
+	gap: var(--ap-space-1-5);
+}
+.ap-secret-value-foot .ap-hint .ic {
+	flex: none;
+	margin-top: var(--ap-space-0-5);
+}
+.ap-secret-value-foot .ap-link-btn {
+	flex: none;
+	font-size: var(--ap-text-xs);
+}
+.ap-secret-value textarea {
+	min-height: 160px;
+	resize: vertical;
+}/* rolling back and describing are not destructive: accent, not danger */
+.ap-secret-modal .ap-modal-icon {
+	background: var(--ap-accent-subtle);
+	color: var(--ap-accent);
+}
+/* phones: the copy button keeps its icon, the name keeps the room */
+@media (max-width: 767px) {
+	.ap-secret-copy-text {
+		display: none;
+	}
+}
+
+/* PHP Manager (E41): extensions, the disable_functions list, the php.ini
+   editor's findings and line markers, profile cards of the domain PHP tab */
+.ap-php-extensions > li {
+	flex-wrap: wrap;
+}
+.ap-php-extension-name {
+	display: flex;
+	flex: 1 1 260px;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: var(--ap-space-2);
+}
+.ap-php-extension-name small {
+	flex-basis: 100%;
+}
+.ap-php-extension .ap-error {
+	flex-basis: 100%;
+	margin: 0;
+}
+/* the PHP-FPM and CLI checkboxes and the action keep their columns, so the
+   rows line up whether an extension can be removed or not */
+.ap-php-extension-sapis {
+	flex: 0 0 auto;
+	justify-content: flex-end;
+	min-width: 160px;
+}
+.ap-php-extension-actions {
+	flex: 0 0 auto;
+	justify-content: flex-end;
+	min-width: 104px;
+}
+.ap-php-extension-tools {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: var(--ap-space-3);
+}
+.ap-php-extension-tools .ap-input-affix {
+	flex: 1 1 260px;
+	max-width: 420px;
+}
+@media (max-width: 767px) {
+	.ap-php-extension-sapis,
+	.ap-php-extension-actions {
+		min-width: 0;
+	}
+	.ap-php-extension-actions:empty {
+		display: none;
+	}
+}
+.ap-chips {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--ap-space-1-5);
+	margin: 0 0 var(--ap-space-2);
+	padding: 0;
+	list-style: none;
+}
+.ap-php-backup {
+	justify-content: space-between;
+	padding-block: var(--ap-space-2);
+	border-bottom: 1px solid var(--ap-border);
+}
+.ap-ini-findings .ap-list > li {
+	min-height: 40px;
+	padding-inline: 0;
+}
+.ap-ini-ok {
+	display: flex;
+	align-items: center;
+	gap: var(--ap-space-2);
+	color: var(--ap-ok);
+}
+.ap-ini-marker.is-error {
+	background: var(--ap-danger-subtle);
+}
+.ap-ini-marker.is-warning {
+	background: var(--ap-warn-subtle);
+}
+/* topics of the php.ini form */
+.ap-ini-section {
+	display: flex;
+	flex-direction: column;
+	gap: var(--ap-space-3);
+	padding-block: var(--ap-space-4);
+	border-bottom: 1px solid var(--ap-border);
+}
+.ap-ini-section:first-of-type {
+	padding-top: 0;
+}
+.ap-ini-section-title {
+	margin: 0;
+	color: var(--ap-fg-muted);
+	font-size: var(--ap-text-xs);
+	font-weight: 600;
+	letter-spacing: 0.06em;
+	text-transform: uppercase;
+}
+/* Edit and Delete of a profile side by side */
+.ap-php-profile-actions {
+	flex-wrap: nowrap;
+	justify-content: flex-end;
+}
+/* the description of a profile on its own line under the name */
+.ap-cell-note {
+	display: block;
+	margin-top: var(--ap-space-0-5);
+}
+/* profile cards of the domain PHP tab: one card does not stretch over the row */
+.ap-php-profile-picker .ap-picker {
+	grid-template-columns: repeat(auto-fill, minmax(min(240px, 100%), 1fr));
+}
+
+/* Malware scan (E25 batch 1): file, line and snippet stacked in one cell */
+.ap-malware-file {
+	display: flex;
+	flex-direction: column;
+	gap: var(--ap-space-0-5);
+	min-width: 0;
+}
+.ap-malware-file code {
+	max-width: 48ch;
+	font-size: var(--ap-text-xs);
+}
+.ap-malware-why {
+	margin: 0;
+	padding-inline-start: var(--ap-space-4);
+	font-size: var(--ap-text-sm);
+}
+.ap-malware-actions {
+	flex-wrap: nowrap;
+	justify-content: flex-end;
+}
+/* The domain picker and the scan button share one row in the page head */
+.ap-form.ap-malware-scan {
+	flex-direction: row;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: var(--ap-space-2);
+}
+.ap-malware-scan .ap-select {
+	width: auto;
+	min-width: 14rem;
+}
+.ap-malware-scope {
+	display: flex;
+	flex-wrap: wrap;
+	column-gap: var(--ap-space-2);
+}
+@media (max-width: 767px) {
+	.ap-malware-scan .ap-select {
+		flex: 1 1 12rem;
+	}
+	/* Two row actions do not fit beside the severity: they get their own
+	   line at the end of the card, and the file and reasons read top-down */
+	.ap-malware-cards .ap-table-cards tbody td.col-actions {
+		grid-column: 1 / -1;
+		grid-row: auto;
+		justify-content: flex-start;
+	}
+	.ap-malware-cards .ap-table-cards tbody td:is([data-col="file"], [data-col="rules"]) {
+		flex-direction: column;
+		align-items: flex-start;
+		gap: var(--ap-space-1);
+	}
+	.ap-malware-cards .ap-malware-file {
+		width: 100%;
+	}
+	.ap-malware-cards .ap-malware-file code {
+		max-width: 100%;
+	}
+	.ap-malware-scope {
+		justify-content: flex-end;
+	}
+}
+.ap-tab-count {
+	margin-inline-start: var(--ap-space-1);
+	padding: 0 var(--ap-space-1-5);
+	border-radius: 999px;
+	background: var(--ap-surface-raised);
+	color: var(--ap-fg-muted);
+	font-size: var(--ap-text-xs);
 }

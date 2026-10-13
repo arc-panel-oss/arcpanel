@@ -2,13 +2,39 @@
 
 All notable changes to ArcPanel are listed here. ArcPanel is based on HestiaCP 1.10.5 and, since 2.0, a hard fork of it ([ADR-0007](https://github.com/arc-panel-oss/docs/blob/main/adr/0007-full-rename-and-hard-fork.md)).
 
-## 2.0.0 — unreleased
+## 2.1.0 — 2026-10-13
+
+Two features for PHP sites: the PHP Manager and a malware scan for PHP files. See the [E41 spec](https://github.com/arc-panel-oss/docs/blob/main/features/specs/2026-10-12-001-e41-php-manager-design.md) and the [E25 spec](https://github.com/arc-panel-oss/docs/blob/main/features/specs/2026-10-12-002-e25-malware-scan-design.md).
+
+### Breaking changes
+
+- **Old PHP versions.** PHP 5.6 to 7.3 can no longer be installed; versions already installed keep running and can be removed. `--multiphp yes` of the installer installs PHP 7.4 to 8.5.
+- **PHP commands refuse more.** `v-add-web-php` refuses a version that the PHP repository does not provide and answers `E_EXISTS` for one that is installed. `v-delete-web-php` refuses a version that is not installed, is used by a web domain or is the default; when it removes a version, it purges all its packages (extensions included) and its `php.ini` backups.
+- **One `php.ini` per version.** `v-change-sys-service-config php` is refused: it wrote one file over every `php.ini`. Edit `php.ini` per version and SAPI on the PHP page or with `v-change-sys-php-ini`. The configuration editors of the php and php-fpm services lead to the PHP page.
+
+### Added
+
+- **PHP Manager** (Server → PHP). A catalog of PHP versions with release and end-of-life dates and status badges; extensions installed and removed per version; `php.ini` for FPM and CLI edited per version with validation, backups and rollback; PHP-FPM profiles (`default`, `small`, `medium`, `large` and custom ones) applied by the package and chosen per web domain on its new PHP tab. Packages say which PHP versions and profiles their users may use (`PHP_VERSIONS`, `PHP_PROFILES`, `PHP_DEFAULT_PROFILE`; by default every installed version that is not end of life and the `default` profile).
+- **Malware scan** (plugin `malware-scan`, off by default). A scanner for PHP webshells with 26 rules, run as the hosting user at low priority, on demand and every night (incremental, at 03:40). Findings are reported, never quarantined on their own; users and administrators quarantine, restore or ignore them on the Malware scan pages and are notified of new findings. Turn it on in Server settings → Plugins.
+- **REST API v2.** 23 operations for the PHP Manager (`/system/php`, `/users/{user}/web-domains/{domain}/php`) and 11 for the malware scan in the new `security` area, with the permission set `v2-security` (also part of `v2-read` and `v2-write`).
+
+### Changed
+
+- `v-list-sys-php-versions` lists the status, dates, availability and number of extensions of each version, and PHP versions may have two-digit parts (for example 8.10).
+- Users and resellers see only the backend templates of the PHP versions their package allows.
+- Every upgrade runs `v-add-sys-php-profiles`: it rewrites pool templates you have not changed, and the pools of existing web domains stay the same. Custom backend templates without the `%php_profile%` placeholder ignore profiles, and the PHP tab of the domain says so.
+
+### Not changed
+
+- The redirects of `/app/*` and of the 1.x page paths (see 2.0.0) still answer in this release.
+
+## 2.0.0 — 2026-10-12
 
 The panel app (Laravel) serves every page at the root URL, and the HestiaCP web interface of 1.x is gone. See the [E8 spec](https://github.com/arc-panel-oss/docs/blob/main/features/specs/2026-10-06-004-e8-legacy-retirement-design.md).
 
 ### Breaking changes
 
-- **Root URL.** Panel pages moved from `/app/…` to `/…` (for example `/app/web/domains` is now `/web/domains`). For this release, `/app/*` and the 1.x page paths (`/list/web/`, `/edit/user/?user=…`, `/fm/` …) answer with a redirect, so bookmarks keep working; the redirects are removed in 2.1. Custom nginx includes or reverse proxies that route `/app/` must be updated.
+- **Root URL.** Panel pages moved from `/app/…` to `/…` (for example `/app/web/domains` is now `/web/domains`). `/app/*` and the 1.x page paths (`/list/web/`, `/edit/user/?user=…`, `/fm/` …) answer with a redirect, so bookmarks keep working; the redirects will be removed in a later release, announced in this changelog. Custom nginx includes or reverse proxies that route `/app/` must be updated.
 - **`web/` removed.** The directory `/usr/local/arcpanel/web` no longer exists. What the commands still use moved to `/usr/local/arcpanel/lib`: Quick Install installers (`lib/quickinstall`), 2FA helpers (`lib/2fa`), the mail wrapper (`lib/mail-wrapper.php`, `$SENDMAIL`), the API script (`lib/api/index.php`, still at the URL `/api/`), translations (`lib/locale`), default logos (`lib/images`) and nginx error pages (`lib/error`). Scripts of your own that call `web/inc/mail-wrapper.php` must call `lib/mail-wrapper.php`.
 - **White Label files** go to `/usr/local/arcpanel/data/white-label/` (was `web/images/custom/`); they are still served under `/images/custom/`.
 - **RRD data** lives in `/usr/local/arcpanel/data/rrd/` (was `web/rrd/`).
@@ -28,7 +54,21 @@ The panel app (Laravel) serves every page at the root URL, and the HestiaCP web 
 
 ### Added
 
+- **New panel.** Every page runs in the panel app, with a new design system, the `nocturne`, `light` and `auto` themes, and sidebar hubs that group related pages in tabs: databases, cron, DNS, mail, backups with a restic snapshot browser, firewall, IP addresses, access and SSH keys, logs, statistics and graphs, the web terminal, services, server settings and configuration editors, updates, search and the CSR generator.
+- **Resellers.** A third role between administrator and user: a reseller owns a tree of customers inside the limits of its own package.
+- **Port registry.** The administrator assigns ports to users; apps bind only the ports they were given, and public ports open the matching firewall rule.
+- **Node.js.** Node.js versions and global packages per user, and Node.js apps run by a per-user pm2 behind a web domain.
+- **Docker apps** from a curated catalog, every container run as the hosting user.
+- **File Manager v2**, every file operation run as the user.
+- **System packages** from the distribution archive (Python 3, Go, Ruby, FFmpeg, ImageMagick, build tools) on the admin page Server → Packages, with runtime badges in the template picker.
+- **Web templates.** Template metadata, template variables per web domain and sixteen new templates (among them Python, Go, Ruby, Laravel Octane and hardened WordPress).
+- **Secret store.** Encrypted secrets per user, referenced as `{{secret:NAME}}` in the environments of Node.js and Docker apps instead of plain values.
+- **REST API v2** under `/api/v2/` with permission sets per key, and OpenAPI documents for API v1 and v2 (`docs/api/`).
 - Download of the last 5000 lines of a web domain log from the log page.
+
+### Security
+
+- Hardening from an internal security review: commands that run as root no longer follow paths that users control; login and two-factor attempts are rate limited; password reset links are built from the panel's configuration; changing a password ends the sessions opened before it; sensitive changes to one's own account ask for the password again (sudo mode); the web terminal opens only with a short-lived, single-use ticket signed by the panel.
 
 ### Changed
 

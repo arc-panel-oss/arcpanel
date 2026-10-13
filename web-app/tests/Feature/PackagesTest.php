@@ -61,6 +61,11 @@ it('keeps users out of packages', function () {
     signIn('bob', 'user');
 
     $this->get('/packages')->assertForbidden();
+    // the package pages refuse before looking for the package
+    $this->get('/packages/default/edit')->assertForbidden();
+    $this->get('/packages/nosuch/edit')->assertForbidden();
+    $this->post('/packages/default/copy', ['name' => 'copy'])->assertForbidden();
+    $this->delete('/packages/default')->assertForbidden();
 });
 
 it('creates a package with reseller settings for an admin', function () {
@@ -243,4 +248,59 @@ it('sets the Docker keys of a package, within the reseller plan for a reseller (
     $this->post('/packages', packageInput(['docker' => '1']))->assertSessionHasErrors('docker');
     $this->post('/packages', packageInput(['docker_apps' => '1']))->assertSessionHasErrors('docker_apps');
     $this->fake->assertNotRan('v-add-reseller-package');
+});
+
+it('sets the PHP keys of a package with the default profile kept allowed at each step (E41)', function () {
+    $this->fake->on('v-add-user-package')->returns();
+    $this->fake->on('v-update-user-package')->returns();
+    $this->fake->on('v-change-package-tenancy')->returns();
+
+    signIn('arcadmin', 'admin');
+    $this->get('/packages/create')->assertOk()->assertSee('name="php_group"', false)
+        ->assertSee('PHP 8.2')->assertSee('security fixes only')->assertSee('name="php_profiles[]"', false)->assertSee('value="medium"', false);
+
+    // every version, two profiles with medium as the default
+    $this->post('/packages', packageInput(['php_group' => '1', 'php_versions_all' => '1', 'php_profiles' => ['medium', 'small'], 'php_default_profile' => 'medium']))
+        ->assertRedirect('/packages');
+    $steps = collect($this->fake->calls('v-change-package-tenancy'))->pluck('args')->all();
+    expect($steps)->toBe([
+        ['business', 'PHP_PROFILES', 'medium,small,default'],
+        ['business', 'PHP_DEFAULT_PROFILE', 'medium'],
+        ['business', 'PHP_PROFILES', 'medium,small'],
+    ]);
+
+    // listed versions; the defaults stay untouched
+    $this->post('/packages', packageInput(['name' => 'pinned', 'php_group' => '1', 'php_versions' => ['8.4', '8.3'], 'php_profiles' => ['default'], 'php_default_profile' => 'default']))
+        ->assertRedirect('/packages');
+    $this->fake->assertRan('v-change-package-tenancy', fn ($a) => $a === ['pinned', 'PHP_VERSIONS', '8.3,8.4']);
+    $this->fake->assertRan('v-change-package-tenancy', fn ($a) => $a[0] === 'pinned' && $a[1] !== 'PHP_VERSIONS', 0);
+
+    $this->post('/packages', packageInput(['php_group' => '1', 'php_profiles' => ['small'], 'php_default_profile' => 'small']))->assertSessionHasErrors('php_versions');
+    $this->post('/packages', packageInput(['php_group' => '1', 'php_versions_all' => '1', 'php_profiles' => ['small'], 'php_default_profile' => 'medium']))->assertSessionHasErrors('php_default_profile');
+    $this->post('/packages', packageInput(['php_group' => '1', 'php_versions' => ['8.3;id'], 'php_profiles_all' => '1', 'php_default_profile' => 'default']))->assertSessionHasErrors('php_versions.0');
+});
+
+it('limits the PHP of a reseller package to the reseller plan (E41 D12)', function () {
+    $this->fake->on('v-add-reseller-package')->returns();
+    $this->fake->on('v-change-package-tenancy')->returns();
+    $this->fake->on('v-list-package-tenancy', ['all', 'json'])->returnsJson([
+        'reseller' => ['USERS' => '25', 'RESELLER_PACKAGES' => '*', 'PHP_VERSIONS' => '8.4', 'PHP_PROFILES' => 'default,small', 'PHP_DEFAULT_PROFILE' => 'default'],
+        'starter' => ['RESELLER_VISIBLE' => 'yes'],
+        'hostco_gold' => ['RESELLER_OWNER' => 'hostco'],
+    ]);
+
+    signIn('hostco', 'reseller');
+    $this->get('/packages/create')->assertOk()->assertSee('Your plan: versions 8.4, profiles default,small.')
+        ->assertSee('value="8.4"', false)->assertDontSee('value="8.2"', false)->assertDontSee('name="php_versions_all"', false)
+        ->assertDontSee('value="medium"', false);
+    $this->post('/packages', packageInput(['php_group' => '1', 'php_versions' => ['8.3'], 'php_profiles' => ['default'], 'php_default_profile' => 'default']))
+        ->assertSessionHasErrors('php_versions');
+    $this->post('/packages', packageInput(['php_group' => '1', 'php_versions_all' => '1', 'php_profiles_all' => '1', 'php_default_profile' => 'default']))
+        ->assertSessionHasErrors(['php_versions', 'php_profiles']);
+    $this->fake->assertNotRan('v-add-reseller-package');
+
+    $this->post('/packages', packageInput(['php_group' => '1', 'php_versions' => ['8.4'], 'php_profiles' => ['default', 'small'], 'php_default_profile' => 'small']))
+        ->assertRedirect('/packages');
+    $this->fake->assertRan('v-change-package-tenancy', fn ($a) => $a === ['hostco_business', 'PHP_VERSIONS', '8.4']);
+    $this->fake->assertRan('v-change-package-tenancy', fn ($a) => $a === ['hostco_business', 'PHP_DEFAULT_PROFILE', 'small']);
 });

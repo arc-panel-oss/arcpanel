@@ -4,8 +4,10 @@ namespace App\Http\Controllers\Users;
 
 use App\Arc\SysConfig;
 use App\Auth\LegacySession;
+use App\Auth\LoginService;
 use App\Auth\Principal;
 use App\Auth\Role;
+use App\Auth\SudoMode;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Users\UserAdministrationRequest;
 use App\Http\Requests\Users\UserGeneralRequest;
@@ -51,17 +53,26 @@ final class UserEditController extends Controller
         return $this->page($this->users->find($principal->effectiveUser()), $principal, $policy, $impersonation);
     }
 
-    public function general(UserGeneralRequest $request, string $user, Principal $principal, UserPolicy $policy, UserActions $actions): RedirectResponse
+    public function general(UserGeneralRequest $request, string $user, Principal $principal, UserPolicy $policy, UserActions $actions, SudoMode $sudo): RedirectResponse
     {
         abort_unless($policy->update($principal, $user), 403);
         $record = $this->users->find($user);
         $values = $request->values();
+        $newPassword = ($values['password'] ?? '') !== '';
+        if (($newPassword || $values['email'] !== $record->email()) && $sudo->required($principal, $user)) {
+            return $sudo->challenge($request);
+        }
         $steps = $this->onTab('general', $user, $principal, fn () => $actions->planGeneral($record, $values));
 
         $result = $this->users->apply($steps);
         if ($result->ok() && $user === $principal->loginUser && $values['language'] !== $record->language()) {
             // The language of the session follows, as web/edit/user does.
             app(LegacySession::class)->write(['language' => $values['language']]);
+        }
+        if ($result->ok() && $newPassword && $user === $principal->loginUser && ! $principal->isImpersonating()) {
+            // The password change ended every older session; this one goes
+            // on under a new ID (E39 W2 spec D11).
+            app(LegacySession::class)->establish(['LOGIN_TIME' => LoginService::loginTime()]);
         }
 
         return $this->finish($user, $principal, 'general', $result);
@@ -90,9 +101,12 @@ final class UserEditController extends Controller
         return $this->finish($user, $principal, 'nameservers', $this->users->apply($actions->planNameservers($record, $request->values())));
     }
 
-    public function security(UserSecurityRequest $request, string $user, Principal $principal, UserPolicy $policy, UserActions $actions): RedirectResponse
+    public function security(UserSecurityRequest $request, string $user, Principal $principal, UserPolicy $policy, UserActions $actions, SudoMode $sudo): RedirectResponse
     {
         abort_unless($policy->update($principal, $user), 403);
+        if ($sudo->required($principal, $user)) {
+            return $sudo->challenge($request);
+        }
         $record = $this->users->find($user);
         $manage = $policy->manageSecurity($principal, $user);
         $steps = $actions->planSecurity($principal, $record, $request->values(withLogin: $manage), $manage);

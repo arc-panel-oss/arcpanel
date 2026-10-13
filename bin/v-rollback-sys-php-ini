@@ -1,0 +1,77 @@
+#!/bin/bash
+# info: restore a php.ini backup of a PHP version (E41)
+# options: VERSION SAPI ID
+#
+# example: v-rollback-sys-php-ini 8.4 fpm 20261012-143000
+#
+# This function restores a backup listed by v-list-sys-php-ini-backups. The
+# backup is validated and applied as v-change-sys-php-ini does, so the current
+# file is backed up first and the history only moves forward.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+version=$1
+sapi=$2
+id=$3
+
+# Includes
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/php.sh
+source $ARCPANEL/func/php.sh
+# load config file
+source_conf "$ARCPANEL/conf/arcpanel.conf"
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '3' "$#" 'VERSION SAPI ID'
+php_ini_check_args "$version" "$sapi"
+if [[ ! "$id" =~ ^[0-9]{8}-[0-9]{6}(-[0-9]+)?$ ]]; then
+	check_result "$E_INVALID" "invalid backup id :: $id"
+fi
+backup="$(php_ini_backup_dir "$version" "$sapi")/$id.ini"
+if [ ! -f "$backup" ]; then
+	check_result "$E_NOTEXIST" "backup $id does not exist"
+fi
+
+# Perform verification if read-only mode is enabled
+check_arcpanel_demo_mode
+
+php_lock "$version"
+php_ini_intake "$backup"
+candidate=$PHP_INI_CANDIDATE
+trap 'rm -f "$candidate"' EXIT
+
+if ! findings=$(php_ini_validate "$version" "$sapi" "$candidate"); then
+	php_ini_findings_text <<< "$findings"
+	check_result "$E_INVALID" "backup $id is not valid for PHP $version and was not restored"
+fi
+php_ini_findings_text <<< "$findings"
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+new_id=$(php_ini_apply "$version" "$sapi" "$candidate")
+rc=$?
+if [ "$rc" -ne 0 ]; then
+	echo "$new_id"
+	check_result "$rc" "PHP-FPM $version did not run with backup $id; the previous file was restored"
+fi
+
+#----------------------------------------------------------#
+#                         ArcPanel                         #
+#----------------------------------------------------------#
+
+# Logging
+$BIN/v-log-action "system" "Info" "System" "php.ini restored (Version: $version, SAPI: $sapi, Backup: $id)."
+log_event "$OK" "$ARGUMENTS"
+
+exit

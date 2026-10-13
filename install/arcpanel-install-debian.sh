@@ -33,7 +33,7 @@ VERBOSE='no'
 # Define software versions
 # ArcPanel version: the version of the arcpanel package, stored as VERSION
 # in arcpanel.conf (ADR-0007)
-ARCPANEL_INSTALL_VER='2.0.0~alpha.4'
+ARCPANEL_INSTALL_VER='2.1.0'
 
 # Build the full ArcPanel version
 # Split base version (2.0.0) from channel suffix (~alpha / ~beta), if present
@@ -65,8 +65,18 @@ else
 	RPATH=''
 fi
 
-# Supported PHP versions
-multiphp_v=("5.6" "7.0" "7.1" "7.2" "7.3" "7.4" "8.0" "8.1" "8.2" "8.3" "8.4" "8.5")
+# Supported PHP versions: the installable versions of the version catalog
+# (install/common/php/versions.conf, E41). An installer started from a
+# checkout reads the catalog next to it; a downloaded one reads the catalog
+# of the arcpanel package once that is installed.
+php_catalog_installable() {
+	grep -E "^VERSION='[0-9]{1,2}\.[0-9]{1,2}' .*INSTALLABLE='yes'" "$1" 2> /dev/null | cut -d\' -f2 | sort -V
+}
+multiphp_v=()
+if [ -f "$(dirname "$0")/common/php/versions.conf" ]; then
+	mapfile -t multiphp_v < <(php_catalog_installable "$(dirname "$0")/common/php/versions.conf")
+fi
+multiphp_list='no'
 # One of the following PHP versions is required for Roundcube / phpmyadmin
 multiphp_required=("8.1" "8.2" "8.3" "8.4" "8.5")
 # Default PHP version if none supplied
@@ -354,20 +364,19 @@ done
 
 if [ -n "$multiphp" ]; then
 	if [ "$multiphp" != 'no' ] && [ "$multiphp" != 'yes' ]; then
-		php_versions=$(echo $multiphp | tr ',' "\n")
 		multiphp_version=()
-		for php_version in "${php_versions[@]}"; do
-			if [[ $(echo "${multiphp_v[@]}" | fgrep -w "$php_version") ]]; then
-				multiphp_version=(${multiphp_version[@]} "$php_version")
-			else
+		for php_version in ${multiphp//,/ }; do
+			# Exact match against the catalog when it is at hand; the format
+			# otherwise, and the catalog after the package is installed
+			if [[ ! "$php_version" =~ ^[0-9]{1,2}\.[0-9]{1,2}$ ]] \
+				|| { [ "${#multiphp_v[@]}" -gt 0 ] && ! printf '%s\n' "${multiphp_v[@]}" | grep -qxF "$php_version"; }; then
 				echo "$php_version is not supported"
 				exit 1
 			fi
+			multiphp_version+=("$php_version")
 		done
-		multiphp_v=()
-		for version in "${multiphp_version[@]}"; do
-			multiphp_v=(${multiphp_v[@]} $version)
-		done
+		multiphp_v=("${multiphp_version[@]}")
+		multiphp_list='yes'
 		fpm_old=$fpm_v
 		multiphp="yes"
 		fpm_v=$(printf "%s\n" "${multiphp_version[@]}" | sort -V | tail -n1)
@@ -622,11 +631,11 @@ install_welcome_message() {
 	DISPLAY_VER=$(echo $ARCPANEL_INSTALL_VER | sed "s|~alpha||g" | sed "s|~beta||g" | sed "s|~rc[0-9]*||g")
 	echo
 	cat <<- 'ARCPANEL_LOGO'
-              _                 ____                       _
-             / \    _ __   ___ |  _ \   __ _  _ __    ___ | |
-            / _ \  | '__| / __|| |_) | / _` || '_ \  / _ \| |
-           / ___ \ | |   | (__ |  __/ | (_| || | | ||  __/| |
-          /_/   \_\|_|    \___||_|     \__,_||_| |_| \___||_|
+		              _                 ____                       _
+		             / \    _ __   ___ |  _ \   __ _  _ __    ___ | |
+		            / _ \  | '__| / __|| |_) | / _` || '_ \  / _ \| |
+		           / ___ \ | |   | (__ |  __/ | (_| || | | ||  __/| |
+		          /_/   \_\|_|    \___||_|     \__,_||_| |_| \___||_|
 	ARCPANEL_LOGO
 	echo "                                                                        "
 	echo "                                ArcPanel                                "
@@ -667,6 +676,9 @@ fi
 if [ "$multiphp" = 'yes' ]; then
 	phpfpm='yes'
 	echo -n '   - Multi-PHP Environment: Version'
+	if [ "${#multiphp_v[@]}" -eq 0 ]; then
+		echo -n ' every installable version'
+	fi
 	for version in "${multiphp_v[@]}"; do
 		echo -n " php$version"
 	done
@@ -1706,6 +1718,21 @@ fi
 
 if [ "$phpfpm" = "yes" ]; then
 	if [ "$multiphp" = 'yes' ]; then
+		# The versions of the catalog of the installed package (E41)
+		mapfile -t catalog_v < <(php_catalog_installable "$ARCPANEL_COMMON_DIR/php/versions.conf")
+		if [ "$multiphp_list" = 'yes' ]; then
+			selected_v=()
+			for v in "${multiphp_v[@]}"; do
+				if printf '%s\n' "${catalog_v[@]}" | grep -qxF "$v"; then
+					selected_v+=("$v")
+				else
+					echo "[ ! ] PHP $v is not an installable version, skipped"
+				fi
+			done
+			multiphp_v=("${selected_v[@]}")
+		else
+			multiphp_v=("${catalog_v[@]}")
+		fi
 		for v in "${multiphp_v[@]}"; do
 			echo "[ * ] Installing PHP $v..."
 			$ARCPANEL/bin/v-add-web-php "$v" > /dev/null 2>&1
@@ -1723,6 +1750,8 @@ if [ "$phpfpm" = "yes" ]; then
 	check_result $? "php-fpm start failed"
 	# Set default php version to $fpm_v
 	update-alternatives --set php /usr/bin/php$fpm_v > /dev/null 2>&1
+	# PHP-FPM profiles (E41)
+	$ARCPANEL/bin/v-add-sys-php-profiles > /dev/null 2>&1
 fi
 
 #----------------------------------------------------------#
@@ -2498,7 +2527,7 @@ chown arcpanelweb:arcpanelweb $ARCPANEL/data/sessions
 
 # Create backup folder and set correct permission
 mkdir -p /backup/
-chmod 755 /backup/
+chmod 711 /backup/
 
 # Create cronjob to generate ssl
 echo "@reboot root sleep 10 && rm /etc/cron.d/arcpanel-ssl && PATH='/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:' && /usr/local/arcpanel/bin/v-add-letsencrypt-host" > /etc/cron.d/arcpanel-ssl

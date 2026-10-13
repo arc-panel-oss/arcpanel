@@ -31,9 +31,10 @@ class FakeTerminal {
 }
 
 class FakeSocket extends EventTarget {
-	constructor(url) {
+	constructor(url, protocols) {
 		super();
 		this.url = url;
+		this.protocols = protocols;
 		this.sent = [];
 		FakeSocket.last = this;
 	}
@@ -57,8 +58,15 @@ async function start(options = {}) {
 	return component;
 }
 
+let tickets;
+
 beforeEach(() => {
 	vi.stubGlobal('WebSocket', FakeSocket);
+	document.head.innerHTML = '<meta name="csrf-token" content="csrf-abc">';
+	let count = 0;
+	tickets = vi.fn(async () => ({ ok: true, json: async () => ({ ticket: `payload${++count}.signature` }) }));
+	vi.stubGlobal('fetch', tickets);
+	FakeSocket.last = undefined;
 });
 
 afterEach(() => {
@@ -71,6 +79,7 @@ describe('apTerminal', () => {
 		const component = await start();
 		expect(FakeTerminal.last.element).toBe(component.$refs.screen);
 		expect(FakeSocket.last.url).toBe('wss://panel.example:8083/_shell/');
+		expect(FakeSocket.last.protocols).toEqual(['arcpanel.ticket.payload1.signature']);
 		expect(document.querySelectorAll('#ap-xterm-css')).toHaveLength(1);
 		await start();
 		expect(document.querySelectorAll('#ap-xterm-css')).toHaveLength(1);
@@ -105,6 +114,24 @@ describe('apTerminal', () => {
 		await start();
 		FakeSocket.last.emit('close', { wasClean: false });
 		expect(FakeTerminal.last.written).toEqual([]);
+	});
+
+	it('asks the panel for a new ticket for every connection, with the CSRF token', async () => {
+		await start({ ticketUrl: '/terminal/ticket' });
+		await start({ ticketUrl: '/terminal/ticket' });
+		expect(tickets).toHaveBeenCalledTimes(2);
+		const [address, options] = tickets.mock.calls[0];
+		expect(address).toBe('/terminal/ticket');
+		expect(options.method).toBe('POST');
+		expect(options.headers['X-CSRF-TOKEN']).toBe('csrf-abc');
+		expect(FakeSocket.last.protocols).toEqual(['arcpanel.ticket.payload2.signature']);
+	});
+
+	it('opens no socket and shows the error when the panel refuses a ticket', async () => {
+		tickets.mockImplementation(async () => ({ ok: false, status: 403, json: async () => ({}) }));
+		await start();
+		expect(FakeSocket.last).toBeUndefined();
+		expect(FakeTerminal.last.written).toEqual(['Connection error.\n']);
 	});
 
 	it('closes the socket and disposes the terminal when destroyed', async () => {

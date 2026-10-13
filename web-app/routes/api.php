@@ -18,11 +18,14 @@ use App\Http\Controllers\Api\V2\IpController;
 use App\Http\Controllers\Api\V2\LogController;
 use App\Http\Controllers\Api\V2\MailAccountController;
 use App\Http\Controllers\Api\V2\MailDomainController;
+use App\Http\Controllers\Api\V2\MalwareController;
 use App\Http\Controllers\Api\V2\MeController;
 use App\Http\Controllers\Api\V2\NodeAppController;
 use App\Http\Controllers\Api\V2\NodeController;
 use App\Http\Controllers\Api\V2\NotificationController;
 use App\Http\Controllers\Api\V2\PackageController;
+use App\Http\Controllers\Api\V2\PhpController;
+use App\Http\Controllers\Api\V2\PhpProfileController;
 use App\Http\Controllers\Api\V2\PortController;
 use App\Http\Controllers\Api\V2\PortRegistryController;
 use App\Http\Controllers\Api\V2\SearchController;
@@ -36,6 +39,7 @@ use App\Http\Controllers\Api\V2\TaskController;
 use App\Http\Controllers\Api\V2\UpdateController;
 use App\Http\Controllers\Api\V2\UserController;
 use App\Http\Controllers\Api\V2\WebDomainController;
+use App\Http\Controllers\Api\V2\WebDomainPhpController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -70,6 +74,9 @@ Route::middleware('not-readonly')->group(function () {
 });
 Route::get('/stats', [StatsController::class, 'index'])->name('stats.index');
 Route::get('/search', SearchController::class)->name('search');
+
+// Malware scan summary of the principal's tree (E25 batch 1 spec §9)
+Route::get('/malware', [MalwareController::class, 'summary'])->middleware('sys-config:MALWARE_SCAN=yes')->name('malware.summary');
 Route::get('/access-key-sets', [AccessKeyController::class, 'sets'])->name('access-key-sets.index');
 
 // Docker catalog (E34 batch 4 spec §4.3, D44)
@@ -130,6 +137,35 @@ Route::prefix('/system')->name('system.')->group(function () {
         Route::put('/updates/settings', [UpdateController::class, 'settings'])->name('updates.settings');
         Route::post('/packages/{slug}', [SystemPackageController::class, 'install'])->where($slug)->name('packages.install');
         Route::delete('/packages/{slug}', [SystemPackageController::class, 'remove'])->where($slug)->name('packages.remove');
+    });
+});
+
+// PHP Manager (E41 spec 2026-10-12-001 §9): versions, extensions, php.ini and
+// PHP-FPM profiles; administrators only. {php} is a version such as 8.4.
+Route::prefix('/system/php')->name('system.php.')->group(function () {
+    $php = ['php' => '\d{1,2}\.\d{1,2}'];
+    $sapi = ['sapi' => 'fpm|cli'];
+    $name = ['name' => '[a-z0-9_]{1,32}'];
+    $profile = ['profile' => '[a-z0-9][a-z0-9-]{0,31}'];
+    Route::get('/versions', [PhpController::class, 'index'])->name('versions.index');
+    Route::get('/versions/{php}', [PhpController::class, 'show'])->where($php)->name('versions.show');
+    Route::get('/versions/{php}/extensions', [PhpController::class, 'extensions'])->where($php)->name('extensions.index');
+    Route::get('/versions/{php}/ini/{sapi}', [PhpController::class, 'ini'])->where($php + $sapi)->name('ini.show');
+    Route::get('/versions/{php}/ini/{sapi}/backups', [PhpController::class, 'backups'])->where($php + $sapi)->name('ini.backups.index');
+    Route::get('/profiles', [PhpProfileController::class, 'index'])->name('profiles.index');
+    Route::get('/profiles/{profile}', [PhpProfileController::class, 'show'])->where($profile)->name('profiles.show');
+    Route::middleware('not-readonly')->group(function () use ($php, $sapi, $name, $profile) {
+        Route::post('/versions/{php}', [PhpController::class, 'install'])->where($php)->name('versions.install');
+        Route::delete('/versions/{php}', [PhpController::class, 'remove'])->where($php)->name('versions.remove');
+        Route::put('/versions/{php}/extensions/{name}', [PhpController::class, 'setExtension'])->where($php + $name)->name('extensions.update');
+        Route::delete('/versions/{php}/extensions/{name}', [PhpController::class, 'removeExtension'])->where($php + $name)->name('extensions.destroy');
+        Route::put('/versions/{php}/ini/{sapi}', [PhpController::class, 'replaceIni'])->where($php + $sapi)->name('ini.replace');
+        Route::patch('/versions/{php}/ini/{sapi}', [PhpController::class, 'updateIni'])->where($php + $sapi)->name('ini.update');
+        Route::post('/versions/{php}/ini/{sapi}/backups/{backup}/restore', [PhpController::class, 'restore'])
+            ->where($php + $sapi + ['backup' => '\d{8}-\d{6}(-\d+)?'])->name('ini.backups.restore');
+        Route::post('/profiles', [PhpProfileController::class, 'store'])->name('profiles.store');
+        Route::put('/profiles/{profile}', [PhpProfileController::class, 'update'])->where($profile)->name('profiles.update');
+        Route::delete('/profiles/{profile}', [PhpProfileController::class, 'destroy'])->where($profile)->name('profiles.destroy');
     });
 });
 
@@ -207,6 +243,24 @@ Route::middleware('effective-user')->group(function () {
         Route::delete('/users/{user}/secrets/{name}', [SecretController::class, 'destroy'])->where('name', $secret)->name('secrets.destroy');
     });
 
+    // Malware scan of a user (E25 batch 1 spec §9); 404 while the plugin is off
+    Route::middleware('sys-config:MALWARE_SCAN=yes')->prefix('/users/{user}/malware')->name('malware.')->group(function () {
+        $finding = ['finding' => '[a-f0-9]{16}'];
+        $quarantined = ['id' => '[0-9]{14}'];
+        Route::get('/findings', [MalwareController::class, 'findings'])->name('findings.index');
+        Route::get('/scans', [MalwareController::class, 'scans'])->name('scans.index');
+        Route::get('/quarantine', [MalwareController::class, 'quarantined'])->name('quarantine.index');
+        Route::get('/ignores', [MalwareController::class, 'ignores'])->name('ignores.index');
+        Route::middleware('not-readonly')->group(function () use ($finding, $quarantined) {
+            Route::post('/scans', [MalwareController::class, 'start'])->name('scans.store');
+            Route::post('/findings/{finding}/quarantine', [MalwareController::class, 'quarantine'])->where($finding)->name('findings.quarantine');
+            Route::post('/findings/{finding}/ignore', [MalwareController::class, 'ignore'])->where($finding)->name('findings.ignore');
+            Route::post('/quarantine/{id}/restore', [MalwareController::class, 'restore'])->where($quarantined)->name('quarantine.restore');
+            Route::delete('/quarantine/{id}', [MalwareController::class, 'destroyQuarantined'])->where($quarantined)->name('quarantine.destroy');
+            Route::delete('/ignores/{sha256}', [MalwareController::class, 'destroyIgnore'])->where('sha256', '[a-f0-9]{64}')->name('ignores.destroy');
+        });
+    });
+
     // Access keys and two-factor authentication of a user (E34 batch 6 §4.5, §4.6)
     Route::get('/users/{user}/access-keys', [AccessKeyController::class, 'index'])->name('access-keys.index');
     Route::get('/users/{user}/access-keys/{key}', [AccessKeyController::class, 'show'])->where('key', '[A-Za-z0-9]{20}')->name('access-keys.show');
@@ -228,6 +282,8 @@ Route::middleware('effective-user')->group(function () {
     Route::get('/users/{user}/web-domains', [WebDomainController::class, 'index'])->name('web-domains.index');
     Route::get('/users/{user}/web-domains/{domain}', [WebDomainController::class, 'show'])->name('web-domains.show');
     Route::get('/users/{user}/web-domains/{domain}/logs', [WebDomainController::class, 'logs'])->name('web-domains.logs');
+    // PHP version and PHP-FPM profile (E41 §9)
+    Route::get('/users/{user}/web-domains/{domain}/php', [WebDomainPhpController::class, 'show'])->name('web-domains.php.show');
     Route::middleware('not-readonly')->prefix('/users/{user}/web-domains')->name('web-domains.')->group(function () {
         Route::post('/', [WebDomainController::class, 'store'])->name('store');
         Route::patch('/{domain}', [WebDomainController::class, 'update'])->name('update');
@@ -241,6 +297,7 @@ Route::middleware('effective-user')->group(function () {
         Route::put('/{domain}/ssl', [WebDomainController::class, 'setSsl'])->name('ssl.update');
         Route::delete('/{domain}/ssl', [WebDomainController::class, 'deleteSsl'])->name('ssl.destroy');
         Route::post('/{domain}/letsencrypt', [WebDomainController::class, 'letsEncrypt'])->name('letsencrypt');
+        Route::put('/{domain}/php', [WebDomainPhpController::class, 'update'])->name('php.update');
     });
 
     // DNS zones and records (E34 batch 2 spec §6.1)
@@ -462,6 +519,7 @@ foreach (Route::getRoutes() as $route) {
         str_starts_with($uri, 'api/v2/system/settings/') => 'server',
         str_contains($uri, '/web-domains') => 'web',
         str_contains($uri, '/secrets') => 'secrets',
+        str_contains($uri, '/malware') => 'security',
         str_contains($uri, '/dns-zones') => 'dns',
         str_contains($uri, '/mail-domains') => 'mail',
         str_contains($uri, '/databases') => 'db',
