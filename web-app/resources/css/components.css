@@ -5102,6 +5102,48 @@ a.ap-pick:focus-visible {
 	flex-wrap: nowrap;
 	justify-content: flex-end;
 }
+/* The domain picker and the scan button share one row in the page head */
+.ap-form.ap-malware-scan {
+	flex-direction: row;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: var(--ap-space-2);
+}
+.ap-malware-scan .ap-select {
+	width: auto;
+	min-width: 14rem;
+}
+.ap-malware-scope {
+	display: flex;
+	flex-wrap: wrap;
+	column-gap: var(--ap-space-2);
+}
+@media (max-width: 767px) {
+	.ap-malware-scan .ap-select {
+		flex: 1 1 12rem;
+	}
+	/* Two row actions do not fit beside the severity: they get their own
+	   line at the end of the card, and the file and reasons read top-down */
+	.ap-malware-cards .ap-table-cards tbody td.col-actions {
+		grid-column: 1 / -1;
+		grid-row: auto;
+		justify-content: flex-start;
+	}
+	.ap-malware-cards .ap-table-cards tbody td:is([data-col="file"], [data-col="rules"]) {
+		flex-direction: column;
+		align-items: flex-start;
+		gap: var(--ap-space-1);
+	}
+	.ap-malware-cards .ap-malware-file {
+		width: 100%;
+	}
+	.ap-malware-cards .ap-malware-file code {
+		max-width: 100%;
+	}
+	.ap-malware-scope {
+		justify-content: flex-end;
+	}
+}
 .ap-tab-count {
 	margin-inline-start: var(--ap-space-1);
 	padding: 0 var(--ap-space-1-5);
