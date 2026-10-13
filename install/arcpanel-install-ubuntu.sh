@@ -33,7 +33,7 @@ VERBOSE='no'
 # Define software versions
 # ArcPanel version: the version of the arcpanel package, stored as VERSION
 # in arcpanel.conf (ADR-0007)
-ARCPANEL_INSTALL_VER='2.1.0'
+ARCPANEL_INSTALL_VER='2.1.1'
 
 # Build the full ArcPanel version
 # Split base version (2.0.0) from channel suffix (~alpha / ~beta), if present
@@ -469,6 +469,11 @@ if [ "$type" = "debian" ]; then
 	check_result 1 "You are running the wrong installer for Debian. Please run arcpanel-install.sh or arcpanel-install-debian.sh instead."
 elif [ "$type" != "ubuntu" ]; then
 	check_result 1 "You are running an unsupported OS."
+fi
+
+# Packages are built for amd64 only; arm64 is not supported for now
+if [ "$architecture" = 'aarch64' ]; then
+	check_result 1 "arm64 (aarch64) is not supported for now: ArcPanel packages are built for amd64 only."
 fi
 
 # Clear the screen once launch permissions have been verified

@@ -27,7 +27,7 @@ for dir in "$debs"/*/; do
 Origin: ArcPanel
 Label: ArcPanel
 Codename: $codename
-Architectures: amd64 arm64
+Architectures: amd64
 Components: main
 Description: ArcPanel packages for $codename
 SignWith: $key

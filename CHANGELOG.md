@@ -2,7 +2,17 @@
 
 All notable changes to ArcPanel are listed here. ArcPanel is based on HestiaCP 1.10.5 and, since 2.0, a hard fork of it ([ADR-0007](https://github.com/arc-panel-oss/docs/blob/main/adr/0007-full-rename-and-hard-fork.md)).
 
-## 2.1.0 — 2026-10-13
+## 2.1.1 — 2026-10-13
+
+The first published 2.1 release: it ships the changes of 2.1.0 below, for amd64 only.
+
+### Breaking changes
+
+- **arm64 is not supported for now.** Packages are built for amd64 only, and the installers stop on an arm64 (aarch64) server before they change anything. Debian 12 / 13 and Ubuntu 22.04 / 24.04 / 26.04 LTS on amd64 stay supported.
+
+## 2.1.0 — 2026-10-13 (not published)
+
+The tag `v2.1.0` exists, but its release build did not finish and no package was published; its changes ship in 2.1.1.
 
 Two features for PHP sites: the PHP Manager and a malware scan for PHP files. See the [E41 spec](https://github.com/arc-panel-oss/docs/blob/main/features/specs/2026-10-12-001-e41-php-manager-design.md) and the [E25 spec](https://github.com/arc-panel-oss/docs/blob/main/features/specs/2026-10-12-002-e25-malware-scan-design.md).
 
