@@ -84,6 +84,21 @@ jobs:
               ls -la /tmp/arcpanel-src/debs || true
               exit 1
             fi
+            # The engine packages come from the APT repository. Until a stable release has
+            # published them (a stable version reads the stable channel), take the newest
+            # ones of the beta channel for noble amd64.
+            if ! curl -fsSI https://apt.arcpanel.top/dists/noble/InRelease >/dev/null; then
+              BETA=https://apt.arcpanel.top/beta
+              curl -fsSL -o /tmp/beta-packages "${BETA}/dists/noble/main/binary-amd64/Packages"
+              for p in arcpanel-nginx arcpanel-php arcpanel-web-terminal; do
+                if ! compgen -G "${DEB_PATH}/${p}_*.deb" >/dev/null; then
+                  f="$(awk -v p="$p" "\$1 == \"Package:\" { n = \$2 } \$1 == \"Filename:\" && n == p { print \$2 }" /tmp/beta-packages | tail -n 1)"
+                  test -n "$f"
+                  curl -fsSL -o "${DEB_PATH}/$(basename "$f")" "${BETA}/${f}"
+                fi
+              done
+              ls -la "${DEB_PATH}"
+            fi
             cd /arcpanel-git
             bash install/arcpanel-install-ubuntu.sh \
               --hostname arcpanel.local.test \
