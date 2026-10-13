@@ -1,4 +1,6 @@
-FROM ubuntu:26.04
+# Ubuntu 24.04: the installer takes arcpanel-php and arcpanel-nginx from the beta APT
+# repository, and pre-releases publish noble only (.github/workflows/release.yml).
+FROM ubuntu:24.04
 
 ENV DEBIAN_FRONTEND=noninteractive
 ENV container=docker
