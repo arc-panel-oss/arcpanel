@@ -477,7 +477,7 @@ function check_ip_not_banned(){
 }
 
 @test "User: Change user theme" {
-  run v-change-user-theme $user "flat"
+  run v-change-user-theme $user "light"
   assert_success
   refute_output
 }
@@ -1397,11 +1397,11 @@ function check_ip_not_banned(){
 
     assert_file_contains "$HOMEDIR/$user/conf/dns/${domain}.db" "mx.arcpanel.com."
 
-    run v-change-dns-record $user $domain 50 '@' MX mx.arcpanel.com
+    run v-change-dns-record $user $domain 50 '@' MX mx2.arcpanel.com
     assert_success
     refute_output
 
-    assert_file_contains "$HOMEDIR/$user/conf/dns/${domain}.db" "mx.arcpanel.com."
+    assert_file_contains "$HOMEDIR/$user/conf/dns/${domain}.db" "mx2.arcpanel.com."
 
     run v-delete-dns-record $user $domain 50
     assert_success
@@ -1416,11 +1416,11 @@ function check_ip_not_banned(){
 
     assert_file_contains "$HOMEDIR/$user/conf/dns/${domain}.db" "mx.arcpanel.com."
 
-    run v-change-dns-record $user $domain 50 '@' NS mx.arcpanel.com
+    run v-change-dns-record $user $domain 50 '@' NS mx2.arcpanel.com
     assert_success
     refute_output
 
-    assert_file_contains "$HOMEDIR/$user/conf/dns/${domain}.db" "mx.arcpanel.com."
+    assert_file_contains "$HOMEDIR/$user/conf/dns/${domain}.db" "mx2.arcpanel.com."
 
     run v-delete-dns-record $user $domain 50
     assert_success
@@ -1454,11 +1454,11 @@ function check_ip_not_banned(){
 
     assert_file_contains "$HOMEDIR/$user/conf/dns/${domain}.db" "mx.arcpanel.com."
 
-    run v-change-dns-record $user $domain 50 'mail' CNAME mx.arcpanel.com
+    run v-change-dns-record $user $domain 50 'mail' CNAME mx2.arcpanel.com
     assert_success
     refute_output
 
-    assert_file_contains "$HOMEDIR/$user/conf/dns/${domain}.db" "mx.arcpanel.com."
+    assert_file_contains "$HOMEDIR/$user/conf/dns/${domain}.db" "mx2.arcpanel.com."
 
     run v-delete-dns-record $user $domain 50
     assert_success
@@ -1622,7 +1622,7 @@ function check_ip_not_banned(){
     refute_output
     validate_mail_domain $user $domain
 
-    validate_webmail_domain $user $domain 'Success!'
+    validate_webmail_domain $user $domain 'Your web server is ready'
 
     run v-add-mail-domain-webmail $user $domain "roundcube" "yes"
     assert_success
@@ -1668,9 +1668,9 @@ function check_ip_not_banned(){
 }
 
 @test "MAIL: Add account alias 3" {
-	run v-add-mail-account-alias $user $domain test arcpanel
+	run v-add-mail-account-alias $user $domain test arcpanelteam
 	assert_success
-	assert_file_contains /etc/exim4/domains/$domain/aliases "arcpanel@$domain"
+	assert_file_contains /etc/exim4/domains/$domain/aliases "arcpanelteam@$domain"
 	refute_output
 }
 
@@ -2503,7 +2503,11 @@ EVIL='x'" > /tmp/backup_exclusions_unknownkey
 }
 
 @test "Suspend: Check if login is disabled" {
+    # The salt of a locked account answers like any other; the password
+    # check says it is suspended once the password matches (L6)
     run v-get-user-salt $user
+    assert_success
+    run v-check-user-password $user "$userpass2" 192.168.2.10
     assert_failure $E_SUSPENDED
 }
 
