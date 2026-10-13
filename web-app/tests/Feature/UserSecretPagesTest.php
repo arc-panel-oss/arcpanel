@@ -126,9 +126,7 @@ it('replaces a value and restarts the apps that use it on request', function () 
     $this->fake->assertRan('v-change-user-secret', fn ($a) => $a === ['bob', '/shop/db_password', 'new-value-2', 'no']);
 
     // an app that does not restart is named; the value is changed anyway
-    $this->fake->on('v-change-user-secret')->returns("node:shop.bob.example
-docker:shop
-failed:docker:shop");
+    $this->fake->on('v-change-user-secret')->returns("node:shop.bob.example\ndocker:shop\nfailed:docker:shop");
     $this->post('/secrets/bob/item/value', ['name' => '/shop/db_password', 'value' => 'new-value-3', 'restart' => '1'])
         ->assertSessionHas('ok', 'Secret /shop/db_password has been changed. Restarted: node:shop.bob.example, docker:shop. These apps did not restart: docker:shop.');
 });
