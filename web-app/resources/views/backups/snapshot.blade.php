@@ -31,27 +31,29 @@
             @if ($content->items[$type] === [])
                 <p class="muted ap-card-pad">{{ __('Nothing of this kind in the snapshot.') }}</p>
             @else
-                <table class="ap-table">
-                    <caption class="sr-only">{{ $label }}</caption>
-                    <tbody>
-                        @foreach ($type === 'cron' ? array_slice($content->items[$type], 0, 1) : $content->items[$type] as $item)
-                            <tr>
-                                <td class="mono">{{ $type === 'cron' ? __('All cron jobs') : $item }}</td>
-                                <td class="col-actions">
-                                    @if ($can['restore'])
-                                        <form method="post" action="{{ route('backups.snapshots.restore', $params) }}" class="ap-inline-form"
-                                            data-confirm="{{ sprintf(__('Restore %s from the snapshot?'), $type === 'cron' ? __('All cron jobs') : $item) }}">
-                                            @csrf
-                                            <input type="hidden" name="type" value="{{ $type }}">
-                                            @if ($type !== 'cron')<input type="hidden" name="object" value="{{ $item }}">@endif
-                                            <button type="submit" class="ap-btn ap-btn-sm"><x-ap-icon name="history" />{{ __('Restore') }}</button>
-                                        </form>
-                                    @endif
-                                </td>
-                            </tr>
-                        @endforeach
-                    </tbody>
-                </table>
+                <div class="ap-table-wrap">
+                    <table class="ap-table">
+                        <caption class="sr-only">{{ $label }}</caption>
+                        <tbody>
+                            @foreach ($type === 'cron' ? array_slice($content->items[$type], 0, 1) : $content->items[$type] as $item)
+                                <tr>
+                                    <td class="mono">{{ $type === 'cron' ? __('All cron jobs') : $item }}</td>
+                                    <td class="col-actions">
+                                        @if ($can['restore'])
+                                            <form method="post" action="{{ route('backups.snapshots.restore', $params) }}" class="ap-inline-form"
+                                                data-confirm="{{ sprintf(__('Restore %s from the snapshot?'), $type === 'cron' ? __('All cron jobs') : $item) }}">
+                                                @csrf
+                                                <input type="hidden" name="type" value="{{ $type }}">
+                                                @if ($type !== 'cron')<input type="hidden" name="object" value="{{ $item }}">@endif
+                                                <button type="submit" class="ap-btn ap-btn-sm"><x-ap-icon name="history" />{{ __('Restore') }}</button>
+                                            </form>
+                                        @endif
+                                    </td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
             @endif
         </x-ap-card>
     @endforeach

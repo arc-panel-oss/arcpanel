@@ -174,3 +174,29 @@ it('classifies log lines like the log script', function () {
         ->and(LogLine::level('1.2.3.4 - - "GET /x HTTP/1.1" 404 10'))->toBe('is-warn')
         ->and(LogLine::level('1.2.3.4 - - "GET / HTTP/1.1" 200 10'))->toBe('');
 });
+
+it('puts every table in a horizontal scroll box, so narrow screens do not scroll the page', function () {
+    $bare = [];
+    $views = new RecursiveIteratorIterator(new RecursiveDirectoryIterator(resource_path('views'), FilesystemIterator::SKIP_DOTS));
+    foreach ($views as $file) {
+        if (! str_ends_with($file->getFilename(), '.blade.php')) {
+            continue;
+        }
+        $lines = file($file->getPathname(), FILE_IGNORE_NEW_LINES);
+        foreach ($lines as $i => $line) {
+            if (! preg_match('/<table class="ap-table[ "]/', $line)) {
+                continue;
+            }
+            $previous = '';
+            for ($j = $i - 1; $j >= 0 && $previous === ''; $j--) {
+                $previous = trim($lines[$j]);
+            }
+            if (! str_contains($previous, 'class="ap-table-wrap')) {
+                $bare[] = str_replace(resource_path('views').DIRECTORY_SEPARATOR, '', $file->getPathname()).':'.($i + 1);
+            }
+        }
+    }
+    sort($bare);
+
+    expect($bare)->toBe([]);
+});

@@ -32,21 +32,23 @@
                 @if ($archive->items[$type] === [])
                     <p class="muted ap-card-pad">{{ __('Nothing of this kind in the backup.') }}</p>
                 @else
-                    <table class="ap-table">
-                        <caption class="sr-only">{{ $label }}</caption>
-                        <tbody>
-                            @foreach ($type === 'cron' ? array_slice($archive->items[$type], 0, 1) : $archive->items[$type] as $item)
-                                <tr>
-                                    <td class="col-check">
-                                        @if ($can['restore'])
-                                            <label class="ap-check"><input type="checkbox" name="items[{{ $type }}][]" value="{{ $item }}" id="item-{{ $type }}-{{ $loop->index }}"></label>
-                                        @endif
-                                    </td>
-                                    <td><label class="mono" for="item-{{ $type }}-{{ $loop->index }}">{{ $type === 'cron' ? __('All cron jobs') : $item }}</label></td>
-                                </tr>
-                            @endforeach
-                        </tbody>
-                    </table>
+                    <div class="ap-table-wrap">
+                        <table class="ap-table">
+                            <caption class="sr-only">{{ $label }}</caption>
+                            <tbody>
+                                @foreach ($type === 'cron' ? array_slice($archive->items[$type], 0, 1) : $archive->items[$type] as $item)
+                                    <tr>
+                                        <td class="col-check">
+                                            @if ($can['restore'])
+                                                <label class="ap-check"><input type="checkbox" name="items[{{ $type }}][]" value="{{ $item }}" id="item-{{ $type }}-{{ $loop->index }}"></label>
+                                            @endif
+                                        </td>
+                                        <td><label class="mono" for="item-{{ $type }}-{{ $loop->index }}">{{ $type === 'cron' ? __('All cron jobs') : $item }}</label></td>
+                                    </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    </div>
                 @endif
             </x-ap-card>
         @endforeach

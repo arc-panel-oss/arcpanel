@@ -14,18 +14,20 @@
     @else
         @foreach ($groups as $group)
             <x-ap-card :title="$group['label']" :flush="true">
-                <table class="ap-table">
-                    <caption class="sr-only">{{ $group['label'] }}</caption>
-                    <thead><tr><th scope="col">{{ __('Result') }}</th><th scope="col">{{ __('Owner') }}</th></tr></thead>
-                    <tbody>
-                        @foreach ($group['items'] as $item)
-                            <tr>
-                                <td><a href="{{ $item['url'] }}"><x-ap-icon :name="$item['icon']" /> {{ $item['label'] }}</a></td>
-                                <td class="muted">{{ $item['meta'] }}</td>
-                            </tr>
-                        @endforeach
-                    </tbody>
-                </table>
+                <div class="ap-table-wrap">
+                    <table class="ap-table">
+                        <caption class="sr-only">{{ $group['label'] }}</caption>
+                        <thead><tr><th scope="col">{{ __('Result') }}</th><th scope="col">{{ __('Owner') }}</th></tr></thead>
+                        <tbody>
+                            @foreach ($group['items'] as $item)
+                                <tr>
+                                    <td><a href="{{ $item['url'] }}"><x-ap-icon :name="$item['icon']" /> {{ $item['label'] }}</a></td>
+                                    <td class="muted">{{ $item['meta'] }}</td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
             </x-ap-card>
         @endforeach
     @endif
