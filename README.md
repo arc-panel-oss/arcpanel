@@ -10,7 +10,7 @@ ArcPanel is based on [HestiaCP](https://github.com/hestiacp/hestiacp) 1.10.5 and
 | --------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
 | Current release | ArcPanel 2.0.0 (in development), based on HestiaCP 1.10.5                                                                               |
 | Target          | ArcPanel 2.0: the whole web UI on Laravel, legacy pages retired ([roadmap](https://github.com/arc-panel-oss/docs/blob/main/roadmap.md)) |
-| Platforms       | Debian 12 / 13, Ubuntu 22.04 / 24.04 / 26.04 LTS, amd64 and arm64 (no 32-bit)                                                           |
+| Platforms       | Debian 12 / 13, Ubuntu 22.04 / 24.04 / 26.04 LTS, amd64 only (arm64 is not supported for now; no 32-bit)                                |
 | License         | [GPL-3.0-or-later](LICENSE)                                                                                                             |
 
 ---

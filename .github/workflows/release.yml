@@ -6,7 +6,8 @@ name: Release
 #   Version 1.0.0        -> tag v1.0.0        -> stable repository  https://apt.arcpanel.top/
 #   Version 1.0.1~beta1  -> tag v1.0.1-beta1  -> beta repository    https://apt.arcpanel.top/beta/
 #
-# A stable release builds every supported distribution on amd64 and arm64; a pre-release builds
+# A stable release builds every supported distribution on amd64 (arm64 is not supported for now;
+# add "arm64" to the stable matrix to bring it back); a pre-release builds
 # Ubuntu 24.04 amd64 only. arcpanel-nginx, arcpanel-php and arcpanel-web-terminal come from the
 # Actions cache while their sources and src/arcpanel-build.sh are unchanged.
 #
@@ -63,7 +64,7 @@ jobs:
             echo 'matrix={"image":["ubuntu:24.04"],"arch":["amd64"]}' >> "$GITHUB_OUTPUT"
           else
             echo "channel=stable" >> "$GITHUB_OUTPUT"
-            echo 'matrix={"image":["debian:12","debian:13","ubuntu:22.04","ubuntu:24.04","ubuntu:26.04"],"arch":["amd64","arm64"]}' >> "$GITHUB_OUTPUT"
+            echo 'matrix={"image":["debian:12","debian:13","ubuntu:22.04","ubuntu:24.04","ubuntu:26.04"],"arch":["amd64"]}' >> "$GITHUB_OUTPUT"
           fi
 
   build:
