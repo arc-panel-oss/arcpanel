@@ -93,7 +93,11 @@ it('keeps the page for administrators and read-only in read-only mode', function
 
 it('shows the page in the server navigation of administrators only', function () {
     signIn('arcadmin', 'admin');
-    $this->get('/server/packages')->assertSee('href="'.route('server.packages').'"', false);
+    // One sidebar item, Updates, with the tabs ArcPanel and System packages (sidebar hubs spec H4)
+    $this->get('/server/packages')
+        ->assertSee('<nav class="ap-tabs ap-hub-tabs" aria-label="Updates">', false)
+        ->assertSee('<a class="ap-tab" href="'.route('server.updates').'">ArcPanel</a>', false)
+        ->assertSee('<a class="ap-tab" href="'.route('server.packages').'" aria-current="page">System packages</a>', false);
 
     fakeResellers($this->fake);
     signIn('hostco', 'reseller');

@@ -80,6 +80,16 @@ it('searches objects, users and pages for the command palette', function () {
     expect(collect($pages['Pages and actions']['items'])->pluck('label'))->toContain('Web', 'Add Web Domain');
 });
 
+it('lists the pages of each hub in the command palette (sidebar hubs spec H8)', function () {
+    $this->fake->on('v-search-object')->returnsJson([]);
+    withSysConfig($this->fake, ['API_SYSTEM' => '2']); // access keys and SSH keys: the Keys hub
+    signIn('arcadmin', 'admin');
+    $pages = fn (string $query) => collect(collect($this->getJson('/_palette?q='.$query)->json('groups'))->keyBy('label')['Pages and actions']['items']);
+
+    expect($pages('firewall')->firstWhere('label', 'Firewall'))->toMatchArray(['meta' => 'Network', 'url' => route('server.firewall')])
+        ->and($pages('ssh')->firstWhere('label', 'SSH keys'))->toMatchArray(['meta' => 'Keys', 'url' => route('ssh-keys.index')]);
+});
+
 it('keeps palette results of a user to their own objects', function () {
     $this->fake->on('v-search-user-object', ['bob', 'example', 'json'])->returnsFixture('v-search-object/example.json');
     signIn('bob', 'user');

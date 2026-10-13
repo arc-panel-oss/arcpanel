@@ -206,7 +206,13 @@ final class PaletteSearch
         $items = [];
         foreach ($this->navigation->for($this->principal, null) as $group) {
             foreach ($group['items'] as $item) {
-                $items[] = ['label' => $item['label'], 'meta' => $group['label'] ?? __('Pages'), 'url' => $item['url'], 'icon' => $item['icon']];
+                // The pages of a hub, each under its own name (sidebar hubs spec H8)
+                foreach ($item['children'] ?? [] as $page) {
+                    $items[] = ['label' => $page['label'], 'meta' => $item['label'], 'url' => $page['url'], 'icon' => $page['icon']];
+                }
+                if (! isset($item['children'])) {
+                    $items[] = ['label' => $item['label'], 'meta' => $group['label'] ?? __('Pages'), 'url' => $item['url'], 'icon' => $item['icon']];
+                }
             }
         }
 

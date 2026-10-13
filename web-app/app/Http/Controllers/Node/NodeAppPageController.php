@@ -39,7 +39,7 @@ final class NodeAppPageController extends Controller
         'Next.js and Nuxt start with the start script (next start, nuxt start).', 'No Node.js app yet.',
         'No package.json in this folder yet; you can upload the code later and start the app then.', 'No variable yet.', 'Node.js apps',
         'Node.js is not included in your package.', 'Node.js version', 'Not running', 'Nothing logged yet.', 'Online', 'Open', 'Open %s',
-        'Open the Node.js page', 'Open app folder', 'Open the app', 'Open the site', 'Output', 'Overview', 'Pause', 'Port', 'Port and name', 'Port number',
+        'Open Runtimes', 'Open app folder', 'Open the app', 'Open the site', 'Output', 'Overview', 'Pause', 'Port', 'Port and name', 'Port number',
         'Process name', 'Read package.json', 'Read-only: changes are disabled.', 'Relative to the folder of the domain, e.g. public_html or app.',
         'Reload', 'Remove %s', 'Resources', 'Restart', 'Restart above', 'Restart above (MB)', 'Restarts', 'Resume', 'Run build', 'Running', 'Runtime',
         'Save', 'Save and restart', 'Saved; the app was restarted.', 'Script', 'Select %s', 'Select all', 'Settings', 'Show %s', 'Show the output',

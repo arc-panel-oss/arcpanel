@@ -276,7 +276,7 @@ onBeforeUnmount(() => poller.stop());
 					</label>
 				</div>
 				<p v-if="options.runtimes.length === 0" class="muted">
-					{{ t('Install a Node.js version first.') }} <a v-if="pages.node" :href="pages.node">{{ t('Open the Node.js page') }}</a>
+					{{ t('Install a Node.js version first.') }} <a v-if="pages.node" :href="pages.node">{{ t('Open Runtimes') }}</a>
 				</p>
 			</fieldset>
 

@@ -6,6 +6,8 @@ use App\Arc\SysConfig;
 use App\Auth\ArrayLegacySession;
 use App\Auth\Principal;
 use App\Auth\Role;
+use App\View\Navigation;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Sleep;
 use Tests\TestCase;
 
@@ -800,4 +802,16 @@ function phpProfileRows(array $extra = []): array
         'medium' => $profile('medium', 'dynamic', '20', '512M', 'Busy sites'),
         'large' => $profile('large', 'dynamic', '50', '1024M', 'Large shops and applications'),
     ] + $extra;
+}
+
+/**
+ * Sidebar items of a principal keyed by key, with the pages of each hub
+ * (sidebar hubs spec H1) listed next to it.
+ */
+function navItems(Principal $principal, ?string $route = null): Collection
+{
+    return collect(app(Navigation::class)->for($principal, $route))
+        ->flatMap(fn ($group) => $group['items'])
+        ->flatMap(fn ($item) => [$item, ...($item['children'] ?? [])])
+        ->keyBy('key');
 }

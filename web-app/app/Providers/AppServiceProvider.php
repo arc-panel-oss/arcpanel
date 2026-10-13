@@ -21,6 +21,7 @@ use App\Services\Node\NodeAccess;
 use App\Services\Server\SystemPackages;
 use App\Tenancy\TenancyDirectory;
 use App\View\AssetManifest;
+use App\View\PageTabsComposer;
 use App\View\ShellComposer;
 use Dedoc\Scramble\Scramble;
 use Illuminate\Cache\RateLimiting\Limit;
@@ -95,6 +96,7 @@ class AppServiceProvider extends ServiceProvider
         Blade::directive('apAsset', fn (string $name) => "<?php echo e(app(\App\View\AssetManifest::class)->url({$name})); ?>");
 
         View::composer('components.ap.shell', ShellComposer::class);
+        View::composer('components.ap.page', PageTabsComposer::class);
 
         // API v2: 60 requests a minute per access key (E34 spec D16)
         RateLimiter::for('api-v2', fn (Request $request) => Limit::perMinute(60)->by('api-v2:'.(app()->bound(KeyPermissions::class)
