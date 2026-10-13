@@ -711,7 +711,7 @@ Route::middleware('auth.arc')->group(function () {
     });
 });
 
-// Old URLs for one release (E8 spec §5.3): the /app prefix of 1.x and the
+// Old URLs (E8 spec §5.3, still in 2.1): the /app prefix of 1.x and the
 // legacy page paths answer 301. Registered last, so no panel route is shadowed.
 Route::get('/app/{path?}', [LegacyRedirectController::class, 'app'])->where('path', '.*')->name('legacy.app');
 Route::get('/logout', [LegacyRedirectController::class, 'logout'])->name('legacy.logout');

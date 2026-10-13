@@ -85,10 +85,10 @@ Then read the code the task touches. Design documents describe intent; the code 
 
 - Controllers are thin: validate (FormRequest) → authorize (policy) → service → redirect or JSON. Services call commands through `ArcCommand` only; one method per command, `Step` lists for multi-command actions.
 - Policies are three lines: capability lookup in `Capabilities`, scope from `OwnerScope`, read-only check. Add a `Capabilities` entry for every new route; a Pest test enforces it.
-- Routes: `/<module>/…` at the root URL (since 2.0; `/app/*` and the 1.x page paths redirect for one release through `LegacyRedirectController`), names `<module>.<action>`; Blade components `<x-ap-*>`; Vue islands `data-island="<name>"`; capabilities and audit actions `<module>.<object>.<action>`.
+- Routes: `/<module>/…` at the root URL (since 2.0; `/app/*` and the 1.x page paths redirect through `LegacyRedirectController`, still in 2.1), names `<module>.<action>`; Blade components `<x-ap-*>`; Vue islands `data-island="<name>"`; capabilities and audit actions `<module>.<object>.<action>`.
 - Style: Laravel Pint (PSR-12), 4 spaces. Tests: Pest (`tests/Unit`, `tests/Feature` with `ArcCommandFake` and fixtures under `tests/Fixtures/commands/<command>/<case>.json`), Vitest for Alpine modules and Vue islands (`tests/js`).
 - Long operations run as background tasks: a command starts the task, the page polls its status (`apTask`). Follow the task pattern of the E13 and E7 batch 2 specs.
-- Old URLs (E8): the map of 1.x page paths to panel routes is `App\View\LegacyUrls`; targets that depend on the signed-in user answer 302, the others 301. It goes away in 2.1.
+- Old URLs (E8): the map of 1.x page paths to panel routes is `App\View\LegacyUrls`; targets that depend on the signed-in user answer 302, the others 301. It is kept in 2.1; a later release removes it and announces that in `CHANGELOG.md`.
 - Cache nothing that the CLI owns beyond what `02` allows (`v-list-sys-config` 60 s; `v-list-user` per request).
 
 ### Documentation
