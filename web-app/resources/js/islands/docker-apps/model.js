@@ -127,6 +127,14 @@ export function generateSecret(length = 24, random = globalThis.crypto) {
 	return Array.from(bytes, (n) => ALPHABET[n % ALPHABET.length]).join('');
 }
 
+/**
+ * The store link: only when the engine runs, the package includes Docker
+ * apps and the account may install them.
+ */
+export function canOpenStore(abilities) {
+	return Boolean(abilities?.engine && abilities.available && abilities.manage);
+}
+
 /** Badge tone and label key of an app status */
 export function appStatus(app) {
 	if (app.suspended) {

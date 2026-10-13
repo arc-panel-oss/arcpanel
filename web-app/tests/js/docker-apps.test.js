@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { appPath, pageUrl } from '../../resources/js/islands/docker-apps/api.js';
 import {
 	appStatus,
+	canOpenStore,
 	categoriesOf,
 	defaultAppName,
 	filterCatalog,
@@ -88,6 +89,16 @@ describe('values shown in the settings (E38)', () => {
 		expect(shownValue({ secret: true, value: '{{secret:/shop/db}}' })).toBe('{{secret:/shop/db}}');
 		// a password that only contains a reference stays hidden
 		expect(shownValue({ secret: true, value: 'hunter2pw-{{secret:/x}}' })).toBe('');
+	});
+});
+
+describe('store link', () => {
+	it('offers the store only with the engine, the package and the right to install', () => {
+		expect(canOpenStore({ engine: true, available: true, manage: true })).toBe(true);
+		expect(canOpenStore({ engine: true, available: false, manage: true })).toBe(false);
+		expect(canOpenStore({ engine: false, available: true, manage: true })).toBe(false);
+		expect(canOpenStore({ engine: true, available: true, manage: false })).toBe(false);
+		expect(canOpenStore(undefined)).toBe(false);
 	});
 });
 
