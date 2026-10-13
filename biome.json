@@ -16,6 +16,7 @@
 			"!**/test-results",
 			"!**/test/test_helper",
 			"!**/install/deb/pga/phppgadmin",
+			"!**/templates/nocturne",
 			"!**/email/examples/*.html",
 			"!**/*.bats",
 			"!**/*.min.css",

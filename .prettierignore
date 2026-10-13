@@ -64,3 +64,6 @@ lib/quoteshellarg/
 
 # Vendored phpPgAdmin (upstream formatting)
 install/deb/pga/phppgadmin/
+
+# Static HTML prototypes of the Nocturne shell (E2), not shipped
+/templates/nocturne/

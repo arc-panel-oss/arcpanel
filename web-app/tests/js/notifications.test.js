@@ -23,7 +23,7 @@ beforeEach(() => {
 	visibility = 'visible';
 	Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => visibility });
 	document.head.innerHTML = '<meta name="csrf-token" content="csrf-123">';
-	fetchMock = vi.fn(async (url, options = {}) => (options.method ?? 'GET') === 'GET' ? jsonResponse(list()) : jsonResponse({ ok: true }));
+	fetchMock = vi.fn(async (_url, options = {}) => (options.method ?? 'GET') === 'GET' ? jsonResponse(list()) : jsonResponse({ ok: true }));
 	vi.stubGlobal('fetch', fetchMock);
 });
 

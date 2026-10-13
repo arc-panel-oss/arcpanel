@@ -61,7 +61,7 @@ jobs:
             set -euxo pipefail
             export TERM=xterm
             cd /arcpanel-git/src
-            # The build folder must be root's with mode 0700 (E39 W1 D13)
+            # The build folder must be owned by root with mode 0700 (E39 W1 D13)
             install -d -m 700 /tmp/arcpanel-src
             BUILD_DIR=/tmp/arcpanel-src bash ./arcpanel-build.sh --arcpanel --noinstall --keepbuild "~localsrc"
             DEB_PATH=""
