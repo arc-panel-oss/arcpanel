@@ -2,9 +2,19 @@
 
 All notable changes to ArcPanel are listed here. ArcPanel is based on HestiaCP 1.10.5 and, since 2.0, a hard fork of it ([ADR-0007](https://github.com/arc-panel-oss/docs/blob/main/adr/0007-full-rename-and-hard-fork.md)).
 
-## 2.1.1 — 2026-10-13
+## 2.1.2 — 2026-10-15
 
-The first published 2.1 release: it ships the changes of 2.1.0 below, for amd64 only.
+The first published 2.1 release: it ships the changes of 2.1.1 and 2.1.0 below, for amd64 only.
+
+### Fixed
+
+- `v-add-user` sets the modes of the user's `web/` and `conf/` folders whatever the umask of the caller; a root shell with umask 077 left them closed to the user and the web server.
+- Pruning the `php.ini` backups of a PHP version no longer parses the output of `ls`.
+- The package build installs its build tools without debconf questions; the time zone question of `tzdata` stopped the Ubuntu 22.04 build of 2.1.0 and 2.1.1.
+
+## 2.1.1 — 2026-10-13 (not published)
+
+The tag `v2.1.1` exists, but its release build did not finish and no package was published; its changes ship in 2.1.2.
 
 ### Breaking changes
 
