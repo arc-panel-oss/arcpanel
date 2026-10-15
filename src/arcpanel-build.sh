@@ -11,6 +11,11 @@
 # Clear previous screen output
 clear
 
+# Install packages without debconf prompts: tzdata otherwise asks for a time
+# zone and waits forever in a CI container (it hung the ubuntu:22.04 build).
+export DEBIAN_FRONTEND=noninteractive
+export TZ=Etc/UTC
+
 # Define download function
 download_file() {
 	local url=$1
