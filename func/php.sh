@@ -652,10 +652,14 @@ php_ini_findings_text() {
 
 # Remove all but the ten newest backups of a file
 php_ini_prune() {
-	local dir
+	local dir file
 	dir=$(php_ini_backup_dir "$1" "$2")
-	ls -1 "$dir" 2> /dev/null | grep -E '^[0-9]{8}-[0-9]{6}(-[0-9]+)?\.ini$' | sort -V \
-		| head -n "-$PHP_INI_KEEP" | while read -r old; do
+	for file in "$dir"/*.ini; do
+		file=${file##*/}
+		if [[ "$file" =~ ^[0-9]{8}-[0-9]{6}(-[0-9]+)?\.ini$ ]]; then
+			echo "$file"
+		fi
+	done | sort -V | head -n "-$PHP_INI_KEEP" | while read -r old; do
 		rm -f "${dir:?}/$old"
 	done
 }

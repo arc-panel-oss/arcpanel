@@ -60,6 +60,9 @@
 #                                 spec installed them, and resets the PHP
 #                                 keys of the default package
 set -euo pipefail
+# The fixtures get the modes of a normal root shell, whatever the caller's
+# umask (a wrapper with umask 077 left the users' folders unreachable)
+umask 022
 
 ARCPANEL="${ARCPANEL:-/usr/local/arcpanel}"
 B="$ARCPANEL/bin"

@@ -122,6 +122,9 @@ if [ -n "$WEB_SYSTEM" ]; then
 	chmod 700 $HOMEDIR/$user/tmp
 	chown $user:$user $HOMEDIR/$user/tmp
 	chown root:$user $HOMEDIR/$user/web/
+	# The modes of rebuild_user_conf, whatever the caller's umask: the user and
+	# the web server go through web/ (a root shell with umask 077 left it 700)
+	chmod 751 $HOMEDIR/$user/web
 fi
 
 if [ -n "$MAIL_SYSTEM" ]; then
@@ -163,6 +166,7 @@ chown $user:$user \
 
 # Set permissions
 chmod a+x $HOMEDIR/$user
+chmod a+x $HOMEDIR/$user/conf
 chattr +i $HOMEDIR/$user/conf > /dev/null 2>&1
 
 # Adding user dir
