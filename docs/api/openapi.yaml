@@ -2600,7 +2600,10 @@ paths:
       description: |-
         This function adds the package RESELLER_NAME from TMPFILE (same format as
         v-add-user-package) for RESELLER, when POLICY_RESELLER_CREATE_PACKAGES is
-        yes. No limit may be higher than the reseller's own limit.
+        yes. No limit may be higher than the reseller's own limit, the shell must
+        be one of POLICY_RESELLER_PACKAGE_SHELLS, and while users may not choose
+        templates (POLICY_USER_EDIT_WEB_TEMPLATES, POLICY_USER_EDIT_DNS_TEMPLATES)
+        the templates are the reseller's own.
 
         **Arguments**
 
@@ -3609,6 +3612,49 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/v-add-sys-quota"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+  "/api/#v-add-sys-rclone":
+    post:
+      operationId: v-add-sys-rclone
+      tags:
+        - System
+      summary: Install or update rclone (E39 W3)
+      description: |-
+        This function installs /usr/bin/rclone from the rclone release pinned in
+        install/upgrade/upgrade.conf (rclone_v, rclone_sha256), when rclone is
+        missing or older than that release. The archive is checked against its
+        SHA-256 before it is unpacked. A current rclone is left alone, so the
+        command is safe to run on every upgrade.
+
+        **Arguments:** none.
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-add-sys-rclone"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-add-sys-rclone"
       responses:
         "200":
           description: "The output of the command; `OK` for an empty output with legacy authentication."
@@ -7559,9 +7605,10 @@ paths:
         0.5, or unlimited) or DOCKER_MEMORY (memory per app, like 512M, or
         unlimited) of a package. PORTS, NODE_VERSIONS, NODE_APPS, DOCKER_APPS,
         DOCKER_CPUS and DOCKER_MEMORY of a reseller's own package cannot be above
-        the reseller's, and its NODE and DOCKER cannot be yes when the reseller's
-        are no. PHP_VERSIONS (* or a comma list of catalog versions),
-        PHP_PROFILES (* or a comma list of PHP-FPM profiles) and
+        the reseller's, its NODE and DOCKER cannot be yes when the reseller's are
+        no, and its NODE_ALLOWED allows only what the reseller's allows.
+        PHP_VERSIONS (* or a comma list of catalog versions), PHP_PROFILES (* or a
+        comma list of PHP-FPM profiles) and
         PHP_DEFAULT_PROFILE (one of the allowed profiles) choose the PHP of the
         package's web domains (E41): a reseller's own package may only allow what
         the reseller's package allows, * only when that is *, and the package's
@@ -7753,7 +7800,9 @@ paths:
       description: |-
         This function rewrites the limits of a package created by RESELLER from
         TMPFILE and applies them to the users of that package. No limit may be
-        higher than the reseller's own limit.
+        higher than the reseller's own limit, the shell must be one of
+        POLICY_RESELLER_PACKAGE_SHELLS or the one the package has, and while users
+        may not choose templates the templates are the reseller's own.
 
         **Arguments**
 
@@ -7848,18 +7897,22 @@ paths:
         - System
       summary: Enable / Disable API access
       description: |-
-        # Enable legacy api currently default on most of api based systems
-        # Enable api
+        # Enable access keys and REST API v2 (API_SYSTEM)
+        # Enable REST API v1 (lib/api, API_V1)
+        # Enable REST API v1 with the legacy hash and password login (API)
+        # All of the above
 
-        # Disable API
+        # Disable every API and clear the allowed addresses
 
-        Enabled / Disable API
+        The switches are configuration keys only; lib/api/index.php ships in the
+        package and reads API_V1 (E39 W4 D9).
 
         **Arguments**
 
         | Field | Option | Required |
         | --- | --- | --- |
         | `arg1` | `STATUS` | yes |
+        | `arg2` | `VERSION` | no |
       requestBody:
         required: true
         content:
@@ -38364,6 +38417,20 @@ components:
               default: v-add-sys-quota
             returncode:
               $ref: "#/components/schemas/ReturnCode"
+    v-add-sys-rclone:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-add-sys-rclone
+              default: v-add-sys-rclone
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
     v-add-sys-roundcube:
       allOf:
         - $ref: "#/components/schemas/Credentials"
@@ -41428,6 +41495,12 @@ components:
               description: "`STATUS`"
               examples:
                 - enable
+            arg2:
+              type: string
+              title: VERSION
+              description: "`VERSION`, optional"
+              examples:
+                - api
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-change-sys-arcpanel-ssl:

@@ -32476,6 +32476,10 @@
                         "type": "string",
                         "description": "Read-only through the API (403 on a change)."
                     },
+                    "API_V1": {
+                        "type": "string",
+                        "description": "Read-only through the API (403 on a change)."
+                    },
                     "API_ALLOWED_IP": {
                         "type": "string",
                         "description": "Read-only through the API (403 on a change)."
@@ -32533,11 +32537,15 @@
                     },
                     "ENFORCE_SUBDOMAIN_OWNERSHIP": {
                         "type": "string"
+                    },
+                    "POLICY_RESELLER_PACKAGE_SHELLS": {
+                        "type": "string"
                     }
                 },
                 "required": [
                     "API_SYSTEM",
                     "API",
+                    "API_V1",
                     "API_ALLOWED_IP",
                     "LOGIN_STYLE",
                     "INACTIVE_SESSION_TIMEOUT",
@@ -32555,7 +32563,8 @@
                     "POLICY_BACKUP_SUSPENDED_USERS",
                     "POLICY_SYNC_ERROR_DOCUMENTS",
                     "POLICY_SYNC_SKELETON",
-                    "ENFORCE_SUBDOMAIN_OWNERSHIP"
+                    "ENFORCE_SUBDOMAIN_OWNERSHIP",
+                    "POLICY_RESELLER_PACKAGE_SHELLS"
                 ]
             },
             "ServerSettings": {
@@ -35774,6 +35783,11 @@
                             "yes",
                             "no"
                         ]
+                    },
+                    "POLICY_RESELLER_PACKAGE_SHELLS": {
+                        "type": "string",
+                        "pattern": "^[\\w.-]+(,[\\w.-]+)*$",
+                        "maxLength": 255
                     },
                     "app_installer": {
                         "type": "boolean"

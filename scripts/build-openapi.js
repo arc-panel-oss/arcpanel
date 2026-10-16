@@ -764,10 +764,17 @@ async function readCommands() {
 	return commands;
 }
 
+// Set files named apart from their set (E39 W4 D13): no repository path
+// contains "secrets", so this set ships as v2-secret-store
+const setFiles = { 'v2-secret-store': 'v2-secrets' };
+
 async function readPermissionSets() {
 	const sets = {};
-	for (const name of (await fs.readdir(setsDir)).sort()) {
-		sets[name] = parsePermissionSet(await fs.readFile(path.join(setsDir, name), 'utf8'));
+	const files = Object.fromEntries(
+		(await fs.readdir(setsDir)).map((file) => [setFiles[file] ?? file, file]),
+	);
+	for (const name of Object.keys(files).sort()) {
+		sets[name] = parsePermissionSet(await fs.readFile(path.join(setsDir, files[name]), 'utf8'));
 	}
 	return sets;
 }
