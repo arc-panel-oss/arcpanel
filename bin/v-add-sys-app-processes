@@ -7,7 +7,7 @@
 # This function prepares a server for app processes: the root-owned folder
 # of their run files, the app process keys of the "developer" package and
 # the 5-minute v-check-sys-app-processes job that converges the units with
-# the records (M3). It is safe to run again and keeps packages an administrator
+# the records. It is safe to run again and keeps packages an administrator
 # has changed.
 
 #----------------------------------------------------------#
@@ -25,6 +25,9 @@ source $ARCPANEL/func/tenancy.sh
 source $ARCPANEL/func/appprocess.sh
 # load config file
 source_conf "$ARCPANEL/conf/arcpanel.conf"
+
+CRONTAB="/var/spool/cron/crontabs/arcpanelweb"
+CHECK_LINE="*/5 * * * * sudo /usr/local/arcpanel/bin/v-check-sys-app-processes repair > /dev/null 2>&1"
 
 #----------------------------------------------------------#
 #                    Verifications                         #
@@ -57,6 +60,15 @@ if [ -f "$ARCPANEL/data/packages/developer.tenancy" ]; then
 	if ! grep -q "^APP_PROCESSES_MAX=" "$ARCPANEL/data/packages/developer.tenancy"; then
 		tenancy_pkg_set developer APP_PROCESSES_MAX 10
 	fi
+fi
+
+# Converge the units with the records every 5 minutes
+# (sed, not >>: fs.protected_regular forbids root to open another user's
+# file for appending in the sticky crontab directory)
+if [ -f "$CRONTAB" ] && ! grep -q "v-check-sys-app-processes" "$CRONTAB"; then
+	sed -i -e "\$a$CHECK_LINE" "$CRONTAB"
+	chown arcpanelweb:arcpanelweb "$CRONTAB"
+	chmod 600 "$CRONTAB"
 fi
 
 #----------------------------------------------------------#

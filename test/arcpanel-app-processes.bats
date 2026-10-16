@@ -604,6 +604,144 @@ task_status() {
     assert_success
 }
 
+#----------------------------------------------------------#
+#                       Persistence                        #
+#----------------------------------------------------------#
+
+check_types() {
+    v-check-sys-app-processes check json | jq -r --arg u "$1" '[.FINDINGS[] | select(.USER == $u) | .TYPE] | sort | join(",")'
+}
+
+@test "Persistence: the setup command adds the repair job" {
+    grep -q "v-check-sys-app-processes repair" /var/spool/cron/crontabs/arcpanelweb
+    for hook in post_suspend_user post_unsuspend_user pre_delete_user; do
+        assert_file_exists "$ARCPANEL/func/hooks.d/$hook/65-appprocesses.sh"
+    done
+}
+
+@test "Persistence: suspending the user stops its processes" {
+    run v-add-app-process $U2 $DD web custom 'python3 server.py' public_html 64 1 web flask-fastapi
+    assert_success
+    port=$(field $U2 $DD web PORT)
+    run eventually "tap-d $port -" fetch $U2 $DD
+    assert_output "tap-d $port -"
+    v-suspend-user $U2 > /dev/null
+    assert_equal "$(field $U2 $DD web SUSPENDED)" "yes"
+    run status_of $U2 $DD web
+    assert_output "suspended"
+    run systemctl is-active "arcpanel-app-$U2-$(field $U2 $DD web ID).service"
+    assert_failure
+    run v-start-app-process $U2 $DD web
+    assert_failure
+    run check_types $U2
+    assert_output ""
+    v-unsuspend-user $U2 > /dev/null
+    assert_equal "$(field $U2 $DD web SUSPENDED)" "no"
+    run eventually "running" status_of $U2 $DD web
+    assert_output "running"
+}
+
+@test "Persistence: the check stops the processes of a suspended domain and starts them again" {
+    v-suspend-web-domain $U2 $DD > /dev/null
+    run check_types $U2
+    assert_output "process-suspended"
+    run v-check-sys-app-processes repair
+    assert_success
+    run systemctl is-active "arcpanel-app-$U2-$(field $U2 $DD web ID).service"
+    assert_failure
+    assert_equal "$(field $U2 $DD web STATE)" "running"
+    v-unsuspend-web-domain $U2 $DD > /dev/null
+    run check_types $U2
+    assert_output "process-down"
+    run v-check-sys-app-processes repair
+    assert_success
+    run eventually "running" status_of $U2 $DD web
+    assert_output "running"
+    run check_types $U2
+    assert_output ""
+}
+
+@test "Persistence: a missing unit is written again and an orphan unit removed" {
+    id=$(field $U2 $DD web ID)
+    systemctl disable --now "arcpanel-app-$U2-$id.service" > /dev/null 2>&1
+    rm -f "/etc/systemd/system/arcpanel-app-$U2-$id.service"
+    printf '[Service]\nExecStart=/bin/true\n' > "/etc/systemd/system/arcpanel-app-$U2-999.service"
+    systemctl daemon-reload
+    run check_types $U2
+    assert_output "process-down,unit-missing,unit-orphan"
+    run v-check-sys-app-processes repair
+    assert_success
+    assert_file_exists "/etc/systemd/system/arcpanel-app-$U2-$id.service"
+    assert_file_not_exists "/etc/systemd/system/arcpanel-app-$U2-999.service"
+    run eventually "running" status_of $U2 $DD web
+    assert_output "running"
+}
+
+@test "Persistence: backup, delete and restore bring the process back on its port" {
+    port=$(field $U2 $DD web PORT)
+    id=$(field $U2 $DD web ID)
+    run v-backup-user $U2
+    assert_success
+    backup=$(ls -t /backup/$U2.*.tar | head -n1)
+    run v-delete-user $U2
+    assert_success
+    assert_file_not_exists "/etc/systemd/system/arcpanel-app-$U2-$id.service"
+    assert_file_not_exists "$ARCPANEL/data/app-processes/$U2"
+    assert_file_not_exists "/etc/logrotate.d/arcpanel-app-$U2"
+    run v-restore-user $U2 "$(basename "$backup")"
+    assert_success
+    run check_types $U2
+    assert_output "import"
+    run v-check-sys-app-processes repair
+    assert_success
+    run eventually "running" status_of $U2 $DD web
+    assert_output "running"
+    assert_equal "$(field $U2 $DD web PORT)" "$port"
+    assert_equal "$(port_app $U2 "$port")" "app:$DD"
+    assert_equal "$(tpl_of $U2 $DD)" "flask-fastapi"
+    run eventually "tap-d $port -" fetch $U2 $DD
+    assert_output "tap-d $port -"
+    rm -f /backup/$U2.*.tar
+}
+
+@test "Persistence: a forged copy is not imported" {
+    other=$(field $U1 $DA web PORT)
+    dir=/home/$U2/web/$DD/app-process
+    start=$(printf 'python3 server.py' | base64 -w0)
+    printf "ID='1' DOMAIN='%s' NAME='evil' KIND='worker' PRESET='custom' START='%s' CWD='../../../../etc' PORT='' MEMORY='999999' CPUS='64' TEMPLATE='' PREV_TPL='' STATE='running' SUSPENDED='no' TIME='' DATE=''\n" "$DD" "$start" \
+        | runuser -u $U2 -- tee "$dir/evil.conf" > /dev/null
+    run v-rebuild-app-processes $U2
+    assert_success
+    assert_output --partial "evil not imported: invalid working directory"
+    assert_equal "$(field $U2 $DD evil ID)" ""
+    printf "ID='1' DOMAIN='%s' NAME='other' KIND='worker' PRESET='custom' START='%s' CWD='public_html' PORT='%s' MEMORY='999999' CPUS='64' TEMPLATE='' PREV_TPL='' STATE='stopped' SUSPENDED='no' TIME='' DATE=''\n" "$DD" "$start" "$other" \
+        | runuser -u $U2 -- tee "$dir/other.conf" > /dev/null
+    run v-rebuild-app-processes $U2
+    assert_success
+    assert_equal "$(field $U2 $DD other PORT)" ""
+    assert_equal "$(field $U2 $DD other MEMORY)" "256"
+    assert_equal "$(field $U2 $DD other CPUS)" "1"
+    assert_equal "$(field $U2 $DD other STATE)" "stopped"
+    assert_equal "$(port_app $U1 "$other")" "app:$DA"
+    run v-delete-app-process $U2 $DD other
+    assert_success
+    runuser -u $U2 -- rm -f "$dir/evil.conf"
+}
+
+@test "Persistence: deleting the domain removes its processes at the next check" {
+    port=$(field $U2 $DD web PORT)
+    v-delete-web-domain $U2 $DD > /dev/null
+    run check_types $U2
+    assert_output "domain-missing"
+    run v-check-sys-app-processes repair
+    assert_success
+    assert_equal "$(field $U2 $DD web ID)" ""
+    run port_app $U2 "$port"
+    refute_output "app:$DD"
+    run v-check-sys-app-processes json
+    echo "$output" | jq -e '(.PROCESSES | tonumber) >= 2 and (.RUNNING | tonumber) >= 2'
+}
+
 @test "Core: delete the web process" {
     id=$(field $U1 $DA web ID)
     port=$(field $U1 $DA web PORT)

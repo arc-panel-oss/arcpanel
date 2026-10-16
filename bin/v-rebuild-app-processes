@@ -1,0 +1,143 @@
+#!/bin/bash
+# info: rebuild the app processes of a user (E42)
+# options: USER
+#
+# example: v-rebuild-app-processes alice
+#
+# This function brings the app processes of USER in line with their
+# records: processes of deleted web domains are removed, copies in a
+# domain's app-process/ folder without a record (after a restore) are
+# validated again and imported, units, run files, ports, templates and the
+# logrotate file are written again, and the processes that should run are
+# started, the others stopped. The panel runs it after a user rebuild and
+# v-check-sys-app-processes when it finds something to repair.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+user=$1
+
+# Includes
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/tenancy.sh
+source $ARCPANEL/func/tenancy.sh
+# shellcheck source=/usr/local/arcpanel/func/ports.sh
+source $ARCPANEL/func/ports.sh
+# shellcheck source=/usr/local/arcpanel/func/appprocess.sh
+source $ARCPANEL/func/appprocess.sh
+# load config file
+source_conf "$ARCPANEL/conf/arcpanel.conf"
+
+# Report on the output and in the system log
+log_system() {
+	echo "$*"
+	echo "$(date +'%F %T') app processes of $user: $*" >> "$ARCPANEL/log/system.log"
+}
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '1' "$#" 'USER'
+is_format_valid 'user'
+is_object_valid 'user' 'USER' "$user"
+
+# Perform verification if read-only mode is enabled
+check_arcpanel_demo_mode
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+appproc_lock "$user"
+
+# Processes of deleted domains
+for id in $(appproc_ids "$user"); do
+	domain=$(appproc_get "$user" "$id" DOMAIN)
+	name=$(appproc_get "$user" "$id" NAME)
+	if ! arc_tpl_domain_exists "$user" "$domain"; then
+		appproc_delete "$user" "$id"
+		log_system "$domain/$name removed, the web domain does not exist"
+	fi
+done
+
+# Copies without a record (a restore): web processes first, so a worker
+# copy never takes the place of the domain's web process
+imported=0
+for domain in $(grep -oE "^DOMAIN='[^']*'" "$ARCPANEL/data/users/$user/web.conf" 2> /dev/null | cut -d\' -f2); do
+	names=$(appproc_copy_names "$user" "$domain")
+	[ -n "$names" ] || continue
+	for pass in web worker; do
+		for name in $names; do
+			line=$(appproc_copy_line "$user" "$domain" "$name")
+			if [ -z "$line" ] || [ "$(appproc_field "$line" KIND)" != "$pass" ]; then
+				continue
+			fi
+			if ! pairs=$(appproc_copy_check "$user" "$domain" "$name" "$line"); then
+				log_system "$domain/$name not imported: $pairs"
+				continue
+			fi
+			id=$(appproc_next_id "$user")
+			mapfile -t fields <<< "$pairs"
+			appproc_set "$user" "$id" "${fields[@]}" "PORT=$(appproc_field "$line" PORT)"
+			if [ "$pass" = 'web' ]; then
+				if ! out=$(appproc_port_ensure "$user" "$id"); then
+					appproc_files_remove "$user" "$id"
+					appproc_remove "$user" "$id"
+					log_system "$domain/$name not imported: $out"
+					continue
+				fi
+			else
+				appproc_set "$user" "$id" PORT=
+			fi
+			imported=$((imported + 1))
+		done
+	done
+done
+
+# Units, run files and ports from the records
+for id in $(appproc_ids "$user"); do
+	if [ "$(appproc_get "$user" "$id" KIND)" = 'web' ]; then
+		if ! out=$(appproc_port_ensure "$user" "$id"); then
+			log_system "$(appproc_get "$user" "$id" DOMAIN)/$(appproc_get "$user" "$id" NAME): $out"
+		fi
+	fi
+	appproc_dirs_write "$user" "$(appproc_get "$user" "$id" DOMAIN)" "$(appproc_get "$user" "$id" NAME)" > /dev/null 2>&1
+	if ! appproc_files_write "$user" "$id"; then
+		log_system "$(appproc_get "$user" "$id" DOMAIN)/$(appproc_get "$user" "$id" NAME): the command could not be written"
+	fi
+done
+
+# Units without a record
+for id in $(appproc_unit_ids "$user"); do
+	if [ -z "$(appproc_line "$user" "$id")" ]; then
+		appproc_files_remove "$user" "$id"
+	fi
+done
+
+# Run what should run, stop the rest
+for id in $(appproc_ids "$user"); do
+	if appproc_should_run "$user" "$id"; then
+		if ! appproc_running "$user" "$id"; then
+			if ! out=$(appproc_launch "$user" "$id"); then
+				log_system "$(appproc_get "$user" "$id" DOMAIN)/$(appproc_get "$user" "$id" NAME) could not be started: $out"
+			fi
+		fi
+	elif appproc_running "$user" "$id" || [ "$(appproc_status "$user" "$id")" = 'failed' ]; then
+		appproc_stop "$user" "$id"
+	fi
+done
+appproc_logrotate_write "$user"
+
+#----------------------------------------------------------#
+#                         ArcPanel                         #
+#----------------------------------------------------------#
+
+log_event "$OK" "$ARGUMENTS"
+
+exit

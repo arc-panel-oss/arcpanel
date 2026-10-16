@@ -809,6 +809,18 @@ appproc_files_write() {
 	appproc_copy_write "$user" "$id"
 }
 
+# IDs of the unit files of USER, whether or not a record exists
+appproc_unit_ids() {
+	local user="$1" unit rest
+	for unit in "$APPPROC_UNIT_DIR"/arcpanel-app-"$user"-*.service; do
+		[ -e "$unit" ] || continue
+		rest=${unit##*/arcpanel-app-"$user"-}
+		if [[ "$rest" =~ ^([0-9]{1,6})\.service$ ]]; then
+			echo "${BASH_REMATCH[1]}"
+		fi
+	done
+}
+
 # Remove the unit, the run file and the prepared environment of USER's ID
 appproc_files_remove() {
 	local user="$1" id="$2" unit
@@ -1031,6 +1043,204 @@ appproc_port_holder() {
 	if [ -n "$line" ]; then
 		grep -oE 'users:\(\("[^"]*",pid=[0-9]+' <<< "$line" | head -n1 | sed -E 's/users:\(\("([^"]*)",pid=([0-9]+)/\2\/\1/'
 	fi
+}
+
+#----------------------------------------------------------#
+#                Persistence and convergence               #
+#----------------------------------------------------------#
+
+# Whether the web domain of USER is suspended
+appproc_domain_suspended() {
+	[ "$(arc_tpl_domain_value "$1" "$2" SUSPENDED)" = 'yes' ]
+}
+
+# Whether USER's process ID should run: started by the user, and neither
+# the record, the user nor the domain is suspended
+appproc_should_run() {
+	local user="$1" id="$2" line
+	line=$(appproc_line "$user" "$id")
+	[ "$(appproc_field "$line" STATE)" = 'running' ] \
+		&& [ "$(appproc_field "$line" SUSPENDED)" != 'yes' ] \
+		&& [ "$(tenancy_user_value "$user" SUSPENDED)" != 'yes' ] \
+		&& ! appproc_domain_suspended "$user" "$(appproc_field "$line" DOMAIN)"
+}
+
+# Names of the copies (NAME.conf) in the folder of USER's DOMAIN that have
+# no record, read as the user
+appproc_copy_names() {
+	local user="$1" domain="$2" dir name
+	dir=$(appproc_dir "$user" "$domain")
+	node_as_user "$user" bash -c '[ -d "$1" ] && [ ! -L "$1" ] && find "$1" -mindepth 1 -maxdepth 1 -type f -name "*.conf" -printf "%f\n"' copies "$dir" 2> /dev/null \
+		| sed -n 's/\.conf$//p' | while read -r name; do
+		if appproc_name_valid "$name" && [ -z "$(appproc_id "$user" "$domain" "$name")" ]; then
+			echo "$name"
+		fi
+	done
+}
+
+# The copy line of NAME of USER's DOMAIN, read as the user
+appproc_copy_line() {
+	node_as_user "$1" bash -c '[ -f "$1" ] && [ ! -L "$1" ] && head -c 8192 "$1"' conf "$(appproc_dir "$1" "$2")/$3.conf" 2> /dev/null \
+		| grep -m1 -F " DOMAIN='$2' NAME='$3' "
+}
+
+# Validate a copy LINE of NAME of USER's DOMAIN for an import (spec §6.3).
+# Prints the reason and returns 1 when it cannot be imported; otherwise
+# prints the KEY=VALUE pairs of the record (without ID and PORT).
+appproc_copy_check() {
+	local user="$1" domain="$2" name="$3" line="$4" preset kind start cwd memory cpus template prev max limit
+	preset=$(appproc_field "$line" PRESET)
+	kind=$(appproc_field "$line" KIND)
+	cwd=$(appproc_field "$line" CWD)
+	memory=$(appproc_field "$line" MEMORY)
+	cpus=$(appproc_field "$line" CPUS)
+	template=$(appproc_field "$line" TEMPLATE)
+	prev=$(appproc_field "$line" PREV_TPL)
+	start=$(appproc_start_of "$line")
+	if [ "$(appproc_pkg "$user" APP_PROCESSES)" != 'yes' ]; then
+		echo "the package does not allow app processes"
+		return 1
+	fi
+	limit=$(appproc_limit "$user")
+	if [ "$limit" != 'unlimited' ] && [ "$(appproc_count "$user")" -ge "$limit" ]; then
+		echo "the package allows $limit app processes"
+		return 1
+	fi
+	if ! appproc_preset_exists "$preset"; then
+		echo "unknown preset $preset"
+		return 1
+	fi
+	if [ "$(appproc_preset_get "$preset" KIND)" != 'either' ]; then
+		kind=$(appproc_preset_get "$preset" KIND)
+		template=$(appproc_preset_get "$preset" TEMPLATE)
+	fi
+	case "$kind" in
+		web)
+			if [ -n "$(appproc_web_id "$user" "$domain")" ]; then
+				echo "the domain has a web process already"
+				return 1
+			fi
+			if ! appproc_tpl_has_port "$template"; then
+				echo "template $template has no port"
+				return 1
+			fi
+			;;
+		worker) template='' ;;
+		*)
+			echo "invalid kind"
+			return 1
+			;;
+	esac
+	if [ -z "$start" ] || [ "${#start}" -gt "$APPPROC_MAX_START" ] || appproc_has_control "$start" || ! appproc_split "$start"; then
+		echo "invalid command"
+		return 1
+	fi
+	if ! appproc_relpath_valid "$cwd" || ! appproc_inside "$user" "$domain" "$(appproc_cwd_path "$user" "$domain" "$cwd")" \
+		|| ! node_as_user "$user" test -d "$(appproc_cwd_path "$user" "$domain" "$cwd")"; then
+		echo "invalid working directory"
+		return 1
+	fi
+	max=$(appproc_max_memory "$user")
+	if ! [[ "$memory" =~ ^[0-9]{1,6}$ ]] || [ "$memory" -lt "$APPPROC_MIN_MEMORY" ]; then
+		memory=$(appproc_default_memory "$user")
+	elif [ "$memory" -gt "$max" ]; then
+		memory=$max
+	fi
+	limit=$(appproc_max_cpus "$user")
+	if ! appproc_cpus_hundredths "$cpus" > /dev/null || { [ "$limit" != 'unlimited' ] && tenancy_limit_above DOCKER_CPUS "$cpus" "$limit"; }; then
+		cpus=$limit
+		if [ "$cpus" = 'unlimited' ]; then
+			cpus=1
+		fi
+	fi
+	if [ "$kind" = 'web' ] && ! appproc_tpl_exists "$prev"; then
+		prev=$(appproc_package_template "$user")
+	fi
+	printf '%s\n' "DOMAIN=$domain" "NAME=$name" "KIND=$kind" "PRESET=$preset" "START=$(appproc_encode "$start")" \
+		"CWD=$cwd" "MEMORY=$memory" "CPUS=$cpus" "TEMPLATE=$template" "PREV_TPL=$prev" \
+		"STATE=$(appproc_field "$line" STATE | grep -xE 'running|stopped' || echo running)" SUSPENDED=no \
+		"TIME=$(appproc_field "$line" TIME)" "DATE=$(appproc_field "$line" DATE)"
+}
+
+# Make the port of USER's web process ID an app:DOMAIN port of the user's
+# pool and the BACKEND_PORT of the domain, and the domain's template the
+# process's: the recorded port when it can be kept (a restored user gets it
+# back from the server range), else a new one. Returns an error code with
+# the reason on failure.
+appproc_port_ensure() {
+	local user="$1" id="$2" domain port app out template
+	domain=$(appproc_get "$user" "$id" DOMAIN)
+	port=$(appproc_get "$user" "$id" PORT)
+	if [ -n "$port" ]; then
+		app=$(ports_record "$user" "$port" | cut -d'|' -f4)
+		if [ "$app" != "app:$domain" ] && ! "$BIN/v-allocate-user-port" "$user" "app:$domain" tcp "$port" > /dev/null 2>&1; then
+			if ! "$BIN/v-add-user-port" "$user" "$port" no restored > /dev/null 2>&1 \
+				|| ! "$BIN/v-allocate-user-port" "$user" "app:$domain" tcp "$port" > /dev/null 2>&1; then
+				port=''
+			fi
+		fi
+	fi
+	if [ -z "$port" ]; then
+		port=$(ports_read "$user" | awk -F'|' -v app="app:$domain" '$4 == app { print $1; exit }')
+	fi
+	if [ -z "$port" ]; then
+		out=$("$BIN/v-allocate-user-port" "$user" "app:$domain" 2>&1) || {
+			echo "no free port in the pool of $user"
+			return "$E_LIMIT"
+		}
+		port=$(printf '%s\n' "$out" | tail -n1)
+	fi
+	appproc_set "$user" "$id" "PORT=$port"
+	template=$(appproc_get "$user" "$id" TEMPLATE)
+	if [ "$(arc_tpl_active "$user" "$domain")" != "$template" ]; then
+		appproc_tpl_switch "$user" "$domain" "$template" > /dev/null 2>&1 || {
+			echo "template $template could not be applied to $domain"
+			return "$E_RESTART"
+		}
+	fi
+	if [ "$(arc_tplvars_get "$user" "$domain" BACKEND_PORT)" != "$port" ]; then
+		"$BIN/v-change-web-domain-tpl-vars" "$user" "$domain" "BACKEND_PORT=$port" > /dev/null 2>&1 || {
+			echo "the port of $domain could not be set"
+			return "$E_RESTART"
+		}
+	elif ! grep -q "127\.0\.0\.1:$port;" "$HOMEDIR/$user/conf/web/$domain/nginx.conf" 2> /dev/null; then
+		# Rendered before the port was registered again (a restore)
+		"$BIN/v-rebuild-web-domain" "$user" "$domain" > /dev/null 2>&1 || return "$E_RESTART"
+	fi
+	return 0
+}
+
+# Remove USER's process ID: unit, record, copy, and for a web process its
+# port and the domain's template (when the domain still exists)
+appproc_delete() {
+	local user="$1" id="$2" line domain name prev
+	line=$(appproc_line "$user" "$id")
+	[ -n "$line" ] || return 0
+	domain=$(appproc_field "$line" DOMAIN)
+	name=$(appproc_field "$line" NAME)
+	appproc_files_remove "$user" "$id"
+	appproc_remove "$user" "$id"
+	if node_as_user "$user" test -f "$(appproc_dir "$user" "$domain")/$name.conf" 2> /dev/null; then
+		node_as_user "$user" rm -f -- "$(appproc_dir "$user" "$domain")/$name.conf"
+	fi
+	if [ "$(appproc_field "$line" KIND)" = 'web' ]; then
+		if ports_read "$user" | awk -F'|' -v app="app:$domain" '$4 == app { found = 1 } END { exit found ? 0 : 1 }'; then
+			"$BIN/v-release-user-port" "$user" "app:$domain" > /dev/null 2>&1
+		fi
+		prev=$(appproc_field "$line" PREV_TPL)
+		# The domain may be gone already (v-delete-user-app-processes runs
+		# before the user is deleted, the check after a domain is deleted)
+		if arc_tpl_domain_exists "$user" "$domain"; then
+			if ! appproc_tpl_exists "$prev"; then
+				prev=$(appproc_package_template "$user")
+			fi
+			if [ "$(arc_tpl_active "$user" "$domain")" = "$(appproc_field "$line" TEMPLATE)" ]; then
+				appproc_tpl_switch "$user" "$domain" "$prev" yes > /dev/null 2>&1
+			fi
+			"$BIN/v-delete-web-domain-tpl-vars" "$user" "$domain" > /dev/null 2>&1
+		fi
+	fi
+	return 0
 }
 
 #----------------------------------------------------------#

@@ -1,0 +1,69 @@
+#!/bin/bash
+# info: unsuspend the app processes of a user (E42)
+# options: USER
+#
+# example: v-unsuspend-user-app-processes alice
+#
+# This function lifts the suspension of every app process of USER and
+# starts those the user had running (not the ones of a suspended domain).
+# The post_unsuspend_user hook runs it when the user is unsuspended.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+user=$1
+
+# Includes
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/tenancy.sh
+source $ARCPANEL/func/tenancy.sh
+# shellcheck source=/usr/local/arcpanel/func/ports.sh
+source $ARCPANEL/func/ports.sh
+# shellcheck source=/usr/local/arcpanel/func/appprocess.sh
+source $ARCPANEL/func/appprocess.sh
+# load config file
+source_conf "$ARCPANEL/conf/arcpanel.conf"
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '1' "$#" 'USER'
+is_format_valid 'user'
+is_object_valid 'user' 'USER' "$user"
+
+# Perform verification if read-only mode is enabled
+check_arcpanel_demo_mode
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+failed=''
+if [ "$(appproc_count "$user")" -gt 0 ]; then
+	appproc_lock "$user"
+	for id in $(appproc_ids "$user"); do
+		appproc_set "$user" "$id" SUSPENDED=no
+		if appproc_should_run "$user" "$id"; then
+			if ! appproc_launch "$user" "$id" > /dev/null 2>&1; then
+				failed="$failed $(appproc_get "$user" "$id" DOMAIN)/$(appproc_get "$user" "$id" NAME)"
+			fi
+		fi
+	done
+fi
+if [ -n "$failed" ]; then
+	echo "$(date +'%F %T') app processes of $user could not be started:$failed" >> "$ARCPANEL/log/system.log"
+fi
+
+#----------------------------------------------------------#
+#                         ArcPanel                         #
+#----------------------------------------------------------#
+
+log_event "$OK" "$ARGUMENTS"
+
+exit
