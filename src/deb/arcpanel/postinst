@@ -127,6 +127,15 @@ $BIN/v-add-sys-php-profiles | tee -a $LOG
 # Web terminal tickets need their key (E39 W2); safe to run on every upgrade
 $BIN/v-add-sys-web-terminal-key | tee -a $LOG
 
+# App processes (E42): run folder, PHP settings, package keys and the repair
+# job; safe to run on every upgrade
+$BIN/v-add-sys-app-processes | tee -a $LOG
+
+# Panel app: the command allow-list and the sudo rules of arcpanelweb follow
+# the installed v-* commands (E39 W4), and the framework caches the new code;
+# an existing key is kept, so it is safe to run on every upgrade
+$BIN/v-add-sys-arcpanel | tee -a $LOG
+
 # phpMyAdmin single sign-on takes its token from a POST since E39 W2:
 # reinstall an older copy of the sign-on page
 if [ -e /usr/share/phpmyadmin/arcpanel-sso.php ] && ! grep -q 'signOn' /usr/share/phpmyadmin/arcpanel-sso.php; then
