@@ -9,7 +9,8 @@ name: Release
 # A stable release builds every supported distribution on amd64 (arm64 is not supported for now;
 # add "arm64" to the stable matrix to bring it back); a pre-release builds
 # Ubuntu 24.04 amd64 only. arcpanel-nginx, arcpanel-php and arcpanel-web-terminal come from the
-# Actions cache while their sources and src/arcpanel-build.sh are unchanged.
+# Actions cache while their sources, src/arcpanel-build.sh, src/sources.sha256 and
+# func/download.sh are unchanged.
 #
 # Required secrets of the release environment (see docs/operations/release-signing.md):
 #   APT_SIGNING_KEY         ASCII-armored private signing subkey
@@ -39,7 +40,7 @@ jobs:
       matrix: ${{ steps.version.outputs.matrix }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Compare tag, package and installer versions
         id: version
@@ -87,7 +88,7 @@ jobs:
           DEBIAN_FRONTEND=noninteractive apt-get install -y -qq git curl wget ca-certificates lsb-release sudo
 
       - name: Checkout code
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       # arcpanel-nginx, arcpanel-php and arcpanel-web-terminal are compiled from source and rarely change:
       # reuse them while their sources (src/deb/<package>/) and the build script (library versions) are unchanged.
@@ -95,10 +96,10 @@ jobs:
       # cache: a stable release never ships engines labelled with a pre-release.
       - name: Restore engine packages
         id: engines
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: engines
-          key: engines-${{ needs.check-version.outputs.channel }}-${{ matrix.image }}-${{ matrix.arch }}-${{ hashFiles('src/arcpanel-build.sh', 'src/deb/nginx/**', 'src/deb/php/**', 'src/deb/web-terminal/**') }}
+          key: engines-${{ needs.check-version.outputs.channel }}-${{ matrix.image }}-${{ matrix.arch }}-${{ hashFiles('src/arcpanel-build.sh', 'src/sources.sha256', 'func/download.sh', 'src/deb/nginx/**', 'src/deb/php/**', 'src/deb/web-terminal/**') }}
 
       - name: Build packages
         working-directory: src
@@ -130,13 +131,13 @@ jobs:
 
       - name: Save engine packages
         if: steps.engines.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: engines
           key: ${{ steps.engines.outputs.cache-primary-key }}
 
       - name: Upload packages
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: ${{ env.ARTIFACT_NAME }}
           path: out/
@@ -151,10 +152,10 @@ jobs:
     environment: release
     steps:
       - name: Checkout code
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Download packages
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           pattern: debs-*
           path: debs

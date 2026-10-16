@@ -5,6 +5,9 @@ name: Crowdin
 on:
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   update-pot:
     name: Update .pot file
@@ -14,10 +17,10 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         if: vars.CROWDIN_PROJECT_ID != ''
       - name: crowdin action
-        uses: crowdin/github-action@v3
+        uses: crowdin/github-action@9c23991700c0ec5256fd41089b9d9d7d540e424e # v3.3.0
         if: vars.CROWDIN_PROJECT_ID != ''
         with:
           upload_sources: true
