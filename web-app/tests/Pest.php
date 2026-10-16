@@ -6,6 +6,7 @@ use App\Arc\SysConfig;
 use App\Auth\ArrayLegacySession;
 use App\Auth\Principal;
 use App\Auth\Role;
+use App\Services\Keys\AccessKeySets;
 use App\View\Navigation;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Sleep;
@@ -680,7 +681,7 @@ const API_SECRET = 'S3cret-0123456789abcdefghijklmnopqrstuvw';
  */
 function apiSetCommands(string $set): array
 {
-    $file = base_path('../install/common/api/'.$set);
+    $file = base_path('../install/common/api/'.AccessKeySets::fileOfSet($set));
     $content = is_file($file) ? (string) file_get_contents($file) : '';
     if (preg_match("/^COMMANDS='([^']*)'/m", $content, $m) !== 1) {
         throw new RuntimeException("No COMMANDS in {$file}");
@@ -698,7 +699,7 @@ function apiAreaSets(): array
 {
     $sets = [];
     foreach (glob(base_path('../install/common/api/v2-*')) ?: [] as $file) {
-        $name = basename($file);
+        $name = AccessKeySets::setOfFile(basename($file));
         if (! in_array($name, ['v2-read', 'v2-write'], true)) {
             $sets[] = $name;
         }

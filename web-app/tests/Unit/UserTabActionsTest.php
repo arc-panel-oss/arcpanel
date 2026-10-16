@@ -93,11 +93,12 @@ it('types access keys, shows the secret only in a new key and describes every sh
         ->toBe(['name' => 'v2-read', 'api' => 2, 'description' => 'd']);
 
     foreach (glob(base_path('../install/common/api/*')) ?: [] as $file) {
-        expect(AccessKeySets::description(basename($file)))->toBeString(basename($file).' has no description')
-            ->and(AccessKeySets::summary(basename($file)))->toBeString(basename($file).' has no summary');
+        $set = AccessKeySets::setOfFile(basename($file));
+        expect(AccessKeySets::description($set))->toBeString($set.' has no description')
+            ->and(AccessKeySets::summary($set))->toBeString($set.' has no summary');
     }
     // every v2 set has its API description
-    expect(array_keys(AccessKeySets::hints()))->toEqualCanonicalizing(array_map('basename', glob(base_path('../install/common/api/v2-*')) ?: []))
+    expect(array_keys(AccessKeySets::hints()))->toEqualCanonicalizing(array_map(fn (string $file) => AccessKeySets::setOfFile(basename($file)), glob(base_path('../install/common/api/v2-*')) ?: []))
         ->and(AccessKeySets::description('unknown'))->toBeNull()
         ->and(AccessKeySets::summary('unknown'))->toBeNull();
 });

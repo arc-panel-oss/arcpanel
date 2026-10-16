@@ -19,6 +19,7 @@ use App\Http\Resources\V2\DnsRecordResource;
 use App\Http\Resources\V2\DnsZoneResource;
 use App\Services\Dns\DnsRecordRecord;
 use App\Services\Dns\DnsZoneRecord;
+use App\Services\Keys\AccessKeySets;
 use App\Services\WebDomains\ApplyResult;
 use App\Services\WebDomains\Step;
 use Illuminate\Http\Request;
@@ -186,7 +187,7 @@ it('keeps every area set inside v2-write and its reads inside v2-read', function
             fn (string $command) => (str_starts_with($command, 'v-list-') || str_starts_with($command, 'v-check-')) && $command !== 'v-check-sys-ports',
         ));
         expect(array_values(array_diff($reads, $read)))->toBe([], "{$area} has a read command outside v2-read");
-        $content = (string) file_get_contents(base_path('../install/common/api/'.$area));
+        $content = (string) file_get_contents(base_path('../install/common/api/'.AccessKeySets::fileOfSet($area)));
         expect($content)->toContain("ROLE='user'")->toContain("API_VERSION='2'");
         $union = array_merge($union, $commands);
     }
