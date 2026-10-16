@@ -49,6 +49,7 @@ final class DashboardController extends Controller
             'quickActions' => $navigation->quickActions($principal),
             'backupsUrl' => Navigation::url('backups.index'),
             'nodeAppsUrl' => route('node.apps.index', ['user' => $principal->effectiveUser()]),
+            'appProcessesUrl' => route('app-processes.index', ['user' => $principal->effectiveUser()]),
             'dockerAppsUrl' => route('docker.apps.index', ['user' => $principal->effectiveUser()]),
         ]);
     }

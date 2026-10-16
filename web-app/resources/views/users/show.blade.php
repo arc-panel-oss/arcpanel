@@ -105,6 +105,26 @@
             @endif
         </x-ap-card>
 
+        @if ($appProcesses !== null && ($appProcesses->allowed || $appProcesses->processes !== []))
+            <x-ap-card :title="__('App processes')" icon="terminal" :flush="$appProcesses->processes !== []">
+                <x-slot:actions>
+                    <x-ap-button :href="route('app-processes.index', ['user' => $record->name])" variant="ghost" size="sm">{{ __('All processes') }}<x-ap-icon name="chevron-right" /></x-ap-button>
+                </x-slot:actions>
+                @if ($appProcesses->processes === [])
+                    <p class="muted">{{ __('No app process yet.') }}</p>
+                @else
+                    <ul class="ap-list">
+                        @foreach ($appProcesses->processes as $process)
+                            <li>
+                                <div class="ap-list-main"><a class="mono" href="{{ route('app-processes.show', ['user' => $record->name, 'domain' => $process->domain, 'name' => $process->name]) }}">{{ $process->domain }}/{{ $process->name }}</a><span class="mono">{{ $process->preset }}{{ $process->port !== '' ? ' · :'.$process->port : '' }}</span></div>
+                                <x-ap-badge :tone="$process->suspended ? 'warn' : ($process->running() ? 'ok' : ($process->status === 'failed' ? 'danger' : null))">{{ $process->suspended ? __('Suspended') : ($process->running() ? __('Running') : ($process->status === 'failed' ? __('Failed') : __('Stopped'))) }}</x-ap-badge>
+                            </li>
+                        @endforeach
+                    </ul>
+                @endif
+            </x-ap-card>
+        @endif
+
         @if ($dockerApps !== null && ($dockerApps->allowed || $dockerApps->apps !== []))
             <x-ap-card :title="__('Docker apps')" icon="container" :flush="$dockerApps->apps !== []">
                 <x-slot:actions>

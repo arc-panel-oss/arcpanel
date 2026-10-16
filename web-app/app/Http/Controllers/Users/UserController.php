@@ -13,6 +13,8 @@ use App\Policies\FilePolicy;
 use App\Policies\ImpersonationPolicy;
 use App\Policies\UserPolicy;
 use App\Services\Docker\DockerApps;
+use App\Services\AppProcesses\AppProcesses;
+use App\Services\AppProcesses\AppProcessService;
 use App\Services\Docker\DockerAppService;
 use App\Services\Mail\AccountMailer;
 use App\Services\Node\NodeApps;
@@ -86,7 +88,7 @@ final class UserController extends Controller
         ]);
     }
 
-    public function show(string $user, Principal $principal, UserPolicy $policy, ImpersonationPolicy $impersonation, WebDomainService $web, PortService $ports, NodeAppService $nodeApps, FilePolicy $files, SysConfig $config, DockerAppService $dockerApps): View
+    public function show(string $user, Principal $principal, UserPolicy $policy, ImpersonationPolicy $impersonation, WebDomainService $web, PortService $ports, NodeAppService $nodeApps, FilePolicy $files, SysConfig $config, DockerAppService $dockerApps, AppProcessService $appProcesses): View
     {
         abort_unless($policy->view($principal, $user), 404);
         $record = $this->users->find($user);
@@ -101,6 +103,7 @@ final class UserController extends Controller
             'customers' => $isReseller ? $this->users->only($this->tenancy->customersOf($user)) : [],
             'ports' => $ports->account($user),
             'nodeApps' => $this->nodeAppsOf($user, $nodeApps),
+            'appProcesses' => $this->appProcessesOf($user, $appProcesses),
             'dockerApps' => $config->is('DOCKER_SYSTEM') ? $this->dockerAppsOf($user, $dockerApps) : null,
             'packageLabel' => UserService::packageLabel($record->package(), $principal->actingRole() === Role::Reseller ? $principal->effectiveUser() : ''),
             // File manager (E3 spec §7.7)
@@ -251,6 +254,16 @@ final class UserController extends Controller
     {
         try {
             return $dockerApps->apps($user);
+        } catch (ArcCommandException) {
+            return null;
+        }
+    }
+
+    /** The app processes of the account for its detail page (E42), null when they cannot be read. */
+    private function appProcessesOf(string $user, AppProcessService $processes): ?AppProcesses
+    {
+        try {
+            return $processes->processes($user);
         } catch (ArcCommandException) {
             return null;
         }

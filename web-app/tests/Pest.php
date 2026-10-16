@@ -106,6 +106,8 @@ function fakeArc(array $config = []): ArcCommandFake
     // The user detail page and the dashboard list Node.js apps (E14); none by default.
     $fake->on('v-list-node-apps')->using(fn (array $args) => [0, (string) json_encode(nodeAppList($args[0]))]);
     $fake->on('v-delete-node-app')->returnsExit(ExitCode::NotExist);
+    // ... and app processes (E42): none, without the package grant
+    $fake->on('v-list-app-processes')->using(fn (array $args) => [0, (string) json_encode(appProcessList($args[0], [], ['ENABLED' => 'no']))]);
     // The same for Docker apps (E4)
     $fake->on('v-list-docker-apps')->using(fn (array $args) => [0, (string) json_encode(dockerAppList($args[0]))]);
     // The app pages list the secret names for their reference pickers (E38); none by default.

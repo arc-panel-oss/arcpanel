@@ -59,6 +59,9 @@
 #                                 profile, the extension and PHP 8.3 when the
 #                                 spec installed them, and resets the PHP
 #                                 keys of the default package
+#   prepare.sh appprocesses       a web domain with HTTPS and a static page
+#                                 for arce2edev (E42); appprocesses-clean
+#                                 deletes its app processes and the domain
 set -euo pipefail
 # The fixtures get the modes of a normal root shell, whatever the caller's
 # umask (a wrapper with umask 077 left the users' folders unreachable)
@@ -221,6 +224,39 @@ nodeapps_prepare() {
 			return <p>arce2e-next</p>;
 		}
 	EOF
+}
+
+# App processes (E42): arce2edev (developer package: APP_PROCESSES='yes')
+# gets a web domain with HTTPS (self-signed) and a static page; the spec
+# serves it with a custom web process (python3 -m http.server).
+APPPROCESS_DOMAINS="e2e-proc.example"
+
+appprocesses_reset() {
+	local domain name
+	if ! "$B/v-list-user" arce2edev > /dev/null 2>&1; then
+		return 0
+	fi
+	"$B/v-list-app-processes" arce2edev json | jq -r '.PROCESSES[] | "\(.DOMAIN) \(.NAME)"' \
+		| while read -r domain name; do
+			"$B/v-delete-app-process" arce2edev "$domain" "$name" > /dev/null 2>&1 || true
+		done
+	for domain in $APPPROCESS_DOMAINS; do
+		"$B/v-delete-web-domain" arce2edev "$domain" no > /dev/null 2>&1 || true
+	done
+}
+
+appprocesses_prepare() {
+	local dir domain
+	dir="$(mktemp -d)"
+	for domain in $APPPROCESS_DOMAINS; do
+		"$B/v-add-web-domain" arce2edev "$domain" > /dev/null
+		openssl req -x509 -newkey rsa:2048 -nodes -days 30 -subj "/CN=$domain" \
+			-keyout "$dir/$domain.key" -out "$dir/$domain.crt" > /dev/null 2>&1
+		"$B/v-add-web-domain-ssl" arce2edev "$domain" "$dir" > /dev/null
+	done
+	rm -rf "$dir"
+	dev_file e2e-proc.example index.html <<< 'arce2e-process'
+	forget_config_cache
 }
 
 # File manager (E3): arce2euser gets a folder of fixtures below the
@@ -512,6 +548,15 @@ case "${1:-}" in
 		nodeapps_reset
 		exit 0
 		;;
+	appprocesses)
+		appprocesses_reset
+		appprocesses_prepare
+		exit 0
+		;;
+	appprocesses-clean)
+		appprocesses_reset
+		exit 0
+		;;
 	dockerapps)
 		dockerapps_reset
 		dockerapps_prepare
@@ -678,6 +723,7 @@ for user in arce2ecustomer arce2euser arce2ereseller; do
 done
 nodeapps_reset
 dockerapps_reset
+appprocesses_reset
 "$B/v-add-web-domain" arce2euser e2e-site.example > /dev/null
 "$B/v-add-web-domain" arce2euser e2e-bulk.example > /dev/null
 # Databases spec (E7): arce2euser_e2edb

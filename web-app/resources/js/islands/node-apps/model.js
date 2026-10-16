@@ -46,15 +46,16 @@ export const RESERVED_ENV = ['PORT', 'HOST', 'NODE_ENV', 'PATH'];
  * panel, values on one line. Returns {index: message key} for the rows.
  *
  * @param {{key: string, value: string}[]} rows
+ * @param {string[]} reserved  keys the panel sets (app processes have their own)
  */
-export function envErrors(rows) {
+export function envErrors(rows, reserved = RESERVED_ENV) {
 	const errors = {};
 	const seen = new Set();
 	rows.forEach((row, index) => {
 		const key = row.key.trim();
 		if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(key)) {
 			errors[index] = 'Letters, digits and _, not starting with a digit.';
-		} else if (RESERVED_ENV.includes(key)) {
+		} else if (reserved.includes(key)) {
 			errors[index] = '%s is set by the panel.';
 		} else if (seen.has(key)) {
 			errors[index] = 'This key is set twice.';

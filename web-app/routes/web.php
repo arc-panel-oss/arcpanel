@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AppProcesses\AppProcessController;
+use App\Http\Controllers\AppProcesses\AppProcessPageController;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\LogoutController;
 use App\Http\Controllers\Auth\MailPasswordController;
@@ -400,7 +401,10 @@ Route::middleware('auth.arc')->group(function () {
         });
     });
 
-    // App processes of an account (E42 spec §8): the island's JSON routes
+    // App processes of the effective account (E42 spec §9)
+    Route::get('/app-processes', [AppProcessPageController::class, 'entry'])->name('app-processes');
+    // App processes of an account (E42 spec §8): the island's JSON routes,
+    // then the pages (a web domain name always has a dot, so never "api")
     Route::prefix('app-processes/{user}')->middleware('effective-user')->name('app-processes.')->group(function () {
         Route::prefix('api')->name('api.')->group(function () {
             Route::get('/', [AppProcessController::class, 'index'])->name('index');
@@ -420,6 +424,9 @@ Route::middleware('auth.arc')->group(function () {
                 Route::put('/{domain}/{name}/env', [AppProcessController::class, 'saveEnv'])->name('env.update');
             });
         });
+        Route::get('/', [AppProcessPageController::class, 'index'])->name('index');
+        Route::get('/create', [AppProcessPageController::class, 'create'])->name('create');
+        Route::get('/{domain}/{name}', [AppProcessPageController::class, 'show'])->where('domain', '[^/]*\.[^/]*')->name('show');
     });
 
     // Node.js runtimes and global packages (E13 spec §6.3)

@@ -11,6 +11,7 @@
         'advanced' => $can['updateTemplates'] ? __('Advanced') : null,
         'ftp' => $systems['ftp'] ? __('FTP') : null,
         'php' => $php !== null ? __('PHP') : null,
+        'processes' => $appProcesses !== null ? __('App processes') : null,
         'stats' => __('Statistics'),
     ]);
     $locked = ! $can['update'];
@@ -200,6 +201,32 @@
         @if ($php !== null)
             <x-ap-tab-panel name="php">
                 @include('web.partials.php')
+            </x-ap-tab-panel>
+        @endif
+
+        {{-- App processes (E42) --}}
+        @if ($appProcesses !== null)
+            <x-ap-tab-panel name="processes">
+                <x-ap-card :title="__('App processes')" icon="terminal" :flush="$appProcesses['processes'] !== []">
+                    <x-slot:actions>
+                        @if ($appProcesses['create'] !== null)
+                            <x-ap-button :href="$appProcesses['create']" size="sm"><x-ap-icon name="plus" />{{ __('Add process') }}</x-ap-button>
+                        @endif
+                        <x-ap-button :href="$appProcesses['list']" variant="ghost" size="sm">{{ __('All processes') }}<x-ap-icon name="chevron-right" /></x-ap-button>
+                    </x-slot:actions>
+                    @if ($appProcesses['processes'] === [])
+                        <p class="muted">{{ __('No app process for this domain yet: run Laravel Octane, a queue worker or your own server for it.') }}</p>
+                    @else
+                        <ul class="ap-list">
+                            @foreach ($appProcesses['processes'] as $process)
+                                <li>
+                                    <div class="ap-list-main"><a class="mono" href="{{ route('app-processes.show', ['user' => $record->user, 'domain' => $process->domain, 'name' => $process->name]) }}">{{ $process->name }}</a><span class="mono">{{ $process->preset }}{{ $process->port !== '' ? ' · :'.$process->port : '' }}</span></div>
+                                    <x-ap-badge :tone="$process->suspended ? 'warn' : ($process->running() ? 'ok' : ($process->status === 'failed' ? 'danger' : null))">{{ $process->suspended ? __('Suspended') : ($process->running() ? __('Running') : ($process->status === 'failed' ? __('Failed') : __('Stopped'))) }}</x-ap-badge>
+                                </li>
+                            @endforeach
+                        </ul>
+                    @endif
+                </x-ap-card>
             </x-ap-tab-panel>
         @endif
 

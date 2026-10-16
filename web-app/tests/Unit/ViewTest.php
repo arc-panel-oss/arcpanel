@@ -162,7 +162,7 @@ it('folds related pages into hubs (sidebar hubs spec H4 to H6)', function () {
     $admin = new Principal('arcadmin', null, Role::Admin, Role::Admin, 'bash', 'en', null, str_repeat('e', 32), false);
     $groups = collect(app(Navigation::class)->for($admin, null))->mapWithKeys(fn ($group) => [$group['key'] => collect($group['items'])->pluck('key')->all()]);
 
-    expect($groups['hosting'])->toBe(['web.domains.index', 'dns.index', 'mail.index', 'db.index', 'cron.index', 'backups.index', 'malware.index', 'hub.files', 'hub.node', 'hub.docker'])
+    expect($groups['hosting'])->toBe(['web.domains.index', 'dns.index', 'mail.index', 'db.index', 'cron.index', 'backups.index', 'malware.index', 'hub.files', 'hub.node', 'app-processes', 'hub.docker'])
         ->and($groups['server'])->toBe(['server.settings', 'hub.services', 'hub.network', 'server.php.index', 'hub.updates'])
         ->and($groups['account'])->toBe(['logs.index', 'stats.index', 'hub.keys', 'secrets.index']);
 

@@ -10,21 +10,25 @@ const props = defineProps({
 	domain: { type: String, required: true },
 	active: { type: Boolean, default: false },
 	t: { type: Function, required: true },
+	// App processes (E42) reuse the view with their own path and streams
+	path: { type: String, default: '' },
+	streams: { type: Array, default: null },
+	name: { type: String, default: '' },
 });
 
 const t = props.t;
-const streams = [
+const streams = props.streams ?? [
 	['out', t('Output')],
 	['err', t('Errors')],
 	['install', t('Install')],
 	['build', t('Build')],
 ];
-const stream = ref('out');
+const stream = ref(streams[0][0]);
 const view = ref({ lines: [], offset: null });
 const paused = ref(false);
 let timer = null;
 
-const path = () => `/${encodeURIComponent(props.domain)}/logs`;
+const path = () => props.path || `/${encodeURIComponent(props.domain)}/logs`;
 
 async function read() {
 	const asked = view.value.offset;
@@ -58,7 +62,7 @@ async function download() {
 		const blob = new Blob([`${data.lines.join('\n')}\n`], { type: 'text/plain' });
 		const link = document.createElement('a');
 		link.href = URL.createObjectURL(blob);
-		link.download = `${props.domain}-${stream.value}.log`;
+		link.download = `${props.domain}${props.name ? `-${props.name}` : ''}-${stream.value}.log`;
 		link.click();
 		URL.revokeObjectURL(link.href);
 	} catch (error) {

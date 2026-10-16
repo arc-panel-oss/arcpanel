@@ -8,6 +8,7 @@ use App\Auth\Role;
 use App\Policies\AccessKeyPolicy;
 use App\Policies\Capabilities;
 use App\Policies\ServerPolicy;
+use App\Services\AppProcesses\AppProcessAccess;
 use App\Services\Docker\DockerAccess;
 use App\Services\Node\NodeAccess;
 use Illuminate\Support\Facades\Route;
@@ -76,6 +77,9 @@ final class Navigation
                     ['route' => 'node.index', 'label' => 'Node.js', 'tab' => 'Runtimes', 'icon' => 'hexagon', 'cap' => 'node.view', 'node' => true,
                         'section' => 'node.show', 'tabs' => ['node.show'], 'userRoute' => 'node.show'],
                 ]],
+                // App processes (E42 spec §9): only with the package grant
+                ['route' => 'app-processes', 'label' => 'App processes', 'icon' => 'terminal', 'cap' => 'apps.processes.view', 'processes' => true,
+                    'section' => 'app-processes.'],
                 ['hub' => 'docker', 'label' => 'Docker apps', 'icon' => 'container', 'children' => [
                     ['route' => 'docker-apps', 'label' => 'Docker apps', 'tab' => 'Apps', 'icon' => 'container', 'cap' => 'docker.apps.view', 'docker' => true,
                         'requires' => 'DOCKER_SYSTEM=yes', 'section' => 'docker.', 'tabs' => ['docker.apps.index'], 'userRoute' => 'docker.apps.index'],
@@ -129,6 +133,7 @@ final class Navigation
         private readonly SysConfig $config,
         private readonly NodeAccess $node,
         private readonly DockerAccess $docker,
+        private readonly AppProcessAccess $processes,
     ) {}
 
     /**
@@ -319,6 +324,9 @@ final class Navigation
             return false;
         }
         if (($item['docker'] ?? false) && $principal->actingRole() !== Role::Admin && ! $this->docker->allowed($principal->effectiveUser())) {
+            return false;
+        }
+        if (($item['processes'] ?? false) && $principal->actingRole() !== Role::Admin && ! $this->processes->allowed($principal->effectiveUser())) {
             return false;
         }
         if (($item['writable'] ?? false) && $principal->isReadOnly()) {

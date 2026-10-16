@@ -103,6 +103,26 @@
                 </x-ap-card>
             @endif
 
+            @if ($widgets['appProcesses'] ?? null)
+                <x-ap-card :title="__('App processes')" icon="terminal">
+                    @php($appProcesses = $widgets['appProcesses'])
+                    @if (! $appProcesses->ok())
+                        <x-ap-alert tone="danger">{{ $appProcesses->error }}</x-ap-alert>
+                    @elseif ($appProcesses->data->processes === [])
+                        <p class="muted">{{ __('No app process yet.') }}</p>
+                    @else
+                        @php($totals = $appProcesses->data->totals())
+                        <div class="ap-row">
+                            <x-ap-badge tone="ok">{{ sprintf(__('%d running'), $totals['running']) }}</x-ap-badge>
+                            @if ($totals['stopped'] > 0)<x-ap-badge>{{ sprintf(__('%d stopped'), $totals['stopped']) }}</x-ap-badge>@endif
+                            @if ($totals['failed'] > 0)<x-ap-badge tone="danger">{{ sprintf(__('%d failed'), $totals['failed']) }}</x-ap-badge>@endif
+                            @if ($totals['suspended'] > 0)<x-ap-badge tone="warn">{{ sprintf(__('%d suspended'), $totals['suspended']) }}</x-ap-badge>@endif
+                        </div>
+                    @endif
+                    <x-slot:footer><a href="{{ $appProcessesUrl }}">{{ __('All app processes') }}</a></x-slot:footer>
+                </x-ap-card>
+            @endif
+
             @if ($widgets['dockerApps'] ?? null)
                 <x-ap-card :title="__('Docker apps')" icon="container">
                     @php($dockerApps = $widgets['dockerApps'])
