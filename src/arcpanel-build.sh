@@ -94,6 +94,21 @@ get_branch_file() {
 	fi
 }
 
+# Fetches an engine source archive pinned in src/sources.sha256 and unpacks it
+# into the current folder; a failed or mismatched download stops the build
+# (E39 W3 D4, D5)
+get_source() {
+	local archive="$ARCHIVE_DIR/${1##*/}"
+	if ! fetch_pinned "$1" "$SOURCES_SHA256" "$archive"; then
+		echo "[!] Engine source ${1##*/} failed its check, stopping the build" >&2
+		exit 1
+	fi
+	if ! tar xzf "$archive"; then
+		echo "[!] Engine source ${1##*/} could not be unpacked" >&2
+		exit 1
+	fi
+}
+
 usage() {
 	echo "Usage:"
 	echo "    $0 (--all|--arcpanel|--nginx|--php|--web-terminal) [options] [branch] [Y]"
@@ -396,6 +411,18 @@ DEB_DIR="${DEB_DIR:-$BUILD_DIR/deb}"
 mkdir -p $DEB_DIR
 mkdir -p $ARCHIVE_DIR
 
+# Checked downloads and the pins of the engine sources, from the same source
+# as the code being built (E39 W3)
+get_branch_file 'func/download.sh' "$BUILD_DIR/download.sh"
+# shellcheck source=func/download.sh
+source "$BUILD_DIR/download.sh"
+SOURCES_SHA256="$BUILD_DIR/sources.sha256"
+get_branch_file 'src/sources.sha256' "$SOURCES_SHA256"
+if ! declare -F fetch_pinned > /dev/null || [ ! -s "$SOURCES_SHA256" ]; then
+	echo "Error: func/download.sh or src/sources.sha256 is missing" >&2
+	exit 1
+fi
+
 # Define a timestamp function
 timestamp() {
 	date +%s
@@ -404,7 +431,7 @@ timestamp() {
 if [ "$dontinstalldeps" != 'true' ]; then
 	# Install needed software
 	# Set package dependencies for compiling
-	SOFTWARE='wget tar git curl ca-certificates build-essential libxml2-dev libz-dev libzip-dev libgmp-dev libcurl4-gnutls-dev unzip openssl libssl-dev pkg-config libsqlite3-dev libonig-dev lsb-release'
+	SOFTWARE='wget tar git curl ca-certificates gnupg build-essential libxml2-dev libz-dev libzip-dev libgmp-dev libcurl4-gnutls-dev unzip openssl libssl-dev pkg-config libsqlite3-dev libonig-dev lsb-release'
 	echo "Updating system APT repositories..."
 	apt-get -qq update
 	echo "Installing dependencies for compilation..."
@@ -417,12 +444,16 @@ if [ "$dontinstalldeps" != 'true' ]; then
 	# binaries built against these libs (php, nginx, ...) can actually run.
 	ldconfig
 
-	# Installing Node.js 24.x repo
+	# Installing Node.js 24.x repo, its key checked by fingerprint (E39 W3 D6)
 	apt="/etc/apt/sources.list.d"
 	codename="$(lsb_release -s -c)"
 
 	if [ -z $(which "node") ]; then
-		curl -fsSL https://deb.nodesource.com/setup_24.x | bash -
+		if install_apt_key nodesource https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key /usr/share/keyrings/nodejs.gpg; then
+			echo "deb [signed-by=/usr/share/keyrings/nodejs.gpg] https://deb.nodesource.com/node_24.x nodistro main" > "$apt/nodejs.list"
+		else
+			echo "Warning: the NodeSource repository was not added, using the distribution's Node.js" >&2
+		fi
 	fi
 
 	echo "Installing Node.js..."
@@ -496,12 +527,12 @@ fi
 
 OPENSSL='https://github.com/openssl/openssl/releases/download/openssl-'$OPENSSL_V'/openssl-'$OPENSSL_V'.tar.gz'
 PCRE='https://github.com/PCRE2Project/pcre2/releases/download/pcre2-'$PCRE_V'/pcre2-'$PCRE_V'.tar.gz'
-ZLIB='https://github.com/madler/zlib/archive/refs/tags/v'$ZLIB_V'.tar.gz'
+ZLIB='https://github.com/madler/zlib/releases/download/v'$ZLIB_V'/zlib-'$ZLIB_V'.tar.gz'
 
 if [[ $PHP_V =~ - ]]; then
-	PHP='http://de2.php.net/distributions/php-'$(echo $PHP_V | cut -d"-" -f1)'.tar.gz'
+	PHP='https://www.php.net/distributions/php-'$(echo $PHP_V | cut -d"-" -f1)'.tar.gz'
 else
-	PHP='http://de2.php.net/distributions/php-'$(echo $PHP_V | cut -d"~" -f1)'.tar.gz'
+	PHP='https://www.php.net/distributions/php-'$(echo $PHP_V | cut -d"~" -f1)'.tar.gz'
 fi
 
 # Forward slashes in branchname are replaced with dashes to match foldername in github archive.
@@ -541,10 +572,10 @@ if [ "$NGINX_B" = true ]; then
 		mkdir -p $BUILD_DIR_ARCPANELNGINX
 
 		# Download and unpack source files
-		download_file $NGINX '-' | tar xz
-		download_file $OPENSSL '-' | tar xz
-		download_file $PCRE '-' | tar xz
-		download_file $ZLIB '-' | tar xz
+		get_source "$NGINX"
+		get_source "$OPENSSL"
+		get_source "$PCRE"
+		get_source "$ZLIB"
 
 		# Change to nginx directory
 		cd $BUILD_DIR_NGINX
@@ -674,7 +705,7 @@ if [ "$PHP_B" = true ]; then
 
 		# Download and unpack source files
 		cd $BUILD_DIR
-		download_file $PHP '-' | tar xz
+		get_source "$PHP"
 
 		# Change to untarred php directory
 		cd $BUILD_DIR_PHP
@@ -754,7 +785,7 @@ if [ "$PHP_B" = true ]; then
 
 	# clear up the source folder
 	if [ "$KEEPBUILD" != 'true' ]; then
-		rm -r $BUILD_DIR/php-$(echo $PHP_V | cut -d"~" -f1)
+		rm -r "$BUILD_DIR_PHP"
 		rm -r $BUILD_DIR_ARCPANELPHP
 		if [ "$use_src_folder" == 'true' ] && [ -d $BUILD_DIR/arcpanel-$branch_dash ]; then
 			rm -r $BUILD_DIR/arcpanel-$branch_dash
