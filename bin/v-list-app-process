@@ -1,0 +1,78 @@
+#!/bin/bash
+# info: list one app process of a web domain (E42)
+# options: USER DOMAIN NAME [FORMAT]
+#
+# example: v-list-app-process alice shop.example.com web json
+#
+# This function prints the record of the app process with its live state
+# (see v-list-app-processes), its unit, the path of its log and of its
+# environment file and the reason when its runtime is missing.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+user=$1
+domain=$2
+name=$3
+format=${4-shell}
+
+# Includes
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/tenancy.sh
+source $ARCPANEL/func/tenancy.sh
+# shellcheck source=/usr/local/arcpanel/func/appprocess.sh
+source $ARCPANEL/func/appprocess.sh
+# load config file
+source_conf "$ARCPANEL/conf/arcpanel.conf"
+
+# Additional argument formatting
+format_domain
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '3' "$#" 'USER DOMAIN NAME [FORMAT]'
+is_format_valid 'user' 'domain'
+is_object_valid 'user' 'USER' "$user"
+if ! appproc_name_valid "$name"; then
+	check_result "$E_INVALID" "invalid name :: $name"
+fi
+id=$(appproc_id "$user" "$domain" "$name")
+if [ -z "$id" ]; then
+	check_result "$E_NOTEXIST" "$domain has no app process named $name"
+fi
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+line=$(appproc_line "$user" "$id")
+dir=$(appproc_dir "$user" "$domain")
+reason=$(appproc_runtime_missing "$user" "$domain" "$(appproc_field "$line" PRESET)" "$(appproc_field "$line" CWD)")
+reload=$(appproc_preset_get "$(appproc_field "$line" PRESET)" RELOAD)
+json=$(appproc_rows_json "$user" "$domain" | jq -sc --arg id "$id" --arg log "$dir/logs/$name.log" \
+	--arg env "$dir/$name.env" --arg reason "$reason" --arg reload "$reload" '
+	[ .[] | select(.ID == $id) ][0] + { LOG: $log, ENV_FILE: $env, RUNTIME_MISSING: $reason,
+		RELOAD: ($reload | if startswith("command:") then "command" else . end) }')
+
+case "$format" in
+	json) printf '%s\n' "$json" | jq . ;;
+	plain) printf '%s\n' "$json" | jq -r '[.DOMAIN, .NAME, .KIND, .PRESET, .PORT, .STATUS, .START] | @tsv' ;;
+	csv)
+		echo "DOMAIN,NAME,KIND,PRESET,PORT,STATUS,START"
+		printf '%s\n' "$json" | jq -r '[.DOMAIN, .NAME, .KIND, .PRESET, .PORT, .STATUS, .START] | @csv'
+		;;
+	*) printf '%s\n' "$json" | jq -r 'to_entries[] | "\(.key): \(.value)"' ;;
+esac
+
+#----------------------------------------------------------#
+#                         ArcPanel                         #
+#----------------------------------------------------------#
+
+exit

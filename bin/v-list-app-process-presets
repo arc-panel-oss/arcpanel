@@ -1,0 +1,92 @@
+#!/bin/bash
+# info: list the presets of app processes (E42)
+# options: [USER DOMAIN [CWD]] [FORMAT]
+#
+# example: v-list-app-process-presets json
+# example: v-list-app-process-presets alice shop.example.com public_html json
+#
+# This function lists the presets of the app process catalog: kind,
+# template, runtime and the command with its placeholders. With USER and
+# DOMAIN, each preset also says whether its files were found in CWD
+# (default public_html, read as the user) and why its runtime is missing,
+# and the command shows its placeholders filled in (%port% stays).
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+# (the includes may set user, so the mode is kept apart)
+for_domain=no
+if [ "$#" -le 1 ]; then
+	format=${1-shell}
+else
+	for_domain=yes
+	user=$1
+	domain=$2
+	cwd=${3:-public_html}
+	format=${4-shell}
+fi
+
+# Includes
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/tenancy.sh
+source $ARCPANEL/func/tenancy.sh
+# shellcheck source=/usr/local/arcpanel/func/appprocess.sh
+source $ARCPANEL/func/appprocess.sh
+# load config file
+source_conf "$ARCPANEL/conf/arcpanel.conf"
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+if [ "$for_domain" = 'yes' ]; then
+	format_domain
+	is_format_valid 'user' 'domain'
+	is_object_valid 'user' 'USER' "$user"
+	is_object_valid 'web' 'DOMAIN' "$domain"
+	appproc_check_cwd "$user" "$domain" "$cwd"
+fi
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+detected=''
+if [ "$for_domain" = 'yes' ]; then
+	detected=$(appproc_detected "$user" "$(appproc_cwd_path "$user" "$domain" "$cwd")" | paste -sd, -)
+fi
+rows=''
+for preset in $(appproc_preset_names); do
+	line=$(appproc_preset_line "$preset")
+	start=$(appproc_field "$line" START)
+	missing=''
+	if [ "$for_domain" = 'yes' ]; then
+		start=$(appproc_fill "$user" "$domain" "$cwd" '%port%' "$start")
+		missing=$(appproc_runtime_missing "$user" "$domain" "$preset" "$cwd")
+	fi
+	template=$(appproc_field "$line" TEMPLATE)
+	available=yes
+	if [ -n "$template" ] && ! appproc_tpl_has_port "$template"; then
+		available=no
+	fi
+	rows+=$(jq -nc --arg line "$line" --arg start "$start" --arg detected "$detected" \
+		--arg missing "$missing" --arg available "$available" '
+		($line | [scan("([A-Z_]+)='"'"'([^'"'"']*)'"'"'")] | map({ key: .[0], value: .[1] }) | from_entries)
+		| . + { START: $start, RELOAD: (.RELOAD | if startswith("command:") then "command" else . end),
+			DETECTED: (if (.NAME as $n | $detected | split(",") | index($n)) then "yes" else "no" end),
+			RUNTIME_MISSING: $missing, TEMPLATE_AVAILABLE: $available }')$'\n'
+done
+json=$(printf '%s' "$rows" | jq -sc '{ PRESETS: . }')
+
+node_print "$format" "$json" '.PRESETS' 'NAME KIND TEMPLATE RUNTIME DETECTED TITLE'
+
+#----------------------------------------------------------#
+#                         ArcPanel                         #
+#----------------------------------------------------------#
+
+exit

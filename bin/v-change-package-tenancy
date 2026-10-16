@@ -20,6 +20,10 @@
 # package's web domains (E41): a reseller's own package may only allow what
 # the reseller's package allows, * only when that is *, and the package's
 # BACKEND_TEMPLATE must name an allowed version.
+# APP_PROCESSES (yes or no), APP_PROCESSES_MAX (integer or unlimited),
+# APP_PROCESSES_MEMORY (memory per process, like 512M, or unlimited) and
+# APP_PROCESSES_CPUS (CPUs per process, like 0.5, or unlimited) allow app
+# processes (E42); a reseller's own package cannot go beyond the reseller's.
 
 #----------------------------------------------------------#
 #                Variables & Functions                     #
@@ -53,6 +57,7 @@ case "$key" in
 	USERS | RESELLER_PACKAGES | RESELLER_VISIBLE | PORTS | NODE | NODE_VERSIONS | NODE_APPS | NODE_ALLOWED) ;;
 	DOCKER | DOCKER_APPS | DOCKER_CPUS | DOCKER_MEMORY) ;;
 	PHP_VERSIONS | PHP_PROFILES | PHP_DEFAULT_PROFILE) ;;
+	APP_PROCESSES | APP_PROCESSES_MAX | APP_PROCESSES_MEMORY | APP_PROCESSES_CPUS) ;;
 	*) check_result "$E_INVALID" "invalid key $key" ;;
 esac
 if ! tenancy_pkg_value_valid "$key" "$value"; then

@@ -16,7 +16,11 @@
 #                                              DOCKER_APPS, DOCKER_CPUS,    #
 #                                              DOCKER_MEMORY (E4),          #
 #                                              PHP_VERSIONS, PHP_PROFILES,  #
-#                                              PHP_DEFAULT_PROFILE (E41)    #
+#                                              PHP_DEFAULT_PROFILE (E41),   #
+#                                              APP_PROCESSES,               #
+#                                              APP_PROCESSES_MAX,           #
+#                                              APP_PROCESSES_MEMORY,        #
+#                                              APP_PROCESSES_CPUS (E42)     #
 # See docs/features/specs/2026-10-05-003-e11-reseller-design.md.            #
 #                                                                           #
 #===========================================================================#
@@ -31,7 +35,7 @@ TENANCY_PACKAGE_LIMIT_KEYS="WEB_DOMAINS WEB_ALIASES DNS_DOMAINS DNS_RECORDS MAIL
 
 # Sidecar keys of a reseller-created package compared with the reseller's
 # own package (E39 W4 spec §8.3); PHP_DEFAULT_PROFILE is checked apart
-TENANCY_PACKAGE_TENANCY_LIMIT_KEYS="PORTS NODE NODE_VERSIONS NODE_ALLOWED NODE_APPS DOCKER DOCKER_APPS DOCKER_CPUS DOCKER_MEMORY PHP_VERSIONS PHP_PROFILES"
+TENANCY_PACKAGE_TENANCY_LIMIT_KEYS="PORTS NODE NODE_VERSIONS NODE_ALLOWED NODE_APPS DOCKER DOCKER_APPS DOCKER_CPUS DOCKER_MEMORY PHP_VERSIONS PHP_PROFILES APP_PROCESSES APP_PROCESSES_MAX APP_PROCESSES_MEMORY APP_PROCESSES_CPUS"
 
 tenancy_usage_key() {
 	case "$1" in
@@ -178,9 +182,10 @@ tenancy_customers() {
 tenancy_pkg_default() {
 	case "$1" in
 		USERS | PORTS | DOCKER_APPS) REPLY='0' ;;
-		RESELLER_VISIBLE | NODE | DOCKER) REPLY='no' ;;
-		DOCKER_CPUS | DOCKER_MEMORY) REPLY='unlimited' ;;
-		NODE_VERSIONS | NODE_APPS) REPLY='3' ;;
+		RESELLER_VISIBLE | NODE | DOCKER | APP_PROCESSES) REPLY='no' ;;
+		DOCKER_CPUS | DOCKER_MEMORY | APP_PROCESSES_MEMORY) REPLY='unlimited' ;;
+		NODE_VERSIONS | NODE_APPS | APP_PROCESSES_MAX) REPLY='3' ;;
+		APP_PROCESSES_CPUS) REPLY='1' ;;
 		NODE_ALLOWED) REPLY='lts' ;;
 		PHP_VERSIONS) REPLY='*' ;;
 		PHP_PROFILES | PHP_DEFAULT_PROFILE) REPLY='default' ;;
@@ -238,16 +243,16 @@ tenancy_pkg_value_valid() {
 		USERS | PORTS)
 			[ "$value" = 'unlimited' ] || [[ "$value" =~ ^[0-9]{1,5}$ ]]
 			;;
-		RESELLER_VISIBLE | NODE | DOCKER)
+		RESELLER_VISIBLE | NODE | DOCKER | APP_PROCESSES)
 			[ "$value" = 'yes' ] || [ "$value" = 'no' ]
 			;;
-		NODE_VERSIONS | NODE_APPS | DOCKER_APPS)
+		NODE_VERSIONS | NODE_APPS | DOCKER_APPS | APP_PROCESSES_MAX)
 			[ "$value" = 'unlimited' ] || [[ "$value" =~ ^[0-9]{1,3}$ ]]
 			;;
-		DOCKER_CPUS)
+		DOCKER_CPUS | APP_PROCESSES_CPUS)
 			[ "$value" = 'unlimited' ] || [[ "$value" =~ ^[0-9]{1,3}(\.[0-9]{1,2})?$ ]]
 			;;
-		DOCKER_MEMORY)
+		DOCKER_MEMORY | APP_PROCESSES_MEMORY)
 			[ "$value" = 'unlimited' ] || [[ "$value" =~ ^[0-9]{1,7}[MG]?$ ]]
 			;;
 		NODE_ALLOWED)
@@ -389,11 +394,11 @@ tenancy_limit_value() {
 		return 0
 	fi
 	case "$key" in
-		MEMORY_LIMIT | SWAP_LIMIT | DOCKER_MEMORY)
+		MEMORY_LIMIT | SWAP_LIMIT | DOCKER_MEMORY | APP_PROCESSES_MEMORY)
 			[[ "$value" =~ ^([0-9]+)([KMGT]?)$ ]] || return 1
 			digits=${BASH_REMATCH[1]}
 			unit=${BASH_REMATCH[2]}
-			if [ -z "$unit" ] && [ "$key" = 'DOCKER_MEMORY' ]; then
+			if [ -z "$unit" ] && { [ "$key" = 'DOCKER_MEMORY' ] || [ "$key" = 'APP_PROCESSES_MEMORY' ]; }; then
 				unit='M'
 			fi
 			# Digits allowed per unit keep the bytes below 2^63
@@ -407,7 +412,7 @@ tenancy_limit_value() {
 			[ "${#digits}" -le "$max" ] || return 1
 			REPLY=$((10#$digits * (1 << shift)))
 			;;
-		DOCKER_CPUS)
+		DOCKER_CPUS | APP_PROCESSES_CPUS)
 			[[ "$value" =~ ^([0-9]{1,9})(\.([0-9]{1,2}))?$ ]] || return 1
 			unit="${BASH_REMATCH[3]}00"
 			REPLY=$((10#${BASH_REMATCH[1]} * 100 + 10#${unit:0:2}))
@@ -423,7 +428,7 @@ tenancy_limit_value() {
 				REPLY=$((REPLY * 1000))
 			fi
 			;;
-		BACKUPS_INCREMENTAL | NODE | DOCKER)
+		BACKUPS_INCREMENTAL | NODE | DOCKER | APP_PROCESSES)
 			case "$value" in
 				yes) REPLY=1 ;;
 				no) REPLY=0 ;;
@@ -610,7 +615,7 @@ tenancy_user_json() {
 TENANCY_PACKAGE_JSON_KEYS="WEB_TEMPLATE BACKEND_TEMPLATE PROXY_TEMPLATE DNS_TEMPLATE WEB_DOMAINS WEB_ALIASES DNS_DOMAINS DNS_RECORDS MAIL_DOMAINS MAIL_ACCOUNTS RATE_LIMIT DATABASES CRON_JOBS DISK_QUOTA CPU_QUOTA CPU_QUOTA_PERIOD MEMORY_LIMIT SWAP_LIMIT BANDWIDTH NS SHELL BACKUPS BACKUPS_INCREMENTAL TIME DATE"
 
 # Tenancy keys of tenancy_package_json, in output order
-TENANCY_PACKAGE_TENANCY_KEYS="USERS RESELLER_PACKAGES RESELLER_VISIBLE PORTS NODE NODE_VERSIONS NODE_ALLOWED NODE_APPS DOCKER DOCKER_APPS DOCKER_CPUS DOCKER_MEMORY PHP_VERSIONS PHP_PROFILES PHP_DEFAULT_PROFILE RESELLER_OWNER"
+TENANCY_PACKAGE_TENANCY_KEYS="USERS RESELLER_PACKAGES RESELLER_VISIBLE PORTS NODE NODE_VERSIONS NODE_ALLOWED NODE_APPS DOCKER DOCKER_APPS DOCKER_CPUS DOCKER_MEMORY PHP_VERSIONS PHP_PROFILES PHP_DEFAULT_PROFILE APP_PROCESSES APP_PROCESSES_MAX APP_PROCESSES_MEMORY APP_PROCESSES_CPUS RESELLER_OWNER"
 
 # The sidecar is read once, in bash, with the semantics of tenancy_conf_get
 # (the first KEY='value' line wins): `v-list-package-tenancy all json` runs on

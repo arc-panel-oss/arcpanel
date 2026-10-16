@@ -110,6 +110,7 @@ done
 "$ARCPANEL/bin/v-add-sys-tenancy"
 "$ARCPANEL/bin/v-add-sys-port-registry"
 "$ARCPANEL/bin/v-add-sys-node"
+"$ARCPANEL/bin/v-add-sys-app-processes"
 "$ARCPANEL/bin/v-add-sys-web-templates-meta"
 "$ARCPANEL/bin/v-add-sys-panel-files"
 if command -v age > /dev/null 2>&1; then

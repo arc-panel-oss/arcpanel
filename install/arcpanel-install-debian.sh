@@ -2617,6 +2617,8 @@ $ARCPANEL/bin/v-add-sys-tenancy
 $ARCPANEL/bin/v-add-sys-port-registry
 # Node.js manager: download cache, release keys, developer package (E13)
 $ARCPANEL/bin/v-add-sys-node
+# App processes: run files and the developer package keys (E42)
+$ARCPANEL/bin/v-add-sys-app-processes
 # File manager staging tree and the panel app's scheduler (E3)
 $ARCPANEL/bin/v-add-sys-panel-files
 # Secret store: the master key (E38); keep a copy of it off the server
