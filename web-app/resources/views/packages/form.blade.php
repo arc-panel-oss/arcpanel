@@ -78,7 +78,7 @@
                 <x-ap-unlimited-input name="node_apps" :label="__('Node.js apps')" :value="$values['NODE_APPS'] ?? '3'"
                     :hint="$ownNode !== null ? sprintf(__('Your plan: %s'), $ownNode['NODE_APPS']) : __('Apps bound to web domains, run by pm2.')" />
                 <x-ap-input name="node_allowed" :label="__('Allowed majors')" :value="$values['NODE_ALLOWED']" mono
-                    :hint="__('lts for the supported LTS lines, * for every version, or majors such as 22,24.')" />
+                    :hint="$ownNode !== null ? sprintf(__('Your plan: %s'), $ownNode['NODE_ALLOWED']) : __('lts for the supported LTS lines, * for every version, or majors such as 22,24.')" />
             </div>
         </x-ap-card>
 

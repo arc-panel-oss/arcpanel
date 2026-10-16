@@ -6,8 +6,9 @@ use App\Arc\ExitCode;
 
 beforeEach(function () {
     $this->fake = fakeArc(['POLICY_RESELLER_CREATE_PACKAGES' => 'yes']);
-    fakeResellers($this->fake, ['hostco' => ['WEB_DOMAINS' => '10', 'DISK_QUOTA' => '5000', 'BANDWIDTH' => 'unlimited', 'MAIL_ACCOUNTS' => 'unlimited', 'RATE_LIMIT' => '200', 'BACKUPS' => '3']]);
-    $base = ['WEB_TEMPLATE' => 'default', 'DNS_TEMPLATE' => 'default', 'WEB_DOMAINS' => '1', 'MAIL_ACCOUNTS' => '5', 'DATABASES' => '1',
+    fakeResellers($this->fake, ['hostco' => ['WEB_DOMAINS' => '10', 'DISK_QUOTA' => '5000', 'BANDWIDTH' => 'unlimited', 'MAIL_ACCOUNTS' => 'unlimited', 'RATE_LIMIT' => '200', 'BACKUPS' => '3',
+        'WEB_TEMPLATE' => 'default', 'BACKEND_TEMPLATE' => 'default', 'PROXY_TEMPLATE' => 'default', 'DNS_TEMPLATE' => 'default']]);
+    $this->base = $base = ['WEB_TEMPLATE' => 'default', 'DNS_TEMPLATE' => 'default', 'WEB_DOMAINS' => '1', 'MAIL_ACCOUNTS' => '5', 'DATABASES' => '1',
         'DISK_QUOTA' => '1000', 'BANDWIDTH' => '1000', 'NS' => 'ns1.example.com,ns2.example.com', 'SHELL' => 'nologin',
         'USERS' => '0', 'RESELLER_PACKAGES' => '', 'RESELLER_VISIBLE' => 'no', 'RESELLER_OWNER' => ''];
     $this->fake->on('v-list-package-tenancy', ['all', 'json'])->returnsJson([
@@ -303,4 +304,60 @@ it('limits the PHP of a reseller package to the reseller plan (E41 D12)', functi
         ->assertRedirect('/packages');
     $this->fake->assertRan('v-change-package-tenancy', fn ($a) => $a === ['hostco_business', 'PHP_VERSIONS', '8.4']);
     $this->fake->assertRan('v-change-package-tenancy', fn ($a) => $a === ['hostco_business', 'PHP_DEFAULT_PROFILE', 'small']);
+});
+
+it('keeps a reseller package to the shells and templates of the plan (E39 W4 §8.1)', function () {
+    signIn('hostco', 'reseller');
+    $this->fake->on('v-add-reseller-package')->returns();
+
+    // Shells from POLICY_RESELLER_PACKAGE_SHELLS (nologin by default), the reseller's own templates
+    $this->get('/packages/create')->assertOk()
+        ->assertDontSee('<option value="bash"', false)->assertDontSee('<option value="wordpress"', false);
+    $this->post('/packages', packageInput(['shell' => 'bash', 'web_template' => 'wordpress', 'dns_template' => 'child-ns']))
+        ->assertSessionHasErrors(['shell' => 'Your plan does not allow this value.', 'web_template', 'dns_template']);
+    $this->fake->assertNotRan('v-add-reseller-package');
+});
+
+it('lets a reseller package use the shells of the setting and any template while users may choose them', function () {
+    withSysConfig($this->fake, ['POLICY_RESELLER_CREATE_PACKAGES' => 'yes', 'POLICY_RESELLER_PACKAGE_SHELLS' => 'nologin,bash',
+        'POLICY_USER_EDIT_WEB_TEMPLATES' => 'yes', 'POLICY_USER_EDIT_DNS_TEMPLATES' => 'yes']);
+    signIn('hostco', 'reseller');
+    $this->fake->on('v-add-reseller-package')->returns();
+
+    $this->get('/packages/create')->assertOk()->assertSee('<option value="bash"', false);
+    $this->post('/packages', packageInput(['shell' => 'bash', 'web_template' => 'wordpress', 'dns_template' => 'child-ns']))
+        ->assertSessionHasNoErrors()->assertRedirect('/packages');
+    $this->fake->assertRan('v-add-reseller-package', fn ($a) => str_contains($a[1], "SHELL='bash'") && str_contains($a[1], "WEB_TEMPLATE='wordpress'"));
+});
+
+it('lets a reseller package keep the shell it has', function () {
+    $this->fake->on('v-list-package-tenancy', ['all', 'json'])->returnsJson([
+        'default' => $this->base, 'starter' => $this->base, 'reseller' => $this->base,
+        'hostco_gold' => ['RESELLER_OWNER' => 'hostco', 'SHELL' => 'bash'] + $this->base,
+    ]);
+    $this->fake->on('v-change-reseller-package')->returns();
+    signIn('hostco', 'reseller');
+
+    $this->get('/packages/hostco_gold/edit')->assertOk()->assertSee('<option value="bash"', false);
+    $this->post('/packages/hostco_gold', packageInput(['shell' => 'bash']))->assertSessionHasNoErrors();
+    $this->fake->assertRan('v-change-reseller-package', fn ($a) => str_contains($a[1], "SHELL='bash'"));
+});
+
+it('compares the limits of a reseller package after their units (E39 W4 §8.2)', function () {
+    fakeResellers($this->fake, ['hostco' => ['WEB_DOMAINS' => '10', 'WEB_TEMPLATE' => 'default', 'BACKEND_TEMPLATE' => 'default',
+        'PROXY_TEMPLATE' => 'default', 'DNS_TEMPLATE' => 'default', 'BACKUPS_INCREMENTAL' => 'no']]);
+    // v-list-user leaves out the cgroup limits and RATE_LIMIT: they come from the reseller's package
+    $this->fake->on('v-list-package-tenancy', ['all', 'json'])->returnsJson([
+        'default' => $this->base, 'starter' => $this->base,
+        'reseller' => ['MEMORY_LIMIT' => '1G', 'CPU_QUOTA' => '100%', 'RATE_LIMIT' => '100'] + $this->base,
+    ]);
+    withSysConfig($this->fake, ['POLICY_RESELLER_CREATE_PACKAGES' => 'yes', 'RESOURCES_LIMIT' => 'yes']);
+    $this->fake->on('v-add-reseller-package')->returns();
+    signIn('hostco', 'reseller');
+
+    $this->post('/packages', packageInput(['memory_limit' => '2048M', 'cpu_quota' => '150%', 'rate_limit' => '200', 'backups_incremental' => '1']))
+        ->assertSessionHasErrors(['memory_limit' => 'At most 1G on your plan.', 'cpu_quota', 'rate_limit',
+            'backups_incremental' => 'Incremental backups are not included in your plan.']);
+    $this->post('/packages', packageInput(['memory_limit' => '1024M', 'cpu_quota' => '50%', 'rate_limit' => '100']))
+        ->assertSessionHasNoErrors()->assertRedirect('/packages');
 });

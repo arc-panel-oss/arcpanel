@@ -238,12 +238,15 @@ abstract class PackageRequest extends ApiRequest
             $names = [
                 'web_template' => 'templates.web', 'backend_template' => 'templates.backend', 'proxy_template' => 'templates.proxy',
                 'dns_template' => 'templates.dns', 'rate_limit' => 'limits.rate_limit', 'backups' => 'limits.backups',
-                'node' => 'node.enabled', 'node_versions' => 'node.versions', 'node_apps' => 'node.apps',
+                'node' => 'node.enabled', 'node_versions' => 'node.versions', 'node_apps' => 'node.apps', 'node_allowed' => 'node.allowed',
                 'docker' => 'docker.enabled', 'docker_apps' => 'docker.apps', 'docker_cpus' => 'docker.cpus', 'docker_memory' => 'docker.memory',
                 'php_versions' => 'php.versions', 'php_profiles' => 'php.profiles', 'php_default_profile' => 'php.default_profile',
             ];
             foreach (self::LIMITS as $field => $key) {
                 $names[strtolower($key)] = 'limits.'.$field;
+            }
+            foreach (self::RESOURCES as $field => $key) {
+                $names[strtolower($key)] = 'resources.'.$field;
             }
             $errors = [];
             foreach ($e->errors() as $field => $messages) {

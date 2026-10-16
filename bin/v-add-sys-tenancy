@@ -48,6 +48,10 @@ fi
 if ! grep -q "^POLICY_RESELLER_LOGIN_AS=" "$ARCPANEL/conf/arcpanel.conf"; then
 	$BIN/v-change-sys-config-value POLICY_RESELLER_LOGIN_AS yes
 fi
+# Shells a reseller may put into its packages (E39 W4 D5)
+if ! grep -q "^POLICY_RESELLER_PACKAGE_SHELLS=" "$ARCPANEL/conf/arcpanel.conf"; then
+	$BIN/v-change-sys-config-value POLICY_RESELLER_PACKAGE_SHELLS nologin
+fi
 
 # Example reseller package
 if [ ! -f "$ARCPANEL/data/packages/reseller.pkg" ] && [ -f "$COMMON_PACKAGES/reseller.pkg" ]; then

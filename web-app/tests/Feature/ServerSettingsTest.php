@@ -423,3 +423,18 @@ it('has a capability for every settings route', function () {
     expect($routes)->not->toBeEmpty()
         ->and(Capabilities::names())->toContain('server.settings');
 });
+
+it('sets the shells resellers may give in their packages, from the shells of the server (E39 W4 D5)', function () {
+    $this->fake->on('v-list-sys-shells', ['json'])->returnsJson(['bash', 'nologin', 'sh']);
+    $this->fake->on('v-change-sys-api')->returns();
+    signIn('arcadmin', 'admin');
+    $form = ['API_SYSTEM' => '1', 'API' => 'no', 'API_V1' => 'no', 'API_ALLOWED_IP' => '', 'LOGIN_STYLE' => 'default', 'INACTIVE_SESSION_TIMEOUT' => '60', 'POLICY_CSRF_STRICTNESS' => '1'];
+
+    $this->get('/server/settings/security')->assertOk()->assertSee('Shells resellers may give in their packages')
+        ->assertSee('name="POLICY_RESELLER_PACKAGE_SHELLS"', false);
+    $this->post('/server/settings/security', $form + ['POLICY_RESELLER_PACKAGE_SHELLS' => 'nologin,bash'])->assertSessionHas('ok');
+    $this->fake->assertRan('v-change-sys-config-value', fn ($a) => $a === ['POLICY_RESELLER_PACKAGE_SHELLS', 'nologin,bash']);
+
+    $this->post('/server/settings/security', $form + ['POLICY_RESELLER_PACKAGE_SHELLS' => 'nologin,zsh'])->assertSessionHasErrors('POLICY_RESELLER_PACKAGE_SHELLS');
+    $this->post('/server/settings/security', $form + ['POLICY_RESELLER_PACKAGE_SHELLS' => 'nologin,'])->assertSessionHasErrors('POLICY_RESELLER_PACKAGE_SHELLS');
+});

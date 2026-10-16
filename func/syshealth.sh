@@ -439,6 +439,11 @@ function syshealth_repair_system_config() {
 		echo "[ ! ] Adding missing variable to arcpanel.conf: POLICY_USER_EDIT_DNS_TEMPLATES ('yes')"
 		$BIN/v-change-sys-config-value "POLICY_USER_EDIT_DNS_TEMPLATES" "yes"
 	fi
+	# Shells a reseller may put into its packages (E39 W4 D5)
+	if [[ -z $(check_key_exists 'POLICY_RESELLER_PACKAGE_SHELLS') ]]; then
+		echo "[ ! ] Adding missing variable to arcpanel.conf: POLICY_RESELLER_PACKAGE_SHELLS ('nologin')"
+		$BIN/v-change-sys-config-value "POLICY_RESELLER_PACKAGE_SHELLS" "nologin"
+	fi
 	# Allow users to edit web templates
 	if [[ -z $(check_key_exists 'POLICY_USER_EDIT_WEB_TEMPLATES') ]]; then
 		echo "[ ! ] Adding missing variable to arcpanel.conf: POLICY_USER_EDIT_WEB_TEMPLATES ('yes')"

@@ -6,6 +6,7 @@ use App\Api\ApiException;
 use App\Api\ErrorCode;
 use App\Auth\Principal;
 use App\Policies\ServerPolicy;
+use App\Rules\ServerShells;
 use App\Services\Server\ServerSettings;
 use App\Services\Server\ServerSettingsApi;
 use Illuminate\Validation\ValidationException;
@@ -94,6 +95,8 @@ final class UpdateServerSettingsRequest extends ApiRequest
             'POLICY_SYNC_ERROR_DOCUMENTS' => ['sometimes', 'string', 'in:yes,no'],
             'POLICY_SYNC_SKELETON' => ['sometimes', 'string', 'in:yes,no'],
             'ENFORCE_SUBDOMAIN_OWNERSHIP' => ['sometimes', 'string', 'in:yes,no'],
+            /** Comma list of shells of the server (`v-list-sys-shells`) that resellers may put into their packages. */
+            'POLICY_RESELLER_PACKAGE_SHELLS' => ['sometimes', 'string', 'max:255', 'regex:/^[\w.-]+(,[\w.-]+)*$/'],
         ],
         'plugins' => [
             'app_installer' => ['sometimes', 'boolean'],
@@ -113,7 +116,12 @@ final class UpdateServerSettingsRequest extends ApiRequest
     {
         $tab = $this->route('tab');
         if (is_string($tab) && isset(self::RULES[$tab])) {
-            return self::RULES[$tab];
+            $rules = self::RULES[$tab];
+            if ($tab === 'security') {
+                $rules['POLICY_RESELLER_PACKAGE_SHELLS'][] = new ServerShells;
+            }
+
+            return $rules;
         }
 
         // Any tab (the OpenAPI document): every field, each optional

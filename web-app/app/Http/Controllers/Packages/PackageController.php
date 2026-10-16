@@ -147,7 +147,7 @@ final class PackageController extends Controller
             'values' => array_merge(PackageService::defaults(($this->packages->all()['default'] ?? null)?->get('NS') ?? ''), $record?->data ?? []),
             'name' => $record === null ? '' : UserService::packageLabel($record->name, $reseller),
             'canRename' => $reseller === '',
-            'templates' => $this->packages->templates(),
+            'templates' => $this->actions->choices($reseller, $record?->data ?? []),
             'resources' => $this->packages->resourcesLimit(),
             'resellerSettings' => $policy->manageResellerSettings($principal),
             'ownLimits' => $reseller !== '' ? $this->users->find($reseller)->data : [],

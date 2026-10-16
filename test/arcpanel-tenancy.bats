@@ -34,13 +34,19 @@ cleanup() {
     for user in tnc1 tnc2 tnc3 tnc4 "$RESELLER" "$RESELLER2"; do
         v-delete-user "$user" > /dev/null 2>&1 || true
     done
-    for package in tn-plan tn-small tn-big tn-hidden tn-renamed "${RESELLER}_own"; do
+    for package in tn-plan tn-small tn-big tn-hidden tn-renamed "${RESELLER}_own" "${RESELLER}_rp"; do
         v-delete-user-package "$package" > /dev/null 2>&1 || true
         rm -f "$PKG_DIR/$package.tenancy"
     done
 }
 
+# Policies the cases change, saved by setup_file and restored by teardown_file
+POLICIES="POLICY_RESELLER_CREATE_PACKAGES POLICY_RESELLER_PACKAGE_SHELLS POLICY_USER_EDIT_WEB_TEMPLATES POLICY_USER_EDIT_DNS_TEMPLATES"
+
 setup_file() {
+    for key in $POLICIES; do
+        echo "$key=$(grep "^$key=" "$ARCPANEL/conf/arcpanel.conf" | cut -d"'" -f2)"
+    done > "$BATS_FILE_TMPDIR/policies"
     cleanup
     make_package tn-plan 5
     make_package tn-small 2
@@ -55,7 +61,12 @@ setup_file() {
 
 teardown_file() {
     cleanup
-    v-change-sys-config-value POLICY_RESELLER_CREATE_PACKAGES no
+    while IFS='=' read -r key value; do
+        if [ -z "$value" ]; then
+            [ "$key" = 'POLICY_RESELLER_PACKAGE_SHELLS' ] && value='nologin' || value='no'
+        fi
+        v-change-sys-config-value "$key" "$value"
+    done < "$BATS_FILE_TMPDIR/policies"
 }
 
 @test "Role reseller is accepted" {
@@ -72,6 +83,7 @@ teardown_file() {
     assert_success
     assert_output --partial '"POLICY_RESELLER_CREATE_PACKAGES"'
     assert_output --partial '"POLICY_RESELLER_LOGIN_AS"'
+    assert_output --partial '"POLICY_RESELLER_PACKAGE_SHELLS"'
 }
 
 @test "Package tenancy has defaults and validates values" {
@@ -259,4 +271,128 @@ teardown_file() {
     assert_file_exists "$PKG_DIR/reseller.pkg"
     run grep -c "v-update-reseller-counters" /var/spool/cron/crontabs/arcpanelweb
     assert_output "1"
+}
+
+# The limit table shared with the panel's Pest suite (E39 W4 spec §8.2)
+limit_table() {
+    local file
+    for file in "$BATS_TEST_DIRNAME/../web-app/tests/Fixtures/package-limits.tsv" "$ARCPANEL/web-app/tests/Fixtures/package-limits.tsv"; do
+        if [ -f "$file" ]; then
+            echo "$file"
+            return 0
+        fi
+    done
+    return 1
+}
+
+@test "Limits of reseller packages compare after their units" {
+    table=$(limit_table)
+    # shellcheck source=/usr/local/arcpanel/func/main.sh
+    source "$ARCPANEL/func/main.sh"
+    # shellcheck source=/usr/local/arcpanel/func/tenancy.sh
+    source "$ARCPANEL/func/tenancy.sh"
+    failures='' cases=0
+    while IFS=$'\t' read -r key value limit expected; do
+        if [ -z "$key" ] || [[ "$key" == \#* ]]; then
+            continue
+        fi
+        if tenancy_pkg_tenancy_above "$key" "$value" "$limit"; then got=above; else got=within; fi
+        if [ "$got" != "$expected" ]; then
+            failures+="$key '$value' against '$limit': $got, expected $expected"$'\n'
+        fi
+        cases=$((cases + 1))
+    done < "$table"
+    echo "$failures"
+    [ -z "$failures" ]
+    [ "$cases" -gt 40 ]
+}
+
+@test "Reseller packages keep to the shells, templates and units of the plan" {
+    v-change-sys-config-value POLICY_RESELLER_CREATE_PACKAGES yes
+    v-change-sys-config-value POLICY_RESELLER_PACKAGE_SHELLS nologin
+    v-change-sys-config-value POLICY_USER_EDIT_WEB_TEMPLATES no
+    v-change-sys-config-value POLICY_USER_EDIT_DNS_TEMPLATES no
+    # The reseller's plan: 1G of memory, no incremental backups, 1G per Docker app
+    sed -i -e "s/^MEMORY_LIMIT=.*/MEMORY_LIMIT='1G'/" -e "s/^BACKUPS_INCREMENTAL=.*/BACKUPS_INCREMENTAL='no'/" "$PKG_DIR/tn-plan.pkg"
+    v-update-user-package tn-plan > /dev/null
+    v-change-package-tenancy tn-plan DOCKER_MEMORY 1G
+    package="${RESELLER}_rp"
+    tmp=$(mktemp)
+    sed -e "s/^WEB_DOMAINS=.*/WEB_DOMAINS='1'/" -e "s/^MEMORY_LIMIT=.*/MEMORY_LIMIT='512M'/" -e "s/^SHELL=.*/SHELL='bash'/" \
+        "$PKG_DIR/tn-small.pkg" > "$tmp"
+
+    # Shells from POLICY_RESELLER_PACKAGE_SHELLS; the one a package holds may stay
+    run v-add-reseller-package "$RESELLER" "$tmp" rp
+    assert_failure 8
+    assert_output --partial 'SHELL'
+    v-change-sys-config-value POLICY_RESELLER_PACKAGE_SHELLS 'nologin,bash'
+    run v-add-reseller-package "$RESELLER" "$tmp" rp
+    assert_success
+    v-change-sys-config-value POLICY_RESELLER_PACKAGE_SHELLS nologin
+    run v-change-reseller-package "$RESELLER" "$tmp" "$package"
+    assert_success
+    sed -i "s/^SHELL=.*/SHELL='sh'/" "$tmp"
+    run v-change-reseller-package "$RESELLER" "$tmp" "$package"
+    assert_failure 8
+    assert_output --partial 'SHELL'
+    sed -i "s/^SHELL=.*/SHELL='nologin'/" "$tmp"
+
+    # Units: nothing above 1G, and nothing that cannot be compared
+    for value in 2048M 2G 1073741825 unlimited 1g; do
+        sed -i "s/^MEMORY_LIMIT=.*/MEMORY_LIMIT='$value'/" "$tmp"
+        run v-change-reseller-package "$RESELLER" "$tmp" "$package"
+        assert_failure 8
+        assert_output --partial 'MEMORY_LIMIT'
+    done
+    sed -i "s/^MEMORY_LIMIT=.*/MEMORY_LIMIT='1024M'/" "$tmp"
+    run v-change-reseller-package "$RESELLER" "$tmp" "$package"
+    assert_success
+    sed -i "s/^BACKUPS_INCREMENTAL=.*/BACKUPS_INCREMENTAL='yes'/" "$tmp"
+    run v-change-reseller-package "$RESELLER" "$tmp" "$package"
+    assert_failure 8
+    assert_output --partial 'BACKUPS_INCREMENTAL'
+    sed -i "s/^BACKUPS_INCREMENTAL=.*/BACKUPS_INCREMENTAL='no'/" "$tmp"
+
+    # Templates are the reseller's own while users may not choose them
+    other=$(v-list-web-templates-proxy plain | cut -f1 | grep -vx default | head -n1)
+    [ -n "$other" ]
+    sed -i "s/^PROXY_TEMPLATE=.*/PROXY_TEMPLATE='$other'/" "$tmp"
+    run v-change-reseller-package "$RESELLER" "$tmp" "$package"
+    assert_failure 8
+    assert_output --partial 'PROXY_TEMPLATE'
+    v-change-sys-config-value POLICY_USER_EDIT_WEB_TEMPLATES yes
+    run v-change-reseller-package "$RESELLER" "$tmp" "$package"
+    assert_success
+    sed -i "s/^PROXY_TEMPLATE=.*/PROXY_TEMPLATE='default'/" "$tmp"
+    v-change-reseller-package "$RESELLER" "$tmp" "$package"
+    rm -f "$tmp"
+
+    # Sidecar keys: only what the reseller's own package allows
+    run v-change-package-tenancy "$package" NODE_ALLOWED '18,20'
+    assert_failure 8
+    run v-change-package-tenancy "$package" NODE_ALLOWED lts
+    assert_success
+    run v-change-package-tenancy "$package" DOCKER_MEMORY 2048
+    assert_failure 8
+    run v-change-package-tenancy "$package" DOCKER_MEMORY 512M
+    assert_success
+}
+
+@test "The 2.1.3 upgrade step reports reseller packages beyond the plan" {
+    package="${RESELLER}_rp"
+    # As a package written before 2.1.3 may be
+    sed -i "s/^SHELL=.*/SHELL='bash'/" "$PKG_DIR/$package.pkg"
+    sed -i "s/^DOCKER_MEMORY=.*/DOCKER_MEMORY='4G'/" "$PKG_DIR/$package.tenancy"
+
+    run bash -c "source /etc/arcpanel/arcpanel.conf; source $ARCPANEL/func/main.sh
+        add_upgrade_message() { echo \"MESSAGE: \$1\"; }
+        source $ARCPANEL/install/upgrade/versions/2.1.3.sh"
+    assert_success
+    assert_output --partial "Reseller package $package of $RESELLER: SHELL goes beyond"
+    assert_output --partial "Reseller package $package of $RESELLER: DOCKER_MEMORY goes beyond"
+    refute_output --partial "Reseller package $package of $RESELLER: MEMORY_LIMIT"
+    assert_output --partial 'MESSAGE: Warning: some packages of resellers'
+    # Nothing is changed
+    run grep -c "^SHELL='bash'" "$PKG_DIR/$package.pkg"
+    assert_output '1'
 }

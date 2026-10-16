@@ -486,7 +486,7 @@ final class ServerSettings
             }
         }
 
-        $keys = ['LOGIN_STYLE', 'INACTIVE_SESSION_TIMEOUT', 'POLICY_CSRF_STRICTNESS', ...self::SECURITY_POLICIES['login'],
+        $keys = ['LOGIN_STYLE', 'INACTIVE_SESSION_TIMEOUT', 'POLICY_CSRF_STRICTNESS', 'POLICY_RESELLER_PACKAGE_SHELLS', ...self::SECURITY_POLICIES['login'],
             ...self::SECURITY_POLICIES['users'], ...self::SECURITY_POLICIES['domains']];
         if ($rootUser) {
             $keys = [...$keys, ...self::SECURITY_POLICIES['protection']];

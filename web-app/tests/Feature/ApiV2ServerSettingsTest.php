@@ -418,3 +418,15 @@ it('changes the password of a MySQL host without answering it', function () {
     $this->putJson('/api/v2/system/settings/databases/hosts/mysql/localhost/password', ['user' => 'root', 'password' => 'short'], $headers)->assertStatus(422);
     $this->fake->assertRan('v-change-database-host-password', null, 1);
 });
+
+it('reads and writes the shells of reseller packages in the security tab (E39 W4 D5)', function () {
+    $this->fake->on('v-list-sys-shells', ['json'])->returnsJson(['bash', 'nologin']);
+    $this->fake->on('v-change-sys-config-value')->returns();
+    $headers = apiAs($this->fake, 'arcadmin', 'admin');
+
+    $this->getJson('/api/v2/system/settings', $headers)->assertOk()->assertJsonPath('data.security.POLICY_RESELLER_PACKAGE_SHELLS', 'nologin');
+    $this->patchJson('/api/v2/system/settings/security', ['POLICY_RESELLER_PACKAGE_SHELLS' => 'nologin,bash'], $headers)->assertOk();
+    $this->fake->assertRan('v-change-sys-config-value', fn ($a) => $a === ['POLICY_RESELLER_PACKAGE_SHELLS', 'nologin,bash']);
+    $this->patchJson('/api/v2/system/settings/security', ['POLICY_RESELLER_PACKAGE_SHELLS' => 'zsh'], $headers)->assertStatus(422)
+        ->assertJsonStructure(['error' => ['fields' => ['POLICY_RESELLER_PACKAGE_SHELLS']]]);
+});

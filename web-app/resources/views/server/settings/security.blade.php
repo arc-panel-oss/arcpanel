@@ -66,6 +66,11 @@
                             @continue($key === 'POLICY_USER_VIEW_SUSPENDED' && ! $bacon)
                             <x-ap-select :name="$key" :label="$labels[$key]" :options="$yesNo" :value="$value($key)" />
                         @endforeach
+                        @if ($group === 'users')
+                            <x-ap-input name="POLICY_RESELLER_PACKAGE_SHELLS" :label="__('Shells resellers may give in their packages')" mono
+                                :value="$config['POLICY_RESELLER_PACKAGE_SHELLS'] ?? 'nologin'"
+                                :hint="__('Comma list of shells of this server, such as nologin or nologin,bash. A package keeps the shell it already has.')" />
+                        @endif
                     </div>
                 </x-ap-card>
             @endforeach

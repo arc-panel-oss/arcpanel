@@ -12,9 +12,10 @@
 # 0.5, or unlimited) or DOCKER_MEMORY (memory per app, like 512M, or
 # unlimited) of a package. PORTS, NODE_VERSIONS, NODE_APPS, DOCKER_APPS,
 # DOCKER_CPUS and DOCKER_MEMORY of a reseller's own package cannot be above
-# the reseller's, and its NODE and DOCKER cannot be yes when the reseller's
-# are no. PHP_VERSIONS (* or a comma list of catalog versions),
-# PHP_PROFILES (* or a comma list of PHP-FPM profiles) and
+# the reseller's, its NODE and DOCKER cannot be yes when the reseller's are
+# no, and its NODE_ALLOWED allows only what the reseller's allows.
+# PHP_VERSIONS (* or a comma list of catalog versions), PHP_PROFILES (* or a
+# comma list of PHP-FPM profiles) and
 # PHP_DEFAULT_PROFILE (one of the allowed profiles) choose the PHP of the
 # package's web domains (E41): a reseller's own package may only allow what
 # the reseller's package allows, * only when that is *, and the package's
@@ -101,52 +102,18 @@ esac
 
 reseller=$(tenancy_pkg_get "$package" RESELLER_OWNER)
 if [ -n "$reseller" ]; then
-	case "$key" in
-		PHP_VERSIONS | PHP_PROFILES)
-			# Only what the reseller's own package allows (D12)
-			limit=$(php_pkg_get "$(tenancy_user_value "$reseller" PACKAGE)" "$key")
-			if [ "$limit" != '*' ]; then
-				if [ "$value" = '*' ]; then
-					check_result "$E_LIMIT" "$key of $package cannot be *: the reseller's package allows $limit"
-				fi
-				for item in ${value//,/ }; do
-					if [[ ",$limit," != *",$item,"* ]]; then
-						check_result "$E_LIMIT" "$item is not allowed by the reseller's package ($key='$limit')"
-					fi
-				done
-			fi
-			;;
-		PHP_DEFAULT_PROFILE)
-			if ! php_pkg_allows_profile "$(tenancy_user_value "$reseller" PACKAGE)" "$value"; then
-				check_result "$E_LIMIT" "profile $value is not allowed by the reseller's package"
-			fi
-			;;
-		PORTS | NODE_VERSIONS | NODE_APPS | DOCKER_APPS)
-			limit=$(tenancy_pkg_get "$(tenancy_user_value "$reseller" PACKAGE)" "$key")
-			if [ "$limit" != 'unlimited' ] && { [ "$value" = 'unlimited' ] || [ "$value" -gt "$limit" ]; }; then
-				check_result "$E_LIMIT" "$key of $package cannot be above the reseller's $key ($limit)"
-			fi
-			;;
-		NODE | DOCKER)
-			limit=$(tenancy_pkg_get "$(tenancy_user_value "$reseller" PACKAGE)" "$key")
-			if [ "$value" = 'yes' ] && [ "$limit" != 'yes' ]; then
-				check_result "$E_LIMIT" "$key of $package cannot be yes: the reseller's package has $key='no'"
-			fi
-			;;
-		DOCKER_CPUS | DOCKER_MEMORY)
-			limit=$(tenancy_pkg_get "$(tenancy_user_value "$reseller" PACKAGE)" "$key")
-			if [ "$limit" != 'unlimited' ]; then
-				if [ "$key" = 'DOCKER_MEMORY' ]; then
-					above=$(awk -v v="$(tenancy_mb "$value")" -v l="$(tenancy_mb "$limit")" 'BEGIN { print (v == "" || v + 0 > l + 0) ? 1 : 0 }')
-				else
-					above=$(awk -v v="$value" -v l="$limit" 'BEGIN { print (v == "unlimited" || v + 0 > l + 0) ? 1 : 0 }')
-				fi
-				if [ "$above" = 1 ]; then
-					check_result "$E_LIMIT" "$key of $package cannot be above the reseller's $key ($limit)"
-				fi
-			fi
-			;;
-	esac
+	# Only what the reseller's own package allows (D12, E39 W4 spec §8.3)
+	own_package=$(tenancy_user_value "$reseller" PACKAGE)
+	if [ "$key" = 'PHP_DEFAULT_PROFILE' ]; then
+		if ! php_pkg_allows_profile "$own_package" "$value"; then
+			check_result "$E_LIMIT" "profile $value is not allowed by the reseller's package"
+		fi
+	elif [[ " $TENANCY_PACKAGE_TENANCY_LIMIT_KEYS " == *" $key "* ]]; then
+		limit=$(tenancy_pkg_get "$own_package" "$key")
+		if tenancy_pkg_tenancy_above "$key" "$value" "$limit"; then
+			check_result "$E_LIMIT" "$key of $package cannot go beyond the reseller's package ($key='$limit')"
+		fi
+	fi
 fi
 
 # Perform verification if read-only mode is enabled
