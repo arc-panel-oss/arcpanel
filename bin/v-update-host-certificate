@@ -59,6 +59,8 @@ check_arcpanel_demo_mode
 # Copy hostnames certificates from user dir
 cp /home/$user/conf/web/$hostname/ssl/$hostname.pem $ARCPANEL/ssl/certificate.crt
 cp /home/$user/conf/web/$hostname/ssl/$hostname.key $ARCPANEL/ssl/certificate.key
+# The certificate is public: the phpMyAdmin single sign-on checks the panel with it (E39 W3)
+chmod 644 $ARCPANEL/ssl/certificate.crt
 
 # Enable fallback support for mail domains that do not support SSL
 if [[ "$MAIL_SYSTEM" =~ exim ]]; then

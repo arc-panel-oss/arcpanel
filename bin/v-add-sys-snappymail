@@ -13,6 +13,8 @@
 source /etc/arcpanel/arcpanel.conf
 # shellcheck source=/usr/local/arcpanel/func/main.sh
 source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/download.sh
+source $ARCPANEL/func/download.sh
 # load config file
 source_conf "$ARCPANEL/conf/arcpanel.conf"
 # upgrade config file
@@ -82,9 +84,8 @@ if [ "$UPDATE" == "no" ]; then
 	mkdir $SM_INSTALL_DIR
 
 	cd "$SM_INSTALL_DIR"
-	[ ! -f "${SM_INSTALL_DIR}/${SM_FILE}" ] && wget "$SM_URL" --timeout=60 --tries=2 --retry-connrefused --quiet -O "${SM_INSTALL_DIR}/${SM_FILE}"
-
-	if [ ! -f "${SM_INSTALL_DIR}/${SM_FILE}" ]; then
+	# Checked against the pinned SHA-256 before it is unpacked (E39 W3)
+	if ! fetch_verified "$SM_URL" "$sm_sha256" "${SM_INSTALL_DIR}/${SM_FILE}"; then
 		echo "ERROR: Download failed, installation aborted."
 		exit 2
 	fi
@@ -144,8 +145,7 @@ if [ "$UPDATE" == "no" ]; then
 	fi
 
 else
-	[ ! -f "${SM_INSTALL_DIR}/${SM_FILE}" ] && wget "$SM_URL" --quiet -O "${SM_INSTALL_DIR}/${SM_FILE}"
-	if [ ! -f "${SM_INSTALL_DIR}/${SM_FILE}" ]; then
+	if ! fetch_verified "$SM_URL" "$sm_sha256" "${SM_INSTALL_DIR}/${SM_FILE}"; then
 		echo "ERROR: Download failed, installation aborted."
 		exit 2
 	fi

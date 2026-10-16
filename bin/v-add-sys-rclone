@@ -1,0 +1,86 @@
+#!/bin/bash
+# info: install or update rclone (E39 W3)
+# options: NONE
+#
+# example: v-add-sys-rclone
+#
+# This function installs /usr/bin/rclone from the rclone release pinned in
+# install/upgrade/upgrade.conf (rclone_v, rclone_sha256), when rclone is
+# missing or older than that release. The archive is checked against its
+# SHA-256 before it is unpacked. A current rclone is left alone, so the
+# command is safe to run on every upgrade.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Includes
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/download.sh
+source $ARCPANEL/func/download.sh
+# load config file
+source_conf "$ARCPANEL/conf/arcpanel.conf"
+# upgrade config file
+source_conf "$ARCPANEL/install/upgrade/upgrade.conf"
+
+RCLONE_BIN=/usr/bin/rclone
+RCLONE_URL="https://downloads.rclone.org/v$rclone_v/rclone-v$rclone_v-linux-amd64.zip"
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+if [ "$(id -u)" != '0' ]; then
+	echo "Error: v-add-sys-rclone can only be executed by the root user"
+	exit "$E_FORBIDEN"
+fi
+if [ -z "$rclone_v" ] || [ -z "$rclone_sha256" ]; then
+	check_result "$E_NOTEXIST" "no rclone version is pinned in upgrade.conf"
+fi
+if ! command -v unzip > /dev/null 2>&1; then
+	check_result "$E_NOTEXIST" "unzip is not installed (apt-get install unzip)"
+fi
+
+# Perform verification if read-only mode is enabled
+check_arcpanel_demo_mode
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+installed=''
+if [ -x "$RCLONE_BIN" ]; then
+	installed=$("$RCLONE_BIN" version 2> /dev/null | awk 'NR == 1 { sub(/^v/, "", $2); print $2 }')
+fi
+if [ -n "$installed" ] && version_ge "$installed" "$rclone_v"; then
+	echo "rclone $installed is up to date"
+	exit
+fi
+
+work=$(mktemp -d)
+trap 'rm -rf "$work"' EXIT
+if ! fetch_verified "$RCLONE_URL" "$rclone_sha256" "$work/rclone.zip"; then
+	check_result "$E_CONNECT" "rclone $rclone_v could not be downloaded or failed its checksum"
+fi
+unzip -q "$work/rclone.zip" -d "$work"
+src="$work/rclone-v$rclone_v-linux-amd64"
+if [ ! -f "$src/rclone" ]; then
+	check_result "$E_NOTEXIST" "the rclone $rclone_v archive holds no rclone binary"
+fi
+install -m 0755 "$src/rclone" "$RCLONE_BIN"
+if [ -f "$src/rclone.1" ] && [ -d /usr/share/man/man1 ]; then
+	install -m 0644 "$src/rclone.1" /usr/share/man/man1/rclone.1
+fi
+
+#----------------------------------------------------------#
+#                         ArcPanel                         #
+#----------------------------------------------------------#
+
+echo "rclone $rclone_v installed"
+log_history "Installed rclone $rclone_v." 'Info' 'system' 'Backups'
+log_event "$OK" "$ARGUMENTS"
+
+exit

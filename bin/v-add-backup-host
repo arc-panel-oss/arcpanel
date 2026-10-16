@@ -31,6 +31,8 @@ source /etc/arcpanel/arcpanel.conf
 source $ARCPANEL/func/main.sh
 # shellcheck source=/usr/local/arcpanel/func/backup.sh
 source $ARCPANEL/func/backup.sh
+# shellcheck source=/usr/local/arcpanel/func/download.sh
+source $ARCPANEL/func/download.sh
 # load config file
 source_conf "$ARCPANEL/conf/arcpanel.conf"
 # Fetch current verison B2 CLI tool
@@ -158,9 +160,9 @@ if [ "$type" = 'b2' ]; then
 		if [ "$arch" = 'aarch64' ] || [ "$arch" = 'arm64' ]; then
 			echo "Error: B2 binary for arm64 must be downloaded manually."
 			exit 3
-		else
-			wget -O $b2cli $b2lnk > /dev/null 2>&1
-			chmod +x $b2cli > /dev/null 2>&1
+		elif fetch_verified "$b2lnk" "$b2_sha256" "$b2cli.new"; then
+			install -m 0755 "$b2cli.new" "$b2cli"
+			rm -f "$b2cli.new"
 		fi
 		if [ ! -f "$b2cli" ]; then
 			echo "Error: Binary download failed, b2 doesn't work as expected."
@@ -185,7 +187,8 @@ if [ "$type" = 'b2' ]; then
 fi
 
 if [ "$type" = 'rclone' ]; then
-	curl -s https://rclone.org/install.sh | bash /dev/null > /dev/null 2>&1
+	$BIN/v-add-sys-rclone > /dev/null
+	check_result $? "rclone could not be installed" "$E_CONNECT"
 	# Verify account exists
 	if [ ! -z "$(cat /root/.config/rclone/rclone.conf | grep "\[$host\]")" ]; then
 		echo "test" > /tmp/arcpanel-backup.txt

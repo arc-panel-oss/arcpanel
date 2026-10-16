@@ -24,14 +24,43 @@ class ArcPanel_API {
 		$this->pma_key = PHPMYADMIN_KEY;
 	}
 
+	/* The name the panel's certificate is issued for, or API_HOST_NAME */
+	private function panel_name($certificate) {
+		$cert = @openssl_x509_parse((string) @file_get_contents($certificate));
+		if (!is_array($cert)) {
+			return API_HOST_NAME;
+		}
+		$names = [];
+		foreach (explode(",", $cert["extensions"]["subjectAltName"] ?? "") as $entry) {
+			$entry = trim($entry);
+			if (strpos($entry, "DNS:") === 0) {
+				$names[] = substr($entry, 4);
+			}
+		}
+		$names[] = $cert["subject"]["CN"] ?? "";
+		foreach ($names as $name) {
+			if (preg_match('/^[A-Za-z0-9.-]+$/', $name)) {
+				return $name;
+			}
+		}
+		return API_HOST_NAME;
+	}
+
 	/* Creates curl request */
 	public function request($postvars) {
+		// The API is the panel on this server: connect over loopback and trust
+		// only the panel's own certificate, under the name it is issued for, so
+		// a changed host name does not matter (E39 W3 D10)
+		$certificate = "/usr/local/arcpanel/ssl/certificate.crt";
+		$name = $this->panel_name($certificate);
 		$postdata = http_build_query($postvars);
 		$curl = curl_init();
-		curl_setopt($curl, CURLOPT_URL, $this->hostname);
+		curl_setopt($curl, CURLOPT_URL, "https://" . $name . ":" . API_ARCPANEL_PORT . "/api/");
 		curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
-		curl_setopt($curl, CURLOPT_SSL_VERIFYPEER, false);
-		curl_setopt($curl, CURLOPT_SSL_VERIFYHOST, false);
+		curl_setopt($curl, CURLOPT_RESOLVE, [$name . ":" . API_ARCPANEL_PORT . ":127.0.0.1"]);
+		curl_setopt($curl, CURLOPT_CAINFO, $certificate);
+		curl_setopt($curl, CURLOPT_SSL_VERIFYPEER, true);
+		curl_setopt($curl, CURLOPT_SSL_VERIFYHOST, 2);
 		curl_setopt($curl, CURLOPT_POST, true);
 		curl_setopt($curl, CURLOPT_POSTFIELDS, $postdata);
 		$answer = curl_exec($curl);
