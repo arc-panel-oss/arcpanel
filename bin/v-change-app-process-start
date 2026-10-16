@@ -1,0 +1,79 @@
+#!/bin/bash
+# info: change the command of an app process (E42)
+# options: USER DOMAIN NAME START [CWD]
+#
+# example: v-change-app-process-start alice shop.example.com web '/usr/bin/php8.4 artisan octane:start --server=swoole --host=127.0.0.1 --port=30001 --workers=4'
+#
+# This function replaces the command line of the app process and, with CWD,
+# its working directory (relative to the domain folder). Words are split
+# without a shell: quotes group, a backslash escapes, nothing is expanded.
+# %port% is replaced with the port of a web process. A running process is
+# restarted.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+user=$1
+domain=$2
+name=$3
+start=$4
+cwd=$5
+
+# Includes
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/tenancy.sh
+source $ARCPANEL/func/tenancy.sh
+# shellcheck source=/usr/local/arcpanel/func/ports.sh
+source $ARCPANEL/func/ports.sh
+# shellcheck source=/usr/local/arcpanel/func/appprocess.sh
+source $ARCPANEL/func/appprocess.sh
+# load config file
+source_conf "$ARCPANEL/conf/arcpanel.conf"
+
+# Additional argument formatting
+format_domain
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '4' "$#" 'USER DOMAIN NAME START [CWD]'
+is_format_valid 'user' 'domain'
+is_object_valid 'user' 'USER' "$user"
+is_object_unsuspended 'user' 'USER' "$user"
+appproc_check_process "$user" "$domain" "$name"
+if [ -z "$cwd" ]; then
+	cwd=$(appproc_get "$user" "$APPPROC_ID" CWD)
+fi
+appproc_check_cwd "$user" "$domain" "$cwd"
+port=$(appproc_get "$user" "$APPPROC_ID" PORT)
+if [ -n "$port" ]; then
+	start=${start//%port%/$port}
+fi
+appproc_check_start "$start"
+
+# Perform verification if read-only mode is enabled
+check_arcpanel_demo_mode
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+appproc_lock "$user"
+appproc_set "$user" "$APPPROC_ID" "START=$(appproc_encode "$start")" "CWD=$cwd"
+appproc_apply "$user" "$APPPROC_ID"
+
+#----------------------------------------------------------#
+#                         ArcPanel                         #
+#----------------------------------------------------------#
+
+# Logging
+$BIN/v-log-action "$user" "Info" "App processes" "App process command changed (Domain: $domain, Name: $name)."
+log_event "$OK" "$user $domain $name"
+
+exit

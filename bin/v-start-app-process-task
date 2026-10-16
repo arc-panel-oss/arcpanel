@@ -1,0 +1,95 @@
+#!/bin/bash
+# info: start a one-off task of an app process (E42)
+# options: USER DOMAIN NAME TASK [COMMAND]
+#
+# example: v-start-app-process-task alice shop.example.com web composer-install
+# example: v-start-app-process-task alice shop.example.com web custom 'php8.4 artisan optimize'
+#
+# This function runs TASK in the background, as the user, in the working
+# directory of the app process: composer-install (composer install --no-dev
+# with the domain's PHP), migrate (php artisan migrate --force),
+# pip-install (pip of .venv with requirements.txt), bundle-install (bundle
+# install into vendor/bundle) or custom (COMMAND, split without a shell).
+# One task runs at a time per user, for at most 30 minutes; its output goes
+# to app-process/logs/task.log of the domain. After a successful install a
+# running process is reloaded. It prints the id of the task; follow it with
+# v-list-app-process-task and v-list-app-process-logs ... task.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+user=$1
+domain=$2
+name=$3
+task=$4
+command=$5
+
+# Includes
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/tenancy.sh
+source $ARCPANEL/func/tenancy.sh
+# shellcheck source=/usr/local/arcpanel/func/appprocess.sh
+source $ARCPANEL/func/appprocess.sh
+# load config file
+source_conf "$ARCPANEL/conf/arcpanel.conf"
+
+# Additional argument formatting
+format_domain
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '4' "$#" 'USER DOMAIN NAME TASK [COMMAND]'
+is_format_valid 'user' 'domain'
+is_object_valid 'user' 'USER' "$user"
+is_object_unsuspended 'user' 'USER' "$user"
+appproc_check_process "$user" "$domain" "$name"
+if ! reason=$(appproc_task_args "$user" "$APPPROC_ID" "$task" "$command"); then
+	check_result "$E_INVALID" "$reason"
+fi
+
+# Perform verification if read-only mode is enabled
+check_arcpanel_demo_mode
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+exec {lock}> "$ARCPANEL/data/users/$user/app-process-task.lock"
+flock -x "$lock"
+
+if appproc_task_running "$user"; then
+	check_result "$E_INUSE" "another app process task is running for $user"
+fi
+
+if ! appproc_dirs_write "$user" "$domain" "$name"; then
+	check_result "$E_FORBIDEN" "the folder of the app processes is not usable"
+fi
+id="$(date +%s)$(printf '%04d' $((RANDOM % 10000)))"
+appproc_task_set "$user" "ID=$id" "DOMAIN=$domain" "NAME=$name" "TASK=$task" STATUS=running PID= EXIT= \
+	"START=$(date +'%F %T')" END=
+
+# Detached: new session, no descriptor shared with the caller, so the panel's
+# request returns at once and the task survives it
+setsid "$BIN/v-run-app-process-task" "$id" "$user" "$domain" "$name" "$task" "$(appproc_encode "$command")" \
+	< /dev/null > /dev/null 2>&1 {lock}>&- &
+appproc_task_set "$user" "PID=$!"
+
+flock -u "$lock"
+echo "$id"
+
+#----------------------------------------------------------#
+#                         ArcPanel                         #
+#----------------------------------------------------------#
+
+# Logging
+$BIN/v-log-action "$user" "Info" "App processes" "App process task started (Domain: $domain, Name: $name, Task: $task)."
+log_event "$OK" "$user $domain $name $task"
+
+exit

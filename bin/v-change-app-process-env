@@ -1,0 +1,104 @@
+#!/bin/bash
+# info: replace the environment of an app process (E42)
+# options: USER DOMAIN NAME FILE
+#
+# example: v-change-app-process-env alice shop.example.com web /tmp/env.txt
+#
+# This function replaces the environment file of the app process with FILE:
+# KEY=value lines (blank lines and # comments are kept), at most 200 lines
+# and 64 KB. PORT, HOST, PATH, HOME, USER and LOGNAME are set by the panel
+# and cannot be set here. A value may reference secrets of the user as
+# {{secret:NAME}} (E38): they must exist and are resolved only when the
+# process starts, outside the home directory. A running process is
+# restarted. Values are never logged.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+user=$1
+domain=$2
+name=$3
+file=$4
+
+# Includes
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/tenancy.sh
+source $ARCPANEL/func/tenancy.sh
+# shellcheck source=/usr/local/arcpanel/func/ports.sh
+source $ARCPANEL/func/ports.sh
+# shellcheck source=/usr/local/arcpanel/func/appprocess.sh
+source $ARCPANEL/func/appprocess.sh
+# shellcheck source=/usr/local/arcpanel/func/secret.sh
+source $ARCPANEL/func/secret.sh
+# load config file
+source_conf "$ARCPANEL/conf/arcpanel.conf"
+
+# Additional argument formatting
+format_domain
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '4' "$#" 'USER DOMAIN NAME FILE'
+is_format_valid 'user' 'domain'
+is_object_valid 'user' 'USER' "$user"
+is_object_unsuspended 'user' 'USER' "$user"
+appproc_check_process "$user" "$domain" "$name"
+if [ ! -f "$file" ] || [ -L "$file" ]; then
+	check_result "$E_NOTEXIST" "file $file does not exist"
+fi
+if [ "$(stat -c %s "$file")" -gt "$APPPROC_MAX_ENV" ]; then
+	check_result "$E_INVALID" "the environment is larger than 64 KB"
+fi
+if [ "$(tr -d '\000' < "$file" | wc -c)" -ne "$(stat -c %s "$file")" ]; then
+	check_result "$E_INVALID" "the environment contains binary data"
+fi
+content=$(tr -d '\r' < "$file")
+if [ "$(printf '%s\n' "$content" | grep -c .)" -gt 200 ]; then
+	check_result "$E_INVALID" "the environment has more than 200 lines"
+fi
+if ! parsed=$(appproc_env_parse "$content"); then
+	check_result "$E_INVALID" "invalid environment: $APPPROC_ENV_REASON"
+fi
+while IFS=$'\t' read -r key _; do
+	case "$key" in
+		PORT | HOST | PATH | HOME | USER | LOGNAME)
+			check_result "$E_INVALID" "$key is set by the panel"
+			;;
+	esac
+done <<< "$parsed"
+if [[ "$content" == *'{{secret:'* ]]; then
+	secret_check_text "$user" "$(grep -v '^[[:space:]]*#' <<< "$content")"
+	check_result $? "$SECRET_REASON"
+fi
+
+# Perform verification if read-only mode is enabled
+check_arcpanel_demo_mode
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+appproc_lock "$user"
+dir=$(appproc_dir "$user" "$domain")
+appproc_dirs_write "$user" "$domain" "$name"
+check_result $? "the folder of the app processes is not usable ($dir)" "$E_FORBIDEN"
+printf '%s\n' "$content" | node_as_user "$user" bash -c 'umask 077; [ ! -L "$1" ] && cat > "$1.tmp" && chmod 600 "$1.tmp" && mv -f "$1.tmp" "$1"' env "$dir/$name.env"
+check_result $? "the environment could not be written" "$E_FORBIDEN"
+appproc_apply "$user" "$APPPROC_ID"
+
+#----------------------------------------------------------#
+#                         ArcPanel                         #
+#----------------------------------------------------------#
+
+# Logging
+$BIN/v-log-action "$user" "Info" "App processes" "App process environment changed (Domain: $domain, Name: $name)."
+log_event "$OK" "$user $domain $name"
+
+exit

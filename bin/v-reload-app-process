@@ -1,0 +1,81 @@
+#!/bin/bash
+# info: reload an app process (E42)
+# options: USER DOMAIN NAME
+#
+# example: v-reload-app-process alice shop.example.com web
+#
+# This function runs the reload action of the process's preset so that it
+# serves new code: a command run as the user (php artisan octane:reload,
+# queue:restart, horizon:terminate), a signal (HUP for Gunicorn, USR1 for
+# Puma) or a restart. The output of a reload command goes to the log of the
+# process. A process that does not run is refused.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+user=$1
+domain=$2
+name=$3
+
+# Includes
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/tenancy.sh
+source $ARCPANEL/func/tenancy.sh
+# shellcheck source=/usr/local/arcpanel/func/ports.sh
+source $ARCPANEL/func/ports.sh
+# shellcheck source=/usr/local/arcpanel/func/appprocess.sh
+source $ARCPANEL/func/appprocess.sh
+# load config file
+source_conf "$ARCPANEL/conf/arcpanel.conf"
+
+# Additional argument formatting
+format_domain
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '3' "$#" 'USER DOMAIN NAME'
+is_format_valid 'user' 'domain'
+is_object_valid 'user' 'USER' "$user"
+is_object_unsuspended 'user' 'USER' "$user"
+appproc_check_process "$user" "$domain" "$name"
+if ! appproc_running "$user" "$APPPROC_ID"; then
+	check_result "$E_INVALID" "the app process $name of $domain does not run (start it instead)"
+fi
+
+# Perform verification if read-only mode is enabled
+check_arcpanel_demo_mode
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+appproc_lock "$user"
+reload=$(appproc_preset_get "$(appproc_get "$user" "$APPPROC_ID" PRESET)" RELOAD)
+case "$reload" in
+	signal:* | command:*)
+		if ! systemctl reload "$(appproc_unit "$user" "$APPPROC_ID")" > /dev/null 2>&1; then
+			check_result "$E_RESTART" "the reload of the app process failed; see its log"
+		fi
+		;;
+	*)
+		out=$(appproc_launch "$user" "$APPPROC_ID")
+		check_result $? "$out"
+		;;
+esac
+
+#----------------------------------------------------------#
+#                         ArcPanel                         #
+#----------------------------------------------------------#
+
+# Logging
+$BIN/v-log-action "$user" "Info" "App processes" "App process reloaded (Domain: $domain, Name: $name)."
+log_event "$OK" "$ARGUMENTS"
+
+exit

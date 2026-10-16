@@ -963,6 +963,67 @@ appproc_status() {
 	appproc_status_of "$(appproc_line "$1" "$2")" "$(appproc_show "$1" "$2")"
 }
 
+# Exit unless USER's DOMAIN has a process NAME; with MODE active (default)
+# also unless it and the user's package allow running it. Sets APPPROC_ID.
+appproc_check_process() {
+	local user="$1" domain="$2" name="$3" mode="${4:-active}"
+	if ! appproc_name_valid "$name"; then
+		check_result "$E_INVALID" "invalid name :: $name"
+	fi
+	APPPROC_ID=$(appproc_id "$user" "$domain" "$name")
+	if [ -z "$APPPROC_ID" ]; then
+		check_result "$E_NOTEXIST" "$domain has no app process named $name"
+	fi
+	if [ "$mode" = 'active' ]; then
+		appproc_check_enabled_package "$user"
+		if [ "$(appproc_get "$user" "$APPPROC_ID" SUSPENDED)" = 'yes' ]; then
+			check_result "$E_SUSPENDED" "the app process $name of $domain is suspended"
+		fi
+	fi
+}
+
+# Whether the unit of USER's process ID is running or starting
+appproc_running() {
+	case "$(appproc_status "$1" "$2")" in
+		running | starting) return 0 ;;
+	esac
+	return 1
+}
+
+# Rewrite the files of USER's process ID and start it, with the port check
+# of a web process. Prints the reason on failure.
+appproc_launch() {
+	local user="$1" id="$2" port holder
+	if ! appproc_files_write "$user" "$id"; then
+		echo "the command of the app process could not be written"
+		return "$E_INVALID"
+	fi
+	port=$(appproc_get "$user" "$id" PORT)
+	if [ -n "$port" ] && ! appproc_running "$user" "$id"; then
+		holder=$(appproc_port_holder "$port")
+		if [ -n "$holder" ]; then
+			echo "port $port is used by another process ($holder)"
+			return "$E_INUSE"
+		fi
+	fi
+	appproc_start "$user" "$id" || return $?
+	appproc_set "$user" "$id" STATE=running
+}
+
+# Apply a changed setting of USER's process ID: restart it when it runs (or
+# failed), else only rewrite its files
+appproc_apply() {
+	local out status
+	status=$(appproc_status "$1" "$2")
+	if [ "$status" = 'running' ] || [ "$status" = 'starting' ] || [ "$status" = 'failed' ]; then
+		out=$(appproc_launch "$1" "$2")
+		check_result $? "$out"
+	else
+		appproc_files_write "$1" "$2"
+		check_result $? "the command of the app process could not be written" "$E_INVALID"
+	fi
+}
+
 # Owner of a socket listening on PORT: prints "pid/process", empty when free
 appproc_port_holder() {
 	local line
@@ -970,6 +1031,143 @@ appproc_port_holder() {
 	if [ -n "$line" ]; then
 		grep -oE 'users:\(\("[^"]*",pid=[0-9]+' <<< "$line" | head -n1 | sed -E 's/users:\(\("([^"]*)",pid=([0-9]+)/\2\/\1/'
 	fi
+}
+
+#----------------------------------------------------------#
+#                     One-off tasks                        #
+#----------------------------------------------------------#
+
+APPPROC_TASKS="composer-install migrate pip-install bundle-install custom"
+APPPROC_TASK_KEYS="ID DOMAIN NAME TASK STATUS PID EXIT START END"
+APPPROC_TASK_TIMEOUT=1800
+
+appproc_task_conf() {
+	echo "$ARCPANEL/data/users/$1/app-process-task.conf"
+}
+
+appproc_task_get() {
+	local file
+	file=$(appproc_task_conf "$1")
+	if [ -f "$file" ]; then
+		appproc_field "$(head -n1 "$file")" "$2"
+	fi
+}
+
+# Set KEY=VALUE pairs in the task record of USER; the other keys keep their
+# values
+appproc_task_set() {
+	local user="$1" file pair key line='' tmp
+	local -A values=()
+	shift
+	for key in $APPPROC_TASK_KEYS; do
+		values[$key]=$(appproc_task_get "$user" "$key")
+	done
+	for pair in "$@"; do
+		key=${pair%%=*}
+		values[$key]=$(printf '%s' "${pair#*=}" | tr -d "'\n\r")
+	done
+	for key in $APPPROC_TASK_KEYS; do
+		line="$line$key='${values[$key]}' "
+	done
+	file=$(appproc_task_conf "$user")
+	tmp="$file.$$"
+	echo "${line% }" > "$tmp"
+	chmod 640 "$tmp"
+	mv -f "$tmp" "$file"
+}
+
+# Whether the task process PID is alive and still the task runner
+appproc_task_alive() {
+	local pid="$1"
+	[[ "$pid" =~ ^[0-9]+$ ]] && [ -r "/proc/$pid/cmdline" ] \
+		&& tr '\0' ' ' < "/proc/$pid/cmdline" | grep -q 'v-run-app-process-task'
+}
+
+# Whether a task of USER runs; a running record whose process is gone is
+# marked failed first
+appproc_task_running() {
+	if [ "$(appproc_task_get "$1" STATUS)" = 'running' ]; then
+		if appproc_task_alive "$(appproc_task_get "$1" PID)"; then
+			return 0
+		fi
+		appproc_task_set "$1" STATUS=failed "END=$(date +'%F %T')"
+	fi
+	return 1
+}
+
+# The composer of USER: the user's own (v-add-user-composer), else the
+# server's; empty when there is none
+appproc_composer() {
+	local file
+	for file in "$HOMEDIR/$1/.composer/composer" /usr/local/bin/composer /usr/bin/composer; do
+		if node_as_user "$1" test -x "$file" 2> /dev/null; then
+			echo "$file"
+			return 0
+		fi
+	done
+}
+
+# The command of TASK for USER's process ID (CUSTOM for custom) into
+# APPPROC_ARGS; prints the reason and returns 1 when it cannot run
+appproc_task_args() {
+	local user="$1" id="$2" task="$3" custom="$4" line domain cwd dir version composer python
+	line=$(appproc_line "$user" "$id")
+	domain=$(appproc_field "$line" DOMAIN)
+	cwd=$(appproc_field "$line" CWD)
+	dir=$(appproc_cwd_path "$user" "$domain" "$cwd")
+	version=$(appproc_php_version "$user" "$domain")
+	APPPROC_ARGS=()
+	case "$task" in
+		composer-install)
+			composer=$(appproc_composer "$user")
+			if [ -z "$composer" ]; then
+				echo "composer is not installed for $user (v-add-user-composer)"
+				return 1
+			fi
+			if ! node_as_user "$user" test -f "$dir/composer.json"; then
+				echo "composer.json does not exist in $cwd"
+				return 1
+			fi
+			APPPROC_ARGS=("/usr/bin/php$version" "$composer" install --no-dev --optimize-autoloader --no-interaction --no-progress)
+			;;
+		migrate)
+			if ! node_as_user "$user" test -f "$dir/artisan"; then
+				echo "artisan does not exist in $cwd"
+				return 1
+			fi
+			APPPROC_ARGS=("/usr/bin/php$version" artisan migrate --force --no-interaction)
+			;;
+		pip-install)
+			python=$(appproc_python_dir "$user" "$dir")
+			if [ "$python" = '/usr/bin' ]; then
+				echo "create a virtual environment first (python3 -m venv .venv in $cwd)"
+				return 1
+			fi
+			if ! node_as_user "$user" test -f "$dir/requirements.txt"; then
+				echo "requirements.txt does not exist in $cwd"
+				return 1
+			fi
+			APPPROC_ARGS=("$python/pip" install --disable-pip-version-check -r requirements.txt)
+			;;
+		bundle-install)
+			if ! node_as_user "$user" test -f "$dir/Gemfile"; then
+				echo "Gemfile does not exist in $cwd"
+				return 1
+			fi
+			APPPROC_ARGS=(env BUNDLE_PATH=vendor/bundle BUNDLE_DEPLOYMENT=true bundle install)
+			;;
+		custom)
+			if [ -z "$custom" ] || appproc_has_control "$custom" || [ "${#custom}" -gt "$APPPROC_MAX_START" ] || ! appproc_split "$custom"; then
+				echo "invalid command"
+				return 1
+			fi
+			;;
+		*)
+			echo "invalid task :: $task ($APPPROC_TASKS)"
+			return 1
+			;;
+	esac
+	return 0
 }
 
 #----------------------------------------------------------#

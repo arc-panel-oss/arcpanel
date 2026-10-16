@@ -388,6 +388,222 @@ split() {
     assert_failure 3
 }
 
+#----------------------------------------------------------#
+#                 Lifecycle and settings                   #
+#----------------------------------------------------------#
+
+main_pid() {
+    systemctl show -p MainPID --value "arcpanel-app-$1-$(field "$1" "$2" "$3" ID).service"
+}
+
+@test "Lifecycle: stop and start" {
+    port=$(field $U1 $DA web PORT)
+    run v-stop-app-process $U1 $DA web
+    assert_success
+    assert_equal "$(field $U1 $DA web STATE)" "stopped"
+    run status_of $U1 $DA web
+    assert_output "stopped"
+    run systemctl is-enabled "arcpanel-app-$U1-$(field $U1 $DA web ID).service"
+    assert_output "disabled"
+    run v-reload-app-process $U1 $DA web
+    assert_failure 2
+    run v-start-app-process $U1 $DA web
+    assert_success
+    assert_equal "$(field $U1 $DA web STATE)" "running"
+    run eventually "tap-a $port -" fetch $U1 $DA
+    assert_output "tap-a $port -"
+}
+
+@test "Lifecycle: restart and reload by restart give a new process" {
+    before=$(main_pid $U1 $DA web)
+    run v-restart-app-process $U1 $DA web
+    assert_success
+    after=$(main_pid $U1 $DA web)
+    [ "$after" != "$before" ] && [ "$after" != 0 ]
+    run v-reload-app-process $U1 $DA web
+    assert_success
+    [ "$(main_pid $U1 $DA web)" != "$after" ]
+}
+
+@test "Lifecycle: a preset reload command runs as the user" {
+    dir=/home/$U1/web/$DC/public_html
+    write_file $U1 "$dir/artisan" '<?php
+if (($argv[1] ?? "") === "queue:work") { echo "queue up\n"; while (true) { sleep(1); } }
+if (($argv[1] ?? "") === "queue:restart") { file_put_contents(__DIR__ . "/restarted.txt", get_current_user()); echo "queue restarted\n"; }
+if (($argv[1] ?? "") === "migrate") { echo "migrated " . implode(" ", array_slice($argv, 2)) . "\n"; }'
+    run v-add-app-process $U1 $DC queue laravel-queue
+    assert_success
+    run v-list-app-process $U1 $DC queue json
+    echo "$output" | jq -e '.RELOAD == "command" and (.START | test("^/usr/bin/php[0-9.]+ artisan queue:work --sleep=3"))'
+    run eventually "running" status_of $U1 $DC queue
+    assert_output "running"
+    run eventually "1" grep -c "queue up" "/home/$U1/web/$DC/app-process/logs/queue.log"
+    assert_output "1"
+    pid=$(main_pid $U1 $DC queue)
+    run v-reload-app-process $U1 $DC queue
+    assert_success
+    assert_equal "$(stat -c %U "$dir/restarted.txt")" "$U1"
+    grep -q "queue restarted" "/home/$U1/web/$DC/app-process/logs/queue.log"
+    assert_equal "$(main_pid $U1 $DC queue)" "$pid"
+}
+
+@test "Lifecycle: logs by offset" {
+    run v-list-app-process-logs $U1 $DA web process '' 5 json
+    assert_success
+    offset=$(echo "$output" | jq -r .OFFSET)
+    fetch $U1 $DA /log-check > /dev/null
+    run eventually "1" bash -c "v-list-app-process-logs $U1 $DA web process $offset '' json | jq -r '.LINES | map(select(contains(\"/log-check\"))) | length'"
+    assert_output "1"
+    run v-list-app-process-logs $U1 $DA web other
+    assert_failure 2
+    run v-list-app-process-logs $U1 $DA web process 12x
+    assert_failure 2
+}
+
+@test "Settings: the environment reaches the process and the panel's keys are refused" {
+    tmp=$(mktemp)
+    printf '# greeting\nGREETING="hello world"\n' > "$tmp"
+    run v-change-app-process-env $U1 $DA web "$tmp"
+    assert_success
+    port=$(field $U1 $DA web PORT)
+    run eventually "tap-a $port hello world" fetch $U1 $DA
+    assert_output "tap-a $port hello world"
+    run v-list-app-process-env $U1 $DA web json
+    echo "$output" | jq -e '.VARS == [{"KEY": "GREETING", "VALUE": "hello world"}]'
+    assert_equal "$(stat -c '%U %a' "/home/$U1/web/$DA/app-process/web.env")" "$U1 600"
+    printf 'PORT=1\n' > "$tmp"
+    run v-change-app-process-env $U1 $DA web "$tmp"
+    assert_failure 2
+    printf 'not a line\n' > "$tmp"
+    run v-change-app-process-env $U1 $DA web "$tmp"
+    assert_failure 2
+    rm -f "$tmp"
+}
+
+@test "Settings: secret references are resolved outside the home" {
+    tmp=$(mktemp)
+    printf 'from-the-store' > "$tmp"
+    v-add-user-secret $U1 /tap/greeting "$tmp" || skip "the secret store is not set up"
+    printf 'GREETING={{secret:/tap/greeting}}\n' > "$tmp"
+    run v-change-app-process-env $U1 $DA web "$tmp"
+    assert_success
+    port=$(field $U1 $DA web PORT)
+    run eventually "tap-a $port from-the-store" fetch $U1 $DA
+    assert_output "tap-a $port from-the-store"
+    grep -q '{{secret:/tap/greeting}}' "/home/$U1/web/$DA/app-process/web.env"
+    run grep -rq "from-the-store" "/home/$U1/web/$DA/app-process/"
+    assert_failure
+    env_file=/run/arcpanel/app/$U1-$(field $U1 $DA web ID).env
+    assert_equal "$(stat -c '%U:%G %a' "$env_file")" "root:$U1 640"
+    printf 'GREETING={{secret:/tap/missing}}\n' > "$tmp"
+    run v-change-app-process-env $U1 $DA web "$tmp"
+    assert_failure
+    printf 'GREETING=plain\n' > "$tmp"
+    v-change-app-process-env $U1 $DA web "$tmp"
+    v-delete-user-secret $U1 /tap/greeting > /dev/null 2>&1 || true
+    rm -f "$tmp"
+}
+
+@test "Settings: change the command" {
+    write_file $U1 "/home/$U1/web/$DA/public_html/server2.py" "$(sed 's/tap-a/tap-a2/' "/home/$U1/web/$DA/public_html/server.py")"
+    run v-change-app-process-start $U1 $DA web 'python3 server2.py'
+    assert_success
+    port=$(field $U1 $DA web PORT)
+    run eventually "tap-a2 $port plain" fetch $U1 $DA
+    assert_output "tap-a2 $port plain"
+    run v-change-app-process-start $U1 $DA web "$(printf 'python3\tserver.py\x01')"
+    assert_failure 2
+    run v-change-app-process-start $U1 $DA web 'python3 server.py' ../x
+    assert_failure 2
+}
+
+@test "Settings: limits within the package" {
+    run v-change-app-process-limits $U1 $DA web 96 0.25
+    assert_success
+    unit=/etc/systemd/system/arcpanel-app-$U1-$(field $U1 $DA web ID).service
+    grep -qx "MemoryMax=96M" "$unit"
+    grep -qx "CPUQuota=25%" "$unit"
+    assert_equal "$(systemctl show -p MemoryMax --value "${unit##*/}")" "$((96 * 1024 * 1024))"
+    run v-change-app-process-limits $U1 $DA web 300 1
+    assert_failure 8
+    run v-change-app-process-limits $U1 $DA web 64 1.5
+    assert_failure 8
+}
+
+@test "Settings: a process above its memory limit is killed and restarted" {
+    write_file $U1 "/home/$U1/web/$DA/public_html/hog.py" "import time
+print('hog start', flush=True)
+data = bytearray(200 * 1024 * 1024)
+time.sleep(60)"
+    run v-change-app-process-start $U1 $DA worker 'python3 hog.py'
+    assert_success
+    run v-change-app-process-limits $U1 $DA worker 48 1
+    assert_success
+    unit=arcpanel-app-$U1-$(field $U1 $DA worker ID).service
+    run eventually "yes" bash -c "[ \"\$(systemctl show -p NRestarts --value $unit)\" -ge 1 ] && echo yes"
+    assert_output "yes"
+    [ "$(grep -c 'hog start' "/home/$U1/web/$DA/app-process/logs/worker.log")" -ge 2 ]
+    run v-change-app-process-start $U1 $DA worker 'python3 worker.py'
+    assert_success
+    run v-start-app-process $U1 $DA worker
+    assert_success
+}
+
+#----------------------------------------------------------#
+#                     One-off tasks                        #
+#----------------------------------------------------------#
+
+task_status() {
+    v-list-app-process-task "$1" json | jq -r '.TASK.STATUS // ""'
+}
+
+@test "Tasks: a custom task runs as the user and logs its output" {
+    run v-start-app-process-task $U1 $DA web custom 'bash -c "id -un; pwd"'
+    assert_success
+    [[ "$output" =~ ^[0-9]+$ ]]
+    run eventually "done" task_status $U1
+    assert_output "done"
+    log=/home/$U1/web/$DA/app-process/logs/task.log
+    assert_equal "$(stat -c %U "$log")" "$U1"
+    grep -qx "$U1" "$log"
+    grep -qx "/home/$U1/web/$DA/public_html" "$log"
+    run v-list-app-process-logs $U1 $DA web task
+    assert_success
+    assert_output --partial "exit 0"
+}
+
+@test "Tasks: one task at a time, refusals and failures" {
+    run v-start-app-process-task $U1 $DA web custom 'sleep 4'
+    assert_success
+    run v-start-app-process-task $U1 $DA web custom 'true'
+    assert_failure 7
+    run eventually "done" task_status $U1
+    assert_output "done"
+    run v-start-app-process-task $U1 $DA web composer-install
+    assert_failure 2
+    run v-start-app-process-task $U1 $DA web pip-install
+    assert_failure 2
+    run v-start-app-process-task $U1 $DA web nothing
+    assert_failure 2
+    run v-start-app-process-task $U1 $DA web custom "$(printf 'a\nb')"
+    assert_failure 2
+    run v-start-app-process-task $U1 $DA web custom 'false'
+    assert_success
+    run eventually "failed" task_status $U1
+    assert_output "failed"
+    v-list-app-process-task $U1 json | jq -e '.TASK.EXIT == "1" and .TASK.TASK == "custom"'
+}
+
+@test "Tasks: migrate runs artisan with the domain's PHP" {
+    run v-start-app-process-task $U1 $DC queue migrate
+    assert_success
+    run eventually "done" task_status $U1
+    assert_output "done"
+    grep -q "migrated --force --no-interaction" "/home/$U1/web/$DC/app-process/logs/task.log"
+    run v-delete-app-process $U1 $DC queue
+    assert_success
+}
+
 @test "Core: delete the web process" {
     id=$(field $U1 $DA web ID)
     port=$(field $U1 $DA web PORT)

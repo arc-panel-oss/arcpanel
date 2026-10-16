@@ -1,0 +1,64 @@
+#!/bin/bash
+# info: list the environment of an app process (E42)
+# options: USER DOMAIN NAME [FORMAT]
+#
+# example: v-list-app-process-env alice shop.example.com web json
+#
+# This function lists the KEY=value lines of the environment file of the
+# app process, read as the user. {{secret:NAME}} references are shown as
+# written, never resolved.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+user=$1
+domain=$2
+name=$3
+format=${4-shell}
+
+# Includes
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/tenancy.sh
+source $ARCPANEL/func/tenancy.sh
+# shellcheck source=/usr/local/arcpanel/func/appprocess.sh
+source $ARCPANEL/func/appprocess.sh
+# load config file
+source_conf "$ARCPANEL/conf/arcpanel.conf"
+
+# Additional argument formatting
+format_domain
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '3' "$#" 'USER DOMAIN NAME [FORMAT]'
+is_format_valid 'user' 'domain'
+is_object_valid 'user' 'USER' "$user"
+appproc_check_process "$user" "$domain" "$name" any
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+file="$(appproc_dir "$user" "$domain")/$name.env"
+content=$(node_as_user "$user" bash -c '[ -f "$1" ] && [ ! -L "$1" ] && head -c 65536 "$1"' env "$file" 2> /dev/null | tr -d '\r')
+parsed=$(appproc_env_parse "$content" 2> /dev/null)
+json=$(printf '%s' "$parsed" | jq -Rsc '
+	[ split("\n")[] | select(length > 0) | capture("^(?<KEY>[^\t]*)\t(?<VALUE>.*)$") ] | { VARS: . }')
+
+case "$format" in
+	json) jq . <<< "$json" ;;
+	*) jq -r '.VARS[] | "\(.KEY)=\(.VALUE)"' <<< "$json" ;;
+esac
+
+#----------------------------------------------------------#
+#                         ArcPanel                         #
+#----------------------------------------------------------#
+
+exit

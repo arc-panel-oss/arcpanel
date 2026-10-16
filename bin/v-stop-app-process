@@ -1,0 +1,62 @@
+#!/bin/bash
+# info: stop an app process (E42)
+# options: USER DOMAIN NAME
+#
+# example: v-stop-app-process alice shop.example.com queue
+#
+# This function stops the app process and keeps it stopped across reboots
+# until it is started again.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+user=$1
+domain=$2
+name=$3
+
+# Includes
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/tenancy.sh
+source $ARCPANEL/func/tenancy.sh
+# shellcheck source=/usr/local/arcpanel/func/appprocess.sh
+source $ARCPANEL/func/appprocess.sh
+# load config file
+source_conf "$ARCPANEL/conf/arcpanel.conf"
+
+# Additional argument formatting
+format_domain
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '3' "$#" 'USER DOMAIN NAME'
+is_format_valid 'user' 'domain'
+is_object_valid 'user' 'USER' "$user"
+appproc_check_process "$user" "$domain" "$name" any
+
+# Perform verification if read-only mode is enabled
+check_arcpanel_demo_mode
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+appproc_lock "$user"
+appproc_stop "$user" "$APPPROC_ID"
+appproc_set "$user" "$APPPROC_ID" STATE=stopped
+
+#----------------------------------------------------------#
+#                         ArcPanel                         #
+#----------------------------------------------------------#
+
+# Logging
+$BIN/v-log-action "$user" "Info" "App processes" "App process stopped (Domain: $domain, Name: $name)."
+log_event "$OK" "$ARGUMENTS"
+
+exit

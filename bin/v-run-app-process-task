@@ -1,0 +1,98 @@
+#!/bin/bash
+# info: run a one-off task of an app process (E42)
+# options: ID USER DOMAIN NAME TASK [COMMAND]
+#
+# example: v-run-app-process-task 17606214250042 alice shop.example.com web migrate
+#
+# This function is started by v-start-app-process-task and runs the task in
+# the foreground as the user, appending its output to
+# app-process/logs/task.log of the domain, then records the exit code. COMMAND
+# is base64, for the custom task. Not meant to be called directly.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+id=$1
+user=$2
+domain=$3
+name=$4
+task=$5
+command=$6
+
+# Includes
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/tenancy.sh
+source $ARCPANEL/func/tenancy.sh
+# shellcheck source=/usr/local/arcpanel/func/appprocess.sh
+source $ARCPANEL/func/appprocess.sh
+# load config file
+source_conf "$ARCPANEL/conf/arcpanel.conf"
+
+# Additional argument formatting
+format_domain
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '5' "$#" 'ID USER DOMAIN NAME TASK [COMMAND]'
+is_format_valid 'user' 'domain'
+is_object_valid 'user' 'USER' "$user"
+if [ "$(appproc_task_get "$user" ID)" != "$id" ]; then
+	check_result "$E_NOTEXIST" "task $id is not the current task of $user"
+fi
+appproc_check_process "$user" "$domain" "$name"
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+custom=$(printf '%s' "$command" | base64 -d 2> /dev/null)
+log="$(appproc_dir "$user" "$domain")/logs/task.log"
+rc=0
+if ! reason=$(appproc_task_args "$user" "$APPPROC_ID" "$task" "$custom"); then
+	printf '%s\n' "$reason" | node_as_user "$user" bash -c 'umask 027; [ ! -L "$1" ] && cat > "$1"' log "$log"
+	rc=$E_INVALID
+else
+	appproc_task_args "$user" "$APPPROC_ID" "$task" "$custom" > /dev/null
+	cwd=$(appproc_cwd_path "$user" "$domain" "$(appproc_get "$user" "$APPPROC_ID" CWD)")
+	node_as_user "$user" timeout --kill-after=15 "$APPPROC_TASK_TIMEOUT" nice -n 10 bash -c '
+		umask 022
+		log=$1 dir=$2
+		shift 2
+		[ ! -L "$log" ] || exit 126
+		exec > "$log" 2>&1
+		printf "%s %s\n" "$(date "+%F %T")" "$*"
+		cd -- "$dir" || exit 1
+		"$@"
+		rc=$?
+		printf "%s exit %s\n" "$(date "+%F %T")" "$rc"
+		exit "$rc"' task "$log" "$cwd" "${APPPROC_ARGS[@]}" < /dev/null
+	rc=$?
+fi
+
+if [ "$rc" -eq 0 ]; then
+	appproc_task_set "$user" STATUS=done EXIT=0 "END=$(date +'%F %T')"
+	case "$task" in
+		composer-install | pip-install | bundle-install)
+			if appproc_running "$user" "$APPPROC_ID"; then
+				"$BIN/v-reload-app-process" "$user" "$domain" "$name" > /dev/null 2>&1
+			fi
+			;;
+	esac
+else
+	appproc_task_set "$user" STATUS=failed "EXIT=$rc" "END=$(date +'%F %T')"
+fi
+
+#----------------------------------------------------------#
+#                         ArcPanel                         #
+#----------------------------------------------------------#
+
+log_event "$OK" "$id $user $domain $name $task"
+
+exit
