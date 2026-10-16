@@ -2469,6 +2469,10 @@ fi
 #              Configure Web terminal                      #
 #----------------------------------------------------------#
 
+# The key of the web terminal tickets (E39 W2), as on an upgrade: the package's
+# postinst ran before arcpanelweb and /etc/arcpanel/arcpanel.conf existed
+$ARCPANEL/bin/v-add-sys-web-terminal-key > /dev/null
+
 # Web terminal
 if [ "$webterminal" = 'yes' ]; then
 	write_config_value "WEB_TERMINAL" "true"

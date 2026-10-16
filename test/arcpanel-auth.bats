@@ -192,6 +192,35 @@ user_value() {
     assert_failure
 }
 
+# The line of the first match of the extended regular expression RE in FILE.
+first_line() {
+    tr -d '\r' < "$1" | grep -nE -m1 "$2" | cut -d: -f1
+}
+
+@test "the installers write the ticket key once the panel user and its configuration exist" {
+    local installer key user conf restart
+    [ -f "$BATS_TEST_DIRNAME/../install/arcpanel-install-ubuntu.sh" ] || skip "no checkout next to the suite"
+    for installer in "$BATS_TEST_DIRNAME"/../install/arcpanel-install-{ubuntu,debian}.sh; do
+        key=$(first_line "$installer" '^\$ARCPANEL/bin/v-add-sys-web-terminal-key')
+        user=$(first_line "$installer" '^/usr/sbin/useradd "arcpanelweb"')
+        conf=$(first_line "$installer" '> /etc/arcpanel/arcpanel.conf$')
+        restart=$(first_line "$installer" 'systemctl restart arcpanel-web-terminal')
+        [ -n "$key" ] || fail "no key command in $installer"
+        [ -n "$user" ] && [ -n "$conf" ] && [ -n "$restart" ] || fail "an anchor moved in $installer"
+        [ "$key" -gt "$user" ] || fail "key before arcpanelweb in $installer"
+        [ "$key" -gt "$conf" ] || fail "key before /etc/arcpanel/arcpanel.conf in $installer"
+        [ "$key" -lt "$restart" ] || fail "key after the web terminal start in $installer"
+    done
+}
+
+@test "an enabled web terminal has its ticket key and runs" {
+    grep -q "^WEB_TERMINAL='true'" "$ARCPANEL/conf/arcpanel.conf" || skip "web terminal not enabled"
+    run grep -cE '^[0-9a-f]{64}$' "$ARCPANEL/data/web-terminal/ticket.key"
+    assert_output '1'
+    run systemctl is-active arcpanel-web-terminal
+    assert_output 'active'
+}
+
 @test "v-list-sys-config prints PANEL_HOSTNAMES" {
     run jq -e '.config | has("PANEL_HOSTNAMES")' <<< "$(v-list-sys-config json)"
     assert_success
