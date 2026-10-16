@@ -83,6 +83,15 @@ abstract class PackageRequest extends ApiRequest
             'docker.cpus' => ['sometimes', 'nullable', 'string', 'max:20', 'regex:/^\d{1,3}(\.\d{1,2})?$/'],
             /** Memory per app, such as 512M or 2G; null for unlimited. */
             'docker.memory' => ['sometimes', 'nullable', 'string', 'max:20', 'regex:/^\d{1,7}[MG]?$/'],
+            'app_processes' => ['sometimes', 'array'],
+            /** Whether users may run app processes (E42): commands of their choice, as the user. */
+            'app_processes.enabled' => ['sometimes', 'boolean'],
+            /** Processes per user, web and worker together; null for unlimited. */
+            'app_processes.max' => ['sometimes', 'nullable', 'integer', 'min:0', 'max:999'],
+            /** Memory per process, such as 512M or 1G; null for unlimited. */
+            'app_processes.memory' => ['sometimes', 'nullable', 'string', 'max:20', 'regex:/^\d{1,7}[MG]?$/'],
+            /** CPUs per process, such as 0.5; null for unlimited. */
+            'app_processes.cpus' => ['sometimes', 'nullable', 'string', 'max:20', 'regex:/^\d{1,2}(\.\d{1,2})?$/'],
             'php' => ['sometimes', 'array'],
             /** `*` (every installed version that has not reached its end of life) or a comma list of versions such as `8.3,8.4` (E41). */
             'php.versions' => ['sometimes', 'string', 'max:200', 'regex:/^(\*|\d{1,2}\.\d{1,2}(,\d{1,2}\.\d{1,2})*)$/'],
@@ -182,6 +191,20 @@ abstract class PackageRequest extends ApiRequest
             'NODE_VERSIONS' => $this->has('node.versions') ? self::number($this->input('node.versions')) : ($base['NODE_VERSIONS'] ?? '3'),
             'NODE_ALLOWED' => $this->has('node.allowed') ? (string) $this->input('node.allowed') : ($base['NODE_ALLOWED'] ?? 'lts'),
             'NODE_APPS' => $this->has('node.apps') ? self::number($this->input('node.apps')) : ($base['NODE_APPS'] ?? '3'),
+        ];
+    }
+
+    /**
+     * @param  array<string, string>  $base
+     * @return array{APP_PROCESSES: string, APP_PROCESSES_MAX: string, APP_PROCESSES_MEMORY: string, APP_PROCESSES_CPUS: string}
+     */
+    public function processValues(array $base): array
+    {
+        return [
+            'APP_PROCESSES' => $this->has('app_processes.enabled') ? ($this->boolean('app_processes.enabled') ? 'yes' : 'no') : ($base['APP_PROCESSES'] ?? 'no'),
+            'APP_PROCESSES_MAX' => $this->has('app_processes.max') ? self::number($this->input('app_processes.max')) : ($base['APP_PROCESSES_MAX'] ?? '3'),
+            'APP_PROCESSES_MEMORY' => $this->has('app_processes.memory') ? (string) ($this->input('app_processes.memory') ?? 'unlimited') : ($base['APP_PROCESSES_MEMORY'] ?? 'unlimited'),
+            'APP_PROCESSES_CPUS' => $this->has('app_processes.cpus') ? (string) ($this->input('app_processes.cpus') ?? 'unlimited') : ($base['APP_PROCESSES_CPUS'] ?? '1'),
         ];
     }
 

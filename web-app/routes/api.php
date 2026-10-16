@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\V2\AccessKeyController;
+use App\Http\Controllers\Api\V2\AppProcessController;
 use App\Http\Controllers\Api\V2\BackupController;
 use App\Http\Controllers\Api\V2\CronController;
 use App\Http\Controllers\Api\V2\DatabaseController;
@@ -420,6 +421,25 @@ Route::middleware('effective-user')->group(function () {
         Route::put('/{domain}/env', [NodeAppController::class, 'setEnv'])->name('env.update');
     });
 
+    // App processes (E42 spec §8)
+    Route::get('/users/{user}/app-processes', [AppProcessController::class, 'index'])->name('app-processes.index');
+    Route::get('/users/{user}/app-process-presets', [AppProcessController::class, 'presets'])->name('app-process-presets.index');
+    Route::get('/users/{user}/app-process-task', [AppProcessController::class, 'task'])->name('app-process-task.show');
+    Route::get('/users/{user}/app-processes/{domain}/{name}', [AppProcessController::class, 'show'])->name('app-processes.show');
+    Route::get('/users/{user}/app-processes/{domain}/{name}/env', [AppProcessController::class, 'env'])->name('app-processes.env.show');
+    Route::get('/users/{user}/app-processes/{domain}/{name}/logs', [AppProcessController::class, 'logs'])->name('app-processes.logs');
+    Route::middleware('not-readonly')->prefix('/users/{user}/app-processes')->name('app-processes.')->group(function () {
+        Route::post('/', [AppProcessController::class, 'store'])->name('store');
+        Route::patch('/{domain}/{name}', [AppProcessController::class, 'update'])->name('update');
+        Route::delete('/{domain}/{name}', [AppProcessController::class, 'destroy'])->name('destroy');
+        Route::post('/{domain}/{name}/start', [AppProcessController::class, 'start'])->name('start');
+        Route::post('/{domain}/{name}/stop', [AppProcessController::class, 'stop'])->name('stop');
+        Route::post('/{domain}/{name}/restart', [AppProcessController::class, 'restart'])->name('restart');
+        Route::post('/{domain}/{name}/reload', [AppProcessController::class, 'reload'])->name('reload');
+        Route::put('/{domain}/{name}/env', [AppProcessController::class, 'setEnv'])->name('env.update');
+        Route::post('/{domain}/{name}/tasks', [AppProcessController::class, 'startTask'])->name('tasks.store');
+    });
+
     // Docker apps (E34 batch 4 spec §4.3)
     Route::get('/users/{user}/docker-apps', [DockerAppController::class, 'index'])->name('docker-apps.index');
     Route::get('/users/{user}/docker-apps/{name}', [DockerAppController::class, 'show'])->name('docker-apps.show');
@@ -517,6 +537,8 @@ foreach (Route::getRoutes() as $route) {
     $area = match (true) {
         // The settings host path names a database host, not the db area
         str_starts_with($uri, 'api/v2/system/settings/') => 'server',
+        // App processes and their tasks, before the /tasks match
+        str_contains($uri, '/app-process') => 'apps',
         str_contains($uri, '/web-domains') => 'web',
         str_contains($uri, '/secrets') => 'secrets',
         str_contains($uri, '/malware') => 'security',

@@ -816,3 +816,38 @@ function navItems(Principal $principal, ?string $route = null): Collection
         ->flatMap(fn ($item) => [$item, ...($item['children'] ?? [])])
         ->keyBy('key');
 }
+
+/**
+ * Record of `v-list-app-process(es) json` (E42): a running web process by
+ * default, a worker for any other name.
+ *
+ * @param  array<string, string>  $overrides
+ * @return array<string, string>
+ */
+function appProcessRow(string $domain, string $name = 'web', array $overrides = []): array
+{
+    return array_merge([
+        'ID' => '1', 'DOMAIN' => $domain, 'NAME' => $name, 'KIND' => $name === 'web' ? 'web' : 'worker',
+        'PRESET' => $name === 'web' ? 'octane-swoole' : 'laravel-queue',
+        'START' => '/usr/bin/php8.4 artisan octane:start --server=swoole --host=127.0.0.1 --port=30001',
+        'CWD' => 'app', 'PORT' => $name === 'web' ? '30001' : '', 'MEMORY' => '512', 'CPUS' => '1',
+        'TEMPLATE' => $name === 'web' ? 'laravel-octane' : '', 'PREV_TPL' => 'default', 'STATE' => 'running', 'SUSPENDED' => 'no',
+        'TIME' => '10:00:00', 'DATE' => '2026-10-16', 'UNIT' => 'arcpanel-app-bob-1.service', 'STATUS' => 'running',
+        'PID' => '4242', 'MEMORY_USED' => '120', 'CPU_SECONDS' => '3', 'RESTARTS' => '0', 'UPTIME' => '60',
+    ], $overrides);
+}
+
+/**
+ * Envelope of `v-list-app-processes USER json` (E42).
+ *
+ * @param  list<array<string, string>>  $rows
+ * @param  array<string, string>  $overrides
+ * @return array<string, mixed>
+ */
+function appProcessList(string $user, array $rows, array $overrides = []): array
+{
+    return array_merge([
+        'USER' => $user, 'ENABLED' => 'yes', 'LIMIT' => '10', 'COUNT' => (string) count($rows),
+        'MAX_MEMORY' => '768', 'DEFAULT_MEMORY' => '512', 'MAX_CPUS' => '1', 'PROCESSES' => $rows,
+    ], $overrides);
+}

@@ -65,6 +65,9 @@ final class Capabilities
         // Node.js apps (E14 spec §6.2); NodePolicy adds the package key
         'node.apps.view' => self::ALL_ROLES,
         'node.apps.manage' => self::ALL_ROLES,
+        // App processes (E42 spec §8); AppProcessPolicy adds the package key
+        'apps.processes.view' => self::ALL_ROLES,
+        'apps.processes.manage' => self::ALL_ROLES,
 
         // Docker apps (E4 spec §6.2); DockerPolicy adds the engine and the package key
         'docker.apps.view' => self::ALL_ROLES,

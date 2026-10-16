@@ -79,7 +79,8 @@ final class PackageController extends Controller
         }
         $base = PackageService::defaults(($this->packages->all()['default'] ?? null)?->get('NS') ?? '');
         $steps = PackageRequest::withApiFields(fn () => $this->actions->planCreate($principal, $name, $request->packageValues($base, $this->packages->resourcesLimit()),
-            $request->tenancyValues($base), $request->portsValue($base), $request->nodeValues($base), $request->dockerValues($base), $request->phpValues($base)));
+            $request->tenancyValues($base), $request->portsValue($base), $request->nodeValues($base), $request->dockerValues($base), $request->phpValues($base),
+            $request->processValues($base)));
 
         if ($preview = $this->gate->execute($steps, $this->users->apply(...))) {
             return $preview;
@@ -114,7 +115,8 @@ final class PackageController extends Controller
         $newName = PackageActions::resellerOf($principal) === '' ? (string) $request->input('name', $record->name) : $record->name;
         $base = array_merge(PackageService::defaults(''), $record->data);
         $steps = PackageRequest::withApiFields(fn () => $this->actions->planUpdate($principal, $record, $newName, $request->packageValues($base, $this->packages->resourcesLimit()),
-            $request->tenancyValues($base), $request->portsValue($base), $request->nodeValues($base), $request->dockerValues($base), $request->phpValues($base)));
+            $request->tenancyValues($base), $request->portsValue($base), $request->nodeValues($base), $request->dockerValues($base), $request->phpValues($base),
+            $request->processValues($base)));
 
         return $this->gate->execute($steps, $this->users->apply(...))
             ?? new PackageResource($this->packages->find($newName));

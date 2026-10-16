@@ -253,8 +253,8 @@ it('documents pagination and error.existing', function () {
             if (in_array($id, ['listSystemTasks'], true)) {
                 continue;
             }
-            if (in_array($id, ['listNodeApps', 'listDockerApps', 'listPorts', 'listServices', 'listUpdates'], true)) {
-                $ref = ['listNodeApps' => '#/components/schemas/NodeAppListMeta', 'listDockerApps' => '#/components/schemas/DockerAppListMeta', 'listPorts' => '#/components/schemas/PortListMeta', 'listServices' => '#/components/schemas/ServiceListMeta', 'listUpdates' => '#/components/schemas/UpdateSettings'][$id];
+            if (in_array($id, ['listNodeApps', 'listAppProcesses', 'listDockerApps', 'listPorts', 'listServices', 'listUpdates'], true)) {
+                $ref = ['listNodeApps' => '#/components/schemas/NodeAppListMeta', 'listAppProcesses' => '#/components/schemas/AppProcessListMeta', 'listDockerApps' => '#/components/schemas/DockerAppListMeta', 'listPorts' => '#/components/schemas/PortListMeta', 'listServices' => '#/components/schemas/ServiceListMeta', 'listUpdates' => '#/components/schemas/UpdateSettings'][$id];
                 $schema = $operation['responses']['200']['content']['application/json']['schema']['properties']['meta'] ?? null;
                 expect($schema)->toBe(['$ref' => $ref]);
                 $names = array_column($operation['parameters'] ?? [], 'name');
@@ -323,6 +323,7 @@ it('declares an area on the batch 1 routes', function () {
         $area = match (true) {
             // The settings host path names a database host, not the db area
             str_starts_with($uri, 'api/v2/system/settings/') => 'server',
+            str_contains($uri, '/app-process') => 'apps',
             str_contains($uri, '/web-domains') => 'web',
             str_contains($uri, '/secrets') => 'secrets',
             str_contains($uri, '/malware') => 'security',

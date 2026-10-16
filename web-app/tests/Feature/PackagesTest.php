@@ -251,6 +251,30 @@ it('sets the Docker keys of a package, within the reseller plan for a reseller (
     $this->fake->assertNotRan('v-add-reseller-package');
 });
 
+it('sets the app process keys of a package, within the reseller plan for a reseller (E42)', function () {
+    $this->fake->on('v-add-user-package')->returns();
+    $this->fake->on('v-add-reseller-package')->returns();
+    $this->fake->on('v-change-package-tenancy')->returns();
+
+    signIn('arcadmin', 'admin');
+    $this->get('/packages/create')->assertOk()->assertSee('name="app_processes"', false)->assertSee('name="app_processes_cpus"', false);
+    $this->post('/packages', packageInput(['app_processes' => '1', 'app_processes_max' => '5', 'app_processes_cpus' => '0.5', 'app_processes_memory' => '768M']))
+        ->assertRedirect('/packages');
+    $steps = collect($this->fake->calls('v-change-package-tenancy'))->pluck('args')->all();
+    expect($steps)->toBe([
+        ['business', 'APP_PROCESSES_MAX', '5'], ['business', 'APP_PROCESSES_MEMORY', '768M'], ['business', 'APP_PROCESSES_CPUS', '0.5'], ['business', 'APP_PROCESSES', 'yes'],
+    ]);
+    $this->post('/packages', packageInput(['app_processes_cpus' => 'all']))->assertSessionHasErrors('app_processes_cpus');
+    $this->post('/packages', packageInput(['app_processes_memory' => '1T']))->assertSessionHasErrors('app_processes_memory');
+
+    // the reseller package has no app processes
+    signIn('hostco', 'reseller');
+    $this->get('/packages/create')->assertOk()->assertSee('App processes are not included in your plan.');
+    $this->post('/packages', packageInput(['app_processes' => '1']))->assertSessionHasErrors('app_processes');
+    $this->post('/packages', packageInput(['app_processes_max' => '4']))->assertSessionHasErrors('app_processes_max');
+    $this->fake->assertNotRan('v-add-reseller-package');
+});
+
 it('sets the PHP keys of a package with the default profile kept allowed at each step (E41)', function () {
     $this->fake->on('v-add-user-package')->returns();
     $this->fake->on('v-update-user-package')->returns();

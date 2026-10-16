@@ -115,6 +115,8 @@ tags:
     description: Firewall rules, chains, bans and IP lists
   - name: Node.js
     description: Node.js runtimes, global packages and apps (E13, E14)
+  - name: App processes
+    description: Long-running commands of web domains run as the user by systemd (E42)
   - name: Docker
     description: Docker apps from the catalog, run as the user (E4)
   - name: Quick Install
@@ -214,6 +216,71 @@ paths:
             application/json:
               schema:
                 type: object
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+  "/api/#v-add-app-process":
+    post:
+      operationId: v-add-app-process
+      tags:
+        - App processes
+      summary: Add an app process to a web domain (E42)
+      description: |-
+        This function runs a long-running command of a web domain as the user,
+        under its own systemd unit with the memory and CPU limits of the package.
+        PRESET (see v-list-app-process-presets) fills the command, the reload
+        action and, for a web process, the template; START replaces the command
+        (an empty value keeps the preset's). CWD is relative to the domain folder
+        (default public_html). MEMORY is in MB (default from the package), CPUS
+        a number such as 1 or 0.5 (default 1). KIND (web or worker) and TEMPLATE
+        are for the custom preset. A web process gets a port of the user's pool,
+        and the domain is switched to the template with that port; deleting the
+        process restores the previous template. A domain has at most one web
+        process and any number of workers within APP_PROCESSES_MAX.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `USER` | yes |
+        | `arg2` | `DOMAIN` | yes |
+        | `arg3` | `NAME` | yes |
+        | `arg4` | `PRESET` | yes |
+        | `arg5` | `START` | no |
+        | `arg6` | `CWD` | no |
+        | `arg7` | `MEMORY` | no |
+        | `arg8` | `CPUS` | no |
+        | `arg9` | `KIND` | no |
+        | `arg10` | `TEMPLATE` | no |
+
+        **User argument:** with the access key of a user other than the admin, `arg1` must be the key's user.
+      x-arcpanel-user-arg: 1
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-add-app-process"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-add-app-process"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
         "204":
           $ref: "#/components/responses/NoContent"
         "400":
@@ -2716,6 +2783,50 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/v-add-sys-api-ip"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+  "/api/#v-add-sys-app-processes":
+    post:
+      operationId: v-add-sys-app-processes
+      tags:
+        - System
+      summary: Set up app processes (E42)
+      description: |-
+        This function prepares a server for app processes: the root-owned folder
+        of their run files, the PHP settings of the processes
+        ($ARCPANEL/data/app-processes/.php/zz-app-processes.ini), the app process keys of the "developer" package and
+        the 5-minute v-check-sys-app-processes job that converges the units with
+        the records. It is safe to run again and keeps packages an administrator
+        has changed.
+
+        **Arguments:** none.
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-add-sys-app-processes"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-add-sys-app-processes"
       responses:
         "200":
           description: "The output of the command; `OK` for an empty output with legacy authentication."
@@ -6079,6 +6190,167 @@ paths:
           $ref: "#/components/responses/InvalidRequest"
         "422":
           $ref: "#/components/responses/Unprocessable"
+  "/api/#v-change-app-process-env":
+    post:
+      operationId: v-change-app-process-env
+      tags:
+        - App processes
+      summary: Replace the environment of an app process (E42)
+      description: |-
+        This function replaces the environment file of the app process with FILE:
+        KEY=value lines (blank lines and # comments are kept), at most 200 lines
+        and 64 KB. PORT, HOST, PATH, HOME, USER and LOGNAME are set by the panel
+        and cannot be set here. A value may reference secrets of the user as
+        {{secret:NAME}} (E38): they must exist and are resolved only when the
+        process starts, outside the home directory. A running process is
+        restarted. Values are never logged.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `USER` | yes |
+        | `arg2` | `DOMAIN` | yes |
+        | `arg3` | `NAME` | yes |
+        | `arg4` | `FILE` | yes |
+
+        **User argument:** with the access key of a user other than the admin, `arg1` must be the key's user.
+      x-arcpanel-user-arg: 1
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-change-app-process-env"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-change-app-process-env"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+  "/api/#v-change-app-process-limits":
+    post:
+      operationId: v-change-app-process-limits
+      tags:
+        - App processes
+      summary: Change the memory and CPU limits of an app process (E42)
+      description: |-
+        This function sets the memory (MB) and the CPUs (such as 1 or 0.5) of the
+        app process within the limits of the user's package. A running process is
+        restarted with the new limits.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `USER` | yes |
+        | `arg2` | `DOMAIN` | yes |
+        | `arg3` | `NAME` | yes |
+        | `arg4` | `MEMORY` | yes |
+        | `arg5` | `CPUS` | yes |
+
+        **User argument:** with the access key of a user other than the admin, `arg1` must be the key's user.
+      x-arcpanel-user-arg: 1
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-change-app-process-limits"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-change-app-process-limits"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+  "/api/#v-change-app-process-start":
+    post:
+      operationId: v-change-app-process-start
+      tags:
+        - App processes
+      summary: Change the command of an app process (E42)
+      description: |-
+        This function replaces the command line of the app process and, with CWD,
+        its working directory (relative to the domain folder). Words are split
+        without a shell: quotes group, a backslash escapes, nothing is expanded.
+        %port% is replaced with the port of a web process. A running process is
+        restarted.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `USER` | yes |
+        | `arg2` | `DOMAIN` | yes |
+        | `arg3` | `NAME` | yes |
+        | `arg4` | `START` | yes |
+        | `arg5` | `CWD` | no |
+
+        **User argument:** with the access key of a user other than the admin, `arg1` must be the key's user.
+      x-arcpanel-user-arg: 1
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-change-app-process-start"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-change-app-process-start"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
   "/api/#v-change-cron-job":
     post:
       operationId: v-change-cron-job
@@ -7613,6 +7885,10 @@ paths:
         package's web domains (E41): a reseller's own package may only allow what
         the reseller's package allows, * only when that is *, and the package's
         BACKEND_TEMPLATE must name an allowed version.
+        APP_PROCESSES (yes or no), APP_PROCESSES_MAX (integer or unlimited),
+        APP_PROCESSES_MEMORY (memory per process, like 512M, or unlimited) and
+        APP_PROCESSES_CPUS (CPUs per process, like 0.5, or unlimited) allow app
+        processes (E42); a reseller's own package cannot go beyond the reseller's.
 
         **Arguments**
 
@@ -10703,8 +10979,9 @@ paths:
         template on NGINX + PHP-FPM) and rebuilds the domain. A port variable must
         be a port of the domain owner's pool: an unassigned port (or "auto" for the
         lowest free one) is assigned to web:<domain>; a port already assigned to
-        web:<domain>, node:<domain>, docker:<app> or manual is used as it is. When
-        NGINX refuses the result, the previous values are restored.
+        web:<domain>, node:<domain>, app:<domain> (E42), docker:<app> or manual is
+        used as it is. When NGINX refuses the result, the previous values are
+        restored.
 
         **Arguments**
 
@@ -11087,6 +11364,63 @@ paths:
             text/plain:
               schema:
                 type: string
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+  "/api/#v-check-sys-app-processes":
+    post:
+      operationId: v-check-sys-app-processes
+      tags:
+        - System
+      summary: Check the app processes of all users (E42)
+      description: |-
+        This function looks for app processes that do not match their records:
+        import (a copy in a domain's app-process/ folder without a record, after a
+        restore), domain-missing (the web domain was deleted), unit-missing (a
+        record without its unit), unit-orphan (a unit without a record),
+        process-down (a process that should run does not), process-failed (it
+        stopped after too many restarts), process-suspended (a process of a
+        suspended user or domain runs) and over-limit (more processes than
+        APP_PROCESSES_MAX, reported only). MODE repair (run every 5 minutes from
+        cron) fixes all but over-limit with v-rebuild-app-processes. The totals
+        are the users with processes, the processes, those running and their
+        memory in MB.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `MODE` | no |
+        | `arg2` | `FORMAT` | no |
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-check-sys-app-processes"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-check-sys-app-processes"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+            application/json:
+              schema:
+                type: object
         "204":
           $ref: "#/components/responses/NoContent"
         "400":
@@ -11784,6 +12118,57 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/v-delete-access-key"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+  "/api/#v-delete-app-process":
+    post:
+      operationId: v-delete-app-process
+      tags:
+        - App processes
+      summary: Delete an app process of a web domain (E42)
+      description: |-
+        This function stops the process and removes its unit and record. For the
+        web process, the port goes back to the user's pool and the domain gets its
+        previous template again. The log and the environment file stay in the
+        domain folder (app-process/).
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `USER` | yes |
+        | `arg2` | `DOMAIN` | yes |
+        | `arg3` | `NAME` | yes |
+
+        **User argument:** with the access key of a user other than the admin, `arg1` must be the key's user.
+      x-arcpanel-user-arg: 1
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-delete-app-process"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-delete-app-process"
       responses:
         "200":
           description: "The output of the command; `OK` for an empty output with legacy authentication."
@@ -15106,6 +15491,54 @@ paths:
           $ref: "#/components/responses/InvalidRequest"
         "422":
           $ref: "#/components/responses/Unprocessable"
+  "/api/#v-delete-user-app-processes":
+    post:
+      operationId: v-delete-user-app-processes
+      tags:
+        - Users
+      summary: Delete the app processes of a user (E42)
+      description: |-
+        This function deletes every app process of USER: units, run files,
+        records, ports and the templates of their domains. The pre_delete_user
+        hook runs it before the user is deleted.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `USER` | yes |
+
+        **User argument:** with the access key of a user other than the admin, `arg1` must be the key's user.
+      x-arcpanel-user-arg: 1
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-delete-user-app-processes"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-delete-user-app-processes"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
   "/api/#v-delete-user-auth-log":
     post:
       operationId: v-delete-user-auth-log
@@ -18254,6 +18687,335 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/v-list-apis"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+            application/json:
+              schema:
+                type: object
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+  "/api/#v-list-app-process":
+    post:
+      operationId: v-list-app-process
+      tags:
+        - App processes
+      summary: List one app process of a web domain (E42)
+      description: |-
+        This function prints the record of the app process with its live state
+        (see v-list-app-processes), its unit, the path of its log and of its
+        environment file and the reason when its runtime is missing.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `USER` | yes |
+        | `arg2` | `DOMAIN` | yes |
+        | `arg3` | `NAME` | yes |
+        | `arg4` | `FORMAT` | no |
+
+        **User argument:** with the access key of a user other than the admin, `arg1` must be the key's user.
+      x-arcpanel-user-arg: 1
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-list-app-process"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-list-app-process"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+            application/json:
+              schema:
+                type: object
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+  "/api/#v-list-app-process-env":
+    post:
+      operationId: v-list-app-process-env
+      tags:
+        - App processes
+      summary: List the environment of an app process (E42)
+      description: |-
+        This function lists the KEY=value lines of the environment file of the
+        app process, read as the user. {{secret:NAME}} references are shown as
+        written, never resolved.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `USER` | yes |
+        | `arg2` | `DOMAIN` | yes |
+        | `arg3` | `NAME` | yes |
+        | `arg4` | `FORMAT` | no |
+
+        **User argument:** with the access key of a user other than the admin, `arg1` must be the key's user.
+      x-arcpanel-user-arg: 1
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-list-app-process-env"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-list-app-process-env"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+            application/json:
+              schema:
+                type: object
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+  "/api/#v-list-app-process-logs":
+    post:
+      operationId: v-list-app-process-logs
+      tags:
+        - App processes
+      summary: List the log of an app process (E42)
+      description: |-
+        This function shows a log of the app process: STREAM is process (default,
+        the output of the process and its reloads) or task (the last one-off task
+        of the domain's processes). Without OFFSET it shows the last LINES lines
+        (default 200, at most 1000); with OFFSET (bytes) it shows what was
+        written after it, at most 256 KB and whole lines only. OFFSET in the
+        output is where the next read starts; an offset beyond the end (the log
+        was rotated) starts again at 0.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `USER` | yes |
+        | `arg2` | `DOMAIN` | yes |
+        | `arg3` | `NAME` | yes |
+        | `arg4` | `STREAM` | no |
+        | `arg5` | `OFFSET` | no |
+        | `arg6` | `LINES` | no |
+        | `arg7` | `FORMAT` | no |
+
+        **User argument:** with the access key of a user other than the admin, `arg1` must be the key's user.
+      x-arcpanel-user-arg: 1
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-list-app-process-logs"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-list-app-process-logs"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+            application/json:
+              schema:
+                type: object
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+  "/api/#v-list-app-process-presets":
+    post:
+      operationId: v-list-app-process-presets
+      tags:
+        - App processes
+      summary: List the presets of app processes (E42)
+      description: |-
+        This function lists the presets of the app process catalog: kind,
+        template, runtime and the command with its placeholders. With USER and
+        DOMAIN, each preset also says whether its files were found in CWD
+        (default public_html, read as the user) and why its runtime is missing,
+        and the command shows its placeholders filled in (%port% and %workers%,
+        which depend on the process, stay).
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `USER DOMAIN [CWD]` | no |
+        | `arg2` | `FORMAT` | no |
+
+        **User argument:** with the access key of a user other than the admin, `arg1` must be the key's user.
+      x-arcpanel-user-arg: 1
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-list-app-process-presets"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-list-app-process-presets"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+            application/json:
+              schema:
+                type: object
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+  "/api/#v-list-app-process-task":
+    post:
+      operationId: v-list-app-process-task
+      tags:
+        - App processes
+      summary: List the last one-off task of a user's app processes (E42)
+      description: |-
+        This function shows the last task started with v-start-app-process-task:
+        its id, domain, process, task, STATUS (running, done or failed), exit
+        code and times. A running task whose process is gone is shown as failed.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `USER` | yes |
+        | `arg2` | `FORMAT` | no |
+
+        **User argument:** with the access key of a user other than the admin, `arg1` must be the key's user.
+      x-arcpanel-user-arg: 1
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-list-app-process-task"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-list-app-process-task"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+            application/json:
+              schema:
+                type: object
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+  "/api/#v-list-app-processes":
+    post:
+      operationId: v-list-app-processes
+      tags:
+        - App processes
+      summary: List the app processes of a user (E42)
+      description: |-
+        This function lists the app processes of USER with their live state from
+        systemd (STATUS running, starting, stopping, stopped, failed, suspended or
+        missing; PID, MEMORY_USED in MB, CPU_SECONDS, RESTARTS, UPTIME in
+        seconds) and the limits of the user's package.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `USER` | yes |
+        | `arg2` | `FORMAT` | no |
+
+        **User argument:** with the access key of a user other than the admin, `arg1` must be the key's user.
+      x-arcpanel-user-arg: 1
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-list-app-processes"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-list-app-processes"
       responses:
         "200":
           description: "The output of the command; `OK` for an empty output with legacy authentication."
@@ -26908,6 +27670,58 @@ paths:
           $ref: "#/components/responses/InvalidRequest"
         "422":
           $ref: "#/components/responses/Unprocessable"
+  "/api/#v-rebuild-app-processes":
+    post:
+      operationId: v-rebuild-app-processes
+      tags:
+        - App processes
+      summary: Rebuild the app processes of a user (E42)
+      description: |-
+        This function brings the app processes of USER in line with their
+        records: processes of deleted web domains are removed, copies in a
+        domain's app-process/ folder without a record (after a restore) are
+        validated again and imported, units, run files, ports, templates and the
+        logrotate file are written again, and the processes that should run are
+        started, the others stopped. The panel runs it after a user rebuild and
+        v-check-sys-app-processes when it finds something to repair.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `USER` | yes |
+
+        **User argument:** with the access key of a user other than the admin, `arg1` must be the key's user.
+      x-arcpanel-user-arg: 1
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-rebuild-app-processes"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-rebuild-app-processes"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
   "/api/#v-rebuild-cron-jobs":
     post:
       operationId: v-rebuild-cron-jobs
@@ -27623,6 +28437,58 @@ paths:
           $ref: "#/components/responses/InvalidRequest"
         "422":
           $ref: "#/components/responses/Unprocessable"
+  "/api/#v-reload-app-process":
+    post:
+      operationId: v-reload-app-process
+      tags:
+        - App processes
+      summary: Reload an app process (E42)
+      description: |-
+        This function runs the reload action of the process's preset so that it
+        serves new code: a command run as the user (php artisan octane:reload,
+        queue:restart, horizon:terminate), a signal (HUP for Gunicorn, USR1 for
+        Puma) or a restart. The output of a reload command goes to the log of the
+        process. A process that does not run is refused.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `USER` | yes |
+        | `arg2` | `DOMAIN` | yes |
+        | `arg3` | `NAME` | yes |
+
+        **User argument:** with the access key of a user other than the admin, `arg1` must be the key's user.
+      x-arcpanel-user-arg: 1
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-reload-app-process"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-reload-app-process"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
   "/api/#v-reload-node-app":
     post:
       operationId: v-reload-node-app
@@ -27785,6 +28651,55 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/v-repair-sys-config"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+  "/api/#v-restart-app-process":
+    post:
+      operationId: v-restart-app-process
+      tags:
+        - App processes
+      summary: Restart an app process (E42)
+      description: |-
+        This function stops and starts the app process with its current command,
+        environment and limits. A stopped process is started.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `USER` | yes |
+        | `arg2` | `DOMAIN` | yes |
+        | `arg3` | `NAME` | yes |
+
+        **User argument:** with the access key of a user other than the admin, `arg1` must be the key's user.
+      x-arcpanel-user-arg: 1
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-restart-app-process"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-restart-app-process"
       responses:
         "200":
           description: "The output of the command; `OK` for an empty output with legacy authentication."
@@ -29181,6 +30096,60 @@ paths:
           $ref: "#/components/responses/InvalidRequest"
         "422":
           $ref: "#/components/responses/Unprocessable"
+  "/api/#v-run-app-process-task":
+    post:
+      operationId: v-run-app-process-task
+      tags:
+        - App processes
+      summary: Run a one-off task of an app process (E42)
+      description: |-
+        This function is started by v-start-app-process-task and runs the task in
+        the foreground as the user, appending its output to
+        app-process/logs/task.log of the domain, then records the exit code. COMMAND
+        is base64, for the custom task. Not meant to be called directly.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `ID` | yes |
+        | `arg2` | `USER` | yes |
+        | `arg3` | `DOMAIN` | yes |
+        | `arg4` | `NAME` | yes |
+        | `arg5` | `TASK` | yes |
+        | `arg6` | `COMMAND` | no |
+
+        **User argument:** with the access key of a user other than the admin, `arg2` must be the key's user.
+      x-arcpanel-user-arg: 2
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-run-app-process-task"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-run-app-process-task"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
   "/api/#v-run-cli-cmd":
     post:
       operationId: v-run-cli-cmd
@@ -30455,6 +31424,113 @@ paths:
           $ref: "#/components/responses/InvalidRequest"
         "422":
           $ref: "#/components/responses/Unprocessable"
+  "/api/#v-start-app-process":
+    post:
+      operationId: v-start-app-process
+      tags:
+        - App processes
+      summary: Start an app process (E42)
+      description: |-
+        This function starts the app process (a running one is restarted), clears
+        a failed state and keeps it running across reboots.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `USER` | yes |
+        | `arg2` | `DOMAIN` | yes |
+        | `arg3` | `NAME` | yes |
+
+        **User argument:** with the access key of a user other than the admin, `arg1` must be the key's user.
+      x-arcpanel-user-arg: 1
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-start-app-process"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-start-app-process"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+  "/api/#v-start-app-process-task":
+    post:
+      operationId: v-start-app-process-task
+      tags:
+        - App processes
+      summary: Start a one-off task of an app process (E42)
+      description: |-
+        This function runs TASK in the background, as the user, in the working
+        directory of the app process: composer-install (composer install --no-dev
+        with the domain's PHP), migrate (php artisan migrate --force),
+        pip-install (pip of .venv with requirements.txt), bundle-install (bundle
+        install into vendor/bundle) or custom (COMMAND, split without a shell).
+        One task runs at a time per user, for at most 30 minutes; its output goes
+        to app-process/logs/task.log of the domain. After a successful install a
+        running process is reloaded. It prints the id of the task; follow it with
+        v-list-app-process-task and v-list-app-process-logs ... task.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `USER` | yes |
+        | `arg2` | `DOMAIN` | yes |
+        | `arg3` | `NAME` | yes |
+        | `arg4` | `TASK` | yes |
+        | `arg5` | `COMMAND` | no |
+
+        **User argument:** with the access key of a user other than the admin, `arg1` must be the key's user.
+      x-arcpanel-user-arg: 1
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-start-app-process-task"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-start-app-process-task"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
   "/api/#v-start-docker-app":
     post:
       operationId: v-start-docker-app
@@ -30891,6 +31967,55 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/v-start-user-quick-install"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+  "/api/#v-stop-app-process":
+    post:
+      operationId: v-stop-app-process
+      tags:
+        - App processes
+      summary: Stop an app process (E42)
+      description: |-
+        This function stops the app process and keeps it stopped across reboots
+        until it is started again.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `USER` | yes |
+        | `arg2` | `DOMAIN` | yes |
+        | `arg3` | `NAME` | yes |
+
+        **User argument:** with the access key of a user other than the admin, `arg1` must be the key's user.
+      x-arcpanel-user-arg: 1
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-stop-app-process"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-stop-app-process"
       responses:
         "200":
           description: "The output of the command; `OK` for an empty output with legacy authentication."
@@ -31923,6 +33048,54 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/v-suspend-user"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+  "/api/#v-suspend-user-app-processes":
+    post:
+      operationId: v-suspend-user-app-processes
+      tags:
+        - Users
+      summary: Suspend the app processes of a user (E42)
+      description: |-
+        This function stops every app process of USER and marks them suspended,
+        so that neither a reboot nor v-check-sys-app-processes starts them. The
+        post_suspend_user hook runs it when the user is suspended.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `USER` | yes |
+
+        **User argument:** with the access key of a user other than the admin, `arg1` must be the key's user.
+      x-arcpanel-user-arg: 1
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-suspend-user-app-processes"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-suspend-user-app-processes"
       responses:
         "200":
           description: "The output of the command; `OK` for an empty output with legacy authentication."
@@ -33061,6 +34234,54 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/v-unsuspend-user"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+  "/api/#v-unsuspend-user-app-processes":
+    post:
+      operationId: v-unsuspend-user-app-processes
+      tags:
+        - Users
+      summary: Unsuspend the app processes of a user (E42)
+      description: |-
+        This function lifts the suspension of every app process of USER and
+        starts those the user had running (not the ones of a suspended domain).
+        The post_unsuspend_user hook runs it when the user is unsuspended.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `USER` | yes |
+
+        **User argument:** with the access key of a user other than the admin, `arg1` must be the key's user.
+      x-arcpanel-user-arg: 1
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-unsuspend-user-app-processes"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-unsuspend-user-app-processes"
       responses:
         "200":
           description: "The output of the command; `OK` for an empty output with legacy authentication."
@@ -35767,6 +36988,84 @@ components:
                 - json
             returncode:
               $ref: "#/components/schemas/ReturnCode"
+    v-add-app-process:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+            - arg2
+            - arg3
+            - arg4
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-add-app-process
+              default: v-add-app-process
+            arg1:
+              type: string
+              title: USER
+              description: "`USER`"
+              examples:
+                - alice
+            arg2:
+              type: string
+              title: DOMAIN
+              description: "`DOMAIN`"
+              examples:
+                - shop.example.com
+            arg3:
+              type: string
+              title: NAME
+              description: "`NAME`"
+              examples:
+                - web
+            arg4:
+              type: string
+              title: PRESET
+              description: "`PRESET`"
+              examples:
+                - octane-swoole
+            arg5:
+              type: string
+              title: START
+              description: "`START`, optional"
+              examples:
+                - ""
+            arg6:
+              type: string
+              title: CWD
+              description: "`CWD`, optional"
+              examples:
+                - ""
+            arg7:
+              type: string
+              title: MEMORY
+              description: "`MEMORY`, optional"
+              examples:
+                - ""
+            arg8:
+              type: string
+              title: CPUS
+              description: "`CPUS`, optional"
+              examples:
+                - ""
+            arg9:
+              type: string
+              title: KIND
+              description: "`KIND`, optional"
+              examples:
+                - ""
+            arg10:
+              type: string
+              title: TEMPLATE
+              description: "`TEMPLATE`, optional"
+              examples:
+                - ""
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
     v-add-backup-host:
       allOf:
         - $ref: "#/components/schemas/Credentials"
@@ -38040,6 +39339,20 @@ components:
                 - "1.1.1.1"
             returncode:
               $ref: "#/components/schemas/ReturnCode"
+    v-add-sys-app-processes:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-add-sys-app-processes
+              default: v-add-sys-app-processes
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
     v-add-sys-arcpanel:
       allOf:
         - $ref: "#/components/schemas/Credentials"
@@ -40082,6 +41395,145 @@ components:
               enum:
                 - v-backup-users-restic
               default: v-backup-users-restic
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
+    v-change-app-process-env:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+            - arg2
+            - arg3
+            - arg4
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-change-app-process-env
+              default: v-change-app-process-env
+            arg1:
+              type: string
+              title: USER
+              description: "`USER`"
+              examples:
+                - alice
+            arg2:
+              type: string
+              title: DOMAIN
+              description: "`DOMAIN`"
+              examples:
+                - shop.example.com
+            arg3:
+              type: string
+              title: NAME
+              description: "`NAME`"
+              examples:
+                - web
+            arg4:
+              type: string
+              title: FILE
+              description: "`FILE`"
+              examples:
+                - /tmp/env.txt
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
+    v-change-app-process-limits:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+            - arg2
+            - arg3
+            - arg4
+            - arg5
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-change-app-process-limits
+              default: v-change-app-process-limits
+            arg1:
+              type: string
+              title: USER
+              description: "`USER`"
+              examples:
+                - alice
+            arg2:
+              type: string
+              title: DOMAIN
+              description: "`DOMAIN`"
+              examples:
+                - shop.example.com
+            arg3:
+              type: string
+              title: NAME
+              description: "`NAME`"
+              examples:
+                - web
+            arg4:
+              type: string
+              title: MEMORY
+              description: "`MEMORY`"
+              examples:
+                - "768"
+            arg5:
+              type: string
+              title: CPUS
+              description: "`CPUS`"
+              examples:
+                - "1.5"
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
+    v-change-app-process-start:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+            - arg2
+            - arg3
+            - arg4
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-change-app-process-start
+              default: v-change-app-process-start
+            arg1:
+              type: string
+              title: USER
+              description: "`USER`"
+              examples:
+                - alice
+            arg2:
+              type: string
+              title: DOMAIN
+              description: "`DOMAIN`"
+              examples:
+                - shop.example.com
+            arg3:
+              type: string
+              title: NAME
+              description: "`NAME`"
+              examples:
+                - web
+            arg4:
+              type: string
+              title: START
+              description: "`START`"
+              examples:
+                - "/usr/bin/php8.4 artisan octane:start --server=swoole --host=127.0.0.1 --port=30001 --workers=4"
+            arg5:
+              type: string
+              title: CWD
+              description: "`CWD`, optional"
+              examples:
+                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-change-cron-job:
@@ -43816,6 +45268,37 @@ components:
                 - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
+    v-check-sys-app-processes:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-check-sys-app-processes
+              default: v-check-sys-app-processes
+            arg1:
+              type: string
+              title: MODE
+              description: "`MODE`, optional"
+              examples:
+                - ""
+            arg2:
+              type: string
+              title: FORMAT
+              description: "`FORMAT`, optional"
+              enum:
+                - json
+                - plain
+                - csv
+                - shell
+              examples:
+                - json
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
     v-check-sys-docker:
       allOf:
         - $ref: "#/components/schemas/Credentials"
@@ -44268,6 +45751,41 @@ components:
               description: "`ACCESS_KEY_ID`"
               examples:
                 - mykey
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
+    v-delete-app-process:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+            - arg2
+            - arg3
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-delete-app-process
+              default: v-delete-app-process
+            arg1:
+              type: string
+              title: USER
+              description: "`USER`"
+              examples:
+                - alice
+            arg2:
+              type: string
+              title: DOMAIN
+              description: "`DOMAIN`"
+              examples:
+                - shop.example.com
+            arg3:
+              type: string
+              title: NAME
+              description: "`NAME`"
+              examples:
+                - queue
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-delete-backup-host:
@@ -46126,6 +47644,27 @@ components:
               description: "`USER`"
               examples:
                 - admin
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
+    v-delete-user-app-processes:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-delete-user-app-processes
+              default: v-delete-user-app-processes
+            arg1:
+              type: string
+              title: USER
+              description: "`USER`"
+              examples:
+                - alice
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-delete-user-auth-log:
@@ -48182,6 +49721,257 @@ components:
                 - v-list-apis
               default: v-list-apis
             arg1:
+              type: string
+              title: FORMAT
+              description: "`FORMAT`, optional"
+              enum:
+                - json
+                - plain
+                - csv
+                - shell
+              examples:
+                - json
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
+    v-list-app-process:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+            - arg2
+            - arg3
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-list-app-process
+              default: v-list-app-process
+            arg1:
+              type: string
+              title: USER
+              description: "`USER`"
+              examples:
+                - alice
+            arg2:
+              type: string
+              title: DOMAIN
+              description: "`DOMAIN`"
+              examples:
+                - shop.example.com
+            arg3:
+              type: string
+              title: NAME
+              description: "`NAME`"
+              examples:
+                - web
+            arg4:
+              type: string
+              title: FORMAT
+              description: "`FORMAT`, optional"
+              enum:
+                - json
+                - plain
+                - csv
+                - shell
+              examples:
+                - json
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
+    v-list-app-process-env:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+            - arg2
+            - arg3
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-list-app-process-env
+              default: v-list-app-process-env
+            arg1:
+              type: string
+              title: USER
+              description: "`USER`"
+              examples:
+                - alice
+            arg2:
+              type: string
+              title: DOMAIN
+              description: "`DOMAIN`"
+              examples:
+                - shop.example.com
+            arg3:
+              type: string
+              title: NAME
+              description: "`NAME`"
+              examples:
+                - web
+            arg4:
+              type: string
+              title: FORMAT
+              description: "`FORMAT`, optional"
+              enum:
+                - json
+                - plain
+                - csv
+                - shell
+              examples:
+                - json
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
+    v-list-app-process-logs:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+            - arg2
+            - arg3
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-list-app-process-logs
+              default: v-list-app-process-logs
+            arg1:
+              type: string
+              title: USER
+              description: "`USER`"
+              examples:
+                - alice
+            arg2:
+              type: string
+              title: DOMAIN
+              description: "`DOMAIN`"
+              examples:
+                - shop.example.com
+            arg3:
+              type: string
+              title: NAME
+              description: "`NAME`"
+              examples:
+                - web
+            arg4:
+              type: string
+              title: STREAM
+              description: "`STREAM`, optional"
+              examples:
+                - ""
+            arg5:
+              type: string
+              title: OFFSET
+              description: "`OFFSET`, optional"
+              examples:
+                - ""
+            arg6:
+              type: string
+              title: LINES
+              description: "`LINES`, optional"
+              examples:
+                - ""
+            arg7:
+              type: string
+              title: FORMAT
+              description: "`FORMAT`, optional"
+              enum:
+                - json
+                - plain
+                - csv
+                - shell
+              examples:
+                - json
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
+    v-list-app-process-presets:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-list-app-process-presets
+              default: v-list-app-process-presets
+            arg1:
+              type: string
+              title: "USER DOMAIN [CWD]"
+              description: "`USER DOMAIN [CWD]`, optional"
+              examples:
+                - json
+            arg2:
+              type: string
+              title: FORMAT
+              description: "`FORMAT`, optional"
+              enum:
+                - json
+                - plain
+                - csv
+                - shell
+              examples:
+                - json
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
+    v-list-app-process-task:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-list-app-process-task
+              default: v-list-app-process-task
+            arg1:
+              type: string
+              title: USER
+              description: "`USER`"
+              examples:
+                - alice
+            arg2:
+              type: string
+              title: FORMAT
+              description: "`FORMAT`, optional"
+              enum:
+                - json
+                - plain
+                - csv
+                - shell
+              examples:
+                - json
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
+    v-list-app-processes:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-list-app-processes
+              default: v-list-app-processes
+            arg1:
+              type: string
+              title: USER
+              description: "`USER`"
+              examples:
+                - alice
+            arg2:
               type: string
               title: FORMAT
               description: "`FORMAT`, optional"
@@ -53139,6 +54929,27 @@ components:
                 - "no"
             returncode:
               $ref: "#/components/schemas/ReturnCode"
+    v-rebuild-app-processes:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-rebuild-app-processes
+              default: v-rebuild-app-processes
+            arg1:
+              type: string
+              title: USER
+              description: "`USER`"
+              examples:
+                - alice
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
     v-rebuild-cron-jobs:
       allOf:
         - $ref: "#/components/schemas/Credentials"
@@ -53540,6 +55351,41 @@ components:
                 - "node:api.example.com"
             returncode:
               $ref: "#/components/schemas/ReturnCode"
+    v-reload-app-process:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+            - arg2
+            - arg3
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-reload-app-process
+              default: v-reload-app-process
+            arg1:
+              type: string
+              title: USER
+              description: "`USER`"
+              examples:
+                - alice
+            arg2:
+              type: string
+              title: DOMAIN
+              description: "`DOMAIN`"
+              examples:
+                - shop.example.com
+            arg3:
+              type: string
+              title: NAME
+              description: "`NAME`"
+              examples:
+                - web
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
     v-reload-node-app:
       allOf:
         - $ref: "#/components/schemas/Credentials"
@@ -53648,6 +55494,41 @@ components:
               description: "`SYSTEM`, optional"
               examples:
                 - ""
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
+    v-restart-app-process:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+            - arg2
+            - arg3
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-restart-app-process
+              default: v-restart-app-process
+            arg1:
+              type: string
+              title: USER
+              description: "`USER`"
+              examples:
+                - alice
+            arg2:
+              type: string
+              title: DOMAIN
+              description: "`DOMAIN`"
+              examples:
+                - shop.example.com
+            arg3:
+              type: string
+              title: NAME
+              description: "`NAME`"
+              examples:
+                - web
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-restart-cron:
@@ -54611,6 +56492,61 @@ components:
               enum:
                 - "yes"
                 - "no"
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
+    v-run-app-process-task:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+            - arg2
+            - arg3
+            - arg4
+            - arg5
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-run-app-process-task
+              default: v-run-app-process-task
+            arg1:
+              type: string
+              title: ID
+              description: "`ID`"
+              examples:
+                - "17606214250042"
+            arg2:
+              type: string
+              title: USER
+              description: "`USER`"
+              examples:
+                - alice
+            arg3:
+              type: string
+              title: DOMAIN
+              description: "`DOMAIN`"
+              examples:
+                - shop.example.com
+            arg4:
+              type: string
+              title: NAME
+              description: "`NAME`"
+              examples:
+                - web
+            arg5:
+              type: string
+              title: TASK
+              description: "`TASK`"
+              examples:
+                - migrate
+            arg6:
+              type: string
+              title: COMMAND
+              description: "`COMMAND`, optional"
+              examples:
+                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-run-cli-cmd:
@@ -55712,6 +57648,89 @@ components:
                 - json
             returncode:
               $ref: "#/components/schemas/ReturnCode"
+    v-start-app-process:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+            - arg2
+            - arg3
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-start-app-process
+              default: v-start-app-process
+            arg1:
+              type: string
+              title: USER
+              description: "`USER`"
+              examples:
+                - alice
+            arg2:
+              type: string
+              title: DOMAIN
+              description: "`DOMAIN`"
+              examples:
+                - shop.example.com
+            arg3:
+              type: string
+              title: NAME
+              description: "`NAME`"
+              examples:
+                - web
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
+    v-start-app-process-task:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+            - arg2
+            - arg3
+            - arg4
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-start-app-process-task
+              default: v-start-app-process-task
+            arg1:
+              type: string
+              title: USER
+              description: "`USER`"
+              examples:
+                - alice
+            arg2:
+              type: string
+              title: DOMAIN
+              description: "`DOMAIN`"
+              examples:
+                - shop.example.com
+            arg3:
+              type: string
+              title: NAME
+              description: "`NAME`"
+              examples:
+                - web
+            arg4:
+              type: string
+              title: TASK
+              description: "`TASK`"
+              examples:
+                - composer-install
+            arg5:
+              type: string
+              title: COMMAND
+              description: "`COMMAND`, optional"
+              examples:
+                - ""
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
     v-start-docker-app:
       allOf:
         - $ref: "#/components/schemas/Credentials"
@@ -56104,6 +58123,41 @@ components:
               description: "`OPTIONS_FILE`"
               examples:
                 - /tmp/options.json
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
+    v-stop-app-process:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+            - arg2
+            - arg3
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-stop-app-process
+              default: v-stop-app-process
+            arg1:
+              type: string
+              title: USER
+              description: "`USER`"
+              examples:
+                - alice
+            arg2:
+              type: string
+              title: DOMAIN
+              description: "`DOMAIN`"
+              examples:
+                - shop.example.com
+            arg3:
+              type: string
+              title: NAME
+              description: "`NAME`"
+              examples:
+                - queue
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-stop-docker-app:
@@ -56714,6 +58768,27 @@ components:
                 - "no"
               examples:
                 - "yes"
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
+    v-suspend-user-app-processes:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-suspend-user-app-processes
+              default: v-suspend-user-app-processes
+            arg1:
+              type: string
+              title: USER
+              description: "`USER`"
+              examples:
+                - alice
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-suspend-user-docker-apps:
@@ -57371,6 +59446,27 @@ components:
               enum:
                 - "yes"
                 - "no"
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
+    v-unsuspend-user-app-processes:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-unsuspend-user-app-processes
+              default: v-unsuspend-user-app-processes
+            arg1:
+              type: string
+              title: USER
+              description: "`USER`"
+              examples:
+                - alice
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-unsuspend-user-docker-apps:

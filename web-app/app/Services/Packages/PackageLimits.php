@@ -31,12 +31,12 @@ final class PackageLimits
         }
 
         return match ($key) {
-            'MEMORY_LIMIT', 'SWAP_LIMIT', 'DOCKER_MEMORY' => self::bytes($key, $value),
-            'DOCKER_CPUS' => preg_match('/^(\d{1,9})(?:\.(\d{1,2}))?$/D', $value, $m) === 1
+            'MEMORY_LIMIT', 'SWAP_LIMIT', 'DOCKER_MEMORY', 'APP_PROCESSES_MEMORY' => self::bytes($key, $value),
+            'DOCKER_CPUS', 'APP_PROCESSES_CPUS' => preg_match('/^(\d{1,9})(?:\.(\d{1,2}))?$/D', $value, $m) === 1
                 ? (int) $m[1] * 100 + (int) substr(($m[2] ?? '').'00', 0, 2) : null,
             'CPU_QUOTA' => preg_match('/^(\d{1,9})%$/D', $value, $m) === 1 ? (int) $m[1] : null,
             'CPU_QUOTA_PERIOD' => preg_match('/^(\d{1,9})(ms|s)$/D', $value, $m) === 1 ? (int) $m[1] * ($m[2] === 's' ? 1000 : 1) : null,
-            'BACKUPS_INCREMENTAL', 'NODE', 'DOCKER' => match ($value) {
+            'BACKUPS_INCREMENTAL', 'NODE', 'DOCKER', 'APP_PROCESSES' => match ($value) {
                 'yes' => 1,
                 'no' => 0,
                 default => null,
@@ -84,7 +84,7 @@ final class PackageLimits
         if (preg_match('/^(\d+)([KMGT]?)$/D', $value, $m) !== 1) {
             return null;
         }
-        $unit = $m[2] === '' && $key === 'DOCKER_MEMORY' ? 'M' : $m[2];
+        $unit = $m[2] === '' && ($key === 'DOCKER_MEMORY' || $key === 'APP_PROCESSES_MEMORY') ? 'M' : $m[2];
         [$power, $digits] = self::UNITS[$unit];
 
         return strlen($m[1]) <= $digits ? (int) $m[1] * 1024 ** $power : null;

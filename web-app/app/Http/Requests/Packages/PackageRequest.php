@@ -46,6 +46,11 @@ final class PackageRequest extends FormRequest
             'docker_apps' => ['nullable', 'integer', 'min:0', 'max:999'],
             'docker_cpus' => ['nullable', 'string', 'max:20', 'regex:/^(unlimited|\d{1,3}(\.\d{1,2})?)$/'],
             'docker_memory' => ['nullable', 'string', 'max:20', 'regex:/^(unlimited|\d{1,7}[MG]?)$/'],
+            // App processes (E42 spec §7)
+            'app_processes' => ['nullable', 'boolean'],
+            'app_processes_max' => ['nullable', 'integer', 'min:0', 'max:999'],
+            'app_processes_memory' => ['nullable', 'string', 'max:20', 'regex:/^(unlimited|\d{1,7}[MG]?)$/'],
+            'app_processes_cpus' => ['nullable', 'string', 'max:20', 'regex:/^(unlimited|\d{1,2}(\.\d{1,2})?)$/'],
             // PHP of the package (E41 §7.5), sent with the php_group marker
             'php_versions_all' => ['nullable', 'boolean'],
             'php_versions' => ['nullable', 'array', Rule::requiredIf(fn () => $this->boolean('php_group') && ! $this->boolean('php_versions_all'))],
@@ -172,6 +177,23 @@ final class PackageRequest extends FormRequest
             'DOCKER_APPS' => $this->boolean('docker_apps_unlimited') ? 'unlimited' : (string) $this->integer('docker_apps', 0),
             'DOCKER_CPUS' => (string) ($this->input('docker_cpus') ?: 'unlimited'),
             'DOCKER_MEMORY' => (string) ($this->input('docker_memory') ?: 'unlimited'),
+        ];
+    }
+
+    /**
+     * App process keys of the package sidecar (E42): APP_PROCESSES,
+     * APP_PROCESSES_MAX (a number, or unlimited when ticked),
+     * APP_PROCESSES_MEMORY and APP_PROCESSES_CPUS (per process).
+     *
+     * @return array{APP_PROCESSES: string, APP_PROCESSES_MAX: string, APP_PROCESSES_MEMORY: string, APP_PROCESSES_CPUS: string}
+     */
+    public function processValues(): array
+    {
+        return [
+            'APP_PROCESSES' => $this->boolean('app_processes') ? 'yes' : 'no',
+            'APP_PROCESSES_MAX' => $this->boolean('app_processes_max_unlimited') ? 'unlimited' : (string) $this->integer('app_processes_max', 3),
+            'APP_PROCESSES_MEMORY' => (string) ($this->input('app_processes_memory') ?: 'unlimited'),
+            'APP_PROCESSES_CPUS' => (string) ($this->input('app_processes_cpus') ?: '1'),
         ];
     }
 

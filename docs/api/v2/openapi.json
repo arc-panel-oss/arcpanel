@@ -8305,6 +8305,1591 @@
                 }
             }
         },
+        "/users/{user}/app-process-presets": {
+            "get": {
+                "operationId": "getAppProcessPresets",
+                "description": "With `domain`, each preset says whether its files were found in `cwd`\nof that domain and why its runtime is missing.",
+                "summary": "List the presets of app processes",
+                "tags": [
+                    "App processes"
+                ],
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "domain",
+                        "in": "query",
+                        "schema": {
+                            "type": [
+                                "string",
+                                "null"
+                            ],
+                            "pattern": "^[^\\s\\/]+$",
+                            "maxLength": 253
+                        }
+                    },
+                    {
+                        "name": "cwd",
+                        "in": "query",
+                        "schema": {
+                            "type": [
+                                "string",
+                                "null"
+                            ],
+                            "pattern": "^(\\.|[A-Za-z0-9_][A-Za-z0-9._\\/@+-]{0,199})$"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {}
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    }
+                }
+            }
+        },
+        "/users/{user}/app-process-task": {
+            "get": {
+                "operationId": "getAppProcessTask",
+                "summary": "Get the last one-off task of a user's app processes",
+                "tags": [
+                    "App processes"
+                ],
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": [
+                                                "object",
+                                                "null"
+                                            ],
+                                            "properties": {
+                                                "id": {
+                                                    "type": "string"
+                                                },
+                                                "domain": {
+                                                    "type": "string"
+                                                },
+                                                "name": {
+                                                    "type": "string"
+                                                },
+                                                "task": {
+                                                    "type": "string"
+                                                },
+                                                "status": {
+                                                    "type": "string"
+                                                },
+                                                "exit_code": {
+                                                    "type": [
+                                                        "integer",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "started_at": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "finished_at": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                }
+                                            },
+                                            "required": [
+                                                "id",
+                                                "domain",
+                                                "name",
+                                                "task",
+                                                "status",
+                                                "exit_code",
+                                                "started_at",
+                                                "finished_at"
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    }
+                }
+            }
+        },
+        "/users/{user}/app-processes": {
+            "get": {
+                "operationId": "listAppProcesses",
+                "summary": "List the app processes of a user",
+                "tags": [
+                    "App processes"
+                ],
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Array of `AppProcess`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/components/schemas/AppProcess"
+                                            }
+                                        },
+                                        "meta": {
+                                            "$ref": "#/components/schemas/AppProcessListMeta"
+                                        }
+                                    },
+                                    "required": [
+                                        "data",
+                                        "meta"
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    }
+                }
+            },
+            "post": {
+                "operationId": "createAppProcess",
+                "summary": "Create an app process",
+                "tags": [
+                    "App processes"
+                ],
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "dry_run",
+                        "in": "query",
+                        "description": "Validate, authorize and plan the change, and answer with its steps instead of running them.",
+                        "schema": {
+                            "type": "boolean",
+                            "default": false
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/StoreAppProcessRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "With `dry_run`: the planned steps; nothing ran.",
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/DryRun"
+                                }
+                            }
+                        }
+                    },
+                    "201": {
+                        "description": "`AppProcess`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/AppProcess"
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            },
+                            "Location": {
+                                "$ref": "#/components/headers/Location"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "409": {
+                        "$ref": "#/components/responses/Conflict"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    },
+                    "503": {
+                        "$ref": "#/components/responses/Unavailable"
+                    }
+                }
+            }
+        },
+        "/users/{user}/app-processes/{domain}/{name}": {
+            "get": {
+                "operationId": "getAppProcess",
+                "summary": "Get an app process",
+                "tags": [
+                    "App processes"
+                ],
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "domain",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "name",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "`AppProcess`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/AppProcess"
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    }
+                }
+            },
+            "patch": {
+                "operationId": "updateAppProcess",
+                "description": "Changes the command (with `cwd`) and the limits (`memory_mb` with\n`cpus`); a running process is restarted.",
+                "summary": "Update an app process",
+                "tags": [
+                    "App processes"
+                ],
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "domain",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "name",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "dry_run",
+                        "in": "query",
+                        "description": "Validate, authorize and plan the change, and answer with its steps instead of running them.",
+                        "schema": {
+                            "type": "boolean",
+                            "default": false
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/UpdateAppProcessRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "`AppProcess`; with `dry_run`, the planned steps.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "oneOf": [
+                                        {
+                                            "type": "object",
+                                            "properties": {
+                                                "data": {
+                                                    "$ref": "#/components/schemas/AppProcess"
+                                                }
+                                            },
+                                            "required": [
+                                                "data"
+                                            ]
+                                        },
+                                        {
+                                            "$ref": "#/components/schemas/DryRun"
+                                        }
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "409": {
+                        "$ref": "#/components/responses/Conflict"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    },
+                    "503": {
+                        "$ref": "#/components/responses/Unavailable"
+                    }
+                }
+            },
+            "delete": {
+                "operationId": "deleteAppProcess",
+                "summary": "Delete an app process",
+                "tags": [
+                    "App processes"
+                ],
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "domain",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "name",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "dry_run",
+                        "in": "query",
+                        "description": "Validate, authorize and plan the change, and answer with its steps instead of running them.",
+                        "schema": {
+                            "type": "boolean",
+                            "default": false
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "With `dry_run`: the planned steps; nothing ran.",
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/DryRun"
+                                }
+                            }
+                        }
+                    },
+                    "204": {
+                        "description": "No content.",
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "409": {
+                        "$ref": "#/components/responses/Conflict"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    },
+                    "503": {
+                        "$ref": "#/components/responses/Unavailable"
+                    }
+                }
+            }
+        },
+        "/users/{user}/app-processes/{domain}/{name}/env": {
+            "get": {
+                "operationId": "getAppProcessEnv",
+                "summary": "List the environment of an app process",
+                "tags": [
+                    "App processes"
+                ],
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "domain",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "name",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "reveal",
+                        "in": "query",
+                        "schema": {
+                            "type": "boolean",
+                            "default": false
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Environment names and set flags; values only with `reveal=1`.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/components/schemas/NodeAppEnvEntry"
+                                            }
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    }
+                }
+            },
+            "put": {
+                "operationId": "setAppProcessEnv",
+                "description": "An entry without `value` keeps its stored value. Values may reference\nsecrets as `{{secret:NAME}}`; a running process is restarted.",
+                "summary": "Replace the environment of an app process",
+                "tags": [
+                    "App processes"
+                ],
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "domain",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "name",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "dry_run",
+                        "in": "query",
+                        "description": "Validate, authorize and plan the change, and answer with its steps instead of running them.",
+                        "schema": {
+                            "type": "boolean",
+                            "default": false
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/SetAppProcessEnvRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "The saved environment (names and set flags; values only when the key may reveal them); with `dry_run`, the planned steps.",
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "oneOf": [
+                                        {
+                                            "type": "object",
+                                            "properties": {
+                                                "data": {
+                                                    "type": "array",
+                                                    "items": {
+                                                        "$ref": "#/components/schemas/NodeAppEnvEntry"
+                                                    }
+                                                }
+                                            },
+                                            "required": [
+                                                "data"
+                                            ]
+                                        },
+                                        {
+                                            "$ref": "#/components/schemas/DryRun"
+                                        }
+                                    ]
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "409": {
+                        "$ref": "#/components/responses/Conflict"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    },
+                    "503": {
+                        "$ref": "#/components/responses/Unavailable"
+                    }
+                }
+            }
+        },
+        "/users/{user}/app-processes/{domain}/{name}/logs": {
+            "get": {
+                "operationId": "getAppProcessLogs",
+                "description": "`stream` is `process` (the output of the process and its reloads) or\n`task` (the last one-off task of the domain's processes).",
+                "summary": "Read a snapshot of an app process log",
+                "tags": [
+                    "App processes"
+                ],
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "domain",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "name",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "lines",
+                        "in": "query",
+                        "description": "Number of lines to return (1–1000). Defaults to 200.",
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 1000,
+                            "default": 200
+                        }
+                    },
+                    {
+                        "name": "after",
+                        "in": "query",
+                        "description": "Opaque cursor from `meta.next` of a previous snapshot; returns lines that appeared since.",
+                        "schema": {
+                            "type": "string",
+                            "maxLength": 64
+                        }
+                    },
+                    {
+                        "name": "stream",
+                        "in": "query",
+                        "description": "`process` (the output of the process and its reloads) or `task` (the last one-off task).",
+                        "schema": {
+                            "type": "string",
+                            "enum": [
+                                "process",
+                                "task"
+                            ],
+                            "default": "process"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Log lines and a cursor for the next snapshot.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "object",
+                                            "properties": {
+                                                "lines": {
+                                                    "type": "array",
+                                                    "items": {}
+                                                }
+                                            },
+                                            "required": [
+                                                "lines"
+                                            ]
+                                        },
+                                        "meta": {
+                                            "$ref": "#/components/schemas/AppProcessLogMeta"
+                                        }
+                                    },
+                                    "required": [
+                                        "data",
+                                        "meta"
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    }
+                }
+            }
+        },
+        "/users/{user}/app-processes/{domain}/{name}/reload": {
+            "post": {
+                "operationId": "reloadAppProcess",
+                "description": "Runs the reload action of the preset: a command such as\n`php artisan octane:reload`, a signal, or a restart.",
+                "summary": "Reload an app process",
+                "tags": [
+                    "App processes"
+                ],
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "domain",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "name",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "dry_run",
+                        "in": "query",
+                        "description": "Validate, authorize and plan the change, and answer with its steps instead of running them.",
+                        "schema": {
+                            "type": "boolean",
+                            "default": false
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "`AppProcess`; with `dry_run`, the planned steps.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "oneOf": [
+                                        {
+                                            "type": "object",
+                                            "properties": {
+                                                "data": {
+                                                    "$ref": "#/components/schemas/AppProcess"
+                                                }
+                                            },
+                                            "required": [
+                                                "data"
+                                            ]
+                                        },
+                                        {
+                                            "$ref": "#/components/schemas/DryRun"
+                                        }
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "409": {
+                        "$ref": "#/components/responses/Conflict"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    },
+                    "503": {
+                        "$ref": "#/components/responses/Unavailable"
+                    }
+                }
+            }
+        },
+        "/users/{user}/app-processes/{domain}/{name}/restart": {
+            "post": {
+                "operationId": "restartAppProcess",
+                "summary": "Restart an app process",
+                "tags": [
+                    "App processes"
+                ],
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "domain",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "name",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "dry_run",
+                        "in": "query",
+                        "description": "Validate, authorize and plan the change, and answer with its steps instead of running them.",
+                        "schema": {
+                            "type": "boolean",
+                            "default": false
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "`AppProcess`; with `dry_run`, the planned steps.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "oneOf": [
+                                        {
+                                            "type": "object",
+                                            "properties": {
+                                                "data": {
+                                                    "$ref": "#/components/schemas/AppProcess"
+                                                }
+                                            },
+                                            "required": [
+                                                "data"
+                                            ]
+                                        },
+                                        {
+                                            "$ref": "#/components/schemas/DryRun"
+                                        }
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "409": {
+                        "$ref": "#/components/responses/Conflict"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    },
+                    "503": {
+                        "$ref": "#/components/responses/Unavailable"
+                    }
+                }
+            }
+        },
+        "/users/{user}/app-processes/{domain}/{name}/start": {
+            "post": {
+                "operationId": "startAppProcess",
+                "summary": "Start an app process",
+                "tags": [
+                    "App processes"
+                ],
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "domain",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "name",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "dry_run",
+                        "in": "query",
+                        "description": "Validate, authorize and plan the change, and answer with its steps instead of running them.",
+                        "schema": {
+                            "type": "boolean",
+                            "default": false
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "`AppProcess`; with `dry_run`, the planned steps.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "oneOf": [
+                                        {
+                                            "type": "object",
+                                            "properties": {
+                                                "data": {
+                                                    "$ref": "#/components/schemas/AppProcess"
+                                                }
+                                            },
+                                            "required": [
+                                                "data"
+                                            ]
+                                        },
+                                        {
+                                            "$ref": "#/components/schemas/DryRun"
+                                        }
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "409": {
+                        "$ref": "#/components/responses/Conflict"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    },
+                    "503": {
+                        "$ref": "#/components/responses/Unavailable"
+                    }
+                }
+            }
+        },
+        "/users/{user}/app-processes/{domain}/{name}/stop": {
+            "post": {
+                "operationId": "stopAppProcess",
+                "summary": "Stop an app process",
+                "tags": [
+                    "App processes"
+                ],
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "domain",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "name",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "dry_run",
+                        "in": "query",
+                        "description": "Validate, authorize and plan the change, and answer with its steps instead of running them.",
+                        "schema": {
+                            "type": "boolean",
+                            "default": false
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "`AppProcess`; with `dry_run`, the planned steps.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "oneOf": [
+                                        {
+                                            "type": "object",
+                                            "properties": {
+                                                "data": {
+                                                    "$ref": "#/components/schemas/AppProcess"
+                                                }
+                                            },
+                                            "required": [
+                                                "data"
+                                            ]
+                                        },
+                                        {
+                                            "$ref": "#/components/schemas/DryRun"
+                                        }
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "409": {
+                        "$ref": "#/components/responses/Conflict"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    },
+                    "503": {
+                        "$ref": "#/components/responses/Unavailable"
+                    }
+                }
+            }
+        },
+        "/users/{user}/app-processes/{domain}/{name}/tasks": {
+            "post": {
+                "operationId": "startAppProcessTask",
+                "description": "Runs `composer-install`, `migrate`, `pip-install`, `bundle-install` or a\n`custom` command as the user in the working directory of the process.\nOne task runs at a time per user; follow it with\n`getAppProcessTask` and the `task` log stream.",
+                "summary": "Start a one-off task of an app process",
+                "tags": [
+                    "App processes"
+                ],
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "domain",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "name",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "dry_run",
+                        "in": "query",
+                        "description": "Validate, authorize and plan the change, and answer with its steps instead of running them.",
+                        "schema": {
+                            "type": "boolean",
+                            "default": false
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/StartAppProcessTaskRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "With `dry_run`: the planned steps; nothing ran.",
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/DryRun"
+                                }
+                            }
+                        }
+                    },
+                    "202": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": [
+                                                "object",
+                                                "null"
+                                            ],
+                                            "properties": {
+                                                "id": {
+                                                    "type": "string"
+                                                },
+                                                "domain": {
+                                                    "type": "string"
+                                                },
+                                                "name": {
+                                                    "type": "string"
+                                                },
+                                                "task": {
+                                                    "type": "string"
+                                                },
+                                                "status": {
+                                                    "type": "string"
+                                                },
+                                                "exit_code": {
+                                                    "type": [
+                                                        "integer",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "started_at": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                },
+                                                "finished_at": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                }
+                                            },
+                                            "required": [
+                                                "id",
+                                                "domain",
+                                                "name",
+                                                "task",
+                                                "status",
+                                                "exit_code",
+                                                "started_at",
+                                                "finished_at"
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            },
+                            "Location": {
+                                "$ref": "#/components/headers/Location"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "409": {
+                        "$ref": "#/components/responses/Conflict"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    },
+                    "503": {
+                        "$ref": "#/components/responses/Unavailable"
+                    }
+                }
+            }
+        },
         "/users/{user}/auth-logs": {
             "get": {
                 "operationId": "listUserAuthLogs",
@@ -26906,6 +28491,206 @@
                 ],
                 "title": "ApiRole"
             },
+            "AppProcess": {
+                "type": "object",
+                "properties": {
+                    "domain": {
+                        "type": "string"
+                    },
+                    "name": {
+                        "type": "string"
+                    },
+                    "kind": {
+                        "type": "string"
+                    },
+                    "preset": {
+                        "type": "string"
+                    },
+                    "start": {
+                        "type": "string"
+                    },
+                    "cwd": {
+                        "type": "string"
+                    },
+                    "port": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ]
+                    },
+                    "memory_mb": {
+                        "type": "string"
+                    },
+                    "cpus": {
+                        "type": "string"
+                    },
+                    "template": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
+                    "state": {
+                        "type": "string"
+                    },
+                    "status": {
+                        "type": "string"
+                    },
+                    "running": {
+                        "type": "string"
+                    },
+                    "suspended": {
+                        "type": "string"
+                    },
+                    "pid": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
+                    "memory_used_mb": {
+                        "type": "string"
+                    },
+                    "cpu_seconds": {
+                        "type": "string"
+                    },
+                    "restarts": {
+                        "type": "string"
+                    },
+                    "uptime_seconds": {
+                        "type": "string"
+                    },
+                    "reload": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
+                    "runtime_missing": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
+                    "created_at": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    }
+                },
+                "required": [
+                    "domain",
+                    "name",
+                    "kind",
+                    "preset",
+                    "start",
+                    "cwd",
+                    "port",
+                    "memory_mb",
+                    "cpus",
+                    "template",
+                    "state",
+                    "status",
+                    "running",
+                    "suspended",
+                    "pid",
+                    "memory_used_mb",
+                    "cpu_seconds",
+                    "restarts",
+                    "uptime_seconds",
+                    "reload",
+                    "runtime_missing",
+                    "created_at"
+                ],
+                "title": "AppProcess"
+            },
+            "AppProcessListMeta": {
+                "type": "object",
+                "description": "APP_PROCESSES limits of the user's package; the list is not paginated (E42).",
+                "properties": {
+                    "allowed": {
+                        "type": "boolean",
+                        "description": "Whether the package allows app processes."
+                    },
+                    "totals": {
+                        "type": "object",
+                        "properties": {
+                            "running": {
+                                "type": "integer"
+                            },
+                            "stopped": {
+                                "type": "integer"
+                            },
+                            "failed": {
+                                "type": "integer"
+                            },
+                            "suspended": {
+                                "type": "integer"
+                            }
+                        },
+                        "required": [
+                            "running",
+                            "stopped",
+                            "failed",
+                            "suspended"
+                        ]
+                    },
+                    "limit": {
+                        "type": "string",
+                        "description": "APP_PROCESSES_MAX: a number or `unlimited`."
+                    },
+                    "room": {
+                        "type": "boolean",
+                        "description": "Whether another process fits."
+                    },
+                    "max_memory_mb": {
+                        "type": "integer",
+                        "description": "Highest memory of one process."
+                    },
+                    "default_memory_mb": {
+                        "type": "integer",
+                        "description": "Memory of a new process when none is given."
+                    },
+                    "max_cpus": {
+                        "type": "string",
+                        "description": "APP_PROCESSES_CPUS: CPUs of one process, or `unlimited`."
+                    }
+                },
+                "required": [
+                    "allowed",
+                    "totals",
+                    "limit",
+                    "room",
+                    "max_memory_mb",
+                    "default_memory_mb",
+                    "max_cpus"
+                ]
+            },
+            "AppProcessLogMeta": {
+                "type": "object",
+                "description": "Cursor metadata for log snapshots.",
+                "properties": {
+                    "stream": {
+                        "type": "string",
+                        "enum": [
+                            "process",
+                            "task"
+                        ]
+                    },
+                    "next": {
+                        "description": "Cursor for the next snapshot; pass as `after`.",
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    }
+                },
+                "required": [
+                    "stream",
+                    "next"
+                ]
+            },
             "AuthLogEntry": {
                 "type": "object",
                 "properties": {
@@ -30927,6 +32712,42 @@
                             "memory"
                         ]
                     },
+                    "app_processes": {
+                        "type": "object",
+                        "properties": {
+                            "enabled": {
+                                "type": "boolean",
+                                "description": "app processes allowed (E42)"
+                            },
+                            "max": {
+                                "type": [
+                                    "integer",
+                                    "null"
+                                ],
+                                "description": "processes per user"
+                            },
+                            "memory": {
+                                "type": [
+                                    "string",
+                                    "null"
+                                ],
+                                "description": "memory per process (512M, 1G)"
+                            },
+                            "cpus": {
+                                "type": [
+                                    "string",
+                                    "null"
+                                ],
+                                "description": "CPUs per process"
+                            }
+                        },
+                        "required": [
+                            "enabled",
+                            "max",
+                            "memory",
+                            "cpus"
+                        ]
+                    },
                     "php": {
                         "type": "object",
                         "properties": {
@@ -30972,6 +32793,7 @@
                     "ports",
                     "node",
                     "docker",
+                    "app_processes",
                     "php",
                     "created_at"
                 ],
@@ -32726,6 +34548,40 @@
                 ],
                 "title": "ServiceStatus"
             },
+            "SetAppProcessEnvRequest": {
+                "type": "object",
+                "properties": {
+                    "entries": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "name": {
+                                    "type": "string",
+                                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+                                    "maxLength": 128
+                                },
+                                "value": {
+                                    "type": [
+                                        "string",
+                                        "null"
+                                    ],
+                                    "maxLength": 4096
+                                }
+                            },
+                            "required": [
+                                "name"
+                            ]
+                        },
+                        "maxItems": 200,
+                        "uniqueItems": true
+                    }
+                },
+                "required": [
+                    "entries"
+                ],
+                "title": "SetAppProcessEnvRequest"
+            },
             "SetBackupExclusionsRequest": {
                 "type": "object",
                 "description": "PUT /users/{user}/backup-exclusions.",
@@ -33375,6 +35231,33 @@
                     "public_key"
                 ]
             },
+            "StartAppProcessTaskRequest": {
+                "type": "object",
+                "properties": {
+                    "task": {
+                        "type": "string",
+                        "enum": [
+                            "composer-install",
+                            "migrate",
+                            "pip-install",
+                            "bundle-install",
+                            "custom"
+                        ]
+                    },
+                    "command": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "pattern": "^[^\\x00-\\x1f\\x7f]{1,2048}$",
+                        "maxLength": 2048
+                    }
+                },
+                "required": [
+                    "task"
+                ],
+                "title": "StartAppProcessTaskRequest"
+            },
             "StartDockerAppTaskRequest": {
                 "type": "object",
                 "properties": {
@@ -33585,6 +35468,78 @@
                     "backups"
                 ],
                 "title": "StatsMonth"
+            },
+            "StoreAppProcessRequest": {
+                "type": "object",
+                "properties": {
+                    "domain": {
+                        "type": "string",
+                        "pattern": "^[^\\s\\/]+$",
+                        "maxLength": 253
+                    },
+                    "name": {
+                        "type": "string",
+                        "pattern": "^[a-z][a-z0-9-]{0,31}$"
+                    },
+                    "preset": {
+                        "type": "string",
+                        "pattern": "^[a-z0-9-]{1,40}$"
+                    },
+                    "start": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "pattern": "^[^\\x00-\\x1f\\x7f]{1,2048}$",
+                        "maxLength": 2048
+                    },
+                    "cwd": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "pattern": "^(\\.|[A-Za-z0-9_][A-Za-z0-9._\\/@+-]{0,199})$"
+                    },
+                    "memory_mb": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ],
+                        "minimum": 32,
+                        "maximum": 999999
+                    },
+                    "cpus": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "pattern": "^\\d{1,2}(\\.\\d{1,2})?$"
+                    },
+                    "kind": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "enum": [
+                            "web",
+                            "worker",
+                            null
+                        ]
+                    },
+                    "template": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "pattern": "^[A-Za-z0-9_.-]{1,64}$"
+                    }
+                },
+                "required": [
+                    "domain",
+                    "name",
+                    "preset"
+                ],
+                "title": "StoreAppProcessRequest"
             },
             "StoreCronJobRequest": {
                 "type": "object",
@@ -34449,6 +36404,38 @@
                             }
                         }
                     },
+                    "app_processes": {
+                        "type": "object",
+                        "properties": {
+                            "enabled": {
+                                "type": "boolean"
+                            },
+                            "max": {
+                                "type": [
+                                    "integer",
+                                    "null"
+                                ],
+                                "minimum": 0,
+                                "maximum": 999
+                            },
+                            "memory": {
+                                "type": [
+                                    "string",
+                                    "null"
+                                ],
+                                "pattern": "^\\d{1,7}[MG]?$",
+                                "maxLength": 20
+                            },
+                            "cpus": {
+                                "type": [
+                                    "string",
+                                    "null"
+                                ],
+                                "pattern": "^\\d{1,2}(\\.\\d{1,2})?$",
+                                "maxLength": 20
+                            }
+                        }
+                    },
                     "php": {
                         "type": "object",
                         "properties": {
@@ -34852,6 +36839,30 @@
                     "destination"
                 ],
                 "title": "TransferFilesRequest"
+            },
+            "UpdateAppProcessRequest": {
+                "type": "object",
+                "properties": {
+                    "start": {
+                        "type": "string",
+                        "pattern": "^[^\\x00-\\x1f\\x7f]{1,2048}$",
+                        "maxLength": 2048
+                    },
+                    "cwd": {
+                        "type": "string",
+                        "pattern": "^(\\.|[A-Za-z0-9_][A-Za-z0-9._\\/@+-]{0,199})$"
+                    },
+                    "memory_mb": {
+                        "type": "integer",
+                        "minimum": 32,
+                        "maximum": 999999
+                    },
+                    "cpus": {
+                        "type": "string",
+                        "pattern": "^\\d{1,2}(\\.\\d{1,2})?$"
+                    }
+                },
+                "title": "UpdateAppProcessRequest"
             },
             "UpdateCronJobRequest": {
                 "type": "object",
@@ -35437,6 +37448,38 @@
                                     "null"
                                 ],
                                 "pattern": "^\\d{1,7}[MG]?$",
+                                "maxLength": 20
+                            }
+                        }
+                    },
+                    "app_processes": {
+                        "type": "object",
+                        "properties": {
+                            "enabled": {
+                                "type": "boolean"
+                            },
+                            "max": {
+                                "type": [
+                                    "integer",
+                                    "null"
+                                ],
+                                "minimum": 0,
+                                "maximum": 999
+                            },
+                            "memory": {
+                                "type": [
+                                    "string",
+                                    "null"
+                                ],
+                                "pattern": "^\\d{1,7}[MG]?$",
+                                "maxLength": 20
+                            },
+                            "cpus": {
+                                "type": [
+                                    "string",
+                                    "null"
+                                ],
+                                "pattern": "^\\d{1,2}(\\.\\d{1,2})?$",
                                 "maxLength": 20
                             }
                         }

@@ -43,7 +43,7 @@ final class ApiDocs extends Command
     ];
 
     /** List operations whose `meta` is not paginated `ListMeta` (E34 batch 3 §5, batch 4 §4.2, batch 6 D60). */
-    private const LIST_WITHOUT_PAGINATION = ['listSystemTasks', 'listNodeApps', 'listDockerApps', 'listDockerCatalog', 'listPorts', 'listUserLogs', 'listUserAuthLogs', 'listServices', 'listUpdates'];
+    private const LIST_WITHOUT_PAGINATION = ['listSystemTasks', 'listNodeApps', 'listAppProcesses', 'listDockerApps', 'listDockerCatalog', 'listPorts', 'listUserLogs', 'listUserAuthLogs', 'listServices', 'listUpdates'];
 
     /** Logs page through the newest entries with `LogListMeta` (E34 batch 6 D60). */
     private const LOG_LISTS = ['listUserLogs', 'listUserAuthLogs'];
@@ -394,6 +394,7 @@ final class ApiDocs extends Command
         }
         self::tailorWebDomainOpenApi($operationId, $operation, $responses);
         self::tailorNodeAppOpenApi($operationId, $operation, $responses);
+        self::tailorAppProcessOpenApi($operationId, $operation, $responses);
         self::tailorDockerAppOpenApi($operationId, $operation, $responses);
         self::tailorPortOpenApi($operationId, $operation, $responses);
         self::tailorFileOpenApi($operationId, $operation, $responses);
@@ -527,6 +528,16 @@ final class ApiDocs extends Command
         }
         if ($operationId === 'listNodeApps') {
             $schema['properties']['meta'] = ['$ref' => '#/components/schemas/NodeAppListMeta'];
+
+            return $schema;
+        }
+        if ($operationId === 'listAppProcesses') {
+            $schema['properties']['meta'] = ['$ref' => '#/components/schemas/AppProcessListMeta'];
+
+            return $schema;
+        }
+        if ($operationId === 'getAppProcessLogs') {
+            $schema['properties']['meta'] = ['$ref' => '#/components/schemas/AppProcessLogMeta'];
 
             return $schema;
         }
@@ -1076,6 +1087,34 @@ final class ApiDocs extends Command
         }
     }
 
+    /**
+     * App processes (E42 spec §8): log parameters and the environment
+     * bodies, which share the entry schema of Node.js apps.
+     *
+     * @param  array<string, mixed>  $operation
+     * @param  array<string, mixed>  $responses
+     */
+    private static function tailorAppProcessOpenApi(string $operationId, array &$operation, array &$responses): void
+    {
+        if ($operationId === 'getAppProcessLogs') {
+            $parameters = self::nodeAppLogParameters();
+            $parameters[2]['description'] = '`process` (the output of the process and its reloads) or `task` (the last one-off task).';
+            $parameters[2]['schema'] = ['type' => 'string', 'enum' => ['process', 'task'], 'default' => 'process'];
+            $operation['parameters'] = [...($operation['parameters'] ?? []), ...$parameters];
+            if (isset($responses['200']['content']['application/json']['schema'])) {
+                $responses['200']['description'] = 'Log lines and a cursor for the next snapshot.';
+            }
+        }
+        if ($operationId === 'getAppProcessEnv' && isset($responses['200']['content']['application/json']['schema'])) {
+            $responses['200']['content']['application/json']['schema'] = self::nodeAppEnvBodySchema();
+            $responses['200']['description'] = 'Environment names and set flags; values only with `reveal=1`.';
+        }
+        if ($operationId === 'setAppProcessEnv' && isset($responses['200'])) {
+            $responses['200']['content']['application/json']['schema'] = ['oneOf' => [self::nodeAppEnvBodySchema(), ['$ref' => '#/components/schemas/DryRun']]];
+            $responses['200']['description'] = 'The saved environment (names and set flags; values only when the key may reveal them); with `dry_run`, the planned steps.';
+        }
+    }
+
     /** @return array<string, mixed> */
     private static function nodeAppEnvBodySchema(): array
     {
@@ -1340,6 +1379,41 @@ final class ApiDocs extends Command
                     'stream' => ['type' => 'string', 'enum' => ['out', 'err', 'install', 'build']],
                     'next' => [
                         'description' => 'Cursor for the next snapshot; pass as `after`. Null when there is nothing newer.',
+                        'type' => ['string', 'null'],
+                    ],
+                ],
+                'required' => ['stream', 'next'],
+            ],
+            'AppProcessListMeta' => [
+                'type' => 'object',
+                'description' => 'APP_PROCESSES limits of the user\'s package; the list is not paginated (E42).',
+                'properties' => [
+                    'allowed' => ['type' => 'boolean', 'description' => 'Whether the package allows app processes.'],
+                    'totals' => [
+                        'type' => 'object',
+                        'properties' => [
+                            'running' => ['type' => 'integer'],
+                            'stopped' => ['type' => 'integer'],
+                            'failed' => ['type' => 'integer'],
+                            'suspended' => ['type' => 'integer'],
+                        ],
+                        'required' => ['running', 'stopped', 'failed', 'suspended'],
+                    ],
+                    'limit' => ['type' => 'string', 'description' => 'APP_PROCESSES_MAX: a number or `unlimited`.'],
+                    'room' => ['type' => 'boolean', 'description' => 'Whether another process fits.'],
+                    'max_memory_mb' => ['type' => 'integer', 'description' => 'Highest memory of one process.'],
+                    'default_memory_mb' => ['type' => 'integer', 'description' => 'Memory of a new process when none is given.'],
+                    'max_cpus' => ['type' => 'string', 'description' => 'APP_PROCESSES_CPUS: CPUs of one process, or `unlimited`.'],
+                ],
+                'required' => ['allowed', 'totals', 'limit', 'room', 'max_memory_mb', 'default_memory_mb', 'max_cpus'],
+            ],
+            'AppProcessLogMeta' => [
+                'type' => 'object',
+                'description' => 'Cursor metadata for log snapshots.',
+                'properties' => [
+                    'stream' => ['type' => 'string', 'enum' => ['process', 'task']],
+                    'next' => [
+                        'description' => 'Cursor for the next snapshot; pass as `after`.',
                         'type' => ['string', 'null'],
                     ],
                 ],

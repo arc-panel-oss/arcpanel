@@ -73,7 +73,7 @@ final class PackageActions
      *
      * @throws ValidationException
      */
-    public function planCreate(Principal $principal, string $name, array $values, ?array $tenancy, string $ports, array $node, array $docker, ?array $php = null): array
+    public function planCreate(Principal $principal, string $name, array $values, ?array $tenancy, string $ports, array $node, array $docker, ?array $php = null, ?array $processes = null): array
     {
         $reseller = self::resellerOf($principal);
         if ($this->packages->exists(self::storedName($principal, $name))) {
@@ -82,7 +82,8 @@ final class PackageActions
         $this->checkValues($values, [], $reseller);
 
         return $this->packages->planCreate($name, $values, $reseller === '' ? $tenancy : null, $reseller,
-            $this->checkPorts($ports, $reseller), $this->checkNode($node, $reseller), $this->checkDocker($docker, $reseller), $this->checkPhp($php, $reseller));
+            $this->checkPorts($ports, $reseller), $this->checkNode($node, $reseller), $this->checkDocker($docker, $reseller), $this->checkPhp($php, $reseller),
+            $this->checkProcesses($processes, $reseller));
     }
 
     /**
@@ -96,7 +97,7 @@ final class PackageActions
      *
      * @throws ValidationException
      */
-    public function planUpdate(Principal $principal, PackageRecord $record, string $newName, array $values, ?array $tenancy, string $ports, array $node, array $docker, ?array $php = null): array
+    public function planUpdate(Principal $principal, PackageRecord $record, string $newName, array $values, ?array $tenancy, string $ports, array $node, array $docker, ?array $php = null, ?array $processes = null): array
     {
         $reseller = self::resellerOf($principal);
         $newName = $reseller !== '' ? $record->name : $newName;
@@ -106,7 +107,8 @@ final class PackageActions
         $this->checkValues($values, $record->data, $reseller);
 
         return $this->packages->planUpdate($record, $newName, $values, $reseller === '' ? $tenancy : null, $reseller,
-            $this->checkPorts($ports, $reseller), $this->checkNode($node, $reseller), $this->checkDocker($docker, $reseller), $this->checkPhp($php, $reseller));
+            $this->checkPorts($ports, $reseller), $this->checkNode($node, $reseller), $this->checkDocker($docker, $reseller), $this->checkPhp($php, $reseller),
+            $this->checkProcesses($processes, $reseller));
     }
 
     /**
@@ -386,6 +388,53 @@ final class PackageActions
         }
 
         return $docker;
+    }
+
+    /**
+     * The app process keys of a reseller's own package (E42).
+     *
+     * @return array{APP_PROCESSES: string, APP_PROCESSES_MAX: string, APP_PROCESSES_MEMORY: string, APP_PROCESSES_CPUS: string}
+     */
+    public function ownProcesses(string $reseller): array
+    {
+        $record = $this->ownPackage($reseller);
+
+        return [
+            'APP_PROCESSES' => $record?->get('APP_PROCESSES', 'no') ?? 'no',
+            'APP_PROCESSES_MAX' => $record?->get('APP_PROCESSES_MAX', '3') ?? '3',
+            'APP_PROCESSES_MEMORY' => $record?->get('APP_PROCESSES_MEMORY', 'unlimited') ?? 'unlimited',
+            'APP_PROCESSES_CPUS' => $record?->get('APP_PROCESSES_CPUS', '1') ?? '1',
+        ];
+    }
+
+    /**
+     * App process keys of a package; a reseller may not go beyond its own.
+     *
+     * @param  array{APP_PROCESSES: string, APP_PROCESSES_MAX: string, APP_PROCESSES_MEMORY: string, APP_PROCESSES_CPUS: string}|null  $processes
+     * @return array{APP_PROCESSES: string, APP_PROCESSES_MAX: string, APP_PROCESSES_MEMORY: string, APP_PROCESSES_CPUS: string}|null
+     *
+     * @throws ValidationException
+     */
+    public function checkProcesses(?array $processes, string $reseller): ?array
+    {
+        if ($processes === null || $reseller === '') {
+            return $processes;
+        }
+        $own = $this->ownProcesses($reseller);
+        $errors = [];
+        if ($processes['APP_PROCESSES'] === 'yes' && $own['APP_PROCESSES'] !== 'yes') {
+            $errors['app_processes'] = __('App processes are not included in your plan.');
+        }
+        foreach (['APP_PROCESSES_MAX', 'APP_PROCESSES_MEMORY', 'APP_PROCESSES_CPUS'] as $key) {
+            if (PackageLimits::above($key, $processes[$key], $own[$key])) {
+                $errors[strtolower($key)] = sprintf(__('At most %s on your plan.'), $own[$key]);
+            }
+        }
+        if ($errors !== []) {
+            throw ValidationException::withMessages($errors);
+        }
+
+        return $processes;
     }
 
     private function ownPackage(string $reseller): ?PackageRecord

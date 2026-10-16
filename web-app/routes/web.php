@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\AppProcesses\AppProcessController;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\LogoutController;
 use App\Http\Controllers\Auth\MailPasswordController;
@@ -73,6 +74,7 @@ use App\Http\Controllers\WebDomains\WebDomainController;
 use App\Http\Controllers\WebDomains\WebDomainEditController;
 use App\Http\Controllers\WebDomains\WebDomainLogController;
 use App\Http\Controllers\WebDomains\WebDomainPhpController;
+use App\Services\AppProcesses\AppProcessService;
 use App\Services\Docker\DockerAppService;
 use App\Services\Node\NodeAppService;
 use App\Services\Server\ServerSettings;
@@ -395,6 +397,28 @@ Route::middleware('auth.arc')->group(function () {
             Route::post('/{range}/public-ok', [PortController::class, 'publicOk'])->name('public-ok');
             Route::post('/{range}/reclaim', [PortController::class, 'reclaim'])->name('reclaim');
             Route::delete('/{range}', [PortController::class, 'destroy'])->name('destroy');
+        });
+    });
+
+    // App processes of an account (E42 spec §8): the island's JSON routes
+    Route::prefix('app-processes/{user}')->middleware('effective-user')->name('app-processes.')->group(function () {
+        Route::prefix('api')->name('api.')->group(function () {
+            Route::get('/', [AppProcessController::class, 'index'])->name('index');
+            Route::get('/options', [AppProcessController::class, 'options'])->name('options');
+            Route::get('/task', [AppProcessController::class, 'task'])->name('task');
+            Route::get('/{domain}/{name}', [AppProcessController::class, 'show'])->name('show');
+            Route::get('/{domain}/{name}/env', [AppProcessController::class, 'env'])->name('env');
+            Route::get('/{domain}/{name}/logs', [AppProcessController::class, 'logs'])->name('logs');
+            Route::middleware('not-readonly')->group(function () {
+                Route::post('/', [AppProcessController::class, 'store'])->name('store');
+                Route::delete('/{domain}/{name}', [AppProcessController::class, 'destroy'])->name('destroy');
+                Route::post('/{domain}/{name}/tasks', [AppProcessController::class, 'startTask'])->name('tasks.store');
+                Route::post('/{domain}/{name}/{action}', [AppProcessController::class, 'action'])
+                    ->whereIn('action', AppProcessService::ACTIONS)->name('action');
+                Route::put('/{domain}/{name}/start', [AppProcessController::class, 'changeStart'])->name('start');
+                Route::put('/{domain}/{name}/limits', [AppProcessController::class, 'changeLimits'])->name('limits');
+                Route::put('/{domain}/{name}/env', [AppProcessController::class, 'saveEnv'])->name('env.update');
+            });
         });
     });
 

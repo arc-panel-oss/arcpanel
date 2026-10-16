@@ -77,6 +77,11 @@ const tags = [
 		description: 'Node.js runtimes, global packages and apps (E13, E14)',
 	},
 	{
+		name: 'App processes',
+		words: ['app'],
+		description: 'Long-running commands of web domains run as the user by systemd (E42)',
+	},
+	{
 		name: 'Docker',
 		words: ['docker'],
 		description: 'Docker apps from the catalog, run as the user (E4)',

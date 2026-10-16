@@ -67,6 +67,6 @@ final class BackendPorts
 
     private static function usable(string $app, string $domain): bool
     {
-        return $app === 'manual' || $app === "web:{$domain}" || $app === "node:{$domain}" || str_starts_with($app, 'docker:');
+        return $app === 'manual' || $app === "web:{$domain}" || $app === "node:{$domain}" || $app === "app:{$domain}" || str_starts_with($app, 'docker:');
     }
 }

@@ -100,6 +100,16 @@ final class PackageResource extends JsonResource
                 /** @var string|null memory per app (512M, 2G) */
                 'memory' => self::value($get('DOCKER_MEMORY', 'unlimited')),
             ],
+            'app_processes' => [
+                /** @var bool app processes allowed (E42) */
+                'enabled' => $get('APP_PROCESSES', 'no') === 'yes',
+                /** @var int|null processes per user */
+                'max' => UserResource::limit($get('APP_PROCESSES_MAX', '3')),
+                /** @var string|null memory per process (512M, 1G) */
+                'memory' => self::value($get('APP_PROCESSES_MEMORY', 'unlimited')),
+                /** @var string|null CPUs per process */
+                'cpus' => self::value($get('APP_PROCESSES_CPUS', '1')),
+            ],
             'php' => [
                 /** @var string `*` (every installed version that has not reached its end of life) or a comma list of versions (E41) */
                 'versions' => $get('PHP_VERSIONS', '*') ?: '*',
