@@ -440,7 +440,7 @@ ports_fw_rule_exists() {
 
 # Current id of the rule with COMMENT, empty when there is none
 ports_fw_find() {
-	grep -m1 " COMMENT='$1' " "$(ports_fw_rules_file)" 2> /dev/null | cut -d"'" -f2
+	grep -m1 -F " COMMENT='$1' " "$(ports_fw_rules_file)" 2> /dev/null | cut -d"'" -f2
 }
 
 # Open PORT/PROTO for USER unless its tagged rule exists (nothing with the

@@ -22515,7 +22515,7 @@
         "/users/{user}/ports/{range}/public": {
             "put": {
                 "operationId": "setPortPublic",
-                "description": "Only an assigned single port; opening needs `public_ok`.",
+                "description": "Only an assigned single port; opening needs `public_ok`. Administrators\nmay pass `rule` to link an existing firewall rule on the port.",
                 "summary": "Open or close a port to the internet",
                 "tags": [
                     "Ports"
@@ -33061,6 +33061,11 @@
                 "properties": {
                     "public": {
                         "type": "boolean"
+                    },
+                    "rule": {
+                        "type": "integer",
+                        "description": "Administrators only: link this existing firewall rule on the port instead of adding one (403 for anyone else).",
+                        "minimum": 1
                     }
                 },
                 "required": [

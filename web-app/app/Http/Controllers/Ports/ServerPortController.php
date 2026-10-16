@@ -119,6 +119,7 @@ final class ServerPortController extends Controller
         if ($holder === null) {
             return back()->with('error', __('Reserve the port for its user first, then link the rule.'));
         }
+        abort_unless($policy->linkRule($principal, $holder->user), 403);
 
         return $this->done($this->ports->apply($this->ports->planAdopt($holder->user, (int) $data['port'], (string) $data['rule'])), __('The firewall rule has been linked.'));
     }

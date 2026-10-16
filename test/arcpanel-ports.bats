@@ -468,3 +468,15 @@ teardown_file() {
     v-delete-user tpc3 > /dev/null
     v-delete-user tpres3 > /dev/null
 }
+
+@test "ports_fw_find matches the tag literally, so a dot in a user name is a dot" {
+    rules=$(mktemp)
+    printf "RULE='7' ACTION='ACCEPT' PROTOCOL='TCP' PORT='38390' IP='0.0.0.0/0' COMMENT='arcpanel-port-38390-axb' SUSPENDED='no' TIME='10:00:00' DATE='2026-10-16'\n" > "$rules"
+    printf "RULE='8' ACTION='ACCEPT' PROTOCOL='TCP' PORT='38391' IP='0.0.0.0/0' COMMENT='arcpanel-port-38391-a.b' SUSPENDED='no' TIME='10:00:00' DATE='2026-10-16'\n" >> "$rules"
+    run bash -c "source /etc/arcpanel/arcpanel.conf; source $ARCPANEL/func/main.sh; source $ARCPANEL/func/ports.sh
+        ports_fw_rules_file() { echo '$rules'; }
+        echo \"[\$(ports_fw_find arcpanel-port-38390-a.b)] [\$(ports_fw_find arcpanel-port-38391-a.b)]\""
+    rm -f "$rules"
+    assert_success
+    assert_output '[] [8]'
+}

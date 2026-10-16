@@ -322,3 +322,18 @@ it('answers 404 for every port path while PORT_REGISTRY is off', function () {
     $this->fake->assertNotRan('v-list-user-ports');
     $this->fake->assertNotRan('v-list-sys-ports');
 });
+
+it('links an existing firewall rule for administrators only (E39 W4 §10)', function () {
+    $this->fake->on('v-change-user-port-public')->returns();
+
+    foreach ([['bob', 'user'], ['hostco', 'reseller']] as [$principal, $role]) {
+        $this->putJson('/api/v2/users/bob/ports/30005/public', ['public' => true, 'rule' => 7], apiAs($this->fake, $principal, $role, area: 'apps'))
+            ->assertForbidden()->assertJsonPath('error.message', 'Only an administrator may link a firewall rule to a port.');
+    }
+    $this->fake->assertNotRan('v-change-user-port-public');
+
+    $admin = apiAs($this->fake, 'arcadmin', 'admin', area: 'apps');
+    $this->putJson('/api/v2/users/bob/ports/30005/public', ['public' => false, 'rule' => 7], $admin)->assertForbidden();
+    $this->putJson('/api/v2/users/bob/ports/30005/public', ['public' => true, 'rule' => 7], $admin)->assertOk();
+    $this->fake->assertRan('v-change-user-port-public', fn ($a) => $a === ['bob', '30005', 'yes', '7']);
+});

@@ -160,7 +160,8 @@ final class PortController extends Controller
     /**
      * Open or close a port to the internet
      *
-     * Only an assigned single port; opening needs `public_ok`.
+     * Only an assigned single port; opening needs `public_ok`. Administrators
+     * may pass `rule` to link an existing firewall rule on the port.
      *
      * @operationId setPortPublic
      */
@@ -173,7 +174,12 @@ final class PortController extends Controller
         if ($public && ! $policy->setPublic($principal, $user, $entry, true)) {
             throw new ApiException(ErrorCode::Forbidden, __('This port may not be open to the internet.'), 403);
         }
-        if ($preview = $this->run([$this->ports->planPublic($user, $entry->start, $public)])) {
+        // Linking an existing firewall rule is for administrators (E39 W4 §10)
+        $rule = $request->has('rule') ? (string) $request->integer('rule') : null;
+        if ($rule !== null && (! $public || ! $policy->linkRule($principal, $user))) {
+            throw new ApiException(ErrorCode::Forbidden, __('Only an administrator may link a firewall rule to a port.'), 403);
+        }
+        if ($preview = $this->run([$this->ports->planPublic($user, $entry->start, $public, $rule)])) {
             return $preview;
         }
 

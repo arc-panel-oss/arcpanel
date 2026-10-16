@@ -8,7 +8,8 @@
 # public port has a firewall ACCEPT rule tagged arcpanel-port-<port>-<user>.
 # The port must be allowed to be public (PUBLIC_OK) and the user must not be
 # suspended. With RULE, an existing firewall rule on the same port is linked
-# to it (it gets the tag) instead of a new one. With the firewall off the
+# to it (it gets the tag) instead of a new one; RULE is for administrators,
+# so the panel and API v2 pass it for them only. With the firewall off the
 # flag is stored and the rule is written by v-check-sys-ports repair once
 # it is on.
 

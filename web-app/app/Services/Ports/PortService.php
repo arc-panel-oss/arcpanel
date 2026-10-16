@@ -73,10 +73,11 @@ final class PortService
         return new Step(sprintf(__('Release port %d'), $port), 'v-release-user-port', [$user, (string) $port]);
     }
 
-    public function planPublic(string $user, int $port, bool $public): Step
+    /** With $rule, that existing firewall rule is linked to the port (administrators, PortPolicy::linkRule). */
+    public function planPublic(string $user, int $port, bool $public, ?string $rule = null): Step
     {
         return new Step($public ? sprintf(__('Open port %d'), $port) : sprintf(__('Close port %d'), $port),
-            'v-change-user-port-public', [$user, (string) $port, $this->yes($public)]);
+            'v-change-user-port-public', [$user, (string) $port, $this->yes($public), ...($rule !== null ? [$rule] : [])]);
     }
 
     public function planPublicOk(string $user, string $range, bool $publicOk): Step

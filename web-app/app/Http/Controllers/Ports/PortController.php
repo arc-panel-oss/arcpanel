@@ -73,12 +73,16 @@ final class PortController extends Controller
 
     public function public(Request $request, string $user, string $range, Principal $principal, PortPolicy $policy): RedirectResponse
     {
-        $public = (string) $request->validate(['public' => ['required', 'in:yes,no']])['public'] === 'yes';
+        $data = $request->validate(['public' => ['required', 'in:yes,no'], 'rule' => ['sometimes', 'integer', 'min:1']]);
+        $public = $data['public'] === 'yes';
         $entry = $this->actions->entry($this->ports->account($user), $range);
         abort_if($entry === null, 404);
         abort_unless($policy->setPublic($principal, $user, $entry, $public), 403);
+        // Linking an existing firewall rule is for administrators (E39 W4 §10)
+        $rule = isset($data['rule']) ? (string) $data['rule'] : null;
+        abort_if($rule !== null && (! $public || ! $policy->linkRule($principal, $user)), 403);
 
-        return $this->done($this->ports->apply($this->ports->planPublic($user, $entry->start, $public)),
+        return $this->done($this->ports->apply($this->ports->planPublic($user, $entry->start, $public, $rule)),
             $public ? __('The port is open to the internet.') : __('The port is private.'));
     }
 

@@ -73,6 +73,17 @@ final class PortPolicy
         };
     }
 
+    /**
+     * Link an existing firewall rule to $user's port instead of a new one
+     * (RULE of v-change-user-port-public): administrators only (E39 W4 §10).
+     */
+    public function linkRule(Principal $principal, string $user): bool
+    {
+        return $this->changes($principal, $user)
+            && $principal->actingRole() === Role::Admin
+            && Capabilities::allows(Role::Admin, 'ports.allocate');
+    }
+
     /** Give free ports of the owner's pool to $user (a reseller's customer). */
     public function give(Principal $principal, string $user): bool
     {

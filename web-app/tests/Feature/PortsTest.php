@@ -232,3 +232,17 @@ it('shows the ports of a user on its detail page', function () {
 
     $this->get('/users/bob')->assertOk()->assertSee('Ports')->assertSee('5 / 5');
 });
+
+it('links an existing firewall rule for administrators only (E39 W4 §10)', function () {
+    $this->fake->on('v-change-user-port-public')->returns();
+
+    signIn('bob', 'user');
+    $this->post('/ports/bob/30005/public', ['public' => 'yes', 'rule' => '7'])->assertForbidden();
+    signIn('hostco', 'reseller');
+    $this->post('/ports/bob/30005/public', ['public' => 'yes', 'rule' => '7'])->assertForbidden();
+    $this->fake->assertNotRan('v-change-user-port-public');
+
+    signIn('arcadmin', 'admin');
+    $this->post('/ports/bob/30005/public', ['public' => 'yes', 'rule' => '7'])->assertSessionHas('ok');
+    $this->fake->assertRan('v-change-user-port-public', fn ($a) => $a === ['bob', '30005', 'yes', '7']);
+});
