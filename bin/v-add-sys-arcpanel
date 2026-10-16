@@ -6,8 +6,8 @@
 #
 # This function prepares the panel app that is shipped in the arcpanel
 # package: writable directories, its configuration file with a private key,
-# the sudo rule for its command path and the framework caches. It is safe to
-# run again; an existing key is kept.
+# the command allow-list, the sudo rules of arcpanelweb (v-update-sys-sudoers)
+# and the framework caches. It is safe to run again; an existing key is kept.
 
 #----------------------------------------------------------#
 #                Variables & Functions                     #
@@ -107,8 +107,11 @@ done
 rm -f "$ARCPANEL/data/api/v2-secret-store"
 
 # Command allow-list from the installed v-* scripts, and translations from the
-# installed gettext catalogues (both generated, never shipped)
-"$PHP_BIN" "$APP_DIR/artisan" arcpanel:allow-list --bin="$ARCPANEL/bin" > /dev/null
+# installed gettext catalogues (both generated, never shipped). The sudo rules
+# and the allow-list leave out the same root-only commands (E39 W4 spec §9).
+$BIN/v-update-sys-sudoers
+check_result $? "sudo rules failed"
+"$PHP_BIN" "$APP_DIR/artisan" arcpanel:allow-list --bin="$ARCPANEL/bin" --root-only="$ARCPANEL/install/common/sudo/root-only" > /dev/null
 check_result $? "panel app allow-list failed"
 "$PHP_BIN" "$APP_DIR/artisan" arcpanel:i18n-import --locale-dir="$ARCPANEL/lib/locale" > /dev/null
 check_result $? "panel app translations failed"

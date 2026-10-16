@@ -1,0 +1,13 @@
+# Commands that arcpanelweb may not run through sudo (E39 W4 spec §9): only
+# root runs them. v-update-sys-sudoers leaves them out of
+# /etc/sudoers.d/arcpanelweb and `artisan arcpanel:allow-list` out of the
+# panel's command list. One command per line, the reason above it.
+
+# Prints the value of a secret of the secret store (E38 D7)
+v-get-user-secret
+# Changes the channel the ArcPanel packages come from
+v-change-sys-release
+# Installs the panel app; run by the installers and the package upgrade
+v-add-sys-arcpanel
+# Writes the sudo rules themselves
+v-update-sys-sudoers

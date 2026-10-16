@@ -8,15 +8,14 @@ use Illuminate\Console\Command;
 
 /**
  * Writes config/arc-commands.php: the v-* commands ArcCommand may run, taken
- * from the bin/ directory shipped in the same package. Run at package build.
+ * from the installed bin/ directory, less the root-only commands that sudo
+ * does not allow arcpanelweb either (E39 W4 spec §9). v-add-sys-arcpanel runs
+ * it on every install and upgrade.
  */
-#[Signature('arcpanel:allow-list {--bin= : Directory with the v-* scripts (default: ../bin)}')]
+#[Signature('arcpanel:allow-list {--bin= : Directory with the v-* scripts (default: ../bin)} {--root-only= : List of root-only commands (default: ../install/common/sudo/root-only)}')]
 #[Description('Generate config/arc-commands.php from the v-* scripts in bin/')]
 final class BuildAllowList extends Command
 {
-    /** Commands the panel must never run: v-get-user-secret prints a secret value (E38 D7). */
-    private const NEVER = ['v-get-user-secret'];
-
     public function handle(): int
     {
         $bin = $this->option('bin') ?: base_path('../bin');
@@ -26,9 +25,18 @@ final class BuildAllowList extends Command
             return self::FAILURE;
         }
 
+        $rootOnly = $this->option('root-only') ?: base_path('../install/common/sudo/root-only');
+        if (! is_file($rootOnly)) {
+            $this->error("No list of root-only commands at {$rootOnly}");
+
+            return self::FAILURE;
+        }
+        // One command per line; # starts a comment line
+        $never = array_values(array_filter(array_map('trim', file($rootOnly) ?: []), fn (string $line) => $line !== '' && $line[0] !== '#'));
+
         $commands = [];
         foreach (scandir($bin) ?: [] as $file) {
-            if (preg_match('/^v-[a-z0-9-]+$/', $file) === 1 && is_file($bin.'/'.$file) && ! in_array($file, self::NEVER, true)) {
+            if (preg_match('/^v-[a-z0-9-]+$/', $file) === 1 && is_file($bin.'/'.$file) && ! in_array($file, $never, true)) {
                 $commands[] = $file;
             }
         }

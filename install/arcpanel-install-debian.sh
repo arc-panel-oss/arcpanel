@@ -1433,11 +1433,6 @@ fi
 #----------------------------------------------------------#
 
 echo "[ * ] Configuring ArcPanel..."
-# Installing sudo configuration
-mkdir -p /etc/sudoers.d
-cp -f $ARCPANEL_COMMON_DIR/sudo/arcpanelweb /etc/sudoers.d/
-chmod 440 /etc/sudoers.d/arcpanelweb
-
 # Add ArcPanel global config
 if [[ ! -e /etc/arcpanel/arcpanel.conf ]]; then
 	mkdir -p /etc/arcpanel
@@ -1476,6 +1471,10 @@ chmod 770 $ARCPANEL/data/sessions
 rm -f $ARCPANEL/conf/arcpanel.conf > /dev/null 2>&1
 touch $ARCPANEL/conf/arcpanel.conf
 chmod 660 $ARCPANEL/conf/arcpanel.conf
+
+# Sudo rules of arcpanelweb: every command but the root-only ones (E39 W4
+# spec §9); v-add-sys-arcpanel writes them again at the end
+$ARCPANEL/bin/v-update-sys-sudoers
 
 # Write default port value to arcpanel.conf
 # If a custom port is specified it will be set at the end of the installation process

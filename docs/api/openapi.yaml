@@ -2745,8 +2745,8 @@ paths:
       description: |-
         This function prepares the panel app that is shipped in the arcpanel
         package: writable directories, its configuration file with a private key,
-        the sudo rule for its command path and the framework caches. It is safe to
-        run again; an existing key is kept.
+        the command allow-list, the sudo rules of arcpanelweb (v-update-sys-sudoers)
+        and the framework caches. It is safe to run again; an existing key is kept.
 
         **Arguments:** none.
       requestBody:
@@ -34769,6 +34769,50 @@ paths:
           $ref: "#/components/responses/InvalidRequest"
         "422":
           $ref: "#/components/responses/Unprocessable"
+  "/api/#v-update-sys-sudoers":
+    post:
+      operationId: v-update-sys-sudoers
+      tags:
+        - System
+      summary: Write the sudo rules of the panel user
+      description: |-
+        This function writes /etc/sudoers.d/arcpanelweb: arcpanelweb may run every
+        command of $ARCPANEL/bin through sudo, by its full path, except those of
+        $ARCPANEL/install/common/sudo/root-only. The new file must pass visudo
+        before it replaces the old one; otherwise the old file stays. It is run
+        on every install and upgrade, so that the list follows the installed
+        commands.
+
+        **Arguments:** none.
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-update-sys-sudoers"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-update-sys-sudoers"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
   "/api/#v-update-sys-user-homes":
     post:
       operationId: v-update-sys-user-homes
@@ -58162,6 +58206,20 @@ components:
               description: "`PERIOD`"
               examples:
                 - ""
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
+    v-update-sys-sudoers:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-update-sys-sudoers
+              default: v-update-sys-sudoers
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-update-sys-user-homes:
