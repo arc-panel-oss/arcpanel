@@ -141,6 +141,37 @@ it('ends the session of a suspended user unless suspended users may look', funct
     expect($principal->readOnly)->toBeTrue();
 });
 
+it('treats a suspended reseller or administrator like a suspended user, also while it acts as someone else', function (bool $viewSuspended) {
+    // E39 W4 spec §4: hostco (reseller of bob) and otheradmin are suspended
+    fakeResellers($this->fake, ['hostco' => ['SUSPENDED' => 'yes'], 'otheradmin' => ['ROLE' => 'admin', 'SUSPENDED' => 'yes']]);
+    $this->fake->on('v-list-sys-config', ['json'])->returnsJson(sysConfig(['POLICY_USER_VIEW_SUSPENDED' => $viewSuspended ? 'yes' : 'no']));
+    app()->forgetInstance(SysConfig::class);
+    cache()->flush();
+
+    foreach ([
+        ['user' => 'hostco', 'userContext' => 'reseller'],
+        ['user' => 'hostco', 'userContext' => 'reseller', PrincipalResolver::RESELLER_LOOK => 'bob'],
+        ['user' => 'otheradmin', 'userContext' => 'admin'],
+        ['user' => 'otheradmin', 'userContext' => 'admin', 'look' => 'bob'],
+    ] as $session) {
+        $legacy = ArrayLegacySession::install(loggedInSession($session));
+        $principal = resolver()->resolve('203.0.113.7', NOW);
+
+        if ($viewSuspended) {
+            expect($principal->readOnly)->toBeTrue()
+                ->and($principal->effectiveUser())->toBe($session['look'] ?? $session[PrincipalResolver::RESELLER_LOOK] ?? $session['user']);
+        } else {
+            expect($principal)->toBeNull();
+            $legacy->assertDestroyed();
+        }
+    }
+
+    // A reseller that is not suspended may act as a suspended customer and change it, as before
+    fakeResellers($this->fake, ['bob' => ['SUSPENDED' => 'yes']]);
+    ArrayLegacySession::install(loggedInSession(['user' => 'hostco', 'userContext' => 'reseller', PrincipalResolver::RESELLER_LOOK => 'bob']));
+    expect(resolver()->resolve('203.0.113.7', NOW)->readOnly)->toBeFalse();
+})->with(['policy on' => true, 'policy off' => false]);
+
 it('ends an inactive session and logs the logout', function () {
     $session = ArrayLegacySession::install(loggedInSession(['LAST_ACTIVITY' => NOW - 61 * 60]));
 

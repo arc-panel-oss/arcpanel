@@ -145,21 +145,21 @@ final class PrincipalResolver
             language: (string) ($data['language'] ?? 'en'),
             theme: isset($data['userTheme']) ? (string) $data['userTheme'] : null,
             legacyToken: $token,
-            readOnly: $this->isReadOnly($loginRole, $look, $effective),
+            readOnly: $this->isReadOnly($loginRole, $look, $record),
         );
     }
 
     /**
-     * web/inc/policies.php: a suspended user who may only look, or an admin
-     * looking at the protected system administrator.
+     * web/inc/policies.php: a suspended account of any role that may only
+     * look (E39 W4 spec §4: the login account's record, so a suspended
+     * reseller or administrator stays read-only while it acts as someone
+     * else), or an admin looking at the protected system administrator.
      *
-     * @param  array<string, string>  $effective
+     * @param  array<string, string>  $login
      */
-    private function isReadOnly(Role $loginRole, ?string $look, array $effective): bool
+    private function isReadOnly(Role $loginRole, ?string $look, array $login): bool
     {
-        if ($loginRole === Role::User
-            && ($effective['SUSPENDED'] ?? '') === 'yes'
-            && $this->config->is('POLICY_USER_VIEW_SUSPENDED')) {
+        if (($login['SUSPENDED'] ?? '') === 'yes' && $this->config->is('POLICY_USER_VIEW_SUSPENDED')) {
             return true;
         }
 
