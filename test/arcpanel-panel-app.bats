@@ -365,8 +365,10 @@ teardown_file() {
     assert_output "200 "
     run guest_get "/reset/?action=code&user=$PAGES_USER"
     assert_output "302 $PANEL/reset/code?user=$PAGES_USER"
+    # the 1.x e-mail link: user and code move into the session, the redirect
+    # carries no query (E39 W2 D9)
     run guest_get "/reset/?action=confirm&user=$PAGES_USER&code=Abc123"
-    assert_output "302 $PANEL/reset/confirm?user=$PAGES_USER&code=Abc123"
+    assert_output "302 $PANEL/reset/confirm"
     run guest_get /reset2fa/
     assert_output "200 "
     run guest_get /reset2fa

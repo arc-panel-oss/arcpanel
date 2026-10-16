@@ -47,8 +47,10 @@ PANEL="https://127.0.0.1:8083"
 	assert_output 'active'
 }
 
-@test "Processes: no command line names hestia" {
-	run bash -c "ps -eo args= | grep -i hestia | grep -v grep"
+@test "Processes: no command line carries the old name" {
+	# bats puts the test's title on its own command line, so the title does
+	# not name it; [h] keeps the grep from matching itself
+	run bash -c "ps -eo args= | grep -i '[h]estia'"
 	assert_output ''
 	run bash -c "ps -eo args= | grep -c '[a]rcpanel-nginx\|[a]rcpanel-php'"
 	refute_output '0'
@@ -80,10 +82,11 @@ PANEL="https://127.0.0.1:8083"
 	if grep -q '^die("Error: Disabled");' /usr/local/arcpanel/lib/api/index.php; then
 		skip "the API is disabled on this server"
 	fi
-	run curl -sk -D - -o /dev/null -X POST --data-urlencode "access_key=ARCNAMESNOKEY00000000" \
-		--data-urlencode "secret_key=x" --data-urlencode "cmd=v-list-sys-info" "$PANEL/api/index.php"
-	assert_output --partial 'ArcPanel-Exit-Code:'
-	refute_output --partial 'Hestia-Exit-Code'
+	# header names are case-insensitive, and HTTP/2 sends them in lower case
+	run bash -c "curl -sk -D - -o /dev/null -X POST --data-urlencode 'access_key=ARCNAMESNOKEY00000000' \
+		--data-urlencode 'secret_key=x' --data-urlencode 'cmd=v-list-sys-info' '$PANEL/api/index.php' | tr 'A-Z' 'a-z'"
+	assert_output --partial 'arcpanel-exit-code:'
+	refute_output --partial 'hestia-exit-code'
 }
 
 @test "DNS cluster: the system value is arcpanel" {
@@ -94,9 +97,13 @@ PANEL="https://127.0.0.1:8083"
 }
 
 @test "Configuration files written by ArcPanel carry its markers" {
-	run grep -rl "Hestia" /etc/ssh/sshd_config /etc/dovecot/dovecot.conf /etc/apparmor.d/local/proftpd /etc/ssl/openssl.cnf
+	# -s: a file that the installed components do not use (proftpd) may be absent
+	run grep -rls "Hestia" /etc/ssh/sshd_config /etc/dovecot/dovecot.conf /etc/apparmor.d/local/proftpd /etc/ssl/openssl.cnf
 	assert_output ''
-	run bash -c "grep -rli hestia /etc/nginx /etc/apache2 /etc/exim4 /etc/dovecot /etc/fail2ban /etc/cron.d /etc/logrotate.d 2> /dev/null"
+	# links to the upstream project are allowed (scripts/rename/keep.txt): the
+	# awstats prerotate script cites upstream issues
+	run bash -c "grep -rIni hestia /etc/nginx /etc/apache2 /etc/exim4 /etc/dovecot /etc/fail2ban /etc/cron.d /etc/logrotate.d 2> /dev/null \
+		| sed -E 's#https?://(www\\.)?github\\.com/hestiacp/[^[:space:]]*##g' | grep -i hestia"
 	assert_output ''
 }
 
