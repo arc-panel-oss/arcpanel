@@ -24,6 +24,6 @@ final class SshKeyPolicy
     public function manage(Principal $principal, string $owner): bool
     {
         return ! $principal->isReadOnly()
-            && Capabilities::allows($principal->actingRole(), 'ssh-keys.manage', fn () => $this->reaches($principal, 'ssh-keys.manage', $owner));
+            && Capabilities::allows($principal->actingRole(), 'ssh-keys.manage', fn () => $this->reachesForChange($principal, 'ssh-keys.manage', $owner));
     }
 }

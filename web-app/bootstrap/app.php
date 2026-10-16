@@ -3,6 +3,7 @@
 use App\Api\ApiException;
 use App\Api\ErrorRenderer;
 use App\Arc\ArcCommandException;
+use App\Auth\ProtectedAdmin;
 use App\Http\Controllers\HealthController;
 use App\Http\Middleware\Api\ApiEnabled;
 use App\Http\Middleware\Api\AuthenticateAccessKey;
@@ -81,6 +82,10 @@ $app = Application::configure(basePath: dirname(__DIR__))
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->dontReport([ArcCommandException::class, ApiException::class]);
+
+        // A change refused by the protected-administrator guard answers 404
+        // under POLICY_SYSTEM_HIDE_ADMIN, on the pages and in API v2 (E39 W4 §5).
+        $exceptions->map(fn (Throwable $e) => app()->resolved(ProtectedAdmin::class) ? app(ProtectedAdmin::class)->hide($e) : $e);
 
         // API v2 answers every error with its JSON error body (E34 spec D10).
         $exceptions->render(fn (Throwable $e, Request $request) => ErrorRenderer::handles($request) ? ErrorRenderer::render($e, $request) : null);

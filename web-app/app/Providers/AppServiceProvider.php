@@ -11,6 +11,7 @@ use App\Auth\LegacySession;
 use App\Auth\NativeLegacySession;
 use App\Auth\OwnerScope;
 use App\Auth\Principal;
+use App\Auth\ProtectedAdmin;
 use App\Services\Files\FileStaging;
 use App\Services\Mail\AccountMailer;
 use App\Services\Mail\CredentialsMailer;
@@ -70,8 +71,10 @@ class AppServiceProvider extends ServiceProvider
         // File manager staging tree (E3)
         $this->app->bind(FileStaging::class, fn () => FileStaging::fromConfig());
 
-        // The Principal is bound per request by ResolvePrincipal.
-        $this->app->bind(OwnerScope::class, fn ($app) => new OwnerScope($app->make(Principal::class), $app->make(TenancyDirectory::class)));
+        // The Principal is bound per request by ResolvePrincipal; the guard of
+        // the protected administrator remembers its refusals for the request (E39 W4).
+        $this->app->scoped(ProtectedAdmin::class);
+        $this->app->bind(OwnerScope::class, fn ($app) => new OwnerScope($app->make(Principal::class), $app->make(TenancyDirectory::class), $app->make(ProtectedAdmin::class)));
 
         $this->app->singleton(AssetManifest::class, fn () => new AssetManifest(public_path('build/manifest.json')));
 

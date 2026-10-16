@@ -44,17 +44,21 @@ final class AccessKeyPolicy
     public function manage(Principal $principal, string $owner): bool
     {
         return $this->available($owner) && ! $principal->isReadOnly()
-            && Capabilities::allows($principal->actingRole(), 'access-keys.manage', fn () => $this->reaches($principal, 'access-keys.manage', $owner));
+            && Capabilities::allows($principal->actingRole(), 'access-keys.manage', fn () => $this->reachesForChange($principal, 'access-keys.manage', $owner));
     }
 
     /**
-     * Names of the permission sets the owner's keys may carry, sorted.
+     * Names of the permission sets the owner's keys may carry, sorted; none
+     * for a principal the protected-administrator guard blocks (E39 W4 §5).
      *
      * @param  array<array-key, mixed>  $sets  `v-list-apis json`
      * @return list<string>
      */
     public function allowedSets(string $owner, array $sets): array
     {
+        if ($this->scope->protects($owner)) {
+            return [];
+        }
         $root = $owner === $this->config->get('ROOT_USER');
         $names = [];
         foreach ($sets as $name => $set) {

@@ -9,13 +9,16 @@ use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
  * Which users the principal may see and act on (docs/design/03 §7.1).
  *
  * Admin: every user. Reseller: itself and its customers (E11). User (and
- * anyone impersonating someone): only the effective user.
+ * anyone impersonating someone): only the effective user. Changes to the
+ * protected root administrator also pass ProtectedAdmin (E39 W4 §5); a
+ * scope built without it (unit tests) has no such guard.
  */
 final class OwnerScope
 {
     public function __construct(
         private readonly Principal $principal,
         private readonly TenancyDirectory $tenancy,
+        private readonly ?ProtectedAdmin $protected = null,
     ) {}
 
     /** @return list<string>|null usernames, or null for "all" */
@@ -35,10 +38,16 @@ final class OwnerScope
         return $user !== '' && ($visible === null || in_array($user, $visible, true));
     }
 
-    /** Objects (web domains …) of $user: the same reach as canSee(). */
+    /** Objects (web domains …) of $user: the reach of canSee(), less the protected administrator. */
     public function canManage(string $user): bool
     {
-        return $this->canSee($user);
+        return $this->canSee($user) && ! $this->protects($user);
+    }
+
+    /** POLICY_SYSTEM_PROTECTED_ADMIN refuses the principal changes to $user (E39 W4 §5). */
+    public function protects(string $user): bool
+    {
+        return $this->protected?->blocks($this->principal, $user) ?? false;
     }
 
     /**
@@ -46,6 +55,12 @@ final class OwnerScope
      * principal's own account, which it edits through "My account".
      */
     public function canManageAccount(string $user): bool
+    {
+        return $this->canSeeAccount($user) && ! $this->protects($user);
+    }
+
+    /** The accounts the user management pages show: the reach of canManageAccount(), for reading. */
+    public function canSeeAccount(string $user): bool
     {
         if ($user === '' || $user === $this->principal->effectiveUser()) {
             return false;

@@ -28,7 +28,7 @@ final class FilePolicy
     {
         return ! $principal->isReadOnly()
             && $this->view($principal, $user)
-            && Capabilities::allows($principal->actingRole(), 'files.manage', fn () => $this->scope->canSee($user))
+            && Capabilities::allows($principal->actingRole(), 'files.manage', fn () => $this->scope->canManage($user))
             && (! $this->suspended($user) || $principal->actingRole() === Role::Admin);
     }
 

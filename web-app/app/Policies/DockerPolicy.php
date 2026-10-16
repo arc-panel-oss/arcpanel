@@ -38,7 +38,7 @@ final class DockerPolicy
     public function removeApps(Principal $principal, string $user): bool
     {
         return ! $principal->isReadOnly()
-            && Capabilities::allows($principal->actingRole(), 'docker.apps.manage', fn () => $this->scope->canSee($user));
+            && Capabilities::allows($principal->actingRole(), 'docker.apps.manage', fn () => $this->scope->canManage($user));
     }
 
     /** Install an app the catalog reserves to administrators. */

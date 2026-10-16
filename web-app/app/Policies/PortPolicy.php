@@ -42,7 +42,7 @@ final class PortPolicy
     /** Reserve and release ports of $user's own pool. */
     public function reserve(Principal $principal, string $user): bool
     {
-        return $this->writable($principal)
+        return $this->changes($principal, $user)
             && Capabilities::allows($principal->actingRole(), 'ports.reserve', fn () => $this->own($principal, $user));
     }
 
@@ -52,7 +52,7 @@ final class PortPolicy
         return $this->writable($principal)
             && $entry->assigned() && ! $entry->isRange()
             && (! $public || $entry->publicOk)
-            && Capabilities::allows($principal->actingRole(), 'ports.public', fn () => $this->scope->canSee($user));
+            && Capabilities::allows($principal->actingRole(), 'ports.public', fn () => $this->scope->canManage($user));
     }
 
     /**
@@ -62,7 +62,7 @@ final class PortPolicy
      */
     public function setPublicOk(Principal $principal, string $user, bool $publicOk): bool
     {
-        if (! $this->writable($principal)) {
+        if (! $this->changes($principal, $user)) {
             return false;
         }
 
@@ -76,7 +76,7 @@ final class PortPolicy
     /** Give free ports of the owner's pool to $user (a reseller's customer). */
     public function give(Principal $principal, string $user): bool
     {
-        if (! $this->writable($principal) || ! Capabilities::allows($principal->actingRole(), 'ports.suballocate')) {
+        if (! $this->changes($principal, $user) || ! Capabilities::allows($principal->actingRole(), 'ports.suballocate')) {
             return false;
         }
 
@@ -117,7 +117,7 @@ final class PortPolicy
             'reserve' => $this->reserve($principal, $user),
             // per entry, setPublic() also needs an assigned, public-capable port
             'public' => $this->writable($principal)
-                && Capabilities::allows($principal->actingRole(), 'ports.public', fn () => $this->scope->canSee($user)),
+                && Capabilities::allows($principal->actingRole(), 'ports.public', fn () => $this->scope->canManage($user)),
             'publicOk' => $this->setPublicOk($principal, $user, true),
             'forbidPublic' => $this->setPublicOk($principal, $user, false),
             'give' => $this->give($principal, $user),
@@ -129,6 +129,12 @@ final class PortPolicy
     private function writable(Principal $principal): bool
     {
         return ! $principal->isReadOnly();
+    }
+
+    /** A change to $user's ports: writable, and not the protected administrator's (E39 W4 §5). */
+    private function changes(Principal $principal, string $user): bool
+    {
+        return $this->writable($principal) && ! $this->scope->protects($user);
     }
 
     /** The principal's own ports; administrators act on anyone's. */
