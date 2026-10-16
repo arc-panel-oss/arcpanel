@@ -10,7 +10,8 @@
 # Batch 4 needs the internet (or NODE_NVM_URL and NODE_RELEASES_URL mirrors):
 # it installs nvm and the Node.js LTS for a throw-away user. It installs a
 # Docker app only when the server has the Docker engine (DOCKER_SYSTEM) and
-# says so otherwise.
+# says so otherwise. It also runs an app process (E42) and a task, which
+# calls python3.
 #
 # Batch 5 uploads 16 MiB of random bytes in three chunks and downloads them
 # again as a zip; it skips the file checks when FILE_MANAGER is off.
@@ -382,7 +383,7 @@ pkg_file="$(mktemp)"
 sed "s/^SHELL=.*/SHELL='bash'/" "$ARCPANEL/data/packages/default.pkg" > "$pkg_file"
 "$ARCPANEL/bin/v-add-user-package" "$pkg_file" "$APPS_PACKAGE" > /dev/null
 rm -f "$pkg_file"
-for setting in NODE=yes NODE_VERSIONS=1 'NODE_ALLOWED=*' NODE_APPS=1 PORTS=5 DOCKER=yes DOCKER_APPS=1; do
+for setting in NODE=yes NODE_VERSIONS=1 'NODE_ALLOWED=*' NODE_APPS=1 PORTS=5 DOCKER=yes DOCKER_APPS=1 APP_PROCESSES=yes APP_PROCESSES_MAX=2; do
 	"$ARCPANEL/bin/v-change-package-tenancy" "$APPS_PACKAGE" "${setting%%=*}" "${setting#*=}"
 done
 check "a user for the apps" 201 "$(call "$ADMIN" POST /users "{\"username\": \"$APPS_USER\", \"password\": \"$SMOKE_PASS\", \"email\": \"$APPS_USER@example.invalid\", \"name\": \"Smoke Apps\", \"package\": \"$APPS_PACKAGE\"}")"
@@ -460,6 +461,66 @@ else
 	check "getDockerApp answers 200" 200 "$(call "$APPS_KEY" GET "$DOCKER_APP/arcsmoke")"
 	check "deleteDockerApp answers 204" 204 "$(call "$APPS_KEY" DELETE "$DOCKER_APP/arcsmoke")"
 fi
+
+# App processes (E42 spec 2026-10-16-003 §8): a custom web process
+# (python3's http.server) and a worker, with the environment, logs, limits,
+# a task and the limit of the package
+PROC_DOMAIN="$APPS_USER-proc.example.test"
+PROCS="/users/$APPS_USER/app-processes"
+PROC="$PROCS/$PROC_DOMAIN/web"
+PROC_READER=$(new_key "$APPS_USER" v2-read)
+check "a web domain for the app processes" 201 "$(call "$APPS_WRITER" POST "/users/$APPS_USER/web-domains" "{\"domain\": \"$PROC_DOMAIN\"}")"
+printf '%s\n' arcsmoke-process > "/home/$APPS_USER/web/$PROC_DOMAIN/public_html/index.html"
+chown "$APPS_USER:$APPS_USER" "/home/$APPS_USER/web/$PROC_DOMAIN/public_html/index.html"
+check "listAppProcesses answers 200" 200 "$(call "$APPS_KEY" GET "$PROCS")"
+check "the package allows two processes" "true 2" "$(json '"\(.meta.allowed) \(.meta.limit)"')"
+check "getAppProcessPresets answers 200" 200 "$(call "$APPS_KEY" GET "/users/$APPS_USER/app-process-presets?domain=$PROC_DOMAIN")"
+check "the presets have the custom command" 1 "$(json '[.data[] | select(.name == "custom")] | length')"
+check "a v2-read key may not create a process" 403 "$(call "$PROC_READER" POST "$PROCS" "{\"domain\": \"$PROC_DOMAIN\", \"name\": \"web\", \"preset\": \"custom\", \"kind\": \"worker\", \"start\": \"sleep 60\"}")"
+check "createAppProcess answers 201" 201 "$(call "$APPS_KEY" POST "$PROCS" "{\"domain\": \"$PROC_DOMAIN\", \"name\": \"web\", \"preset\": \"custom\", \"kind\": \"web\", \"template\": \"golang-proxy\", \"start\": \"python3 -m http.server %port% --bind 127.0.0.1\", \"memory_mb\": 128}")"
+PROC_PORT="$(json .data.port)"
+check "the web process has a port" 1 "$([ "${PROC_PORT:-null}" != null ] && echo 1 || echo 0)"
+proc_answer=""
+for _ in $(seq 1 30); do
+	proc_answer="$(curl -s --max-time 2 "http://127.0.0.1:$PROC_PORT/" || true)"
+	[ -z "$proc_answer" ] || break
+	sleep 1
+done
+check "the process serves the domain folder" arcsmoke-process "$proc_answer"
+check "getAppProcess answers 200" 200 "$(call "$APPS_KEY" GET "$PROC")"
+check "the process runs" "true web golang-proxy" "$(json '"\(.data.running) \(.data.kind) \(.data.template)"')"
+check "setAppProcessEnv answers 200" 200 "$(call "$APPS_KEY" PUT "$PROC/env" '{"entries": [{"name": "GREETING", "value": "arcsmoke"}]}')"
+check "a reserved key answers 422" 422 "$(call "$APPS_KEY" PUT "$PROC/env" '{"entries": [{"name": "PORT", "value": "1"}]}')"
+check "getAppProcessEnv answers 200" 200 "$(call "$APPS_KEY" GET "$PROC/env")"
+check "the environment has the variable" GREETING "$(json '.data[0].name')"
+check "getAppProcessLogs answers 200" 200 "$(call "$APPS_KEY" GET "$PROC/logs?lines=20")"
+check "the log answer has a cursor" 1 "$([ -n "$(json '.meta.next // empty')" ] && echo 1 || echo 0)"
+check "updateAppProcess answers 200" 200 "$(call "$APPS_KEY" PATCH "$PROC" '{"memory_mb": 256, "cpus": "0.5"}')"
+check "the limits changed" "256 0.5" "$(json '"\(.data.memory_mb) \(.data.cpus)"')"
+check "the unit has the limits" "CPUQuotaPerSecUSec=500ms MemoryMax=268435456" "$(systemctl show -p MemoryMax -p CPUQuotaPerSecUSec "$(basename "$(ls /etc/systemd/system/arcpanel-app-"$APPS_USER"-*.service | head -n1)")" 2> /dev/null | sort | tr '\n' ' ' | sed 's/ $//')"
+check "stopAppProcess answers 200" 200 "$(call "$APPS_KEY" POST "$PROC/stop")"
+check "the process is stopped" false "$(json .data.running)"
+check "startAppProcess answers 200" 200 "$(call "$APPS_KEY" POST "$PROC/start")"
+check "reloadAppProcess answers 200" 200 "$(call "$APPS_KEY" POST "$PROC/reload")"
+check "startAppProcessTask answers 202" 202 "$(call "$APPS_KEY" POST "$PROC/tasks" '{"task": "custom", "command": "python3 --version"}')"
+proc_task=running
+for _ in $(seq 1 60); do
+	call "$APPS_KEY" GET "/users/$APPS_USER/app-process-task" > /dev/null
+	proc_task="$(json .data.status)"
+	[ "$proc_task" = running ] || break
+	sleep 1
+done
+check "the task is done" "done 0" "$proc_task $(json .data.exit_code)"
+check "a worker answers 201" 201 "$(call "$APPS_KEY" POST "$PROCS" "{\"domain\": \"$PROC_DOMAIN\", \"name\": \"worker\", \"preset\": \"custom\", \"kind\": \"worker\", \"start\": \"sleep 3600\", \"memory_mb\": 64}")"
+check "the worker has no port" null "$(json .data.port)"
+check "a third process is over the limit of the package" 422 "$(call "$APPS_KEY" POST "$PROCS" "{\"domain\": \"$PROC_DOMAIN\", \"name\": \"third\", \"preset\": \"custom\", \"kind\": \"worker\", \"start\": \"sleep 60\"}")"
+check "deleteAppProcess answers 204" 204 "$(call "$APPS_KEY" DELETE "$PROCS/$PROC_DOMAIN/worker")"
+check "deleteAppProcess of the web process answers 204" 204 "$(call "$APPS_KEY" DELETE "$PROC")"
+check "the process is gone" 404 "$(call "$APPS_KEY" GET "$PROC")"
+check "the port is free again" null "$(
+	call "$APPS_KEY" GET "/users/$APPS_USER/ports" > /dev/null
+	json "[.data[] | select(.app == \"app:$PROC_DOMAIN\")][0].app"
+)"
 
 check "the apps user is deleted" 204 "$(call "$ADMIN" DELETE "/users/$APPS_USER")"
 
