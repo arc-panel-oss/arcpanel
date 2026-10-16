@@ -231,12 +231,8 @@ e8_api_says() {
 
 @test "v-change-sys-api enables and disables the API in lib/api" {
 	local key
-	if grep -q '^die("Error: Disabled");' "$ARCPANEL_DIR/lib/api/index.php"; then
-		e8_restore_later "v-change-sys-api disable"
-	else
-		e8_restore_later "v-change-sys-api enable api"
-	fi
 	e8_restore_later "v-change-sys-config-value API '$(e8_sys_config API)'"
+	e8_restore_later "v-change-sys-config-value API_V1 '$(e8_sys_config API_V1)'"
 	e8_restore_later "v-change-sys-config-value API_SYSTEM '$(e8_sys_config API_SYSTEM)'"
 	e8_restore_later "v-change-sys-config-value API_ALLOWED_IP '$(e8_sys_config API_ALLOWED_IP)'"
 	# No permission sets: a key of the root user may run every command
@@ -245,12 +241,16 @@ e8_api_says() {
 	E8_KEY_SECRET="$(echo "$key" | jq -r .SECRET_ACCESS_KEY)"
 	e8_restore_later "v-delete-access-key '$E8_KEY_ID'"
 
+	# The switches are configuration keys; the script is never edited (E39 W4 N14)
+	local before
+	before="$(sha256sum "$ARCPANEL_DIR/lib/api/index.php")"
 	run v-change-sys-api enable api
+	assert_success
+	run v-change-sys-api enable v1
 	assert_success
 	v-change-sys-config-value API_ALLOWED_IP allow-all
 	assert_equal "$(e8_sys_config API_SYSTEM)" "1"
-	run grep -c '^//die("Error: Disabled");' "$ARCPANEL_DIR/lib/api/index.php"
-	assert_output "1"
+	assert_equal "$(e8_sys_config API_V1)" "yes"
 	run e8_api_says '"sysinfo"'
 	assert_success
 	run e8_api_call
@@ -259,12 +259,14 @@ e8_api_says() {
 	run v-change-sys-api disable
 	assert_success
 	assert_equal "$(e8_sys_config API_SYSTEM)" "0"
-	run grep -c '^die("Error: Disabled");' "$ARCPANEL_DIR/lib/api/index.php"
-	assert_output "1"
-	run e8_api_says "Error: Disabled"
-	assert_success
+	assert_equal "$(e8_sys_config API_V1)" "no"
 	run e8_api_call
+	assert_output --partial "disabled"
 	refute_output --partial '"sysinfo"'
+	assert_equal "$(sha256sum "$ARCPANEL_DIR/lib/api/index.php")" "$before"
+
+	run v-change-sys-api remove
+	assert_failure
 }
 
 @test "The file manager commands only toggle FILE_MANAGER" {

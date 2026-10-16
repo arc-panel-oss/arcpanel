@@ -183,6 +183,7 @@ it('refuses the fields a key may never change with 403 naming the field (D58)', 
 })->with([
     'API_SYSTEM' => ['security', 'API_SYSTEM', '0'],
     'API' => ['security', 'API', 'yes'],
+    'API_V1' => ['security', 'API_V1', 'yes'],
     'API_ALLOWED_IP' => ['security', 'API_ALLOWED_IP', '203.0.113.9'],
     'POLICY_SYSTEM_PROTECTED_ADMIN' => ['security', 'POLICY_SYSTEM_PROTECTED_ADMIN', 'no'],
     'POLICY_SYSTEM_HIDE_ADMIN' => ['security', 'POLICY_SYSTEM_HIDE_ADMIN', 'yes'],

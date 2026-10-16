@@ -473,11 +473,12 @@ final class ServerSettings
         $steps = [];
 
         // A form without API_ALLOWED_IP keeps the current list
-        $api = ['API_SYSTEM' => $values['API_SYSTEM'], 'API' => $values['API'], 'API_ALLOWED_IP' => $values['API_ALLOWED_IP'] ?? $config['API_ALLOWED_IP'] ?? ''];
+        $api = ['API_SYSTEM' => $values['API_SYSTEM'], 'API' => $values['API'], 'API_V1' => $values['API_V1'] ?? $config['API_V1'] ?? 'no',
+            'API_ALLOWED_IP' => $values['API_ALLOWED_IP'] ?? $config['API_ALLOWED_IP'] ?? ''];
         $apiChanged = array_filter($api, fn ($value, $key) => $value !== ($config[$key] ?? ''), ARRAY_FILTER_USE_BOTH);
         if ($apiChanged !== []) {
-            if ($api['API_SYSTEM'] === '0' && $api['API'] === 'no') {
-                // disable turns API, API_SYSTEM and API_ALLOWED_IP off at once
+            if ($api['API_SYSTEM'] === '0' && $api['API'] === 'no' && $api['API_V1'] === 'no') {
+                // disable turns API, API_V1, API_SYSTEM and API_ALLOWED_IP off at once
                 $steps[] = new Step(__('Turn off the API'), 'v-change-sys-api', ['disable']);
             } else {
                 $steps[] = new Step(__('Turn on the API'), 'v-change-sys-api', ['enable']);
@@ -509,7 +510,7 @@ final class ServerSettings
      */
     public function planPolicies(array $values): array
     {
-        $refused = ['API_SYSTEM', 'API', 'API_ALLOWED_IP', ...self::SECURITY_POLICIES['protection']];
+        $refused = ['API_SYSTEM', 'API', 'API_V1', 'API_ALLOWED_IP', ...self::SECURITY_POLICIES['protection']];
 
         return self::configSteps($this->config(), array_diff_key($values, array_flip($refused)));
     }

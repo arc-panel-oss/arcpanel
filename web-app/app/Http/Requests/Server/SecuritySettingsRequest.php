@@ -13,6 +13,7 @@ final class SecuritySettingsRequest extends ServerSettingsRequest
         $rules = [
             'API_SYSTEM' => ['required', 'in:0,1,2'],
             'API' => ['required', 'in:yes,no'],
+            'API_V1' => ['sometimes', 'in:yes,no'],
             'API_ALLOWED_IP' => ['nullable', 'string', 'max:4096'],
             'LOGIN_STYLE' => ['required', 'in:default,old'],
             'INACTIVE_SESSION_TIMEOUT' => ['required', 'integer', 'min:1', 'max:1440'],
@@ -54,6 +55,9 @@ final class SecuritySettingsRequest extends ServerSettingsRequest
             'INACTIVE_SESSION_TIMEOUT' => (string) (int) $this->input('INACTIVE_SESSION_TIMEOUT'),
             'POLICY_CSRF_STRICTNESS' => (string) $this->input('POLICY_CSRF_STRICTNESS'),
         ];
+        if ($this->has('API_V1')) {
+            $values['API_V1'] = (string) $this->input('API_V1');
+        }
         if ($this->has('API_ALLOWED_IP')) {
             $values['API_ALLOWED_IP'] = implode(',', $this->allowedIps());
         }

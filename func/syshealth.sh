@@ -355,6 +355,19 @@ function syshealth_repair_system_config() {
 		$BIN/v-change-sys-config-value "API_SYSTEM" "0"
 	fi
 
+	# REST API v1 switch (E39 W4 D9). New installs write it; a server from
+	# before 2.1.3 keeps API v1 as it was: on when either API was on
+	if [[ -z $(check_key_exists 'API_V1') ]]; then
+		api_v1='no'
+		if [ "$(grep "^API='" "$ARCPANEL/conf/arcpanel.conf" | cut -d \' -f 2)" = 'yes' ] \
+			|| [[ "$(grep "^API_SYSTEM='" "$ARCPANEL/conf/arcpanel.conf" | cut -d \' -f 2)" =~ ^[12]$ ]]; then
+			api_v1='yes'
+		fi
+		echo "[ ! ] Adding missing variable to arcpanel.conf: API_V1 ('$api_v1')"
+		$BIN/v-change-sys-config-value "API_V1" "$api_v1"
+		unset api_v1
+	fi
+
 	# API access allowed IP's
 	if [ "$API" = "yes" ]; then
 		check_api_key=$(grep "API_ALLOWED_IP" $ARCPANEL/conf/arcpanel.conf)

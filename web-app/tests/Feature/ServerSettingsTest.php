@@ -1,6 +1,7 @@
 <?php
 
 use App\Arc\ExitCode;
+use App\Arc\SysConfig;
 use App\Policies\Capabilities;
 use Illuminate\Support\Facades\Route;
 
@@ -317,6 +318,30 @@ it('changes the panel certificate through a secret directory', function () {
 });
 
 // Security
+
+it('switches REST API v1 on its own key and turns it off with the other APIs (E39 W4 D9)', function () {
+    $this->fake->on('v-change-sys-api')->returns();
+    signIn('arcadmin', 'admin');
+    $form = ['API_SYSTEM' => '1', 'API' => 'no', 'API_ALLOWED_IP' => '', 'LOGIN_STYLE' => 'default', 'INACTIVE_SESSION_TIMEOUT' => '60', 'POLICY_CSRF_STRICTNESS' => '1'];
+
+    $this->get('/server/settings/security')->assertOk()->assertSee('REST API v1');
+
+    $this->post('/server/settings/security', array_replace($form, ['API_V1' => 'yes']))->assertSessionHas('ok', 'Changes have been saved.');
+    $this->fake->assertRan('v-change-sys-api', fn ($a) => $a === ['enable']);
+    $this->fake->assertRan('v-change-sys-config-value', fn ($a) => $a === ['API_V1', 'yes']);
+
+    // With API v1 still on, API_SYSTEM 0 and the legacy API off are not "everything off"
+    $this->fake->on('v-list-sys-config', ['json'])->returnsJson(sysConfig(['API_SYSTEM' => '1', 'API' => 'no', 'API_V1' => 'yes', 'API_ALLOWED_IP' => '']));
+    app()->forgetInstance(SysConfig::class);
+    cache()->flush();
+    $this->post('/server/settings/security', array_replace($form, ['API_SYSTEM' => '0']))->assertSessionHas('ok');
+    $this->fake->assertRan('v-change-sys-api', fn ($a) => $a === ['disable'], 0);
+
+    $this->post('/server/settings/security', array_replace($form, ['API_SYSTEM' => '0', 'API_V1' => 'no']))->assertSessionHas('ok');
+    $this->fake->assertRan('v-change-sys-api', fn ($a) => $a === ['disable']);
+
+    $this->post('/server/settings/security', array_replace($form, ['API_V1' => 'maybe']))->assertSessionHasErrors('API_V1');
+});
 
 it('turns the API off with one command and keeps System Protection for the ROOT_USER', function () {
     $this->fake->on('v-change-sys-api')->returns();

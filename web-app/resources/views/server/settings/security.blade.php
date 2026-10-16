@@ -37,8 +37,10 @@
                 <div class="ap-form-grid">
                     <x-ap-select name="API_SYSTEM" :label="__('API')" :value="$config['API_SYSTEM'] ?? '0'"
                         :options="['0' => __('Disabled'), '1' => __('Enabled for the system administrator'), '2' => __('Enabled for every user')]" />
+                    <x-ap-select name="API_V1" :label="__('REST API v1')" :options="$yesNo" :value="$value('API_V1')"
+                        :hint="__('The /api/ endpoint of earlier releases. REST API v2 replaces it; phpMyAdmin single sign-on works without it.')" />
                     <x-ap-select name="API" :label="__('Legacy API')" :options="$yesNo" :value="($config['API'] ?? '') === 'yes' ? 'yes' : 'no'"
-                        :hint="__('The older API that signs in with a user name and password or a hash key.')" />
+                        :hint="__('The older API that signs in with a user name and password or a hash key. Needs REST API v1.')" />
                 </div>
                 <x-ap-textarea name="API_ALLOWED_IP" :label="__('Allowed IP addresses for API')" :value="$allowedIps" rows="3" mono
                     :hint="__('One address per line; allow-all accepts every address.')" />

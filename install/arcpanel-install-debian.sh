@@ -122,6 +122,7 @@ help() {
   -L, --resourcelimit     Resource Limitation   [yes|no]  default: no
   -W, --webterminal       Web Terminal          [yes|no]  default: no
   -d, --api               Activate API          [yes|no]  default: yes
+  -A, --api-v1            Activate API v1       [yes|no]  default: no
   -r, --port              Change Backend Port             default: 8083
   -l, --lang              Default language                default: en
   -y, --interactive       Interactive install   [yes|no]  default: yes
@@ -423,6 +424,7 @@ for arg; do
 		--lang) args="${args}-l " ;;
 		--interactive) args="${args}-y " ;;
 		--api) args="${args}-d " ;;
+		--api-v1) args="${args}-A " ;;
 		--hostname) args="${args}-s " ;;
 		--email) args="${args}-e " ;;
 		--username) args="${args}-u " ;;
@@ -439,7 +441,7 @@ done
 eval set -- "$args"
 
 # Parsing arguments
-while getopts "a:w:v:j:k:m:M:g:d:x:z:Z:c:t:i:b:r:o:q:L:l:y:s:u:e:p:W:D:fh" Option; do
+while getopts "a:w:v:j:k:m:M:g:d:A:x:z:Z:c:t:i:b:r:o:q:L:l:y:s:u:e:p:W:D:fh" Option; do
 	case $Option in
 		a) apache=$OPTARG ;;        # Apache
 		w) phpfpm=$OPTARG ;;        # PHP-FPM
@@ -463,6 +465,7 @@ while getopts "a:w:v:j:k:m:M:g:d:x:z:Z:c:t:i:b:r:o:q:L:l:y:s:u:e:p:W:D:fh" Optio
 		r) port=$OPTARG ;;          # Backend Port
 		l) lang=$OPTARG ;;          # Language
 		d) api=$OPTARG ;;           # Activate API
+		A) api_v1=$OPTARG ;;        # Activate API v1
 		y) interactive=$OPTARG ;;   # Interactive install
 		s) servername=$OPTARG ;;    # Hostname
 		e) email=$OPTARG ;;         # Admin email
@@ -542,6 +545,7 @@ set_default_value 'resourcelimit' 'no'
 set_default_value 'webterminal' 'no'
 set_default_value 'interactive' 'yes'
 set_default_value 'api' 'yes'
+set_default_value 'api_v1' 'no'
 set_default_port '8083'
 set_default_lang 'en'
 
@@ -1650,6 +1654,8 @@ fi
 
 # Installing API
 cp -rf $ARCPANEL_COMMON_DIR/api $ARCPANEL/data/
+# The secret store set keeps its name v2-secrets (E39 W4 D13)
+mv -f $ARCPANEL/data/api/v2-secret-store $ARCPANEL/data/api/v2-secrets
 
 # Configuring server hostname
 $ARCPANEL/bin/v-change-sys-hostname $servername > /dev/null 2>&1
@@ -2453,13 +2459,16 @@ fi
 #                       Configure API                      #
 #----------------------------------------------------------#
 
+# Access keys and REST API v2 with --api; REST API v1 (lib/api) and its
+# legacy hash login only with --api-v1 (E39 W4 D9)
 if [ "$api" = "yes" ]; then
-	# Keep legacy api enabled until transition is complete
-	write_config_value "API" "yes"
+	write_config_value "API" "$api_v1"
+	write_config_value "API_V1" "$api_v1"
 	write_config_value "API_SYSTEM" "1"
 	write_config_value "API_ALLOWED_IP" ""
 else
 	write_config_value "API" "no"
+	write_config_value "API_V1" "no"
 	write_config_value "API_SYSTEM" "0"
 	write_config_value "API_ALLOWED_IP" ""
 	$ARCPANEL/bin/v-change-sys-api disable

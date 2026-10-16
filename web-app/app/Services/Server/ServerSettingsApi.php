@@ -59,7 +59,7 @@ final class ServerSettingsApi
             'not_before' => 'string', 'not_after' => 'string', 'signature' => 'string', 'public_key' => 'string',
         ],
         'security' => [
-            'API_SYSTEM' => 'string', 'API' => 'string', 'API_ALLOWED_IP' => 'string',
+            'API_SYSTEM' => 'string', 'API' => 'string', 'API_V1' => 'string', 'API_ALLOWED_IP' => 'string',
             'LOGIN_STYLE' => 'string', 'INACTIVE_SESSION_TIMEOUT' => 'string', 'POLICY_CSRF_STRICTNESS' => 'string',
             'POLICY_SYSTEM_PASSWORD_RESET' => 'string',
             'POLICY_SYSTEM_PROTECTED_ADMIN' => 'string', 'POLICY_SYSTEM_HIDE_ADMIN' => 'string', 'POLICY_SYSTEM_HIDE_SERVICES' => 'string',
@@ -101,7 +101,7 @@ final class ServerSettingsApi
      * the field. They stay on the panel's settings page.
      */
     public const REFUSED = [
-        'API_SYSTEM' => 'api', 'API' => 'api', 'API_ALLOWED_IP' => 'api',
+        'API_SYSTEM' => 'api', 'API' => 'api', 'API_V1' => 'api', 'API_ALLOWED_IP' => 'api',
         'POLICY_SYSTEM_PROTECTED_ADMIN' => 'protection', 'POLICY_SYSTEM_HIDE_ADMIN' => 'protection', 'POLICY_SYSTEM_HIDE_SERVICES' => 'protection',
         'pma_sso' => 'sso', 'pma_restrict' => 'sso', 'PHPMYADMIN_KEY' => 'sso',
         'logo' => 'logo', 'custom_logo' => 'logo',

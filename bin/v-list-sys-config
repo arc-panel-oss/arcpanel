@@ -32,6 +32,7 @@ json_list() {
 		"API": "'$API'",
 		"API_ALLOWED_IP": "'$API_ALLOWED_IP'",
 		"API_SYSTEM": "'$API_SYSTEM'",
+		"API_V1": "'$API_V1'",
 		"APP_NAME": "'$APP_NAME'",
 		"BACKEND_PORT": "'$BACKEND_PORT'",
 		"BACKUP": "'$BACKUP'",
@@ -235,6 +236,7 @@ shell_list() {
 	if [ -n "$API" ]; then
 		echo "API enabled:             $API"
 		echo "API allowed IP's:             $API_ALLOWED_IP"
+		echo "API v1 enabled:          $API_V1"
 
 	fi
 
