@@ -29,6 +29,9 @@ APPPROC_RUN_DIR="$ARCPANEL/data/app-processes"
 APPPROC_ENV_DIR="/run/arcpanel/app"
 APPPROC_UNIT_DIR="${ARC_APPPROC_UNIT_DIR:-/etc/systemd/system}"
 APPPROC_RUNNER="$ARCPANEL/bin/arc-app-run"
+# PHP settings of the processes; ".php" is no user name, and the folder is
+# readable by everyone (the run directory itself is 711)
+APPPROC_PHP_INI_DIR="$APPPROC_RUN_DIR/.php"
 APPPROC_DEFAULT_CWD="public_html"
 
 # Default and highest memory of a process in MB when the package has none
@@ -411,9 +414,11 @@ appproc_python_module() {
 	fi
 }
 
-# Fill the placeholders of a preset TEXT for USER's DOMAIN with CWD and PORT
+# Fill the placeholders of a preset TEXT for USER's DOMAIN with CWD, PORT
+# and CPUS (%workers%: the CPUs rounded up, at least 1; a non-number keeps
+# the placeholder)
 appproc_fill() {
-	local user="$1" domain="$2" cwd="$3" port="$4" text="$5" dir version module=app
+	local user="$1" domain="$2" cwd="$3" port="$4" text="$5" cpus="${6:-1}" dir version module=app workers hundredths
 	dir=$(appproc_cwd_path "$user" "$domain" "$cwd")
 	if [[ "$text" == *%php%* ]]; then
 		version=$(appproc_php_version "$user" "$domain")
@@ -431,6 +436,10 @@ appproc_fill() {
 		text=${text//%module%/$module}
 	fi
 	text=${text//%port%/$port}
+	if hundredths=$(appproc_cpus_hundredths "$cpus"); then
+		workers=$(((hundredths + 99) / 100))
+		text=${text//%workers%/$workers}
+	fi
 	printf '%s' "$text"
 }
 

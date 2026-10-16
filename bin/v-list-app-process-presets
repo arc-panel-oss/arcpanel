@@ -9,7 +9,8 @@
 # template, runtime and the command with its placeholders. With USER and
 # DOMAIN, each preset also says whether its files were found in CWD
 # (default public_html, read as the user) and why its runtime is missing,
-# and the command shows its placeholders filled in (%port% stays).
+# and the command shows its placeholders filled in (%port% and %workers%,
+# which depend on the process, stay).
 
 #----------------------------------------------------------#
 #                Variables & Functions                     #
@@ -66,7 +67,7 @@ for preset in $(appproc_preset_names); do
 	start=$(appproc_field "$line" START)
 	missing=''
 	if [ "$for_domain" = 'yes' ]; then
-		start=$(appproc_fill "$user" "$domain" "$cwd" '%port%' "$start")
+		start=$(appproc_fill "$user" "$domain" "$cwd" '%port%' "$start" '%workers%')
 		missing=$(appproc_runtime_missing "$user" "$domain" "$preset" "$cwd")
 	fi
 	template=$(appproc_field "$line" TEMPLATE)

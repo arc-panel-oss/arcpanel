@@ -5,7 +5,8 @@
 # example: v-add-sys-app-processes
 #
 # This function prepares a server for app processes: the root-owned folder
-# of their run files, the app process keys of the "developer" package and
+# of their run files, the PHP settings of the processes
+# ($ARCPANEL/data/app-processes/.php/zz-app-processes.ini), the app process keys of the "developer" package and
 # the 5-minute v-check-sys-app-processes job that converges the units with
 # the records. It is safe to run again and keeps packages an administrator
 # has changed.
@@ -50,6 +51,16 @@ mkdir -p "$APPPROC_RUN_DIR"
 chown root:root "$APPPROC_RUN_DIR"
 chmod 711 "$APPPROC_RUN_DIR"
 chmod 755 "$APPPROC_RUNNER" 2> /dev/null
+
+# PHP settings of app processes, read after the CLI php.ini of each version
+# (arc-app-run sets PHP_INI_SCAN_DIR). Written once: the administrator may
+# edit it.
+mkdir -p "$APPPROC_PHP_INI_DIR"
+chmod 755 "$APPPROC_PHP_INI_DIR"
+if [ ! -f "$APPPROC_PHP_INI_DIR/zz-app-processes.ini" ]; then
+	install -m 644 "$ARCPANEL/install/common/app-processes/zz-app-processes.ini" "$APPPROC_PHP_INI_DIR/zz-app-processes.ini"
+	sed -i 's/\r$//' "$APPPROC_PHP_INI_DIR/zz-app-processes.ini"
+fi
 
 # The developer package allows app processes; other packages keep the
 # default (no)

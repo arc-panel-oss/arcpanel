@@ -179,7 +179,7 @@ fi
 
 # The command: the preset's with its placeholders filled, or the given one
 if [ -z "$start" ]; then
-	start=$(appproc_fill "$user" "$domain" "$cwd" "$port" "$(appproc_preset_get "$preset" START)")
+	start=$(appproc_fill "$user" "$domain" "$cwd" "$port" "$(appproc_preset_get "$preset" START)" "$cpus")
 fi
 appproc_check_start "$start"
 if [ "$kind" = 'web' ] && [ -n "$port" ] && [[ "$start" == *%port%* ]]; then

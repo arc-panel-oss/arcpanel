@@ -264,6 +264,9 @@ split() {
     assert_equal "$(stat -c %U "/proc/$pid")" "$U1"
     grep -q "user-$(id -u $U1).slice" "/proc/$pid/cgroup"
     tr '\0' '\n' < "/proc/$pid/environ" | grep -qx "HOST=127.0.0.1"
+    tr '\0' '\n' < "/proc/$pid/environ" | grep -qx "PHP_INI_SCAN_DIR=:$ARCPANEL/data/app-processes/.php"
+    grep -qx "disable_functions =" "$ARCPANEL/data/app-processes/.php/zz-app-processes.ini"
+    assert_equal "$(stat -c %a "$ARCPANEL/data/app-processes")" "711"
 }
 
 @test "Core: the run file is root's, readable by the user only; the copy is the user's" {
