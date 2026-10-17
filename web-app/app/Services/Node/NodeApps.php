@@ -26,7 +26,7 @@ final class NodeApps
         $apps = [];
         foreach ((array) ($data['APPS'] ?? []) as $row) {
             if (is_array($row)) {
-                $apps[] = NodeApp::from($row);
+                $apps[] = NodeApp::from($row, (string) ($data['USER'] ?? ''));
             }
         }
 

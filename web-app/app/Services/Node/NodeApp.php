@@ -5,6 +5,8 @@ namespace App\Services\Node;
 /**
  * One Node.js app of `v-list-node-apps USER json` or `v-list-node-app USER
  * DOMAIN json` (E14 spec §5.4): the record merged with the live pm2 state.
+ * A record of `v-list-sys-node-apps` (E43 B2) has no live state: `live` is
+ * false and the API answers its live fields as null.
  */
 final class NodeApp
 {
@@ -31,10 +33,12 @@ final class NodeApp
         public readonly string $url,
         public readonly bool $ssl,
         public readonly string $created,
+        public readonly string $user = '',
+        public readonly bool $live = true,
     ) {}
 
     /** @param  array<string, mixed>  $row */
-    public static function from(array $row): self
+    public static function from(array $row, string $user = '', bool $live = true): self
     {
         $value = fn (string $key) => is_scalar($row[$key] ?? null) ? (string) $row[$key] : '';
         $domain = $value('DOMAIN');
@@ -62,7 +66,20 @@ final class NodeApp
             url: $value('URL') !== '' ? $value('URL') : 'http://'.$domain.'/',
             ssl: $value('SSL') === 'yes',
             created: trim($value('DATE').' '.$value('TIME')),
+            user: $user,
+            live: $live,
         );
+    }
+
+    /**
+     * A record of nodeapps.conf as `v-list-sys-node-apps` prints it, without
+     * the live state of pm2.
+     *
+     * @param  array<string, mixed>  $row
+     */
+    public static function fromRecord(string $user, array $row): self
+    {
+        return self::from($row, $user, false);
     }
 
     public function online(): bool

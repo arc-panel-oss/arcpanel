@@ -76,6 +76,13 @@ Route::middleware('not-readonly')->group(function () {
 Route::get('/stats', [StatsController::class, 'index'])->name('stats.index');
 Route::get('/search', SearchController::class)->name('search');
 
+// Cross-user lists of the key's scope, for administrators and resellers (E43 B2)
+Route::get('/web-domains', [WebDomainController::class, 'indexAll'])->name('web-domains.all');
+Route::get('/databases', [DatabaseController::class, 'indexAll'])->name('databases.all');
+Route::get('/cron-jobs', [CronController::class, 'indexAll'])->name('cron-jobs.all');
+Route::get('/node-apps', [NodeAppController::class, 'indexAll'])->name('node-apps.all');
+Route::get('/backups', [BackupController::class, 'indexAll'])->name('backups.all');
+
 // Malware scan summary of the principal's tree (E25 batch 1 spec §9)
 Route::get('/malware', [MalwareController::class, 'summary'])->middleware('sys-config:MALWARE_SCAN=yes')->name('malware.summary');
 Route::get('/access-key-sets', [AccessKeyController::class, 'sets'])->name('access-key-sets.index');

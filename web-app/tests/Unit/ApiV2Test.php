@@ -268,6 +268,14 @@ it('documents pagination and error.existing', function () {
 
                 continue;
             }
+            // Cross-user lists page and carry the change filter (E43 spec §5)
+            if (str_starts_with($id, 'listAll')) {
+                $schema = $operation['responses']['200']['content']['application/json']['schema']['properties']['meta'] ?? null;
+                expect($schema)->toBe(['$ref' => '#/components/schemas/CrossUserListMeta'], $id);
+                expect(array_column($operation['parameters'] ?? [], 'name'))->toContain('user', 'updated_since', 'limit', 'offset');
+
+                continue;
+            }
             if ($id === 'listDockerCatalog') {
                 $names = array_column($operation['parameters'] ?? [], 'name');
                 expect($names)->not->toContain('limit')->not->toContain('offset');

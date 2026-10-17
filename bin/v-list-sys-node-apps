@@ -1,0 +1,52 @@
+#!/bin/bash
+# info: list the Node.js apps of every user (E43)
+# options: [OWNER] [UPDATED_SINCE] [FORMAT]
+#
+# example: v-list-sys-node-apps '' '' json
+# example: v-list-sys-node-apps reseller1 1792231200 json
+#
+# This function lists the Node.js apps of every user, or of OWNER and, when
+# OWNER is a reseller, its customers, read in one process from their
+# records: the json format prints AS_OF (the Unix time the listing
+# started), USERS (every user in scope), CHANGED_USERS and OBJECTS, the
+# records of each changed user with the keys of nodeapps.conf. The live
+# state of pm2 (STATUS, PID, CPU and the rest of v-list-node-apps) is not
+# read. Without UPDATED_SINCE (a Unix time) every user is changed; with it,
+# only the users whose nodeapps.conf, or user directory when the file is
+# missing, was modified at or after that time. See
+# docs/features/specs/2026-10-16-004-e43-api-v2-fleet-additions-design.md §5.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+owner=${1-}
+since=${2-}
+format=${3-shell}
+
+# Includes
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/sys-list.sh
+source $ARCPANEL/func/sys-list.sh
+# load config file
+source_conf "$ARCPANEL/conf/arcpanel.conf"
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+sys_list_print node "$owner" "$since" "$format"
+
+#----------------------------------------------------------#
+#                         ArcPanel                         #
+#----------------------------------------------------------#
+
+exit

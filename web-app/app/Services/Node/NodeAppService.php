@@ -57,7 +57,7 @@ final class NodeAppService
     {
         $data = $this->arc->json('v-list-node-app', [$user, $domain]);
 
-        return NodeApp::from(is_array($data[$domain] ?? null) ? $data[$domain] : []);
+        return NodeApp::from(is_array($data[$domain] ?? null) ? $data[$domain] : [], $user);
     }
 
     /**

@@ -1,4 +1,4 @@
 # REST API v2 (E34): databases, plus the foundation reads. API v1 skips this set.
 ROLE='user'
 API_VERSION='2'
-COMMANDS='v-list-sys-config,v-list-users,v-list-user-owners,v-list-user,v-list-sys-languages,v-list-reseller-packages,v-list-package-tenancy,v-check-reseller-quota,v-list-databases,v-list-database,v-list-database-hosts,v-add-database,v-change-database-user,v-change-database-password,v-suspend-database,v-unsuspend-database,v-rebuild-database,v-delete-database,v-dump-database'
+COMMANDS='v-list-sys-config,v-list-users,v-list-user-owners,v-list-user,v-list-sys-languages,v-list-reseller-packages,v-list-package-tenancy,v-check-reseller-quota,v-list-databases,v-list-sys-databases,v-list-database,v-list-database-hosts,v-add-database,v-change-database-user,v-change-database-password,v-suspend-database,v-unsuspend-database,v-rebuild-database,v-delete-database,v-dump-database'

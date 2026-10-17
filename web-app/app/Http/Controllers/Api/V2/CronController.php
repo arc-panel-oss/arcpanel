@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\V2;
 
 use App\Api\ApiException;
 use App\Api\CronSchedule;
+use App\Api\CrossUserList;
 use App\Api\ErrorCode;
 use App\Api\Paginates;
 use App\Api\PlanGate;
@@ -14,6 +15,7 @@ use App\Http\Requests\Api\V2\StoreCronJobRequest;
 use App\Http\Requests\Api\V2\UpdateCronJobRequest;
 use App\Http\Resources\V2\CronJobResource;
 use App\Policies\CronPolicy;
+use App\Services\Cron\CronJobRecord;
 use App\Services\Cron\CronService;
 use App\Services\WebDomains\Step;
 use App\Tenancy\TenancyDirectory;
@@ -35,6 +37,28 @@ final class CronController extends Controller
         private readonly Paginates $pages,
         private readonly TenancyDirectory $directory,
     ) {}
+
+    /**
+     * List the cron jobs of every user
+     *
+     * Every user's cron jobs for an administrator's key, those of the reseller
+     * and its customers for a reseller's key; a user's key answers 403
+     * (`listCronJobs` covers it). Sorted by user, then id. With
+     * `updated_since`, only the users whose cron jobs changed at or after that
+     * time are returned, each with all its cron jobs: `meta.as_of` is the next
+     * `updated_since`, `meta.users` every user in scope and
+     * `meta.changed_users` the users returned (E43 B2). `meta.timezone` is the
+     * server's time zone.
+     *
+     * @operationId listAllCronJobs
+     */
+    public function indexAll(Request $request, CrossUserList $lists): AnonymousResourceCollection
+    {
+        $page = $lists->page($request, 'v-list-sys-cron-jobs', CronJobRecord::fromArray(...), fn (CronJobRecord $job) => ctype_digit($job->job) ? (int) $job->job : $job->job);
+        $page['meta']['timezone'] = $this->cron->timezone();
+
+        return CronJobResource::collection($page['items'])->additional(['meta' => $page['meta']]);
+    }
 
     /**
      * List the cron jobs of a user

@@ -1,0 +1,50 @@
+#!/bin/bash
+# info: list the backup archives of every user (E43)
+# options: [OWNER] [UPDATED_SINCE] [FORMAT]
+#
+# example: v-list-sys-backups '' '' json
+# example: v-list-sys-backups reseller1 1792231200 json
+#
+# This function lists the backup archives of every user, or of OWNER and, when
+# OWNER is a reseller, its customers, read in one process. The json format
+# prints AS_OF (the Unix time the listing started), USERS (every user in
+# scope), CHANGED_USERS and OBJECTS: the backup archives of each changed user as
+# v-list-user-backups prints them. Without UPDATED_SINCE (a Unix time) every
+# user is changed; with it, only the users whose backup.conf was modified at or
+# after that time. See
+# docs/features/specs/2026-10-16-004-e43-api-v2-fleet-additions-design.md §5.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+owner=${1-}
+since=${2-}
+format=${3-shell}
+
+# Includes
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/sys-list.sh
+source $ARCPANEL/func/sys-list.sh
+# load config file
+source_conf "$ARCPANEL/conf/arcpanel.conf"
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+sys_list_print backup "$owner" "$since" "$format"
+
+#----------------------------------------------------------#
+#                         ArcPanel                         #
+#----------------------------------------------------------#
+
+exit

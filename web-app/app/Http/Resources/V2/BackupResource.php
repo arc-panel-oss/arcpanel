@@ -21,6 +21,8 @@ final class BackupResource extends JsonResource
         return [
             /** @var string */
             'name' => $archive->name,
+            /** @var string the owner */
+            'user' => $archive->user,
             /** @var string */
             'type' => self::typeFromName($archive->name),
             /** @var int */

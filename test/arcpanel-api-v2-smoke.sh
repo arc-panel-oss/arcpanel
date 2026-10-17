@@ -258,6 +258,18 @@ check "a v2-read key may not create a domain" 403 "$(call "$READER" POST "$WEB" 
 check "createWebDomain answers 201" 201 "$(call "$WRITER" POST "$WEB" "{\"domain\": \"$SMOKE_DOMAIN\", \"aliases\": [\"www.$SMOKE_DOMAIN\", \"alt.$SMOKE_DOMAIN\"]}")"
 check "the domain has the given aliases" "alt.$SMOKE_DOMAIN,www.$SMOKE_DOMAIN" "$(domain_value ALIAS | tr ',' '\n' | sort | paste -sd,)"
 check "a repeated createWebDomain answers 409" 409 "$(call "$WRITER" POST "$WEB" "{\"domain\": \"$SMOKE_DOMAIN\"}")"
+# Cross-user lists (E43 B2), with an administrator's key and an administrator's v2-observe key
+ADMIN_OBSERVER=$(new_key "$ROOT_USER" v2-observe)
+for kind in web-domains databases cron-jobs node-apps backups; do
+	check "GET /$kind of every user answers 200 (E43 B2)" 200 "$(call "$ADMIN" GET "/$kind?limit=1000")"
+	check "GET /$kind names the smoke user in meta.users" true "$(jq -r --arg u "$SMOKE_USER" '.meta.users | index($u) != null' "$BODY")"
+	check "GET /$kind answers a v2-observe key" 200 "$(call "$ADMIN_OBSERVER" GET "/$kind")"
+done
+check "listAllWebDomains narrowed to the smoke user holds its domain" "$SMOKE_USER $SMOKE_DOMAIN" \
+	"$(call "$ADMIN" GET "/web-domains?user=$SMOKE_USER" > /dev/null && json '[.data[] | "\(.user) \(.domain)"] | join(",")')"
+check "listAllWebDomains with a later updated_since returns no user" 0 \
+	"$(call "$ADMIN" GET "/web-domains?updated_since=$(date -u -d '+1 day' +%Y-%m-%dT%H:%M:%SZ)" > /dev/null && json '.meta.changed_users | length')"
+check "listAllWebDomains refuses a user's key" 403 "$(call "$WRITER" GET /web-domains)"
 check "listWebDomains lists it" "$SMOKE_DOMAIN" "$(
 	call "$READER" GET "$WEB" > /dev/null
 	json '.data[0].domain'

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V2;
 
 use App\Api\ApiException;
+use App\Api\CrossUserList;
 use App\Api\ErrorCode;
 use App\Api\KeyPermissions;
 use App\Api\PlanGate;
@@ -19,6 +20,7 @@ use App\Http\Resources\V2\NodeAppResource;
 use App\Http\Resources\V2\TaskResource;
 use App\Policies\NodePolicy;
 use App\Services\Node\NodeAccess;
+use App\Services\Node\NodeApp;
 use App\Services\Node\NodeAppActions;
 use App\Services\Node\NodeAppService;
 use App\Services\Node\NodeService;
@@ -45,6 +47,29 @@ final class NodeAppController extends Controller
         private readonly TenancyDirectory $directory,
         private readonly KeyPermissions $key,
     ) {}
+
+    /**
+     * List the Node.js apps of every user
+     *
+     * Every user's Node.js apps for an administrator's key, those of the reseller
+     * and its customers for a reseller's key; a user's key answers 403
+     * (`listNodeApps` covers it). Sorted by user, then domain. With
+     * `updated_since`, only the users whose Node.js apps changed at or after that
+     * time are returned, each with all its Node.js apps: `meta.as_of` is the next
+     * `updated_since`, `meta.users` every user in scope and
+     * `meta.changed_users` the users returned (E43 B2). The apps come from
+     * their records: the live state of pm2 (`runtime`, `status`, `online`,
+     * `reason`, `pid`, `cpu`, `memory_mb`, `restarts`, `uptime_seconds`) is
+     * null; getNodeApp and listNodeApps answer it.
+     *
+     * @operationId listAllNodeApps
+     */
+    public function indexAll(Request $request, CrossUserList $lists): AnonymousResourceCollection
+    {
+        $page = $lists->page($request, 'v-list-sys-node-apps', fn (string $user, string $domain, array $row) => NodeApp::fromRecord($user, $row), fn (NodeApp $app) => $app->domain);
+
+        return NodeAppResource::collection($page['items'])->additional(['meta' => $page['meta']]);
+    }
 
     /**
      * List the Node.js apps of a user
