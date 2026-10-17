@@ -33,7 +33,7 @@ VERBOSE='no'
 # Define software versions
 # ArcPanel version: the version of the arcpanel package, stored as VERSION
 # in arcpanel.conf (ADR-0007)
-ARCPANEL_INSTALL_VER='2.1.3'
+ARCPANEL_INSTALL_VER='2.2.0'
 
 # Build the full ArcPanel version
 # Split base version (2.0.0) from channel suffix (~alpha / ~beta), if present

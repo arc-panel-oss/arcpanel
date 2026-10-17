@@ -2,7 +2,7 @@
 
 All notable changes to ArcPanel are listed here. ArcPanel is based on HestiaCP 1.10.5 and, since 2.0, a hard fork of it ([ADR-0007](https://github.com/arc-panel-oss/docs/blob/main/adr/0007-full-rename-and-hard-fork.md)).
 
-## Unreleased
+## 2.2.0 — 2026-10-17
 
 The REST API v2 additions that ArcPanel Fleet needs to operate many servers (E43), all additive. See the [E43 spec](https://github.com/arc-panel-oss/docs/blob/main/features/specs/2026-10-16-004-e43-api-v2-fleet-additions-design.md).
 
