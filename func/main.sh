@@ -1147,6 +1147,88 @@ is_ipv6_cidr_format_valid() {
 	fi
 }
 
+# Address list of an access key (E43 B6): at most 20 distinct IPv4 or IPv6
+# addresses or CIDR networks, comma separated; empty means no restriction
+is_access_key_ips_format_valid() {
+	if [ -z "$1" ]; then
+		return 0
+	fi
+	valid=$($ARCPANEL_PHP -r '
+		$list = explode(",", $argv[1]);
+		if (count($list) > 20 || count($list) !== count(array_unique($list))) {
+			exit("1");
+		}
+		foreach ($list as $entry) {
+			$parts = explode("/", $entry);
+			$ip = filter_var($parts[0], FILTER_VALIDATE_IP);
+			if (count($parts) > 2 || $ip === false) {
+				exit("1");
+			}
+			$max = str_contains($ip, ":") ? 128 : 32;
+			if (count($parts) === 2 && (! ctype_digit($parts[1]) || (int) $parts[1] > $max)) {
+				exit("1");
+			}
+		}
+		echo "0";' "$1")
+	if [ "$valid" != "0" ]; then
+		check_result "$E_INVALID" "invalid allowed IP list :: $1"
+	fi
+}
+
+# Expiry of an access key (E43 B6): a Unix time at least an hour and at most
+# three years ahead; empty means no expiry
+is_access_key_expiry_valid() {
+	if [ -z "$1" ]; then
+		return 0
+	fi
+	local now
+	now="$(date +%s)"
+	if ! [[ "$1" =~ ^[0-9]{1,12}$ ]] || [ "$1" -lt $((now + 3600)) ] || [ "$1" -gt "$(date -d '+3 years' +%s)" ]; then
+		check_result "$E_INVALID" "invalid expiry :: $1 (a Unix time at least an hour and at most three years ahead)"
+	fi
+}
+
+# Whether the address IP is in LIST, a comma list of addresses and CIDR
+# networks of an access key (E43 B6)
+is_ip_in_access_key_list() {
+	$ARCPANEL_PHP -r '
+		$ip = @inet_pton($argv[1]);
+		if ($ip === false) {
+			exit(1);
+		}
+		foreach (explode(",", $argv[2]) as $entry) {
+			$parts = explode("/", trim($entry), 2);
+			$net = @inet_pton($parts[0]);
+			if ($net === false || strlen($net) !== strlen($ip)) {
+				continue;
+			}
+			$bits = isset($parts[1]) ? (int) $parts[1] : strlen($net) * 8;
+			$bytes = intdiv($bits, 8);
+			$rest = $bits % 8;
+			if (substr($ip, 0, $bytes) !== substr($net, 0, $bytes)) {
+				continue;
+			}
+			if ($rest === 0 || ((ord($ip[$bytes]) ^ ord($net[$bytes])) & (0xff << (8 - $rest)) & 0xff) === 0) {
+				exit(0);
+			}
+		}
+		exit(1);' "$1" "$2"
+}
+
+# Restrictions of an access key, after its secret was checked (E43 B6): an
+# expired key fails like a wrong secret (E_PASSWORD); a client address
+# outside the key's list fails with FOREIGN_CODE and MESSAGE. Reads EXPIRES
+# and ALLOWED_IPS of the sourced key file.
+check_access_key_restrictions() {
+	local access_key_id="$1" ip="$2" foreign_code="$3" message="$4"
+	if [[ "$EXPIRES" =~ ^[0-9]+$ ]] && [ "$EXPIRES" -le "$(date +%s)" ]; then
+		check_result "$E_PASSWORD" "Key $access_key_id has expired"
+	fi
+	if [ -n "$ALLOWED_IPS" ] && ! is_ip_in_access_key_list "$ip" "$ALLOWED_IPS"; then
+		check_result "$foreign_code" "$message"
+	fi
+}
+
 is_netmask_format_valid() {
 	object_name=${2-netmask}
 	valid=$($ARCPANEL_PHP -r '$netmask=$argv[1]; echo (preg_match("/^(128|192|224|240|248|252|254|255)\.(0|128|192|224|240|248|252|254|255)\.(0|128|192|224|240|248|252|254|255)\.(0|128|192|224|240|248|252|254|255)/", $netmask) ? 0 : 1);' "$1")
@@ -1794,7 +1876,7 @@ check_access_key_secret() {
 	elif ! [[ "$secret_access_key" =~ ^[[:alnum:]|_|\.|\+|/|\^|~|=|%|\-]{40}$ ]]; then
 		check_result "$E_PASSWORD" "Invalid secret key for key $access_key_id"
 	else
-		SECRET_ACCESS_KEY=""
+		SECRET_ACCESS_KEY="" EXPIRES="" ALLOWED_IPS=""
 		source_conf "$ARCPANEL/data/access-keys/${access_key_id}"
 
 		if [[ -z "$SECRET_ACCESS_KEY" || "$SECRET_ACCESS_KEY" != "$secret_access_key" ]]; then

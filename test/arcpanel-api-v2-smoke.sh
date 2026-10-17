@@ -153,6 +153,8 @@ wait_v2_task() {
 
 "$ARCPANEL/bin/v-change-sys-config-value" API_SYSTEM 2
 "$ARCPANEL/bin/v-change-sys-config-value" API_ALLOWED_IP allow-all
+# The server identifier of GET /me (E43 B1); the installers and the upgrade step set it
+SERVER_ID=$("$ARCPANEL/bin/v-update-sys-server-id" plain)
 clear_panel_cache
 
 ADMIN=$(new_key "$ROOT_USER" '')
@@ -160,6 +162,8 @@ ADMIN=$(new_key "$ROOT_USER" '')
 # Foundation (spec §4)
 check "GET /me answers for the administrator's key" 200 "$(call "$ADMIN" GET /me)"
 check "GET /me: unrestricted" '*' "$(json '.data.commands | join(",")')"
+check "GET /me: the server identifier (E43 B1)" "$SERVER_ID" "$(json .data.server_id)"
+check "GET /me: no expiry and no address list without restrictions" 'null []' "$(json '"\(.data.key_expires_at) \(.data.key_allowed_ips | tojson)"')"
 check "a wrong secret answers 401" 401 "$(call "${ADMIN%%:*}:$(printf 'x%.0s' {1..40})" GET /me)"
 check "401 carries the error code" E_UNAUTHENTICATED "$(json .error.code)"
 check "an unknown path answers 404 with the error body" E_NOTEXIST "$(
@@ -194,6 +198,24 @@ check "API v1 refuses the commands of v2-read (E_FORBIDEN)" 10 "$v1_exit"
 check "a v2-write key changes the name" 200 "$(call "$WRITER" PATCH "/users/$SMOKE_USER" '{"name": "Smoke Changed"}')"
 check "the name changed" "Smoke Changed" "$("$ARCPANEL/bin/v-list-user" "$SMOKE_USER" json | jq -r ".\"$SMOKE_USER\".NAME")"
 check "changeUserPassword answers 204" 204 "$(call "$WRITER" PUT "/users/$SMOKE_USER/password" "{\"password\": \"${SMOKE_PASS}B2\"}")"
+# The observe set (E43 B3) and the restrictions of a key (B6)
+OBSERVER=$(new_key "$SMOKE_USER" v2-observe)
+check "a v2-observe key reads its account (E43 B3)" 200 "$(call "$OBSERVER" GET "/users/$SMOKE_USER")"
+call "$OBSERVER" GET /me > /dev/null
+check "GET /me names the v2-observe set" v2-observe "$(json '.data.permissions | join(",")')"
+if grep -q "^FILE_MANAGER='true'" "$CONF"; then
+	check "a v2-observe key may not list files" 403 "$(call "$OBSERVER" GET "/users/$SMOKE_USER/files?path=web")"
+else
+	skip "files: FILE_MANAGER is off on this server"
+fi
+check "a v2-observe key may not list secrets" 403 "$(call "$OBSERVER" GET "/users/$SMOKE_USER/secrets")"
+expires=$(date -u -d '+1 day' +%Y-%m-%dT%H:%M:%SZ)
+check "createAccessKey with an address list and an expiry answers 201 (E43 B6)" 201 "$(call "$ADMIN" POST "/users/$SMOKE_USER/access-keys" "{\"permissions\": [\"v2-read\"], \"comment\": \"arcsmoke\", \"allowed_ips\": [\"203.0.113.9\"], \"expires_at\": \"$expires\"}")"
+check "the new key carries its restrictions" "[\"203.0.113.9\"] $expires" "$(json '"\(.data.allowed_ips | tojson) \(.data.expires_at)"')"
+LIMITED="$(json .data.id):$(json .data.secret)"
+check "a key used outside its address list answers 403" 403 "$(call "$LIMITED" GET /me)"
+check "the refusal is E_API_DISABLED" E_API_DISABLED "$(json .error.code)"
+check "an expiry less than an hour ahead answers 422" 422 "$(call "$ADMIN" POST "/users/$SMOKE_USER/access-keys" "{\"permissions\": [\"v2-read\"], \"expires_at\": \"$(date -u -d '+10 minutes' +%Y-%m-%dT%H:%M:%SZ)\"}")"
 check "suspendUser answers 200" 200 "$(call "$ADMIN" POST "/users/$SMOKE_USER/suspend")"
 check "the user is suspended" true "$(json .data.suspended)"
 check "a suspended owner's key answers 403" 403 "$(call "$WRITER" GET /me)"
@@ -236,6 +258,18 @@ check "a v2-read key may not create a domain" 403 "$(call "$READER" POST "$WEB" 
 check "createWebDomain answers 201" 201 "$(call "$WRITER" POST "$WEB" "{\"domain\": \"$SMOKE_DOMAIN\", \"aliases\": [\"www.$SMOKE_DOMAIN\", \"alt.$SMOKE_DOMAIN\"]}")"
 check "the domain has the given aliases" "alt.$SMOKE_DOMAIN,www.$SMOKE_DOMAIN" "$(domain_value ALIAS | tr ',' '\n' | sort | paste -sd,)"
 check "a repeated createWebDomain answers 409" 409 "$(call "$WRITER" POST "$WEB" "{\"domain\": \"$SMOKE_DOMAIN\"}")"
+# Cross-user lists (E43 B2), with an administrator's key and an administrator's v2-observe key
+ADMIN_OBSERVER=$(new_key "$ROOT_USER" v2-observe)
+for kind in web-domains databases cron-jobs node-apps backups; do
+	check "GET /$kind of every user answers 200 (E43 B2)" 200 "$(call "$ADMIN" GET "/$kind?limit=1000")"
+	check "GET /$kind names the smoke user in meta.users" true "$(jq -r --arg u "$SMOKE_USER" '.meta.users | index($u) != null' "$BODY")"
+	check "GET /$kind answers a v2-observe key" 200 "$(call "$ADMIN_OBSERVER" GET "/$kind")"
+done
+check "listAllWebDomains narrowed to the smoke user holds its domain" "$SMOKE_USER $SMOKE_DOMAIN" \
+	"$(call "$ADMIN" GET "/web-domains?user=$SMOKE_USER" > /dev/null && json '[.data[] | "\(.user) \(.domain)"] | join(",")')"
+check "listAllWebDomains with a later updated_since returns no user" 0 \
+	"$(call "$ADMIN" GET "/web-domains?updated_since=$(date -u -d '+1 day' +%Y-%m-%dT%H:%M:%SZ)" > /dev/null && json '.meta.changed_users | length')"
+check "listAllWebDomains refuses a user's key" 403 "$(call "$WRITER" GET /web-domains)"
 check "listWebDomains lists it" "$SMOKE_DOMAIN" "$(
 	call "$READER" GET "$WEB" > /dev/null
 	json '.data[0].domain'
@@ -336,6 +370,18 @@ CRON_ID="$(json .data.id)"
 check "a duplicate cron job answers 409" 409 "$(call "$CRON_KEY" POST "$CRON" '{"schedule": "*/5 * * * *", "command": "echo arcsmoke"}')"
 check "the duplicate points at the job" "/api/v2$CRON/$CRON_ID" "$(json .error.existing)"
 check "deleteCronJob answers 204" 204 "$(call "$CRON_KEY" DELETE "$CRON/$CRON_ID")"
+# Request journal (E43 B4): a write found by the client's X-Request-Id
+REQ_ID="arcsmoke-$RANDOM-$RANDOM"
+req_code=$(curl -sk -o "$BODY" -w '%{http_code}' -X POST -H "Authorization: Bearer $CRON_KEY" -H 'Accept: application/json' \
+	-H 'Content-Type: application/json' -H "X-Request-Id: $REQ_ID" --data '{"schedule": "*/7 * * * *", "command": "echo arcsmoke"}' "$API$CRON")
+check "createCronJob with the client's X-Request-Id answers 201 (E43 B4)" 201 "$req_code"
+REQ_JOB="$(json .data.id)"
+check "getRequest finds the finished write for a v2-read key of its user" "finished 201 createCronJob" \
+	"$(call "$READER" GET "/requests/$REQ_ID" > /dev/null && json '"\(.data.state) \(.data.status) \(.data.operation)"')"
+check "getRequest gives the Location of the new job" true "$(jq -r --arg path "/api/v2$CRON/$REQ_JOB" '.data.location | endswith($path)' "$BODY")"
+check "getRequest answers an administrator's v2-observe key" 200 "$(call "$ADMIN_OBSERVER" GET "/requests/$REQ_ID")"
+check "getRequest answers 404 for an id of no request" 404 "$(call "$READER" GET "/requests/arcsmoke-none-$RANDOM")"
+check "deleteCronJob answers 204 for the journaled job" 204 "$(call "$CRON_KEY" DELETE "$CRON/$REQ_JOB")"
 
 # Batch 3: tasks, backups and downloads (spec 2026-10-08-001 §8)
 WEB="/users/$SMOKE_USER/web-domains"
@@ -699,6 +745,12 @@ else
 	skip "services: this server lists no cron service"
 fi
 check "stopService of arcpanel answers 403" 403 "$(call "$ADMIN" POST /system/services/arcpanel/stop)"
+# Service log excerpts (E43 B5)
+check "getServiceLogs of arcpanel answers 200 (E43 B5)" 200 "$(call "$ADMIN" GET "/system/services/arcpanel/logs?lines=5")"
+check "getServiceLogs answers the service and at most 5 lines" "arcpanel true" "$(json '"\(.data.service) \(.data.lines | length <= 5)"')"
+check "getServiceLogs answers an administrator's v2-observe key" 200 "$(call "$ADMIN_OBSERVER" GET /system/services/arcpanel/logs)"
+check "getServiceLogs answers 404 for a service the server does not list" 404 "$(call "$ADMIN" GET /system/services/arcsmoke-none/logs)"
+check "getServiceLogs refuses a user's key" 403 "$(call "$ACCOUNTS_KEY" GET /system/services/arcpanel/logs)"
 
 # Server settings (§5.7, D58): no secret in the answer; stored values are compared here, never printed
 check "getServerSettings answers 200" 200 "$(call "$ADMIN" GET /system/settings)"

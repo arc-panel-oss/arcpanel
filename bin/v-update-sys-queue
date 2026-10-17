@@ -53,6 +53,16 @@ case $queue in
 	daily)
 		bash $ARCPANEL/data/queue/$queue.pipe > /dev/null 2>&1
 		qt_cleanup_all
+		# A cloned machine gets its own server identifier (E43 B1)
+		$BIN/v-update-sys-server-id > /dev/null 2>&1
+		# The request journal of REST API v2 keeps 7 days (E43 B4)
+		journal="$ARCPANEL/web-app/storage/app/api-requests"
+		cutoff=$(date -d '-7 days' +%F)
+		for file in "$journal"/[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9].jsonl; do
+			if [ -f "$file" ] && [[ "$(basename "$file" .jsonl)" < "$cutoff" ]]; then
+				rm -f "$file"
+			fi
+		done
 		;;
 	traffic) bash $ARCPANEL/data/queue/$queue.pipe > /dev/null 2>&1 ;;
 	dns-cluster) bash $ARCPANEL/data/queue/$queue.pipe > /dev/null 2>&1 ;;

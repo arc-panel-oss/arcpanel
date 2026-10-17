@@ -1,5 +1,6 @@
 <?php
 
+use App\Api\ApiHeaders;
 use App\Http\Controllers\Api\V2\AccessKeyController;
 use App\Http\Controllers\Api\V2\AppProcessController;
 use App\Http\Controllers\Api\V2\BackupController;
@@ -29,6 +30,7 @@ use App\Http\Controllers\Api\V2\PhpController;
 use App\Http\Controllers\Api\V2\PhpProfileController;
 use App\Http\Controllers\Api\V2\PortController;
 use App\Http\Controllers\Api\V2\PortRegistryController;
+use App\Http\Controllers\Api\V2\RequestController;
 use App\Http\Controllers\Api\V2\SearchController;
 use App\Http\Controllers\Api\V2\SecretController;
 use App\Http\Controllers\Api\V2\ServerSettingsController;
@@ -64,6 +66,8 @@ Route::pattern('version', '\d{1,3}\.\d{1,3}\.\d{1,3}');
 Route::pattern('range', '\d{1,5}(-\d{1,5})?');
 
 Route::get('/me', MeController::class)->name('me');
+// The request journal (E43 B4): no area, every key may ask; the journal scopes it
+Route::get('/requests/{id}', [RequestController::class, 'show'])->where('id', ApiHeaders::REQUEST_ID_PATTERN)->name('requests.show');
 
 // Account of the key's owner (E34 batch 6 §4.2, §4.3)
 Route::get('/notifications', [NotificationController::class, 'index'])->name('notifications.index');
@@ -75,6 +79,13 @@ Route::middleware('not-readonly')->group(function () {
 });
 Route::get('/stats', [StatsController::class, 'index'])->name('stats.index');
 Route::get('/search', SearchController::class)->name('search');
+
+// Cross-user lists of the key's scope, for administrators and resellers (E43 B2)
+Route::get('/web-domains', [WebDomainController::class, 'indexAll'])->name('web-domains.all');
+Route::get('/databases', [DatabaseController::class, 'indexAll'])->name('databases.all');
+Route::get('/cron-jobs', [CronController::class, 'indexAll'])->name('cron-jobs.all');
+Route::get('/node-apps', [NodeAppController::class, 'indexAll'])->name('node-apps.all');
+Route::get('/backups', [BackupController::class, 'indexAll'])->name('backups.all');
 
 // Malware scan summary of the principal's tree (E25 batch 1 spec §9)
 Route::get('/malware', [MalwareController::class, 'summary'])->middleware('sys-config:MALWARE_SCAN=yes')->name('malware.summary');
@@ -111,6 +122,7 @@ Route::prefix('/system')->name('system.')->group(function () {
     $ip = ['ip' => '[0-9A-Fa-f:.]{2,45}'];
     Route::get('/services', [ServiceController::class, 'index'])->name('services.index');
     Route::get('/services/status/{kind}', [ServiceController::class, 'status'])->where('kind', '[a-z]{2,4}')->name('services.status');
+    Route::get('/services/{service}/logs', [ServiceController::class, 'logs'])->where($service)->name('services.logs');
     Route::get('/ips', [IpController::class, 'index'])->name('ips.index');
     Route::get('/ips/{ip}', [IpController::class, 'show'])->where($ip)->name('ips.show');
     Route::get('/interfaces', [IpController::class, 'interfaces'])->name('interfaces.index');

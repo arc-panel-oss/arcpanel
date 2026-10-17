@@ -1,0 +1,126 @@
+#!/bin/bash
+# info: set the server identifier
+# options: [FORMAT]
+#
+# example: v-update-sys-server-id json
+#
+# This function keeps SERVER_ID, a random UUID that API clients use to tell
+# servers apart (E43 B1), in the configuration. It writes SERVER_ID and
+# SERVER_ID_MACHINE, the SHA-256 of /etc/machine-id, when SERVER_ID is
+# missing; when the machine identity changed (a cloned machine), it writes a
+# new identifier and logs the change. It prints the identifier. It runs from
+# the installers, the upgrade step, the daily queue and at boot.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+format=${1-shell}
+
+# Includes
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# load config file
+source_conf "$ARCPANEL/conf/arcpanel.conf"
+
+BOOT_HOOK=/etc/cron.d/arcpanel-server-id
+
+json_list() {
+	echo '{
+    "SERVER_ID": "'$SERVER_ID'"
+}'
+}
+
+shell_list() {
+	echo "SERVER_ID:  $SERVER_ID"
+}
+
+plain_list() {
+	echo "$SERVER_ID"
+}
+
+csv_list() {
+	echo "SERVER_ID"
+	echo "$SERVER_ID"
+}
+
+# A random version 4 UUID
+new_server_id() {
+	if [ -r /proc/sys/kernel/random/uuid ]; then
+		cat /proc/sys/kernel/random/uuid
+	else
+		uuidgen -r
+	fi
+}
+
+# The SHA-256 of the machine identity, empty without one
+machine_hash() {
+	if [ -s /etc/machine-id ]; then
+		sha256sum /etc/machine-id | cut -d ' ' -f 1
+	fi
+}
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '0' "$#" '[FORMAT]'
+is_format_valid 'format'
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+machine="$(machine_hash)"
+previous="$SERVER_ID"
+changed=''
+if [ -z "$SERVER_ID" ]; then
+	changed='created'
+elif [ -n "$machine" ] && [ -n "$SERVER_ID_MACHINE" ] && [ "$machine" != "$SERVER_ID_MACHINE" ]; then
+	changed='regenerated'
+fi
+
+if [ -n "$changed" ]; then
+	check_arcpanel_demo_mode
+	SERVER_ID="$(new_server_id)"
+	if [[ ! "$SERVER_ID" =~ ^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$ ]]; then
+		check_result "$E_INVALID" "Could not generate a server identifier"
+	fi
+	change_sys_value 'SERVER_ID' "$SERVER_ID"
+	change_sys_value 'SERVER_ID_MACHINE' "$machine"
+elif [ -n "$machine" ] && [ "$machine" != "$SERVER_ID_MACHINE" ]; then
+	# An identifier without a recorded machine identity keeps its value
+	check_arcpanel_demo_mode
+	change_sys_value 'SERVER_ID_MACHINE' "$machine"
+fi
+
+# Check the identifier at boot too, so a clone gets its own before clients call
+if [ ! -f "$BOOT_HOOK" ] && [ -d /etc/cron.d ]; then
+	echo "@reboot root sleep 30 && $ARCPANEL/bin/v-update-sys-server-id > /dev/null" > "$BOOT_HOOK"
+	chmod 644 "$BOOT_HOOK"
+fi
+
+case $format in
+	json) json_list ;;
+	plain) plain_list ;;
+	csv) csv_list ;;
+	shell) shell_list ;;
+esac
+
+#----------------------------------------------------------#
+#                         ArcPanel                         #
+#----------------------------------------------------------#
+
+# Logging
+if [ "$changed" = 'regenerated' ]; then
+	$BIN/v-log-action "system" "Warning" "System" "Server identifier changed from $previous to $SERVER_ID: the machine identity changed."
+	log_event "$OK" "$ARGUMENTS"
+elif [ "$changed" = 'created' ]; then
+	$BIN/v-log-action "system" "Info" "System" "Server identifier set to $SERVER_ID."
+	log_event "$OK" "$ARGUMENTS"
+fi
+
+exit

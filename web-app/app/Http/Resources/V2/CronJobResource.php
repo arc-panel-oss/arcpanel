@@ -22,6 +22,8 @@ final class CronJobResource extends JsonResource
         return [
             /** @var int */
             'id' => ctype_digit($job->job) ? (int) $job->job : $job->job,
+            /** @var string the owner */
+            'user' => $job->user,
             /** @var string five crontab fields */
             'schedule' => CronSchedule::format([
                 'min' => $job->min,

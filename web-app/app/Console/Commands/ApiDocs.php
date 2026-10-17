@@ -45,6 +45,9 @@ final class ApiDocs extends Command
     /** List operations whose `meta` is not paginated `ListMeta` (E34 batch 3 §5, batch 4 §4.2, batch 6 D60). */
     private const LIST_WITHOUT_PAGINATION = ['listSystemTasks', 'listNodeApps', 'listAppProcesses', 'listDockerApps', 'listDockerCatalog', 'listPorts', 'listUserLogs', 'listUserAuthLogs', 'listServices', 'listUpdates'];
 
+    /** Cross-user lists of administrators and resellers with `CrossUserListMeta` (E43 B2). */
+    private const CROSS_USER_LISTS = ['listAllWebDomains', 'listAllDatabases', 'listAllCronJobs', 'listAllNodeApps', 'listAllBackups'];
+
     /** Logs page through the newest entries with `LogListMeta` (E34 batch 6 D60). */
     private const LOG_LISTS = ['listUserLogs', 'listUserAuthLogs'];
 
@@ -309,6 +312,9 @@ final class ApiDocs extends Command
             $responses[(string) $success] = $moved;
         }
 
+        if (in_array($operationId, self::CROSS_USER_LISTS, true)) {
+            $operation['parameters'] = [...($operation['parameters'] ?? []), ...self::crossUserListParameters()];
+        }
         if (str_starts_with($operationId, 'list') && ! in_array($operationId, self::LIST_WITHOUT_PAGINATION, true)) {
             $operation['parameters'] = [...($operation['parameters'] ?? []), ...self::pageParameters()];
         }
@@ -393,6 +399,7 @@ final class ApiDocs extends Command
             $responses['202']['headers']['Link'] = ['$ref' => '#/components/headers/Link'];
         }
         self::tailorWebDomainOpenApi($operationId, $operation, $responses);
+        self::tailorServiceLogsOpenApi($operationId, $operation);
         self::tailorNodeAppOpenApi($operationId, $operation, $responses);
         self::tailorAppProcessOpenApi($operationId, $operation, $responses);
         self::tailorDockerAppOpenApi($operationId, $operation, $responses);
@@ -523,7 +530,19 @@ final class ApiDocs extends Command
                 'required' => ['data', 'meta'],
             ];
         }
+        // The request journal counts the requests that share an id (E43 B4)
+        if ($operationId === 'getRequest' && isset($schema['properties'])) {
+            $schema['properties']['meta'] = ['$ref' => '#/components/schemas/RequestMeta'];
+            $schema['required'] = array_values(array_unique([...($schema['required'] ?? []), 'meta']));
+
+            return $schema;
+        }
         if (! isset($schema['properties']['meta'])) {
+            return $schema;
+        }
+        if (in_array($operationId, self::CROSS_USER_LISTS, true)) {
+            $schema['properties']['meta'] = ['$ref' => '#/components/schemas/CrossUserListMeta'];
+
             return $schema;
         }
         if ($operationId === 'listNodeApps') {
@@ -1159,6 +1178,25 @@ final class ApiDocs extends Command
         }
     }
 
+    /**
+     * `lines` of getServiceLogs as the client sees it: default 100, at most 500 (E43 B5).
+     *
+     * @param  array<string, mixed>  $operation
+     */
+    private static function tailorServiceLogsOpenApi(string $operationId, array &$operation): void
+    {
+        if ($operationId !== 'getServiceLogs') {
+            return;
+        }
+        $inferred = array_filter($operation['parameters'] ?? [], fn (array $p) => ! (($p['in'] ?? '') === 'query' && ($p['name'] ?? '') === 'lines'));
+        $operation['parameters'] = [...array_values($inferred), [
+            'name' => 'lines',
+            'in' => 'query',
+            'description' => 'Number of lines to return (1–500). Defaults to 100.',
+            'schema' => ['type' => 'integer', 'minimum' => 1, 'maximum' => 500, 'default' => 100],
+        ]];
+    }
+
     /** @return list<array<string, mixed>> */
     private static function webDomainLogParameters(): array
     {
@@ -1199,6 +1237,29 @@ final class ApiDocs extends Command
                 'in' => 'query',
                 'description' => 'Which log file to read.',
                 'schema' => ['type' => 'string', 'enum' => ['out', 'err', 'install', 'build'], 'default' => 'out'],
+            ],
+        ];
+    }
+
+    /**
+     * `user` and `updated_since` of the cross-user lists (E43 B2).
+     *
+     * @return list<array<string, mixed>>
+     */
+    private static function crossUserListParameters(): array
+    {
+        return [
+            [
+                'name' => 'user',
+                'in' => 'query',
+                'description' => 'One user in the scope of the key; the list then holds only that user. A user outside the scope answers 404.',
+                'schema' => ['type' => 'string', 'pattern' => '^[[:alnum:]][-.\w]{0,28}[[:alnum:]]$'],
+            ],
+            [
+                'name' => 'updated_since',
+                'in' => 'query',
+                'description' => 'ISO 8601 time, UTC without an offset: only the users whose objects of this kind changed at or after it, each with all its objects. Use the `meta.as_of` of the previous first page.',
+                'schema' => ['type' => 'string', 'format' => 'date-time'],
             ],
         ];
     }
@@ -1329,6 +1390,28 @@ final class ApiDocs extends Command
                     'timezone' => ['type' => 'string', 'description' => 'The server time zone. Present on listCronJobs.'],
                 ],
                 'required' => ['total'],
+            ],
+            'RequestMeta' => [
+                'type' => 'object',
+                'description' => 'The requests of the journal that share the id and that the key may see (E43 B4); the latest is returned.',
+                'properties' => [
+                    'duplicates' => ['type' => 'integer', 'minimum' => 1, 'description' => 'How many requests carry the id: 1 unless a client reused it.'],
+                ],
+                'required' => ['duplicates'],
+            ],
+            'CrossUserListMeta' => [
+                'type' => 'object',
+                'description' => 'A page of a cross-user list (E43 B2): `total`, `limit` and `offset` as in `ListMeta`, with the change filter.',
+                'properties' => [
+                    'total' => ['type' => 'integer', 'minimum' => 0, 'description' => 'Items before limit and offset.'],
+                    'limit' => ['type' => 'integer', 'minimum' => 1, 'maximum' => 1000],
+                    'offset' => ['type' => 'integer', 'minimum' => 0],
+                    'as_of' => ['type' => ['string', 'null'], 'format' => 'date-time', 'description' => 'Server time (UTC) when the listing started: the next `updated_since`.'],
+                    'users' => ['type' => 'array', 'items' => ['type' => 'string'], 'description' => 'Every user in scope; a client drops the users that are no longer listed.'],
+                    'changed_users' => ['type' => 'array', 'items' => ['type' => 'string'], 'description' => 'The users whose objects are returned: every user in scope without `updated_since`.'],
+                    'timezone' => ['type' => 'string', 'description' => 'The server time zone. Present on listAllCronJobs.'],
+                ],
+                'required' => ['total', 'as_of', 'users', 'changed_users'],
             ],
             'NodeAppListMeta' => [
                 'type' => 'object',

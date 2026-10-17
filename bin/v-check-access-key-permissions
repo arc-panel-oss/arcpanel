@@ -5,8 +5,11 @@
 # example: v-check-access-key-permissions 1234567890ABCDefghij /tmp/arcSecret 203.0.113.5 json
 #
 # This function checks an access key for REST API v2 (E34) and prints its
-# owner, the owner's role, its permission sets and the commands they allow:
+# owner, the owner's role, its permission sets, the commands they allow and
+# its restrictions (EXPIRES, a Unix time, and ALLOWED_IPS, E43 B6):
 # * the key exists and the secret (read from SECRET_FILE) belongs to it;
+# * the key has not expired (E_PASSWORD, like a wrong secret) and the client
+#   address is in its address list, when it has one (E_DISABLED, E43 B6);
 # * the owner exists and is not suspended;
 # * a key of another user than the administrator has permission sets.
 # COMMANDS is "*" for an administrator's key without permission sets. Sets
@@ -50,7 +53,9 @@ json_list() {
     "USER": "'$user'",
     "ROLE": "'$role'",
     "PERMISSIONS": '$(json_array "$permissions")',
-    "COMMANDS": '$(json_array "$commands")'
+    "COMMANDS": '$(json_array "$commands")',
+    "EXPIRES": "'$expires'",
+    "ALLOWED_IPS": '$(json_array "$allowed_ips")'
 }'
 }
 
@@ -61,6 +66,8 @@ shell_list() {
 	echo "ROLE:           $role"
 	echo "PERMISSIONS:    $permissions"
 	echo "COMMANDS:       $commands"
+	echo "EXPIRES:        $expires"
+	echo "ALLOWED_IPS:    $allowed_ips"
 }
 
 # Callback of check_result: every failure is logged like v-check-access-key;
@@ -73,7 +80,7 @@ abort_mismatch() {
 		log_history "[$ip46] $access_key_id $2" "Error" "$user" "API"
 	fi
 
-	if [[ "$1" == "$E_FORBIDEN" || "$1" == "$E_SUSPENDED" ]]; then
+	if [[ "$1" == "$E_FORBIDEN" || "$1" == "$E_SUSPENDED" || "$1" == "$E_DISABLED" ]]; then
 		exit "$1"
 	fi
 
@@ -98,6 +105,7 @@ secret_access_key="$(head -n1 "$secret_file")"
 
 user=''
 check_access_key_secret "$access_key_id" "$secret_access_key" user
+check_access_key_restrictions "$access_key_id" "$ip46" "$E_DISABLED" "Key $access_key_id does not accept requests from $ip46"
 
 # Owner of the key: exists and is active
 is_format_valid 'user'
@@ -107,9 +115,11 @@ is_object_unsuspended 'user' 'USER' "$user"
 role="$(get_user_value '$ROLE')"
 
 # Permission sets of the key; the administrator's key without sets may run any command
-USER="" PERMISSIONS=""
+USER="" PERMISSIONS="" EXPIRES="" ALLOWED_IPS=""
 source_conf "$ARCPANEL/data/access-keys/$access_key_id"
 permissions="$PERMISSIONS"
+expires="$EXPIRES"
+allowed_ips="$ALLOWED_IPS"
 if [[ -n "$permissions" ]]; then
 	commands="$(get_apis_commands "$permissions" v2)"
 elif [[ "$user" == "$ROOT_USER" ]]; then

@@ -2,6 +2,23 @@
 
 All notable changes to ArcPanel are listed here. ArcPanel is based on HestiaCP 1.10.5 and, since 2.0, a hard fork of it ([ADR-0007](https://github.com/arc-panel-oss/docs/blob/main/adr/0007-full-rename-and-hard-fork.md)).
 
+## 2.2.0 — 2026-10-17
+
+The REST API v2 additions that ArcPanel Fleet needs to operate many servers (E43), all additive. See the [E43 spec](https://github.com/arc-panel-oss/docs/blob/main/features/specs/2026-10-16-004-e43-api-v2-fleet-additions-design.md).
+
+### Added
+
+- **Server identifier.** Every server gets a random `SERVER_ID` at install or upgrade, kept while the machine stays the same and renewed when it is cloned with a new machine identity (`v-update-sys-server-id`, checked daily and at boot). `GET /api/v2/me` answers it as `server_id`, with the calling key's `key_expires_at` and `key_allowed_ips`.
+- **Monitoring keys.** The permission set `v2-observe` is `v2-read` without file contents, the secret store and restic file listings, for a client that watches a server without reading files or secrets.
+- **Key restrictions.** An access key can be limited to up to 20 addresses or networks and given an expiry when it is created, on the Access keys page, with `createAccessKey` (`allowed_ips`, `expires_at`) and with `v-add-access-key`. Both APIs enforce them: an expired key fails authentication, a call from another address is refused.
+- **Cross-user lists.** `GET /api/v2/web-domains`, `/databases`, `/cron-jobs`, `/node-apps` and `/backups` list the objects of every user for administrators, or of a reseller and its users for resellers, paged, with `updated_since` for incremental indexing (`v-list-sys-web-domains`, `-databases`, `-cron-jobs`, `-node-apps`, `-backups`). Cron jobs, backups and Node.js apps answer their `user`.
+- **Request journal.** Every REST API v2 write of a key is journaled for 7 days without its body, and `GET /api/v2/requests/{id}` tells a client whose answer was lost what became of the request with that `X-Request-Id`. A write keeps running when its client disconnects.
+- **Service logs.** `GET /api/v2/system/services/{service}/logs` and `v-list-sys-service-log` give administrators the last lines (up to 500) of a service's systemd journal.
+
+### Changed
+
+- The live fields of a Node.js app in REST API v2 (`runtime`, `status`, `online`, `reason`, `pid`, `cpu`, `memory_mb`, `restarts`, `uptime_seconds`) are documented as nullable: the cross-user list answers them as `null`, because it reads the app records without asking pm2. The per-user endpoints answer them as before.
+
 ## 2.1.3 — 2026-10-17
 
 The supply-chain and authorization parts of the security audit remediation (E39 W3 and W4), and app processes for Laravel Octane and other long-running app servers (E42). See the [W3 spec](https://github.com/arc-panel-oss/docs/blob/main/features/specs/2026-10-16-001-e39-w3-supply-chain-design.md) and the [W4 spec](https://github.com/arc-panel-oss/docs/blob/main/features/specs/2026-10-16-002-e39-w4-authorization-and-tenancy-design.md).

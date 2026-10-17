@@ -8,6 +8,7 @@ use App\Auth\SudoMode;
 use App\Http\Controllers\Controller;
 use App\Policies\AccessKeyPolicy;
 use App\Services\Keys\AccessKey;
+use App\Services\Keys\AccessKeyRestrictions;
 use App\Services\Keys\AccessKeyService;
 use App\Services\Keys\AccessKeySets;
 use App\Services\Support\OwnerList;
@@ -71,6 +72,23 @@ final class AccessKeyController extends Controller
             'sets.*' => ['required', 'string', 'max:64'],
             // the rule of v-add-access-key, so a refused comment shows next to its field
             'comment' => ['nullable', 'string', 'max:66', 'regex:'.AccessKeyService::COMMENT],
+            // the rules of v-add-access-key for the restrictions (E43 B6)
+            'allowed_ips' => ['nullable', 'string', 'max:2000', function (string $attribute, mixed $value, \Closure $fail) {
+                $list = AccessKeyRestrictions::list((string) $value);
+                if (count($list) > AccessKeyRestrictions::MAX_IPS) {
+                    $fail(sprintf(__('Use at most %d addresses or networks.'), AccessKeyRestrictions::MAX_IPS));
+                } elseif (count($list) !== count(array_unique($list))) {
+                    $fail(__('Each address or network may be listed once.'));
+                }
+                foreach ($list as $entry) {
+                    if (! AccessKeyRestrictions::isAddressOrNetwork($entry)) {
+                        $fail(sprintf(__('%s is not an IPv4 or IPv6 address or network.'), $entry));
+
+                        return;
+                    }
+                }
+            }],
+            'expires_at' => ['nullable', 'string', 'max:40', AccessKeyRestrictions::expiryRule()],
         ], [
             'sets.required' => sprintf(__('Field "%s" can not be blank.'), __('Permissions')),
             'comment.max' => __('Use at most 66 characters.'),
@@ -83,7 +101,8 @@ final class AccessKeyController extends Controller
             }
         }
 
-        $key = $this->keys->create($user, $sets, trim((string) ($data['comment'] ?? '')));
+        $key = $this->keys->create($user, $sets, trim((string) ($data['comment'] ?? '')),
+            AccessKeyRestrictions::list((string) ($data['allowed_ips'] ?? '')), AccessKeyRestrictions::timestamp($data['expires_at'] ?? null));
         if (! $key instanceof AccessKey) {
             return back()->withInput()->with('error', $key->errorMessage());
         }

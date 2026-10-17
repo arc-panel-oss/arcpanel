@@ -111,6 +111,303 @@
                 }
             }
         },
+        "/backups": {
+            "get": {
+                "operationId": "listAllBackups",
+                "description": "Every user's backup archives for an administrator's key, those of the reseller\nand its customers for a reseller's key; a user's key answers 403\n(`listBackups` covers it). Sorted by user, then name. With\n`updated_since`, only the users whose backup archives changed at or after that\ntime are returned, each with all its backup archives: `meta.as_of` is the next\n`updated_since`, `meta.users` every user in scope and\n`meta.changed_users` the users returned (E43 B2).",
+                "summary": "List the backup archives of every user",
+                "tags": [
+                    "Backups"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Array of `Backup`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/components/schemas/Backup"
+                                            }
+                                        },
+                                        "meta": {
+                                            "$ref": "#/components/schemas/CrossUserListMeta"
+                                        }
+                                    },
+                                    "required": [
+                                        "data",
+                                        "meta"
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    }
+                },
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "query",
+                        "description": "One user in the scope of the key; the list then holds only that user. A user outside the scope answers 404.",
+                        "schema": {
+                            "type": "string",
+                            "pattern": "^[[:alnum:]][-.\\w]{0,28}[[:alnum:]]$"
+                        }
+                    },
+                    {
+                        "name": "updated_since",
+                        "in": "query",
+                        "description": "ISO 8601 time, UTC without an offset: only the users whose objects of this kind changed at or after it, each with all its objects. Use the `meta.as_of` of the previous first page.",
+                        "schema": {
+                            "type": "string",
+                            "format": "date-time"
+                        }
+                    },
+                    {
+                        "name": "limit",
+                        "in": "query",
+                        "description": "Page size, from 1 to 1000. Without it the list is complete.",
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 1000
+                        }
+                    },
+                    {
+                        "name": "offset",
+                        "in": "query",
+                        "description": "Items to skip. Used when `limit` is set; 0 when omitted.",
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 0
+                        }
+                    }
+                ]
+            }
+        },
+        "/cron-jobs": {
+            "get": {
+                "operationId": "listAllCronJobs",
+                "description": "Every user's cron jobs for an administrator's key, those of the reseller\nand its customers for a reseller's key; a user's key answers 403\n(`listCronJobs` covers it). Sorted by user, then id. With\n`updated_since`, only the users whose cron jobs changed at or after that\ntime are returned, each with all its cron jobs: `meta.as_of` is the next\n`updated_since`, `meta.users` every user in scope and\n`meta.changed_users` the users returned (E43 B2). `meta.timezone` is the\nserver's time zone.",
+                "summary": "List the cron jobs of every user",
+                "tags": [
+                    "Cron"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Array of `CronJob`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/components/schemas/CronJob"
+                                            }
+                                        },
+                                        "meta": {
+                                            "$ref": "#/components/schemas/CrossUserListMeta"
+                                        }
+                                    },
+                                    "required": [
+                                        "data",
+                                        "meta"
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    }
+                },
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "query",
+                        "description": "One user in the scope of the key; the list then holds only that user. A user outside the scope answers 404.",
+                        "schema": {
+                            "type": "string",
+                            "pattern": "^[[:alnum:]][-.\\w]{0,28}[[:alnum:]]$"
+                        }
+                    },
+                    {
+                        "name": "updated_since",
+                        "in": "query",
+                        "description": "ISO 8601 time, UTC without an offset: only the users whose objects of this kind changed at or after it, each with all its objects. Use the `meta.as_of` of the previous first page.",
+                        "schema": {
+                            "type": "string",
+                            "format": "date-time"
+                        }
+                    },
+                    {
+                        "name": "limit",
+                        "in": "query",
+                        "description": "Page size, from 1 to 1000. Without it the list is complete.",
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 1000
+                        }
+                    },
+                    {
+                        "name": "offset",
+                        "in": "query",
+                        "description": "Items to skip. Used when `limit` is set; 0 when omitted.",
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 0
+                        }
+                    }
+                ]
+            }
+        },
+        "/databases": {
+            "get": {
+                "operationId": "listAllDatabases",
+                "description": "Every user's databases for an administrator's key, those of the reseller\nand its customers for a reseller's key; a user's key answers 403\n(`listDatabases` covers it). Sorted by user, then name. With\n`updated_since`, only the users whose databases changed at or after that\ntime are returned, each with all its databases: `meta.as_of` is the next\n`updated_since`, `meta.users` every user in scope and\n`meta.changed_users` the users returned (E43 B2).",
+                "summary": "List the databases of every user",
+                "tags": [
+                    "Databases"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Array of `Database`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/components/schemas/Database"
+                                            }
+                                        },
+                                        "meta": {
+                                            "$ref": "#/components/schemas/CrossUserListMeta"
+                                        }
+                                    },
+                                    "required": [
+                                        "data",
+                                        "meta"
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    }
+                },
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "query",
+                        "description": "One user in the scope of the key; the list then holds only that user. A user outside the scope answers 404.",
+                        "schema": {
+                            "type": "string",
+                            "pattern": "^[[:alnum:]][-.\\w]{0,28}[[:alnum:]]$"
+                        }
+                    },
+                    {
+                        "name": "updated_since",
+                        "in": "query",
+                        "description": "ISO 8601 time, UTC without an offset: only the users whose objects of this kind changed at or after it, each with all its objects. Use the `meta.as_of` of the previous first page.",
+                        "schema": {
+                            "type": "string",
+                            "format": "date-time"
+                        }
+                    },
+                    {
+                        "name": "limit",
+                        "in": "query",
+                        "description": "Page size, from 1 to 1000. Without it the list is complete.",
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 1000
+                        }
+                    },
+                    {
+                        "name": "offset",
+                        "in": "query",
+                        "description": "Items to skip. Used when `limit` is set; 0 when omitted.",
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 0
+                        }
+                    }
+                ]
+            }
+        },
         "/docker-catalog": {
             "get": {
                 "operationId": "listDockerCatalog",
@@ -299,7 +596,7 @@
         "/me": {
             "get": {
                 "operationId": "getMe",
-                "description": "The access key of the request: its owner and role, its permission\nsets and the commands they allow (`*` when unrestricted), and the\nversions of the panel and of the API. Clients use it to check a\nprofile (E34 spec D12).",
+                "description": "The access key of the request: its owner and role, its permission\nsets and the commands they allow (`*` when unrestricted), and the\nversions of the panel and of the API. Clients use it to check a\nprofile (E34 spec D12). `server_id` identifies the server: it stays\nthe same for every key of the server and changes when the machine is\ncloned with a new identity (E43 B1). `key_expires_at` and\n`key_allowed_ips` are the restrictions of the calling key.",
                 "summary": "Who am I",
                 "tags": [
                     "Account"
@@ -344,6 +641,105 @@
                         "$ref": "#/components/responses/ServerError"
                     }
                 }
+            }
+        },
+        "/node-apps": {
+            "get": {
+                "operationId": "listAllNodeApps",
+                "description": "Every user's Node.js apps for an administrator's key, those of the reseller\nand its customers for a reseller's key; a user's key answers 403\n(`listNodeApps` covers it). Sorted by user, then domain. With\n`updated_since`, only the users whose Node.js apps changed at or after that\ntime are returned, each with all its Node.js apps: `meta.as_of` is the next\n`updated_since`, `meta.users` every user in scope and\n`meta.changed_users` the users returned (E43 B2). The apps come from\ntheir records: the live state of pm2 (`runtime`, `status`, `online`,\n`reason`, `pid`, `cpu`, `memory_mb`, `restarts`, `uptime_seconds`) is\nnull; getNodeApp and listNodeApps answer it.",
+                "summary": "List the Node.js apps of every user",
+                "tags": [
+                    "Node.js apps"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Array of `NodeApp`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/components/schemas/NodeApp"
+                                            }
+                                        },
+                                        "meta": {
+                                            "$ref": "#/components/schemas/CrossUserListMeta"
+                                        }
+                                    },
+                                    "required": [
+                                        "data",
+                                        "meta"
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    }
+                },
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "query",
+                        "description": "One user in the scope of the key; the list then holds only that user. A user outside the scope answers 404.",
+                        "schema": {
+                            "type": "string",
+                            "pattern": "^[[:alnum:]][-.\\w]{0,28}[[:alnum:]]$"
+                        }
+                    },
+                    {
+                        "name": "updated_since",
+                        "in": "query",
+                        "description": "ISO 8601 time, UTC without an offset: only the users whose objects of this kind changed at or after it, each with all its objects. Use the `meta.as_of` of the previous first page.",
+                        "schema": {
+                            "type": "string",
+                            "format": "date-time"
+                        }
+                    },
+                    {
+                        "name": "limit",
+                        "in": "query",
+                        "description": "Page size, from 1 to 1000. Without it the list is complete.",
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 1000
+                        }
+                    },
+                    {
+                        "name": "offset",
+                        "in": "query",
+                        "description": "Items to skip. Used when `limit` is set; 0 when omitted.",
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 0
+                        }
+                    }
+                ]
             }
         },
         "/notifications": {
@@ -1262,6 +1658,73 @@
                     },
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
+                    }
+                }
+            }
+        },
+        "/requests/{id}": {
+            "get": {
+                "operationId": "getRequest",
+                "description": "What became of a write, found by its request id: the `X-Request-Id`\nof its answer, which is the client's own id when it is valid. A client\nwhose answer was lost asks here before it tries again (E43 B4). Writes\nof access keys are journaled for 7 days without their bodies; reads\nand dry runs are not. `state` is `running` for 15 minutes after the\nstart of a request without an end and `unknown` after that. A key sees\nthe requests of the keys of its own user, an administrator's key every\nrequest; any other id answers 404. When several requests share the id,\nthe latest is returned and `meta.duplicates` counts them. Every key may\ncall it, whatever its permission sets.",
+                "summary": "Look up a request",
+                "tags": [
+                    "Requests"
+                ],
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "`ApiRequest`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/ApiRequest"
+                                        },
+                                        "meta": {
+                                            "$ref": "#/components/schemas/RequestMeta"
+                                        }
+                                    },
+                                    "required": [
+                                        "data",
+                                        "meta"
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
                     }
                 }
             }
@@ -6333,6 +6796,83 @@
                 }
             }
         },
+        "/system/services/{service}/logs": {
+            "get": {
+                "operationId": "getServiceLogs",
+                "description": "The last `lines` lines (default 100, at most 500) of the systemd\njournal of a service that listServices shows, the newest last, for\ndiagnosis (E43 B5). A service the server does not list answers 404.\nThe lines may contain addresses and paths: a client that shows them to\nothers redacts them.",
+                "summary": "Read the last lines of a service's journal",
+                "tags": [
+                    "Server"
+                ],
+                "parameters": [
+                    {
+                        "name": "service",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "lines",
+                        "in": "query",
+                        "description": "Number of lines to return (1–500). Defaults to 100.",
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 500,
+                            "default": 100
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "`ServiceLog`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/ServiceLog"
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    }
+                }
+            }
+        },
         "/system/services/{service}/restart": {
             "post": {
                 "operationId": "restartService",
@@ -8030,7 +8570,7 @@
             },
             "post": {
                 "operationId": "createAccessKey",
-                "description": "`permissions` are sets of `GET /access-key-sets`: a key gives only\nsets it holds itself, and only sets the owner may have (sets of role\n`user`, every set for the root administrator). An empty list makes a\nkey that may run every command: only for an administrator's own\naccount, and only by a key without sets. The answer carries the\nsecret, once, with `Cache-Control: no-store`; no other answer, log or\ndry run shows it.",
+                "description": "`permissions` are sets of `GET /access-key-sets`: a key gives only\nsets it holds itself, and only sets the owner may have (sets of role\n`user`, every set for the root administrator). An empty list makes a\nkey that may run every command: only for an administrator's own\naccount, and only by a key without sets. The answer carries the\nsecret, once, with `Cache-Control: no-store`; no other answer, log or\ndry run shows it. `allowed_ips` and `expires_at` restrict the key for\nAPI v1 and v2 and cannot be changed later: a different restriction\nmeans a new key and the deletion of the old one.",
                 "summary": "Create an access key",
                 "tags": [
                     "Access keys"
@@ -28320,6 +28860,105 @@
                     }
                 }
             }
+        },
+        "/web-domains": {
+            "get": {
+                "operationId": "listAllWebDomains",
+                "description": "Every user's web domains for an administrator's key, those of the reseller\nand its customers for a reseller's key; a user's key answers 403\n(`listWebDomains` covers it). Sorted by user, then domain. With\n`updated_since`, only the users whose web domains changed at or after that\ntime are returned, each with all its web domains: `meta.as_of` is the next\n`updated_since`, `meta.users` every user in scope and\n`meta.changed_users` the users returned (E43 B2).",
+                "summary": "List the web domains of every user",
+                "tags": [
+                    "Web domains"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Array of `WebDomain`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/components/schemas/WebDomain"
+                                            }
+                                        },
+                                        "meta": {
+                                            "$ref": "#/components/schemas/CrossUserListMeta"
+                                        }
+                                    },
+                                    "required": [
+                                        "data",
+                                        "meta"
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    }
+                },
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "query",
+                        "description": "One user in the scope of the key; the list then holds only that user. A user outside the scope answers 404.",
+                        "schema": {
+                            "type": "string",
+                            "pattern": "^[[:alnum:]][-.\\w]{0,28}[[:alnum:]]$"
+                        }
+                    },
+                    {
+                        "name": "updated_since",
+                        "in": "query",
+                        "description": "ISO 8601 time, UTC without an offset: only the users whose objects of this kind changed at or after it, each with all its objects. Use the `meta.as_of` of the previous first page.",
+                        "schema": {
+                            "type": "string",
+                            "format": "date-time"
+                        }
+                    },
+                    {
+                        "name": "limit",
+                        "in": "query",
+                        "description": "Page size, from 1 to 1000. Without it the list is complete.",
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 1000
+                        }
+                    },
+                    {
+                        "name": "offset",
+                        "in": "query",
+                        "description": "Items to skip. Used when `limit` is set; 0 when omitted.",
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 0
+                        }
+                    }
+                ]
+            }
         }
     },
     "components": {
@@ -28347,13 +28986,29 @@
                             "null"
                         ],
                         "description": "in the server's time zone, YYYY-MM-DDTHH:MM:SS"
+                    },
+                    "allowed_ips": {
+                        "type": "array",
+                        "description": "addresses and networks the key is limited to; empty when unrestricted (E43 B6)",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "expires_at": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "ISO 8601 time in UTC after which the key is refused; null without an expiry"
                     }
                 },
                 "required": [
                     "id",
                     "permissions",
                     "comment",
-                    "created_at"
+                    "created_at",
+                    "allowed_ips",
+                    "expires_at"
                 ],
                 "title": "AccessKey"
             },
@@ -28480,6 +29135,88 @@
                     "user"
                 ],
                 "title": "AllocatePortsRequest"
+            },
+            "ApiRequest": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "description": "the request id (`X-Request-Id`)"
+                    },
+                    "operation": {
+                        "type": "string",
+                        "description": "the operationId"
+                    },
+                    "method": {
+                        "type": "string"
+                    },
+                    "path": {
+                        "type": "string",
+                        "description": "the path as called, without the query"
+                    },
+                    "state": {
+                        "type": "string",
+                        "description": "`running` less than 15 minutes after the start without an end, `unknown` after that",
+                        "enum": [
+                            "running",
+                            "finished",
+                            "unknown"
+                        ]
+                    },
+                    "status": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ],
+                        "description": "HTTP status of the answer, null unless finished"
+                    },
+                    "error_code": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "error code of a failed answer"
+                    },
+                    "task_id": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "the task of a 202 answer (`GET /tasks/{id}`)"
+                    },
+                    "location": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "the Location of a 201 or 202 answer"
+                    },
+                    "started_at": {
+                        "type": "string",
+                        "description": "ISO 8601 (UTC)"
+                    },
+                    "finished_at": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "ISO 8601 (UTC), null unless finished"
+                    }
+                },
+                "required": [
+                    "id",
+                    "operation",
+                    "method",
+                    "path",
+                    "state",
+                    "status",
+                    "error_code",
+                    "task_id",
+                    "location",
+                    "started_at",
+                    "finished_at"
+                ],
+                "title": "ApiRequest"
             },
             "ApiRole": {
                 "type": "string",
@@ -28727,6 +29464,10 @@
                     "name": {
                         "type": "string"
                     },
+                    "user": {
+                        "type": "string",
+                        "description": "the owner"
+                    },
                     "type": {
                         "type": "string"
                     },
@@ -28792,6 +29533,7 @@
                 },
                 "required": [
                     "name",
+                    "user",
                     "type",
                     "size_mb",
                     "created_at",
@@ -29098,7 +29840,7 @@
             },
             "CreateAccessKeyRequest": {
                 "type": "object",
-                "description": "POST /users/{user}/access-keys (E34 batch 6 §4.6, D62).",
+                "description": "POST /users/{user}/access-keys (E34 batch 6 §4.6, D62), with the address\nlist and expiry of E43 B6.",
                 "properties": {
                     "permissions": {
                         "type": "array",
@@ -29118,6 +29860,27 @@
                         ],
                         "description": "A note for the key, at most 255 characters.",
                         "maxLength": 255
+                    },
+                    "allowed_ips": {
+                        "type": [
+                            "array",
+                            "null"
+                        ],
+                        "description": "IPv4 or IPv6 addresses or CIDR networks the key is limited to, at most 20; empty or absent means any address. Set once: a different list means a new key.",
+                        "items": {
+                            "type": "string",
+                            "maxLength": 43
+                        },
+                        "maxItems": 20,
+                        "uniqueItems": true
+                    },
+                    "expires_at": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "ISO 8601 time after which the key is refused, at least an hour and at most three years ahead; absent or null means no expiry. Set once.",
+                        "maxLength": 40
                     }
                 },
                 "required": [
@@ -29183,6 +29946,10 @@
                     "id": {
                         "type": "integer"
                     },
+                    "user": {
+                        "type": "string",
+                        "description": "the owner"
+                    },
                     "schedule": {
                         "type": "string",
                         "description": "five crontab fields"
@@ -29203,12 +29970,65 @@
                 },
                 "required": [
                     "id",
+                    "user",
                     "schedule",
                     "command",
                     "suspended",
                     "created_at"
                 ],
                 "title": "CronJob"
+            },
+            "CrossUserListMeta": {
+                "type": "object",
+                "description": "A page of a cross-user list (E43 B2): `total`, `limit` and `offset` as in `ListMeta`, with the change filter.",
+                "properties": {
+                    "total": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "description": "Items before limit and offset."
+                    },
+                    "limit": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 1000
+                    },
+                    "offset": {
+                        "type": "integer",
+                        "minimum": 0
+                    },
+                    "as_of": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "format": "date-time",
+                        "description": "Server time (UTC) when the listing started: the next `updated_since`."
+                    },
+                    "users": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        },
+                        "description": "Every user in scope; a client drops the users that are no longer listed."
+                    },
+                    "changed_users": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        },
+                        "description": "The users whose objects are returned: every user in scope without `updated_since`."
+                    },
+                    "timezone": {
+                        "type": "string",
+                        "description": "The server time zone. Present on listAllCronJobs."
+                    }
+                },
+                "required": [
+                    "total",
+                    "as_of",
+                    "users",
+                    "changed_users"
+                ]
             },
             "Database": {
                 "type": "object",
@@ -31945,6 +32765,24 @@
                     },
                     "api_version": {
                         "type": "string"
+                    },
+                    "server_id": {
+                        "type": "string",
+                        "description": "the server's identifier (SERVER_ID), the same for every key of the server (E43 B1)"
+                    },
+                    "key_expires_at": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "ISO 8601 expiry of the calling key, null without one"
+                    },
+                    "key_allowed_ips": {
+                        "type": "array",
+                        "description": "addresses and networks the calling key is limited to; empty when unrestricted",
+                        "items": {
+                            "type": "string"
+                        }
                     }
                 },
                 "required": [
@@ -31955,7 +32793,10 @@
                     "permissions",
                     "commands",
                     "panel_version",
-                    "api_version"
+                    "api_version",
+                    "server_id",
+                    "key_expires_at",
+                    "key_allowed_ips"
                 ],
                 "title": "Me"
             },
@@ -32013,6 +32854,20 @@
                         ],
                         "description": "in the server's time zone, YYYY-MM-DDTHH:MM:SS"
                     },
+                    "allowed_ips": {
+                        "type": "array",
+                        "description": "addresses and networks the key is limited to; empty when unrestricted (E43 B6)",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "expires_at": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "ISO 8601 time in UTC after which the key is refused; null without an expiry"
+                    },
                     "secret": {
                         "type": "string",
                         "description": "the secret access key; shown only here. Authenticate with `Authorization: Bearer ID:SECRET`."
@@ -32023,6 +32878,8 @@
                     "permissions",
                     "comment",
                     "created_at",
+                    "allowed_ips",
+                    "expires_at",
                     "secret"
                 ],
                 "title": "NewAccessKey"
@@ -32071,6 +32928,10 @@
                     "domain": {
                         "type": "string"
                     },
+                    "user": {
+                        "type": "string",
+                        "description": "the owner"
+                    },
                     "name": {
                         "type": "string"
                     },
@@ -32087,7 +32948,11 @@
                         "type": "string"
                     },
                     "runtime": {
-                        "type": "string"
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "the installed version the app runs with; null in listAllNodeApps"
                     },
                     "port": {
                         "type": "string"
@@ -32105,10 +32970,17 @@
                         "type": "string"
                     },
                     "status": {
-                        "type": "string"
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "the live state of pm2; null in listAllNodeApps, which reads only the records"
                     },
                     "online": {
-                        "type": "string"
+                        "type": [
+                            "boolean",
+                            "null"
+                        ]
                     },
                     "reason": {
                         "type": [
@@ -32123,16 +32995,28 @@
                         ]
                     },
                     "cpu": {
-                        "type": "string"
+                        "type": [
+                            "number",
+                            "null"
+                        ]
                     },
                     "memory_mb": {
-                        "type": "string"
+                        "type": [
+                            "integer",
+                            "null"
+                        ]
                     },
                     "restarts": {
-                        "type": "string"
+                        "type": [
+                            "integer",
+                            "null"
+                        ]
                     },
                     "uptime_seconds": {
-                        "type": "string"
+                        "type": [
+                            "integer",
+                            "null"
+                        ]
                     },
                     "url": {
                         "type": "string"
@@ -32152,6 +33036,7 @@
                 },
                 "required": [
                     "domain",
+                    "user",
                     "name",
                     "start",
                     "script",
@@ -33997,6 +34882,20 @@
                 },
                 "title": "RequestMailLetsEncryptRequest"
             },
+            "RequestMeta": {
+                "type": "object",
+                "description": "The requests of the journal that share the id and that the key may see (E43 B4); the latest is returned.",
+                "properties": {
+                    "duplicates": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "description": "How many requests carry the id: 1 unless a client reused it."
+                    }
+                },
+                "required": [
+                    "duplicates"
+                ]
+            },
             "RequestPortsRequest": {
                 "type": "object",
                 "properties": {
@@ -34520,6 +35419,27 @@
                     "uptime_minutes",
                     "load"
                 ]
+            },
+            "ServiceLog": {
+                "type": "object",
+                "properties": {
+                    "service": {
+                        "type": "string",
+                        "description": "the service, as listServices names it"
+                    },
+                    "lines": {
+                        "type": "array",
+                        "description": "journal lines in `short-iso` form, the newest last",
+                        "items": {
+                            "type": "string"
+                        }
+                    }
+                },
+                "required": [
+                    "service",
+                    "lines"
+                ],
+                "title": "ServiceLog"
             },
             "ServiceStatus": {
                 "type": "object",

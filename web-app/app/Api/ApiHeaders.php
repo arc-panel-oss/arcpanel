@@ -20,6 +20,9 @@ final class ApiHeaders
 
     public const VERSION = 'ArcPanel-Version';
 
+    /** A client's id that is kept; `GET /requests/{id}` takes the same (E43 B4). */
+    public const REQUEST_ID_PATTERN = '[A-Za-z0-9._:-]{1,128}';
+
     private const ATTRIBUTE = 'arc_request_id';
 
     /** The id of the request, chosen once. */
@@ -28,7 +31,7 @@ final class ApiHeaders
         $id = $request->attributes->get(self::ATTRIBUTE);
         if (! is_string($id)) {
             $given = (string) $request->headers->get(self::REQUEST_ID, '');
-            $id = preg_match('/^[A-Za-z0-9._:-]{1,128}$/', $given) === 1 ? $given : (string) Str::uuid();
+            $id = preg_match('/^'.self::REQUEST_ID_PATTERN.'$/', $given) === 1 ? $given : (string) Str::uuid();
             $request->attributes->set(self::ATTRIBUTE, $id);
             Log::shareContext(['request_id' => $id]);
         }

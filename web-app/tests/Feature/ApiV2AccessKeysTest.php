@@ -57,7 +57,7 @@ it('lists the keys of an account without secrets, with the rules of the page', f
     $response = $this->getJson("/api/v2/users/{$owner}/access-keys", apiAs($this->fake, $principal, $role, readOnly: true))->assertStatus($status);
     if ($status === 200 && $owner === 'bob') {
         $response->assertJsonPath('meta.total', 2)
-            ->assertJsonPath('data.0', ['id' => BOB_API_KEY, 'permissions' => ['v2-read'], 'comment' => 'deploy', 'created_at' => '2026-09-01T10:00:00'])
+            ->assertJsonPath('data.0', ['id' => BOB_API_KEY, 'permissions' => ['v2-read'], 'comment' => 'deploy', 'created_at' => '2026-09-01T10:00:00', 'allowed_ips' => [], 'expires_at' => null])
             ->assertJsonPath('data.1.id', API_KEY_ID);
         expect((string) $response->getContent())->not->toContain(STORED_SECRET)->not->toContain('secret');
     }
@@ -88,7 +88,7 @@ it('creates a key with a set it holds and shows the secret once', function () {
         ->assertHeader('Location', 'http://localhost/api/v2/users/bob/access-keys/'.NEW_API_KEY)
         ->assertHeader('Cache-Control', 'no-store, private')
         ->assertJsonPath('data', [
-            'id' => NEW_API_KEY, 'permissions' => ['v2-accounts'], 'comment' => 'ci', 'created_at' => '2026-10-08T12:00:00', 'secret' => NEW_SECRET,
+            'id' => NEW_API_KEY, 'permissions' => ['v2-accounts'], 'comment' => 'ci', 'created_at' => '2026-10-08T12:00:00', 'allowed_ips' => [], 'expires_at' => null, 'secret' => NEW_SECRET,
         ]);
     $this->fake->assertRan('v-add-access-key', fn ($a) => $a === ['bob', 'v2-accounts', 'ci', 'json']);
 });

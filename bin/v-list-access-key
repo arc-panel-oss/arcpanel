@@ -27,6 +27,11 @@ json_list() {
 		PERMISSIONS_ARR="[\"$(echo "$PERMISSIONS" | sed -E 's|,|", "|g')\"]"
 	fi
 
+	local ALLOWED_IPS_ARR='[]'
+	if [[ -n "$ALLOWED_IPS" ]]; then
+		ALLOWED_IPS_ARR="[\"$(echo "$ALLOWED_IPS" | sed -E 's|,|", "|g')\"]"
+	fi
+
 	echo '{
     "ACCESS_KEY_ID": "'$access_key_id'",
     "SECRET_ACCESS_KEY": "'$SECRET_ACCESS_KEY'",
@@ -34,7 +39,9 @@ json_list() {
     "PERMISSIONS": '$PERMISSIONS_ARR',
     "COMMENT": "'$COMMENT'",
     "TIME": "'$TIME'",
-    "DATE": "'$DATE'"
+    "DATE": "'$DATE'",
+    "ALLOWED_IPS": '$ALLOWED_IPS_ARR',
+    "EXPIRES": "'$EXPIRES'"
 }'
 }
 
@@ -47,6 +54,8 @@ shell_list() {
 	echo "COMMENT:            $COMMENT"
 	echo "TIME:               $TIME"
 	echo "DATE:               $DATE"
+	echo "ALLOWED_IPS:        $ALLOWED_IPS"
+	echo "EXPIRES:            $EXPIRES"
 }
 
 plain_list() {
@@ -71,6 +80,8 @@ PERMISSIONS=""
 COMMENT=""
 DATE=""
 TIME=""
+ALLOWED_IPS=""
+EXPIRES=""
 
 source_conf "${ARCPANEL}/data/access-keys/${access_key_id}"
 

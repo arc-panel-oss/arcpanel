@@ -114,6 +114,18 @@ final class SystemServices
         return isset($this->all()[$service]);
     }
 
+    /**
+     * The last $lines lines of the journal of a listed service (E43 B5).
+     *
+     * @return list<string>
+     */
+    public function log(string $service, int $lines): array
+    {
+        $data = $this->arc->json('v-list-sys-service-log', [$service, (string) $lines]);
+
+        return array_values(array_map('strval', array_filter((array) ($data['LINES'] ?? []), 'is_scalar')));
+    }
+
     /** Plain text of a status report (`kind` from REPORTS). */
     public function report(string $kind): string
     {

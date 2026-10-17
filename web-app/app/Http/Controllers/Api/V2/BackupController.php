@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V2;
 
 use App\Api\ApiException;
+use App\Api\CrossUserList;
 use App\Api\ErrorCode;
 use App\Api\Paginates;
 use App\Api\PlanGate;
@@ -52,6 +53,26 @@ final class BackupController extends Controller
         private readonly Paginates $pages,
         private readonly BackupPaths $paths,
     ) {}
+
+    /**
+     * List the backup archives of every user
+     *
+     * Every user's backup archives for an administrator's key, those of the reseller
+     * and its customers for a reseller's key; a user's key answers 403
+     * (`listBackups` covers it). Sorted by user, then name. With
+     * `updated_since`, only the users whose backup archives changed at or after that
+     * time are returned, each with all its backup archives: `meta.as_of` is the next
+     * `updated_since`, `meta.users` every user in scope and
+     * `meta.changed_users` the users returned (E43 B2).
+     *
+     * @operationId listAllBackups
+     */
+    public function indexAll(Request $request, CrossUserList $lists): AnonymousResourceCollection
+    {
+        $page = $lists->page($request, 'v-list-sys-backups', BackupArchive::fromArray(...), fn (BackupArchive $archive) => $archive->name);
+
+        return BackupResource::collection($page['items'])->additional(['meta' => $page['meta']]);
+    }
 
     /**
      * List the backup archives of a user

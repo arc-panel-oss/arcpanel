@@ -75,7 +75,9 @@ final class AccessKeyController extends Controller
      * key that may run every command: only for an administrator's own
      * account, and only by a key without sets. The answer carries the
      * secret, once, with `Cache-Control: no-store`; no other answer, log or
-     * dry run shows it.
+     * dry run shows it. `allowed_ips` and `expires_at` restrict the key for
+     * API v1 and v2 and cannot be changed later: a different restriction
+     * means a new key and the deletion of the old one.
      *
      * @operationId createAccessKey
      *
@@ -88,7 +90,13 @@ final class AccessKeyController extends Controller
         $this->assertGivable($sets, $user, $principal, $policy, $calling);
         $comment = trim((string) $request->input('comment', ''));
 
-        $steps = [new Step(__('Create an access key'), 'v-add-access-key', [$user, implode(',', $sets), $comment, 'json'])];
+        // Without restrictions the arguments of v-add-access-key before E43
+        $ips = $request->allowedIps();
+        $expires = $request->expires();
+        $args = $ips === [] && $expires === null
+            ? [$user, implode(',', $sets), $comment, 'json']
+            : [$user, implode(',', $sets), $comment, implode(',', $ips), $expires === null ? '' : (string) $expires, 'json'];
+        $steps = [new Step(__('Create an access key'), 'v-add-access-key', $args)];
         $this->gate->authorize($steps);
         if ($this->gate->dryRun()) {
             return $this->gate->preview($steps);

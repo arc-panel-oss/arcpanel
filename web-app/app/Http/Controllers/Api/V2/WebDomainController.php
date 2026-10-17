@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V2;
 
 use App\Api\ApiException;
+use App\Api\CrossUserList;
 use App\Api\ErrorCode;
 use App\Api\Paginates;
 use App\Api\PlanGate;
@@ -22,6 +23,7 @@ use App\Services\WebDomains\Input;
 use App\Services\WebDomains\Step;
 use App\Services\WebDomains\TemplateCatalog;
 use App\Services\WebDomains\WebDomainActions;
+use App\Services\WebDomains\WebDomainRecord;
 use App\Services\WebDomains\WebDomainService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -46,6 +48,26 @@ final class WebDomainController extends Controller
         private readonly PlanGate $gate,
         private readonly Paginates $pages,
     ) {}
+
+    /**
+     * List the web domains of every user
+     *
+     * Every user's web domains for an administrator's key, those of the reseller
+     * and its customers for a reseller's key; a user's key answers 403
+     * (`listWebDomains` covers it). Sorted by user, then domain. With
+     * `updated_since`, only the users whose web domains changed at or after that
+     * time are returned, each with all its web domains: `meta.as_of` is the next
+     * `updated_since`, `meta.users` every user in scope and
+     * `meta.changed_users` the users returned (E43 B2).
+     *
+     * @operationId listAllWebDomains
+     */
+    public function indexAll(Request $request, CrossUserList $lists): AnonymousResourceCollection
+    {
+        $page = $lists->page($request, 'v-list-sys-web-domains', WebDomainRecord::fromArray(...), fn (WebDomainRecord $domain) => $domain->domain);
+
+        return WebDomainResource::collection($page['items'])->additional(['meta' => $page['meta']]);
+    }
 
     /**
      * List the web domains of a user

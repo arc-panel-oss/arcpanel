@@ -4,6 +4,7 @@ namespace App\Http\Resources\V2;
 
 use App\Api\KeyPermissions;
 use App\Auth\Role;
+use App\Services\Keys\AccessKeyRestrictions;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -16,7 +17,7 @@ final class MeResource extends JsonResource
 {
     public const API_VERSION = '2';
 
-    public function __construct(KeyPermissions $key, private readonly string $panelVersion)
+    public function __construct(KeyPermissions $key, private readonly string $panelVersion, private readonly string $serverId = '')
     {
         parent::__construct($key);
     }
@@ -42,6 +43,12 @@ final class MeResource extends JsonResource
             'panel_version' => $this->panelVersion,
             /** @var string */
             'api_version' => self::API_VERSION,
+            /** @var string the server's identifier (SERVER_ID), the same for every key of the server (E43 B1) */
+            'server_id' => $this->serverId,
+            /** @var string|null ISO 8601 expiry of the calling key, null without one */
+            'key_expires_at' => AccessKeyRestrictions::iso($key->expires),
+            /** @var list<string> addresses and networks the calling key is limited to; empty when unrestricted */
+            'key_allowed_ips' => $key->allowedIps,
         ];
     }
 

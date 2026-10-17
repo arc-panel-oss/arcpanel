@@ -55,14 +55,19 @@ final class AccessKeyService
     }
 
     /**
-     * `v-add-access-key USER SETS COMMENT json`; the record carries the
-     * secret, to show once.
+     * `v-add-access-key USER SETS COMMENT json`, or with ALLOWED_IPS and
+     * EXPIRES before json for a restricted key (E43 B6); the record carries
+     * the secret, to show once.
      *
      * @param  list<string>  $sets
+     * @param  list<string>  $allowedIps
      */
-    public function create(string $user, array $sets, string $comment): AccessKey|CommandResult
+    public function create(string $user, array $sets, string $comment, array $allowedIps = [], ?int $expires = null): AccessKey|CommandResult
     {
-        $result = $this->arc->run('v-add-access-key', [$user, implode(',', $sets), $comment, 'json'], Options::allowFailure());
+        $args = $allowedIps === [] && $expires === null
+            ? [$user, implode(',', $sets), $comment, 'json']
+            : [$user, implode(',', $sets), $comment, implode(',', $allowedIps), $expires === null ? '' : (string) $expires, 'json'];
+        $result = $this->arc->run('v-add-access-key', $args, Options::allowFailure());
         if (! $result->ok()) {
             return $result;
         }

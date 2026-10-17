@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\V2;
 
 use App\Api\ApiException;
+use App\Api\CrossUserList;
 use App\Api\ErrorCode;
 use App\Api\Paginates;
 use App\Api\PlanGate;
@@ -14,6 +15,7 @@ use App\Http\Requests\Api\V2\UpdateDatabaseRequest;
 use App\Http\Resources\V2\DatabaseResource;
 use App\Policies\DatabasePolicy;
 use App\Services\Databases\DatabaseActions;
+use App\Services\Databases\DatabaseRecord;
 use App\Services\Databases\DatabaseService;
 use App\Services\Databases\DbAdminLinks;
 use App\Services\Mail\HostingCredentialsMailer;
@@ -39,6 +41,26 @@ final class DatabaseController extends Controller
         private readonly PlanGate $gate,
         private readonly Paginates $pages,
     ) {}
+
+    /**
+     * List the databases of every user
+     *
+     * Every user's databases for an administrator's key, those of the reseller
+     * and its customers for a reseller's key; a user's key answers 403
+     * (`listDatabases` covers it). Sorted by user, then name. With
+     * `updated_since`, only the users whose databases changed at or after that
+     * time are returned, each with all its databases: `meta.as_of` is the next
+     * `updated_since`, `meta.users` every user in scope and
+     * `meta.changed_users` the users returned (E43 B2).
+     *
+     * @operationId listAllDatabases
+     */
+    public function indexAll(Request $request, CrossUserList $lists): AnonymousResourceCollection
+    {
+        $page = $lists->page($request, 'v-list-sys-databases', DatabaseRecord::fromArray(...), fn (DatabaseRecord $database) => $database->database);
+
+        return DatabaseResource::collection($page['items'])->additional(['meta' => $page['meta']]);
+    }
 
     /**
      * List the databases of a user

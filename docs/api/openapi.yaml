@@ -72,7 +72,7 @@ info:
     | `sync-dns-cluster` | admin | `v-list-users`, `v-list-sys-config`, `v-list-user`, `v-add-cron-restart-job`, `v-delete-dns-domains-src`, `v-insert-dns-domain`, `v-insert-dns-record`, `v-insert-dns-records`, `v-rebuild-dns-domains`, `v-rebuild-dns-domain`, `v-delete-dns-record`, `v-make-tmp-file`, `v-delete-dns-domain` |
     | `update-dns-records` | user | `v-list-dns-records`, `v-change-dns-record` |
 
-    The sets `v2-accounts` and `v2-apps` and `v2-backup` and `v2-cron` and `v2-db` and `v2-dns` and `v2-files` and `v2-mail` and `v2-read` and `v2-secrets` and `v2-security` and `v2-server` and `v2-web` and `v2-write` belong to REST API v2 (`/api/v2/`, documented in `docs/api/v2/openapi.json`): this API ignores them, so a key with only those sets may run no command here.
+    The sets `v2-accounts` and `v2-apps` and `v2-backup` and `v2-cron` and `v2-db` and `v2-dns` and `v2-files` and `v2-mail` and `v2-observe` and `v2-read` and `v2-secrets` and `v2-security` and `v2-server` and `v2-web` and `v2-write` belong to REST API v2 (`/api/v2/`, documented in `docs/api/v2/openapi.json`): this API ignores them, so a key with only those sets may run no command here.
   license:
     name: GPL-3.0-or-later
     identifier: GPL-3.0-or-later
@@ -183,6 +183,12 @@ paths:
         The "PERMISSIONS" argument is optional for the admin user only.
         This function creates a key file in $ARCPANEL/data/access-keys/
 
+        ALLOWED_IPS limits the key to at most 20 addresses or CIDR networks, comma
+        separated; EXPIRES is the Unix time after which the key is refused, at
+        least an hour and at most three years ahead (E43 B6). Both are set once:
+        a different restriction means a new key. A format name (json, shell,
+        plain, csv) as the fourth argument is FORMAT, as before ALLOWED_IPS existed.
+
         **Arguments**
 
         | Field | Option | Required |
@@ -190,7 +196,9 @@ paths:
         | `arg1` | `USER` | yes |
         | `arg2` | `PERMISSIONS` | no |
         | `arg3` | `COMMENT` | no |
-        | `arg4` | `FORMAT` | no |
+        | `arg4` | `ALLOWED_IPS` | no |
+        | `arg5` | `EXPIRES` | no |
+        | `arg6` | `FORMAT` | no |
 
         **User argument:** with the access key of a user other than the admin, `arg1` must be the key's user.
       x-arcpanel-user-arg: 1
@@ -11032,6 +11040,7 @@ paths:
       description: |-
         * Checks if the key exists;
         * Checks if the secret belongs to the key;
+        * Checks if the key has expired or the client address is outside its list (E43 B6);
         * Checks if the key user is suspended;
         * Checks if the key has permission to run the command.
 
@@ -11084,8 +11093,11 @@ paths:
       summary: Check an access key for API v2
       description: |-
         This function checks an access key for REST API v2 (E34) and prints its
-        owner, the owner's role, its permission sets and the commands they allow:
+        owner, the owner's role, its permission sets, the commands they allow and
+        its restrictions (EXPIRES, a Unix time, and ALLOWED_IPS, E43 B6):
         * the key exists and the secret (read from SECRET_FILE) belongs to it;
+        * the key has not expired (E_PASSWORD, like a wrong secret) and the client
+        address is in its address list, when it has one (E_DISABLED, E43 B6);
         * the owner exists and is not suspended;
         * a key of another user than the administrator has permission sets.
         COMMANDS is "*" for an administrator's key without permission sets. Sets
@@ -22096,6 +22108,61 @@ paths:
           $ref: "#/components/responses/InvalidRequest"
         "422":
           $ref: "#/components/responses/Unprocessable"
+  "/api/#v-list-sys-backups":
+    post:
+      operationId: v-list-sys-backups
+      tags:
+        - System
+      summary: List the backup archives of every user (E43)
+      description: |-
+        This function lists the backup archives of every user, or of OWNER and, when
+        OWNER is a reseller, its customers, read in one process. The json format
+        prints AS_OF (the Unix time the listing started), USERS (every user in
+        scope), CHANGED_USERS and OBJECTS: the backup archives of each changed user as
+        v-list-user-backups prints them. Without UPDATED_SINCE (a Unix time) every
+        user is changed; with it, only the users whose backup.conf was modified at or
+        after that time. See
+        docs/features/specs/2026-10-16-004-e43-api-v2-fleet-additions-design.md §5.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `OWNER` | no |
+        | `arg2` | `UPDATED_SINCE` | no |
+        | `arg3` | `FORMAT` | no |
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-list-sys-backups"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-list-sys-backups"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+            application/json:
+              schema:
+                type: object
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
   "/api/#v-list-sys-clamd-config":
     post:
       operationId: v-list-sys-clamd-config
@@ -22221,6 +22288,116 @@ paths:
             text/plain:
               schema:
                 type: string
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+  "/api/#v-list-sys-cron-jobs":
+    post:
+      operationId: v-list-sys-cron-jobs
+      tags:
+        - System
+      summary: List the cron jobs of every user (E43)
+      description: |-
+        This function lists the cron jobs of every user, or of OWNER and, when
+        OWNER is a reseller, its customers, read in one process. The json format
+        prints AS_OF (the Unix time the listing started), USERS (every user in
+        scope), CHANGED_USERS and OBJECTS: the cron jobs of each changed user as
+        v-list-cron-jobs prints them. Without UPDATED_SINCE (a Unix time) every
+        user is changed; with it, only the users whose cron.conf was modified at or
+        after that time. See
+        docs/features/specs/2026-10-16-004-e43-api-v2-fleet-additions-design.md §5.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `OWNER` | no |
+        | `arg2` | `UPDATED_SINCE` | no |
+        | `arg3` | `FORMAT` | no |
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-list-sys-cron-jobs"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-list-sys-cron-jobs"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+            application/json:
+              schema:
+                type: object
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+  "/api/#v-list-sys-databases":
+    post:
+      operationId: v-list-sys-databases
+      tags:
+        - System
+      summary: List the databases of every user (E43)
+      description: |-
+        This function lists the databases of every user, or of OWNER and, when
+        OWNER is a reseller, its customers, read in one process. The json format
+        prints AS_OF (the Unix time the listing started), USERS (every user in
+        scope), CHANGED_USERS and OBJECTS: the databases of each changed user as
+        v-list-databases prints them. Without UPDATED_SINCE (a Unix time) every
+        user is changed; with it, only the users whose db.conf was modified at or
+        after that time. See
+        docs/features/specs/2026-10-16-004-e43-api-v2-fleet-additions-design.md §5.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `OWNER` | no |
+        | `arg2` | `UPDATED_SINCE` | no |
+        | `arg3` | `FORMAT` | no |
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-list-sys-databases"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-list-sys-databases"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+            application/json:
+              schema:
+                type: object
         "204":
           $ref: "#/components/responses/NoContent"
         "400":
@@ -23069,6 +23246,63 @@ paths:
           $ref: "#/components/responses/InvalidRequest"
         "422":
           $ref: "#/components/responses/Unprocessable"
+  "/api/#v-list-sys-node-apps":
+    post:
+      operationId: v-list-sys-node-apps
+      tags:
+        - System
+      summary: List the Node.js apps of every user (E43)
+      description: |-
+        This function lists the Node.js apps of every user, or of OWNER and, when
+        OWNER is a reseller, its customers, read in one process from their
+        records: the json format prints AS_OF (the Unix time the listing
+        started), USERS (every user in scope), CHANGED_USERS and OBJECTS, the
+        records of each changed user with the keys of nodeapps.conf. The live
+        state of pm2 (STATUS, PID, CPU and the rest of v-list-node-apps) is not
+        read. Without UPDATED_SINCE (a Unix time) every user is changed; with it,
+        only the users whose nodeapps.conf, or user directory when the file is
+        missing, was modified at or after that time. See
+        docs/features/specs/2026-10-16-004-e43-api-v2-fleet-additions-design.md §5.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `OWNER` | no |
+        | `arg2` | `UPDATED_SINCE` | no |
+        | `arg3` | `FORMAT` | no |
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-list-sys-node-apps"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-list-sys-node-apps"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+            application/json:
+              schema:
+                type: object
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
   "/api/#v-list-sys-node-releases":
     post:
       operationId: v-list-sys-node-releases
@@ -23836,6 +24070,59 @@ paths:
           $ref: "#/components/responses/InvalidRequest"
         "422":
           $ref: "#/components/responses/Unprocessable"
+  "/api/#v-list-sys-service-log":
+    post:
+      operationId: v-list-sys-service-log
+      tags:
+        - System
+      summary: List the last lines of a service's journal
+      description: |-
+        This function prints the last LINES lines (default 100, at most 500) of
+        the systemd journal of a service that v-list-sys-services lists, for
+        diagnosis (E43 B5). The service name is its unit, as for v-start-service,
+        v-stop-service and v-restart-service, except the web terminal, whose unit
+        is arcpanel-web-terminal. A firewall without a unit has no lines. The
+        lines may contain addresses and paths.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `SERVICE` | yes |
+        | `arg2` | `LINES` | no |
+        | `arg3` | `FORMAT` | no |
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-list-sys-service-log"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-list-sys-service-log"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+            application/json:
+              schema:
+                type: object
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
   "/api/#v-list-sys-services":
     post:
       operationId: v-list-sys-services
@@ -24208,6 +24495,61 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/v-list-sys-vsftpd-config"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+            application/json:
+              schema:
+                type: object
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+  "/api/#v-list-sys-web-domains":
+    post:
+      operationId: v-list-sys-web-domains
+      tags:
+        - System
+      summary: List the web domains of every user (E43)
+      description: |-
+        This function lists the web domains of every user, or of OWNER and, when
+        OWNER is a reseller, its customers, read in one process. The json format
+        prints AS_OF (the Unix time the listing started), USERS (every user in
+        scope), CHANGED_USERS and OBJECTS: the web domains of each changed user as
+        v-list-web-domains prints them. Without UPDATED_SINCE (a Unix time) every
+        user is changed; with it, only the users whose web.conf was modified at or
+        after that time. See
+        docs/features/specs/2026-10-16-004-e43-api-v2-fleet-additions-design.md §5.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `OWNER` | no |
+        | `arg2` | `UPDATED_SINCE` | no |
+        | `arg3` | `FORMAT` | no |
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-list-sys-web-domains"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-list-sys-web-domains"
       responses:
         "200":
           description: "The output of the command; `OK` for an empty output with legacy authentication."
@@ -35991,6 +36333,57 @@ paths:
           $ref: "#/components/responses/InvalidRequest"
         "422":
           $ref: "#/components/responses/Unprocessable"
+  "/api/#v-update-sys-server-id":
+    post:
+      operationId: v-update-sys-server-id
+      tags:
+        - System
+      summary: Set the server identifier
+      description: |-
+        This function keeps SERVER_ID, a random UUID that API clients use to tell
+        servers apart (E43 B1), in the configuration. It writes SERVER_ID and
+        SERVER_ID_MACHINE, the SHA-256 of /etc/machine-id, when SERVER_ID is
+        missing; when the machine identity changed (a cloned machine), it writes a
+        new identifier and logs the change. It prints the identifier. It runs from
+        the installers, the upgrade step, the daily queue and at boot.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `FORMAT` | no |
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-update-sys-server-id"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-update-sys-server-id"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+            application/json:
+              schema:
+                type: object
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
   "/api/#v-update-sys-sudoers":
     post:
       operationId: v-update-sys-sudoers
@@ -36976,6 +37369,18 @@ components:
               examples:
                 - comment
             arg4:
+              type: string
+              title: ALLOWED_IPS
+              description: "`ALLOWED_IPS`, optional"
+              examples:
+                - json
+            arg5:
+              type: string
+              title: EXPIRES
+              description: "`EXPIRES`, optional"
+              examples:
+                - ""
+            arg6:
               type: string
               title: FORMAT
               description: "`FORMAT`, optional"
@@ -51839,6 +52244,43 @@ components:
                 - json
             returncode:
               $ref: "#/components/schemas/ReturnCode"
+    v-list-sys-backups:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-list-sys-backups
+              default: v-list-sys-backups
+            arg1:
+              type: string
+              title: OWNER
+              description: "`OWNER`, optional"
+              examples:
+                - ""
+            arg2:
+              type: string
+              title: UPDATED_SINCE
+              description: "`UPDATED_SINCE`, optional"
+              examples:
+                - ""
+            arg3:
+              type: string
+              title: FORMAT
+              description: "`FORMAT`, optional"
+              enum:
+                - json
+                - plain
+                - csv
+                - shell
+              examples:
+                - json
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
     v-list-sys-clamd-config:
       allOf:
         - $ref: "#/components/schemas/Credentials"
@@ -51901,6 +52343,80 @@ components:
               enum:
                 - v-list-sys-cpu-status
               default: v-list-sys-cpu-status
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
+    v-list-sys-cron-jobs:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-list-sys-cron-jobs
+              default: v-list-sys-cron-jobs
+            arg1:
+              type: string
+              title: OWNER
+              description: "`OWNER`, optional"
+              examples:
+                - ""
+            arg2:
+              type: string
+              title: UPDATED_SINCE
+              description: "`UPDATED_SINCE`, optional"
+              examples:
+                - ""
+            arg3:
+              type: string
+              title: FORMAT
+              description: "`FORMAT`, optional"
+              enum:
+                - json
+                - plain
+                - csv
+                - shell
+              examples:
+                - json
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
+    v-list-sys-databases:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-list-sys-databases
+              default: v-list-sys-databases
+            arg1:
+              type: string
+              title: OWNER
+              description: "`OWNER`, optional"
+              examples:
+                - ""
+            arg2:
+              type: string
+              title: UPDATED_SINCE
+              description: "`UPDATED_SINCE`, optional"
+              examples:
+                - ""
+            arg3:
+              type: string
+              title: FORMAT
+              description: "`FORMAT`, optional"
+              enum:
+                - json
+                - plain
+                - csv
+                - shell
+              examples:
+                - json
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-list-sys-db-status:
@@ -52288,6 +52804,43 @@ components:
                 - v-list-sys-nginx-config
               default: v-list-sys-nginx-config
             arg1:
+              type: string
+              title: FORMAT
+              description: "`FORMAT`, optional"
+              enum:
+                - json
+                - plain
+                - csv
+                - shell
+              examples:
+                - json
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
+    v-list-sys-node-apps:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-list-sys-node-apps
+              default: v-list-sys-node-apps
+            arg1:
+              type: string
+              title: OWNER
+              description: "`OWNER`, optional"
+              examples:
+                - ""
+            arg2:
+              type: string
+              title: UPDATED_SINCE
+              description: "`UPDATED_SINCE`, optional"
+              examples:
+                - ""
+            arg3:
               type: string
               title: FORMAT
               description: "`FORMAT`, optional"
@@ -52704,6 +53257,44 @@ components:
                 - json
             returncode:
               $ref: "#/components/schemas/ReturnCode"
+    v-list-sys-service-log:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-list-sys-service-log
+              default: v-list-sys-service-log
+            arg1:
+              type: string
+              title: SERVICE
+              description: "`SERVICE`"
+              examples:
+                - nginx
+            arg2:
+              type: string
+              title: LINES
+              description: "`LINES`, optional"
+              examples:
+                - "50"
+            arg3:
+              type: string
+              title: FORMAT
+              description: "`FORMAT`, optional"
+              enum:
+                - json
+                - plain
+                - csv
+                - shell
+              examples:
+                - json
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
     v-list-sys-services:
       allOf:
         - $ref: "#/components/schemas/Credentials"
@@ -52898,6 +53489,43 @@ components:
                 - v-list-sys-vsftpd-config
               default: v-list-sys-vsftpd-config
             arg1:
+              type: string
+              title: FORMAT
+              description: "`FORMAT`, optional"
+              enum:
+                - json
+                - plain
+                - csv
+                - shell
+              examples:
+                - json
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
+    v-list-sys-web-domains:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-list-sys-web-domains
+              default: v-list-sys-web-domains
+            arg1:
+              type: string
+              title: OWNER
+              description: "`OWNER`, optional"
+              examples:
+                - ""
+            arg2:
+              type: string
+              title: UPDATED_SINCE
+              description: "`UPDATED_SINCE`, optional"
+              examples:
+                - ""
+            arg3:
               type: string
               title: FORMAT
               description: "`FORMAT`, optional"
@@ -60303,6 +60931,31 @@ components:
               description: "`PERIOD`"
               examples:
                 - ""
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
+    v-update-sys-server-id:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-update-sys-server-id
+              default: v-update-sys-server-id
+            arg1:
+              type: string
+              title: FORMAT
+              description: "`FORMAT`, optional"
+              enum:
+                - json
+                - plain
+                - csv
+                - shell
+              examples:
+                - json
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-update-sys-sudoers:
