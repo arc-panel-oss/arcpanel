@@ -1662,6 +1662,73 @@
                 }
             }
         },
+        "/requests/{id}": {
+            "get": {
+                "operationId": "getRequest",
+                "description": "What became of a write, found by its request id: the `X-Request-Id`\nof its answer, which is the client's own id when it is valid. A client\nwhose answer was lost asks here before it tries again (E43 B4). Writes\nof access keys are journaled for 7 days without their bodies; reads\nand dry runs are not. `state` is `running` for 15 minutes after the\nstart of a request without an end and `unknown` after that. A key sees\nthe requests of the keys of its own user, an administrator's key every\nrequest; any other id answers 404. When several requests share the id,\nthe latest is returned and `meta.duplicates` counts them. Every key may\ncall it, whatever its permission sets.",
+                "summary": "Look up a request",
+                "tags": [
+                    "Requests"
+                ],
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "`ApiRequest`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/ApiRequest"
+                                        },
+                                        "meta": {
+                                            "$ref": "#/components/schemas/RequestMeta"
+                                        }
+                                    },
+                                    "required": [
+                                        "data",
+                                        "meta"
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    }
+                }
+            }
+        },
         "/search": {
             "get": {
                 "operationId": "search",
@@ -28992,6 +29059,88 @@
                 ],
                 "title": "AllocatePortsRequest"
             },
+            "ApiRequest": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "description": "the request id (`X-Request-Id`)"
+                    },
+                    "operation": {
+                        "type": "string",
+                        "description": "the operationId"
+                    },
+                    "method": {
+                        "type": "string"
+                    },
+                    "path": {
+                        "type": "string",
+                        "description": "the path as called, without the query"
+                    },
+                    "state": {
+                        "type": "string",
+                        "description": "`running` less than 15 minutes after the start without an end, `unknown` after that",
+                        "enum": [
+                            "running",
+                            "finished",
+                            "unknown"
+                        ]
+                    },
+                    "status": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ],
+                        "description": "HTTP status of the answer, null unless finished"
+                    },
+                    "error_code": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "error code of a failed answer"
+                    },
+                    "task_id": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "the task of a 202 answer (`GET /tasks/{id}`)"
+                    },
+                    "location": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "the Location of a 201 or 202 answer"
+                    },
+                    "started_at": {
+                        "type": "string",
+                        "description": "ISO 8601 (UTC)"
+                    },
+                    "finished_at": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "ISO 8601 (UTC), null unless finished"
+                    }
+                },
+                "required": [
+                    "id",
+                    "operation",
+                    "method",
+                    "path",
+                    "state",
+                    "status",
+                    "error_code",
+                    "task_id",
+                    "location",
+                    "started_at",
+                    "finished_at"
+                ],
+                "title": "ApiRequest"
+            },
             "ApiRole": {
                 "type": "string",
                 "description": "Role of a user in API v2 answers and requests.\n",
@@ -34655,6 +34804,20 @@
                     }
                 },
                 "title": "RequestMailLetsEncryptRequest"
+            },
+            "RequestMeta": {
+                "type": "object",
+                "description": "The requests of the journal that share the id and that the key may see (E43 B4); the latest is returned.",
+                "properties": {
+                    "duplicates": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "description": "How many requests carry the id: 1 unless a client reused it."
+                    }
+                },
+                "required": [
+                    "duplicates"
+                ]
             },
             "RequestPortsRequest": {
                 "type": "object",

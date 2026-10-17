@@ -7,6 +7,7 @@ use App\Auth\ProtectedAdmin;
 use App\Http\Controllers\HealthController;
 use App\Http\Middleware\Api\ApiEnabled;
 use App\Http\Middleware\Api\AuthenticateAccessKey;
+use App\Http\Middleware\Api\JournalApiRequest;
 use App\Http\Middleware\Api\StartApiRequest;
 use App\Http\Middleware\BindEffectiveUser;
 use App\Http\Middleware\FilesEnabled;
@@ -42,7 +43,7 @@ $app = Application::configure(basePath: dirname(__DIR__))
             // REST API v2 (E34 spec D1): stateless, authenticated by access key
             Route::prefix('api/v2')
                 ->name('api.v2.')
-                ->middleware([StartApiRequest::class, ApiEnabled::class, AuthenticateAccessKey::class, 'throttle:api-v2'])
+                ->middleware([StartApiRequest::class, ApiEnabled::class, AuthenticateAccessKey::class, 'throttle:api-v2', JournalApiRequest::class])
                 ->group(base_path('routes/api.php'));
         },
     )

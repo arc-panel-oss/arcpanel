@@ -292,6 +292,20 @@ it('documents pagination and error.existing', function () {
     }
 });
 
+it('documents getRequest with the journal fields and meta.duplicates (E43 B4)', function () {
+    $spec = json_decode((string) file_get_contents(base_path('../docs/api/v2/openapi.json')), true);
+    $operation = $spec['paths']['/requests/{id}']['get'] ?? null;
+
+    expect($operation['operationId'] ?? null)->toBe('getRequest');
+    $schema = $operation['responses']['200']['content']['application/json']['schema'];
+    expect($schema['properties']['meta'])->toBe(['$ref' => '#/components/schemas/RequestMeta'])
+        ->and($spec['components']['schemas']['RequestMeta']['required'])->toBe(['duplicates'])
+        ->and(array_keys($spec['components']['schemas']['ApiRequest']['properties']))->toBe([
+            'id', 'operation', 'method', 'path', 'state', 'status', 'error_code', 'task_id', 'location', 'started_at', 'finished_at',
+        ])
+        ->and($spec['components']['schemas']['ApiRequest']['properties']['state']['enum'])->toBe(['running', 'finished', 'unknown']);
+});
+
 it('documents regex rules without their PHP delimiters', function () {
     // Scramble strips only "/" delimiters: "#^a$#" would reach the clients as a
     // pattern that matches nothing

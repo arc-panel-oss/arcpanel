@@ -53,4 +53,8 @@ return [
     // installed panel app.
     'files_staging' => env('ARC_FILES_STAGING', storage_path('app/files')),
 
+    // Request journal of REST API v2 (E43 B4), one JSON-lines file a day;
+    // v-update-sys-queue daily removes the days older than 7 days here.
+    'request_journal' => env('ARC_REQUEST_JOURNAL', storage_path('app/api-requests')),
+
 ];

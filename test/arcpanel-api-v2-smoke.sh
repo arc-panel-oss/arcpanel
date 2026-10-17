@@ -370,6 +370,18 @@ CRON_ID="$(json .data.id)"
 check "a duplicate cron job answers 409" 409 "$(call "$CRON_KEY" POST "$CRON" '{"schedule": "*/5 * * * *", "command": "echo arcsmoke"}')"
 check "the duplicate points at the job" "/api/v2$CRON/$CRON_ID" "$(json .error.existing)"
 check "deleteCronJob answers 204" 204 "$(call "$CRON_KEY" DELETE "$CRON/$CRON_ID")"
+# Request journal (E43 B4): a write found by the client's X-Request-Id
+REQ_ID="arcsmoke-$RANDOM-$RANDOM"
+req_code=$(curl -sk -o "$BODY" -w '%{http_code}' -X POST -H "Authorization: Bearer $CRON_KEY" -H 'Accept: application/json' \
+	-H 'Content-Type: application/json' -H "X-Request-Id: $REQ_ID" --data '{"schedule": "*/7 * * * *", "command": "echo arcsmoke"}' "$API$CRON")
+check "createCronJob with the client's X-Request-Id answers 201 (E43 B4)" 201 "$req_code"
+REQ_JOB="$(json .data.id)"
+check "getRequest finds the finished write for a v2-read key of its user" "finished 201 createCronJob" \
+	"$(call "$READER" GET "/requests/$REQ_ID" > /dev/null && json '"\(.data.state) \(.data.status) \(.data.operation)"')"
+check "getRequest gives the Location of the new job" true "$(jq -r --arg path "/api/v2$CRON/$REQ_JOB" '.data.location | endswith($path)' "$BODY")"
+check "getRequest answers an administrator's v2-observe key" 200 "$(call "$ADMIN_OBSERVER" GET "/requests/$REQ_ID")"
+check "getRequest answers 404 for an id of no request" 404 "$(call "$READER" GET "/requests/arcsmoke-none-$RANDOM")"
+check "deleteCronJob answers 204 for the journaled job" 204 "$(call "$CRON_KEY" DELETE "$CRON/$REQ_JOB")"
 
 # Batch 3: tasks, backups and downloads (spec 2026-10-08-001 §8)
 WEB="/users/$SMOKE_USER/web-domains"

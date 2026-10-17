@@ -529,6 +529,13 @@ final class ApiDocs extends Command
                 'required' => ['data', 'meta'],
             ];
         }
+        // The request journal counts the requests that share an id (E43 B4)
+        if ($operationId === 'getRequest' && isset($schema['properties'])) {
+            $schema['properties']['meta'] = ['$ref' => '#/components/schemas/RequestMeta'];
+            $schema['required'] = array_values(array_unique([...($schema['required'] ?? []), 'meta']));
+
+            return $schema;
+        }
         if (! isset($schema['properties']['meta'])) {
             return $schema;
         }
@@ -1363,6 +1370,14 @@ final class ApiDocs extends Command
                     'timezone' => ['type' => 'string', 'description' => 'The server time zone. Present on listCronJobs.'],
                 ],
                 'required' => ['total'],
+            ],
+            'RequestMeta' => [
+                'type' => 'object',
+                'description' => 'The requests of the journal that share the id and that the key may see (E43 B4); the latest is returned.',
+                'properties' => [
+                    'duplicates' => ['type' => 'integer', 'minimum' => 1, 'description' => 'How many requests carry the id: 1 unless a client reused it.'],
+                ],
+                'required' => ['duplicates'],
             ],
             'CrossUserListMeta' => [
                 'type' => 'object',
