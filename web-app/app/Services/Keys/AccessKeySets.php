@@ -19,6 +19,7 @@ final class AccessKeySets
     {
         return [
             'v2-read' => __('REST API v2 only: every read endpoint, no change.'),
+            'v2-observe' => __('REST API v2 only: read-only monitoring without file contents or secret values.'),
             'v2-write' => __('REST API v2 only: every endpoint, changes included.'),
             'v2-accounts' => __('REST API v2 only: users and packages.'),
             'v2-web' => __('REST API v2 only: web domains.'),
@@ -43,6 +44,7 @@ final class AccessKeySets
     {
         return [
             'v2-read' => __('Every read endpoint, no change.'),
+            'v2-observe' => __('Read-only monitoring without file contents or secret values.'),
             'v2-write' => __('Every endpoint, changes included.'),
             'v2-accounts' => __('Users and packages.'),
             'v2-web' => __('Web domains.'),
@@ -99,7 +101,7 @@ final class AccessKeySets
      */
     public static function groups(array $sets): array
     {
-        $full = array_values(array_intersect(['v2-read', 'v2-write'], $sets));
+        $full = array_values(array_intersect(['v2-read', 'v2-observe', 'v2-write'], $sets));
         $areas = array_values(array_filter($sets, fn (string $set) => self::isV2($set) && ! in_array($set, $full, true)));
         $v1 = array_values(array_filter($sets, fn (string $set) => ! self::isV2($set)));
 

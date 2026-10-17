@@ -72,7 +72,7 @@ info:
     | `sync-dns-cluster` | admin | `v-list-users`, `v-list-sys-config`, `v-list-user`, `v-add-cron-restart-job`, `v-delete-dns-domains-src`, `v-insert-dns-domain`, `v-insert-dns-record`, `v-insert-dns-records`, `v-rebuild-dns-domains`, `v-rebuild-dns-domain`, `v-delete-dns-record`, `v-make-tmp-file`, `v-delete-dns-domain` |
     | `update-dns-records` | user | `v-list-dns-records`, `v-change-dns-record` |
 
-    The sets `v2-accounts` and `v2-apps` and `v2-backup` and `v2-cron` and `v2-db` and `v2-dns` and `v2-files` and `v2-mail` and `v2-read` and `v2-secrets` and `v2-security` and `v2-server` and `v2-web` and `v2-write` belong to REST API v2 (`/api/v2/`, documented in `docs/api/v2/openapi.json`): this API ignores them, so a key with only those sets may run no command here.
+    The sets `v2-accounts` and `v2-apps` and `v2-backup` and `v2-cron` and `v2-db` and `v2-dns` and `v2-files` and `v2-mail` and `v2-observe` and `v2-read` and `v2-secrets` and `v2-security` and `v2-server` and `v2-web` and `v2-write` belong to REST API v2 (`/api/v2/`, documented in `docs/api/v2/openapi.json`): this API ignores them, so a key with only those sets may run no command here.
   license:
     name: GPL-3.0-or-later
     identifier: GPL-3.0-or-later
@@ -183,6 +183,12 @@ paths:
         The "PERMISSIONS" argument is optional for the admin user only.
         This function creates a key file in $ARCPANEL/data/access-keys/
 
+        ALLOWED_IPS limits the key to at most 20 addresses or CIDR networks, comma
+        separated; EXPIRES is the Unix time after which the key is refused, at
+        least an hour and at most three years ahead (E43 B6). Both are set once:
+        a different restriction means a new key. A format name (json, shell,
+        plain, csv) as the fourth argument is FORMAT, as before ALLOWED_IPS existed.
+
         **Arguments**
 
         | Field | Option | Required |
@@ -190,7 +196,9 @@ paths:
         | `arg1` | `USER` | yes |
         | `arg2` | `PERMISSIONS` | no |
         | `arg3` | `COMMENT` | no |
-        | `arg4` | `FORMAT` | no |
+        | `arg4` | `ALLOWED_IPS` | no |
+        | `arg5` | `EXPIRES` | no |
+        | `arg6` | `FORMAT` | no |
 
         **User argument:** with the access key of a user other than the admin, `arg1` must be the key's user.
       x-arcpanel-user-arg: 1
@@ -11032,6 +11040,7 @@ paths:
       description: |-
         * Checks if the key exists;
         * Checks if the secret belongs to the key;
+        * Checks if the key has expired or the client address is outside its list (E43 B6);
         * Checks if the key user is suspended;
         * Checks if the key has permission to run the command.
 
@@ -11087,6 +11096,8 @@ paths:
         owner, the owner's role, its permission sets, the commands they allow and
         its restrictions (EXPIRES, a Unix time, and ALLOWED_IPS, E43 B6):
         * the key exists and the secret (read from SECRET_FILE) belongs to it;
+        * the key has not expired (E_PASSWORD, like a wrong secret) and the client
+        address is in its address list, when it has one (E_DISABLED, E43 B6);
         * the owner exists and is not suspended;
         * a key of another user than the administrator has permission sets.
         COMMANDS is "*" for an administrator's key without permission sets. Sets
@@ -37028,6 +37039,18 @@ components:
               examples:
                 - comment
             arg4:
+              type: string
+              title: ALLOWED_IPS
+              description: "`ALLOWED_IPS`, optional"
+              examples:
+                - json
+            arg5:
+              type: string
+              title: EXPIRES
+              description: "`EXPIRES`, optional"
+              examples:
+                - ""
+            arg6:
               type: string
               title: FORMAT
               description: "`FORMAT`, optional"

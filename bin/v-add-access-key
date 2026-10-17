@@ -1,11 +1,18 @@
 #!/bin/bash
 # info: generate access key
-# options: USER [PERMISSIONS] [COMMENT] [FORMAT]
+# options: USER [PERMISSIONS] [COMMENT] [ALLOWED_IPS] [EXPIRES] [FORMAT]
 #
 # example: v-add-access-key admin v-purge-nginx-cache,v-list-mail-accounts comment json
+# example: v-add-access-key bob v2-observe fleet 203.0.113.7,2001:db8::/48 1830297600 json
 #
 # The "PERMISSIONS" argument is optional for the admin user only.
 # This function creates a key file in $ARCPANEL/data/access-keys/
+#
+# ALLOWED_IPS limits the key to at most 20 addresses or CIDR networks, comma
+# separated; EXPIRES is the Unix time after which the key is refused, at
+# least an hour and at most three years ahead (E43 B6). Both are set once:
+# a different restriction means a new key. A format name (json, shell,
+# plain, csv) as the fourth argument is FORMAT, as before ALLOWED_IPS existed.
 
 #----------------------------------------------------------#
 #                Variables & Functions                     #
@@ -15,7 +22,18 @@
 user=$1
 permissions=$2
 comment=$3
-format=${4-shell}
+allowed_ips=''
+expires=''
+format=shell
+if [ "$#" -le 4 ] && [[ "${4-}" =~ ^(json|shell|plain|csv)$ ]]; then
+	format=$4
+else
+	allowed_ips="${4-}"
+	expires="${5-}"
+	format="${6-shell}"
+fi
+# The list without spaces
+allowed_ips="${allowed_ips// /}"
 
 # Includes
 # shellcheck source=/etc/arcpanel/arcpanel.conf
@@ -52,10 +70,12 @@ date=$(echo "$time_n_date" | cut -f 2 -d \ )
 #                    Verifications                         #
 #----------------------------------------------------------#
 
-check_args '1' "$#" 'USER [PERMISSIONS] [COMMENT] [FORMAT]'
+check_args '1' "$#" 'USER [PERMISSIONS] [COMMENT] [ALLOWED_IPS] [EXPIRES] [FORMAT]'
 is_format_valid 'user' 'comment' 'format'
 is_object_valid 'user' 'USER' "$user"
 is_key_permissions_format_valid "$permissions" "$user"
+is_access_key_ips_format_valid "$allowed_ips"
+is_access_key_expiry_valid "$expires"
 
 #----------------------------------------------------------#
 #                       Action                             #
@@ -79,9 +99,9 @@ echo "PERMISSIONS='$permissions'" >> "$ARCPANEL/data/access-keys/${access_key_id
 echo "COMMENT='$comment'" >> "$ARCPANEL/data/access-keys/${access_key_id}"
 echo "TIME='$time'" >> "$ARCPANEL/data/access-keys/${access_key_id}"
 echo "DATE='$date'" >> "$ARCPANEL/data/access-keys/${access_key_id}"
-# TODO Index reserved for future implementation
-echo "EXPIRES_IN=''" >> "$ARCPANEL/data/access-keys/${access_key_id}"
-echo "IP=''" >> "$ARCPANEL/data/access-keys/${access_key_id}"
+# Restrictions (E43 B6), checked by v-check-access-key and v-check-access-key-permissions
+echo "ALLOWED_IPS='$allowed_ips'" >> "$ARCPANEL/data/access-keys/${access_key_id}"
+echo "EXPIRES='$expires'" >> "$ARCPANEL/data/access-keys/${access_key_id}"
 
 chmod 640 "$ARCPANEL/data/access-keys/${access_key_id}"
 

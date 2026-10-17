@@ -102,6 +102,16 @@
                     -
                 @endif
             </dd>
+            <dt>{{ __('Addresses') }}</dt>
+            <dd>
+                @if ($key->allowedIps === [])
+                    <span class="muted">{{ __('Any address') }}</span>
+                @else
+                    <span class="mono">{{ implode(', ', $key->allowedIps) }}</span>
+                @endif
+            </dd>
+            <dt>{{ __('Expires') }}</dt>
+            <dd>@include('keys.partials.key-expiry', ['key' => $key])</dd>
             <dt>{{ __('Permissions') }}</dt>
             <dd>
                 @if ($key->permissions === [])

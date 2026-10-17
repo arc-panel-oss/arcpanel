@@ -198,6 +198,24 @@ check "API v1 refuses the commands of v2-read (E_FORBIDEN)" 10 "$v1_exit"
 check "a v2-write key changes the name" 200 "$(call "$WRITER" PATCH "/users/$SMOKE_USER" '{"name": "Smoke Changed"}')"
 check "the name changed" "Smoke Changed" "$("$ARCPANEL/bin/v-list-user" "$SMOKE_USER" json | jq -r ".\"$SMOKE_USER\".NAME")"
 check "changeUserPassword answers 204" 204 "$(call "$WRITER" PUT "/users/$SMOKE_USER/password" "{\"password\": \"${SMOKE_PASS}B2\"}")"
+# The observe set (E43 B3) and the restrictions of a key (B6)
+OBSERVER=$(new_key "$SMOKE_USER" v2-observe)
+check "a v2-observe key reads its account (E43 B3)" 200 "$(call "$OBSERVER" GET "/users/$SMOKE_USER")"
+call "$OBSERVER" GET /me > /dev/null
+check "GET /me names the v2-observe set" v2-observe "$(json '.data.permissions | join(",")')"
+if grep -q "^FILE_MANAGER='true'" "$CONF"; then
+	check "a v2-observe key may not list files" 403 "$(call "$OBSERVER" GET "/users/$SMOKE_USER/files?path=web")"
+else
+	skip "files: FILE_MANAGER is off on this server"
+fi
+check "a v2-observe key may not list secrets" 403 "$(call "$OBSERVER" GET "/users/$SMOKE_USER/secrets")"
+expires=$(date -u -d '+1 day' +%Y-%m-%dT%H:%M:%SZ)
+check "createAccessKey with an address list and an expiry answers 201 (E43 B6)" 201 "$(call "$ADMIN" POST "/users/$SMOKE_USER/access-keys" "{\"permissions\": [\"v2-read\"], \"comment\": \"arcsmoke\", \"allowed_ips\": [\"203.0.113.9\"], \"expires_at\": \"$expires\"}")"
+check "the new key carries its restrictions" "[\"203.0.113.9\"] $expires" "$(json '"\(.data.allowed_ips | tojson) \(.data.expires_at)"')"
+LIMITED="$(json .data.id):$(json .data.secret)"
+check "a key used outside its address list answers 403" 403 "$(call "$LIMITED" GET /me)"
+check "the refusal is E_API_DISABLED" E_API_DISABLED "$(json .error.code)"
+check "an expiry less than an hour ahead answers 422" 422 "$(call "$ADMIN" POST "/users/$SMOKE_USER/access-keys" "{\"permissions\": [\"v2-read\"], \"expires_at\": \"$(date -u -d '+10 minutes' +%Y-%m-%dT%H:%M:%SZ)\"}")"
 check "suspendUser answers 200" 200 "$(call "$ADMIN" POST "/users/$SMOKE_USER/suspend")"
 check "the user is suspended" true "$(json .data.suspended)"
 check "a suspended owner's key answers 403" 403 "$(call "$WRITER" GET /me)"

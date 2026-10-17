@@ -87,7 +87,7 @@ it('types access keys, shows the secret only in a new key and describes every sh
     $request = Request::create('/');
 
     expect((new AccessKeyResource($key))->resolve($request))
-        ->toBe(['id' => 'Key01234567890123456', 'permissions' => ['v2-read'], 'comment' => 'ci', 'created_at' => '2026-10-08T12:00:00'])
+        ->toBe(['id' => 'Key01234567890123456', 'permissions' => ['v2-read'], 'comment' => 'ci', 'created_at' => '2026-10-08T12:00:00', 'allowed_ips' => [], 'expires_at' => null])
         ->and((new NewAccessKeyResource($key))->resolve($request)['secret'])->toBe('top-secret')
         ->and((new AccessKeySetResource(['name' => 'v2-read', 'api' => 2, 'description' => 'd']))->resolve($request))
         ->toBe(['name' => 'v2-read', 'api' => 2, 'description' => 'd']);

@@ -8030,7 +8030,7 @@
             },
             "post": {
                 "operationId": "createAccessKey",
-                "description": "`permissions` are sets of `GET /access-key-sets`: a key gives only\nsets it holds itself, and only sets the owner may have (sets of role\n`user`, every set for the root administrator). An empty list makes a\nkey that may run every command: only for an administrator's own\naccount, and only by a key without sets. The answer carries the\nsecret, once, with `Cache-Control: no-store`; no other answer, log or\ndry run shows it.",
+                "description": "`permissions` are sets of `GET /access-key-sets`: a key gives only\nsets it holds itself, and only sets the owner may have (sets of role\n`user`, every set for the root administrator). An empty list makes a\nkey that may run every command: only for an administrator's own\naccount, and only by a key without sets. The answer carries the\nsecret, once, with `Cache-Control: no-store`; no other answer, log or\ndry run shows it. `allowed_ips` and `expires_at` restrict the key for\nAPI v1 and v2 and cannot be changed later: a different restriction\nmeans a new key and the deletion of the old one.",
                 "summary": "Create an access key",
                 "tags": [
                     "Access keys"
@@ -28347,13 +28347,29 @@
                             "null"
                         ],
                         "description": "in the server's time zone, YYYY-MM-DDTHH:MM:SS"
+                    },
+                    "allowed_ips": {
+                        "type": "array",
+                        "description": "addresses and networks the key is limited to; empty when unrestricted (E43 B6)",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "expires_at": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "ISO 8601 time in UTC after which the key is refused; null without an expiry"
                     }
                 },
                 "required": [
                     "id",
                     "permissions",
                     "comment",
-                    "created_at"
+                    "created_at",
+                    "allowed_ips",
+                    "expires_at"
                 ],
                 "title": "AccessKey"
             },
@@ -29098,7 +29114,7 @@
             },
             "CreateAccessKeyRequest": {
                 "type": "object",
-                "description": "POST /users/{user}/access-keys (E34 batch 6 §4.6, D62).",
+                "description": "POST /users/{user}/access-keys (E34 batch 6 §4.6, D62), with the address\nlist and expiry of E43 B6.",
                 "properties": {
                     "permissions": {
                         "type": "array",
@@ -29118,6 +29134,27 @@
                         ],
                         "description": "A note for the key, at most 255 characters.",
                         "maxLength": 255
+                    },
+                    "allowed_ips": {
+                        "type": [
+                            "array",
+                            "null"
+                        ],
+                        "description": "IPv4 or IPv6 addresses or CIDR networks the key is limited to, at most 20; empty or absent means any address. Set once: a different list means a new key.",
+                        "items": {
+                            "type": "string",
+                            "maxLength": 43
+                        },
+                        "maxItems": 20,
+                        "uniqueItems": true
+                    },
+                    "expires_at": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "ISO 8601 time after which the key is refused, at least an hour and at most three years ahead; absent or null means no expiry. Set once.",
+                        "maxLength": 40
                     }
                 },
                 "required": [
@@ -32034,6 +32071,20 @@
                         ],
                         "description": "in the server's time zone, YYYY-MM-DDTHH:MM:SS"
                     },
+                    "allowed_ips": {
+                        "type": "array",
+                        "description": "addresses and networks the key is limited to; empty when unrestricted (E43 B6)",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "expires_at": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "ISO 8601 time in UTC after which the key is refused; null without an expiry"
+                    },
                     "secret": {
                         "type": "string",
                         "description": "the secret access key; shown only here. Authenticate with `Authorization: Bearer ID:SECRET`."
@@ -32044,6 +32095,8 @@
                     "permissions",
                     "comment",
                     "created_at",
+                    "allowed_ips",
+                    "expires_at",
                     "secret"
                 ],
                 "title": "NewAccessKey"

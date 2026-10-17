@@ -1,4 +1,4 @@
-{{-- Add an API access key (web/add/access-key, E7 batch 2 spec §8.2; comment first and grouped set cards: spec 2026-10-08-008 U3). --}}
+{{-- Add an API access key (web/add/access-key, E7 batch 2 spec §8.2; comment first and grouped set cards: spec 2026-10-08-008 U3; address list and expiry: E43 B6). --}}
 @php
     $chosen = (array) old('sets', []);
     $error = $errors->first('sets');
@@ -8,6 +8,10 @@
     <x-ap-card :title="__('Access Key')" icon="key">
         <x-ap-form :action="route('access-keys.store', ['user' => $user])" :focus-first="true">
             <x-ap-input name="comment" :label="__('Comment')" :hint="__('Optional. What the key is for, for example deploy bot. Up to 66 letters, digits, spaces, dots, dashes or underscores.')" maxlength="66" autocomplete="off" />
+            <x-ap-textarea name="allowed_ips" :label="__('Allowed addresses')" :mono="true" rows="3" autocomplete="off" spellcheck="false"
+                :hint="__('Optional. One address or network per line, for example 203.0.113.7 or 2001:db8::/48, at most 20. Empty: any address the server allows. It cannot be changed later.')" />
+            <x-ap-input name="expires_at" type="datetime-local" :label="__('Expires (UTC)')"
+                :hint="__('Optional. The key is refused after this time, at least an hour and at most three years ahead. It cannot be changed later.')" />
 
             <fieldset class="ap-fieldset" @if ($error) aria-describedby="sets-error" @endif>
                 <legend class="ap-label">{{ __('Permissions') }} <span class="ap-required" aria-hidden="true">*</span></legend>

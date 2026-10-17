@@ -1,8 +1,10 @@
-{{-- API access keys of an account (web/list/access-key, E7 batch 2 spec §8.2; columns of spec 2026-10-08-008 U1). --}}
+{{-- API access keys of an account (web/list/access-key, E7 batch 2 spec §8.2; columns of spec 2026-10-08-008 U1; addresses and expiry of E43 B6). --}}
 @php
     $columns = [
         ['key' => 'id', 'label' => __('Access Key'), 'sortable' => true],
         ['key' => 'permissions', 'label' => __('Permissions')],
+        ['key' => 'addresses', 'label' => __('Addresses')],
+        ['key' => 'expires', 'label' => __('Expires'), 'sortable' => true],
         ['key' => 'created', 'label' => __('Created'), 'sortable' => true],
     ];
 @endphp
@@ -61,6 +63,27 @@
                                     @endif
                                 </div>
                             @endif
+                        </td>
+                        <td data-col="addresses" data-label="{{ __('Addresses') }}">
+                            @if ($key->allowedIps === [])
+                                <span class="muted">{{ __('Any address') }}</span>
+                            @else
+                                <div class="ap-row ap-key-sets-cell">
+                                    @foreach (array_slice($key->allowedIps, 0, 2) as $ip)
+                                        <x-ap-badge :mono="true">{{ $ip }}</x-ap-badge>
+                                    @endforeach
+                                    @if (count($key->allowedIps) > 2)
+                                        @php($moreIps = array_slice($key->allowedIps, 2))
+                                        <x-ap-badge :dot="false" title="{{ implode(', ', $moreIps) }}">
+                                            <span aria-hidden="true">+{{ count($moreIps) }}</span>
+                                            <span class="sr-only">{{ __(':count more: :sets', ['count' => count($moreIps), 'sets' => implode(', ', $moreIps)]) }}</span>
+                                        </x-ap-badge>
+                                    @endif
+                                </div>
+                            @endif
+                        </td>
+                        <td data-col="expires" data-label="{{ __('Expires') }}" data-sort-value="{{ $key->expires?->getTimestamp() ?? PHP_INT_MAX }}">
+                            @include('keys.partials.key-expiry', ['key' => $key])
                         </td>
                         <td data-col="created" data-label="{{ __('Created') }}" data-sort-value="{{ $key->date }} {{ $key->time }}" class="nowrap">
                             @if ($key->date !== '')

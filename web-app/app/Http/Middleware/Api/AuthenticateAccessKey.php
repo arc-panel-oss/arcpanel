@@ -25,7 +25,9 @@ use Symfony\Component\HttpFoundation\Response;
  * the key is checked by `v-check-access-key-permissions`, its owner becomes
  * the Principal and, for a key with permission sets, every command of the
  * request is checked against them. Ten failed attempts per minute and
- * address are answered 429 (D16).
+ * address are answered 429 (D16). An expired key fails like a wrong
+ * secret; a key used from outside its address list answers 403
+ * E_API_DISABLED (E43 B6, D4).
  */
 final class AuthenticateAccessKey
 {
@@ -58,6 +60,9 @@ final class AuthenticateAccessKey
             }
             if ($result->exit() === ExitCode::Forbidden) {
                 throw new ApiException(ErrorCode::Forbidden, 'The access key has no permission sets.', 403);
+            }
+            if ($result->exit() === ExitCode::Disabled) {
+                throw ApiException::apiDisabled('The access key does not accept requests from this address.');
             }
             RateLimiter::hit($limiter, 60);
             throw ApiException::unauthenticated();

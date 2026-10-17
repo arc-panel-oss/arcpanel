@@ -24,16 +24,20 @@ format="${2:-shell}"
 json_list() {
 	echo -n '{'
 	local quote=''
-	local PERMISSIONS_ARR ACCESS_KEY_ID
+	local PERMISSIONS_ARR ALLOWED_IPS_ARR ACCESS_KEY_ID
 	for key_file in $ARCPANEL/data/access-keys/*; do
 		key_file="$(basename -- "$key_file")"
 		if [[ "$key_file" =~ ^[[:alnum:]]{20}$ ]]; then
-			USER="$ROOT_USER" SECRET_ACCESS_KEY="" PERMISSIONS="" DATE="" TIME="" COMMENT=""
+			USER="$ROOT_USER" SECRET_ACCESS_KEY="" PERMISSIONS="" DATE="" TIME="" COMMENT="" ALLOWED_IPS="" EXPIRES=""
 			source_conf "$ARCPANEL/data/access-keys/$key_file"
 			if [ "$user" = "$USER" ] || [ -z "$user" ]; then
 				PERMISSIONS_ARR='[]'
 				if [[ -n "$PERMISSIONS" ]]; then
 					PERMISSIONS_ARR="[\"$(echo "$PERMISSIONS" | sed -E 's|,|", "|g')\"]"
+				fi
+				ALLOWED_IPS_ARR='[]'
+				if [[ -n "$ALLOWED_IPS" ]]; then
+					ALLOWED_IPS_ARR="[\"$(echo "$ALLOWED_IPS" | sed -E 's|,|", "|g')\"]"
 				fi
 
 				ACCESS_KEY_ID="$(basename "$key_file")"
@@ -45,7 +49,9 @@ json_list() {
 				echo -n '"PERMISSIONS": '${PERMISSIONS_ARR}', '
 				echo -n '"COMMENT": "'${COMMENT}'", '
 				echo -n '"TIME": "'${TIME}'", '
-				echo -n '"DATE": "'${DATE}'"'
+				echo -n '"DATE": "'${DATE}'", '
+				echo -n '"ALLOWED_IPS": '${ALLOWED_IPS_ARR}', '
+				echo -n '"EXPIRES": "'${EXPIRES}'"'
 				echo -n '}'
 				quote=",\n"
 			fi

@@ -6,6 +6,7 @@
 #
 # * Checks if the key exists;
 # * Checks if the secret belongs to the key;
+# * Checks if the key has expired or the client address is outside its list (E43 B6);
 # * Checks if the key user is suspended;
 # * Checks if the key has permission to run the command.
 
@@ -86,6 +87,7 @@ is_format_valid 'access_key_id' 'ip46' 'command'
 is_object_valid 'key' 'KEY' "$access_key_id"
 is_format_valid 'secret_access_key'
 check_access_key_secret "$access_key_id" "$secret_access_key" user
+check_access_key_restrictions "$access_key_id" "$ip46" "$E_FORBIDEN" "IP is not allowed to connect with API"
 check_access_key_cmd "$access_key_id" "$arc_command" user_arg_pos
 
 # Check if key owner is active
