@@ -22,6 +22,9 @@ it('describes the key of the request', function () {
             'commands' => ['*'],
             'panel_version' => '2.0.0',
             'api_version' => '2',
+            'server_id' => '7d3f5a2e-9c41-4b8e-a6d2-0f1e2d3c4b5a',
+            'key_expires_at' => null,
+            'key_allowed_ips' => [],
         ]])
         ->assertHeader('ArcPanel-Version', '2.0.0')
         ->assertHeader('X-Request-Id');

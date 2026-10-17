@@ -81,6 +81,7 @@ function sysConfig(array $overrides = []): array
         'POLICY_USER_EDIT_WEB_TEMPLATES' => 'no',
         'POLICY_SYSTEM_HIDE_SERVICES' => 'no',
         'PLUGIN_APP_INSTALLER' => 'true',
+        'SERVER_ID' => '7d3f5a2e-9c41-4b8e-a6d2-0f1e2d3c4b5a',
     ], $overrides)];
 }
 

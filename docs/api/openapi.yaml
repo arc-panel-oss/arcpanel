@@ -11084,7 +11084,8 @@ paths:
       summary: Check an access key for API v2
       description: |-
         This function checks an access key for REST API v2 (E34) and prints its
-        owner, the owner's role, its permission sets and the commands they allow:
+        owner, the owner's role, its permission sets, the commands they allow and
+        its restrictions (EXPIRES, a Unix time, and ALLOWED_IPS, E43 B6):
         * the key exists and the secret (read from SECRET_FILE) belongs to it;
         * the owner exists and is not suspended;
         * a key of another user than the administrator has permission sets.
@@ -35991,6 +35992,57 @@ paths:
           $ref: "#/components/responses/InvalidRequest"
         "422":
           $ref: "#/components/responses/Unprocessable"
+  "/api/#v-update-sys-server-id":
+    post:
+      operationId: v-update-sys-server-id
+      tags:
+        - System
+      summary: Set the server identifier
+      description: |-
+        This function keeps SERVER_ID, a random UUID that API clients use to tell
+        servers apart (E43 B1), in the configuration. It writes SERVER_ID and
+        SERVER_ID_MACHINE, the SHA-256 of /etc/machine-id, when SERVER_ID is
+        missing; when the machine identity changed (a cloned machine), it writes a
+        new identifier and logs the change. It prints the identifier. It runs from
+        the installers, the upgrade step, the daily queue and at boot.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `FORMAT` | no |
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-update-sys-server-id"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-update-sys-server-id"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+            application/json:
+              schema:
+                type: object
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
   "/api/#v-update-sys-sudoers":
     post:
       operationId: v-update-sys-sudoers
@@ -60303,6 +60355,31 @@ components:
               description: "`PERIOD`"
               examples:
                 - ""
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
+    v-update-sys-server-id:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-update-sys-server-id
+              default: v-update-sys-server-id
+            arg1:
+              type: string
+              title: FORMAT
+              description: "`FORMAT`, optional"
+              enum:
+                - json
+                - plain
+                - csv
+                - shell
+              examples:
+                - json
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-update-sys-sudoers:

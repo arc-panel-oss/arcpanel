@@ -153,6 +153,8 @@ wait_v2_task() {
 
 "$ARCPANEL/bin/v-change-sys-config-value" API_SYSTEM 2
 "$ARCPANEL/bin/v-change-sys-config-value" API_ALLOWED_IP allow-all
+# The server identifier of GET /me (E43 B1); the installers and the upgrade step set it
+SERVER_ID=$("$ARCPANEL/bin/v-update-sys-server-id" plain)
 clear_panel_cache
 
 ADMIN=$(new_key "$ROOT_USER" '')
@@ -160,6 +162,8 @@ ADMIN=$(new_key "$ROOT_USER" '')
 # Foundation (spec §4)
 check "GET /me answers for the administrator's key" 200 "$(call "$ADMIN" GET /me)"
 check "GET /me: unrestricted" '*' "$(json '.data.commands | join(",")')"
+check "GET /me: the server identifier (E43 B1)" "$SERVER_ID" "$(json .data.server_id)"
+check "GET /me: no expiry and no address list without restrictions" 'null []' "$(json '"\(.data.key_expires_at) \(.data.key_allowed_ips | tojson)"')"
 check "a wrong secret answers 401" 401 "$(call "${ADMIN%%:*}:$(printf 'x%.0s' {1..40})" GET /me)"
 check "401 carries the error code" E_UNAUTHENTICATED "$(json .error.code)"
 check "an unknown path answers 404 with the error body" E_NOTEXIST "$(

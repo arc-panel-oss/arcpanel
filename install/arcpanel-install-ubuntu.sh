@@ -2683,6 +2683,8 @@ $ARCPANEL/bin/v-add-sys-app-processes
 $ARCPANEL/bin/v-add-sys-panel-files
 # Secret store: the master key (E38); keep a copy of it off the server
 $ARCPANEL/bin/v-add-sys-secret-key
+# Server identifier for API clients (E43)
+$ARCPANEL/bin/v-update-sys-server-id > /dev/null
 
 chmod 600 /var/spool/cron/crontabs/arcpanelweb
 chown arcpanelweb:arcpanelweb /var/spool/cron/crontabs/arcpanelweb

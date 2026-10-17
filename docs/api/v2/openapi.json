@@ -299,7 +299,7 @@
         "/me": {
             "get": {
                 "operationId": "getMe",
-                "description": "The access key of the request: its owner and role, its permission\nsets and the commands they allow (`*` when unrestricted), and the\nversions of the panel and of the API. Clients use it to check a\nprofile (E34 spec D12).",
+                "description": "The access key of the request: its owner and role, its permission\nsets and the commands they allow (`*` when unrestricted), and the\nversions of the panel and of the API. Clients use it to check a\nprofile (E34 spec D12). `server_id` identifies the server: it stays\nthe same for every key of the server and changes when the machine is\ncloned with a new identity (E43 B1). `key_expires_at` and\n`key_allowed_ips` are the restrictions of the calling key.",
                 "summary": "Who am I",
                 "tags": [
                     "Account"
@@ -31945,6 +31945,24 @@
                     },
                     "api_version": {
                         "type": "string"
+                    },
+                    "server_id": {
+                        "type": "string",
+                        "description": "the server's identifier (SERVER_ID), the same for every key of the server (E43 B1)"
+                    },
+                    "key_expires_at": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "ISO 8601 expiry of the calling key, null without one"
+                    },
+                    "key_allowed_ips": {
+                        "type": "array",
+                        "description": "addresses and networks the calling key is limited to; empty when unrestricted",
+                        "items": {
+                            "type": "string"
+                        }
                     }
                 },
                 "required": [
@@ -31955,7 +31973,10 @@
                     "permissions",
                     "commands",
                     "panel_version",
-                    "api_version"
+                    "api_version",
+                    "server_id",
+                    "key_expires_at",
+                    "key_allowed_ips"
                 ],
                 "title": "Me"
             },

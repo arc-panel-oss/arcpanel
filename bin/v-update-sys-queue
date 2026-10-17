@@ -53,6 +53,8 @@ case $queue in
 	daily)
 		bash $ARCPANEL/data/queue/$queue.pipe > /dev/null 2>&1
 		qt_cleanup_all
+		# A cloned machine gets its own server identifier (E43 B1)
+		$BIN/v-update-sys-server-id > /dev/null 2>&1
 		;;
 	traffic) bash $ARCPANEL/data/queue/$queue.pipe > /dev/null 2>&1 ;;
 	dns-cluster) bash $ARCPANEL/data/queue/$queue.pipe > /dev/null 2>&1 ;;
