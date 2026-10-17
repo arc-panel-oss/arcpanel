@@ -8,12 +8,14 @@ use App\Api\PlanGate;
 use App\Auth\Principal;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\V2\RestartServerRequest;
+use App\Http\Resources\V2\ServiceLogResource;
 use App\Http\Resources\V2\ServiceResource;
 use App\Http\Resources\V2\ServiceStatusResource;
 use App\Policies\ServerPolicy;
 use App\Services\Server\ServiceActions;
 use App\Services\Server\SystemServices;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\Response;
 
@@ -73,6 +75,27 @@ final class ServiceController extends Controller
         abort_unless(isset(SystemServices::REPORTS[$kind]), 404);
 
         return new ServiceStatusResource(['kind' => $kind, 'text' => $this->services->report($kind)]);
+    }
+
+    /**
+     * Read the last lines of a service's journal
+     *
+     * The last `lines` lines (default 100, at most 500) of the systemd
+     * journal of a service that listServices shows, the newest last, for
+     * diagnosis (E43 B5). A service the server does not list answers 404.
+     * The lines may contain addresses and paths: a client that shows them to
+     * others redacts them.
+     *
+     * @operationId getServiceLogs
+     */
+    public function logs(Request $request, string $service, Principal $principal, ServerPolicy $policy): ServiceLogResource
+    {
+        abort_unless($policy->viewServices($principal), 403);
+        $data = $request->validate(['lines' => ['nullable', 'integer', 'min:1', 'max:500']]);
+        $this->actions->assertKnown([$service]);
+        $log = $this->services->log($service, (int) ($data['lines'] ?? 100));
+
+        return new ServiceLogResource(['service' => $service, 'lines' => $log]);
     }
 
     /**

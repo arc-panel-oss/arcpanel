@@ -306,6 +306,17 @@ it('documents getRequest with the journal fields and meta.duplicates (E43 B4)', 
         ->and($spec['components']['schemas']['ApiRequest']['properties']['state']['enum'])->toBe(['running', 'finished', 'unknown']);
 });
 
+it('documents getServiceLogs with its lines parameter (E43 B5)', function () {
+    $spec = json_decode((string) file_get_contents(base_path('../docs/api/v2/openapi.json')), true);
+    $operation = $spec['paths']['/system/services/{service}/logs']['get'] ?? null;
+
+    expect($operation['operationId'] ?? null)->toBe('getServiceLogs');
+    $lines = array_values(array_filter($operation['parameters'], fn (array $p) => $p['name'] === 'lines'))[0] ?? null;
+    expect($lines['schema'] ?? null)->toMatchArray(['type' => 'integer', 'minimum' => 1, 'maximum' => 500, 'default' => 100])
+        ->and($operation['responses']['200']['content']['application/json']['schema']['properties']['data'])->toBe(['$ref' => '#/components/schemas/ServiceLog'])
+        ->and(array_keys($spec['components']['schemas']['ServiceLog']['properties']))->toBe(['service', 'lines']);
+});
+
 it('documents regex rules without their PHP delimiters', function () {
     // Scramble strips only "/" delimiters: "#^a$#" would reach the clients as a
     // pattern that matches nothing

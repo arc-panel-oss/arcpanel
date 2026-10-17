@@ -122,6 +122,7 @@ Route::prefix('/system')->name('system.')->group(function () {
     $ip = ['ip' => '[0-9A-Fa-f:.]{2,45}'];
     Route::get('/services', [ServiceController::class, 'index'])->name('services.index');
     Route::get('/services/status/{kind}', [ServiceController::class, 'status'])->where('kind', '[a-z]{2,4}')->name('services.status');
+    Route::get('/services/{service}/logs', [ServiceController::class, 'logs'])->where($service)->name('services.logs');
     Route::get('/ips', [IpController::class, 'index'])->name('ips.index');
     Route::get('/ips/{ip}', [IpController::class, 'show'])->where($ip)->name('ips.show');
     Route::get('/interfaces', [IpController::class, 'interfaces'])->name('interfaces.index');

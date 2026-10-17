@@ -399,6 +399,7 @@ final class ApiDocs extends Command
             $responses['202']['headers']['Link'] = ['$ref' => '#/components/headers/Link'];
         }
         self::tailorWebDomainOpenApi($operationId, $operation, $responses);
+        self::tailorServiceLogsOpenApi($operationId, $operation);
         self::tailorNodeAppOpenApi($operationId, $operation, $responses);
         self::tailorAppProcessOpenApi($operationId, $operation, $responses);
         self::tailorDockerAppOpenApi($operationId, $operation, $responses);
@@ -1175,6 +1176,25 @@ final class ApiDocs extends Command
                 'required' => ['data', 'meta'],
             ];
         }
+    }
+
+    /**
+     * `lines` of getServiceLogs as the client sees it: default 100, at most 500 (E43 B5).
+     *
+     * @param  array<string, mixed>  $operation
+     */
+    private static function tailorServiceLogsOpenApi(string $operationId, array &$operation): void
+    {
+        if ($operationId !== 'getServiceLogs') {
+            return;
+        }
+        $inferred = array_filter($operation['parameters'] ?? [], fn (array $p) => ! (($p['in'] ?? '') === 'query' && ($p['name'] ?? '') === 'lines'));
+        $operation['parameters'] = [...array_values($inferred), [
+            'name' => 'lines',
+            'in' => 'query',
+            'description' => 'Number of lines to return (1–500). Defaults to 100.',
+            'schema' => ['type' => 'integer', 'minimum' => 1, 'maximum' => 500, 'default' => 100],
+        ]];
     }
 
     /** @return list<array<string, mixed>> */

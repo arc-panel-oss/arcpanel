@@ -745,6 +745,12 @@ else
 	skip "services: this server lists no cron service"
 fi
 check "stopService of arcpanel answers 403" 403 "$(call "$ADMIN" POST /system/services/arcpanel/stop)"
+# Service log excerpts (E43 B5)
+check "getServiceLogs of arcpanel answers 200 (E43 B5)" 200 "$(call "$ADMIN" GET "/system/services/arcpanel/logs?lines=5")"
+check "getServiceLogs answers the service and at most 5 lines" "arcpanel true" "$(json '"\(.data.service) \(.data.lines | length <= 5)"')"
+check "getServiceLogs answers an administrator's v2-observe key" 200 "$(call "$ADMIN_OBSERVER" GET /system/services/arcpanel/logs)"
+check "getServiceLogs answers 404 for a service the server does not list" 404 "$(call "$ADMIN" GET /system/services/arcsmoke-none/logs)"
+check "getServiceLogs refuses a user's key" 403 "$(call "$ACCOUNTS_KEY" GET /system/services/arcpanel/logs)"
 
 # Server settings (§5.7, D58): no secret in the answer; stored values are compared here, never printed
 check "getServerSettings answers 200" 200 "$(call "$ADMIN" GET /system/settings)"

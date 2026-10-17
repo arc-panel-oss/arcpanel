@@ -6796,6 +6796,83 @@
                 }
             }
         },
+        "/system/services/{service}/logs": {
+            "get": {
+                "operationId": "getServiceLogs",
+                "description": "The last `lines` lines (default 100, at most 500) of the systemd\njournal of a service that listServices shows, the newest last, for\ndiagnosis (E43 B5). A service the server does not list answers 404.\nThe lines may contain addresses and paths: a client that shows them to\nothers redacts them.",
+                "summary": "Read the last lines of a service's journal",
+                "tags": [
+                    "Server"
+                ],
+                "parameters": [
+                    {
+                        "name": "service",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "lines",
+                        "in": "query",
+                        "description": "Number of lines to return (1–500). Defaults to 100.",
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 500,
+                            "default": 100
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "`ServiceLog`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/ServiceLog"
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    }
+                }
+            }
+        },
         "/system/services/{service}/restart": {
             "post": {
                 "operationId": "restartService",
@@ -35342,6 +35419,27 @@
                     "uptime_minutes",
                     "load"
                 ]
+            },
+            "ServiceLog": {
+                "type": "object",
+                "properties": {
+                    "service": {
+                        "type": "string",
+                        "description": "the service, as listServices names it"
+                    },
+                    "lines": {
+                        "type": "array",
+                        "description": "journal lines in `short-iso` form, the newest last",
+                        "items": {
+                            "type": "string"
+                        }
+                    }
+                },
+                "required": [
+                    "service",
+                    "lines"
+                ],
+                "title": "ServiceLog"
             },
             "ServiceStatus": {
                 "type": "object",

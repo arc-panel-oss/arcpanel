@@ -1,0 +1,75 @@
+#!/bin/bash
+# info: list the last lines of a service's journal
+# options: SERVICE [LINES] [FORMAT]
+#
+# example: v-list-sys-service-log nginx 50 json
+#
+# This function prints the last LINES lines (default 100, at most 500) of
+# the systemd journal of a service that v-list-sys-services lists, for
+# diagnosis (E43 B5). The service name is its unit, as for v-start-service,
+# v-stop-service and v-restart-service, except the web terminal, whose unit
+# is arcpanel-web-terminal. A firewall without a unit has no lines. The
+# lines may contain addresses and paths.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+service=$1
+lines=${2:-100}
+format=${3-shell}
+
+# Includes
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# load config file
+source_conf "$ARCPANEL/conf/arcpanel.conf"
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '1' "$#" 'SERVICE [LINES] [FORMAT]'
+is_format_valid 'service'
+if ! [[ "$lines" =~ ^[0-9]{1,3}$ ]] || [ "$lines" -lt 1 ] || [ "$lines" -gt 500 ]; then
+	check_result "$E_INVALID" "invalid lines :: $lines (1 to 500)"
+fi
+case "$format" in
+	json | plain | shell | csv) ;;
+	*) check_result "$E_INVALID" "invalid format :: $format" ;;
+esac
+if ! $BIN/v-list-sys-services json | jq -e --arg service "$service" 'has($service)' > /dev/null 2>&1; then
+	check_result "$E_NOTEXIST" "service $service is not listed"
+fi
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+unit="$service"
+if [ "$service" = 'web-terminal' ]; then
+	unit='arcpanel-web-terminal'
+fi
+
+text=$(journalctl -u "$unit" -n "$lines" --no-pager --quiet -o short-iso 2> /dev/null | tr -d '\000')
+
+json=$(printf '%s' "$text" | jq -Rsc --arg service "$service" --arg unit "$unit" '
+	{ SERVICE: $service, UNIT: $unit, LINES: (if . == "" then [] else split("\n") end) }')
+
+case "$format" in
+	json) jq . <<< "$json" ;;
+	csv)
+		echo 'LINE'
+		jq -r '.LINES[] | [.] | @csv' <<< "$json"
+		;;
+	*) jq -r '.LINES[]' <<< "$json" ;;
+esac
+
+#----------------------------------------------------------#
+#                         ArcPanel                         #
+#----------------------------------------------------------#
+
+exit
