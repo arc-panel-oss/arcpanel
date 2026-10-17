@@ -10,6 +10,10 @@
 # shellcheck source=/usr/local/arcpanel/func/syshealth.sh
 source $ARCPANEL/func/syshealth.sh
 
+# Checked downloads of third-party software (E39 W3)
+# shellcheck source=/usr/local/arcpanel/func/download.sh
+source $ARCPANEL/func/download.sh
+
 #####################################################################
 #######                Functions & Initialization             #######
 #####################################################################
@@ -535,13 +539,12 @@ upgrade_b2_tool() {
 			echo "[ * ] Backblaze CLI tool is up to date ($b2_v)..."
 		else
 			echo "[ * ] Upgrading Backblaze CLI tool to version $b2_v..."
-			rm $b2cli
-			wget -O $b2cli $b2lnk > /dev/null 2>&1
-			chmod +x $b2cli > /dev/null 2>&1
-			if [ ! -f "$b2cli" ]; then
+			if ! fetch_verified "$b2lnk" "$b2_sha256" "$b2cli.new"; then
 				echo "Error: Binary download failed, b2 doesn't work as expected."
 				exit 3
 			fi
+			install -m 0755 "$b2cli.new" "$b2cli"
+			rm -f "$b2cli.new"
 		fi
 	fi
 }
@@ -594,6 +597,13 @@ upgrade_phppgadmin() {
 	fi
 }
 
+upgrade_rclone() {
+	# rclone from the pinned release (E39 W3 D8); only where it is installed
+	if [ -x /usr/bin/rclone ]; then
+		"$BIN"/v-add-sys-rclone || echo "[ ! ] Error upgrading rclone $rclone_v"
+	fi
+}
+
 upgrade_phpmyadmin() {
 	# Check if MariaDB/MySQL is installed on the server before attempting to install or upgrade phpMyAdmin
 	if [ -n "$(echo $DB_SYSTEM | grep -w 'mysql')" ]; then
@@ -614,17 +624,22 @@ upgrade_phpmyadmin() {
 			echo "[ * ] Upgrading phpMyAdmin to version $pma_v..."
 			[ -d /usr/share/phpmyadmin ] || mkdir -p /usr/share/phpmyadmin
 
-			# Download latest phpMyAdmin release
-			wget --quiet https://files.phpmyadmin.net/phpMyAdmin/$pma_v/phpMyAdmin-$pma_v-all-languages.tar.gz
+			# Download the phpMyAdmin release and check it before unpacking
+			pma_work=$(mktemp -d)
+			if ! fetch_verified "https://files.phpmyadmin.net/phpMyAdmin/$pma_v/phpMyAdmin-$pma_v-all-languages.tar.gz" "$pma_sha256" "$pma_work/phpmyadmin.tar.gz"; then
+				echo "[ ! ] phpMyAdmin was not upgraded to $pma_v: its download failed the check"
+				rm -rf "$pma_work"
+				return 0
+			fi
 
 			# Unpack files
-			tar xzf phpMyAdmin-$pma_v-all-languages.tar.gz
+			tar xzf "$pma_work/phpmyadmin.tar.gz" -C "$pma_work"
 
 			# Delete file to prevent error
 			rm -rf /usr/share/phpmyadmin/doc/html
 
 			# Overwrite old files
-			cp -rf phpMyAdmin-$pma_v-all-languages/* /usr/share/phpmyadmin
+			cp -rf "$pma_work/phpMyAdmin-$pma_v-all-languages/"* /usr/share/phpmyadmin
 
 			# Set config and log directory
 			sed -i "s|'configFile' => ROOT_PATH . 'config.inc.php',|'configFile' => '/etc/phpmyadmin/config.inc.php',|g" /usr/share/phpmyadmin/libraries/vendor_config.php
@@ -646,8 +661,7 @@ upgrade_phpmyadmin() {
 			chown -R root:arcpanelmail /etc/phpmyadmin/
 
 			# Clean up source files
-			rm -fr phpMyAdmin-$pma_v-all-languages
-			rm -f phpMyAdmin-$pma_v-all-languages.tar.gz
+			rm -rf "$pma_work"
 		fi
 	fi
 }

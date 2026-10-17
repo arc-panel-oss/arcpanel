@@ -1,0 +1,76 @@
+#!/bin/bash
+# info: delete an app process of a web domain (E42)
+# options: USER DOMAIN NAME
+#
+# example: v-delete-app-process alice shop.example.com queue
+#
+# This function stops the process and removes its unit and record. For the
+# web process, the port goes back to the user's pool and the domain gets its
+# previous template again. The log and the environment file stay in the
+# domain folder (app-process/).
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+user=$1
+domain=$2
+name=$3
+
+# Includes
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/tenancy.sh
+source $ARCPANEL/func/tenancy.sh
+# shellcheck source=/usr/local/arcpanel/func/ports.sh
+source $ARCPANEL/func/ports.sh
+# shellcheck source=/usr/local/arcpanel/func/appprocess.sh
+source $ARCPANEL/func/appprocess.sh
+# load config file
+source_conf "$ARCPANEL/conf/arcpanel.conf"
+
+# Additional argument formatting
+format_domain
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '3' "$#" 'USER DOMAIN NAME'
+is_format_valid 'user' 'domain'
+is_object_valid 'user' 'USER' "$user"
+if ! appproc_name_valid "$name"; then
+	check_result "$E_INVALID" "invalid name :: $name"
+fi
+id=$(appproc_id "$user" "$domain" "$name")
+if [ -z "$id" ]; then
+	check_result "$E_NOTEXIST" "$domain has no app process named $name"
+fi
+
+# Perform verification if read-only mode is enabled
+check_arcpanel_demo_mode
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+appproc_lock "$user"
+id=$(appproc_id "$user" "$domain" "$name")
+if [ -z "$id" ]; then
+	check_result "$E_NOTEXIST" "$domain has no app process named $name"
+fi
+appproc_delete "$user" "$id"
+appproc_logrotate_write "$user"
+
+#----------------------------------------------------------#
+#                         ArcPanel                         #
+#----------------------------------------------------------#
+
+# Logging
+$BIN/v-log-action "$user" "Info" "App processes" "App process deleted (Domain: $domain, Name: $name)."
+log_event "$OK" "$ARGUMENTS"
+
+exit

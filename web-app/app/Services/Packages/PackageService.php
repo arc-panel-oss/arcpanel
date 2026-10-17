@@ -43,6 +43,7 @@ final class PackageService
             'NODE' => 'no', 'NODE_VERSIONS' => '3', 'NODE_ALLOWED' => 'lts', 'NODE_APPS' => '3',
             'DOCKER' => 'no', 'DOCKER_APPS' => '0', 'DOCKER_CPUS' => 'unlimited', 'DOCKER_MEMORY' => 'unlimited',
             'PHP_VERSIONS' => '*', 'PHP_PROFILES' => 'default', 'PHP_DEFAULT_PROFILE' => 'default',
+            'APP_PROCESSES' => 'no', 'APP_PROCESSES_MAX' => '3', 'APP_PROCESSES_MEMORY' => 'unlimited', 'APP_PROCESSES_CPUS' => '1',
         ];
     }
 
@@ -122,7 +123,7 @@ final class PackageService
      * @param  array{NODE: string, NODE_VERSIONS: string, NODE_ALLOWED: string, NODE_APPS: string}|null  $node  Node.js keys (E13), null to keep them
      * @return list<Step>
      */
-    public function planCreate(string $name, array $values, ?array $tenancy, string $reseller = '', string $ports = '0', ?array $node = null, ?array $docker = null, ?array $php = null): array
+    public function planCreate(string $name, array $values, ?array $tenancy, string $reseller = '', string $ports = '0', ?array $node = null, ?array $docker = null, ?array $php = null, ?array $processes = null): array
     {
         $file = Secret::file($this->file($values));
         if ($reseller !== '') {
@@ -131,6 +132,7 @@ final class PackageService
                 ...$this->portsStep($reseller.'_'.$name, $ports, null),
                 ...$this->nodeSteps($reseller.'_'.$name, $node, null),
                 ...$this->dockerSteps($reseller.'_'.$name, $docker, null),
+                ...$this->processSteps($reseller.'_'.$name, $processes, null),
                 ...$this->phpSteps($reseller.'_'.$name, $php, null),
             ];
         }
@@ -141,6 +143,7 @@ final class PackageService
             ...$this->portsStep($name, $ports, null),
             ...$this->nodeSteps($name, $node, null),
             ...$this->dockerSteps($name, $docker, null),
+            ...$this->processSteps($name, $processes, null),
             ...$this->phpSteps($name, $php, null),
         ];
     }
@@ -152,7 +155,7 @@ final class PackageService
      * @param  array{NODE: string, NODE_VERSIONS: string, NODE_ALLOWED: string, NODE_APPS: string}|null  $node  Node.js keys (E13), null to keep them
      * @return list<Step>
      */
-    public function planUpdate(PackageRecord $current, string $newName, array $values, ?array $tenancy, string $reseller = '', ?string $ports = null, ?array $node = null, ?array $docker = null, ?array $php = null): array
+    public function planUpdate(PackageRecord $current, string $newName, array $values, ?array $tenancy, string $reseller = '', ?string $ports = null, ?array $node = null, ?array $docker = null, ?array $php = null, ?array $processes = null): array
     {
         $file = Secret::file($this->file($values));
         if ($reseller !== '') {
@@ -161,6 +164,7 @@ final class PackageService
                 ...$this->portsStep($current->name, $ports, $current),
                 ...$this->nodeSteps($current->name, $node, $current),
                 ...$this->dockerSteps($current->name, $docker, $current),
+                ...$this->processSteps($current->name, $processes, $current),
                 ...$this->phpSteps($current->name, $php, $current),
             ];
         }
@@ -293,6 +297,34 @@ final class PackageService
             $before = $current?->get($key, $defaults[$key]) ?? $defaults[$key];
             if ($docker[$key] !== $before) {
                 $steps[] = new Step(sprintf(__('Set %s'), $key), 'v-change-package-tenancy', [$name, $key, $docker[$key]]);
+            }
+        }
+
+        return $steps;
+    }
+
+    /**
+     * App process keys of the package sidecar (E42) that are set or
+     * changed; the limits before APP_PROCESSES, as for Node.js. The command
+     * checks a reseller's package against the reseller's keys.
+     *
+     * @param  array{APP_PROCESSES: string, APP_PROCESSES_MAX: string, APP_PROCESSES_MEMORY: string, APP_PROCESSES_CPUS: string}|null  $processes
+     * @return list<Step>
+     */
+    private function processSteps(string $name, ?array $processes, ?PackageRecord $current): array
+    {
+        if ($processes === null) {
+            return [];
+        }
+        $defaults = ['APP_PROCESSES' => 'no', 'APP_PROCESSES_MAX' => '3', 'APP_PROCESSES_MEMORY' => 'unlimited', 'APP_PROCESSES_CPUS' => '1'];
+        $steps = [];
+        foreach (['APP_PROCESSES_MAX', 'APP_PROCESSES_MEMORY', 'APP_PROCESSES_CPUS', 'APP_PROCESSES'] as $key) {
+            if (! isset($processes[$key])) {
+                continue;
+            }
+            $before = $current?->get($key, $defaults[$key]) ?? $defaults[$key];
+            if ($processes[$key] !== $before) {
+                $steps[] = new Step(sprintf(__('Set %s'), $key), 'v-change-package-tenancy', [$name, $key, $processes[$key]]);
             }
         }
 

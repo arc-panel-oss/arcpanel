@@ -6,7 +6,9 @@
 #
 # This function rewrites the limits of a package created by RESELLER from
 # TMPFILE and applies them to the users of that package. No limit may be
-# higher than the reseller's own limit.
+# higher than the reseller's own limit, the shell must be one of
+# POLICY_RESELLER_PACKAGE_SHELLS or the one the package has, and while users
+# may not choose templates the templates are the reseller's own.
 
 #----------------------------------------------------------#
 #                Variables & Functions                     #
@@ -45,8 +47,8 @@ fi
 if [ ! -f "$tmpfile" ]; then
 	check_result "$E_NOTEXIST" "$tmpfile does not exist"
 fi
-exceeded=$(tenancy_check_package_limits "$reseller" "$tmpfile")
-check_result $? "reseller plan has no room for $exceeded" "$E_LIMIT"
+exceeded=$(tenancy_check_package_limits "$reseller" "$tmpfile" "$ARCPANEL/data/packages/$package.pkg")
+check_result $? "the reseller's plan does not allow $exceeded" "$E_LIMIT"
 
 # Perform verification if read-only mode is enabled
 check_arcpanel_demo_mode

@@ -4,22 +4,47 @@ use Illuminate\Support\Facades\Artisan;
 
 // The allow-list of ArcCommand (config/arc-commands.php).
 
-it('lists the v-* scripts of bin/ but never v-get-user-secret (E38 D7)', function () {
-    $bin = sys_get_temp_dir().'/arc-allow-list-'.bin2hex(random_bytes(4));
-    mkdir($bin);
-    foreach (['v-list-user', 'v-add-user-secret', 'v-get-user-secret', 'README'] as $file) {
-        file_put_contents($bin.'/'.$file, "#!/bin/bash\n");
+/** A bin/ directory with these scripts and a root-only list beside it, removed after $check. */
+function withAllowListFiles(array $scripts, ?string $rootOnly, Closure $check): void
+{
+    $dir = sys_get_temp_dir().'/arc-allow-list-'.bin2hex(random_bytes(4));
+    mkdir($dir.'/bin', 0700, true);
+    foreach ($scripts as $file) {
+        file_put_contents($dir.'/bin/'.$file, "#!/bin/bash\n");
+    }
+    if ($rootOnly !== null) {
+        file_put_contents($dir.'/root-only', $rootOnly);
     }
     $target = config_path('arc-commands.php');
     $saved = is_file($target) ? file_get_contents($target) : null;
 
     try {
-        expect(Artisan::call('arcpanel:allow-list', ['--bin' => $bin]))->toBe(0);
-        $commands = require $target;
-        expect($commands)->toBe(['v-add-user-secret', 'v-list-user']);
+        $check($dir, $target);
     } finally {
         $saved === null ? @unlink($target) : file_put_contents($target, $saved);
-        array_map('unlink', glob($bin.'/*') ?: []);
-        rmdir($bin);
+        array_map('unlink', [...glob($dir.'/bin/*') ?: [], ...glob($dir.'/root-only') ?: []]);
+        rmdir($dir.'/bin');
+        rmdir($dir);
     }
+}
+
+it('lists the v-* scripts of bin/ but none of the root-only list (E38 D7, E39 W4 §9)', function () {
+    withAllowListFiles(['v-list-user', 'v-add-user-secret', 'v-get-user-secret', 'v-update-sys-sudoers', 'README'],
+        "# Prints a secret\nv-get-user-secret\n\n# Writes the sudo rules\nv-update-sys-sudoers\n",
+        function (string $dir, string $target) {
+            expect(Artisan::call('arcpanel:allow-list', ['--bin' => $dir.'/bin', '--root-only' => $dir.'/root-only']))->toBe(0);
+            expect(require $target)->toBe(['v-add-user-secret', 'v-list-user']);
+        });
+});
+
+it('refuses to write the list without the root-only list', function () {
+    withAllowListFiles(['v-list-user'], null, function (string $dir) {
+        expect(Artisan::call('arcpanel:allow-list', ['--bin' => $dir.'/bin', '--root-only' => $dir.'/root-only']))->toBe(1);
+    });
+});
+
+it('keeps v-get-user-secret in the shipped root-only list', function () {
+    $lines = array_map('trim', file(base_path('../install/common/sudo/root-only')) ?: []);
+
+    expect($lines)->toContain('v-get-user-secret', 'v-update-sys-sudoers', 'v-change-sys-release', 'v-add-sys-arcpanel');
 });

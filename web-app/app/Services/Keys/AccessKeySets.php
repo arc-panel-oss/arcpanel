@@ -65,6 +65,25 @@ final class AccessKeySets
         ][$set] ?? null;
     }
 
+    /**
+     * Set files of install/common/api named apart from their set (E39 W4
+     * D13): no repository path contains "secrets", so the secret store set
+     * ships as v2-secret-store and is installed as v2-secrets.
+     */
+    public const FILES = ['v2-secrets' => 'v2-secret-store'];
+
+    /** The set a file of install/common/api installs. */
+    public static function setOfFile(string $file): string
+    {
+        return array_flip(self::FILES)[$file] ?? $file;
+    }
+
+    /** The file of install/common/api that ships a set. */
+    public static function fileOfSet(string $set): string
+    {
+        return self::FILES[$set] ?? $set;
+    }
+
     /** Whether a set belongs to REST API v2 (the `v2-*` sets of install/common/api). */
     public static function isV2(string $set): bool
     {

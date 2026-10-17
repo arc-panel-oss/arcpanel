@@ -8,7 +8,8 @@ use App\Arc\ExitCode;
 
 beforeEach(function () {
     $this->fake = fakeApi(['POLICY_RESELLER_CREATE_PACKAGES' => 'yes']);
-    fakeResellers($this->fake, ['hostco' => ['WEB_DOMAINS' => '10', 'DISK_QUOTA' => '5000', 'BANDWIDTH' => 'unlimited', 'MAIL_ACCOUNTS' => 'unlimited', 'RATE_LIMIT' => '200', 'BACKUPS' => '3']]);
+    fakeResellers($this->fake, ['hostco' => ['WEB_DOMAINS' => '10', 'DISK_QUOTA' => '5000', 'BANDWIDTH' => 'unlimited', 'MAIL_ACCOUNTS' => 'unlimited', 'RATE_LIMIT' => '200', 'BACKUPS' => '3',
+        'WEB_TEMPLATE' => 'default', 'BACKEND_TEMPLATE' => 'default', 'PROXY_TEMPLATE' => 'default', 'DNS_TEMPLATE' => 'default', 'BACKUPS_INCREMENTAL' => 'no']]);
     $base = ['WEB_TEMPLATE' => 'default', 'DNS_TEMPLATE' => 'default', 'WEB_DOMAINS' => '1', 'MAIL_ACCOUNTS' => '5', 'DATABASES' => '1',
         'DISK_QUOTA' => '1000', 'BANDWIDTH' => '1000', 'DNS_RECORDS' => 'unlimited', 'NS' => 'ns1.example.com,ns2.example.com', 'SHELL' => 'nologin',
         'USERS' => '0', 'RESELLER_PACKAGES' => '', 'RESELLER_VISIBLE' => 'no', 'RESELLER_OWNER' => '', 'RATE_LIMIT' => '200', 'BACKUPS' => '1',
@@ -250,3 +251,24 @@ it('deletes a package without users', function (?string $area) {
     $this->fake->assertRan('v-delete-reseller-package', fn ($a) => $a === ['hostco', 'hostco_gold']);
     $this->deleteJson('/api/v2/packages/hostco_gold', [], apiAs($this->fake, 'resb', 'reseller', area: $area))->assertNotFound();
 })->with('package keys');
+
+it('keeps a reseller package to the shells, templates and units of the plan (E39 W4 §8)', function () {
+    $this->packages['reseller'] += ['MEMORY_LIMIT' => '1G', 'NODE' => 'yes', 'NODE_ALLOWED' => 'lts'];
+    withSysConfig($this->fake, ['API_SYSTEM' => '2', 'API_ALLOWED_IP' => 'allow-all', 'POLICY_RESELLER_CREATE_PACKAGES' => 'yes', 'RESOURCES_LIMIT' => 'yes']);
+    apiPackageAdded($this, 'v-add-reseller-package', 'hostco_business', ['RESELLER_OWNER' => 'hostco']);
+    $this->fake->on('v-change-package-tenancy')->returns();
+    $headers = apiAs($this->fake, 'hostco', 'reseller');
+
+    $this->postJson('/api/v2/packages', ['name' => 'business', 'shell' => 'bash', 'templates' => ['web' => 'wordpress', 'dns' => 'child-ns'],
+        'resources' => ['memory_limit' => '2G'], 'backups_incremental' => true, 'node' => ['allowed' => '18,20']], $headers)
+        ->assertUnprocessable()
+        ->assertJsonPath('error.fields.shell', ['Your plan does not allow this value.'])
+        ->assertJson(['error' => ['fields' => ['resources.memory_limit' => ['At most 1G on your plan.'],
+            'backups_incremental' => ['Incremental backups are not included in your plan.']]]])
+        ->assertJsonStructure(['error' => ['fields' => ['templates.web', 'templates.dns']]]);
+    $this->fake->assertNotRan('v-add-reseller-package');
+
+    $this->postJson('/api/v2/packages', ['name' => 'business', 'resources' => ['memory_limit' => '1024M'], 'node' => ['allowed' => '20']], $headers)
+        ->assertUnprocessable()->assertJsonStructure(['error' => ['fields' => ['node.allowed']]]);
+    $this->postJson('/api/v2/packages', ['name' => 'business', 'resources' => ['memory_limit' => '1024M']], $headers)->assertCreated();
+});

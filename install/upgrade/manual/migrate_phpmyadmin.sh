@@ -7,6 +7,8 @@
 
 # Includes
 source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/download.sh
+source $ARCPANEL/func/download.sh
 # get current phpmyadmin version
 source $ARCPANEL/install/upgrade/upgrade.conf
 source $ARCPANEL/conf/arcpanel.conf
@@ -69,12 +71,17 @@ if [[ $REPLY =~ ^[Yy]$ ]]; then
 
 	echo "[ * ] Installing phpMyAdmin version v$pma_v..."
 	# Download latest phpmyadmin release
-	wget --quiet https://files.phpmyadmin.net/phpMyAdmin/$pma_v/phpMyAdmin-$pma_v-all-languages.tar.gz
+	pma_work=$(mktemp -d)
+	if ! fetch_verified "https://files.phpmyadmin.net/phpMyAdmin/$pma_v/phpMyAdmin-$pma_v-all-languages.tar.gz" "$pma_sha256" "$pma_work/phpmyadmin.tar.gz"; then
+		rm -rf "$pma_work"
+		echo "[ ! ] The phpMyAdmin download failed its check, phpMyAdmin was not installed."
+		exit 1
+	fi
 	# Unpack files
-	tar xzf phpMyAdmin-$pma_v-all-languages.tar.gz
+	tar xzf "$pma_work/phpmyadmin.tar.gz" -C "$pma_work"
 
 	# Overwrite old files
-	cp -rf phpMyAdmin-$pma_v-all-languages/* /usr/share/phpmyadmin
+	cp -rf "$pma_work/phpMyAdmin-$pma_v-all-languages/"* /usr/share/phpmyadmin
 
 	# Create copy of config file
 	cp -f $ARCPANEL_INSTALL_DIR/phpmyadmin/config.inc.php /etc/phpmyadmin/
@@ -89,8 +96,7 @@ if [[ $REPLY =~ ^[Yy]$ ]]; then
 	sed -i "s|%blowfish_secret%|$blowfish|" /etc/phpmyadmin/config.inc.php
 
 	# Clear Up
-	rm -fr phpMyAdmin-$pma_v-all-languages
-	rm -f phpMyAdmin-$pma_v-all-languages.tar.gz
+	rm -rf "$pma_work"
 
 	if [ -z "$DB_PMA_ALIAS" ]; then
 		echo "DB_PMA_ALIAS='phpmyadmin'" >> $ARCPANEL/conf/arcpanel.conf

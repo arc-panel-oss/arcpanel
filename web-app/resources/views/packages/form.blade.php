@@ -78,7 +78,7 @@
                 <x-ap-unlimited-input name="node_apps" :label="__('Node.js apps')" :value="$values['NODE_APPS'] ?? '3'"
                     :hint="$ownNode !== null ? sprintf(__('Your plan: %s'), $ownNode['NODE_APPS']) : __('Apps bound to web domains, run by pm2.')" />
                 <x-ap-input name="node_allowed" :label="__('Allowed majors')" :value="$values['NODE_ALLOWED']" mono
-                    :hint="__('lts for the supported LTS lines, * for every version, or majors such as 22,24.')" />
+                    :hint="$ownNode !== null ? sprintf(__('Your plan: %s'), $ownNode['NODE_ALLOWED']) : __('lts for the supported LTS lines, * for every version, or majors such as 22,24.')" />
             </div>
         </x-ap-card>
 
@@ -97,6 +97,24 @@
                     :hint="$ownDocker !== null ? sprintf(__('Your plan: %s'), $ownDocker['DOCKER_CPUS']) : __('unlimited or a number such as 0.5 or 2')" />
                 <x-ap-input name="docker_memory" :label="__('Memory per app')" :value="$values['DOCKER_MEMORY'] ?? 'unlimited'" mono
                     :hint="$ownDocker !== null ? sprintf(__('Your plan: %s'), $ownDocker['DOCKER_MEMORY']) : __('unlimited or a size, e.g. 512M; within the memory limit')" />
+            </div>
+        </x-ap-card>
+
+        <x-ap-card :title="__('App processes')" icon="terminal">
+            @if ($ownProcesses !== null && $ownProcesses['APP_PROCESSES'] !== 'yes')
+                <p class="muted">{{ __('App processes are not included in your plan.') }}</p>
+            @endif
+            <div class="ap-settings">
+                <x-ap-switch name="app_processes" :label="__('App processes')" :description="__('Users of this package may run long-running commands of their domains, such as Laravel Octane or queue workers, as their own user.')"
+                    :checked="($values['APP_PROCESSES'] ?? 'no') === 'yes'" :disabled="$ownProcesses !== null && $ownProcesses['APP_PROCESSES'] !== 'yes'" />
+            </div>
+            <div class="ap-form-grid">
+                <x-ap-unlimited-input name="app_processes_max" :label="__('App processes')" :value="$values['APP_PROCESSES_MAX'] ?? '3'"
+                    :hint="$ownProcesses !== null ? sprintf(__('Your plan: %s'), $ownProcesses['APP_PROCESSES_MAX']) : __('Web processes and workers together.')" />
+                <x-ap-input name="app_processes_cpus" :label="__('CPUs per process')" :value="$values['APP_PROCESSES_CPUS'] ?? '1'" mono
+                    :hint="$ownProcesses !== null ? sprintf(__('Your plan: %s'), $ownProcesses['APP_PROCESSES_CPUS']) : __('unlimited or a number such as 0.5 or 2')" />
+                <x-ap-input name="app_processes_memory" :label="__('Memory per process')" :value="$values['APP_PROCESSES_MEMORY'] ?? 'unlimited'" mono
+                    :hint="$ownProcesses !== null ? sprintf(__('Your plan: %s'), $ownProcesses['APP_PROCESSES_MEMORY']) : __('unlimited or a size, e.g. 512M; within the memory limit')" />
             </div>
         </x-ap-card>
 

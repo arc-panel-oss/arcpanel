@@ -19,6 +19,7 @@ use App\Http\Resources\V2\DnsRecordResource;
 use App\Http\Resources\V2\DnsZoneResource;
 use App\Services\Dns\DnsRecordRecord;
 use App\Services\Dns\DnsZoneRecord;
+use App\Services\Keys\AccessKeySets;
 use App\Services\WebDomains\ApplyResult;
 use App\Services\WebDomains\Step;
 use Illuminate\Http\Request;
@@ -186,7 +187,7 @@ it('keeps every area set inside v2-write and its reads inside v2-read', function
             fn (string $command) => (str_starts_with($command, 'v-list-') || str_starts_with($command, 'v-check-')) && $command !== 'v-check-sys-ports',
         ));
         expect(array_values(array_diff($reads, $read)))->toBe([], "{$area} has a read command outside v2-read");
-        $content = (string) file_get_contents(base_path('../install/common/api/'.$area));
+        $content = (string) file_get_contents(base_path('../install/common/api/'.AccessKeySets::fileOfSet($area)));
         expect($content)->toContain("ROLE='user'")->toContain("API_VERSION='2'");
         $union = array_merge($union, $commands);
     }
@@ -252,8 +253,8 @@ it('documents pagination and error.existing', function () {
             if (in_array($id, ['listSystemTasks'], true)) {
                 continue;
             }
-            if (in_array($id, ['listNodeApps', 'listDockerApps', 'listPorts', 'listServices', 'listUpdates'], true)) {
-                $ref = ['listNodeApps' => '#/components/schemas/NodeAppListMeta', 'listDockerApps' => '#/components/schemas/DockerAppListMeta', 'listPorts' => '#/components/schemas/PortListMeta', 'listServices' => '#/components/schemas/ServiceListMeta', 'listUpdates' => '#/components/schemas/UpdateSettings'][$id];
+            if (in_array($id, ['listNodeApps', 'listAppProcesses', 'listDockerApps', 'listPorts', 'listServices', 'listUpdates'], true)) {
+                $ref = ['listNodeApps' => '#/components/schemas/NodeAppListMeta', 'listAppProcesses' => '#/components/schemas/AppProcessListMeta', 'listDockerApps' => '#/components/schemas/DockerAppListMeta', 'listPorts' => '#/components/schemas/PortListMeta', 'listServices' => '#/components/schemas/ServiceListMeta', 'listUpdates' => '#/components/schemas/UpdateSettings'][$id];
                 $schema = $operation['responses']['200']['content']['application/json']['schema']['properties']['meta'] ?? null;
                 expect($schema)->toBe(['$ref' => $ref]);
                 $names = array_column($operation['parameters'] ?? [], 'name');
@@ -322,6 +323,7 @@ it('declares an area on the batch 1 routes', function () {
         $area = match (true) {
             // The settings host path names a database host, not the db area
             str_starts_with($uri, 'api/v2/system/settings/') => 'server',
+            str_contains($uri, '/app-process') => 'apps',
             str_contains($uri, '/web-domains') => 'web',
             str_contains($uri, '/secrets') => 'secrets',
             str_contains($uri, '/malware') => 'security',

@@ -1,0 +1,97 @@
+#!/bin/bash
+# info: write the sudo rules of the panel user
+# options: NONE
+#
+# example: v-update-sys-sudoers
+#
+# This function writes /etc/sudoers.d/arcpanelweb: arcpanelweb may run every
+# command of $ARCPANEL/bin through sudo, by its full path, except those of
+# $ARCPANEL/install/common/sudo/root-only. The new file must pass visudo
+# before it replaces the old one; otherwise the old file stays. It is run
+# on every install and upgrade, so that the list follows the installed
+# commands.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Includes
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# load config file
+source_conf "$ARCPANEL/conf/arcpanel.conf"
+
+SUDOERS_FILE="/etc/sudoers.d/arcpanelweb"
+ROOT_ONLY="$ARCPANEL/install/common/sudo/root-only"
+WEB_USER="arcpanelweb"
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+if [ "$(id -u)" != '0' ]; then
+	echo "Error: v-update-sys-sudoers can only be executed by the root user"
+	exit "$E_FORBIDEN"
+fi
+if [ ! -f "$ROOT_ONLY" ]; then
+	check_result "$E_NOTEXIST" "$ROOT_ONLY does not exist"
+fi
+if ! command -v visudo > /dev/null 2>&1; then
+	check_result "$E_NOTEXIST" "visudo is not installed"
+fi
+
+# Perform verification if read-only mode is enabled
+check_arcpanel_demo_mode
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+root_only=" $(grep -v '^[[:space:]]*\(#\|$\)' "$ROOT_ONLY" | tr -d ' \t\r' | tr '\n' ' ') "
+commands=()
+for file in "$ARCPANEL"/bin/v-*; do
+	name="$(basename "$file")"
+	if [[ "$name" =~ ^v-[a-z0-9-]+$ ]] && [ -f "$file" ] && [[ "$root_only" != *" $name "* ]]; then
+		commands+=("$file")
+	fi
+done
+if [ "${#commands[@]}" -eq 0 ]; then
+	check_result "$E_NOTEXIST" "no commands in $ARCPANEL/bin"
+fi
+
+mkdir -p /etc/sudoers.d
+tmpfile=$(mktemp /etc/sudoers.d/.arcpanelweb.XXXXXX)
+{
+	echo "# Written by v-update-sys-sudoers: every command of $ARCPANEL/bin except"
+	echo "# those of $ROOT_ONLY."
+	echo "# Changes are lost on the next upgrade."
+	# The Rust sudo of Ubuntu 26.04 does not know requiretty
+	if ! sudo -V 2> /dev/null | head -n1 | grep -qi 'sudo-rs'; then
+		echo "Defaults:root !requiretty"
+	fi
+	echo
+	printf 'Cmnd_Alias ARCPANEL_CMDS = %s' "${commands[0]}"
+	for file in "${commands[@]:1}"; do
+		printf ', \\\n\t%s' "$file"
+	done
+	echo
+	echo
+	echo "$WEB_USER ALL=NOPASSWD: ARCPANEL_CMDS"
+} > "$tmpfile"
+chmod 440 "$tmpfile"
+
+if ! visudo -cf "$tmpfile" > /dev/null 2>&1; then
+	rm -f "$tmpfile"
+	check_result "$E_INVALID" "the new sudo rules do not pass visudo; $SUDOERS_FILE was kept"
+fi
+mv -f "$tmpfile" "$SUDOERS_FILE"
+
+#----------------------------------------------------------#
+#                         ArcPanel                         #
+#----------------------------------------------------------#
+
+log_event "$OK" "$ARGUMENTS"
+
+exit

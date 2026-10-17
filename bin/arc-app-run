@@ -1,0 +1,132 @@
+#!/bin/bash
+# ArcPanel: runner of the app process units (E42,
+# docs/features/specs/2026-10-16-003-e42-app-processes-design.md §6.4).
+#
+# Only systemd runs this script, from the units v-add-app-process writes:
+#   arc-app-run --prepare USER ID   as root, before each start: reads the
+#                                   environment file of the process as the
+#                                   user, resolves {{secret:NAME}} values and
+#                                   writes /run/arcpanel/app/USER-ID.env
+#   arc-app-run USER ID             as the user: the process itself
+#   arc-app-run --reload USER ID    as the user: the reload command
+#   arc-app-run --cleanup USER ID   as root, after the stop
+# Root never opens a file under the user's home; the user modes read only
+# root-written files and then run the user's own command.
+# It is not a v-* command and not in the sudo rules of the panel.
+
+mode=run
+case "$1" in
+	--prepare | --reload | --cleanup)
+		mode=${1#--}
+		shift
+		;;
+esac
+user=$1
+id=$2
+
+fail() {
+	echo "arc-app-run: $*" >&2
+	exit 1
+}
+
+if ! [[ "$user" =~ ^[a-z_][a-z0-9_.-]{0,31}$ ]] || ! [[ "$id" =~ ^[0-9]{1,6}$ ]]; then
+	fail "usage: arc-app-run [--prepare|--reload|--cleanup] USER ID"
+fi
+
+ARCPANEL=${ARCPANEL:-/usr/local/arcpanel}
+RUN_FILE="$ARCPANEL/data/app-processes/$user/$id.json"
+ENV_DIR=/run/arcpanel/app
+ENV_FILE="$ENV_DIR/$user-$id.env"
+
+#----------------------------------------------------------#
+#                      Root modes                          #
+#----------------------------------------------------------#
+
+if [ "$mode" = 'prepare' ] || [ "$mode" = 'cleanup' ]; then
+	[ "$(id -u)" = 0 ] || fail "--$mode runs as root"
+	if [ "$mode" = 'cleanup' ]; then
+		rm -f -- "$ENV_FILE"
+		exit 0
+	fi
+	# shellcheck source=/etc/arcpanel/arcpanel.conf
+	source /etc/arcpanel/arcpanel.conf
+	# shellcheck source=/usr/local/arcpanel/func/main.sh
+	source "$ARCPANEL/func/main.sh"
+	# shellcheck source=/usr/local/arcpanel/func/tenancy.sh
+	source "$ARCPANEL/func/tenancy.sh"
+	# shellcheck source=/usr/local/arcpanel/func/appprocess.sh
+	source "$ARCPANEL/func/appprocess.sh"
+	# shellcheck source=/usr/local/arcpanel/func/secret.sh
+	source "$ARCPANEL/func/secret.sh"
+	source_conf "$ARCPANEL/conf/arcpanel.conf"
+
+	[ -f "$RUN_FILE" ] && [ ! -L "$RUN_FILE" ] || fail "no app process $id of $user"
+	envfile=$(jq -r '.envfile' "$RUN_FILE")
+	name=$(jq -r '.name' "$RUN_FILE")
+	mkdir -p "$ENV_DIR"
+	chmod 711 /run/arcpanel "$ENV_DIR"
+	content=$(node_as_user "$user" bash -c '[ -f "$1" ] && [ ! -L "$1" ] && head -c '"$APPPROC_MAX_ENV"' -- "$1"' env "$envfile" 2> /dev/null)
+	if appproc_env_to_json "$user" "$content" > "$ENV_FILE.tmp"; then
+		chown "root:$user" "$ENV_FILE.tmp"
+		chmod 640 "$ENV_FILE.tmp"
+		mv -f "$ENV_FILE.tmp" "$ENV_FILE"
+		exit 0
+	fi
+	rm -f "$ENV_FILE.tmp"
+	fail "the environment of $name could not be prepared: $APPPROC_ENV_REASON"
+fi
+
+#----------------------------------------------------------#
+#                      User modes                          #
+#----------------------------------------------------------#
+
+[ "$(id -un)" = "$user" ] || fail "runs as $user"
+[ -r "$RUN_FILE" ] || fail "no app process $id of $user"
+
+run=$(cat -- "$RUN_FILE") || fail "cannot read $RUN_FILE"
+cwd=$(jq -r '.cwd' <<< "$run")
+home=$(jq -r '.home' <<< "$run")
+log=$(jq -r '.log' <<< "$run")
+kind=$(jq -r '.kind' <<< "$run")
+port=$(jq -r '.port' <<< "$run")
+
+cd -- "$cwd" 2> /dev/null || fail "working directory $cwd does not exist"
+
+args=()
+if [ "$mode" = 'reload' ]; then
+	while IFS= read -r -d '' arg; do
+		args+=("$arg")
+	done < <(jq -j '.reload_args[] | ., "\u0000"' <<< "$run")
+else
+	while IFS= read -r -d '' arg; do
+		args+=("$arg")
+	done < <(jq -j '.start[] | ., "\u0000"' <<< "$run")
+fi
+[ "${#args[@]}" -gt 0 ] || fail "no command"
+
+# The environment: a clean base, the prepared variables, then the fixed ones
+envs=("HOME=$home" "USER=$user" "LOGNAME=$user" "PATH=/usr/local/bin:/usr/bin:/bin" "LANG=C.UTF-8")
+# PHP reads the settings of app processes after its own conf.d (the empty
+# first element is the compiled-in scan directory)
+if [ -d "$ARCPANEL/data/app-processes/.php" ]; then
+	envs+=("PHP_INI_SCAN_DIR=:$ARCPANEL/data/app-processes/.php")
+fi
+if [ -r "$ENV_FILE" ]; then
+	while IFS= read -r -d '' pair; do
+		envs+=("$pair")
+	done < <(jq -j 'to_entries[] | select(.key | test("^[A-Za-z_][A-Za-z0-9_]*$")) | "\(.key)=\(.value)", "\u0000"' "$ENV_FILE")
+fi
+if [ "$kind" = 'web' ] && [ -n "$port" ]; then
+	envs+=("PORT=$port" "HOST=127.0.0.1")
+fi
+
+# Output goes to the log of the process, opened by the user
+logdir=${log%/*}
+mkdir -p -- "$logdir" 2> /dev/null
+if [ "$mode" = 'reload' ]; then
+	printf '%s reload: %s\n' "$(date '+%F %T')" "${args[*]}" >> "$log" 2> /dev/null
+	exec env -i "${envs[@]}" "${args[@]}" >> "$log" 2>&1
+fi
+printf '%s start: %s\n' "$(date '+%F %T')" "${args[*]}" >> "$log" 2> /dev/null
+exec >> "$log" 2>&1
+exec env -i "${envs[@]}" "${args[@]}"

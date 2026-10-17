@@ -190,6 +190,7 @@ final class PortRegistryController extends Controller
         if ($holder === null) {
             throw ValidationException::withMessages(['port' => __('Reserve the port for its user first, then link the rule.')]);
         }
+        abort_unless($policy->linkRule($principal, $holder->user), 403);
         if ($preview = $this->run($this->ports->planAdopt($holder->user, $port, (string) $data['rule']))) {
             return $preview;
         }

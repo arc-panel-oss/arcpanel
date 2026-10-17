@@ -24,6 +24,6 @@ final class UserSecretPolicy
     public function manage(Principal $principal, string $owner): bool
     {
         return ! $principal->isReadOnly()
-            && Capabilities::allows($principal->actingRole(), 'secrets.manage', fn () => $this->reaches($principal, 'secrets.manage', $owner));
+            && Capabilities::allows($principal->actingRole(), 'secrets.manage', fn () => $this->reachesForChange($principal, 'secrets.manage', $owner));
     }
 }

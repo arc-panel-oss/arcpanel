@@ -36,9 +36,10 @@ describe('loadIslands', () => {
 	});
 
 	it('registers the islands of the panel app, loaded on demand', async () => {
-		expect(Object.keys(islands)).toEqual(['node-manager', 'node-apps', 'file-manager', 'docker-apps', 'service-editor', 'php-ini-editor']);
+		expect(Object.keys(islands)).toEqual(['node-manager', 'node-apps', 'app-processes', 'file-manager', 'docker-apps', 'service-editor', 'php-ini-editor']);
 		expect(typeof islands['node-manager']).toBe('function');
 		expect(typeof islands['node-apps']).toBe('function');
+		expect(typeof islands['app-processes']).toBe('function');
 		expect(typeof islands['file-manager']).toBe('function');
 		expect(typeof islands['docker-apps']).toBe('function');
 		expect(typeof islands['service-editor']).toBe('function');

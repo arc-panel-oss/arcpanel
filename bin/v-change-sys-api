@@ -1,16 +1,21 @@
 #!/bin/bash
 # info: Enable / Disable API access
-# options: STATUS
+# options: STATUS [VERSION]
 #
-# example: v-change-sys-api enable legacy
-#          # Enable legacy api currently default on most of api based systems
 # example: v-change-sys-api enable api
-#          # Enable api
+#          # Enable access keys and REST API v2 (API_SYSTEM)
+# example: v-change-sys-api enable v1
+#          # Enable REST API v1 (lib/api, API_V1)
+# example: v-change-sys-api enable legacy
+#          # Enable REST API v1 with the legacy hash and password login (API)
+# example: v-change-sys-api enable all
+#          # All of the above
 #
 # example: v-change-sys-api disable
-#          # Disable API
+#          # Disable every API and clear the allowed addresses
 #
-# Enabled / Disable API
+# The switches are configuration keys only; lib/api/index.php ships in the
+# package and reads API_V1 (E39 W4 D9).
 
 status=$1
 version=$2
@@ -28,7 +33,10 @@ source_conf "$ARCPANEL/conf/arcpanel.conf"
 #----------------------------------------------------------#
 
 check_args '1' "$#" "STATUS" "VERSION"
-is_type_valid "enable,disable,remove" "$status"
+is_type_valid "enable,disable" "$status"
+if [ -n "$version" ]; then
+	is_type_valid "legacy,api,v1,all" "$version"
+fi
 # Perform verification if read-only mode is enabled
 check_arcpanel_demo_mode
 
@@ -37,40 +45,20 @@ check_arcpanel_demo_mode
 #----------------------------------------------------------#
 
 if [ "$status" = "enable" ]; then
-	if [ ! -f "$ARCPANEL/lib/api/index.php" ]; then
-		wget -q https://raw.githubusercontent.com/arc-panel-oss/arcpanel/$RELEASE_BRANCH/lib/api/index.php -O $ARCPANEL/lib/api/index.php
-		if [ ! -s "$ARCPANEL/lib/api/index.php" ]; then
-			wget -q https://raw.githubusercontent.com/arc-panel-oss/arcpanel/release/lib/api/index.php -O $ARCPANEL/lib/api/index.php
-			if [ ! -s "$ARCPANEL/lib/api/index.php" ]; then
-				# Throw error message to user
-				echo "ERROR: API installation failed."
-				# Remove empty file created by wget output
-				rm -f "$ARCPANEL/lib/api/index.php"
-				exit 1
-			fi
-		fi
-	else
-		sed -i 's|die("Error: Disabled");|//die("Error: Disabled");|g' $ARCPANEL/lib/api/index.php
-		sed -i 's|////|//|g' $ARCPANEL/lib/api/index.php
+	if [ "$version" = "legacy" ] || [ "$version" = "all" ]; then
+		$BIN/v-change-sys-config-value "API" "yes"
 	fi
-	if [ "$version" = "legacy" ] || [ "$version" = "all" ]; then $BIN/v-change-sys-config-value "API" "yes"; fi
-	if [ "$version" = "api" ] || [ "$version" = "all" ]; then $BIN/v-change-sys-config-value "API_SYSTEM" "1"; fi
+	if [ "$version" = "legacy" ] || [ "$version" = "v1" ] || [ "$version" = "all" ]; then
+		$BIN/v-change-sys-config-value "API_V1" "yes"
+	fi
+	if [ "$version" = "api" ] || [ "$version" = "all" ]; then
+		$BIN/v-change-sys-config-value "API_SYSTEM" "1"
+	fi
 else
 	$BIN/v-change-sys-config-value "API" "no"
+	$BIN/v-change-sys-config-value "API_V1" "no"
 	$BIN/v-change-sys-config-value "API_ALLOWED_IP" ""
 	$BIN/v-change-sys-config-value "API_SYSTEM" "0"
-	if [ "$status" != "remove" ]; then
-		sed -i 's|//die("Error: Disabled");|die("Error: Disabled");|g' $ARCPANEL/lib/api/index.php
-	fi
-fi
-
-if [ "$status" = "remove" ]; then
-	if [ ! -f "$ARCPANEL/lib/api/index.php" ]; then
-		echo "ERROR: API is not installed."
-		exit 1
-	else
-		rm -f "$ARCPANEL/lib/api/index.php"
-	fi
 fi
 
 #----------------------------------------------------------#

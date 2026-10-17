@@ -42,6 +42,9 @@ json_list() {
 		echo -n ', "USER_ARG_POSITION": '$user_arg_pos''
 	fi
 
+	# Permission sets of the key (lib/api: the single sign-on exception, E39 W4 D10)
+	echo -n ', "PERMISSIONS": "'$PERMISSIONS'"'
+
 	echo '}'
 }
 
@@ -51,6 +54,7 @@ shell_list() {
 	if [[ -n "$user_arg_pos" ]]; then
 		echo "USER_ARG_POSITION:  $user_arg_pos"
 	fi
+	echo "PERMISSIONS:        $PERMISSIONS"
 }
 
 # Callback to intercept invalid result validation

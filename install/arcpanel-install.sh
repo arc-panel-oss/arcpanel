@@ -103,7 +103,7 @@ ensure_utf8_locale
 check_wget_curl() {
 	# Check wget
 	if [ -e '/usr/bin/wget' ]; then
-		wget -q https://raw.githubusercontent.com/arc-panel-oss/arcpanel/release/install/arcpanel-install-$type.sh -O arcpanel-install-$type.sh
+		wget -q --https-only https://raw.githubusercontent.com/arc-panel-oss/arcpanel/release/install/arcpanel-install-$type.sh -O arcpanel-install-$type.sh
 		if [ "$?" -eq '0' ]; then
 			bash arcpanel-install-$type.sh "$@"
 			exit
@@ -116,7 +116,8 @@ check_wget_curl() {
 
 	# Check curl
 	if [ -e '/usr/bin/curl' ]; then
-		curl -s -O https://raw.githubusercontent.com/arc-panel-oss/arcpanel/release/install/arcpanel-install-$type.sh
+		# -f: an error page is a failed download, not an installer to run (E39 W3)
+		curl --proto =https -fsSL -o arcpanel-install-$type.sh https://raw.githubusercontent.com/arc-panel-oss/arcpanel/release/install/arcpanel-install-$type.sh
 		if [ "$?" -eq '0' ]; then
 			bash arcpanel-install-$type.sh "$@"
 			exit

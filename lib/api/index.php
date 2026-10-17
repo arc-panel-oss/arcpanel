@@ -12,7 +12,6 @@ try {
 	exit(1);
 }
 
-//die("Error: Disabled");
 define("ARCPANEL_DIR_BIN", "/usr/local/arcpanel/bin/");
 define("ARCPANEL_CMD", "/usr/bin/sudo /usr/local/arcpanel/bin/");
 
@@ -48,6 +47,110 @@ function api_error($exit_code, $message, $arc_return, bool $add_log = false, $us
 	exit();
 }
 
+// Failed authentications per client address before 429, and the window in
+// seconds (docs/features/specs/2026-10-16-002 §7.2, as API v2 counts them)
+const API_V1_LIMIT_FAILURES = 10;
+const API_V1_LIMIT_WINDOW = 60;
+const API_V1_LIMIT_DIR = "/usr/local/arcpanel/web-app/storage/framework/api-v1";
+
+/** API v1 answers only with API_V1='yes' (E39 W4 D9). */
+function api_v1_enabled(array $settings): bool {
+	return ($settings["config"]["API_V1"] ?? "no") === "yes";
+}
+
+/** The request comes from the loopback address itself; forwarded headers never count (D10). */
+function api_from_loopback(): bool {
+	return in_array($_SERVER["REMOTE_ADDR"] ?? "", ["127.0.0.1", "::1"], true);
+}
+
+/** API_ALLOWED_IP: "allow-all", or a comma list in which 0.0.0.0 allows every address; an empty address never passes. */
+function api_ip_allowed(array $settings, string $ip): bool {
+	$allowed = (string) ($settings["config"]["API_ALLOWED_IP"] ?? "");
+	if ($allowed === "allow-all") {
+		return true;
+	}
+	if ($ip === "") {
+		return false;
+	}
+	$list = array_map("trim", explode(",", $allowed));
+
+	return in_array("0.0.0.0", $list, true) || in_array($ip, $list, true);
+}
+
+/**
+ * arg1 … arg13 in order. A missing argument before a present one is refused,
+ * so a gap cannot shift the other arguments into new positions.
+ *
+ * @return array<string, string>
+ */
+function api_command_args(array $request_data, string $arc_return): array {
+	$args = [];
+	$gap = false;
+	for ($i = 1; $i <= 13; $i++) {
+		if (!isset($request_data["arg{$i}"])) {
+			$gap = true;
+			continue;
+		}
+		if ($gap || !is_scalar($request_data["arg{$i}"])) {
+			api_error(
+				E_ARGS,
+				"Invalid arguments: arg{$i} follows a missing argument or is not a value",
+				$arc_return,
+			);
+		}
+		$args["arg{$i}"] = trim((string) $request_data["arg{$i}"]);
+	}
+
+	return $args;
+}
+
+/**
+ * Failed authentications of a client address in the current window; with
+ * $record, counts one more first. Files are per address, under flock.
+ */
+function api_limit_count(string $ip, bool $record): int {
+	if (!is_dir(API_V1_LIMIT_DIR)) {
+		@mkdir(API_V1_LIMIT_DIR, 0700, true);
+	}
+	$fp = @fopen(API_V1_LIMIT_DIR . "/" . hash("sha256", $ip), "c+");
+	if ($fp === false) {
+		return 0;
+	}
+	flock($fp, LOCK_EX);
+	$data = json_decode((string) stream_get_contents($fp), true);
+	$now = time();
+	$start = (int) ($data["start"] ?? 0);
+	$count = (int) ($data["count"] ?? 0);
+	if ($now - $start >= API_V1_LIMIT_WINDOW) {
+		$start = $now;
+		$count = 0;
+	}
+	if ($record) {
+		$count++;
+		ftruncate($fp, 0);
+		rewind($fp);
+		fwrite($fp, json_encode(["start" => $start, "count" => $count]));
+	}
+	flock($fp, LOCK_UN);
+	fclose($fp);
+
+	return $count;
+}
+
+/** 429 before any authentication work once the address used up its failures. */
+function api_limit_check(string $ip, string $arc_return): void {
+	if (api_limit_count($ip, false) >= API_V1_LIMIT_FAILURES) {
+		header("Retry-After: " . API_V1_LIMIT_WINDOW);
+		api_error(429, "Too many failed authentications, try again later", $arc_return);
+	}
+}
+
+/** One answer for every authentication failure, counted by the limiter. */
+function api_auth_failed(string $ip, string $message, string $arc_return): void {
+	api_limit_count($ip, true);
+	api_error(E_PASSWORD, $message, $arc_return);
+}
+
 /**
  * Legacy connection format using hash or user and password.
  *
@@ -61,18 +164,19 @@ function api_legacy(array $request_data) {
 	$settings = json_decode(implode("", $output), true);
 	unset($output);
 
-	if ($settings["config"]["API"] != "yes") {
-		echo "Error: API has been disabled";
+	if (!api_v1_enabled($settings)) {
+		api_error(E_DISABLED, "API v1 is disabled", $arc_return);
+	}
+
+	if (($settings["config"]["API"] ?? "no") !== "yes") {
 		api_error(E_DISABLED, "Error: API Disabled", $arc_return);
 	}
 
-	if ($settings["config"]["API_ALLOWED_IP"] != "allow-all") {
-		$ip_list = explode(",", $settings["config"]["API_ALLOWED_IP"]);
-		$ip_list[] = "";
-		if (!in_array(get_real_user_ip(), $ip_list)) {
-			api_error(E_FORBIDDEN, "Error: IP is not allowed to connect with API", $arc_return);
-		}
+	$v_real_user_ip = get_real_user_ip();
+	if (!api_ip_allowed($settings, $v_real_user_ip)) {
+		api_error(E_FORBIDDEN, "Error: IP is not allowed to connect with API", $arc_return);
 	}
+	api_limit_check($v_real_user_ip, $arc_return);
 
 	//This exists, so native JSON can be used without the repeating the code twice, so future code changes are easier and don't need to be replicated twice
 	// Authentication
@@ -81,12 +185,12 @@ function api_legacy(array $request_data) {
 		$data = json_decode(implode("", $output), true);
 		$root_user = $data["config"]["ROOT_USER"];
 
-		if ($request_data["user"] != "$root_user") {
-			api_error(E_FORBIDDEN, "Error: authentication failed", $arc_return);
+		if (($request_data["user"] ?? null) !== $root_user) {
+			api_auth_failed($v_real_user_ip, "Error: authentication failed", $arc_return);
 		}
-		$password = $request_data["password"];
-		if (!isset($password)) {
-			api_error(E_PASSWORD, "Error: authentication failed", $arc_return);
+		$password = $request_data["password"] ?? null;
+		if (!is_string($password) || $password === "") {
+			api_auth_failed($v_real_user_ip, "Error: authentication failed", $arc_return);
 		}
 		$v_ip = quoteshellarg(get_real_user_ip());
 		$user = quoteshellarg($root_user);
@@ -151,11 +255,11 @@ function api_legacy(array $request_data) {
 
 		// Check API answer
 		if ($return_var > 0) {
-			api_error(E_PASSWORD, "Error: authentication failed", $arc_return);
+			api_auth_failed($v_real_user_ip, "Error: authentication failed", $arc_return);
 		}
 	} else {
-		$key = "/usr/local/arcpanel/data/keys/" . basename($request_data["hash"]);
-		$v_ip = quoteshellarg(get_real_user_ip());
+		$key = "/usr/local/arcpanel/data/keys/" . basename((string) $request_data["hash"]);
+		$v_ip = quoteshellarg($v_real_user_ip);
 		exec(
 			ARCPANEL_CMD . "v-check-api-key " . quoteshellarg($key) . " " . $v_ip,
 			$output,
@@ -164,17 +268,12 @@ function api_legacy(array $request_data) {
 		unset($output);
 		// Check API answer
 		if ($return_var > 0) {
-			api_error(E_PASSWORD, "Error: authentication failed", $arc_return);
+			api_auth_failed($v_real_user_ip, "Error: authentication failed", $arc_return);
 		}
 	}
 
 	$arc_cmd = trim($request_data["cmd"] ?? "");
-	$arc_cmd_args = [];
-	for ($i = 1; $i <= 13; $i++) {
-		if (isset($request_data["arg{$i}"])) {
-			$arc_cmd_args["arg{$i}"] = trim($request_data["arg{$i}"]);
-		}
-	}
+	$arc_cmd_args = api_command_args($request_data, $arc_return);
 
 	if (empty($arc_cmd)) {
 		api_error(E_INVALID, "Command not provided", $arc_return);
@@ -228,36 +327,35 @@ function api_connection(array $request_data) {
 	exec(ARCPANEL_CMD . "v-list-sys-config json", $output, $return_var);
 	$settings = json_decode(implode("", $output), true);
 	unset($output, $return_var);
-	$root_user = $settings["config"]["ROOT_USER"];
+	$root_user = (string) $settings["config"]["ROOT_USER"];
+
+	// With API v1 off, only the phpMyAdmin single sign-on key from the
+	// loopback address passes (E39 W4 D10); its sets are checked below
+	$sso_only = !api_v1_enabled($settings);
+	if ($sso_only && !api_from_loopback()) {
+		api_error(E_DISABLED, "API v1 is disabled", $arc_return);
+	}
+
 	// Get the status of api
 	$api_status =
 		!empty($settings["config"]["API_SYSTEM"]) && is_numeric($settings["config"]["API_SYSTEM"])
-			? $settings["config"]["API_SYSTEM"]
+			? (int) $settings["config"]["API_SYSTEM"]
 			: 0;
-	if ($api_status == 0) {
+	if ($api_status === 0) {
 		// Check if API is disabled for all users
 		api_error(E_DISABLED, "API has been disabled", $arc_return);
 	}
 
 	// Check if API access is enabled for the user
-	if ($settings["config"]["API_ALLOWED_IP"] != "allow-all") {
-		$ip_list = explode(",", $settings["config"]["API_ALLOWED_IP"]);
-		$ip_list[] = "";
-		if (!in_array($v_real_user_ip, $ip_list) && !in_array("0.0.0.0", $ip_list)) {
-			api_error(E_FORBIDDEN, "IP is not allowed to connect with API", $arc_return);
-		}
+	if (!api_ip_allowed($settings, $v_real_user_ip)) {
+		api_error(E_FORBIDDEN, "IP is not allowed to connect with API", $arc_return);
 	}
 
 	// Get POST Params
-	$arc_access_key_id = trim($request_data["access_key"] ?? "");
-	$arc_secret_access_key = trim($request_data["secret_key"] ?? "");
-	$arc_cmd = trim($request_data["cmd"] ?? "");
-	$arc_cmd_args = [];
-	for ($i = 1; $i <= 13; $i++) {
-		if (isset($request_data["arg{$i}"])) {
-			$arc_cmd_args["arg{$i}"] = trim($request_data["arg{$i}"]);
-		}
-	}
+	$arc_access_key_id = trim((string) ($request_data["access_key"] ?? ""));
+	$arc_secret_access_key = trim((string) ($request_data["secret_key"] ?? ""));
+	$arc_cmd = trim((string) ($request_data["cmd"] ?? ""));
+	$arc_cmd_args = api_command_args($request_data, $arc_return);
 
 	if (empty($arc_cmd)) {
 		api_error(E_INVALID, "Command not provided", $arc_return);
@@ -265,8 +363,9 @@ function api_connection(array $request_data) {
 		api_error(E_INVALID, "$arc_cmd command invalid", $arc_return);
 	}
 
+	api_limit_check($v_real_user_ip, $arc_return);
 	if (empty($arc_access_key_id) || empty($arc_secret_access_key)) {
-		api_error(E_PASSWORD, "Authentication failed", $arc_return);
+		api_auth_failed($v_real_user_ip, "Access key authentication failed", $arc_return);
 	}
 
 	// Authenticates the key and checks permission to run the script
@@ -285,32 +384,41 @@ function api_connection(array $request_data) {
 		$return_var,
 	);
 	if ($return_var > 0) {
-		//api_error($return_var, "Key $arc_access_key_id - authentication failed", $arc_return);
-		api_error($return_var, $output, $arc_return);
+		// A key with a valid secret but without the command keeps its
+		// message; an unknown key, a wrong secret or a suspended owner all
+		// get the same answer (L12)
+		if ($return_var === E_FORBIDDEN) {
+			api_error(E_FORBIDDEN, $output, $arc_return);
+		}
+		api_auth_failed($v_real_user_ip, "Access key authentication failed", $arc_return);
 	}
 	$key_data = json_decode(implode("", $output), true) ?? [];
 	unset($output, $return_var);
 
-	$key_user = $key_data["USER"];
+	$key_user = (string) ($key_data["USER"] ?? "");
 	$user_arg_position =
 		isset($key_data["USER_ARG_POSITION"]) && is_numeric($key_data["USER_ARG_POSITION"])
-			? $key_data["USER_ARG_POSITION"]
+			? (int) $key_data["USER_ARG_POSITION"]
 			: -1;
 
+	if ($sso_only && ($key_data["PERMISSIONS"] ?? "") !== "phpmyadmin-sso") {
+		api_error(E_DISABLED, "API v1 is disabled", $arc_return);
+	}
+
 	# Check if API access is enabled for nonadmin users
-	if ($key_user != $root_user && $api_status < 2) {
+	if ($key_user !== $root_user && $api_status < 2) {
 		api_error(E_API_DISABLED, "API has been disabled", $arc_return);
 	}
 
 	// Checks if the value entered in the "user" argument matches the user of the key
 	if (
-		$key_user != $root_user &&
+		$key_user !== $root_user &&
 		$user_arg_position > 0 &&
-		$arc_cmd_args["arg{$user_arg_position}"] != $key_user
+		($arc_cmd_args["arg{$user_arg_position}"] ?? null) !== $key_user
 	) {
 		api_error(
 			E_FORBIDDEN,
-			"Key $arc_access_key_id - the \"user\" argument doesn\'t match the key\'s user",
+			"Key $arc_access_key_id - the \"user\" argument doesn't match the key's user",
 			$arc_return,
 		);
 	}

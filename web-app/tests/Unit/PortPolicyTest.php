@@ -113,3 +113,15 @@ it('limits a reseller acting as a customer to that customer', function () {
         ->and(portPolicy($look)->give($look, 'bob'))->toBeFalse()
         ->and(portPolicy($look)->setPublicOk($look, 'bob', false))->toBeFalse();
 });
+
+it('lets only administrators link a firewall rule to a port (E39 W4 §10)', function () {
+    $admin = principal('arcadmin', Role::Admin);
+    $hostco = principal('hostco', Role::Reseller);
+    $bob = principal('bob', Role::User);
+
+    expect(portPolicy($admin)->linkRule($admin, 'bob'))->toBeTrue()
+        ->and(portPolicy($hostco)->linkRule($hostco, 'bob'))->toBeFalse()
+        ->and(portPolicy($bob)->linkRule($bob, 'bob'))->toBeFalse()
+        ->and(portPolicy(principal('arcadmin', Role::Admin, look: 'bob'))->linkRule(principal('arcadmin', Role::Admin, look: 'bob'), 'bob'))->toBeFalse()
+        ->and(portPolicy(principal('arcadmin', Role::Admin, readOnly: true))->linkRule(principal('arcadmin', Role::Admin, readOnly: true), 'bob'))->toBeFalse();
+});

@@ -9,6 +9,10 @@
 # Set MariaDB Target Version
 mariadb_v='10.11'
 
+# Checked downloads (E39 W3)
+# shellcheck source=/usr/local/arcpanel/func/download.sh
+source /usr/local/arcpanel/func/download.sh
+
 #----------------------------------------------------------#
 #                      Verifications                       #
 #----------------------------------------------------------#
@@ -47,8 +51,11 @@ esac
 # Installing MariaDB repository
 apt="/etc/apt/sources.list.d"
 echo "[ * ] Installing MariaDB repository..."
+if ! install_apt_key mariadb https://mariadb.org/mariadb_release_signing_key.asc /usr/share/keyrings/mariadb-keyring.gpg; then
+	echo "[ ! ] The MariaDB repository key failed its check, nothing was changed."
+	exit 1
+fi
 echo "deb [arch=$arch signed-by=/usr/share/keyrings/mariadb-keyring.gpg] https://dlm.mariadb.com/repo/mariadb-server/$mariadb_v/repo/$os $codename main" > $apt/mariadb.list
-curl -s https://mariadb.org/mariadb_release_signing_key.asc | gpg --dearmor | tee /usr/share/keyrings/mariadb-keyring.gpg > /dev/null 2>&1
 
 # Update repository
 echo "[ * ] Update apt repository..."

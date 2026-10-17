@@ -1,0 +1,72 @@
+#!/bin/bash
+# info: delete the app processes of a user (E42)
+# options: USER
+#
+# example: v-delete-user-app-processes alice
+#
+# This function deletes every app process of USER: units, run files,
+# records, ports and the templates of their domains. The pre_delete_user
+# hook runs it before the user is deleted.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+user=$1
+
+# Includes
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/tenancy.sh
+source $ARCPANEL/func/tenancy.sh
+# shellcheck source=/usr/local/arcpanel/func/ports.sh
+source $ARCPANEL/func/ports.sh
+# shellcheck source=/usr/local/arcpanel/func/appprocess.sh
+source $ARCPANEL/func/appprocess.sh
+# load config file
+source_conf "$ARCPANEL/conf/arcpanel.conf"
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '1' "$#" 'USER'
+is_format_valid 'user'
+if ! [[ "$user" =~ ^[a-z_][a-z0-9_.-]{0,31}$ ]]; then
+	check_result "$E_INVALID" "invalid user :: $user"
+fi
+
+# Perform verification if read-only mode is enabled
+check_arcpanel_demo_mode
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+if [ -d "$ARCPANEL/data/users/$user" ]; then
+	appproc_lock "$user"
+	for id in $(appproc_ids "$user"); do
+		appproc_delete "$user" "$id"
+	done
+	rm -f "$(appproc_task_conf "$user")" "$ARCPANEL/data/users/$user/app-process-task.lock"
+fi
+# Units and prepared environments left without records (only USER's: a
+# user named alice-1 has units arcpanel-app-alice-1-<id>)
+for id in $(appproc_unit_ids "$user"); do
+	systemctl disable --now "$(appproc_unit "$user" "$id")" > /dev/null 2>&1
+	rm -f "$(appproc_unit_file "$user" "$id")" "$(appproc_env_file "$user" "$id")"
+done
+rm -rf "${APPPROC_RUN_DIR:?}/$user"
+rm -f "/etc/logrotate.d/arcpanel-app-$user"
+systemctl daemon-reload > /dev/null 2>&1
+
+#----------------------------------------------------------#
+#                         ArcPanel                         #
+#----------------------------------------------------------#
+
+log_event "$OK" "$ARGUMENTS"
+
+exit

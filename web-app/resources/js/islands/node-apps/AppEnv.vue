@@ -6,7 +6,7 @@
 import { computed, onMounted, ref } from 'vue';
 import ApIcon from '../shared/ApIcon.vue';
 import { fieldErrors } from './api.js';
-import { envChanged, envErrors, isSecretReference, secretReference } from './model.js';
+import { envChanged, envErrors, isSecretReference, RESERVED_ENV, secretReference } from './model.js';
 
 const props = defineProps({
 	api: { type: Object, required: true },
@@ -14,6 +14,11 @@ const props = defineProps({
 	canManage: { type: Boolean, default: false },
 	secrets: { type: Array, default: () => [] },
 	t: { type: Function, required: true },
+	// App processes (E42) reuse the editor with their own path, keys and texts
+	path: { type: String, default: '' },
+	reserved: { type: Array, default: () => RESERVED_ENV },
+	hint: { type: String, default: '' },
+	savedMessage: { type: String, default: '' },
 });
 
 const t = props.t;
@@ -25,9 +30,9 @@ const busy = ref(false);
 const serverErrors = ref({});
 const picked = ref('');
 
-const errors = computed(() => envErrors(rows.value));
+const errors = computed(() => envErrors(rows.value, props.reserved));
 const changed = computed(() => envChanged(saved.value, rows.value));
-const path = () => `/${encodeURIComponent(props.domain)}/env`;
+const path = () => props.path || `/${encodeURIComponent(props.domain)}/env`;
 
 function load(vars) {
 	saved.value = vars.map((row) => ({ ...row }));
@@ -72,7 +77,7 @@ async function save() {
 	try {
 		const data = await props.api.call('PUT', path(), { vars: rows.value.map((row) => ({ key: row.key.trim(), value: row.value })) });
 		load(data.vars);
-		props.api.saved(t('Saved; the app was restarted.'));
+		props.api.saved(props.savedMessage || t('Saved; the app was restarted.'));
 	} catch (error) {
 		serverErrors.value = fieldErrors(error);
 		props.api.fail(error);
@@ -94,7 +99,7 @@ onMounted(async () => {
 
 <template>
 	<form class="ap-stack" novalidate @submit.prevent="save">
-		<p class="muted">{{ t('Variables of the .env file of the app. PORT, HOST and NODE_ENV are set by the panel.') }}</p>
+		<p class="muted">{{ hint || t('Variables of the .env file of the app. PORT, HOST and NODE_ENV are set by the panel.') }}</p>
 		<p class="muted">{{ t('A value can reference a secret of the account as %s; the app gets its value when it starts.', secretReference('NAME')) }}</p>
 		<p v-if="loading" class="muted">{{ t('Loading…') }}</p>
 		<div v-else class="ap-table-wrap">

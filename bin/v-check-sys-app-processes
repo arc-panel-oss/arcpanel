@@ -1,0 +1,166 @@
+#!/bin/bash
+# info: check the app processes of all users (E42)
+# options: [MODE] [FORMAT]
+#
+# example: v-check-sys-app-processes
+# example: v-check-sys-app-processes repair
+# example: v-check-sys-app-processes check json
+#
+# This function looks for app processes that do not match their records:
+# import (a copy in a domain's app-process/ folder without a record, after a
+# restore), domain-missing (the web domain was deleted), unit-missing (a
+# record without its unit), unit-orphan (a unit without a record),
+# process-down (a process that should run does not), process-failed (it
+# stopped after too many restarts), process-suspended (a process of a
+# suspended user or domain runs) and over-limit (more processes than
+# APP_PROCESSES_MAX, reported only). MODE repair (run every 5 minutes from
+# cron) fixes all but over-limit with v-rebuild-app-processes. The totals
+# are the users with processes, the processes, those running and their
+# memory in MB.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+mode=${1:-check}
+format=${2-shell}
+
+# Includes
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/tenancy.sh
+source $ARCPANEL/func/tenancy.sh
+# shellcheck source=/usr/local/arcpanel/func/appprocess.sh
+source $ARCPANEL/func/appprocess.sh
+# load config file
+source_conf "$ARCPANEL/conf/arcpanel.conf"
+
+finding() {
+	findings="$findings$(jq -nc --arg u "$1" --arg t "$2" --arg d "$3" --arg n "$4" --arg x "$5" \
+		'{ USER: $u, TYPE: $t, DOMAIN: $d, NAME: $n, DETAIL: $x }')"$'\n'
+}
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+case "$mode" in
+	check | repair) ;;
+	json | shell | plain | csv)
+		format=$mode
+		mode=check
+		;;
+	*) check_result "$E_INVALID" "invalid mode :: $mode (check or repair)" ;;
+esac
+if [ "$(id -u)" != '0' ]; then
+	check_result "$E_FORBIDEN" "v-check-sys-app-processes can only be executed by the root user"
+fi
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+findings=''
+users=0
+processes=0
+running=0
+memory=0
+for user in $(tenancy_all_users); do
+	count=$(appproc_count "$user")
+	units=$(appproc_unit_ids "$user")
+	imports=''
+	for domain in $(grep -oE "^DOMAIN='[^']*'" "$ARCPANEL/data/users/$user/web.conf" 2> /dev/null | cut -d\' -f2); do
+		if node_as_user "$user" test -d "$(appproc_dir "$user" "$domain")" 2> /dev/null; then
+			for name in $(appproc_copy_names "$user" "$domain"); do
+				imports="$imports $domain/$name"
+			done
+		fi
+	done
+	if [ "$count" -eq 0 ] && [ -z "$imports" ] && [ -z "$units" ]; then
+		continue
+	fi
+	if [ "$count" -gt 0 ]; then
+		users=$((users + 1))
+		processes=$((processes + count))
+	fi
+
+	rebuild=no
+	for item in $imports; do
+		finding "$user" import "${item%/*}" "${item#*/}" "a copy without a record"
+		rebuild=yes
+	done
+	for id in $units; do
+		if [ -z "$(appproc_line "$user" "$id")" ]; then
+			finding "$user" unit-orphan "" "" "$(appproc_unit "$user" "$id") has no record"
+			rebuild=yes
+		fi
+	done
+
+	limit=$(appproc_limit "$user")
+	if [ "$limit" != 'unlimited' ] && [ "$count" -gt "$limit" ]; then
+		finding "$user" over-limit "" "" "$count processes, APP_PROCESSES_MAX is $limit"
+	fi
+	for id in $(appproc_ids "$user"); do
+		line=$(appproc_line "$user" "$id")
+		domain=$(appproc_field "$line" DOMAIN)
+		name=$(appproc_field "$line" NAME)
+		if ! arc_tpl_domain_exists "$user" "$domain"; then
+			finding "$user" domain-missing "$domain" "$name" "the web domain does not exist"
+			rebuild=yes
+			continue
+		fi
+		if [ ! -f "$(appproc_unit_file "$user" "$id")" ] || [ ! -f "$(appproc_run_file "$user" "$id")" ]; then
+			finding "$user" unit-missing "$domain" "$name" "the unit or the run file is missing"
+			rebuild=yes
+		fi
+		show=$(appproc_show "$user" "$id")
+		status=$(appproc_status_of "$line" "$show")
+		if [ "$status" = 'running' ] || [ "$status" = 'starting' ]; then
+			running=$((running + 1))
+			bytes=$(sed -n 's/^MemoryCurrent=//p' <<< "$show")
+			if [[ "$bytes" =~ ^[0-9]+$ ]]; then
+				memory=$((memory + bytes / 1048576))
+			fi
+		fi
+		if appproc_should_run "$user" "$id"; then
+			case "$status" in
+				running | starting) ;;
+				failed)
+					finding "$user" process-failed "$domain" "$name" "stopped after too many restarts"
+					rebuild=yes
+					;;
+				*)
+					finding "$user" process-down "$domain" "$name" "should run but is $status"
+					rebuild=yes
+					;;
+			esac
+		elif [ "$status" = 'running' ] || [ "$status" = 'starting' ]; then
+			if [ "$(appproc_field "$line" STATE)" = 'running' ]; then
+				finding "$user" process-suspended "$domain" "$name" "runs while the user or the domain is suspended"
+				rebuild=yes
+			fi
+		fi
+	done
+	if [ "$mode" = 'repair' ] && [ "$rebuild" = 'yes' ]; then
+		"$BIN/v-rebuild-app-processes" "$user" > /dev/null 2>&1
+	fi
+done
+
+json=$(printf '%s' "$findings" | jq -sc --arg users "$users" --arg processes "$processes" --arg running "$running" \
+	--arg memory "$memory" --arg mode "$mode" '
+	{ MODE: $mode, USERS: $users, PROCESSES: $processes, RUNNING: $running, MEMORY: $memory, FINDINGS: . }')
+
+node_print "$format" "$json" '.FINDINGS' 'USER TYPE DOMAIN NAME DETAIL'
+
+#----------------------------------------------------------#
+#                         ArcPanel                         #
+#----------------------------------------------------------#
+
+if [ "$mode" = 'repair' ]; then
+	log_event "$OK" "$ARGUMENTS"
+fi
+
+exit

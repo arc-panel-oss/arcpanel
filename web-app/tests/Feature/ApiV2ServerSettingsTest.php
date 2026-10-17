@@ -183,6 +183,7 @@ it('refuses the fields a key may never change with 403 naming the field (D58)', 
 })->with([
     'API_SYSTEM' => ['security', 'API_SYSTEM', '0'],
     'API' => ['security', 'API', 'yes'],
+    'API_V1' => ['security', 'API_V1', 'yes'],
     'API_ALLOWED_IP' => ['security', 'API_ALLOWED_IP', '203.0.113.9'],
     'POLICY_SYSTEM_PROTECTED_ADMIN' => ['security', 'POLICY_SYSTEM_PROTECTED_ADMIN', 'no'],
     'POLICY_SYSTEM_HIDE_ADMIN' => ['security', 'POLICY_SYSTEM_HIDE_ADMIN', 'yes'],
@@ -416,4 +417,16 @@ it('changes the password of a MySQL host without answering it', function () {
     $this->putJson('/api/v2/system/settings/databases/hosts/pgsql/pg.example.net/password', $body, $headers)->assertNotFound();
     $this->putJson('/api/v2/system/settings/databases/hosts/mysql/localhost/password', ['user' => 'root', 'password' => 'short'], $headers)->assertStatus(422);
     $this->fake->assertRan('v-change-database-host-password', null, 1);
+});
+
+it('reads and writes the shells of reseller packages in the security tab (E39 W4 D5)', function () {
+    $this->fake->on('v-list-sys-shells', ['json'])->returnsJson(['bash', 'nologin']);
+    $this->fake->on('v-change-sys-config-value')->returns();
+    $headers = apiAs($this->fake, 'arcadmin', 'admin');
+
+    $this->getJson('/api/v2/system/settings', $headers)->assertOk()->assertJsonPath('data.security.POLICY_RESELLER_PACKAGE_SHELLS', 'nologin');
+    $this->patchJson('/api/v2/system/settings/security', ['POLICY_RESELLER_PACKAGE_SHELLS' => 'nologin,bash'], $headers)->assertOk();
+    $this->fake->assertRan('v-change-sys-config-value', fn ($a) => $a === ['POLICY_RESELLER_PACKAGE_SHELLS', 'nologin,bash']);
+    $this->patchJson('/api/v2/system/settings/security', ['POLICY_RESELLER_PACKAGE_SHELLS' => 'zsh'], $headers)->assertStatus(422)
+        ->assertJsonStructure(['error' => ['fields' => ['POLICY_RESELLER_PACKAGE_SHELLS']]]);
 });

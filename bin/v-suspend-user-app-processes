@@ -1,0 +1,59 @@
+#!/bin/bash
+# info: suspend the app processes of a user (E42)
+# options: USER
+#
+# example: v-suspend-user-app-processes alice
+#
+# This function stops every app process of USER and marks them suspended,
+# so that neither a reboot nor v-check-sys-app-processes starts them. The
+# post_suspend_user hook runs it when the user is suspended.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+user=$1
+
+# Includes
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/tenancy.sh
+source $ARCPANEL/func/tenancy.sh
+# shellcheck source=/usr/local/arcpanel/func/appprocess.sh
+source $ARCPANEL/func/appprocess.sh
+# load config file
+source_conf "$ARCPANEL/conf/arcpanel.conf"
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '1' "$#" 'USER'
+is_format_valid 'user'
+is_object_valid 'user' 'USER' "$user"
+
+# Perform verification if read-only mode is enabled
+check_arcpanel_demo_mode
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+if [ "$(appproc_count "$user")" -gt 0 ]; then
+	appproc_lock "$user"
+	for id in $(appproc_ids "$user"); do
+		appproc_stop "$user" "$id"
+		appproc_set "$user" "$id" SUSPENDED=yes
+	done
+fi
+
+#----------------------------------------------------------#
+#                         ArcPanel                         #
+#----------------------------------------------------------#
+
+log_event "$OK" "$ARGUMENTS"
+
+exit

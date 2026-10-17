@@ -14,6 +14,8 @@ source /etc/arcpanel/arcpanel.conf
 # shellcheck source=/usr/local/arcpanel/func/main.sh
 source "$ARCPANEL/func/main.sh"
 source "$ARCPANEL/func/db.sh"
+# shellcheck source=/usr/local/arcpanel/func/download.sh
+source "$ARCPANEL/func/download.sh"
 # load config file
 source_conf "$ARCPANEL/conf/arcpanel.conf"
 # upgrade config file
@@ -115,11 +117,10 @@ fail() {
 }
 
 download_rc() {
-	if [[ ! -f "$RC_INSTALL_DIR/$RC_FILE" ]]; then
-		if ! wget "$RC_URL" --retry-connrefused --quiet -O "$RC_INSTALL_DIR/$RC_FILE"; then
-			rm -f "${RC_INSTALL_DIR:?}/$RC_FILE"
-			fail "Failed to download $RC_URL"
-		fi
+	# Checked against the pinned SHA-256 before it is unpacked (E39 W3)
+	if ! fetch_verified "$RC_URL" "$rc_sha256" "$RC_INSTALL_DIR/$RC_FILE"; then
+		rm -f "${RC_INSTALL_DIR:?}/$RC_FILE"
+		fail "Failed to download $RC_URL or its checksum did not match"
 	fi
 	# Empty file or HTML error page
 	if [[ ! -s "$RC_INSTALL_DIR/$RC_FILE" ]]; then

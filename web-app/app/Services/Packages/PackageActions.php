@@ -2,6 +2,7 @@
 
 namespace App\Services\Packages;
 
+use App\Arc\SysConfig;
 use App\Auth\Principal;
 use App\Auth\Role;
 use App\Services\Php\PhpManager;
@@ -26,6 +27,7 @@ final class PackageActions
     public function __construct(
         private readonly PackageService $packages,
         private readonly UserService $users,
+        private readonly SysConfig $config,
     ) {}
 
     /** @return array<string, PackageRecord> what the principal may see: every package for administrators, the assignable ones for a reseller */
@@ -71,7 +73,7 @@ final class PackageActions
      *
      * @throws ValidationException
      */
-    public function planCreate(Principal $principal, string $name, array $values, ?array $tenancy, string $ports, array $node, array $docker, ?array $php = null): array
+    public function planCreate(Principal $principal, string $name, array $values, ?array $tenancy, string $ports, array $node, array $docker, ?array $php = null, ?array $processes = null): array
     {
         $reseller = self::resellerOf($principal);
         if ($this->packages->exists(self::storedName($principal, $name))) {
@@ -80,7 +82,8 @@ final class PackageActions
         $this->checkValues($values, [], $reseller);
 
         return $this->packages->planCreate($name, $values, $reseller === '' ? $tenancy : null, $reseller,
-            $this->checkPorts($ports, $reseller), $this->checkNode($node, $reseller), $this->checkDocker($docker, $reseller), $this->checkPhp($php, $reseller));
+            $this->checkPorts($ports, $reseller), $this->checkNode($node, $reseller), $this->checkDocker($docker, $reseller), $this->checkPhp($php, $reseller),
+            $this->checkProcesses($processes, $reseller));
     }
 
     /**
@@ -94,7 +97,7 @@ final class PackageActions
      *
      * @throws ValidationException
      */
-    public function planUpdate(Principal $principal, PackageRecord $record, string $newName, array $values, ?array $tenancy, string $ports, array $node, array $docker, ?array $php = null): array
+    public function planUpdate(Principal $principal, PackageRecord $record, string $newName, array $values, ?array $tenancy, string $ports, array $node, array $docker, ?array $php = null, ?array $processes = null): array
     {
         $reseller = self::resellerOf($principal);
         $newName = $reseller !== '' ? $record->name : $newName;
@@ -104,7 +107,8 @@ final class PackageActions
         $this->checkValues($values, $record->data, $reseller);
 
         return $this->packages->planUpdate($record, $newName, $values, $reseller === '' ? $tenancy : null, $reseller,
-            $this->checkPorts($ports, $reseller), $this->checkNode($node, $reseller), $this->checkDocker($docker, $reseller), $this->checkPhp($php, $reseller));
+            $this->checkPorts($ports, $reseller), $this->checkNode($node, $reseller), $this->checkDocker($docker, $reseller), $this->checkPhp($php, $reseller),
+            $this->checkProcesses($processes, $reseller));
     }
 
     /**
@@ -133,10 +137,49 @@ final class PackageActions
         return $this->packages->planDelete($record, self::resellerOf($principal));
     }
 
+    /** Package file key => list of PackageService::templates() it is chosen from. */
+    private const CHOICES = ['WEB_TEMPLATE' => 'web', 'BACKEND_TEMPLATE' => 'backend', 'PROXY_TEMPLATE' => 'proxy', 'DNS_TEMPLATE' => 'dns', 'SHELL' => 'shells'];
+
     /**
-     * Templates and shell from the server's lists (a value the package
-     * already has stays allowed), at least two name servers, and for a
-     * reseller no limit above its own.
+     * The templates and shells a package may use, as PackageService::templates()
+     * lists them. A reseller's package (E39 W4 spec §8.1) takes its shell
+     * from POLICY_RESELLER_PACKAGE_SHELLS and, while users may not choose
+     * templates, the reseller's own templates; a value the package already
+     * has stays allowed for the shell.
+     *
+     * @param  array<string, string>  $current  the package's values before the change
+     * @return array<string, list<string>>
+     */
+    public function choices(string $reseller, array $current = []): array
+    {
+        $templates = $this->packages->templates();
+        if ($reseller === '') {
+            return $templates;
+        }
+        $shells = array_values(array_filter(explode(',', $this->config->get('POLICY_RESELLER_PACKAGE_SHELLS', 'nologin'))));
+        $templates['shells'] = array_values(array_filter($templates['shells'],
+            fn (string $shell) => in_array($shell, $shells, true) || $shell === ($current['SHELL'] ?? null)));
+        $own = $this->users->find($reseller);
+        $fixed = [
+            'web' => ! $this->config->is('POLICY_USER_EDIT_WEB_TEMPLATES') ? 'WEB_TEMPLATE' : null,
+            'backend' => ! $this->config->is('POLICY_USER_EDIT_WEB_TEMPLATES') ? 'BACKEND_TEMPLATE' : null,
+            'proxy' => ! $this->config->is('POLICY_USER_EDIT_WEB_TEMPLATES') ? 'PROXY_TEMPLATE' : null,
+            'dns' => ! $this->config->is('POLICY_USER_EDIT_DNS_TEMPLATES') ? 'DNS_TEMPLATE' : null,
+        ];
+        foreach ($fixed as $list => $key) {
+            if ($key !== null && $templates[$list] !== []) {
+                $templates[$list] = [$own->get($key)];
+            }
+        }
+
+        return $templates;
+    }
+
+    /**
+     * Templates and shell from choices() (a value the package already has
+     * stays allowed, except a template a reseller may not choose), at least
+     * two name servers, and for a reseller no limit beyond its own, compared
+     * after their units (E39 W4 spec §8.2).
      *
      * @param  array<string, string>  $values
      * @param  array<string, string>  $current
@@ -145,26 +188,34 @@ final class PackageActions
      */
     public function checkValues(array $values, array $current, string $reseller): void
     {
-        $templates = $this->packages->templates();
+        $choices = $this->choices($reseller, $current);
         $errors = [];
-        foreach (['WEB_TEMPLATE' => 'web', 'BACKEND_TEMPLATE' => 'backend', 'PROXY_TEMPLATE' => 'proxy', 'DNS_TEMPLATE' => 'dns', 'SHELL' => 'shells'] as $key => $list) {
-            if ($templates[$list] !== [] && ! in_array($values[$key], $templates[$list], true) && ($current[$key] ?? null) !== $values[$key]) {
-                $errors[strtolower($key === 'SHELL' ? 'shell' : $key)] = __('Please select a valid value.');
+        foreach (self::CHOICES as $key => $list) {
+            $kept = ($current[$key] ?? null) === $values[$key] && ($reseller === '' || $key === 'SHELL');
+            if ($choices[$list] !== [] && ! in_array($values[$key], $choices[$list], true) && ! $kept) {
+                $errors[strtolower($key === 'SHELL' ? 'shell' : $key)] = $reseller !== '' && in_array($values[$key], $this->packages->templates()[$list], true)
+                    ? __('Your plan does not allow this value.')
+                    : __('Please select a valid value.');
             }
         }
         if (count(array_filter(explode(',', $values['NS'] ?? ''))) < 2) {
             $errors['nameservers'] = __('Enter at least two name servers.');
         }
         if ($reseller !== '') {
+            // v-list-user leaves out RATE_LIMIT and the cgroup limits: those come from the reseller's package
             $own = $this->users->find($reseller);
-            foreach ([...PackageRecord::COUNTED, 'RATE_LIMIT', 'BACKUPS'] as $key) {
-                $limit = $own->get($key, 'unlimited');
-                if ($limit === 'unlimited' || $limit === '') {
+            $plan = $this->ownPackage($reseller);
+            foreach ([...PackageRecord::COUNTED, ...PackageRecord::RESOURCES, 'RATE_LIMIT', 'BACKUPS', 'BACKUPS_INCREMENTAL'] as $key) {
+                $limit = $own->get($key) !== '' || ! in_array($key, [...PackageRecord::RESOURCES, 'RATE_LIMIT'], true)
+                    ? $own->get($key, 'unlimited')
+                    : ($plan?->get($key) ?? '');
+                $value = $values[$key] ?? '';
+                if ($limit === 'unlimited' || $limit === '' || $value === '' || ! PackageLimits::above($key, $value, $limit)) {
                     continue;
                 }
-                if ($values[$key] === 'unlimited' || (int) $values[$key] > (int) $limit) {
-                    $errors[strtolower($key)] = sprintf(__('At most %s on your plan.'), $limit);
-                }
+                $errors[strtolower($key)] = $key === 'BACKUPS_INCREMENTAL'
+                    ? __('Incremental backups are not included in your plan.')
+                    : sprintf(__('At most %s on your plan.'), $limit);
             }
         }
         if ($errors !== []) {
@@ -181,7 +232,7 @@ final class PackageActions
     /**
      * Node.js keys of the reseller's own package (E13, E14).
      *
-     * @return array{NODE: string, NODE_VERSIONS: string, NODE_APPS: string}
+     * @return array{NODE: string, NODE_VERSIONS: string, NODE_ALLOWED: string, NODE_APPS: string}
      */
     public function ownNode(string $reseller): array
     {
@@ -190,6 +241,7 @@ final class PackageActions
         return [
             'NODE' => $record?->get('NODE', 'no') ?? 'no',
             'NODE_VERSIONS' => $record?->get('NODE_VERSIONS', '3') ?? '3',
+            'NODE_ALLOWED' => $record?->get('NODE_ALLOWED', 'lts') ?? 'lts',
             'NODE_APPS' => $record?->get('NODE_APPS', '3') ?? '3',
         ];
     }
@@ -267,7 +319,7 @@ final class PackageActions
     {
         if ($reseller !== '') {
             $limit = $this->ownPorts($reseller);
-            if ($limit !== 'unlimited' && ($ports === 'unlimited' || (int) $ports > (int) $limit)) {
+            if (PackageLimits::above('PORTS', $ports, $limit)) {
                 throw ValidationException::withMessages(['ports' => sprintf(__('At most %s on your plan.'), $limit)]);
             }
         }
@@ -293,10 +345,12 @@ final class PackageActions
                 $errors['node'] = __('Node.js is not included in your plan.');
             }
             foreach (['NODE_VERSIONS' => 'node_versions', 'NODE_APPS' => 'node_apps'] as $key => $field) {
-                $limit = $own[$key];
-                if ($limit !== 'unlimited' && ($node[$key] === 'unlimited' || (int) $node[$key] > (int) $limit)) {
-                    $errors[$field] = sprintf(__('At most %s on your plan.'), $limit);
+                if (PackageLimits::above($key, $node[$key], $own[$key])) {
+                    $errors[$field] = sprintf(__('At most %s on your plan.'), $own[$key]);
                 }
+            }
+            if (PackageLimits::above('NODE_ALLOWED', $node['NODE_ALLOWED'], $own['NODE_ALLOWED'])) {
+                $errors['node_allowed'] = sprintf(__('Your plan allows only %s.'), $own['NODE_ALLOWED']);
             }
             if ($errors !== []) {
                 throw ValidationException::withMessages($errors);
@@ -323,14 +377,8 @@ final class PackageActions
             if ($docker['DOCKER'] === 'yes' && $own['DOCKER'] !== 'yes') {
                 $errors['docker'] = __('Docker apps are not included in your plan.');
             }
-            $mb = fn (string $size) => preg_match('/^(\d+)([MG]?)$/', $size, $m) === 1 ? (int) $m[1] * ($m[2] === 'G' ? 1024 : 1) : PHP_INT_MAX;
-            $above = [
-                'DOCKER_APPS' => fn (string $value, string $limit) => $value === 'unlimited' || (int) $value > (int) $limit,
-                'DOCKER_CPUS' => fn (string $value, string $limit) => $value === 'unlimited' || (float) $value > (float) $limit,
-                'DOCKER_MEMORY' => fn (string $value, string $limit) => $mb($value) > $mb($limit),
-            ];
-            foreach ($above as $key => $check) {
-                if ($own[$key] !== 'unlimited' && $check($docker[$key], $own[$key])) {
+            foreach (['DOCKER_APPS', 'DOCKER_CPUS', 'DOCKER_MEMORY'] as $key) {
+                if (PackageLimits::above($key, $docker[$key], $own[$key])) {
                     $errors[strtolower($key)] = sprintf(__('At most %s on your plan.'), $own[$key]);
                 }
             }
@@ -340,6 +388,53 @@ final class PackageActions
         }
 
         return $docker;
+    }
+
+    /**
+     * The app process keys of a reseller's own package (E42).
+     *
+     * @return array{APP_PROCESSES: string, APP_PROCESSES_MAX: string, APP_PROCESSES_MEMORY: string, APP_PROCESSES_CPUS: string}
+     */
+    public function ownProcesses(string $reseller): array
+    {
+        $record = $this->ownPackage($reseller);
+
+        return [
+            'APP_PROCESSES' => $record?->get('APP_PROCESSES', 'no') ?? 'no',
+            'APP_PROCESSES_MAX' => $record?->get('APP_PROCESSES_MAX', '3') ?? '3',
+            'APP_PROCESSES_MEMORY' => $record?->get('APP_PROCESSES_MEMORY', 'unlimited') ?? 'unlimited',
+            'APP_PROCESSES_CPUS' => $record?->get('APP_PROCESSES_CPUS', '1') ?? '1',
+        ];
+    }
+
+    /**
+     * App process keys of a package; a reseller may not go beyond its own.
+     *
+     * @param  array{APP_PROCESSES: string, APP_PROCESSES_MAX: string, APP_PROCESSES_MEMORY: string, APP_PROCESSES_CPUS: string}|null  $processes
+     * @return array{APP_PROCESSES: string, APP_PROCESSES_MAX: string, APP_PROCESSES_MEMORY: string, APP_PROCESSES_CPUS: string}|null
+     *
+     * @throws ValidationException
+     */
+    public function checkProcesses(?array $processes, string $reseller): ?array
+    {
+        if ($processes === null || $reseller === '') {
+            return $processes;
+        }
+        $own = $this->ownProcesses($reseller);
+        $errors = [];
+        if ($processes['APP_PROCESSES'] === 'yes' && $own['APP_PROCESSES'] !== 'yes') {
+            $errors['app_processes'] = __('App processes are not included in your plan.');
+        }
+        foreach (['APP_PROCESSES_MAX', 'APP_PROCESSES_MEMORY', 'APP_PROCESSES_CPUS'] as $key) {
+            if (PackageLimits::above($key, $processes[$key], $own[$key])) {
+                $errors[strtolower($key)] = sprintf(__('At most %s on your plan.'), $own[$key]);
+            }
+        }
+        if ($errors !== []) {
+            throw ValidationException::withMessages($errors);
+        }
+
+        return $processes;
     }
 
     private function ownPackage(string $reseller): ?PackageRecord

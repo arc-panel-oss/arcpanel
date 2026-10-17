@@ -2,6 +2,36 @@
 
 All notable changes to ArcPanel are listed here. ArcPanel is based on HestiaCP 1.10.5 and, since 2.0, a hard fork of it ([ADR-0007](https://github.com/arc-panel-oss/docs/blob/main/adr/0007-full-rename-and-hard-fork.md)).
 
+## 2.1.3 — 2026-10-17
+
+The supply-chain and authorization parts of the security audit remediation (E39 W3 and W4), and app processes for Laravel Octane and other long-running app servers (E42). See the [W3 spec](https://github.com/arc-panel-oss/docs/blob/main/features/specs/2026-10-16-001-e39-w3-supply-chain-design.md) and the [W4 spec](https://github.com/arc-panel-oss/docs/blob/main/features/specs/2026-10-16-002-e39-w4-authorization-and-tenancy-design.md).
+
+### Breaking changes
+
+- **REST API v1 is off on new installs.** Turn it on with "REST API v1" on the Security tab or `v-change-sys-api enable v1`; servers that upgrade keep it as it was. REST API v2 is the supported API.
+- **Reseller packages keep to the reseller's plan.** The shell of a reseller's package comes from the new setting "Shells resellers may give in their packages" (`nologin` by default), the templates are the reseller's own while users may not choose templates, and limits with units (`512M`, `1G`, `50%`) are compared correctly. Packages that already go beyond the plan keep working; the upgrade log lists them, and an edit is refused until they fit.
+- **arcpanelweb runs only the listed commands through `sudo`.** The panel's command allow-list is written to `/etc/sudoers.d/arcpanelweb` at install and upgrade; `v-get-user-secret`, `v-change-sys-release`, `v-add-sys-arcpanel` and `v-update-sys-sudoers` are root-only.
+
+### Security
+
+- Everything ArcPanel downloads during the build, the installation and upgrades is fetched over HTTPS and checked against a pinned SHA-256, and APT repository keys are checked against pinned fingerprints. The engine packages are rebuilt from verified sources and get a new revision. rclone is installed from a pinned release instead of a remote install script. The phpMyAdmin single sign-on verifies the panel's certificate. The upgrade reports any APT key on the server that ArcPanel does not expect.
+- Another administrator can no longer change the account or anything of the root administrator when "Restrict access to read-only for other administrators" is on; with the hidden administrator, such a change answers "not found". A suspended reseller or administrator only reads, also while it acts as a customer. Only an administrator links a firewall rule to a port.
+- Access keys are generated from `/dev/urandom`. REST API v1 compares keys strictly, answers every authentication failure the same way and limits failed attempts per address.
+- **Rotate your access keys.** Keys made before 2.1.3 came from a weak generator: create new keys and delete the old ones, and review the keys of the root administrator on its Access keys page. Run `v-add-sys-pma-sso` again to renew the phpMyAdmin single sign-on key.
+
+### Added
+
+- **App processes** (the App processes page for users whose package grants them, a card on the dashboard and a Processes tab on the web domain). Long-running app servers run as the hosting user, each in its own systemd unit inside the user's slice: they restart after a crash and a reboot, stop while the user is suspended, and are kept by `v-rebuild-user`, backups and restores. Presets for Laravel Octane (Swoole, RoadRunner, FrankenPHP), Laravel queue workers, Horizon and the scheduler, Gunicorn, Uvicorn, Celery, Go binaries, Puma and Sidekiq, plus custom commands; start, stop, restart and reload, logs, environment values and tasks (`composer install` and the like) in the panel. Packages grant them with `APP_PROCESSES` and limit their number, memory and CPUs (`APP_PROCESSES_MAX`, `APP_PROCESSES_MEMORY`, `APP_PROCESSES_CPUS`).
+- **REST API v2.** 15 operations for app processes (tag "App processes"), in the `apps` area and its permission set `v2-apps`.
+
+### Changed
+
+- The web terminal ticket key is written on fresh installs, so the web terminal starts after an install with `--webterminal yes`.
+
+### Fixed
+
+- A package upgrade now runs `v-add-sys-app-processes` and `v-add-sys-arcpanel`: the panel's command allow-list and the `sudo` rules of `arcpanelweb` follow the installed commands, the framework caches are rebuilt, and app processes are set up on servers that upgrade, not only on fresh installs.
+
 ## 2.1.2 — 2026-10-15
 
 The first published 2.1 release: it ships the changes of 2.1.1 and 2.1.0 below, for amd64 only.

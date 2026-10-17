@@ -1,0 +1,69 @@
+#!/bin/bash
+# info: change the memory and CPU limits of an app process (E42)
+# options: USER DOMAIN NAME MEMORY CPUS
+#
+# example: v-change-app-process-limits alice shop.example.com web 768 1.5
+#
+# This function sets the memory (MB) and the CPUs (such as 1 or 0.5) of the
+# app process within the limits of the user's package. A running process is
+# restarted with the new limits.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+user=$1
+domain=$2
+name=$3
+memory=$4
+cpus=$5
+
+# Includes
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/tenancy.sh
+source $ARCPANEL/func/tenancy.sh
+# shellcheck source=/usr/local/arcpanel/func/ports.sh
+source $ARCPANEL/func/ports.sh
+# shellcheck source=/usr/local/arcpanel/func/appprocess.sh
+source $ARCPANEL/func/appprocess.sh
+# load config file
+source_conf "$ARCPANEL/conf/arcpanel.conf"
+
+# Additional argument formatting
+format_domain
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '5' "$#" 'USER DOMAIN NAME MEMORY CPUS'
+is_format_valid 'user' 'domain'
+is_object_valid 'user' 'USER' "$user"
+is_object_unsuspended 'user' 'USER' "$user"
+appproc_check_process "$user" "$domain" "$name"
+appproc_check_resources "$user" "$memory" "$cpus"
+
+# Perform verification if read-only mode is enabled
+check_arcpanel_demo_mode
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+appproc_lock "$user"
+appproc_set "$user" "$APPPROC_ID" "MEMORY=$memory" "CPUS=$cpus"
+appproc_apply "$user" "$APPPROC_ID"
+
+#----------------------------------------------------------#
+#                         ArcPanel                         #
+#----------------------------------------------------------#
+
+# Logging
+$BIN/v-log-action "$user" "Info" "App processes" "App process limits changed (Domain: $domain, Name: $name, Memory: $memory MB, CPUs: $cpus)."
+log_event "$OK" "$ARGUMENTS"
+
+exit

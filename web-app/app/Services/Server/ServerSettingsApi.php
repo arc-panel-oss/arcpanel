@@ -59,14 +59,14 @@ final class ServerSettingsApi
             'not_before' => 'string', 'not_after' => 'string', 'signature' => 'string', 'public_key' => 'string',
         ],
         'security' => [
-            'API_SYSTEM' => 'string', 'API' => 'string', 'API_ALLOWED_IP' => 'string',
+            'API_SYSTEM' => 'string', 'API' => 'string', 'API_V1' => 'string', 'API_ALLOWED_IP' => 'string',
             'LOGIN_STYLE' => 'string', 'INACTIVE_SESSION_TIMEOUT' => 'string', 'POLICY_CSRF_STRICTNESS' => 'string',
             'POLICY_SYSTEM_PASSWORD_RESET' => 'string',
             'POLICY_SYSTEM_PROTECTED_ADMIN' => 'string', 'POLICY_SYSTEM_HIDE_ADMIN' => 'string', 'POLICY_SYSTEM_HIDE_SERVICES' => 'string',
             'POLICY_USER_EDIT_DETAILS' => 'string', 'POLICY_USER_EDIT_WEB_TEMPLATES' => 'string', 'POLICY_USER_EDIT_DNS_TEMPLATES' => 'string',
             'POLICY_USER_VIEW_LOGS' => 'string', 'POLICY_USER_DELETE_LOGS' => 'string', 'POLICY_USER_VIEW_SUSPENDED' => 'string',
             'POLICY_BACKUP_SUSPENDED_USERS' => 'string', 'POLICY_SYNC_ERROR_DOCUMENTS' => 'string', 'POLICY_SYNC_SKELETON' => 'string',
-            'ENFORCE_SUBDOMAIN_OWNERSHIP' => 'string',
+            'ENFORCE_SUBDOMAIN_OWNERSHIP' => 'string', 'POLICY_RESELLER_PACKAGE_SHELLS' => 'string',
         ],
         'plugins' => ['app_installer' => 'boolean', 'plugins' => 'plugins'],
         'white-label' => [
@@ -91,6 +91,7 @@ final class ServerSettingsApi
             'POLICY_USER_EDIT_DETAILS', 'POLICY_USER_EDIT_WEB_TEMPLATES', 'POLICY_USER_EDIT_DNS_TEMPLATES',
             'POLICY_USER_VIEW_LOGS', 'POLICY_USER_DELETE_LOGS', 'POLICY_USER_VIEW_SUSPENDED',
             'POLICY_BACKUP_SUSPENDED_USERS', 'POLICY_SYNC_ERROR_DOCUMENTS', 'POLICY_SYNC_SKELETON', 'ENFORCE_SUBDOMAIN_OWNERSHIP',
+            'POLICY_RESELLER_PACKAGE_SHELLS',
         ],
         'plugins' => ['app_installer'],
         'white-label' => ['APP_NAME', 'TITLE', 'SUBJECT_EMAIL', 'FROM_NAME', 'FROM_EMAIL', 'HIDE_DOCS'],
@@ -101,7 +102,7 @@ final class ServerSettingsApi
      * the field. They stay on the panel's settings page.
      */
     public const REFUSED = [
-        'API_SYSTEM' => 'api', 'API' => 'api', 'API_ALLOWED_IP' => 'api',
+        'API_SYSTEM' => 'api', 'API' => 'api', 'API_V1' => 'api', 'API_ALLOWED_IP' => 'api',
         'POLICY_SYSTEM_PROTECTED_ADMIN' => 'protection', 'POLICY_SYSTEM_HIDE_ADMIN' => 'protection', 'POLICY_SYSTEM_HIDE_SERVICES' => 'protection',
         'pma_sso' => 'sso', 'pma_restrict' => 'sso', 'PHPMYADMIN_KEY' => 'sso',
         'logo' => 'logo', 'custom_logo' => 'logo',
@@ -200,6 +201,7 @@ final class ServerSettingsApi
                     'LOGIN_STYLE' => $get($key, 'default'),
                     'INACTIVE_SESSION_TIMEOUT' => $get($key, '60'),
                     'POLICY_CSRF_STRICTNESS' => $get($key, '1'),
+                    'POLICY_RESELLER_PACKAGE_SHELLS' => $get($key, 'nologin'),
                     default => $get($key) === 'yes' ? 'yes' : 'no',
                 },
                 array_keys(self::READ['security']),

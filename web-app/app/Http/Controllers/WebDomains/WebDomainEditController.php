@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\WebDomains;
 
+use App\Arc\ArcCommandException;
 use App\Arc\SysConfig;
 use App\Auth\Principal;
 use App\Http\Controllers\Controller;
@@ -11,8 +12,11 @@ use App\Http\Requests\WebDomains\GeneralRequest;
 use App\Http\Requests\WebDomains\RedirectRequest;
 use App\Http\Requests\WebDomains\SslRequest;
 use App\Http\Requests\WebDomains\StatsRequest;
+use App\Policies\AppProcessPolicy;
 use App\Policies\FilePolicy;
 use App\Policies\WebDomainPolicy;
+use App\Services\AppProcesses\AppProcess;
+use App\Services\AppProcesses\AppProcessService;
 use App\Services\Mail\CredentialsMailer;
 use App\Services\Php\PhpManager;
 use App\Services\UserDirectory;
@@ -43,7 +47,7 @@ final class WebDomainEditController extends Controller
         private readonly TemplateCatalog $catalog,
     ) {}
 
-    public function edit(string $user, string $domain, Principal $principal, WebDomainPolicy $policy, SysConfig $config, UserDirectory $directory, TemplateForm $form, FilePolicy $files, PhpManager $php, WebDomainActions $actions): View
+    public function edit(string $user, string $domain, Principal $principal, WebDomainPolicy $policy, SysConfig $config, UserDirectory $directory, TemplateForm $form, FilePolicy $files, PhpManager $php, WebDomainActions $actions, AppProcessService $appProcesses, AppProcessPolicy $processPolicy): View
     {
         abort_unless($policy->view($principal, $user), 403);
         $record = $this->web->find($user, $domain);
@@ -98,7 +102,36 @@ final class WebDomainEditController extends Controller
             'isAdminView' => $user !== $principal->effectiveUser(),
             'php' => $domainPhp,
             'phpProfiles' => $domainPhp !== null ? array_intersect_key($php->profiles(), array_flip([...$domainPhp['profiles'], $domainPhp['profile']])) : [],
+            'appProcesses' => $this->appProcessesTab($user, $domain, $principal, $appProcesses, $processPolicy),
         ]);
+    }
+
+    /**
+     * The App processes tab (E42 spec §9): the domain's processes, shown when
+     * the package allows them or the domain has some; null otherwise.
+     *
+     * @return array{processes: list<AppProcess>, create: string|null, list: string}|null
+     */
+    private function appProcessesTab(string $user, string $domain, Principal $principal, AppProcessService $service, AppProcessPolicy $policy): ?array
+    {
+        if (! $policy->view($principal, $user)) {
+            return null;
+        }
+        try {
+            $account = $service->processes($user);
+        } catch (ArcCommandException) {
+            return null;
+        }
+        $processes = $account->ofDomain($domain);
+        if (! $account->allowed && $processes === []) {
+            return null;
+        }
+
+        return [
+            'processes' => $processes,
+            'create' => $policy->manage($principal, $user) && $account->hasRoom() ? route('app-processes.create', ['user' => $user, 'domain' => $domain]) : null,
+            'list' => route('app-processes.index', ['user' => $user]),
+        ];
     }
 
     public function general(GeneralRequest $request, string $user, string $domain, Principal $principal, WebDomainPolicy $policy, WebDomainActions $actions): RedirectResponse

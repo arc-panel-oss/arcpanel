@@ -119,3 +119,22 @@ it('keeps palette results of a reseller to its tree and panel app pages', functi
     $users = collect($this->getJson('/_palette?q=Carol')->json('groups'))->keyBy('label');
     expect($users)->not->toHaveKey('Users');
 });
+
+it('keeps a suspended reseller to reading, also while it acts as a customer (E39 W4 §4)', function () {
+    fakeResellers($this->fake, ['hostco' => ['SUSPENDED' => 'yes']]);
+    withSysConfig($this->fake, ['POLICY_USER_VIEW_SUSPENDED' => 'yes']);
+
+    signIn('hostco', 'reseller');
+    $this->get('/web/domains')->assertOk()->assertSee('example.com');
+    $this->post('/web/domains/bob/example.com/suspend')->assertForbidden();
+
+    signIn('hostco', 'reseller', [PrincipalResolver::RESELLER_LOOK => 'bob']);
+    $this->get('/web/domains/bob/example.com/edit')->assertOk();
+    $this->post('/web/domains/bob/example.com/suspend')->assertForbidden();
+    $this->fake->assertNotRan('v-suspend-web-domain');
+
+    // With the policy off, the session ends
+    withSysConfig($this->fake, ['POLICY_USER_VIEW_SUSPENDED' => 'no']);
+    signIn('hostco', 'reseller');
+    $this->get('/web/domains')->assertRedirect();
+});

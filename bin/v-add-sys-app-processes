@@ -1,0 +1,91 @@
+#!/bin/bash
+# info: set up app processes (E42)
+# options: NONE
+#
+# example: v-add-sys-app-processes
+#
+# This function prepares a server for app processes: the root-owned folder
+# of their run files, the PHP settings of the processes
+# ($ARCPANEL/data/app-processes/.php/zz-app-processes.ini), the app process keys of the "developer" package and
+# the 5-minute v-check-sys-app-processes job that converges the units with
+# the records. It is safe to run again and keeps packages an administrator
+# has changed.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Includes
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/tenancy.sh
+source $ARCPANEL/func/tenancy.sh
+# shellcheck source=/usr/local/arcpanel/func/appprocess.sh
+source $ARCPANEL/func/appprocess.sh
+# load config file
+source_conf "$ARCPANEL/conf/arcpanel.conf"
+
+CRONTAB="/var/spool/cron/crontabs/arcpanelweb"
+CHECK_LINE="*/5 * * * * sudo /usr/local/arcpanel/bin/v-check-sys-app-processes repair > /dev/null 2>&1"
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+if [ "$(id -u)" != '0' ]; then
+	echo "Error: v-add-sys-app-processes can only be executed by the root user"
+	exit "$E_FORBIDEN"
+fi
+
+# Perform verification if read-only mode is enabled
+check_arcpanel_demo_mode
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+# Run files: each user's folder is root:<user> 0750 (appproc_files_write)
+mkdir -p "$APPPROC_RUN_DIR"
+chown root:root "$APPPROC_RUN_DIR"
+chmod 711 "$APPPROC_RUN_DIR"
+chmod 755 "$APPPROC_RUNNER" 2> /dev/null
+
+# PHP settings of app processes, read after the CLI php.ini of each version
+# (arc-app-run sets PHP_INI_SCAN_DIR). Written once: the administrator may
+# edit it.
+mkdir -p "$APPPROC_PHP_INI_DIR"
+chmod 755 "$APPPROC_PHP_INI_DIR"
+if [ ! -f "$APPPROC_PHP_INI_DIR/zz-app-processes.ini" ]; then
+	install -m 644 "$ARCPANEL/install/common/app-processes/zz-app-processes.ini" "$APPPROC_PHP_INI_DIR/zz-app-processes.ini"
+	sed -i 's/\r$//' "$APPPROC_PHP_INI_DIR/zz-app-processes.ini"
+fi
+
+# The developer package allows app processes; other packages keep the
+# default (no)
+if [ -f "$ARCPANEL/data/packages/developer.tenancy" ]; then
+	if ! grep -q "^APP_PROCESSES=" "$ARCPANEL/data/packages/developer.tenancy"; then
+		tenancy_pkg_set developer APP_PROCESSES yes
+	fi
+	if ! grep -q "^APP_PROCESSES_MAX=" "$ARCPANEL/data/packages/developer.tenancy"; then
+		tenancy_pkg_set developer APP_PROCESSES_MAX 10
+	fi
+fi
+
+# Converge the units with the records every 5 minutes
+# (sed, not >>: fs.protected_regular forbids root to open another user's
+# file for appending in the sticky crontab directory)
+if [ -f "$CRONTAB" ] && ! grep -q "v-check-sys-app-processes" "$CRONTAB"; then
+	sed -i -e "\$a$CHECK_LINE" "$CRONTAB"
+	chown arcpanelweb:arcpanelweb "$CRONTAB"
+	chmod 600 "$CRONTAB"
+fi
+
+#----------------------------------------------------------#
+#                         ArcPanel                         #
+#----------------------------------------------------------#
+
+log_event "$OK" "$ARGUMENTS"
+
+exit

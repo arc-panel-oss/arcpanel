@@ -20,7 +20,9 @@ PASS="Tt-$(date +%s)-Pass"
 U1=e6bu1
 D1=e6b1.example
 PORT=38605
-LISTEN_DIR=$(mktemp -d)
+# setup_file creates and exports LISTEN_DIR: code at the top of the file runs
+# again in every test's process, so a mktemp here would give each test its own
+# folder, not the one the listener serves
 
 # Templates of batch 2 and those that take BACKEND_PORT
 B2_TEMPLATES="django flask-fastapi golang-proxy rails laravel-octane wordpress-secure"
@@ -139,12 +141,14 @@ setup_file() {
     v-add-web-domain-ssl $U1 $D1 "$ssl_dir" > /dev/null
     rm -rf "$ssl_dir"
     rm -f "$(docroot_of $U1 $D1)/index.html"
+    LISTEN_DIR=$(mktemp -d)
+    export LISTEN_DIR
     start_listener $PORT
 }
 
 teardown_file() {
     cleanup
-    rm -rf "$LISTEN_DIR"
+    rm -rf "${LISTEN_DIR:?}"
 }
 
 #----------------------------------------------------------#

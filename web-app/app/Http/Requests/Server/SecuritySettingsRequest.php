@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\Server;
 
+use App\Rules\ServerShells;
 use App\Services\Server\ServerSettings;
 
 /** Security tab of the server settings (E7 batch 3 spec §8.2); ServerPolicy authorizes. */
@@ -13,10 +14,12 @@ final class SecuritySettingsRequest extends ServerSettingsRequest
         $rules = [
             'API_SYSTEM' => ['required', 'in:0,1,2'],
             'API' => ['required', 'in:yes,no'],
+            'API_V1' => ['sometimes', 'in:yes,no'],
             'API_ALLOWED_IP' => ['nullable', 'string', 'max:4096'],
             'LOGIN_STYLE' => ['required', 'in:default,old'],
             'INACTIVE_SESSION_TIMEOUT' => ['required', 'integer', 'min:1', 'max:1440'],
             'POLICY_CSRF_STRICTNESS' => ['required', 'in:0,1,2'],
+            'POLICY_RESELLER_PACKAGE_SHELLS' => ['sometimes', 'string', 'max:255', new ServerShells],
         ];
         foreach (ServerSettings::SECURITY_POLICIES as $keys) {
             foreach ($keys as $key) {
@@ -54,6 +57,12 @@ final class SecuritySettingsRequest extends ServerSettingsRequest
             'INACTIVE_SESSION_TIMEOUT' => (string) (int) $this->input('INACTIVE_SESSION_TIMEOUT'),
             'POLICY_CSRF_STRICTNESS' => (string) $this->input('POLICY_CSRF_STRICTNESS'),
         ];
+        if ($this->has('API_V1')) {
+            $values['API_V1'] = (string) $this->input('API_V1');
+        }
+        if ($this->has('POLICY_RESELLER_PACKAGE_SHELLS')) {
+            $values['POLICY_RESELLER_PACKAGE_SHELLS'] = (string) $this->input('POLICY_RESELLER_PACKAGE_SHELLS');
+        }
         if ($this->has('API_ALLOWED_IP')) {
             $values['API_ALLOWED_IP'] = implode(',', $this->allowedIps());
         }

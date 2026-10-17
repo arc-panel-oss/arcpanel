@@ -21,4 +21,10 @@ trait ReachesOwner
             null => false,
         };
     }
+
+    /** reaches() for a change: never the protected administrator's objects (E39 W4 §5). */
+    private function reachesForChange(Principal $principal, string $capability, string $owner): bool
+    {
+        return $this->reaches($principal, $capability, $owner) && ! $this->scope->protects($owner);
+    }
 }

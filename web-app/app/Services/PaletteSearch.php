@@ -4,9 +4,9 @@ namespace App\Services;
 
 use App\Arc\ArcCommand;
 use App\Arc\Options;
-use App\Arc\SysConfig;
 use App\Auth\OwnerScope;
 use App\Auth\Principal;
+use App\Auth\ProtectedAdmin;
 use App\Auth\Role;
 use App\Policies\Capabilities;
 use App\View\Navigation;
@@ -41,7 +41,7 @@ final class PaletteSearch
         private readonly OwnerScope $scope,
         private readonly Navigation $navigation,
         private readonly UserDirectory $users,
-        private readonly SysConfig $config,
+        private readonly ProtectedAdmin $protected,
     ) {}
 
     /** @return list<array{label: string, items: list<array{label: string, meta: string, url: string, icon: string}>}> */
@@ -127,7 +127,7 @@ final class PaletteSearch
         foreach ($this->users->all() as $name => $record) {
             $name = (string) $name;
             $haystack = $name.' '.($record['NAME'] ?? '').' '.($record['CONTACT'] ?? '');
-            if (mb_stripos($haystack, $query) === false || $this->isProtectedAdmin($name) || ! $this->scope->canManageAccount($name)) {
+            if (mb_stripos($haystack, $query) === false || $this->isProtectedAdmin($name) || ! $this->scope->canSeeAccount($name)) {
                 continue;
             }
             $users[] = ['name' => $name, 'full_name' => (string) ($record['NAME'] ?? '')];
@@ -241,8 +241,6 @@ final class PaletteSearch
     /** POLICY_SYSTEM_PROTECTED_ADMIN hides the system administrator from other admins. */
     private function isProtectedAdmin(string $owner): bool
     {
-        return $this->config->is('POLICY_SYSTEM_PROTECTED_ADMIN')
-            && $owner === $this->config->get('ROOT_USER')
-            && $this->principal->loginUser !== $owner;
+        return $this->protected->applies($this->principal, $owner);
     }
 }

@@ -1,0 +1,61 @@
+#!/bin/bash
+# info: list the last one-off task of a user's app processes (E42)
+# options: USER [FORMAT]
+#
+# example: v-list-app-process-task alice json
+#
+# This function shows the last task started with v-start-app-process-task:
+# its id, domain, process, task, STATUS (running, done or failed), exit
+# code and times. A running task whose process is gone is shown as failed.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+user=$1
+format=${2-shell}
+
+# Includes
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/tenancy.sh
+source $ARCPANEL/func/tenancy.sh
+# shellcheck source=/usr/local/arcpanel/func/appprocess.sh
+source $ARCPANEL/func/appprocess.sh
+# load config file
+source_conf "$ARCPANEL/conf/arcpanel.conf"
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '1' "$#" 'USER [FORMAT]'
+is_format_valid 'user'
+is_object_valid 'user' 'USER' "$user"
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+appproc_task_running "$user" > /dev/null
+line=''
+if [ -f "$(appproc_task_conf "$user")" ]; then
+	line=$(head -n1 "$(appproc_task_conf "$user")")
+fi
+json=$(jq -nc --arg line "$line" '
+	($line | [scan("([A-Z_]+)='"'"'([^'"'"']*)'"'"'")] | map({ key: .[0], value: .[1] }) | from_entries)
+	| { TASK: (if . == {} then null else del(.PID) end) }')
+
+case "$format" in
+	json) jq . <<< "$json" ;;
+	*) jq -r '.TASK // {} | to_entries[] | "\(.key): \(.value)"' <<< "$json" ;;
+esac
+
+#----------------------------------------------------------#
+#                         ArcPanel                         #
+#----------------------------------------------------------#
+
+exit

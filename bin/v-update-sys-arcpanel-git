@@ -18,6 +18,8 @@
 source /etc/arcpanel/arcpanel.conf
 # shellcheck source=/usr/local/arcpanel/func/main.sh
 source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/download.sh
+source $ARCPANEL/func/download.sh
 # load config file
 source_conf "$ARCPANEL/conf/arcpanel.conf"
 
@@ -34,8 +36,11 @@ if [ -z $(which "node") ]; then
 	elif [ $(uname -m) = "aarch64" ]; then
 		ARCH=arm64
 	fi
+	if ! install_apt_key nodesource https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key /usr/share/keyrings/nodejs.gpg; then
+		check_result "$E_CONNECT" "the key of the Node.js repository failed its check"
+	fi
 	echo "deb [arch=$ARCH signed-by=/usr/share/keyrings/nodejs.gpg] https://deb.nodesource.com/node_$node_v.x nodistro main" > $apt/nodejs.list
-	curl -s https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | gpg --dearmor | tee /usr/share/keyrings/nodejs.gpg > /dev/null 2>&1
+	apt-get -qq update > /dev/null
 	apt-get -qq install nodejs -y
 fi
 

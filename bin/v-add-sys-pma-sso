@@ -46,12 +46,13 @@ if [ -f "/usr/share/phpmyadmin/arcpanel-sso.php" ]; then
 	exit 2
 fi
 
-if [ -f "/usr/local/hesta/web/api/index.php" ]; then
+if [ ! -f "$ARCPANEL/lib/api/index.php" ]; then
 	echo "Error: API script not installed"
 	exit 2
 fi
 
-if [ "API_SYSTEM" = "0" ]; then
+# The single sign-on key is an access key; API v1 itself may stay off (E39 W4 D10)
+if [ "${API_SYSTEM:-0}" = "0" ]; then
 	echo "Error: API is not enabled"
 	exit 2
 fi

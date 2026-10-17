@@ -33,7 +33,7 @@ VERBOSE='no'
 # Define software versions
 # ArcPanel version: the version of the arcpanel package, stored as VERSION
 # in arcpanel.conf (ADR-0007)
-ARCPANEL_INSTALL_VER='2.1.2'
+ARCPANEL_INSTALL_VER='2.1.3'
 
 # Build the full ArcPanel version
 # Split base version (2.0.0) from channel suffix (~alpha / ~beta), if present
@@ -122,6 +122,7 @@ help() {
   -L, --resourcelimit     Resource Limitation   [yes|no]  default: no
   -W, --webterminal       Web Terminal          [yes|no]  default: no
   -d, --api               Activate API          [yes|no]  default: yes
+  -A, --api-v1            Activate API v1       [yes|no]  default: no
   -r, --port              Change Backend Port             default: 8083
   -l, --lang              Default language                default: en
   -y, --interactive       Interactive install   [yes|no]  default: yes
@@ -274,6 +275,119 @@ validate_email() {
 
 version_ge() { test "$(printf '%s\n' "$@" | sort -V | head -n 1)" != "$1" -o -n "$1" -a "$1" = "$2"; }
 
+# Checked downloads and APT keys (E39 W3). A copy of func/download.sh, which
+# this installer cannot source before the arcpanel package is installed;
+# test/supply-chain-check.sh fails when it differs from the library.
+# >>> func/download.sh
+
+# Full fingerprints of the primary keys each APT repository may be signed with,
+# read by install_apt_key through APT_KEY_FPR_<NAME>
+APT_KEY_FPR_ARCPANEL='0615B3DD8398E546A060B6F74DE318A606E4002A'
+APT_KEY_FPR_NGINX='573BFD6B3D8FBC641079A6ABABF5BD827BD9BF62 8540A6F18833A80E9C1653A42FD21310B49F6B46 9E9BE90EACBCDE69FE9B204CBCDCD8A38D88A2B3'
+APT_KEY_FPR_SURY='15058500A0235D97F5D10063B188E2B695BD4743'
+APT_KEY_FPR_MARIADB='177F4010FE56CA3336300305F1656F24C74CD1D8'
+APT_KEY_FPR_POSTGRESQL='B97B0AFCAA1A47F044F244A07FCC7D46ACCC4CF8'
+APT_KEY_FPR_NODESOURCE='6F71F525282841EEDAF851B42F59B5F99B1BE0B4'
+APT_KEY_FPR_MYSQL='BCA43417C3B485DD128EC6D4B7B3B788A8D3785C'
+
+# Downloads URL to FILE over HTTPS only
+download_https() {
+	curl --proto '=https' --tlsv1.2 -fsSL --retry 3 --connect-timeout 20 -o "$2" -- "$1"
+}
+
+# Downloads URL to DEST and keeps it only when its SHA-256 is SHA256
+# Usage: fetch_verified URL SHA256 DEST
+fetch_verified() {
+	local url="$1" sum="$2" dest="$3" name tmp actual
+	name="${url##*/}"
+	if ! [[ "$sum" =~ ^[0-9a-f]{64}$ ]]; then
+		echo "Error: no checksum pinned for $name" >&2
+		return 1
+	fi
+	if ! tmp=$(mktemp "$dest.XXXXXX"); then
+		echo "Error: cannot write $dest" >&2
+		return 1
+	fi
+	if ! download_https "$url" "$tmp"; then
+		rm -f -- "$tmp"
+		echo "Error: download of $name failed ($url)" >&2
+		return 1
+	fi
+	actual=$(sha256sum "$tmp" | cut -d' ' -f1)
+	if [ "$actual" != "$sum" ]; then
+		rm -f -- "$tmp"
+		echo "Error: checksum mismatch for $name (expected $sum, got $actual)" >&2
+		return 1
+	fi
+	chmod 0644 "$tmp"
+	mv -f -- "$tmp" "$dest"
+}
+
+# Like fetch_verified, with the checksum looked up by file name in SUMFILE
+# (sha256sum format). A DEST that already matches is kept without a download.
+# Usage: fetch_pinned URL SUMFILE DEST
+fetch_pinned() {
+	local url="$1" sumfile="$2" dest="$3" name sum
+	name="${url##*/}"
+	sum=$(awk -v f="$name" '$2 == f || $2 == "*" f { print $1; exit }' "$sumfile" 2> /dev/null)
+	if [ -z "$sum" ]; then
+		echo "Error: no checksum pinned for $name in ${sumfile##*/}" >&2
+		return 1
+	fi
+	if [ -f "$dest" ] && [ "$(sha256sum "$dest" | cut -d' ' -f1)" = "$sum" ]; then
+		return 0
+	fi
+	fetch_verified "$url" "$sum" "$dest"
+}
+
+# Downloads the key of repository NAME and writes it to KEYRING only when every
+# primary key in it has a fingerprint listed in APT_KEY_FPR_<NAME>
+# Usage: install_apt_key NAME URL KEYRING
+install_apt_key() {
+	local name="$1" url="$2" keyring="$3" var allowed tmp fprs fpr ok
+	var="APT_KEY_FPR_$(echo "$name" | tr '[:lower:]-' '[:upper:]_')"
+	allowed="${!var}"
+	if [ -z "$allowed" ]; then
+		echo "Error: no fingerprint pinned for the $name key" >&2
+		return 1
+	fi
+	if ! tmp=$(mktemp -d); then
+		return 1
+	fi
+	if ! download_https "$url" "$tmp/key"; then
+		rm -rf -- "$tmp"
+		echo "Error: download of the $name key failed ($url)" >&2
+		return 1
+	fi
+	fprs=$(GNUPGHOME="$tmp" gpg --batch --show-keys --with-colons "$tmp/key" 2> /dev/null \
+		| awk -F: '$1 == "pub" { pub = 1; next } pub && $1 == "fpr" { print $10; pub = 0 }')
+	ok='yes'
+	[ -n "$fprs" ] || ok='no'
+	for fpr in $fprs; do
+		[[ " $allowed " == *" $fpr "* ]] || ok='no'
+	done
+	if [ "$ok" != 'yes' ]; then
+		rm -rf -- "$tmp"
+		echo "Error: the $name key does not match its pinned fingerprint (got: ${fprs:-none})" >&2
+		return 1
+	fi
+	if grep -q -- '-----BEGIN PGP PUBLIC KEY BLOCK-----' "$tmp/key"; then
+		GNUPGHOME="$tmp" gpg --batch --yes --dearmor -o "$tmp/keyring" "$tmp/key" 2> /dev/null
+	else
+		cp -f -- "$tmp/key" "$tmp/keyring"
+	fi
+	if [ ! -s "$tmp/keyring" ] || ! mkdir -p -- "$(dirname "$keyring")"; then
+		rm -rf -- "$tmp"
+		echo "Error: cannot write the $name keyring" >&2
+		return 1
+	fi
+	chmod 0644 "$tmp/keyring"
+	mv -f -- "$tmp/keyring" "$keyring"
+	rm -rf -- "$tmp"
+}
+
+# <<< func/download.sh
+
 #----------------------------------------------------------#
 #                    Verifications                         #
 #----------------------------------------------------------#
@@ -310,6 +424,7 @@ for arg; do
 		--lang) args="${args}-l " ;;
 		--interactive) args="${args}-y " ;;
 		--api) args="${args}-d " ;;
+		--api-v1) args="${args}-A " ;;
 		--hostname) args="${args}-s " ;;
 		--email) args="${args}-e " ;;
 		--username) args="${args}-u " ;;
@@ -326,7 +441,7 @@ done
 eval set -- "$args"
 
 # Parsing arguments
-while getopts "a:w:v:j:k:m:M:g:d:x:z:Z:c:t:i:b:r:o:q:L:l:y:s:u:e:p:W:D:fh" Option; do
+while getopts "a:w:v:j:k:m:M:g:d:A:x:z:Z:c:t:i:b:r:o:q:L:l:y:s:u:e:p:W:D:fh" Option; do
 	case $Option in
 		a) apache=$OPTARG ;;        # Apache
 		w) phpfpm=$OPTARG ;;        # PHP-FPM
@@ -350,6 +465,7 @@ while getopts "a:w:v:j:k:m:M:g:d:x:z:Z:c:t:i:b:r:o:q:L:l:y:s:u:e:p:W:D:fh" Optio
 		r) port=$OPTARG ;;          # Backend Port
 		l) lang=$OPTARG ;;          # Language
 		d) api=$OPTARG ;;           # Activate API
+		A) api_v1=$OPTARG ;;        # Activate API v1
 		y) interactive=$OPTARG ;;   # Interactive install
 		s) servername=$OPTARG ;;    # Hostname
 		e) email=$OPTARG ;;         # Admin email
@@ -429,6 +545,7 @@ set_default_value 'resourcelimit' 'no'
 set_default_value 'webterminal' 'no'
 set_default_value 'interactive' 'yes'
 set_default_value 'api' 'yes'
+set_default_value 'api_v1' 'no'
 set_default_port '8083'
 set_default_lang 'en'
 
@@ -891,25 +1008,29 @@ echo
 # Installing Nginx repo
 echo "[ * ] NGINX"
 echo "deb [arch=$ARCH signed-by=/usr/share/keyrings/nginx-keyring.gpg] https://nginx.org/packages/mainline/$VERSION/ $codename nginx" > $apt/nginx.list
-curl -s https://nginx.org/keys/nginx_signing.key | gpg --dearmor | tee /usr/share/keyrings/nginx-keyring.gpg > /dev/null 2>&1
+install_apt_key nginx https://nginx.org/keys/nginx_signing.key /usr/share/keyrings/nginx-keyring.gpg
+check_result $? "The nginx repository key failed its check"
 
 # Installing sury PHP repo
 echo "[ * ] PHP"
 echo "deb [arch=$ARCH signed-by=/usr/share/keyrings/sury-keyring.gpg] https://packages.sury.org/php/ $codename main" > $apt/php.list
-curl -s https://packages.sury.org/php/apt.gpg | gpg --dearmor | tee /usr/share/keyrings/sury-keyring.gpg > /dev/null 2>&1
+install_apt_key sury https://packages.sury.org/php/apt.gpg /usr/share/keyrings/sury-keyring.gpg
+check_result $? "The PHP (Sury) repository key failed its check"
 
 # Installing sury Apache2 repo
 if [ "$apache" = 'yes' ]; then
 	echo "[ * ] Apache2"
 	echo "deb [arch=$ARCH signed-by=/usr/share/keyrings/apache2-keyring.gpg] https://packages.sury.org/apache2/ $codename main" > $apt/apache2.list
-	curl -s https://packages.sury.org/apache2/apt.gpg | gpg --dearmor | tee /usr/share/keyrings/apache2-keyring.gpg > /dev/null 2>&1
+	install_apt_key sury https://packages.sury.org/apache2/apt.gpg /usr/share/keyrings/apache2-keyring.gpg
+	check_result $? "The Apache2 (Sury) repository key failed its check"
 fi
 
 # Installing MariaDB repo
 if [ "$mysql" = 'yes' ]; then
 	echo "[ * ] MariaDB $mariadb_v"
 	echo "deb [arch=$ARCH signed-by=/usr/share/keyrings/mariadb-keyring.gpg] https://dlm.mariadb.com/repo/mariadb-server/$mariadb_v/repo/$VERSION $codename main" > $apt/mariadb.list
-	curl -s https://mariadb.org/mariadb_release_signing_key.asc | gpg --dearmor | tee /usr/share/keyrings/mariadb-keyring.gpg > /dev/null 2>&1
+	install_apt_key mariadb https://mariadb.org/mariadb_release_signing_key.asc /usr/share/keyrings/mariadb-keyring.gpg
+	check_result $? "The MariaDB repository key failed its check"
 fi
 
 # Installing Mysql8 repo
@@ -921,24 +1042,23 @@ if [ "$mysql8" = 'yes' ]; then
 	echo "#deb [arch=$ARCH signed-by=/usr/share/keyrings/mysql-keyring.gpg] http://repo.mysql.com/apt/debian/ $codename mysql-tools-preview" >> /etc/apt/sources.list.d/mysql.list
 	echo "deb-src [arch=$ARCH signed-by=/usr/share/keyrings/mysql-keyring.gpg] http://repo.mysql.com/apt/debian/ $codename mysql-8.0" >> /etc/apt/sources.list.d/mysql.list
 
-	GNUPGHOME="$(mktemp -d)"
-	export GNUPGHOME
-	for keyserver in $(shuf -e ha.pool.sks-keyservers.net hkp://p80.pool.sks-keyservers.net:80 keyserver.ubuntu.com hkp://keyserver.ubuntu.com:80); do
-		gpg --no-default-keyring --keyring /usr/share/keyrings/mysql-keyring.gpg --keyserver "${keyserver}" --recv-keys "B7B3B788A8D3785C" > /dev/null 2>&1 && break
-	done
+	install_apt_key mysql https://repo.mysql.com/RPM-GPG-KEY-mysql-2023 /usr/share/keyrings/mysql-keyring.gpg
+	check_result $? "The MySQL repository key failed its check"
 fi
 
 # Installing ArcPanel repo
 echo "[ * ] ArcPanel"
 rm -f $apt/arcpanel.list
 echo "deb [arch=$ARCH signed-by=/usr/share/keyrings/arcpanel-keyring.gpg] https://$RHOST/${RPATH} $codename main" > $apt/arcpanel.list
-curl -s "https://$RHOST/arcpanel.gpg" | gpg --dearmor | tee /usr/share/keyrings/arcpanel-keyring.gpg > /dev/null 2>&1
+install_apt_key arcpanel "https://$RHOST/arcpanel.gpg" /usr/share/keyrings/arcpanel-keyring.gpg
+check_result $? "The ArcPanel repository key failed its check"
 
 # Installing Node.js repo
 if [ "$webterminal" = 'yes' ]; then
 	echo "[ * ] Node.js $node_v"
 	echo "deb [arch=$ARCH signed-by=/usr/share/keyrings/nodejs.gpg] https://deb.nodesource.com/node_$node_v.x nodistro main" > $apt/nodejs.list
-	curl -s https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | gpg --dearmor | tee /usr/share/keyrings/nodejs.gpg > /dev/null 2>&1
+	install_apt_key nodesource https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key /usr/share/keyrings/nodejs.gpg
+	check_result $? "The Node.js repository key failed its check"
 	apt-get -y install nodejs >> $LOG
 fi
 
@@ -946,7 +1066,8 @@ fi
 if [ "$postgresql" = 'yes' ]; then
 	echo "[ * ] PostgreSQL"
 	echo "deb [arch=$ARCH signed-by=/usr/share/keyrings/postgresql-keyring.gpg] https://apt.postgresql.org/pub/repos/apt/ $codename-pgdg main" > $apt/postgresql.list
-	curl -s https://www.postgresql.org/media/keys/ACCC4CF8.asc | gpg --dearmor | tee /usr/share/keyrings/postgresql-keyring.gpg > /dev/null 2>&1
+	install_apt_key postgresql https://www.postgresql.org/media/keys/ACCC4CF8.asc /usr/share/keyrings/postgresql-keyring.gpg
+	check_result $? "The PostgreSQL repository key failed its check"
 fi
 
 # Echo for a new line
@@ -1312,11 +1433,6 @@ fi
 #----------------------------------------------------------#
 
 echo "[ * ] Configuring ArcPanel..."
-# Installing sudo configuration
-mkdir -p /etc/sudoers.d
-cp -f $ARCPANEL_COMMON_DIR/sudo/arcpanelweb /etc/sudoers.d/
-chmod 440 /etc/sudoers.d/arcpanelweb
-
 # Add ArcPanel global config
 if [[ ! -e /etc/arcpanel/arcpanel.conf ]]; then
 	mkdir -p /etc/arcpanel
@@ -1355,6 +1471,10 @@ chmod 770 $ARCPANEL/data/sessions
 rm -f $ARCPANEL/conf/arcpanel.conf > /dev/null 2>&1
 touch $ARCPANEL/conf/arcpanel.conf
 chmod 660 $ARCPANEL/conf/arcpanel.conf
+
+# Sudo rules of arcpanelweb: every command but the root-only ones (E39 W4
+# spec §9); v-add-sys-arcpanel writes them again at the end
+$ARCPANEL/bin/v-update-sys-sudoers
 
 # Write default port value to arcpanel.conf
 # If a custom port is specified it will be set at the end of the installation process
@@ -1533,6 +1653,8 @@ fi
 
 # Installing API
 cp -rf $ARCPANEL_COMMON_DIR/api $ARCPANEL/data/
+# The secret store set keeps its name v2-secrets (E39 W4 D13)
+mv -f $ARCPANEL/data/api/v2-secret-store $ARCPANEL/data/api/v2-secrets
 
 # Configuring server hostname
 $ARCPANEL/bin/v-change-sys-hostname $servername > /dev/null 2>&1
@@ -1574,6 +1696,8 @@ sed -n "1,${crt_end}p" /tmp/hst.pem > certificate.crt
 sed -n "$key_start,${key_end}p" /tmp/hst.pem > certificate.key
 chown root:mail $ARCPANEL/ssl/*
 chmod 660 $ARCPANEL/ssl/*
+# The certificate is public: the phpMyAdmin single sign-on checks the panel with it (E39 W3)
+chmod 644 $ARCPANEL/ssl/certificate.crt
 rm /tmp/hst.pem
 
 # Install dhparam.pem
@@ -1913,10 +2037,12 @@ if [ "$mysql" = 'yes' ] || [ "$mysql8" = 'yes' ]; then
 	echo "[ * ] Installing phpMyAdmin version v$pma_v..."
 
 	# Download latest phpmyadmin release
-	wget --quiet --retry-connrefused https://files.phpmyadmin.net/phpMyAdmin/$pma_v/phpMyAdmin-$pma_v-all-languages.tar.gz
+	pma_work=$(mktemp -d)
+	fetch_verified "https://files.phpmyadmin.net/phpMyAdmin/$pma_v/phpMyAdmin-$pma_v-all-languages.tar.gz" "$pma_sha256" "$pma_work/phpmyadmin.tar.gz"
+	check_result $? "The phpMyAdmin download failed its check"
 
 	# Unpack files
-	tar xzf phpMyAdmin-$pma_v-all-languages.tar.gz
+	tar xzf "$pma_work/phpmyadmin.tar.gz" -C "$pma_work"
 
 	# Create folders
 	mkdir -p /usr/share/phpmyadmin
@@ -1930,7 +2056,7 @@ if [ "$mysql" = 'yes' ] || [ "$mysql8" = 'yes' ]; then
 	fi
 
 	# Overwrite old files
-	cp -rf phpMyAdmin-$pma_v-all-languages/* /usr/share/phpmyadmin
+	cp -rf "$pma_work/phpMyAdmin-$pma_v-all-languages/"* /usr/share/phpmyadmin
 
 	# Create copy of config file
 	cp -f $ARCPANEL_INSTALL_DIR/phpmyadmin/config.inc.php /etc/phpmyadmin/
@@ -1948,8 +2074,7 @@ if [ "$mysql" = 'yes' ] || [ "$mysql8" = 'yes' ]; then
 	sed -i "s|%blowfish_secret%|$blowfish|" /etc/phpmyadmin/config.inc.php
 
 	# Clean Up
-	rm -fr phpMyAdmin-$pma_v-all-languages
-	rm -f phpMyAdmin-$pma_v-all-languages.tar.gz
+	rm -rf "$pma_work"
 
 	write_config_value "DB_PMA_ALIAS" "phpmyadmin"
 	$ARCPANEL/bin/v-change-sys-db-alias 'pma' "phpmyadmin"
@@ -2333,13 +2458,16 @@ fi
 #                       Configure API                      #
 #----------------------------------------------------------#
 
+# Access keys and REST API v2 with --api; REST API v1 (lib/api) and its
+# legacy hash login only with --api-v1 (E39 W4 D9)
 if [ "$api" = "yes" ]; then
-	# Keep legacy api enabled until transition is complete
-	write_config_value "API" "yes"
+	write_config_value "API" "$api_v1"
+	write_config_value "API_V1" "$api_v1"
 	write_config_value "API_SYSTEM" "1"
 	write_config_value "API_ALLOWED_IP" ""
 else
 	write_config_value "API" "no"
+	write_config_value "API_V1" "no"
 	write_config_value "API_SYSTEM" "0"
 	write_config_value "API_ALLOWED_IP" ""
 	$ARCPANEL/bin/v-change-sys-api disable
@@ -2348,6 +2476,10 @@ fi
 #----------------------------------------------------------#
 #              Configure Web terminal                      #
 #----------------------------------------------------------#
+
+# The key of the web terminal tickets (E39 W2), as on an upgrade: the package's
+# postinst ran before arcpanelweb and /etc/arcpanel/arcpanel.conf existed
+$ARCPANEL/bin/v-add-sys-web-terminal-key > /dev/null
 
 # Web terminal
 if [ "$webterminal" = 'yes' ]; then
@@ -2384,7 +2516,7 @@ echo "[ * ] Configuring PHP dependencies..."
 $ARCPANEL/bin/v-add-sys-dependencies quiet
 
 echo "[ * ] Installing Rclone & Update Restic ..."
-curl -s https://rclone.org/install.sh | bash > /dev/null 2>&1
+$ARCPANEL/bin/v-add-sys-rclone > /dev/null || echo "[ ! ] rclone was not installed; run v-add-sys-rclone later to use rclone backups"
 restic self-update > /dev/null 2>&1
 
 #----------------------------------------------------------#
@@ -2485,6 +2617,8 @@ $ARCPANEL/bin/v-add-sys-tenancy
 $ARCPANEL/bin/v-add-sys-port-registry
 # Node.js manager: download cache, release keys, developer package (E13)
 $ARCPANEL/bin/v-add-sys-node
+# App processes: run files and the developer package keys (E42)
+$ARCPANEL/bin/v-add-sys-app-processes
 # File manager staging tree and the panel app's scheduler (E3)
 $ARCPANEL/bin/v-add-sys-panel-files
 # Secret store: the master key (E38); keep a copy of it off the server

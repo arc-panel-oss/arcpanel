@@ -6,6 +6,7 @@ use App\Arc\SysConfig;
 use App\Auth\ArrayLegacySession;
 use App\Auth\Principal;
 use App\Auth\Role;
+use App\Services\Keys\AccessKeySets;
 use App\View\Navigation;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Sleep;
@@ -105,6 +106,8 @@ function fakeArc(array $config = []): ArcCommandFake
     // The user detail page and the dashboard list Node.js apps (E14); none by default.
     $fake->on('v-list-node-apps')->using(fn (array $args) => [0, (string) json_encode(nodeAppList($args[0]))]);
     $fake->on('v-delete-node-app')->returnsExit(ExitCode::NotExist);
+    // ... and app processes (E42): none, without the package grant
+    $fake->on('v-list-app-processes')->using(fn (array $args) => [0, (string) json_encode(appProcessList($args[0], [], ['ENABLED' => 'no']))]);
     // The same for Docker apps (E4)
     $fake->on('v-list-docker-apps')->using(fn (array $args) => [0, (string) json_encode(dockerAppList($args[0]))]);
     // The app pages list the secret names for their reference pickers (E38); none by default.
@@ -680,7 +683,7 @@ const API_SECRET = 'S3cret-0123456789abcdefghijklmnopqrstuvw';
  */
 function apiSetCommands(string $set): array
 {
-    $file = base_path('../install/common/api/'.$set);
+    $file = base_path('../install/common/api/'.AccessKeySets::fileOfSet($set));
     $content = is_file($file) ? (string) file_get_contents($file) : '';
     if (preg_match("/^COMMANDS='([^']*)'/m", $content, $m) !== 1) {
         throw new RuntimeException("No COMMANDS in {$file}");
@@ -698,7 +701,7 @@ function apiAreaSets(): array
 {
     $sets = [];
     foreach (glob(base_path('../install/common/api/v2-*')) ?: [] as $file) {
-        $name = basename($file);
+        $name = AccessKeySets::setOfFile(basename($file));
         if (! in_array($name, ['v2-read', 'v2-write'], true)) {
             $sets[] = $name;
         }
@@ -814,4 +817,39 @@ function navItems(Principal $principal, ?string $route = null): Collection
         ->flatMap(fn ($group) => $group['items'])
         ->flatMap(fn ($item) => [$item, ...($item['children'] ?? [])])
         ->keyBy('key');
+}
+
+/**
+ * Record of `v-list-app-process(es) json` (E42): a running web process by
+ * default, a worker for any other name.
+ *
+ * @param  array<string, string>  $overrides
+ * @return array<string, string>
+ */
+function appProcessRow(string $domain, string $name = 'web', array $overrides = []): array
+{
+    return array_merge([
+        'ID' => '1', 'DOMAIN' => $domain, 'NAME' => $name, 'KIND' => $name === 'web' ? 'web' : 'worker',
+        'PRESET' => $name === 'web' ? 'octane-swoole' : 'laravel-queue',
+        'START' => '/usr/bin/php8.4 artisan octane:start --server=swoole --host=127.0.0.1 --port=30001',
+        'CWD' => 'app', 'PORT' => $name === 'web' ? '30001' : '', 'MEMORY' => '512', 'CPUS' => '1',
+        'TEMPLATE' => $name === 'web' ? 'laravel-octane' : '', 'PREV_TPL' => 'default', 'STATE' => 'running', 'SUSPENDED' => 'no',
+        'TIME' => '10:00:00', 'DATE' => '2026-10-16', 'UNIT' => 'arcpanel-app-bob-1.service', 'STATUS' => 'running',
+        'PID' => '4242', 'MEMORY_USED' => '120', 'CPU_SECONDS' => '3', 'RESTARTS' => '0', 'UPTIME' => '60',
+    ], $overrides);
+}
+
+/**
+ * Envelope of `v-list-app-processes USER json` (E42).
+ *
+ * @param  list<array<string, string>>  $rows
+ * @param  array<string, string>  $overrides
+ * @return array<string, mixed>
+ */
+function appProcessList(string $user, array $rows, array $overrides = []): array
+{
+    return array_merge([
+        'USER' => $user, 'ENABLED' => 'yes', 'LIMIT' => '10', 'COUNT' => (string) count($rows),
+        'MAX_MEMORY' => '768', 'DEFAULT_MEMORY' => '512', 'MAX_CPUS' => '1', 'PROCESSES' => $rows,
+    ], $overrides);
 }

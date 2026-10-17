@@ -36,7 +36,7 @@ final class NodePolicy
     public function remove(Principal $principal, string $user): bool
     {
         return ! $principal->isReadOnly()
-            && Capabilities::allows($principal->actingRole(), 'node.manage', fn () => $this->scope->canSee($user));
+            && Capabilities::allows($principal->actingRole(), 'node.manage', fn () => $this->scope->canManage($user));
     }
 
     /**
@@ -68,7 +68,7 @@ final class NodePolicy
     public function removeApps(Principal $principal, string $user): bool
     {
         return ! $principal->isReadOnly()
-            && Capabilities::allows($principal->actingRole(), 'node.apps.manage', fn () => $this->scope->canSee($user));
+            && Capabilities::allows($principal->actingRole(), 'node.apps.manage', fn () => $this->scope->canManage($user));
     }
 
     /**

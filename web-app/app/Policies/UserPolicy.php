@@ -29,7 +29,7 @@ final class UserPolicy
 
     public function view(Principal $principal, string $user): bool
     {
-        return Capabilities::allows($principal->actingRole(), 'users.view', fn () => $this->scope->canManageAccount($user));
+        return Capabilities::allows($principal->actingRole(), 'users.view', fn () => $this->scope->canSeeAccount($user));
     }
 
     public function create(Principal $principal): bool
@@ -40,7 +40,7 @@ final class UserPolicy
     /** Name, contact, password, language, login IP list: managers, or the user itself. */
     public function update(Principal $principal, string $user): bool
     {
-        if ($principal->isReadOnly() || $this->isProtectedAdmin($principal, $user)) {
+        if ($principal->isReadOnly() || $this->isProtectedAdmin($user)) {
             return false;
         }
         if ($this->isSelf($principal, $user)) {
@@ -53,7 +53,7 @@ final class UserPolicy
     public function changePackage(Principal $principal, string $user): bool
     {
         return ! $principal->isReadOnly()
-            && ! $this->isProtectedAdmin($principal, $user)
+            && ! $this->isProtectedAdmin($user)
             && Capabilities::allows($principal->actingRole(), 'users.change-package', fn () => $this->scope->canManageAccount($user)
                 // Administrators set their own package too (web/edit/user).
                 || ($principal->actingRole() === Role::Admin && $this->isSelf($principal, $user)));
@@ -76,7 +76,7 @@ final class UserPolicy
     public function administer(Principal $principal, string $user): bool
     {
         return ! $principal->isReadOnly()
-            && ! $this->isProtectedAdmin($principal, $user)
+            && ! $this->isProtectedAdmin($user)
             && Capabilities::allows($principal->actingRole(), 'users.admin-fields', fn () => $this->scope->canManageAccount($user)
                 || $this->isSelf($principal, $user));
     }
@@ -138,11 +138,13 @@ final class UserPolicy
         return $user === $principal->effectiveUser();
     }
 
-    /** POLICY_SYSTEM_PROTECTED_ADMIN: other administrators may not change ROOT_USER. */
-    private function isProtectedAdmin(Principal $principal, string $user): bool
+    /**
+     * POLICY_SYSTEM_PROTECTED_ADMIN: other administrators may not change
+     * ROOT_USER, the guard of every object too (E39 W4 §5). Checked apart
+     * from canManageAccount() for the paths that allow one's own account.
+     */
+    private function isProtectedAdmin(string $user): bool
     {
-        return $this->config->is('POLICY_SYSTEM_PROTECTED_ADMIN')
-            && $user === $this->config->get('ROOT_USER')
-            && $principal->loginUser !== $user;
+        return $this->scope->protects($user);
     }
 }

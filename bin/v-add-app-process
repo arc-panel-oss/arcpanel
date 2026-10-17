@@ -1,0 +1,240 @@
+#!/bin/bash
+# info: add an app process to a web domain (E42)
+# options: USER DOMAIN NAME PRESET [START] [CWD] [MEMORY] [CPUS] [KIND] [TEMPLATE]
+#
+# example: v-add-app-process alice shop.example.com web octane-swoole
+# example: v-add-app-process alice shop.example.com queue laravel-queue
+# example: v-add-app-process alice api.example.com web custom 'python3 -m http.server 8000' . 256 0.5 web flask-fastapi
+#
+# This function runs a long-running command of a web domain as the user,
+# under its own systemd unit with the memory and CPU limits of the package.
+# PRESET (see v-list-app-process-presets) fills the command, the reload
+# action and, for a web process, the template; START replaces the command
+# (an empty value keeps the preset's). CWD is relative to the domain folder
+# (default public_html). MEMORY is in MB (default from the package), CPUS
+# a number such as 1 or 0.5 (default 1). KIND (web or worker) and TEMPLATE
+# are for the custom preset. A web process gets a port of the user's pool,
+# and the domain is switched to the template with that port; deleting the
+# process restores the previous template. A domain has at most one web
+# process and any number of workers within APP_PROCESSES_MAX.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+user=$1
+domain=$2
+name=$3
+preset=$4
+start=$5
+cwd=${6:-public_html}
+memory=$7
+cpus=${8:-1}
+kind=$9
+template=${10}
+
+# Includes
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/tenancy.sh
+source $ARCPANEL/func/tenancy.sh
+# shellcheck source=/usr/local/arcpanel/func/ports.sh
+source $ARCPANEL/func/ports.sh
+# shellcheck source=/usr/local/arcpanel/func/appprocess.sh
+source $ARCPANEL/func/appprocess.sh
+# load config file
+source_conf "$ARCPANEL/conf/arcpanel.conf"
+
+# Additional argument formatting
+format_domain
+
+# Undo what this run changed and exit with CODE and MESSAGE
+rollback() {
+	local code="$1" message="$2"
+	if [ "$recorded" = 'yes' ]; then
+		appproc_files_remove "$user" "$id"
+		appproc_remove "$user" "$id"
+		node_as_user "$user" rm -f -- "$(appproc_dir "$user" "$domain")/$name.conf" 2> /dev/null
+	fi
+	if [ "$switched" = 'yes' ]; then
+		appproc_tpl_switch "$user" "$domain" "$prev_tpl" > /dev/null 2>&1
+		printf '%s\n' "$prev_vars" | arc_tplvars_write "$user" "$(arc_tplvars_file "$user" "$domain")"
+		"$BIN/v-rebuild-web-domain" "$user" "$domain" > /dev/null 2>&1
+	fi
+	if [ "$allocated" = 'yes' ]; then
+		"$BIN/v-release-user-port" "$user" "app:$domain" > /dev/null 2>&1
+	fi
+	appproc_logrotate_write "$user"
+	check_result "$code" "$message"
+}
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '4' "$#" 'USER DOMAIN NAME PRESET [START] [CWD] [MEMORY] [CPUS] [KIND] [TEMPLATE]'
+is_format_valid 'user' 'domain'
+is_object_valid 'user' 'USER' "$user"
+is_object_unsuspended 'user' 'USER' "$user"
+is_object_valid 'web' 'DOMAIN' "$domain"
+is_object_unsuspended 'web' 'DOMAIN' "$domain"
+
+[ -z "$HOMEDIR" ] && check_result "$E_NOTEXIST" "ArcPanel environment vars not present"
+
+appproc_check_enabled_package "$user"
+if ! appproc_name_valid "$name"; then
+	check_result "$E_INVALID" "invalid name :: $name (a-z, 0-9 and -, starting with a letter, at most 32)"
+fi
+if ! appproc_preset_exists "$preset"; then
+	check_result "$E_NOTEXIST" "unknown preset :: $preset"
+fi
+preset_kind=$(appproc_preset_get "$preset" KIND)
+if [ "$preset_kind" = 'either' ]; then
+	kind=${kind:-worker}
+	if [ "$kind" != 'web' ] && [ "$kind" != 'worker' ]; then
+		check_result "$E_INVALID" "invalid kind :: $kind (web or worker)"
+	fi
+else
+	if [ -n "$kind" ] && [ "$kind" != "$preset_kind" ]; then
+		check_result "$E_INVALID" "the $preset preset is a $preset_kind process"
+	fi
+	kind=$preset_kind
+	template=$(appproc_preset_get "$preset" TEMPLATE)
+fi
+if [ -n "$(appproc_id "$user" "$domain" "$name")" ]; then
+	check_result "$E_EXISTS" "$domain already has an app process named $name"
+fi
+if [ "$kind" = 'web' ]; then
+	if [ -z "$(arc_tpl_active_kind)" ]; then
+		check_result "$E_INVALID" "web app processes need NGINX as web server or proxy"
+	fi
+	if [ -n "$(appproc_web_id "$user" "$domain")" ]; then
+		check_result "$E_EXISTS" "$domain already has a web app process"
+	fi
+	if grep -q "^DOMAIN='$domain' " "$ARCPANEL/data/users/$user/nodeapps.conf" 2> /dev/null; then
+		check_result "$E_EXISTS" "$domain has a Node.js app"
+	fi
+	if grep -q " DOMAIN='$domain' " "$ARCPANEL/data/users/$user/dockerapps.conf" 2> /dev/null; then
+		check_result "$E_EXISTS" "$domain has a Docker app"
+	fi
+	if [ -z "$template" ]; then
+		check_result "$E_INVALID" "a custom web process needs a template with a port (for example flask-fastapi)"
+	fi
+	if ! appproc_tpl_has_port "$template"; then
+		check_result "$E_INVALID" "$template is not a template of this server with a port variable"
+	fi
+else
+	template=''
+fi
+appproc_check_limit "$user"
+appproc_check_cwd "$user" "$domain" "$cwd"
+reason=$(appproc_runtime_missing "$user" "$domain" "$preset" "$cwd")
+if [ -n "$reason" ]; then
+	check_result "$E_INVALID" "$reason"
+fi
+if [ -n "$start" ]; then
+	appproc_check_start "$start"
+elif [ "$preset" = 'custom' ]; then
+	check_result "$E_INVALID" "the custom preset needs a command"
+fi
+if [ -z "$memory" ]; then
+	memory=$(appproc_default_memory "$user")
+fi
+appproc_check_resources "$user" "$memory" "$cpus"
+
+# Perform verification if read-only mode is enabled
+check_arcpanel_demo_mode
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+appproc_lock "$user"
+if [ -n "$(appproc_id "$user" "$domain" "$name")" ]; then
+	check_result "$E_EXISTS" "$domain already has an app process named $name"
+fi
+if [ "$kind" = 'web' ] && [ -n "$(appproc_web_id "$user" "$domain")" ]; then
+	check_result "$E_EXISTS" "$domain already has a web app process"
+fi
+appproc_check_limit "$user"
+
+recorded=no
+switched=no
+allocated=no
+port=''
+id=$(appproc_next_id "$user")
+
+if [ "$kind" = 'web' ]; then
+	out=$("$BIN/v-allocate-user-port" "$user" "app:$domain" 2>&1)
+	rc=$?
+	if [ "$rc" -ne 0 ]; then
+		rollback "$rc" "${out#Error: }"
+	fi
+	allocated=yes
+	port=$(printf '%s\n' "$out" | tail -n1)
+fi
+
+# The command: the preset's with its placeholders filled, or the given one
+if [ -z "$start" ]; then
+	start=$(appproc_fill "$user" "$domain" "$cwd" "$port" "$(appproc_preset_get "$preset" START)" "$cpus")
+fi
+appproc_check_start "$start"
+if [ "$kind" = 'web' ] && [ -n "$port" ] && [[ "$start" == *%port%* ]]; then
+	start=${start//%port%/$port}
+fi
+
+# Template with the port
+prev_tpl=''
+if [ "$kind" = 'web' ]; then
+	prev_tpl=$(arc_tpl_active "$user" "$domain")
+	prev_vars=$(arc_tplvars_read "$user" "$domain")
+	out=$(appproc_tpl_switch "$user" "$domain" "$template" 2>&1)
+	rc=$?
+	switched=yes
+	if [ "$rc" -ne 0 ]; then
+		rollback "$E_RESTART" "template $template could not be applied to $domain: ${out#Error: }"
+	fi
+	out=$("$BIN/v-change-web-domain-tpl-vars" "$user" "$domain" "BACKEND_PORT=$port" 2>&1)
+	rc=$?
+	if [ "$rc" -ne 0 ]; then
+		rollback "$rc" "${out#Error: }"
+	fi
+fi
+
+# Record, files and the process
+appproc_set "$user" "$id" "DOMAIN=$domain" "NAME=$name" "KIND=$kind" "PRESET=$preset" \
+	"START=$(appproc_encode "$start")" "CWD=$cwd" "PORT=$port" "MEMORY=$memory" "CPUS=$cpus" \
+	"TEMPLATE=$template" "PREV_TPL=$prev_tpl" STATE=running SUSPENDED=no \
+	"TIME=$(date +'%T')" "DATE=$(date +'%F')"
+recorded=yes
+if ! appproc_dirs_write "$user" "$domain" "$name"; then
+	rollback "$E_FORBIDEN" "the folder of the app processes could not be written in $(appproc_dir "$user" "$domain")"
+fi
+if ! appproc_files_write "$user" "$id"; then
+	rollback "$E_INVALID" "the command of the app process could not be written"
+fi
+if [ -n "$port" ]; then
+	holder=$(appproc_port_holder "$port")
+	if [ -n "$holder" ]; then
+		rollback "$E_INUSE" "port $port is used by another process ($holder)"
+	fi
+fi
+out=$(appproc_start "$user" "$id")
+rc=$?
+if [ "$rc" -ne 0 ]; then
+	rollback "$rc" "$out"
+fi
+appproc_logrotate_write "$user"
+
+#----------------------------------------------------------#
+#                         ArcPanel                         #
+#----------------------------------------------------------#
+
+# Logging
+$BIN/v-log-action "$user" "Info" "App processes" "App process added (Domain: $domain, Name: $name, Preset: $preset${port:+, Port: $port})."
+log_event "$OK" "$ARGUMENTS"
+
+exit

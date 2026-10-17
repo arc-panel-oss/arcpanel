@@ -59,6 +59,8 @@ fi
 # Adding new certificate
 cp -f $ssl_dir/certificate.crt $ARCPANEL/ssl/certificate.crt
 cp -f $ssl_dir/certificate.key $ARCPANEL/ssl/certificate.key
+# The certificate is public: the phpMyAdmin single sign-on checks the panel with it (E39 W3)
+chmod 644 $ARCPANEL/ssl/certificate.crt
 
 #----------------------------------------------------------#
 #                         ArcPanel                         #

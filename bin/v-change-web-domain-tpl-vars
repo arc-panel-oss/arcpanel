@@ -10,8 +10,9 @@
 # template on NGINX + PHP-FPM) and rebuilds the domain. A port variable must
 # be a port of the domain owner's pool: an unassigned port (or "auto" for the
 # lowest free one) is assigned to web:<domain>; a port already assigned to
-# web:<domain>, node:<domain>, docker:<app> or manual is used as it is. When
-# NGINX refuses the result, the previous values are restored.
+# web:<domain>, node:<domain>, app:<domain> (E42), docker:<app> or manual is
+# used as it is. When NGINX refuses the result, the previous values are
+# restored.
 
 #----------------------------------------------------------#
 #                Variables & Functions                     #
@@ -80,7 +81,7 @@ resolve_port() {
 			allocate tcp "$value"
 			ASSIGNED=yes
 			;;
-		"web:$domain" | "node:$domain" | docker:* | manual) PORT="$value" ;;
+		"web:$domain" | "node:$domain" | "app:$domain" | docker:* | manual) PORT="$value" ;;
 		*) check_result "$E_INUSE" "port $value is used by $app" ;;
 	esac
 }

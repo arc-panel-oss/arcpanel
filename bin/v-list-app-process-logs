@@ -1,0 +1,110 @@
+#!/bin/bash
+# info: list the log of an app process (E42)
+# options: USER DOMAIN NAME [STREAM] [OFFSET] [LINES] [FORMAT]
+#
+# example: v-list-app-process-logs alice shop.example.com web
+# example: v-list-app-process-logs alice shop.example.com web process 18231 '' json
+#
+# This function shows a log of the app process: STREAM is process (default,
+# the output of the process and its reloads) or task (the last one-off task
+# of the domain's processes). Without OFFSET it shows the last LINES lines
+# (default 200, at most 1000); with OFFSET (bytes) it shows what was
+# written after it, at most 256 KB and whole lines only. OFFSET in the
+# output is where the next read starts; an offset beyond the end (the log
+# was rotated) starts again at 0.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+user=$1
+domain=$2
+name=$3
+stream=${4:-process}
+offset=$5
+lines=${6:-200}
+format=${7-shell}
+
+# Includes
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/tenancy.sh
+source $ARCPANEL/func/tenancy.sh
+# shellcheck source=/usr/local/arcpanel/func/appprocess.sh
+source $ARCPANEL/func/appprocess.sh
+# load config file
+source_conf "$ARCPANEL/conf/arcpanel.conf"
+
+# Additional argument formatting
+format_domain
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '3' "$#" 'USER DOMAIN NAME [STREAM] [OFFSET] [LINES] [FORMAT]'
+is_format_valid 'user' 'domain'
+is_object_valid 'user' 'USER' "$user"
+appproc_check_process "$user" "$domain" "$name" any
+case "$stream" in
+	process | task) ;;
+	*) check_result "$E_INVALID" "invalid stream :: $stream (process or task)" ;;
+esac
+if [ -n "$offset" ] && ! [[ "$offset" =~ ^[0-9]{1,15}$ ]]; then
+	check_result "$E_INVALID" "invalid offset :: $offset"
+fi
+if ! [[ "$lines" =~ ^[0-9]{1,4}$ ]] || [ "$lines" -lt 1 ] || [ "$lines" -gt 1000 ]; then
+	check_result "$E_INVALID" "invalid lines :: $lines (1 to 1000)"
+fi
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+if [ "$stream" = 'task' ]; then
+	file="$(appproc_dir "$user" "$domain")/logs/task.log"
+else
+	file="$(appproc_dir "$user" "$domain")/logs/$name.log"
+fi
+# Read as the user: size, then the text (a file replaced by a symlink is not
+# followed)
+size=$(node_as_user "$user" bash -c '[ -f "$1" ] && [ ! -L "$1" ] && stat -c %s "$1" || echo 0' log "$file" 2> /dev/null)
+size=${size:-0}
+if [ -z "$offset" ]; then
+	text=$(node_as_user "$user" bash -c '[ -f "$1" ] && [ ! -L "$1" ] && tail -n "$2" "$1" | tail -c 262144' log "$file" "$lines" 2> /dev/null | tr -d '\000')
+	next="$size"
+else
+	if [ "$offset" -gt "$size" ]; then
+		offset=0
+	fi
+	chunk=$(
+		node_as_user "$user" bash -c '[ -f "$1" ] && [ ! -L "$1" ] && tail -c +"$(($2 + 1))" "$1" | head -c 262144' log "$file" "$offset" 2> /dev/null | tr -d '\000'
+		echo x
+	)
+	chunk=${chunk%x}
+	# Whole lines only: the rest is read next time
+	if [[ "$chunk" == *$'\n'* ]]; then
+		text=${chunk%$'\n'*}$'\n'
+	else
+		text=''
+	fi
+	next=$((offset + $(printf '%s' "$text" | wc -c)))
+	text=${text%$'\n'}
+fi
+
+json=$(printf '%s' "$text" | jq -Rsc --arg stream "$stream" --arg size "$size" --arg next "$next" '
+	{ STREAM: $stream, SIZE: $size, OFFSET: $next, LINES: (if . == "" then [] else split("\n") end) }')
+
+case "$format" in
+	json) jq . <<< "$json" ;;
+	*) jq -r '.LINES[]' <<< "$json" ;;
+esac
+
+#----------------------------------------------------------#
+#                         ArcPanel                         #
+#----------------------------------------------------------#
+
+exit

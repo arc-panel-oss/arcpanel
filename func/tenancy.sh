@@ -16,7 +16,11 @@
 #                                              DOCKER_APPS, DOCKER_CPUS,    #
 #                                              DOCKER_MEMORY (E4),          #
 #                                              PHP_VERSIONS, PHP_PROFILES,  #
-#                                              PHP_DEFAULT_PROFILE (E41)    #
+#                                              PHP_DEFAULT_PROFILE (E41),   #
+#                                              APP_PROCESSES,               #
+#                                              APP_PROCESSES_MAX,           #
+#                                              APP_PROCESSES_MEMORY,        #
+#                                              APP_PROCESSES_CPUS (E42)     #
 # See docs/features/specs/2026-10-05-003-e11-reseller-design.md.            #
 #                                                                           #
 #===========================================================================#
@@ -26,8 +30,12 @@
 TENANCY_QUOTA_KEYS="WEB_DOMAINS DNS_DOMAINS MAIL_DOMAINS MAIL_ACCOUNTS DATABASES CRON_JOBS DISK_QUOTA BANDWIDTH"
 
 # Package limits a reseller-created package may not raise above the
-# reseller's own (spec D8)
-TENANCY_PACKAGE_LIMIT_KEYS="WEB_DOMAINS WEB_ALIASES DNS_DOMAINS DNS_RECORDS MAIL_DOMAINS MAIL_ACCOUNTS RATE_LIMIT DATABASES CRON_JOBS DISK_QUOTA CPU_QUOTA MEMORY_LIMIT SWAP_LIMIT BANDWIDTH BACKUPS"
+# reseller's own (spec D8, E39 W4 spec §8.3)
+TENANCY_PACKAGE_LIMIT_KEYS="WEB_DOMAINS WEB_ALIASES DNS_DOMAINS DNS_RECORDS MAIL_DOMAINS MAIL_ACCOUNTS RATE_LIMIT DATABASES CRON_JOBS DISK_QUOTA CPU_QUOTA CPU_QUOTA_PERIOD MEMORY_LIMIT SWAP_LIMIT BANDWIDTH BACKUPS BACKUPS_INCREMENTAL"
+
+# Sidecar keys of a reseller-created package compared with the reseller's
+# own package (E39 W4 spec §8.3); PHP_DEFAULT_PROFILE is checked apart
+TENANCY_PACKAGE_TENANCY_LIMIT_KEYS="PORTS NODE NODE_VERSIONS NODE_ALLOWED NODE_APPS DOCKER DOCKER_APPS DOCKER_CPUS DOCKER_MEMORY PHP_VERSIONS PHP_PROFILES APP_PROCESSES APP_PROCESSES_MAX APP_PROCESSES_MEMORY APP_PROCESSES_CPUS"
 
 tenancy_usage_key() {
 	case "$1" in
@@ -174,9 +182,10 @@ tenancy_customers() {
 tenancy_pkg_default() {
 	case "$1" in
 		USERS | PORTS | DOCKER_APPS) REPLY='0' ;;
-		RESELLER_VISIBLE | NODE | DOCKER) REPLY='no' ;;
-		DOCKER_CPUS | DOCKER_MEMORY) REPLY='unlimited' ;;
-		NODE_VERSIONS | NODE_APPS) REPLY='3' ;;
+		RESELLER_VISIBLE | NODE | DOCKER | APP_PROCESSES) REPLY='no' ;;
+		DOCKER_CPUS | DOCKER_MEMORY | APP_PROCESSES_MEMORY) REPLY='unlimited' ;;
+		NODE_VERSIONS | NODE_APPS | APP_PROCESSES_MAX) REPLY='3' ;;
+		APP_PROCESSES_CPUS) REPLY='1' ;;
 		NODE_ALLOWED) REPLY='lts' ;;
 		PHP_VERSIONS) REPLY='*' ;;
 		PHP_PROFILES | PHP_DEFAULT_PROFILE) REPLY='default' ;;
@@ -234,16 +243,16 @@ tenancy_pkg_value_valid() {
 		USERS | PORTS)
 			[ "$value" = 'unlimited' ] || [[ "$value" =~ ^[0-9]{1,5}$ ]]
 			;;
-		RESELLER_VISIBLE | NODE | DOCKER)
+		RESELLER_VISIBLE | NODE | DOCKER | APP_PROCESSES)
 			[ "$value" = 'yes' ] || [ "$value" = 'no' ]
 			;;
-		NODE_VERSIONS | NODE_APPS | DOCKER_APPS)
+		NODE_VERSIONS | NODE_APPS | DOCKER_APPS | APP_PROCESSES_MAX)
 			[ "$value" = 'unlimited' ] || [[ "$value" =~ ^[0-9]{1,3}$ ]]
 			;;
-		DOCKER_CPUS)
+		DOCKER_CPUS | APP_PROCESSES_CPUS)
 			[ "$value" = 'unlimited' ] || [[ "$value" =~ ^[0-9]{1,3}(\.[0-9]{1,2})?$ ]]
 			;;
-		DOCKER_MEMORY)
+		DOCKER_MEMORY | APP_PROCESSES_MEMORY)
 			[ "$value" = 'unlimited' ] || [[ "$value" =~ ^[0-9]{1,7}[MG]?$ ]]
 			;;
 		NODE_ALLOWED)
@@ -370,29 +379,186 @@ tenancy_check_quota() {
 	return 0
 }
 
-# A package file whose limits all fit inside the reseller's own limits
-# (spec D8). Prints the first key above the reseller's limit.
-tenancy_check_package_limits() {
-	local reseller="$1" file="$2" key limit value
+# A limit in one base unit per key (E39 W4 spec §8.2), in REPLY: bytes for
+# MEMORY_LIMIT and SWAP_LIMIT (K, M, G, T are powers of 1024), the same for
+# DOCKER_MEMORY with a plain number in MB, hundredths of a CPU for
+# DOCKER_CPUS, percent for CPU_QUOTA, milliseconds for CPU_QUOTA_PERIOD, 1
+# and 0 for yes and no, and the plain integer for the counted limits;
+# "unlimited" stays. Returns 1 when VALUE does not parse. The panel's
+# PackageLimits::normalize() follows the same table.
+tenancy_limit_value() {
+	local key="$1" value="$2" digits unit shift max
+	REPLY=''
+	if [ "$value" = 'unlimited' ]; then
+		REPLY='unlimited'
+		return 0
+	fi
+	case "$key" in
+		MEMORY_LIMIT | SWAP_LIMIT | DOCKER_MEMORY | APP_PROCESSES_MEMORY)
+			[[ "$value" =~ ^([0-9]+)([KMGT]?)$ ]] || return 1
+			digits=${BASH_REMATCH[1]}
+			unit=${BASH_REMATCH[2]}
+			if [ -z "$unit" ] && { [ "$key" = 'DOCKER_MEMORY' ] || [ "$key" = 'APP_PROCESSES_MEMORY' ]; }; then
+				unit='M'
+			fi
+			# Digits allowed per unit keep the bytes below 2^63
+			case "$unit" in
+				K) shift=10 max=15 ;;
+				M) shift=20 max=12 ;;
+				G) shift=30 max=9 ;;
+				T) shift=40 max=6 ;;
+				*) shift=0 max=18 ;;
+			esac
+			[ "${#digits}" -le "$max" ] || return 1
+			REPLY=$((10#$digits * (1 << shift)))
+			;;
+		DOCKER_CPUS | APP_PROCESSES_CPUS)
+			[[ "$value" =~ ^([0-9]{1,9})(\.([0-9]{1,2}))?$ ]] || return 1
+			unit="${BASH_REMATCH[3]}00"
+			REPLY=$((10#${BASH_REMATCH[1]} * 100 + 10#${unit:0:2}))
+			;;
+		CPU_QUOTA)
+			[[ "$value" =~ ^([0-9]{1,9})%$ ]] || return 1
+			REPLY=$((10#${BASH_REMATCH[1]}))
+			;;
+		CPU_QUOTA_PERIOD)
+			[[ "$value" =~ ^([0-9]{1,9})(ms|s)$ ]] || return 1
+			REPLY=$((10#${BASH_REMATCH[1]}))
+			if [ "${BASH_REMATCH[2]}" = 's' ]; then
+				REPLY=$((REPLY * 1000))
+			fi
+			;;
+		BACKUPS_INCREMENTAL | NODE | DOCKER | APP_PROCESSES)
+			case "$value" in
+				yes) REPLY=1 ;;
+				no) REPLY=0 ;;
+				*) return 1 ;;
+			esac
+			;;
+		*)
+			[[ "$value" =~ ^[0-9]{1,18}$ ]] || return 1
+			REPLY=$((10#$value))
+			;;
+	esac
+	return 0
+}
+
+# Whether VALUE of KEY is above LIMIT (E39 W4 spec §8.2): unlimited is the
+# largest value, and a value or a limit that does not parse counts as above
+tenancy_limit_above() {
+	local key="$1" value limit
+	tenancy_limit_value "$key" "$2" || return 0
+	value=$REPLY
+	tenancy_limit_value "$key" "$3" || return 0
+	limit=$REPLY
+	if [ "$limit" = 'unlimited' ]; then
+		return 1
+	fi
+	[ "$value" = 'unlimited' ] || [ "$value" -gt "$limit" ]
+}
+
+# Whether a comma list VALUE allows something that LIMIT does not (NODE_ALLOWED,
+# PHP_VERSIONS, PHP_PROFILES): * allows anything; for NODE_ALLOWED, lts is
+# within lts and * only
+tenancy_list_above() {
+	local key="$1" value="$2" limit="$3" item
+	if [ "$limit" = '*' ]; then
+		return 1
+	fi
+	if [ "$value" = '*' ]; then
+		return 0
+	fi
+	if [ "$key" = 'NODE_ALLOWED' ] && { [ "$value" = 'lts' ] || [ "$limit" = 'lts' ]; }; then
+		[ "$value" != "$limit" ]
+		return
+	fi
+	for item in ${value//,/ }; do
+		if [[ ",$limit," != *",$item,"* ]]; then
+			return 0
+		fi
+	done
+	return 1
+}
+
+# Whether the sidecar VALUE of KEY of a reseller's package is above LIMIT,
+# the reseller's own value (E39 W4 spec §8.3)
+tenancy_pkg_tenancy_above() {
+	case "$1" in
+		NODE_ALLOWED | PHP_VERSIONS | PHP_PROFILES) tenancy_list_above "$@" ;;
+		*) tenancy_limit_above "$@" ;;
+	esac
+}
+
+# Every key of the package FILE of RESELLER that its plan does not allow,
+# one per line (E39 W4 spec §8): a limit above the reseller's own limit, a
+# shell outside POLICY_RESELLER_PACKAGE_SHELLS (unless CURRENT, the package
+# file it replaces, holds it), and templates other than the reseller's own
+# while users may not choose them. Returns E_LIMIT when it printed a key.
+tenancy_package_excess() {
+	local reseller="$1" file="$2" current="$3" key limit value shells found=0
 	for key in $TENANCY_PACKAGE_LIMIT_KEYS; do
 		limit=$(tenancy_user_value "$reseller" "$key")
 		if [ -z "$limit" ] || [ "$limit" = 'unlimited' ]; then
 			continue
 		fi
 		value=$(grep -m1 "^$key='" "$file" | cut -f 2 -d \')
-		if [ -z "$value" ]; then
-			continue
-		fi
-		if [ "$value" = 'unlimited' ]; then
+		if [ -n "$value" ] && tenancy_limit_above "$key" "$value" "$limit"; then
 			echo "$key"
-			return "$E_LIMIT"
-		fi
-		if [[ "$value" =~ ^[0-9]+$ ]] && [[ "$limit" =~ ^[0-9]+$ ]] && [ "$value" -gt "$limit" ]; then
-			echo "$key"
-			return "$E_LIMIT"
+			found=1
 		fi
 	done
+
+	value=$(grep -m1 "^SHELL='" "$file" | cut -f 2 -d \')
+	shells="${POLICY_RESELLER_PACKAGE_SHELLS:-nologin}"
+	if [[ ",$shells," != *",$value,"* ]] && { [ -z "$current" ] || [ "$value" != "$(grep -m1 "^SHELL='" "$current" | cut -f 2 -d \')" ]; }; then
+		echo "SHELL"
+		found=1
+	fi
+
+	local templates=''
+	if [ "$POLICY_USER_EDIT_WEB_TEMPLATES" != 'yes' ]; then
+		templates='WEB_TEMPLATE BACKEND_TEMPLATE PROXY_TEMPLATE'
+	fi
+	if [ "$POLICY_USER_EDIT_DNS_TEMPLATES" != 'yes' ]; then
+		templates="$templates DNS_TEMPLATE"
+	fi
+	for key in $templates; do
+		# Empty: the server has no such system (a proxy, DNS)
+		value=$(grep -m1 "^$key='" "$file" | cut -f 2 -d \')
+		if [ -n "$value" ] && [ "$value" != "$(tenancy_user_value "$reseller" "$key")" ]; then
+			echo "$key"
+			found=1
+		fi
+	done
+
+	if [ "$found" = 1 ]; then
+		return "$E_LIMIT"
+	fi
 	return 0
+}
+
+# A package file that fits inside the reseller's plan (spec D8, E39 W4
+# spec §8). Prints the first key the plan does not allow.
+tenancy_check_package_limits() {
+	local excess
+	excess=$(tenancy_package_excess "$@")
+	if [ -n "$excess" ]; then
+		echo "${excess%%$'\n'*}"
+		return "$E_LIMIT"
+	fi
+	return 0
+}
+
+# Every sidecar key of the reseller's PACKAGE above the reseller's own
+# package, one per line (the 2.1.3 upgrade report)
+tenancy_package_tenancy_excess() {
+	local reseller="$1" package="$2" own key
+	own=$(tenancy_user_value "$reseller" PACKAGE)
+	for key in $TENANCY_PACKAGE_TENANCY_LIMIT_KEYS; do
+		if tenancy_pkg_tenancy_above "$key" "$(tenancy_pkg_get "$package" "$key")" "$(tenancy_pkg_get "$own" "$key")"; then
+			echo "$key"
+		fi
+	done
 }
 
 #----------------------------------------------------------#
@@ -449,7 +615,7 @@ tenancy_user_json() {
 TENANCY_PACKAGE_JSON_KEYS="WEB_TEMPLATE BACKEND_TEMPLATE PROXY_TEMPLATE DNS_TEMPLATE WEB_DOMAINS WEB_ALIASES DNS_DOMAINS DNS_RECORDS MAIL_DOMAINS MAIL_ACCOUNTS RATE_LIMIT DATABASES CRON_JOBS DISK_QUOTA CPU_QUOTA CPU_QUOTA_PERIOD MEMORY_LIMIT SWAP_LIMIT BANDWIDTH NS SHELL BACKUPS BACKUPS_INCREMENTAL TIME DATE"
 
 # Tenancy keys of tenancy_package_json, in output order
-TENANCY_PACKAGE_TENANCY_KEYS="USERS RESELLER_PACKAGES RESELLER_VISIBLE PORTS NODE NODE_VERSIONS NODE_ALLOWED NODE_APPS DOCKER DOCKER_APPS DOCKER_CPUS DOCKER_MEMORY PHP_VERSIONS PHP_PROFILES PHP_DEFAULT_PROFILE RESELLER_OWNER"
+TENANCY_PACKAGE_TENANCY_KEYS="USERS RESELLER_PACKAGES RESELLER_VISIBLE PORTS NODE NODE_VERSIONS NODE_ALLOWED NODE_APPS DOCKER DOCKER_APPS DOCKER_CPUS DOCKER_MEMORY PHP_VERSIONS PHP_PROFILES PHP_DEFAULT_PROFILE APP_PROCESSES APP_PROCESSES_MAX APP_PROCESSES_MEMORY APP_PROCESSES_CPUS RESELLER_OWNER"
 
 # The sidecar is read once, in bash, with the semantics of tenancy_conf_get
 # (the first KEY='value' line wins): `v-list-package-tenancy all json` runs on

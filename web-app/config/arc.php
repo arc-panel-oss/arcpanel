@@ -15,8 +15,8 @@ return [
     // ArcPanel root as administrators see it (symlink to the real directory).
     'root' => env('ARC_ROOT', '/usr/local/arcpanel'),
 
-    // Directory of the v-* commands. sudo must allow arcpanelweb to run them
-    // (install/common/sudo/arcpanel).
+    // Directory of the v-* commands. sudo lets arcpanelweb run them, except the
+    // root-only ones (v-update-sys-sudoers, install/common/sudo/root-only).
     'bin_path' => env('ARC_BIN_PATH', '/usr/local/arcpanel/bin'),
 
     'sudo' => env('ARC_SUDO', '/usr/bin/sudo'),
