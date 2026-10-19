@@ -98,6 +98,13 @@ teardown_file() {
     ip netns del "$NS" 2> /dev/null || true
     ip link del "$HOST_IF" 2> /dev/null || true
     v-update-firewall > /dev/null 2>&1 || true
+    if [ -s "$BATS_FILE_TMPDIR/packages-added" ]; then
+        # shellcheck disable=SC2046
+        DEBIAN_FRONTEND=noninteractive apt-get purge -y -qq -o DPkg::Lock::Timeout=120 $(cat "$BATS_FILE_TMPDIR/packages-added") > /dev/null 2>&1 || true
+    fi
+    if [ -e "$BATS_FILE_TMPDIR/ip-filter-added" ]; then
+        nft delete table ip filter 2> /dev/null || true
+    fi
 }
 
 @test "firewall: the engine is nftables and the table is loaded" {
@@ -344,16 +351,19 @@ teardown_file() {
 }
 
 @test "firewall: Fail2Ban bans an IPv6 address into the chain's set" {
-    local jail
+    local jail=''
     systemctl restart fail2ban
-    for _ in $(seq 1 20); do
-        nft list set inet arcpanel f2b_SSH_4 > /dev/null 2>&1 && break
+    # The sets outlive the restart: wait for the server to answer and to
+    # list the SSH jail, not for the sets
+    for _ in $(seq 1 30); do
+        if fail2ban-client ping > /dev/null 2>&1; then
+            jail=$(fail2ban-client status 2> /dev/null | sed -n 's/.*Jail list:\s*//p' | tr ',' '\n' | tr -d ' ' | grep -m 1 '^ssh') && break
+        fi
         sleep 1
     done
+    [ -n "$jail" ]
     run nft list set inet arcpanel f2b_SSH_6
     assert_success
-    jail=$(fail2ban-client status | sed -n 's/.*Jail list:\s*//p' | tr ',' '\n' | tr -d ' ' | grep -m 1 '^ssh')
-    [ -n "$jail" ]
     run fail2ban-client set "$jail" banip 2001:db8::77
     assert_success
     for _ in $(seq 1 10); do
@@ -375,6 +385,14 @@ teardown_file() {
 }
 
 @test "firewall: the iptables leftovers of 2.2 are removed once" {
+    # A 2.2 server had iptables, a fresh install has nftables only: install
+    # it for the test and let teardown_file purge what it brought in
+    if ! command -v iptables > /dev/null 2>&1; then
+        nft list table ip filter > /dev/null 2>&1 || touch "$BATS_FILE_TMPDIR/ip-filter-added"
+        dpkg-query -W -f '${Package}\n' | sort > "$BATS_FILE_TMPDIR/packages-before"
+        DEBIAN_FRONTEND=noninteractive apt-get install -y -qq -o DPkg::Lock::Timeout=120 iptables > /dev/null
+        dpkg-query -W -f '${Package}\n' | sort | comm -13 "$BATS_FILE_TMPDIR/packages-before" - > "$BATS_FILE_TMPDIR/packages-added"
+    fi
     iptables -N fail2ban-ARCBATS
     iptables -A INPUT -p tcp --dport 9 -j fail2ban-ARCBATS
     iptables -P INPUT DROP
