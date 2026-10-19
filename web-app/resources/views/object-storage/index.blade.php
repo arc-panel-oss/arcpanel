@@ -16,7 +16,7 @@
         ['key' => 'access', 'label' => __('Access'), 'sortable' => true],
         ['key' => 'expires', 'label' => __('Expires'), 'sortable' => true],
     ];
-    $endpoint = $account->endpoint !== '' ? $account->endpoint : __('(no endpoint yet)');
+    $endpoint = $account->connectEndpoint();
     $left = $account->quotaLeftMb();
     $defaultQuota = $left === null ? 1024 : max(1, min(1024, $left));
 @endphp
@@ -52,11 +52,11 @@
                 @foreach ($buckets as $bucket)
                     <tr data-row data-search="{{ $bucket->name }}" @class(['is-disabled' => $bucket->suspended])>
                         <td data-col="name" data-label="{{ __('Bucket') }}" data-sort-value="{{ $bucket->name }}"><span class="mono">{{ $bucket->name }}</span></td>
-                        <td data-col="usage" data-label="{{ __('Usage') }}" data-sort-value="{{ $bucket->usedBytes }}">
+                        <td data-col="usage" data-label="{{ __('Usage') }}" class="col-num mono" data-sort-value="{{ $bucket->usedBytes }}">
                             {{ $size($bucket->usedBytes) }} / {{ $mb($bucket->quotaMb) }}
                             <span class="muted">({{ $bucket->percent() }}%)</span>
                         </td>
-                        <td data-col="objects" data-label="{{ __('Objects') }}" data-sort-value="{{ $bucket->objects }}">{{ $bucket->objects }}</td>
+                        <td data-col="objects" data-label="{{ __('Objects') }}" class="col-num mono" data-sort-value="{{ $bucket->objects }}">{{ $bucket->objects }}</td>
                         <td data-col="versioning" data-label="{{ __('Versioning') }}" data-sort-value="{{ $bucket->versioning ? 1 : 0 }}">
                             <x-ap-badge :tone="$bucket->versioning ? 'ok' : null">{{ $bucket->versioning ? __('On') : __('Off') }}</x-ap-badge>
                         </td>
@@ -118,6 +118,9 @@
     </x-ap-card>
 
     <x-ap-card :title="__('Connect')" icon="link">
+        @if ($account->endpoint === '')
+            <x-ap-alert tone="info" :title="__('No public endpoint yet')">{{ sprintf(__('Apps on this server reach the buckets at %s. For apps elsewhere, the administrator publishes a hostname under Server → Object storage.'), $endpoint) }}</x-ap-alert>
+        @endif
         <dl class="ap-dl">
             <dt>{{ __('Endpoint') }}</dt><dd class="mono">{{ $endpoint }}</dd>
             <dt>{{ __('Region') }}</dt><dd class="mono">{{ $account->region }}</dd>

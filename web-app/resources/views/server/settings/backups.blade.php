@@ -67,7 +67,7 @@
                     </div>
                     <div class="ap-form-grid" x-show="repoType === 's3'">
                         <x-ap-input name="s3_endpoint" :label="__('Endpoint')" :value="$s3['endpoint'] ?? ''" mono autocomplete="off" placeholder="https://s3.example.com"
-                            :hint="__('AWS, Cloudflare R2, Wasabi, or the object storage of another ArcPanel server.')" />
+                            :hint="__('AWS, Cloudflare R2, Wasabi, or the object storage of another ArcPanel server; http://127.0.0.1:9310 for the object storage of this one.')" />
                         <x-ap-input name="s3_bucket" :label="__('Bucket and path')" :value="$s3['bucket'] ?? ''" mono autocomplete="off" placeholder="backups/server1"
                             :hint="__('The bucket must exist; the key needs to list, read and write it.')" />
                         <x-ap-input name="s3_region" :label="__('Region')" :value="$s3['region'] ?? 'us-east-1'" mono autocomplete="off" />

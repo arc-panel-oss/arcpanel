@@ -9,6 +9,9 @@ namespace App\Services\ObjectStorage;
  */
 final class AccountStorage
 {
+    /** Silo's S3 port on this server (func/silo.sh SILO_PORT): apps of the server reach it without the public endpoint. */
+    public const LOCAL_ENDPOINT = 'http://127.0.0.1:9310';
+
     public function __construct(
         public readonly bool $installed,
         public readonly bool $allowed,
@@ -46,6 +49,12 @@ final class AccountStorage
             endpoint: $value('ENDPOINT'),
             region: $value('REGION') ?: 'us-east-1',
         );
+    }
+
+    /** The endpoint for the examples: the public one, or the local one until the administrator publishes it. */
+    public function connectEndpoint(): string
+    {
+        return $this->endpoint !== '' ? $this->endpoint : self::LOCAL_ENDPOINT;
     }
 
     /** Whether the account may add a bucket now. */

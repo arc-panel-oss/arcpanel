@@ -278,7 +278,7 @@ it('offers IPv6 lists in the rule form', function () {
     $this->get('/server/firewall/create')->assertOk()
         ->assertSee('value="ipset:blocked6"', false)->assertSee('value="ipset:country-nl"', false)
         ->assertDontSee('value="ipset:old"', false)
-        ->assertSee('(IPv4 or IPv6, CIDR format supported)');
+        ->assertSee('0.0.0.0/0 or ::/0 means every address of both versions.');
 });
 
 it('warns about a drifted or missing table and reloads it for administrators', function (string $status, string $title) {
@@ -315,4 +315,10 @@ it('refuses the reload to everyone but administrators', function () {
 
     $this->post('/server/firewall/reload')->assertForbidden();
     $this->fake->assertNotRan('v-update-firewall');
+});
+
+it('names the any address of both versions in the rule list', function () {
+    signIn('arcadmin', 'admin');
+
+    $this->get('/server/firewall')->assertOk()->assertSee('Any address')->assertSee('IPv4 and IPv6')->assertSee('title="0.0.0.0/0"', false);
 });

@@ -4,7 +4,7 @@
     $columns = [
         ['key' => 'user', 'label' => __('Account'), 'sortable' => true],
         ['key' => 'buckets', 'label' => __('Buckets'), 'sortable' => true, 'type' => 'number'],
-        ['key' => 'quota', 'label' => __('Quotas'), 'sortable' => true, 'type' => 'number'],
+        ['key' => 'quota', 'label' => __('Quota total'), 'sortable' => true, 'type' => 'number'],
         ['key' => 'used', 'label' => __('Stored'), 'sortable' => true, 'type' => 'number'],
         ['key' => 'objects', 'label' => __('Objects'), 'sortable' => true, 'type' => 'number'],
     ];
@@ -30,9 +30,10 @@
             <dl class="ap-dl">
                 <dt>{{ __('State') }}</dt>
                 <dd><x-ap-badge :tone="$silo->running ? 'ok' : 'danger'">{{ $silo->running ? __('Running') : __('Stopped') }}</x-ap-badge></dd>
-                <dt>{{ __('Version') }}</dt><dd class="mono">{{ $silo->version }}</dd>
+                <dt>{{ __('Version') }}</dt><dd class="mono" title="{{ $silo->version }}">{{ sprintf(__('Silo release %s'), $silo->release()) }}</dd>
                 <dt>{{ __('Data path') }}</dt><dd class="mono">{{ $silo->dataPath }}</dd>
-                <dt>{{ __('Endpoint') }}</dt><dd class="mono">{{ $silo->endpoint !== '' ? $silo->endpoint : __('(none)') }}</dd>
+                <dt>{{ __('Endpoint') }}</dt>
+                <dd>@if ($silo->endpoint !== '')<span class="mono">{{ $silo->endpoint }}</span>@else<span class="muted">{{ sprintf(__('Not published; apps on this server use %s'), \App\Services\ObjectStorage\AccountStorage::LOCAL_ENDPOINT) }}</span>@endif</dd>
                 <dt>{{ __('Stored') }}</dt>
                 <dd>{{ $size($silo->bytes) }} · {{ trans_choice(':count bucket|:count buckets', $silo->buckets, ['count' => $silo->buckets]) }} · {{ trans_choice(':count object|:count objects', $silo->objects, ['count' => $silo->objects]) }}</dd>
             </dl>
@@ -68,10 +69,10 @@
                     @foreach ($accounts as $row)
                         <tr data-row data-search="{{ $row['user'] }}">
                             <td data-col="user" data-label="{{ __('Account') }}"><a href="{{ route('storage.show', ['user' => $row['user']]) }}">{{ $row['user'] }}</a></td>
-                            <td data-col="buckets" data-label="{{ __('Buckets') }}">{{ $row['buckets'] }}</td>
-                            <td data-col="quota" data-label="{{ __('Quotas') }}" data-sort-value="{{ $row['quota'] }}">{{ \App\Services\Dashboard\DashboardService::size((float) $row['quota']) }}</td>
-                            <td data-col="used" data-label="{{ __('Stored') }}" data-sort-value="{{ $row['used'] }}">{{ $size($row['used']) }}</td>
-                            <td data-col="objects" data-label="{{ __('Objects') }}">{{ $row['objects'] }}</td>
+                            <td data-col="buckets" data-label="{{ __('Buckets') }}" class="col-num mono">{{ $row['buckets'] }}</td>
+                            <td data-col="quota" data-label="{{ __('Quota total') }}" class="col-num mono" data-sort-value="{{ $row['quota'] }}">{{ \App\Services\Dashboard\DashboardService::size((float) $row['quota']) }}</td>
+                            <td data-col="used" data-label="{{ __('Stored') }}" class="col-num mono" data-sort-value="{{ $row['used'] }}">{{ $size($row['used']) }}</td>
+                            <td data-col="objects" data-label="{{ __('Objects') }}" class="col-num mono">{{ $row['objects'] }}</td>
                         </tr>
                     @endforeach
                 </x-ap-table>

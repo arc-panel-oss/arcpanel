@@ -52,10 +52,15 @@ test('a developer adds a bucket and an S3 key, then deletes both', async ({ page
 	await keyForm.getByRole('button', { name: 'Add S3 key' }).click();
 	await expect(page.getByRole('heading', { name: 'S3 key created' })).toBeVisible();
 	await expect(page.getByText('Copy the secret now')).toBeVisible();
-	const secret = (await page.locator('#s3-key-secret').innerText()).trim();
+	const secret = (
+		await page.getByRole('textbox', { name: 'Secret access key' }).inputValue()
+	).trim();
 	expect(secret.length).toBeGreaterThan(20);
 	await expectAccessible(page);
+	// Nothing was copied, so leaving asks first (beforeunload)
+	page.once('dialog', (dialog) => dialog.accept());
 	await page.getByRole('link', { name: 'Done' }).click();
+	await expect(page).toHaveURL(new RegExp(`/object-storage/${DEV}$`));
 
 	const keyRow = page.getByRole('row', { name: new RegExp(KEY) });
 	await expect(keyRow).toContainText('Read only');

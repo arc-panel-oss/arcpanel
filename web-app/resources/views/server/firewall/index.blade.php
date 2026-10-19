@@ -67,7 +67,14 @@
                         </td>
                         <td data-col="protocol" data-label="{{ __('Protocol') }}">{{ __($rule->protocol) }}</td>
                         <td data-col="port" data-label="{{ __('Port') }}" class="mono">{{ $rule->protocol === 'ICMP' ? '—' : $rule->port }}</td>
-                        <td data-col="ip" data-label="{{ __('IP Address') }}" class="mono">{{ $rule->ip }}</td>
+                        <td data-col="ip" data-label="{{ __('IP Address') }}" data-sort-value="{{ $rule->ip }}">
+                            {{-- 0.0.0.0/0 and ::/0 match IPv4 and IPv6 alike since E40 --}}
+                            @if (in_array($rule->ip, ['0.0.0.0/0', '::/0'], true))
+                                <span title="{{ $rule->ip }}">{{ __('Any address') }}</span> <span class="muted">{{ __('IPv4 and IPv6') }}</span>
+                            @else
+                                <span class="mono">{{ $rule->ip }}</span>
+                            @endif
+                        </td>
                         <td data-col="status" data-label="{{ __('Status') }}" data-sort-value="{{ $rule->suspended ? 'suspended' : 'active' }}">
                             <x-ap-badge :tone="$rule->suspended ? 'danger' : 'ok'">{{ $rule->suspended ? __('Suspended') : __('Active') }}</x-ap-badge>
                         </td>

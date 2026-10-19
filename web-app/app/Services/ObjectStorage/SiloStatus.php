@@ -23,6 +23,12 @@ final class SiloStatus
         public readonly int $bytes,
     ) {}
 
+    /** The release date of the package version (20261018000000.0.0-1PGSTY is 2026-10-18), else the version. */
+    public function release(): string
+    {
+        return preg_match('/^(\d{4})(\d{2})(\d{2})\d{6}\./', $this->version, $m) === 1 ? "{$m[1]}-{$m[2]}-{$m[3]}" : $this->version;
+    }
+
     /** @param  array<string, mixed>  $row */
     public static function fromArray(array $row): self
     {
