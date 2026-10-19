@@ -61,6 +61,11 @@ system_ports() {
 	echo "53 dns"
 	echo "3306 mysql"
 	echo "5432 postgresql"
+	# Object storage (E44), on 127.0.0.1
+	if [ "$OBJECT_STORAGE_SYSTEM" = 'silo' ]; then
+		echo "9310 object storage"
+		echo "9311 object storage console"
+	fi
 }
 
 #----------------------------------------------------------#

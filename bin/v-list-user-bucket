@@ -1,0 +1,68 @@
+#!/bin/bash
+# info: list one object storage bucket of a user
+# options: USER BUCKET [FORMAT]
+#
+# example: v-list-user-bucket alice alice-media json
+#
+# This function lists one of USER's buckets, as v-list-user-buckets does.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+user=$1
+bucket=$2
+format=${3-shell}
+
+# Includes
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/tenancy.sh
+source $ARCPANEL/func/tenancy.sh
+# shellcheck source=/usr/local/arcpanel/func/silo.sh
+source $ARCPANEL/func/silo.sh
+# load config file
+source_conf "$ARCPANEL/conf/arcpanel.conf"
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '2' "$#" 'USER BUCKET [FORMAT]'
+is_format_valid 'user' 'format'
+is_bucket_format_valid "$bucket"
+is_object_valid 'user' 'USER' "$user"
+line=$(silo_bucket_line "$user" "$bucket")
+if [ -z "$line" ]; then
+	check_result "$E_NOTEXIST" "bucket $bucket of $user does not exist"
+fi
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+tmp=$(mktemp)
+echo "$line" > "$tmp"
+case $format in
+	json) silo_file_json "$tmp" SILO_BUCKET_KEYS 'QUOTA USED OBJECTS' ;;
+	plain) echo -e "$bucket\t$(silo_field "$line" QUOTA)\t$(silo_field "$line" VERSIONING)\t$(silo_field "$line" USED)\t$(silo_field "$line" OBJECTS)\t$(silo_field "$line" SUSPENDED)\t$(silo_field "$line" TIME)\t$(silo_field "$line" DATE)" ;;
+	csv)
+		echo "BUCKET,QUOTA,VERSIONING,USED,OBJECTS,SUSPENDED,TIME,DATE"
+		echo "$bucket,$(silo_field "$line" QUOTA),$(silo_field "$line" VERSIONING),$(silo_field "$line" USED),$(silo_field "$line" OBJECTS),$(silo_field "$line" SUSPENDED),$(silo_field "$line" TIME),$(silo_field "$line" DATE)"
+		;;
+	shell)
+		for key in "${SILO_BUCKET_KEYS[@]}"; do
+			printf '%-15s %s\n' "$key:" "$(silo_field "$line" "$key")"
+		done
+		;;
+esac
+rm -f "$tmp"
+
+#----------------------------------------------------------#
+#                         ArcPanel                         #
+#----------------------------------------------------------#
+
+exit

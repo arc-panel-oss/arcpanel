@@ -77,6 +77,14 @@ if [ -e "$USER_DATA/backup-excludes.conf" ]; then
 	cp -r $USER_DATA/backup-excludes.conf $tmpdir/arcpanel/
 fi
 
+# Object storage (E44): the buckets and S3 keys, never a secret
+for file in buckets.conf s3keys.conf; do
+	if [ -e "$USER_DATA/$file" ]; then
+		echo -e "$(date "+%F %T") $file" | tee -a $BACKUP/$user.log
+		cp $USER_DATA/$file $tmpdir/arcpanel/
+	fi
+done
+
 # Backup PAM
 mkdir -p $tmpdir/pam
 echo -e "$(date "+%F %T") pam" | tee -a $BACKUP/$user.log

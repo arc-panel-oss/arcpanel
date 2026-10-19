@@ -1,0 +1,209 @@
+#!/bin/bash
+# info: install or update the object storage service (Silo)
+# options: [DATA_PATH]
+#
+# example: v-add-sys-silo /srv/arcpanel-silo
+#
+# This function installs Silo and its client mcli from the .deb packages
+# pinned in install/upgrade/upgrade.conf (silo_v, silo_sha256, mcli_v,
+# mcli_sha256), checked against their SHA-256 before they are installed,
+# and runs Silo as arcpanel-silo.service on 127.0.0.1:9310 with its data in
+# DATA_PATH (default: SILO_DATA, else /srv/arcpanel-silo). Current packages
+# are left alone, so the command is safe to run on every upgrade.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+data_path=$1
+
+# Includes
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/download.sh
+source $ARCPANEL/func/download.sh
+# shellcheck source=/usr/local/arcpanel/func/tenancy.sh
+source $ARCPANEL/func/tenancy.sh
+# shellcheck source=/usr/local/arcpanel/func/silo.sh
+source $ARCPANEL/func/silo.sh
+# load config file
+source_conf "$ARCPANEL/conf/arcpanel.conf"
+# upgrade config file
+source_conf "$ARCPANEL/install/upgrade/upgrade.conf"
+
+SILO_DEB="silo_${silo_v}_amd64.deb"
+SILO_URL="https://github.com/pgsty/silo/releases/download/$silo_tag/$SILO_DEB"
+MCLI_DEB="mcli_${mcli_v}_amd64.deb"
+MCLI_URL="https://github.com/pgsty/mc/releases/download/$mcli_tag/$MCLI_DEB"
+
+# Installed version of a package, empty when it is not installed
+installed_version() {
+	dpkg-query -W -f='${Status} ${Version}' "$1" 2> /dev/null | awk '$3 == "installed" { print $4 }'
+}
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+if [ "$(id -u)" != '0' ]; then
+	echo "Error: v-add-sys-silo can only be executed by the root user"
+	exit "$E_FORBIDEN"
+fi
+if [ -z "$silo_v" ] || [ -z "$silo_sha256" ] || [ -z "$mcli_v" ] || [ -z "$mcli_sha256" ]; then
+	check_result "$E_NOTEXIST" "no Silo or mcli version is pinned in upgrade.conf"
+fi
+if [ "$(dpkg --print-architecture 2> /dev/null)" != 'amd64' ]; then
+	check_result "$E_FORBIDEN" "object storage needs an amd64 server"
+fi
+
+[ -z "$data_path" ] && data_path="${SILO_DATA:-$SILO_DATA_DEFAULT}"
+data_path="${data_path%/}"
+if ! [[ "$data_path" =~ ^/[A-Za-z0-9._/-]+$ ]] || [[ "$data_path" == *..* ]]; then
+	check_result "$E_INVALID" "invalid data path :: $data_path (an absolute path of letters, digits, . _ - /)"
+fi
+case "$data_path/" in
+	/home/* | "$ARCPANEL"/* | /etc/* | /usr/* | /proc/* | /sys/* | /dev/* | /run/* | /boot/* | /bin/* | /sbin/* | /lib/* | /lib64/* | /tmp/* | /var/tmp/*)
+		check_result "$E_FORBIDEN" "the data path cannot be below ${data_path%/*}/ (choose a folder of its own, for example $SILO_DATA_DEFAULT)"
+		;;
+esac
+if [ "$(echo "$data_path" | tr -cd '/' | wc -c)" -lt 1 ] || [ "$data_path" = '/' ] || [ "$data_path" = '/srv' ] || [ "$data_path" = '/var' ] || [ "$data_path" = '/opt' ] || [ "$data_path" = '/mnt' ]; then
+	check_result "$E_FORBIDEN" "the data path must be a folder of its own, not $data_path"
+fi
+# A folder that holds files other than Silo's own data is refused
+if [ -d "$data_path" ] && [ -n "$(ls -A "$data_path" 2> /dev/null)" ] && [ ! -d "$data_path/.minio.sys" ]; then
+	check_result "$E_EXISTS" "the data path $data_path is not empty"
+fi
+if silo_installed && [ -n "$SILO_DATA" ] && [ "$SILO_DATA" != "$data_path" ]; then
+	check_result "$E_EXISTS" "object storage already keeps its data in $SILO_DATA; moving it is a manual step (docs/operations/object-storage.md)"
+fi
+
+# Perform verification if read-only mode is enabled
+check_arcpanel_demo_mode
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+work=$(mktemp -d)
+trap 'rm -rf "$work"' EXIT
+
+# Packages, unless the pinned versions are installed
+if [ "$(installed_version silo)" != "$silo_v" ]; then
+	if ! fetch_verified "$SILO_URL" "$silo_sha256" "$work/$SILO_DEB"; then
+		check_result "$E_CONNECT" "Silo $silo_v could not be downloaded or failed its checksum"
+	fi
+	DEBIAN_FRONTEND=noninteractive dpkg -i "$work/$SILO_DEB" > /dev/null 2>&1
+	check_result $? "Silo $silo_v could not be installed"
+fi
+if [ "$(installed_version mcli)" != "$mcli_v" ]; then
+	if ! fetch_verified "$MCLI_URL" "$mcli_sha256" "$work/$MCLI_DEB"; then
+		check_result "$E_CONNECT" "mcli $mcli_v could not be downloaded or failed its checksum"
+	fi
+	DEBIAN_FRONTEND=noninteractive dpkg -i "$work/$MCLI_DEB" > /dev/null 2>&1
+	check_result $? "mcli $mcli_v could not be installed"
+fi
+if [ ! -x "$SILO_BIN" ] || [ ! -x "$SILO_MCLI" ]; then
+	check_result "$E_NOTEXIST" "the Silo packages hold no $SILO_BIN or $SILO_MCLI"
+fi
+if ! id -u silo > /dev/null 2>&1; then
+	check_result "$E_NOTEXIST" "the Silo package did not create the system user silo"
+fi
+
+# The package's own unit stays off; ArcPanel runs its own (spec D3)
+systemctl -q disable --now silo.service > /dev/null 2>&1 || true
+
+mkdir -p "$SILO_DIR/mcli"
+chmod 700 "$SILO_DIR" "$SILO_DIR/mcli"
+
+# Data folder
+mkdir -p "$data_path"
+chown silo:silo "$data_path"
+chmod 700 "$data_path"
+
+# Root credentials, once; root-only, read by systemd before it drops privileges
+if [ ! -s "$SILO_ENV" ]; then
+	umask 077
+	{
+		echo "MINIO_ROOT_USER=$SILO_ROOT_USER"
+		echo "MINIO_ROOT_PASSWORD=$(silo_random 40)"
+	} > "$SILO_ENV.tmp"
+	mv -f "$SILO_ENV.tmp" "$SILO_ENV"
+	umask 022
+fi
+chown root:root "$SILO_ENV"
+chmod 600 "$SILO_ENV"
+sed -i '/^MINIO_VOLUMES=/d; /^MINIO_BROWSER_REDIRECT=/d' "$SILO_ENV"
+echo "MINIO_VOLUMES=$data_path" >> "$SILO_ENV"
+echo "MINIO_BROWSER_REDIRECT=off" >> "$SILO_ENV"
+
+# Unit
+tmp="$work/unit"
+cat > "$tmp" << EOF
+[Unit]
+Description=ArcPanel object storage (Silo)
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=notify
+User=silo
+Group=silo
+EnvironmentFile=$SILO_ENV
+ExecStart=$SILO_BIN server --address 127.0.0.1:$SILO_PORT --console-address 127.0.0.1:$SILO_CONSOLE_PORT \$MINIO_VOLUMES
+Restart=always
+RestartSec=5
+LimitNOFILE=1048576
+TasksMax=infinity
+TimeoutStopSec=60
+NoNewPrivileges=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectHome=yes
+ProtectSystem=strict
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+ReadWritePaths=$data_path
+
+[Install]
+WantedBy=multi-user.target
+EOF
+if ! cmp -s "$tmp" "$SILO_UNIT_FILE"; then
+	install -m 644 "$tmp" "$SILO_UNIT_FILE"
+	systemctl -q daemon-reload
+	changed='yes'
+fi
+systemctl -q enable "$SILO_UNIT" 2> /dev/null
+if [ "${changed:-no}" = 'yes' ] || ! silo_running; then
+	systemctl restart "$SILO_UNIT"
+fi
+if ! silo_wait; then
+	check_result "$E_RESTART" "the object storage service did not start (journalctl -u $SILO_UNIT)"
+fi
+
+# Configuration
+$BIN/v-change-sys-config-value 'OBJECT_STORAGE_SYSTEM' 'silo'
+$BIN/v-change-sys-config-value 'SILO_DATA' "$data_path"
+$BIN/v-update-sys-ports-reserved > /dev/null 2>&1
+
+# Repair and usage every five minutes (spec §8)
+# (sed, not >>: fs.protected_regular forbids root to open another user's
+# file for appending in the sticky crontab directory)
+crontab="/var/spool/cron/crontabs/arcpanelweb"
+if [ -f "$crontab" ] && ! grep -q "v-check-sys-silo" "$crontab"; then
+	sed -i -e "\$a*/5 * * * * sudo $BIN/v-check-sys-silo repair > /dev/null 2>&1" "$crontab"
+	chown arcpanelweb:arcpanelweb "$crontab"
+	chmod 600 "$crontab"
+fi
+
+#----------------------------------------------------------#
+#                         ArcPanel                         #
+#----------------------------------------------------------#
+
+$BIN/v-log-action "system" "Info" "System" "Object storage installed (Silo $silo_v, data: $data_path)."
+log_event "$OK" "$ARGUMENTS"
+
+exit

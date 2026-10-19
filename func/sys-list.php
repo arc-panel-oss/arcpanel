@@ -7,7 +7,7 @@
  *
  * Usage: php sys-list.php KIND USERS_DIR HOMEDIR OWNER UPDATED_SINCE
  *
- * KIND is web, db, cron, node, backup or backup-run (Fleet PD2). OWNER is empty for every user.
+ * KIND is web, db, cron, node, backup, backup-run (Fleet PD2) or bucket (E44). OWNER is empty for every user.
  * UPDATED_SINCE is empty or a Unix time: a user is changed when the file of
  * the kind was modified at or after it, or, when the file is missing, when
  * the user's directory was (removing the last node app removes its file).
@@ -89,6 +89,11 @@ $kinds = [
 		"backup-runs.conf",
 		"ID",
 		["ENGINE", "TRIGGER", "TASK", "STATUS", "START", "END", "EXIT", "ERROR", "ARCHIVE", "SIZE"],
+	],
+	"bucket" => [
+		"buckets.conf",
+		"BUCKET",
+		["BUCKET", "QUOTA", "VERSIONING", "USED", "OBJECTS", "SUSPENDED", "TIME", "DATE"],
 	],
 ];
 if (!isset($kinds[$kind]) || !is_dir($usersDir) || ($since !== "" && !ctype_digit($since))) {

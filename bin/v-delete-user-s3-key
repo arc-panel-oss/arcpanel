@@ -1,0 +1,64 @@
+#!/bin/bash
+# info: delete an S3 key of the object storage of a user
+# options: USER KEY
+#
+# example: v-delete-user-s3-key alice AKIA1EXAMPLE2KEY3ID4
+#
+# This function deletes USER's S3 key KEY (its access key ID) at once.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+user=$1
+key=$2
+
+# Includes
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/tenancy.sh
+source $ARCPANEL/func/tenancy.sh
+# shellcheck source=/usr/local/arcpanel/func/silo.sh
+source $ARCPANEL/func/silo.sh
+# load config file
+source_conf "$ARCPANEL/conf/arcpanel.conf"
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '2' "$#" 'USER KEY'
+is_format_valid 'user'
+if ! [[ "$key" =~ ^[A-Za-z0-9]{3,64}$ ]]; then
+	check_result "$E_INVALID" "invalid S3 key :: $key"
+fi
+silo_require
+is_object_valid 'user' 'USER' "$user"
+if [ -z "$(silo_key_line "$user" "$key")" ]; then
+	check_result "$E_NOTEXIST" "S3 key $key of $user does not exist"
+fi
+
+# Perform verification if read-only mode is enabled
+check_arcpanel_demo_mode
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+silo_lock
+silo_require_running
+silo_key_remove "$key"
+silo_delete_line "$(silo_keys_file "$user")" KEY "$key"
+silo_sync_user "$user"
+
+#----------------------------------------------------------#
+#                         ArcPanel                         #
+#----------------------------------------------------------#
+
+$BIN/v-log-action "$user" "Info" "Object storage" "S3 key deleted (Key: $key)."
+log_event "$OK" "$ARGUMENTS"
+
+exit

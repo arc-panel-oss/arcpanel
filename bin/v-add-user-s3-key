@@ -1,0 +1,122 @@
+#!/bin/bash
+# info: add an S3 key to the object storage of a user
+# options: USER NAME [BUCKET] [ACCESS] [EXPIRES] [FORMAT]
+#
+# example: v-add-user-s3-key alice backups alice-media rw 2027-01-31 json
+#
+# This function adds an S3 key (a service account of USER's object storage
+# user), limited to BUCKET when one is given, read-only with ACCESS ro, and
+# valid until EXPIRES (YYYY-MM-DD, UTC midnight) when one is given. It prints
+# the key ID and the secret once; the secret is not kept anywhere.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+user=$1
+name=$2
+bucket=$3
+access=${4:-rw}
+expires=$5
+format=${6-shell}
+
+# Includes
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/tenancy.sh
+source $ARCPANEL/func/tenancy.sh
+# shellcheck source=/usr/local/arcpanel/func/silo.sh
+source $ARCPANEL/func/silo.sh
+# load config file
+source_conf "$ARCPANEL/conf/arcpanel.conf"
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '2' "$#" 'USER NAME [BUCKET] [ACCESS] [EXPIRES] [FORMAT]'
+is_format_valid 'user' 'format'
+is_s3_key_name_valid "$name"
+if [ "$access" != 'rw' ] && [ "$access" != 'ro' ]; then
+	check_result "$E_INVALID" "invalid access :: $access (rw or ro)"
+fi
+if [ -n "$expires" ]; then
+	if ! [[ "$expires" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]] || ! date -u -d "$expires" > /dev/null 2>&1; then
+		check_result "$E_INVALID" "invalid expiry date :: $expires (YYYY-MM-DD)"
+	fi
+	if [ "$(date -u -d "$expires" +%s)" -le "$(date -u +%s)" ]; then
+		check_result "$E_INVALID" "the expiry date $expires is not in the future"
+	fi
+fi
+silo_require
+is_object_valid 'user' 'USER' "$user"
+is_object_unsuspended 'user' 'USER' "$user"
+if ! silo_allowed "$user"; then
+	check_result "$E_FORBIDEN" "object storage is not included in the package of $user"
+fi
+if [ -n "$bucket" ]; then
+	is_bucket_format_valid "$bucket"
+	if [ -z "$(silo_bucket_line "$user" "$bucket")" ]; then
+		check_result "$E_NOTEXIST" "bucket $bucket of $user does not exist"
+	fi
+fi
+
+# Perform verification if read-only mode is enabled
+check_arcpanel_demo_mode
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+silo_lock
+silo_require_running
+if [ "$(silo_keys "$user" | grep -c .)" -ge "$SILO_KEYS_MAX" ]; then
+	check_result "$E_LIMIT" "an account holds at most $SILO_KEYS_MAX S3 keys"
+fi
+
+# The IAM user exists before its first key
+touch "$(silo_keys_file "$user")"
+silo_chown_user_file "$(silo_keys_file "$user")"
+if ! silo_iam_exists "$user"; then
+	silo_random 40 | silo_mcli admin user add arc "$(silo_iam_user "$user")" > /dev/null 2>&1
+fi
+
+expiry=''
+[ -n "$expires" ] && expiry="${expires}T00:00:00Z"
+out=$(silo_key_create "$user" "$name" "$bucket" "$access" "$expiry")
+key=$(jq -r '.accessKey // empty' <<< "$out" 2> /dev/null)
+secret=$(jq -r '.secretKey // empty' <<< "$out" 2> /dev/null)
+if [ -z "$key" ] || [ -z "$secret" ]; then
+	check_result "$E_CONNECT" "the S3 key could not be created in object storage"
+fi
+
+time_n_date=$(date +'%T %F')
+silo_write_line "$(silo_keys_file "$user")" SILO_KEY_KEYS "KEY=$key" "NAME=$name" "BUCKET=$bucket" \
+	"ACCESS=$access" "EXPIRES=$expires" "TIME=${time_n_date% *}" "DATE=${time_n_date#* }"
+silo_sync_user "$user"
+
+case $format in
+	json) jq -n --arg key "$key" --arg secret "$secret" --arg name "$name" '{KEY: $key, SECRET: $secret, NAME: $name}' ;;
+	plain) echo -e "$key\t$secret" ;;
+	csv)
+		echo "KEY,SECRET"
+		echo "$key,$secret"
+		;;
+	shell)
+		echo "KEY:            $key"
+		echo "SECRET:         $secret"
+		echo "The secret is shown once; it is not kept."
+		;;
+esac
+
+#----------------------------------------------------------#
+#                         ArcPanel                         #
+#----------------------------------------------------------#
+
+$BIN/v-log-action "$user" "Info" "Object storage" "S3 key added (Name: $name, Key: $key${bucket:+, Bucket: $bucket}, Access: $access)."
+log_event "$OK" "$user $name ${bucket:-''} $access ${expires:-''}"
+
+exit

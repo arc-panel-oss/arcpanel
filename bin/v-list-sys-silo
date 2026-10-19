@@ -1,0 +1,115 @@
+#!/bin/bash
+# info: list the object storage service
+# options: [FORMAT]
+#
+# example: v-list-sys-silo json
+#
+# This function lists whether object storage (Silo) is installed, its
+# version, data path, endpoint and state, and the totals of the buckets of
+# every account as the last repair counted them.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+format=${1-shell}
+
+# Includes
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/tenancy.sh
+source $ARCPANEL/func/tenancy.sh
+# shellcheck source=/usr/local/arcpanel/func/silo.sh
+source $ARCPANEL/func/silo.sh
+# load config file
+source_conf "$ARCPANEL/conf/arcpanel.conf"
+
+# JSON list function
+json_list() {
+	jq -n --arg installed "$installed" --arg version "$version" --arg data "$SILO_DATA" \
+		--arg hostname "$SILO_HOSTNAME" --arg endpoint "$endpoint" --arg state "$state" \
+		--arg region "$SILO_REGION" --argjson port "$SILO_PORT" --argjson console "$SILO_CONSOLE_PORT" \
+		--argjson accounts "$accounts" --argjson buckets "$buckets" --argjson objects "$objects" --argjson bytes "$bytes" \
+		'{INSTALLED: $installed, VERSION: $version, DATA: $data, HOSTNAME: $hostname, ENDPOINT: $endpoint,
+		STATE: $state, REGION: $region, PORT: $port, CONSOLE_PORT: $console,
+		ACCOUNTS: $accounts, BUCKETS: $buckets, OBJECTS: $objects, BYTES: $bytes}'
+}
+
+# SHELL list function
+shell_list() {
+	echo "INSTALLED:      $installed"
+	echo "VERSION:        $version"
+	echo "DATA:           $SILO_DATA"
+	echo "ENDPOINT:       ${endpoint:-none}"
+	echo "STATE:          $state"
+	echo "ACCOUNTS:       $accounts"
+	echo "BUCKETS:        $buckets"
+	echo "OBJECTS:        $objects"
+	echo "BYTES:          $bytes"
+}
+
+# PLAIN list function
+plain_list() {
+	echo -e "$installed\t$version\t$SILO_DATA\t$endpoint\t$state\t$accounts\t$buckets\t$objects\t$bytes"
+}
+
+# CSV list function
+csv_list() {
+	echo "INSTALLED,VERSION,DATA,ENDPOINT,STATE,ACCOUNTS,BUCKETS,OBJECTS,BYTES"
+	echo "$installed,$version,$SILO_DATA,$endpoint,$state,$accounts,$buckets,$objects,$bytes"
+}
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+is_format_valid 'format'
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+installed='no'
+version=''
+state='stopped'
+endpoint=''
+accounts=0
+buckets=0
+objects=0
+bytes=0
+if silo_installed; then
+	installed='yes'
+	version=$(dpkg-query -W -f='${Version}' silo 2> /dev/null)
+	silo_running && state='running'
+	endpoint=$(silo_endpoint_url)
+	for file in "$ARCPANEL"/data/users/*/buckets.conf; do
+		[ -f "$file" ] || continue
+		n=$(grep -c "^BUCKET=" "$file")
+		[ "$n" -gt 0 ] || continue
+		accounts=$((accounts + 1))
+		buckets=$((buckets + n))
+		while IFS= read -r line; do
+			value=$(silo_field "$line" OBJECTS)
+			objects=$((objects + ${value:-0}))
+			value=$(silo_field "$line" USED)
+			bytes=$((bytes + ${value:-0}))
+		done < "$file"
+	done
+fi
+
+# Listing data
+case $format in
+	json) json_list ;;
+	plain) plain_list ;;
+	csv) csv_list ;;
+	shell) shell_list ;;
+esac
+
+#----------------------------------------------------------#
+#                         ArcPanel                         #
+#----------------------------------------------------------#
+
+exit

@@ -24,6 +24,10 @@
 # APP_PROCESSES_MEMORY (memory per process, like 512M, or unlimited) and
 # APP_PROCESSES_CPUS (CPUs per process, like 0.5, or unlimited) allow app
 # processes (E42); a reseller's own package cannot go beyond the reseller's.
+# OBJECT_STORAGE (yes or no), OBJECT_STORAGE_BUCKETS (integer or unlimited),
+# OBJECT_STORAGE_QUOTA (MB, or with G or T, or unlimited) and
+# OBJECT_STORAGE_BACKUP (yes or no) allow object storage (E44): buckets and
+# the sum of their quotas, and whether backups carry the objects.
 
 #----------------------------------------------------------#
 #                Variables & Functions                     #
@@ -58,6 +62,7 @@ case "$key" in
 	DOCKER | DOCKER_APPS | DOCKER_CPUS | DOCKER_MEMORY) ;;
 	PHP_VERSIONS | PHP_PROFILES | PHP_DEFAULT_PROFILE) ;;
 	APP_PROCESSES | APP_PROCESSES_MAX | APP_PROCESSES_MEMORY | APP_PROCESSES_CPUS) ;;
+	OBJECT_STORAGE | OBJECT_STORAGE_BUCKETS | OBJECT_STORAGE_QUOTA | OBJECT_STORAGE_BACKUP) ;;
 	*) check_result "$E_INVALID" "invalid key $key" ;;
 esac
 if ! tenancy_pkg_value_valid "$key" "$value"; then

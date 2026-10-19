@@ -1,0 +1,85 @@
+#!/bin/bash
+# info: remove the object storage service (Silo)
+# options: NONE
+#
+# example: v-delete-sys-silo
+#
+# This function stops and removes Silo and mcli, the unit, the repair cron
+# line and the endpoint. It is refused while any account holds a bucket.
+# The data folder and /etc/arcpanel/silo.env are kept.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Includes
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/tenancy.sh
+source $ARCPANEL/func/tenancy.sh
+# shellcheck source=/usr/local/arcpanel/func/silo.sh
+source $ARCPANEL/func/silo.sh
+# load config file
+source_conf "$ARCPANEL/conf/arcpanel.conf"
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+if [ "$(id -u)" != '0' ]; then
+	echo "Error: v-delete-sys-silo can only be executed by the root user"
+	exit "$E_FORBIDEN"
+fi
+if [ -z "$OBJECT_STORAGE_SYSTEM" ] && [ ! -f "$SILO_UNIT_FILE" ]; then
+	exit
+fi
+
+count=0
+for file in "$ARCPANEL"/data/users/*/buckets.conf; do
+	[ -f "$file" ] || continue
+	count=$((count + $(grep -c "^BUCKET=" "$file")))
+done
+if [ "$count" -gt 0 ]; then
+	check_result "$E_INUSE" "$count buckets remain; delete them before removing object storage"
+fi
+
+# Perform verification if read-only mode is enabled
+check_arcpanel_demo_mode
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+# The endpoint goes back to the default template
+if [ -n "$SILO_HOSTNAME" ]; then
+	$BIN/v-change-sys-silo-endpoint none > /dev/null 2>&1
+fi
+
+systemctl -q disable --now "$SILO_UNIT" 2> /dev/null
+rm -f "$SILO_UNIT_FILE"
+systemctl -q daemon-reload
+
+crontab="/var/spool/cron/crontabs/arcpanelweb"
+if [ -f "$crontab" ]; then
+	sed -i -e '/v-check-sys-silo/d' "$crontab"
+fi
+
+DEBIAN_FRONTEND=noninteractive dpkg -r silo mcli > /dev/null 2>&1
+rm -rf "$SILO_DIR/mcli"
+
+$BIN/v-change-sys-config-value 'OBJECT_STORAGE_SYSTEM' ''
+$BIN/v-change-sys-config-value 'SILO_HOSTNAME' ''
+$BIN/v-update-sys-ports-reserved > /dev/null 2>&1
+
+echo "The data in ${SILO_DATA:-$SILO_DATA_DEFAULT} and the credentials in $SILO_ENV are kept; delete them by hand when they are no longer needed."
+
+#----------------------------------------------------------#
+#                         ArcPanel                         #
+#----------------------------------------------------------#
+
+$BIN/v-log-action "system" "Warning" "System" "Object storage removed (data kept in ${SILO_DATA:-$SILO_DATA_DEFAULT})."
+log_event "$OK" "$ARGUMENTS"
+
+exit

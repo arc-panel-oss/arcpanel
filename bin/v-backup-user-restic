@@ -83,11 +83,31 @@ paths=("/home/$user")
 if [ -d "$HOMEDIR/.arcpanel-apps/$user" ] && [ ! -L "$HOMEDIR/.arcpanel-apps/$user" ]; then
 	paths+=("$HOMEDIR/.arcpanel-apps/$user")
 fi
+# Objects of the buckets (E44) when the package allows it, mirrored into a
+# root-only folder for the snapshot and removed after it
+objects_dir=''
+if [ "$OBJECT_STORAGE_SYSTEM" = 'silo' ] && [ -s "$USER_DATA/buckets.conf" ]; then
+	# shellcheck source=/usr/local/arcpanel/func/tenancy.sh
+	source $ARCPANEL/func/tenancy.sh
+	# shellcheck source=/usr/local/arcpanel/func/silo.sh
+	source $ARCPANEL/func/silo.sh
+	if [ "$(silo_pkg_value "$user" OBJECT_STORAGE_BACKUP)" = 'yes' ] && silo_wait; then
+		objects_dir=$(silo_backup_dir "$user")
+		for bucket in $(silo_buckets "$user"); do
+			silo_backup_bucket "$bucket" "$objects_dir/$bucket" || echo "[ ! ] The objects of bucket $bucket could not be read"
+		done
+		paths+=("$objects_dir")
+	fi
+fi
 # pm2 keeps the environment of running apps, resolved secrets included (E38 D14)
 ionice -c2 -n7 nice -n 19 restic --repo "${REPO%/}/$user" --limit-upload 10240 --read-concurrency 2 --password-file $USER_DATA/restic.conf backup "${paths[@]}" \
 	--exclude "/home/$user/.pm2/dump.pm2*" --exclude "$HOMEDIR/.arcpanel-apps/$user/*/.incoming"
+backup_rc=$?
+if [ -n "$objects_dir" ]; then
+	rm -rf -- "$objects_dir"
+fi
 
-if [ $? -ne 0 ]; then
+if [ "$backup_rc" -ne 0 ]; then
 	echo "Unable to create the backup" | $SENDMAIL -s "$subj" "$email" "yes"
 	check_result $E_BACKUP "Unable to backup user"
 fi

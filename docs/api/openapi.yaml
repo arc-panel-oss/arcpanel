@@ -399,6 +399,64 @@ paths:
           $ref: "#/components/responses/InvalidRequest"
         "422":
           $ref: "#/components/responses/Unprocessable"
+  "/api/#v-add-backup-host-s3":
+    post:
+      operationId: v-add-backup-host-s3
+      tags:
+        - Backups
+      summary: Add an S3 backup host for incremental backups
+      description: |-
+        This function sends incremental (restic) backups to an S3-compatible
+        provider (AWS, Cloudflare R2, Wasabi, Silo on another server). The
+        connection is kept as the rclone remote arcpanel-s3 in root's rclone
+        configuration (0600), and the restic repository becomes
+        rclone:arcpanel-s3:BUCKET/PATH, so every restic command works unchanged.
+        CREDENTIALS_FILE holds AWS_ACCESS_KEY_ID= and AWS_SECRET_ACCESS_KEY= lines;
+        it is read, never printed. Retention: as v-add-backup-host-restic (-1 is
+        no limit), 10 snapshots by default.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `ENDPOINT` | yes |
+        | `arg2` | `BUCKET[/PATH` | yes |
+        | `arg3` | `CREDENTIALS_FILE` | yes |
+        | `arg4` | `REGION` | no |
+        | `arg5` | `SNAPSHOTS` | no |
+        | `arg6` | `DAILY` | no |
+        | `arg7` | `WEEKLY` | no |
+        | `arg8` | `MONTHLY` | no |
+        | `arg9` | `YEARLY` | no |
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-add-backup-host-s3"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-add-backup-host-s3"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
   "/api/#v-add-cron-arcpanel-autoupdate":
     post:
       operationId: v-add-cron-arcpanel-autoupdate
@@ -3927,6 +3985,54 @@ paths:
           $ref: "#/components/responses/InvalidRequest"
         "422":
           $ref: "#/components/responses/Unprocessable"
+  "/api/#v-add-sys-silo":
+    post:
+      operationId: v-add-sys-silo
+      tags:
+        - System
+      summary: Install or update the object storage service (Silo)
+      description: |-
+        This function installs Silo and its client mcli from the .deb packages
+        pinned in install/upgrade/upgrade.conf (silo_v, silo_sha256, mcli_v,
+        mcli_sha256), checked against their SHA-256 before they are installed,
+        and runs Silo as arcpanel-silo.service on 127.0.0.1:9310 with its data in
+        DATA_PATH (default: SILO_DATA, else /srv/arcpanel-silo). Current packages
+        are left alone, so the command is safe to run on every upgrade.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `DATA_PATH` | no |
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-add-sys-silo"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-add-sys-silo"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
   "/api/#v-add-sys-smtp":
     post:
       operationId: v-add-sys-smtp
@@ -4357,6 +4463,57 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/v-add-user-2fa"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+  "/api/#v-add-user-bucket":
+    post:
+      operationId: v-add-user-bucket
+      tags:
+        - Users
+      summary: Add an object storage bucket
+      description: |-
+        This function adds a bucket of QUOTA MB (a hard quota) to USER's object
+        storage, within the bucket count and storage of the package. Bucket names
+        are unique on the server: 3-63 lower case letters, digits and hyphens.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `USER` | yes |
+        | `arg2` | `BUCKET` | yes |
+        | `arg3` | `QUOTA` | yes |
+        | `arg4` | `VERSIONING` | no |
+
+        **User argument:** with the access key of a user other than the admin, `arg1` must be the key's user.
+      x-arcpanel-user-arg: 1
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-add-user-bucket"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-add-user-bucket"
       responses:
         "200":
           description: "The output of the command; `OK` for an empty output with legacy authentication."
@@ -4866,6 +5023,63 @@ paths:
             text/plain:
               schema:
                 type: string
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+  "/api/#v-add-user-s3-key":
+    post:
+      operationId: v-add-user-s3-key
+      tags:
+        - Users
+      summary: Add an S3 key to the object storage of a user
+      description: |-
+        This function adds an S3 key (a service account of USER's object storage
+        user), limited to BUCKET when one is given, read-only with ACCESS ro, and
+        valid until EXPIRES (YYYY-MM-DD, UTC midnight) when one is given. It prints
+        the key ID and the secret once; the secret is not kept anywhere.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `USER` | yes |
+        | `arg2` | `NAME` | yes |
+        | `arg3` | `BUCKET` | no |
+        | `arg4` | `ACCESS` | no |
+        | `arg5` | `EXPIRES` | no |
+        | `arg6` | `FORMAT` | no |
+
+        **User argument:** with the access key of a user other than the admin, `arg1` must be the key's user.
+      x-arcpanel-user-arg: 1
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-add-user-s3-key"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-add-user-s3-key"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+            application/json:
+              schema:
+                type: object
         "204":
           $ref: "#/components/responses/NoContent"
         "400":
@@ -7901,6 +8115,10 @@ paths:
         APP_PROCESSES_MEMORY (memory per process, like 512M, or unlimited) and
         APP_PROCESSES_CPUS (CPUs per process, like 0.5, or unlimited) allow app
         processes (E42); a reseller's own package cannot go beyond the reseller's.
+        OBJECT_STORAGE (yes or no), OBJECT_STORAGE_BUCKETS (integer or unlimited),
+        OBJECT_STORAGE_QUOTA (MB, or with G or T, or unlimited) and
+        OBJECT_STORAGE_BACKUP (yes or no) allow object storage (E44): buckets and
+        the sum of their quotas, and whether backups carry the objects.
 
         **Arguments**
 
@@ -9105,6 +9323,53 @@ paths:
           $ref: "#/components/responses/InvalidRequest"
         "422":
           $ref: "#/components/responses/Unprocessable"
+  "/api/#v-change-sys-silo-endpoint":
+    post:
+      operationId: v-change-sys-silo-endpoint
+      tags:
+        - System
+      summary: Change the public endpoint of object storage
+      description: |-
+        This function publishes the S3 API of Silo on HOSTNAME: a web domain of the
+        administrator with the internal proxy template silo-endpoint and, unless
+        LETSENCRYPT is no, a Let's Encrypt certificate. none switches the current
+        endpoint domain back to its default template; the domain itself stays.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `HOSTNAME|none` | yes |
+        | `arg2` | `LETSENCRYPT` | no |
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-change-sys-silo-endpoint"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-change-sys-silo-endpoint"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
   "/api/#v-change-sys-timezone":
     post:
       operationId: v-change-sys-timezone
@@ -9214,6 +9479,58 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/v-change-sys-webmail"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+  "/api/#v-change-user-bucket":
+    post:
+      operationId: v-change-user-bucket
+      tags:
+        - Users
+      summary: Change the quota and versioning of an object storage bucket
+      description: |-
+        This function changes the hard quota (MB) of USER's BUCKET, within the
+        storage of the package, and turns versioning on (yes) or suspends it (no;
+        versions already kept stay). A quota below the current usage is accepted:
+        uploads stop until the bucket is below it again.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `USER` | yes |
+        | `arg2` | `BUCKET` | yes |
+        | `arg3` | `QUOTA` | yes |
+        | `arg4` | `VERSIONING` | yes |
+
+        **User argument:** with the access key of a user other than the admin, `arg1` must be the key's user.
+      x-arcpanel-user-arg: 1
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-change-user-bucket"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-change-user-bucket"
       responses:
         "200":
           description: "The output of the command; `OK` for an empty output with legacy authentication."
@@ -11767,6 +12084,56 @@ paths:
           $ref: "#/components/responses/InvalidRequest"
         "422":
           $ref: "#/components/responses/Unprocessable"
+  "/api/#v-check-sys-silo":
+    post:
+      operationId: v-check-sys-silo
+      tags:
+        - System
+      summary: Check the object storage service against the flat files
+      description: |-
+        This function checks every account's buckets, S3 keys and object storage
+        user against Silo, the service and the endpoint template, and records the
+        usage of each bucket. It prints one finding per line (USER|KIND|DETAIL);
+        with repair it fixes them. Runs every five minutes from cron.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `REPAIR` | no |
+        | `arg2` | `FORMAT` | no |
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-check-sys-silo"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-check-sys-silo"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+            application/json:
+              schema:
+                type: object
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
   "/api/#v-check-user-2fa":
     post:
       operationId: v-check-user-2fa
@@ -12321,6 +12688,47 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/v-delete-backup-host-restic"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+  "/api/#v-delete-backup-host-s3":
+    post:
+      operationId: v-delete-backup-host-s3
+      tags:
+        - Backups
+      summary: Delete the S3 backup host of incremental backups
+      description: |-
+        This function turns off incremental backups when their repository is the
+        S3 backup host, and removes the rclone remote arcpanel-s3. The snapshots
+        stay in the bucket.
+
+        **Arguments:** none.
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-delete-backup-host-s3"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-delete-backup-host-s3"
       responses:
         "200":
           description: "The output of the command; `OK` for an empty output with legacy authentication."
@@ -15264,6 +15672,47 @@ paths:
           $ref: "#/components/responses/InvalidRequest"
         "422":
           $ref: "#/components/responses/Unprocessable"
+  "/api/#v-delete-sys-silo":
+    post:
+      operationId: v-delete-sys-silo
+      tags:
+        - System
+      summary: Remove the object storage service (Silo)
+      description: |-
+        This function stops and removes Silo and mcli, the unit, the repair cron
+        line and the endpoint. It is refused while any account holds a bucket.
+        The data folder and /etc/arcpanel/silo.env are kept.
+
+        **Arguments:** none.
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-delete-sys-silo"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-delete-sys-silo"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
   "/api/#v-delete-sys-smtp":
     post:
       operationId: v-delete-sys-smtp
@@ -15774,6 +16223,55 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/v-delete-user-backup-restic"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+  "/api/#v-delete-user-bucket":
+    post:
+      operationId: v-delete-user-bucket
+      tags:
+        - Users
+      summary: Delete an object storage bucket
+      description: |-
+        This function deletes USER's BUCKET with every object and version in it,
+        and the S3 keys limited to it, so that a later bucket of the same name is
+        never reachable through them.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `USER` | yes |
+        | `arg2` | `BUCKET` | yes |
+
+        **User argument:** with the access key of a user other than the admin, `arg1` must be the key's user.
+      x-arcpanel-user-arg: 1
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-delete-user-bucket"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-delete-user-bucket"
       responses:
         "200":
           description: "The output of the command; `OK` for an empty output with legacy authentication."
@@ -16319,6 +16817,53 @@ paths:
           $ref: "#/components/responses/InvalidRequest"
         "422":
           $ref: "#/components/responses/Unprocessable"
+  "/api/#v-delete-user-object-storage":
+    post:
+      operationId: v-delete-user-object-storage
+      tags:
+        - Users
+      summary: Delete the object storage of a user
+      description: |-
+        This function deletes every bucket of USER with its objects, every S3 key,
+        the object storage user and its policy. v-delete-user runs it.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `USER` | yes |
+
+        **User argument:** with the access key of a user other than the admin, `arg1` must be the key's user.
+      x-arcpanel-user-arg: 1
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-delete-user-object-storage"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-delete-user-object-storage"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
   "/api/#v-delete-user-package":
     post:
       operationId: v-delete-user-package
@@ -16445,6 +16990,53 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/v-delete-user-ports"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+  "/api/#v-delete-user-s3-key":
+    post:
+      operationId: v-delete-user-s3-key
+      tags:
+        - Users
+      summary: Delete an S3 key of the object storage of a user
+      description: |-
+        This function deletes USER's S3 key KEY (its access key ID) at once.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `USER` | yes |
+        | `arg2` | `KEY` | yes |
+
+        **User argument:** with the access key of a user other than the admin, `arg1` must be the key's user.
+      x-arcpanel-user-arg: 1
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-delete-user-s3-key"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-delete-user-s3-key"
       responses:
         "200":
           description: "The output of the command; `OK` for an empty output with legacy authentication."
@@ -22273,6 +22865,61 @@ paths:
           $ref: "#/components/responses/InvalidRequest"
         "422":
           $ref: "#/components/responses/Unprocessable"
+  "/api/#v-list-sys-buckets":
+    post:
+      operationId: v-list-sys-buckets
+      tags:
+        - System
+      summary: List the object storage buckets of every user (E44)
+      description: |-
+        This function lists the buckets of every user, or of OWNER and, when OWNER
+        is a reseller, its customers, read in one process. The json format prints
+        AS_OF (the Unix time the listing started), USERS (every user in scope),
+        CHANGED_USERS and OBJECTS: the buckets of each changed user as
+        v-list-user-buckets prints them. Without UPDATED_SINCE (a Unix time) every
+        user is changed; with it, only the users whose buckets.conf was modified
+        at or after that time. See
+        docs/features/specs/2026-10-19-003-e44-object-storage-silo-design.md §6.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `OWNER` | no |
+        | `arg2` | `UPDATED_SINCE` | no |
+        | `arg3` | `FORMAT` | no |
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-list-sys-buckets"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-list-sys-buckets"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+            application/json:
+              schema:
+                type: object
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
   "/api/#v-list-sys-clamd-config":
     post:
       operationId: v-list-sys-clamd-config
@@ -24346,6 +24993,54 @@ paths:
           $ref: "#/components/responses/InvalidRequest"
         "422":
           $ref: "#/components/responses/Unprocessable"
+  "/api/#v-list-sys-silo":
+    post:
+      operationId: v-list-sys-silo
+      tags:
+        - System
+      summary: List the object storage service
+      description: |-
+        This function lists whether object storage (Silo) is installed, its
+        version, data path, endpoint and state, and the totals of the buckets of
+        every account as the last repair counted them.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `FORMAT` | no |
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-list-sys-silo"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-list-sys-silo"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+            application/json:
+              schema:
+                type: object
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
   "/api/#v-list-sys-spamd-config":
     post:
       operationId: v-list-sys-spamd-config
@@ -25229,6 +25924,108 @@ paths:
           $ref: "#/components/responses/InvalidRequest"
         "422":
           $ref: "#/components/responses/Unprocessable"
+  "/api/#v-list-user-bucket":
+    post:
+      operationId: v-list-user-bucket
+      tags:
+        - Users
+      summary: List one object storage bucket of a user
+      description: |-
+        This function lists one of USER's buckets, as v-list-user-buckets does.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `USER` | yes |
+        | `arg2` | `BUCKET` | yes |
+        | `arg3` | `FORMAT` | no |
+
+        **User argument:** with the access key of a user other than the admin, `arg1` must be the key's user.
+      x-arcpanel-user-arg: 1
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-list-user-bucket"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-list-user-bucket"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+            application/json:
+              schema:
+                type: object
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+  "/api/#v-list-user-buckets":
+    post:
+      operationId: v-list-user-buckets
+      tags:
+        - Users
+      summary: List the object storage buckets of a user
+      description: |-
+        This function lists USER's buckets: quota (MB), versioning, and the usage
+        (bytes, objects) the last repair counted.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `USER` | yes |
+        | `arg2` | `FORMAT` | no |
+
+        **User argument:** with the access key of a user other than the admin, `arg1` must be the key's user.
+      x-arcpanel-user-arg: 1
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-list-user-buckets"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-list-user-buckets"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+            application/json:
+              schema:
+                type: object
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
   "/api/#v-list-user-files-restic":
     post:
       operationId: v-list-user-files-restic
@@ -25940,6 +26737,58 @@ paths:
           $ref: "#/components/responses/InvalidRequest"
         "422":
           $ref: "#/components/responses/Unprocessable"
+  "/api/#v-list-user-object-storage":
+    post:
+      operationId: v-list-user-object-storage
+      tags:
+        - Users
+      summary: "List the object storage of a user: limits, totals and endpoint"
+      description: |-
+        This function lists whether USER's package includes object storage, its
+        limits (buckets, storage in MB, S3 keys), what the account holds against
+        them, and how to connect (endpoint, region, path-style addressing).
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `USER` | yes |
+        | `arg2` | `FORMAT` | no |
+
+        **User argument:** with the access key of a user other than the admin, `arg1` must be the key's user.
+      x-arcpanel-user-arg: 1
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-list-user-object-storage"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-list-user-object-storage"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+            application/json:
+              schema:
+                type: object
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
   "/api/#v-list-user-owners":
     post:
       operationId: v-list-user-owners
@@ -26165,6 +27014,58 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/v-list-user-quick-install-task"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+            application/json:
+              schema:
+                type: object
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+  "/api/#v-list-user-s3-keys":
+    post:
+      operationId: v-list-user-s3-keys
+      tags:
+        - Users
+      summary: List the S3 keys of the object storage of a user
+      description: |-
+        This function lists USER's S3 keys: key ID, name, the bucket it is limited
+        to (empty: every bucket of the account), access (rw or ro), the expiry date
+        and whether it has expired. Secrets are never kept, so never listed.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `USER` | yes |
+        | `arg2` | `FORMAT` | no |
+
+        **User argument:** with the access key of a user other than the admin, `arg1` must be the key's user.
+      x-arcpanel-user-arg: 1
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-list-user-s3-keys"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-list-user-s3-keys"
       responses:
         "200":
           description: "The output of the command; `OK` for an empty output with legacy authentication."
@@ -28696,6 +29597,55 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/v-rebuild-user"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+  "/api/#v-rebuild-user-object-storage":
+    post:
+      operationId: v-rebuild-user-object-storage
+      tags:
+        - Users
+      summary: Rebuild the object storage of a user
+      description: |-
+        This function brings Silo back to USER's flat files: missing buckets are
+        created (empty) with their quota and versioning, the object storage user
+        and its policy are written, keys without a service account are dropped
+        and service accounts without a record removed. v-rebuild-user runs it.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `USER` | yes |
+
+        **User argument:** with the access key of a user other than the admin, `arg1` must be the key's user.
+      x-arcpanel-user-arg: 1
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-rebuild-user-object-storage"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-rebuild-user-object-storage"
       responses:
         "200":
           description: "The output of the command; `OK` for an empty output with legacy authentication."
@@ -33722,6 +34672,53 @@ paths:
           $ref: "#/components/responses/InvalidRequest"
         "422":
           $ref: "#/components/responses/Unprocessable"
+  "/api/#v-suspend-user-object-storage":
+    post:
+      operationId: v-suspend-user-object-storage
+      tags:
+        - Users
+      summary: Suspend the object storage of a user
+      description: |-
+        This function disables USER's object storage user, so every S3 key of the
+        account fails, and marks its buckets suspended. v-suspend-user runs it.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `USER` | yes |
+
+        **User argument:** with the access key of a user other than the admin, `arg1` must be the key's user.
+      x-arcpanel-user-arg: 1
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-suspend-user-object-storage"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-suspend-user-object-storage"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
   "/api/#v-suspend-user-ports":
     post:
       operationId: v-suspend-user-ports
@@ -34887,6 +35884,53 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/v-unsuspend-user-node-apps"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+  "/api/#v-unsuspend-user-object-storage":
+    post:
+      operationId: v-unsuspend-user-object-storage
+      tags:
+        - Users
+      summary: Unsuspend the object storage of a user
+      description: |-
+        This function enables USER's object storage user and its S3 keys again
+        and marks its buckets active. v-unsuspend-user runs it.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `USER` | yes |
+
+        **User argument:** with the access key of a user other than the admin, `arg1` must be the key's user.
+      x-arcpanel-user-arg: 1
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-unsuspend-user-object-storage"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-unsuspend-user-object-storage"
       responses:
         "200":
           description: "The output of the command; `OK` for an empty output with legacy authentication."
@@ -37747,6 +38791,77 @@ components:
                 - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
+    v-add-backup-host-s3:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+            - arg2
+            - arg3
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-add-backup-host-s3
+              default: v-add-backup-host-s3
+            arg1:
+              type: string
+              title: ENDPOINT
+              description: "`ENDPOINT`"
+              examples:
+                - "https://s3.example.com"
+            arg2:
+              type: string
+              title: "BUCKET[/PATH"
+              description: "`BUCKET[/PATH`"
+              examples:
+                - backups/server1
+            arg3:
+              type: string
+              title: CREDENTIALS_FILE
+              description: "`CREDENTIALS_FILE`"
+              examples:
+                - /tmp/s3.env
+            arg4:
+              type: string
+              title: REGION
+              description: "`REGION`, optional"
+              examples:
+                - us-east-1
+            arg5:
+              type: string
+              title: SNAPSHOTS
+              description: "`SNAPSHOTS`, optional"
+              examples:
+                - "10"
+            arg6:
+              type: string
+              title: DAILY
+              description: "`DAILY`, optional"
+              examples:
+                - "-1"
+            arg7:
+              type: string
+              title: WEEKLY
+              description: "`WEEKLY`, optional"
+              examples:
+                - "-1"
+            arg8:
+              type: string
+              title: MONTHLY
+              description: "`MONTHLY`, optional"
+              examples:
+                - "-1"
+            arg9:
+              type: string
+              title: YEARLY
+              description: "`YEARLY`, optional"
+              examples:
+                - "-1"
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
     v-add-cron-arcpanel-autoupdate:
       allOf:
         - $ref: "#/components/schemas/Credentials"
@@ -40419,6 +41534,26 @@ components:
                 - "yes"
             returncode:
               $ref: "#/components/schemas/ReturnCode"
+    v-add-sys-silo:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-add-sys-silo
+              default: v-add-sys-silo
+            arg1:
+              type: string
+              title: DATA_PATH
+              description: "`DATA_PATH`, optional"
+              examples:
+                - /srv/arcpanel-silo
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
     v-add-sys-smtp:
       allOf:
         - $ref: "#/components/schemas/Credentials"
@@ -40682,6 +41817,47 @@ components:
               description: "`USER`"
               examples:
                 - admin
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
+    v-add-user-bucket:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+            - arg2
+            - arg3
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-add-user-bucket
+              default: v-add-user-bucket
+            arg1:
+              type: string
+              title: USER
+              description: "`USER`"
+              examples:
+                - alice
+            arg2:
+              type: string
+              title: BUCKET
+              description: "`BUCKET`"
+              examples:
+                - alice-media
+            arg3:
+              type: string
+              title: QUOTA
+              description: "`QUOTA`"
+              examples:
+                - "1024"
+            arg4:
+              type: string
+              title: VERSIONING
+              description: "`VERSIONING`, optional"
+              examples:
+                - "no"
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-add-user-composer:
@@ -40991,6 +42167,63 @@ components:
               description: "`PUBLIC_OK`, optional"
               examples:
                 - ""
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
+    v-add-user-s3-key:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+            - arg2
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-add-user-s3-key
+              default: v-add-user-s3-key
+            arg1:
+              type: string
+              title: USER
+              description: "`USER`"
+              examples:
+                - alice
+            arg2:
+              type: string
+              title: NAME
+              description: "`NAME`"
+              examples:
+                - backups
+            arg3:
+              type: string
+              title: BUCKET
+              description: "`BUCKET`, optional"
+              examples:
+                - alice-media
+            arg4:
+              type: string
+              title: ACCESS
+              description: "`ACCESS`, optional"
+              examples:
+                - rw
+            arg5:
+              type: string
+              title: EXPIRES
+              description: "`EXPIRES`, optional"
+              examples:
+                - "2027-01-31"
+            arg6:
+              type: string
+              title: FORMAT
+              description: "`FORMAT`, optional"
+              enum:
+                - json
+                - plain
+                - csv
+                - shell
+              examples:
+                - json
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-add-user-secret:
@@ -44121,6 +45354,33 @@ components:
                 - "yes"
             returncode:
               $ref: "#/components/schemas/ReturnCode"
+    v-change-sys-silo-endpoint:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-change-sys-silo-endpoint
+              default: v-change-sys-silo-endpoint
+            arg1:
+              type: string
+              title: "HOSTNAME|none"
+              description: "`HOSTNAME|none`"
+              examples:
+                - s3.example.com
+            arg2:
+              type: string
+              title: LETSENCRYPT
+              description: "`LETSENCRYPT`, optional"
+              examples:
+                - ""
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
     v-change-sys-timezone:
       allOf:
         - $ref: "#/components/schemas/Credentials"
@@ -44182,6 +45442,48 @@ components:
               description: "`WEBMAIL`"
               examples:
                 - YourtrickyURLhere
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
+    v-change-user-bucket:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+            - arg2
+            - arg3
+            - arg4
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-change-user-bucket
+              default: v-change-user-bucket
+            arg1:
+              type: string
+              title: USER
+              description: "`USER`"
+              examples:
+                - alice
+            arg2:
+              type: string
+              title: BUCKET
+              description: "`BUCKET`"
+              examples:
+                - alice-media
+            arg3:
+              type: string
+              title: QUOTA
+              description: "`QUOTA`"
+              examples:
+                - "2048"
+            arg4:
+              type: string
+              title: VERSIONING
+              description: "`VERSIONING`"
+              examples:
+                - "yes"
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-change-user-config-value:
@@ -46062,6 +47364,37 @@ components:
                 - repair
             returncode:
               $ref: "#/components/schemas/ReturnCode"
+    v-check-sys-silo:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-check-sys-silo
+              default: v-check-sys-silo
+            arg1:
+              type: string
+              title: REPAIR
+              description: "`REPAIR`, optional"
+              examples:
+                - repair
+            arg2:
+              type: string
+              title: FORMAT
+              description: "`FORMAT`, optional"
+              enum:
+                - json
+                - plain
+                - csv
+                - shell
+              examples:
+                - json
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
     v-check-user-2fa:
       allOf:
         - $ref: "#/components/schemas/Credentials"
@@ -46431,6 +47764,20 @@ components:
               description: "`NONE`, optional"
               examples:
                 - sftp
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
+    v-delete-backup-host-s3:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-delete-backup-host-s3
+              default: v-delete-backup-host-s3
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-delete-cron-arcpanel-autoupdate:
@@ -48125,6 +49472,20 @@ components:
               default: v-delete-sys-sftp-jail
             returncode:
               $ref: "#/components/schemas/ReturnCode"
+    v-delete-sys-silo:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-delete-sys-silo
+              default: v-delete-sys-silo
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
     v-delete-sys-smtp:
       allOf:
         - $ref: "#/components/schemas/Credentials"
@@ -48367,6 +49728,34 @@ components:
               description: "`SNAPSHOT`"
               examples:
                 - snapshot
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
+    v-delete-user-bucket:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+            - arg2
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-delete-user-bucket
+              default: v-delete-user-bucket
+            arg1:
+              type: string
+              title: USER
+              description: "`USER`"
+              examples:
+                - alice
+            arg2:
+              type: string
+              title: BUCKET
+              description: "`BUCKET`"
+              examples:
+                - alice-media
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-delete-user-docker-apps:
@@ -48642,6 +50031,27 @@ components:
                 - alice
             returncode:
               $ref: "#/components/schemas/ReturnCode"
+    v-delete-user-object-storage:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-delete-user-object-storage
+              default: v-delete-user-object-storage
+            arg1:
+              type: string
+              title: USER
+              description: "`USER`"
+              examples:
+                - alice
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
     v-delete-user-package:
       allOf:
         - $ref: "#/components/schemas/Credentials"
@@ -48716,6 +50126,34 @@ components:
               description: "`USER`"
               examples:
                 - alice
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
+    v-delete-user-s3-key:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+            - arg2
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-delete-user-s3-key
+              default: v-delete-user-s3-key
+            arg1:
+              type: string
+              title: USER
+              description: "`USER`"
+              examples:
+                - alice
+            arg2:
+              type: string
+              title: KEY
+              description: "`KEY`"
+              examples:
+                - AKIA1EXAMPLE2KEY3ID4
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-delete-user-secret:
@@ -52511,6 +53949,43 @@ components:
                 - json
             returncode:
               $ref: "#/components/schemas/ReturnCode"
+    v-list-sys-buckets:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-list-sys-buckets
+              default: v-list-sys-buckets
+            arg1:
+              type: string
+              title: OWNER
+              description: "`OWNER`, optional"
+              examples:
+                - ""
+            arg2:
+              type: string
+              title: UPDATED_SINCE
+              description: "`UPDATED_SINCE`, optional"
+              examples:
+                - ""
+            arg3:
+              type: string
+              title: FORMAT
+              description: "`FORMAT`, optional"
+              enum:
+                - json
+                - plain
+                - csv
+                - shell
+              examples:
+                - json
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
     v-list-sys-clamd-config:
       allOf:
         - $ref: "#/components/schemas/Credentials"
@@ -53575,6 +55050,31 @@ components:
                 - json
             returncode:
               $ref: "#/components/schemas/ReturnCode"
+    v-list-sys-silo:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-list-sys-silo
+              default: v-list-sys-silo
+            arg1:
+              type: string
+              title: FORMAT
+              description: "`FORMAT`, optional"
+              enum:
+                - json
+                - plain
+                - csv
+                - shell
+              examples:
+                - json
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
     v-list-sys-spamd-config:
       allOf:
         - $ref: "#/components/schemas/Credentials"
@@ -54079,6 +55579,77 @@ components:
                 - "yes"
             returncode:
               $ref: "#/components/schemas/ReturnCode"
+    v-list-user-bucket:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+            - arg2
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-list-user-bucket
+              default: v-list-user-bucket
+            arg1:
+              type: string
+              title: USER
+              description: "`USER`"
+              examples:
+                - alice
+            arg2:
+              type: string
+              title: BUCKET
+              description: "`BUCKET`"
+              examples:
+                - alice-media
+            arg3:
+              type: string
+              title: FORMAT
+              description: "`FORMAT`, optional"
+              enum:
+                - json
+                - plain
+                - csv
+                - shell
+              examples:
+                - json
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
+    v-list-user-buckets:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-list-user-buckets
+              default: v-list-user-buckets
+            arg1:
+              type: string
+              title: USER
+              description: "`USER`"
+              examples:
+                - alice
+            arg2:
+              type: string
+              title: FORMAT
+              description: "`FORMAT`, optional"
+              enum:
+                - json
+                - plain
+                - csv
+                - shell
+              examples:
+                - json
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
     v-list-user-files-restic:
       allOf:
         - $ref: "#/components/schemas/Credentials"
@@ -54523,6 +56094,38 @@ components:
                 - json
             returncode:
               $ref: "#/components/schemas/ReturnCode"
+    v-list-user-object-storage:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-list-user-object-storage
+              default: v-list-user-object-storage
+            arg1:
+              type: string
+              title: USER
+              description: "`USER`"
+              examples:
+                - alice
+            arg2:
+              type: string
+              title: FORMAT
+              description: "`FORMAT`, optional"
+              enum:
+                - json
+                - plain
+                - csv
+                - shell
+              examples:
+                - json
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
     v-list-user-owners:
       allOf:
         - $ref: "#/components/schemas/Credentials"
@@ -54663,6 +56266,38 @@ components:
               examples:
                 - "100"
             arg3:
+              type: string
+              title: FORMAT
+              description: "`FORMAT`, optional"
+              enum:
+                - json
+                - plain
+                - csv
+                - shell
+              examples:
+                - json
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
+    v-list-user-s3-keys:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-list-user-s3-keys
+              default: v-list-user-s3-keys
+            arg1:
+              type: string
+              title: USER
+              description: "`USER`"
+              examples:
+                - alice
+            arg2:
               type: string
               title: FORMAT
               description: "`FORMAT`, optional"
@@ -56113,6 +57748,27 @@ components:
                 - "no"
               examples:
                 - "yes"
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
+    v-rebuild-user-object-storage:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-rebuild-user-object-storage
+              default: v-rebuild-user-object-storage
+            arg1:
+              type: string
+              title: USER
+              description: "`USER`"
+              examples:
+                - alice
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-rebuild-users:
@@ -59723,6 +61379,27 @@ components:
                 - alice
             returncode:
               $ref: "#/components/schemas/ReturnCode"
+    v-suspend-user-object-storage:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-suspend-user-object-storage
+              default: v-suspend-user-object-storage
+            arg1:
+              type: string
+              title: USER
+              description: "`USER`"
+              examples:
+                - alice
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
     v-suspend-user-ports:
       allOf:
         - $ref: "#/components/schemas/Credentials"
@@ -60393,6 +62070,27 @@ components:
               enum:
                 - v-unsuspend-user-node-apps
               default: v-unsuspend-user-node-apps
+            arg1:
+              type: string
+              title: USER
+              description: "`USER`"
+              examples:
+                - alice
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
+    v-unsuspend-user-object-storage:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-unsuspend-user-object-storage
+              default: v-unsuspend-user-object-storage
             arg1:
               type: string
               title: USER

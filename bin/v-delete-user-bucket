@@ -1,0 +1,78 @@
+#!/bin/bash
+# info: delete an object storage bucket
+# options: USER BUCKET
+#
+# example: v-delete-user-bucket alice alice-media
+#
+# This function deletes USER's BUCKET with every object and version in it,
+# and the S3 keys limited to it, so that a later bucket of the same name is
+# never reachable through them.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+user=$1
+bucket=$2
+
+# Includes
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/tenancy.sh
+source $ARCPANEL/func/tenancy.sh
+# shellcheck source=/usr/local/arcpanel/func/silo.sh
+source $ARCPANEL/func/silo.sh
+# load config file
+source_conf "$ARCPANEL/conf/arcpanel.conf"
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '2' "$#" 'USER BUCKET'
+is_format_valid 'user'
+is_bucket_format_valid "$bucket"
+silo_require
+is_object_valid 'user' 'USER' "$user"
+if [ -z "$(silo_bucket_line "$user" "$bucket")" ]; then
+	check_result "$E_NOTEXIST" "bucket $bucket of $user does not exist"
+fi
+
+# Perform verification if read-only mode is enabled
+check_arcpanel_demo_mode
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+silo_lock
+silo_require_running
+
+silo_bucket_remove "$bucket"
+check_result $? "the bucket $bucket could not be deleted in object storage"
+silo_delete_line "$(silo_buckets_file "$user")" BUCKET "$bucket"
+
+# Keys limited to the bucket go with it
+while IFS= read -r line; do
+	[ -n "$line" ] || continue
+	if [ "$(silo_field "$line" BUCKET)" = "$bucket" ]; then
+		key=$(silo_field "$line" KEY)
+		silo_key_remove "$key"
+		silo_delete_line "$(silo_keys_file "$user")" KEY "$key"
+	fi
+done < <(cat "$(silo_keys_file "$user")" 2> /dev/null)
+
+silo_sync_user "$user"
+check_result $? "the access policy of $user could not be written"
+
+#----------------------------------------------------------#
+#                         ArcPanel                         #
+#----------------------------------------------------------#
+
+$BIN/v-log-action "$user" "Warning" "Object storage" "Bucket deleted (Name: $bucket)."
+log_event "$OK" "$ARGUMENTS"
+
+exit

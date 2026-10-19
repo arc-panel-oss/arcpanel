@@ -1,0 +1,86 @@
+#!/bin/bash
+# info: add an object storage bucket
+# options: USER BUCKET QUOTA [VERSIONING]
+#
+# example: v-add-user-bucket alice alice-media 1024 no
+#
+# This function adds a bucket of QUOTA MB (a hard quota) to USER's object
+# storage, within the bucket count and storage of the package. Bucket names
+# are unique on the server: 3-63 lower case letters, digits and hyphens.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+user=$1
+bucket=$2
+quota=$3
+versioning=${4:-no}
+
+# Includes
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/tenancy.sh
+source $ARCPANEL/func/tenancy.sh
+# shellcheck source=/usr/local/arcpanel/func/silo.sh
+source $ARCPANEL/func/silo.sh
+# load config file
+source_conf "$ARCPANEL/conf/arcpanel.conf"
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '3' "$#" 'USER BUCKET QUOTA [VERSIONING]'
+is_format_valid 'user'
+is_bucket_format_valid "$bucket"
+if ! [[ "$quota" =~ ^[0-9]{1,9}$ ]] || [ "$quota" -lt 1 ]; then
+	check_result "$E_INVALID" "invalid quota :: $quota (MB, at least 1)"
+fi
+is_boolean_format_valid "$versioning" 'versioning'
+silo_require
+is_object_valid 'user' 'USER' "$user"
+is_object_unsuspended 'user' 'USER' "$user"
+if ! silo_allowed "$user"; then
+	check_result "$E_FORBIDEN" "object storage is not included in the package of $user"
+fi
+
+# Perform verification if read-only mode is enabled
+check_arcpanel_demo_mode
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+silo_lock
+silo_require_running
+
+if [ -n "$(silo_bucket_owner "$bucket")" ] || silo_bucket_exists "$bucket"; then
+	check_result "$E_EXISTS" "the bucket name $bucket is taken"
+fi
+silo_check_limits "$user" "$quota" '' yes
+
+silo_bucket_create "$bucket" "$quota" "$versioning"
+check_result $? "the bucket $bucket could not be created in object storage"
+
+time_n_date=$(date +'%T %F')
+silo_write_line "$(silo_buckets_file "$user")" SILO_BUCKET_KEYS "BUCKET=$bucket" "QUOTA=$quota" \
+	"VERSIONING=$versioning" "USED=0" "OBJECTS=0" "SUSPENDED=no" "TIME=${time_n_date% *}" "DATE=${time_n_date#* }"
+
+if ! silo_sync_user "$user"; then
+	silo_bucket_remove "$bucket"
+	silo_delete_line "$(silo_buckets_file "$user")" BUCKET "$bucket"
+	check_result "$E_CONNECT" "the access policy of $user could not be written"
+fi
+
+#----------------------------------------------------------#
+#                         ArcPanel                         #
+#----------------------------------------------------------#
+
+$BIN/v-log-action "$user" "Info" "Object storage" "Bucket added (Name: $bucket, Quota: $quota MB)."
+log_event "$OK" "$ARGUMENTS"
+
+exit

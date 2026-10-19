@@ -1,0 +1,115 @@
+#!/bin/bash
+# info: change the public endpoint of object storage
+# options: HOSTNAME|none [LETSENCRYPT]
+#
+# example: v-change-sys-silo-endpoint s3.example.com
+# example: v-change-sys-silo-endpoint none
+#
+# This function publishes the S3 API of Silo on HOSTNAME: a web domain of the
+# administrator with the internal proxy template silo-endpoint and, unless
+# LETSENCRYPT is no, a Let's Encrypt certificate. none switches the current
+# endpoint domain back to its default template; the domain itself stays.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+hostname=$(echo "$1" | tr '[:upper:]' '[:lower:]')
+letsencrypt=${2:-yes}
+
+# Includes
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/tenancy.sh
+source $ARCPANEL/func/tenancy.sh
+# shellcheck source=/usr/local/arcpanel/func/nodeapp.sh
+source $ARCPANEL/func/nodeapp.sh
+# shellcheck source=/usr/local/arcpanel/func/silo.sh
+source $ARCPANEL/func/silo.sh
+# load config file
+source_conf "$ARCPANEL/conf/arcpanel.conf"
+
+SILO_TEMPLATE=silo-endpoint
+
+# The current endpoint domain back to the default template of its owner
+release_endpoint() {
+	local domain="$1"
+	if [ -n "$domain" ] && arc_tpl_domain_exists "$ROOT_USER" "$domain" \
+		&& [ "$(arc_tpl_active "$ROOT_USER" "$domain")" = "$SILO_TEMPLATE" ]; then
+		nodeapp_tpl_switch "$ROOT_USER" "$domain" "$(nodeapp_package_template "$ROOT_USER")" yes > /dev/null 2>&1
+	fi
+}
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '1' "$#" 'HOSTNAME|none [LETSENCRYPT]'
+silo_require
+if [ "$hostname" != 'none' ]; then
+	is_domain_format_valid "$hostname" 'hostname'
+	is_boolean_format_valid "$letsencrypt" 'letsencrypt'
+	if [ -z "$(arc_tpl_active_kind)" ]; then
+		check_result "$E_INVALID" "the object storage endpoint needs NGINX as web server or proxy"
+	fi
+	# A domain of another account cannot become the endpoint
+	owner=$($BIN/v-search-domain-owner "$hostname" 2> /dev/null)
+	if [ -n "$owner" ] && [ "$owner" != "$ROOT_USER" ]; then
+		check_result "$E_EXISTS" "$hostname is a web domain of another account"
+	fi
+fi
+
+# Perform verification if read-only mode is enabled
+check_arcpanel_demo_mode
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+previous="$SILO_HOSTNAME"
+
+if [ "$hostname" = 'none' ]; then
+	release_endpoint "$previous"
+	$BIN/v-change-sys-config-value 'SILO_HOSTNAME' ''
+	$BIN/v-log-action "system" "Info" "System" "Object storage endpoint removed (was: ${previous:-none})."
+	log_event "$OK" "$ARGUMENTS"
+	exit
+fi
+
+# The template, when an upgrade has not copied it yet
+if ! nodeapp_tpl_exists "$SILO_TEMPLATE"; then
+	$BIN/v-update-web-templates no > /dev/null 2>&1
+	nodeapp_tpl_exists "$SILO_TEMPLATE" || check_result "$E_NOTEXIST" "the web template $SILO_TEMPLATE is missing"
+fi
+
+if [ "$previous" != "$hostname" ]; then
+	release_endpoint "$previous"
+fi
+
+if ! arc_tpl_domain_exists "$ROOT_USER" "$hostname"; then
+	$BIN/v-add-web-domain "$ROOT_USER" "$hostname" '' 'yes' 'none'
+	check_result $? "the web domain $hostname could not be added"
+fi
+if [ "$(arc_tpl_active "$ROOT_USER" "$hostname")" != "$SILO_TEMPLATE" ]; then
+	out=$(nodeapp_tpl_switch "$ROOT_USER" "$hostname" "$SILO_TEMPLATE" yes 2>&1)
+	check_result $? "the template $SILO_TEMPLATE could not be applied to $hostname: ${out#Error: }"
+fi
+$BIN/v-change-sys-config-value 'SILO_HOSTNAME' "$hostname"
+
+if [ "$letsencrypt" = 'yes' ] && [ "$(arc_tpl_domain_value "$ROOT_USER" "$hostname" SSL)" != 'yes' ]; then
+	out=$($BIN/v-add-letsencrypt-domain "$ROOT_USER" "$hostname" '' 2>&1)
+	check_result $? "the endpoint answers over HTTP; Let's Encrypt failed: ${out#Error: }"
+	$BIN/v-add-web-domain-ssl-force "$ROOT_USER" "$hostname" > /dev/null 2>&1
+fi
+
+#----------------------------------------------------------#
+#                         ArcPanel                         #
+#----------------------------------------------------------#
+
+$BIN/v-log-action "system" "Info" "System" "Object storage endpoint set (Hostname: $hostname)."
+log_event "$OK" "$ARGUMENTS"
+
+exit

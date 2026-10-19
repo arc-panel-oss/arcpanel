@@ -1,0 +1,61 @@
+#!/bin/bash
+# info: suspend the object storage of a user
+# options: USER
+#
+# example: v-suspend-user-object-storage alice
+#
+# This function disables USER's object storage user, so every S3 key of the
+# account fails, and marks its buckets suspended. v-suspend-user runs it.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+user=$1
+
+# Includes
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/tenancy.sh
+source $ARCPANEL/func/tenancy.sh
+# shellcheck source=/usr/local/arcpanel/func/silo.sh
+source $ARCPANEL/func/silo.sh
+# load config file
+source_conf "$ARCPANEL/conf/arcpanel.conf"
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '1' "$#" 'USER'
+is_format_valid 'user'
+is_object_valid 'user' 'USER' "$user"
+if ! silo_installed || { [ -z "$(silo_buckets "$user")" ] && [ -z "$(silo_keys "$user")" ]; }; then
+	exit
+fi
+
+# Perform verification if read-only mode is enabled
+check_arcpanel_demo_mode
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+silo_lock
+for bucket in $(silo_buckets "$user"); do
+	silo_set_fields "$(silo_buckets_file "$user")" SILO_BUCKET_KEYS "$bucket" "SUSPENDED=yes"
+done
+if silo_wait && silo_iam_exists "$user"; then
+	silo_mcli admin user disable arc "$(silo_iam_user "$user")" > /dev/null 2>&1
+fi
+
+#----------------------------------------------------------#
+#                         ArcPanel                         #
+#----------------------------------------------------------#
+
+log_event "$OK" "$ARGUMENTS"
+
+exit

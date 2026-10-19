@@ -131,6 +131,18 @@ for app_dir in "$tmpdir$HOMEDIR/.arcpanel-apps/$user"/*/; do
 		dockerapp_data_fill "$user" "$app" "${app_dir%/}" || echo "[ ! ] The data of the Docker app $app was not restored completely"
 	fi
 done
+# Object storage (E44): the buckets of the snapshot whose names are free,
+# with their objects when the snapshot holds them
+if [ -s "$src/buckets.conf" ]; then
+	echo "[ * ] Restore object storage buckets"
+	# shellcheck source=/usr/local/arcpanel/func/tenancy.sh
+	source $ARCPANEL/func/tenancy.sh
+	# shellcheck source=/usr/local/arcpanel/func/silo.sh
+	source $ARCPANEL/func/silo.sh
+	restic_restore_data "$tmpdir" "$snapshot" --include="$(silo_backup_dir "$user")" > /dev/null 2>&1
+	find "$tmpdir$(silo_backup_dir "$user")" -type l -delete 2> /dev/null
+	silo_restore_user "$user" "$src/buckets.conf" "$tmpdir$(silo_backup_dir "$user")"
+fi
 # Data unpacked into the home from a snapshot made before E39 W1
 $BIN/v-update-sys-user-homes "$user"
 

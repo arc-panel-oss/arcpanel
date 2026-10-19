@@ -1,0 +1,8 @@
+{
+	"title": "Object storage endpoint",
+	"description": "Publishes the server's S3 API (Silo). Set by Server, Object Storage; not for other domains.",
+	"category": "proxy",
+	"runtime": "none",
+	"internal": true,
+	"docs": "https://docs.arcpanel.top/docs/server-administration/web-templates.html"
+}

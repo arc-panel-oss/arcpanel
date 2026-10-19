@@ -1,0 +1,136 @@
+#!/bin/bash
+# info: add an S3 backup host for incremental backups
+# options: ENDPOINT BUCKET[/PATH] CREDENTIALS_FILE [REGION] [SNAPSHOTS] [DAILY] [WEEKLY] [MONTHLY] [YEARLY]
+#
+# example: v-add-backup-host-s3 https://s3.example.com backups/server1 /tmp/s3.env us-east-1 10 -1 -1 -1 -1
+#
+# This function sends incremental (restic) backups to an S3-compatible
+# provider (AWS, Cloudflare R2, Wasabi, Silo on another server). The
+# connection is kept as the rclone remote arcpanel-s3 in root's rclone
+# configuration (0600), and the restic repository becomes
+# rclone:arcpanel-s3:BUCKET/PATH, so every restic command works unchanged.
+# CREDENTIALS_FILE holds AWS_ACCESS_KEY_ID= and AWS_SECRET_ACCESS_KEY= lines;
+# it is read, never printed. Retention: as v-add-backup-host-restic (-1 is
+# no limit), 10 snapshots by default.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+endpoint=${1%/}
+target=${2%/}
+credentials=$3
+region=${4:-us-east-1}
+snapshots=${5:-10}
+daily=${6:--1}
+weekly=${7:--1}
+monthly=${8:--1}
+yearly=${9:--1}
+
+# Includes
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# load config file
+source_conf "$ARCPANEL/conf/arcpanel.conf"
+
+REMOTE=arcpanel-s3
+
+# Value of NAME= in the credentials file
+credential() {
+	sed -n "s/^[[:space:]]*$1[[:space:]]*=[[:space:]]*//p" "$credentials" | head -n 1 | tr -d "\r\"'"
+}
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '3' "$#" 'ENDPOINT BUCKET[/PATH] CREDENTIALS_FILE [REGION] [SNAPSHOTS] [DAILY] [WEEKLY] [MONTHLY] [YEARLY]'
+if [ "$(id -u)" != '0' ]; then
+	echo "Error: v-add-backup-host-s3 can only be executed by the root user"
+	exit "$E_FORBIDEN"
+fi
+if [[ "$endpoint" =~ ^https://[A-Za-z0-9.-]+(:[0-9]{1,5})?$ ]]; then
+	:
+elif [[ "$endpoint" =~ ^http://(127\.0\.0\.1|localhost)(:[0-9]{1,5})?$ ]]; then
+	# Plain HTTP only to this server
+	:
+else
+	check_result "$E_INVALID" "invalid endpoint :: $endpoint (https://HOST[:PORT])"
+fi
+if ! [[ "$target" =~ ^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9](/[A-Za-z0-9._-]+)*$ ]]; then
+	check_result "$E_INVALID" "invalid bucket or path :: $target (BUCKET or BUCKET/PATH)"
+fi
+if ! [[ "$region" =~ ^[a-z0-9-]{1,32}$ ]]; then
+	check_result "$E_INVALID" "invalid region :: $region"
+fi
+for value in "$snapshots" "$daily" "$weekly" "$monthly" "$yearly"; do
+	if [ "$value" != '-1' ] && ! [[ "$value" =~ ^[0-9]{1,4}$ ]]; then
+		check_result "$E_INVALID" "invalid retention :: $value (a number or -1)"
+	fi
+done
+if [ ! -f "$credentials" ]; then
+	check_result "$E_NOTEXIST" "credentials file $credentials does not exist"
+fi
+key_id=$(credential AWS_ACCESS_KEY_ID)
+secret=$(credential AWS_SECRET_ACCESS_KEY)
+if ! [[ "$key_id" =~ ^[A-Za-z0-9+/=._-]{3,128}$ ]] || [ -z "$secret" ] || [ "${#secret}" -gt 256 ]; then
+	check_result "$E_INVALID" "the credentials file needs AWS_ACCESS_KEY_ID= and AWS_SECRET_ACCESS_KEY= lines"
+fi
+
+# Perform verification if read-only mode is enabled
+check_arcpanel_demo_mode
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+$BIN/v-add-sys-rclone > /dev/null
+check_result $? "rclone could not be installed"
+
+config=$(rclone config file 2> /dev/null | tail -n 1)
+[ -n "$config" ] || config=/root/.config/rclone/rclone.conf
+mkdir -p "$(dirname "$config")"
+touch "$config"
+chmod 600 "$config"
+
+# The remote, replacing an earlier one, in root's 0600 rclone configuration
+# (rclone keeps the S3 secret as it is; it obscures passwords only)
+tmp=$(mktemp)
+chmod 600 "$tmp"
+awk -v remote="[$REMOTE]" '
+	$0 == remote { skip = 1; next }
+	/^\[/ { skip = 0 }
+	!skip { print }' "$config" > "$tmp"
+{
+	echo "[$REMOTE]"
+	echo "type = s3"
+	echo "provider = Other"
+	echo "endpoint = $endpoint"
+	echo "region = $region"
+	echo "access_key_id = $key_id"
+	echo "secret_access_key = $secret"
+	echo "force_path_style = true"
+	echo "no_check_bucket = true"
+	echo
+} >> "$tmp"
+mv -f "$tmp" "$config"
+chmod 600 "$config"
+
+if ! rclone lsf "$REMOTE:${target%%/*}" --max-depth 1 > /dev/null 2>&1; then
+	check_result "$E_CONNECT" "the bucket ${target%%/*} cannot be listed at $endpoint with these credentials"
+fi
+
+$BIN/v-add-backup-host-restic "rclone:$REMOTE:$target" "$snapshots" "$daily" "$weekly" "$monthly" "$yearly"
+check_result $? "the restic repository could not be registered"
+
+#----------------------------------------------------------#
+#                         ArcPanel                         #
+#----------------------------------------------------------#
+
+$BIN/v-log-action "system" "Info" "Backup" "Incremental backups go to S3 (Endpoint: $endpoint, Bucket: $target)."
+log_event "$OK" "$endpoint $target"
+
+exit

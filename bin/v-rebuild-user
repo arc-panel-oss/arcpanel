@@ -62,6 +62,11 @@ fi
 # Rebuild user
 rebuild_user_conf
 
+# Object storage (E44): buckets, S3 keys and policy from the flat files
+if [ "$OBJECT_STORAGE_SYSTEM" = 'silo' ]; then
+	$BIN/v-rebuild-user-object-storage "$user" > /dev/null 2>&1
+fi
+
 # Update user counters
 $BIN/v-update-user-counters "$user"
 

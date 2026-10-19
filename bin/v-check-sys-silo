@@ -1,0 +1,102 @@
+#!/bin/bash
+# info: check the object storage service against the flat files
+# options: [REPAIR] [FORMAT]
+#
+# example: v-check-sys-silo repair
+#
+# This function checks every account's buckets, S3 keys and object storage
+# user against Silo, the service and the endpoint template, and records the
+# usage of each bucket. It prints one finding per line (USER|KIND|DETAIL);
+# with repair it fixes them. Runs every five minutes from cron.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+repair=${1:-no}
+format=${2-shell}
+
+# Includes
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/tenancy.sh
+source $ARCPANEL/func/tenancy.sh
+# shellcheck source=/usr/local/arcpanel/func/nodeapp.sh
+source $ARCPANEL/func/nodeapp.sh
+# shellcheck source=/usr/local/arcpanel/func/silo.sh
+source $ARCPANEL/func/silo.sh
+# load config file
+source_conf "$ARCPANEL/conf/arcpanel.conf"
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+case "$repair" in
+	repair | yes) repair='yes' ;;
+	no | check) repair='no' ;;
+	*) check_result "$E_INVALID" "invalid mode :: $repair (repair or no)" ;;
+esac
+is_format_valid 'format'
+if ! silo_installed; then
+	exit
+fi
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+findings=''
+add() {
+	findings+="$1"$'\n'
+}
+
+if ! silo_running; then
+	add "|service|$SILO_UNIT is not running"
+	if [ "$repair" = 'yes' ]; then
+		systemctl start "$SILO_UNIT" 2> /dev/null
+	fi
+fi
+if ! silo_wait; then
+	add "|service|the S3 port $SILO_PORT does not answer"
+else
+	silo_lock
+	for file in "$ARCPANEL"/data/users/*/buckets.conf "$ARCPANEL"/data/users/*/s3keys.conf; do
+		[ -f "$file" ] || continue
+		echo "$(basename "$(dirname "$file")")"
+	done | sort -u > "$SILO_DIR/.users"
+	while read -r user; do
+		[ -n "$user" ] && [ -f "$ARCPANEL/data/users/$user/user.conf" ] || continue
+		while IFS= read -r line; do
+			[ -n "$line" ] && add "$line"
+		done < <(silo_rebuild_user "$user" "$repair")
+	done < "$SILO_DIR/.users"
+	rm -f "$SILO_DIR/.users"
+fi
+
+if [ -n "$SILO_HOSTNAME" ] && arc_tpl_domain_exists "$ROOT_USER" "$SILO_HOSTNAME" \
+	&& [ "$(arc_tpl_active "$ROOT_USER" "$SILO_HOSTNAME")" != 'silo-endpoint' ]; then
+	add "|endpoint|$SILO_HOSTNAME does not use the silo-endpoint template"
+	if [ "$repair" = 'yes' ]; then
+		nodeapp_tpl_switch "$ROOT_USER" "$SILO_HOSTNAME" silo-endpoint yes > /dev/null 2>&1
+	fi
+fi
+
+findings=$(printf '%s' "$findings" | sed '/^$/d')
+case $format in
+	json)
+		printf '%s\n' "$findings" | jq -R -s 'split("\n") | map(select(length > 0) | split("|") | {USER: .[0], KIND: .[1], DETAIL: .[2]})'
+		;;
+	plain | csv | shell)
+		[ -n "$findings" ] && printf '%s\n' "$findings"
+		;;
+esac
+
+#----------------------------------------------------------#
+#                         ArcPanel                         #
+#----------------------------------------------------------#
+
+exit

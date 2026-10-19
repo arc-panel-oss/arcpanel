@@ -1,0 +1,104 @@
+#!/bin/bash
+# info: list the S3 keys of the object storage of a user
+# options: USER [FORMAT]
+#
+# example: v-list-user-s3-keys alice json
+#
+# This function lists USER's S3 keys: key ID, name, the bucket it is limited
+# to (empty: every bucket of the account), access (rw or ro), the expiry date
+# and whether it has expired. Secrets are never kept, so never listed.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+user=$1
+format=${2-shell}
+
+# Includes
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/tenancy.sh
+source $ARCPANEL/func/tenancy.sh
+# shellcheck source=/usr/local/arcpanel/func/silo.sh
+source $ARCPANEL/func/silo.sh
+# load config file
+source_conf "$ARCPANEL/conf/arcpanel.conf"
+
+file=$(silo_keys_file "$user")
+today=$(date -u +%F)
+
+expired() {
+	if [ -n "$1" ] && [[ ! "$1" > "$today" ]]; then
+		echo yes
+	else
+		echo no
+	fi
+}
+
+# JSON list function
+json_list() {
+	local line key
+	while IFS= read -r line; do
+		[ -n "$line" ] || continue
+		key=$(silo_field "$line" KEY)
+		jq -n --arg key "$key" --arg name "$(silo_field "$line" NAME)" --arg bucket "$(silo_field "$line" BUCKET)" \
+			--arg access "$(silo_field "$line" ACCESS)" --arg expires "$(silo_field "$line" EXPIRES)" \
+			--arg expired "$(expired "$(silo_field "$line" EXPIRES)")" \
+			--arg time "$(silo_field "$line" TIME)" --arg date "$(silo_field "$line" DATE)" \
+			'{($key): {KEY: $key, NAME: $name, BUCKET: $bucket, ACCESS: $access, EXPIRES: $expires, EXPIRED: $expired, TIME: $time, DATE: $date}}'
+	done < <(cat "$file" 2> /dev/null) | jq -s 'add // {}'
+}
+
+# PLAIN list function
+plain_list() {
+	local line
+	while IFS= read -r line; do
+		[ -n "$line" ] || continue
+		echo -e "$(silo_field "$line" KEY)\t$(silo_field "$line" NAME)\t$(silo_field "$line" BUCKET)\t$(silo_field "$line" ACCESS)\t$(silo_field "$line" EXPIRES)\t$(expired "$(silo_field "$line" EXPIRES)")\t$(silo_field "$line" TIME)\t$(silo_field "$line" DATE)"
+	done < <(cat "$file" 2> /dev/null)
+}
+
+# SHELL list function
+shell_list() {
+	{
+		echo -e "KEY\tNAME\tBUCKET\tACCESS\tEXPIRES\tEXPIRED"
+		echo -e "---\t----\t------\t------\t-------\t-------"
+		plain_list | awk -F'\t' -v OFS='\t' '{ for (i = 1; i <= 6; i++) if ($i == "") $i = "-"; print $1, $2, $3, $4, $5, $6 }'
+	} | column -t -s $'\t'
+}
+
+# CSV list function
+csv_list() {
+	echo "KEY,NAME,BUCKET,ACCESS,EXPIRES,EXPIRED,TIME,DATE"
+	plain_list | tr '\t' ','
+}
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '1' "$#" 'USER [FORMAT]'
+is_format_valid 'user' 'format'
+is_object_valid 'user' 'USER' "$user"
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+# Listing data
+case $format in
+	json) json_list ;;
+	plain) plain_list ;;
+	csv) csv_list ;;
+	shell) shell_list ;;
+esac
+
+#----------------------------------------------------------#
+#                         ArcPanel                         #
+#----------------------------------------------------------#
+
+exit

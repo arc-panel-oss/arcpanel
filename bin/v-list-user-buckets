@@ -1,0 +1,87 @@
+#!/bin/bash
+# info: list the object storage buckets of a user
+# options: USER [FORMAT]
+#
+# example: v-list-user-buckets alice json
+#
+# This function lists USER's buckets: quota (MB), versioning, and the usage
+# (bytes, objects) the last repair counted.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+user=$1
+format=${2-shell}
+
+# Includes
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/tenancy.sh
+source $ARCPANEL/func/tenancy.sh
+# shellcheck source=/usr/local/arcpanel/func/silo.sh
+source $ARCPANEL/func/silo.sh
+# load config file
+source_conf "$ARCPANEL/conf/arcpanel.conf"
+
+file=$(silo_buckets_file "$user")
+
+# JSON list function
+json_list() {
+	silo_file_json "$file" SILO_BUCKET_KEYS 'QUOTA USED OBJECTS'
+}
+
+# SHELL list function
+shell_list() {
+	{
+		echo "BUCKET QUOTA_MB VERSIONING USED OBJECTS SUSPENDED DATE"
+		echo "------ -------- ---------- ---- ------- --------- ----"
+		while IFS= read -r line; do
+			[ -n "$line" ] || continue
+			echo "$(silo_field "$line" BUCKET) $(silo_field "$line" QUOTA) $(silo_field "$line" VERSIONING) $(silo_field "$line" USED) $(silo_field "$line" OBJECTS) $(silo_field "$line" SUSPENDED) $(silo_field "$line" DATE)"
+		done < <(cat "$file" 2> /dev/null)
+	} | column -t
+}
+
+# PLAIN list function
+plain_list() {
+	while IFS= read -r line; do
+		[ -n "$line" ] || continue
+		echo -e "$(silo_field "$line" BUCKET)\t$(silo_field "$line" QUOTA)\t$(silo_field "$line" VERSIONING)\t$(silo_field "$line" USED)\t$(silo_field "$line" OBJECTS)\t$(silo_field "$line" SUSPENDED)\t$(silo_field "$line" TIME)\t$(silo_field "$line" DATE)"
+	done < <(cat "$file" 2> /dev/null)
+}
+
+# CSV list function
+csv_list() {
+	echo "BUCKET,QUOTA,VERSIONING,USED,OBJECTS,SUSPENDED,TIME,DATE"
+	plain_list | tr '\t' ','
+}
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '1' "$#" 'USER [FORMAT]'
+is_format_valid 'user' 'format'
+is_object_valid 'user' 'USER' "$user"
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+# Listing data
+case $format in
+	json) json_list ;;
+	plain) plain_list ;;
+	csv) csv_list ;;
+	shell) shell_list ;;
+esac
+
+#----------------------------------------------------------#
+#                         ArcPanel                         #
+#----------------------------------------------------------#
+
+exit

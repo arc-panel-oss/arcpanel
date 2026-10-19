@@ -1,0 +1,77 @@
+#!/bin/bash
+# info: change the quota and versioning of an object storage bucket
+# options: USER BUCKET QUOTA VERSIONING
+#
+# example: v-change-user-bucket alice alice-media 2048 yes
+#
+# This function changes the hard quota (MB) of USER's BUCKET, within the
+# storage of the package, and turns versioning on (yes) or suspends it (no;
+# versions already kept stay). A quota below the current usage is accepted:
+# uploads stop until the bucket is below it again.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+user=$1
+bucket=$2
+quota=$3
+versioning=$4
+
+# Includes
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/tenancy.sh
+source $ARCPANEL/func/tenancy.sh
+# shellcheck source=/usr/local/arcpanel/func/silo.sh
+source $ARCPANEL/func/silo.sh
+# load config file
+source_conf "$ARCPANEL/conf/arcpanel.conf"
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '4' "$#" 'USER BUCKET QUOTA VERSIONING'
+is_format_valid 'user'
+is_bucket_format_valid "$bucket"
+if ! [[ "$quota" =~ ^[0-9]{1,9}$ ]] || [ "$quota" -lt 1 ]; then
+	check_result "$E_INVALID" "invalid quota :: $quota (MB, at least 1)"
+fi
+is_boolean_format_valid "$versioning" 'versioning'
+silo_require
+is_object_valid 'user' 'USER' "$user"
+is_object_unsuspended 'user' 'USER' "$user"
+if [ -z "$(silo_bucket_line "$user" "$bucket")" ]; then
+	check_result "$E_NOTEXIST" "bucket $bucket of $user does not exist"
+fi
+
+# Perform verification if read-only mode is enabled
+check_arcpanel_demo_mode
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+silo_lock
+silo_require_running
+line=$(silo_bucket_line "$user" "$bucket")
+if [ "$quota" -gt "$(silo_field "$line" QUOTA)" ]; then
+	silo_check_limits "$user" "$quota" "$bucket" no
+fi
+
+silo_bucket_configure "$bucket" "$quota" "$versioning"
+check_result $? "the bucket $bucket could not be changed in object storage"
+silo_set_fields "$(silo_buckets_file "$user")" SILO_BUCKET_KEYS "$bucket" "QUOTA=$quota" "VERSIONING=$versioning"
+
+#----------------------------------------------------------#
+#                         ArcPanel                         #
+#----------------------------------------------------------#
+
+$BIN/v-log-action "$user" "Info" "Object storage" "Bucket changed (Name: $bucket, Quota: $quota MB, Versioning: $versioning)."
+log_event "$OK" "$ARGUMENTS"
+
+exit

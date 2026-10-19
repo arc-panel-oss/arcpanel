@@ -1,0 +1,113 @@
+#!/bin/bash
+# info: list the object storage of a user: limits, totals and endpoint
+# options: USER [FORMAT]
+#
+# example: v-list-user-object-storage alice json
+#
+# This function lists whether USER's package includes object storage, its
+# limits (buckets, storage in MB, S3 keys), what the account holds against
+# them, and how to connect (endpoint, region, path-style addressing).
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+user=$1
+format=${2-shell}
+
+# Includes
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/tenancy.sh
+source $ARCPANEL/func/tenancy.sh
+# shellcheck source=/usr/local/arcpanel/func/silo.sh
+source $ARCPANEL/func/silo.sh
+# load config file
+source_conf "$ARCPANEL/conf/arcpanel.conf"
+
+# JSON list function
+json_list() {
+	jq -n --arg installed "$installed" --arg allowed "$allowed" --arg backup "$backup" \
+		--arg buckets_limit "$buckets_limit" --arg quota_limit "$quota_limit" \
+		--argjson buckets "$buckets" --argjson quota_used "$quota_used" --argjson used "$used" --argjson objects "$objects" \
+		--argjson keys "$keys" --argjson keys_limit "$SILO_KEYS_MAX" \
+		--arg endpoint "$endpoint" --arg region "$SILO_REGION" --arg suspended "$suspended" \
+		'{INSTALLED: $installed, ALLOWED: $allowed, BACKUP: $backup, SUSPENDED: $suspended,
+		BUCKETS: $buckets, BUCKETS_LIMIT: $buckets_limit, QUOTA_USED: $quota_used, QUOTA_LIMIT: $quota_limit,
+		USED: $used, OBJECTS: $objects, KEYS: $keys, KEYS_LIMIT: $keys_limit,
+		ENDPOINT: $endpoint, REGION: $region, PATH_STYLE: "yes"}'
+}
+
+# SHELL list function
+shell_list() {
+	echo "INSTALLED:      $installed"
+	echo "ALLOWED:        $allowed"
+	echo "BUCKETS:        $buckets / $buckets_limit"
+	echo "QUOTA:          $quota_used MB / $quota_limit MB"
+	echo "USED:           $used bytes, $objects objects"
+	echo "KEYS:           $keys / $SILO_KEYS_MAX"
+	echo "ENDPOINT:       ${endpoint:-none}"
+	echo "REGION:         $SILO_REGION"
+}
+
+# PLAIN list function
+plain_list() {
+	echo -e "$installed\t$allowed\t$buckets\t$buckets_limit\t$quota_used\t$quota_limit\t$used\t$objects\t$keys\t$endpoint"
+}
+
+# CSV list function
+csv_list() {
+	echo "INSTALLED,ALLOWED,BUCKETS,BUCKETS_LIMIT,QUOTA_USED,QUOTA_LIMIT,USED,OBJECTS,KEYS,ENDPOINT"
+	echo "$installed,$allowed,$buckets,$buckets_limit,$quota_used,$quota_limit,$used,$objects,$keys,$endpoint"
+}
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '1' "$#" 'USER [FORMAT]'
+is_format_valid 'user' 'format'
+is_object_valid 'user' 'USER' "$user"
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+installed='no'
+silo_installed && installed='yes'
+allowed='no'
+silo_allowed "$user" && allowed='yes'
+backup=$(silo_pkg_value "$user" OBJECT_STORAGE_BACKUP)
+suspended=$(tenancy_user_value "$user" SUSPENDED)
+buckets_limit=$(silo_pkg_value "$user" OBJECT_STORAGE_BUCKETS)
+quota_limit=$(silo_quota_mb "$(silo_pkg_value "$user" OBJECT_STORAGE_QUOTA)") || quota_limit=0
+buckets=$(silo_buckets "$user" | grep -c .)
+quota_used=$(silo_quota_used "$user" '')
+keys=$(silo_keys "$user" | grep -c .)
+used=0
+objects=0
+while IFS= read -r line; do
+	[ -n "$line" ] || continue
+	value=$(silo_field "$line" USED)
+	used=$((used + ${value:-0}))
+	value=$(silo_field "$line" OBJECTS)
+	objects=$((objects + ${value:-0}))
+done < <(cat "$(silo_buckets_file "$user")" 2> /dev/null)
+endpoint=$(silo_endpoint_url)
+
+# Listing data
+case $format in
+	json) json_list ;;
+	plain) plain_list ;;
+	csv) csv_list ;;
+	shell) shell_list ;;
+esac
+
+#----------------------------------------------------------#
+#                         ArcPanel                         #
+#----------------------------------------------------------#
+
+exit

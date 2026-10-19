@@ -1,0 +1,65 @@
+#!/bin/bash
+# info: delete the object storage of a user
+# options: USER
+#
+# example: v-delete-user-object-storage alice
+#
+# This function deletes every bucket of USER with its objects, every S3 key,
+# the object storage user and its policy. v-delete-user runs it.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+user=$1
+
+# Includes
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/tenancy.sh
+source $ARCPANEL/func/tenancy.sh
+# shellcheck source=/usr/local/arcpanel/func/silo.sh
+source $ARCPANEL/func/silo.sh
+# load config file
+source_conf "$ARCPANEL/conf/arcpanel.conf"
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '1' "$#" 'USER'
+is_format_valid 'user'
+if [ ! -f "$(silo_buckets_file "$user")" ] && [ ! -f "$(silo_keys_file "$user")" ]; then
+	exit
+fi
+
+# Perform verification if read-only mode is enabled
+check_arcpanel_demo_mode
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+silo_lock
+if silo_installed && silo_wait; then
+	for bucket in $(silo_buckets "$user"); do
+		silo_bucket_remove "$bucket"
+	done
+	for key in $(silo_keys "$user"); do
+		silo_key_remove "$key"
+	done
+	silo_mcli admin user remove arc "$(silo_iam_user "$user")" > /dev/null 2>&1
+	silo_mcli admin policy remove arc "$(silo_policy_name "$user")" > /dev/null 2>&1
+fi
+rm -f "$(silo_buckets_file "$user")" "$(silo_keys_file "$user")"
+
+#----------------------------------------------------------#
+#                         ArcPanel                         #
+#----------------------------------------------------------#
+
+log_event "$OK" "$ARGUMENTS"
+
+exit

@@ -1089,6 +1089,41 @@ if [ "$udir" != 'no' ] && tar -tf "$BACKUP/$backup" ./docker_data > /dev/null 2>
 	done
 fi
 
+# Object storage (E44): the buckets of the backup whose names are free, with
+# their objects when the archive holds them; S3 keys are never restored.
+# Restored with the user folders, like the data of Docker apps.
+if [ "$udir" != 'no' ] && [ ! -e "$tmpdir/$backup_system/buckets.conf" ]; then
+	tar xf "$BACKUP/$backup" -C "$tmpdir" --no-wildcards "./$backup_system/buckets.conf" 2> /dev/null
+	[ -L "$tmpdir/$backup_system/buckets.conf" ] && rm -f "$tmpdir/$backup_system/buckets.conf"
+fi
+if [ "$udir" != 'no' ] && [ -f "$tmpdir/$backup_system/buckets.conf" ] && [ -s "$tmpdir/$backup_system/buckets.conf" ]; then
+	echo -e "\n-- OBJECT STORAGE --" | tee -a $tmpdir/restore.log
+	# shellcheck source=/usr/local/arcpanel/func/tenancy.sh
+	source $ARCPANEL/func/tenancy.sh
+	# shellcheck source=/usr/local/arcpanel/func/silo.sh
+	source $ARCPANEL/func/silo.sh
+	objects="$tmpdir/object_storage_files"
+	if tar -tf "$BACKUP/$backup" ./object_storage > /dev/null 2>&1; then
+		tar xf "$BACKUP/$backup" -C "$tmpdir" ./object_storage 2> /dev/null
+		find "$tmpdir/object_storage" \( -type l -o \( ! -type f ! -type d \) \) -delete 2> /dev/null
+		for archive in "$tmpdir"/object_storage/*.tar.zst "$tmpdir"/object_storage/*.tar.gz; do
+			[ -f "$archive" ] || continue
+			bucket=$(basename -- "$archive")
+			bucket=${bucket%.tar.*}
+			silo_bucket_name_valid "$bucket" || continue
+			mkdir -p "$objects/$bucket"
+			if [[ "$archive" == *.zst ]]; then
+				tar -I pzstd -xf "$archive" -C "$objects/$bucket" --no-same-owner
+			else
+				tar -xzf "$archive" -C "$objects/$bucket" --no-same-owner
+			fi
+			find "$objects/$bucket" \( -type l -o \( ! -type f ! -type d \) \) -delete 2> /dev/null
+		done
+	fi
+	silo_restore_user "$user" "$tmpdir/$backup_system/buckets.conf" "$objects" | tee -a $tmpdir/restore.log
+	rm -rf -- "$objects" "$tmpdir/object_storage"
+fi
+
 # Data of Docker apps unpacked into the home by an archive made before
 # E39 W1 moves out of it
 $BIN/v-update-sys-user-homes "$user" | tee -a $tmpdir/restore.log

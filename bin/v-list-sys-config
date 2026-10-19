@@ -122,6 +122,9 @@ json_list() {
 		"PORT_REGISTRY": "'$PORT_REGISTRY'",
 		"DOCKER_SYSTEM": "'$DOCKER_SYSTEM'",
 		"DOCKER_DATA_ROOT": "'$DOCKER_DATA_ROOT'",
+		"OBJECT_STORAGE_SYSTEM": "'$OBJECT_STORAGE_SYSTEM'",
+		"SILO_DATA": "'$SILO_DATA'",
+		"SILO_HOSTNAME": "'$SILO_HOSTNAME'",
 		"WEBMAIL_ALIAS": "'$WEBMAIL_ALIAS'",
 		"WEBMAIL_SYSTEM": "'$WEBMAIL_SYSTEM'",
 		"WEB_BACKEND": "'$WEB_BACKEND'",
@@ -229,6 +232,9 @@ shell_list() {
 	fi
 	if [ -n "$DOCKER_SYSTEM" ]; then
 		echo "Docker apps engine:               $DOCKER_SYSTEM ($DOCKER_DATA_ROOT)"
+	fi
+	if [ -n "$OBJECT_STORAGE_SYSTEM" ]; then
+		echo "Object storage:                   $OBJECT_STORAGE_SYSTEM ($SILO_DATA${SILO_HOSTNAME:+, $SILO_HOSTNAME})"
 	fi
 	if [ -n "$DEMO_MODE" ]; then
 		echo "Demo Mode:                        $DEMO_MODE"

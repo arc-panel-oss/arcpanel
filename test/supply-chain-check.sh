@@ -84,7 +84,7 @@ report 'engine source without its pin (use fetch_pinned with src/sources.sha256)
 #----------------------------------------------------------#
 
 conf=install/upgrade/upgrade.conf
-for name in pma rc sm b2 rclone; do
+for name in pma rc sm b2 rclone silo mcli; do
 	if ! lf "$conf" | grep -qE "^${name}_v='[^']+'"; then
 		problem "$conf" "no ${name}_v"
 	elif ! lf "$conf" | grep -qE "^${name}_sha256='[0-9a-f]{64}'"; then

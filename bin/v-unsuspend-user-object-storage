@@ -1,0 +1,61 @@
+#!/bin/bash
+# info: unsuspend the object storage of a user
+# options: USER
+#
+# example: v-unsuspend-user-object-storage alice
+#
+# This function enables USER's object storage user and its S3 keys again
+# and marks its buckets active. v-unsuspend-user runs it.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+user=$1
+
+# Includes
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/tenancy.sh
+source $ARCPANEL/func/tenancy.sh
+# shellcheck source=/usr/local/arcpanel/func/silo.sh
+source $ARCPANEL/func/silo.sh
+# load config file
+source_conf "$ARCPANEL/conf/arcpanel.conf"
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '1' "$#" 'USER'
+is_format_valid 'user'
+is_object_valid 'user' 'USER' "$user"
+if ! silo_installed || { [ -z "$(silo_buckets "$user")" ] && [ -z "$(silo_keys "$user")" ]; }; then
+	exit
+fi
+
+# Perform verification if read-only mode is enabled
+check_arcpanel_demo_mode
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+silo_lock
+for bucket in $(silo_buckets "$user"); do
+	silo_set_fields "$(silo_buckets_file "$user")" SILO_BUCKET_KEYS "$bucket" "SUSPENDED=no"
+done
+if silo_wait; then
+	silo_sync_user "$user"
+fi
+
+#----------------------------------------------------------#
+#                         ArcPanel                         #
+#----------------------------------------------------------#
+
+log_event "$OK" "$ARGUMENTS"
+
+exit

@@ -20,7 +20,11 @@
 #                                              APP_PROCESSES,               #
 #                                              APP_PROCESSES_MAX,           #
 #                                              APP_PROCESSES_MEMORY,        #
-#                                              APP_PROCESSES_CPUS (E42)     #
+#                                              APP_PROCESSES_CPUS (E42),    #
+#                                              OBJECT_STORAGE,              #
+#                                              OBJECT_STORAGE_BUCKETS,      #
+#                                              OBJECT_STORAGE_QUOTA,        #
+#                                              OBJECT_STORAGE_BACKUP (E44)  #
 # See docs/features/specs/2026-10-05-003-e11-reseller-design.md.            #
 #                                                                           #
 #===========================================================================#
@@ -35,7 +39,7 @@ TENANCY_PACKAGE_LIMIT_KEYS="WEB_DOMAINS WEB_ALIASES DNS_DOMAINS DNS_RECORDS MAIL
 
 # Sidecar keys of a reseller-created package compared with the reseller's
 # own package (E39 W4 spec §8.3); PHP_DEFAULT_PROFILE is checked apart
-TENANCY_PACKAGE_TENANCY_LIMIT_KEYS="PORTS NODE NODE_VERSIONS NODE_ALLOWED NODE_APPS DOCKER DOCKER_APPS DOCKER_CPUS DOCKER_MEMORY PHP_VERSIONS PHP_PROFILES APP_PROCESSES APP_PROCESSES_MAX APP_PROCESSES_MEMORY APP_PROCESSES_CPUS"
+TENANCY_PACKAGE_TENANCY_LIMIT_KEYS="PORTS NODE NODE_VERSIONS NODE_ALLOWED NODE_APPS DOCKER DOCKER_APPS DOCKER_CPUS DOCKER_MEMORY PHP_VERSIONS PHP_PROFILES APP_PROCESSES APP_PROCESSES_MAX APP_PROCESSES_MEMORY APP_PROCESSES_CPUS OBJECT_STORAGE OBJECT_STORAGE_BUCKETS OBJECT_STORAGE_QUOTA OBJECT_STORAGE_BACKUP"
 
 tenancy_usage_key() {
 	case "$1" in
@@ -182,9 +186,10 @@ tenancy_customers() {
 tenancy_pkg_default() {
 	case "$1" in
 		USERS | PORTS | DOCKER_APPS) REPLY='0' ;;
-		RESELLER_VISIBLE | NODE | DOCKER | APP_PROCESSES) REPLY='no' ;;
+		RESELLER_VISIBLE | NODE | DOCKER | APP_PROCESSES | OBJECT_STORAGE | OBJECT_STORAGE_BACKUP) REPLY='no' ;;
 		DOCKER_CPUS | DOCKER_MEMORY | APP_PROCESSES_MEMORY) REPLY='unlimited' ;;
-		NODE_VERSIONS | NODE_APPS | APP_PROCESSES_MAX) REPLY='3' ;;
+		NODE_VERSIONS | NODE_APPS | APP_PROCESSES_MAX | OBJECT_STORAGE_BUCKETS) REPLY='3' ;;
+		OBJECT_STORAGE_QUOTA) REPLY='1G' ;;
 		APP_PROCESSES_CPUS) REPLY='1' ;;
 		NODE_ALLOWED) REPLY='lts' ;;
 		PHP_VERSIONS) REPLY='*' ;;
@@ -243,10 +248,13 @@ tenancy_pkg_value_valid() {
 		USERS | PORTS)
 			[ "$value" = 'unlimited' ] || [[ "$value" =~ ^[0-9]{1,5}$ ]]
 			;;
-		RESELLER_VISIBLE | NODE | DOCKER | APP_PROCESSES)
+		RESELLER_VISIBLE | NODE | DOCKER | APP_PROCESSES | OBJECT_STORAGE | OBJECT_STORAGE_BACKUP)
 			[ "$value" = 'yes' ] || [ "$value" = 'no' ]
 			;;
-		NODE_VERSIONS | NODE_APPS | DOCKER_APPS | APP_PROCESSES_MAX)
+		OBJECT_STORAGE_QUOTA)
+			[ "$value" = 'unlimited' ] || [[ "$value" =~ ^[0-9]{1,9}[MGT]?$ ]]
+			;;
+		NODE_VERSIONS | NODE_APPS | DOCKER_APPS | APP_PROCESSES_MAX | OBJECT_STORAGE_BUCKETS)
 			[ "$value" = 'unlimited' ] || [[ "$value" =~ ^[0-9]{1,3}$ ]]
 			;;
 		DOCKER_CPUS | APP_PROCESSES_CPUS)
@@ -376,6 +384,15 @@ tenancy_check_quota() {
 	if declare -F ports_quota_check > /dev/null; then
 		ports_quota_check "$reseller" "$package" "$except" || return $?
 	fi
+
+	# Buckets and storage of the package (E44)
+	if ! declare -F objstore_quota_check > /dev/null && [ -f "$ARCPANEL/func/silo.sh" ]; then
+		# shellcheck source=/usr/local/arcpanel/func/silo.sh
+		source "$ARCPANEL/func/silo.sh"
+	fi
+	if declare -F objstore_quota_check > /dev/null; then
+		objstore_quota_check "$reseller" "$package" "$except" || return $?
+	fi
 	return 0
 }
 
@@ -428,7 +445,16 @@ tenancy_limit_value() {
 				REPLY=$((REPLY * 1000))
 			fi
 			;;
-		BACKUPS_INCREMENTAL | NODE | DOCKER | APP_PROCESSES)
+		OBJECT_STORAGE_QUOTA)
+			# MB, or GB and TB with G and T
+			[[ "$value" =~ ^([0-9]{1,9})([MGT]?)$ ]] || return 1
+			case "${BASH_REMATCH[2]}" in
+				G) REPLY=$((10#${BASH_REMATCH[1]} * 1024)) ;;
+				T) REPLY=$((10#${BASH_REMATCH[1]} * 1048576)) ;;
+				*) REPLY=$((10#${BASH_REMATCH[1]})) ;;
+			esac
+			;;
+		BACKUPS_INCREMENTAL | NODE | DOCKER | APP_PROCESSES | OBJECT_STORAGE | OBJECT_STORAGE_BACKUP)
 			case "$value" in
 				yes) REPLY=1 ;;
 				no) REPLY=0 ;;
@@ -615,7 +641,7 @@ tenancy_user_json() {
 TENANCY_PACKAGE_JSON_KEYS="WEB_TEMPLATE BACKEND_TEMPLATE PROXY_TEMPLATE DNS_TEMPLATE WEB_DOMAINS WEB_ALIASES DNS_DOMAINS DNS_RECORDS MAIL_DOMAINS MAIL_ACCOUNTS RATE_LIMIT DATABASES CRON_JOBS DISK_QUOTA CPU_QUOTA CPU_QUOTA_PERIOD MEMORY_LIMIT SWAP_LIMIT BANDWIDTH NS SHELL BACKUPS BACKUPS_INCREMENTAL TIME DATE"
 
 # Tenancy keys of tenancy_package_json, in output order
-TENANCY_PACKAGE_TENANCY_KEYS="USERS RESELLER_PACKAGES RESELLER_VISIBLE PORTS NODE NODE_VERSIONS NODE_ALLOWED NODE_APPS DOCKER DOCKER_APPS DOCKER_CPUS DOCKER_MEMORY PHP_VERSIONS PHP_PROFILES PHP_DEFAULT_PROFILE APP_PROCESSES APP_PROCESSES_MAX APP_PROCESSES_MEMORY APP_PROCESSES_CPUS RESELLER_OWNER"
+TENANCY_PACKAGE_TENANCY_KEYS="USERS RESELLER_PACKAGES RESELLER_VISIBLE PORTS NODE NODE_VERSIONS NODE_ALLOWED NODE_APPS DOCKER DOCKER_APPS DOCKER_CPUS DOCKER_MEMORY PHP_VERSIONS PHP_PROFILES PHP_DEFAULT_PROFILE APP_PROCESSES APP_PROCESSES_MAX APP_PROCESSES_MEMORY APP_PROCESSES_CPUS OBJECT_STORAGE OBJECT_STORAGE_BUCKETS OBJECT_STORAGE_QUOTA OBJECT_STORAGE_BACKUP RESELLER_OWNER"
 
 # The sidecar is read once, in bash, with the semantics of tenancy_conf_get
 # (the first KEY='value' line wins): `v-list-package-tenancy all json` runs on
