@@ -4,6 +4,7 @@ use App\Api\ApiHeaders;
 use App\Http\Controllers\Api\V2\AccessKeyController;
 use App\Http\Controllers\Api\V2\AppProcessController;
 use App\Http\Controllers\Api\V2\BackupController;
+use App\Http\Controllers\Api\V2\BucketController;
 use App\Http\Controllers\Api\V2\CronController;
 use App\Http\Controllers\Api\V2\DatabaseController;
 use App\Http\Controllers\Api\V2\DnsController;
@@ -26,12 +27,14 @@ use App\Http\Controllers\Api\V2\MeController;
 use App\Http\Controllers\Api\V2\NodeAppController;
 use App\Http\Controllers\Api\V2\NodeController;
 use App\Http\Controllers\Api\V2\NotificationController;
+use App\Http\Controllers\Api\V2\ObjectStorageController;
 use App\Http\Controllers\Api\V2\PackageController;
 use App\Http\Controllers\Api\V2\PhpController;
 use App\Http\Controllers\Api\V2\PhpProfileController;
 use App\Http\Controllers\Api\V2\PortController;
 use App\Http\Controllers\Api\V2\PortRegistryController;
 use App\Http\Controllers\Api\V2\RequestController;
+use App\Http\Controllers\Api\V2\S3KeyController;
 use App\Http\Controllers\Api\V2\SearchController;
 use App\Http\Controllers\Api\V2\SecretController;
 use App\Http\Controllers\Api\V2\ServerSettingsController;
@@ -88,6 +91,7 @@ Route::get('/cron-jobs', [CronController::class, 'indexAll'])->name('cron-jobs.a
 Route::get('/node-apps', [NodeAppController::class, 'indexAll'])->name('node-apps.all');
 Route::get('/backups', [BackupController::class, 'indexAll'])->name('backups.all');
 Route::get('/backup-runs', [BackupController::class, 'runsAll'])->name('backup-runs.all');
+Route::get('/buckets', [BucketController::class, 'indexAll'])->middleware('sys-config:OBJECT_STORAGE_SYSTEM=silo')->name('buckets.all');
 
 // Malware scan summary of the principal's tree (E25 batch 1 spec §9)
 Route::get('/malware', [MalwareController::class, 'summary'])->middleware('sys-config:MALWARE_SCAN=yes')->name('malware.summary');
@@ -199,6 +203,15 @@ Route::prefix('/system/settings')->name('system.settings.')->group(function () {
     });
 });
 
+// Object storage service of the server (E44 spec §10)
+Route::prefix('/system/object-storage')->name('system.object-storage.')->group(function () {
+    Route::get('/', [ObjectStorageController::class, 'show'])->name('show');
+    Route::middleware('not-readonly')->group(function () {
+        Route::post('/', [ObjectStorageController::class, 'install'])->name('install');
+        Route::put('/endpoint', [ObjectStorageController::class, 'endpoint'])->name('endpoint');
+    });
+});
+
 // Firewall of the server (E34 batch 6 spec §5.3, D59); FIREWALL_SYSTEM off answers 404, the ban list also needs FIREWALL_EXTENSION
 Route::middleware('sys-config:FIREWALL_SYSTEM')->prefix('/system/firewall')->name('system.firewall.')->group(function () {
     $rule = ['rule' => '[0-9]{1,9}'];
@@ -257,6 +270,22 @@ Route::middleware('effective-user')->group(function () {
         Route::post('/users/{user}/secrets/{name}/rollback', [SecretController::class, 'rollback'])->where('name', $secret)->name('secrets.rollback');
         Route::patch('/users/{user}/secrets/{name}', [SecretController::class, 'update'])->where('name', $secret)->name('secrets.update');
         Route::delete('/users/{user}/secrets/{name}', [SecretController::class, 'destroy'])->where('name', $secret)->name('secrets.destroy');
+    });
+
+    // Object storage of a user (E44 spec §10); 404 without Silo on the server
+    Route::middleware('sys-config:OBJECT_STORAGE_SYSTEM=silo')->group(function () {
+        $bucket = ['bucket' => '[a-z0-9][a-z0-9-]{1,61}[a-z0-9]'];
+        $key = ['key' => '[A-Za-z0-9]{3,64}'];
+        Route::get('/users/{user}/buckets', [BucketController::class, 'index'])->name('buckets.index');
+        Route::get('/users/{user}/buckets/{bucket}', [BucketController::class, 'show'])->where($bucket)->name('buckets.show');
+        Route::get('/users/{user}/s3-keys', [S3KeyController::class, 'index'])->name('s3-keys.index');
+        Route::middleware('not-readonly')->group(function () use ($bucket, $key) {
+            Route::post('/users/{user}/buckets', [BucketController::class, 'store'])->name('buckets.store');
+            Route::patch('/users/{user}/buckets/{bucket}', [BucketController::class, 'update'])->where($bucket)->name('buckets.update');
+            Route::delete('/users/{user}/buckets/{bucket}', [BucketController::class, 'destroy'])->where($bucket)->name('buckets.destroy');
+            Route::post('/users/{user}/s3-keys', [S3KeyController::class, 'store'])->name('s3-keys.store');
+            Route::delete('/users/{user}/s3-keys/{key}', [S3KeyController::class, 'destroy'])->where($key)->name('s3-keys.destroy');
+        });
     });
 
     // Malware scan of a user (E25 batch 1 spec §9); 404 while the plugin is off
@@ -557,6 +586,7 @@ foreach (Route::getRoutes() as $route) {
         str_contains($uri, '/app-process') => 'apps',
         str_contains($uri, '/web-domains') => 'web',
         str_contains($uri, '/secrets') => 'secrets',
+        str_contains($uri, '/buckets'), str_contains($uri, '/s3-keys') => 'storage',
         str_contains($uri, '/malware') => 'security',
         str_contains($uri, '/dns-zones') => 'dns',
         str_contains($uri, '/mail-domains') => 'mail',

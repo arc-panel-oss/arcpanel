@@ -74,6 +74,12 @@ final class Capabilities
         'docker.apps.manage' => self::ALL_ROLES,
         'docker.engine.manage' => self::ADMIN,
 
+        // Object storage (E44 spec §10–§11); ObjectStoragePolicy adds the
+        // service and the package key
+        'storage.view' => self::ALL_ROLES,
+        'storage.manage' => self::ALL_ROLES,
+        'storage.server' => self::ADMIN,
+
         // File manager (E3 spec §6.4); FilePolicy adds suspension and read-only
         'files.view' => self::ALL_ROLES,
         'files.manage' => self::ALL_ROLES,

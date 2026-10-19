@@ -889,3 +889,20 @@ function appProcessList(string $user, array $rows, array $overrides = []): array
         'MAX_MEMORY' => '768', 'DEFAULT_MEMORY' => '512', 'MAX_CPUS' => '1', 'PROCESSES' => $rows,
     ], $overrides);
 }
+
+// Object storage on Silo (E44)
+
+/** @return array<string, string> one line of `v-list-user-buckets USER json` */
+function storageBucket(string $name, array $overrides = []): array
+{
+    return array_merge(['BUCKET' => $name, 'QUOTA' => '100', 'VERSIONING' => 'no', 'USED' => '2048', 'OBJECTS' => '3',
+        'SUSPENDED' => 'no', 'TIME' => '10:00:00', 'DATE' => '2026-10-19'], $overrides);
+}
+
+/** @return array<string, string> `v-list-user-object-storage USER json` */
+function storageAccount(array $overrides = []): array
+{
+    return array_merge(['INSTALLED' => 'yes', 'ALLOWED' => 'yes', 'BACKUP' => 'no', 'SUSPENDED' => 'no',
+        'BUCKETS' => '1', 'BUCKETS_LIMIT' => '3', 'QUOTA_USED' => '100', 'QUOTA_LIMIT' => '1024', 'USED' => '2048',
+        'OBJECTS' => '3', 'KEYS' => '1', 'KEYS_LIMIT' => '20', 'ENDPOINT' => 'https://s3.example.test', 'REGION' => 'us-east-1', 'PATH_STYLE' => 'yes'], $overrides);
+}

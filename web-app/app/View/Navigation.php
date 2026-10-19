@@ -11,6 +11,7 @@ use App\Policies\ServerPolicy;
 use App\Services\AppProcesses\AppProcessAccess;
 use App\Services\Docker\DockerAccess;
 use App\Services\Node\NodeAccess;
+use App\Services\ObjectStorage\ObjectStorageAccess;
 use Illuminate\Support\Facades\Route;
 
 /**
@@ -27,6 +28,8 @@ final class Navigation
      * always for administrators.
      * docker: only when the package of the account includes Docker apps (E4),
      * always for administrators.
+     * storage: only when the package of the account includes object storage
+     * (E44), always for administrators.
      * labels: label per acting role, instead of label.
      * own: left out while a reseller acts as a customer, also as a panel app
      * page (the web terminal keeps the reseller's own shell).
@@ -86,6 +89,13 @@ final class Navigation
                     ['route' => 'server.docker', 'label' => 'Docker engine', 'tab' => 'Engine', 'icon' => 'container', 'cap' => 'docker.engine.manage',
                         'section' => 'server.docker', 'tabs' => ['server.docker']],
                 ]],
+                // Object storage (E44 spec §11): the account's buckets, the service of the server
+                ['hub' => 'storage', 'label' => 'Object storage', 'icon' => 'disk', 'children' => [
+                    ['route' => 'storage', 'label' => 'Object storage', 'tab' => 'Buckets', 'icon' => 'disk', 'cap' => 'storage.view', 'storage' => true,
+                        'requires' => 'OBJECT_STORAGE_SYSTEM=silo', 'section' => 'storage.', 'tabs' => ['storage.show'], 'userRoute' => 'storage.show'],
+                    ['route' => 'server.object-storage', 'label' => 'Object storage service', 'tab' => 'Service', 'icon' => 'server', 'cap' => 'storage.server',
+                        'section' => 'server.object-storage', 'tabs' => ['server.object-storage']],
+                ]],
             ],
         ],
         'server' => [
@@ -134,6 +144,7 @@ final class Navigation
         private readonly NodeAccess $node,
         private readonly DockerAccess $docker,
         private readonly AppProcessAccess $processes,
+        private readonly ObjectStorageAccess $storage,
     ) {}
 
     /**
@@ -327,6 +338,9 @@ final class Navigation
             return false;
         }
         if (($item['processes'] ?? false) && $principal->actingRole() !== Role::Admin && ! $this->processes->allowed($principal->effectiveUser())) {
+            return false;
+        }
+        if (($item['storage'] ?? false) && $principal->actingRole() !== Role::Admin && ! $this->storage->allowed($principal->effectiveUser())) {
             return false;
         }
         if (($item['writable'] ?? false) && $principal->isReadOnly()) {

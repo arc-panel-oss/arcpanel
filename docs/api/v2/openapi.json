@@ -312,6 +312,106 @@
                 "x-arcpanel-permission-set": "v2-backup"
             }
         },
+        "/buckets": {
+            "get": {
+                "operationId": "listAllBuckets",
+                "description": "Every user's buckets for an administrator's key, those of the reseller\nand its customers for a reseller's key; a user's key answers 403\n(`listBuckets` covers it). Sorted by user, then name. With\n`updated_since`, only the users whose buckets changed at or after that\ntime are returned, each with all its buckets (E43 B2).",
+                "summary": "List the buckets of every user",
+                "tags": [
+                    "Object storage"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Array of `Bucket`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/components/schemas/Bucket"
+                                            }
+                                        },
+                                        "meta": {
+                                            "$ref": "#/components/schemas/CrossUserListMeta"
+                                        }
+                                    },
+                                    "required": [
+                                        "data",
+                                        "meta"
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    }
+                },
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "query",
+                        "description": "One user in the scope of the key; the list then holds only that user. A user outside the scope answers 404.",
+                        "schema": {
+                            "type": "string",
+                            "pattern": "^[[:alnum:]][-.\\w]{0,28}[[:alnum:]]$"
+                        }
+                    },
+                    {
+                        "name": "updated_since",
+                        "in": "query",
+                        "description": "ISO 8601 time, UTC without an offset: only the users whose objects of this kind changed at or after it, each with all its objects. Use the `meta.as_of` of the previous first page.",
+                        "schema": {
+                            "type": "string",
+                            "format": "date-time"
+                        }
+                    },
+                    {
+                        "name": "limit",
+                        "in": "query",
+                        "description": "Page size, from 1 to 1000. Without it the list is complete.",
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 1000
+                        }
+                    },
+                    {
+                        "name": "offset",
+                        "in": "query",
+                        "description": "Items to skip. Used when `limit` is set; 0 when omitted.",
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 0
+                        }
+                    }
+                ],
+                "x-arcpanel-permission-set": "v2-storage"
+            }
+        },
         "/cron-jobs": {
             "get": {
                 "operationId": "listAllCronJobs",
@@ -4206,6 +4306,244 @@
                         "$ref": "#/components/responses/Unavailable"
                     }
                 },
+                "x-arcpanel-permission-set": "v2-server"
+            }
+        },
+        "/system/object-storage": {
+            "get": {
+                "operationId": "getObjectStorage",
+                "description": "Whether Silo is installed, its version, data path, endpoint and\nstate, and the totals of every account's buckets as the last repair\ncounted them.",
+                "summary": "Get the object storage service",
+                "tags": [
+                    "Object storage"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "`ObjectStorage`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/ObjectStorage"
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    }
+                },
+                "x-arcpanel-permission-set": "v2-server"
+            },
+            "post": {
+                "operationId": "installObjectStorage",
+                "description": "Installs Silo from the pinned and checked packages as the system\ntask, with its data in `data_path`. Installed already answers\n`409 E_EXISTS`; another running system task `409 E_INUSE` with\n`existing`.",
+                "summary": "Install object storage",
+                "tags": [
+                    "Object storage"
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/InstallObjectStorageRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "With `dry_run`: the planned steps; nothing ran.",
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/DryRun"
+                                }
+                            }
+                        }
+                    },
+                    "202": {
+                        "description": "`Task`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/Task"
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            },
+                            "Link": {
+                                "$ref": "#/components/headers/Link"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "409": {
+                        "$ref": "#/components/responses/Conflict"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    },
+                    "503": {
+                        "$ref": "#/components/responses/Unavailable"
+                    }
+                },
+                "parameters": [
+                    {
+                        "name": "dry_run",
+                        "in": "query",
+                        "description": "Validate, authorize and plan the change, and answer with its steps instead of running them.",
+                        "schema": {
+                            "type": "boolean",
+                            "default": false
+                        }
+                    }
+                ],
+                "x-arcpanel-permission-set": "v2-server"
+            }
+        },
+        "/system/object-storage/endpoint": {
+            "put": {
+                "operationId": "setObjectStorageEndpoint",
+                "description": "Publishes the S3 API on `hostname`, a web domain of the administrator\nwith the internal template `silo-endpoint`, and requests a Let's\nEncrypt certificate unless `letsencrypt` is false. `hostname: null`\nswitches the endpoint domain back to its default template. A web\ndomain of another account answers `409 E_EXISTS`.",
+                "summary": "Set the object storage endpoint",
+                "tags": [
+                    "Object storage"
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/SetObjectStorageEndpointRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "`ObjectStorage`; with `dry_run`, the planned steps.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "oneOf": [
+                                        {
+                                            "type": "object",
+                                            "properties": {
+                                                "data": {
+                                                    "$ref": "#/components/schemas/ObjectStorage"
+                                                }
+                                            },
+                                            "required": [
+                                                "data"
+                                            ]
+                                        },
+                                        {
+                                            "$ref": "#/components/schemas/DryRun"
+                                        }
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "409": {
+                        "$ref": "#/components/responses/Conflict"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    },
+                    "503": {
+                        "$ref": "#/components/responses/Unavailable"
+                    }
+                },
+                "parameters": [
+                    {
+                        "name": "dry_run",
+                        "in": "query",
+                        "description": "Validate, authorize and plan the change, and answer with its steps instead of running them.",
+                        "schema": {
+                            "type": "boolean",
+                            "default": false
+                        }
+                    }
+                ],
                 "x-arcpanel-permission-set": "v2-server"
             }
         },
@@ -11792,6 +12130,491 @@
                     }
                 },
                 "x-arcpanel-permission-set": "v2-backup"
+            }
+        },
+        "/users/{user}/buckets": {
+            "get": {
+                "operationId": "listBuckets",
+                "description": "`meta.storage` gives the limits of the account's package, what its\nbuckets hold against them and how to connect: path-style addressing\non `endpoint` in `region`.",
+                "summary": "List the buckets of a user",
+                "tags": [
+                    "Object storage"
+                ],
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "limit",
+                        "in": "query",
+                        "description": "Page size, from 1 to 1000. Without it the list is complete.",
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 1000
+                        }
+                    },
+                    {
+                        "name": "offset",
+                        "in": "query",
+                        "description": "Items to skip. Used when `limit` is set; 0 when omitted.",
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 0
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Array of `Bucket`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/components/schemas/Bucket"
+                                            }
+                                        },
+                                        "meta": {
+                                            "$ref": "#/components/schemas/ListMeta"
+                                        }
+                                    },
+                                    "required": [
+                                        "data",
+                                        "meta"
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    }
+                },
+                "x-arcpanel-permission-set": "v2-storage"
+            },
+            "post": {
+                "operationId": "createBucket",
+                "description": "Bucket names are unique on the server. The bucket's hard quota and\nthe quotas of the account's other buckets stay within its package.\nSilo refuses one upload larger than the quota at once; uploads that\nadd up beyond it are refused from its next scan, about a minute later.",
+                "summary": "Create a bucket",
+                "tags": [
+                    "Object storage"
+                ],
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "dry_run",
+                        "in": "query",
+                        "description": "Validate, authorize and plan the change, and answer with its steps instead of running them.",
+                        "schema": {
+                            "type": "boolean",
+                            "default": false
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/StoreBucketRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "With `dry_run`: the planned steps; nothing ran.",
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/DryRun"
+                                }
+                            }
+                        }
+                    },
+                    "201": {
+                        "description": "`Bucket`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/Bucket"
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            },
+                            "Location": {
+                                "$ref": "#/components/headers/Location"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "409": {
+                        "description": "`E_EXISTS`: The name is taken on the server; `existing` names the account's own bucket when it is the account's.",
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Error"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    },
+                    "503": {
+                        "$ref": "#/components/responses/Unavailable"
+                    }
+                },
+                "x-arcpanel-permission-set": "v2-storage"
+            }
+        },
+        "/users/{user}/buckets/{bucket}": {
+            "get": {
+                "operationId": "getBucket",
+                "summary": "Get a bucket",
+                "tags": [
+                    "Object storage"
+                ],
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "bucket",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "`Bucket`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/Bucket"
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    }
+                },
+                "x-arcpanel-permission-set": "v2-storage"
+            },
+            "patch": {
+                "operationId": "updateBucket",
+                "description": "Fields left out keep their value. Raising the quota checks the\npackage; nothing runs when nothing changes.",
+                "summary": "Change a bucket",
+                "tags": [
+                    "Object storage"
+                ],
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "bucket",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "dry_run",
+                        "in": "query",
+                        "description": "Validate, authorize and plan the change, and answer with its steps instead of running them.",
+                        "schema": {
+                            "type": "boolean",
+                            "default": false
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/UpdateBucketRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "`Bucket`; with `dry_run`, the planned steps.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "oneOf": [
+                                        {
+                                            "type": "object",
+                                            "properties": {
+                                                "data": {
+                                                    "$ref": "#/components/schemas/Bucket"
+                                                }
+                                            },
+                                            "required": [
+                                                "data"
+                                            ]
+                                        },
+                                        {
+                                            "$ref": "#/components/schemas/DryRun"
+                                        }
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "409": {
+                        "$ref": "#/components/responses/Conflict"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    },
+                    "503": {
+                        "$ref": "#/components/responses/Unavailable"
+                    }
+                },
+                "x-arcpanel-permission-set": "v2-storage"
+            },
+            "delete": {
+                "operationId": "deleteBucket",
+                "description": "Deletes every object and version in it, and the S3 keys limited to\nit.",
+                "summary": "Delete a bucket",
+                "tags": [
+                    "Object storage"
+                ],
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "bucket",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "dry_run",
+                        "in": "query",
+                        "description": "Validate, authorize and plan the change, and answer with its steps instead of running them.",
+                        "schema": {
+                            "type": "boolean",
+                            "default": false
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "With `dry_run`: the planned steps; nothing ran.",
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/DryRun"
+                                }
+                            }
+                        }
+                    },
+                    "204": {
+                        "description": "No content.",
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "409": {
+                        "$ref": "#/components/responses/Conflict"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    },
+                    "503": {
+                        "$ref": "#/components/responses/Unavailable"
+                    }
+                },
+                "x-arcpanel-permission-set": "v2-storage"
             }
         },
         "/users/{user}/cron-jobs": {
@@ -25703,6 +26526,303 @@
                 "x-arcpanel-permission-set": "v2-apps"
             }
         },
+        "/users/{user}/s3-keys": {
+            "get": {
+                "operationId": "listS3Keys",
+                "description": "Newest first, without secrets, which are never kept.",
+                "summary": "List the S3 keys of a user",
+                "tags": [
+                    "Object storage"
+                ],
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "limit",
+                        "in": "query",
+                        "description": "Page size, from 1 to 1000. Without it the list is complete.",
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 1000
+                        }
+                    },
+                    {
+                        "name": "offset",
+                        "in": "query",
+                        "description": "Items to skip. Used when `limit` is set; 0 when omitted.",
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 0
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Array of `S3Key`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/components/schemas/S3Key"
+                                            }
+                                        },
+                                        "meta": {
+                                            "$ref": "#/components/schemas/ListMeta"
+                                        }
+                                    },
+                                    "required": [
+                                        "data",
+                                        "meta"
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    }
+                },
+                "x-arcpanel-permission-set": "v2-storage"
+            },
+            "post": {
+                "operationId": "createS3Key",
+                "description": "The answer holds `secret`, once: no request can read it again. With\n`save_as` the secret is also saved in the account's secret store,\nwhere apps reference it as `{{secret:NAME}}`. An account holds at\nmost 20 keys (`422 E_LIMIT`).",
+                "summary": "Create an S3 key",
+                "tags": [
+                    "Object storage"
+                ],
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "dry_run",
+                        "in": "query",
+                        "description": "Validate, authorize and plan the change, and answer with its steps instead of running them.",
+                        "schema": {
+                            "type": "boolean",
+                            "default": false
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/StoreS3KeyRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "With `dry_run`: the planned steps; nothing ran.",
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/DryRun"
+                                }
+                            }
+                        }
+                    },
+                    "201": {
+                        "description": "`S3Key`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/S3Key"
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            },
+                            "Location": {
+                                "$ref": "#/components/headers/Location"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "409": {
+                        "$ref": "#/components/responses/Conflict"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    },
+                    "503": {
+                        "$ref": "#/components/responses/Unavailable"
+                    }
+                },
+                "x-arcpanel-permission-set": "v2-storage"
+            }
+        },
+        "/users/{user}/s3-keys/{key}": {
+            "delete": {
+                "operationId": "deleteS3Key",
+                "description": "The key stops working at once.",
+                "summary": "Delete an S3 key",
+                "tags": [
+                    "Object storage"
+                ],
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "key",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "dry_run",
+                        "in": "query",
+                        "description": "Validate, authorize and plan the change, and answer with its steps instead of running them.",
+                        "schema": {
+                            "type": "boolean",
+                            "default": false
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "With `dry_run`: the planned steps; nothing ran.",
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/DryRun"
+                                }
+                            }
+                        }
+                    },
+                    "204": {
+                        "description": "No content.",
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "409": {
+                        "$ref": "#/components/responses/Conflict"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    },
+                    "503": {
+                        "$ref": "#/components/responses/Unavailable"
+                    }
+                },
+                "x-arcpanel-permission-set": "v2-storage"
+            }
+        },
         "/users/{user}/secrets": {
             "get": {
                 "operationId": "listSecrets",
@@ -30454,6 +31574,55 @@
                     "keep_yearly"
                 ]
             },
+            "Bucket": {
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "description": "unique on the server"
+                    },
+                    "user": {
+                        "type": "string"
+                    },
+                    "quota_mb": {
+                        "type": "integer",
+                        "description": "the hard quota in MB"
+                    },
+                    "used_bytes": {
+                        "type": "integer",
+                        "description": "bytes the last scan counted"
+                    },
+                    "objects": {
+                        "type": "integer"
+                    },
+                    "versioning": {
+                        "type": "boolean",
+                        "description": "versions of overwritten and deleted objects are kept"
+                    },
+                    "suspended": {
+                        "type": "boolean",
+                        "description": "the account is suspended: its keys fail"
+                    },
+                    "created_at": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "in the server's time zone, YYYY-MM-DDTHH:MM:SS"
+                    }
+                },
+                "required": [
+                    "name",
+                    "user",
+                    "quota_mb",
+                    "used_bytes",
+                    "objects",
+                    "versioning",
+                    "suspended",
+                    "created_at"
+                ],
+                "title": "Bucket"
+            },
             "BuildNodeAppRequest": {
                 "type": "object",
                 "properties": {
@@ -32625,6 +33794,22 @@
                 ],
                 "title": "InstallNodeVersionRequest"
             },
+            "InstallObjectStorageRequest": {
+                "type": "object",
+                "description": "POST /system/object-storage (E44 spec §4, §10).",
+                "properties": {
+                    "data_path": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "A folder of its own outside /home and the panel, empty or holding Silo data; default /srv/arcpanel-silo.",
+                        "pattern": "^\\/[A-Za-z0-9._\\/-]+$",
+                        "maxLength": 255
+                    }
+                },
+                "title": "InstallObjectStorageRequest"
+            },
             "Ip": {
                 "type": "object",
                 "properties": {
@@ -34095,6 +35280,75 @@
                 ],
                 "title": "Notification"
             },
+            "ObjectStorage": {
+                "type": "object",
+                "properties": {
+                    "installed": {
+                        "type": "boolean"
+                    },
+                    "version": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "the Silo package version"
+                    },
+                    "running": {
+                        "type": "boolean"
+                    },
+                    "data_path": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
+                    "hostname": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "the hostname of the S3 endpoint"
+                    },
+                    "endpoint": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "https:// with a certificate, else http://"
+                    },
+                    "region": {
+                        "type": "string"
+                    },
+                    "accounts": {
+                        "type": "integer",
+                        "description": "accounts that hold buckets"
+                    },
+                    "buckets": {
+                        "type": "integer"
+                    },
+                    "objects": {
+                        "type": "integer"
+                    },
+                    "used_bytes": {
+                        "type": "integer",
+                        "description": "bytes the last scan counted"
+                    }
+                },
+                "required": [
+                    "installed",
+                    "version",
+                    "running",
+                    "data_path",
+                    "hostname",
+                    "endpoint",
+                    "region",
+                    "accounts",
+                    "buckets",
+                    "objects",
+                    "used_bytes"
+                ],
+                "title": "ObjectStorage"
+            },
             "Package": {
                 "type": "object",
                 "properties": {
@@ -34414,6 +35668,39 @@
                             "cpus"
                         ]
                     },
+                    "object_storage": {
+                        "type": "object",
+                        "properties": {
+                            "enabled": {
+                                "type": "boolean",
+                                "description": "buckets and S3 keys allowed (E44)"
+                            },
+                            "buckets": {
+                                "type": [
+                                    "integer",
+                                    "null"
+                                ],
+                                "description": "buckets per user"
+                            },
+                            "quota": {
+                                "type": [
+                                    "string",
+                                    "null"
+                                ],
+                                "description": "the quotas of a user's buckets together (500M, 10G, 1T)"
+                            },
+                            "backup": {
+                                "type": "boolean",
+                                "description": "user backups include the objects"
+                            }
+                        },
+                        "required": [
+                            "enabled",
+                            "buckets",
+                            "quota",
+                            "backup"
+                        ]
+                    },
                     "php": {
                         "type": "object",
                         "properties": {
@@ -34460,6 +35747,7 @@
                     "node",
                     "docker",
                     "app_processes",
+                    "object_storage",
                     "php",
                     "created_at"
                 ],
@@ -35105,6 +36393,9 @@
                             },
                             "malware-scan": {
                                 "type": "boolean"
+                            },
+                            "silo": {
+                                "type": "boolean"
                             }
                         },
                         "required": [
@@ -35113,7 +36404,8 @@
                             "cgroups",
                             "quota",
                             "firewall",
-                            "malware-scan"
+                            "malware-scan",
+                            "silo"
                         ]
                     }
                 },
@@ -35863,6 +37155,67 @@
                 },
                 "title": "RunUpdatesRequest"
             },
+            "S3Key": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "description": "the access key ID"
+                    },
+                    "name": {
+                        "type": "string"
+                    },
+                    "bucket": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "the one bucket the key reaches; null for every bucket of the account"
+                    },
+                    "access": {
+                        "type": "string",
+                        "enum": [
+                            "rw",
+                            "ro"
+                        ]
+                    },
+                    "expires_on": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "YYYY-MM-DD: the key stops working at the start of that day (UTC)"
+                    },
+                    "expired": {
+                        "type": "boolean"
+                    },
+                    "created_at": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "in the server's time zone, YYYY-MM-DDTHH:MM:SS"
+                    },
+                    "secret": {
+                        "type": "string",
+                        "description": "The secret access key, in the answer of `createS3Key` only."
+                    },
+                    "saved_as": {
+                        "type": "string",
+                        "description": "The secret store entry the secret was saved to (`save_as`)."
+                    }
+                },
+                "required": [
+                    "id",
+                    "name",
+                    "bucket",
+                    "access",
+                    "expires_on",
+                    "expired",
+                    "created_at"
+                ],
+                "title": "S3Key"
+            },
             "SaveFileRequest": {
                 "type": "object",
                 "description": "Body of `saveFile` (E34 batch 5 spec §4.2). `content` may span lines; a\nNUL byte is refused, because binary content is out of scope (§8).",
@@ -36540,6 +37893,29 @@
                     "enabled"
                 ],
                 "title": "SetNodeEnabledRequest"
+            },
+            "SetObjectStorageEndpointRequest": {
+                "type": "object",
+                "description": "PUT /system/object-storage/endpoint (E44 spec §5, §10).",
+                "properties": {
+                    "hostname": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "The hostname of the S3 endpoint, for example `s3.example.com`; null removes the endpoint.",
+                        "pattern": "^(?=.{1,253}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\\.)+[a-z]{2,63}$",
+                        "maxLength": 253
+                    },
+                    "letsencrypt": {
+                        "type": "boolean",
+                        "description": "Request a Let's Encrypt certificate (the default); its DNS must point at the server."
+                    }
+                },
+                "required": [
+                    "hostname"
+                ],
+                "title": "SetObjectStorageEndpointRequest"
             },
             "SetPhpExtensionRequest": {
                 "type": "object",
@@ -37241,6 +38617,32 @@
                     "preset"
                 ],
                 "title": "StoreAppProcessRequest"
+            },
+            "StoreBucketRequest": {
+                "type": "object",
+                "description": "POST /users/{user}/buckets (E44 spec §10).",
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "description": "Unique on the server: 3-63 lower case letters, digits and hyphens, a letter or digit at both ends.",
+                        "pattern": "^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$"
+                    },
+                    "quota_mb": {
+                        "type": "integer",
+                        "description": "The hard quota in MB; the quotas of the account's buckets stay within its package.",
+                        "minimum": 1,
+                        "maximum": 999999999
+                    },
+                    "versioning": {
+                        "type": "boolean",
+                        "description": "Keep versions of overwritten and deleted objects."
+                    }
+                },
+                "required": [
+                    "name",
+                    "quota_mb"
+                ],
+                "title": "StoreBucketRequest"
             },
             "StoreCronJobRequest": {
                 "type": "object",
@@ -38138,6 +39540,33 @@
                             }
                         }
                     },
+                    "object_storage": {
+                        "type": "object",
+                        "properties": {
+                            "enabled": {
+                                "type": "boolean"
+                            },
+                            "buckets": {
+                                "type": [
+                                    "integer",
+                                    "null"
+                                ],
+                                "minimum": 0,
+                                "maximum": 999
+                            },
+                            "quota": {
+                                "type": [
+                                    "string",
+                                    "null"
+                                ],
+                                "pattern": "^\\d{1,9}[MGT]?$",
+                                "maxLength": 20
+                            },
+                            "backup": {
+                                "type": "boolean"
+                            }
+                        }
+                    },
                     "php": {
                         "type": "object",
                         "properties": {
@@ -38162,6 +39591,54 @@
                     "name"
                 ],
                 "title": "StorePackageRequest"
+            },
+            "StoreS3KeyRequest": {
+                "type": "object",
+                "description": "POST /users/{user}/s3-keys (E44 spec §7, §10).",
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "description": "1-32 letters, digits, spaces, `_ . -`.",
+                        "pattern": "^[A-Za-z0-9][A-Za-z0-9 _.-]{0,31}$"
+                    },
+                    "bucket": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "Limit the key to one bucket of the account; left out, it reaches every bucket of the account.",
+                        "pattern": "^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$"
+                    },
+                    "access": {
+                        "type": "string",
+                        "description": "`ro` reads only.",
+                        "enum": [
+                            "rw",
+                            "ro"
+                        ]
+                    },
+                    "expires_on": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "format": "date",
+                        "description": "YYYY-MM-DD in the future: the key stops working at the start of that day (UTC)."
+                    },
+                    "save_as": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "Also save the secret in the account's secret store under this name (E38), for example `/s3/media`.",
+                        "pattern": "^(\\/[A-Za-z0-9_.-]{1,64}){1,5}$",
+                        "maxLength": 128
+                    }
+                },
+                "required": [
+                    "name"
+                ],
+                "title": "StoreS3KeyRequest"
             },
             "StoreUserRequest": {
                 "type": "object",
@@ -38574,6 +40051,23 @@
                     }
                 },
                 "title": "UpdateAppProcessRequest"
+            },
+            "UpdateBucketRequest": {
+                "type": "object",
+                "description": "PATCH /users/{user}/buckets/{bucket} (E44 spec §10): fields left out keep\ntheir value.",
+                "properties": {
+                    "quota_mb": {
+                        "type": "integer",
+                        "description": "The hard quota in MB. A quota below the usage stops uploads until the bucket is below it.",
+                        "minimum": 1,
+                        "maximum": 999999999
+                    },
+                    "versioning": {
+                        "type": "boolean",
+                        "description": "`false` suspends versioning; versions already kept stay."
+                    }
+                },
+                "title": "UpdateBucketRequest"
             },
             "UpdateCronJobRequest": {
                 "type": "object",
@@ -39192,6 +40686,33 @@
                                 ],
                                 "pattern": "^\\d{1,2}(\\.\\d{1,2})?$",
                                 "maxLength": 20
+                            }
+                        }
+                    },
+                    "object_storage": {
+                        "type": "object",
+                        "properties": {
+                            "enabled": {
+                                "type": "boolean"
+                            },
+                            "buckets": {
+                                "type": [
+                                    "integer",
+                                    "null"
+                                ],
+                                "minimum": 0,
+                                "maximum": 999
+                            },
+                            "quota": {
+                                "type": [
+                                    "string",
+                                    "null"
+                                ],
+                                "pattern": "^\\d{1,9}[MGT]?$",
+                                "maxLength": 20
+                            },
+                            "backup": {
+                                "type": "boolean"
                             }
                         }
                     },

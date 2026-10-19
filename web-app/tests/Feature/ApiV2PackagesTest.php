@@ -98,6 +98,7 @@ it('describes a package with typed fields', function () {
         ->assertJsonPath('data.ports', null)
         ->assertJsonPath('data.node', ['enabled' => false, 'versions' => 3, 'allowed' => 'lts', 'apps' => 3])
         ->assertJsonPath('data.docker', ['enabled' => false, 'apps' => 0, 'cpus' => null, 'memory' => null])
+        ->assertJsonPath('data.object_storage', ['enabled' => false, 'buckets' => 3, 'quota' => '1G', 'backup' => false])
         ->assertJsonPath('data.created_at', '2026-09-01T10:00:00');
     $this->getJson('/api/v2/packages/hostco_gold', apiAs($this->fake, 'hostco', 'reseller', readOnly: true))->assertOk()
         ->assertJsonPath('data.label', 'gold')
@@ -131,6 +132,24 @@ it('creates a package with reseller settings for an admin, from the defaults of 
     $this->fake->assertRan('v-change-package-tenancy', fn ($a) => $a === ['business', 'RESELLER_PACKAGES', 'starter,default']);
     $this->fake->assertRan('v-change-package-tenancy', fn ($a) => $a === ['business', 'RESELLER_VISIBLE', 'yes']);
 })->with('package keys');
+
+it('sets the object storage keys of a package, within the reseller plan for a reseller (E44)', function () {
+    apiPackageAdded($this, 'v-add-user-package', 'business');
+    $this->fake->on('v-change-package-tenancy')->returns();
+
+    $this->postJson('/api/v2/packages', ['name' => 'business', 'object_storage' => ['enabled' => true, 'buckets' => null, 'quota' => '50G']],
+        apiAs($this->fake, 'arcadmin', 'admin'))->assertCreated();
+    expect(collect($this->fake->calls('v-change-package-tenancy'))->pluck('args')->all())->toBe([
+        ['business', 'OBJECT_STORAGE_BUCKETS', 'unlimited'], ['business', 'OBJECT_STORAGE_QUOTA', '50G'], ['business', 'OBJECT_STORAGE', 'yes'],
+    ]);
+    $this->postJson('/api/v2/packages', ['name' => 'other', 'object_storage' => ['quota' => '50 GB']], apiAs($this->fake, 'arcadmin', 'admin'))
+        ->assertUnprocessable()->assertJsonStructure(['error' => ['fields' => ['object_storage.quota']]]);
+
+    // hostco's own package has no object storage
+    $this->postJson('/api/v2/packages', ['name' => 'business', 'object_storage' => ['enabled' => true]], apiAs($this->fake, 'hostco', 'reseller'))
+        ->assertUnprocessable()->assertJsonStructure(['error' => ['fields' => ['object_storage.enabled']]]);
+    $this->fake->assertNotRan('v-add-reseller-package');
+});
 
 it('answers a repeated create with 409 and runs nothing', function () {
     $this->postJson('/api/v2/packages', ['name' => 'starter'], apiAs($this->fake, 'arcadmin', 'admin'))->assertStatus(409)

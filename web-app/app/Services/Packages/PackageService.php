@@ -18,6 +18,9 @@ use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
  */
 final class PackageService
 {
+    /** Defaults of the object storage keys (E44 spec §6, func/tenancy.sh). */
+    public const STORAGE_DEFAULTS = ['OBJECT_STORAGE' => 'no', 'OBJECT_STORAGE_BUCKETS' => '3', 'OBJECT_STORAGE_QUOTA' => '1G', 'OBJECT_STORAGE_BACKUP' => 'no'];
+
     public function __construct(
         private readonly ArcCommand $arc,
         private readonly UserDirectory $users,
@@ -123,7 +126,7 @@ final class PackageService
      * @param  array{NODE: string, NODE_VERSIONS: string, NODE_ALLOWED: string, NODE_APPS: string}|null  $node  Node.js keys (E13), null to keep them
      * @return list<Step>
      */
-    public function planCreate(string $name, array $values, ?array $tenancy, string $reseller = '', string $ports = '0', ?array $node = null, ?array $docker = null, ?array $php = null, ?array $processes = null): array
+    public function planCreate(string $name, array $values, ?array $tenancy, string $reseller = '', string $ports = '0', ?array $node = null, ?array $docker = null, ?array $php = null, ?array $processes = null, ?array $storage = null): array
     {
         $file = Secret::file($this->file($values));
         if ($reseller !== '') {
@@ -133,6 +136,7 @@ final class PackageService
                 ...$this->nodeSteps($reseller.'_'.$name, $node, null),
                 ...$this->dockerSteps($reseller.'_'.$name, $docker, null),
                 ...$this->processSteps($reseller.'_'.$name, $processes, null),
+                ...$this->storageSteps($reseller.'_'.$name, $storage, null),
                 ...$this->phpSteps($reseller.'_'.$name, $php, null),
             ];
         }
@@ -144,6 +148,7 @@ final class PackageService
             ...$this->nodeSteps($name, $node, null),
             ...$this->dockerSteps($name, $docker, null),
             ...$this->processSteps($name, $processes, null),
+            ...$this->storageSteps($name, $storage, null),
             ...$this->phpSteps($name, $php, null),
         ];
     }
@@ -155,7 +160,7 @@ final class PackageService
      * @param  array{NODE: string, NODE_VERSIONS: string, NODE_ALLOWED: string, NODE_APPS: string}|null  $node  Node.js keys (E13), null to keep them
      * @return list<Step>
      */
-    public function planUpdate(PackageRecord $current, string $newName, array $values, ?array $tenancy, string $reseller = '', ?string $ports = null, ?array $node = null, ?array $docker = null, ?array $php = null, ?array $processes = null): array
+    public function planUpdate(PackageRecord $current, string $newName, array $values, ?array $tenancy, string $reseller = '', ?string $ports = null, ?array $node = null, ?array $docker = null, ?array $php = null, ?array $processes = null, ?array $storage = null): array
     {
         $file = Secret::file($this->file($values));
         if ($reseller !== '') {
@@ -165,6 +170,7 @@ final class PackageService
                 ...$this->nodeSteps($current->name, $node, $current),
                 ...$this->dockerSteps($current->name, $docker, $current),
                 ...$this->processSteps($current->name, $processes, $current),
+                ...$this->storageSteps($current->name, $storage, $current),
                 ...$this->phpSteps($current->name, $php, $current),
             ];
         }
@@ -176,6 +182,8 @@ final class PackageService
             ...$this->portsStep($current->name, $ports, $current),
             ...$this->nodeSteps($current->name, $node, $current),
             ...$this->dockerSteps($current->name, $docker, $current),
+            ...$this->processSteps($current->name, $processes, $current),
+            ...$this->storageSteps($current->name, $storage, $current),
             ...$this->phpSteps($current->name, $php, $current),
         ];
         if ($newName !== $current->name) {
@@ -325,6 +333,32 @@ final class PackageService
             $before = $current?->get($key, $defaults[$key]) ?? $defaults[$key];
             if ($processes[$key] !== $before) {
                 $steps[] = new Step(sprintf(__('Set %s'), $key), 'v-change-package-tenancy', [$name, $key, $processes[$key]]);
+            }
+        }
+
+        return $steps;
+    }
+
+    /**
+     * Object storage keys of the package sidecar (E44 spec §6) that are set
+     * or changed; the limits before OBJECT_STORAGE, as for app processes.
+     *
+     * @param  array{OBJECT_STORAGE: string, OBJECT_STORAGE_BUCKETS: string, OBJECT_STORAGE_QUOTA: string, OBJECT_STORAGE_BACKUP: string}|null  $storage
+     * @return list<Step>
+     */
+    private function storageSteps(string $name, ?array $storage, ?PackageRecord $current): array
+    {
+        if ($storage === null) {
+            return [];
+        }
+        $steps = [];
+        foreach (['OBJECT_STORAGE_BUCKETS', 'OBJECT_STORAGE_QUOTA', 'OBJECT_STORAGE_BACKUP', 'OBJECT_STORAGE'] as $key) {
+            if (! isset($storage[$key])) {
+                continue;
+            }
+            $before = $current?->get($key, self::STORAGE_DEFAULTS[$key]) ?? self::STORAGE_DEFAULTS[$key];
+            if ($storage[$key] !== $before) {
+                $steps[] = new Step(sprintf(__('Set %s'), $key), 'v-change-package-tenancy', [$name, $key, $storage[$key]]);
             }
         }
 

@@ -46,6 +46,8 @@ use App\Http\Controllers\Malware\MalwareController;
 use App\Http\Controllers\Node\NodeAppController;
 use App\Http\Controllers\Node\NodeAppPageController;
 use App\Http\Controllers\Node\NodeController;
+use App\Http\Controllers\ObjectStorage\ObjectStoragePageController;
+use App\Http\Controllers\ObjectStorage\ObjectStorageServerController;
 use App\Http\Controllers\Packages\PackageController;
 use App\Http\Controllers\Ports\PortController;
 use App\Http\Controllers\Ports\ServerPortController;
@@ -517,6 +519,28 @@ Route::middleware('auth.arc')->group(function () {
                 Route::put('/apps/{name}/env', [DockerAppController::class, 'saveEnv'])->name('apps.env.update');
                 Route::put('/apps/{name}/limits', [DockerAppController::class, 'limits'])->name('apps.limits');
                 Route::put('/apps/{name}/domain', [DockerAppController::class, 'domain'])->name('apps.domain');
+            });
+        });
+    });
+
+    // Object storage (E44 spec §11); the page of the effective account is at
+    // /object-storage, the service of the server at /server/object-storage
+    Route::get('/server/object-storage', [ObjectStorageServerController::class, 'page'])->name('server.object-storage');
+    Route::middleware('not-readonly')->name('server.object-storage.')->group(function () {
+        Route::post('/server/object-storage/install', [ObjectStorageServerController::class, 'install'])->name('install');
+        Route::post('/server/object-storage/endpoint', [ObjectStorageServerController::class, 'endpoint'])->middleware('sys-config:OBJECT_STORAGE_SYSTEM=silo')->name('endpoint');
+    });
+    Route::middleware('sys-config:OBJECT_STORAGE_SYSTEM=silo')->group(function () {
+        Route::get('/object-storage', [ObjectStoragePageController::class, 'entry'])->name('storage');
+        Route::prefix('object-storage/{user}')->name('storage.')->middleware('effective-user')->group(function () {
+            $bucket = ['bucket' => '[a-z0-9][a-z0-9-]{1,61}[a-z0-9]'];
+            Route::get('/', [ObjectStoragePageController::class, 'show'])->name('show');
+            Route::middleware('not-readonly')->group(function () use ($bucket) {
+                Route::post('/buckets', [ObjectStoragePageController::class, 'storeBucket'])->name('buckets.store');
+                Route::post('/buckets/{bucket}', [ObjectStoragePageController::class, 'updateBucket'])->where($bucket)->name('buckets.update');
+                Route::delete('/buckets/{bucket}', [ObjectStoragePageController::class, 'destroyBucket'])->where($bucket)->name('buckets.destroy');
+                Route::post('/keys', [ObjectStoragePageController::class, 'storeKey'])->name('keys.store');
+                Route::delete('/keys/{key}', [ObjectStoragePageController::class, 'destroyKey'])->where('key', '[A-Za-z0-9]{3,64}')->name('keys.destroy');
             });
         });
     });

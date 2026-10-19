@@ -275,6 +275,29 @@ it('sets the app process keys of a package, within the reseller plan for a resel
     $this->fake->assertNotRan('v-add-reseller-package');
 });
 
+it('sets the object storage keys of a package, within the reseller plan for a reseller (E44)', function () {
+    $this->fake->on('v-add-user-package')->returns();
+    $this->fake->on('v-add-reseller-package')->returns();
+    $this->fake->on('v-change-package-tenancy')->returns();
+
+    signIn('arcadmin', 'admin');
+    $this->get('/packages/create')->assertOk()->assertSee('name="object_storage"', false)->assertSee('name="object_storage_quota"', false);
+    $this->post('/packages', packageInput(['object_storage' => '1', 'object_storage_buckets' => '5', 'object_storage_quota' => '20G', 'object_storage_backup' => '1']))
+        ->assertRedirect('/packages');
+    $steps = collect($this->fake->calls('v-change-package-tenancy'))->pluck('args')->all();
+    expect($steps)->toBe([
+        ['business', 'OBJECT_STORAGE_BUCKETS', '5'], ['business', 'OBJECT_STORAGE_QUOTA', '20G'], ['business', 'OBJECT_STORAGE_BACKUP', 'yes'], ['business', 'OBJECT_STORAGE', 'yes'],
+    ]);
+    $this->post('/packages', packageInput(['object_storage_quota' => '20 GB']))->assertSessionHasErrors('object_storage_quota');
+
+    // the reseller package has no object storage
+    signIn('hostco', 'reseller');
+    $this->get('/packages/create')->assertOk()->assertSee('Object storage is not included in your plan.');
+    $this->post('/packages', packageInput(['object_storage' => '1']))->assertSessionHasErrors('object_storage');
+    $this->post('/packages', packageInput(['object_storage_buckets' => '4']))->assertSessionHasErrors('object_storage_buckets');
+    $this->fake->assertNotRan('v-add-reseller-package');
+});
+
 it('sets the PHP keys of a package with the default profile kept allowed at each step (E41)', function () {
     $this->fake->on('v-add-user-package')->returns();
     $this->fake->on('v-update-user-package')->returns();

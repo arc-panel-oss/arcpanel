@@ -62,6 +62,11 @@
 #   prepare.sh appprocesses       a web domain with HTTPS and a static page
 #                                 for arce2edev (E42); appprocesses-clean
 #                                 deletes its app processes and the domain
+#   prepare.sh objectstorage      object storage for the developer package
+#                                 (E44), arce2edev without buckets and S3
+#                                 keys; prints "skip" without Silo;
+#                                 objectstorage-clean deletes them and
+#                                 restores the package
 set -euo pipefail
 # The fixtures get the modes of a normal root shell, whatever the caller's
 # umask (a wrapper with umask 077 left the users' folders unreachable)
@@ -259,6 +264,50 @@ appprocesses_prepare() {
 	forget_config_cache
 }
 
+# Object storage (E44): the developer package gets OBJECT_STORAGE='yes',
+# 3 buckets and 300 MB; the keys it had are restored by the clean step.
+OBJSTORE_STATE=/root/.arcpanel-e2e-objstore
+
+objectstorage_reset() {
+	local bucket key
+	if ! "$B/v-list-user" arce2edev > /dev/null 2>&1 || [ ! -x "$B/v-list-user-buckets" ]; then
+		return 0
+	fi
+	for key in $("$B/v-list-user-s3-keys" arce2edev json 2> /dev/null | jq -r 'keys[]'); do
+		"$B/v-delete-user-s3-key" arce2edev "$key" > /dev/null 2>&1 || true
+	done
+	for bucket in $("$B/v-list-user-buckets" arce2edev json 2> /dev/null | jq -r 'keys[]'); do
+		"$B/v-delete-user-bucket" arce2edev "$bucket" > /dev/null 2>&1 || true
+	done
+}
+
+objectstorage_prepare() {
+	local key
+	if [ "$(grep "^OBJECT_STORAGE_SYSTEM=" "$ARCPANEL/conf/arcpanel.conf" | cut -d"'" -f2)" != silo ]; then
+		echo skip
+		return 0
+	fi
+	if [ ! -f "$OBJSTORE_STATE" ]; then
+		"$B/v-list-package-tenancy" developer json | jq -r '.developer | to_entries[] | select(.key | startswith("OBJECT_STORAGE")) | "\(.key) \(.value)"' > "$OBJSTORE_STATE" || true
+	fi
+	for key in "OBJECT_STORAGE_BUCKETS 3" "OBJECT_STORAGE_QUOTA 300" "OBJECT_STORAGE yes"; do
+		# shellcheck disable=SC2086
+		"$B/v-change-package-tenancy" developer $key > /dev/null
+	done
+	forget_config_cache
+	echo ready
+}
+
+objectstorage_restore() {
+	local key value
+	if [ -f "$OBJSTORE_STATE" ]; then
+		"$B/v-change-package-tenancy" developer OBJECT_STORAGE no > /dev/null 2>&1 || true
+		while read -r key value; do
+			[ -n "$key" ] && "$B/v-change-package-tenancy" developer "$key" "$value" > /dev/null 2>&1 || true
+		done < "$OBJSTORE_STATE"
+		rm -f "$OBJSTORE_STATE"
+	fi
+}
 # File manager (E3): arce2euser gets a folder of fixtures below the
 # document root of e2e-site.example; the spec uploads, edits and moves
 # files there through the panel.
@@ -555,6 +604,16 @@ case "${1:-}" in
 		;;
 	appprocesses-clean)
 		appprocesses_reset
+		exit 0
+		;;
+	objectstorage)
+		objectstorage_reset
+		objectstorage_prepare
+		exit 0
+		;;
+	objectstorage-clean)
+		objectstorage_reset
+		objectstorage_restore
 		exit 0
 		;;
 	dockerapps)

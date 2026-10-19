@@ -118,6 +118,25 @@
             </div>
         </x-ap-card>
 
+        {{-- Object storage (E44 spec §6) --}}
+        <x-ap-card :title="__('Object storage')" icon="archive">
+            @if ($ownStorage !== null && $ownStorage['OBJECT_STORAGE'] !== 'yes')
+                <p class="muted">{{ __('Object storage is not included in your plan.') }}</p>
+            @endif
+            <div class="ap-settings">
+                <x-ap-switch name="object_storage" :label="__('Object storage')" :description="__('Users of this package may create S3-compatible buckets and access keys on this server.')"
+                    :checked="($values['OBJECT_STORAGE'] ?? 'no') === 'yes'" :disabled="$ownStorage !== null && $ownStorage['OBJECT_STORAGE'] !== 'yes'" />
+                <x-ap-switch name="object_storage_backup" :label="__('Back up bucket contents')" :description="__('User backups include the objects of every bucket; they can make backups much larger.')"
+                    :checked="($values['OBJECT_STORAGE_BACKUP'] ?? 'no') === 'yes'" :disabled="$ownStorage !== null && $ownStorage['OBJECT_STORAGE_BACKUP'] !== 'yes'" />
+            </div>
+            <div class="ap-form-grid">
+                <x-ap-unlimited-input name="object_storage_buckets" :label="__('Buckets')" :value="$values['OBJECT_STORAGE_BUCKETS'] ?? '3'"
+                    :hint="$ownStorage !== null ? sprintf(__('Your plan: %s'), $ownStorage['OBJECT_STORAGE_BUCKETS']) : __('Buckets per user.')" />
+                <x-ap-input name="object_storage_quota" :label="__('Storage quota')" :value="$values['OBJECT_STORAGE_QUOTA'] ?? '1G'" mono
+                    :hint="$ownStorage !== null ? sprintf(__('Your plan: %s'), $ownStorage['OBJECT_STORAGE_QUOTA']) : __('unlimited or a size such as 500M, 10G or 1T; all buckets of a user together')" />
+            </div>
+        </x-ap-card>
+
         @if ($php !== null)
             {{-- PHP of the package (E41 §7.5, §8) --}}
             @php

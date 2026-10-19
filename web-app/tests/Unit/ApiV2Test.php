@@ -378,6 +378,7 @@ it('declares an area on the batch 1 routes', function () {
             str_contains($uri, '/docker-catalog') || str_contains($uri, '/docker-apps') => 'apps',
             str_contains($uri, '/ports') => 'apps',
             str_contains($uri, '/node') => 'apps',
+            str_contains($uri, '/buckets'), str_contains($uri, '/s3-keys') => 'storage',
             str_starts_with($uri, 'api/v2/users'), str_starts_with($uri, 'api/v2/packages') => 'accounts',
             in_array($uri, ['api/v2/stats', 'api/v2/search', 'api/v2/access-key-sets'], true), str_starts_with($uri, 'api/v2/notifications') => 'accounts',
             default => null,

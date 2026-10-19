@@ -34,9 +34,12 @@ final class PackageLimits
             'MEMORY_LIMIT', 'SWAP_LIMIT', 'DOCKER_MEMORY', 'APP_PROCESSES_MEMORY' => self::bytes($key, $value),
             'DOCKER_CPUS', 'APP_PROCESSES_CPUS' => preg_match('/^(\d{1,9})(?:\.(\d{1,2}))?$/D', $value, $m) === 1
                 ? (int) $m[1] * 100 + (int) substr(($m[2] ?? '').'00', 0, 2) : null,
+            // MB, or GB and TB with G and T (E44), as func/tenancy.sh reads it
+            'OBJECT_STORAGE_QUOTA' => preg_match('/^(\d{1,9})([MGT]?)$/D', $value, $m) === 1
+                ? (int) $m[1] * ['' => 1, 'M' => 1, 'G' => 1024, 'T' => 1048576][$m[2]] : null,
             'CPU_QUOTA' => preg_match('/^(\d{1,9})%$/D', $value, $m) === 1 ? (int) $m[1] : null,
             'CPU_QUOTA_PERIOD' => preg_match('/^(\d{1,9})(ms|s)$/D', $value, $m) === 1 ? (int) $m[1] * ($m[2] === 's' ? 1000 : 1) : null,
-            'BACKUPS_INCREMENTAL', 'NODE', 'DOCKER', 'APP_PROCESSES' => match ($value) {
+            'BACKUPS_INCREMENTAL', 'NODE', 'DOCKER', 'APP_PROCESSES', 'OBJECT_STORAGE', 'OBJECT_STORAGE_BACKUP' => match ($value) {
                 'yes' => 1,
                 'no' => 0,
                 default => null,

@@ -51,6 +51,11 @@ final class PackageRequest extends FormRequest
             'app_processes_max' => ['nullable', 'integer', 'min:0', 'max:999'],
             'app_processes_memory' => ['nullable', 'string', 'max:20', 'regex:/^(unlimited|\d{1,7}[MG]?)$/'],
             'app_processes_cpus' => ['nullable', 'string', 'max:20', 'regex:/^(unlimited|\d{1,2}(\.\d{1,2})?)$/'],
+            // Object storage (E44 spec §6)
+            'object_storage' => ['nullable', 'boolean'],
+            'object_storage_buckets' => ['nullable', 'integer', 'min:0', 'max:999'],
+            'object_storage_quota' => ['nullable', 'string', 'max:20', 'regex:/^(unlimited|\d{1,9}[MGT]?)$/'],
+            'object_storage_backup' => ['nullable', 'boolean'],
             // PHP of the package (E41 §7.5), sent with the php_group marker
             'php_versions_all' => ['nullable', 'boolean'],
             'php_versions' => ['nullable', 'array', Rule::requiredIf(fn () => $this->boolean('php_group') && ! $this->boolean('php_versions_all'))],
@@ -194,6 +199,23 @@ final class PackageRequest extends FormRequest
             'APP_PROCESSES_MAX' => $this->boolean('app_processes_max_unlimited') ? 'unlimited' : (string) $this->integer('app_processes_max', 3),
             'APP_PROCESSES_MEMORY' => (string) ($this->input('app_processes_memory') ?: 'unlimited'),
             'APP_PROCESSES_CPUS' => (string) ($this->input('app_processes_cpus') ?: '1'),
+        ];
+    }
+
+    /**
+     * Object storage keys of the package sidecar (E44): OBJECT_STORAGE,
+     * OBJECT_STORAGE_BUCKETS (a number, or unlimited when ticked),
+     * OBJECT_STORAGE_QUOTA (per bucket) and OBJECT_STORAGE_BACKUP.
+     *
+     * @return array{OBJECT_STORAGE: string, OBJECT_STORAGE_BUCKETS: string, OBJECT_STORAGE_QUOTA: string, OBJECT_STORAGE_BACKUP: string}
+     */
+    public function storageValues(): array
+    {
+        return [
+            'OBJECT_STORAGE' => $this->boolean('object_storage') ? 'yes' : 'no',
+            'OBJECT_STORAGE_BUCKETS' => $this->boolean('object_storage_buckets_unlimited') ? 'unlimited' : (string) $this->integer('object_storage_buckets', 3),
+            'OBJECT_STORAGE_QUOTA' => (string) ($this->input('object_storage_quota') ?: '1G'),
+            'OBJECT_STORAGE_BACKUP' => $this->boolean('object_storage_backup') ? 'yes' : 'no',
         ];
     }
 

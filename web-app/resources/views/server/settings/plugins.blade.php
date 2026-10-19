@@ -7,6 +7,7 @@
         'quota' => [__('Disk Quota'), __('Enforce the disk quota of each user with file system quotas.')],
         'firewall' => [__('Firewall'), __('The nftables firewall of the panel, for IPv4 and IPv6.')],
         'malware-scan' => [__('Malware scan'), __('Find PHP web shells in the web domains of every account, every night and on demand.')],
+        'silo' => [__('Object storage'), __('S3-compatible buckets for every account within its package (Silo). Server, Object storage sets the data path and the endpoint.')],
     ];
 @endphp
 <x-ap-page :title="__('Server settings')" :crumbs="[['label' => __('Server')], ['label' => __('Server settings')], ['label' => __('Plugins')]]">

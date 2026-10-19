@@ -92,6 +92,15 @@ abstract class PackageRequest extends ApiRequest
             'app_processes.memory' => ['sometimes', 'nullable', 'string', 'max:20', 'regex:/^\d{1,7}[MG]?$/'],
             /** CPUs per process, such as 0.5; null for unlimited. */
             'app_processes.cpus' => ['sometimes', 'nullable', 'string', 'max:20', 'regex:/^\d{1,2}(\.\d{1,2})?$/'],
+            'object_storage' => ['sometimes', 'array'],
+            /** Whether users may create S3-compatible buckets and keys (E44). */
+            'object_storage.enabled' => ['sometimes', 'boolean'],
+            /** Buckets per user; null for unlimited. */
+            'object_storage.buckets' => ['sometimes', 'nullable', 'integer', 'min:0', 'max:999'],
+            /** The quotas of a user's buckets together, MB unless G or T follows, such as 10G; null for unlimited. */
+            'object_storage.quota' => ['sometimes', 'nullable', 'string', 'max:20', 'regex:/^\d{1,9}[MGT]?$/'],
+            /** Whether user backups include the objects of the buckets. */
+            'object_storage.backup' => ['sometimes', 'boolean'],
             'php' => ['sometimes', 'array'],
             /** `*` (every installed version that has not reached its end of life) or a comma list of versions such as `8.3,8.4` (E41). */
             'php.versions' => ['sometimes', 'string', 'max:200', 'regex:/^(\*|\d{1,2}\.\d{1,2}(,\d{1,2}\.\d{1,2})*)$/'],
@@ -210,6 +219,22 @@ abstract class PackageRequest extends ApiRequest
 
     /**
      * @param  array<string, string>  $base
+     * @return array{OBJECT_STORAGE: string, OBJECT_STORAGE_BUCKETS: string, OBJECT_STORAGE_QUOTA: string, OBJECT_STORAGE_BACKUP: string}
+     */
+    public function storageValues(array $base): array
+    {
+        $flag = fn (string $field, string $key) => $this->has($field) ? ($this->boolean($field) ? 'yes' : 'no') : ($base[$key] ?? 'no');
+
+        return [
+            'OBJECT_STORAGE' => $flag('object_storage.enabled', 'OBJECT_STORAGE'),
+            'OBJECT_STORAGE_BUCKETS' => $this->has('object_storage.buckets') ? self::number($this->input('object_storage.buckets')) : ($base['OBJECT_STORAGE_BUCKETS'] ?? '3'),
+            'OBJECT_STORAGE_QUOTA' => $this->has('object_storage.quota') ? (string) ($this->input('object_storage.quota') ?? 'unlimited') : ($base['OBJECT_STORAGE_QUOTA'] ?? '1G'),
+            'OBJECT_STORAGE_BACKUP' => $flag('object_storage.backup', 'OBJECT_STORAGE_BACKUP'),
+        ];
+    }
+
+    /**
+     * @param  array<string, string>  $base
      * @return array{DOCKER: string, DOCKER_APPS: string, DOCKER_CPUS: string, DOCKER_MEMORY: string}
      */
     public function dockerValues(array $base): array
@@ -264,6 +289,10 @@ abstract class PackageRequest extends ApiRequest
                 'node' => 'node.enabled', 'node_versions' => 'node.versions', 'node_apps' => 'node.apps', 'node_allowed' => 'node.allowed',
                 'docker' => 'docker.enabled', 'docker_apps' => 'docker.apps', 'docker_cpus' => 'docker.cpus', 'docker_memory' => 'docker.memory',
                 'php_versions' => 'php.versions', 'php_profiles' => 'php.profiles', 'php_default_profile' => 'php.default_profile',
+                'app_processes' => 'app_processes.enabled', 'app_processes_max' => 'app_processes.max',
+                'app_processes_memory' => 'app_processes.memory', 'app_processes_cpus' => 'app_processes.cpus',
+                'object_storage' => 'object_storage.enabled', 'object_storage_buckets' => 'object_storage.buckets',
+                'object_storage_quota' => 'object_storage.quota', 'object_storage_backup' => 'object_storage.backup',
             ];
             foreach (self::LIMITS as $field => $key) {
                 $names[strtolower($key)] = 'limits.'.$field;

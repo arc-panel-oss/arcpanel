@@ -110,6 +110,16 @@ final class PackageResource extends JsonResource
                 /** @var string|null CPUs per process */
                 'cpus' => self::value($get('APP_PROCESSES_CPUS', '1')),
             ],
+            'object_storage' => [
+                /** @var bool buckets and S3 keys allowed (E44) */
+                'enabled' => $get('OBJECT_STORAGE', 'no') === 'yes',
+                /** @var int|null buckets per user */
+                'buckets' => UserResource::limit($get('OBJECT_STORAGE_BUCKETS', '3')),
+                /** @var string|null the quotas of a user's buckets together (500M, 10G, 1T) */
+                'quota' => self::value($get('OBJECT_STORAGE_QUOTA', '1G')),
+                /** @var bool user backups include the objects */
+                'backup' => $get('OBJECT_STORAGE_BACKUP', 'no') === 'yes',
+            ],
             'php' => [
                 /** @var string `*` (every installed version that has not reached its end of life) or a comma list of versions (E41) */
                 'versions' => $get('PHP_VERSIONS', '*') ?: '*',

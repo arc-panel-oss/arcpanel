@@ -33,6 +33,7 @@ final class ServerSettings
         'quota' => ['DISK_QUOTA', 'yes'],
         'firewall' => ['FIREWALL_SYSTEM', ['nftables', 'iptables']],
         'malware-scan' => ['MALWARE_SCAN', 'yes'],
+        'silo' => ['OBJECT_STORAGE_SYSTEM', 'silo'],
     ];
 
     /** yes/no policies of the Security tab, by group. */

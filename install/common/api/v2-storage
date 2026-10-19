@@ -1,0 +1,4 @@
+# REST API v2 (E44): object storage buckets and S3 keys, plus foundation reads. API v1 skips this set.
+ROLE='user'
+API_VERSION='2'
+COMMANDS='v-list-sys-config,v-list-users,v-list-user-owners,v-list-user,v-list-sys-languages,v-list-reseller-packages,v-list-package-tenancy,v-check-reseller-quota,v-list-user-object-storage,v-list-user-buckets,v-list-user-bucket,v-list-sys-buckets,v-list-user-s3-keys,v-add-user-bucket,v-change-user-bucket,v-delete-user-bucket,v-add-user-s3-key,v-delete-user-s3-key,v-add-user-secret,v-list-user-secret-store'

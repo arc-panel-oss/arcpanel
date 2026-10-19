@@ -40,6 +40,7 @@ PHP_USER="${SMOKE_USER}p"
 MALWARE_USER="${SMOKE_USER}m"
 PHP_PACKAGE="$SMOKE_PACKAGE-php"
 APPS_PACKAGE="$SMOKE_PACKAGE-apps"
+STORAGE_PACKAGE="$SMOKE_PACKAGE-s3"
 SMOKE_PASS="$(head -c 18 /dev/urandom | base64 | tr -dc 'A-Za-z0-9' | head -c 20)Aa1"
 ROOT_USER=$(grep "^ROOT_USER=" "$CONF" | cut -d"'" -f2)
 OLD_API_SYSTEM=$(grep "^API_SYSTEM=" "$CONF" | cut -d"'" -f2 || true)
@@ -78,7 +79,7 @@ cleanup() {
 		"$ARCPANEL/bin/v-delete-firewall-rule" "$rule" > /dev/null 2>&1 || true
 	done
 	rm -f "/etc/logrotate.d/arcpanel-node-$APPS_USER"
-	for package in "$SMOKE_PACKAGE" "$SMOKE_PACKAGE-copy" "$APPS_PACKAGE" "$PHP_PACKAGE"; do
+	for package in "$SMOKE_PACKAGE" "$SMOKE_PACKAGE-copy" "$APPS_PACKAGE" "$PHP_PACKAGE" "$STORAGE_PACKAGE"; do
 		"$ARCPANEL/bin/v-delete-user-package" "$package" > /dev/null 2>&1 || true
 		"$ARCPANEL/bin/v-delete-package-tenancy" "$package" > /dev/null 2>&1 || true
 	done
@@ -721,6 +722,45 @@ else
 	check "the v2-secrets key may not list web domains" 403 "$(call "$SECRETS_KEY" GET "$ACCOUNTS/web-domains")"
 	check "deleteSecret answers 204" 204 "$(call "$SECRETS_KEY" DELETE "$ACCOUNTS/secrets/smoke/db")"
 	check "the secret is gone" 404 "$(call "$SECRETS_KEY" GET "$ACCOUNTS/secrets/smoke/db")"
+fi
+
+# Object storage (E44 spec §10): a package with object storage, a key with only v2-storage
+if [ "$(conf_value OBJECT_STORAGE_SYSTEM)" != silo ]; then
+	skip "object storage: Silo is not installed on this server"
+else
+	check "createPackage with object storage answers 201" 201 "$(call "$ADMIN" POST /packages "{\"name\": \"$STORAGE_PACKAGE\", \"object_storage\": {\"enabled\": true, \"buckets\": 2, \"quota\": \"200M\"}}")"
+	check "the package allows object storage" "true 2 200M" "$(json '"\(.data.object_storage.enabled) \(.data.object_storage.buckets) \(.data.object_storage.quota)"')"
+	"$ARCPANEL/bin/v-change-user-package" "$ACCOUNTS_USER" "$STORAGE_PACKAGE" > /dev/null
+	STORAGE_KEY="$(new_key "$ACCOUNTS_USER" v2-storage)"
+	BUCKET="$ACCOUNTS_USER-media"
+	check "createBucket dry run answers 200" 200 "$(call "$STORAGE_KEY" POST "$ACCOUNTS/buckets?dry_run=1" "{\"name\": \"$BUCKET\", \"quota_mb\": 100}")"
+	check "createBucket answers 201" 201 "$(call "$STORAGE_KEY" POST "$ACCOUNTS/buckets" "{\"name\": \"$BUCKET\", \"quota_mb\": 100, \"versioning\": true}")"
+	check "the bucket has its quota and versioning" "100 true" "$(json '"\(.data.quota_mb) \(.data.versioning)"')"
+	check "the same bucket again answers 409" 409 "$(call "$STORAGE_KEY" POST "$ACCOUNTS/buckets" "{\"name\": \"$BUCKET\", \"quota_mb\": 10}")"
+	check "a quota beyond the package answers 422" 422 "$(call "$STORAGE_KEY" POST "$ACCOUNTS/buckets" "{\"name\": \"$BUCKET-big\", \"quota_mb\": 150}")"
+	check "listBuckets holds the bucket and the account totals" "1 200" "$(
+		call "$STORAGE_KEY" GET "$ACCOUNTS/buckets" > /dev/null
+		json '"\([.data[] | select(.name == "'"$BUCKET"'")] | length) \(.meta.storage.quota_limit_mb)"'
+	)"
+	check "updateBucket answers 200" 200 "$(call "$STORAGE_KEY" PATCH "$ACCOUNTS/buckets/$BUCKET" '{"quota_mb": 120, "versioning": false}')"
+	check "the bucket has the new quota" "120 false" "$(json '"\(.data.quota_mb) \(.data.versioning)"')"
+	check "listAllBuckets answers an administrator" 1 "$(
+		call "$ADMIN" GET /buckets > /dev/null
+		json '[.data[] | select(.name == "'"$BUCKET"'")] | length'
+	)"
+	check "createS3Key answers 201" 201 "$(call "$STORAGE_KEY" POST "$ACCOUNTS/s3-keys" "{\"name\": \"smoke\", \"bucket\": \"$BUCKET\", \"access\": \"ro\"}")"
+	S3_KEY="$(json .data.id)"
+	check "the answer holds the secret once" true "$(json '.data.secret | length > 20')"
+	check "listS3Keys holds the key without a secret" "1 false" "$(
+		call "$STORAGE_KEY" GET "$ACCOUNTS/s3-keys" > /dev/null
+		json '"\([.data[] | select(.id == "'"$S3_KEY"'")] | length) \([.data[] | has("secret")] | any)"'
+	)"
+	check "the v2-storage key may not list web domains" 403 "$(call "$STORAGE_KEY" GET "$ACCOUNTS/web-domains")"
+	check "deleteS3Key answers 204" 204 "$(call "$STORAGE_KEY" DELETE "$ACCOUNTS/s3-keys/$S3_KEY")"
+	check "deleteBucket answers 204" 204 "$(call "$STORAGE_KEY" DELETE "$ACCOUNTS/buckets/$BUCKET")"
+	check "the bucket is gone" 404 "$(call "$STORAGE_KEY" GET "$ACCOUNTS/buckets/$BUCKET")"
+	check "getObjectStorage answers 200" 200 "$(call "$ADMIN" GET /system/object-storage)"
+	check "Silo runs" "true true" "$(json '"\(.data.installed) \(.data.running)"')"
 fi
 
 # Access keys (§4.6, D62): a v2-read+v2-accounts key gives a v2-read key, which deletes itself

@@ -73,7 +73,7 @@ final class PackageActions
      *
      * @throws ValidationException
      */
-    public function planCreate(Principal $principal, string $name, array $values, ?array $tenancy, string $ports, array $node, array $docker, ?array $php = null, ?array $processes = null): array
+    public function planCreate(Principal $principal, string $name, array $values, ?array $tenancy, string $ports, array $node, array $docker, ?array $php = null, ?array $processes = null, ?array $storage = null): array
     {
         $reseller = self::resellerOf($principal);
         if ($this->packages->exists(self::storedName($principal, $name))) {
@@ -83,7 +83,7 @@ final class PackageActions
 
         return $this->packages->planCreate($name, $values, $reseller === '' ? $tenancy : null, $reseller,
             $this->checkPorts($ports, $reseller), $this->checkNode($node, $reseller), $this->checkDocker($docker, $reseller), $this->checkPhp($php, $reseller),
-            $this->checkProcesses($processes, $reseller));
+            $this->checkProcesses($processes, $reseller), $this->checkStorage($storage, $reseller));
     }
 
     /**
@@ -97,7 +97,7 @@ final class PackageActions
      *
      * @throws ValidationException
      */
-    public function planUpdate(Principal $principal, PackageRecord $record, string $newName, array $values, ?array $tenancy, string $ports, array $node, array $docker, ?array $php = null, ?array $processes = null): array
+    public function planUpdate(Principal $principal, PackageRecord $record, string $newName, array $values, ?array $tenancy, string $ports, array $node, array $docker, ?array $php = null, ?array $processes = null, ?array $storage = null): array
     {
         $reseller = self::resellerOf($principal);
         $newName = $reseller !== '' ? $record->name : $newName;
@@ -108,7 +108,7 @@ final class PackageActions
 
         return $this->packages->planUpdate($record, $newName, $values, $reseller === '' ? $tenancy : null, $reseller,
             $this->checkPorts($ports, $reseller), $this->checkNode($node, $reseller), $this->checkDocker($docker, $reseller), $this->checkPhp($php, $reseller),
-            $this->checkProcesses($processes, $reseller));
+            $this->checkProcesses($processes, $reseller), $this->checkStorage($storage, $reseller));
     }
 
     /**
@@ -435,6 +435,52 @@ final class PackageActions
         }
 
         return $processes;
+    }
+
+    /**
+     * The object storage keys of a reseller's own package (E44).
+     *
+     * @return array{OBJECT_STORAGE: string, OBJECT_STORAGE_BUCKETS: string, OBJECT_STORAGE_QUOTA: string, OBJECT_STORAGE_BACKUP: string}
+     */
+    public function ownStorage(string $reseller): array
+    {
+        $record = $this->ownPackage($reseller);
+        $own = [];
+        foreach (PackageService::STORAGE_DEFAULTS as $key => $default) {
+            $own[$key] = $record?->get($key, $default) ?? $default;
+        }
+
+        return $own;
+    }
+
+    /**
+     * Object storage keys of a package; a reseller may not go beyond its own.
+     *
+     * @param  array{OBJECT_STORAGE: string, OBJECT_STORAGE_BUCKETS: string, OBJECT_STORAGE_QUOTA: string, OBJECT_STORAGE_BACKUP: string}|null  $storage
+     * @return array{OBJECT_STORAGE: string, OBJECT_STORAGE_BUCKETS: string, OBJECT_STORAGE_QUOTA: string, OBJECT_STORAGE_BACKUP: string}|null
+     *
+     * @throws ValidationException
+     */
+    public function checkStorage(?array $storage, string $reseller): ?array
+    {
+        if ($storage === null || $reseller === '') {
+            return $storage;
+        }
+        $own = $this->ownStorage($reseller);
+        $errors = [];
+        if ($storage['OBJECT_STORAGE'] === 'yes' && $own['OBJECT_STORAGE'] !== 'yes') {
+            $errors['object_storage'] = __('Object storage is not included in your plan.');
+        }
+        foreach (['OBJECT_STORAGE_BUCKETS', 'OBJECT_STORAGE_QUOTA', 'OBJECT_STORAGE_BACKUP'] as $key) {
+            if (PackageLimits::above($key, $storage[$key], $own[$key])) {
+                $errors[strtolower($key)] = sprintf(__('At most %s on your plan.'), $own[$key]);
+            }
+        }
+        if ($errors !== []) {
+            throw ValidationException::withMessages($errors);
+        }
+
+        return $storage;
     }
 
     private function ownPackage(string $reseller): ?PackageRecord
