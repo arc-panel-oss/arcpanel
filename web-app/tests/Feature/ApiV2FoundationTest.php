@@ -1,6 +1,7 @@
 <?php
 
 use App\Arc\ExitCode;
+use App\Arc\SysConfig;
 
 // REST API v2, foundation (E34 spec §4, D3, D8, D10, D12, D13, D16).
 
@@ -130,6 +131,22 @@ it('follows API_ALLOWED_IP', function (string $allowed, int $status) {
     'not listed' => ['10.0.0.1', 403],
     'empty' => ['', 403],
 ]);
+
+it('takes an API_ALLOWED_IP change at the next request once the command writes the stamp', function () {
+    $stamp = tempnam(sys_get_temp_dir(), 'arc-stamp-');
+    file_put_contents($stamp, "1760000000000000001\n");
+    config()->set('arc.sys_config_stamp', $stamp);
+    withSysConfig($this->fake, ['API_SYSTEM' => '1', 'API_ALLOWED_IP' => '10.0.0.1']);
+    $this->getJson('/api/v2/me', apiAs($this->fake, 'arcadmin', 'admin'))->assertForbidden()->assertJsonPath('error.code', 'E_API_DISABLED');
+
+    // v-add-sys-api-ip 127.0.0.1: arcpanel.conf and the stamp change, the cache stays
+    $this->fake->on('v-list-sys-config', ['json'])->returnsJson(sysConfig(['API_SYSTEM' => '1', 'API_ALLOWED_IP' => '10.0.0.1,127.0.0.1']));
+    file_put_contents($stamp, "1760000000000000002\n");
+    app()->forgetInstance(SysConfig::class);
+
+    $this->getJson('/api/v2/me', apiAs($this->fake, 'arcadmin', 'admin'))->assertOk();
+    @unlink($stamp);
+});
 
 it('answers unknown paths and methods with the error body', function () {
     $headers = apiAs($this->fake, 'arcadmin', 'admin');

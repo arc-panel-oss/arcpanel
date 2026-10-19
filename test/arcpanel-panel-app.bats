@@ -34,6 +34,54 @@ app_key_hash() {
     assert_equal "$(app_key_hash)" "$before"
 }
 
+@test "A change of arcpanel.conf writes a new config stamp that only arcpanelweb reads" {
+    stamp=/usr/local/arcpanel/data/sys-config/stamp
+    before=$(cat "$stamp" 2> /dev/null || true)
+    debug=$(grep -o "^DEBUG_MODE='[a-z]*'" /usr/local/arcpanel/conf/arcpanel.conf | cut -d"'" -f2 || true)
+    run v-change-sys-config-value DEBUG_MODE "${debug:-false}"
+    assert_success
+    run stat -c '%a %U:%G' /usr/local/arcpanel/data/sys-config "$stamp"
+    assert_output "750 root:arcpanelweb
+640 root:arcpanelweb"
+    run runuser -u arcpanelweb -- cat "$stamp"
+    assert_success
+    assert_output --regexp '^[0-9]+\.[0-9]+$'
+    refute_output "$before"
+    # arcpanelweb can read the stamp but cannot replace it
+    run runuser -u arcpanelweb -- touch /usr/local/arcpanel/data/sys-config/other
+    assert_failure
+    run runuser -u arcpanelweb -- sh -c "echo 1 > $stamp"
+    assert_failure
+    # the commands that write arcpanel.conf without v-change-sys-config-value stamp too
+    before=$(cat "$stamp")
+    language=$(grep -o "^LANGUAGE='[a-z_A-Z-]*'" /usr/local/arcpanel/conf/arcpanel.conf | cut -d"'" -f2 || true)
+    run v-change-sys-language "${language:-en}"
+    assert_success
+    assert_not_equal "$(cat "$stamp")" "$before"
+}
+
+@test "API v2 follows a change of the allow list at the next request" {
+    api_system=$(grep -o "^API_SYSTEM='[0-9]*'" /usr/local/arcpanel/conf/arcpanel.conf | cut -d"'" -f2 || true)
+    allowed=$(grep -o "^API_ALLOWED_IP='[^']*'" /usr/local/arcpanel/conf/arcpanel.conf | cut -d"'" -f2 || true)
+    api_status() {
+        curl -sk -o /dev/null -w '%{http_code}' "$PANEL/api/v2/me"
+    }
+    v-change-sys-config-value API_SYSTEM 1
+    v-change-sys-config-value API_ALLOWED_IP 192.0.2.1
+    # the panel has the list without 127.0.0.1 in its cache now
+    run api_status
+    assert_output "403"
+    v-add-sys-api-ip 127.0.0.1
+    # past the allow list, refused for the missing key
+    run api_status
+    assert_output "401"
+    v-delete-sys-api-ip 127.0.0.1
+    run api_status
+    assert_output "403"
+    v-change-sys-config-value API_ALLOWED_IP "$allowed"
+    v-change-sys-config-value API_SYSTEM "${api_system:-0}"
+}
+
 @test "Panel app storage is writable by arcpanelweb only" {
     run stat -c '%a %U' /usr/local/arcpanel/web-app/storage/logs /usr/local/arcpanel/web-app/bootstrap/cache
     assert_output "750 arcpanelweb
@@ -356,7 +404,6 @@ teardown_file() {
 @test "Legacy reset pages redirect guests to the panel app" {
     policy="$(grep -o "^POLICY_SYSTEM_PASSWORD_RESET='[a-z]*'" /usr/local/arcpanel/conf/arcpanel.conf | cut -d"'" -f2 || true)"
     v-change-sys-config-value POLICY_SYSTEM_PASSWORD_RESET yes
-    runuser -u arcpanelweb -- /usr/local/arcpanel/php/bin/php /usr/local/arcpanel/web-app/artisan cache:forget arc.sys-config > /dev/null
     guest_get() {
         # the 1.x reset paths with a trailing slash are the panel pages
         curl -sk -o /dev/null -w '%{http_code} %{redirect_url}' "$PANEL$1"
@@ -373,7 +420,6 @@ teardown_file() {
     assert_output "200 "
     run guest_get /reset2fa
     v-change-sys-config-value POLICY_SYSTEM_PASSWORD_RESET "${policy:-yes}"
-    runuser -u arcpanelweb -- /usr/local/arcpanel/php/bin/php /usr/local/arcpanel/web-app/artisan cache:forget arc.sys-config > /dev/null
     assert_output "200 "
 }
 

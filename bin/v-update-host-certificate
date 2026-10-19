@@ -79,6 +79,7 @@ fi
 # Add UPDATE_HOSTNAME_SSL if not exist
 if [ -z "$UPDATE_HOSTNAME_SSL" ]; then
 	echo "UPDATE_HOSTNAME_SSL='yes'" >> "$ARCPANEL/conf/arcpanel.conf"
+	sys_config_changed
 fi
 
 # Restart services

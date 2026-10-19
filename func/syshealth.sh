@@ -212,6 +212,7 @@ function syshealth_restore_system_config() {
 		mv $ARCPANEL/conf/arcpanel.conf $ARCPANEL/conf/arcpanel.conf.old
 		cp $ARCPANEL/conf/defaults/arcpanel.conf $ARCPANEL/conf/arcpanel.conf
 		rm -f $ARCPANEL/conf/arcpanel.conf.old
+		sys_config_changed
 	else
 		echo "ERROR: System default configuration file not found, aborting."
 		exit 1
@@ -587,6 +588,7 @@ function syshealth_repair_system_config() {
 	if ! cmp --silent "$ARCPANEL/conf/arcpanel.conf" "$ARCPANEL/conf/arcpanel.conf.new"; then
 		echo "[ ! ] Duplicated keys found repair config"
 		cp "$ARCPANEL/conf/arcpanel.conf.new" "$ARCPANEL/conf/arcpanel.conf"
+		sys_config_changed
 	fi
 	rm -f "$ARCPANEL/conf/arcpanel.conf.new"
 

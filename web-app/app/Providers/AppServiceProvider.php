@@ -51,6 +51,7 @@ class AppServiceProvider extends ServiceProvider
             $app->make(ArcCommand::class),
             $app->make('cache.store'),
             (int) config('arc.sys_config_ttl'),
+            (string) config('arc.sys_config_stamp'),
         ));
 
         $this->app->scoped(LegacySession::class, fn ($app) => new NativeLegacySession(

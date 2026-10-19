@@ -2,6 +2,12 @@
 
 All notable changes to ArcPanel are listed here. ArcPanel is based on HestiaCP 1.10.5 and, since 2.0, a hard fork of it ([ADR-0007](https://github.com/arc-panel-oss/docs/blob/main/adr/0007-full-rename-and-hard-fork.md)).
 
+## Unreleased
+
+### Fixed
+
+- A change of the server configuration made outside the panel (for example `v-add-sys-api-ip` or `v-change-sys-config-value` over SSH) applies to the panel and REST API v2 at the next request. Before, the panel kept its cached copy of `arcpanel.conf` for up to 60 seconds, so API v2 could still refuse a newly allowed address with `E_API_DISABLED`. The commands that write `arcpanel.conf` now write a stamp that the panel compares with its copy.
+
 ## 2.2.0 — 2026-10-17
 
 The REST API v2 additions that ArcPanel Fleet needs to operate many servers (E43), all additive. See the [E43 spec](https://github.com/arc-panel-oss/docs/blob/main/features/specs/2026-10-16-004-e43-api-v2-fleet-additions-design.md).

@@ -161,6 +161,7 @@ else
 		| sed ':a;N;$!ba;s/\n/,/g')
 	sed -i "s/DB_SYSTEM=.*/DB_SYSTEM='$db'/g" $ARCPANEL/conf/arcpanel.conf
 fi
+sys_config_changed
 
 # Logging
 $BIN/v-log-action "system" "Info" "Database" "Added external $type database server ($host) to the system."
