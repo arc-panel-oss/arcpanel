@@ -15,7 +15,8 @@ SYS_LIST_READER="$ARCPANEL/func/sys-list.php"
 
 # sys_list_print KIND OWNER UPDATED_SINCE FORMAT: the command body of
 # v-list-sys-<kind>. json prints the reader's answer; plain, csv and shell
-# print USER, NAME, DATE and TIME of each object.
+# print USER, NAME, DATE and TIME of each object (USER, ID, STATUS and START
+# of a backup run).
 sys_list_print() {
 	local kind="$1" owner="$2" since="$3" format="$4" json user
 	if [ -n "$owner" ]; then
@@ -35,17 +36,22 @@ sys_list_print() {
 	check_result $? "the $kind lists could not be read" "$E_PARSING"
 
 	local rows='.OBJECTS | to_entries[] | .key as $user | .value | to_entries[] | [$user, .key, .value.DATE, .value.TIME]'
+	local header='USER NAME DATE TIME'
+	if [ "$kind" = backup-run ]; then
+		header='USER ID STATUS START'
+		rows='.OBJECTS | to_entries[] | .key as $user | .value | to_entries[] | [$user, .key, .value.STATUS, .value.START]'
+	fi
 	case "$format" in
 		json) echo "$json" ;;
 		plain) echo "$json" | jq -r "$rows | @tsv" ;;
 		csv)
-			echo 'USER,NAME,DATE,TIME'
+			echo "${header// /,}"
 			echo "$json" | jq -r "$rows | @csv"
 			;;
 		shell)
 			{
-				echo 'USER NAME DATE TIME'
-				echo '---- ---- ---- ----'
+				echo "$header"
+				echo "$header" | sed 's/[A-Z]/-/g'
 				echo "$json" | jq -r "$rows | map(if . == \"\" then \"-\" else . end) | @tsv"
 			} | column -t
 			;;

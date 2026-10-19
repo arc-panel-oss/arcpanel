@@ -27,6 +27,8 @@ source $ARCPANEL/func/db.sh
 source $ARCPANEL/func/backup.sh
 # shellcheck source=/usr/local/arcpanel/func/secret.sh
 source $ARCPANEL/func/secret.sh
+# shellcheck source=/usr/local/arcpanel/func/backuprun.sh
+source $ARCPANEL/func/backuprun.sh
 # load config file
 source_conf "$ARCPANEL/conf/arcpanel.conf"
 
@@ -155,6 +157,9 @@ check_arcpanel_demo_mode
 #----------------------------------------------------------#
 #                       Action                             #
 #----------------------------------------------------------#
+
+# Record this run, failed ones included (Fleet PD2)
+br_begin "$user" tar
 
 check_backup_conditions
 
@@ -768,7 +773,7 @@ if [[ "$errorcode" != "0" ]]; then
 		echo -e "$(date "+%F %T") *** Remote backup failed ***" \
 			| tee -a $BACKUP/$user.log
 
-		exit $error_code
+		check_result "$errorcode" "remote backup failed"
 	fi
 fi
 # Calculation run time
@@ -805,6 +810,10 @@ backup_str="$backup_str CRON='$cron_list'"
 backup_str="$backup_str UDIR='${udir_list// /,}'"
 backup_str="$backup_str RUNTIME='$run_time' TIME='$time' DATE='$date'"
 echo "$backup_str" >> $USER_DATA/backup.conf
+# shellcheck disable=SC2034
+BR_ARCHIVE="$user.$backup_new_date.tar"
+# shellcheck disable=SC2034
+BR_SIZE=$size
 
 # Removing old backups
 tail -n $BACKUPS $USER_DATA/backup.conf > $USER_DATA/backup.conf_

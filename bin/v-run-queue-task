@@ -86,7 +86,8 @@ log=$(qt_log "$user" "$id")
 touch "$log"
 chmod 640 "$log"
 
-"${QT_ARGV[@]}" 2>&1 | tee -a "$log"
+# A backup records the task it runs for (Fleet PD2, func/backuprun.sh)
+QT_TASK_ID=$id "${QT_ARGV[@]}" 2>&1 | tee -a "$log"
 rc=${PIPESTATUS[0]}
 chmod 640 "$log"
 

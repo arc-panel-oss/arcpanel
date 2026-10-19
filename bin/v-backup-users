@@ -31,6 +31,8 @@ mysqlrepair --all-databases --check --auto-repair > /dev/null 2>&1
 if [ -z "$BACKUP_SYSTEM" ]; then
 	exit
 fi
+# The runs are recorded as nightly ones (Fleet PD2)
+export ARC_BACKUP_TRIGGER=schedule
 for user in $("$BIN/v-list-users" list); do
 	check_suspend=$(grep "SUSPENDED='no'" $ARCPANEL/data/users/$user/user.conf)
 	log=$ARCPANEL/log/backup.log

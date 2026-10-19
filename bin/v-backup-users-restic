@@ -32,6 +32,8 @@ if [ "$BACKUP_INCREMENTAL" != "yes" ]; then
 	exit
 fi
 
+# The runs are recorded as nightly ones (Fleet PD2)
+export ARC_BACKUP_TRIGGER=schedule
 for user in $($BIN/v-list-sys-users plain); do
 	check_suspend=$(grep "SUSPENDED='no'" $ARCPANEL/data/users/$user/user.conf)
 	log=$ARCPANEL/log/backup.log

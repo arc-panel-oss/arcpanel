@@ -22108,6 +22108,61 @@ paths:
           $ref: "#/components/responses/InvalidRequest"
         "422":
           $ref: "#/components/responses/Unprocessable"
+  "/api/#v-list-sys-backup-runs":
+    post:
+      operationId: v-list-sys-backup-runs
+      tags:
+        - System
+      summary: List the backup runs of every user (Fleet PD2)
+      description: |-
+        This function lists the recorded backup runs of every user, or of OWNER
+        and, when OWNER is a reseller, its customers, read in one process. The json
+        format prints AS_OF (the Unix time the listing started), USERS (every user
+        in scope), CHANGED_USERS and OBJECTS: the runs of each changed user as
+        v-list-user-backup-runs prints them. Without UPDATED_SINCE (a Unix time)
+        every user is changed; with it, only the users whose backup-runs.conf was
+        modified at or after that time. See
+        docs/features/specs/2026-10-19-001-fleet-pd-api-v2-follow-up-design.md §5.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `OWNER` | no |
+        | `arg2` | `UPDATED_SINCE` | no |
+        | `arg3` | `FORMAT` | no |
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-list-sys-backup-runs"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-list-sys-backup-runs"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+            application/json:
+              schema:
+                type: object
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
   "/api/#v-list-sys-backups":
     post:
       operationId: v-list-sys-backups
@@ -24919,6 +24974,59 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/v-list-user-backup-restic"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+            application/json:
+              schema:
+                type: object
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+  "/api/#v-list-user-backup-runs":
+    post:
+      operationId: v-list-user-backup-runs
+      tags:
+        - Users
+      summary: List the backup runs of a user
+      description: |-
+        This function lists the recorded runs of v-backup-user and
+        v-backup-user-restic for USER, newest first: nightly, requested and manual
+        runs, failed ones included, at most the last 30. See
+        docs/features/specs/2026-10-19-001-fleet-pd-api-v2-follow-up-design.md §5.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `USER` | yes |
+        | `arg2` | `FORMAT` | no |
+
+        **User argument:** with the access key of a user other than the admin, `arg1` must be the key's user.
+      x-arcpanel-user-arg: 1
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-list-user-backup-runs"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-list-user-backup-runs"
       responses:
         "200":
           description: "The output of the command; `OK` for an empty output with legacy authentication."
@@ -30713,8 +30821,10 @@ paths:
 
         When the command fails and its line is still in the pipe, the record is
         queued again (ERROR, ATTEMPTS) and the next pass of the queue retries it,
-        as the queue did before the records. A line whose record is missing or
-        finished is removed without running anything.
+        as the queue did before the records, up to QUEUE_MAX_ATTEMPTS runs
+        (default 3); then the line is removed and the record fails. A failed
+        record carries the reason from its log in ERROR. A line whose record is
+        missing or finished is removed without running anything.
 
         **Arguments**
 
@@ -52244,6 +52354,43 @@ components:
                 - json
             returncode:
               $ref: "#/components/schemas/ReturnCode"
+    v-list-sys-backup-runs:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-list-sys-backup-runs
+              default: v-list-sys-backup-runs
+            arg1:
+              type: string
+              title: OWNER
+              description: "`OWNER`, optional"
+              examples:
+                - ""
+            arg2:
+              type: string
+              title: UPDATED_SINCE
+              description: "`UPDATED_SINCE`, optional"
+              examples:
+                - ""
+            arg3:
+              type: string
+              title: FORMAT
+              description: "`FORMAT`, optional"
+              enum:
+                - json
+                - plain
+                - csv
+                - shell
+              examples:
+                - json
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
     v-list-sys-backups:
       allOf:
         - $ref: "#/components/schemas/Credentials"
@@ -53745,6 +53892,38 @@ components:
               examples:
                 - "4f2a91c0"
             arg3:
+              type: string
+              title: FORMAT
+              description: "`FORMAT`, optional"
+              enum:
+                - json
+                - plain
+                - csv
+                - shell
+              examples:
+                - json
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
+    v-list-user-backup-runs:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-list-user-backup-runs
+              default: v-list-user-backup-runs
+            arg1:
+              type: string
+              title: USER
+              description: "`USER`"
+              examples:
+                - admin
+            arg2:
               type: string
               title: FORMAT
               description: "`FORMAT`, optional"

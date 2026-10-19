@@ -24,6 +24,8 @@ source $ARCPANEL/func/domain.sh
 source $ARCPANEL/func/db.sh
 # shellcheck source=/usr/local/arcpanel/func/backup.sh
 source $ARCPANEL/func/backup.sh
+# shellcheck source=/usr/local/arcpanel/func/backuprun.sh
+source $ARCPANEL/func/backuprun.sh
 # load config file
 source_conf "$ARCPANEL/conf/arcpanel.conf"
 
@@ -44,6 +46,9 @@ check_arcpanel_demo_mode
 #----------------------------------------------------------#
 #                       Action                             #
 #----------------------------------------------------------#
+
+# Record this run, failed ones included (Fleet PD2)
+br_begin "$user" restic
 
 # Set notification email and subject
 subj="$user → backup failed"
@@ -86,6 +91,11 @@ if [ $? -ne 0 ]; then
 	echo "Unable to create the backup" | $SENDMAIL -s "$subj" "$email" "yes"
 	check_result $E_BACKUP "Unable to backup user"
 fi
+
+# The snapshot of this run: the repository holds only this user's
+# shellcheck disable=SC2034
+BR_ARCHIVE=$(restic --repo "${REPO%/}/$user" --password-file $USER_DATA/restic.conf --json snapshots --latest 1 2> /dev/null \
+	| jq -r 'sort_by(.time) | last | .short_id // empty' 2> /dev/null)
 
 if [[ -n "$SNAPSHOTS" && "$SNAPSHOTS" -ge 0 ]]; then
 	restic_prune="$restic_prune --keep-last $SNAPSHOTS"

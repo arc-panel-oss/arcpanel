@@ -1,0 +1,119 @@
+#!/bin/bash
+# info: list the backup runs of a user
+# options: USER [FORMAT]
+#
+# example: v-list-user-backup-runs admin json
+#
+# This function lists the recorded runs of v-backup-user and
+# v-backup-user-restic for USER, newest first: nightly, requested and manual
+# runs, failed ones included, at most the last 30. See
+# docs/features/specs/2026-10-19-001-fleet-pd-api-v2-follow-up-design.md §5.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+user=$1
+format=${2-shell}
+
+# Includes
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/backuprun.sh
+source $ARCPANEL/func/backuprun.sh
+# load config file
+source_conf "$ARCPANEL/conf/arcpanel.conf"
+
+LIST_KEYS=(ENGINE TRIGGER TASK STATUS START END EXIT ERROR ARCHIVE SIZE)
+
+# The record lines, newest first, without lines that have no id
+runs() {
+	local file
+	file=$(br_file "$user")
+	[ -f "$file" ] || return 0
+	grep -E "^ID='[0-9]+' " "$file" | tac
+}
+
+# JSON list function: one object per run, keyed by its id
+json_list() {
+	local line key
+	local -a args
+	{
+		while IFS= read -r line; do
+			args=(--arg ID "$(br_value "$line" ID)")
+			for key in "${LIST_KEYS[@]}"; do
+				args+=(--arg "$key" "$(br_value "$line" "$key")")
+			done
+			jq -nc "${args[@]}" '{($ID): ($ARGS.named | del(.ID))}'
+		done < <(runs)
+	} | jq -s 'reduce .[] as $run ({}; . + $run)'
+}
+
+# SHELL list function
+shell_list() {
+	local line
+	echo "ID ENGINE TRIGGER STATUS START EXIT"
+	echo "-- ------ ------- ------ ----- ----"
+	while IFS= read -r line; do
+		echo "$(br_value "$line" ID) $(br_value "$line" ENGINE) $(br_value "$line" TRIGGER)" \
+			"$(br_value "$line" STATUS) $(br_value "$line" START | tr ' ' '_') $(br_value "$line" EXIT)"
+	done < <(runs)
+}
+
+# PLAIN list function
+plain_list() {
+	local line key row
+	while IFS= read -r line; do
+		row=$(br_value "$line" ID)
+		for key in "${LIST_KEYS[@]}"; do
+			row="$row"$'\t'"$(br_value "$line" "$key")"
+		done
+		echo "$row"
+	done < <(runs)
+}
+
+# CSV list function
+csv_list() {
+	local line key row header=ID
+	for key in "${LIST_KEYS[@]}"; do
+		header="$header,$key"
+	done
+	echo "$header"
+	while IFS= read -r line; do
+		row=$(br_value "$line" ID)
+		for key in "${LIST_KEYS[@]}"; do
+			row="$row,\"$(br_value "$line" "$key" | sed 's/"/""/g')\""
+		done
+		echo "$row"
+	done < <(runs)
+}
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '1' "$#" 'USER [FORMAT]'
+is_format_valid 'user'
+is_object_valid 'user' 'USER' "$user"
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+# Listing data
+case $format in
+	json) json_list ;;
+	plain) plain_list ;;
+	csv) csv_list ;;
+	shell) shell_list | column -t ;;
+	*) check_result "$E_INVALID" "invalid format :: $format" ;;
+esac
+
+#----------------------------------------------------------#
+#                         ArcPanel                         #
+#----------------------------------------------------------#
+
+exit
