@@ -373,6 +373,16 @@ it('returns the warnings of the firewall check that it knows', function () {
         ->assertJsonPath('data.warnings', ['fail2ban-action', 'ipv6-ssh']);
 });
 
+it('reports a server that the upgrade left on iptables', function () {
+    $this->fake->on('v-check-firewall', ['json'])->returnsJson([
+        'ENGINE' => 'iptables', 'STATUS' => 'missing', 'CHECKED' => '2026-10-19T12:00:00Z', 'WARNINGS' => ['iptables-engine'],
+    ]);
+
+    $this->getJson('/api/v2/system/firewall/status', apiAs($this->fake, 'arcadmin', 'admin', readOnly: true))->assertOk()
+        ->assertJsonPath('data.engine', 'iptables')
+        ->assertJsonPath('data.warnings', ['iptables-engine']);
+});
+
 it('passes IPv6 sources and IPv6 lists to the rule commands', function () {
     $headers = apiAs($this->fake, 'arcadmin', 'admin', area: 'server');
 

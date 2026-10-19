@@ -8,11 +8,6 @@ if [ "$FIREWALL_SYSTEM" = 'iptables' ] || [ "$FIREWALL_SYSTEM" = 'nftables' ]; t
 		apt-get --quiet --yes install nftables > /dev/null 2>&1
 	fi
 
-	# The Fail2Ban action that bans into the nftables sets
-	if [ -n "$FIREWALL_EXTENSION" ] && [ -d /etc/fail2ban/action.d ]; then
-		cp -f "$ARCPANEL_INSTALL_DIR/fail2ban/action.d/arcpanel.conf" /etc/fail2ban/action.d/arcpanel.conf
-	fi
-
 	# Load the nftables table; only when it loads are the iptables rules,
 	# ipsets and unit removed. Otherwise the server keeps them and the
 	# value iptables.
@@ -22,7 +17,8 @@ if [ "$FIREWALL_SYSTEM" = 'iptables' ] || [ "$FIREWALL_SYSTEM" = 'nftables' ]; t
 		else
 			fw_output=$(echo "$fw_output" | sed -n 's/^Error: //p' | head -n 1)
 			echo "[ ! ] The firewall stays on iptables: $fw_output"
-			"$BIN/v-log-action" "system" "Warning" "Firewall" "The firewall could not move to nftables and stays on iptables: $fw_output"
+			echo "[ ! ] Fail2Ban bans do not apply until the move finishes: fix the cause, then reload the firewall (v-update-firewall)."
+			"$BIN/v-log-action" "system" "Warning" "Firewall" "The firewall could not move to nftables and stays on iptables: $fw_output. Fail2Ban bans do not apply until a reload of the firewall loads the table."
 		fi
 	fi
 
@@ -34,9 +30,13 @@ if [ "$FIREWALL_SYSTEM" = 'iptables' ] || [ "$FIREWALL_SYSTEM" = 'nftables' ]; t
 	# What the move may have closed or put at risk: SSH or the panel closed
 	# over IPv6, the distribution's nftables.service (spec §16)
 	if [ "$("$BIN/v-check-firewall" json 2> /dev/null | jq -r '.ENGINE' 2> /dev/null)" = 'nftables' ]; then
+		FIREWALL_SYSTEM='nftables'
 		# shellcheck source=/usr/local/arcpanel/func/firewall.sh
 		source "$ARCPANEL/func/firewall.sh"
 		fw_mask_distro_unit
+		# The Fail2Ban action that bans into the nftables sets, only once the
+		# table runs: on iptables the 2.2 action stays (spec §16 H5)
+		fw_sync_f2b_action
 		for fw_warning in $("$BIN/v-check-firewall" json 2> /dev/null | jq -r '.WARNINGS[]?' 2> /dev/null); do
 			fw_text=$(fw_warning_text "$fw_warning")
 			echo "[ ! ] $fw_text"

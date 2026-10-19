@@ -38,6 +38,18 @@
 
     @foreach ($status->warnings as $warning)
         @switch($warning)
+            @case('iptables-engine')
+                <x-ap-alert tone="danger" :title="__('The firewall did not move to nftables')">
+                    {{ __('The upgrade could not load the nftables rules, so the server still runs the iptables rules of the previous release, which the panel no longer changes: Fail2Ban bans and firewall changes do not apply. Reload the firewall to see the error; the first reload that loads the rules finishes the move.') }}
+                    @if ($canManage)
+                        <x-slot:actions>
+                            <x-ap-form :action="route('server.firewall.reload')">
+                                <x-ap-button type="submit" icon="refresh">{{ __('Reload firewall') }}</x-ap-button>
+                            </x-ap-form>
+                        </x-slot:actions>
+                    @endif
+                </x-ap-alert>
+            @break
             @case('fail2ban-action')
                 <x-ap-alert tone="warn" :title="__('The Fail2Ban action is out of date')">
                     {{ __('Fail2Ban still uses the action of an older release, so its bans wait for the firewall lock and do not reach the firewall. Reload the firewall to replace the action.') }}

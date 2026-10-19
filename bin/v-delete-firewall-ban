@@ -62,6 +62,9 @@ is_system_enabled "$FIREWALL_SYSTEM" 'FIREWALL_SYSTEM'
 # Perform verification if read-only mode is enabled
 check_arcpanel_demo_mode
 
+# A server left on iptables has no sets (spec §16 H5)
+fw_require_nftables
+
 fw_lock
 
 #----------------------------------------------------------#
