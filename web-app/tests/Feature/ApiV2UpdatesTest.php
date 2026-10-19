@@ -75,7 +75,7 @@ it('refuses every endpoint of this area to non-administrators before any command
 it('updates one package or every package as the system task with a key holding only v2-server', function () {
     $headers = apiAs($this->fake, 'arcadmin', 'admin', area: 'server');
 
-    $this->postJson('/api/v2/system/updates', ['package' => 'arcpanel-php'], $headers)->assertStatus(202)
+    $this->postJson('/api/v2/system/updates', ['package' => 'arcpanel-php'], $headers)->assertStatus(202)->assertDocumentedHeaders('runUpdates')
         ->assertHeader('Link', '</api/v2/tasks/sys:'.UPDATE_TASK.'>; rel="monitor"')
         ->assertJsonPath('data.id', 'sys:'.UPDATE_TASK)
         ->assertJsonPath('data.kind', 'arcpanel-update')
@@ -83,7 +83,7 @@ it('updates one package or every package as the system task with a key holding o
         ->assertJsonPath('data.args', 'arcpanel-php');
     $this->fake->assertRan('v-start-sys-task', fn ($a) => $a === ['arcpanel-update', 'arcpanel-php']);
 
-    $this->postJson('/api/v2/system/updates', [], $headers)->assertStatus(202)->assertJsonPath('data.args', null);
+    $this->postJson('/api/v2/system/updates', [], $headers)->assertStatus(202)->assertDocumentedHeaders('runUpdates')->assertJsonPath('data.args', null);
     $this->fake->assertRan('v-start-sys-task', fn ($a) => $a === ['arcpanel-update']);
 
     $this->postJson('/api/v2/system/updates', ['package' => 'nginx'], $headers)->assertStatus(422)
@@ -190,11 +190,11 @@ it('lists the system package catalog with state, version and users', function ()
 it('installs and removes system packages as the system task', function () {
     $headers = apiAs($this->fake, 'arcadmin', 'admin', area: 'server');
 
-    $this->postJson('/api/v2/system/packages/go', [], $headers)->assertStatus(202)
+    $this->postJson('/api/v2/system/packages/go', [], $headers)->assertStatus(202)->assertDocumentedHeaders('installSystemPackage')
         ->assertHeader('Link', '</api/v2/tasks/sys:'.UPDATE_TASK.'>; rel="monitor"')
         ->assertJsonPath('data.id', 'sys:'.UPDATE_TASK)->assertJsonPath('data.kind', 'package')->assertJsonPath('data.args', 'go add');
     $this->fake->assertRan('v-start-sys-task', fn ($a) => $a === ['package', 'go', 'add']);
-    $this->deleteJson('/api/v2/system/packages/python', [], $headers)->assertStatus(202)->assertJsonPath('data.args', 'python delete');
+    $this->deleteJson('/api/v2/system/packages/python', [], $headers)->assertStatus(202)->assertDocumentedHeaders('removeSystemPackage')->assertJsonPath('data.args', 'python delete');
     $this->fake->assertRan('v-start-sys-task', fn ($a) => $a === ['package', 'python', 'delete']);
 
     $this->postJson('/api/v2/system/packages/nope', [], $headers)->assertNotFound();

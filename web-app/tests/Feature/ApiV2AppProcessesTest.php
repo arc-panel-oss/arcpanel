@@ -156,7 +156,7 @@ it('starts a task and refuses a busy slot', function () {
     ]]);
     $headers = apiAs($this->fake, 'bob', 'user', area: 'apps');
 
-    $this->postJson('/api/v2/users/bob/app-processes/shop.bob.example/web/tasks', ['task' => 'composer-install'], $headers)->assertStatus(202)
+    $this->postJson('/api/v2/users/bob/app-processes/shop.bob.example/web/tasks', ['task' => 'composer-install'], $headers)->assertStatus(202)->assertDocumentedHeaders('startAppProcessTask')
         ->assertHeader('Location', route('api.v2.app-process-task.show', ['user' => 'bob']))
         ->assertHeader('Link', '</api/v2/tasks/app-process:bob:17606214250042>; rel="monitor"')
         ->assertJsonPath('data.status', 'running')

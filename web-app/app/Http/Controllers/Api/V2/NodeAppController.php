@@ -101,6 +101,8 @@ final class NodeAppController extends Controller
      * @operationId createNodeApp
      *
      * @status 201
+     *
+     * @conflict E_EXISTS The domain already has an app: `existing` is the path of its Node.js app, absent when it has a Docker app.
      */
     public function store(StoreNodeAppRequest $request, string $user, Principal $principal, NodePolicy $policy): NodeAppResource|JsonResponse
     {
@@ -255,6 +257,8 @@ final class NodeAppController extends Controller
      *
      * @operationId installNodeApp
      *
+     * @monitor
+     *
      * @status 202
      */
     public function install(string $user, string $domain, Principal $principal, NodePolicy $policy): TaskResource|JsonResponse
@@ -270,6 +274,8 @@ final class NodeAppController extends Controller
      * Run an npm script on a Node.js app
      *
      * @operationId buildNodeApp
+     *
+     * @monitor
      *
      * @status 202
      */
@@ -305,6 +311,11 @@ final class NodeAppController extends Controller
 
     /**
      * Replace the environment of a Node.js app
+     *
+     * `entries` replaces the whole environment: a name left out is deleted.
+     * An entry without `value` keeps the value stored for that name (an
+     * empty value for a new name), so a client can change one variable
+     * without reading the others; `value: null` sets an empty value.
      *
      * @operationId setNodeAppEnv
      */

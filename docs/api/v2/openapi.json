@@ -3,7 +3,7 @@
     "info": {
         "title": "ArcPanel REST API v2",
         "version": "2",
-        "description": "Resource API of an ArcPanel server, served by the panel at `/api/v2/` (port 8083 by default). Every call acts as the owner of the access key, with the role and the reach that user has in the panel: objects outside its reach answer `404`, refused actions `403`.\n\n**Authentication.** `Authorization: Bearer ACCESS_KEY_ID:SECRET_ACCESS_KEY`, an access key of the panel (Account → Access keys). The API must be on (`API_SYSTEM` 1 for the administrator's keys, 2 for every key) and accept the client's address (`API_ALLOWED_IP`). A key with permission sets may only run their commands. `v2-read` allows every read endpoint and `v2-write` every endpoint; each area also has its own set (`v2-accounts`, `v2-web`, and the sets of later areas). A change that touches another area needs that area's set too. API v1 refuses every set marked for v2. `GET /me` describes the key.\n\n**Pagination.** Every list accepts `limit` (1–1000) and `offset` (0 or more). `meta.total` is the number of items. Without `limit` the list is complete, as before pagination existed.\n\n**Dry run.** Every write accepts `?dry_run=1`: the request is validated, authorized and checked against the permission sets, and the answer lists the commands it would run, without running any.\n\n**Errors.** Every error answers `{\"error\": {\"code\": \"E_…\", \"message\": \"…\"}}`; `code` is one of `ErrorCode`. Validation errors add `fields`, refused permission sets add `commands`, a duplicate the server can point at adds `existing` (the path of that object, or a queued backup or restore task), and a failed step of a change adds `step` and the steps that ran before it (`applied`), which stay applied. File operations add the names that exist in the destination (`conflicts`) and, when they stop part-way, the path that failed (`path`) and the paths already finished (`done`).\n\n**Headers.** Every answer carries `ArcPanel-Version` and `X-Request-Id` (the client's own value, or a new one). `429` carries `Retry-After`; `201` and `202` carry `Location`. Each key may make 60 requests a minute; ten failed authentications a minute block the client's address for a minute.\n\n**Compatibility.** Within v2 the document only grows: new operations, new optional fields, new enum values. Clients should ignore unknown fields."
+        "description": "Resource API of an ArcPanel server, served by the panel at `/api/v2/` (port 8083 by default). Every call acts as the owner of the access key, with the role and the reach that user has in the panel: objects outside its reach answer `404`, refused actions `403`.\n\n**Authentication.** `Authorization: Bearer ACCESS_KEY_ID:SECRET_ACCESS_KEY`, an access key of the panel (Account → Access keys). The API must be on (`API_SYSTEM` 1 for the administrator's keys, 2 for every key) and accept the client's address (`API_ALLOWED_IP`). A key with permission sets may only run their commands. `v2-read` allows every read endpoint and `v2-write` every endpoint; each area also has its own set (`v2-accounts`, `v2-web`, and the sets of later areas). A change that touches another area needs that area's set too. API v1 refuses every set marked for v2. `GET /me` describes the key.\n\n**Pagination.** Every list accepts `limit` (1–1000) and `offset` (0 or more). `meta.total` is the number of items. Without `limit` the list is complete, as before pagination existed.\n\n**Dry run.** Every write accepts `?dry_run=1`: the request is validated, authorized and checked against the permission sets, and the answer lists the commands it would run, without running any.\n\n**Errors.** Every error answers `{\"error\": {\"code\": \"E_…\", \"message\": \"…\"}}`; `code` is one of `ErrorCode`. Validation errors add `fields`, refused permission sets add `commands`, a duplicate the server can point at adds `existing` (the path of that object, or a queued backup or restore task), and a failed step of a change adds `step` and the steps that ran before it (`applied`), which stay applied. File operations add the names that exist in the destination (`conflicts`) and, when they stop part-way, the path that failed (`path`) and the paths already finished (`done`).\n\n**Headers.** Every answer carries `ArcPanel-Version` and `X-Request-Id` (the client's own value, or a new one). `429` carries `Retry-After`; `201` carries `Location`, the URL of the new object. Each key may make 60 requests a minute; ten failed authentications a minute block the client's address for a minute.\n\n**Asynchronous operations.** An operation that starts a background task answers `202` with `Link: </api/v2/tasks/{id}>; rel=\"monitor\"`; follow it with `getTask` until `finished_at` is set (`exit_code` 0 is success). It also sends `Location` when the change has a resource of its own to read again (the domain of a Let's Encrypt request, the new Docker app). A task is `queued`, `running`, `succeeded` or `failed`; a failed task carries `error`. Queued work that fails is retried at most `QUEUE_MAX_ATTEMPTS` times (3 by default) before it fails.\n\n**Permission sets.** `x-arcpanel-permission-set` on each operation names the area set it belongs to (`v2-web`, `v2-backup`, …); a key also passes with `v2-write`, and for a read with `v2-read` (and `v2-observe` unless the operation reads file contents, secrets or revealed values). `null` means any key of API v2.\n\n**Compatibility.** Within v2 the document only grows: new operations, new optional fields, new enum values. Clients should ignore unknown fields."
     },
     "servers": [
         {
@@ -108,7 +108,8 @@
                     "500": {
                         "$ref": "#/components/responses/ServerError"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-accounts"
             }
         },
         "/backup-runs": {
@@ -207,7 +208,8 @@
                             "minimum": 0
                         }
                     }
-                ]
+                ],
+                "x-arcpanel-permission-set": "v2-backup"
             }
         },
         "/backups": {
@@ -306,7 +308,8 @@
                             "minimum": 0
                         }
                     }
-                ]
+                ],
+                "x-arcpanel-permission-set": "v2-backup"
             }
         },
         "/cron-jobs": {
@@ -405,7 +408,8 @@
                             "minimum": 0
                         }
                     }
-                ]
+                ],
+                "x-arcpanel-permission-set": "v2-cron"
             }
         },
         "/databases": {
@@ -504,7 +508,8 @@
                             "minimum": 0
                         }
                     }
-                ]
+                ],
+                "x-arcpanel-permission-set": "v2-db"
             }
         },
         "/docker-catalog": {
@@ -556,7 +561,8 @@
                     "500": {
                         "$ref": "#/components/responses/ServerError"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-apps"
             }
         },
         "/docker-catalog/{slug}": {
@@ -632,7 +638,8 @@
                     "500": {
                         "$ref": "#/components/responses/ServerError"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-apps"
             }
         },
         "/malware": {
@@ -689,7 +696,8 @@
                     "500": {
                         "$ref": "#/components/responses/ServerError"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-security"
             }
         },
         "/me": {
@@ -739,7 +747,8 @@
                     "500": {
                         "$ref": "#/components/responses/ServerError"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": null
             }
         },
         "/node-apps": {
@@ -838,7 +847,8 @@
                             "minimum": 0
                         }
                     }
-                ]
+                ],
+                "x-arcpanel-permission-set": "v2-apps"
             }
         },
         "/notifications": {
@@ -919,7 +929,8 @@
                             "minimum": 0
                         }
                     }
-                ]
+                ],
+                "x-arcpanel-permission-set": "v2-accounts"
             },
             "delete": {
                 "operationId": "deleteAllNotifications",
@@ -989,7 +1000,8 @@
                             "default": false
                         }
                     }
-                ]
+                ],
+                "x-arcpanel-permission-set": "v2-accounts"
             }
         },
         "/notifications/acknowledge": {
@@ -1061,7 +1073,8 @@
                             "default": false
                         }
                     }
-                ]
+                ],
+                "x-arcpanel-permission-set": "v2-accounts"
             }
         },
         "/notifications/{id}": {
@@ -1144,7 +1157,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-accounts"
             }
         },
         "/notifications/{id}/acknowledge": {
@@ -1227,7 +1241,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-accounts"
             }
         },
         "/packages": {
@@ -1308,7 +1323,8 @@
                             "minimum": 0
                         }
                     }
-                ]
+                ],
+                "x-arcpanel-permission-set": "v2-accounts"
             },
             "post": {
                 "operationId": "createPackage",
@@ -1407,7 +1423,8 @@
                             "default": false
                         }
                     }
-                ]
+                ],
+                "x-arcpanel-permission-set": "v2-accounts"
             }
         },
         "/packages/{package}": {
@@ -1469,7 +1486,8 @@
                     "500": {
                         "$ref": "#/components/responses/ServerError"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-accounts"
             },
             "patch": {
                 "operationId": "updatePackage",
@@ -1564,7 +1582,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-accounts"
             },
             "delete": {
                 "operationId": "deletePackage",
@@ -1646,7 +1665,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-accounts"
             }
         },
         "/packages/{package}/copy": {
@@ -1758,7 +1778,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-accounts"
             }
         },
         "/requests/{id}": {
@@ -1825,7 +1846,8 @@
                     "500": {
                         "$ref": "#/components/responses/ServerError"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": null
             }
         },
         "/search": {
@@ -1894,7 +1916,8 @@
                     "500": {
                         "$ref": "#/components/responses/ServerError"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-accounts"
             }
         },
         "/stats": {
@@ -1975,7 +1998,8 @@
                             "minimum": 0
                         }
                     }
-                ]
+                ],
+                "x-arcpanel-permission-set": "v2-accounts"
             }
         },
         "/system/docker": {
@@ -2024,7 +2048,8 @@
                     "500": {
                         "$ref": "#/components/responses/ServerError"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-server"
             }
         },
         "/system/docker/install": {
@@ -2077,8 +2102,8 @@
                             "ArcPanel-Version": {
                                 "$ref": "#/components/headers/Version"
                             },
-                            "Location": {
-                                "$ref": "#/components/headers/Location"
+                            "Link": {
+                                "$ref": "#/components/headers/Link"
                             }
                         }
                     },
@@ -2114,7 +2139,8 @@
                             "default": false
                         }
                     }
-                ]
+                ],
+                "x-arcpanel-permission-set": "v2-server"
             }
         },
         "/system/firewall/bans": {
@@ -2195,7 +2221,8 @@
                             "minimum": 0
                         }
                     }
-                ]
+                ],
+                "x-arcpanel-permission-set": "v2-server"
             },
             "post": {
                 "operationId": "createFirewallBan",
@@ -2294,7 +2321,8 @@
                             "default": false
                         }
                     }
-                ]
+                ],
+                "x-arcpanel-permission-set": "v2-server"
             }
         },
         "/system/firewall/bans/{chain}/{ip}": {
@@ -2386,7 +2414,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-server"
             }
         },
         "/system/firewall/ipsets": {
@@ -2467,7 +2496,8 @@
                             "minimum": 0
                         }
                     }
-                ]
+                ],
+                "x-arcpanel-permission-set": "v2-server"
             },
             "post": {
                 "operationId": "createFirewallIpset",
@@ -2566,7 +2596,8 @@
                             "default": false
                         }
                     }
-                ]
+                ],
+                "x-arcpanel-permission-set": "v2-server"
             }
         },
         "/system/firewall/ipsets/{name}": {
@@ -2649,7 +2680,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-server"
             }
         },
         "/system/firewall/rules": {
@@ -2730,7 +2762,8 @@
                             "minimum": 0
                         }
                     }
-                ]
+                ],
+                "x-arcpanel-permission-set": "v2-server"
             },
             "post": {
                 "operationId": "createFirewallRule",
@@ -2829,7 +2862,8 @@
                             "default": false
                         }
                     }
-                ]
+                ],
+                "x-arcpanel-permission-set": "v2-server"
             }
         },
         "/system/firewall/rules/{rule}": {
@@ -2892,7 +2926,8 @@
                     "500": {
                         "$ref": "#/components/responses/ServerError"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-server"
             },
             "patch": {
                 "operationId": "updateFirewallRule",
@@ -2987,7 +3022,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-server"
             },
             "delete": {
                 "operationId": "deleteFirewallRule",
@@ -3069,7 +3105,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-server"
             }
         },
         "/system/firewall/rules/{rule}/move": {
@@ -3173,7 +3210,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-server"
             }
         },
         "/system/firewall/rules/{rule}/suspend": {
@@ -3261,7 +3299,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-server"
             }
         },
         "/system/firewall/rules/{rule}/unsuspend": {
@@ -3349,7 +3388,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-server"
             }
         },
         "/system/graphs": {
@@ -3430,7 +3470,8 @@
                             "minimum": 0
                         }
                     }
-                ]
+                ],
+                "x-arcpanel-permission-set": "v2-server"
             }
         },
         "/system/graphs/{graph}": {
@@ -3512,7 +3553,8 @@
                     "500": {
                         "$ref": "#/components/responses/ServerError"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-server"
             }
         },
         "/system/interfaces": {
@@ -3593,7 +3635,8 @@
                             "minimum": 0
                         }
                     }
-                ]
+                ],
+                "x-arcpanel-permission-set": "v2-server"
             }
         },
         "/system/ips": {
@@ -3673,7 +3716,8 @@
                             "minimum": 0
                         }
                     }
-                ]
+                ],
+                "x-arcpanel-permission-set": "v2-server"
             },
             "post": {
                 "operationId": "createIp",
@@ -3772,7 +3816,8 @@
                             "default": false
                         }
                     }
-                ]
+                ],
+                "x-arcpanel-permission-set": "v2-server"
             }
         },
         "/system/ips/refresh": {
@@ -3852,7 +3897,8 @@
                             "default": false
                         }
                     }
-                ]
+                ],
+                "x-arcpanel-permission-set": "v2-server"
             }
         },
         "/system/ips/{ip}": {
@@ -3914,7 +3960,8 @@
                     "500": {
                         "$ref": "#/components/responses/ServerError"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-server"
             },
             "patch": {
                 "operationId": "updateIp",
@@ -4009,7 +4056,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-server"
             },
             "delete": {
                 "operationId": "deleteIp",
@@ -4090,7 +4138,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-server"
             }
         },
         "/system/packages": {
@@ -4171,7 +4220,8 @@
                             "minimum": 0
                         }
                     }
-                ]
+                ],
+                "x-arcpanel-permission-set": "v2-server"
             }
         },
         "/system/packages/{slug}": {
@@ -4273,7 +4323,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-server"
             },
             "delete": {
                 "operationId": "removeSystemPackage",
@@ -4373,7 +4424,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-server"
             }
         },
         "/system/php/profiles": {
@@ -4453,7 +4505,8 @@
                             "minimum": 0
                         }
                     }
-                ]
+                ],
+                "x-arcpanel-permission-set": "v2-server"
             },
             "post": {
                 "operationId": "createPhpProfile",
@@ -4552,7 +4605,8 @@
                             "default": false
                         }
                     }
-                ]
+                ],
+                "x-arcpanel-permission-set": "v2-server"
             }
         },
         "/system/php/profiles/{profile}": {
@@ -4614,7 +4668,8 @@
                     "500": {
                         "$ref": "#/components/responses/ServerError"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-server"
             },
             "put": {
                 "operationId": "updatePhpProfile",
@@ -4710,7 +4765,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-server"
             },
             "delete": {
                 "operationId": "deletePhpProfile",
@@ -4800,7 +4856,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-server"
             }
         },
         "/system/php/versions": {
@@ -4881,7 +4938,8 @@
                             "minimum": 0
                         }
                     }
-                ]
+                ],
+                "x-arcpanel-permission-set": "v2-server"
             }
         },
         "/system/php/versions/{php}": {
@@ -4943,7 +5001,8 @@
                     "500": {
                         "$ref": "#/components/responses/ServerError"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-server"
             },
             "post": {
                 "operationId": "installPhpVersion",
@@ -5014,8 +5073,8 @@
                             "ArcPanel-Version": {
                                 "$ref": "#/components/headers/Version"
                             },
-                            "Location": {
-                                "$ref": "#/components/headers/Location"
+                            "Link": {
+                                "$ref": "#/components/headers/Link"
                             }
                         }
                     },
@@ -5043,7 +5102,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-server"
             },
             "delete": {
                 "operationId": "removePhpVersion",
@@ -5114,8 +5174,8 @@
                             "ArcPanel-Version": {
                                 "$ref": "#/components/headers/Version"
                             },
-                            "Location": {
-                                "$ref": "#/components/headers/Location"
+                            "Link": {
+                                "$ref": "#/components/headers/Link"
                             }
                         }
                     },
@@ -5143,7 +5203,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-server"
             }
         },
         "/system/php/versions/{php}/extensions": {
@@ -5235,7 +5296,8 @@
                     "500": {
                         "$ref": "#/components/responses/ServerError"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-server"
             }
         },
         "/system/php/versions/{php}/extensions/{name}": {
@@ -5316,6 +5378,35 @@
                             }
                         }
                     },
+                    "202": {
+                        "description": "The task that was started.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/Task"
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            },
+                            "Link": {
+                                "$ref": "#/components/headers/Link"
+                            }
+                        }
+                    },
                     "401": {
                         "$ref": "#/components/responses/Unauthenticated"
                     },
@@ -5340,7 +5431,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-server"
             },
             "delete": {
                 "operationId": "removePhpExtension",
@@ -5419,8 +5511,8 @@
                             "ArcPanel-Version": {
                                 "$ref": "#/components/headers/Version"
                             },
-                            "Location": {
-                                "$ref": "#/components/headers/Location"
+                            "Link": {
+                                "$ref": "#/components/headers/Link"
                             }
                         }
                     },
@@ -5448,7 +5540,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-server"
             }
         },
         "/system/php/versions/{php}/ini/{sapi}": {
@@ -5530,7 +5623,8 @@
                     "500": {
                         "$ref": "#/components/responses/ServerError"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-server"
             },
             "put": {
                 "operationId": "replacePhpIni",
@@ -5634,7 +5728,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-server"
             },
             "patch": {
                 "operationId": "updatePhpIniValues",
@@ -5738,7 +5833,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-server"
             }
         },
         "/system/php/versions/{php}/ini/{sapi}/backups": {
@@ -5838,7 +5934,8 @@
                     "500": {
                         "$ref": "#/components/responses/ServerError"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-backup"
             }
         },
         "/system/php/versions/{php}/ini/{sapi}/backups/{backup}/restore": {
@@ -5942,7 +6039,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-backup"
             }
         },
         "/system/ports": {
@@ -5992,7 +6090,8 @@
                     "500": {
                         "$ref": "#/components/responses/ServerError"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-server"
             }
         },
         "/system/ports/adopt": {
@@ -6079,7 +6178,8 @@
                             "default": false
                         }
                     }
-                ]
+                ],
+                "x-arcpanel-permission-set": "v2-server"
             }
         },
         "/system/ports/allocate": {
@@ -6173,7 +6273,8 @@
                             "default": false
                         }
                     }
-                ]
+                ],
+                "x-arcpanel-permission-set": "v2-server"
             }
         },
         "/system/ports/close-rule": {
@@ -6256,7 +6357,8 @@
                             "default": false
                         }
                     }
-                ]
+                ],
+                "x-arcpanel-permission-set": "v2-server"
             }
         },
         "/system/ports/range": {
@@ -6342,7 +6444,8 @@
                             "default": false
                         }
                     }
-                ]
+                ],
+                "x-arcpanel-permission-set": "v2-server"
             }
         },
         "/system/ports/register": {
@@ -6436,7 +6539,8 @@
                             "default": false
                         }
                     }
-                ]
+                ],
+                "x-arcpanel-permission-set": "v2-server"
             }
         },
         "/system/ports/repair": {
@@ -6516,7 +6620,8 @@
                             "default": false
                         }
                     }
-                ]
+                ],
+                "x-arcpanel-permission-set": "v2-server"
             }
         },
         "/system/ports/reserved": {
@@ -6603,7 +6708,8 @@
                             "default": false
                         }
                     }
-                ]
+                ],
+                "x-arcpanel-permission-set": "v2-server"
             }
         },
         "/system/ports/reserved/{range}": {
@@ -6689,7 +6795,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-server"
             }
         },
         "/system/restart": {
@@ -6772,7 +6879,8 @@
                             "default": false
                         }
                     }
-                ]
+                ],
+                "x-arcpanel-permission-set": "v2-server"
             }
         },
         "/system/services": {
@@ -6829,7 +6937,8 @@
                     "500": {
                         "$ref": "#/components/responses/ServerError"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-server"
             }
         },
         "/system/services/status/{kind}": {
@@ -6892,7 +7001,8 @@
                     "500": {
                         "$ref": "#/components/responses/ServerError"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-server"
             }
         },
         "/system/services/{service}/logs": {
@@ -6969,7 +7079,8 @@
                     "500": {
                         "$ref": "#/components/responses/ServerError"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-server"
             }
         },
         "/system/services/{service}/restart": {
@@ -7057,7 +7168,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-server"
             }
         },
         "/system/services/{service}/start": {
@@ -7144,7 +7256,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-server"
             }
         },
         "/system/services/{service}/stop": {
@@ -7232,7 +7345,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-server"
             }
         },
         "/system/settings": {
@@ -7282,7 +7396,8 @@
                     "500": {
                         "$ref": "#/components/responses/ServerError"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-server"
             }
         },
         "/system/settings/databases/hosts/{type}/{host}/password": {
@@ -7384,7 +7499,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-server"
             }
         },
         "/system/settings/plugins/{plugin}": {
@@ -7511,7 +7627,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-server"
             }
         },
         "/system/settings/web/php": {
@@ -7630,7 +7747,8 @@
                             "default": false
                         }
                     }
-                ]
+                ],
+                "x-arcpanel-permission-set": "v2-server"
             }
         },
         "/system/settings/{tab}": {
@@ -7755,7 +7873,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-server"
             }
         },
         "/system/tasks": {
@@ -7808,7 +7927,8 @@
                     "500": {
                         "$ref": "#/components/responses/ServerError"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-backup"
             }
         },
         "/system/updates": {
@@ -7865,7 +7985,8 @@
                     "500": {
                         "$ref": "#/components/responses/ServerError"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-server"
             },
             "post": {
                 "operationId": "runUpdates",
@@ -7963,7 +8084,8 @@
                             "default": false
                         }
                     }
-                ]
+                ],
+                "x-arcpanel-permission-set": "v2-server"
             }
         },
         "/system/updates/settings": {
@@ -8049,7 +8171,8 @@
                             "default": false
                         }
                     }
-                ]
+                ],
+                "x-arcpanel-permission-set": "v2-server"
             }
         },
         "/tasks/{id}": {
@@ -8126,7 +8249,8 @@
                     "500": {
                         "$ref": "#/components/responses/ServerError"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-backup"
             }
         },
         "/users": {
@@ -8235,7 +8359,8 @@
                     "500": {
                         "$ref": "#/components/responses/ServerError"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-accounts"
             },
             "post": {
                 "operationId": "createUser",
@@ -8334,7 +8459,8 @@
                             "default": false
                         }
                     }
-                ]
+                ],
+                "x-arcpanel-permission-set": "v2-accounts"
             }
         },
         "/users/{user}": {
@@ -8396,7 +8522,8 @@
                     "500": {
                         "$ref": "#/components/responses/ServerError"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-accounts"
             },
             "patch": {
                 "operationId": "updateUser",
@@ -8491,7 +8618,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-accounts"
             },
             "delete": {
                 "operationId": "deleteUser",
@@ -8573,7 +8701,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-accounts"
             }
         },
         "/users/{user}/access-keys": {
@@ -8665,7 +8794,8 @@
                     "500": {
                         "$ref": "#/components/responses/ServerError"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-accounts"
             },
             "post": {
                 "operationId": "createAccessKey",
@@ -8781,7 +8911,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-accounts"
             }
         },
         "/users/{user}/access-keys/{key}": {
@@ -8851,7 +8982,8 @@
                     "500": {
                         "$ref": "#/components/responses/ServerError"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-accounts"
             },
             "delete": {
                 "operationId": "deleteAccessKey",
@@ -8941,7 +9073,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-accounts"
             }
         },
         "/users/{user}/app-process-presets": {
@@ -9031,7 +9164,8 @@
                     "500": {
                         "$ref": "#/components/responses/ServerError"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-apps"
             }
         },
         "/users/{user}/app-process-task": {
@@ -9141,7 +9275,8 @@
                     "500": {
                         "$ref": "#/components/responses/ServerError"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-apps"
             }
         },
         "/users/{user}/app-processes": {
@@ -9210,7 +9345,8 @@
                     "500": {
                         "$ref": "#/components/responses/ServerError"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-apps"
             },
             "post": {
                 "operationId": "createAppProcess",
@@ -9319,7 +9455,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-apps"
             }
         },
         "/users/{user}/app-processes/{domain}/{name}": {
@@ -9397,7 +9534,8 @@
                     "500": {
                         "$ref": "#/components/responses/ServerError"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-apps"
             },
             "patch": {
                 "operationId": "updateAppProcess",
@@ -9508,7 +9646,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-apps"
             },
             "delete": {
                 "operationId": "deleteAppProcess",
@@ -9605,7 +9744,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-apps"
             }
         },
         "/users/{user}/app-processes/{domain}/{name}/env": {
@@ -9697,7 +9837,8 @@
                     "500": {
                         "$ref": "#/components/responses/ServerError"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-apps"
             },
             "put": {
                 "operationId": "setAppProcessEnv",
@@ -9812,7 +9953,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-apps"
             }
         },
         "/users/{user}/app-processes/{domain}/{name}/logs": {
@@ -9937,7 +10079,8 @@
                     "500": {
                         "$ref": "#/components/responses/ServerError"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-apps"
             }
         },
         "/users/{user}/app-processes/{domain}/{name}/reload": {
@@ -10041,7 +10184,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-apps"
             }
         },
         "/users/{user}/app-processes/{domain}/{name}/restart": {
@@ -10144,7 +10288,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-apps"
             }
         },
         "/users/{user}/app-processes/{domain}/{name}/start": {
@@ -10247,7 +10392,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-apps"
             }
         },
         "/users/{user}/app-processes/{domain}/{name}/stop": {
@@ -10350,7 +10496,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-apps"
             }
         },
         "/users/{user}/app-processes/{domain}/{name}/tasks": {
@@ -10497,6 +10644,9 @@
                             "ArcPanel-Version": {
                                 "$ref": "#/components/headers/Version"
                             },
+                            "Link": {
+                                "$ref": "#/components/headers/Link"
+                            },
                             "Location": {
                                 "$ref": "#/components/headers/Location"
                             }
@@ -10526,7 +10676,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-apps"
             }
         },
         "/users/{user}/auth-logs": {
@@ -10621,7 +10772,8 @@
                     "500": {
                         "$ref": "#/components/responses/ServerError"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-accounts"
             },
             "delete": {
                 "operationId": "clearUserAuthLogs",
@@ -10702,7 +10854,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-accounts"
             }
         },
         "/users/{user}/backup-exclusions": {
@@ -10799,7 +10952,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-backup"
             },
             "get": {
                 "operationId": "getBackupExclusions",
@@ -10859,7 +11013,8 @@
                     "500": {
                         "$ref": "#/components/responses/ServerError"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-backup"
             }
         },
         "/users/{user}/backup-runs": {
@@ -10951,7 +11106,8 @@
                     "500": {
                         "$ref": "#/components/responses/ServerError"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-backup"
             }
         },
         "/users/{user}/backups": {
@@ -11043,7 +11199,8 @@
                     "500": {
                         "$ref": "#/components/responses/ServerError"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-backup"
             },
             "post": {
                 "operationId": "createBackup",
@@ -11114,8 +11271,8 @@
                             "ArcPanel-Version": {
                                 "$ref": "#/components/headers/Version"
                             },
-                            "Location": {
-                                "$ref": "#/components/headers/Location"
+                            "Link": {
+                                "$ref": "#/components/headers/Link"
                             }
                         }
                     },
@@ -11129,7 +11286,22 @@
                         "$ref": "#/components/responses/NotFound"
                     },
                     "409": {
-                        "$ref": "#/components/responses/Conflict"
+                        "description": "`E_EXISTS`: A backup of the user is queued or running: `existing` is that task when the key may read it.",
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Error"
+                                }
+                            }
+                        }
                     },
                     "422": {
                         "$ref": "#/components/responses/ValidationFailed"
@@ -11143,7 +11315,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-backup"
             }
         },
         "/users/{user}/backups/{backup}": {
@@ -11213,7 +11386,8 @@
                     "500": {
                         "$ref": "#/components/responses/ServerError"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-backup"
             },
             "delete": {
                 "operationId": "deleteBackup",
@@ -11302,7 +11476,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-backup"
             }
         },
         "/users/{user}/backups/{backup}/download": {
@@ -11393,8 +11568,8 @@
                             "ArcPanel-Version": {
                                 "$ref": "#/components/headers/Version"
                             },
-                            "Location": {
-                                "$ref": "#/components/headers/Location"
+                            "Link": {
+                                "$ref": "#/components/headers/Link"
                             }
                         }
                     },
@@ -11413,7 +11588,8 @@
                     "500": {
                         "$ref": "#/components/responses/ServerError"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-backup"
             }
         },
         "/users/{user}/backups/{backup}/restore": {
@@ -11503,8 +11679,8 @@
                             "ArcPanel-Version": {
                                 "$ref": "#/components/headers/Version"
                             },
-                            "Location": {
-                                "$ref": "#/components/headers/Location"
+                            "Link": {
+                                "$ref": "#/components/headers/Link"
                             }
                         }
                     },
@@ -11518,7 +11694,22 @@
                         "$ref": "#/components/responses/NotFound"
                     },
                     "409": {
-                        "$ref": "#/components/responses/Conflict"
+                        "description": "`E_EXISTS`: A restore of the user is queued or running: `existing` is that task when the key may read it.",
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Error"
+                                }
+                            }
+                        }
                     },
                     "422": {
                         "$ref": "#/components/responses/ValidationFailed"
@@ -11532,7 +11723,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-backup"
             }
         },
         "/users/{user}/cron-jobs": {
@@ -11624,7 +11816,8 @@
                     "500": {
                         "$ref": "#/components/responses/ServerError"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-cron"
             },
             "post": {
                 "operationId": "createCronJob",
@@ -11734,7 +11927,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-cron"
             }
         },
         "/users/{user}/cron-jobs/{id}": {
@@ -11804,7 +11998,8 @@
                     "500": {
                         "$ref": "#/components/responses/ServerError"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-cron"
             },
             "patch": {
                 "operationId": "updateCronJob",
@@ -11907,7 +12102,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-cron"
             },
             "delete": {
                 "operationId": "deleteCronJob",
@@ -11996,7 +12192,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-cron"
             }
         },
         "/users/{user}/cron-jobs/{id}/suspend": {
@@ -12091,7 +12288,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-cron"
             }
         },
         "/users/{user}/cron-jobs/{id}/unsuspend": {
@@ -12186,7 +12384,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-cron"
             }
         },
         "/users/{user}/cron-reports": {
@@ -12256,7 +12455,8 @@
                     "500": {
                         "$ref": "#/components/responses/ServerError"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-cron"
             },
             "put": {
                 "operationId": "setCronReports",
@@ -12360,7 +12560,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-cron"
             }
         },
         "/users/{user}/databases": {
@@ -12451,7 +12652,8 @@
                     "500": {
                         "$ref": "#/components/responses/ServerError"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-db"
             },
             "post": {
                 "operationId": "createDatabase",
@@ -12561,7 +12763,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-db"
             }
         },
         "/users/{user}/databases/{database}": {
@@ -12631,7 +12834,8 @@
                     "500": {
                         "$ref": "#/components/responses/ServerError"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-db"
             },
             "patch": {
                 "operationId": "updateDatabase",
@@ -12735,7 +12939,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-db"
             },
             "delete": {
                 "operationId": "deleteDatabase",
@@ -12824,7 +13029,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-db"
             }
         },
         "/users/{user}/databases/{database}/dump": {
@@ -12924,7 +13130,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-db"
             }
         },
         "/users/{user}/databases/{database}/password": {
@@ -13025,7 +13232,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-db"
             }
         },
         "/users/{user}/databases/{database}/rebuild": {
@@ -13121,7 +13329,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-db"
             }
         },
         "/users/{user}/databases/{database}/suspend": {
@@ -13216,7 +13425,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-db"
             }
         },
         "/users/{user}/databases/{database}/unsuspend": {
@@ -13311,7 +13521,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-db"
             }
         },
         "/users/{user}/dns-zones": {
@@ -13402,7 +13613,8 @@
                     "500": {
                         "$ref": "#/components/responses/ServerError"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-dns"
             },
             "post": {
                 "operationId": "createDnsZone",
@@ -13512,7 +13724,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-dns"
             }
         },
         "/users/{user}/dns-zones/{domain}": {
@@ -13582,7 +13795,8 @@
                     "500": {
                         "$ref": "#/components/responses/ServerError"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-dns"
             },
             "patch": {
                 "operationId": "updateDnsZone",
@@ -13685,7 +13899,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-dns"
             },
             "delete": {
                 "operationId": "deleteDnsZone",
@@ -13774,7 +13989,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-dns"
             }
         },
         "/users/{user}/dns-zones/{domain}/dnssec": {
@@ -13845,7 +14061,8 @@
                     "500": {
                         "$ref": "#/components/responses/ServerError"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-dns"
             }
         },
         "/users/{user}/dns-zones/{domain}/rebuild": {
@@ -13941,7 +14158,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-dns"
             }
         },
         "/users/{user}/dns-zones/{domain}/records": {
@@ -14075,7 +14293,8 @@
                     "500": {
                         "$ref": "#/components/responses/ServerError"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-dns"
             },
             "post": {
                 "operationId": "createDnsRecord",
@@ -14193,7 +14412,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-dns"
             }
         },
         "/users/{user}/dns-zones/{domain}/records/{id}": {
@@ -14271,7 +14491,8 @@
                     "500": {
                         "$ref": "#/components/responses/ServerError"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-dns"
             },
             "patch": {
                 "operationId": "updateDnsRecord",
@@ -14382,7 +14603,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-dns"
             },
             "delete": {
                 "operationId": "deleteDnsRecord",
@@ -14479,7 +14701,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-dns"
             }
         },
         "/users/{user}/dns-zones/{domain}/records/{id}/suspend": {
@@ -14582,7 +14805,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-dns"
             }
         },
         "/users/{user}/dns-zones/{domain}/records/{id}/unsuspend": {
@@ -14685,7 +14909,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-dns"
             }
         },
         "/users/{user}/dns-zones/{domain}/suspend": {
@@ -14781,7 +15006,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-dns"
             }
         },
         "/users/{user}/dns-zones/{domain}/unsuspend": {
@@ -14876,7 +15102,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-dns"
             }
         },
         "/users/{user}/docker-apps": {
@@ -14945,7 +15172,8 @@
                     "500": {
                         "$ref": "#/components/responses/ServerError"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-apps"
             },
             "post": {
                 "operationId": "createDockerApp",
@@ -15025,11 +15253,11 @@
                             "ArcPanel-Version": {
                                 "$ref": "#/components/headers/Version"
                             },
-                            "Location": {
-                                "$ref": "#/components/headers/Location"
-                            },
                             "Link": {
                                 "$ref": "#/components/headers/Link"
+                            },
+                            "Location": {
+                                "$ref": "#/components/headers/Location"
                             }
                         }
                     },
@@ -15057,7 +15285,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-apps"
             }
         },
         "/users/{user}/docker-apps/{name}": {
@@ -15127,7 +15356,8 @@
                     "500": {
                         "$ref": "#/components/responses/ServerError"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-apps"
             },
             "delete": {
                 "operationId": "deleteDockerApp",
@@ -15224,7 +15454,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-apps"
             }
         },
         "/users/{user}/docker-apps/{name}/domain": {
@@ -15329,7 +15560,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-apps"
             }
         },
         "/users/{user}/docker-apps/{name}/env": {
@@ -15402,7 +15634,8 @@
                     "500": {
                         "$ref": "#/components/responses/ServerError"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-apps"
             },
             "put": {
                 "operationId": "setDockerAppEnv",
@@ -15508,7 +15741,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-apps"
             }
         },
         "/users/{user}/docker-apps/{name}/limits": {
@@ -15613,7 +15847,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-apps"
             }
         },
         "/users/{user}/docker-apps/{name}/logs": {
@@ -15743,7 +15978,8 @@
                     "500": {
                         "$ref": "#/components/responses/ServerError"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-apps"
             }
         },
         "/users/{user}/docker-apps/{name}/restart": {
@@ -15838,7 +16074,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-apps"
             }
         },
         "/users/{user}/docker-apps/{name}/start": {
@@ -15933,7 +16170,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-apps"
             }
         },
         "/users/{user}/docker-apps/{name}/stop": {
@@ -16028,7 +16266,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-apps"
             }
         },
         "/users/{user}/docker-apps/{name}/tasks": {
@@ -16147,7 +16386,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-backup"
             }
         },
         "/users/{user}/files": {
@@ -16283,7 +16523,8 @@
                     "500": {
                         "$ref": "#/components/responses/ServerError"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-files"
             }
         },
         "/users/{user}/files/chmod": {
@@ -16377,7 +16618,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-files"
             }
         },
         "/users/{user}/files/compress": {
@@ -16489,7 +16731,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-files"
             }
         },
         "/users/{user}/files/content": {
@@ -16567,7 +16810,8 @@
                     "500": {
                         "$ref": "#/components/responses/ServerError"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-files"
             },
             "put": {
                 "operationId": "saveFile",
@@ -16669,7 +16913,8 @@
                     "507": {
                         "$ref": "#/components/responses/InsufficientStorage"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-files"
             }
         },
         "/users/{user}/files/copy": {
@@ -16784,7 +17029,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-files"
             }
         },
         "/users/{user}/files/delete": {
@@ -16878,7 +17124,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-files"
             }
         },
         "/users/{user}/files/directories": {
@@ -16990,7 +17237,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-files"
             }
         },
         "/users/{user}/files/download": {
@@ -17112,7 +17360,8 @@
                     "507": {
                         "$ref": "#/components/responses/InsufficientStorage"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-files"
             }
         },
         "/users/{user}/files/extract": {
@@ -17224,7 +17473,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-files"
             }
         },
         "/users/{user}/files/info": {
@@ -17301,7 +17551,8 @@
                     "500": {
                         "$ref": "#/components/responses/ServerError"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-files"
             }
         },
         "/users/{user}/files/move": {
@@ -17416,7 +17667,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-files"
             }
         },
         "/users/{user}/files/rename": {
@@ -17514,7 +17766,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-files"
             }
         },
         "/users/{user}/files/search": {
@@ -17609,7 +17862,8 @@
                     "500": {
                         "$ref": "#/components/responses/ServerError"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-files"
             }
         },
         "/users/{user}/files/size": {
@@ -17700,7 +17954,8 @@
                     "500": {
                         "$ref": "#/components/responses/ServerError"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-files"
             }
         },
         "/users/{user}/files/touch": {
@@ -17812,7 +18067,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-files"
             }
         },
         "/users/{user}/files/uploads": {
@@ -17943,7 +18199,8 @@
                     "507": {
                         "$ref": "#/components/responses/InsufficientStorage"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-files"
             }
         },
         "/users/{user}/files/uploads/{token}": {
@@ -18008,7 +18265,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-files"
             }
         },
         "/users/{user}/files/uploads/{token}/finish": {
@@ -18148,7 +18406,8 @@
                     "507": {
                         "$ref": "#/components/responses/InsufficientStorage"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-files"
             }
         },
         "/users/{user}/files/uploads/{token}/{index}": {
@@ -18225,6 +18484,7 @@
                         "$ref": "#/components/responses/InsufficientStorage"
                     }
                 },
+                "x-arcpanel-permission-set": "v2-files",
                 "requestBody": {
                     "required": true,
                     "description": "The bytes of the chunk: `chunk_size` bytes, the last chunk the rest of the file.",
@@ -18331,7 +18591,8 @@
                     "500": {
                         "$ref": "#/components/responses/ServerError"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-accounts"
             },
             "delete": {
                 "operationId": "clearUserLogs",
@@ -18413,7 +18674,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-accounts"
             }
         },
         "/users/{user}/mail-domains": {
@@ -18504,7 +18766,8 @@
                     "500": {
                         "$ref": "#/components/responses/ServerError"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-mail"
             },
             "post": {
                 "operationId": "createMailDomain",
@@ -18614,7 +18877,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-mail"
             }
         },
         "/users/{user}/mail-domains/{domain}": {
@@ -18684,7 +18948,8 @@
                     "500": {
                         "$ref": "#/components/responses/ServerError"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-mail"
             },
             "patch": {
                 "operationId": "updateMailDomain",
@@ -18787,7 +19052,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-mail"
             },
             "delete": {
                 "operationId": "deleteMailDomain",
@@ -18876,7 +19142,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-mail"
             }
         },
         "/users/{user}/mail-domains/{domain}/accounts": {
@@ -18975,7 +19242,8 @@
                     "500": {
                         "$ref": "#/components/responses/ServerError"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-mail"
             },
             "post": {
                 "operationId": "createMailAccount",
@@ -19105,7 +19373,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-mail"
             }
         },
         "/users/{user}/mail-domains/{domain}/accounts/{account}": {
@@ -19183,7 +19452,8 @@
                     "500": {
                         "$ref": "#/components/responses/ServerError"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-mail"
             },
             "patch": {
                 "operationId": "updateMailAccount",
@@ -19294,7 +19564,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-mail"
             },
             "delete": {
                 "operationId": "deleteMailAccount",
@@ -19391,7 +19662,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-mail"
             }
         },
         "/users/{user}/mail-domains/{domain}/accounts/{account}/password": {
@@ -19500,7 +19772,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-mail"
             }
         },
         "/users/{user}/mail-domains/{domain}/accounts/{account}/suspend": {
@@ -19603,7 +19876,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-mail"
             }
         },
         "/users/{user}/mail-domains/{domain}/accounts/{account}/unsuspend": {
@@ -19706,7 +19980,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-mail"
             }
         },
         "/users/{user}/mail-domains/{domain}/dns-records": {
@@ -19779,13 +20054,14 @@
                     "500": {
                         "$ref": "#/components/responses/ServerError"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-mail"
             }
         },
         "/users/{user}/mail-domains/{domain}/letsencrypt": {
             "post": {
                 "operationId": "requestMailDomainLetsEncrypt",
-                "description": "Answers 202 with the domain as it is: `ssl.letsencrypt` turns true once\nthe queued certificate is installed.",
+                "description": "Answers 202 with the domain as it is: `ssl.letsencrypt` turns true once\nthe queued certificate is installed; the queue runs every five\nminutes. `Link` names the queue task: it fails with `error` when the\nissuance fails, after at most `QUEUE_MAX_ATTEMPTS` runs (3 by\ndefault) when Let's Encrypt cannot validate the domain yet. A request\nfor a domain that has a certificate issues a new one, which is how a\nclient renews on demand.",
                 "summary": "Queue a Let's Encrypt certificate",
                 "tags": [
                     "Mail"
@@ -19869,6 +20145,9 @@
                             "ArcPanel-Version": {
                                 "$ref": "#/components/headers/Version"
                             },
+                            "Link": {
+                                "$ref": "#/components/headers/Link"
+                            },
                             "Location": {
                                 "$ref": "#/components/headers/Location"
                             }
@@ -19898,7 +20177,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-mail"
             }
         },
         "/users/{user}/mail-domains/{domain}/rebuild": {
@@ -19994,7 +20274,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-mail"
             }
         },
         "/users/{user}/mail-domains/{domain}/smtp-relay": {
@@ -20100,7 +20381,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-mail"
             },
             "delete": {
                 "operationId": "deleteMailDomainSmtpRelay",
@@ -20190,7 +20472,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-mail"
             }
         },
         "/users/{user}/mail-domains/{domain}/ssl": {
@@ -20296,7 +20579,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-mail"
             },
             "delete": {
                 "operationId": "deleteMailDomainSsl",
@@ -20386,7 +20670,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-mail"
             }
         },
         "/users/{user}/mail-domains/{domain}/suspend": {
@@ -20481,7 +20766,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-mail"
             }
         },
         "/users/{user}/mail-domains/{domain}/unsuspend": {
@@ -20576,7 +20862,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-mail"
             }
         },
         "/users/{user}/malware/findings": {
@@ -20668,7 +20955,8 @@
                     "500": {
                         "$ref": "#/components/responses/ServerError"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-security"
             }
         },
         "/users/{user}/malware/findings/{finding}/ignore": {
@@ -20760,7 +21048,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-security"
             }
         },
         "/users/{user}/malware/findings/{finding}/quarantine": {
@@ -20856,7 +21145,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-security"
             }
         },
         "/users/{user}/malware/ignores": {
@@ -20947,7 +21237,8 @@
                     "500": {
                         "$ref": "#/components/responses/ServerError"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-security"
             }
         },
         "/users/{user}/malware/ignores/{sha256}": {
@@ -21039,7 +21330,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-security"
             }
         },
         "/users/{user}/malware/quarantine": {
@@ -21130,7 +21422,8 @@
                     "500": {
                         "$ref": "#/components/responses/ServerError"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-security"
             }
         },
         "/users/{user}/malware/quarantine/{id}": {
@@ -21221,7 +21514,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-security"
             }
         },
         "/users/{user}/malware/quarantine/{id}/restore": {
@@ -21313,7 +21607,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-security"
             }
         },
         "/users/{user}/malware/scans": {
@@ -21405,7 +21700,8 @@
                     "500": {
                         "$ref": "#/components/responses/ServerError"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-security"
             },
             "post": {
                 "operationId": "startMalwareScan",
@@ -21485,8 +21781,8 @@
                             "ArcPanel-Version": {
                                 "$ref": "#/components/headers/Version"
                             },
-                            "Location": {
-                                "$ref": "#/components/headers/Location"
+                            "Link": {
+                                "$ref": "#/components/headers/Link"
                             }
                         }
                     },
@@ -21514,7 +21810,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-security"
             }
         },
         "/users/{user}/node": {
@@ -21576,7 +21873,8 @@
                     "500": {
                         "$ref": "#/components/responses/ServerError"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-apps"
             },
             "put": {
                 "operationId": "setNodeEnabled",
@@ -21671,7 +21969,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-apps"
             }
         },
         "/users/{user}/node-apps": {
@@ -21740,7 +22039,8 @@
                     "500": {
                         "$ref": "#/components/responses/ServerError"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-apps"
             },
             "post": {
                 "operationId": "createNodeApp",
@@ -21835,7 +22135,22 @@
                         "$ref": "#/components/responses/NotFound"
                     },
                     "409": {
-                        "$ref": "#/components/responses/Conflict"
+                        "description": "`E_EXISTS`: The domain already has an app: `existing` is the path of its Node.js app, absent when it has a Docker app.",
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Error"
+                                }
+                            }
+                        }
                     },
                     "422": {
                         "$ref": "#/components/responses/ValidationFailed"
@@ -21849,7 +22164,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-apps"
             }
         },
         "/users/{user}/node-apps/detect/{domain}": {
@@ -21953,7 +22269,8 @@
                     "500": {
                         "$ref": "#/components/responses/ServerError"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-apps"
             }
         },
         "/users/{user}/node-apps/{domain}": {
@@ -22023,7 +22340,8 @@
                     "500": {
                         "$ref": "#/components/responses/ServerError"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-apps"
             },
             "patch": {
                 "operationId": "updateNodeApp",
@@ -22125,7 +22443,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-apps"
             },
             "delete": {
                 "operationId": "deleteNodeApp",
@@ -22222,7 +22541,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-apps"
             }
         },
         "/users/{user}/node-apps/{domain}/build": {
@@ -22340,7 +22660,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-apps"
             }
         },
         "/users/{user}/node-apps/{domain}/env": {
@@ -22424,10 +22745,12 @@
                     "500": {
                         "$ref": "#/components/responses/ServerError"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-apps"
             },
             "put": {
                 "operationId": "setNodeAppEnv",
+                "description": "`entries` replaces the whole environment: a name left out is deleted.\nAn entry without `value` keeps the value stored for that name (an\nempty value for a new name), so a client can change one variable\nwithout reading the others; `value: null` sets an empty value.",
                 "summary": "Replace the environment of a Node.js app",
                 "tags": [
                     "Node.js apps"
@@ -22530,7 +22853,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-apps"
             }
         },
         "/users/{user}/node-apps/{domain}/install": {
@@ -22640,7 +22964,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-apps"
             }
         },
         "/users/{user}/node-apps/{domain}/logs": {
@@ -22758,7 +23083,8 @@
                     "500": {
                         "$ref": "#/components/responses/ServerError"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-apps"
             }
         },
         "/users/{user}/node-apps/{domain}/reload": {
@@ -22853,7 +23179,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-apps"
             }
         },
         "/users/{user}/node-apps/{domain}/restart": {
@@ -22948,7 +23275,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-apps"
             }
         },
         "/users/{user}/node-apps/{domain}/start": {
@@ -23043,7 +23371,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-apps"
             }
         },
         "/users/{user}/node-apps/{domain}/stop": {
@@ -23138,7 +23467,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-apps"
             }
         },
         "/users/{user}/node/releases": {
@@ -23229,7 +23559,8 @@
                     "500": {
                         "$ref": "#/components/responses/ServerError"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-apps"
             }
         },
         "/users/{user}/node/versions": {
@@ -23320,7 +23651,8 @@
                     "500": {
                         "$ref": "#/components/responses/ServerError"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-apps"
             },
             "post": {
                 "operationId": "installNodeVersion",
@@ -23429,7 +23761,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-apps"
             }
         },
         "/users/{user}/node/versions/{version}": {
@@ -23520,7 +23853,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-apps"
             }
         },
         "/users/{user}/node/versions/{version}/default": {
@@ -23615,7 +23949,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-apps"
             }
         },
         "/users/{user}/node/versions/{version}/packages": {
@@ -23714,7 +24049,8 @@
                     "500": {
                         "$ref": "#/components/responses/ServerError"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-apps"
             },
             "post": {
                 "operationId": "installNodePackage",
@@ -23831,7 +24167,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-apps"
             }
         },
         "/users/{user}/node/versions/{version}/packages/check": {
@@ -23940,7 +24277,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-apps"
             }
         },
         "/users/{user}/node/versions/{version}/packages/update": {
@@ -24049,7 +24387,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-apps"
             }
         },
         "/users/{user}/node/versions/{version}/packages/{package}": {
@@ -24148,7 +24487,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-apps"
             }
         },
         "/users/{user}/package": {
@@ -24245,7 +24585,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-accounts"
             }
         },
         "/users/{user}/password": {
@@ -24338,7 +24679,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-accounts"
             }
         },
         "/users/{user}/ports": {
@@ -24408,7 +24750,8 @@
                     "500": {
                         "$ref": "#/components/responses/ServerError"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-apps"
             }
         },
         "/users/{user}/ports/give": {
@@ -24513,7 +24856,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-apps"
             }
         },
         "/users/{user}/ports/request": {
@@ -24625,7 +24969,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-apps"
             }
         },
         "/users/{user}/ports/reserve": {
@@ -24723,7 +25068,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-apps"
             }
         },
         "/users/{user}/ports/{range}": {
@@ -24825,7 +25171,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-apps"
             }
         },
         "/users/{user}/ports/{range}/public": {
@@ -24945,7 +25292,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-apps"
             }
         },
         "/users/{user}/ports/{range}/public-ok": {
@@ -25060,7 +25408,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-apps"
             }
         },
         "/users/{user}/ports/{range}/reclaim": {
@@ -25165,7 +25514,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-apps"
             }
         },
         "/users/{user}/ports/{range}/release": {
@@ -25282,7 +25632,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-apps"
             }
         },
         "/users/{user}/secrets": {
@@ -25374,7 +25725,8 @@
                     "500": {
                         "$ref": "#/components/responses/ServerError"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-secrets"
             },
             "post": {
                 "operationId": "createSecret",
@@ -25484,7 +25836,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-secrets"
             }
         },
         "/users/{user}/secrets/{name}": {
@@ -25556,7 +25909,8 @@
                     "500": {
                         "$ref": "#/components/responses/ServerError"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-secrets"
             },
             "patch": {
                 "operationId": "updateSecret",
@@ -25660,7 +26014,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-secrets"
             },
             "delete": {
                 "operationId": "deleteSecret",
@@ -25759,7 +26114,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-secrets"
             }
         },
         "/users/{user}/secrets/{name}/rollback": {
@@ -25920,7 +26276,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-secrets"
             }
         },
         "/users/{user}/secrets/{name}/value": {
@@ -26081,7 +26438,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-secrets"
             }
         },
         "/users/{user}/snapshots": {
@@ -26154,8 +26512,8 @@
                             "ArcPanel-Version": {
                                 "$ref": "#/components/headers/Version"
                             },
-                            "Location": {
-                                "$ref": "#/components/headers/Location"
+                            "Link": {
+                                "$ref": "#/components/headers/Link"
                             }
                         }
                     },
@@ -26183,7 +26541,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-backup"
             },
             "get": {
                 "operationId": "listSnapshots",
@@ -26273,7 +26632,8 @@
                     "500": {
                         "$ref": "#/components/responses/ServerError"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-backup"
             }
         },
         "/users/{user}/snapshots/{snapshot}": {
@@ -26364,7 +26724,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-backup"
             },
             "get": {
                 "operationId": "getSnapshot",
@@ -26433,7 +26794,8 @@
                     "500": {
                         "$ref": "#/components/responses/ServerError"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-backup"
             }
         },
         "/users/{user}/snapshots/{snapshot}/files": {
@@ -26540,7 +26902,8 @@
                     "500": {
                         "$ref": "#/components/responses/ServerError"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-backup"
             }
         },
         "/users/{user}/snapshots/{snapshot}/restore": {
@@ -26630,8 +26993,8 @@
                             "ArcPanel-Version": {
                                 "$ref": "#/components/headers/Version"
                             },
-                            "Location": {
-                                "$ref": "#/components/headers/Location"
+                            "Link": {
+                                "$ref": "#/components/headers/Link"
                             }
                         }
                     },
@@ -26659,7 +27022,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-backup"
             }
         },
         "/users/{user}/ssh-keys": {
@@ -26750,7 +27114,8 @@
                     "500": {
                         "$ref": "#/components/responses/ServerError"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-accounts"
             },
             "post": {
                 "operationId": "addSshKey",
@@ -26860,7 +27225,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-accounts"
             }
         },
         "/users/{user}/ssh-keys/{id}": {
@@ -26952,7 +27318,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-accounts"
             }
         },
         "/users/{user}/stats": {
@@ -27044,7 +27411,8 @@
                     "500": {
                         "$ref": "#/components/responses/ServerError"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-accounts"
             }
         },
         "/users/{user}/suspend": {
@@ -27132,7 +27500,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-accounts"
             }
         },
         "/users/{user}/tasks": {
@@ -27224,7 +27593,8 @@
                     "500": {
                         "$ref": "#/components/responses/ServerError"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-backup"
             }
         },
         "/users/{user}/two-factor": {
@@ -27308,7 +27678,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-accounts"
             }
         },
         "/users/{user}/unsuspend": {
@@ -27395,7 +27766,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-accounts"
             }
         },
         "/users/{user}/web-domains": {
@@ -27486,7 +27858,8 @@
                     "500": {
                         "$ref": "#/components/responses/ServerError"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-web"
             },
             "post": {
                 "operationId": "createWebDomain",
@@ -27596,7 +27969,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-web"
             }
         },
         "/users/{user}/web-domains/{domain}": {
@@ -27666,7 +28040,8 @@
                     "500": {
                         "$ref": "#/components/responses/ServerError"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-web"
             },
             "patch": {
                 "operationId": "updateWebDomain",
@@ -27769,7 +28144,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-web"
             },
             "delete": {
                 "operationId": "deleteWebDomain",
@@ -27859,7 +28235,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-web"
             }
         },
         "/users/{user}/web-domains/{domain}/aliases": {
@@ -27965,7 +28342,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-web"
             }
         },
         "/users/{user}/web-domains/{domain}/aliases/{alias}": {
@@ -28065,13 +28443,14 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-web"
             }
         },
         "/users/{user}/web-domains/{domain}/letsencrypt": {
             "post": {
                 "operationId": "requestWebDomainLetsEncrypt",
-                "description": "Queues the certificate for the domain and its aliases, which must\nresolve to this server; the queue runs every five minutes. Answers\n202 with the domain as it is: `ssl.letsencrypt` turns true once the\ncertificate is installed.",
+                "description": "Queues the certificate for the domain and its aliases, which must\nresolve to this server; the queue runs every five minutes. Answers\n202 with the domain as it is: `ssl.letsencrypt` turns true once the\ncertificate is installed. `Link` names the queue task: it fails with\n`error` when the issuance fails, after at most `QUEUE_MAX_ATTEMPTS`\nruns (3 by default, five minutes apart) when Let's Encrypt cannot\nvalidate the domain yet. A request for a domain that has a\ncertificate issues a new one, which is how a client renews on\ndemand; a request while another is queued replaces it, and the\nreplaced task fails with `replaced by a newer request`.",
                 "summary": "Request a Let's Encrypt certificate",
                 "tags": [
                     "Web domains"
@@ -28155,6 +28534,9 @@
                             "ArcPanel-Version": {
                                 "$ref": "#/components/headers/Version"
                             },
+                            "Link": {
+                                "$ref": "#/components/headers/Link"
+                            },
                             "Location": {
                                 "$ref": "#/components/headers/Location"
                             }
@@ -28184,7 +28566,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-web"
             }
         },
         "/users/{user}/web-domains/{domain}/logs": {
@@ -28297,7 +28680,8 @@
                     "500": {
                         "$ref": "#/components/responses/ServerError"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-web"
             }
         },
         "/users/{user}/web-domains/{domain}/php": {
@@ -28368,7 +28752,8 @@
                     "500": {
                         "$ref": "#/components/responses/ServerError"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-web"
             },
             "put": {
                 "operationId": "setWebDomainPhp",
@@ -28471,7 +28856,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-web"
             }
         },
         "/users/{user}/web-domains/{domain}/purge-cache": {
@@ -28567,7 +28953,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-web"
             }
         },
         "/users/{user}/web-domains/{domain}/rebuild": {
@@ -28663,7 +29050,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-web"
             }
         },
         "/users/{user}/web-domains/{domain}/ssl": {
@@ -28768,7 +29156,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-web"
             },
             "delete": {
                 "operationId": "deleteWebDomainSsl",
@@ -28858,7 +29247,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-web"
             }
         },
         "/users/{user}/web-domains/{domain}/suspend": {
@@ -28954,7 +29344,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-web"
             }
         },
         "/users/{user}/web-domains/{domain}/unsuspend": {
@@ -29049,7 +29440,8 @@
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
                     }
-                }
+                },
+                "x-arcpanel-permission-set": "v2-web"
             }
         },
         "/web-domains": {
@@ -29148,7 +29540,8 @@
                             "minimum": 0
                         }
                     }
-                ]
+                ],
+                "x-arcpanel-permission-set": "v2-web"
             }
         }
     },
@@ -37949,20 +38342,28 @@
                         "type": "string"
                     },
                     "status": {
-                        "type": "string"
+                        "type": "string",
+                        "description": "a task has ended when `finished_at` is set",
+                        "enum": [
+                            "queued",
+                            "running",
+                            "succeeded",
+                            "failed"
+                        ]
                     },
                     "exit_code": {
                         "type": [
                             "integer",
                             "null"
                         ],
-                        "description": "set when the task has finished"
+                        "description": "set when the task has finished; 0 is success"
                     },
                     "error": {
                         "type": [
                             "string",
                             "null"
-                        ]
+                        ],
+                        "description": "why a task failed, or why a queued task runs again"
                     },
                     "started_at": {
                         "type": [
@@ -37974,7 +38375,8 @@
                         "type": [
                             "string",
                             "null"
-                        ]
+                        ],
+                        "description": "set when the task has ended"
                     },
                     "queued_at": {
                         "type": [
@@ -40375,13 +40777,13 @@
                 }
             },
             "Location": {
-                "description": "URL of the resource (201) or of the resource to poll (202).",
+                "description": "URL of the new object (201), or of the resource the change concerns (202).",
                 "schema": {
                     "type": "string"
                 }
             },
             "Link": {
-                "description": "Task monitor URL (`rel=\"monitor\"`) for `GET /tasks/{id}`.",
+                "description": "The task the request started: `</api/v2/tasks/{id}>; rel=\"monitor\"`, for `getTask`.",
                 "schema": {
                     "type": "string"
                 }

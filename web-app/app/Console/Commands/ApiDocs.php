@@ -26,22 +26,6 @@ use ReflectionMethod;
 #[Description('Generate the OpenAPI document of REST API v2')]
 final class ApiDocs extends Command
 {
-    /** 202 answers that queue a task with `Link: …; rel="monitor"` only (no `Location`). */
-    private const TASK_MONITOR_202 = [
-        'installNodeVersion',
-        'installNodePackage',
-        'updateNodePackages',
-        'checkNodePackages',
-        'installNodeApp',
-        'buildNodeApp',
-        'startDockerAppTask',
-        'runUpdates',
-        'installSystemPackage',
-        'removeSystemPackage',
-        'setPhpVersions',
-        'setPlugin',
-    ];
-
     /** List operations whose `meta` is not paginated `ListMeta` (E34 batch 3 §5, batch 4 §4.2, batch 6 D60). */
     private const LIST_WITHOUT_PAGINATION = ['listSystemTasks', 'listNodeApps', 'listAppProcesses', 'listDockerApps', 'listDockerCatalog', 'listPorts', 'listUserLogs', 'listUserAuthLogs', 'listServices', 'listUpdates'];
 
@@ -88,7 +72,11 @@ final class ApiDocs extends Command
 
         **Errors.** Every error answers `{"error": {"code": "E_…", "message": "…"}}`; `code` is one of `ErrorCode`. Validation errors add `fields`, refused permission sets add `commands`, a duplicate the server can point at adds `existing` (the path of that object, or a queued backup or restore task), and a failed step of a change adds `step` and the steps that ran before it (`applied`), which stay applied. File operations add the names that exist in the destination (`conflicts`) and, when they stop part-way, the path that failed (`path`) and the paths already finished (`done`).
 
-        **Headers.** Every answer carries `ArcPanel-Version` and `X-Request-Id` (the client's own value, or a new one). `429` carries `Retry-After`; `201` and `202` carry `Location`. Each key may make 60 requests a minute; ten failed authentications a minute block the client's address for a minute.
+        **Headers.** Every answer carries `ArcPanel-Version` and `X-Request-Id` (the client's own value, or a new one). `429` carries `Retry-After`; `201` carries `Location`, the URL of the new object. Each key may make 60 requests a minute; ten failed authentications a minute block the client's address for a minute.
+
+        **Asynchronous operations.** An operation that starts a background task answers `202` with `Link: </api/v2/tasks/{id}>; rel="monitor"`; follow it with `getTask` until `finished_at` is set (`exit_code` 0 is success). It also sends `Location` when the change has a resource of its own to read again (the domain of a Let's Encrypt request, the new Docker app). A task is `queued`, `running`, `succeeded` or `failed`; a failed task carries `error`. Queued work that fails is retried at most `QUEUE_MAX_ATTEMPTS` times (3 by default) before it fails.
+
+        **Permission sets.** `x-arcpanel-permission-set` on each operation names the area set it belongs to (`v2-web`, `v2-backup`, …); a key also passes with `v2-write`, and for a read with `v2-read` (and `v2-observe` unless the operation reads file contents, secrets or revealed values). `null` means any key of API v2.
 
         **Compatibility.** Within v2 the document only grows: new operations, new optional fields, new enum values. Clients should ignore unknown fields.
         MD;
@@ -180,11 +168,12 @@ final class ApiDocs extends Command
         ksort($components['schemas']);
         $spec['components'] = $components;
 
-        $statuses = $this->declaredStatuses();
+        $declarations = $this->declarations();
+        $none = ['status' => 200, 'monitor' => false, 'location' => false, 'conflicts' => [], 'set' => null];
         foreach ($spec['paths'] ?? [] as $path => $operations) {
             foreach ($operations as $method => $operation) {
                 if (is_array($operation) && in_array($method, ['get', 'post', 'put', 'patch', 'delete'], true)) {
-                    $spec['paths'][$path][$method] = $this->operation($path, $method, $operation, $statuses[$method.' '.$path] ?? 200);
+                    $spec['paths'][$path][$method] = $this->operation($path, $method, $operation, $declarations[$method.' '.$path] ?? $none);
                 }
             }
         }
@@ -275,11 +264,13 @@ final class ApiDocs extends Command
 
     /**
      * @param  array<string, mixed>  $operation
+     * @param  array{status: int, monitor: bool, location: bool, conflicts: list<array{0: string, 1: string}>, set: ?string}  $declared
      * @return array<string, mixed>
      */
-    private function operation(string $path, string $method, array $operation, int $success): array
+    private function operation(string $path, string $method, array $operation, array $declared): array
     {
         $operationId = (string) ($operation['operationId'] ?? '');
+        $success = $declared['status'];
         $write = $method !== 'get';
         $responses = [];
         foreach ($operation['responses'] ?? [] as $status => $response) {
@@ -364,6 +355,11 @@ final class ApiDocs extends Command
         foreach ($errors as $status) {
             $responses[$status] = ['$ref' => '#/components/responses/'.self::ERROR_STATUSES[$status][0]];
         }
+        if ($declared['conflicts'] !== []) {
+            $conflict = $this->errorResponses()['Conflict'];
+            $conflict['description'] = implode(' ', array_map(fn (array $c) => '`'.$c[0].'`: '.$c[1], $declared['conflicts']));
+            $responses['409'] = $conflict;
+        }
         if (($operation['operationId'] ?? '') === 'downloadBackup') {
             $responses['200'] = [
                 'description' => 'The archive when it is on this server: an empty body with `X-Accel-Redirect` so nginx serves the bytes (D35).',
@@ -394,10 +390,29 @@ final class ApiDocs extends Command
                 ],
             ];
         }
-        if (in_array($operationId, self::TASK_MONITOR_202, true) && isset($responses['202']['headers'])) {
-            unset($responses['202']['headers']['Location']);
-            $responses['202']['headers']['Link'] = ['$ref' => '#/components/headers/Link'];
+        // The headers of a 202 come from the method's docblock (Fleet PD4)
+        if ($declared['monitor'] && ! isset($responses['202'])) {
+            $responses['202'] = [
+                'description' => 'The task that was started.',
+                'content' => ['application/json' => ['schema' => [
+                    'type' => 'object',
+                    'properties' => ['data' => ['$ref' => '#/components/schemas/TaskResource']],
+                    'required' => ['data'],
+                ]]],
+            ];
         }
+        if (isset($responses['202']) && ! isset($responses['202']['$ref'])) {
+            $headers = self::successHeaders('200') + ($responses['202']['headers'] ?? []);
+            unset($headers['Location'], $headers['Link']);
+            if ($declared['monitor']) {
+                $headers['Link'] = ['$ref' => '#/components/headers/Link'];
+            }
+            if ($declared['location']) {
+                $headers['Location'] = ['$ref' => '#/components/headers/Location'];
+            }
+            $responses['202']['headers'] = $headers;
+        }
+        $operation['x-arcpanel-permission-set'] = $declared['set'];
         self::tailorWebDomainOpenApi($operationId, $operation, $responses);
         self::tailorServiceLogsOpenApi($operationId, $operation);
         self::tailorNodeAppOpenApi($operationId, $operation, $responses);
@@ -454,15 +469,21 @@ final class ApiDocs extends Command
     }
 
     /**
-     * The success status of each operation other than 200, from the
-     * `@status` tag of its controller method (Scramble does not follow
-     * `setStatusCode()` and `noContent()` after an early return).
+     * What the controller method of each operation declares in its
+     * docblock, with the area set of its route:
      *
-     * @return array<string, int> "method /path" => status
+     * - `@status NNN`: the success status other than 200 (Scramble does not
+     *   follow `setStatusCode()` and `noContent()` after an early return);
+     * - `@monitor`: a 202 answer carries `Link` to the task it started, and
+     *   is documented even when Scramble infers no 202 (Fleet PD4);
+     * - `@location`: a 202 answer also carries `Location`;
+     * - `@conflict CODE text`: the operation's own 409, one line (Fleet PD3).
+     *
+     * @return array<string, array{status: int, monitor: bool, location: bool, conflicts: list<array{0: string, 1: string}>, set: ?string}> "method /path" => declaration
      */
-    private function declaredStatuses(): array
+    private function declarations(): array
     {
-        $statuses = [];
+        $declarations = [];
         foreach (Route::getRoutes()->getRoutes() as $route) {
             /** @var LaravelRoute $route */
             $action = $route->getAction('uses');
@@ -471,17 +492,23 @@ final class ApiDocs extends Command
             }
             [$class, $method] = explode('@', $action, 2);
             $doc = (string) (new ReflectionMethod($class, $method))->getDocComment();
-            if (preg_match('/@status\s+(\d{3})/', $doc, $m) !== 1) {
-                continue;
-            }
+            preg_match_all('/@conflict\s+(E_[A-Z_]+)\s+([^\r\n]+)/', $doc, $conflicts, PREG_SET_ORDER);
+            $area = $route->defaults['api_area'] ?? null;
+            $declaration = [
+                'status' => preg_match('/@status\s+(\d{3})/', $doc, $m) === 1 ? (int) $m[1] : 200,
+                'monitor' => preg_match('/@monitor\b/', $doc) === 1,
+                'location' => preg_match('/@location\b/', $doc) === 1,
+                'conflicts' => array_map(fn (array $c) => [$c[1], trim($c[2])], $conflicts),
+                'set' => is_string($area) ? 'v2-'.$area : null,
+            ];
             foreach ($route->methods() as $verb) {
                 if ($verb !== 'HEAD') {
-                    $statuses[strtolower($verb).' /'.substr($route->uri(), strlen('api/v2/'))] = (int) $m[1];
+                    $declarations[strtolower($verb).' /'.substr($route->uri(), strlen('api/v2/'))] = $declaration;
                 }
             }
         }
 
-        return $statuses;
+        return $declarations;
     }
 
     /**
@@ -722,9 +749,6 @@ final class ApiDocs extends Command
      */
     private static function tailorDockerAppOpenApi(string $operationId, array &$operation, array &$responses): void
     {
-        if ($operationId === 'createDockerApp' && isset($responses['202']['headers'])) {
-            $responses['202']['headers']['Link'] = ['$ref' => '#/components/headers/Link'];
-        }
         if ($operationId === 'getDockerAppLogs') {
             $operation['parameters'] = [...($operation['parameters'] ?? []), ...self::dockerAppLogParameters()];
             if (isset($responses['200']['content']['application/json']['schema'])) {
@@ -1641,8 +1665,8 @@ final class ApiDocs extends Command
             'RequestId' => ['description' => 'The id of the request: the client\'s X-Request-Id, or a new one.', 'schema' => ['type' => 'string']],
             'Version' => ['description' => 'Version of the panel.', 'schema' => ['type' => 'string']],
             'RetryAfter' => ['description' => 'Seconds to wait before the next request.', 'schema' => ['type' => 'integer']],
-            'Location' => ['description' => 'URL of the resource (201) or of the resource to poll (202).', 'schema' => ['type' => 'string']],
-            'Link' => ['description' => 'Task monitor URL (`rel="monitor"`) for `GET /tasks/{id}`.', 'schema' => ['type' => 'string']],
+            'Location' => ['description' => 'URL of the new object (201), or of the resource the change concerns (202).', 'schema' => ['type' => 'string']],
+            'Link' => ['description' => 'The task the request started: `</api/v2/tasks/{id}>; rel="monitor"`, for `getTask`.', 'schema' => ['type' => 'string']],
         ];
     }
 

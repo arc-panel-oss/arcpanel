@@ -193,13 +193,13 @@ it('adds Link on Let’s Encrypt 202 responses', function () {
     $headers = apiAs($this->fake, 'hostco', 'reseller');
 
     $this->postJson('/api/v2/users/bob/web-domains/shop.example/letsencrypt', [], $headers)
-        ->assertStatus(202)
+        ->assertStatus(202)->assertDocumentedHeaders('requestWebDomainLetsEncrypt')
         ->assertHeader('Location')
         ->assertHeader('Link', '</api/v2/tasks/queue:bob:17290000001234>; rel="monitor"');
 
     $this->fake->on('v-schedule-letsencrypt-domain')->returns("17290000009999\n");
     $this->postJson('/api/v2/users/bob/mail-domains/example.com/letsencrypt', [], $headers)
-        ->assertStatus(202)
+        ->assertStatus(202)->assertDocumentedHeaders('requestMailDomainLetsEncrypt')
         ->assertHeader('Link', '</api/v2/tasks/queue:bob:17290000009999>; rel="monitor"');
 });
 
@@ -210,7 +210,7 @@ it('lets a v2-read key and an area key follow tasks', function () {
     $this->getJson('/api/v2/tasks/node:bob:17280000007001', apiAs($this->fake, 'bob', 'user', readOnly: true))->assertOk();
     $this->getJson('/api/v2/tasks/node:bob:17280000007001', apiAs($this->fake, 'bob', 'user', area: 'backup'))->assertOk();
     $this->postJson('/api/v2/users/bob/web-domains/shop.example/letsencrypt', [], apiAs($this->fake, 'bob', 'user', area: 'web'))
-        ->assertStatus(202)
+        ->assertStatus(202)->assertDocumentedHeaders('requestWebDomainLetsEncrypt')
         ->assertHeader('Link');
     $this->fake->assertRan('v-schedule-letsencrypt-domain');
 });

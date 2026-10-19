@@ -85,6 +85,8 @@ final class PhpController extends Controller
      *
      * @operationId installPhpVersion
      *
+     * @monitor
+     *
      * @status 202
      */
     public function install(string $php, Principal $principal, ServerPolicy $policy, SystemTaskStarter $starter): JsonResponse
@@ -102,6 +104,8 @@ final class PhpController extends Controller
      * The default version and a version that web domains use answer `403`.
      *
      * @operationId removePhpVersion
+     *
+     * @monitor
      *
      * @status 202
      */
@@ -141,6 +145,8 @@ final class PhpController extends Controller
      * (`409 E_INUSE`). A change that stops PHP-FPM is undone.
      *
      * @operationId setPhpExtension
+     *
+     * @monitor
      */
     public function setExtension(SetPhpExtensionRequest $request, string $php, string $name, Principal $principal, ServerPolicy $policy, SystemTaskStarter $starter): PhpExtensionResource|JsonResponse
     {
@@ -177,6 +183,8 @@ final class PhpController extends Controller
      * answer `403` or `409`.
      *
      * @operationId removePhpExtension
+     *
+     * @monitor
      *
      * @status 202
      */

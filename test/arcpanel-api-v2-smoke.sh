@@ -260,7 +260,7 @@ check "the domain has the given aliases" "alt.$SMOKE_DOMAIN,www.$SMOKE_DOMAIN" "
 check "a repeated createWebDomain answers 409" 409 "$(call "$WRITER" POST "$WEB" "{\"domain\": \"$SMOKE_DOMAIN\"}")"
 # Cross-user lists (E43 B2), with an administrator's key and an administrator's v2-observe key
 ADMIN_OBSERVER=$(new_key "$ROOT_USER" v2-observe)
-for kind in web-domains databases cron-jobs node-apps backups; do
+for kind in web-domains databases cron-jobs node-apps backups backup-runs; do
 	check "GET /$kind of every user answers 200 (E43 B2)" 200 "$(call "$ADMIN" GET "/$kind?limit=1000")"
 	check "GET /$kind names the smoke user in meta.users" true "$(jq -r --arg u "$SMOKE_USER" '.meta.users | index($u) != null' "$BODY")"
 	check "GET /$kind answers a v2-observe key" 200 "$(call "$ADMIN_OBSERVER" GET "/$kind")"
@@ -403,6 +403,12 @@ wait_v2_task "$BACKUP_KEY" "$BK_TASK" 900
 if [ "$(call "$BACKUP_KEY" GET "/tasks/$BK_TASK")" = 200 ] && [ "$(json .data.status)" = succeeded ]; then
 	BK_NAME="$(call "$BACKUP_KEY" GET "$BK" > /dev/null && json '.data[0].name')"
 	check "listBackups finds the new archive" "$SMOKE_USER." "${BK_NAME%%.*}."
+	# Fleet PD2: the run is recorded with its task and archive
+	check "listBackupRuns answers 200" 200 "$(call "$BACKUP_KEY" GET "/users/$SMOKE_USER/backup-runs")"
+	check "the newest run is the requested backup" "request $BK_TASK succeeded $BK_NAME" \
+		"$(json '.data[0] | "\(.trigger) \(.task) \(.status) \(.archive)"')"
+	check "listAllBackupRuns holds the run" 1 \
+		"$(call "$ADMIN" GET "/backup-runs?user=$SMOKE_USER" > /dev/null && jq --arg t "$BK_TASK" '[.data[] | select(.task == $t)] | length' "$BODY")"
 	BK_DL="$(mktemp)"
 	dl_bytes=$(curl -sk -o "$BK_DL" -w '%{size_download}' -H "Authorization: Bearer $BACKUP_KEY" "$API$BK/$BK_NAME/download")
 	check "downloadBackup returns bytes" 1 "$([ "${dl_bytes:-0}" -gt 100 ] && echo 1 || echo 0)"
@@ -548,7 +554,12 @@ check "stopAppProcess answers 200" 200 "$(call "$APPS_KEY" POST "$PROC/stop")"
 check "the process is stopped" false "$(json .data.running)"
 check "startAppProcess answers 200" 200 "$(call "$APPS_KEY" POST "$PROC/start")"
 check "reloadAppProcess answers 200" 200 "$(call "$APPS_KEY" POST "$PROC/reload")"
-check "startAppProcessTask answers 202" 202 "$(call "$APPS_KEY" POST "$PROC/tasks" '{"task": "custom", "command": "python3 --version"}')"
+proc_headers=$(curl -sk -D - -o "$BODY" -X POST \
+	-H "Authorization: Bearer $APPS_KEY" -H 'Accept: application/json' -H 'Content-Type: application/json' \
+	--data '{"task": "custom", "command": "python3 --version"}' "$API$PROC/tasks")
+check "startAppProcessTask answers 202" 202 "$(head -1 <<< "$proc_headers" | awk '{print $2}')"
+proc_task_id=$(grep -i '^link:' <<< "$proc_headers" | sed -E 's#.*/api/v2/tasks/([^>]+)>.*#\1#' | tr -d '\r')
+check "startAppProcessTask sends Link to an app-process task (Fleet PD4)" "app-process:$APPS_USER:" "${proc_task_id%"${proc_task_id##*:}"}"
 proc_task=running
 for _ in $(seq 1 60); do
 	call "$APPS_KEY" GET "/users/$APPS_USER/app-process-task" > /dev/null
@@ -557,6 +568,8 @@ for _ in $(seq 1 60); do
 	sleep 1
 done
 check "the task is done" "done 0" "$proc_task $(json .data.exit_code)"
+check "getTask reads the app process task (Fleet PD4)" "app-process succeeded 0" \
+	"$(call "$APPS_KEY" GET "/tasks/$proc_task_id" > /dev/null && json '"\(.data.kind) \(.data.status) \(.data.exit_code)"')"
 check "a worker answers 201" 201 "$(call "$APPS_KEY" POST "$PROCS" "{\"domain\": \"$PROC_DOMAIN\", \"name\": \"worker\", \"preset\": \"custom\", \"kind\": \"worker\", \"start\": \"sleep 3600\", \"memory_mb\": 64}")"
 check "the worker has no port" null "$(json .data.port)"
 check "a third process is over the limit of the package" 422 "$(call "$APPS_KEY" POST "$PROCS" "{\"domain\": \"$PROC_DOMAIN\", \"name\": \"third\", \"preset\": \"custom\", \"kind\": \"worker\", \"start\": \"sleep 60\"}")"

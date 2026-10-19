@@ -58,7 +58,7 @@ it('starts a version install with Link and refuses a busy slot', function () {
     $this->fake->on('v-start-user-node-task')->returns('17286400001234');
     $headers = apiAs($this->fake, 'bob', 'user', area: 'apps');
 
-    $this->postJson('/api/v2/users/bob/node/versions', ['spec' => '24'], $headers)->assertStatus(202)
+    $this->postJson('/api/v2/users/bob/node/versions', ['spec' => '24'], $headers)->assertStatus(202)->assertDocumentedHeaders('installNodeVersion')
         ->assertHeader('Link', '</api/v2/tasks/node:bob:17286400001234>; rel="monitor"')
         ->assertJsonPath('data.id', 'node:bob:17286400001234')
         ->assertJsonPath('data.status', 'running');
@@ -117,10 +117,13 @@ it('queues package update and check tasks', function () {
     $this->fake->on('v-start-user-node-task')->returns('55');
     $headers = apiAs($this->fake, 'bob', 'user', area: 'apps');
 
-    $this->postJson('/api/v2/users/bob/node/versions/24.21.0/packages/update', [], $headers)->assertStatus(202)
+    $this->postJson('/api/v2/users/bob/node/versions/24.21.0/packages/update', [], $headers)->assertStatus(202)->assertDocumentedHeaders('updateNodePackages')
         ->assertHeader('Link', '</api/v2/tasks/node:bob:55>; rel="monitor"');
     $this->fake->assertRan('v-start-user-node-task', fn ($a) => $a === ['bob', 'update-packages', '24.21.0']);
 
-    $this->postJson('/api/v2/users/bob/node/versions/24.21.0/packages/check', [], $headers)->assertStatus(202);
+    $this->postJson('/api/v2/users/bob/node/versions/24.21.0/packages/check', [], $headers)->assertStatus(202)->assertDocumentedHeaders('checkNodePackages');
     $this->fake->assertRan('v-start-user-node-task', fn ($a) => $a === ['bob', 'check-outdated', '24.21.0']);
+
+    $this->postJson('/api/v2/users/bob/node/versions/24.21.0/packages', ['spec' => 'pm2'], $headers)->assertStatus(202)->assertDocumentedHeaders('installNodePackage');
+    $this->fake->assertRan('v-start-user-node-task', fn ($a) => $a === ['bob', 'add-package', '24.21.0', 'pm2']);
 });

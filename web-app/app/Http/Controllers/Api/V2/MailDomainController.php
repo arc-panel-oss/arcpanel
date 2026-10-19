@@ -272,9 +272,18 @@ final class MailDomainController extends Controller
      * Queue a Let's Encrypt certificate
      *
      * Answers 202 with the domain as it is: `ssl.letsencrypt` turns true once
-     * the queued certificate is installed.
+     * the queued certificate is installed; the queue runs every five
+     * minutes. `Link` names the queue task: it fails with `error` when the
+     * issuance fails, after at most `QUEUE_MAX_ATTEMPTS` runs (3 by
+     * default) when Let's Encrypt cannot validate the domain yet. A request
+     * for a domain that has a certificate issues a new one, which is how a
+     * client renews on demand.
      *
      * @operationId requestMailDomainLetsEncrypt
+     *
+     * @monitor
+     *
+     * @location
      *
      * @status 202
      */

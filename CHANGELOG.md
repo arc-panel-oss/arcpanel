@@ -4,7 +4,21 @@ All notable changes to ArcPanel are listed here. ArcPanel is based on HestiaCP 1
 
 ## Unreleased
 
+### Added
+
+- Records of backup runs: every run of a tar or restic backup (nightly, requested in the panel or the API, or started on the server), failed ones included with the exit code and reason, the last 30 per user. `v-list-user-backup-runs` and `v-list-sys-backup-runs` list them, and REST API v2 answers `GET /users/{user}/backup-runs` and, for administrators and resellers, `GET /backup-runs` with `updated_since`. See the [Fleet PD1–PD4 spec](https://github.com/arc-panel-oss/docs/blob/main/features/specs/2026-10-19-001-fleet-pd-api-v2-follow-up-design.md).
+- The REST API v2 document names the permission set of each operation (`x-arcpanel-permission-set`), the values of `Task.status`, the 409 answers of `createBackup`, `restoreBackup` and `createNodeApp`, how a Let's Encrypt request reports a failure and renews a certificate, and how `setNodeAppEnv` keeps values.
+- The one-off task of app processes is a task of `GET /tasks/{id}` and `listUserTasks` (`app-process:USER:ID`), and `startAppProcessTask` sends `Link` to it.
+- `createNodeApp` answers a domain that already has a Node.js app with `409 E_EXISTS` and `existing`, the path of that app.
+
+### Changed
+
+- A queued task whose command fails and asks to run again (Let's Encrypt while DNS propagates) is retried at most `QUEUE_MAX_ATTEMPTS` times, 3 by default, and then fails; before, it was retried every five minutes without end. Every failed queue task carries the reason from its log in `error`.
+- The REST API v2 document declares `Link` on every `202` that starts a task and `Location` only where the answer names a resource, as the panel answers. Before, it declared `Location` on the backup, snapshot, malware scan, Docker engine and PHP operations, which send only `Link`.
+
 ### Fixed
+
+- A backup with only remote backup hosts that fails to upload exits with the error code of the upload instead of 0.
 
 - A change of the server configuration made outside the panel (for example `v-add-sys-api-ip` or `v-change-sys-config-value` over SSH) applies to the panel and REST API v2 at the next request. Before, the panel kept its cached copy of `arcpanel.conf` for up to 60 seconds, so API v2 could still refuse a newly allowed address with `E_API_DISABLED`. The commands that write `arcpanel.conf` now write a stamp that the panel compares with its copy.
 - The description of the permission set `v2-apps` on the Access keys page and in `GET /api/v2/access-key-sets` names app processes, which the set has granted since 2.1.3.

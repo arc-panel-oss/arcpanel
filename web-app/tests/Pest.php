@@ -10,9 +10,40 @@ use App\Services\Keys\AccessKeySets;
 use App\View\Navigation;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Sleep;
+use Illuminate\Testing\TestResponse;
 use Tests\TestCase;
 
 pest()->extend(TestCase::class)->in('Feature', 'Unit');
+
+/*
+ * The `Link` and `Location` headers of an answer are those the committed
+ * document declares for the operation and status (Fleet PD4,
+ * docs/features/specs/2026-10-19-001-fleet-pd-api-v2-follow-up-design.md §7).
+ */
+TestResponse::macro('assertDocumentedHeaders', function (string $operationId): TestResponse {
+    /** @var TestResponse $this */
+    static $operations = null;
+    if ($operations === null) {
+        $operations = [];
+        $spec = json_decode((string) file_get_contents(base_path('../docs/api/v2/openapi.json')), true);
+        foreach ($spec['paths'] as $methods) {
+            foreach ($methods as $operation) {
+                if (is_array($operation) && isset($operation['operationId'])) {
+                    $operations[$operation['operationId']] = $operation;
+                }
+            }
+        }
+    }
+    expect($operations)->toHaveKey($operationId);
+    $status = (string) $this->getStatusCode();
+    $documented = array_keys($operations[$operationId]['responses'][$status]['headers'] ?? []);
+    expect(array_key_exists($status, $operations[$operationId]['responses']))->toBeTrue("{$operationId} documents no {$status}");
+    foreach (['Link', 'Location'] as $header) {
+        expect($this->headers->has($header))->toBe(in_array($header, $documented, true), "{$operationId} {$status} {$header}");
+    }
+
+    return $this;
+});
 
 /**
  * A user record as `v-list-user USER json` returns it (trimmed to the keys the

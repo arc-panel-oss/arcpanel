@@ -356,7 +356,7 @@ it('accepts the panel certificate and key and never answers the key', function (
 it('sets the PHP versions as the system task and never removes a locked one', function () {
     $headers = apiAs($this->fake, 'arcadmin', 'admin', area: 'server');
 
-    $this->putJson('/api/v2/system/settings/web/php', ['versions' => ['8.2', '8.4', '8.5']], $headers)->assertStatus(202)
+    $this->putJson('/api/v2/system/settings/web/php', ['versions' => ['8.2', '8.4', '8.5']], $headers)->assertStatus(202)->assertDocumentedHeaders('setPhpVersions')
         ->assertHeader('Link', '</api/v2/tasks/sys:'.SETTINGS_TASK.'>; rel="monitor"')
         ->assertJsonPath('data.id', 'sys:'.SETTINGS_TASK)->assertJsonPath('data.kind', 'php')->assertJsonPath('data.args', '8.2 8.3');
     $this->fake->assertRan('v-start-sys-task', fn ($a) => $a === ['php', '8.2', '8.3']);
@@ -375,7 +375,7 @@ it('sets the PHP versions as the system task and never removes a locked one', fu
 it('installs and removes plugins as the system task', function () {
     $headers = apiAs($this->fake, 'arcadmin', 'admin', area: 'server');
 
-    $this->putJson('/api/v2/system/settings/plugins/quota', ['enabled' => true], $headers)->assertStatus(202)
+    $this->putJson('/api/v2/system/settings/plugins/quota', ['enabled' => true], $headers)->assertStatus(202)->assertDocumentedHeaders('setPlugin')
         ->assertJsonPath('data.kind', 'plugin')->assertJsonPath('data.args', 'quota on');
     $this->fake->assertRan('v-start-sys-task', fn ($a) => $a === ['plugin', 'quota', 'on']);
     $this->putJson('/api/v2/system/settings/plugins/firewall?dry_run=1', ['enabled' => false], $headers)->assertOk()

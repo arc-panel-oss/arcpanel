@@ -72,6 +72,10 @@ final class DockerAppController extends Controller
      *
      * @operationId createDockerApp
      *
+     * @monitor
+     *
+     * @location
+     *
      * @status 202
      */
     public function store(StoreDockerAppRequest $request, string $user, Principal $principal, DockerPolicy $policy): TaskResource|JsonResponse
@@ -132,6 +136,8 @@ final class DockerAppController extends Controller
      * Start a long-running Docker app task
      *
      * @operationId startDockerAppTask
+     *
+     * @monitor
      *
      * @status 202
      */

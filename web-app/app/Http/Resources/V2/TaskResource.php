@@ -20,15 +20,15 @@ final class TaskResource extends JsonResource
             'id' => $task->id,
             /** @var string */
             'kind' => $task->kind,
-            /** @var string */
+            /** @var 'queued'|'running'|'succeeded'|'failed' a task has ended when `finished_at` is set */
             'status' => $task->status,
-            /** @var int|null set when the task has finished */
+            /** @var int|null set when the task has finished; 0 is success */
             'exit_code' => $task->exitCode,
-            /** @var string|null */
+            /** @var string|null why a task failed, or why a queued task runs again */
             'error' => $task->error,
             /** @var string|null */
             'started_at' => $task->startedAt,
-            /** @var string|null */
+            /** @var string|null set when the task has ended */
             'finished_at' => $task->finishedAt,
             /** @var string|null */
             'queued_at' => $task->queuedAt,

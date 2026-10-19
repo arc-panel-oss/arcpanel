@@ -53,7 +53,7 @@ it('creates a backup with a v2-backup key and follows it with Link', function ()
     $this->fake->on('v-schedule-user-backup', ['bob', 'json'])->returnsJson(['ID' => '17290000009001']);
 
     $this->postJson('/api/v2/users/bob/backups', [], apiAs($this->fake, 'bob', 'user', area: 'backup'))
-        ->assertStatus(202)
+        ->assertStatus(202)->assertDocumentedHeaders('createBackup')
         ->assertHeader('Link', '</api/v2/tasks/queue:bob:17290000009001>; rel="monitor"')
         ->assertJsonPath('data.id', 'queue:bob:17290000009001')
         ->assertJsonPath('data.status', 'queued');
@@ -133,13 +133,13 @@ it('restores everything or a selection and validates unknown objects', function 
     $this->fake->on('v-schedule-user-restore')->returnsJson(['ID' => '17290000009002']);
     $headers = apiAs($this->fake, 'bob', 'user', area: 'backup');
 
-    $this->postJson('/api/v2/users/bob/backups/'.API_BK_ARCHIVE.'/restore', [], $headers)->assertStatus(202)
+    $this->postJson('/api/v2/users/bob/backups/'.API_BK_ARCHIVE.'/restore', [], $headers)->assertStatus(202)->assertDocumentedHeaders('restoreBackup')
         ->assertHeader('Link', '</api/v2/tasks/queue:bob:17290000009002>; rel="monitor"')
         ->assertJsonPath('data.kind', 'restore');
     // FORMAT is the ninth argument: a full restore passes the six types as '' (everything)
     $this->fake->assertRan('v-schedule-user-restore', fn ($a) => $a === ['bob', API_BK_ARCHIVE, '', '', '', '', '', '', 'json'], times: 1);
 
-    $this->postJson('/api/v2/users/bob/backups/'.API_BK_ARCHIVE.'/restore', ['web' => ['example.com']], $headers)->assertStatus(202);
+    $this->postJson('/api/v2/users/bob/backups/'.API_BK_ARCHIVE.'/restore', ['web' => ['example.com']], $headers)->assertStatus(202)->assertDocumentedHeaders('restoreBackup');
     $this->fake->assertRan('v-schedule-user-restore', fn ($a) => $a === ['bob', API_BK_ARCHIVE, 'example.com', 'no', 'no', 'no', 'no', 'no', 'json']);
 
     $this->postJson('/api/v2/users/bob/backups/'.API_BK_ARCHIVE.'/restore', ['web' => ['missing.example']], $headers)
@@ -166,7 +166,7 @@ it('serves a local archive and schedules a remote one with Link', function () {
     $this->get('/api/v2/users/bob/backups/'.API_BK_ARCHIVE.'/download', $headers)->assertOk()
         ->assertHeader('X-Accel-Redirect', '/backup/'.API_BK_ARCHIVE);
 
-    $this->getJson('/api/v2/users/bob/backups/'.API_BK_OLD.'/download', $headers)->assertStatus(202)
+    $this->getJson('/api/v2/users/bob/backups/'.API_BK_OLD.'/download', $headers)->assertStatus(202)->assertDocumentedHeaders('downloadBackup')
         ->assertHeader('Link', '</api/v2/tasks/queue:bob:17290000009003>; rel="monitor"');
     $this->fake->assertRan('v-schedule-user-backup-download', fn ($a) => $a === ['bob', API_BK_OLD, 'json']);
 
@@ -261,7 +261,7 @@ it('creates a snapshot with Link and lists snapshot files as read-only entries',
     $this->fake->on('v-schedule-user-backup-restic', ['bob', 'json'])->returnsJson(['ID' => '17290000009010']);
     $headers = apiAs($this->fake, 'bob', 'user', area: 'backup');
 
-    $this->postJson('/api/v2/users/bob/snapshots', [], $headers)->assertStatus(202)
+    $this->postJson('/api/v2/users/bob/snapshots', [], $headers)->assertStatus(202)->assertDocumentedHeaders('createSnapshot')
         ->assertHeader('Link', '</api/v2/tasks/queue:bob:17290000009010>; rel="monitor"')
         ->assertJsonPath('data.kind', 'snapshot');
     $this->fake->assertRan('v-schedule-user-backup-restic', fn ($a) => $a === ['bob', 'json']);
@@ -281,14 +281,14 @@ it('restores a snapshot, one object, or one path and validates bad paths', funct
     $this->fake->on('v-schedule-user-restore-file-restic')->returnsJson(['ID' => '17290000009012']);
     $headers = apiAs($this->fake, 'bob', 'user', area: 'backup');
 
-    $this->postJson('/api/v2/users/bob/snapshots/'.API_BK_SNAPSHOT.'/restore', [], $headers)->assertStatus(202)
+    $this->postJson('/api/v2/users/bob/snapshots/'.API_BK_SNAPSHOT.'/restore', [], $headers)->assertStatus(202)->assertDocumentedHeaders('restoreSnapshot')
         ->assertHeader('Link', '</api/v2/tasks/queue:bob:17290000009011>; rel="monitor"');
     $this->fake->assertRan('v-schedule-user-restore-restic', fn ($a) => $a === ['bob', API_BK_SNAPSHOT, '', '', 'json']);
 
-    $this->postJson('/api/v2/users/bob/snapshots/'.API_BK_SNAPSHOT.'/restore', ['type' => 'db', 'object' => 'bob_wp'], $headers)->assertStatus(202);
+    $this->postJson('/api/v2/users/bob/snapshots/'.API_BK_SNAPSHOT.'/restore', ['type' => 'db', 'object' => 'bob_wp'], $headers)->assertStatus(202)->assertDocumentedHeaders('restoreSnapshot');
     $this->fake->assertRan('v-schedule-user-restore-restic', fn ($a) => $a === ['bob', API_BK_SNAPSHOT, 'db', 'bob_wp', 'json']);
 
-    $this->postJson('/api/v2/users/bob/snapshots/'.API_BK_SNAPSHOT.'/restore', ['path' => 'tmp/note.txt'], $headers)->assertStatus(202)
+    $this->postJson('/api/v2/users/bob/snapshots/'.API_BK_SNAPSHOT.'/restore', ['path' => 'tmp/note.txt'], $headers)->assertStatus(202)->assertDocumentedHeaders('restoreSnapshot')
         ->assertHeader('Link', '</api/v2/tasks/queue:bob:17290000009012>; rel="monitor"');
     $this->fake->assertRan('v-schedule-user-restore-file-restic', fn ($a) => $a === ['bob', API_BK_SNAPSHOT, '/home/bob/tmp/note.txt', 'json']);
 

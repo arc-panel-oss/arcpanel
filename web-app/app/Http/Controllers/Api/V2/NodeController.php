@@ -109,6 +109,8 @@ final class NodeController extends Controller
      *
      * @operationId installNodeVersion
      *
+     * @monitor
+     *
      * @status 202
      */
     public function installVersion(InstallNodeVersionRequest $request, string $user, Principal $principal, NodePolicy $policy): TaskResource|JsonResponse
@@ -176,6 +178,8 @@ final class NodeController extends Controller
      *
      * @operationId installNodePackage
      *
+     * @monitor
+     *
      * @status 202
      */
     public function installPackage(InstallNodePackageRequest $request, string $user, string $version, Principal $principal, NodePolicy $policy): TaskResource|JsonResponse
@@ -193,6 +197,8 @@ final class NodeController extends Controller
      *
      * @operationId updateNodePackages
      *
+     * @monitor
+     *
      * @status 202
      */
     public function updatePackages(string $user, string $version, Principal $principal, NodePolicy $policy): TaskResource|JsonResponse
@@ -208,6 +214,8 @@ final class NodeController extends Controller
      * Check global npm packages for updates
      *
      * @operationId checkNodePackages
+     *
+     * @monitor
      *
      * @status 202
      */

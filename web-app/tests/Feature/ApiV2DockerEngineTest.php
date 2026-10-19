@@ -39,7 +39,7 @@ it('installs with Link and refuses a busy slot', function () {
     $this->fake->on('v-start-sys-docker-task')->returns("88\n");
     $headers = apiAs($this->fake, 'arcadmin', 'admin', area: 'server');
 
-    $this->postJson('/api/v2/system/docker/install', [], $headers)->assertStatus(202)
+    $this->postJson('/api/v2/system/docker/install', [], $headers)->assertStatus(202)->assertDocumentedHeaders('installDockerEngine')
         ->assertHeader('Link', '</api/v2/tasks/docker-engine:88>; rel="monitor"')
         ->assertJsonPath('data.id', 'docker-engine:88')
         ->assertJsonPath('data.status', 'running');

@@ -54,7 +54,7 @@ it('refuses manage without DOCKER but allows stop and delete with a v2-apps key'
 it('installs with Link, Location and refuses a busy slot', function () {
     $this->fake->on('v-add-docker-app')->returns("88\n");
 
-    $this->postJson('/api/v2/users/bob/docker-apps', ['slug' => 'uptime-kuma', 'name' => 'shop'], apiAs($this->fake, 'bob', 'user', area: 'apps'))->assertStatus(202)
+    $this->postJson('/api/v2/users/bob/docker-apps', ['slug' => 'uptime-kuma', 'name' => 'shop'], apiAs($this->fake, 'bob', 'user', area: 'apps'))->assertStatus(202)->assertDocumentedHeaders('createDockerApp')
         ->assertHeader('Link', '</api/v2/tasks/docker:bob:shop:88>; rel="monitor"')
         ->assertHeader('Location', url('/api/v2/users/bob/docker-apps/shop'))
         ->assertJsonPath('data.id', 'docker:bob:shop:88');
@@ -66,6 +66,14 @@ it('installs with Link, Location and refuses a busy slot', function () {
     $this->postJson('/api/v2/users/bob/docker-apps/kuma/tasks', ['action' => 'update'], apiAs($this->fake, 'bob', 'user', area: 'apps'))->assertStatus(409)
         ->assertJsonPath('error.code', 'E_INUSE')
         ->assertJsonPath('error.existing', '/api/v2/tasks/docker:bob:kuma:77');
+});
+
+it('starts a task with Link only (Fleet PD4)', function () {
+    $this->fake->on('v-start-docker-app-task')->returns("91\n");
+
+    $this->postJson('/api/v2/users/bob/docker-apps/kuma/tasks', ['action' => 'update'], apiAs($this->fake, 'bob', 'user', area: 'apps'))
+        ->assertStatus(202)->assertDocumentedHeaders('startDockerAppTask')
+        ->assertHeader('Link', '</api/v2/tasks/docker:bob:kuma:91>; rel="monitor"');
 });
 
 it('plans without running and refuses a v2-read key before any command', function () {

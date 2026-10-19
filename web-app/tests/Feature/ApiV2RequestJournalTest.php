@@ -95,7 +95,7 @@ it('records the task of a 202 answer', function () {
     fakeBackupData($this->fake);
     $this->fake->on('v-schedule-user-backup', ['bob', 'json'])->returnsJson(['ID' => '17290000009001']);
 
-    $response = $this->postJson('/api/v2/users/bob/backups', [], apiAs($this->fake, 'bob', 'user', area: 'backup'))->assertStatus(202);
+    $response = $this->postJson('/api/v2/users/bob/backups', [], apiAs($this->fake, 'bob', 'user', area: 'backup'))->assertStatus(202)->assertDocumentedHeaders('createBackup');
 
     expect(journalLines()[1])->toMatchArray([
         'status' => 202, 'error_code' => null, 'task_id' => 'queue:bob:17290000009001', 'location' => $response->headers->get('Location'),

@@ -99,6 +99,8 @@ final class ServerSettingsController extends Controller
      *
      * @operationId setPhpVersions
      *
+     * @monitor
+     *
      * @status 202
      */
     public function php(SetPhpVersionsRequest $request, Principal $principal, ServerPolicy $policy, SystemTaskStarter $starter): AnonymousResourceCollection|JsonResponse
@@ -151,6 +153,8 @@ final class ServerSettingsController extends Controller
      * answers `200`.
      *
      * @operationId setPlugin
+     *
+     * @monitor
      *
      * @status 202
      */

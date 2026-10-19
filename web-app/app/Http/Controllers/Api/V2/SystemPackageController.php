@@ -56,6 +56,8 @@ final class SystemPackageController extends Controller
      *
      * @operationId installSystemPackage
      *
+     * @monitor
+     *
      * @status 202
      */
     public function install(string $slug, Principal $principal, ServerPolicy $policy, SystemTaskStarter $starter): JsonResponse
@@ -71,6 +73,8 @@ final class SystemPackageController extends Controller
      * another running system task answers `409 E_INUSE` with `existing`.
      *
      * @operationId removeSystemPackage
+     *
+     * @monitor
      *
      * @status 202
      */

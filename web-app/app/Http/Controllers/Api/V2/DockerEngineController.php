@@ -47,6 +47,8 @@ final class DockerEngineController extends Controller
      *
      * @operationId installDockerEngine
      *
+     * @monitor
+     *
      * @status 202
      */
     public function install(Principal $principal, DockerPolicy $policy): TaskResource|JsonResponse

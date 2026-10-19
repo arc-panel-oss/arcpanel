@@ -144,7 +144,11 @@ final class BackupController extends Controller
      *
      * @operationId createBackup
      *
+     * @monitor
+     *
      * @status 202
+     *
+     * @conflict E_EXISTS A backup of the user is queued or running: `existing` is that task when the key may read it.
      */
     public function store(string $user, Principal $principal, BackupPolicy $policy): TaskResource|JsonResponse
     {
@@ -204,7 +208,11 @@ final class BackupController extends Controller
      *
      * @operationId restoreBackup
      *
+     * @monitor
+     *
      * @status 202
+     *
+     * @conflict E_EXISTS A restore of the user is queued or running: `existing` is that task when the key may read it.
      */
     public function restore(RestoreBackupRequest $request, string $user, string $backup, Principal $principal, BackupPolicy $policy): TaskResource|JsonResponse
     {
@@ -232,6 +240,8 @@ final class BackupController extends Controller
      * and answers 202 with the queue task.
      *
      * @operationId downloadBackup
+     *
+     * @monitor
      */
     #[ApiResponse(
         status: 200,
@@ -298,6 +308,8 @@ final class BackupController extends Controller
      * answers 409 `E_EXISTS` with `existing` set to that task.
      *
      * @operationId createSnapshot
+     *
+     * @monitor
      *
      * @status 202
      */
@@ -396,6 +408,8 @@ final class BackupController extends Controller
      * one file or folder; the restore overwrites the current file.
      *
      * @operationId restoreSnapshot
+     *
+     * @monitor
      *
      * @status 202
      */

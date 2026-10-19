@@ -291,6 +291,10 @@ final class AppProcessController extends Controller
      *
      * @operationId startAppProcessTask
      *
+     * @monitor
+     *
+     * @location
+     *
      * @status 202
      */
     public function startTask(StartAppProcessTaskRequest $request, string $user, string $domain, string $name, Principal $principal, AppProcessPolicy $policy): JsonResponse

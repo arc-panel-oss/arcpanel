@@ -398,3 +398,70 @@ it('describes the secret name of the path, with or without its leading slash', f
         }
     }
 });
+
+// Fleet PD1–PD4 (docs/features/specs/2026-10-19-001-fleet-pd-api-v2-follow-up-design.md §7)
+
+/** @return array<string, array{path: string, method: string, operation: array<string, mixed>}> */
+function apiV2Operations(): array
+{
+    $spec = json_decode((string) file_get_contents(base_path('../docs/api/v2/openapi.json')), true);
+    $operations = [];
+    foreach ($spec['paths'] as $path => $methods) {
+        foreach ($methods as $method => $operation) {
+            if (is_array($operation) && isset($operation['operationId'])) {
+                $operations[$operation['operationId']] = ['path' => $path, 'method' => $method, 'operation' => $operation];
+            }
+        }
+    }
+
+    return $operations;
+}
+
+it('sends Link on every 202 and Location only where a resource is named', function () {
+    $withLocation = ['requestWebDomainLetsEncrypt', 'requestMailDomainLetsEncrypt', 'createDockerApp', 'startAppProcessTask'];
+    $accepted = [];
+    foreach (apiV2Operations() as $id => $entry) {
+        $response = $entry['operation']['responses']['202'] ?? null;
+        if ($response === null) {
+            continue;
+        }
+        $accepted[] = $id;
+        $headers = array_keys($response['headers'] ?? []);
+        expect(in_array('Link', $headers, true))->toBeTrue("{$id} has no Link");
+        expect(in_array('Location', $headers, true))->toBe(in_array($id, $withLocation, true), $id);
+    }
+    // setPhpExtension answers 202 when it installs (E41); Scramble does not infer it
+    expect($accepted)->toContain('setPhpExtension', 'createBackup', 'restoreBackup', 'startAppProcessTask', 'downloadBackup');
+});
+
+it('names the permission set of every operation', function () {
+    $sets = array_keys(AccessKeySets::hints());
+    foreach (apiV2Operations() as $id => $entry) {
+        expect($entry['operation'])->toHaveKey('x-arcpanel-permission-set');
+        $set = $entry['operation']['x-arcpanel-permission-set'];
+        if ($set !== null) {
+            expect($sets)->toContain($set);
+        }
+    }
+    $operations = apiV2Operations();
+    expect($operations['listBackupRuns']['operation']['x-arcpanel-permission-set'])->toBe('v2-backup')
+        ->and($operations['createWebDomain']['operation']['x-arcpanel-permission-set'] ?? null)->toBe('v2-web')
+        ->and($operations['getMe']['operation']['x-arcpanel-permission-set'])->toBeNull();
+});
+
+it('documents the task states, the retry limit, renewals and the keep-the-value rule', function () {
+    $spec = json_decode((string) file_get_contents(base_path('../docs/api/v2/openapi.json')), true);
+    $operations = apiV2Operations();
+    $text = fn (string $id): string => (string) preg_replace('/\s+/', ' ', (string) ($operations[$id]['operation']['description'] ?? ''));
+
+    expect($spec['components']['schemas']['Task']['properties']['status']['enum'] ?? null)->toBe(['queued', 'running', 'succeeded', 'failed'])
+        ->and($spec['components']['schemas']['BackupRun']['properties']['trigger']['enum'] ?? null)->toBe(['schedule', 'request', 'cli'])
+        ->and($spec['info']['description'])->toContain('**Asynchronous operations.**', 'QUEUE_MAX_ATTEMPTS', 'x-arcpanel-permission-set');
+    foreach (['requestWebDomainLetsEncrypt', 'requestMailDomainLetsEncrypt'] as $id) {
+        expect($text($id))->toContain('QUEUE_MAX_ATTEMPTS', 'renews on demand');
+    }
+    expect($text('setNodeAppEnv'))->toContain('without `value` keeps the value');
+    expect($operations['createNodeApp']['operation']['responses']['409']['description'] ?? '')->toContain('`E_EXISTS`: The domain already has an app');
+    expect($operations['restoreBackup']['operation']['responses']['409']['description'] ?? '')->toContain('A restore of the user is queued or running');
+    expect($operations['createWebDomain']['operation']['responses']['409'])->toBe(['$ref' => '#/components/responses/Conflict']);
+});

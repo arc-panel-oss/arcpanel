@@ -57,6 +57,8 @@ final class UpdateController extends Controller
      *
      * @operationId runUpdates
      *
+     * @monitor
+     *
      * @status 202
      */
     public function run(RunUpdatesRequest $request, Principal $principal, ServerPolicy $policy, SystemTaskStarter $starter): JsonResponse

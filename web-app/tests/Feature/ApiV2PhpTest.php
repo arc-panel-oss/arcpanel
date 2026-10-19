@@ -91,11 +91,11 @@ it('installs and removes a version as the system task with a key holding only v2
     $headers = apiAs($this->fake, 'arcadmin', 'admin', area: 'server');
 
     $this->getJson('/api/v2/system/php/versions/8.4', $headers)->assertOk()->assertJsonPath('data.status', 'active');
-    $this->postJson('/api/v2/system/php/versions/8.5', [], $headers)->assertStatus(202)
+    $this->postJson('/api/v2/system/php/versions/8.5', [], $headers)->assertStatus(202)->assertDocumentedHeaders('installPhpVersion')
         ->assertHeader('Link', '</api/v2/tasks/sys:'.PHP_TASK.'>; rel="monitor"')
         ->assertJsonPath('data.kind', 'php');
     $this->fake->assertRan('v-start-sys-task', fn ($a) => $a === ['php', '8.5', '-']);
-    $this->deleteJson('/api/v2/system/php/versions/8.2', [], $headers)->assertStatus(202);
+    $this->deleteJson('/api/v2/system/php/versions/8.2', [], $headers)->assertStatus(202)->assertDocumentedHeaders('removePhpVersion');
     $this->fake->assertRan('v-start-sys-task', fn ($a) => $a === ['php', '-', '8.2']);
 
     $this->postJson('/api/v2/system/php/versions/8.5?dry_run=1', [], $headers)->assertOk()
@@ -137,7 +137,7 @@ it('lists the extensions and installs, toggles and removes one', function () {
         ->assertJsonPath('data.1.name', 'curl')->assertJsonPath('data.1.required', true)->assertJsonPath('data.1.package', 'php8.4-curl')
         ->assertJsonPath('data.2.name', 'opcache')->assertJsonPath('data.2.package', null);
 
-    $this->putJson('/api/v2/system/php/versions/8.4/extensions/redis', ['installed' => true], $headers)->assertStatus(202)
+    $this->putJson('/api/v2/system/php/versions/8.4/extensions/redis', ['installed' => true], $headers)->assertStatus(202)->assertDocumentedHeaders('setPhpExtension')
         ->assertJsonPath('data.kind', 'php-ext');
     $this->fake->assertRan('v-start-sys-task', fn ($a) => $a === ['php-ext', '8.4', 'redis', '-']);
 
@@ -154,7 +154,7 @@ it('lists the extensions and installs, toggles and removes one', function () {
     $this->putJson('/api/v2/system/php/versions/8.4/extensions/curl', ['fpm' => false], $headers)->assertForbidden()
         ->assertJsonPath('error.step.command', 'v-change-sys-php-extension');
 
-    $this->deleteJson('/api/v2/system/php/versions/8.4/extensions/redis', [], $headers)->assertStatus(202);
+    $this->deleteJson('/api/v2/system/php/versions/8.4/extensions/redis', [], $headers)->assertStatus(202)->assertDocumentedHeaders('removePhpExtension');
     $this->fake->assertRan('v-start-sys-task', fn ($a) => $a === ['php-ext', '8.4', '-', 'redis']);
 });
 

@@ -406,9 +406,19 @@ final class WebDomainController extends Controller
      * Queues the certificate for the domain and its aliases, which must
      * resolve to this server; the queue runs every five minutes. Answers
      * 202 with the domain as it is: `ssl.letsencrypt` turns true once the
-     * certificate is installed.
+     * certificate is installed. `Link` names the queue task: it fails with
+     * `error` when the issuance fails, after at most `QUEUE_MAX_ATTEMPTS`
+     * runs (3 by default, five minutes apart) when Let's Encrypt cannot
+     * validate the domain yet. A request for a domain that has a
+     * certificate issues a new one, which is how a client renews on
+     * demand; a request while another is queued replaces it, and the
+     * replaced task fails with `replaced by a newer request`.
      *
      * @operationId requestWebDomainLetsEncrypt
+     *
+     * @monitor
+     *
+     * @location
      *
      * @status 202
      */
