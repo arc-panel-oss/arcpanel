@@ -1,10 +1,12 @@
 #!/bin/bash
-# info: list backup host
-# options: TYPE [FORMAT]
+# info: list the incremental backup host
+# options: [FORMAT]
 #
-# example: v-list-backup-host local
+# example: v-list-backup-host-restic json
 #
-# This function for obtaining the list of backup host parameters.
+# This function lists the restic repository of incremental backups and its
+# retention; for an S3 backup host (v-add-backup-host-s3) also its endpoint,
+# region and access key ID, never the secret.
 
 #----------------------------------------------------------#
 #                Variables & Functions                     #
@@ -30,7 +32,10 @@ json_list() {
 	"KEEP_DAILY": "'$KEEP_DAILY'",
 	"KEEP_WEEKLY": "'$KEEP_WEEKLY'",
 	"KEEP_MONTHLY": "'$KEEP_MONTHLY'",
-	"KEEP_YEARLY": "'$KEEP_YEARLY'"
+	"KEEP_YEARLY": "'$KEEP_YEARLY'",
+	"S3_ENDPOINT": "'$S3_ENDPOINT'",
+	"S3_REGION": "'$S3_REGION'",
+	"S3_KEY_ID": "'$S3_KEY_ID'"
 	}'
 	echo '}'
 }
@@ -43,6 +48,11 @@ shell_list() {
 	echo "KEEP_WEEKLY:     $KEEP_WEEKLY"
 	echo "KEEP_MONTHLY:    $KEEP_MONTHLY"
 	echo "KEEP_YEARLY:     $KEEP_YEARLY"
+	if [ -n "$S3_ENDPOINT" ]; then
+		echo "S3_ENDPOINT:     $S3_ENDPOINT"
+		echo "S3_REGION:       $S3_REGION"
+		echo "S3_KEY_ID:       $S3_KEY_ID"
+	fi
 }
 
 # PLAIN list function

@@ -303,6 +303,41 @@ it('replaces the remote backup type and the restic repository', function () {
     $this->fake->assertRan('v-delete-backup-host-restic', null, 2);
 });
 
+it('sends incremental backups to an S3 backup host and keeps its connection without the secret (E44)', function () {
+    withSysConfig($this->fake, ['BACKUP_SYSTEM' => 'local', 'BACKUP_INCREMENTAL' => 'yes', 'BACKUP_MODE' => 'gzip', 'BACKUP_GZIP' => '9']);
+    $this->fake->on('v-list-backup-host-restic')->returnsJson(['restic' => ['REPO' => '/backup/restic', 'SNAPSHOTS' => '30', 'KEEP_DAILY' => '-1', 'KEEP_WEEKLY' => '-1', 'KEEP_MONTHLY' => '-1', 'KEEP_YEARLY' => '-1']]);
+    foreach (['v-add-backup-host-s3', 'v-delete-backup-host-s3', 'v-add-backup-host-restic', 'v-delete-backup-host-restic'] as $command) {
+        $this->fake->on($command)->returns();
+    }
+    signIn('arcadmin', 'admin');
+    $base = ['local' => '1', 'mode' => 'gzip', 'level' => '9', 'incremental' => '1', 'repo_type' => 's3', 'snapshots' => '10', 'keep_daily' => '-1', 'keep_weekly' => '-1', 'keep_monthly' => '-1', 'keep_yearly' => '-1'];
+    $s3 = ['s3_endpoint' => 'https://s3.example.net/', 's3_bucket' => 'backups/server1', 's3_region' => 'eu-central-1', 's3_key_id' => 'AKIDEXAMPLE'];
+
+    // A new connection needs its secret
+    $this->post('/server/settings/backups', $base + $s3)->assertSessionHasErrors('s3_secret');
+    $this->post('/server/settings/backups', $base + ['s3_endpoint' => 'ftp://s3.example.net', 's3_bucket' => 'Backups'])->assertSessionHasErrors(['s3_endpoint', 's3_bucket', 's3_key_id']);
+    $this->fake->assertNotRan('v-add-backup-host-s3');
+
+    $this->post('/server/settings/backups', $base + $s3 + ['s3_secret' => 's3-secret-value'])->assertSessionHas('ok', 'Changes have been saved.');
+    $this->fake->assertRan('v-delete-backup-host-restic');
+    $this->fake->assertRan('v-add-backup-host-s3', fn ($a) => $a === ['https://s3.example.net', 'backups/server1',
+        "AWS_ACCESS_KEY_ID=AKIDEXAMPLE\nAWS_SECRET_ACCESS_KEY=s3-secret-value\n", 'eu-central-1', '10', '-1', '-1', '-1', '-1']);
+
+    // The stored S3 host: the form shows its connection, not the secret; a new retention keeps the connection
+    $this->fake->on('v-list-backup-host-restic')->returnsJson(['restic' => ['REPO' => 'rclone:arcpanel-s3:backups/server1', 'SNAPSHOTS' => '10', 'KEEP_DAILY' => '-1', 'KEEP_WEEKLY' => '-1',
+        'KEEP_MONTHLY' => '-1', 'KEEP_YEARLY' => '-1', 'S3_ENDPOINT' => 'https://s3.example.net', 'S3_REGION' => 'eu-central-1', 'S3_KEY_ID' => 'AKIDEXAMPLE']]);
+    $this->get('/server/settings/backups')->assertOk()->assertSee('value="https://s3.example.net"', false)->assertSee('value="AKIDEXAMPLE"', false)
+        ->assertDontSee('s3-secret-value');
+    $this->post('/server/settings/backups', $base + $s3)->assertSessionHas('ok', 'Nothing has changed.');
+    $this->post('/server/settings/backups', array_replace($base, ['keep_daily' => '7']) + $s3)->assertSessionHas('ok', 'Changes have been saved.');
+    $this->fake->assertRan('v-add-backup-host-restic', fn ($a) => $a === ['rclone:arcpanel-s3:backups/server1', '10', '7', '-1', '-1', '-1']);
+    $this->fake->assertRan('v-add-backup-host-s3', null, 1);
+
+    // Turning incremental backups off removes the S3 host with its remote
+    $this->post('/server/settings/backups', ['local' => '1', 'mode' => 'gzip', 'level' => '9'])->assertSessionHas('ok', 'Changes have been saved.');
+    $this->fake->assertRan('v-delete-backup-host-s3');
+});
+
 // SSL
 
 it('changes the panel certificate through a secret directory', function () {

@@ -19750,16 +19750,17 @@ paths:
       operationId: v-list-backup-host-restic
       tags:
         - Backups
-      summary: List backup host
+      summary: List the incremental backup host
       description: |-
-        This function for obtaining the list of backup host parameters.
+        This function lists the restic repository of incremental backups and its
+        retention; for an S3 backup host (v-add-backup-host-s3) also its endpoint,
+        region and access key ID, never the secret.
 
         **Arguments**
 
         | Field | Option | Required |
         | --- | --- | --- |
-        | `arg1` | `TYPE` | yes |
-        | `arg2` | `FORMAT` | no |
+        | `arg1` | `FORMAT` | no |
       requestBody:
         required: true
         content:
@@ -52058,7 +52059,6 @@ components:
         - type: object
           required:
             - cmd
-            - arg1
           properties:
             cmd:
               type: string
@@ -52066,12 +52066,6 @@ components:
                 - v-list-backup-host-restic
               default: v-list-backup-host-restic
             arg1:
-              type: string
-              title: TYPE
-              description: "`TYPE`"
-              examples:
-                - local
-            arg2:
               type: string
               title: FORMAT
               description: "`FORMAT`, optional"

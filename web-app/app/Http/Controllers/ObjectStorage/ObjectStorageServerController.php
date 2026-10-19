@@ -74,6 +74,23 @@ final class ObjectStorageServerController extends Controller
         return $back->with('ok', __('Object storage is being installed. This page shows it when the system task has finished.'));
     }
 
+    /** DELETE /server/object-storage: Silo removed as the system task; refused while buckets exist. */
+    public function remove(Principal $principal, ObjectStoragePolicy $policy): RedirectResponse
+    {
+        abort_unless($policy->manageServer($principal), 403);
+        $back = redirect()->route('server.object-storage');
+        if ($this->storage->server()->buckets > 0) {
+            return $back->with('error', __('Delete every bucket first: object storage is removed only when it holds no bucket.'));
+        }
+        $result = $this->storage->apply([SystemTaskService::step(__('Remove object storage'), 'plugin', ['silo', 'off'])]);
+        if (! $result->ok()) {
+            return $back->with('error', $result->exitCode === ExitCode::InUse->value
+                ? __('Another task is running. Wait until it has finished.') : $result->error);
+        }
+
+        return $back->with('ok', __('Object storage is being removed. This page shows it when the system task has finished.'));
+    }
+
     /** POST /server/object-storage/endpoint {hostname, letsencrypt} */
     public function endpoint(Request $request, Principal $principal, ObjectStoragePolicy $policy): RedirectResponse
     {

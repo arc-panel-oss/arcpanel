@@ -426,6 +426,14 @@ teardown_file() {
     assert_success
     run grep "^REPO=" "$ARCPANEL/conf/restic.conf"
     assert_output "REPO='rclone:arcpanel-s3:arcbats-restic/server'"
+    run v-list-backup-host-restic json
+    assert_equal "$(jq -r '.restic | "\(.S3_ENDPOINT) \(.S3_REGION)"' <<< "$output")" 'http://127.0.0.1:9310 us-east-1'
+    refute_output --partial "$(sed -n 's/^AWS_SECRET_ACCESS_KEY=//p' "$BATS_TEST_TMPDIR/s3.env")"
+    # A change of the retention keeps the connection
+    run v-add-backup-host-restic rclone:arcpanel-s3:arcbats-restic/server 5 -1 -1 -1 -1
+    assert_success
+    run grep -c '^S3_' "$ARCPANEL/conf/restic.conf"
+    assert_output 3
     run stat -c %a /root/.config/rclone/rclone.conf
     assert_output 600
     run v-backup-user-restic "$U2"

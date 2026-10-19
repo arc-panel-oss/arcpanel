@@ -9,6 +9,7 @@ use App\Arc\SysConfig;
 use App\Services\Support\PlanRunner;
 use App\Services\WebDomains\ApplyResult;
 use App\Services\WebDomains\Step;
+use Illuminate\Validation\ValidationException;
 
 /**
  * The server settings of web/edit/server, one tab at a time (E7 batch 3 spec
@@ -51,6 +52,9 @@ final class ServerSettings
     public const WHITE_LABEL_KEYS = ['APP_NAME', 'TITLE', 'SUBJECT_EMAIL', 'FROM_NAME', 'FROM_EMAIL', 'HIDE_DOCS'];
 
     public const REMOTE_BACKUPS = ['ftp', 'sftp', 'b2', 'rclone'];
+
+    /** The restic repository of an S3 backup host, the rclone remote of v-add-backup-host-s3 (E44 spec §9). */
+    public const S3_REPO = 'rclone:arcpanel-s3:';
 
     public function __construct(
         private readonly ArcCommand $arc,
@@ -201,18 +205,30 @@ final class ServerSettings
         ];
     }
 
-    /** @return array{repo: string, snapshots: string, daily: string, weekly: string, monthly: string, yearly: string} */
+    /**
+     * The restic repository and its retention; for an S3 backup host (E44
+     * spec §9) also the endpoint, region and access key ID, never the secret.
+     *
+     * @return array{repo: string, snapshots: string, daily: string, weekly: string, monthly: string, yearly: string, s3: array{endpoint: string, bucket: string, region: string, keyId: string}|null}
+     */
     public function restic(): array
     {
         $row = $this->jsonOrEmpty('v-list-backup-host-restic')['restic'] ?? [];
+        $repo = (string) ($row['REPO'] ?? '');
 
         return [
-            'repo' => (string) ($row['REPO'] ?? ''),
+            'repo' => $repo,
             'snapshots' => (string) ($row['SNAPSHOTS'] ?? '30'),
             'daily' => (string) ($row['KEEP_DAILY'] ?? '-1'),
             'weekly' => (string) ($row['KEEP_WEEKLY'] ?? '-1'),
             'monthly' => (string) ($row['KEEP_MONTHLY'] ?? '-1'),
             'yearly' => (string) ($row['KEEP_YEARLY'] ?? '-1'),
+            's3' => str_starts_with($repo, self::S3_REPO) ? [
+                'endpoint' => (string) ($row['S3_ENDPOINT'] ?? ''),
+                'bucket' => substr($repo, strlen(self::S3_REPO)),
+                'region' => (string) ($row['S3_REGION'] ?? '') ?: 'us-east-1',
+                'keyId' => (string) ($row['S3_KEY_ID'] ?? ''),
+            ] : null,
         ];
     }
 
@@ -413,23 +429,61 @@ final class ServerSettings
             $steps[] = new Step(__('Change the remote backup host'), 'v-add-backup-host', self::remoteArgs($values));
         }
 
+        return [...$steps, ...$this->incrementalSteps($config, $values)];
+    }
+
+    /**
+     * Steps of the incremental backup host: a repository path or URL, or an
+     * S3 backup host (E44 spec §9), whose connection is written again only
+     * when it changes, and then with its secret.
+     *
+     * @param  array<string, string>  $config
+     * @param  array<string, mixed>  $values
+     * @return list<Step>
+     *
+     * @throws ValidationException
+     */
+    private function incrementalSteps(array $config, array $values): array
+    {
         $incremental = ($config['BACKUP_INCREMENTAL'] ?? '') === 'yes';
-        $restic = [$values['repo'], $values['snapshots'], $values['keep_daily'], $values['keep_weekly'], $values['keep_monthly'], $values['keep_yearly']];
-        if (! $values['incremental'] && $incremental) {
-            $steps[] = new Step(__('Turn off incremental backups'), 'v-delete-backup-host-restic', []);
-        } elseif ($values['incremental']) {
-            $stored = $incremental ? array_values($this->restic()) : null;
-            if ($stored !== $restic) {
-                if ($incremental) {
-                    $steps[] = new Step(__('Turn off incremental backups'), 'v-delete-backup-host-restic', []);
-                }
-                // The repository may hold credentials: masked in every log
-                $steps[] = new Step(__('Change the incremental backup repository'), 'v-add-backup-host-restic',
-                    [Secret::inline($values['repo']), ...array_slice($restic, 1)]);
+        $stored = $incremental ? $this->restic() : null;
+        $off = new Step(__('Turn off incremental backups'), ($stored['s3'] ?? null) !== null ? 'v-delete-backup-host-s3' : 'v-delete-backup-host-restic', []);
+        if (! $values['incremental']) {
+            return $incremental ? [$off] : [];
+        }
+        $retention = [$values['snapshots'], $values['keep_daily'], $values['keep_weekly'], $values['keep_monthly'], $values['keep_yearly']];
+        $storedRetention = $stored !== null ? [$stored['snapshots'], $stored['daily'], $stored['weekly'], $stored['monthly'], $stored['yearly']] : null;
+
+        if (($values['repo_type'] ?? 'path') === 's3') {
+            $s3 = ['endpoint' => $values['s3_endpoint'], 'bucket' => $values['s3_bucket'], 'region' => $values['s3_region'], 'keyId' => $values['s3_key_id']];
+            if ($values['s3_secret'] === null && ($stored['s3'] ?? null) === $s3) {
+                // The same connection: only the retention may change, and v-add-backup-host-restic keeps the connection
+                return $storedRetention === $retention ? [] : [new Step(__('Change the incremental backup repository'), 'v-add-backup-host-restic',
+                    [self::S3_REPO.$s3['bucket'], ...$retention])];
             }
+            if ($values['s3_secret'] === null) {
+                throw ValidationException::withMessages(['s3_secret' => __('Enter the secret access key: the connection changes.')]);
+            }
+            $credentials = sprintf("AWS_ACCESS_KEY_ID=%s\nAWS_SECRET_ACCESS_KEY=%s\n", $s3['keyId'], $values['s3_secret']);
+
+            return [
+                ...($incremental && ($stored['s3'] ?? null) === null ? [$off] : []),
+                new Step(__('Send incremental backups to S3'), 'v-add-backup-host-s3',
+                    [$s3['endpoint'], $s3['bucket'], Secret::file($credentials), $s3['region'], ...$retention]),
+            ];
         }
 
-        return $steps;
+        if ($stored !== null && $stored['repo'] === $values['repo'] && $storedRetention === $retention) {
+            return [];
+        }
+        // The repository may hold credentials: masked in every log
+        $add = new Step(__('Change the incremental backup repository'), 'v-add-backup-host-restic', [Secret::inline($values['repo']), ...$retention]);
+        if ($stored !== null && $stored['s3'] !== null && $stored['repo'] === $values['repo']) {
+            // The S3 repository given as a URL (API v2): its connection stays
+            return [$add];
+        }
+
+        return [...($incremental ? [$off] : []), $add];
     }
 
     /** Whether the remote backup must be written again; a secret is then required (except rclone). */

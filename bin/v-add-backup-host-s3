@@ -125,6 +125,12 @@ fi
 
 $BIN/v-add-backup-host-restic "rclone:$REMOTE:$target" "$snapshots" "$daily" "$weekly" "$monthly" "$yearly"
 check_result $? "the restic repository could not be registered"
+# Where the remote points, for the panel's form (never the secret)
+{
+	echo "S3_ENDPOINT='$endpoint'"
+	echo "S3_REGION='$region'"
+	echo "S3_KEY_ID='$key_id'"
+} >> "$ARCPANEL/conf/restic.conf"
 
 #----------------------------------------------------------#
 #                         ArcPanel                         #

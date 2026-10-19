@@ -36,6 +36,15 @@
                 <dt>{{ __('Stored') }}</dt>
                 <dd>{{ $size($silo->bytes) }} · {{ trans_choice(':count bucket|:count buckets', $silo->buckets, ['count' => $silo->buckets]) }} · {{ trans_choice(':count object|:count objects', $silo->objects, ['count' => $silo->objects]) }}</dd>
             </dl>
+            @if ($canManage)
+                <x-slot:footer>
+                    <x-ap-button variant="danger" size="sm" icon="trash" :form-action="route('server.object-storage.remove')" form-method="DELETE" :disabled="$silo->buckets > 0"
+                        :confirm="__('Remove object storage from this server? The service stops and its packages are removed; the data folder stays.')" :confirm-danger="true">{{ __('Remove') }}</x-ap-button>
+                    @if ($silo->buckets > 0)
+                        <span class="muted">{{ __('Removing needs every bucket deleted first.') }}</span>
+                    @endif
+                </x-slot:footer>
+            @endif
         </x-ap-card>
 
         <x-ap-card :title="__('Endpoint')" icon="globe">

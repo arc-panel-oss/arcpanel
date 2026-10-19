@@ -86,12 +86,22 @@ fi
 # per-user repo path is always built as "$REPO/$user" (see #5100)
 repo="${repo%/}"
 
+# The connection of an S3 backup host (v-add-backup-host-s3) stays while its
+# repository does, so a change of the retention keeps it
+s3_lines=''
+if [[ $repo == rclone:arcpanel-s3:* ]] && grep -q "^REPO='$repo'$" /usr/local/arcpanel/conf/restic.conf 2> /dev/null; then
+	s3_lines=$(grep '^S3_' /usr/local/arcpanel/conf/restic.conf)
+fi
+
 echo "REPO='$repo'" > /usr/local/arcpanel/conf/restic.conf
 echo "SNAPSHOTS='$snapshots'" >> /usr/local/arcpanel/conf/restic.conf
 echo "KEEP_DAILY='$daily'" >> /usr/local/arcpanel/conf/restic.conf
 echo "KEEP_WEEKLY='$weekly'" >> /usr/local/arcpanel/conf/restic.conf
 echo "KEEP_MONTHLY='$monthly'" >> /usr/local/arcpanel/conf/restic.conf
 echo "KEEP_YEARLY='$yearly'" >> /usr/local/arcpanel/conf/restic.conf
+if [ -n "$s3_lines" ]; then
+	echo "$s3_lines" >> /usr/local/arcpanel/conf/restic.conf
+fi
 
 $BIN/v-change-sys-config-value 'BACKUP_INCREMENTAL' 'yes'
 

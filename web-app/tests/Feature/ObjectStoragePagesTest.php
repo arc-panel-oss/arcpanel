@@ -165,3 +165,22 @@ it('installs Silo as the system task and publishes the endpoint', function () {
     $this->post('/server/object-storage/endpoint', ['hostname' => ''])->assertRedirect('/server/object-storage');
     $this->fake->assertRan('v-change-sys-silo-endpoint', fn ($a) => $a === ['none']);
 });
+
+it('removes Silo as the system task only when no bucket is left', function () {
+    $status = fn (int $buckets) => ['INSTALLED' => 'yes', 'VERSION' => 'RELEASE.2026-10-18T00-00-00Z', 'DATA' => '/srv/arcpanel-silo', 'STATE' => 'running', 'BUCKETS' => (string) $buckets];
+    $this->fake->on('v-list-sys-silo', ['json'])->returnsJson($status(1));
+    $this->fake->on('v-list-sys-buckets')->returnsJson(['OBJECTS' => []]);
+    $this->fake->on('v-start-sys-task')->returns();
+    signIn('arcadmin', 'admin');
+
+    $this->get('/server/object-storage')->assertOk()->assertSee('Removing needs every bucket deleted first.');
+    $this->delete('/server/object-storage')->assertRedirect('/server/object-storage')->assertSessionHas('error');
+    $this->fake->assertNotRan('v-start-sys-task');
+
+    $this->fake->on('v-list-sys-silo', ['json'])->returnsJson($status(0));
+    $this->delete('/server/object-storage')->assertRedirect('/server/object-storage')->assertSessionHas('ok');
+    $this->fake->assertRan('v-start-sys-task', fn ($a) => in_array('silo', $a, true) && in_array('off', $a, true));
+
+    signIn('hostco', 'reseller');
+    $this->delete('/server/object-storage')->assertForbidden();
+});

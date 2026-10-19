@@ -528,6 +528,7 @@ Route::middleware('auth.arc')->group(function () {
     Route::get('/server/object-storage', [ObjectStorageServerController::class, 'page'])->name('server.object-storage');
     Route::middleware('not-readonly')->name('server.object-storage.')->group(function () {
         Route::post('/server/object-storage/install', [ObjectStorageServerController::class, 'install'])->name('install');
+        Route::delete('/server/object-storage', [ObjectStorageServerController::class, 'remove'])->middleware('sys-config:OBJECT_STORAGE_SYSTEM=silo')->name('remove');
         Route::post('/server/object-storage/endpoint', [ObjectStorageServerController::class, 'endpoint'])->middleware('sys-config:OBJECT_STORAGE_SYSTEM=silo')->name('endpoint');
     });
     Route::middleware('sys-config:OBJECT_STORAGE_SYSTEM=silo')->group(function () {

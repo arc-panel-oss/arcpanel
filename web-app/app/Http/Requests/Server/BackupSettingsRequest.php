@@ -2,6 +2,8 @@
 
 namespace App\Http\Requests\Server;
 
+use Illuminate\Validation\Rule;
+
 /** Backups tab of the server settings (E7 batch 3 spec §8.2); ServerPolicy authorizes. */
 final class BackupSettingsRequest extends ServerSettingsRequest
 {
@@ -9,6 +11,7 @@ final class BackupSettingsRequest extends ServerSettingsRequest
     public function rules(): array
     {
         $keep = ['required_if_accepted:incremental', 'nullable', 'integer', 'min:-1', 'max:9999'];
+        $s3 = Rule::requiredIf(fn () => $this->boolean('incremental') && $this->input('repo_type') === 's3');
 
         return [
             'mode' => ['required', 'in:gzip,zstd'],
@@ -21,13 +24,27 @@ final class BackupSettingsRequest extends ServerSettingsRequest
             'path' => ['nullable', 'string', 'max:255', 'regex:/^[\w\/.:@~+-]*$/'],
             'bucket' => ['nullable', 'string', 'max:63', 'regex:/^[A-Za-z0-9-]+$/'],
             'key_id' => ['nullable', 'string', 'max:128', 'regex:/^[A-Za-z0-9]+$/'],
-            'repo' => ['required_if_accepted:incremental', 'nullable', 'string', 'max:1024', 'not_regex:/[\'"\s\\\\]/'],
+            'repo_type' => ['nullable', 'in:path,s3'],
+            'repo' => [Rule::requiredIf(fn () => $this->boolean('incremental') && $this->input('repo_type') !== 's3'), 'nullable', 'string', 'max:1024', 'not_regex:/[\'"\s\\\\]/'],
+            // An S3 backup host (E44 spec §9), as v-add-backup-host-s3 checks it
+            's3_endpoint' => [$s3, 'nullable', 'string', 'max:255', 'regex:/^(https:\/\/[A-Za-z0-9.-]+|http:\/\/(127\.0\.0\.1|localhost))(:\d{1,5})?\/?$/'],
+            's3_bucket' => [$s3, 'nullable', 'string', 'max:255', 'regex:/^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9](\/[A-Za-z0-9._-]+)*\/?$/'],
+            's3_region' => ['nullable', 'string', 'max:32', 'regex:/^[a-z0-9-]+$/'],
+            's3_key_id' => [$s3, 'nullable', 'string', 'max:128', 'regex:/^[A-Za-z0-9+\/=._-]{3,128}$/'],
+            's3_secret' => ['nullable', 'string', 'max:256', 'not_regex:/[\r\n]/'],
             'snapshots' => $keep,
             'keep_daily' => $keep,
             'keep_weekly' => $keep,
             'keep_monthly' => $keep,
             'keep_yearly' => $keep,
         ];
+    }
+
+    /** @return array<string, string> */
+    public function attributes(): array
+    {
+        return ['s3_endpoint' => __('Endpoint'), 's3_bucket' => __('Bucket and path'), 's3_region' => __('Region'),
+            's3_key_id' => __('Access key ID'), 's3_secret' => __('Secret access key')];
     }
 
     /** @return array<string, mixed> */
@@ -50,7 +67,13 @@ final class BackupSettingsRequest extends ServerSettingsRequest
             // ftp/sftp password or b2 application key
             'remote_secret' => $this->filled('password') ? (string) $this->input('password') : null,
             'incremental' => $this->boolean('incremental'),
+            'repo_type' => $this->input('repo_type') === 's3' ? 's3' : 'path',
             'repo' => trim((string) $this->input('repo')),
+            's3_endpoint' => rtrim(trim((string) $this->input('s3_endpoint')), '/'),
+            's3_bucket' => rtrim(trim((string) $this->input('s3_bucket')), '/'),
+            's3_region' => trim((string) $this->input('s3_region')) ?: 'us-east-1',
+            's3_key_id' => trim((string) $this->input('s3_key_id')),
+            's3_secret' => $this->filled('s3_secret') ? (string) $this->input('s3_secret') : null,
             'snapshots' => (string) (int) $this->input('snapshots', 30),
             'keep_daily' => (string) (int) $this->input('keep_daily', -1),
             'keep_weekly' => (string) (int) $this->input('keep_weekly', -1),
