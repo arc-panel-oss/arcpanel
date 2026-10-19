@@ -9,9 +9,13 @@
 # Retries keep the queue's behaviour from before the records: a worker that
 # fails and leaves its line in the pipe runs again on the next pass (the
 # Let's Encrypt worker does so on purpose while DNS propagates). Such a
-# record goes back to `queued` with ERROR and ATTEMPTS; a failed worker
-# whose line is gone is `failed`. A line whose record is gone or finished
-# is dead: the wrapper removes it instead of running it.
+# record goes back to `queued` with ERROR and ATTEMPTS until it has run
+# QUEUE_MAX_ATTEMPTS times; then the wrapper removes the line and the
+# record is `failed`, like a failed worker whose line is gone. A failed
+# record carries the reason from its log in ERROR (Fleet PD1,
+# docs/features/specs/2026-10-19-001-fleet-pd-api-v2-follow-up-design.md §4).
+# A line whose record is gone or finished is dead: the wrapper removes it
+# instead of running it.
 
 #----------------------------------------------------------#
 #                       Locations                          #
@@ -133,6 +137,36 @@ qt_create_unlocked() {
 # `v-run-queue-task USER ID -- ` for the record just created
 qt_prefix() {
 	printf '%s/v-run-queue-task %s %s -- ' "$BIN" "$user" "$QT_ID"
+}
+
+# Runs of a retried record before it fails: QUEUE_MAX_ATTEMPTS of
+# arcpanel.conf, 3 when unset or not a number, at least 1.
+qt_max_attempts() {
+	local max="${QUEUE_MAX_ATTEMPTS-}"
+	if ! [[ "$max" =~ ^[0-9]+$ ]]; then
+		max=3
+	fi
+	max=$((10#$max))
+	if [ "$max" -lt 1 ]; then
+		max=1
+	fi
+	echo "$max"
+}
+
+# Reason of a failed record of USER ID: the last `Error:` line of its log
+# without the prefix, else its last non-empty line; control characters
+# removed, at most 300 characters.
+qt_error_line() {
+	local log line
+	log=$(qt_log "$1" "$2")
+	[ -f "$log" ] || return 0
+	line=$(tr -d '\000-\010\013-\037\177' < "$log" | grep -E '^[[:space:]]*Error:' | tail -n1 \
+		| sed -E 's/^[[:space:]]*Error:[[:space:]]*//')
+	if [ -z "$line" ]; then
+		line=$(tr -d '\000-\010\013-\037\177' < "$log" | grep -vE '^[[:space:]]*$' | tail -n1)
+	fi
+	line=$(printf '%s' "$line" | tr '\t' ' ' | sed -E 's/^[[:space:]]+//; s/[[:space:]]+$//')
+	printf '%s' "${line:0:300}"
 }
 
 # Print the id of the record just created. FORMAT json prints {"ID":"…"}.

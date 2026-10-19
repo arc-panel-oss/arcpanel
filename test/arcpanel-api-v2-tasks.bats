@@ -45,6 +45,7 @@ setup_file() {
 }
 
 teardown_file() {
+    sed -i '/^QUEUE_MAX_ATTEMPTS=/d' "$ARCPANEL/conf/arcpanel.conf"
     qt_clear_user_queue
     v-delete-user "$QT_USER" > /dev/null 2>&1 || true
     rm -rf "$(qt_tasks_dir)"
@@ -412,4 +413,106 @@ qt_enable_incremental_backups() {
 
     v-delete-user "$clean_user" > /dev/null 2>&1 || true
     rm -rf "$clean_dir"
+}
+
+# Fleet PD1: retry limit and the reason of a failure
+# docs/features/specs/2026-10-19-001-fleet-pd-api-v2-follow-up-design.md §4.
+
+qt_set_max_attempts() {
+    sed -i '/^QUEUE_MAX_ATTEMPTS=/d' "$ARCPANEL/conf/arcpanel.conf"
+    if [ -n "$1" ]; then
+        echo "QUEUE_MAX_ATTEMPTS='$1'" >> "$ARCPANEL/conf/arcpanel.conf"
+    fi
+}
+
+# The record drops quotes from values (qt_set)
+qt_last_error_line() {
+    grep -E '^[[:space:]]*Error:' "$(qt_tasks_dir)/$1.log" | tail -n1 | sed -E 's/^[[:space:]]*Error:[[:space:]]*//' | tr -d "'"
+}
+
+@test "v-run-queue-task: gives up after QUEUE_MAX_ATTEMPTS with the reason (default 3)" {
+    local id fail_rc
+    qt_set_max_attempts ''
+    id=$(v-schedule-user-backup "$QT_USER" json | jq -r .ID)
+    run v-run-queue-task "$QT_USER" "$id" -- "$BIN/v-download-backup" "$QT_USER" 'no-such-backup.tar'
+    assert_failure
+    run v-run-queue-task "$QT_USER" "$id" -- "$BIN/v-download-backup" "$QT_USER" 'no-such-backup.tar'
+    assert_failure
+    run qt_record_value "$id" STATUS
+    assert_output queued
+
+    run v-run-queue-task "$QT_USER" "$id" -- "$BIN/v-download-backup" "$QT_USER" 'no-such-backup.tar'
+    assert_failure
+    fail_rc=$status
+    run grep -c "v-run-queue-task $QT_USER $id " "$PIPE"
+    assert_output 0
+    run v-list-user-tasks "$QT_USER" "$id" json
+    assert_success
+    run jq -r '.STATUS, .EXIT, .ATTEMPTS' <<< "$output"
+    assert_output "failed"$'\n'"$fail_rc"$'\n3'
+    run qt_record_value "$id" END
+    [ -n "$output" ]
+    run qt_record_value "$id" ERROR
+    assert_output "gave up after 3 attempts: $(qt_last_error_line "$id")"
+}
+
+@test "v-run-queue-task: QUEUE_MAX_ATTEMPTS 1 gives up at the first failure" {
+    local id
+    qt_set_max_attempts 1
+    id=$(v-schedule-user-backup "$QT_USER" json | jq -r .ID)
+    run v-run-queue-task "$QT_USER" "$id" -- "$BIN/v-download-backup" "$QT_USER" 'no-such-backup.tar'
+    assert_failure
+    qt_set_max_attempts ''
+    run qt_record_value "$id" STATUS
+    assert_output failed
+    run qt_record_value "$id" ERROR
+    assert_output --partial 'gave up after 1 attempts: '
+}
+
+@test "v-run-queue-task: a garbage or zero QUEUE_MAX_ATTEMPTS means 3 or 1" {
+    local id
+    qt_set_max_attempts 'many'
+    id=$(v-schedule-user-backup "$QT_USER" json | jq -r .ID)
+    run v-run-queue-task "$QT_USER" "$id" -- "$BIN/v-download-backup" "$QT_USER" 'no-such-backup.tar'
+    run qt_record_value "$id" STATUS
+    assert_output queued
+    qt_clear_user_queue
+
+    qt_set_max_attempts 0
+    id=$(v-schedule-user-backup "$QT_USER" json | jq -r .ID)
+    run v-run-queue-task "$QT_USER" "$id" -- "$BIN/v-download-backup" "$QT_USER" 'no-such-backup.tar'
+    qt_set_max_attempts ''
+    run qt_record_value "$id" STATUS
+    assert_output failed
+}
+
+@test "v-run-queue-task: a failed worker that removes its line records the reason" {
+    local id
+    id="$(date +%s)0002"
+    qt_write_queued "$id" backup-download 'no-such-backup.tar'
+    echo "$BIN/v-run-queue-task $QT_USER $id -- $BIN/v-download-backup $QT_USER no-such-backup.tar" >> "$PIPE"
+    run v-run-queue-task "$QT_USER" "$id" -- "$BIN/v-download-backup" "$QT_USER" 'no-such-backup.tar'
+    assert_failure
+    run qt_record_value "$id" ERROR
+    [ -n "$output" ]
+    assert_output "$(qt_last_error_line "$id")"
+}
+
+@test "qt_error_line: last Error line, else last non-empty line, cut to 300 characters" {
+    local id="19990101120003" dir long
+    dir=$(qt_tasks_dir)
+    mkdir -p "$dir"
+    printf '%s\n' 'starting' 'Error: first' 'more output' '  Error: second one' 'tail line' '' > "$dir/$id.log"
+    run bash -c "source /etc/arcpanel/arcpanel.conf; source $ARCPANEL/func/main.sh; source $ARCPANEL/func/queuetask.sh; qt_error_line $QT_USER $id"
+    assert_output 'second one'
+
+    printf '%s\n' 'starting' 'last words' '' '' > "$dir/$id.log"
+    run bash -c "source /etc/arcpanel/arcpanel.conf; source $ARCPANEL/func/main.sh; source $ARCPANEL/func/queuetask.sh; qt_error_line $QT_USER $id"
+    assert_output 'last words'
+
+    long=$(printf 'x%.0s' $(seq 1 400))
+    printf 'Error: %s\n' "$long" > "$dir/$id.log"
+    run bash -c "source /etc/arcpanel/arcpanel.conf; source $ARCPANEL/func/main.sh; source $ARCPANEL/func/queuetask.sh; qt_error_line $QT_USER $id"
+    [ "${#output}" -eq 300 ]
+    rm -f "$dir/$id.log"
 }

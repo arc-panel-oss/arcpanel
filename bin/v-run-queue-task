@@ -11,8 +11,10 @@
 #
 # When the command fails and its line is still in the pipe, the record is
 # queued again (ERROR, ATTEMPTS) and the next pass of the queue retries it,
-# as the queue did before the records. A line whose record is missing or
-# finished is removed without running anything.
+# as the queue did before the records, up to QUEUE_MAX_ATTEMPTS runs
+# (default 3); then the line is removed and the record fails. A failed
+# record carries the reason from its log in ERROR. A line whose record is
+# missing or finished is removed without running anything.
 
 #----------------------------------------------------------#
 #                Variables & Functions                     #
@@ -91,12 +93,18 @@ chmod 640 "$log"
 qt_lock
 if [ "$rc" -eq 0 ]; then
 	qt_set "$user" "$id" STATUS=succeeded "EXIT=0" "END=$(date +'%F %T')" PID=
-elif qt_line_queued "$user" "$id"; then
+elif qt_line_queued "$user" "$id" && [ "$attempts" -lt "$(qt_max_attempts)" ]; then
 	# The worker kept its line: the next pass runs it again
 	qt_set "$user" "$id" STATUS=queued EXIT= START= END= PID= \
 		"ERROR=attempt $attempts failed with exit code $rc, queued again"
+elif qt_line_queued "$user" "$id"; then
+	# Retry limit reached: the queue stops running the line
+	qt_remove_line "$user" "$id"
+	qt_set "$user" "$id" STATUS=failed "EXIT=$rc" "END=$(date +'%F %T')" PID= \
+		"ERROR=gave up after $attempts attempts: $(qt_error_line "$user" "$id")"
 else
-	qt_set "$user" "$id" STATUS=failed "EXIT=$rc" "END=$(date +'%F %T')" PID=
+	qt_set "$user" "$id" STATUS=failed "EXIT=$rc" "END=$(date +'%F %T')" PID= \
+		"ERROR=$(qt_error_line "$user" "$id")"
 fi
 qt_unlock
 
