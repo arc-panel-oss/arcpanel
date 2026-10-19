@@ -337,3 +337,59 @@ it('lists, bans and unbans addresses, IPv6 and networks URL-encoded', function (
         ->assertJsonPath('data.steps.0', ['label' => 'Unban 203.0.113.7', 'command' => 'v-delete-firewall-ban', 'args' => ['203.0.113.7', 'SSH']]);
     $this->fake->assertRan('v-delete-firewall-ban', null, 2);
 });
+
+// E40: nftables with IPv6 (docs/features/specs/2026-10-19-002-e40-nftables-firewall-design.md)
+
+it('reports the state of the loaded firewall to administrators only', function (string $principal, string $role, int $status) {
+    $this->fake->on('v-check-firewall', ['json'])->returnsJson(['ENGINE' => 'nftables', 'STATUS' => 'drift', 'CHECKED' => '2026-10-19T12:00:00Z']);
+
+    $response = $this->getJson('/api/v2/system/firewall/status', apiAs($this->fake, $principal, $role, readOnly: true))->assertStatus($status);
+    if ($status === 200) {
+        $response->assertExactJson(['data' => ['engine' => 'nftables', 'status' => 'drift', 'checked_at' => '2026-10-19T12:00:00Z']]);
+    } else {
+        $this->fake->assertNotRan('v-check-firewall');
+    }
+})->with([
+    'admin' => ['arcadmin', 'admin', 200],
+    'reseller' => ['hostco', 'reseller', 403],
+    'user' => ['bob', 'user', 403],
+]);
+
+it('answers the status with a key that holds only the server area', function () {
+    $this->fake->on('v-check-firewall', ['json'])->returnsJson(['ENGINE' => 'nftables', 'STATUS' => 'ok', 'CHECKED' => '2026-10-19T12:00:00Z']);
+
+    $this->getJson('/api/v2/system/firewall/status', apiAs($this->fake, 'arcadmin', 'admin', readOnly: true, area: 'server'))->assertOk()
+        ->assertJsonPath('data.status', 'ok');
+});
+
+it('passes IPv6 sources and IPv6 lists to the rule commands', function () {
+    $headers = apiAs($this->fake, 'arcadmin', 'admin', area: 'server');
+
+    $this->postJson('/api/v2/system/firewall/rules', ['action' => 'accept', 'protocol' => 'tcp', 'port' => '22', 'source' => '2001:db8::/32', 'comment' => 'v6'], $headers)->assertCreated()
+        ->assertJsonPath('data.source', '2001:db8::/32');
+    $this->fake->assertRan('v-add-firewall-rule', fn ($a) => $a === ['ACCEPT', '2001:db8::/32', '22', 'TCP', 'v6', '5']);
+
+    $this->postJson('/api/v2/system/firewall/rules', ['action' => 'drop', 'protocol' => 'tcp', 'port' => '80', 'source' => 'ipset:blocked6'], $headers)->assertCreated()
+        ->assertJsonPath('data.source', 'ipset:blocked6');
+});
+
+it('bans and unbans in the RECIDIVE chain', function () {
+    $headers = apiAs($this->fake, 'arcadmin', 'admin', area: 'server');
+    $this->postJson('/api/v2/system/firewall/bans', ['ip' => '2001:db8::99', 'chain' => 'recidive'], $headers)->assertCreated()
+        ->assertJsonPath('data.chain', 'RECIDIVE');
+    $this->fake->assertRan('v-add-firewall-ban', fn ($a) => $a === ['2001:db8::99', 'RECIDIVE']);
+
+    $this->fake->on('v-list-firewall-ban')->returnsJson([
+        '2001:db8::99' => ['IP' => '2001:db8::99', 'CHAIN' => 'RECIDIVE', 'TIME' => '12:00:00', 'DATE' => '2026-10-19'],
+    ]);
+    $this->deleteJson('/api/v2/system/firewall/bans/RECIDIVE/2001%3Adb8%3A%3A99', [], $headers)->assertNoContent();
+    $this->fake->assertRan('v-delete-firewall-ban', fn ($a) => $a === ['2001:db8::99', 'RECIDIVE']);
+});
+
+it('answers 409 E_INUSE for a list that an active rule uses', function () {
+    $this->fake->on('v-delete-firewall-ipset')->returnsExit(ExitCode::InUse, 'Error: IP list country-nl is used by firewall rule 5. Cannot remove');
+
+    $this->deleteJson('/api/v2/system/firewall/ipsets/country-nl', [], apiAs($this->fake, 'arcadmin', 'admin', area: 'server'))->assertStatus(409)
+        ->assertJsonPath('error.code', 'E_INUSE')
+        ->assertJsonPath('error.message', 'Error: IP list country-nl is used by firewall rule 5. Cannot remove');
+});

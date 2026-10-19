@@ -1,21 +1,20 @@
 #!/bin/bash
 # info: add firewall blocking rule
-# options: IPV4_CIDR CHAIN
+# options: IP_CIDR CHAIN
 #
 # example: v-add-firewall-ban 37.120.129.20 MAIL
+# example: v-add-firewall-ban 2001:db8::7 SSH
 #
-# This function adds new blocking rule to system firewall
+# This function adds a blocking rule to the system firewall: the IPv4 or
+# IPv6 address or network joins the ban set of the chain
 
 #----------------------------------------------------------#
 #                Variables & Functions                     #
 #----------------------------------------------------------#
 
 # Argument definition
-ipv4_cidr=$1
+ip_cidr=$1
 chain=$(echo "$2" | tr '[:lower:]' '[:upper:]')
-
-# Defining absolute path for iptables and modprobe
-iptables="/sbin/iptables"
 
 # Includes
 # shellcheck source=/etc/arcpanel/arcpanel.conf
@@ -31,35 +30,37 @@ source_conf "$ARCPANEL/conf/arcpanel.conf"
 #                    Verifications                         #
 #----------------------------------------------------------#
 
-check_args '2' "$#" 'IPV4_CIDR CHAIN'
-is_format_valid 'ipv4_cidr' 'chain'
+check_args '2' "$#" 'IP_CIDR CHAIN'
+is_format_valid 'ip_cidr' 'chain'
 is_system_enabled "$FIREWALL_SYSTEM" 'FIREWALL_SYSTEM'
 
 # Perform verification if read-only mode is enabled
 check_arcpanel_demo_mode
 
+fw_lock
+
 #----------------------------------------------------------#
 #                       Action                             #
 #----------------------------------------------------------#
 
-# Self heal iptables links
-heal_iptables_links
+# IPv6 addresses are kept in lower case
+ip_cidr=$(echo "$ip_cidr" | tr '[:upper:]' '[:lower:]')
 
 # Checking server ip
-if [ -e "$ARCPANEL/data/ips/$ipv4_cidr" ] || [ "$ipv4_cidr" = '127.0.0.1' ]; then
+if fw_is_own_ip "$ip_cidr"; then
 	exit
 fi
 
 # Checking ip exclusions
 excludes="$ARCPANEL/data/firewall/excludes.conf"
-check_excludes=$(grep "^$ipv4_cidr$" $excludes 2> /dev/null)
+check_excludes=$(grep -ixF -- "$ip_cidr" $excludes 2> /dev/null)
 if [ -n "$check_excludes" ]; then
 	exit
 fi
 
 # Checking ip in banlist
 conf="$ARCPANEL/data/firewall/banlist.conf"
-check_ip=$(grep "IP='$ipv4_cidr' CHAIN='$chain'" $conf 2> /dev/null)
+check_ip=$(grep -F "IP='$ip_cidr' CHAIN='$chain'" $conf 2> /dev/null)
 if [ -n "$check_ip" ]; then
 	exit
 fi
@@ -72,10 +73,12 @@ time_n_date=$(date +'%T %F')
 time=$(echo "$time_n_date" | cut -f 1 -d \ )
 date=$(echo "$time_n_date" | cut -f 2 -d \ )
 
-# Adding ip to banlist
-echo "IP='$ipv4_cidr' CHAIN='$chain' TIME='$time' DATE='$date'" >> $conf
-$iptables -I fail2ban-$chain 1 -s $ipv4_cidr \
-	-j DROP 2> /dev/null
+# Adding ip to banlist, then to the set; a reload when the set refuses it
+# (for example a network that overlaps a ban)
+echo "IP='$ip_cidr' CHAIN='$chain' TIME='$time' DATE='$date'" >> $conf
+if ! "$FW_NFT" add element inet arcpanel "$(fw_ban_set "$chain" "$(fw_family "$ip_cidr")")" "{ $ip_cidr }" 2> /dev/null; then
+	"$BIN/v-update-firewall"
+fi
 
 # Changing permissions
 chmod 660 $conf
@@ -85,7 +88,7 @@ chmod 660 $conf
 #----------------------------------------------------------#
 
 # Logging
-$BIN/v-log-action "system" "Warning" "Firewall" "Banned IP address $ipv4_cidr."
+$BIN/v-log-action "system" "Warning" "Firewall" "Banned IP address $ip_cidr."
 log_event "$OK" "$ARGUMENTS"
 
 exit

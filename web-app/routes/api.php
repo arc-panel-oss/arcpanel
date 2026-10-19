@@ -15,6 +15,7 @@ use App\Http\Controllers\Api\V2\FileTransferController;
 use App\Http\Controllers\Api\V2\FirewallBanController;
 use App\Http\Controllers\Api\V2\FirewallIpsetController;
 use App\Http\Controllers\Api\V2\FirewallRuleController;
+use App\Http\Controllers\Api\V2\FirewallStatusController;
 use App\Http\Controllers\Api\V2\GraphController;
 use App\Http\Controllers\Api\V2\IpController;
 use App\Http\Controllers\Api\V2\LogController;
@@ -201,6 +202,7 @@ Route::prefix('/system/settings')->name('system.settings.')->group(function () {
 // Firewall of the server (E34 batch 6 spec §5.3, D59); FIREWALL_SYSTEM off answers 404, the ban list also needs FIREWALL_EXTENSION
 Route::middleware('sys-config:FIREWALL_SYSTEM')->prefix('/system/firewall')->name('system.firewall.')->group(function () {
     $rule = ['rule' => '[0-9]{1,9}'];
+    Route::get('/status', [FirewallStatusController::class, 'show'])->name('status');
     Route::get('/rules', [FirewallRuleController::class, 'index'])->name('rules.index');
     Route::get('/rules/{rule}', [FirewallRuleController::class, 'show'])->where($rule)->name('rules.show');
     Route::get('/ipsets', [FirewallIpsetController::class, 'index'])->name('ipsets.index');
@@ -219,7 +221,7 @@ Route::middleware('sys-config:FIREWALL_SYSTEM')->prefix('/system/firewall')->nam
         Route::middleware('not-readonly')->group(function () {
             Route::post('/bans', [FirewallBanController::class, 'store'])->name('bans.store');
             Route::delete('/bans/{chain}/{ip}', [FirewallBanController::class, 'destroy'])
-                ->where(['chain' => 'SSH|WEB|FTP|DNS|MAIL|DB|ARCPANEL', 'ip' => '[0-9A-Fa-f:.\/]{2,64}'])
+                ->where(['chain' => 'SSH|WEB|FTP|DNS|MAIL|DB|ARCPANEL|RECIDIVE', 'ip' => '[0-9A-Fa-f:.\/]{2,64}'])
                 ->name('bans.destroy');
         });
     });

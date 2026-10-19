@@ -457,6 +457,7 @@ upgrade_start_backup() {
 		fi
 		[ -e "/etc/sysconfig/iptables" ] && cp -f /etc/sysconfig/iptables $ARCPANEL_BACKUP/conf/$FIREWALL_SYSTEM/
 		[ -e "/etc/iptables.rules" ] && cp -f /etc/iptables.rules $ARCPANEL_BACKUP/conf/$FIREWALL_SYSTEM/
+		[ -e "/etc/arcpanel/firewall.nft" ] && cp -f /etc/arcpanel/firewall.nft $ARCPANEL_BACKUP/conf/$FIREWALL_SYSTEM/
 	fi
 	if [ -n "$FIREWALL_EXTENSION" ]; then
 		if [ "$DEBUG_MODE" = "true" ]; then

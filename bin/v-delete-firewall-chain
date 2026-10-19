@@ -4,7 +4,8 @@
 #
 # example: v-delete-firewall-chain WEB
 #
-# This function adds new rule to system firewall
+# This function deletes a Fail2Ban chain and its bans from the system
+# firewall
 
 #----------------------------------------------------------#
 #                Variables & Functions                     #
@@ -13,7 +14,6 @@
 # Argument definition
 chain=$(echo "$1" | tr '[:lower:]' '[:upper:]')
 
-iptables='/sbin/iptables'
 # Includes
 # shellcheck source=/etc/arcpanel/arcpanel.conf
 source /etc/arcpanel/arcpanel.conf
@@ -35,12 +35,11 @@ is_system_enabled "$FIREWALL_SYSTEM" 'FIREWALL_SYSTEM'
 # Perform verification if read-only mode is enabled
 check_arcpanel_demo_mode
 
+fw_lock
+
 #----------------------------------------------------------#
 #                       Action                             #
 #----------------------------------------------------------#
-
-# Self heal iptables links
-heal_iptables_links
 
 # Deleting chain
 chains="$ARCPANEL/data/firewall/chains.conf"
@@ -48,16 +47,13 @@ banlist="$ARCPANEL/data/firewall/banlist.conf"
 chain_param=""
 [ -f "$chains" ] && chain_param=$(grep "CHAIN='$chain'" "$chains")
 if [ -n "$chain_param" ]; then
-	parse_object_kv_list "$chain_param"
 	sed -i "/CHAIN='$chain'/d" "$chains"
-	sed -i "/CHAIN='$chain'/d" "$banlist"
-	$iptables -D INPUT -p $PROTOCOL \
-		--dport $PORT -j fail2ban-$CHAIN 2> /dev/null
+	[ -f "$banlist" ] && sed -i "/CHAIN='$chain'/d" "$banlist"
+	if fw_loaded; then
+		"$BIN/v-update-firewall"
+		check_result $? "Unable to reload the firewall" "$E_UPDATE"
+	fi
 fi
-
-# Deleting iptables chain
-$iptables -F fail2ban-$CHAIN 2> /dev/null
-$iptables -X fail2ban-$CHAIN 2> /dev/null
 
 # Changing permissions
 [ -f "$chains" ] && chmod 660 "$chains"

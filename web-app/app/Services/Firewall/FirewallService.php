@@ -29,8 +29,11 @@ final class FirewallService
 
     public const PROTOCOLS = ['TCP', 'UDP', 'ICMP'];
 
-    /** Chains of the ban list (web/add/firewall/banlist). */
-    public const CHAINS = ['SSH', 'WEB', 'FTP', 'DNS', 'MAIL', 'DB', 'ARCPANEL'];
+    /** Chains of the ban list (web/add/firewall/banlist); RECIDIVE since E40. */
+    public const CHAINS = ['SSH', 'WEB', 'FTP', 'DNS', 'MAIL', 'DB', 'ARCPANEL', 'RECIDIVE'];
+
+    /** Values of FIREWALL_SYSTEM: nftables since 2.3 (E40), iptables before. */
+    public const ENGINES = ['nftables', 'iptables'];
 
     /** @var array<string, FirewallRule>|null per-request cache */
     private ?array $rules = null;
@@ -66,8 +69,8 @@ final class FirewallService
     }
 
     /**
-     * Active IPv4 lists, the choices of the "IPset IP Lists" select
-     * (web/add/firewall).
+     * Active lists, the choices of the "IPset IP Lists" select
+     * (web/add/firewall); IPv6 lists too since E40.
      *
      * @return list<string>
      */
@@ -75,12 +78,24 @@ final class FirewallService
     {
         $names = [];
         foreach ($this->ipsets() as $list) {
-            if (! $list->suspended && $list->ipVersion === 'v4') {
+            if (! $list->suspended) {
                 $names[] = $list->name;
             }
         }
 
         return $names;
+    }
+
+    /** `v-check-firewall json`: the loaded table against the last load (E40 D13). */
+    public function status(): FirewallStatus
+    {
+        return FirewallStatus::fromArray($this->arc->json('v-check-firewall'));
+    }
+
+    /** `v-update-firewall`: load the table again. */
+    public function reload(): CommandResult
+    {
+        return $this->arc->run('v-update-firewall', [], Options::allowFailure());
     }
 
     /**

@@ -4,7 +4,8 @@
 #
 # example: v-add-firewall-chain CRM 5678 TCP
 #
-# This function adds new rule to system firewall
+# This function adds a Fail2Ban chain to the system firewall: two ban sets
+# (IPv4 and IPv6) that drop their addresses on the chain's ports
 
 #----------------------------------------------------------#
 #                Variables & Functions                     #
@@ -17,9 +18,6 @@ port_ext="$2"
 protocol="$3"
 [ -z "$protocol" ] && protocol='TCP'
 protocol=$(echo "$protocol" | tr '[:lower:]' '[:upper:]')
-
-# Defining absolute path to iptables
-iptables="/sbin/iptables"
 
 # Includes
 # shellcheck source=/etc/arcpanel/arcpanel.conf
@@ -48,12 +46,11 @@ is_system_enabled "$FIREWALL_SYSTEM" 'FIREWALL_SYSTEM'
 # Perform verification if read-only mode is enabled
 check_arcpanel_demo_mode
 
+fw_lock
+
 #----------------------------------------------------------#
 #                       Action                             #
 #----------------------------------------------------------#
-
-# Self heal iptables links
-heal_iptables_links
 
 # Checking known chains
 case $chain in
@@ -96,37 +93,35 @@ case $chain in
 	*) check_args '2' "$#" 'CHAIN PORT' ;;
 esac
 
-# Adding chain
-$iptables -N fail2ban-$chain 2> /dev/null
-if [ $? -eq 0 ]; then
-	$iptables -A fail2ban-$chain -j RETURN
-
-	# Adding multiport module
-	if [[ "$port" =~ ,|-|: ]]; then
-		port_str="-m multiport --dports $port"
-	else
-		port_str="--dport $port"
-	fi
-	$iptables -I INPUT -p $protocol $port_str -j fail2ban-$chain
-fi
-
 # Preserving chain
 chains="$ARCPANEL/data/firewall/chains.conf"
 check_chain=""
 [ -f "$chains" ] && check_chain=$(grep "CHAIN='$chain'" "$chains")
 if [ -z "$check_chain" ]; then
 	echo "CHAIN='$chain' PORT='$port' PROTOCOL='$protocol'" >> "$chains"
+	reload='yes'
+elif ! "$FW_NFT" list set inet arcpanel "$(fw_ban_set "$chain" 4)" > /dev/null 2>&1; then
+	# Every Fail2Ban start lands here for a known chain: reload only when
+	# its sets are missing
+	reload='yes'
 fi
 
 # Changing permissions
 [ -f "$chains" ] && chmod 660 "$chains"
+
+if [ "${reload:-no}" = 'yes' ] && [ -z "${ARCPANEL_FIREWALL_NO_RELOAD:-}" ]; then
+	"$BIN/v-update-firewall"
+	check_result $? "Unable to reload the firewall" "$E_UPDATE"
+fi
 
 #----------------------------------------------------------#
 #                         ArcPanel                         #
 #----------------------------------------------------------#
 
 # Logging
-$BIN/v-log-action "system" "Info" "Firewall" "Added service to firewall (Service: $chain, Port: $port, Protocol: $protocol)."
+if [ -z "$check_chain" ]; then
+	$BIN/v-log-action "system" "Info" "Firewall" "Added service to firewall (Service: $chain, Port: $port, Protocol: $protocol)."
+fi
 log_event "$OK" "$ARGUMENTS"
 
 exit

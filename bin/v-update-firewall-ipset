@@ -4,7 +4,8 @@
 #
 # example: v-update-firewall-ipset
 #
-# This function creates ipset lists and updates the lists if they are expired or ondemand
+# This function refreshes the IP lists that are expired (no), all lists that
+# update automatically (yes) or none (load), then reloads the firewall once
 
 #----------------------------------------------------------#
 #                Variables & Functions                     #
@@ -33,16 +34,19 @@ check_arcpanel_demo_mode
 
 ipset_hstobject='../../../data/firewall/ipset'
 
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
 for ipset_name in $(search_objects "$ipset_hstobject" 'SUSPENDED' 'no' 'LISTNAME' 2> /dev/null); do
 
 	ipset_time="$(get_object_value "$ipset_hstobject" 'LISTNAME' "$ipset_name" '$TIME')"
 	ipset_date="$(get_object_value "$ipset_hstobject" 'LISTNAME' "$ipset_name" '$DATE')"
 	ipset_au="$(get_object_value "$ipset_hstobject" 'LISTNAME' "$ipset_name" '$AUTOUPDATE')"
 
+	# The table loads the list files themselves: nothing to do for lists
+	# that do not update
 	if [ "$ipset_au" = 'no' ] || [ "$refresh" = 'load' ]; then
-		# Load existing ip list files in the kernel but don't auto update them
-		# The "load" refresh option is only used by arcpanel-iptables systemd service
-		$BIN/v-add-firewall-ipset "$ipset_name"
 		continue
 	fi
 
@@ -51,13 +55,14 @@ for ipset_name in $(search_objects "$ipset_hstobject" 'SUSPENDED' 'no' 'LISTNAME
 	hours_since_update=$(((now - last_updated_ts) / (60 * 60)))
 
 	if [[ "$hours_since_update" -lt 24 ]] && [ "$refresh" = 'no' ]; then
-		# Load existing ip list files in the kernel but don't auto update them
-		$BIN/v-add-firewall-ipset "$ipset_name"
 		continue
 	fi
 
-	$BIN/v-add-firewall-ipset "$ipset_name" '' '' '' 'yes'
+	ARCPANEL_FIREWALL_NO_RELOAD=1 $BIN/v-add-firewall-ipset "$ipset_name" '' '' '' 'yes'
 done
+
+"$BIN/v-update-firewall"
+check_result $? "Unable to reload the firewall" "$E_UPDATE"
 
 #----------------------------------------------------------#
 #                         ArcPanel                         #

@@ -2,7 +2,7 @@
 # ArcPanel port registry (E12,
 # docs/features/specs/2026-10-05-004-e12-port-registry-design.md).
 # Run as root on a server installed with the ArcPanel installer, with the
-# iptables firewall on. Uses ports 38000-38399 of the server range.
+# firewall on. Uses ports 38000-38399 of the server range.
 
 if [ "${PATH#*/usr/local/arcpanel/bin*}" = "$PATH" ]; then
     . /etc/profile.d/arcpanel.sh

@@ -44,7 +44,7 @@ else
 fi
 
 for service in $service_list; do
-	if [ "$service" = "iptables" ]; then
+	if [ "$service" = "nftables" ] || [ "$service" = "iptables" ]; then
 		$BIN/v-stop-firewall
 	else
 		systemctl stop "$service"

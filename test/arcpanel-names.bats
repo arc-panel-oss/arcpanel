@@ -70,10 +70,10 @@ PANEL="https://127.0.0.1:8083"
 	refute_output '0'
 	run bash -c "grep -i hestia /usr/local/arcpanel/data/firewall/rules.conf /usr/local/arcpanel/data/firewall/chains.conf"
 	assert_output ''
-	if [ "$(v-list-sys-config json | jq -r '.config.FIREWALL_SYSTEM')" = 'iptables' ]; then
-		run bash -c "iptables -S | grep -c -- '-N fail2ban-ARCPANEL'"
+	if [ "$(v-list-sys-config json | jq -r '.config.FIREWALL_SYSTEM')" = 'nftables' ]; then
+		run bash -c "nft list table inet arcpanel | grep -c 'set f2b_ARCPANEL_4'"
 		refute_output '0'
-		run bash -c "iptables -S | grep -ci hestia"
+		run bash -c "nft list table inet arcpanel | grep -ci hestia"
 		assert_output '0'
 	fi
 }

@@ -39,6 +39,7 @@ beforeEach(function () {
         '203.0.113.7' => ['IP' => '203.0.113.7', 'CHAIN' => 'SSH', 'TIME' => '12:00:00', 'DATE' => '2026-10-05'],
         '2001:db8::7' => ['IP' => '2001:db8::7', 'CHAIN' => 'WEB', 'TIME' => '12:30:00', 'DATE' => '2026-10-05'],
     ]);
+    $this->fake->on('v-check-firewall', ['json'])->returnsJson(['ENGINE' => 'nftables', 'STATUS' => 'ok', 'CHECKED' => '2026-10-19T12:00:00Z']);
 });
 
 // Rules list (§6.2)
@@ -96,7 +97,8 @@ it('adds a rule with the legacy port clean-up and accepts port 0', function () {
 
     $this->get('/server/firewall/create')->assertOk()
         ->assertSee('(Ranges and lists are acceptable)')->assertSee('All ports: 0, Range: 80-82, List: 80,443,8080,8443')
-        ->assertSee('ipset:country-nl', false)->assertDontSee('ipset:blocked6', false)->assertDontSee('ipset:old', false);
+        // IPv6 lists too since E40; suspended lists are not offered
+        ->assertSee('ipset:country-nl', false)->assertSee('ipset:blocked6', false)->assertDontSee('ipset:old', false);
 
     $this->post('/server/firewall', ['action' => 'ACCEPT', 'protocol' => 'TCP', 'port' => ' 80  443,,8080, ', 'ip' => 'ipset:country-nl', 'comment' => 'web'])
         ->assertRedirect('/server/firewall')->assertSessionHas('ok', 'Rule has been created successfully.');
@@ -208,6 +210,7 @@ it('lists, adds and deletes IPset lists', function () {
         ->assertSee('Are you sure you want to delete IP list country-nl?')->assertSee('3 IP lists');
     $this->get('/server/firewall/ipsets/create')->assertOk()
         ->assertSee('(URL, script or file)')->assertSee('[IPv4] Block Malicious IPs')
+        ->assertSee('country/nl/ipv6-aggregated.txt', false)->assertSee('[IPv6] Country - Netherlands')
         ->assertSee('script:/usr/local/arcpanel/install/common/firewall/ipset/blacklist.sh', false);
 
     $this->post('/server/firewall/ipsets', ['name' => 'country-de', 'source' => 'https://example.org/de.txt', 'version' => 'v4', 'autoupdate' => 'yes'])
@@ -241,7 +244,8 @@ it('bans and unbans addresses, IPv6 included', function () {
     $this->get('/server/firewall/bans')->assertOk()
         ->assertSeeInOrder(['2001:db8::7', '203.0.113.7'])
         ->assertSee('WEB:2001:db8::7', false)->assertSee('Are you sure you want to delete IP address 203.0.113.7?');
-    $this->get('/server/firewall/bans/create')->assertOk()->assertSee('ARCPANEL');
+    $this->get('/server/firewall/bans/create')->assertOk()->assertSee('ARCPANEL')->assertSee('RECIDIVE')
+        ->assertSee('(IPv4 or IPv6, CIDR format supported)');
 
     $this->post('/server/firewall/bans', ['ip' => '198.51.100.0/24', 'chain' => 'MAIL'])
         ->assertRedirect('/server/firewall/bans')->assertSessionHas('ok', 'IP address has been banned successfully.');
@@ -261,6 +265,54 @@ it('has a capability for every firewall route', function () {
     expect($routes)->toContain('server.firewall', 'server.firewall.create', 'server.firewall.store', 'server.firewall.edit',
         'server.firewall.update', 'server.firewall.move', 'server.firewall.suspend', 'server.firewall.unsuspend',
         'server.firewall.destroy', 'server.firewall.bulk', 'server.firewall.ipsets', 'server.firewall.ipsets.store',
-        'server.firewall.ipsets.destroy', 'server.firewall.bans', 'server.firewall.bans.store', 'server.firewall.bans.destroy')
+        'server.firewall.ipsets.destroy', 'server.firewall.bans', 'server.firewall.bans.store', 'server.firewall.bans.destroy',
+        'server.firewall.reload')
         ->and(Capabilities::names())->toContain('server.firewall');
+});
+
+// E40: nftables with IPv6 (docs/features/specs/2026-10-19-002-e40-nftables-firewall-design.md)
+
+it('offers IPv6 lists in the rule form', function () {
+    signIn('arcadmin', 'admin');
+
+    $this->get('/server/firewall/create')->assertOk()
+        ->assertSee('value="ipset:blocked6"', false)->assertSee('value="ipset:country-nl"', false)
+        ->assertDontSee('value="ipset:old"', false)
+        ->assertSee('(IPv4 or IPv6, CIDR format supported)');
+});
+
+it('warns about a drifted or missing table and reloads it for administrators', function (string $status, string $title) {
+    $this->fake->on('v-check-firewall', ['json'])->returnsJson(['ENGINE' => 'nftables', 'STATUS' => $status, 'CHECKED' => '2026-10-19T12:00:00Z']);
+    $this->fake->on('v-update-firewall')->returns();
+    signIn('arcadmin', 'admin');
+
+    $this->get('/server/firewall')->assertOk()->assertSee($title)->assertSee('Reload firewall');
+    $this->post('/server/firewall/reload')->assertRedirect('/server/firewall')
+        ->assertSessionHas('ok', 'The firewall has been reloaded.');
+    $this->fake->assertRan('v-update-firewall', fn ($a) => $a === []);
+})->with([
+    'drift' => ['drift', 'The loaded firewall rules differ from these rules'],
+    'missing' => ['missing', 'The firewall rules are not loaded'],
+]);
+
+it('shows no warning while the table is in sync', function () {
+    signIn('arcadmin', 'admin');
+
+    $this->get('/server/firewall')->assertOk()->assertDontSee('Reload firewall');
+});
+
+it('reports a reload that nftables refuses', function () {
+    $this->fake->on('v-update-firewall')->returnsExit(ExitCode::Update, 'Error: nftables refused the firewall rules: custom.nft:1');
+    signIn('arcadmin', 'admin');
+
+    $this->post('/server/firewall/reload')->assertRedirect('/server/firewall')
+        ->assertSessionHas('error', 'Error: nftables refused the firewall rules: custom.nft:1');
+});
+
+it('refuses the reload to everyone but administrators', function () {
+    fakeResellers($this->fake);
+    signIn('hostco', 'reseller');
+
+    $this->post('/server/firewall/reload')->assertForbidden();
+    $this->fake->assertNotRan('v-update-firewall');
 });

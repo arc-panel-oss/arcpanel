@@ -68,6 +68,28 @@ test('admin: add, edit, move, suspend and delete a firewall rule', async ({ page
 	await expect(row(page, RULE)).toHaveCount(0);
 });
 
+test('admin: add and delete a rule for an IPv6 network (E40)', async ({ page }) => {
+	await login(page, ADMIN);
+	await page.goto('/server/firewall/create');
+	await page.getByRole('combobox', { name: 'Action' }).selectOption('DROP');
+	await page.getByRole('textbox', { name: 'Port', exact: true }).fill('4447');
+	await page.getByRole('textbox', { name: 'IP Address / IPset IP List' }).fill('2001:DB8:77::/48');
+	await page.getByRole('textbox', { name: 'Comment' }).fill(`${RULE}-v6`);
+	await page.getByRole('button', { name: 'Save' }).click();
+	await expectToast(page, 'Rule has been created successfully.');
+	await expect(row(page, `${RULE}-v6`)).toContainText('2001:db8:77::/48');
+	await expect(page.getByText('The loaded firewall rules differ from these rules')).toHaveCount(0);
+
+	await row(page, `${RULE}-v6`)
+		.getByLabel(/Actions for rule/)
+		.first()
+		.click();
+	await row(page, `${RULE}-v6`).getByRole('button', { name: 'Delete', exact: true }).click();
+	await page.getByRole('alertdialog').getByRole('button', { name: 'Confirm' }).click();
+	await expectToast(page, 'Rule has been deleted.');
+	await expect(row(page, `${RULE}-v6`)).toHaveCount(0);
+});
+
 test('admin: add and delete an IPset list', async ({ page }) => {
 	await login(page, ADMIN);
 	await page.goto('/server/firewall');

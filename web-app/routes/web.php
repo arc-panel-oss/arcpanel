@@ -209,6 +209,7 @@ Route::middleware('auth.arc')->group(function () {
             Route::middleware('not-readonly')->group(function () {
                 Route::post('/', [FirewallController::class, 'store'])->name('store');
                 Route::post('/bulk', [FirewallActionController::class, 'bulk'])->name('bulk');
+                Route::post('/reload', [FirewallController::class, 'reload'])->name('reload');
                 Route::prefix('{rule}')->whereNumber('rule')->group(function () {
                     Route::post('/edit', [FirewallController::class, 'update'])->name('update');
                     Route::post('/move/{direction}', [FirewallActionController::class, 'move'])->whereIn('direction', ['up', 'down'])->name('move');

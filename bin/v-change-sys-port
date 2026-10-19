@@ -84,7 +84,7 @@ else
 
 	# Restart services
 	if [ -n "$FIREWALL_SYSTEM" ] && [ "$FIREWALL_SYSTEM" != no ]; then
-		"$BIN/v-restart-service" iptables
+		"$BIN/v-update-firewall"
 	fi
 
 	# Check if ArcPanel is running

@@ -86,8 +86,8 @@ setup_file() {
 }
 
 @test "System task: a plugin task runs in a transient unit and records the result" {
-    # FIREWALL_SYSTEM is iptables on the test server: v-add-sys-firewall is a no-op
-    grep -q "^FIREWALL_SYSTEM='iptables'" "$ARCPANEL/conf/arcpanel.conf" || skip "firewall not enabled"
+    # FIREWALL_SYSTEM is nftables on the test server: v-add-sys-firewall is a no-op
+    grep -q "^FIREWALL_SYSTEM='nftables'" "$ARCPANEL/conf/arcpanel.conf" || skip "firewall not enabled"
     run v-start-sys-task plugin firewall on
     assert_success
     assert_output --regexp '^[0-9]{14}$'

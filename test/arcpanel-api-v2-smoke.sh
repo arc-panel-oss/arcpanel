@@ -748,6 +748,15 @@ else
 	check "the moved rule takes the position before" "$((RULE_ID - 1))" "$(json .data.id)"
 	check "deleteFirewallRule answers 204" 204 "$(call "$ADMIN" DELETE "/system/firewall/rules/$((RULE_ID - 1))")"
 	check "the rule is gone" 0 "$("$ARCPANEL/bin/v-list-firewall" json | jq '[.[] | select(.COMMENT == "arcsmoke")] | length')"
+
+	# E40: IPv6 sources and the state of the loaded table
+	rule6_json='{"action": "ACCEPT", "protocol": "TCP", "port": "65002", "source": "2001:DB8:77::/48", "comment": "arcsmoke"}'
+	check "createFirewallRule with an IPv6 source answers 201" 201 "$(call "$ADMIN" POST /system/firewall/rules "$rule6_json")"
+	check "the IPv6 source is stored in lower case" "2001:db8:77::/48" "$(json .data.source)"
+	check "deleteFirewallRule of the IPv6 rule answers 204" 204 "$(call "$ADMIN" DELETE "/system/firewall/rules/$(json .data.id)")"
+	check "getFirewallStatus answers 200" 200 "$(call "$ADMIN" GET /system/firewall/status)"
+	check "the loaded firewall matches the rules" ok "$(json .data.status)"
+	check "the firewall engine is nftables" nftables "$(json .data.engine)"
 fi
 
 # Services (§5.1)

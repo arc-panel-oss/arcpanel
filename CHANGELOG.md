@@ -6,6 +6,9 @@ All notable changes to ArcPanel are listed here. ArcPanel is based on HestiaCP 1
 
 ### Added
 
+- **IPv6 in the firewall.** The firewall runs on nftables: one table, `inet arcpanel`, filters IPv4 and IPv6 and is replaced in one step, checked first, so a rule set nftables refuses never replaces the one that runs. A port closed in the panel is now closed over IPv6 too; rules, bans and IP lists accept IPv6 addresses and networks, the IP list page offers IPv6 country lists, and Fail2Ban bans IPv6 addresses. `0.0.0.0/0` and `::/0` mean every address of both versions; ICMPv6 neighbour discovery is always allowed. See the [E40 spec](https://github.com/arc-panel-oss/docs/blob/main/features/specs/2026-10-19-002-e40-nftables-firewall-design.md).
+- `v-check-firewall` and `GET /api/v2/system/firewall/status` (`getFirewallStatus`) tell whether the loaded rules are still the panel's (`ok`, `drift`, `missing`); the Firewall page warns and offers a reload when they are not.
+- `data/firewall/custom.nft`: nftables commands loaded together with the panel's table.
 - Records of backup runs: every run of a tar or restic backup (nightly, requested in the panel or the API, or started on the server), failed ones included with the exit code and reason, the last 30 per user. `v-list-user-backup-runs` and `v-list-sys-backup-runs` list them, and REST API v2 answers `GET /users/{user}/backup-runs` and, for administrators and resellers, `GET /backup-runs` with `updated_since`. See the [Fleet PD1–PD4 spec](https://github.com/arc-panel-oss/docs/blob/main/features/specs/2026-10-19-001-fleet-pd-api-v2-follow-up-design.md).
 - The REST API v2 document names the permission set of each operation (`x-arcpanel-permission-set`), the values of `Task.status`, the 409 answers of `createBackup`, `restoreBackup` and `createNodeApp`, how a Let's Encrypt request reports a failure and renews a certificate, and how `setNodeAppEnv` keeps values.
 - The one-off task of app processes is a task of `GET /tasks/{id}` and `listUserTasks` (`app-process:USER:ID`), and `startAppProcessTask` sends `Link` to it.
@@ -13,11 +16,14 @@ All notable changes to ArcPanel are listed here. ArcPanel is based on HestiaCP 1
 
 ### Changed
 
+- The 2.3.0 upgrade moves the firewall from iptables and ipset to nftables (`FIREWALL_SYSTEM='nftables'`, unit `arcpanel-firewall.service` instead of `arcpanel-iptables.service`). When the new rules cannot be loaded, the server keeps its iptables rules and the upgrade warns. The `arcpanel` package depends on `nftables`; `ipset` is no longer installed. The firewall service is listed as `nftables`; `iptables` still works to start, stop and restart it. A `data/firewall/custom.sh` that calls `iptables` still runs, but its rules cannot open ports the new table drops: the upgrade warns, and `custom.nft` takes such rules.
+- Deleting an IP list that an active rule uses answers `E_INUSE` (`409` in REST API v2) and names the rule.
 - A queued task whose command fails and asks to run again (Let's Encrypt while DNS propagates) is retried at most `QUEUE_MAX_ATTEMPTS` times, 3 by default, and then fails; before, it was retried every five minutes without end. Every failed queue task carries the reason from its log in `error`.
 - The REST API v2 document declares `Link` on every `202` that starts a task and `Location` only where the answer names a resource, as the panel answers. Before, it declared `Location` on the backup, snapshot, malware scan, Docker engine and PHP operations, which send only `Link`.
 
 ### Fixed
 
+- The ban list of the panel and REST API v2 accepts the `RECIDIVE` chain of Fail2Ban.
 - A backup with only remote backup hosts that fails to upload exits with the error code of the upload instead of 0.
 
 - A change of the server configuration made outside the panel (for example `v-add-sys-api-ip` or `v-change-sys-config-value` over SSH) applies to the panel and REST API v2 at the next request. Before, the panel kept its cached copy of `arcpanel.conf` for up to 60 seconds, so API v2 could still refuse a newly allowed address with `E_API_DISABLED`. The commands that write `arcpanel.conf` now write a stamp that the panel compares with its copy.

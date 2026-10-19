@@ -1147,6 +1147,30 @@ is_ipv6_cidr_format_valid() {
 	fi
 }
 
+# IPv4 or IPv6 address with an optional prefix length (E40 firewall rules
+# and bans)
+is_ip_cidr_format_valid() {
+	object_name=${2-ip}
+	valid=$($ARCPANEL_PHP -r '
+		$parts = explode("/", $argv[1]);
+		if (count($parts) > 2) { exit("1"); }
+		[$ip, $net] = [$parts[0], $parts[1] ?? null];
+		if (str_contains($ip, ":")) {
+			$max = 128;
+			$ok = filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6) !== false;
+		} else {
+			$max = 32;
+			$ok = preg_match("/^(\d{1,3}\.){3}\d{1,3}$/", $ip) && filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4) !== false;
+		}
+		if ($ok && $net !== null) {
+			$ok = ctype_digit($net) && (int) $net <= $max;
+		}
+		echo $ok ? 0 : 1;' "$1")
+	if [ "$valid" -ne 0 ]; then
+		check_result "$E_INVALID" "invalid $object_name :: $1"
+	fi
+}
+
 # Address list of an access key (E43 B6): at most 20 distinct IPv4 or IPv6
 # addresses or CIDR networks, comma separated; empty means no restriction
 is_access_key_ips_format_valid() {
@@ -1768,6 +1792,7 @@ is_format_valid() {
 				ip46) is_ip46_format_valid "$arg" ;;
 				ipv4_cidr) is_ipv4_cidr_format_valid "$arg" ;;
 				ipv6_cidr) is_ipv6_cidr_format_valid "$arg" ;;
+				ip_cidr) is_ip_cidr_format_valid "$arg" ;;
 				ip_name) is_domain_format_valid "$arg" 'IP name' ;;
 				ip_status) is_ip_status_format_valid "$arg" ;;
 				job) is_int_format_valid "$arg" 'job' ;;

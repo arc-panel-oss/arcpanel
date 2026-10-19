@@ -4,7 +4,8 @@
 #
 # example: v-add-sys-firewall
 #
-# This function enables the system firewall.
+# This function enables the system firewall (nftables, IPv4 and IPv6). On a
+# server still on the iptables engine it moves the rules to nftables.
 
 #----------------------------------------------------------#
 #                Variables & Functions                     #
@@ -22,7 +23,7 @@ source_conf "$ARCPANEL/conf/arcpanel.conf"
 #                    Verifications                         #
 #----------------------------------------------------------#
 
-if [ "$FIREWALL_SYSTEM" = 'iptables' ]; then
+if [ "$FIREWALL_SYSTEM" = 'nftables' ]; then
 	exit
 fi
 
@@ -33,17 +34,28 @@ check_arcpanel_demo_mode
 #                       Action                             #
 #----------------------------------------------------------#
 
+if [ ! -x /usr/sbin/nft ]; then
+	apt-get --quiet --yes install nftables > /dev/null
+	check_result $? "Installing the nftables package"
+fi
+
 # Adding default ruleset
 if [ -z "$(ls -A $ARCPANEL/data/firewall 2> /dev/null)" ]; then
 	cp -rf $ARCPANEL_COMMON_DIR/firewall $ARCPANEL/data/
 	rm -f $ARCPANEL/data/firewall/ipset/blacklist.sh $ARCPANEL/data/firewall/ipset/blacklist.ipv6.sh
 fi
 
-# Updating FIREWAL_SYSTEM value
-$BIN/v-change-sys-config-value "FIREWALL_SYSTEM" "iptables"
+# Updating FIREWALL_SYSTEM value; the old value comes back when the table
+# does not load, so an iptables server keeps its rules
+previous="$FIREWALL_SYSTEM"
+$BIN/v-change-sys-config-value "FIREWALL_SYSTEM" "nftables"
 
 # Updating firewall rules
-$BIN/v-update-firewall
+output=$($BIN/v-update-firewall 2>&1)
+if [ $? -ne 0 ]; then
+	$BIN/v-change-sys-config-value "FIREWALL_SYSTEM" "$previous"
+	check_result "$E_UPDATE" "Unable to load the firewall: $(echo "$output" | sed -n 's/^Error: //p' | head -n 1)"
+fi
 
 #----------------------------------------------------------#
 #                         ArcPanel                         #

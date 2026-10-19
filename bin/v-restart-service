@@ -61,8 +61,8 @@ for service in $service_list; do
 		else
 			setsid sh -c 'sleep 2; service arcpanel restart' > /dev/null 2>&1 < /dev/null &
 		fi
-	elif [ "$service" = "iptables" ]; then
-		# Run the restart rules for iptables firewall
+	elif [ "$service" = "nftables" ] || [ "$service" = "iptables" ]; then
+		# Rebuild the firewall (iptables is the name of the engine before 2.3)
 		$BIN/v-stop-firewall
 		$BIN/v-update-firewall
 	elif [ "$restart" = "ssl" ] && [ "$service" = "nginx" ]; then

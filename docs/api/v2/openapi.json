@@ -2501,7 +2501,7 @@
             },
             "post": {
                 "operationId": "createFirewallIpset",
-                "description": "A rule uses an active IPv4 list as `source` `ipset:NAME`. A name that\nexists answers `409 E_EXISTS`.",
+                "description": "A rule uses an active list as `source` `ipset:NAME`; an IPv6 list\nmatches IPv6 traffic and an IPv4 list IPv4 traffic. A name that exists\nanswers `409 E_EXISTS`; a list with entries the firewall refuses\nanswers `422`.",
                 "summary": "Add an IPset list",
                 "tags": [
                     "Server"
@@ -2603,6 +2603,7 @@
         "/system/firewall/ipsets/{name}": {
             "delete": {
                 "operationId": "deleteFirewallIpset",
+                "description": "A list that an active rule uses cannot be deleted.",
                 "summary": "Delete an IPset list",
                 "tags": [
                     "Server"
@@ -2666,7 +2667,22 @@
                         "$ref": "#/components/responses/NotFound"
                     },
                     "409": {
-                        "$ref": "#/components/responses/Conflict"
+                        "description": "`E_INUSE`: An active firewall rule uses the list; the message names the rule.",
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Error"
+                                }
+                            }
+                        }
                     },
                     "422": {
                         "$ref": "#/components/responses/ValidationFailed"
@@ -3387,6 +3403,57 @@
                     },
                     "503": {
                         "$ref": "#/components/responses/Unavailable"
+                    }
+                },
+                "x-arcpanel-permission-set": "v2-server"
+            }
+        },
+        "/system/firewall/status": {
+            "get": {
+                "operationId": "getFirewallStatus",
+                "description": "Compares the nftables table that runs with the one the panel loaded\nlast, ignoring banned addresses. `drift` or `missing` means something\noutside the panel changed or removed it; restarting the `nftables`\nservice loads the rules again.",
+                "summary": "Check the loaded firewall",
+                "tags": [
+                    "Server"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "`FirewallStatus`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/FirewallStatus"
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
                     }
                 },
                 "x-arcpanel-permission-set": "v2-server"
@@ -32326,6 +32393,35 @@
                 ],
                 "title": "FirewallRule"
             },
+            "FirewallStatus": {
+                "type": "object",
+                "properties": {
+                    "engine": {
+                        "type": "string",
+                        "description": "FIREWALL_SYSTEM: `nftables`, or `iptables` on a server whose upgrade could not move its rules"
+                    },
+                    "status": {
+                        "type": "string",
+                        "description": "`drift`: the table changed outside the panel; `missing`: no table is loaded",
+                        "enum": [
+                            "ok",
+                            "drift",
+                            "missing",
+                            "off"
+                        ]
+                    },
+                    "checked_at": {
+                        "type": "string",
+                        "description": "UTC, YYYY-MM-DDTHH:MM:SSZ"
+                    }
+                },
+                "required": [
+                    "engine",
+                    "status",
+                    "checked_at"
+                ],
+                "title": "FirewallStatus"
+            },
             "GeneralSettings": {
                 "type": "object",
                 "description": "The `general` tab of the server settings.",
@@ -37435,7 +37531,8 @@
                             "DNS",
                             "MAIL",
                             "DB",
-                            "ARCPANEL"
+                            "ARCPANEL",
+                            "RECIDIVE"
                         ]
                     }
                 },
@@ -37503,7 +37600,7 @@
                     },
                     "source": {
                         "type": "string",
-                        "description": "An address, a network in CIDR format, or `ipset:NAME` for an IPv4 IPset list.",
+                        "description": "An IPv4 or IPv6 address, a network in CIDR format, or `ipset:NAME` for an IPset list of either version. `0.0.0.0/0` and `::/0` mean every address of both versions.",
                         "maxLength": 255
                     },
                     "comment": {

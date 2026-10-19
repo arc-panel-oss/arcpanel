@@ -53,8 +53,10 @@ final class FirewallIpsetController extends Controller
     /**
      * Add an IPset list
      *
-     * A rule uses an active IPv4 list as `source` `ipset:NAME`. A name that
-     * exists answers `409 E_EXISTS`.
+     * A rule uses an active list as `source` `ipset:NAME`; an IPv6 list
+     * matches IPv6 traffic and an IPv4 list IPv4 traffic. A name that exists
+     * answers `409 E_EXISTS`; a list with entries the firewall refuses
+     * answers `422`.
      *
      * @operationId createFirewallIpset
      *
@@ -84,9 +86,13 @@ final class FirewallIpsetController extends Controller
     /**
      * Delete an IPset list
      *
+     * A list that an active rule uses cannot be deleted.
+     *
      * @operationId deleteFirewallIpset
      *
      * @status 204
+     *
+     * @conflict E_INUSE An active firewall rule uses the list; the message names the rule.
      */
     public function destroy(string $name, Principal $principal, FirewallPolicy $policy): Response|JsonResponse
     {

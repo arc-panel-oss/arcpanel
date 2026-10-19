@@ -20,7 +20,7 @@ use Illuminate\View\View;
 final class ServiceConfigController extends Controller
 {
     /** Legacy editors that are pages of their own. */
-    private const REDIRECTS = ['iptables' => 'server.firewall', 'web-terminal' => 'server.services'];
+    private const REDIRECTS = ['nftables' => 'server.firewall', 'iptables' => 'server.firewall', 'web-terminal' => 'server.services'];
 
     /** Editors of php.ini, which the PHP page replaces (E41 §6.5). */
     private const PHP_EDITORS = ['php', 'php-fpm', 'php5-fpm'];

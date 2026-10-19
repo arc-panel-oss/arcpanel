@@ -85,6 +85,8 @@ it('plans service actions with the commands of the page', function () {
     expect([$restart->command, $restart->args])->toBe(['v-restart-service', ['nginx', 'yes']])
         ->and(SystemServices::step('stop', 'iptables')->command)->toBe('v-stop-firewall')
         ->and(SystemServices::step('start', 'iptables')->command)->toBe('v-update-firewall')
+        ->and(SystemServices::step('stop', 'nftables')->command)->toBe('v-stop-firewall')
+        ->and(SystemServices::step('restart', 'nftables')->command)->toBe('v-update-firewall')
         ->and([$server->command, $server->args])->toBe(['v-restart-system', ['yes']]);
 });
 

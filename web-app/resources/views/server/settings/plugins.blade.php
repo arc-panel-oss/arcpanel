@@ -5,7 +5,7 @@
         'web-terminal' => [__('Web Terminal'), __('A shell in the browser for accounts with SSH access.')],
         'cgroups' => [__('Resource Limits'), __('Limit CPU and memory of each user with cgroups.')],
         'quota' => [__('Disk Quota'), __('Enforce the disk quota of each user with file system quotas.')],
-        'firewall' => [__('Firewall'), __('The iptables firewall of the panel.')],
+        'firewall' => [__('Firewall'), __('The nftables firewall of the panel, for IPv4 and IPv6.')],
         'malware-scan' => [__('Malware scan'), __('Find PHP web shells in the web domains of every account, every night and on demand.')],
     ];
 @endphp

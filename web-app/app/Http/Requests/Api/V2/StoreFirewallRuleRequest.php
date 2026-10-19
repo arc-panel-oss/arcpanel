@@ -38,7 +38,7 @@ class StoreFirewallRuleRequest extends ApiRequest
             'protocol' => ['required', Rule::in(FirewallService::PROTOCOLS)],
             /** A port, a range (`80-82`) or a list (`80,443`); `0` (the default) is every port. */
             'port' => ['sometimes', 'string', 'max:255'],
-            /** An address, a network in CIDR format, or `ipset:NAME` for an IPv4 IPset list. */
+            /** An IPv4 or IPv6 address, a network in CIDR format, or `ipset:NAME` for an IPset list of either version. `0.0.0.0/0` and `::/0` mean every address of both versions. */
             'source' => ['required', 'string', 'max:255'],
             'comment' => ['sometimes', 'nullable', 'string', 'max:255'],
         ];

@@ -15,7 +15,7 @@
             <x-ap-input name="source" :label="__('Data Source')" :hint="__('(URL, script or file)')" required mono maxlength="255" autocomplete="off" x-model="source" />
             <x-ap-field :label="__('Known lists')" for="ipset-source-preset" :hint="__('Fill the data source with a known list.')">
                 <div class="ap-select-wrap">
-                    <select class="ap-select" id="ipset-source-preset" x-on:change="if ($event.target.value) source = $event.target.value">
+                    <select class="ap-select" id="ipset-source-preset" x-on:change="if ($event.target.value) { source = $event.target.value; $refs.version.value = $event.target.selectedOptions[0].dataset.version || 'v4' }">
                         <option value="">{{ __('Choose a list') }}</option>
                         <optgroup label="{{ __('Blacklist') }}">
                             <option value="script:{{ $blacklist }}">{{ __('[IPv4] Block Malicious IPs') }}</option>
@@ -25,11 +25,16 @@
                                 <option value="https://raw.githubusercontent.com/ipverse/rir-ip/master/country/{{ $iso }}/ipv4-aggregated.txt">[IPv4] {{ __('Country') }} - {{ $country }}</option>
                             @endforeach
                         </optgroup>
+                        <optgroup label="IPverse IPv6">
+                            @foreach ($countries as $iso => $country)
+                                <option value="https://raw.githubusercontent.com/ipverse/rir-ip/master/country/{{ $iso }}/ipv6-aggregated.txt" data-version="v6">[IPv6] {{ __('Country') }} - {{ $country }}</option>
+                            @endforeach
+                        </optgroup>
                     </select>
                     <x-ap-icon name="chevron-down" size="sm" />
                 </div>
             </x-ap-field>
-            <x-ap-select name="version" :label="__('IP Version')" :options="['v4' => __('IPv4'), 'v6' => __('IPv6')]" value="v4" required />
+            <x-ap-select name="version" x-ref="version" :label="__('IP Version')" :options="['v4' => __('IPv4'), 'v6' => __('IPv6')]" value="v4" required />
             <x-ap-select name="autoupdate" :label="__('Auto Update')" :options="['yes' => __('Yes'), 'no' => __('No')]" value="yes" required />
 
             <div class="ap-form-actions">

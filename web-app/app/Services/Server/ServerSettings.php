@@ -19,13 +19,19 @@ final class ServerSettings
 {
     public const TABS = ['general', 'web', 'dns', 'mail', 'databases', 'backups', 'ssl', 'security', 'plugins', 'white-label'];
 
-    /** Plugin => [arcpanel.conf key, value when installed]; installed and removed by the system task. */
+    /**
+     * Plugin => [arcpanel.conf key, value when installed]; installed and
+     * removed by the system task. The firewall is installed with nftables, or
+     * with iptables on a server whose 2.3 upgrade could not move its rules.
+     *
+     * @var array<string, array{0: string, 1: string|list<string>}>
+     */
     public const PLUGINS = [
         'filemanager' => ['FILE_MANAGER', 'true'],
         'web-terminal' => ['WEB_TERMINAL', 'true'],
         'cgroups' => ['RESOURCES_LIMIT', 'yes'],
         'quota' => ['DISK_QUOTA', 'yes'],
-        'firewall' => ['FIREWALL_SYSTEM', 'iptables'],
+        'firewall' => ['FIREWALL_SYSTEM', ['nftables', 'iptables']],
         'malware-scan' => ['MALWARE_SCAN', 'yes'],
     ];
 
@@ -542,9 +548,13 @@ final class ServerSettings
     /** Whether a plugin is installed now. */
     public function pluginInstalled(string $plugin): bool
     {
-        [$key, $value] = self::PLUGINS[$plugin];
+        return self::pluginOn($plugin, $this->config->get(self::PLUGINS[$plugin][0]));
+    }
 
-        return $this->config->get($key) === $value;
+    /** Whether a value of the plugin's arcpanel.conf key means installed. */
+    public static function pluginOn(string $plugin, ?string $value): bool
+    {
+        return in_array($value, (array) self::PLUGINS[$plugin][1], true);
     }
 
     /** `v-update-white-label-logo` (apply the custom logos) or `… yes yes` (restore the defaults). */

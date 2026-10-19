@@ -208,7 +208,7 @@ final class ServerSettingsApi
             )),
             'plugins' => [
                 'app_installer' => $get('PLUGIN_APP_INSTALLER', 'true') !== 'false',
-                'plugins' => array_map(fn (array $plugin) => $get($plugin[0]) === $plugin[1], ServerSettings::PLUGINS),
+                'plugins' => array_map(fn (string $plugin) => ServerSettings::pluginOn($plugin, $get(ServerSettings::PLUGINS[$plugin][0])), array_combine(array_keys(ServerSettings::PLUGINS), array_keys(ServerSettings::PLUGINS))),
             ],
             'white-label' => [
                 'APP_NAME' => $get('APP_NAME'),

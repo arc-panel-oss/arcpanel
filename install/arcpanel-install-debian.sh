@@ -90,7 +90,7 @@ node_v="24"
 software="7zip acl apache2 apache2-suexec-custom apache2-utils at awstats bc bind9 bsdmainutils bsdutils
   clamav-daemon cron curl dnsutils dovecot-imapd dovecot-managesieved dovecot-pop3d dovecot-sieve e2fslibs e2fsprogs
   exim4 exim4-daemon-heavy expect fail2ban flex ftp git arcpanel=${ARCPANEL_INSTALL_BUILD} arcpanel-nginx arcpanel-php arcpanel-web-terminal
-  idn2 imagemagick ipset jq libapache2-mod-fcgid libapache2-mod-php$fpm_v libapache2-mpm-itk libmail-dkim-perl lsb-release
+  idn2 imagemagick nftables jq libapache2-mod-fcgid libapache2-mod-php$fpm_v libapache2-mpm-itk libmail-dkim-perl lsb-release
   lsof mariadb-client mariadb-common mariadb-server mc mysql-client mysql-common mysql-server net-tools nginx nodejs openssh-server
   php$fpm_v php$fpm_v-apcu php$fpm_v-bz2 php$fpm_v-cgi php$fpm_v-cli php$fpm_v-common php$fpm_v-curl php$fpm_v-gd
   php$fpm_v-imagick php$fpm_v-imap php$fpm_v-intl php$fpm_v-ldap php$fpm_v-mbstring php$fpm_v-mysql
@@ -116,7 +116,7 @@ help() {
   -Z, --sieve             Install Sieve         [yes|no]  default: no
   -c, --clamav            Install ClamAV        [yes|no]  default: yes
   -t, --spamassassin      Install SpamAssassin  [yes|no]  default: yes
-  -i, --iptables          Install iptables      [yes|no]  default: yes
+  -i, --iptables          Install the firewall  [yes|no]  default: yes
   -b, --fail2ban          Install Fail2Ban      [yes|no]  default: yes
   -q, --quota             Filesystem Quota      [yes|no]  default: no
   -L, --resourcelimit     Resource Limitation   [yes|no]  default: no
@@ -863,7 +863,7 @@ fi
 
 # Firewall stack
 if [ "$iptables" = 'yes' ]; then
-	echo -n '   - Firewall (iptables)'
+	echo -n '   - Firewall (nftables)'
 fi
 if [ "$iptables" = 'yes' ] && [ "$fail2ban" = 'yes' ]; then
 	echo -n ' + Fail2Ban Access Monitor'
@@ -1252,7 +1252,7 @@ if [ "$fail2ban" = 'no' ]; then
 	software=$(echo "$software" | sed -e "s/fail2ban//")
 fi
 if [ "$iptables" = 'no' ]; then
-	software=$(echo "$software" | sed -e "s/ipset//")
+	software=$(echo "$software" | sed -e "s/nftables//")
 	software=$(echo "$software" | sed -e "s/fail2ban//")
 fi
 if [ "$webterminal" = 'no' ]; then
@@ -1554,7 +1554,7 @@ write_config_value "CRON_SYSTEM" "cron"
 
 # Firewall stack
 if [ "$iptables" = 'yes' ]; then
-	write_config_value "FIREWALL_SYSTEM" "iptables"
+	write_config_value "FIREWALL_SYSTEM" "nftables"
 fi
 if [ "$iptables" = 'yes' ] && [ "$fail2ban" = 'yes' ]; then
 	write_config_value "FIREWALL_EXTENSION" "fail2ban"

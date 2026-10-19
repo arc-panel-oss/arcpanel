@@ -23,6 +23,19 @@
         @endif
     </x-slot:actions>
 
+    @if ($status->needsReload())
+        <x-ap-alert tone="warn" :title="$status->status === 'missing' ? __('The firewall rules are not loaded') : __('The loaded firewall rules differ from these rules')">
+            {{ __('Something outside the panel changed or removed the nftables table of the firewall. Reload the firewall to apply the rules below again.') }}
+            @if ($canManage)
+                <x-slot:actions>
+                    <x-ap-form :action="route('server.firewall.reload')">
+                        <x-ap-button type="submit" icon="refresh">{{ __('Reload firewall') }}</x-ap-button>
+                    </x-ap-form>
+                </x-slot:actions>
+            @endif
+        </x-ap-alert>
+    @endif
+
     <x-ap-card :flush="true">
         @if ($rules === [])
             <x-ap-empty icon="shield" :title="__('No firewall rules')">{{ __('Add a rule to accept or drop traffic.') }}</x-ap-empty>

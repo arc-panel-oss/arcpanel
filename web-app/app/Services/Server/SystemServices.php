@@ -6,6 +6,7 @@ use App\Arc\ArcCommand;
 use App\Arc\CommandResult;
 use App\Arc\Options;
 use App\Arc\SysConfig;
+use App\Services\Firewall\FirewallService;
 use App\Services\Support\BulkResult;
 use App\Services\Support\BulkRunner;
 use App\Services\Support\PlanRunner;
@@ -189,7 +190,7 @@ final class SystemServices
      */
     private static function call(string $action, string $service): array
     {
-        if ($service === 'iptables') {
+        if (in_array($service, FirewallService::ENGINES, true)) {
             return [$action === 'stop' ? 'v-stop-firewall' : 'v-update-firewall', []];
         }
 

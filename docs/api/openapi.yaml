@@ -1131,13 +1131,14 @@ paths:
         - Firewall
       summary: Add firewall blocking rule
       description: |-
-        This function adds new blocking rule to system firewall
+        This function adds a blocking rule to the system firewall: the IPv4 or
+        IPv6 address or network joins the ban set of the chain
 
         **Arguments**
 
         | Field | Option | Required |
         | --- | --- | --- |
-        | `arg1` | `IPV4_CIDR` | yes |
+        | `arg1` | `IP_CIDR` | yes |
         | `arg2` | `CHAIN` | yes |
       requestBody:
         required: true
@@ -1175,7 +1176,8 @@ paths:
         - Firewall
       summary: Add firewall chain
       description: |-
-        This function adds new rule to system firewall
+        This function adds a Fail2Ban chain to the system firewall: two ban sets
+        (IPv4 and IPv6) that drop their addresses on the chain's ports
 
         **Arguments**
 
@@ -1220,7 +1222,8 @@ paths:
         - Firewall
       summary: Add firewall ipset
       description: |-
-        This function adds new ipset to system firewall
+        This function adds a new IP list to the system firewall, or refreshes one:
+        an nftables set of the list's IP version that rules use as ipset:NAME
 
         **Arguments**
 
@@ -1274,7 +1277,7 @@ paths:
         | Field | Option | Required |
         | --- | --- | --- |
         | `arg1` | `ACTION` | yes |
-        | `arg2` | `IPV4_CIDR` | yes |
+        | `arg2` | `IP_CIDR` | yes |
         | `arg3` | `PORT` | yes |
         | `arg4` | `PROTOCOL` | no |
         | `arg5` | `COMMENT` | no |
@@ -3078,7 +3081,8 @@ paths:
         - System
       summary: Add system firewall
       description: |-
-        This function enables the system firewall.
+        This function enables the system firewall (nftables, IPv4 and IPv6). On a
+        server still on the iptables engine it moves the rules to nftables.
 
         **Arguments:** none.
       requestBody:
@@ -7227,7 +7231,7 @@ paths:
         | --- | --- | --- |
         | `arg1` | `RULE` | yes |
         | `arg2` | `ACTION` | yes |
-        | `arg3` | `IPV4_CIDR` | yes |
+        | `arg3` | `IP_CIDR` | yes |
         | `arg4` | `PORT` | yes |
         | `arg5` | `PROTOCOL` | no |
         | `arg6` | `COMMENT` | no |
@@ -11242,6 +11246,55 @@ paths:
           $ref: "#/components/responses/InvalidRequest"
         "422":
           $ref: "#/components/responses/Unprocessable"
+  "/api/#v-check-firewall":
+    post:
+      operationId: v-check-firewall
+      tags:
+        - Firewall
+      summary: Check the loaded firewall against the configuration
+      description: |-
+        This function compares the loaded nftables table inet arcpanel with the
+        one saved at the last load, ignoring ban addresses. STATUS is ok, drift
+        (the table changed outside the panel), missing (no table is loaded) or
+        off (the firewall is disabled).
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `FORMAT` | no |
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-check-firewall"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-check-firewall"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+            application/json:
+              schema:
+                type: object
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
   "/api/#v-check-fs-permission":
     post:
       operationId: v-check-fs-permission
@@ -13065,7 +13118,7 @@ paths:
 
         | Field | Option | Required |
         | --- | --- | --- |
-        | `arg1` | `IPV4_CIDR` | yes |
+        | `arg1` | `IP_CIDR` | yes |
         | `arg2` | `CHAIN` | yes |
       requestBody:
         required: true
@@ -13103,7 +13156,8 @@ paths:
         - Firewall
       summary: Delete firewall chain
       description: |-
-        This function adds new rule to system firewall
+        This function deletes a Fail2Ban chain and its bans from the system
+        firewall
 
         **Arguments**
 
@@ -13146,7 +13200,8 @@ paths:
         - Firewall
       summary: Delete firewall ipset
       description: |-
-        This function removes ipset from system and from arcpanel
+        This function removes an IP list from the system firewall; a list that an
+        active rule uses is refused
 
         **Arguments**
 
@@ -32543,7 +32598,8 @@ paths:
         - Firewall
       summary: Stop system firewall
       description: |-
-        This function stops iptables
+        This function deletes the nftables table inet arcpanel and disables its
+        boot unit, so every port is reachable
 
         **Arguments:** none.
       requestBody:
@@ -35137,7 +35193,8 @@ paths:
         - Firewall
       summary: Update system firewall rules
       description: |-
-        This function updates iptables rules
+        This function rebuilds the nftables table inet arcpanel (IPv4 and IPv6)
+        from data/firewall and loads it in one transaction
 
         **Arguments:** none.
       requestBody:
@@ -35176,7 +35233,8 @@ paths:
         - Firewall
       summary: Update firewall ipset
       description: |-
-        This function creates ipset lists and updates the lists if they are expired or ondemand
+        This function refreshes the IP lists that are expired (no), all lists that
+        update automatically (yes) or none (load), then reloads the firewall once
 
         **Arguments**
 
@@ -38364,8 +38422,8 @@ components:
               default: v-add-firewall-ban
             arg1:
               type: string
-              title: IPV4_CIDR
-              description: "`IPV4_CIDR`"
+              title: IP_CIDR
+              description: "`IP_CIDR`"
               examples:
                 - "37.120.129.20"
             arg2:
@@ -38477,8 +38535,8 @@ components:
                 - DROP
             arg2:
               type: string
-              title: IPV4_CIDR
-              description: "`IPV4_CIDR`"
+              title: IP_CIDR
+              description: "`IP_CIDR`"
               examples:
                 - "185.137.111.77"
             arg3:
@@ -42803,8 +42861,8 @@ components:
                 - ACCEPT
             arg3:
               type: string
-              title: IPV4_CIDR
-              description: "`IPV4_CIDR`"
+              title: IP_CIDR
+              description: "`IP_CIDR`"
               examples:
                 - "5.188.123.17"
             arg4:
@@ -45686,6 +45744,31 @@ components:
                 - json
             returncode:
               $ref: "#/components/schemas/ReturnCode"
+    v-check-firewall:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-check-firewall
+              default: v-check-firewall
+            arg1:
+              type: string
+              title: FORMAT
+              description: "`FORMAT`, optional"
+              enum:
+                - json
+                - plain
+                - csv
+                - shell
+              examples:
+                - json
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
     v-check-fs-permission:
       allOf:
         - $ref: "#/components/schemas/Credentials"
@@ -46836,8 +46919,8 @@ components:
               default: v-delete-firewall-ban
             arg1:
               type: string
-              title: IPV4_CIDR
-              description: "`IPV4_CIDR`"
+              title: IP_CIDR
+              description: "`IP_CIDR`"
               examples:
                 - "198.11.130.250"
             arg2:

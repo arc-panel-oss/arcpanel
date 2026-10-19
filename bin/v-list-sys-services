@@ -329,7 +329,7 @@ fi
 # Checking FIREWALL system
 if [ -n "$FIREWALL_SYSTEM" ] && [ "$FIREWALL_SYSTEM" != 'remote' ]; then
 	state="stopped"
-	if $(iptables -S INPUT | grep -qx '\-P INPUT DROP'); then
+	if /usr/sbin/nft list table inet arcpanel > /dev/null 2>&1; then
 		state="running"
 	fi
 	data="$data\nNAME='$FIREWALL_SYSTEM' SYSTEM='firewall'"

@@ -26,6 +26,7 @@ final class FirewallController extends Controller
 
         return view('server.firewall.index', [
             'rules' => array_values($this->firewall->rules()),
+            'status' => $this->firewall->status(),
             'canManage' => $policy->manage($principal),
             'banlist' => $config->get('FIREWALL_EXTENSION') !== '',
             'bulkActions' => [
@@ -86,5 +87,19 @@ final class FirewallController extends Controller
         }
 
         return $back->with('ok', __('Changes have been saved.'));
+    }
+
+    /** POST /server/firewall/reload: load the rules again after a drift (E40 D13). */
+    public function reload(Principal $principal, FirewallPolicy $policy): RedirectResponse
+    {
+        abort_unless($policy->manage($principal), 403);
+
+        $result = $this->firewall->reload();
+        $back = redirect()->route('server.firewall');
+        if (! $result->ok()) {
+            return $back->with('error', $result->errorMessage());
+        }
+
+        return $back->with('ok', __('The firewall has been reloaded.'));
     }
 }

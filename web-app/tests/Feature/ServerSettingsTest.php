@@ -3,6 +3,7 @@
 use App\Arc\ExitCode;
 use App\Arc\SysConfig;
 use App\Policies\Capabilities;
+use App\Services\Server\ServerSettings;
 use Illuminate\Support\Facades\Route;
 
 // Server settings and the system task (E7 batch 3 spec §6, §8).
@@ -438,3 +439,14 @@ it('sets the shells resellers may give in their packages, from the shells of the
     $this->post('/server/settings/security', $form + ['POLICY_RESELLER_PACKAGE_SHELLS' => 'nologin,zsh'])->assertSessionHasErrors('POLICY_RESELLER_PACKAGE_SHELLS');
     $this->post('/server/settings/security', $form + ['POLICY_RESELLER_PACKAGE_SHELLS' => 'nologin,'])->assertSessionHasErrors('POLICY_RESELLER_PACKAGE_SHELLS');
 });
+
+it('counts the firewall plugin as installed with nftables or a not yet moved iptables (E40)', function (string $engine, bool $installed) {
+    withSysConfig($this->fake, ['FIREWALL_SYSTEM' => $engine]);
+
+    expect(app(ServerSettings::class)->pluginInstalled('firewall'))->toBe($installed)
+        ->and(ServerSettings::pluginOn('firewall', $engine))->toBe($installed);
+})->with([
+    'nftables' => ['nftables', true],
+    'iptables' => ['iptables', true],
+    'off' => ['', false],
+]);
