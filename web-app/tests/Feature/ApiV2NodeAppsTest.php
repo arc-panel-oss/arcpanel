@@ -167,3 +167,22 @@ it('creates an app with Location', function () {
         ->assertJsonPath('data.domain', 'shop.bob.example');
     $this->fake->assertRan('v-add-node-app', fn ($a) => $a[1] === 'shop.bob.example');
 });
+
+it('answers 409 with the existing app when the domain already has one (Fleet PD3)', function () {
+    $this->fake->on('v-add-node-app')->returnsExit(ExitCode::Exists, 'Error: api.bob.example already has a Node.js app');
+    $headers = apiAs($this->fake, 'bob', 'user', area: 'apps');
+
+    $this->postJson('/api/v2/users/bob/node-apps', ['domain' => 'api.bob.example', 'start' => 'npm:start'], $headers)->assertStatus(409)
+        ->assertJsonPath('error.code', 'E_EXISTS')
+        ->assertJsonPath('error.existing', '/api/v2/users/bob/node-apps/api.bob.example')
+        ->assertJsonPath('error.step.command', 'v-add-node-app');
+});
+
+it('answers 409 without existing when the domain has a Docker app (Fleet PD3)', function () {
+    $this->fake->on('v-add-node-app')->returnsExit(ExitCode::Exists, 'Error: ghost.example has a Docker app');
+    $headers = apiAs($this->fake, 'bob', 'user', area: 'apps');
+
+    $response = $this->postJson('/api/v2/users/bob/node-apps', ['domain' => 'ghost.example', 'start' => 'npm:start'], $headers)->assertStatus(409)
+        ->assertJsonPath('error.code', 'E_EXISTS');
+    expect($response->json('error'))->not->toHaveKey('existing');
+});

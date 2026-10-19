@@ -6,6 +6,8 @@ use App\Api\ApiException;
 use App\Api\ErrorCode;
 use App\Api\KeyPermissions;
 use App\Api\PlanGate;
+use App\Api\TaskId;
+use App\Api\TaskLink;
 use App\Arc\ExitCode;
 use App\Auth\Principal;
 use App\Http\Controllers\Controller;
@@ -310,8 +312,14 @@ final class AppProcessController extends Controller
             $this->gate->assertApplied($result);
         }
 
-        return response()->json(['data' => $this->taskData($this->processes->task($user))], 202)
+        $task = $this->processes->task($user);
+        $response = response()->json(['data' => $this->taskData($task)], 202)
             ->header('Location', route('api.v2.app-process-task.show', ['user' => $user]));
+        if ($task !== null) {
+            $response->header('Link', TaskLink::monitor((new TaskId(TaskId::SOURCE_APP_PROCESS, $task->id, $user))->apiId()));
+        }
+
+        return $response;
     }
 
     /**

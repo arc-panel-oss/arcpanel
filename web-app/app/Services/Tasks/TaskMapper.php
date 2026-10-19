@@ -46,6 +46,7 @@ final class TaskMapper
             TaskId::SOURCE_MALWARE => 'malware-scan',
             TaskId::SOURCE_NODE, TaskId::SOURCE_DOCKER => (string) ($row['ACTION'] ?? $row['KIND'] ?? ''),
             TaskId::SOURCE_QUEUE => (string) ($row['KIND'] ?? ''),
+            TaskId::SOURCE_APP_PROCESS => 'app-process',
         };
     }
 
@@ -77,6 +78,8 @@ final class TaskMapper
             TaskId::SOURCE_INSTALL => self::installResource($user, (string) ($row['DOMAIN'] ?? '')),
             TaskId::SOURCE_MALWARE => '/users/'.$user.'/malware/scans',
             TaskId::SOURCE_QUEUE => self::queueResource($user, (string) ($row['KIND'] ?? ''), (string) ($row['ARGS'] ?? '')),
+            TaskId::SOURCE_APP_PROCESS => ($row['DOMAIN'] ?? '') !== '' && ($row['NAME'] ?? '') !== ''
+                ? '/users/'.$user.'/app-processes/'.$row['DOMAIN'].'/'.$row['NAME'] : null,
             default => null,
         };
     }

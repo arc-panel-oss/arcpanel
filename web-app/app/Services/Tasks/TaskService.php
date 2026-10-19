@@ -12,7 +12,8 @@ use App\Arc\Options;
 use App\Arc\SysConfig;
 
 /**
- * Reads the seven task sources of the panel (E34 batch 3 spec §5).
+ * Reads the task sources of the panel (E34 batch 3 spec §5; the app process
+ * task since Fleet PD4).
  */
 final class TaskService
 {
@@ -31,6 +32,7 @@ final class TaskService
             TaskId::SOURCE_INSTALL => $this->getInstall($id, $lines),
             TaskId::SOURCE_QUEUE => $this->getQueue($id, $lines),
             TaskId::SOURCE_MALWARE => $this->getMalware($id, $lines),
+            TaskId::SOURCE_APP_PROCESS => $this->getAppProcess($id, $lines),
         };
     }
 
@@ -62,6 +64,11 @@ final class TaskService
             if ((string) ($row['ID'] ?? '') !== '') {
                 $tasks[] = $this->mapRow(new TaskId(TaskId::SOURCE_DOCKER, (string) $row['ID'], $user, $name), $row, $lines);
             }
+        }
+
+        $appProcess = $this->appProcessRow($user);
+        if ($appProcess !== null) {
+            $tasks[] = $this->mapRow(new TaskId(TaskId::SOURCE_APP_PROCESS, (string) $appProcess['ID'], $user), $appProcess, $lines);
         }
 
         foreach ($this->queueTasks($user) as $recordId => $row) {
@@ -197,6 +204,44 @@ final class TaskService
         }
 
         return $this->mapRow($id, $row, $lines);
+    }
+
+    private function getAppProcess(TaskId $id, int $lines): TaskView
+    {
+        $row = $this->appProcessRow((string) $id->user);
+        if ($row === null || (string) $row['ID'] !== $id->recordId) {
+            throw new ApiException(ErrorCode::Gone, 'The task result is no longer kept.', 410);
+        }
+
+        return $this->mapRow($id, $row, $lines);
+    }
+
+    /**
+     * The last one-off task of the user's app processes as a task row: KIND
+     * app-process, ARGS domain, process and task. Null when there is none.
+     *
+     * @return array<string, mixed>|null
+     */
+    private function appProcessRow(string $user): ?array
+    {
+        $task = $this->readJson('v-list-app-process-task', [$user])['TASK'] ?? null;
+        if (! is_array($task) || (string) ($task['ID'] ?? '') === '') {
+            return null;
+        }
+        $value = fn (string $key): string => is_scalar($task[$key] ?? null) ? (string) $task[$key] : '';
+
+        return [
+            'ID' => $value('ID'),
+            'KIND' => 'app-process',
+            'ARGS' => trim($value('DOMAIN').' '.$value('NAME').' '.$value('TASK')),
+            'DOMAIN' => $value('DOMAIN'),
+            'NAME' => $value('NAME'),
+            'STATUS' => $value('STATUS'),
+            'EXIT' => $value('EXIT'),
+            'START' => $value('START'),
+            'END' => $value('END'),
+            'LOG' => '',
+        ];
     }
 
     private function getInstall(TaskId $id, int $lines): TaskView

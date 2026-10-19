@@ -720,7 +720,11 @@ function apiAreaSets(): array
  */
 function fakeApi(array $config = []): ArcCommandFake
 {
-    return fakeArc(array_merge(['API_SYSTEM' => '2', 'API_ALLOWED_IP' => 'allow-all'], $config));
+    $fake = fakeArc(array_merge(['API_SYSTEM' => '2', 'API_ALLOWED_IP' => 'allow-all'], $config));
+    // No app process task unless a test says otherwise: task lists read it (Fleet PD4)
+    $fake->on('v-list-app-process-task')->returnsJson(['TASK' => null]);
+
+    return $fake;
 }
 
 /**

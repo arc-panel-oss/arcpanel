@@ -31,6 +31,10 @@ function fakeTaskSources($fake, string $user = 'bob'): void
     $fake->on('v-list-docker-app-task', [$user, 'kuma', '0', 'json'])->returnsJson(dockerTask([
         'ID' => '17280000005001', 'ACTION' => 'update', 'STATUS' => 'failed', 'EXIT' => '1', 'LOG' => "err\n", 'OFFSET' => '0',
     ]));
+    $fake->on('v-list-app-process-task', [$user, 'json'])->returnsJson(['TASK' => [
+        'ID' => '17280000003001', 'DOMAIN' => 'shop.example', 'NAME' => 'web', 'TASK' => 'migrate',
+        'STATUS' => 'done', 'EXIT' => '0', 'START' => '2026-10-07 08:00:00', 'END' => '2026-10-07 08:00:30',
+    ]]);
     $fake->on('v-list-user-tasks', [$user, 'json'])->returnsJson([
         '17280000004002' => ['ID' => '17280000004002', 'KIND' => 'letsencrypt', 'ARGS' => 'shop.example', 'STATUS' => 'queued', 'EXIT' => '', 'ERROR' => '',
             'QUEUED' => '2026-10-08 08:00:00', 'START' => '', 'END' => '', 'LOG' => ''],
@@ -132,7 +136,7 @@ it('lists user tasks newest first and respects the tree', function () {
     $this->getJson('/api/v2/users/bob/tasks', apiAs($this->fake, 'hostco', 'reseller'))->assertOk()
         ->assertJsonPath('data.0.id', 'queue:bob:17280000004002')
         ->assertJsonFragment(['id' => 'queue:bob:17280000004001', 'status' => 'succeeded'])
-        ->assertJsonCount(5, 'data');
+        ->assertJsonCount(6, 'data');
     $this->getJson('/api/v2/users/carol/tasks', apiAs($this->fake, 'hostco', 'reseller'))->assertNotFound();
 });
 
@@ -141,12 +145,12 @@ it('pages the user tasks with limit and offset', function () {
     $headers = apiAs($this->fake, 'bob', 'user', readOnly: true);
 
     $all = $this->getJson('/api/v2/users/bob/tasks', $headers)->assertOk()
-        ->assertJsonPath('meta.total', 5)
+        ->assertJsonPath('meta.total', 6)
         ->assertJsonMissingPath('meta.limit')
         ->json('data.*.id');
     $this->getJson('/api/v2/users/bob/tasks?limit=2&offset=1', $headers)->assertOk()
         ->assertJsonPath('data.*.id', array_slice($all, 1, 2))
-        ->assertJsonPath('meta', ['total' => 5, 'limit' => 2, 'offset' => 1]);
+        ->assertJsonPath('meta', ['total' => 6, 'limit' => 2, 'offset' => 1]);
     $this->getJson('/api/v2/users/bob/tasks?limit=0', $headers)->assertUnprocessable();
 });
 
@@ -209,4 +213,31 @@ it('lets a v2-read key and an area key follow tasks', function () {
         ->assertStatus(202)
         ->assertHeader('Link');
     $this->fake->assertRan('v-schedule-letsencrypt-domain');
+});
+
+// Fleet PD4: the one-off task of app processes is a task source
+// (docs/features/specs/2026-10-19-001-fleet-pd-api-v2-follow-up-design.md §6)
+it('reads the app process task as a task and lists it with the others', function () {
+    fakeTaskSources($this->fake);
+    $headers = apiAs($this->fake, 'bob', 'user', readOnly: true);
+
+    $this->getJson('/api/v2/tasks/app-process:bob:17280000003001', $headers)->assertOk()
+        ->assertJsonPath('data.id', 'app-process:bob:17280000003001')
+        ->assertJsonPath('data.kind', 'app-process')
+        ->assertJsonPath('data.status', 'succeeded')
+        ->assertJsonPath('data.exit_code', 0)
+        ->assertJsonPath('data.args', 'shop.example web migrate')
+        ->assertJsonPath('data.started_at', '2026-10-07T08:00:00')
+        ->assertJsonPath('data.finished_at', '2026-10-07T08:00:30')
+        ->assertJsonPath('data.resource', '/users/bob/app-processes/shop.example/web');
+    $ids = array_column($this->getJson('/api/v2/users/bob/tasks', $headers)->assertOk()->json('data'), 'id');
+    expect($ids)->toContain('app-process:bob:17280000003001');
+});
+
+it('answers 410 for an app process task that is no longer kept, 404 outside the tree', function () {
+    fakeTaskSources($this->fake);
+
+    $this->getJson('/api/v2/tasks/app-process:bob:17280000003999', apiAs($this->fake, 'bob', 'user', readOnly: true))->assertStatus(410)
+        ->assertJsonPath('error.code', 'E_GONE');
+    $this->getJson('/api/v2/tasks/app-process:bob:17280000003001', apiAs($this->fake, 'carol', 'user', readOnly: true))->assertNotFound();
 });

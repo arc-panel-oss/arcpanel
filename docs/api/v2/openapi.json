@@ -111,6 +111,105 @@
                 }
             }
         },
+        "/backup-runs": {
+            "get": {
+                "operationId": "listAllBackupRuns",
+                "description": "Every user's backup runs for an administrator's key, those of the reseller\nand its customers for a reseller's key; a user's key answers 403\n(`listBackupRuns` covers it). Sorted by user, then newest first. With\n`updated_since`, only the users whose runs changed at or after that time\nare returned, each with all its runs: `meta.as_of` is the next\n`updated_since`, `meta.users` every user in scope and\n`meta.changed_users` the users returned (Fleet PD2, as E43 B2).",
+                "summary": "List the backup runs of every user",
+                "tags": [
+                    "Backups"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Array of `BackupRun`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/components/schemas/BackupRun"
+                                            }
+                                        },
+                                        "meta": {
+                                            "$ref": "#/components/schemas/CrossUserListMeta"
+                                        }
+                                    },
+                                    "required": [
+                                        "data",
+                                        "meta"
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    }
+                },
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "query",
+                        "description": "One user in the scope of the key; the list then holds only that user. A user outside the scope answers 404.",
+                        "schema": {
+                            "type": "string",
+                            "pattern": "^[[:alnum:]][-.\\w]{0,28}[[:alnum:]]$"
+                        }
+                    },
+                    {
+                        "name": "updated_since",
+                        "in": "query",
+                        "description": "ISO 8601 time, UTC without an offset: only the users whose objects of this kind changed at or after it, each with all its objects. Use the `meta.as_of` of the previous first page.",
+                        "schema": {
+                            "type": "string",
+                            "format": "date-time"
+                        }
+                    },
+                    {
+                        "name": "limit",
+                        "in": "query",
+                        "description": "Page size, from 1 to 1000. Without it the list is complete.",
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 1000
+                        }
+                    },
+                    {
+                        "name": "offset",
+                        "in": "query",
+                        "description": "Items to skip. Used when `limit` is set; 0 when omitted.",
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 0
+                        }
+                    }
+                ]
+            }
+        },
         "/backups": {
             "get": {
                 "operationId": "listAllBackups",
@@ -10753,6 +10852,98 @@
                     },
                     "404": {
                         "$ref": "#/components/responses/NotFound"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    }
+                }
+            }
+        },
+        "/users/{user}/backup-runs": {
+            "get": {
+                "operationId": "listBackupRuns",
+                "description": "Every run of a tar or restic backup of the user, newest first: the\nnightly backup (`trigger: schedule`), requests queued by the panel or\nthe API (`request`, with their `task`) and runs started on the server\n(`cli`), failed ones included with their `exit_code` and `error`. The\nserver keeps the last 30 runs. A run whose process ended without\nfinishing its record is `failed` with the error `interrupted` once the\nnext run of the user starts (Fleet PD2).",
+                "summary": "List the backup runs of a user",
+                "tags": [
+                    "Backups"
+                ],
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "limit",
+                        "in": "query",
+                        "description": "Page size, from 1 to 1000. Without it the list is complete.",
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 1000
+                        }
+                    },
+                    {
+                        "name": "offset",
+                        "in": "query",
+                        "description": "Items to skip. Used when `limit` is set; 0 when omitted.",
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 0
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Array of `BackupRun`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/components/schemas/BackupRun"
+                                            }
+                                        },
+                                        "meta": {
+                                            "$ref": "#/components/schemas/ListMeta"
+                                        }
+                                    },
+                                    "required": [
+                                        "data",
+                                        "meta"
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
                     },
                     "429": {
                         "$ref": "#/components/responses/TooManyRequests"
@@ -29591,6 +29782,107 @@
                     "user"
                 ],
                 "title": "BackupExclusions"
+            },
+            "BackupRun": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "description": "14 digits, the start time in seconds and four random digits"
+                    },
+                    "user": {
+                        "type": "string",
+                        "description": "the owner"
+                    },
+                    "engine": {
+                        "type": "string",
+                        "enum": [
+                            "tar",
+                            "restic"
+                        ]
+                    },
+                    "trigger": {
+                        "type": "string",
+                        "description": "`schedule` for the nightly backup, `request` for a queued request of the panel or the API, `cli` for anything else",
+                        "enum": [
+                            "schedule",
+                            "request",
+                            "cli"
+                        ]
+                    },
+                    "task": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "the task of a requested run, for `getTask` while it is kept"
+                    },
+                    "status": {
+                        "type": "string",
+                        "enum": [
+                            "running",
+                            "succeeded",
+                            "failed"
+                        ]
+                    },
+                    "started_at": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "start time in the server's time zone, YYYY-MM-DDTHH:MM:SS"
+                    },
+                    "finished_at": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "set when the run has ended"
+                    },
+                    "exit_code": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ],
+                        "description": "set when the run has ended; 0 is success"
+                    },
+                    "error": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "the reason of a failure; `interrupted` when the process ended without finishing the record"
+                    },
+                    "archive": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "the archive name (tar) or snapshot id (restic) of a successful run"
+                    },
+                    "size_mb": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ],
+                        "description": "size of a tar archive in megabytes"
+                    }
+                },
+                "required": [
+                    "id",
+                    "user",
+                    "engine",
+                    "trigger",
+                    "task",
+                    "status",
+                    "started_at",
+                    "finished_at",
+                    "exit_code",
+                    "error",
+                    "archive",
+                    "size_mb"
+                ],
+                "title": "BackupRun"
             },
             "BackupsSettings": {
                 "type": "object",

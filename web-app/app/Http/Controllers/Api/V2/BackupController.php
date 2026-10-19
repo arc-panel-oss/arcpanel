@@ -18,6 +18,7 @@ use App\Http\Requests\Api\V2\RestoreSnapshotRequest;
 use App\Http\Requests\Api\V2\SetBackupExclusionsRequest;
 use App\Http\Resources\V2\BackupExclusionsResource;
 use App\Http\Resources\V2\BackupResource;
+use App\Http\Resources\V2\BackupRunResource;
 use App\Http\Resources\V2\SnapshotFileEntryResource;
 use App\Http\Resources\V2\SnapshotListingEntry;
 use App\Http\Resources\V2\SnapshotResource;
@@ -25,6 +26,7 @@ use App\Http\Resources\V2\TaskResource;
 use App\Policies\BackupPolicy;
 use App\Services\Backups\BackupArchive;
 use App\Services\Backups\BackupPaths;
+use App\Services\Backups\BackupRun;
 use App\Services\Backups\BackupService;
 use App\Services\Files\FilePath;
 use App\Services\Files\InvalidFilePath;
@@ -91,6 +93,47 @@ final class BackupController extends Controller
         $page['meta']['incremental'] = $settings['incremental'];
 
         return BackupResource::collection($page['items'])->additional(['meta' => $page['meta']]);
+    }
+
+    /**
+     * List the backup runs of every user
+     *
+     * Every user's backup runs for an administrator's key, those of the reseller
+     * and its customers for a reseller's key; a user's key answers 403
+     * (`listBackupRuns` covers it). Sorted by user, then newest first. With
+     * `updated_since`, only the users whose runs changed at or after that time
+     * are returned, each with all its runs: `meta.as_of` is the next
+     * `updated_since`, `meta.users` every user in scope and
+     * `meta.changed_users` the users returned (Fleet PD2, as E43 B2).
+     *
+     * @operationId listAllBackupRuns
+     */
+    public function runsAll(Request $request, CrossUserList $lists): AnonymousResourceCollection
+    {
+        $page = $lists->page($request, 'v-list-sys-backup-runs', BackupRun::fromArray(...), fn (BackupRun $run) => $run->sortKey());
+
+        return BackupRunResource::collection($page['items'])->additional(['meta' => $page['meta']]);
+    }
+
+    /**
+     * List the backup runs of a user
+     *
+     * Every run of a tar or restic backup of the user, newest first: the
+     * nightly backup (`trigger: schedule`), requests queued by the panel or
+     * the API (`request`, with their `task`) and runs started on the server
+     * (`cli`), failed ones included with their `exit_code` and `error`. The
+     * server keeps the last 30 runs. A run whose process ended without
+     * finishing its record is `failed` with the error `interrupted` once the
+     * next run of the user starts (Fleet PD2).
+     *
+     * @operationId listBackupRuns
+     */
+    public function runs(Request $request, string $user, Principal $principal, BackupPolicy $policy): AnonymousResourceCollection
+    {
+        $this->assertOwner($user, $principal, $policy);
+        $page = $this->pages->slice($request, $this->backups->runs($user));
+
+        return BackupRunResource::collection($page['items'])->additional(['meta' => $page['meta']]);
     }
 
     /**

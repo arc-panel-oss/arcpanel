@@ -9,6 +9,7 @@ use App\Api\KeyPermissions;
 use App\Api\PlanGate;
 use App\Api\TaskId;
 use App\Api\TaskLink;
+use App\Arc\ArcCommandException;
 use App\Arc\ExitCode;
 use App\Auth\Principal;
 use App\Http\Controllers\Controller;
@@ -25,6 +26,8 @@ use App\Services\Node\NodeAppActions;
 use App\Services\Node\NodeAppService;
 use App\Services\Node\NodeService;
 use App\Services\Tasks\TaskMapper;
+use App\Services\WebDomains\ApplyResult;
+use App\Services\WebDomains\Step;
 use App\Tenancy\TenancyDirectory;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -106,9 +109,15 @@ final class NodeAppController extends Controller
         $domain = strtolower((string) $request->input('domain'));
         $payload = $this->actions->createPayload($request->validated());
         $steps = [$this->apps->planCreate($user, $domain, $payload)];
-        if ($preview = $this->gate->execute($steps, $this->apps->apply(...))) {
-            return $preview;
+        $this->gate->authorize($steps);
+        if ($this->gate->dryRun()) {
+            return $this->gate->preview($steps);
         }
+        $result = $this->apps->apply($steps);
+        if ($result->exitCode === ExitCode::Exists->value) {
+            $this->assertNoExistingApp($result, $user, $domain);
+        }
+        $this->gate->assertApplied($result);
 
         return (new NodeAppResource($this->apps->show($user, $domain)))->response()->setStatusCode(201)
             ->header('Location', route('api.v2.node-apps.show', ['user' => $user, 'domain' => $domain]));
@@ -416,6 +425,34 @@ final class NodeAppController extends Controller
     private function assertOwner(string $user, Principal $principal, NodePolicy $policy): void
     {
         abort_unless($policy->viewApps($principal, $user) && array_key_exists($user, $this->directory->all()), 404);
+    }
+
+    /**
+     * A create refused because the domain already has a Node.js app answers
+     * 409 with `existing`, the path of that app (Fleet PD3). A domain with a
+     * Docker app keeps the plain 409.
+     */
+    private function assertNoExistingApp(ApplyResult $result, string $user, string $domain): void
+    {
+        try {
+            $existing = $this->apps->show($user, $domain)->domain === $domain;
+        } catch (ArcCommandException) {
+            $existing = false;
+        }
+        if (! $existing) {
+            return;
+        }
+
+        throw new ApiException(
+            ErrorCode::Exists,
+            $result->error,
+            409,
+            [
+                'step' => $result->failed !== null ? PlanGate::describe($result->failed, withArgs: false) : null,
+                'applied' => array_map(fn (Step $step) => PlanGate::describe($step, withArgs: false), $result->applied),
+            ],
+            existing: route('api.v2.node-apps.show', ['user' => $user, 'domain' => $domain], false),
+        );
     }
 
     private function assertManageApps(Principal $principal, string $user, NodePolicy $policy): void

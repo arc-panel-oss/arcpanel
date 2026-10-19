@@ -68,6 +68,20 @@ final class BackupService
         return $archives;
     }
 
+    /** @return list<BackupRun> newest first (Fleet PD2) */
+    public function runs(string $user): array
+    {
+        $runs = [];
+        foreach ($this->arc->json('v-list-user-backup-runs', [$user]) as $id => $row) {
+            if (is_array($row) && preg_match('/^\d{14}$/', (string) $id) === 1) {
+                $runs[] = BackupRun::fromArray($user, (string) $id, $row);
+            }
+        }
+        usort($runs, fn (BackupRun $a, BackupRun $b) => $a->sortKey() <=> $b->sortKey());
+
+        return $runs;
+    }
+
     /** One archive of the user; 404 when it is not in the user's list. */
     public function archive(string $user, string $name): BackupArchive
     {

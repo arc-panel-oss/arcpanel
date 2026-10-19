@@ -86,6 +86,7 @@ Route::get('/databases', [DatabaseController::class, 'indexAll'])->name('databas
 Route::get('/cron-jobs', [CronController::class, 'indexAll'])->name('cron-jobs.all');
 Route::get('/node-apps', [NodeAppController::class, 'indexAll'])->name('node-apps.all');
 Route::get('/backups', [BackupController::class, 'indexAll'])->name('backups.all');
+Route::get('/backup-runs', [BackupController::class, 'runsAll'])->name('backup-runs.all');
 
 // Malware scan summary of the principal's tree (E25 batch 1 spec §9)
 Route::get('/malware', [MalwareController::class, 'summary'])->middleware('sys-config:MALWARE_SCAN=yes')->name('malware.summary');
@@ -379,6 +380,7 @@ Route::middleware('effective-user')->group(function () {
 
     // Backups (E34 batch 3 spec §6.1)
     Route::get('/users/{user}/backups', [BackupController::class, 'index'])->name('backups.index');
+    Route::get('/users/{user}/backup-runs', [BackupController::class, 'runs'])->name('backup-runs.index');
     Route::get('/users/{user}/backups/{backup}', [BackupController::class, 'show'])->name('backups.show');
     Route::get('/users/{user}/backups/{backup}/download', [BackupController::class, 'download'])->name('backups.download');
     Route::middleware('not-readonly')->group(function () {
@@ -558,7 +560,7 @@ foreach (Route::getRoutes() as $route) {
         str_contains($uri, '/mail-domains') => 'mail',
         str_contains($uri, '/databases') => 'db',
         str_contains($uri, '/cron-jobs'), str_contains($uri, '/cron-reports') => 'cron',
-        str_contains($uri, '/backups'), str_contains($uri, '/snapshots'), str_contains($uri, '/backup-exclusions') => 'backup',
+        str_contains($uri, '/backups'), str_contains($uri, '/backup-runs'), str_contains($uri, '/snapshots'), str_contains($uri, '/backup-exclusions') => 'backup',
         str_contains($uri, '/tasks') => 'backup',
         str_contains($uri, '/files') => 'files',
         str_contains($uri, '/system/docker') || str_contains($uri, '/system/ports') => 'server',

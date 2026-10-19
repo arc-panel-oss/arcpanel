@@ -370,7 +370,7 @@ it('declares an area on the batch 1 routes', function () {
             str_contains($uri, '/mail-domains') => 'mail',
             str_contains($uri, '/databases') => 'db',
             str_contains($uri, '/cron-jobs'), str_contains($uri, '/cron-reports') => 'cron',
-            str_contains($uri, '/backups'), str_contains($uri, '/snapshots'), str_contains($uri, '/backup-exclusions') => 'backup',
+            str_contains($uri, '/backups'), str_contains($uri, '/backup-runs'), str_contains($uri, '/snapshots'), str_contains($uri, '/backup-exclusions') => 'backup',
             str_contains($uri, '/tasks') => 'backup',
             str_contains($uri, '/files') => 'files',
             str_contains($uri, '/system/docker') || str_contains($uri, '/system/ports') => 'server',
