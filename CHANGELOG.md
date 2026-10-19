@@ -7,6 +7,12 @@ All notable changes to ArcPanel are listed here. ArcPanel is based on HestiaCP 1
 ### Fixed
 
 - A change of the server configuration made outside the panel (for example `v-add-sys-api-ip` or `v-change-sys-config-value` over SSH) applies to the panel and REST API v2 at the next request. Before, the panel kept its cached copy of `arcpanel.conf` for up to 60 seconds, so API v2 could still refuse a newly allowed address with `E_API_DISABLED`. The commands that write `arcpanel.conf` now write a stamp that the panel compares with its copy.
+- The description of the permission set `v2-apps` on the Access keys page and in `GET /api/v2/access-key-sets` names app processes, which the set has granted since 2.1.3.
+- The package form no longer shows an internal reference in the hint of Ports.
+
+### Changed
+
+- The Add process page of an account without web domains links to the Add Web Domain page.
 
 ## 2.2.0 — 2026-10-17
 

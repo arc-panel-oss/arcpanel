@@ -55,7 +55,8 @@ it('opens the wizard and the page of a process', function () {
     signIn('bob', 'user');
 
     $props = processIslandProps($this->get('/app-processes/bob/create?domain=Shop.Bob.Example')->assertOk()->getContent());
-    expect($props['view'])->toBe('create')->and($props['domain'])->toBe('shop.bob.example');
+    expect($props['view'])->toBe('create')->and($props['domain'])->toBe('shop.bob.example')
+        ->and($props['pages']['domains'])->toBe(route('web.domains.create'))->and($props['strings'])->toHaveKey('Add Web Domain');
 
     $props = processIslandProps($this->get('/app-processes/bob/shop.bob.example/web')->assertOk()->assertSee('127.0.0.1:30001')->getContent());
     expect($props['view'])->toBe('show')

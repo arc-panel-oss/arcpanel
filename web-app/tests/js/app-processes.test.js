@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
 	defaultMemory,
 	defaultName,
@@ -91,5 +91,36 @@ describe('app processes model (E42)', () => {
 		expect(envErrors([{ key: 'HOME', value: 'x' }], reserved)).toEqual({ 0: '%s is set by the panel.' });
 		expect(envErrors([{ key: 'NODE_ENV', value: 'x' }], reserved)).toEqual({});
 		expect(envErrors([{ key: 'NODE_ENV', value: 'x' }])).toEqual({ 0: '%s is set by the panel.' });
+	});
+});
+
+describe('create wizard', () => {
+	afterEach(() => {
+		vi.unstubAllGlobals();
+		document.body.innerHTML = '';
+	});
+
+	it('links to a new web domain when the account has none', async () => {
+		const options = { domains: [], presets: [], hasRoom: true, maxMemory: 0, defaultMemory: 512, maxCpus: '1' };
+		vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, json: async () => options })));
+		const { mount } = await import('../../resources/js/islands/app-processes/index.js');
+		const element = document.createElement('div');
+		document.body.append(element);
+		const app = mount(element, {
+			view: 'create',
+			user: 'bob',
+			base: '/app-processes/bob/api',
+			strings: {},
+			pages: { list: '/app-processes/bob', create: '/app-processes/bob/create', show: '/x/__DOMAIN__/__NAME__', domains: '/web/domains/create' },
+			abilities: { manage: true, remove: true },
+			readOnly: false,
+		});
+		await new Promise((resolve) => setTimeout(resolve, 0));
+		await new Promise((resolve) => setTimeout(resolve, 0));
+
+		expect(element.textContent).toContain('Add a web domain first; a process runs for one domain.');
+		const link = [...element.querySelectorAll('a')].find((a) => a.textContent.includes('Add Web Domain'));
+		expect(link?.getAttribute('href')).toBe('/web/domains/create');
+		app.unmount();
 	});
 });

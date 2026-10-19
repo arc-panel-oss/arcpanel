@@ -274,3 +274,23 @@ it('puts every table in a horizontal scroll box, so narrow screens do not scroll
 
     expect($bare)->toBe([]);
 });
+
+it('keeps epic codes such as E12 out of translated UI strings', function () {
+    $found = [];
+    foreach ([app_path(), resource_path('views'), resource_path('js')] as $root) {
+        $files = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($root, FilesystemIterator::SKIP_DOTS));
+        foreach ($files as $file) {
+            if (! preg_match('/\.(php|vue|js)$/', $file->getFilename())) {
+                continue;
+            }
+            preg_match_all('/\b(?:__|t)\(\s*(\'[^\']*\'|"[^"]*")/', (string) file_get_contents($file->getPathname()), $matches);
+            foreach ($matches[1] as $string) {
+                if (preg_match('/\bE\d{1,2}\b/', $string)) {
+                    $found[] = $string;
+                }
+            }
+        }
+    }
+
+    expect($found)->toBe([]);
+});
