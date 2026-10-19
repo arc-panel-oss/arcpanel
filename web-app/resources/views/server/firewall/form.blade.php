@@ -38,7 +38,7 @@
                 <x-ap-select name="protocol" :label="__('Protocol')" :options="['TCP' => __('TCP'), 'UDP' => __('UDP'), 'ICMP' => __('ICMP')]" :value="$rule?->protocol ?? 'TCP'" required />
                 <x-ap-input name="port" :label="__('Port')" :value="$rule?->port" :hint="__('(Ranges and lists are acceptable)')"
                     placeholder="{{ __('All ports: 0, Range: 80-82, List: 80,443,8080,8443') }}" required mono autocomplete="off" />
-                <x-ap-input name="ip" :value="$rule?->ip" :label="__('IP Address / IPset IP List')" :hint="__('(IPv4 or IPv6, CIDR format supported)')" required mono autocomplete="off" x-model="ip" />
+                <x-ap-input name="ip" :value="$rule?->ip" :label="__('IP Address / IPset IP List')" :hint="__('IPv4 or IPv6, CIDR format supported; 0.0.0.0/0 or ::/0 means every address of both versions.')" required mono autocomplete="off" x-model="ip" />
                 @if ($ipsets !== [])
                     <x-ap-select name="ipset" :label="__('IPset IP Lists')" :placeholder="__('Choose a list')"
                         :options="collect($ipsets)->mapWithKeys(fn ($name) => ['ipset:'.$name => $name])->all()"
