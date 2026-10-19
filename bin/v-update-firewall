@@ -71,6 +71,14 @@ fi
 # Boot unit
 fw_install_unit
 
+# The distribution's nftables.service flushes the ruleset: masked while unused
+fw_mask_distro_unit
+
+# A Fail2Ban action from before 2.3 is replaced; Fail2Ban restarts once the
+# lock is free
+fw_unlock
+fw_sync_f2b_action
+
 #----------------------------------------------------------#
 #                         ArcPanel                         #
 #----------------------------------------------------------#

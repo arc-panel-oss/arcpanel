@@ -345,7 +345,7 @@ it('reports the state of the loaded firewall to administrators only', function (
 
     $response = $this->getJson('/api/v2/system/firewall/status', apiAs($this->fake, $principal, $role, readOnly: true))->assertStatus($status);
     if ($status === 200) {
-        $response->assertExactJson(['data' => ['engine' => 'nftables', 'status' => 'drift', 'checked_at' => '2026-10-19T12:00:00Z']]);
+        $response->assertExactJson(['data' => ['engine' => 'nftables', 'status' => 'drift', 'checked_at' => '2026-10-19T12:00:00Z', 'warnings' => []]]);
     } else {
         $this->fake->assertNotRan('v-check-firewall');
     }
@@ -360,6 +360,17 @@ it('answers the status with a key that holds only the server area', function () 
 
     $this->getJson('/api/v2/system/firewall/status', apiAs($this->fake, 'arcadmin', 'admin', readOnly: true, area: 'server'))->assertOk()
         ->assertJsonPath('data.status', 'ok');
+});
+
+it('returns the warnings of the firewall check that it knows', function () {
+    $this->fake->on('v-check-firewall', ['json'])->returnsJson([
+        'ENGINE' => 'nftables', 'STATUS' => 'ok', 'CHECKED' => '2026-10-19T12:00:00Z',
+        'WARNINGS' => ['fail2ban-action', 'ipv6-ssh', 'some-later-code'],
+    ]);
+
+    $this->getJson('/api/v2/system/firewall/status', apiAs($this->fake, 'arcadmin', 'admin', readOnly: true))->assertOk()
+        ->assertJsonPath('data.status', 'ok')
+        ->assertJsonPath('data.warnings', ['fail2ban-action', 'ipv6-ssh']);
 });
 
 it('passes IPv6 sources and IPv6 lists to the rule commands', function () {

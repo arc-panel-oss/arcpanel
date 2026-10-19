@@ -17,6 +17,7 @@ FW_UNIT="/etc/systemd/system/arcpanel-firewall.service"
 FW_LOCK="/run/arcpanel-firewall.lock"
 FW_LEGACY_UNIT="/lib/systemd/system/arcpanel-iptables.service"
 FW_LEGACY_RULES="/etc/iptables.rules"
+FW_F2B_ACTION="/etc/fail2ban/action.d/arcpanel.conf"
 
 # ICMPv6 types accepted before the rules (spec D4)
 FW_ICMPV6_TYPES='destination-unreachable, packet-too-big, time-exceeded, parameter-problem, nd-router-solicit, nd-router-advert, nd-neighbor-solicit, nd-neighbor-advert, mld-listener-query, mld-listener-report, mld2-listener-report, ind-neighbor-solicit, ind-neighbor-advert'
@@ -320,7 +321,7 @@ Description=ArcPanel firewall (nftables)
 DefaultDependencies=no
 Wants=network-pre.target
 Before=network-pre.target fail2ban.service shutdown.target
-After=local-fs.target
+After=local-fs.target nftables.service
 Conflicts=shutdown.target
 
 [Service]
@@ -375,4 +376,119 @@ fw_legacy_cleanup() {
 # nftables table drops (spec D11)
 fw_custom_sh_uses_iptables() {
 	[ -f "$ARCPANEL/data/firewall/custom.sh" ] && grep -qE '(^|[^[:alnum:]_-])(ip6?tables)([^[:alnum:]_-]|$)' "$ARCPANEL/data/firewall/custom.sh"
+}
+
+# Whether the Fail2Ban action differs from the packaged one; a 2.2 action
+# waits 30 s on the lock and bans into iptables (spec §16 H1)
+fw_f2b_action_stale() {
+	[ -n "$FIREWALL_EXTENSION" ] && [ -d "$(dirname "$FW_F2B_ACTION")" ] || return 1
+	! cmp -s "$ARCPANEL_INSTALL_DIR/fail2ban/action.d/arcpanel.conf" "$FW_F2B_ACTION"
+}
+
+# Replace a stale Fail2Ban action and restart Fail2Ban without waiting: its
+# actions take the firewall lock, which the caller may still hold
+fw_sync_f2b_action() {
+	fw_f2b_action_stale || return 0
+	install -m 644 "$ARCPANEL_INSTALL_DIR/fail2ban/action.d/arcpanel.conf" "$FW_F2B_ACTION"
+	systemctl -q --no-block try-restart fail2ban 2> /dev/null
+	return 0
+}
+
+# The distribution's nftables.service flushes the whole ruleset when it
+# starts, reloads or stops (spec §16 H3). It is masked while nobody uses it;
+# an enabled or running unit is the administrator's and is only reported.
+fw_distro_unit_in_use() {
+	case "$(systemctl is-enabled nftables.service 2> /dev/null)" in
+		enabled | enabled-runtime) return 0 ;;
+	esac
+	systemctl -q is-active nftables.service 2> /dev/null
+}
+fw_mask_distro_unit() {
+	[ "$(systemctl is-enabled nftables.service 2> /dev/null)" = 'disabled' ] || return 0
+	systemctl -q is-active nftables.service 2> /dev/null && return 0
+	systemctl -q mask nftables.service 2> /dev/null
+	return 0
+}
+fw_unmask_distro_unit() {
+	[ "$(systemctl is-enabled nftables.service 2> /dev/null)" = 'masked' ] || return 0
+	systemctl -q unmask nftables.service 2> /dev/null
+	return 0
+}
+
+# Whether a PORT field (22, 80,443, 12000-12100, 1:65535, 0) holds a port
+fw_port_covers() {
+	local field="$1" port="$2" part
+	[ "$field" = '0' ] && return 0
+	for part in ${field//,/ }; do
+		part="${part//:/-}"
+		if [[ "$part" == *-* ]]; then
+			[ "$port" -ge "${part%-*}" ] && [ "$port" -le "${part#*-}" ] && return 0
+		elif [ "$part" = "$port" ]; then
+			return 0
+		fi
+	done
+	return 1
+}
+
+# The families (4, 6) whose sources an active TCP ACCEPT rule opens a port
+# to; rule order and DROP rules are not weighed (spec §16 H2)
+fw_port_families() {
+	local port="$1" dir="$ARCPANEL/data/firewall" line src list
+	[ -f "$dir/rules.conf" ] || return 0
+	while IFS= read -r line; do
+		[ -z "$line" ] && continue
+		parse_object_kv_list "$line"
+		[ "$SUSPENDED" = 'no' ] && [ "$ACTION" = 'ACCEPT' ] && [ "$PROTOCOL" = 'TCP' ] || continue
+		fw_port_covers "$PORT" "$port" || continue
+		src="$IP"
+		if fw_is_any "$src"; then
+			printf '4\n6\n'
+		elif [[ "$src" =~ ^ipset: ]]; then
+			list=$(grep -F "LISTNAME='${src#ipset:}'" "$dir/ipset.conf" 2> /dev/null | head -n 1)
+			[ -n "$list" ] || continue
+			parse_object_kv_list "$list"
+			[ "$SUSPENDED" = 'no' ] && echo "${IP_VERSION#v}"
+		else
+			fw_family "$src"
+		fi
+	done < "$dir/rules.conf" | sort -u
+}
+
+# Whether a port is opened to IPv4 sources but to no IPv6 source
+fw_port_ipv4_only() {
+	local families
+	families=$(fw_port_families "$1")
+	grep -qx 4 <<< "$families" && ! grep -qx 6 <<< "$families"
+}
+
+# ipv6-ssh and ipv6-panel: before 2.3 IPv6 was not filtered, so a port
+# opened to IPv4 sources only is closed over IPv6 since the move (spec §16 H2)
+fw_ipv6_warnings() {
+	local port ssh=''
+	[ "$FIREWALL_SYSTEM" = 'nftables' ] || return 0
+	[ -n "$(fw_own_ipv6)" ] || return 0
+	for port in $("$BIN/v-list-sys-sshd-port" plain 2> /dev/null); do
+		fw_port_ipv4_only "$port" && ssh=1
+	done
+	[ -n "$ssh" ] && echo ipv6-ssh
+	fw_port_ipv4_only "${BACKEND_PORT:-8083}" && echo ipv6-panel
+	return 0
+}
+
+# Warning codes of v-check-firewall, one per line (spec §16)
+fw_warnings() {
+	fw_f2b_action_stale && echo fail2ban-action
+	fw_distro_unit_in_use && echo nftables-service
+	fw_ipv6_warnings
+}
+
+# The text of a warning code, for the upgrade output and the system log
+fw_warning_text() {
+	case "$1" in
+		fail2ban-action) echo "The Fail2Ban action /etc/fail2ban/action.d/arcpanel.conf is not the packaged one; v-update-firewall replaces it." ;;
+		nftables-service) echo "nftables.service is enabled or running: starting, reloading or stopping it flushes the whole ruleset, including the ArcPanel firewall and Docker's tables. Disable it (systemctl disable nftables)." ;;
+		ipv6-ssh) echo "The SSH port is open to IPv4 sources only, so it is closed over IPv6 although the server has an IPv6 address. Add a firewall rule with an IPv6 source if you connect over IPv6." ;;
+		ipv6-panel) echo "The panel port is open to IPv4 sources only, so it is closed over IPv6 although the server has an IPv6 address. Add a firewall rule with an IPv6 source if you connect over IPv6." ;;
+		*) echo "$1" ;;
+	esac
 }
