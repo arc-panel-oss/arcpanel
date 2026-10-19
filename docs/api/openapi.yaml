@@ -11573,7 +11573,8 @@ paths:
         This function compares the loaded nftables table inet arcpanel with the
         one saved at the last load, ignoring ban addresses. STATUS is ok, drift
         (the table changed outside the panel), missing (no table is loaded) or
-        off (the firewall is disabled).
+        off (the firewall is disabled). WARNINGS lists codes that leave STATUS as
+        it is: fail2ban-action, nftables-service, ipv6-ssh, ipv6-panel.
 
         **Arguments**
 

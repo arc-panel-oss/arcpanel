@@ -7,7 +7,8 @@
 # This function compares the loaded nftables table inet arcpanel with the
 # one saved at the last load, ignoring ban addresses. STATUS is ok, drift
 # (the table changed outside the panel), missing (no table is loaded) or
-# off (the firewall is disabled).
+# off (the firewall is disabled). WARNINGS lists codes that leave STATUS as
+# it is: fail2ban-action, nftables-service, ipv6-ssh, ipv6-panel.
 
 #----------------------------------------------------------#
 #                Variables & Functions                     #
@@ -29,7 +30,8 @@ source_conf "$ARCPANEL/conf/arcpanel.conf"
 # JSON list function
 json_list() {
 	jq -n --arg engine "$engine" --arg status "$status" --arg checked "$checked" \
-		'{ENGINE: $engine, STATUS: $status, CHECKED: $checked}'
+		--arg warnings "$warnings" \
+		'{ENGINE: $engine, STATUS: $status, CHECKED: $checked, WARNINGS: ($warnings | split(",") | map(select(length > 0)))}'
 }
 
 # SHELL list function
@@ -37,17 +39,18 @@ shell_list() {
 	echo "ENGINE:         $engine"
 	echo "STATUS:         $status"
 	echo "CHECKED:        $checked"
+	echo "WARNINGS:       $warnings"
 }
 
 # PLAIN list function
 plain_list() {
-	echo -e "$engine\t$status\t$checked"
+	echo -e "$engine\t$status\t$checked\t$warnings"
 }
 
 # CSV list function
 csv_list() {
-	echo "ENGINE,STATUS,CHECKED"
-	echo "$engine,$status,$checked"
+	echo "ENGINE,STATUS,CHECKED,WARNINGS"
+	echo "$engine,$status,$checked,\"$warnings\""
 }
 
 #----------------------------------------------------------#
@@ -64,8 +67,10 @@ engine="$FIREWALL_SYSTEM"
 checked=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
 if [ -z "$FIREWALL_SYSTEM" ] || [ "$FIREWALL_SYSTEM" = 'remote' ]; then
 	status='off'
+	warnings=''
 else
 	status=$(fw_check_state)
+	warnings=$(fw_warnings | paste -sd ',' -)
 fi
 
 # Listing data

@@ -36,6 +36,38 @@
         </x-ap-alert>
     @endif
 
+    @foreach ($status->warnings as $warning)
+        @switch($warning)
+            @case('fail2ban-action')
+                <x-ap-alert tone="warn" :title="__('The Fail2Ban action is out of date')">
+                    {{ __('Fail2Ban still uses the action of an older release, so its bans wait for the firewall lock and do not reach the firewall. Reload the firewall to replace the action.') }}
+                    @if ($canManage)
+                        <x-slot:actions>
+                            <x-ap-form :action="route('server.firewall.reload')">
+                                <x-ap-button type="submit" icon="refresh">{{ __('Reload firewall') }}</x-ap-button>
+                            </x-ap-form>
+                        </x-slot:actions>
+                    @endif
+                </x-ap-alert>
+            @break
+            @case('nftables-service')
+                <x-ap-alert tone="warn" :title="__('The nftables service of the distribution is enabled')">
+                    {{ __('Starting, reloading or stopping nftables.service removes every nftables table, the firewall included. Disable it on the server (systemctl disable nftables) unless you need it.') }}
+                </x-ap-alert>
+            @break
+            @case('ipv6-ssh')
+                <x-ap-alert tone="warn" :title="__('SSH is closed over IPv6')">
+                    {{ __('The rules open the SSH port to IPv4 addresses only, and this server has an IPv6 address. Add a rule with an IPv6 source if you connect over IPv6.') }}
+                </x-ap-alert>
+            @break
+            @case('ipv6-panel')
+                <x-ap-alert tone="warn" :title="__('The panel is closed over IPv6')">
+                    {{ __('The rules open the panel port to IPv4 addresses only, and this server has an IPv6 address. Add a rule with an IPv6 source if you connect over IPv6.') }}
+                </x-ap-alert>
+            @break
+        @endswitch
+    @endforeach
+
     <x-ap-card :flush="true">
         @if ($rules === [])
             <x-ap-empty icon="shield" :title="__('No firewall rules')">{{ __('Add a rule to accept or drop traffic.') }}</x-ap-empty>

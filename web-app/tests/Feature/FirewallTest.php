@@ -301,6 +301,34 @@ it('shows no warning while the table is in sync', function () {
     $this->get('/server/firewall')->assertOk()->assertDontSee('Reload firewall');
 });
 
+// E40 hardening (spec §16)
+
+it('shows one alert per firewall warning and ignores codes it does not know', function () {
+    $this->fake->on('v-check-firewall', ['json'])->returnsJson([
+        'ENGINE' => 'nftables', 'STATUS' => 'ok', 'CHECKED' => '2026-10-19T12:00:00Z',
+        'WARNINGS' => ['nftables-service', 'ipv6-ssh', 'ipv6-panel', 'some-later-code'],
+    ]);
+    signIn('arcadmin', 'admin');
+
+    $this->get('/server/firewall')->assertOk()
+        ->assertSee('The nftables service of the distribution is enabled')
+        ->assertSee('SSH is closed over IPv6')
+        ->assertSee('The panel is closed over IPv6')
+        ->assertDontSee('some-later-code')
+        ->assertDontSee('The Fail2Ban action is out of date')
+        ->assertDontSee('Reload firewall');
+});
+
+it('offers a reload that replaces an outdated Fail2Ban action', function () {
+    $this->fake->on('v-check-firewall', ['json'])->returnsJson([
+        'ENGINE' => 'nftables', 'STATUS' => 'ok', 'CHECKED' => '2026-10-19T12:00:00Z', 'WARNINGS' => ['fail2ban-action'],
+    ]);
+    signIn('arcadmin', 'admin');
+
+    $this->get('/server/firewall')->assertOk()
+        ->assertSee('The Fail2Ban action is out of date')->assertSee('Reload firewall');
+});
+
 it('reports a reload that nftables refuses', function () {
     $this->fake->on('v-update-firewall')->returnsExit(ExitCode::Update, 'Error: nftables refused the firewall rules: custom.nft:1');
     signIn('arcadmin', 'admin');

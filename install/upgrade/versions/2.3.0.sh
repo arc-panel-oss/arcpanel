@@ -31,6 +31,19 @@ if [ "$FIREWALL_SYSTEM" = 'iptables' ] || [ "$FIREWALL_SYSTEM" = 'nftables' ]; t
 		"$BIN/v-log-action" "system" "Warning" "Firewall" "data/firewall/custom.sh calls iptables; move its rules to data/firewall/custom.nft."
 	fi
 
+	# What the move may have closed or put at risk: SSH or the panel closed
+	# over IPv6, the distribution's nftables.service (spec §16)
+	if [ "$("$BIN/v-check-firewall" json 2> /dev/null | jq -r '.ENGINE' 2> /dev/null)" = 'nftables' ]; then
+		# shellcheck source=/usr/local/arcpanel/func/firewall.sh
+		source "$ARCPANEL/func/firewall.sh"
+		fw_mask_distro_unit
+		for fw_warning in $("$BIN/v-check-firewall" json 2> /dev/null | jq -r '.WARNINGS[]?' 2> /dev/null); do
+			fw_text=$(fw_warning_text "$fw_warning")
+			echo "[ ! ] $fw_text"
+			"$BIN/v-log-action" "system" "Warning" "Firewall" "$fw_text"
+		done
+	fi
+
 	if [ -n "$FIREWALL_EXTENSION" ] && systemctl -q is-active fail2ban 2> /dev/null; then
 		systemctl restart fail2ban
 	fi

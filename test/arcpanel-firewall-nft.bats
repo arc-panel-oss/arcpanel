@@ -5,6 +5,8 @@
 # network namespace, joined to the host by a veth pair with an IPv4 and an
 # IPv6 address on each side, reaches listeners on the host, so every check
 # is made from "outside" over both families. Uses ports 38950-38954.
+# Some cases suspend the SSH and panel rules for a moment, mask or enable
+# nftables.service, and turn the firewall off and on again.
 
 if [ "${PATH#*/usr/local/arcpanel/bin*}" = "$PATH" ]; then
     . /etc/profile.d/arcpanel.sh
@@ -55,6 +57,34 @@ ban_set_has() {
     nft list set inet arcpanel "$1" | grep -q -- "$2"
 }
 
+# The name of the SSH jail once Fail2Ban answers and lists it, within 30 s
+f2b_ssh_jail() {
+    local jail=''
+    for _ in $(seq 1 30); do
+        if fail2ban-client ping > /dev/null 2>&1; then
+            jail=$(fail2ban-client status 2> /dev/null | sed -n 's/.*Jail list:\s*//p' | tr ',' '\n' | tr -d ' ' | grep -m 1 '^ssh') && break
+        fi
+        sleep 1
+    done
+    echo "$jail"
+}
+
+# Active ACCEPT rules whose PORT is exactly the port
+accept_rules_for_port() {
+    v-list-firewall json | jq -r --arg p "$1" 'to_entries[] | select(.value.PORT == $p and .value.ACTION == "ACCEPT" and .value.SUSPENDED == "no") | .key'
+}
+
+delete_rule_tagged() {
+    local id
+    id=$(rule_id "$1")
+    [ -z "$id" ] || v-delete-firewall-rule "$id" > /dev/null
+}
+
+# Run the 2.3.0 upgrade step as func/upgrade.sh sources it
+run_upgrade_step() {
+    bash -c 'source /etc/arcpanel/arcpanel.conf; source "$ARCPANEL/func/main.sh"; source_conf "$ARCPANEL/conf/arcpanel.conf"; source "$ARCPANEL/install/upgrade/versions/2.3.0.sh"'
+}
+
 setup_file() {
     local port
     if [ "$(v-list-sys-config json | jq -r '.config.FIREWALL_SYSTEM')" != 'nftables' ]; then
@@ -88,6 +118,17 @@ setup_file() {
 }
 
 teardown_file() {
+    # A case that turns the firewall off may stop before it turns it on
+    if [ "$(v-list-sys-config json | jq -r '.config.FIREWALL_SYSTEM')" != 'nftables' ]; then
+        v-add-sys-firewall > /dev/null 2>&1 || true
+    fi
+    if ! cmp -s "$ARCPANEL/install/deb/fail2ban/action.d/arcpanel.conf" /etc/fail2ban/action.d/arcpanel.conf; then
+        cp -f "$ARCPANEL/install/deb/fail2ban/action.d/arcpanel.conf" /etc/fail2ban/action.d/arcpanel.conf
+        systemctl restart fail2ban
+    fi
+    if [ -s "$BATS_FILE_TMPDIR/suspended" ]; then
+        while read -r id; do v-unsuspend-firewall-rule "$id" > /dev/null 2>&1 || true; done < "$BATS_FILE_TMPDIR/suspended"
+    fi
     delete_tagged_rules
     for name in arcbats-l4 arcbats-l6; do
         v-delete-firewall-ipset "$name" > /dev/null 2>&1 || true
@@ -351,16 +392,11 @@ teardown_file() {
 }
 
 @test "firewall: Fail2Ban bans an IPv6 address into the chain's set" {
-    local jail=''
+    local jail
     systemctl restart fail2ban
     # The sets outlive the restart: wait for the server to answer and to
     # list the SSH jail, not for the sets
-    for _ in $(seq 1 30); do
-        if fail2ban-client ping > /dev/null 2>&1; then
-            jail=$(fail2ban-client status 2> /dev/null | sed -n 's/.*Jail list:\s*//p' | tr ',' '\n' | tr -d ' ' | grep -m 1 '^ssh') && break
-        fi
-        sleep 1
-    done
+    jail=$(f2b_ssh_jail)
     [ -n "$jail" ]
     run nft list set inet arcpanel f2b_SSH_6
     assert_success
@@ -382,6 +418,130 @@ teardown_file() {
     refute_output --partial 2001:db8::77
     run grep -c "2001:db8::77" "$FW/banlist.conf"
     assert_output 0
+}
+
+@test "firewall: a stale Fail2Ban action is reported and replaced by a load" {
+    local packaged=$ARCPANEL/install/deb/fail2ban/action.d/arcpanel.conf action=/etc/fail2ban/action.d/arcpanel.conf before
+    # The 2.2 action: no lock variable, an iptables check; teardown_file
+    # puts the packaged file back if the load does not
+    sed -e 's/ARCPANEL_FIREWALL_LOCK_HELD=1 //' -e 's/^actioncheck = .*/actioncheck = iptables -n -L INPUT | grep -q fail2ban-<name>/' "$packaged" > "$action"
+    run v-check-firewall json
+    assert_success
+    assert_equal "$(jq -r .STATUS <<< "$output")" ok
+    assert_output --partial '"fail2ban-action"'
+    before=$(systemctl show -p ActiveEnterTimestampMonotonic --value fail2ban)
+    run v-update-firewall
+    assert_success
+    run cmp "$packaged" "$action"
+    assert_success
+    run v-check-firewall json
+    refute_output --partial fail2ban-action
+    # Fail2Ban restarts without holding up the load and reads the new action
+    for _ in $(seq 1 30); do
+        [ "$(systemctl show -p ActiveEnterTimestampMonotonic --value fail2ban)" != "$before" ] && break
+        sleep 1
+    done
+    assert_not_equal "$(systemctl show -p ActiveEnterTimestampMonotonic --value fail2ban)" "$before"
+    [ -n "$(f2b_ssh_jail)" ]
+}
+
+@test "firewall: SSH and panel ports open to IPv4 sources only are reported while the host has IPv6" {
+    local sshports panelport port id tag
+    sshports=$(v-list-sys-sshd-port plain)
+    panelport=$(v-list-sys-config json | jq -r '.config.BACKEND_PORT // "8083"')
+    run v-check-firewall json
+    refute_output --partial '"ipv6-'
+    # Open both ports to the probe's IPv4 address only
+    for port in $sshports $panelport; do
+        for id in $(accept_rules_for_port "$port"); do
+            v-suspend-firewall-rule "$id" > /dev/null
+            echo "$id" >> "$BATS_FILE_TMPDIR/suspended"
+        done
+    done
+    for port in $sshports; do
+        v-add-firewall-rule ACCEPT "$NS4" "$port" TCP "$TAG-ssh4" > /dev/null
+    done
+    v-add-firewall-rule ACCEPT "$NS4" "$panelport" TCP "$TAG-panel4" > /dev/null
+    run v-check-firewall json
+    assert_success
+    assert_equal "$(jq -r .STATUS <<< "$output")" ok
+    assert_output --partial '"ipv6-ssh"'
+    assert_output --partial '"ipv6-panel"'
+    # The upgrade step prints the warning
+    run run_upgrade_step
+    assert_success
+    assert_output --partial 'over IPv6'
+    # Without a global IPv6 address nothing is reported
+    ip -6 addr del "$HOST6/64" dev "$HOST_IF"
+    if [ -z "$(ip -6 -o addr show scope global)" ]; then
+        run v-check-firewall json
+        refute_output --partial '"ipv6-'
+    fi
+    ip -6 addr add "$HOST6/64" dev "$HOST_IF" nodad
+    # A rule with an IPv6 source clears the warning of its port
+    for port in $sshports; do
+        v-add-firewall-rule ACCEPT fd00:77::/64 "$port" TCP "$TAG-ssh6" > /dev/null
+    done
+    run v-check-firewall json
+    refute_output --partial '"ipv6-ssh"'
+    assert_output --partial '"ipv6-panel"'
+    for tag in ssh6 ssh4 panel4; do
+        while [ -n "$(rule_id "$TAG-$tag")" ]; do delete_rule_tagged "$TAG-$tag"; done
+    done
+    while read -r id; do v-unsuspend-firewall-rule "$id" > /dev/null; done < "$BATS_FILE_TMPDIR/suspended"
+    rm -f "$BATS_FILE_TMPDIR/suspended"
+    run v-check-firewall json
+    refute_output --partial '"ipv6-'
+}
+
+@test "firewall: the distribution's nftables unit is masked unless it is in use" {
+    systemctl unmask nftables 2> /dev/null
+    systemctl disable nftables 2> /dev/null
+    run v-update-firewall
+    assert_success
+    run systemctl is-enabled nftables
+    assert_output masked
+    # Its start would flush the ruleset; masked, it cannot run
+    run systemctl restart nftables
+    assert_failure
+    run nft list table inet arcpanel
+    assert_success
+    run grep -E '^After=.*nftables\.service' /etc/systemd/system/arcpanel-firewall.service
+    assert_success
+    # An enabled unit is the administrator's: left alone and reported
+    systemctl unmask nftables
+    systemctl enable nftables 2> /dev/null
+    run v-update-firewall
+    assert_success
+    run systemctl is-enabled nftables
+    assert_output enabled
+    run v-check-firewall json
+    assert_equal "$(jq -r .STATUS <<< "$output")" ok
+    assert_output --partial '"nftables-service"'
+    systemctl disable nftables 2> /dev/null
+    run v-update-firewall
+    assert_success
+    run systemctl is-enabled nftables
+    assert_output masked
+    run v-check-firewall json
+    refute_output --partial nftables-service
+}
+
+@test "firewall: disabling the firewall unmasks the distribution's unit" {
+    run v-delete-sys-firewall
+    assert_success
+    run systemctl is-enabled nftables
+    refute_output masked
+    run v-check-firewall json
+    assert_equal "$(jq -r .STATUS <<< "$output")" off
+    assert_equal "$(jq -c .WARNINGS <<< "$output")" '[]'
+    run v-add-sys-firewall
+    assert_success
+    run systemctl is-enabled nftables
+    assert_output masked
+    run v-check-firewall json
+    assert_equal "$(jq -r .STATUS <<< "$output")" ok
+    assert_equal "$(probe $HOST4 $P1)" 200
 }
 
 @test "firewall: the iptables leftovers of 2.2 are removed once" {

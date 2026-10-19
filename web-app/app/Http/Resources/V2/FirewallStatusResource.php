@@ -26,6 +26,12 @@ final class FirewallStatusResource extends JsonResource
             'status' => $status->status,
             /** @var string UTC, YYYY-MM-DDTHH:MM:SSZ */
             'checked_at' => $status->checkedAt,
+            /**
+             * Problems that leave `status` as it is: `fail2ban-action` (Fail2Ban uses the action of an older release; a reload replaces it), `nftables-service` (the distribution's `nftables.service` is enabled or running and would flush every table), `ipv6-ssh` and `ipv6-panel` (the SSH or panel port is open to IPv4 sources only although the server has an IPv6 address)
+             *
+             * @var list<'fail2ban-action'|'nftables-service'|'ipv6-ssh'|'ipv6-panel'>
+             */
+            'warnings' => $status->warnings,
         ];
     }
 }
