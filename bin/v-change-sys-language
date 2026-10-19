@@ -59,6 +59,7 @@ if [ -z "$(grep LANGUAGE $ARCPANEL/conf/arcpanel.conf)" ]; then
 else
 	sed -i "s/LANGUAGE=.*/LANGUAGE='$language'/g" $ARCPANEL/conf/arcpanel.conf
 fi
+sys_config_changed
 
 # Update language for all existing users if specified
 if [ "$update_users" = "yes" ]; then

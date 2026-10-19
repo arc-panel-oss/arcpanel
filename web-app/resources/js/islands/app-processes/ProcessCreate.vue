@@ -174,6 +174,7 @@ onMounted(async () => {
 			<div class="ap-empty">
 				<div class="ap-empty-art"><ApIcon name="globe" /></div>
 				<h3>{{ t('Add a web domain first; a process runs for one domain.') }}</h3>
+				<a v-if="pages.domains && props.initial.abilities?.manage" class="ap-btn ap-btn-primary ap-btn-sm" :href="pages.domains"><ApIcon name="plus" />{{ t('Add Web Domain') }}</a>
 			</div>
 		</section>
 

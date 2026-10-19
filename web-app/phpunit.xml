@@ -25,6 +25,8 @@
         <env name="SESSION_DRIVER" value="array"/>
         <env name="SESSION_SECURE_COOKIE" value="false"/>
         <env name="LOG_CHANNEL" value="null"/>
+        <!-- No config stamp of an installed panel (tests set their own) -->
+        <env name="ARC_SYS_CONFIG_STAMP" value="(empty)"/>
         <env name="ARCPANEL_ENV_FILE" value="tests/testing-environment"/>
         <!-- Never read the production caches of an installed panel app -->
         <env name="APP_CONFIG_CACHE" value="storage/framework/testing/config.php"/>

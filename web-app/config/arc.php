@@ -48,6 +48,11 @@ return [
     // How long the output of v-list-sys-config is cached, in seconds.
     'sys_config_ttl' => (int) env('ARC_SYS_CONFIG_TTL', 60),
 
+    // Written by the commands that change arcpanel.conf (sys_config_changed in
+    // func/main.sh): root:arcpanelweb 0640 in a 0750 folder that arcpanelweb
+    // cannot write. A new value ends the cache above at the next request.
+    'sys_config_stamp' => env('ARC_SYS_CONFIG_STAMP', '/usr/local/arcpanel/data/sys-config/stamp'),
+
     // File manager staging tree (E3), created by v-add-sys-panel-files. The
     // commands accept staged files only below <root>/uploads of the
     // installed panel app.

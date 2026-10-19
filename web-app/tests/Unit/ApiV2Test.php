@@ -194,6 +194,12 @@ it('keeps every area set inside v2-write and its reads inside v2-read', function
     expect(array_values(array_diff($write, $union)))->toBe([]);
 });
 
+it('names app processes in the descriptions of v2-apps, which grants them', function () {
+    expect(apiSetCommands('v2-apps'))->toContain('v-add-app-process');
+    expect(AccessKeySets::hints()['v2-apps'])->toContain('app processes');
+    expect(AccessKeySets::summary('v2-apps'))->toContain('app processes');
+});
+
 it('puts the file reads of v2-files in v2-read and its changes in v2-write only (E34 batch 5 D56)', function () {
     $files = apiSetCommands('v2-files');
     // Reads named explicitly: the rule above finds v-list-* and v-check-* only. A download

@@ -2211,6 +2211,25 @@ change_sys_value() {
 	else
 		sed -i "s|^$1=.*|$1='$2'|g" "$ARCPANEL/conf/arcpanel.conf"
 	fi
+	sys_config_changed
+}
+
+# Tells the panel app that arcpanel.conf changed: a new stamp makes it read the
+# config again at its next request instead of when its cache ends
+# (web-app/app/Arc/SysConfig.php). Call it after every write of arcpanel.conf.
+# The folder is root:arcpanelweb 0750, so arcpanelweb reads the stamp but can
+# neither replace it nor plant a link in its place. Never fails the caller.
+sys_config_changed() {
+	local dir="$ARCPANEL/data/sys-config" tmp
+	mkdir -p "$dir" 2> /dev/null || return 0
+	chown root:arcpanelweb "$dir" 2> /dev/null
+	chmod 0750 "$dir" 2> /dev/null
+	tmp=$(mktemp "$dir/.stamp.XXXXXX" 2> /dev/null) || return 0
+	echo "$(date +%s%N).$$" > "$tmp"
+	chown root:arcpanelweb "$tmp" 2> /dev/null
+	chmod 0640 "$tmp"
+	mv -f "$tmp" "$dir/stamp" 2> /dev/null || rm -f "$tmp"
+	return 0
 }
 
 # Checks the format of APIs that will be allowed for the key

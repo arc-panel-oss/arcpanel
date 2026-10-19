@@ -98,6 +98,7 @@ if [ -z "$(grep DNS_CLUSTER= $ARCPANEL/conf/arcpanel.conf)" ]; then
 else
 	sed -i "s/DNS_CLUSTER=.*/DNS_CLUSTER='yes'/g" $ARCPANEL/conf/arcpanel.conf
 fi
+sys_config_changed
 
 # Enabling remote dns-cluster queue
 cluster_cmd v-add-cron-restart-job

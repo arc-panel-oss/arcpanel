@@ -240,6 +240,7 @@ else
 		| sed ':a;N;$!ba;s/\n/,/g')
 	sed -i "s/BACKUP_SYSTEM=.*/BACKUP_SYSTEM='$bckp'/g" $ARCPANEL/conf/arcpanel.conf
 fi
+sys_config_changed
 
 # Logging
 log_event "$OK" "$ARGUMENTS"

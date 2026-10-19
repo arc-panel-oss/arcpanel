@@ -44,6 +44,8 @@ sort $ARCPANEL/conf/arcpanel.conf -o /tmp/updconf
 mv $ARCPANEL/conf/arcpanel.conf $ARCPANEL/conf/arcpanel.conf.bak
 mv /tmp/updconf $ARCPANEL/conf/arcpanel.conf
 rm -f $ARCPANEL/conf/arcpanel.conf.bak
+# Again after the sort: a reader between the two moves found no file
+sys_config_changed
 
 #----------------------------------------------------------#
 #                         ArcPanel                         #

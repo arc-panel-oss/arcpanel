@@ -60,6 +60,7 @@ else
 
 	# Set new branch variable
 	echo "RELEASE_BRANCH='$branch'" >> $ARCPANEL/conf/arcpanel.conf
+	sys_config_changed
 	echo "Updated system to update from Git using branch: $branch"
 fi
 

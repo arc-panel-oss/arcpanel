@@ -50,6 +50,7 @@ check_cluster=$(grep HOST $ARCPANEL/conf/dns-cluster.conf | wc -l)
 if [ "$check_cluster" -eq '0' ]; then
 	rm -f "$ARCPANEL/conf/dns-cluster.conf"
 	sed -i "/DNS_CLUSTER=/d" "$ARCPANEL/conf/arcpanel.conf"
+	sys_config_changed
 
 	# Delete cron job
 	cmd="v-update-sys-queue dns-cluster"

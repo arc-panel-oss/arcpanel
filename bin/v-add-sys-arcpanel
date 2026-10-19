@@ -87,6 +87,11 @@ chown "root:$WEB_USER" "$tmp_env"
 chmod 640 "$tmp_env"
 mv -f "$tmp_env" "$ENV_FILE"
 
+# Config stamp (data/sys-config, read by the panel app): the folder gets its
+# group once arcpanelweb exists, and the panel reads arcpanel.conf again after
+# the upgrade steps that wrote it directly
+sys_config_changed
+
 # Framework caches of the previous version may name service providers that
 # the new vendor/ no longer has (artisan would not boot); they are rebuilt
 # below. dpkg leaves these generated files in place on upgrades.

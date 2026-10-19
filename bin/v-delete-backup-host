@@ -54,6 +54,7 @@ bckp=$(echo "$BACKUP_SYSTEM" \
 	| sed "/^$/d" \
 	| sed ':a;N;$!ba;s/\n/,/g')
 sed -i "s/BACKUP_SYSTEM=.*/BACKUP_SYSTEM='$bckp'/g" $ARCPANEL/conf/arcpanel.conf
+sys_config_changed
 
 # Logging
 $BIN/v-log-action "system" "Info" "Backup" "Removed remote backup host (Host: $host, Type: $type)."
