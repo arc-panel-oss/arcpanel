@@ -118,7 +118,9 @@ setup_file() {
 }
 
 teardown_file() {
-    # A case that turns the firewall off may stop before it turns it on
+    rm -f "$FW/custom.nft"
+    # A case that turns the firewall off, or leaves it on iptables, may stop
+    # before it turns it back
     if [ "$(v-list-sys-config json | jq -r '.config.FIREWALL_SYSTEM')" != 'nftables' ]; then
         v-add-sys-firewall > /dev/null 2>&1 || true
     fi
@@ -133,8 +135,9 @@ teardown_file() {
     for name in arcbats-l4 arcbats-l6; do
         v-delete-firewall-ipset "$name" > /dev/null 2>&1 || true
     done
-    v-delete-firewall-chain ARCBATS > /dev/null 2>&1 || true
-    rm -f "$FW/custom.nft"
+    for chain in ARCBATS ARCBATSTWO; do
+        v-delete-firewall-chain "$chain" > /dev/null 2>&1 || true
+    done
     pkill -f "http.server --bind :: 3895" || true
     ip netns del "$NS" 2> /dev/null || true
     ip link del "$HOST_IF" 2> /dev/null || true
@@ -542,6 +545,64 @@ teardown_file() {
     run v-check-firewall json
     assert_equal "$(jq -r .STATUS <<< "$output")" ok
     assert_equal "$(probe $HOST4 $P1)" 200
+}
+
+@test "firewall: a failed move stays on iptables, refuses bans and finishes on a load" {
+    local packaged=$ARCPANEL/install/deb/fail2ban/action.d/arcpanel.conf action=/etc/fail2ban/action.d/arcpanel.conf
+    # A ban and a chain from before the move, while the table loads
+    v-add-firewall-chain ARCBATS 9 TCP > /dev/null
+    v-add-firewall-ban 10.254.77.98 ARCBATS > /dev/null
+    # A 2.2 server whose table nft refuses; teardown_file moves it back and
+    # puts the packaged action back if the case stops early
+    sed -e 's/ARCPANEL_FIREWALL_LOCK_HELD=1 //' -e 's/^actioncheck = .*/actioncheck = iptables -n -L INPUT | grep -q fail2ban-<name>/' "$packaged" > "$action"
+    cp "$action" "$BATS_TEST_TMPDIR/action-2.2"
+    echo "add rule inet arcpanel input tcp dport bogus accept" > "$FW/custom.nft"
+    v-change-sys-config-value FIREWALL_SYSTEM iptables
+
+    run run_upgrade_step
+    assert_success
+    assert_output --partial 'stays on iptables'
+    assert_output --partial 'Fail2Ban bans do not apply'
+    assert_equal "$(v-list-sys-config json | jq -r '.config.FIREWALL_SYSTEM')" iptables
+    # The 2.2 action stays: the nft one would fail its check and drop the
+    # chain's bans through actionstop
+    run cmp "$BATS_TEST_TMPDIR/action-2.2" "$action"
+    assert_success
+    run v-check-firewall json
+    assert_success
+    assert_equal "$(jq -c .WARNINGS <<< "$output" | grep -o '"iptables-engine"')" '"iptables-engine"'
+    refute_output --partial fail2ban-action
+
+    # Bans and chains are refused at once and change no file
+    cp "$FW/banlist.conf" "$BATS_TEST_TMPDIR/banlist"
+    cp "$FW/chains.conf" "$BATS_TEST_TMPDIR/chains"
+    run v-add-firewall-ban 10.254.77.99 ARCBATS
+    assert_failure 11
+    assert_output --partial iptables
+    run v-delete-firewall-ban 10.254.77.98 ARCBATS
+    assert_failure 11
+    run v-add-firewall-chain ARCBATSTWO 10 TCP
+    assert_failure 11
+    run v-delete-firewall-chain ARCBATS
+    assert_failure 11
+    run cmp "$BATS_TEST_TMPDIR/banlist" "$FW/banlist.conf"
+    assert_success
+    run cmp "$BATS_TEST_TMPDIR/chains" "$FW/chains.conf"
+    assert_success
+
+    # Once the cause is gone, a load finishes the move
+    rm -f "$FW/custom.nft"
+    run v-update-firewall
+    assert_success
+    assert_equal "$(v-list-sys-config json | jq -r '.config.FIREWALL_SYSTEM')" nftables
+    run cmp "$packaged" "$action"
+    assert_success
+    run v-check-firewall json
+    refute_output --partial iptables-engine
+    run nft list set inet arcpanel f2b_ARCBATS_4
+    assert_output --partial 10.254.77.98
+    v-delete-firewall-chain ARCBATS > /dev/null
+    [ -n "$(f2b_ssh_jail)" ]
 }
 
 @test "firewall: the iptables leftovers of 2.2 are removed once" {

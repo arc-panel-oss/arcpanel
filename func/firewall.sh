@@ -379,8 +379,10 @@ fw_custom_sh_uses_iptables() {
 }
 
 # Whether the Fail2Ban action differs from the packaged one; a 2.2 action
-# waits 30 s on the lock and bans into iptables (spec §16 H1)
+# waits 30 s on the lock and bans into iptables (spec §16 H1). A server left
+# on iptables keeps it (H5)
 fw_f2b_action_stale() {
+	[ "$FIREWALL_SYSTEM" = 'nftables' ] || return 1
 	[ -n "$FIREWALL_EXTENSION" ] && [ -d "$(dirname "$FW_F2B_ACTION")" ] || return 1
 	! cmp -s "$ARCPANEL_INSTALL_DIR/fail2ban/action.d/arcpanel.conf" "$FW_F2B_ACTION"
 }
@@ -392,6 +394,15 @@ fw_sync_f2b_action() {
 	install -m 644 "$ARCPANEL_INSTALL_DIR/fail2ban/action.d/arcpanel.conf" "$FW_F2B_ACTION"
 	systemctl -q --no-block try-restart fail2ban 2> /dev/null
 	return 0
+}
+
+# Bans and Fail2Ban chains live in the nftables sets only: a server whose
+# move from iptables failed refuses them instead of reporting a ban that
+# blocks nothing. Called before fw_lock, so Fail2Ban's 2.2 action, which
+# holds the lock, gets the error at once (spec §16 H5)
+fw_require_nftables() {
+	[ "$FIREWALL_SYSTEM" = 'iptables' ] || return 0
+	check_result "$E_DISABLED" "The firewall still runs the iptables rules of ArcPanel 2.2, where bans do not apply; reload the firewall (v-update-firewall) to finish the move to nftables"
 }
 
 # The distribution's nftables.service flushes the whole ruleset when it
@@ -477,6 +488,7 @@ fw_ipv6_warnings() {
 
 # Warning codes of v-check-firewall, one per line (spec §16)
 fw_warnings() {
+	[ "$FIREWALL_SYSTEM" = 'iptables' ] && echo iptables-engine
 	fw_f2b_action_stale && echo fail2ban-action
 	fw_distro_unit_in_use && echo nftables-service
 	fw_ipv6_warnings
@@ -485,6 +497,7 @@ fw_warnings() {
 # The text of a warning code, for the upgrade output and the system log
 fw_warning_text() {
 	case "$1" in
+		iptables-engine) echo "The firewall could not move to nftables and still runs the iptables rules of ArcPanel 2.2, which ArcPanel no longer changes: Fail2Ban bans and firewall changes do not apply. Reload the firewall to see why the table does not load; the first reload that loads it finishes the move." ;;
 		fail2ban-action) echo "The Fail2Ban action /etc/fail2ban/action.d/arcpanel.conf is not the packaged one; v-update-firewall replaces it." ;;
 		nftables-service) echo "nftables.service is enabled or running: starting, reloading or stopping it flushes the whole ruleset, including the ArcPanel firewall and Docker's tables. Disable it (systemctl disable nftables)." ;;
 		ipv6-ssh) echo "The SSH port is open to IPv4 sources only, so it is closed over IPv6 although the server has an IPv6 address. Add a firewall rule with an IPv6 source if you connect over IPv6." ;;

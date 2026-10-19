@@ -11,11 +11,12 @@ final class FirewallStatus
     public const STATUSES = ['ok', 'drift', 'missing', 'off'];
 
     /**
-     * Warnings that leave the status as it is (E40 spec §16): an outdated
-     * Fail2Ban action, the distribution's nftables.service in use, SSH or the
-     * panel open to IPv4 sources only on a server with IPv6.
+     * Warnings that leave the status as it is (E40 spec §16): a server that
+     * the upgrade left on iptables, an outdated Fail2Ban action, the
+     * distribution's nftables.service in use, SSH or the panel open to IPv4
+     * sources only on a server with IPv6.
      */
-    public const WARNINGS = ['fail2ban-action', 'nftables-service', 'ipv6-ssh', 'ipv6-panel'];
+    public const WARNINGS = ['iptables-engine', 'fail2ban-action', 'nftables-service', 'ipv6-ssh', 'ipv6-panel'];
 
     /** @param  list<string>  $warnings */
     public function __construct(
@@ -39,9 +40,12 @@ final class FirewallStatus
         );
     }
 
-    /** The table that runs differs from the configuration or is gone. */
+    /**
+     * The table that runs differs from the configuration or is gone. A server
+     * left on iptables has no table either; its own warning says why.
+     */
     public function needsReload(): bool
     {
-        return $this->status === 'drift' || $this->status === 'missing';
+        return ($this->status === 'drift' || $this->status === 'missing') && ! in_array('iptables-engine', $this->warnings, true);
     }
 }

@@ -329,6 +329,19 @@ it('offers a reload that replaces an outdated Fail2Ban action', function () {
         ->assertSee('The Fail2Ban action is out of date')->assertSee('Reload firewall');
 });
 
+it('explains a failed move to nftables once and offers the reload that finishes it', function () {
+    $this->fake->on('v-check-firewall', ['json'])->returnsJson([
+        'ENGINE' => 'iptables', 'STATUS' => 'missing', 'CHECKED' => '2026-10-19T12:00:00Z', 'WARNINGS' => ['iptables-engine'],
+    ]);
+    signIn('arcadmin', 'admin');
+
+    $page = $this->get('/server/firewall')->assertOk()
+        ->assertSee('The firewall did not move to nftables')
+        ->assertSee('Fail2Ban bans and firewall changes do not apply')
+        ->assertDontSee('The firewall rules are not loaded');
+    expect(substr_count($page->getContent(), 'Reload firewall'))->toBe(1);
+});
+
 it('reports a reload that nftables refuses', function () {
     $this->fake->on('v-update-firewall')->returnsExit(ExitCode::Update, 'Error: nftables refused the firewall rules: custom.nft:1');
     signIn('arcadmin', 'admin');

@@ -46,6 +46,12 @@ is_system_enabled "$FIREWALL_SYSTEM" 'FIREWALL_SYSTEM'
 # Perform verification if read-only mode is enabled
 check_arcpanel_demo_mode
 
+# A server left on iptables has no sets; v-update-firewall, which loads the
+# table itself, may still add the SSH chain (spec §16 H5)
+if [ -z "${ARCPANEL_FIREWALL_NO_RELOAD:-}" ]; then
+	fw_require_nftables
+fi
+
 fw_lock
 
 #----------------------------------------------------------#

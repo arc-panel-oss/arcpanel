@@ -57,6 +57,14 @@ fi
 # Render and load the table; the running table stays when nft refuses it
 fw_reload
 
+# A server that the 2.3.0 upgrade left on iptables finishes the move with
+# the first load (spec §16 H5)
+if [ "$FIREWALL_SYSTEM" = 'iptables' ]; then
+	"$BIN/v-change-sys-config-value" 'FIREWALL_SYSTEM' 'nftables'
+	FIREWALL_SYSTEM='nftables'
+	"$BIN/v-log-action" "system" "Info" "Firewall" "The firewall moved from iptables to nftables."
+fi
+
 # The rules, ipsets and unit of the iptables engine, once
 fw_legacy_cleanup
 
