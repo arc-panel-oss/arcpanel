@@ -497,11 +497,25 @@ if [ "$dontinstalldeps" != 'true' ]; then
 	fi
 fi
 
-# Get system cpu cores. Callers running this inside a QEMU-emulated chroot
-# (cross-arch builds) can pre-set NUM_CPUS to override this: /proc is
-# bind-mounted from the host, so the detected count would otherwise be the
-# host's real core count, not a safe parallelism level for emulated compiles.
-NUM_CPUS="${NUM_CPUS:-$(grep "^cpu cores" /proc/cpuinfo | uniq | awk '{print $4}')}"
+# Number of parallel make jobs: the "cpu cores" of /proc/cpuinfo, or the number
+# of processors where the kernel prints no such line (arm64). An empty value
+# made "make -j" start every job at once and exhaust the runner's memory (E47,
+# docs/features/specs/2026-10-20-003-e47-arm64-packages-design.md §2.2).
+# Callers running this inside a QEMU-emulated chroot (cross-arch builds) can
+# pre-set NUM_CPUS to override this: /proc is bind-mounted from the host, so the
+# detected count would otherwise be the host's real core count, not a safe
+# parallelism level for emulated compiles.
+detect_num_cpus() {
+	local cpuinfo="${1:-/proc/cpuinfo}" cores
+	if [ -n "$NUM_CPUS" ]; then
+		echo "$NUM_CPUS"
+		return 0
+	fi
+	cores="$(grep "^cpu cores" "$cpuinfo" | uniq | awk '{print $4}' | head -n 1)"
+	echo "${cores:-$(nproc)}"
+}
+NUM_CPUS="$(detect_num_cpus)"
+echo "Parallel jobs    : $NUM_CPUS"
 
 if [ "$ARCPANEL_DEBUG" ]; then
 	echo "OS type          : Debian / Ubuntu"

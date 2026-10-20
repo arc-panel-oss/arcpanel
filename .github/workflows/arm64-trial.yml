@@ -1,0 +1,37 @@
+name: arm64 trial
+
+# Builds the packages on arm64 with the same steps as a release, without publishing anything
+# (E47, docs/features/specs/2026-10-20-003-e47-arm64-packages-design.md §5.3). arm64 joins the
+# stable release matrix only after this run is green. It reads no secret and no environment,
+# and saves no engine cache: a release tag could not read it (§2.3).
+#
+# Run it from the Actions tab or with: gh workflow run arm64-trial.yml --ref <branch>
+# or push to the branch ci/arm64-trial.
+
+on:
+  workflow_dispatch:
+    inputs:
+      images:
+        description: 'Distributions as a JSON list, for example ["ubuntu:24.04"]'
+        required: false
+        type: string
+        default: '["debian:12","debian:13","ubuntu:22.04","ubuntu:24.04","ubuntu:26.04"]'
+  push:
+    branches:
+      - ci/arm64-trial
+
+permissions:
+  contents: read
+
+concurrency:
+  group: arm64-trial-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build
+    uses: ./.github/workflows/build-debs.yml
+    with:
+      matrix: ${{ format('{{"image":{0},"arch":["arm64"]}}', inputs.images || '["debian:12","debian:13","ubuntu:22.04","ubuntu:24.04","ubuntu:26.04"]') }}
+      channel: trial
+      save-cache: false
