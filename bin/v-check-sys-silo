@@ -75,6 +75,10 @@ else
 		done < <(silo_rebuild_user "$user" "$repair")
 	done < "$SILO_DIR/.users"
 	rm -f "$SILO_DIR/.users"
+	# Buckets and keys of accounts deleted while Silo did not answer
+	while IFS= read -r line; do
+		[ -n "$line" ] && add "$line"
+	done < <(silo_orphans_check "$repair")
 fi
 
 if [ -n "$SILO_HOSTNAME" ] && arc_tpl_domain_exists "$ROOT_USER" "$SILO_HOSTNAME" \

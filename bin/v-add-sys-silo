@@ -65,7 +65,7 @@ if ! [[ "$data_path" =~ ^/[A-Za-z0-9._/-]+$ ]] || [[ "$data_path" == *..* ]]; th
 	check_result "$E_INVALID" "invalid data path :: $data_path (an absolute path of letters, digits, . _ - /)"
 fi
 case "$data_path/" in
-	/home/* | "$ARCPANEL"/* | /etc/* | /usr/* | /proc/* | /sys/* | /dev/* | /run/* | /boot/* | /bin/* | /sbin/* | /lib/* | /lib64/* | /tmp/* | /var/tmp/*)
+	/home/* | /root/* | "$ARCPANEL"/* | /etc/* | /usr/* | /proc/* | /sys/* | /dev/* | /run/* | /boot/* | /bin/* | /sbin/* | /lib/* | /lib64/* | /tmp/* | /var/tmp/*)
 		check_result "$E_FORBIDEN" "the data path cannot be below ${data_path%/*}/ (choose a folder of its own, for example $SILO_DATA_DEFAULT)"
 		;;
 esac
@@ -97,6 +97,8 @@ if [ "$(installed_version silo)" != "$silo_v" ]; then
 	fi
 	DEBIAN_FRONTEND=noninteractive dpkg -i "$work/$SILO_DEB" > /dev/null 2>&1
 	check_result $? "Silo $silo_v could not be installed"
+	# The running service keeps the old binary until it restarts
+	changed='yes'
 fi
 if [ "$(installed_version mcli)" != "$mcli_v" ]; then
 	if ! fetch_verified "$MCLI_URL" "$mcli_sha256" "$work/$MCLI_DEB"; then

@@ -141,9 +141,7 @@ if [ -s "$src/buckets.conf" ]; then
 	source $ARCPANEL/func/tenancy.sh
 	# shellcheck source=/usr/local/arcpanel/func/silo.sh
 	source $ARCPANEL/func/silo.sh
-	restic_restore_data "$tmpdir" "$snapshot" --include="$(silo_backup_dir "$user")" > /dev/null 2>&1
-	find "$tmpdir$(silo_backup_dir "$user")" -type l -delete 2> /dev/null
-	silo_restore_user "$user" "$src/buckets.conf" "$tmpdir$(silo_backup_dir "$user")"
+	silo_restore_snapshot "$user" "$snapshot" "$src/buckets.conf" "$tmpdir"
 fi
 # Data unpacked into the home from a snapshot made before E39 W1
 $BIN/v-update-sys-user-homes "$user"

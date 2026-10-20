@@ -84,7 +84,7 @@ if [ -d "$HOMEDIR/.arcpanel-apps/$user" ] && [ ! -L "$HOMEDIR/.arcpanel-apps/$us
 	paths+=("$HOMEDIR/.arcpanel-apps/$user")
 fi
 # Objects of the buckets (E44) when the package allows it, mirrored into a
-# root-only folder for the snapshot and removed after it
+# root-only folder on the backup disk for the snapshot and removed after it
 objects_dir=''
 if [ "$OBJECT_STORAGE_SYSTEM" = 'silo' ] && [ -s "$USER_DATA/buckets.conf" ]; then
 	# shellcheck source=/usr/local/arcpanel/func/tenancy.sh
@@ -93,6 +93,8 @@ if [ "$OBJECT_STORAGE_SYSTEM" = 'silo' ] && [ -s "$USER_DATA/buckets.conf" ]; th
 	source $ARCPANEL/func/silo.sh
 	if [ "$(silo_pkg_value "$user" OBJECT_STORAGE_BACKUP)" = 'yes' ] && silo_wait; then
 		objects_dir=$(silo_backup_dir "$user")
+		rm -rf -- "$objects_dir"
+		mkdir -p -m 700 "$objects_dir"
 		for bucket in $(silo_buckets "$user"); do
 			silo_backup_bucket "$bucket" "$objects_dir/$bucket" || echo "[ ! ] The objects of bucket $bucket could not be read"
 		done

@@ -605,6 +605,14 @@ upgrade_rclone() {
 	fi
 }
 
+upgrade_silo() {
+	# Silo and mcli from the pinned packages (E44); only where object storage
+	# is installed. v-add-sys-silo restarts the service on a new package
+	if [ "$OBJECT_STORAGE_SYSTEM" = 'silo' ]; then
+		"$BIN"/v-add-sys-silo || echo "[ ! ] Error upgrading Silo $silo_v"
+	fi
+}
+
 upgrade_phpmyadmin() {
 	# Check if MariaDB/MySQL is installed on the server before attempting to install or upgrade phpMyAdmin
 	if [ -n "$(echo $DB_SYSTEM | grep -w 'mysql')" ]; then

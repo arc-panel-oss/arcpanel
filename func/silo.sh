@@ -31,6 +31,8 @@ SILO_REGION=us-east-1
 # Repairs in a row that must see a key differ before it is fixed (spec §8)
 SILO_MISSES="$SILO_DIR/repair.misses"
 SILO_MISS_LIMIT=3
+# Buckets and keys of deleted accounts that Silo did not answer for
+SILO_ORPHANS="$SILO_DIR/orphans.conf"
 
 # Keys of a line of buckets.conf and of s3keys.conf, in order
 SILO_BUCKET_KEYS=(BUCKET QUOTA VERSIONING USED OBJECTS SUSPENDED TIME DATE)
@@ -301,23 +303,33 @@ silo_quota_used() {
 	echo "$total"
 }
 
-# E_LIMIT unless USER may hold buckets of NEW MB more (leaving out bucket
-# EXCEPT) and, when COUNT is yes, one bucket more
-silo_check_limits() {
+# Whether USER may hold buckets of NEW MB more (leaving out bucket EXCEPT)
+# and, when COUNT is yes, one bucket more; 1 with the reason in REPLY
+silo_limits_allow() {
 	local user="$1" new="$2" except="$3" count="$4" limit used buckets
 	if [ "$count" = 'yes' ]; then
 		limit=$(silo_pkg_value "$user" OBJECT_STORAGE_BUCKETS)
 		buckets=$(silo_buckets "$user" | grep -c .)
 		if [ "$limit" != 'unlimited' ] && [ "$((buckets + 1))" -gt "${limit:-0}" ]; then
-			check_result "$E_LIMIT" "the package allows $limit buckets (OBJECT_STORAGE_BUCKETS)"
+			REPLY="the package allows $limit buckets (OBJECT_STORAGE_BUCKETS)"
+			return 1
 		fi
 	fi
 	limit=$(silo_quota_mb "$(silo_pkg_value "$user" OBJECT_STORAGE_QUOTA)") || limit=0
 	if [ "$limit" != 'unlimited' ]; then
 		used=$(silo_quota_used "$user" "$except")
 		if [ "$((used + new))" -gt "$limit" ]; then
-			check_result "$E_LIMIT" "the bucket quotas would reach $((used + new)) MB; the package allows $limit MB (OBJECT_STORAGE_QUOTA)"
+			REPLY="the bucket quotas would reach $((used + new)) MB; the package allows $limit MB (OBJECT_STORAGE_QUOTA)"
+			return 1
 		fi
+	fi
+	return 0
+}
+
+# E_LIMIT unless silo_limits_allow
+silo_check_limits() {
+	if ! silo_limits_allow "$@"; then
+		check_result "$E_LIMIT" "$REPLY"
 	fi
 }
 
@@ -678,9 +690,36 @@ silo_misses_save() {
 #                         Backups                          #
 #----------------------------------------------------------#
 
-# Folder of the objects of USER that restic backs up (spec §8)
+# Folder that v-backup-user-restic mirrors the objects of USER into for the
+# snapshot: on the backup disk, not below $ARCPANEL, which a large bucket
+# could fill (spec §8)
 silo_backup_dir() {
-	echo "$SILO_DIR/backup/$1"
+	echo "${BACKUP_TEMP:-$BACKUP}/arcpanel-objects-$1"
+}
+
+# The objects folder of USER's restic SNAPSHOT, read from the paths the
+# snapshot was made of, since BACKUP_TEMP may have changed since; empty
+# when the snapshot holds no objects
+silo_snapshot_objects_dir() {
+	local dir
+	dir=$(restic_user "$1" cat snapshot -- "$2" 2> /dev/null \
+		| jq -r --arg name "arcpanel-objects-$1" '.paths[]? | select(endswith("/" + $name))' 2> /dev/null | head -n 1)
+	if [[ "$dir" == /* ]] && [[ "$dir" != *..* ]]; then
+		echo "$dir"
+	fi
+}
+
+# Restore USER's buckets of a restic SNAPSHOT from the backed-up
+# buckets.conf FILE, with the objects the snapshot holds, through the
+# working folder WORK
+silo_restore_snapshot() {
+	local user="$1" snapshot="$2" file="$3" work="$4" dir objects=''
+	dir=$(silo_snapshot_objects_dir "$user" "$snapshot")
+	if [ -n "$dir" ] && restic_restore_data "$work" "$snapshot" --include="$dir" > /dev/null 2>&1; then
+		find "$work$dir" \( -type l -o \( ! -type f ! -type d \) \) -delete 2> /dev/null
+		objects="$work$dir"
+	fi
+	silo_restore_user "$user" "$file" "$objects"
 }
 
 # Mirror the current objects of USER's BUCKET into DIR; 1 on failure
@@ -692,8 +731,11 @@ silo_backup_bucket() {
 
 # Restore USER's buckets from the backed-up buckets.conf FILE, with the
 # objects of OBJECTS/<bucket>/ when that folder exists; one log line per
-# bucket. Buckets whose name another account holds are skipped. S3 keys are
-# never restored: their secrets are not kept.
+# bucket. Buckets whose name another account holds are skipped, and so are
+# new buckets beyond the limits of the package: the file comes from the
+# home, where the account can change it. A bucket the account still has
+# keeps its quota and versioning. S3 keys are never restored: their
+# secrets are not kept.
 silo_restore_user() {
 	local user="$1" file="$2" objects="$3" line bucket quota versioning owner count=0
 	[ -s "$file" ] || return 0
@@ -725,6 +767,15 @@ silo_restore_user() {
 			echo "[ ! ] Bucket $bucket skipped: the name is taken on this server"
 			continue
 		fi
+		if [ -z "$owner" ] && ! silo_limits_allow "$user" "$quota" '' yes; then
+			echo "[ ! ] Bucket $bucket skipped: $REPLY"
+			continue
+		fi
+		if [ -n "$owner" ]; then
+			line=$(silo_bucket_line "$user" "$bucket")
+			quota=$(silo_field "$line" QUOTA)
+			versioning=$(silo_field "$line" VERSIONING)
+		fi
 		if ! silo_bucket_create "$bucket" "$quota" "$versioning"; then
 			echo "[ ! ] Bucket $bucket could not be created"
 			continue
@@ -735,7 +786,7 @@ silo_restore_user() {
 			silo_write_line "$(silo_buckets_file "$user")" SILO_BUCKET_KEYS "BUCKET=$bucket" "QUOTA=$quota" \
 				"VERSIONING=$versioning" "USED=0" "OBJECTS=0" "SUSPENDED=no" "TIME=${now% *}" "DATE=${now#* }"
 		fi
-		if [ -d "$objects/$bucket" ]; then
+		if [ -n "$objects" ] && [ -d "$objects/$bucket" ]; then
 			if silo_mcli mirror --quiet --overwrite "$objects/$bucket" "arc/$bucket" > /dev/null 2>&1; then
 				echo "$(date "+%F %T") bucket $bucket with its objects"
 			else
@@ -746,4 +797,65 @@ silo_restore_user() {
 		fi
 	done < "$file"
 	silo_sync_user "$user"
+}
+
+#----------------------------------------------------------#
+#                     Deleted accounts                     #
+#----------------------------------------------------------#
+
+# Remove the BUCKETS and KEYS (space separated) of the deleted account USER
+# from Silo, and its IAM user and policy unless the account exists again
+# with object storage; a bucket another account owns by now stays. 1 when
+# a part failed
+silo_purge() {
+	local user="$1" buckets="$2" keys="$3" rc=0 item
+	for item in $buckets; do
+		[ -n "$(silo_bucket_owner "$item")" ] && continue
+		silo_bucket_remove "$item" || rc=1
+	done
+	for item in $keys; do
+		if ! silo_key_remove "$item" && silo_mcli admin user svcacct info arc "$item" > /dev/null 2>&1; then
+			rc=1
+		fi
+	done
+	if [ ! -f "$(silo_buckets_file "$user")" ] && [ ! -f "$(silo_keys_file "$user")" ]; then
+		if silo_iam_exists "$user"; then
+			silo_mcli admin user remove arc "$(silo_iam_user "$user")" > /dev/null 2>&1 || rc=1
+		fi
+		silo_mcli admin policy remove arc "$(silo_policy_name "$user")" > /dev/null 2>&1
+	fi
+	return "$rc"
+}
+
+# Keep what silo_purge could not remove for the next repair
+silo_orphan_add() {
+	local now
+	now=$(date +'%T %F')
+	mkdir -p "$SILO_DIR"
+	echo "USER='$1' BUCKETS='$2' KEYS='$3' TIME='${now% *}' DATE='${now#* }'" >> "$SILO_ORPHANS"
+	chmod 600 "$SILO_ORPHANS"
+}
+
+# Report the left-overs of deleted accounts, one "USER|orphan|DETAIL" line
+# each, and remove them from Silo when REPAIR is yes; a line stays until
+# its removal succeeds
+silo_orphans_check() {
+	local repair="$1" line user buckets keys tmp
+	[ -s "$SILO_ORPHANS" ] || return 0
+	tmp=$(mktemp)
+	while IFS= read -r line; do
+		[ -n "$line" ] || continue
+		user=$(silo_field "$line" USER)
+		buckets=$(silo_field "$line" BUCKETS)
+		keys=$(silo_field "$line" KEYS)
+		echo "$user|orphan|buckets ($buckets) and S3 keys of the deleted account are left in object storage"
+		if [ "$repair" = 'yes' ] && silo_purge "$user" "$buckets" "$keys"; then
+			continue
+		fi
+		echo "$line" >> "$tmp"
+	done < "$SILO_ORPHANS"
+	if [ "$repair" = 'yes' ]; then
+		install -m 600 "$tmp" "$SILO_ORPHANS"
+	fi
+	rm -f "$tmp"
 }

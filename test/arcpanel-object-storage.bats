@@ -17,6 +17,7 @@ load 'test_helper/bats-file/load'
 ARCPANEL=/usr/local/arcpanel
 U1=arcbatsos1
 U2=arcbatsos2
+U3=arcbatsos3
 RES=arcbatsosres
 PKG=arcbats-os
 PKG_RES=arcbats-os-res
@@ -98,7 +99,7 @@ make_package() {
 
 setup_file() {
     local pass ip
-    for u in "$U1" "$U2" "$RES"; do
+    for u in "$U1" "$U2" "$U3" "$RES"; do
         v-delete-user "$u" > /dev/null 2>&1 || true
     done
     for p in "$PKG" "$PKG_RES" "$PKG_NONE"; do
@@ -155,7 +156,8 @@ setup_file() {
 
 teardown_file() {
     restore_mcli
-    for u in "$U1" "$U2" "$RES"; do
+    rm -rf /backup/arcbats-restic
+    for u in "$U1" "$U2" "$U3" "$RES"; do
         v-delete-user "$u" > /dev/null 2>&1 || true
     done
     for p in "$PKG" "$PKG_RES" "$PKG_NONE"; do
@@ -494,6 +496,52 @@ teardown_file() {
     rm -f "/backup/$backup"
 }
 
+@test "object storage: a restore skips buckets beyond the limits of the package" {
+    run v-backup-user "$U1"
+    assert_success
+    backup=$(v-list-user-backups "$U1" json | jq -r 'keys | sort | last')
+    v-delete-user-bucket "$U1" "$B1" > /dev/null
+    v-change-package-tenancy "$PKG" OBJECT_STORAGE_QUOTA 1 > /dev/null
+    run v-restore-user "$U1" "$backup" no no no no no yes no
+    v-change-package-tenancy "$PKG" OBJECT_STORAGE_QUOTA 300 > /dev/null
+    assert_success
+    assert_output --partial "Bucket $B1 skipped: the bucket quotas would reach"
+    run v-list-user-buckets "$U1" json
+    refute_output --partial "\"$B1\""
+    run v-restore-user "$U1" "$backup" no no no no no yes no
+    assert_success
+    run v-list-user-buckets "$U1" json
+    assert_equal "$(jq -r ".\"$B1\".QUOTA" <<< "$output")" 100
+    rm -f "/backup/$backup"
+}
+
+@test "object storage: an account deleted while Silo is down leaves nothing once Silo is back" {
+    local key
+    v-add-user "$U3" "Os-$(date +%s)-Pass" "$U3@example.invalid" "$PKG" > /dev/null
+    v-add-user-bucket "$U3" arcbats-u3 10 > /dev/null
+    key=$(v-add-user-s3-key "$U3" k3 '' rw '' json | jq -r .KEY)
+    [ -n "$key" ]
+    systemctl stop arcpanel-silo
+    run v-delete-user "$U3"
+    systemctl start arcpanel-silo
+    assert_success
+    assert_file_not_exists "$ARCPANEL/data/users/$U3/buckets.conf"
+    run mcli_root stat arc/arcbats-u3
+    assert_success
+    run v-check-sys-silo no
+    assert_output --partial "$U3|orphan|"
+    run v-check-sys-silo repair
+    assert_success
+    run mcli_root stat arc/arcbats-u3
+    assert_failure
+    run mcli_root admin user svcacct info arc "$key"
+    assert_failure
+    run mcli_root admin user info arc "arc-$U3"
+    assert_failure
+    run v-check-sys-silo no
+    assert_output ''
+}
+
 @test "object storage: incremental backups go to an S3 backup host" {
     v-add-user-bucket "$RES" arcbats-restic 200 > /dev/null
     run v-add-user-s3-key "$RES" restic arcbats-restic rw '' json
@@ -530,6 +578,37 @@ teardown_file() {
     assert_equal "$(jq -r ".OBJECTS.\"$U2\".\"arcbats-u2\".BUCKET" <<< "$output")" arcbats-u2
     run v-list-sys-buckets "$RES" '' json
     assert_equal "$(jq -r '.USERS | join(",")' <<< "$output")" "$RES"
+}
+
+@test "object storage: a restic snapshot stages the objects on the backup disk; a restore brings them back" {
+    local snapshot repo=/backup/arcbats-restic
+    echo restic-object > "$BATS_TEST_TMPDIR/restic.txt"
+    mcli_root cp "$BATS_TEST_TMPDIR/restic.txt" arc/arcbats-u2/restic.txt > /dev/null
+    rm -rf "$repo"
+    mkdir -p "$repo"
+    run v-add-backup-host-restic "$repo" 3 -1 -1 -1 -1
+    assert_success
+    rm -f "$ARCPANEL/data/users/$U2/restic.conf"
+    run v-backup-user-restic "$U2"
+    assert_success
+    assert_dir_not_exists "/backup/arcpanel-objects-$U2"
+    assert_dir_not_exists "$ARCPANEL/data/silo/backup/$U2"
+    snapshot=$(restic --repo "$repo/$U2" --password-file "$ARCPANEL/data/users/$U2/restic.conf" snapshots --json | jq -r 'last.short_id')
+    run restic --repo "$repo/$U2" --password-file "$ARCPANEL/data/users/$U2/restic.conf" cat snapshot "$snapshot"
+    assert_output --partial "\"/backup/arcpanel-objects-$U2\""
+    v-delete-user-bucket "$U2" arcbats-u2 > /dev/null
+    # Everything, as the panel restores a snapshot
+    run v-restore-user-restic "$U2" "$snapshot"
+    assert_success
+    assert_output --partial 'Restore object storage buckets'
+    run mcli_root cat arc/arcbats-u2/restic.txt
+    assert_output restic-object
+    run v-list-user-buckets "$U2" json
+    assert_output --partial '"arcbats-u2"'
+    v-delete-backup-host-restic > /dev/null
+    rm -rf "$repo"
+    # A later repository of the account needs a new password and init
+    rm -f "$ARCPANEL/data/users/$U2/restic.conf"
 }
 
 @test "object storage: removing Silo is refused while buckets exist" {

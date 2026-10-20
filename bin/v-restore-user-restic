@@ -98,6 +98,14 @@ if [ "$udir" = "yes" ]; then
 			dockerapp_data_fill "$user" "$app" "${app_dir%/}" || echo "[ ! ] The data of the Docker app $app was not restored completely"
 		fi
 	done
+	# Object storage (E44): restored with the user folders, as from an archive
+	if restic_restore_config "$SAFE_WORKDIR" "$snapshot" --include="/home/$user/backup/arcpanel/buckets.conf" 2> /dev/null \
+		&& [ -s "$SAFE_WORKDIR/home/$user/backup/arcpanel/buckets.conf" ]; then
+		echo "[ * ] Restore object storage buckets"
+		# shellcheck source=/usr/local/arcpanel/func/silo.sh
+		source $ARCPANEL/func/silo.sh
+		silo_restore_snapshot "$user" "$snapshot" "$SAFE_WORKDIR/home/$user/backup/arcpanel/buckets.conf" "$SAFE_WORKDIR"
+	fi
 	safe_workdir_cleanup
 	# Data unpacked into the home from a snapshot made before E39 W1
 	$BIN/v-update-sys-user-homes "$user"
