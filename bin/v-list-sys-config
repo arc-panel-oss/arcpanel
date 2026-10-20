@@ -41,6 +41,7 @@ json_list() {
 		"BACKUP_MODE": "'$BACKUP_MODE'",
 		"BACKUP_SYSTEM": "'$BACKUP_SYSTEM'",
 		"CRON_SYSTEM": "'$CRON_SYSTEM'",
+		"DB_ADMIN_PORT": "'$DB_ADMIN_PORT'",
 		"DB_PGA_ALIAS": "'$DB_PGA_ALIAS'",
 		"DB_PMA_ALIAS": "'$DB_PMA_ALIAS'",
 		"DB_SYSTEM": "'$DB_SYSTEM'",
@@ -123,6 +124,8 @@ json_list() {
 		"DOCKER_SYSTEM": "'$DOCKER_SYSTEM'",
 		"DOCKER_DATA_ROOT": "'$DOCKER_DATA_ROOT'",
 		"WEBMAIL_ALIAS": "'$WEBMAIL_ALIAS'",
+		"WEBMAIL_LINK": "'$WEBMAIL_LINK'",
+		"WEBMAIL_PORT": "'$WEBMAIL_PORT'",
 		"WEBMAIL_SYSTEM": "'$WEBMAIL_SYSTEM'",
 		"WEB_BACKEND": "'$WEB_BACKEND'",
 		"WEB_PORT": "'$WEB_PORT'",
@@ -170,6 +173,12 @@ shell_list() {
 		if [ -n "$WEBMAIL_ALIAS" ]; then
 			echo "Webmail alias:                    $WEBMAIL_ALIAS"
 		fi
+		if [ -n "$WEBMAIL_PORT" ]; then
+			echo "Webmail port:                     $WEBMAIL_PORT"
+		fi
+		if [ -n "$WEBMAIL_LINK" ]; then
+			echo "Webmail link:                     $WEBMAIL_LINK"
+		fi
 	fi
 	if [ -n "$DB_SYSTEM" ]; then
 		echo "Database:                         ${DB_SYSTEM//,/, }"
@@ -178,6 +187,9 @@ shell_list() {
 		fi
 		if [ -n "$DB_PGA_ALIAS" ]; then
 			echo "phpPgAdmin Alias:                 $DB_PGA_ALIAS"
+		fi
+		if [ -n "$DB_ADMIN_PORT" ]; then
+			echo "Database tools port:              $DB_ADMIN_PORT"
 		fi
 	fi
 	if [ -n "$DNS_SYSTEM" ]; then

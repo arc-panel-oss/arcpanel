@@ -102,6 +102,9 @@ if [ "$type" = "pga" ] || [ "$type" = "PGA" ] || [ "$type" = "phppgadmin" ]; the
 	fi
 fi
 
+# Webmail and database tools ports (E46)
+$BIN/v-update-sys-tool-ports > /dev/null
+
 #----------------------------------------------------------#
 #                         ArcPanel                         #
 #----------------------------------------------------------#

@@ -86,6 +86,8 @@ fi
 $BIN/v-restart-mail
 $BIN/v-restart-ftp
 $BIN/v-restart-service "arcpanel"
+# The webmail and database tools ports serve the panel certificate (E46)
+$BIN/v-update-sys-tool-ports yes > /dev/null
 
 #----------------------------------------------------------#
 #                         ArcPanel                         #

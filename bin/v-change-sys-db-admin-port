@@ -1,0 +1,69 @@
+#!/bin/bash
+# info: change the database tools port
+# options: PORT|none
+#
+# example: v-change-sys-db-admin-port 8087
+#
+# This function serves phpMyAdmin and phpPgAdmin on PORT of every address of
+# the server, with the panel certificate, or stops serving them there with
+# "none".
+# It moves the reservation and the firewall rule of the port (E46).
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+port=$1
+tool='db-admin'
+
+# Includes
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/tenancy.sh
+source $ARCPANEL/func/tenancy.sh
+# shellcheck source=/usr/local/arcpanel/func/ports.sh
+source $ARCPANEL/func/ports.sh
+# shellcheck source=/usr/local/arcpanel/func/tool-ports.sh
+source $ARCPANEL/func/tool-ports.sh
+# load config file
+source_conf "$ARCPANEL/conf/arcpanel.conf"
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '1' "$#" 'PORT|none'
+if [ "$port" = 'none' ]; then
+	port=''
+fi
+
+# Perform verification if read-only mode is enabled
+check_arcpanel_demo_mode
+
+ports_lock
+if [ -n "$port" ]; then
+	tool_ports_check "$tool" "$port"
+	if ! tool_ports_available "$tool"; then
+		check_result "$E_NOTEXIST" "the server has neither phpMyAdmin nor phpPgAdmin"
+	fi
+fi
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+old=$(tool_ports_current "$tool")
+tool_ports_change "$tool" "$port"
+check_result $? "the database tools port could not be changed (NGINX refused the configuration)" "$E_UPDATE"
+
+#----------------------------------------------------------#
+#                         ArcPanel                         #
+#----------------------------------------------------------#
+
+$BIN/v-log-action "system" "Info" "System" "Database tools port changed (New Value: ${port:-none}, Old Value: ${old:-none})."
+log_event "$OK" "$ARGUMENTS"
+
+exit
