@@ -1,6 +1,7 @@
 name: Release
 
-# Builds, signs and publishes the ArcPanel APT repository (ADR-0006, spec WP3).
+# Builds, signs and publishes the ArcPanel APT repository (ADR-0006, spec WP3), which keeps
+# every published version (E33 phase 1 P0); the packages are also attached to the GitHub Release.
 #
 # Tag naming follows src/deb/arcpanel/control:
 #   Version 2.3.0         -> tag v2.3.0         -> stable repository  https://apt.arcpanel.top/
@@ -65,6 +66,8 @@ jobs:
               exit 1
             fi
           done
+          # The release metadata of the manifest (E33 phase 1 spec §4)
+          bash .github/scripts/release-manifest.sh check src/release.json "${pkg_ver}"
           # A pre-release builds Ubuntu 24.04 amd64 only, to save Actions minutes; a stable release builds them all.
           if [[ "${pkg_ver}" == *"~"* ]]; then
             echo "channel=beta" >> "$GITHUB_OUTPUT"
@@ -83,11 +86,20 @@ jobs:
       channel: ${{ needs.check-version.outputs.channel }}
       save-cache: true
 
+  # The repository keeps every published version (E33 phase 1 P0,
+  # docs/features/specs/2026-10-20-005-e33-update-center-phase-1-design.md §5.1): the job
+  # pulls the published repository, adds the new packages and the release to the signed
+  # manifest, uploads the pool without deleting anything and only then the indexes and the
+  # manifest, and attaches the packages and the manifest to the GitHub Release.
   publish:
     name: Sign and publish (${{ needs.check-version.outputs.channel }})
     needs: [check-version, build]
     runs-on: ubuntu-24.04
     environment: release
+    permissions:
+      contents: write
+    env:
+      CHANNEL: ${{ needs.check-version.outputs.channel }}
     steps:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -100,7 +112,34 @@ jobs:
           merge-multiple: true
 
       - name: Install tools
-        run: sudo apt-get update -qq && sudo apt-get install -y -qq reprepro rsync
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq apt-utils jq rsync
+
+      - name: Restore the published repository from the cache
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: current
+          key: apt-repo-${{ env.CHANNEL }}-${{ github.run_id }}
+          restore-keys: apt-repo-${{ env.CHANNEL }}-
+
+      - name: Set up the deploy key
+        env:
+          APT_DEPLOY_SSH_KEY: ${{ secrets.APT_DEPLOY_SSH_KEY }}
+          APT_DEPLOY_KNOWN_HOSTS: ${{ secrets.APT_DEPLOY_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$APT_DEPLOY_SSH_KEY" > ~/.ssh/id_deploy
+          chmod 600 ~/.ssh/id_deploy
+          printf '%s\n' "$APT_DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
+
+      - name: Pull the published repository
+        env:
+          APT_DEPLOY_TARGET: ${{ secrets.APT_DEPLOY_TARGET }}
+        run: |
+          set -euo pipefail
+          remote="${APT_DEPLOY_TARGET}"
+          [ "$CHANNEL" = beta ] && remote="${APT_DEPLOY_TARGET}/beta"
+          bash .github/scripts/apt-host.sh pull "$remote" current
 
       - name: Import signing key
         env:
@@ -110,28 +149,66 @@ jobs:
       - name: Build repository
         env:
           APT_SIGNING_KEY_ID: ${{ secrets.APT_SIGNING_KEY_ID }}
-        run: bash .github/scripts/build-apt-repo.sh debs repo "$APT_SIGNING_KEY_ID"
+        run: |
+          set -euo pipefail
+          if [ -d current/dists ]; then
+            bash .github/scripts/build-apt-repo.sh repo "$APT_SIGNING_KEY_ID" current debs
+          else
+            # The first publish of a channel
+            bash .github/scripts/build-apt-repo.sh repo "$APT_SIGNING_KEY_ID" - debs
+          fi
+
+      - name: Add the release to the manifest
+        env:
+          APT_SIGNING_KEY_ID: ${{ secrets.APT_SIGNING_KEY_ID }}
+        run: |
+          set -euo pipefail
+          manifest=-
+          if [ -f current/releases.json ]; then
+            gpg --batch --verify current/releases.json.sig current/releases.json
+            manifest=current/releases.json
+          fi
+          bash .github/scripts/release-manifest.sh add "$manifest" src/release.json debs "$CHANNEL" > repo/releases.json
+          gpg --batch --yes --local-user "$APT_SIGNING_KEY_ID" --detach-sign -o repo/releases.json.sig repo/releases.json
+          jq -c '.releases[0]' repo/releases.json
 
       - name: Publish repository
         env:
-          APT_DEPLOY_SSH_KEY: ${{ secrets.APT_DEPLOY_SSH_KEY }}
-          APT_DEPLOY_KNOWN_HOSTS: ${{ secrets.APT_DEPLOY_KNOWN_HOSTS }}
           APT_DEPLOY_TARGET: ${{ secrets.APT_DEPLOY_TARGET }}
-          CHANNEL: ${{ needs.check-version.outputs.channel }}
         run: |
           set -euo pipefail
-          install -m 700 -d ~/.ssh
-          printf '%s\n' "$APT_DEPLOY_SSH_KEY" > ~/.ssh/id_deploy
-          chmod 600 ~/.ssh/id_deploy
-          printf '%s\n' "$APT_DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
-          ssh_cmd="ssh -i ~/.ssh/id_deploy -o IdentitiesOnly=yes"
-          if [ "$CHANNEL" = "beta" ]; then
-            rsync -az --delete -e "$ssh_cmd" repo/ "${APT_DEPLOY_TARGET}/beta/"
-          else
-            # Keep the beta repository when publishing stable.
-            rsync -az --delete --exclude '/beta/' -e "$ssh_cmd" repo/ "${APT_DEPLOY_TARGET}/"
-          fi
+          remote="${APT_DEPLOY_TARGET}"
+          [ "$CHANNEL" = beta ] && remote="${APT_DEPLOY_TARGET}/beta"
+          bash .github/scripts/apt-host.sh push repo "$remote"
           rm -f ~/.ssh/id_deploy
+
+      - name: Attach the packages to the GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          # One tar per codename keeps the codename that the file names do not carry for rebuilds.
+          mkdir -p assets
+          for dir in debs/*/; do
+            codename="$(basename "$dir")"
+            tar -C debs -cf "assets/debs-${codename}.tar" "${codename}"
+          done
+          if ! gh release view "${GITHUB_REF_NAME}" > /dev/null 2>&1; then
+            prerelease=()
+            [ "$CHANNEL" = beta ] && prerelease=(--prerelease)
+            gh release create "${GITHUB_REF_NAME}" --verify-tag --title "ArcPanel ${GITHUB_REF_NAME#v}" \
+              --notes "Packages of ArcPanel ${GITHUB_REF_NAME#v} as published to the ${CHANNEL} APT repository." "${prerelease[@]}"
+          fi
+          gh release upload "${GITHUB_REF_NAME}" assets/*.tar repo/releases.json repo/releases.json.sig --clobber
+
+      - name: Keep the new repository for the next release
+        run: rm -rf current && mv repo current
+
+      - name: Save the repository in the cache
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: current
+          key: apt-repo-${{ env.CHANNEL }}-${{ github.run_id }}
 
   advance-branches:
     name: Advance release and master
