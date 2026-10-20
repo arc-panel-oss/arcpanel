@@ -82,7 +82,7 @@ it('links phpMyAdmin on the database tools port, also when the panel is opened b
 
     $this->get('/db')->assertOk()->assertSee('//localhost:8087/phpmyadmin/', false);
     $this->get('http://127.0.0.1/db')->assertOk()->assertSee('//127.0.0.1:8087/phpmyadmin/', false)
-        ->assertDontSee('aria-disabled="true"', false);
+        ->assertDontSee('ap-btn is-disabled', false);
 });
 
 it('signs into phpMyAdmin on the database tools port', function () {
@@ -91,6 +91,13 @@ it('signs into phpMyAdmin on the database tools port', function () {
 
     $this->post('http://127.0.0.1/db/bob/bob_wp/phpmyadmin')->assertOk()
         ->assertSee('action="https://127.0.0.1:8087/phpmyadmin/arcpanel-sso.php"', false);
+});
+
+it('disables the database tool links by IP without the database tools port', function () {
+    withSysConfig($this->fake, ['DB_ADMIN_PORT' => '', 'DB_PMA_ALIAS' => 'phpmyadmin']);
+    signIn('bob', 'user');
+
+    $this->get('http://127.0.0.1/db')->assertOk()->assertSee('ap-btn is-disabled', false);
 });
 
 it('keeps the host name links without the database tools port', function () {

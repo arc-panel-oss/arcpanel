@@ -186,6 +186,39 @@ final class MailService
         return $this->hasWebmail() ? $domain->webmailUrl($this->webmailAlias(), $this->webmailPortUrl()) : null;
     }
 
+    /**
+     * Where "Open Webmail (signed in)" posts its ticket (E46 spec §7.7), null
+     * when there is no sign-on: Roundcube on the server and the domain, both
+     * active, over HTTPS (the domain link has no SSL without the port).
+     */
+    public function signOnUrl(MailDomainRecord $domain, MailAccountRecord $account): ?string
+    {
+        $url = $this->openWebmailUrl($domain);
+        if ($url === null || $domain->webmail !== 'roundcube' || $domain->suspended || $account->suspended
+            || ! in_array('roundcube', explode(',', $this->config->get('WEBMAIL_SYSTEM')), true) || ! str_starts_with($url, 'https://')) {
+            return null;
+        }
+
+        return $url;
+    }
+
+    /**
+     * The sign-on form: a one-time ticket for the browser at CLIENTIP, posted
+     * to Roundcube's arcpanel_sso plugin, never put in a URL.
+     *
+     * @return array{action: string, fields: array<string, string>}
+     */
+    public function signOnForm(MailDomainRecord $domain, MailAccountRecord $account, string $actor, string $clientIp): array
+    {
+        $url = (string) $this->signOnUrl($domain, $account);
+        $ticket = trim($this->arc->run('v-add-mail-account-sso', [$domain->user, $domain->domain, $account->account, $actor, $clientIp])->stdout);
+
+        return [
+            'action' => $url.'?_task=login&_action=arcpanel-sso',
+            'fields' => ['_ticket' => $ticket, '_user' => $account->account.'@'.$domain->domain],
+        ];
+    }
+
     /** The webmail of the client settings panel: the port link, else the domain link. */
     public function clientWebmailUrl(MailDomainRecord $domain): ?string
     {
