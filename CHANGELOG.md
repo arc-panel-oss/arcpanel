@@ -6,7 +6,15 @@ All notable changes to ArcPanel are listed here. ArcPanel is based on HestiaCP 1
 
 ### Changed
 
+- **Automatic updates stay on the installed release line.** With automatic updates on, a server now installs only the patch releases of its line (2.2.x on 2.2), never a new minor or major release such as 2.3.0, which can change how the server works (2.3.0 moves the firewall to nftables). When a newer line is published, the administrator gets a panel notification and, with update e-mails on, an e-mail, once per version, and updates from Server → Updates after reading the release notes. The engine packages stay with the line while a newer one waits. Servers with automatic updates off keep them off.
+- Automatic updates run at a random night time between 01:00 and 06:59 of the server; installs before 2.2.2 all ran at 04:41. Their output goes to `/usr/local/arcpanel/log/autoupdate.log`, and a failure sends one line through the cron e-mail.
+- A failed update of an ArcPanel package now shows the output of `apt-get` in the task log instead of only "update failed", and never waits for a question about a changed configuration file (the installed file is kept).
+- `arcpanel-web-terminal` is updated with the other ArcPanel packages when it is installed.
 - **The APT repository keeps every version.** `apt.arcpanel.top` now keeps each published version of the ArcPanel packages, starting with 2.2.1, instead of the newest one only, so a patch release of an older line no longer replaces a newer release and an earlier version can be installed again with `apt-get install arcpanel=<version>`. APT still installs the newest version by default. See the [E33 phase 1 spec](https://github.com/arc-panel-oss/docs/blob/main/features/specs/2026-10-20-005-e33-update-center-phase-1-design.md).
+
+### Fixed
+
+- The Updates page compares package versions as versions; it compared them as text, so a package 2.10 looked older than 2.9.
 
 ## 2.2.1 — 2026-10-20
 

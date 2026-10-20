@@ -83,7 +83,7 @@ php_v=$(apt-cache policy arcpanel-php | grep Candidate | cut -d ':' -f 2 | xargs
 check_installed_deb arcpanel
 
 UPDATED='yes'
-if [ -n "$arcpanel_v" ] && [ "$arcpanel_v" \> "$VERSION" ]; then
+if [ -n "$arcpanel_v" ] && dpkg --compare-versions "$arcpanel_v" gt "$VERSION"; then
 	UPDATED='no'
 fi
 
@@ -94,7 +94,7 @@ data="$data UPDATED='$UPDATED' DESCR='ArcPanel core package' TIME='$TIME' DATE='
 check_installed_deb arcpanel-php
 
 UPDATED='yes'
-if [ -n "$php_v" ] && [ "$php_v" \> "$VERSION" ]; then
+if [ -n "$php_v" ] && dpkg --compare-versions "$php_v" gt "$VERSION"; then
 	UPDATED='no'
 fi
 
@@ -106,7 +106,7 @@ data="$data TIME='$TIME' DATE='$DATE'"
 check_installed_deb arcpanel-nginx
 
 UPDATED='yes'
-if [ -n "$nginx_v" ] && [ "$nginx_v" \> "$VERSION" ]; then
+if [ -n "$nginx_v" ] && dpkg --compare-versions "$nginx_v" gt "$VERSION"; then
 	UPDATED='no'
 fi
 
