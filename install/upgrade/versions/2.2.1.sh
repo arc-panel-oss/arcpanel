@@ -6,3 +6,7 @@
 # Webmail on 8086 and phpMyAdmin/phpPgAdmin on 8087 when the tools are
 # installed and the ports are free; a busy port is left off with a warning
 "$ARCPANEL/bin/v-add-sys-tool-ports"
+
+# Webmail sign-on: the Dovecot passdb of session passwords, its cron job and
+# the Roundcube plugin
+"$ARCPANEL/bin/v-add-sys-mail-sso"

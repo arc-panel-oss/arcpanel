@@ -1,0 +1,103 @@
+#!/bin/bash
+# info: set up webmail single sign-on
+# options: NONE
+#
+# example: v-add-sys-mail-sso
+#
+# This function sets up the webmail sign-on of the panel (E46): the second
+# Dovecot passdb of session passwords (auth-arcpanel-sso.conf.ext and an
+# empty /etc/dovecot/arcpanel-sso.passwd), the cron job that removes expired
+# sessions, and the Roundcube plugin when Roundcube is installed. It can run
+# on every install and upgrade.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Includes
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/mail-sso.sh
+source $ARCPANEL/func/mail-sso.sh
+# load config file
+source_conf "$ARCPANEL/conf/arcpanel.conf"
+
+AUTH_CONF=/etc/dovecot/conf.d/10-auth.conf
+SSO_CONF=/etc/dovecot/conf.d/auth-arcpanel-sso.conf.ext
+CRON_FILE=/etc/cron.d/arcpanel-mail-sso
+RC_PLUGIN=/var/lib/roundcube/plugins/arcpanel_sso
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+# Perform verification if read-only mode is enabled
+check_arcpanel_demo_mode
+
+if [ "$IMAP_SYSTEM" != 'dovecot' ] || [ ! -f "$AUTH_CONF" ]; then
+	# No Dovecot, nothing to sign on to
+	exit 0
+fi
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+mail_sso_lock
+mail_sso_passdb_init
+
+version=2.3
+if [[ "$(dovecot --version 2> /dev/null)" == 2.4* ]]; then
+	version=2.4
+fi
+cp -f "$ARCPANEL/install/common/dovecot/$version/conf.d/auth-arcpanel-sso.conf.ext" "$SSO_CONF"
+chmod 644 "$SSO_CONF"
+
+changed=''
+if ! grep -q '^!include auth-arcpanel-sso.conf.ext' "$AUTH_CONF"; then
+	cp -f "$AUTH_CONF" "$AUTH_CONF.arcpanel-sso.bak"
+	if grep -q '^!include auth-passwdfile.conf.ext' "$AUTH_CONF"; then
+		sed -i '/^!include auth-passwdfile.conf.ext/a !include auth-arcpanel-sso.conf.ext' "$AUTH_CONF"
+	else
+		echo '!include auth-arcpanel-sso.conf.ext' >> "$AUTH_CONF"
+	fi
+	if ! doveconf -n > /dev/null 2>&1; then
+		mv -f "$AUTH_CONF.arcpanel-sso.bak" "$AUTH_CONF"
+		check_result "$E_UPDATE" "Dovecot refused the sign-on passdb, the configuration is kept"
+	fi
+	rm -f "$AUTH_CONF.arcpanel-sso.bak"
+	changed=yes
+fi
+
+cat > "$CRON_FILE" << EOF
+# ArcPanel: remove expired webmail sign-on sessions (E46)
+*/5 * * * * root $BIN/v-update-mail-sso > /dev/null 2>&1
+EOF
+chmod 644 "$CRON_FILE"
+
+# Roundcube plugin (E46 spec §7.6)
+if [ -d /var/lib/roundcube/plugins ] && [ -d "$ARCPANEL/install/common/roundcube/plugins/arcpanel_sso" ]; then
+	mkdir -p "$RC_PLUGIN"
+	cp -f "$ARCPANEL/install/common/roundcube/plugins/arcpanel_sso/"* "$RC_PLUGIN/"
+	chown -R root:root "$RC_PLUGIN"
+	chmod 755 "$RC_PLUGIN"
+	chmod 644 "$RC_PLUGIN"/*
+	rc_config=/etc/roundcube/config.inc.php
+	if [ -f "$rc_config" ] && ! grep -q 'arcpanel_sso' "$rc_config"; then
+		echo '$config["plugins"][] = "arcpanel_sso";' >> "$rc_config"
+	fi
+fi
+
+if [ -n "$changed" ] && systemctl is-active --quiet dovecot; then
+	systemctl reload dovecot
+fi
+
+#----------------------------------------------------------#
+#                         ArcPanel                         #
+#----------------------------------------------------------#
+
+log_event "$OK" "$ARGUMENTS"
+
+exit

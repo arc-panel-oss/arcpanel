@@ -84,6 +84,9 @@ if [ -x "$ARCPANEL/data/extensions/delete-mail-domain.sh" ]; then
 	$ARCPANEL/data/extensions/delete-mail-domain.sh "$user" "$domain"
 fi
 
+# End the webmail sign-on sessions (E46)
+$BIN/v-delete-mail-account-sso "$domain" > /dev/null 2>&1
+
 #----------------------------------------------------------#
 #                         ArcPanel                         #
 #----------------------------------------------------------#
