@@ -6,9 +6,9 @@ name: Release
 #   Version 1.0.0        -> tag v1.0.0        -> stable repository  https://apt.arcpanel.top/
 #   Version 1.0.1~beta1  -> tag v1.0.1-beta1  -> beta repository    https://apt.arcpanel.top/beta/
 #
-# A stable release builds every supported distribution on amd64 (arm64 is not supported for now;
-# add "arm64" to the stable matrix to bring it back once arm64-trial.yml passes, E47); a
-# pre-release builds Ubuntu 24.04 amd64 only. The build steps are in build-debs.yml.
+# A stable release builds every supported distribution on amd64 and arm64 (arm64 since 2.2.1,
+# after arm64-trial.yml passed, E47; installs on arm64 are not supported yet); a pre-release
+# builds Ubuntu 24.04 amd64 only. The build steps are in build-debs.yml.
 #
 # Required secrets of the release environment (see docs/operations/release-signing.md):
 #   APT_SIGNING_KEY         ASCII-armored private signing subkey
@@ -63,7 +63,7 @@ jobs:
             echo 'matrix={"image":["ubuntu:24.04"],"arch":["amd64"]}' >> "$GITHUB_OUTPUT"
           else
             echo "channel=stable" >> "$GITHUB_OUTPUT"
-            echo 'matrix={"image":["debian:12","debian:13","ubuntu:22.04","ubuntu:24.04","ubuntu:26.04"],"arch":["amd64"]}' >> "$GITHUB_OUTPUT"
+            echo 'matrix={"image":["debian:12","debian:13","ubuntu:22.04","ubuntu:24.04","ubuntu:26.04"],"arch":["amd64","arm64"]}' >> "$GITHUB_OUTPUT"
           fi
 
   build:
