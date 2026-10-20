@@ -7,10 +7,8 @@ name: Release
 #   Version 1.0.1~beta1  -> tag v1.0.1-beta1  -> beta repository    https://apt.arcpanel.top/beta/
 #
 # A stable release builds every supported distribution on amd64 (arm64 is not supported for now;
-# add "arm64" to the stable matrix to bring it back); a pre-release builds
-# Ubuntu 24.04 amd64 only. arcpanel-nginx, arcpanel-php and arcpanel-web-terminal come from the
-# Actions cache while their sources, src/arcpanel-build.sh, src/sources.sha256 and
-# func/download.sh are unchanged.
+# add "arm64" to the stable matrix to bring it back once arm64-trial.yml passes, E47); a
+# pre-release builds Ubuntu 24.04 amd64 only. The build steps are in build-debs.yml.
 #
 # Required secrets of the release environment (see docs/operations/release-signing.md):
 #   APT_SIGNING_KEY         ASCII-armored private signing subkey
@@ -69,81 +67,13 @@ jobs:
           fi
 
   build:
-    name: Build ${{ matrix.image }} ${{ matrix.arch }}
+    name: Build
     needs: check-version
-    runs-on: ${{ matrix.arch == 'arm64' && 'ubuntu-24.04-arm' || 'ubuntu-24.04' }}
-    container: ${{ matrix.image }}
-    timeout-minutes: 120
-    # In a container job, run steps default to sh; dash in debian:12 has no "set -o pipefail".
-    defaults:
-      run:
-        shell: bash
-    strategy:
-      fail-fast: true
-      matrix: ${{ fromJSON(needs.check-version.outputs.matrix) }}
-    steps:
-      - name: Install build prerequisites
-        run: |
-          apt-get update -qq
-          DEBIAN_FRONTEND=noninteractive apt-get install -y -qq git curl wget ca-certificates lsb-release sudo
-
-      - name: Checkout code
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      # arcpanel-nginx, arcpanel-php and arcpanel-web-terminal are compiled from source and rarely change:
-      # reuse them while their sources (src/deb/<package>/) and the build script (library versions) are unchanged.
-      # The build script stamps every package with the pre-release tag (~alpha.4), so each channel has its own
-      # cache: a stable release never ships engines labelled with a pre-release.
-      - name: Restore engine packages
-        id: engines
-        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
-        with:
-          path: engines
-          key: engines-${{ needs.check-version.outputs.channel }}-${{ matrix.image }}-${{ matrix.arch }}-${{ hashFiles('src/arcpanel-build.sh', 'src/sources.sha256', 'func/download.sh', 'src/deb/nginx/**', 'src/deb/php/**', 'src/deb/web-terminal/**') }}
-
-      - name: Build packages
-        working-directory: src
-        run: |
-          # The build folder must be root's with mode 0700 (E39 W1 D13)
-          install -d -m 700 /tmp/arcpanel-src
-          export BUILD_DIR=/tmp/arcpanel-src
-          if [ "${{ steps.engines.outputs.cache-hit }}" = "true" ]; then
-            bash ./arcpanel-build.sh --arcpanel --noinstall --keepbuild '~localsrc'
-          else
-            bash ./arcpanel-build.sh --all --noinstall --keepbuild '~localsrc'
-          fi
-
-      - name: Collect packages by distribution codename
-        run: |
-          set -euo pipefail
-          . /etc/os-release
-          mkdir -p "out/${VERSION_CODENAME}"
-          cp /tmp/arcpanel-src/deb/*.deb "out/${VERSION_CODENAME}/"
-          if [ "${{ steps.engines.outputs.cache-hit }}" = "true" ]; then
-            cp engines/*.deb "out/${VERSION_CODENAME}/"
-          else
-            mkdir -p engines
-            cp /tmp/arcpanel-src/deb/arcpanel-nginx_*.deb /tmp/arcpanel-src/deb/arcpanel-php_*.deb \
-              /tmp/arcpanel-src/deb/arcpanel-web-terminal_*.deb engines/
-          fi
-          ls -l "out/${VERSION_CODENAME}"
-          echo "ARTIFACT_NAME=debs-${VERSION_CODENAME}-${{ matrix.arch }}" >> "$GITHUB_ENV"
-
-      - name: Save engine packages
-        if: steps.engines.outputs.cache-hit != 'true'
-        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
-        with:
-          path: engines
-          key: ${{ steps.engines.outputs.cache-primary-key }}
-
-      - name: Upload packages
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: ${{ env.ARTIFACT_NAME }}
-          path: out/
-          # Only the publish job of this run needs them; long retention fills the storage quota.
-          retention-days: 1
-          if-no-files-found: error
+    uses: ./.github/workflows/build-debs.yml
+    with:
+      matrix: ${{ needs.check-version.outputs.matrix }}
+      channel: ${{ needs.check-version.outputs.channel }}
+      save-cache: true
 
   publish:
     name: Sign and publish (${{ needs.check-version.outputs.channel }})
