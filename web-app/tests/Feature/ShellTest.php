@@ -46,7 +46,9 @@ it('renders right to left for RTL languages', function () {
 
 it('offers the user switcher to admins only', function () {
     signIn('arcadmin', 'admin');
-    $this->get('/web/domains')->assertSee('Switch user')->assertSee('<option value="carol">', false);
+    $this->get('/web/domains')->assertSee('Switch user')->assertSee('<option value="carol">', false)
+        // apUserSwitch shows the full name and the role of every account
+        ->assertSee('Carol Shop')->assertSee('2 accounts');
 
     signIn('bob', 'user');
     $this->get('/web/domains')->assertDontSee('Switch user');

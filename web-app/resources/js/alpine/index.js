@@ -25,6 +25,7 @@ import apTerminal from './terminal.js';
 import apToast from './toast.js';
 import apUnlimited from './unlimited.js';
 import apUserMenu from './user-menu.js';
+import apUserSwitch from './user-switch.js';
 import apWizard from './wizard.js';
 
 export const modules = {
@@ -56,6 +57,7 @@ export const modules = {
 	apToast,
 	apUnlimited,
 	apUserMenu,
+	apUserSwitch,
 	apWizard,
 };
 
