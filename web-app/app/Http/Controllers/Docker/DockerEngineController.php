@@ -19,11 +19,15 @@ final class DockerEngineController extends Controller
 {
     /** Strings of the island on this page */
     public const STRINGS = [
-        'Apps', 'Compose', 'Containers', 'Data root', 'Disk free', 'Disk used', 'Docker engine', 'Done', 'Failed', 'Findings',
-        'Hide the output', 'Images', 'Install Docker engine', 'Installing the Docker engine…', 'Last check', 'MB', 'No finding.',
+        'Apps', 'Compose', 'Containers', 'Data root', 'Disk free', 'Docker engine', 'Done', 'Failed', 'Findings',
+        'Hide the output', 'Images', 'Install Docker engine', 'Installing the Docker engine…', 'Last check', 'MB',
         'Not installed', 'Repaired', 'Running', 'Show the output', 'Something went wrong', 'Stopped', 'The Docker engine is installed.',
         'The engine runs every Docker app of the server. Users never get access to it: every app runs as its user, without privileges.',
         'Type', 'User', 'Users', 'Version', 'App', 'Detail',
+        'Checked every 5 minutes', 'Docker is not installed', 'Install the engine to run Docker apps from the catalog. Every app runs as its user, without privileges.',
+        'Last installation', 'No problem found', 'Not checked yet', 'Not repaired', 'Open the Services page', 'Read-only: changes are disabled.', 'Refresh',
+        'The engine and every Docker app passed the last check.', 'The first check of the engine and its apps runs within 5 minutes.','The engine is stopped: no Docker app runs until the docker service starts again.',
+        'GB', 'Usage', 'Used by Docker',
     ];
 
     public function __construct(
@@ -44,6 +48,8 @@ final class DockerEngineController extends Controller
             'props' => [
                 'view' => 'engine',
                 'base' => route('server.docker').'/api',
+                'appsUrl' => route('docker-apps'),
+                'servicesUrl' => route('server.services'),
                 'status' => $status,
                 'task' => $this->engine->task()->toArray(),
                 'readOnly' => $principal->isReadOnly(),

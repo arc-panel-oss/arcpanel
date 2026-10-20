@@ -5,7 +5,10 @@ import {
 	canOpenStore,
 	categoriesOf,
 	defaultAppName,
+	engineTaskPlace,
+	engineTiles,
 	filterCatalog,
+	findingRepair,
 	formatMb,
 	formErrors,
 	generateSecret,
@@ -144,6 +147,32 @@ describe('status, catalog and logs', () => {
 		expect(formatMb(512)).toBe('512 MB');
 		expect(formatMb(2048)).toBe('2 GB');
 		expect(formatMb(1536)).toBe('1.5 GB');
+	});
+});
+
+describe('engine page', () => {
+	const status = { diskUsed: 1, diskFree: 91853, images: 3, containers: 4, apps: 2, users: 1 };
+
+	it('shows the counters as tiles, sizes split into value and unit', () => {
+		const tiles = engineTiles(status);
+		expect(tiles.map((tile) => tile.key)).toEqual(['diskUsed', 'diskFree', 'images', 'containers', 'apps', 'users']);
+		expect(tiles[0]).toMatchObject({ value: '1', unit: 'MB' });
+		expect(tiles[1]).toMatchObject({ value: '89.7', unit: 'GB' });
+		expect(tiles[3]).toMatchObject({ value: '4', unit: '' });
+		expect(engineTiles({})[2].value).toBe('0');
+	});
+
+	it('marks a repair only after a repair run', () => {
+		expect(findingRepair('yes')).toEqual({ tone: 'ok', label: 'Repaired' });
+		expect(findingRepair('no')).toEqual({ tone: 'danger', label: 'Not repaired' });
+		expect(findingRepair('')).toBeNull();
+	});
+
+	it('keeps a running or failed install in view and a done one as the last run', () => {
+		expect(engineTaskPlace({})).toBe('none');
+		expect(engineTaskPlace({ id: '1', running: true })).toBe('main');
+		expect(engineTaskPlace({ id: '1', running: false, status: 'failed' })).toBe('main');
+		expect(engineTaskPlace({ id: '1', running: false, status: 'done' })).toBe('last');
 	});
 });
 
