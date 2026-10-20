@@ -1,6 +1,7 @@
 name: Release
 
-# Builds, signs and publishes the ArcPanel APT repository (ADR-0006, spec WP3).
+# Builds, signs and publishes the ArcPanel APT repository (ADR-0006, spec WP3), which keeps
+# every published version (E33 phase 1 P0); the packages are also attached to the GitHub Release.
 #
 # Tag naming follows src/deb/arcpanel/control:
 #   Version 2.3.0         -> tag v2.3.0         -> stable repository  https://apt.arcpanel.top/
@@ -83,11 +84,19 @@ jobs:
       channel: ${{ needs.check-version.outputs.channel }}
       save-cache: true
 
+  # The repository keeps every published version (E33 phase 1 P0,
+  # docs/features/specs/2026-10-20-005-e33-update-center-phase-1-design.md §5.1): the job
+  # pulls the published repository, adds the new packages, uploads the pool without deleting
+  # anything and only then the indexes, and attaches the packages to the GitHub Release.
   publish:
     name: Sign and publish (${{ needs.check-version.outputs.channel }})
     needs: [check-version, build]
     runs-on: ubuntu-24.04
     environment: release
+    permissions:
+      contents: write
+    env:
+      CHANNEL: ${{ needs.check-version.outputs.channel }}
     steps:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -100,7 +109,38 @@ jobs:
           merge-multiple: true
 
       - name: Install tools
-        run: sudo apt-get update -qq && sudo apt-get install -y -qq reprepro rsync
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq apt-utils rsync
+
+      - name: Restore the published repository from the cache
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: current
+          key: apt-repo-${{ env.CHANNEL }}-${{ github.run_id }}
+          restore-keys: apt-repo-${{ env.CHANNEL }}-
+
+      - name: Set up the deploy key
+        env:
+          APT_DEPLOY_SSH_KEY: ${{ secrets.APT_DEPLOY_SSH_KEY }}
+          APT_DEPLOY_KNOWN_HOSTS: ${{ secrets.APT_DEPLOY_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$APT_DEPLOY_SSH_KEY" > ~/.ssh/id_deploy
+          chmod 600 ~/.ssh/id_deploy
+          printf '%s\n' "$APT_DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
+
+      - name: Pull the published repository
+        env:
+          APT_DEPLOY_TARGET: ${{ secrets.APT_DEPLOY_TARGET }}
+        run: |
+          set -euo pipefail
+          remote="${APT_DEPLOY_TARGET}/"
+          [ "$CHANNEL" = beta ] && remote="${APT_DEPLOY_TARGET}/beta/"
+          mkdir -p current
+          # Only dists/ and pool/: the beta repository under / stays out of the stable copy.
+          rsync -az --delete -e "ssh -i ~/.ssh/id_deploy -o IdentitiesOnly=yes" \
+            --include '/dists/***' --include '/pool/***' --exclude '*' "$remote" current/
+          echo "Published repository: $(find current/pool -name '*.deb' 2> /dev/null | wc -l) packages, $(du -sh current | cut -f1)"
 
       - name: Import signing key
         env:
@@ -110,28 +150,59 @@ jobs:
       - name: Build repository
         env:
           APT_SIGNING_KEY_ID: ${{ secrets.APT_SIGNING_KEY_ID }}
-        run: bash .github/scripts/build-apt-repo.sh debs repo "$APT_SIGNING_KEY_ID"
+        run: |
+          set -euo pipefail
+          if [ -d current/dists ]; then
+            bash .github/scripts/build-apt-repo.sh repo "$APT_SIGNING_KEY_ID" current debs
+          else
+            # The first publish of a channel
+            bash .github/scripts/build-apt-repo.sh repo "$APT_SIGNING_KEY_ID" - debs
+          fi
 
       - name: Publish repository
         env:
-          APT_DEPLOY_SSH_KEY: ${{ secrets.APT_DEPLOY_SSH_KEY }}
-          APT_DEPLOY_KNOWN_HOSTS: ${{ secrets.APT_DEPLOY_KNOWN_HOSTS }}
           APT_DEPLOY_TARGET: ${{ secrets.APT_DEPLOY_TARGET }}
-          CHANNEL: ${{ needs.check-version.outputs.channel }}
         run: |
           set -euo pipefail
-          install -m 700 -d ~/.ssh
-          printf '%s\n' "$APT_DEPLOY_SSH_KEY" > ~/.ssh/id_deploy
-          chmod 600 ~/.ssh/id_deploy
-          printf '%s\n' "$APT_DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          remote="${APT_DEPLOY_TARGET}"
+          [ "$CHANNEL" = beta ] && remote="${APT_DEPLOY_TARGET}/beta"
           ssh_cmd="ssh -i ~/.ssh/id_deploy -o IdentitiesOnly=yes"
-          if [ "$CHANNEL" = "beta" ]; then
-            rsync -az --delete -e "$ssh_cmd" repo/ "${APT_DEPLOY_TARGET}/beta/"
-          else
-            # Keep the beta repository when publishing stable.
-            rsync -az --delete --exclude '/beta/' -e "$ssh_cmd" repo/ "${APT_DEPLOY_TARGET}/"
-          fi
+          # The pool first and never deleted, then the indexes that name its files, the signed
+          # Release files last (excluded files are not deleted by the first pass), then the key.
+          rsync -az -e "$ssh_cmd" repo/pool/ "${remote}/pool/"
+          rsync -az --delete --exclude InRelease --exclude Release --exclude Release.gpg -e "$ssh_cmd" \
+            repo/dists/ "${remote}/dists/"
+          rsync -az --delete -e "$ssh_cmd" repo/dists/ "${remote}/dists/"
+          rsync -az -e "$ssh_cmd" repo/arcpanel.gpg "${remote}/arcpanel.gpg"
           rm -f ~/.ssh/id_deploy
+
+      - name: Attach the packages to the GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          # One tar per codename keeps the codename that the file names do not carry for rebuilds.
+          mkdir -p assets
+          for dir in debs/*/; do
+            codename="$(basename "$dir")"
+            tar -C debs -cf "assets/debs-${codename}.tar" "${codename}"
+          done
+          if ! gh release view "${GITHUB_REF_NAME}" > /dev/null 2>&1; then
+            prerelease=()
+            [ "$CHANNEL" = beta ] && prerelease=(--prerelease)
+            gh release create "${GITHUB_REF_NAME}" --verify-tag --title "ArcPanel ${GITHUB_REF_NAME#v}" \
+              --notes "Packages of ArcPanel ${GITHUB_REF_NAME#v} as published to the ${CHANNEL} APT repository." "${prerelease[@]}"
+          fi
+          gh release upload "${GITHUB_REF_NAME}" assets/*.tar --clobber
+
+      - name: Keep the new repository for the next release
+        run: rm -rf current && mv repo current
+
+      - name: Save the repository in the cache
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: current
+          key: apt-repo-${{ env.CHANNEL }}-${{ github.run_id }}
 
   advance-branches:
     name: Advance release and master

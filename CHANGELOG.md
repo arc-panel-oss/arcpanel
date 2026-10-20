@@ -4,6 +4,10 @@ All notable changes to ArcPanel are listed here. ArcPanel is based on HestiaCP 1
 
 ## Unreleased
 
+### Changed
+
+- **The APT repository keeps every version.** `apt.arcpanel.top` now keeps each published version of the ArcPanel packages, starting with 2.2.1, instead of the newest one only, so a patch release of an older line no longer replaces a newer release and an earlier version can be installed again with `apt-get install arcpanel=<version>`. APT still installs the newest version by default. See the [E33 phase 1 spec](https://github.com/arc-panel-oss/docs/blob/main/features/specs/2026-10-20-005-e33-update-center-phase-1-design.md).
+
 ## 2.2.1 — 2026-10-20
 
 Webmail and the database tools on their own ports with webmail sign-on (E46), and `arm64` packages again (E47). See the [E46 spec](https://github.com/arc-panel-oss/docs/blob/main/features/specs/2026-10-20-002-e46-webmail-db-admin-ports-design.md) and the [E47 spec](https://github.com/arc-panel-oss/docs/blob/main/features/specs/2026-10-20-003-e47-arm64-packages-design.md).
