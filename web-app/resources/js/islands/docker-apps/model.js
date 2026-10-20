@@ -197,3 +197,36 @@ export function formatMb(mb) {
 	const value = Number(mb) || 0;
 	return value >= 1024 ? `${(value / 1024).toFixed(value % 1024 === 0 ? 0 : 1)} GB` : `${value} MB`;
 }
+
+/** Engine page: the counters of v-list-sys-docker as tiles, sizes split into value and unit */
+export function engineTiles(status) {
+	const size = (mb) => {
+		const [value, unit] = formatMb(mb).split(' ');
+		return { value, unit };
+	};
+	const count = (value) => ({ value: String(Number(value) || 0), unit: '' });
+	return [
+		{ key: 'diskUsed', label: 'Used by Docker', icon: 'disk', ...size(status.diskUsed) },
+		{ key: 'diskFree', label: 'Disk free', icon: 'disk', ...size(status.diskFree) },
+		{ key: 'images', label: 'Images', icon: 'image', ...count(status.images) },
+		{ key: 'containers', label: 'Containers', icon: 'layers', ...count(status.containers) },
+		{ key: 'apps', label: 'Apps', icon: 'package', ...count(status.apps) },
+		{ key: 'users', label: 'Users', icon: 'users', ...count(status.users) },
+	];
+}
+
+/** REPAIRED of a finding: empty after a check, yes or no after a repair */
+export function findingRepair(value) {
+	if (value === 'yes') {
+		return { tone: 'ok', label: 'Repaired' };
+	}
+	return value === 'no' ? { tone: 'danger', label: 'Not repaired' } : null;
+}
+
+/** Where the engine page shows the install task: in the card while it runs or after it failed, else as the last run */
+export function engineTaskPlace(task) {
+	if (!task?.id) {
+		return 'none';
+	}
+	return task.running || task.status !== 'done' ? 'main' : 'last';
+}

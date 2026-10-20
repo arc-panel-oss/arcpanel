@@ -5152,3 +5152,87 @@ a.ap-pick:focus-visible {
 	color: var(--ap-fg-muted);
 	font-size: var(--ap-text-xs);
 }
+
+/* Docker engine (E4 spec §7): engine facts, usage tiles, the last install and check */
+.ap-docker-facts {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(min(180px, 100%), 1fr));
+	margin: 0;
+	border: 1px solid var(--ap-border);
+	border-radius: var(--ap-radius-lg);
+	background: var(--ap-surface-raised);
+}
+.ap-docker-facts > div {
+	display: flex;
+	flex-direction: column;
+	gap: var(--ap-space-1);
+	min-width: 0;
+	padding: var(--ap-space-3) var(--ap-space-4);
+}
+.ap-docker-facts > div + div {
+	border-inline-start: 1px solid var(--ap-border);
+}
+.ap-docker-facts dt {
+	color: var(--ap-fg-muted);
+	font-size: var(--ap-text-xs);
+}
+.ap-docker-facts dd {
+	margin: 0;
+	font-family: var(--ap-font-mono);
+	font-size: var(--ap-text-md);
+	overflow-wrap: anywhere;
+}
+@media (max-width: 639px) {
+	.ap-docker-facts > div + div {
+		border-inline-start: 0;
+		border-top: 1px solid var(--ap-border);
+	}
+}
+/* Two tiles a row on a phone, six on a wide screen */
+.ap-docker-tiles {
+	grid-template-columns: repeat(auto-fit, minmax(min(120px, 100%), 1fr));
+}
+.ap-docker-tiles .ap-stats-tile-value small {
+	margin-inline-start: var(--ap-space-1);
+	color: var(--ap-fg-subtle);
+	font-size: var(--ap-text-sm);
+	font-weight: 500;
+}
+.ap-docker-last {
+	padding-top: var(--ap-space-4);
+	border-top: 1px solid var(--ap-border);
+	font-size: var(--ap-text-sm);
+}
+.ap-docker-last b {
+	color: var(--ap-fg-muted);
+	font-weight: 500;
+}
+.ap-docker-last .ap-between {
+	flex-wrap: wrap;
+}
+.ap-docker-check {
+	display: inline-flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: var(--ap-space-1-5);
+	font-size: var(--ap-text-sm);
+}
+.ap-docker-check-every {
+	margin-inline-start: var(--ap-space-1-5);
+	padding-inline-start: var(--ap-space-3);
+	border-inline-start: 1px solid var(--ap-border);
+}
+@media (max-width: 639px) {
+	.ap-docker-check-every {
+		flex-basis: 100%;
+		margin: 0;
+		padding: 0;
+		border: 0;
+	}
+}
+.ap-docker-empty {
+	padding-block: var(--ap-space-6);
+}
+.ap-empty-art.is-ok {
+	color: var(--ap-ok);
+}
