@@ -1,22 +1,108 @@
 #!/bin/bash
 # info: update all arcpanel packages
-# options: NONE
+# options: [MODE]
 #
 # example: v-update-sys-arcpanel-all
+# example: v-update-sys-arcpanel-all auto
 #
-# This function of updating all arcpanel packages
+# This function updates every ArcPanel package to its newest version. With the
+# mode auto, which the automatic update cron line uses, it stays on the
+# installed release line X.Y (docs/features/specs/2026-10-20-005-e33-update-center-phase-1-design.md
+# §6): it installs the newest patch release of that line, updates the engine
+# packages only while no newer line is available, and announces a newer line
+# to the administrator once per version (panel notification and, with
+# UPGRADE_SEND_EMAIL, an e-mail). In auto mode the output goes to
+# $ARCPANEL/log/autoupdate.log and only an error is printed.
 
 #----------------------------------------------------------#
 #                Variables & Functions                     #
 #----------------------------------------------------------#
+
+# Argument definition
+mode=$1
 
 # Includes
 # shellcheck source=/etc/arcpanel/arcpanel.conf
 source /etc/arcpanel/arcpanel.conf
 # shellcheck source=/usr/local/arcpanel/func/main.sh
 source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/updates.sh
+source $ARCPANEL/func/updates.sh
 # load config file
 source_conf "$ARCPANEL/conf/arcpanel.conf"
+
+# The packages of this server: the engines and, when installed, the web terminal
+installed_packages() {
+	echo arcpanel arcpanel-nginx arcpanel-php
+	if dpkg-query -W -f='${Status}' arcpanel-web-terminal 2> /dev/null | grep -q 'install ok installed'; then
+		echo arcpanel-web-terminal
+	fi
+}
+
+# Announces VERSION of a newer line than LINE to the administrator once
+announce_line() {
+	local version="$1" line="$2" admin="${ROOT_USER:-admin}" admin_email notified
+	if upd_in_list "$version" "${UPDATE_NOTIFIED_VERSION:-}"; then
+		return 0
+	fi
+	$BIN/v-add-user-notification "$admin" "ArcPanel $version is available" \
+		"<p>ArcPanel <b>$version</b> is a new release line. Automatic updates install only patch releases of ArcPanel $line, so this one waits for you.</p><p>Read the release notes, then update from Server › Updates.</p>" > /dev/null 2>&1
+	if [ "$UPGRADE_SEND_EMAIL" = "true" ]; then
+		admin_email=$($BIN/v-list-user "$admin" json | grep '"CONTACT"' | cut -d'"' -f4)
+		if [ -n "$admin_email" ]; then
+			{
+				echo "ArcPanel $version is available on $HOSTNAME."
+				echo
+				echo "Automatic updates install only patch releases of the installed line, ArcPanel $line,"
+				echo "so this release waits for you. Read the release notes first:"
+				echo "https://arcpanel.top/changelog"
+				echo
+				echo "Then update from Server > Updates in the panel."
+			} | $ARCPANEL/lib/mail-wrapper.php -s "ArcPanel $version is available" "$admin_email" > /dev/null 2>&1
+		fi
+	fi
+	notified="${UPDATE_NOTIFIED_VERSION:+$UPDATE_NOTIFIED_VERSION,}$version"
+	$BIN/v-change-sys-config-value 'UPDATE_NOTIFIED_VERSION' "$notified" > /dev/null
+	echo "Announced ArcPanel $version"
+}
+
+# The automatic update: patch releases of the installed line only
+auto_update() {
+	local installed line target newer package rc=0
+	installed="${VERSION:-$(upd_upstream_version "$(dpkg-query -W -f='${Version}' arcpanel)")}"
+	line="$(upd_version_line "$installed")"
+
+	apt-get update -o Dir::Etc::sourcelist="sources.list.d/arcpanel.list" \
+		-o Dir::Etc::sourceparts="-" -o APT::Get::List-Cleanup="0" -qq
+
+	read -r target newer < <(apt-cache madison arcpanel | awk -F'|' '{gsub(/ /, "", $2); print $2}' \
+		| upd_pick_versions "$installed")
+	[ "$target" = - ] && target=''
+	[ "$newer" = - ] && newer=''
+
+	echo "Installed $installed, line $line, patch release: ${target:-none}, newer line: ${newer:-none}"
+	if [ -n "$target" ]; then
+		$BIN/v-update-sys-arcpanel arcpanel "$target" || rc=$?
+	fi
+	if [ -n "$newer" ]; then
+		announce_line "$newer" "$line"
+		echo "Engine packages stay with ArcPanel $line"
+	else
+		for package in $(installed_packages); do
+			[ "$package" = arcpanel ] && continue
+			$BIN/v-update-sys-arcpanel "$package" || rc=$?
+		done
+	fi
+	return "$rc"
+}
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+if [ -n "$mode" ] && [ "$mode" != 'auto' ]; then
+	check_result "$E_INVALID" "invalid mode $mode (auto or none)"
+fi
 
 # Perform verification if read-only mode is enabled
 check_arcpanel_demo_mode
@@ -25,13 +111,28 @@ check_arcpanel_demo_mode
 #                       Action                             #
 #----------------------------------------------------------#
 
-# Starting update loop
-for package in arcpanel arcpanel-nginx arcpanel-php; do
-	$BIN/v-update-sys-arcpanel "$package"
-done
+if [ "$mode" = 'auto' ]; then
+	log="$ARCPANEL/log/autoupdate.log"
+	{
+		echo "=== $(date '+%F %T') automatic update"
+		auto_update
+	} >> "$log" 2>&1
+	rc=$?
+	if [ "$rc" -ne 0 ]; then
+		echo "Error: the automatic update of ArcPanel failed, see $log"
+		log_event "$rc" "$ARGUMENTS"
+		exit "$rc"
+	fi
+else
+	for package in $(installed_packages); do
+		$BIN/v-update-sys-arcpanel "$package"
+	done
+fi
 
 #----------------------------------------------------------#
 #                         ArcPanel                         #
 #----------------------------------------------------------#
+
+log_event "$OK" "$ARGUMENTS"
 
 exit

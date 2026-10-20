@@ -1,0 +1,95 @@
+name: Withdraw release
+
+# Marks a published version withdrawn in the signed release manifest of the APT repository,
+# so servers never install it on their own (E33 phase 1 P0, D12,
+# docs/features/specs/2026-10-20-005-e33-update-center-phase-1-design.md §5.5). The packages
+# and indexes are not touched. Runs in the release environment, so every run needs an approval.
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to withdraw, as in the manifest (2.2.2, 2.3.0~beta.1)"
+        required: true
+        type: string
+      reason:
+        description: "One line, English, shown to administrators"
+        required: true
+        type: string
+      channel:
+        description: "APT channel"
+        required: true
+        type: choice
+        options: [stable, beta]
+        default: stable
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  withdraw:
+    name: Withdraw ${{ inputs.version }} (${{ inputs.channel }})
+    runs-on: ubuntu-24.04
+    environment: release
+    permissions:
+      contents: write
+    env:
+      VERSION: ${{ inputs.version }}
+      REASON: ${{ inputs.reason }}
+      CHANNEL: ${{ inputs.channel }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install tools
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq jq rsync
+
+      - name: Set up the deploy key
+        env:
+          APT_DEPLOY_SSH_KEY: ${{ secrets.APT_DEPLOY_SSH_KEY }}
+          APT_DEPLOY_KNOWN_HOSTS: ${{ secrets.APT_DEPLOY_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$APT_DEPLOY_SSH_KEY" > ~/.ssh/id_deploy
+          chmod 600 ~/.ssh/id_deploy
+          printf '%s\n' "$APT_DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
+
+      - name: Import signing key
+        env:
+          APT_SIGNING_KEY: ${{ secrets.APT_SIGNING_KEY }}
+        run: printf '%s\n' "$APT_SIGNING_KEY" | gpg --batch --import > /dev/null 2>&1
+
+      - name: Withdraw the version in the manifest
+        env:
+          APT_DEPLOY_TARGET: ${{ secrets.APT_DEPLOY_TARGET }}
+          APT_SIGNING_KEY_ID: ${{ secrets.APT_SIGNING_KEY_ID }}
+        run: |
+          set -euo pipefail
+          remote="${APT_DEPLOY_TARGET}"
+          [ "$CHANNEL" = beta ] && remote="${APT_DEPLOY_TARGET}/beta"
+          mkdir -p current new
+          rsync -az -e "ssh -i ~/.ssh/id_deploy -o IdentitiesOnly=yes" \
+            "${remote}/releases.json" "${remote}/releases.json.sig" current/
+          gpg --batch --verify current/releases.json.sig current/releases.json
+          bash .github/scripts/release-manifest.sh withdraw current/releases.json "$VERSION" "$REASON" > new/releases.json
+          gpg --batch --yes --local-user "$APT_SIGNING_KEY_ID" --detach-sign -o new/releases.json.sig new/releases.json
+          bash .github/scripts/apt-host.sh push-manifest new "$remote"
+          rm -f ~/.ssh/id_deploy
+          jq -c --arg v "$VERSION" '.releases[] | select(.version == $v) | {version, withdrawn}' new/releases.json
+
+      - name: Keep the manifest on the GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          tag="v${VERSION//\~/-}"
+          if gh release view "$tag" > /dev/null 2>&1; then
+            gh release upload "$tag" new/releases.json new/releases.json.sig --clobber
+          else
+            echo "::warning::No GitHub Release $tag; the rebuild uses the newest manifest it finds, so attach new/releases.json by hand"
+          fi

@@ -2682,7 +2682,6 @@ echo "10 05 * * * sudo /usr/local/arcpanel/bin/v-backup-users" >> /var/spool/cro
 echo "20 00 * * * sudo /usr/local/arcpanel/bin/v-update-user-stats" >> /var/spool/cron/crontabs/arcpanelweb
 echo "*/5 * * * * sudo /usr/local/arcpanel/bin/v-update-sys-rrd" >> /var/spool/cron/crontabs/arcpanelweb
 echo "$min $hour * * * sudo /usr/local/arcpanel/bin/v-update-letsencrypt-ssl" >> /var/spool/cron/crontabs/arcpanelweb
-echo "41 4 * * * sudo /usr/local/arcpanel/bin/v-update-sys-arcpanel-all" >> /var/spool/cron/crontabs/arcpanelweb
 # Reseller usage totals and policies (E11)
 $ARCPANEL/bin/v-add-sys-tenancy
 # Port registry: server range, reserved ports, nightly check (E12)

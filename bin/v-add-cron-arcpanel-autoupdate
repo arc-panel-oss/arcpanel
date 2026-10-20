@@ -3,7 +3,10 @@
 # options: MODE
 #
 # This function adds a cronjob for arcpanel automatic updates
-# that can be downloaded from apt or git.
+# that can be downloaded from apt or git. The apt line runs
+# v-update-sys-arcpanel-all auto at a random night time; an existing apt line
+# is brought to that form (docs/features/specs/2026-10-20-005-e33-update-center-phase-1-design.md
+# §6): auto is added, and the fixed time 41 4 of older installs is replaced.
 
 #----------------------------------------------------------#
 #                Variables & Functions                     #
@@ -25,14 +28,34 @@ source_conf "$ARCPANEL/conf/arcpanel.conf"
 #----------------------------------------------------------#
 
 is_system_enabled "$CRON_SYSTEM" 'CRON_SYSTEM'
-check_cron_apt=$(grep 'v-update-sys-arcpanel-all' "/var/spool/cron/crontabs/arcpanelweb")
-check_cron_git=$(grep 'v-update-sys-arcpanel-git' "/var/spool/cron/crontabs/arcpanelweb")
-if [ -n "$check_cron_apt" ] || [ -n "$check_cron_git" ]; then
-	exit
-fi
+crontab_file="/var/spool/cron/crontabs/arcpanelweb"
+check_cron_apt=$(grep 'v-update-sys-arcpanel-all' "$crontab_file" | head -n 1)
+check_cron_git=$(grep 'v-update-sys-arcpanel-git' "$crontab_file")
 
 # Perform verification if read-only mode is enabled
 check_arcpanel_demo_mode
+
+if [ -n "$check_cron_apt" ]; then
+	# Bring the existing line to the automatic mode and a random time
+	updated="$check_cron_apt"
+	if [[ "$updated" =~ ^41\ 4\  ]]; then
+		updated="$(generate_password '012345' '2') $(generate_password '123456' '1') ${updated#41 4 }"
+	fi
+	if [[ "$updated" != *'v-update-sys-arcpanel-all auto'* ]]; then
+		updated="${updated/v-update-sys-arcpanel-all/v-update-sys-arcpanel-all auto}"
+	fi
+	if [ "$updated" != "$check_cron_apt" ]; then
+		# In place with sed: the crontabs folder is sticky, so even root may not
+		# open the file of arcpanelweb for writing (fs.protected_regular)
+		sed -i '/v-update-sys-arcpanel-all/d' "$crontab_file"
+		sed -i -e "\$a$updated" "$crontab_file"
+		$BIN/v-restart-cron > /dev/null
+	fi
+	exit
+fi
+if [ -n "$check_cron_git" ]; then
+	exit
+fi
 
 #----------------------------------------------------------#
 #                       Action                             #
@@ -46,11 +69,11 @@ date=$(echo "$time_n_date" | cut -f 2 -d \ )
 # Define time somewhere at night
 if [ -z "$mode" ] || [ "$mode" = "apt" ]; then
 	min=$(generate_password '012345' '2')
-	hour=$(generate_password '1234567' '1')
+	hour=$(generate_password '123456' '1')
 	day='*'
 	month='*'
 	wday='*'
-	command='v-update-sys-arcpanel-all'
+	command='v-update-sys-arcpanel-all auto'
 fi
 
 if [ "$mode" = "git" ]; then
