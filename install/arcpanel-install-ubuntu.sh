@@ -588,10 +588,18 @@ elif [ "$type" != "ubuntu" ]; then
 	check_result 1 "You are running an unsupported OS."
 fi
 
-# Packages are built for amd64 only; arm64 is not supported for now
-if [ "$architecture" = 'aarch64' ]; then
-	check_result 1 "arm64 (aarch64) is not supported for now: ArcPanel packages are built for amd64 only."
-fi
+# Packages are built for amd64 and arm64, but installs are supported on amd64 only.
+# CI and testers can set ARCPANEL_ALLOW_UNSUPPORTED_ARCH=yes to install on arm64
+# (E47, docs/features/specs/2026-10-20-003-e47-arm64-packages-design.md §5.5).
+check_install_arch() {
+	if [ "$1" = 'aarch64' ]; then
+		if [ "$ARCPANEL_ALLOW_UNSUPPORTED_ARCH" != 'yes' ]; then
+			check_result 1 "arm64 (aarch64) is not supported for now: ArcPanel is installed on amd64 only."
+		fi
+		echo "WARNING: installing on arm64 (aarch64), which is not supported."
+	fi
+}
+check_install_arch "$architecture"
 
 # Clear the screen once launch permissions have been verified
 clear
