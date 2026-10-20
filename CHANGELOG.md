@@ -2,6 +2,8 @@
 
 All notable changes to ArcPanel are listed here. ArcPanel is based on HestiaCP 1.10.5 and, since 2.0, a hard fork of it ([ADR-0007](https://github.com/arc-panel-oss/docs/blob/main/adr/0007-full-rename-and-hard-fork.md)).
 
+## Unreleased
+
 ## 2.2.2 — 2026-10-20
 
 Automatic updates that stay on the installed release line, and an APT repository that keeps every version (E33 phase 1). See the [E33 phase 1 spec](https://github.com/arc-panel-oss/docs/blob/main/features/specs/2026-10-20-005-e33-update-center-phase-1-design.md).
