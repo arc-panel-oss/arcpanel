@@ -140,6 +140,22 @@ it('lists user tasks newest first and respects the tree', function () {
     $this->getJson('/api/v2/users/carol/tasks', apiAs($this->fake, 'hostco', 'reseller'))->assertNotFound();
 });
 
+it('lists user tasks with a key of every set that lists the task queue', function () {
+    // The list reads every task source: a set that lists the queue
+    // (v-list-user-tasks) must hold the other readers too, or its keys get 403
+    $sets = array_values(array_filter(
+        [...apiAreaSets(), 'v2-read', 'v2-write'],
+        fn (string $set) => in_array('v-list-user-tasks', apiSetCommands($set), true),
+    ));
+    expect($sets)->toContain('v2-web', 'v2-mail', 'v2-backup', 'v2-read');
+
+    fakeTaskSources($this->fake);
+    foreach ($sets as $set) {
+        $this->getJson('/api/v2/users/bob/tasks', apiKey($this->fake, 'hostco', 'reseller', [$set]))
+            ->assertOk()->assertJsonCount(6, 'data');
+    }
+});
+
 it('pages the user tasks with limit and offset', function () {
     fakeTaskSources($this->fake);
     $headers = apiAs($this->fake, 'bob', 'user', readOnly: true);
