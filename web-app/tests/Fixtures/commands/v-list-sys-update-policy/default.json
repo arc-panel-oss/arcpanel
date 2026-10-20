@@ -1,0 +1,15 @@
+{
+  "POLICY": "patch",
+  "WINDOW_DAYS": "all",
+  "WINDOW_HOURS": "02-04",
+  "DELAY_DAYS": 2,
+  "PAUSED": "",
+  "NOTIFIED": "2.6.0",
+  "NEXT_WINDOW": "2026-11-03 02:00",
+  "VERSION": "2.5.0",
+  "LINE": "2.5",
+  "CHANNEL": "stable",
+  "MANIFEST_CHECKED": "2026-11-02 14:03:22",
+  "MANIFEST_GENERATED": "2026-11-02T10:12:00Z",
+  "MANIFEST_ERROR": ""
+}

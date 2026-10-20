@@ -8395,7 +8395,7 @@
             },
             "post": {
                 "operationId": "runUpdates",
-                "description": "Updates `package`, or every package without it, as the system task;\nthe panel may restart while it runs. Another running system task\nanswers `409 E_INUSE` with `existing`.",
+                "description": "Updates `package`, or every package without it, as the system task;\nthe panel may restart while it runs. With `version` instead, the\nsystem task updates the panel to that release of listPanelReleases\nwith its pre-flight, health check and rollback (E33): a withdrawn\nrelease is refused, and a release that needs attention needs\n`confirm_attention: true`. The update and its result are in\nlistUpdateHistory. Another running system task answers `409 E_INUSE`\nwith `existing`.",
                 "summary": "Update the panel packages",
                 "tags": [
                     "Server"
@@ -8493,10 +8493,583 @@
                 "x-arcpanel-permission-set": "v2-server"
             }
         },
+        "/system/updates/history": {
+            "get": {
+                "operationId": "listUpdateHistory",
+                "description": "The update runs of the panel, newest first, from the policy, the\nUpdates page and the API. Only the newest update can be rolled back:\n`rollback` says whether it can, `rollback_reason` why not.",
+                "summary": "List the update history",
+                "tags": [
+                    "Server"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Array of `UpdateRun`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/components/schemas/UpdateRun"
+                                            }
+                                        },
+                                        "meta": {
+                                            "$ref": "#/components/schemas/ListMeta"
+                                        }
+                                    },
+                                    "required": [
+                                        "data",
+                                        "meta"
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    }
+                },
+                "parameters": [
+                    {
+                        "name": "limit",
+                        "in": "query",
+                        "description": "Page size, from 1 to 1000. Without it the list is complete.",
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 1000
+                        }
+                    },
+                    {
+                        "name": "offset",
+                        "in": "query",
+                        "description": "Items to skip. Used when `limit` is set; 0 when omitted.",
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 0
+                        }
+                    }
+                ],
+                "x-arcpanel-permission-set": "v2-server"
+            }
+        },
+        "/system/updates/history/{id}/rollback": {
+            "post": {
+                "operationId": "rollbackPanelUpdate",
+                "description": "Reinstalls the version before update run `id` and its configuration, as\nthe system task; the panel restarts while it runs. Another running\nsystem task answers `409 E_INUSE` with `existing`.",
+                "summary": "Roll back an update",
+                "tags": [
+                    "Server"
+                ],
+                "parameters": [
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "integer"
+                        }
+                    },
+                    {
+                        "name": "dry_run",
+                        "in": "query",
+                        "description": "Validate, authorize and plan the change, and answer with its steps instead of running them.",
+                        "schema": {
+                            "type": "boolean",
+                            "default": false
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "With `dry_run`: the planned steps; nothing ran.",
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/DryRun"
+                                }
+                            }
+                        }
+                    },
+                    "202": {
+                        "description": "`Task`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/Task"
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            },
+                            "Link": {
+                                "$ref": "#/components/headers/Link"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "409": {
+                        "description": "`E_FORBIDDEN`: The rollback is not allowed: the message names the condition that failed (only the newest update, to a patch release without upgrade steps, while APT offers the previous version and its saved configuration exists).",
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Error"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    },
+                    "503": {
+                        "$ref": "#/components/responses/Unavailable"
+                    }
+                },
+                "x-arcpanel-permission-set": "v2-server"
+            }
+        },
+        "/system/updates/policy": {
+            "get": {
+                "operationId": "getUpdatePolicy",
+                "description": "The automatic update policy, its window and delay, whether automatic\nupdates are paused, the installed version and the state of the release\nmanifest.",
+                "summary": "Show the update policy",
+                "tags": [
+                    "Server"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "`UpdatePolicy`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/UpdatePolicy"
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    }
+                },
+                "x-arcpanel-permission-set": "v2-server"
+            },
+            "patch": {
+                "operationId": "setUpdatePolicy",
+                "description": "`policy`, `window_days`, `window_hours` and `delay_days`; fields left\nout keep their value, and nothing runs when nothing changes. `off`\nremoves the hourly check of the cron table, the other policies install\nit.",
+                "summary": "Change the update policy",
+                "tags": [
+                    "Server"
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/SetUpdatePolicyRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "`UpdatePolicy`; with `dry_run`, the planned steps.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "oneOf": [
+                                        {
+                                            "type": "object",
+                                            "properties": {
+                                                "data": {
+                                                    "$ref": "#/components/schemas/UpdatePolicy"
+                                                }
+                                            },
+                                            "required": [
+                                                "data"
+                                            ]
+                                        },
+                                        {
+                                            "$ref": "#/components/schemas/DryRun"
+                                        }
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "409": {
+                        "$ref": "#/components/responses/Conflict"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    },
+                    "503": {
+                        "$ref": "#/components/responses/Unavailable"
+                    }
+                },
+                "parameters": [
+                    {
+                        "name": "dry_run",
+                        "in": "query",
+                        "description": "Validate, authorize and plan the change, and answer with its steps instead of running them.",
+                        "schema": {
+                            "type": "boolean",
+                            "default": false
+                        }
+                    }
+                ],
+                "x-arcpanel-permission-set": "v2-server"
+            }
+        },
+        "/system/updates/releases": {
+            "get": {
+                "operationId": "listPanelReleases",
+                "description": "The releases of the signed release manifest that are newer than the\ninstalled version, newest first, with whether the update policy would\ninstall each one and why not. `refresh=true` downloads the manifest\nagain; otherwise a copy older than an hour is downloaded. Without a\nverified manifest the answer is `404 E_NOTEXIST` with the reason;\nrunUpdates without `version` still updates to the latest packages.",
+                "summary": "List the panel releases",
+                "tags": [
+                    "Server"
+                ],
+                "parameters": [
+                    {
+                        "name": "refresh",
+                        "in": "query",
+                        "schema": {
+                            "type": "string",
+                            "enum": [
+                                "true",
+                                "false",
+                                "1",
+                                "0"
+                            ]
+                        }
+                    },
+                    {
+                        "name": "limit",
+                        "in": "query",
+                        "description": "Page size, from 1 to 1000. Without it the list is complete.",
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 1000
+                        }
+                    },
+                    {
+                        "name": "offset",
+                        "in": "query",
+                        "description": "Items to skip. Used when `limit` is set; 0 when omitted.",
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 0
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Array of `PanelRelease`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/components/schemas/PanelRelease"
+                                            }
+                                        },
+                                        "meta": {
+                                            "$ref": "#/components/schemas/ListMeta"
+                                        }
+                                    },
+                                    "required": [
+                                        "data",
+                                        "meta"
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    }
+                },
+                "x-arcpanel-permission-set": "v2-server"
+            }
+        },
+        "/system/updates/releases/{version}/preflight": {
+            "get": {
+                "operationId": "checkPanelRelease",
+                "description": "Runs the pre-flight of an update to `version` without changing\nanything: the manifest, the version, the free disk space, a simulated\ninstall, the running tasks and backups, and whether the release needs\nattention. `ready` is false when a check failed.",
+                "summary": "Check an update to a release",
+                "tags": [
+                    "Server"
+                ],
+                "parameters": [
+                    {
+                        "name": "version",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "`UpdatePreflight`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/UpdatePreflight"
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    }
+                },
+                "x-arcpanel-permission-set": "v2-server"
+            }
+        },
+        "/system/updates/resume": {
+            "post": {
+                "operationId": "resumeAutoUpdates",
+                "description": "Clears the pause that a failed update set (`paused`), so the policy\ninstalls releases again.",
+                "summary": "Resume automatic updates",
+                "tags": [
+                    "Server"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "`UpdatePolicy`; with `dry_run`, the planned steps.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "oneOf": [
+                                        {
+                                            "type": "object",
+                                            "properties": {
+                                                "data": {
+                                                    "$ref": "#/components/schemas/UpdatePolicy"
+                                                }
+                                            },
+                                            "required": [
+                                                "data"
+                                            ]
+                                        },
+                                        {
+                                            "$ref": "#/components/schemas/DryRun"
+                                        }
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "409": {
+                        "$ref": "#/components/responses/Conflict"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    },
+                    "503": {
+                        "$ref": "#/components/responses/Unavailable"
+                    }
+                },
+                "parameters": [
+                    {
+                        "name": "dry_run",
+                        "in": "query",
+                        "description": "Validate, authorize and plan the change, and answer with its steps instead of running them.",
+                        "schema": {
+                            "type": "boolean",
+                            "default": false
+                        }
+                    }
+                ],
+                "x-arcpanel-permission-set": "v2-server"
+            }
+        },
         "/system/updates/settings": {
             "put": {
                 "operationId": "setUpdateSettings",
-                "description": "`auto_update`, `send_email` and `send_log`; fields left out keep their\nvalue, and only a changed value runs its command.",
+                "description": "`auto_update`, `send_email` and `send_log`; fields left out keep their\nvalue, and only a changed value runs its command. `auto_update` is the\nupdate policy of setUpdatePolicy: `true` sets `patch`, `false` sets\n`notify`, and it reads `true` with the policy `patch`.",
                 "summary": "Change the update settings",
                 "tags": [
                     "Server"
@@ -35834,6 +36407,119 @@
                 ],
                 "title": "PanelPackage"
             },
+            "PanelRelease": {
+                "type": "object",
+                "properties": {
+                    "version": {
+                        "type": "string",
+                        "description": "runUpdates takes it as `version`"
+                    },
+                    "line": {
+                        "type": "string",
+                        "description": "the release line, such as `2.5`"
+                    },
+                    "date": {
+                        "type": "string",
+                        "description": "the release date, `YYYY-MM-DD`"
+                    },
+                    "kind": {
+                        "type": "string",
+                        "description": "`patch`, `minor` or `major`, from the installed version"
+                    },
+                    "security": {
+                        "type": "boolean",
+                        "description": "the release fixes a security issue; the update delay does not apply"
+                    },
+                    "attention": {
+                        "type": "boolean",
+                        "description": "the release needs the administrator's attention: runUpdates needs `confirm_attention`"
+                    },
+                    "attention_items": {
+                        "type": "array",
+                        "description": "what the administrator should know before updating",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "steps": {
+                        "type": "boolean",
+                        "description": "the release has upgrade steps, so an update to it cannot be rolled back"
+                    },
+                    "min_from": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "the oldest version that may update to this release directly"
+                    },
+                    "engines": {
+                        "type": "object",
+                        "description": "the engine packages of the release and their versions",
+                        "additionalProperties": {
+                            "type": "string"
+                        }
+                    },
+                    "notes": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "the release notes"
+                    },
+                    "withdrawn": {
+                        "type": [
+                            "object",
+                            "null"
+                        ],
+                        "description": "set when the release was withdrawn; it cannot be installed",
+                        "properties": {
+                            "date": {
+                                "type": "string"
+                            },
+                            "reason": {
+                                "type": "string"
+                            }
+                        },
+                        "required": [
+                            "date",
+                            "reason"
+                        ]
+                    },
+                    "available": {
+                        "type": "boolean",
+                        "description": "APT offers the release for this server's distribution and architecture"
+                    },
+                    "eligible": {
+                        "type": "boolean",
+                        "description": "the update policy would install the release now"
+                    },
+                    "reason": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "why the policy does not install it: `attention`, `withdrawn`, `delay until <date>`, `outside window`, `paused`, `min_from <version>`, `policy` or `not available`"
+                    }
+                },
+                "required": [
+                    "version",
+                    "line",
+                    "date",
+                    "kind",
+                    "security",
+                    "attention",
+                    "attention_items",
+                    "steps",
+                    "min_from",
+                    "engines",
+                    "notes",
+                    "withdrawn",
+                    "available",
+                    "eligible",
+                    "reason"
+                ],
+                "title": "PanelRelease"
+            },
             "PhpExtension": {
                 "type": "object",
                 "properties": {
@@ -37179,7 +37865,7 @@
             },
             "RunUpdatesRequest": {
                 "type": "object",
-                "description": "POST /system/updates (E34 batch 6 spec §5.4).",
+                "description": "POST /system/updates (E34 batch 6 spec §5.4; `version` E33 phase 1 spec §9).",
                 "properties": {
                     "package": {
                         "type": [
@@ -37193,6 +37879,18 @@
                             "arcpanel-php",
                             null
                         ]
+                    },
+                    "version": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "A release of listPanelReleases: the update task with pre-flight, health check and rollback.",
+                        "pattern": "^\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}(~[0-9A-Za-z.]{1,32})?$"
+                    },
+                    "confirm_attention": {
+                        "type": "boolean",
+                        "description": "Required as `true` for a release that needs attention: the administrator has read its `attention_items`."
                     }
                 },
                 "title": "RunUpdatesRequest"
@@ -38066,6 +38764,52 @@
                     "end"
                 ],
                 "title": "SetPortRangeRequest"
+            },
+            "SetUpdatePolicyRequest": {
+                "type": "object",
+                "description": "PATCH /system/updates/policy (E33 phase 1 spec §7.1, §9): fields left out\nkeep their value.",
+                "properties": {
+                    "policy": {
+                        "type": "string",
+                        "description": "`off` checks nothing, `notify` announces new releases, `patch` also installs the patch releases of the installed line in the window.",
+                        "enum": [
+                            "off",
+                            "notify",
+                            "patch"
+                        ]
+                    },
+                    "window_days": {
+                        "type": "array",
+                        "description": "The days of the window.",
+                        "items": {
+                            "type": "string",
+                            "enum": [
+                                "mon",
+                                "tue",
+                                "wed",
+                                "thu",
+                                "fri",
+                                "sat",
+                                "sun"
+                            ]
+                        },
+                        "minItems": 1,
+                        "maxItems": 7,
+                        "uniqueItems": true
+                    },
+                    "window_hours": {
+                        "type": "string",
+                        "description": "The hours of the window, `HH-HH` in the server's time zone (start included, end excluded); `23-02` wraps past midnight, `00-24` is the whole day.",
+                        "pattern": "^([01]\\d|2[0-3])-([01]\\d|2[0-4])$"
+                    },
+                    "delay_days": {
+                        "type": "integer",
+                        "description": "The days a release waits before the policy installs it; security releases do not wait.",
+                        "minimum": 0,
+                        "maximum": 30
+                    }
+                },
+                "title": "SetUpdatePolicyRequest"
             },
             "SetUpdateSettingsRequest": {
                 "type": "object",
@@ -40809,6 +41553,240 @@
                     "values"
                 ],
                 "title": "UpdatePhpIniValuesRequest"
+            },
+            "UpdatePolicy": {
+                "type": "object",
+                "properties": {
+                    "policy": {
+                        "type": "string",
+                        "description": "`off` (nothing is checked), `notify` (new releases are announced) or `patch` (patch releases of the installed line are installed in the window)"
+                    },
+                    "window_days": {
+                        "type": "array",
+                        "description": "the days of the window, `mon` … `sun`",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "window_hours": {
+                        "type": "string",
+                        "description": "the hours of the window, `HH-HH` in the server's time zone; it may wrap past midnight"
+                    },
+                    "delay_days": {
+                        "type": "integer",
+                        "description": "the days a release waits before the policy installs it; security releases do not wait"
+                    },
+                    "paused": {
+                        "type": "boolean",
+                        "description": "automatic updates stopped after a failed update; resumeAutoUpdates starts them again"
+                    },
+                    "paused_reason": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "why automatic updates stopped"
+                    },
+                    "next_window": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "the start of the current or next window in the server's time zone, with the policy `patch`"
+                    },
+                    "installed": {
+                        "type": "object",
+                        "properties": {
+                            "version": {
+                                "type": "string",
+                                "description": "the installed version of the panel"
+                            },
+                            "line": {
+                                "type": "string",
+                                "description": "its release line"
+                            }
+                        },
+                        "required": [
+                            "version",
+                            "line"
+                        ]
+                    },
+                    "manifest": {
+                        "type": "object",
+                        "properties": {
+                            "channel": {
+                                "type": "string",
+                                "description": "`stable` or `beta`, from the APT source of the server"
+                            },
+                            "checked_at": {
+                                "type": [
+                                    "string",
+                                    "null"
+                                ],
+                                "description": "the last verified download, in the server's time zone"
+                            },
+                            "generated_at": {
+                                "type": [
+                                    "string",
+                                    "null"
+                                ],
+                                "description": "when the stored manifest was generated (UTC)"
+                            },
+                            "error": {
+                                "type": [
+                                    "string",
+                                    "null"
+                                ],
+                                "description": "why the last download failed; the stored manifest is still used"
+                            }
+                        },
+                        "required": [
+                            "channel",
+                            "checked_at",
+                            "generated_at",
+                            "error"
+                        ]
+                    }
+                },
+                "required": [
+                    "policy",
+                    "window_days",
+                    "window_hours",
+                    "delay_days",
+                    "paused",
+                    "paused_reason",
+                    "next_window",
+                    "installed",
+                    "manifest"
+                ],
+                "title": "UpdatePolicy"
+            },
+            "UpdatePreflight": {
+                "type": "object",
+                "properties": {
+                    "version": {
+                        "type": "string"
+                    },
+                    "ready": {
+                        "type": "boolean",
+                        "description": "no check failed; the update task runs the same checks again before it installs anything"
+                    },
+                    "checks": {
+                        "type": "array",
+                        "description": "`check` is `manifest`, `version`,\n     `disk`, `packages`, `activity` or `attention`; `status` is `ok`, `warn` or `fail`",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "check": {
+                                    "type": "string"
+                                },
+                                "status": {
+                                    "type": "string"
+                                },
+                                "message": {
+                                    "type": "string"
+                                }
+                            },
+                            "required": [
+                                "check",
+                                "status",
+                                "message"
+                            ]
+                        }
+                    }
+                },
+                "required": [
+                    "version",
+                    "ready",
+                    "checks"
+                ],
+                "title": "UpdatePreflight"
+            },
+            "UpdateRun": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "integer",
+                        "description": "rollbackPanelUpdate takes it"
+                    },
+                    "from": {
+                        "type": "string",
+                        "description": "the version before the run"
+                    },
+                    "to": {
+                        "type": "string",
+                        "description": "the target version"
+                    },
+                    "trigger": {
+                        "type": "string",
+                        "description": "`policy` (the hourly runner), `admin` (the Updates page) or `api`"
+                    },
+                    "actor": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "the user or access key that started it"
+                    },
+                    "started_at": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "in the server's time zone"
+                    },
+                    "ended_at": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "in the server's time zone"
+                    },
+                    "result": {
+                        "type": "string",
+                        "description": "`running`, `done`, `failed`, `rolled-back`, `paused` or `skipped`"
+                    },
+                    "reason": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "the failed checks, or why the run was skipped"
+                    },
+                    "task": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "the system task of the run (getTask)"
+                    },
+                    "rollback": {
+                        "type": "boolean",
+                        "description": "rollbackPanelUpdate is allowed: only the newest update can be rolled back"
+                    },
+                    "rollback_reason": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "why the newest update cannot be rolled back"
+                    }
+                },
+                "required": [
+                    "id",
+                    "from",
+                    "to",
+                    "trigger",
+                    "actor",
+                    "started_at",
+                    "ended_at",
+                    "result",
+                    "reason",
+                    "task",
+                    "rollback",
+                    "rollback_reason"
+                ],
+                "title": "UpdateRun"
             },
             "UpdateServerSettingsRequest": {
                 "type": "object",

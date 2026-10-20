@@ -7,6 +7,7 @@
 # example: v-start-sys-task plugin web-terminal on
 # example: v-start-sys-task arcpanel-update arcpanel
 # example: v-start-sys-task arcpanel-release 2.5.1 admin arcadmin
+# example: v-start-sys-task arcpanel-rollback 12
 # example: v-start-sys-task package python add
 #
 # This function checks a system task and starts v-run-sys-task in a
@@ -27,6 +28,9 @@
 #                             to a release of the manifest with pre-flight,
 #                             health check and rollback (E33); TRIGGER is
 #                             policy, admin or api, ACTOR the user or key
+#   arcpanel-rollback ID      v-rollback-sys-arcpanel ID; a rollback that
+#                             v-rollback-sys-arcpanel would refuse is refused
+#                             here, before the task starts
 #   package SLUG add|delete   v-add-sys-package or v-delete-sys-package of a
 #                             system package of the catalog (E5)
 # The state and the output are read with v-list-sys-task.
@@ -47,6 +51,8 @@ source $ARCPANEL/func/main.sh
 source $ARCPANEL/func/systask.sh
 # shellcheck source=/usr/local/arcpanel/func/syspackages.sh
 source $ARCPANEL/func/syspackages.sh
+# shellcheck source=/usr/local/arcpanel/func/updates.sh
+source $ARCPANEL/func/updates.sh
 # load config file
 source_conf "$ARCPANEL/conf/arcpanel.conf"
 
@@ -179,6 +185,17 @@ case "$kind" in
 		fi
 		args="$2 $3${4:+ $4}"
 		;;
+	arcpanel-rollback)
+		# The rollback restarts the panel, so it runs as a task (E33 phase 1 §9)
+		check_args '2' "$#" 'arcpanel-rollback ID'
+		if [[ ! "$2" =~ ^[0-9]+$ ]]; then
+			check_result "$E_INVALID" "invalid run ID :: $2"
+		fi
+		if ! refusal="$(upd_rollback_check "$2")"; then
+			check_result "$E_FORBIDEN" "the rollback is not allowed: $refusal"
+		fi
+		args="$2"
+		;;
 	package)
 		check_args '3' "$#" 'package SLUG add|delete'
 		sp_check_slug "$2"
@@ -206,7 +223,7 @@ case "$kind" in
 		args="$2 $3"
 		;;
 	*)
-		check_result "$E_INVALID" "invalid task kind :: $kind (php, php-ext, plugin, arcpanel-update, package)"
+		check_result "$E_INVALID" "invalid task kind :: $kind (php, php-ext, plugin, arcpanel-update, arcpanel-release, arcpanel-rollback, package)"
 		;;
 esac
 

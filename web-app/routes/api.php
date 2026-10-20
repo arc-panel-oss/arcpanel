@@ -43,10 +43,12 @@ use App\Http\Controllers\Api\V2\SshKeyController;
 use App\Http\Controllers\Api\V2\StatsController;
 use App\Http\Controllers\Api\V2\SystemPackageController;
 use App\Http\Controllers\Api\V2\TaskController;
+use App\Http\Controllers\Api\V2\UpdateCenterController;
 use App\Http\Controllers\Api\V2\UpdateController;
 use App\Http\Controllers\Api\V2\UserController;
 use App\Http\Controllers\Api\V2\WebDomainController;
 use App\Http\Controllers\Api\V2\WebDomainPhpController;
+use App\Services\Server\UpdateCenter;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -156,6 +158,20 @@ Route::prefix('/system')->name('system.')->group(function () {
         Route::put('/updates/settings', [UpdateController::class, 'settings'])->name('updates.settings');
         Route::post('/packages/{slug}', [SystemPackageController::class, 'install'])->where($slug)->name('packages.install');
         Route::delete('/packages/{slug}', [SystemPackageController::class, 'remove'])->where($slug)->name('packages.remove');
+    });
+});
+
+// The Update Center of the panel (E33 phase 1 spec §9); administrators only
+Route::prefix('/system/updates')->name('system.updates.')->group(function () {
+    $release = ['version' => UpdateCenter::VERSION_PATTERN];
+    Route::get('/releases', [UpdateCenterController::class, 'releases'])->defaults('api_area', 'server')->name('releases.index');
+    Route::get('/releases/{version}/preflight', [UpdateCenterController::class, 'preflight'])->where($release)->defaults('api_area', 'server')->name('releases.preflight');
+    Route::get('/policy', [UpdateCenterController::class, 'policy'])->defaults('api_area', 'server')->name('policy.show');
+    Route::get('/history', [UpdateCenterController::class, 'history'])->defaults('api_area', 'server')->name('history.index');
+    Route::middleware('not-readonly')->group(function () {
+        Route::patch('/policy', [UpdateCenterController::class, 'setPolicy'])->defaults('api_area', 'server')->name('policy.update');
+        Route::post('/resume', [UpdateCenterController::class, 'resume'])->defaults('api_area', 'server')->name('resume');
+        Route::post('/history/{id}/rollback', [UpdateCenterController::class, 'rollback'])->whereNumber('id')->defaults('api_area', 'server')->name('history.rollback');
     });
 });
 

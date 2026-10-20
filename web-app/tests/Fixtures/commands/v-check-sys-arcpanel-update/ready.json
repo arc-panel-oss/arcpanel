@@ -1,0 +1,9 @@
+[
+  { "CHECK": "manifest", "STATUS": "ok", "MESSAGE": "ArcPanel 2.5.1 is in the release manifest" },
+  { "CHECK": "version", "STATUS": "ok", "MESSAGE": "2.5.0 to 2.5.1" },
+  { "CHECK": "disk", "STATUS": "ok", "MESSAGE": "972856 MiB free for /usr/local/arcpanel" },
+  { "CHECK": "disk", "STATUS": "ok", "MESSAGE": "972856 MiB free for /var/cache/apt" },
+  { "CHECK": "packages", "STATUS": "ok", "MESSAGE": "APT can install arcpanel=2.5.1-1+ubuntu24.04 arcpanel-nginx=1.30.5-3-1+ubuntu24.04 arcpanel-php=8.5.11-1-1+ubuntu24.04" },
+  { "CHECK": "activity", "STATUS": "ok", "MESSAGE": "no system task or backup is running" },
+  { "CHECK": "attention", "STATUS": "ok", "MESSAGE": "a patch release of ArcPanel 2.5" }
+]

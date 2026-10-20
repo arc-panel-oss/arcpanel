@@ -762,6 +762,25 @@ finished_run() {
 	assert_failure
 }
 
+@test "update center: the rollback task kind refuses a rollback before the task starts" {
+	server_setup
+	apt_installs
+	task_manifest true
+	id="$(finished_run "$INSTALLED" "$PATCH" done)"
+	run cmd v-start-sys-task arcpanel-rollback "$id"
+	assert_failure 10
+	assert_output --partial "the rollback is not allowed: ArcPanel $PATCH has upgrade steps"
+	run cmd v-start-sys-task arcpanel-rollback 999
+	assert_output --partial 'the rollback is not allowed: run 999 does not exist'
+	run cmd v-start-sys-task arcpanel-rollback '1;id'
+	assert_failure 2
+	assert_output --partial 'invalid run ID'
+	run cmd v-start-sys-task arcpanel-rollback
+	assert_failure 1
+	run cmd v-list-sys-task json
+	refute_output --partial arcpanel-rollback
+}
+
 # The runner with a stub task starter that records its arguments
 runner() {
 	printf '#!/bin/bash\necho "$*" >> %s/start-task.log\necho 4343\n' "$TMP" > "$TMP/stubs/start-task"

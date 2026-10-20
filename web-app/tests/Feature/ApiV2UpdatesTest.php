@@ -18,7 +18,8 @@ beforeEach(function () {
         'arcpanel' => $package('2.0.0-1+ubuntu24.04', 'yes', 'ArcPanel core package'),
         'arcpanel-php' => $package('8.5.11-1+ubuntu24.04', 'no', 'ArcPanel internal php interpreter'),
     ]);
-    $this->fake->on('v-list-sys-arcpanel-autoupdate', ['plain'])->returns("Enabled\n");
+    // auto_update is the update policy `patch` (E33 phase 1 spec §9)
+    $this->fake->on('v-list-sys-update-policy')->returnsFixture('v-list-sys-update-policy/default.json');
     $this->fake->on('v-list-sys-task')->returnsJson(['ID' => '', 'KIND' => '', 'ARGS' => '', 'STATUS' => '', 'EXIT' => '', 'START' => '', 'END' => '', 'LOG' => '']);
     $this->fake->on('v-start-sys-task')->returns(UPDATE_TASK."\n");
     $this->fake->on('v-list-sys-packages')->returnsJson(commandFixture('v-list-sys-packages/default.json'));
@@ -26,7 +27,7 @@ beforeEach(function () {
     $this->fake->on('v-export-rrd')->returnsJson(['about' => 'RRDtool xport JSON output', 'meta' => [
         'start' => 1791100800, 'end' => 1791101400, 'step' => 300, 'legend' => ['Load', 'Processes'],
     ], 'data' => [[0.25, 112], [null, null]]]);
-    foreach (['v-add-cron-arcpanel-autoupdate', 'v-delete-cron-arcpanel-autoupdate', 'v-change-sys-config-value'] as $command) {
+    foreach (['v-change-sys-update-policy', 'v-change-sys-config-value'] as $command) {
         $this->fake->on($command)->returns();
     }
 });
@@ -61,7 +62,7 @@ it('refuses every endpoint of this area to non-administrators before any command
     $this->putJson('/api/v2/system/updates/settings', ['auto_update' => false], $headers)->assertForbidden();
     $this->postJson('/api/v2/system/packages/go', [], $headers)->assertForbidden();
     $this->deleteJson('/api/v2/system/packages/python', [], $headers)->assertForbidden();
-    foreach (['v-list-sys-packages', 'v-list-sys-rrd', 'v-export-rrd', 'v-start-sys-task', 'v-delete-cron-arcpanel-autoupdate'] as $command) {
+    foreach (['v-list-sys-packages', 'v-list-sys-rrd', 'v-export-rrd', 'v-start-sys-task', 'v-change-sys-update-policy'] as $command) {
         $this->fake->assertNotRan($command);
     }
 })->with([
@@ -108,15 +109,26 @@ it('changes only the update settings that changed', function () {
 
     $this->putJson('/api/v2/system/updates/settings', ['auto_update' => true, 'send_email' => true], $headers)->assertOk()
         ->assertExactJson(['data' => ['auto_update' => true, 'send_email' => true, 'send_log' => false]]);
-    $this->fake->assertNotRan('v-add-cron-arcpanel-autoupdate');
+    $this->fake->assertNotRan('v-change-sys-update-policy');
     $this->fake->assertNotRan('v-change-sys-config-value');
 
     $this->putJson('/api/v2/system/updates/settings', ['auto_update' => false, 'send_log' => true], $headers)->assertOk();
-    $this->fake->assertRan('v-delete-cron-arcpanel-autoupdate', null, 1);
+    $this->fake->assertRan('v-change-sys-update-policy', fn ($a) => $a === ['notify'], 1);
     $this->fake->assertRan('v-change-sys-config-value', fn ($a) => $a === ['UPGRADE_SEND_EMAIL_LOG', 'true'], 1);
     $this->fake->assertRan('v-change-sys-config-value', fn ($a) => $a[0] === 'UPGRADE_SEND_EMAIL', 0);
 
     $this->putJson('/api/v2/system/updates/settings', ['send_email' => 'maybe'], $headers)->assertStatus(422);
+});
+
+it('keeps auto_update for older clients: it reads and writes the update policy', function () {
+    $headers = apiAs($this->fake, 'arcadmin', 'admin', area: 'server');
+    $this->fake->on('v-list-sys-update-policy')->returnsFixture('v-list-sys-update-policy/paused.json');
+
+    $this->getJson('/api/v2/system/updates', $headers)->assertOk()->assertJsonPath('meta.auto_update', false);
+    $this->putJson('/api/v2/system/updates/settings', ['auto_update' => true], $headers)->assertOk();
+    $this->fake->assertRan('v-change-sys-update-policy', fn ($a) => $a === ['patch'], 1);
+    $this->putJson('/api/v2/system/updates/settings', ['auto_update' => false], $headers)->assertOk();
+    $this->fake->assertRan('v-change-sys-update-policy', null, 1);
 });
 
 it('names the failed step of the update settings and the steps applied before it', function () {
@@ -125,7 +137,7 @@ it('names the failed step of the update settings and the steps applied before it
     $this->putJson('/api/v2/system/updates/settings', ['auto_update' => false, 'send_email' => false], apiAs($this->fake, 'arcadmin', 'admin'))
         ->assertStatus(422)
         ->assertJsonPath('error.step.command', 'v-change-sys-config-value')
-        ->assertJsonPath('error.applied.0.command', 'v-delete-cron-arcpanel-autoupdate');
+        ->assertJsonPath('error.applied.0.command', 'v-change-sys-update-policy');
 });
 
 it('plans the update writes in a dry run without running them', function () {
@@ -135,13 +147,13 @@ it('plans the update writes in a dry run without running them', function () {
         ->assertJsonPath('data.dry_run', true)
         ->assertJsonPath('data.steps.0', ['label' => 'Update arcpanel', 'command' => 'v-start-sys-task', 'args' => ['arcpanel-update', 'arcpanel']]);
     $this->putJson('/api/v2/system/updates/settings?dry_run=1', ['auto_update' => false], $headers)->assertOk()
-        ->assertJsonPath('data.steps.0.command', 'v-delete-cron-arcpanel-autoupdate');
+        ->assertJsonPath('data.steps.0', ['label' => 'Turn off automatic updates', 'command' => 'v-change-sys-update-policy', 'args' => ['notify']]);
     $this->postJson('/api/v2/system/packages/go?dry_run=1', [], $headers)->assertOk()
         ->assertJsonPath('data.steps.0', ['label' => 'Install Go', 'command' => 'v-start-sys-task', 'args' => ['package', 'go', 'add']]);
     $this->deleteJson('/api/v2/system/packages/python?dry_run=1', [], $headers)->assertOk()
         ->assertJsonPath('data.steps.0.args', ['package', 'python', 'delete']);
     $this->fake->assertNotRan('v-start-sys-task');
-    $this->fake->assertNotRan('v-delete-cron-arcpanel-autoupdate');
+    $this->fake->assertNotRan('v-change-sys-update-policy');
 });
 
 it('refuses the writes to a v2-read key before any command, and reads with it', function () {
@@ -158,9 +170,9 @@ it('refuses the writes to a v2-read key before any command, and reads with it', 
         ->assertForbidden()->assertJsonPath('error.commands', ['v-start-sys-task']);
     $this->deleteJson('/api/v2/system/packages/python', [], $headers)->assertForbidden();
     $this->putJson('/api/v2/system/updates/settings', ['auto_update' => false, 'send_email' => false], $headers)
-        ->assertForbidden()->assertJsonPath('error.commands', ['v-delete-cron-arcpanel-autoupdate', 'v-change-sys-config-value']);
+        ->assertForbidden()->assertJsonPath('error.commands', ['v-change-sys-update-policy', 'v-change-sys-config-value']);
     $this->fake->assertNotRan('v-start-sys-task');
-    $this->fake->assertNotRan('v-delete-cron-arcpanel-autoupdate');
+    $this->fake->assertNotRan('v-change-sys-update-policy');
     $this->fake->assertNotRan('v-change-sys-config-value');
 });
 

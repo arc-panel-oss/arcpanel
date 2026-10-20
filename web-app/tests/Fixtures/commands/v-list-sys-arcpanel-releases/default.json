@@ -1,0 +1,53 @@
+[
+  {
+    "VERSION": "2.6.0",
+    "LINE": "2.6",
+    "DATE": "2026-11-01",
+    "KIND": "minor",
+    "SECURITY": false,
+    "ATTENTION": true,
+    "ATTENTION_ITEMS": ["PHP 8.2 is no longer installed by default"],
+    "STEPS": true,
+    "MIN_FROM": "2.5.0",
+    "ENGINES": { "arcpanel-nginx": "1.30.5-3-1", "arcpanel-php": "8.5.11-1-1" },
+    "NOTES": "https://arcpanel.top/changelog#2.6.0",
+    "WITHDRAWN": null,
+    "AVAILABLE": true,
+    "ELIGIBLE": false,
+    "REASON": "attention"
+  },
+  {
+    "VERSION": "2.5.2",
+    "LINE": "2.5",
+    "DATE": "2026-10-30",
+    "KIND": "patch",
+    "SECURITY": false,
+    "ATTENTION": false,
+    "ATTENTION_ITEMS": [],
+    "STEPS": false,
+    "MIN_FROM": null,
+    "ENGINES": { "arcpanel-nginx": "1.30.5-3-1", "arcpanel-php": "8.5.11-1-1" },
+    "NOTES": "https://arcpanel.top/changelog#2.5.2",
+    "WITHDRAWN": { "date": "2026-10-31", "reason": "breaks the panel's NGINX configuration" },
+    "AVAILABLE": true,
+    "ELIGIBLE": false,
+    "REASON": "withdrawn"
+  },
+  {
+    "VERSION": "2.5.1",
+    "LINE": "2.5",
+    "DATE": "2026-10-28",
+    "KIND": "patch",
+    "SECURITY": true,
+    "ATTENTION": false,
+    "ATTENTION_ITEMS": [],
+    "STEPS": false,
+    "MIN_FROM": null,
+    "ENGINES": { "arcpanel-nginx": "1.30.5-3-1", "arcpanel-php": "8.5.11-1-1" },
+    "NOTES": "",
+    "WITHDRAWN": null,
+    "AVAILABLE": true,
+    "ELIGIBLE": true,
+    "REASON": ""
+  }
+]

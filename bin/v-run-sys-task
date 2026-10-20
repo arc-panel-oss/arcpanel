@@ -105,6 +105,9 @@ case "$kind" in
 		upd_task_run "${args[0]}" "${args[1]}" "${args[2]-}" "$id"
 		rc=$?
 		;;
+	arcpanel-rollback)
+		step v-rollback-sys-arcpanel "${args[0]}"
+		;;
 	package)
 		if [ "${args[1]}" = 'add' ]; then
 			step v-add-sys-package "${args[0]}"

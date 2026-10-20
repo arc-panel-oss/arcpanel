@@ -20,6 +20,7 @@ use App\Services\Firewall\FirewallService;
 use App\Services\Firewall\IpsetList;
 use App\Services\Ips\SystemIp;
 use App\Services\Server\PanelUpdates;
+use App\Services\Server\UpdateCenter;
 use App\Services\Server\RrdService;
 use App\Services\Server\ServiceActions;
 use App\Services\Server\SystemServices;
@@ -188,10 +189,22 @@ it('plans the system task steps of updates and system packages (§5.4, §5.5)', 
         ->and($one->args)->toBe(['arcpanel-update', 'arcpanel-php'])
         ->and([$package->label, $package->args])->toBe(['Install Go', ['package', 'go', 'add']]);
 
-    $this->fake->on('v-list-sys-arcpanel-autoupdate', ['plain'])->returns("Enabled\n");
-    $updates = app(PanelUpdates::class);
-    expect($updates->planAutoUpdate(true))->toBe([])
-        ->and($updates->planAutoUpdate(false)[0]->command)->toBe('v-delete-cron-arcpanel-autoupdate');
+});
+
+it('plans the steps of the Update Center (E33 phase 1 §9)', function () {
+    $this->fake->on('v-list-sys-update-policy')->returnsFixture('v-list-sys-update-policy/default.json');
+    $center = app(UpdateCenter::class);
+    $release = UpdateCenter::planRelease('2.5.1', 'admin', 'arcadmin');
+    $rollback = UpdateCenter::planRollback(12);
+
+    expect([$release->command, $release->args])->toBe(['v-start-sys-task', ['arcpanel-release', '2.5.1', 'admin', 'arcadmin']])
+        ->and([$rollback->command, $rollback->args])->toBe(['v-start-sys-task', ['arcpanel-rollback', '12']])
+        ->and(UpdateCenter::planResume()->command)->toBe('v-resume-sys-arcpanel-autoupdate')
+        ->and($center->planAutoUpdate(true))->toBe([])
+        ->and($center->planAutoUpdate(false)[0]->args)->toBe(['notify'])
+        ->and($center->planPolicy(null, null, null, null))->toBe([])
+        ->and($center->planPolicy('patch', ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'], '02-04', 2))->toBe([])
+        ->and($center->planPolicy(null, ['fri', 'mon'], null, 0)[0]->args)->toBe(['patch', 'mon,fri', '02-04', '0']);
 });
 
 it('reads the series of a graph and knows its unit (D65)', function () {

@@ -55,22 +55,6 @@ final class PanelUpdates
             : SystemTaskService::step(sprintf(__('Update %s'), $package), 'arcpanel-update', [$package]);
     }
 
-    /**
-     * The automatic update switch when it changes (API v2).
-     *
-     * @return list<Step>
-     */
-    public function planAutoUpdate(bool $on): array
-    {
-        if ($on === $this->autoUpdate()) {
-            return [];
-        }
-
-        return [$on
-            ? new Step(__('Turn on automatic updates'), 'v-add-cron-arcpanel-autoupdate', [])
-            : new Step(__('Turn off automatic updates'), 'v-delete-cron-arcpanel-autoupdate', [])];
-    }
-
     /** `v-add-cron-arcpanel-autoupdate` or `v-delete-cron-arcpanel-autoupdate` */
     public function setAutoUpdate(bool $on): CommandResult
     {

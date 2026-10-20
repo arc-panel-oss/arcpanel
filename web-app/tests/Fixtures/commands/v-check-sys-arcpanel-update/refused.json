@@ -1,0 +1,8 @@
+[
+  { "CHECK": "manifest", "STATUS": "ok", "MESSAGE": "ArcPanel 2.6.0 is in the release manifest" },
+  { "CHECK": "version", "STATUS": "ok", "MESSAGE": "2.5.0 to 2.6.0" },
+  { "CHECK": "disk", "STATUS": "fail", "MESSAGE": "less than 1024 MiB free for /var/cache/apt" },
+  { "CHECK": "packages", "STATUS": "ok", "MESSAGE": "APT can install arcpanel=2.6.0-1+ubuntu24.04" },
+  { "CHECK": "activity", "STATUS": "ok", "MESSAGE": "no system task or backup is running" },
+  { "CHECK": "attention", "STATUS": "warn", "MESSAGE": "PHP 8.2 is no longer installed by default" }
+]

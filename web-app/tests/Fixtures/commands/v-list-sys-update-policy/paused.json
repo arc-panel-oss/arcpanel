@@ -1,0 +1,15 @@
+{
+  "POLICY": "notify",
+  "WINDOW_DAYS": "sat,sun",
+  "WINDOW_HOURS": "23-02",
+  "DELAY_DAYS": 0,
+  "PAUSED": "ArcPanel 2.5.2 failed (failed): apt-get failed with exit code 100",
+  "NOTIFIED": "",
+  "NEXT_WINDOW": "",
+  "VERSION": "2.5.1",
+  "LINE": "2.5",
+  "CHANNEL": "beta",
+  "MANIFEST_CHECKED": "",
+  "MANIFEST_GENERATED": "",
+  "MANIFEST_ERROR": "the manifest https://apt.arcpanel.top/beta/releases.json could not be downloaded"
+}

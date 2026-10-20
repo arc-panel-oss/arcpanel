@@ -1,0 +1,40 @@
+[
+  {
+    "ID": 3,
+    "FROM": "2.5.0",
+    "TO": "2.5.1",
+    "TRIGGER": "policy",
+    "ACTOR": "policy",
+    "START": "2026-11-03 02:14:05",
+    "END": "2026-11-03 02:16:40",
+    "RESULT": "done",
+    "REASON": "",
+    "TASK": "17925168372496",
+    "ROLLBACK": "yes",
+    "ROLLBACK_REASON": ""
+  },
+  {
+    "ID": 2,
+    "FROM": "2.5.0",
+    "TO": "2.5.1",
+    "TRIGGER": "policy",
+    "ACTOR": "policy",
+    "START": "2026-11-02 02:14:01",
+    "END": "2026-11-02 02:14:03",
+    "RESULT": "skipped",
+    "REASON": "activity: a backup is running",
+    "TASK": ""
+  },
+  {
+    "ID": 1,
+    "FROM": "2.4.1",
+    "TO": "2.5.0",
+    "TRIGGER": "api",
+    "ACTOR": "APIKEY0123456789abcd",
+    "START": "2026-10-30 10:00:00",
+    "END": "",
+    "RESULT": "rolled-back",
+    "REASON": "packages: ArcPanel 2.4.1 is installed instead of 2.5.0",
+    "TASK": "17925000000001"
+  }
+]
