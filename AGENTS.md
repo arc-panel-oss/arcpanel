@@ -141,7 +141,8 @@ A change is verified when the suites it touches pass **and** the smoke or e2e fl
 
 ## 9. Git
 
-- Work on **`develop`**. Do not create feature branches unless asked; `master` receives releases.
+- **Branches** ([release branching spec](../docs/features/specs/2026-10-20-004-release-branching-design.md), [releasing runbook](../docs/operations/releasing.md)): features go to **`develop`**, the trunk of the next minor version. Fixes go to the **oldest supported release line** `vX.Y.x` that needs them and are merged forward (`--no-ff`, older line into newer, then `develop`); never cherry-pick between lines. Tags `vX.Y.Z` sit on their line. `master` and `release` follow the newest stable release and are moved only by the release workflow (fast-forward). Do not create other branches unless asked.
+- **Versions:** a line between tags carries its next version with `~alpha` (`2.3.1~alpha`) in `src/deb/arcpanel/control` and both installers, so builds run the right upgrade steps; pre-releases are `X.Y.Z~beta.N` (tag `vX.Y.Z-beta.N`). On a forward merge keep the receiving line's version; an upgrade step carried into a line that already released its `.0` is copied to that line's next version.
 - Commit after the maintainer has seen the change or the tests of a milestone are green, with the conventions of §6.
 - **Push only when a project member with role PM or PL (see `ai-manifest.yaml`) asks for it** in the conversation. An approval given for one push does not carry over to the next.
 - Never rewrite published history, never force-push, never skip hooks (`--no-verify`). Pre-commit runs lint-staged (markdownlint, Biome, Prettier, brand check); fix what it reports.
