@@ -30,6 +30,12 @@
                 @if (($config['WEBMAIL_SYSTEM'] ?? '') !== '')
                     <x-ap-input name="webmail_alias" :label="__('Webmail Alias')" :value="$config['WEBMAIL_ALIAS'] ?? ''" mono
                         :hint="__('Webmail answers on this subdomain of every mail domain.')" />
+                    <div class="ap-form-grid">
+                        <x-ap-input name="webmail_port" type="number" :label="__('Webmail Port')" :value="$config['WEBMAIL_PORT'] ?? ''" mono
+                            :hint="__('Webmail also answers on this port of every address of the server. Leave empty to turn it off.')" />
+                        <x-ap-select name="webmail_link" :label="__('Open Webmail on')" :value="($config['WEBMAIL_LINK'] ?? '') ?: 'port'"
+                            :options="['port' => __('The webmail port of the panel host'), 'domain' => __('The webmail alias of each mail domain')]" />
+                    </div>
                 @endif
                 <x-ap-switch name="relay" :label="__('Global SMTP Relay')" :description="__('Send all outgoing mail of the server through another SMTP server.')" :checked="$relay" x-model="relay" />
                 <div class="ap-form-grid" x-show="relay">

@@ -11,6 +11,7 @@ use App\Services\Support\ObjectLookup;
 use App\Services\Support\PlanRunner;
 use App\Services\WebDomains\ApplyResult;
 use App\Services\WebDomains\Step;
+use Illuminate\Http\Request;
 
 /**
  * Mail domains and accounts through the v-* commands, with the arguments
@@ -44,6 +45,7 @@ final class MailService
         private readonly ObjectLookup $lookup,
         private readonly BulkRunner $runner,
         private readonly PlanRunner $plans,
+        private readonly Request $request,
     ) {}
 
     /** @return array<string, MailDomainRecord> domain => record */
@@ -158,10 +160,69 @@ final class MailService
         return $this->config->get('WEBMAIL_ALIAS') ?: self::DEFAULT_WEBMAIL_ALIAS;
     }
 
-    /** "https://webmail.example.com/" of a domain, also when its webmail is off (credentials mail, client panel). */
+    /** "https://webmail.example.com/" of a domain, http:// without SSL, also when its webmail is off (credentials mail). */
     public function webmailUrl(MailDomainRecord $domain): string
     {
-        return 'https://'.($domain->webmailAlias !== '' ? $domain->webmailAlias : $this->webmailAlias()).'.'.$domain->domain.'/';
+        return $domain->webmailDomainUrl($this->webmailAlias());
+    }
+
+    /**
+     * "https://<panel host>:8086/" while "Open Webmail" uses the webmail port
+     * (WEBMAIL_PORT set, WEBMAIL_LINK not "domain"; E46), else null.
+     */
+    public function webmailPortUrl(): ?string
+    {
+        $port = $this->config->get('WEBMAIL_PORT');
+        if ($port === '' || $this->config->get('WEBMAIL_LINK') === 'domain') {
+            return null;
+        }
+
+        return 'https://'.$this->request->getHost().':'.$port.'/';
+    }
+
+    /** The "Open Webmail" link of a domain, null when the server or the domain has no webmail. */
+    public function openWebmailUrl(MailDomainRecord $domain): ?string
+    {
+        return $this->hasWebmail() ? $domain->webmailUrl($this->webmailAlias(), $this->webmailPortUrl()) : null;
+    }
+
+    /**
+     * Where "Open Webmail (signed in)" posts its ticket (E46 spec §7.7), null
+     * when there is no sign-on: Roundcube on the server and the domain, both
+     * active, over HTTPS (the domain link has no SSL without the port).
+     */
+    public function signOnUrl(MailDomainRecord $domain, MailAccountRecord $account): ?string
+    {
+        $url = $this->openWebmailUrl($domain);
+        if ($url === null || $domain->webmail !== 'roundcube' || $domain->suspended || $account->suspended
+            || ! in_array('roundcube', explode(',', $this->config->get('WEBMAIL_SYSTEM')), true) || ! str_starts_with($url, 'https://')) {
+            return null;
+        }
+
+        return $url;
+    }
+
+    /**
+     * The sign-on form: a one-time ticket for the browser at CLIENTIP, posted
+     * to Roundcube's arcpanel_sso plugin, never put in a URL.
+     *
+     * @return array{action: string, fields: array<string, string>}
+     */
+    public function signOnForm(MailDomainRecord $domain, MailAccountRecord $account, string $actor, string $clientIp): array
+    {
+        $url = (string) $this->signOnUrl($domain, $account);
+        $ticket = trim($this->arc->run('v-add-mail-account-sso', [$domain->user, $domain->domain, $account->account, $actor, $clientIp])->stdout);
+
+        return [
+            'action' => $url.'?_task=login&_action=arcpanel-sso',
+            'fields' => ['_ticket' => $ticket, '_user' => $account->account.'@'.$domain->domain],
+        ];
+    }
+
+    /** The webmail of the client settings panel: the port link, else the domain link. */
+    public function clientWebmailUrl(MailDomainRecord $domain): ?string
+    {
+        return $this->hasWebmail() ? ($this->webmailPortUrl() ?? $this->webmailUrl($domain)) : null;
     }
 
     /**

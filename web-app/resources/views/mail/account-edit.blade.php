@@ -38,6 +38,9 @@
         @if ($webmailUrl && ! $account->suspended)
             <x-ap-button :href="$webmailUrl.'?'.http_build_query(['_user' => $email])" icon="external" target="_blank" rel="noopener">{{ __('Open Webmail') }}</x-ap-button>
         @endif
+        @if ($signOn)
+            <x-ap-button :form-action="route('mail.accounts.webmail', $accountParams)" icon="key" formtarget="_blank">{{ __('Open Webmail (signed in)') }}</x-ap-button>
+        @endif
         @if ($can['suspend'])
             @if ($account->suspended)
                 <x-ap-button :form-action="route('mail.accounts.unsuspend', $accountParams)" icon="play" :confirm="sprintf(__('Are you sure you want to unsuspend %s?'), $account->account)">{{ __('Unsuspend') }}</x-ap-button>

@@ -38,6 +38,13 @@ is_port_valid() {
 		log_event "$E_INUSE" "$ARGUMENTS"
 		exit "$E_INUSE"
 	fi
+
+	# The webmail and database tools ports (E46)
+	if [ "$PORT" = "$WEBMAIL_PORT" ] || [ "$PORT" = "$DB_ADMIN_PORT" ]; then
+		echo "Port is used by the webmail or database tools port, please set another one!"
+		log_event "$E_INUSE" "$ARGUMENTS"
+		exit "$E_INUSE"
+	fi
 }
 
 #----------------------------------------------------------#
@@ -74,6 +81,10 @@ else
 		sed -i "/\"hestia_port\":/c\\        \"hestia_port\": $PORT" /var/lib/snappymail/data/_data_/_default_/configs/plugin-change-password.json
 	fi
 
+	# Webmail sign-on plugin (E46)
+	if [ -f /var/lib/roundcube/plugins/arcpanel_sso/config.inc.php ]; then
+		sed -i "/arcpanel_sso_port/c\$config['arcpanel_sso_port'] = '$PORT';" /var/lib/roundcube/plugins/arcpanel_sso/config.inc.php
+	fi
 	if [ -f "$ARCPANEL/data/firewall/rules.conf" ]; then
 		sed -i "/COMMENT='ARCPANEL'/c\RULE='2' ACTION='ACCEPT' PROTOCOL='TCP' PORT='$PORT' IP='0.0.0.0/0' COMMENT='ARCPANEL' SUSPENDED='no' TIME='07:40:16' DATE='2014-05-25'" "$ARCPANEL/data/firewall/rules.conf"
 	fi

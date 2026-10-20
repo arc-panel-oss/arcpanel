@@ -2013,6 +2013,59 @@ paths:
           $ref: "#/components/responses/InvalidRequest"
         "422":
           $ref: "#/components/responses/Unprocessable"
+  "/api/#v-add-mail-account-sso":
+    post:
+      operationId: v-add-mail-account-sso
+      tags:
+        - Mail
+      summary: Start a webmail sign-on for a mail account
+      description: |-
+        This function prints a ticket that signs the browser at CLIENT_IP into
+        Roundcube as ACCOUNT@DOMAIN without the account password: valid for 60
+        seconds and once. ACTOR is the panel user who asked for it; the sign-on is
+        written to the action log of USER (E46).
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `USER` | yes |
+        | `arg2` | `DOMAIN` | yes |
+        | `arg3` | `ACCOUNT` | yes |
+        | `arg4` | `ACTOR` | yes |
+        | `arg5` | `CLIENT_IP` | yes |
+
+        **User argument:** with the access key of a user other than the admin, `arg1` must be the key's user.
+      x-arcpanel-user-arg: 1
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-add-mail-account-sso"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-add-mail-account-sso"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
   "/api/#v-add-mail-domain":
     post:
       operationId: v-add-mail-domain
@@ -3211,6 +3264,49 @@ paths:
           $ref: "#/components/responses/InvalidRequest"
         "422":
           $ref: "#/components/responses/Unprocessable"
+  "/api/#v-add-sys-mail-sso":
+    post:
+      operationId: v-add-sys-mail-sso
+      tags:
+        - System
+      summary: Set up webmail single sign-on
+      description: |-
+        This function sets up the webmail sign-on of the panel (E46): the second
+        Dovecot passdb of session passwords (auth-arcpanel-sso.conf.ext and an
+        empty /etc/dovecot/arcpanel-sso.passwd), the cron job that removes expired
+        sessions, and the Roundcube plugin when Roundcube is installed. It can run
+        on every install and upgrade.
+
+        **Arguments:** none.
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-add-sys-mail-sso"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-add-sys-mail-sso"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
   "/api/#v-add-sys-malware-scan":
     post:
       operationId: v-add-sys-malware-scan
@@ -4122,6 +4218,49 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/v-add-sys-tenancy"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+  "/api/#v-add-sys-tool-ports":
+    post:
+      operationId: v-add-sys-tool-ports
+      tags:
+        - System
+      summary: Set up the tool ports
+      description: |-
+        This function sets up the webmail port (8086) and the database tools port
+        (8087) when arcpanel.conf has no key for them yet: a port is turned on when
+        its tool is installed and the port is free, otherwise its key stays empty
+        and a warning is printed. WEBMAIL_LINK starts as "port". It runs on every
+        install and upgrade (E46).
+
+        **Arguments:** none.
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-add-sys-tool-ports"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-add-sys-tool-ports"
       responses:
         "200":
           description: "The output of the command; `OK` for an empty output with legacy authentication."
@@ -8315,6 +8454,52 @@ paths:
           $ref: "#/components/responses/InvalidRequest"
         "422":
           $ref: "#/components/responses/Unprocessable"
+  "/api/#v-change-sys-db-admin-port":
+    post:
+      operationId: v-change-sys-db-admin-port
+      tags:
+        - System
+      summary: Change the database tools port
+      description: |-
+        This function serves phpMyAdmin and phpPgAdmin on PORT of every address of
+        the server, with the panel certificate, or stops serving them there with
+        "none".
+        It moves the reservation and the firewall rule of the port (E46).
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `PORT|none` | yes |
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-change-sys-db-admin-port"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-change-sys-db-admin-port"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
   "/api/#v-change-sys-db-alias":
     post:
       operationId: v-change-sys-db-alias
@@ -9210,6 +9395,95 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/v-change-sys-webmail"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+  "/api/#v-change-sys-webmail-link":
+    post:
+      operationId: v-change-sys-webmail-link
+      tags:
+        - System
+      summary: Change the webmail link of the panel
+      description: |-
+        This function sets where "Open Webmail" points: "port" opens the webmail
+        port of the panel host, "domain" opens webmail.<domain> (E46).
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `port|domain` | yes |
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-change-sys-webmail-link"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-change-sys-webmail-link"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+  "/api/#v-change-sys-webmail-port":
+    post:
+      operationId: v-change-sys-webmail-port
+      tags:
+        - System
+      summary: Change the webmail port
+      description: |-
+        This function serves the webmail client on PORT of every address of the
+        server, with the panel certificate, or stops serving it there with "none".
+        It moves the reservation and the firewall rule of the port (E46).
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `PORT|none` | yes |
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-change-sys-webmail-port"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-change-sys-webmail-port"
       responses:
         "200":
           description: "The output of the command; `OK` for an empty output with legacy authentication."
@@ -11325,6 +11599,58 @@ paths:
             text/plain:
               schema:
                 type: string
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+  "/api/#v-check-mail-account-sso":
+    post:
+      operationId: v-check-mail-account-sso
+      tags:
+        - Mail
+      summary: Exchange a webmail sign-on ticket for a session password
+      description: |-
+        This function consumes the ticket in TICKET_FILE (written by the panel)
+        and prints the address and a new session password of the mail account,
+        which Dovecot accepts from the loopback address only for 8 hours. The
+        ticket must be valid, unused and issued for CLIENT_IP, and the account,
+        its domain and its user must not be suspended since (E46).
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `TICKET_FILE` | yes |
+        | `arg2` | `CLIENT_IP` | yes |
+        | `arg3` | `FORMAT` | no |
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-check-mail-account-sso"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-check-mail-account-sso"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+            application/json:
+              schema:
+                type: object
         "204":
           $ref: "#/components/responses/NoContent"
         "400":
@@ -13614,6 +13940,52 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/v-delete-mail-account-fwd-only"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+  "/api/#v-delete-mail-account-sso":
+    post:
+      operationId: v-delete-mail-account-sso
+      tags:
+        - Mail
+      summary: End the webmail sign-on sessions of a mail account or domain
+      description: |-
+        This function removes the session password of ACCOUNT@DOMAIN, or of every
+        account of DOMAIN, so that Roundcube asks for the password again (E46).
+        The mail commands run it when a password, a status or an owner changes.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `DOMAIN` | yes |
+        | `arg2` | `ACCOUNT` | no |
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-delete-mail-account-sso"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-delete-mail-account-sso"
       responses:
         "200":
           description: "The output of the command; `OK` for an empty output with legacy authentication."
@@ -35333,6 +35705,46 @@ paths:
           $ref: "#/components/responses/InvalidRequest"
         "422":
           $ref: "#/components/responses/Unprocessable"
+  "/api/#v-update-mail-sso":
+    post:
+      operationId: v-update-mail-sso
+      tags:
+        - Mail
+      summary: Remove expired webmail sign-on sessions and tickets
+      description: |-
+        This function removes the session passwords and the tickets of webmail
+        sign-ons that have expired. Cron runs it every 5 minutes (E46).
+
+        **Arguments:** none.
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-update-mail-sso"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-update-mail-sso"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
   "/api/#v-update-mail-templates":
     post:
       operationId: v-update-mail-templates
@@ -36408,6 +36820,53 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/v-update-sys-sudoers"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+  "/api/#v-update-sys-tool-ports":
+    post:
+      operationId: v-update-sys-tool-ports
+      tags:
+        - System
+      summary: Write the NGINX files of the tool ports
+      description: |-
+        This function writes the NGINX files of the webmail port and the database
+        tools port from WEBMAIL_PORT, DB_ADMIN_PORT and the installed tools, and
+        reloads NGINX when a file changed (E46). The commands that install a
+        webmail client, change an alias or the panel certificate run it; RELOAD
+        'yes' reloads NGINX also when no file changed (a new certificate).
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `RELOAD` | no |
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-update-sys-tool-ports"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-update-sys-tool-ports"
       responses:
         "200":
           description: "The output of the command; `OK` for an empty output with legacy authentication."
@@ -39075,6 +39534,55 @@ components:
                 - user
             returncode:
               $ref: "#/components/schemas/ReturnCode"
+    v-add-mail-account-sso:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+            - arg2
+            - arg3
+            - arg4
+            - arg5
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-add-mail-account-sso
+              default: v-add-mail-account-sso
+            arg1:
+              type: string
+              title: USER
+              description: "`USER`"
+              examples:
+                - admin
+            arg2:
+              type: string
+              title: DOMAIN
+              description: "`DOMAIN`"
+              examples:
+                - example.com
+            arg3:
+              type: string
+              title: ACCOUNT
+              description: "`ACCOUNT`"
+              examples:
+                - info
+            arg4:
+              type: string
+              title: ACTOR
+              description: "`ACTOR`"
+              examples:
+                - admin
+            arg5:
+              type: string
+              title: CLIENT_IP
+              description: "`CLIENT_IP`"
+              examples:
+                - "203.0.113.5"
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
     v-add-mail-domain:
       allOf:
         - $ref: "#/components/schemas/Credentials"
@@ -39946,6 +40454,20 @@ components:
                 - "no"
             returncode:
               $ref: "#/components/schemas/ReturnCode"
+    v-add-sys-mail-sso:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-add-sys-mail-sso
+              default: v-add-sys-mail-sso
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
     v-add-sys-malware-scan:
       allOf:
         - $ref: "#/components/schemas/Credentials"
@@ -40392,6 +40914,20 @@ components:
               enum:
                 - v-add-sys-tenancy
               default: v-add-sys-tenancy
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
+    v-add-sys-tool-ports:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-add-sys-tool-ports
+              default: v-add-sys-tool-ports
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-add-sys-web-templates-meta:
@@ -43463,6 +43999,27 @@ components:
                 - "1.0"
             returncode:
               $ref: "#/components/schemas/ReturnCode"
+    v-change-sys-db-admin-port:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-change-sys-db-admin-port
+              default: v-change-sys-db-admin-port
+            arg1:
+              type: string
+              title: "PORT|none"
+              description: "`PORT|none`"
+              examples:
+                - "8087"
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
     v-change-sys-db-alias:
       allOf:
         - $ref: "#/components/schemas/Credentials"
@@ -44014,6 +44571,48 @@ components:
               description: "`WEBMAIL`"
               examples:
                 - YourtrickyURLhere
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
+    v-change-sys-webmail-link:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-change-sys-webmail-link
+              default: v-change-sys-webmail-link
+            arg1:
+              type: string
+              title: "port|domain"
+              description: "`port|domain`"
+              examples:
+                - domain
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
+    v-change-sys-webmail-port:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-change-sys-webmail-port
+              default: v-change-sys-webmail-port
+            arg1:
+              type: string
+              title: "PORT|none"
+              description: "`PORT|none`"
+              examples:
+                - "8086"
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-change-user-config-value:
@@ -45639,6 +46238,45 @@ components:
                 - HASH
             returncode:
               $ref: "#/components/schemas/ReturnCode"
+    v-check-mail-account-sso:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+            - arg2
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-check-mail-account-sso
+              default: v-check-mail-account-sso
+            arg1:
+              type: string
+              title: TICKET_FILE
+              description: "`TICKET_FILE`"
+              examples:
+                - /tmp/ticket
+            arg2:
+              type: string
+              title: CLIENT_IP
+              description: "`CLIENT_IP`"
+              examples:
+                - "203.0.113.5"
+            arg3:
+              type: string
+              title: FORMAT
+              description: "`FORMAT`, optional"
+              enum:
+                - json
+                - plain
+                - csv
+                - shell
+              examples:
+                - json
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
     v-check-reseller-quota:
       allOf:
         - $ref: "#/components/schemas/Credentials"
@@ -47094,6 +47732,33 @@ components:
               description: "`ACCOUNT`"
               examples:
                 - jack
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
+    v-delete-mail-account-sso:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-delete-mail-account-sso
+              default: v-delete-mail-account-sso
+            arg1:
+              type: string
+              title: DOMAIN
+              description: "`DOMAIN`"
+              examples:
+                - example.com
+            arg2:
+              type: string
+              title: ACCOUNT
+              description: "`ACCOUNT`, optional"
+              examples:
+                - info
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-delete-mail-domain:
@@ -60460,6 +61125,20 @@ components:
                 - admin
             returncode:
               $ref: "#/components/schemas/ReturnCode"
+    v-update-mail-sso:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-update-mail-sso
+              default: v-update-mail-sso
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
     v-update-mail-templates:
       allOf:
         - $ref: "#/components/schemas/Credentials"
@@ -60970,6 +61649,26 @@ components:
               enum:
                 - v-update-sys-sudoers
               default: v-update-sys-sudoers
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
+    v-update-sys-tool-ports:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-update-sys-tool-ports
+              default: v-update-sys-tool-ports
+            arg1:
+              type: string
+              title: RELOAD
+              description: "`RELOAD`, optional"
+              examples:
+                - "yes"
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-update-sys-user-homes:

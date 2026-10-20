@@ -88,13 +88,24 @@ final class MailDomainRecord
         return $this->ssl ? 'rsa' : 'ecdsa-256';
     }
 
-    /** "https://webmail.example.com/" when the domain has webmail, else null. */
-    public function webmailUrl(string $fallbackAlias): ?string
+    /**
+     * The "Open Webmail" link when the domain has webmail, else null: the
+     * webmail port of the panel host when PORTURL is given (E46), else
+     * "https://webmail.example.com/", or http:// while the mail domain has no
+     * SSL (the inherited pages did the same).
+     */
+    public function webmailUrl(string $fallbackAlias, ?string $portUrl = null): ?string
     {
         if ($this->webmail === '') {
             return null;
         }
 
-        return 'https://'.($this->webmailAlias !== '' ? $this->webmailAlias : $fallbackAlias).'.'.$this->domain.'/';
+        return $portUrl ?? $this->webmailDomainUrl($fallbackAlias);
+    }
+
+    /** "https://webmail.example.com/", http:// while the mail domain has no SSL, also when its webmail is off. */
+    public function webmailDomainUrl(string $fallbackAlias): string
+    {
+        return ($this->ssl ? 'https' : 'http').'://'.($this->webmailAlias !== '' ? $this->webmailAlias : $fallbackAlias).'.'.$this->domain.'/';
     }
 }

@@ -164,6 +164,9 @@ fi
 # Set SSL as enabled in configuration
 update_object_value 'mail' 'DOMAIN' "$domain" '$WEBMAIL' "$webmail"
 
+# End the webmail sign-on sessions (E46)
+$BIN/v-delete-mail-account-sso "$domain" > /dev/null 2>&1
+
 #----------------------------------------------------------#
 #                         ArcPanel                         #
 #----------------------------------------------------------#

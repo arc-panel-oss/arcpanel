@@ -182,3 +182,26 @@ jobs:
             done
           done
           exit "$failed"
+
+  actionlint:
+    name: actionlint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # Go comes with the runner image; the module is checked against the Go checksum database.
+      - name: Check the workflows
+        run: go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.12 -shellcheck=
+
+  release-scripts:
+    name: Release scripts
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: recursive
+
+      - name: Test the build, installer and APT repository scripts (E47)
+        run: test/test_helper/bats-core/bin/bats test/arcpanel-arm64.bats

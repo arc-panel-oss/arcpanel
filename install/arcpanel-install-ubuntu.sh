@@ -33,7 +33,7 @@ VERBOSE='no'
 # Define software versions
 # ArcPanel version: the version of the arcpanel package, stored as VERSION
 # in arcpanel.conf (ADR-0007)
-ARCPANEL_INSTALL_VER='2.2.0'
+ARCPANEL_INSTALL_VER='2.2.1'
 
 # Build the full ArcPanel version
 # Split base version (2.0.0) from channel suffix (~alpha / ~beta), if present
@@ -588,10 +588,18 @@ elif [ "$type" != "ubuntu" ]; then
 	check_result 1 "You are running an unsupported OS."
 fi
 
-# Packages are built for amd64 only; arm64 is not supported for now
-if [ "$architecture" = 'aarch64' ]; then
-	check_result 1 "arm64 (aarch64) is not supported for now: ArcPanel packages are built for amd64 only."
-fi
+# Packages are built for amd64 and arm64, but installs are supported on amd64 only.
+# CI and testers can set ARCPANEL_ALLOW_UNSUPPORTED_ARCH=yes to install on arm64
+# (E47, docs/features/specs/2026-10-20-003-e47-arm64-packages-design.md §5.5).
+check_install_arch() {
+	if [ "$1" = 'aarch64' ]; then
+		if [ "$ARCPANEL_ALLOW_UNSUPPORTED_ARCH" != 'yes' ]; then
+			check_result 1 "arm64 (aarch64) is not supported for now: ArcPanel is installed on amd64 only."
+		fi
+		echo "WARNING: installing on arm64 (aarch64), which is not supported."
+	fi
+}
+check_install_arch "$architecture"
 
 # Clear the screen once launch permissions have been verified
 clear
@@ -2322,6 +2330,10 @@ if [ "$dovecot" = 'yes' ]; then
 	touch /var/log/dovecot.log
 	chown -R dovecot:mail /var/log/dovecot.log
 	chmod 660 /var/log/dovecot.log
+	# Webmail sign-on sessions (E46), empty until v-add-sys-mail-sso and the panel
+	touch /etc/dovecot/arcpanel-sso.passwd
+	chown root:dovecot /etc/dovecot/arcpanel-sso.passwd
+	chmod 640 /etc/dovecot/arcpanel-sso.passwd
 	# Alter config for 2.2
 	if [ "$dovecot_version" = "2.2" ]; then
 		echo "[ * ] Downgrade dovecot config to sync with 2.2 settings"
@@ -2703,6 +2715,10 @@ fi
 
 # Set backend port
 $ARCPANEL/bin/v-change-sys-port $port > /dev/null 2>&1
+
+# Webmail and database tools ports and webmail sign-on (E46)
+$ARCPANEL/bin/v-add-sys-tool-ports
+$ARCPANEL/bin/v-add-sys-mail-sso
 
 # Create default configuration files
 $ARCPANEL/bin/v-update-sys-defaults

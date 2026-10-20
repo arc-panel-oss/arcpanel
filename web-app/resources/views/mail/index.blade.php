@@ -45,7 +45,7 @@
                     @php
                         $can = $abilities[$record->user];
                         $params = ['user' => $record->user, 'domain' => $record->domain];
-                        $webmailUrl = $webmail && ! $record->suspended ? $record->webmailUrl($webmailAlias) : null;
+                        $webmailUrl = $webmail && ! $record->suspended ? $record->webmailUrl($webmailAlias, $webmailPort ?? null) : null;
                     @endphp
                     <tr data-row data-search="{{ $record->domain }} {{ $record->user }}" @class(['is-disabled' => $record->suspended])>
                         @if ($canBulk)

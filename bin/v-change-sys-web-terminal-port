@@ -38,6 +38,13 @@ is_port_valid() {
 		log_event "$E_INUSE" "$ARGUMENTS"
 		exit "$E_INUSE"
 	fi
+
+	# The webmail and database tools ports (E46)
+	if [ "$PORT" = "$WEBMAIL_PORT" ] || [ "$PORT" = "$DB_ADMIN_PORT" ]; then
+		echo "Port is used by the webmail or database tools port, please set another one!"
+		log_event "$E_INUSE" "$ARGUMENTS"
+		exit "$E_INUSE"
+	fi
 }
 
 #----------------------------------------------------------#

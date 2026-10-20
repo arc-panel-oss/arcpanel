@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Mail;
 
+use App\Auth\ClientIp;
 use App\Auth\Principal;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Mail\AccountAutoreplyRequest;
@@ -16,6 +17,7 @@ use App\Services\MailDomains\MailService;
 use App\Services\WebDomains\ApplyResult;
 use App\Services\WebDomains\Step;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 use Illuminate\View\View;
 
 /**
@@ -40,7 +42,8 @@ final class MailAccountController extends Controller
             'accounts' => $this->mail->accounts($user, $domain),
             'can' => $can,
             'canBulk' => $can['update'] || $can['delete'],
-            'webmailUrl' => $this->mail->hasWebmail() ? $record->webmailUrl($this->mail->webmailAlias()) : null,
+            'webmailUrl' => $this->mail->openWebmailUrl($record),
+            'signOn' => fn ($account) => $can['update'] && ! $principal->isReadOnly() && $this->mail->signOnUrl($record, $account) !== null,
             'bulkActions' => [
                 'suspend' => ['label' => __('Suspend'), 'icon' => 'pause', 'confirm' => __('Suspend %d mail accounts?')],
                 'unsuspend' => ['label' => __('Unsuspend'), 'icon' => 'play'],
@@ -97,8 +100,23 @@ final class MailAccountController extends Controller
             'message' => $this->mail->autoreplyMessage($current),
             'can' => $policy->abilities($principal, $user),
             'client' => $this->clientSettings($record),
-            'webmailUrl' => $this->mail->hasWebmail() ? $record->webmailUrl($this->mail->webmailAlias()) : null,
+            'webmailUrl' => $this->mail->openWebmailUrl($record),
+            'signOn' => $policy->update($principal, $user) && ! $principal->isReadOnly() && $this->mail->signOnUrl($record, $current) !== null,
         ]);
+    }
+
+    /**
+     * "Open Webmail (signed in)": a one-time ticket posted to Roundcube, for
+     * whoever may change the account password (E46 spec §7.7, D11).
+     */
+    public function webmail(Request $request, string $user, string $domain, string $account, Principal $principal, MailPolicy $policy): View
+    {
+        abort_unless($policy->update($principal, $user), 403);
+        $record = $this->mail->find($user, $domain);
+        $current = $this->mail->findAccount($user, $domain, $account);
+        abort_unless($this->mail->signOnUrl($record, $current) !== null, 404);
+
+        return view('mail.webmail-sso', $this->mail->signOnForm($record, $current, $principal->loginUser, ClientIp::of($request)));
     }
 
     public function general(AccountGeneralRequest $request, string $user, string $domain, string $account, Principal $principal, MailPolicy $policy, HostingCredentialsMailer $mailer): RedirectResponse
@@ -142,7 +160,7 @@ final class MailAccountController extends Controller
     {
         return [
             'domain' => $record->domain,
-            'webmail' => $this->mail->hasWebmail() ? $this->mail->webmailUrl($record) : null,
+            'webmail' => $this->mail->clientWebmailUrl($record),
             'hostname' => 'mail.'.$record->domain,
         ];
     }

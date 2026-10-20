@@ -161,5 +161,8 @@ it('shows the engine page to administrators only', function () {
     $props = dockerIslandProps($this->get('/server/docker')->assertOk()->assertSee('29.8.2')->getContent());
     expect($props['view'])->toBe('engine')
         ->and($props['status']['report']['findings'][0]['type'])->toBe('stopped')
-        ->and($props['base'])->toEndWith('/server/docker/api');
+        ->and($props['base'])->toEndWith('/server/docker/api')
+        ->and($props['appsUrl'])->toBe(route('docker-apps'))
+        ->and($props['servicesUrl'])->toBe(route('server.services'))
+        ->and($props['strings'])->toHaveKeys(['Used by Docker', 'Not repaired', 'No problem found']);
 });

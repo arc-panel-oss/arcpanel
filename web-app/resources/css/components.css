@@ -3483,6 +3483,162 @@ a.ap-pick:focus-visible {
 	padding: var(--ap-space-2);
 }
 
+/* User switcher (apUserSwitch): search, the matching accounts, a short footer */
+.ap-switch-menu {
+	width: min(360px, calc(100vw - var(--ap-space-4)));
+	padding: 0;
+}
+.ap-switch-menu .ap-switch-form {
+	gap: 0;
+	padding: 0;
+}
+.ap-switch-head {
+	display: flex;
+	align-items: baseline;
+	justify-content: space-between;
+	gap: var(--ap-space-2);
+	padding: var(--ap-space-3) var(--ap-space-3-5) var(--ap-space-2);
+	font-size: var(--ap-text-xs);
+}
+.ap-switch-search {
+	position: relative;
+	margin: 0 var(--ap-space-2-5) var(--ap-space-2);
+}
+.ap-switch-search > .ic {
+	position: absolute;
+	inset-inline-start: var(--ap-space-3);
+	top: 50%;
+	translate: 0 -50%;
+	color: var(--ap-fg-subtle);
+	pointer-events: none;
+}
+.ap-switch-search .ap-input {
+	width: 100%;
+	padding-inline-start: calc(var(--ap-space-3) + var(--ap-space-6));
+}
+.ap-switch-list {
+	display: flex;
+	flex-direction: column;
+	gap: var(--ap-space-0-5);
+	max-height: min(320px, 50vh);
+	margin: 0;
+	padding: var(--ap-space-1) var(--ap-space-1-5);
+	overflow-y: auto;
+	overscroll-behavior: contain;
+	border-top: 1px solid var(--ap-border);
+	list-style: none;
+}
+.ap-switch-list:empty {
+	display: none;
+}
+.ap-switch-item {
+	display: flex;
+	align-items: center;
+	gap: var(--ap-space-2-5);
+	min-height: 44px;
+	padding: var(--ap-space-1-5) var(--ap-space-2);
+	border-radius: var(--ap-radius-sm);
+	cursor: pointer;
+}
+.ap-switch-item.is-active {
+	background: var(--ap-surface-hover);
+	box-shadow: inset 2px 0 0 var(--ap-accent);
+}
+.ap-switch-icon {
+	display: inline-grid;
+	flex: none;
+	place-items: center;
+	width: 30px;
+	height: 30px;
+	border-radius: var(--ap-radius-md);
+	background: var(--ap-surface-hover);
+	color: var(--ap-fg-muted);
+}
+.ap-switch-icon.is-admin {
+	background: var(--ap-accent-subtle);
+	color: var(--ap-accent);
+}
+.ap-switch-icon.is-reseller {
+	background: var(--ap-info-subtle);
+	color: var(--ap-info);
+}
+.ap-switch-who {
+	display: flex;
+	flex: 1 1 auto;
+	flex-direction: column;
+	min-width: 0;
+	line-height: 1.3;
+}
+.ap-switch-who > * {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+.ap-switch-who b {
+	font-size: var(--ap-text-sm);
+	font-weight: 500;
+}
+.ap-switch-who .subtle {
+	font-size: var(--ap-text-xs);
+}
+.ap-switch-item .ap-badge {
+	flex: none;
+}
+.ap-switch-empty,
+.ap-switch-more {
+	margin: 0;
+	padding: var(--ap-space-3) var(--ap-space-3-5);
+	border-top: 1px solid var(--ap-border);
+	font-size: var(--ap-text-xs);
+}
+.ap-switch-more {
+	padding-block: var(--ap-space-2);
+	border-top: 0;
+}
+.ap-switch-foot {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: var(--ap-space-2);
+	padding: var(--ap-space-2) var(--ap-space-2-5);
+	border-top: 1px solid var(--ap-border);
+	font-size: var(--ap-text-xs);
+}
+.ap-switch-foot .ap-kbd {
+	height: 18px;
+	padding: 0 var(--ap-space-1);
+}
+.ap-switch-note {
+	display: flex;
+	align-items: center;
+	gap: var(--ap-space-1-5);
+	margin: 0;
+	padding: 0 var(--ap-space-3) var(--ap-space-2-5);
+	font-size: var(--ap-text-xs);
+}
+.ap-switch-note .ic {
+	width: 13px;
+	height: 13px;
+}
+/* No keyboard hints on touch screens */
+@media (hover: none) {
+	.ap-switch-foot > .subtle {
+		visibility: hidden;
+	}
+}
+/* On a phone the menu spans the screen under the top bar */
+@media (max-width: 639px) {
+	.ap-dropdown.ap-user-switch > .ap-switch-menu {
+		position: fixed;
+		inset-inline: var(--ap-space-2);
+		top: calc(var(--ap-topbar-h) + var(--ap-space-1));
+		width: auto;
+	}
+	.ap-switch-list {
+		max-height: 45vh;
+	}
+}
+
 /* Pager with links */
 .ap-pager a,
 .ap-pager span[aria-current="page"] {
@@ -5151,4 +5307,88 @@ a.ap-pick:focus-visible {
 	background: var(--ap-surface-raised);
 	color: var(--ap-fg-muted);
 	font-size: var(--ap-text-xs);
+}
+
+/* Docker engine (E4 spec §7): engine facts, usage tiles, the last install and check */
+.ap-docker-facts {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(min(180px, 100%), 1fr));
+	margin: 0;
+	border: 1px solid var(--ap-border);
+	border-radius: var(--ap-radius-lg);
+	background: var(--ap-surface-raised);
+}
+.ap-docker-facts > div {
+	display: flex;
+	flex-direction: column;
+	gap: var(--ap-space-1);
+	min-width: 0;
+	padding: var(--ap-space-3) var(--ap-space-4);
+}
+.ap-docker-facts > div + div {
+	border-inline-start: 1px solid var(--ap-border);
+}
+.ap-docker-facts dt {
+	color: var(--ap-fg-muted);
+	font-size: var(--ap-text-xs);
+}
+.ap-docker-facts dd {
+	margin: 0;
+	font-family: var(--ap-font-mono);
+	font-size: var(--ap-text-md);
+	overflow-wrap: anywhere;
+}
+@media (max-width: 639px) {
+	.ap-docker-facts > div + div {
+		border-inline-start: 0;
+		border-top: 1px solid var(--ap-border);
+	}
+}
+/* Two tiles a row on a phone, six on a wide screen */
+.ap-docker-tiles {
+	grid-template-columns: repeat(auto-fit, minmax(min(120px, 100%), 1fr));
+}
+.ap-docker-tiles .ap-stats-tile-value small {
+	margin-inline-start: var(--ap-space-1);
+	color: var(--ap-fg-subtle);
+	font-size: var(--ap-text-sm);
+	font-weight: 500;
+}
+.ap-docker-last {
+	padding-top: var(--ap-space-4);
+	border-top: 1px solid var(--ap-border);
+	font-size: var(--ap-text-sm);
+}
+.ap-docker-last b {
+	color: var(--ap-fg-muted);
+	font-weight: 500;
+}
+.ap-docker-last .ap-between {
+	flex-wrap: wrap;
+}
+.ap-docker-check {
+	display: inline-flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: var(--ap-space-1-5);
+	font-size: var(--ap-text-sm);
+}
+.ap-docker-check-every {
+	margin-inline-start: var(--ap-space-1-5);
+	padding-inline-start: var(--ap-space-3);
+	border-inline-start: 1px solid var(--ap-border);
+}
+@media (max-width: 639px) {
+	.ap-docker-check-every {
+		flex-basis: 100%;
+		margin: 0;
+		padding: 0;
+		border: 0;
+	}
+}
+.ap-docker-empty {
+	padding-block: var(--ap-space-6);
+}
+.ap-empty-art.is-ok {
+	color: var(--ap-ok);
 }

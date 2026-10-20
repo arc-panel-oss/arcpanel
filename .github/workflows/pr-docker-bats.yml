@@ -1,5 +1,7 @@
 name: BATS testsuite
 
+# The steps are in docker-bats.yml, shared with the arm64 trial (E47).
+
 on:
   pull_request:
     types:
@@ -13,133 +15,7 @@ permissions:
 
 jobs:
   docker-bats:
-    runs-on: ubuntu-24.04
-    timeout-minutes: 120
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          submodules: recursive
-
-      - name: Build CI container
-        run: |
-          docker build \
-            -f .github/docker/arcpanel-ci.Dockerfile \
-            -t arcpanel-ci:${{ github.sha }} \
-            .
-
-      - name: Start CI container
-        run: |
-          docker run -d \
-            --name arcpanel-ci \
-            --hostname arcpanel-dev.local \
-            --privileged \
-            --cgroupns=host \
-            --tmpfs /run \
-            --tmpfs /run/lock \
-            --tmpfs /tmp:exec,mode=1777 \
-            --dns 8.8.8.8 \
-            --dns 8.8.4.4 \
-            --dns 2001:4860:4860::8888 \
-            --dns 2001:4860:4860::8844 \
-            -e TZ=UTC \
-            -e LANG=en_US.UTF-8 \
-            -e LC_ALL=en_US.UTF-8 \
-            -v /sys/fs/cgroup:/sys/fs/cgroup:rw \
-            -v "${GITHUB_WORKSPACE}:/arcpanel-git" \
-            -w /arcpanel-git \
-            arcpanel-ci:${{ github.sha }}
-          for _ in {1..100}; do
-            docker exec arcpanel-ci bash -lc 'systemctl is-system-running 2>/dev/null | grep -Eq "running|degraded"' && break
-            sleep 0.1
-          done
-
-      - name: Install ArcPanel from local git
-        run: |
-          docker exec arcpanel-ci bash -lc '
-            set -euxo pipefail
-            export TERM=xterm
-            cd /arcpanel-git/src
-            # The build folder must be owned by root with mode 0700 (E39 W1 D13)
-            install -d -m 700 /tmp/arcpanel-src
-            BUILD_DIR=/tmp/arcpanel-src bash ./arcpanel-build.sh --arcpanel --noinstall --keepbuild "~localsrc"
-            DEB_PATH=""
-            if [[ -f "/tmp/arcpanel-src/deb" ]]; then
-              pkg="$(dpkg-deb -f /tmp/arcpanel-src/deb Package)"
-              ver="$(dpkg-deb -f /tmp/arcpanel-src/deb Version)"
-              arch="$(dpkg-deb -f /tmp/arcpanel-src/deb Architecture)"
-              DEB_PATH="/tmp/arcpanel-src/debs"
-              mkdir -p "${DEB_PATH}"
-              cp /tmp/arcpanel-src/deb "${DEB_PATH}/${pkg}_${ver}_${arch}.deb"
-            fi
-            if compgen -G "/tmp/arcpanel-src/deb/arcpanel_*.deb" >/dev/null; then
-              DEB_PATH="/tmp/arcpanel-src/deb"
-            elif compgen -G "/tmp/arcpanel-src/debs/arcpanel_*.deb" >/dev/null; then
-              DEB_PATH="/tmp/arcpanel-src/debs"
-            else
-              echo "No local arcpanel debs found under /tmp/arcpanel-src/{deb,debs}"
-              ls -la /tmp/arcpanel-src || true
-              ls -la /tmp/arcpanel-src/deb || true
-              ls -la /tmp/arcpanel-src/debs || true
-              exit 1
-            fi
-            # The engine packages come from the APT repository. Until a stable release has
-            # published them (a stable version reads the stable channel), take the newest
-            # ones of the beta channel for noble amd64.
-            if ! curl -fsSI https://apt.arcpanel.top/dists/noble/InRelease >/dev/null; then
-              BETA=https://apt.arcpanel.top/beta
-              curl -fsSL -o /tmp/beta-packages "${BETA}/dists/noble/main/binary-amd64/Packages"
-              for p in arcpanel-nginx arcpanel-php arcpanel-web-terminal; do
-                if ! compgen -G "${DEB_PATH}/${p}_*.deb" >/dev/null; then
-                  f="$(awk -v p="$p" "\$1 == \"Package:\" { n = \$2 } \$1 == \"Filename:\" && n == p { print \$2 }" /tmp/beta-packages | tail -n 1)"
-                  test -n "$f"
-                  curl -fsSL -o "${DEB_PATH}/$(basename "$f")" "${BETA}/${f}"
-                fi
-              done
-              ls -la "${DEB_PATH}"
-            fi
-            cd /arcpanel-git
-            bash install/arcpanel-install-ubuntu.sh \
-              --hostname arcpanel.local.test \
-              --email admin@example.com \
-              --username admin \
-              --password Password123 \
-              --interactive no \
-              --force \
-              --with-debs "${DEB_PATH}" \
-              --clamav no \
-              --spamassassin no
-          '
-
-      - name: Check the shipped panel nginx configuration
-        run: |
-          docker exec arcpanel-ci bash -lc '
-            set -euxo pipefail
-            install -m 0644 /arcpanel-git/src/deb/nginx/nginx.conf /usr/local/arcpanel/nginx/conf/nginx-ci.conf
-            /usr/local/arcpanel/nginx/sbin/arcpanel-nginx -t -c /usr/local/arcpanel/nginx/conf/nginx-ci.conf
-            rm -f /usr/local/arcpanel/nginx/conf/nginx-ci.conf
-          '
-
-      - name: Run BATS test suite
-        run: |
-          docker exec arcpanel-ci bash -lc '
-            set -euxo pipefail
-            cd /arcpanel-git
-            if ! command -v bats >/dev/null 2>&1; then
-              test/test_helper/bats-core/install.sh /usr/local
-            fi
-            bats test/test.bats
-          '
-
-      - name: Collect logs on failure
-        if: failure()
-        run: |
-          docker exec arcpanel-ci bash -lc 'journalctl --no-pager -n 500' || true
-          docker exec arcpanel-ci bash -lc 'ls -la /root/arcpanel_install_backups || true' || true
-          docker exec arcpanel-ci bash -lc 'tail -n 500 /root/arcpanel_install_backups/arc_install-*.log || true' || true
-
-      - name: Cleanup container
-        if: always()
-        run: |
-          docker rm -f arcpanel-ci || true
+    name: docker-bats
+    uses: ./.github/workflows/docker-bats.yml
+    with:
+      runner: ubuntu-24.04
