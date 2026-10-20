@@ -444,3 +444,40 @@ it('reads and writes the shells of reseller packages in the security tab (E39 W4
     $this->patchJson('/api/v2/system/settings/security', ['POLICY_RESELLER_PACKAGE_SHELLS' => 'zsh'], $headers)->assertStatus(422)
         ->assertJsonStructure(['error' => ['fields' => ['POLICY_RESELLER_PACKAGE_SHELLS']]]);
 });
+
+it('reads and changes the webmail and database tools ports (E46)', function () {
+    withSysConfig($this->fake, settingsApiConfig(['WEBMAIL_PORT' => '8086', 'WEBMAIL_LINK' => '', 'DB_ADMIN_PORT' => '8087']));
+    foreach (['v-change-sys-webmail-port', 'v-change-sys-webmail-link', 'v-change-sys-db-admin-port'] as $command) {
+        $this->fake->on($command)->returns();
+    }
+    $headers = apiAs($this->fake, 'arcadmin', 'admin', area: 'server');
+
+    $this->getJson('/api/v2/system/settings', $headers)->assertOk()
+        ->assertJsonPath('data.mail.webmail_port', 8086)->assertJsonPath('data.mail.webmail_link', 'port')
+        ->assertJsonPath('data.databases.db_admin_port', 8087);
+
+    $this->patchJson('/api/v2/system/settings/mail', ['webmail_port' => 8086, 'webmail_link' => 'port'], $headers)->assertOk();
+    $this->fake->assertNotRan('v-change-sys-webmail-port');
+    $this->fake->assertNotRan('v-change-sys-webmail-link');
+
+    $this->patchJson('/api/v2/system/settings/mail', ['webmail_port' => null, 'webmail_link' => 'domain'], $headers)->assertOk();
+    $this->fake->assertRan('v-change-sys-webmail-port', fn ($a) => $a === ['none']);
+    $this->fake->assertRan('v-change-sys-webmail-link', fn ($a) => $a === ['domain']);
+    $this->patchJson('/api/v2/system/settings/databases', ['db_admin_port' => 38470], $headers)->assertOk();
+    $this->fake->assertRan('v-change-sys-db-admin-port', fn ($a) => $a === ['38470']);
+
+    $this->patchJson('/api/v2/system/settings/mail', ['webmail_port' => 80], $headers)->assertStatus(422);
+    $this->patchJson('/api/v2/system/settings/mail', ['webmail_link' => 'elsewhere'], $headers)->assertStatus(422);
+});
+
+it('refuses the webmail port on a server without webmail (E46)', function () {
+    withSysConfig($this->fake, settingsApiConfig(['WEBMAIL_SYSTEM' => '', 'WEBMAIL_PORT' => '']));
+    $this->fake->on('v-change-sys-webmail-port')->returns();
+    $headers = apiAs($this->fake, 'arcadmin', 'admin', area: 'server');
+
+    $this->getJson('/api/v2/system/settings', $headers)->assertOk()
+        ->assertJsonPath('data.mail.webmail_port', null)->assertJsonPath('data.mail.webmail_link', null);
+    $this->patchJson('/api/v2/system/settings/mail', ['webmail_port' => 8086], $headers)->assertStatus(422)
+        ->assertJsonPath('error.fields.webmail_port.0', 'This server has no webmail.');
+    $this->fake->assertNotRan('v-change-sys-webmail-port');
+});

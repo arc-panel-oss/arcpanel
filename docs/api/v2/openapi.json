@@ -32033,6 +32033,12 @@
                             "null"
                         ]
                     },
+                    "db_admin_port": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ]
+                    },
                     "pma_sso": {
                         "type": "boolean",
                         "description": "Read-only through the API (403 on a change)."
@@ -32087,6 +32093,7 @@
                     "db_system",
                     "pma_alias",
                     "pga_alias",
+                    "db_admin_port",
                     "pma_sso",
                     "pma_restrict",
                     "hosts"
@@ -34329,6 +34336,18 @@
                             "null"
                         ]
                     },
+                    "webmail_port": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ]
+                    },
+                    "webmail_link": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
                     "relay": {
                         "type": "boolean"
                     },
@@ -34361,6 +34380,8 @@
                     "antispam_system",
                     "webmail_system",
                     "webmail_alias",
+                    "webmail_port",
+                    "webmail_link",
                     "relay",
                     "relay_host",
                     "relay_port",
@@ -40834,6 +40855,21 @@
                         "pattern": "^[a-z0-9]([a-z0-9-]*[a-z0-9])?$",
                         "maxLength": 63
                     },
+                    "webmail_port": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ],
+                        "minimum": 1024,
+                        "maximum": 65535
+                    },
+                    "webmail_link": {
+                        "type": "string",
+                        "enum": [
+                            "port",
+                            "domain"
+                        ]
+                    },
                     "relay": {
                         "type": "boolean"
                     },
@@ -40867,6 +40903,14 @@
                         "type": "string",
                         "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$",
                         "maxLength": 63
+                    },
+                    "db_admin_port": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ],
+                        "minimum": 1024,
+                        "maximum": 65535
                     },
                     "local": {
                         "type": "boolean"
