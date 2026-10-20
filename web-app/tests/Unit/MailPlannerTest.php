@@ -72,7 +72,11 @@ function mailAccount(array $overrides = []): MailAccountRecord
 it('reads the webmail alias of the list and of the single domain as the bare alias', function () {
     expect(mailDomain()->webmailAlias)->toBe('webmail')
         ->and(mailDomain(['WEBMAIL_ALIAS' => 'mail-web'])->webmailAlias)->toBe('mail-web')
-        ->and(mailDomain()->webmailUrl('webmail'))->toBe('https://webmail.example.com/')
+        // http:// while the mail domain has no SSL, the port of the panel host when given (E46)
+        ->and(mailDomain()->webmailUrl('webmail'))->toBe('http://webmail.example.com/')
+        ->and(mailDomain(['SSL' => 'yes'])->webmailUrl('webmail'))->toBe('https://webmail.example.com/')
+        ->and(mailDomain()->webmailUrl('webmail', 'https://srv1.example.net:8086/'))->toBe('https://srv1.example.net:8086/')
+        ->and(mailDomain(['WEBMAIL' => ''])->webmailUrl('webmail', 'https://srv1.example.net:8086/'))->toBeNull()
         ->and(mailDomain(['WEBMAIL' => ''])->webmailUrl('webmail'))->toBeNull()
         ->and(mailDomain(['WEBMAIL' => 'disabled'])->webmail)->toBe('');
 });

@@ -48,7 +48,7 @@ it('lists only the mail domains of a user', function () {
         ->assertSee('/mail/bob/example.com/edit')->assertSee('/mail/bob/example.com/dns')
         ->assertDontSee('/mail/bob/shop.example/edit')
         // Webmail: on for example.com, off for the suspended shop.example
-        ->assertSee('https://webmail.example.com/', false)->assertDontSee('https://webmail.shop.example/', false)
+        ->assertSee('http://webmail.example.com/', false)->assertDontSee('webmail.shop.example/', false)
         ->assertSee('Are you sure you want to suspend domain example.com?')
         ->assertSee('Are you sure you want to unsuspend domain shop.example?')
         ->assertSee('Are you sure you want to delete domain example.com?')

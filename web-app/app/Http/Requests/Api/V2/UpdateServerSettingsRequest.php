@@ -45,6 +45,10 @@ final class UpdateServerSettingsRequest extends ApiRequest
         ],
         'mail' => [
             'webmail_alias' => ['sometimes', 'string', 'max:63', 'regex:/^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/'],
+            /** The webmail port of every address (E46), null to turn it off. */
+            'webmail_port' => ['sometimes', 'nullable', 'integer', 'between:1024,65535'],
+            /** "port" (the webmail port of the panel host) or "domain" (the webmail alias of each mail domain). */
+            'webmail_link' => ['sometimes', 'string', 'in:port,domain'],
             'relay' => ['sometimes', 'boolean'],
             'relay_host' => ['sometimes', 'string', 'max:253', 'regex:/^[A-Za-z0-9.-]+$/'],
             'relay_port' => ['sometimes', 'integer', 'between:1,65535'],
@@ -54,6 +58,8 @@ final class UpdateServerSettingsRequest extends ApiRequest
         'databases' => [
             'pma_alias' => ['sometimes', 'string', 'max:63', 'regex:/^[A-Za-z0-9][A-Za-z0-9_-]*$/'],
             'pga_alias' => ['sometimes', 'string', 'max:63', 'regex:/^[A-Za-z0-9][A-Za-z0-9_-]*$/'],
+            /** The phpMyAdmin and phpPgAdmin port of every address (E46), null to turn it off. */
+            'db_admin_port' => ['sometimes', 'nullable', 'integer', 'between:1024,65535'],
         ],
         'backups' => [
             'local' => ['sometimes', 'boolean'],

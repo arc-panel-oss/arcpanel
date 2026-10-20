@@ -304,15 +304,24 @@ final class ServerSettings
     }
 
     /**
-     * @param  array{webmail_alias: ?string, relay: bool, relay_host: string, relay_port: string, relay_user: string, relay_password: ?string}  $values
+     * @param  array{webmail_alias: ?string, webmail_port?: ?string, webmail_link?: ?string, relay: bool, relay_host: string, relay_port: string, relay_user: string, relay_password: ?string}  $values  webmail_port '' turns the port off (E46)
      * @return list<Step>
      */
     public function planMail(array $values): array
     {
         $config = $this->config();
         $steps = [];
-        if ($values['webmail_alias'] !== null && ($config['WEBMAIL_SYSTEM'] ?? '') !== '' && $values['webmail_alias'] !== ($config['WEBMAIL_ALIAS'] ?? '')) {
+        $webmail = ($config['WEBMAIL_SYSTEM'] ?? '') !== '';
+        if ($values['webmail_alias'] !== null && $webmail && $values['webmail_alias'] !== ($config['WEBMAIL_ALIAS'] ?? '')) {
             $steps[] = new Step(__('Change the webmail alias'), 'v-change-sys-webmail', [$values['webmail_alias']]);
+        }
+        $port = $values['webmail_port'] ?? null;
+        if ($port !== null && $webmail && $port !== ($config['WEBMAIL_PORT'] ?? '')) {
+            $steps[] = new Step(__('Change the webmail port'), 'v-change-sys-webmail-port', [$port !== '' ? $port : 'none']);
+        }
+        $link = $values['webmail_link'] ?? null;
+        if ($link !== null && $webmail && $link !== (($config['WEBMAIL_LINK'] ?? '') ?: 'port')) {
+            $steps[] = new Step(__('Change the webmail link'), 'v-change-sys-webmail-link', [$link]);
         }
         $relayOn = ($config['SMTP_RELAY'] ?? '') === 'true';
         if ($values['relay'] && $values['relay_password'] !== null) {
@@ -341,13 +350,17 @@ final class ServerSettings
     }
 
     /**
-     * @param  array{pma_alias: ?string, pga_alias: ?string, pma_sso: ?bool, pma_restrict: ?bool}  $values  null: not shown on this server
+     * @param  array{pma_alias: ?string, pga_alias: ?string, pma_sso: ?bool, pma_restrict: ?bool, db_admin_port?: ?string}  $values  null: not shown on this server; db_admin_port '' turns the port off (E46)
      * @return list<Step>
      */
     public function planDatabases(array $values): array
     {
         $config = $this->config();
         $steps = [];
+        $port = $values['db_admin_port'] ?? null;
+        if ($port !== null && $port !== ($config['DB_ADMIN_PORT'] ?? '')) {
+            $steps[] = new Step(__('Change the database tools port'), 'v-change-sys-db-admin-port', [$port !== '' ? $port : 'none']);
+        }
         if ($values['pma_alias'] !== null && $values['pma_alias'] !== ($config['DB_PMA_ALIAS'] ?? '')) {
             $steps[] = new Step(__('Change the phpMyAdmin alias'), 'v-change-sys-db-alias', ['pma', $values['pma_alias']]);
         }

@@ -13,6 +13,7 @@ use App\Http\Middleware\BindEffectiveUser;
 use App\Http\Middleware\FilesEnabled;
 use App\Http\Middleware\NoReferrer;
 use App\Http\Middleware\NotReadOnly;
+use App\Http\Middleware\PreventRequestForgery;
 use App\Http\Middleware\RedirectIfLoggedIn;
 use App\Http\Middleware\RequirePrincipal;
 use App\Http\Middleware\RequireSysConfig;
@@ -70,6 +71,9 @@ $app = Application::configure(basePath: dirname(__DIR__))
         $middleware->web(append: [
             ResolvePrincipal::class,
             SetLocale::class,
+        ], replace: [
+            // No XSRF-TOKEN cookie for the tool ports to read (E46 spec §6.3)
+            Illuminate\Foundation\Http\Middleware\PreventRequestForgery::class => PreventRequestForgery::class,
         ]);
         $middleware->alias([
             'auth.arc' => RequirePrincipal::class,

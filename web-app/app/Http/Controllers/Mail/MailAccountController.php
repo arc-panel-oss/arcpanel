@@ -40,7 +40,7 @@ final class MailAccountController extends Controller
             'accounts' => $this->mail->accounts($user, $domain),
             'can' => $can,
             'canBulk' => $can['update'] || $can['delete'],
-            'webmailUrl' => $this->mail->hasWebmail() ? $record->webmailUrl($this->mail->webmailAlias()) : null,
+            'webmailUrl' => $this->mail->openWebmailUrl($record),
             'bulkActions' => [
                 'suspend' => ['label' => __('Suspend'), 'icon' => 'pause', 'confirm' => __('Suspend %d mail accounts?')],
                 'unsuspend' => ['label' => __('Unsuspend'), 'icon' => 'play'],
@@ -97,7 +97,7 @@ final class MailAccountController extends Controller
             'message' => $this->mail->autoreplyMessage($current),
             'can' => $policy->abilities($principal, $user),
             'client' => $this->clientSettings($record),
-            'webmailUrl' => $this->mail->hasWebmail() ? $record->webmailUrl($this->mail->webmailAlias()) : null,
+            'webmailUrl' => $this->mail->openWebmailUrl($record),
         ]);
     }
 
@@ -142,7 +142,7 @@ final class MailAccountController extends Controller
     {
         return [
             'domain' => $record->domain,
-            'webmail' => $this->mail->hasWebmail() ? $this->mail->webmailUrl($record) : null,
+            'webmail' => $this->mail->clientWebmailUrl($record),
             'hostname' => 'mail.'.$record->domain,
         ];
     }

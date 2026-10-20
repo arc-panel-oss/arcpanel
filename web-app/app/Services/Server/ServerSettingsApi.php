@@ -40,11 +40,11 @@ final class ServerSettingsApi
         'dns' => ['dns_system' => 'string', 'dnssec' => 'boolean', 'hosts' => 'dns_hosts'],
         'mail' => [
             'mail_system' => 'string', 'imap_system' => '?string', 'antivirus_system' => '?string', 'antispam_system' => '?string',
-            'webmail_system' => '?string', 'webmail_alias' => '?string',
+            'webmail_system' => '?string', 'webmail_alias' => '?string', 'webmail_port' => '?integer', 'webmail_link' => '?string',
             'relay' => 'boolean', 'relay_host' => '?string', 'relay_port' => '?integer', 'relay_user' => '?string', 'relay_password' => 'secret',
         ],
         'databases' => [
-            'db_system' => 'string', 'pma_alias' => '?string', 'pga_alias' => '?string',
+            'db_system' => 'string', 'pma_alias' => '?string', 'pga_alias' => '?string', 'db_admin_port' => '?integer',
             'pma_sso' => 'boolean', 'pma_restrict' => 'boolean', 'hosts' => 'database_hosts',
         ],
         'backups' => [
@@ -79,8 +79,8 @@ final class ServerSettingsApi
     public const WRITE = [
         'general' => ['hostname', 'timezone', 'language', 'language_all', 'theme', 'user_theme', 'debug', 'experimental'],
         'web' => ['php_default'],
-        'mail' => ['webmail_alias', 'relay', 'relay_host', 'relay_port', 'relay_user', 'relay_password'],
-        'databases' => ['pma_alias', 'pga_alias'],
+        'mail' => ['webmail_alias', 'webmail_port', 'webmail_link', 'relay', 'relay_host', 'relay_port', 'relay_user', 'relay_password'],
+        'databases' => ['pma_alias', 'pga_alias', 'db_admin_port'],
         'backups' => [
             'local', 'mode', 'level', 'remote', 'remote_type', 'host', 'port', 'username', 'password', 'path', 'bucket', 'key_id',
             'incremental', 'repo', 'snapshots', 'keep_daily', 'keep_weekly', 'keep_monthly', 'keep_yearly',
@@ -170,6 +170,8 @@ final class ServerSettingsApi
                 'antispam_system' => $orNull('ANTISPAM_SYSTEM'),
                 'webmail_system' => $orNull('WEBMAIL_SYSTEM'),
                 'webmail_alias' => $get('WEBMAIL_SYSTEM') !== '' ? $get('WEBMAIL_ALIAS') : null,
+                'webmail_port' => $get('WEBMAIL_SYSTEM') !== '' ? self::int($get('WEBMAIL_PORT')) : null,
+                'webmail_link' => $get('WEBMAIL_SYSTEM') !== '' ? ($get('WEBMAIL_LINK') ?: 'port') : null,
                 'relay' => $get('SMTP_RELAY') === 'true',
                 'relay_host' => $orNull('SMTP_RELAY_HOST'),
                 'relay_port' => self::int($get('SMTP_RELAY_PORT')),
@@ -181,6 +183,7 @@ final class ServerSettingsApi
                 'db_system' => $get('DB_SYSTEM'),
                 'pma_alias' => $this->dbSystem('mysql') ? $get('DB_PMA_ALIAS') : null,
                 'pga_alias' => $this->dbSystem('pgsql') ? $get('DB_PGA_ALIAS') : null,
+                'db_admin_port' => self::int($get('DB_ADMIN_PORT')),
                 'pma_sso' => $get('PHPMYADMIN_KEY') !== '',
                 'pma_restrict' => $get('PMA_RESTRICT_ACCESS') === 'yes',
                 'hosts' => array_map(fn (array $host) => [
@@ -239,7 +242,7 @@ final class ServerSettingsApi
             'general' => $this->planGeneral($data, $bool, $string),
             'web' => $this->planWeb($string('php_default')),
             'mail' => $this->planMail($data, $given, $string),
-            'databases' => $this->planDatabases($string('pma_alias'), $string('pga_alias')),
+            'databases' => $this->planDatabases($string('pma_alias'), $string('pga_alias'), $given('db_admin_port') ? self::portValue($data['db_admin_port']) : null),
             'backups' => $this->planBackups($data, $given, $string),
             'ssl' => $this->settings->planSsl((string) $data['certificate'], (string) $data['key']),
             'security' => $this->settings->planPolicies(array_map(fn ($value) => (string) $value, array_intersect_key($data, array_flip(self::WRITE['security'])))),
@@ -363,11 +366,20 @@ final class ServerSettingsApi
     {
         $config = $this->settings->config();
         $alias = $string('webmail_alias');
-        if ($alias !== null && ($config['WEBMAIL_SYSTEM'] ?? '') === '') {
-            throw ValidationException::withMessages(['webmail_alias' => __('This server has no webmail.')]);
+        if (($config['WEBMAIL_SYSTEM'] ?? '') === '') {
+            $errors = array_filter([
+                'webmail_alias' => $alias !== null ? __('This server has no webmail.') : null,
+                'webmail_port' => $given('webmail_port') ? __('This server has no webmail.') : null,
+                'webmail_link' => $given('webmail_link') ? __('This server has no webmail.') : null,
+            ]);
+            if ($errors !== []) {
+                throw ValidationException::withMessages($errors);
+            }
         }
         $values = [
             'webmail_alias' => $alias,
+            'webmail_port' => $given('webmail_port') ? self::portValue($data['webmail_port']) : null,
+            'webmail_link' => $string('webmail_link'),
             'relay' => $given('relay') ? (bool) $data['relay'] : ($config['SMTP_RELAY'] ?? '') === 'true',
             'relay_host' => $string('relay_host') ?? (string) ($config['SMTP_RELAY_HOST'] ?? ''),
             'relay_port' => $given('relay_port') && $data['relay_port'] !== null ? (string) (int) $data['relay_port'] : (string) (($config['SMTP_RELAY_PORT'] ?? '') ?: '587'),
@@ -383,17 +395,18 @@ final class ServerSettingsApi
     }
 
     /** @return list<Step> */
-    private function planDatabases(?string $pma, ?string $pga): array
+    private function planDatabases(?string $pma, ?string $pga, ?string $port = null): array
     {
         $errors = array_filter([
             'pma_alias' => $pma !== null && ! $this->dbSystem('mysql') ? __('This server has no MySQL or MariaDB.') : null,
             'pga_alias' => $pga !== null && ! $this->dbSystem('pgsql') ? __('This server has no PostgreSQL.') : null,
+            'db_admin_port' => $port !== null && ! $this->dbSystem('mysql') && ! $this->dbSystem('pgsql') ? __('This server has no database server.') : null,
         ]);
         if ($errors !== []) {
             throw ValidationException::withMessages($errors);
         }
 
-        return $this->settings->planDatabases(['pma_alias' => $pma, 'pga_alias' => $pga, 'pma_sso' => null, 'pma_restrict' => null]);
+        return $this->settings->planDatabases(['pma_alias' => $pma, 'pga_alias' => $pga, 'pma_sso' => null, 'pma_restrict' => null, 'db_admin_port' => $port]);
     }
 
     /**
@@ -456,5 +469,11 @@ final class ServerSettingsApi
     private static function int(string $value): ?int
     {
         return is_numeric($value) ? (int) $value : null;
+    }
+
+    /** A tool port of the request (E46): the number, or '' (off) for null. */
+    private static function portValue(mixed $value): string
+    {
+        return $value === null ? '' : (string) (int) $value;
     }
 }
