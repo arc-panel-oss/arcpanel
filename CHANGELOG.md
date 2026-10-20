@@ -6,8 +6,6 @@ All notable changes to ArcPanel are listed here. ArcPanel is based on HestiaCP 1
 
 ### Added
 
-- **Webmail and database tools on their own ports.** The webmail client answers on port 8086 and phpMyAdmin and phpPgAdmin on port 8087 of every address of the server, with the panel certificate, so "Open Webmail" and the database buttons work without DNS for each mail domain and also when the panel is opened by IP address. The ports are separate origins from the panel. Change or turn them off under Server → Settings (Mail Server, Databases), in `PATCH /api/v2/system/settings/mail` and `/databases` (`webmail_port`, `webmail_link`, `db_admin_port`) or with `v-change-sys-webmail-port`, `v-change-sys-db-admin-port` and `v-change-sys-webmail-link`. Installs and upgrades open them in the firewall only when the tool is installed and the port is free ([runbook](https://github.com/arc-panel-oss/docs/blob/main/operations/tool-ports.md)).
-- **Webmail sign-on.** "Open Webmail (signed in)" on a mail account opens Roundcube without the mailbox password, for whoever may change that password. A one-time ticket, bound to the browser's address, becomes a session password of 8 hours that Dovecot accepts from the loopback address only; it ends when the password, the mailbox, its domain or its user changes, and every sign-on is in the user's action log.
 - **IPv6 in the firewall.** The firewall runs on nftables: one table, `inet arcpanel`, filters IPv4 and IPv6 and is replaced in one step, checked first, so a rule set nftables refuses never replaces the one that runs. A port closed in the panel is now closed over IPv6 too; rules, bans and IP lists accept IPv6 addresses and networks, the IP list page offers IPv6 country lists, and Fail2Ban bans IPv6 addresses. `0.0.0.0/0` and `::/0` mean every address of both versions; ICMPv6 neighbour discovery is always allowed. See the [E40 spec](https://github.com/arc-panel-oss/docs/blob/main/features/specs/2026-10-19-002-e40-nftables-firewall-design.md).
 - `v-check-firewall` and `GET /api/v2/system/firewall/status` (`getFirewallStatus`) tell whether the loaded rules are still the panel's (`ok`, `drift`, `missing`); the Firewall page warns and offers a reload when they are not.
 - `data/firewall/custom.nft`: nftables commands loaded together with the panel's table.
@@ -20,8 +18,6 @@ All notable changes to ArcPanel are listed here. ArcPanel is based on HestiaCP 1
 
 ### Changed
 
-- "Open Webmail" uses `http://` while a mail domain has no SSL when it points at `webmail.<domain>` (`WEBMAIL_LINK=domain`), as the 1.x pages did; before, it always used `https://`.
-- The panel no longer sends the `XSRF-TOKEN` cookie; its scripts read the CSRF token from the page.
 - The 2.3.0 upgrade moves the firewall from iptables and ipset to nftables (`FIREWALL_SYSTEM='nftables'`, unit `arcpanel-firewall.service` instead of `arcpanel-iptables.service`). When the new rules cannot be loaded, the server keeps its iptables rules and the upgrade warns. The `arcpanel` package depends on `nftables`; `ipset` is no longer installed. The firewall service is listed as `nftables`; `iptables` still works to start, stop and restart it. A `data/firewall/custom.sh` that calls `iptables` still runs, but its rules cannot open ports the new table drops: the upgrade warns, and `custom.nft` takes such rules.
 - Deleting an IP list that an active rule uses answers `E_INUSE` (`409` in REST API v2) and names the rule.
 - The firewall rule list shows `0.0.0.0/0` and `::/0` as "Any address, IPv4 and IPv6", and the rule form says that both mean every address of both versions.
@@ -35,13 +31,28 @@ All notable changes to ArcPanel are listed here. ArcPanel is based on HestiaCP 1
 - REST API v2 names the fields of refused app process settings of a package as the request does (`app_processes.max`), not with the form's names.
 - A backup with only remote backup hosts that fails to upload exits with the error code of the upload instead of 0.
 
-- A change of the server configuration made outside the panel (for example `v-add-sys-api-ip` or `v-change-sys-config-value` over SSH) applies to the panel and REST API v2 at the next request. Before, the panel kept its cached copy of `arcpanel.conf` for up to 60 seconds, so API v2 could still refuse a newly allowed address with `E_API_DISABLED`. The commands that write `arcpanel.conf` now write a stamp that the panel compares with its copy.
-- The description of the permission set `v2-apps` on the Access keys page and in `GET /api/v2/access-key-sets` names app processes, which the set has granted since 2.1.3.
-- The package form no longer shows an internal reference in the hint of Ports.
+## 2.2.1 — 2026-10-20
+
+Webmail and the database tools on their own ports with webmail sign-on (E46), and `arm64` packages again (E47). See the [E46 spec](https://github.com/arc-panel-oss/docs/blob/main/features/specs/2026-10-20-002-e46-webmail-db-admin-ports-design.md) and the [E47 spec](https://github.com/arc-panel-oss/docs/blob/main/features/specs/2026-10-20-003-e47-arm64-packages-design.md).
+
+### Added
+
+- **`arm64` packages.** Stable releases publish the ArcPanel packages for `arm64` again, for every supported distribution, next to `amd64`. Installing on `arm64` is not supported yet: the installers still stop on `aarch64`.
+- **Webmail and database tools on their own ports.** The webmail client answers on port 8086 and phpMyAdmin and phpPgAdmin on port 8087 of every address of the server, with the panel certificate, so "Open Webmail" and the database buttons work without DNS for each mail domain and also when the panel is opened by IP address. The ports are separate origins from the panel. Change or turn them off under Server → Settings (Mail Server, Databases), in `PATCH /api/v2/system/settings/mail` and `/databases` (`webmail_port`, `webmail_link`, `db_admin_port`) or with `v-change-sys-webmail-port`, `v-change-sys-db-admin-port` and `v-change-sys-webmail-link`. Installs and upgrades open them in the firewall only when the tool is installed and the port is free ([runbook](https://github.com/arc-panel-oss/docs/blob/main/operations/tool-ports.md)).
+- **Webmail sign-on.** "Open Webmail (signed in)" on a mail account opens Roundcube without the mailbox password, for whoever may change that password. A one-time ticket, bound to the browser's address, becomes a session password of 8 hours that Dovecot accepts from the loopback address only; it ends when the password, the mailbox, its domain or its user changes, and every sign-on is in the user's action log.
 
 ### Changed
 
+- "Open Webmail" uses `http://` while a mail domain has no SSL when it points at `webmail.<domain>` (`WEBMAIL_LINK=domain`), as the 1.x pages did; before, it always used `https://`.
+- The panel no longer sends the `XSRF-TOKEN` cookie; its scripts read the CSRF token from the page.
 - The Add process page of an account without web domains links to the Add Web Domain page.
+- The package build limits its parallel compile jobs to the number of processors where `/proc/cpuinfo` names no cores (`arm64`); before, `make -j` ran without a limit there.
+
+### Fixed
+
+- A change of the server configuration made outside the panel (for example `v-add-sys-api-ip` or `v-change-sys-config-value` over SSH) applies to the panel and REST API v2 at the next request. Before, the panel kept its cached copy of `arcpanel.conf` for up to 60 seconds, so API v2 could still refuse a newly allowed address with `E_API_DISABLED`. The commands that write `arcpanel.conf` now write a stamp that the panel compares with its copy.
+- The description of the permission set `v2-apps` on the Access keys page and in `GET /api/v2/access-key-sets` names app processes, which the set has granted since 2.1.3.
+- The package form no longer shows an internal reference in the hint of Ports.
 
 ## 2.2.0 — 2026-10-17
 
