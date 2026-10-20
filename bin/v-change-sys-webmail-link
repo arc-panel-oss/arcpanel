@@ -1,0 +1,52 @@
+#!/bin/bash
+# info: change the webmail link of the panel
+# options: port|domain
+#
+# example: v-change-sys-webmail-link domain
+#
+# This function sets where "Open Webmail" points: "port" opens the webmail
+# port of the panel host, "domain" opens webmail.<domain> (E46).
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+mode=$1
+
+# Includes
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# load config file
+source_conf "$ARCPANEL/conf/arcpanel.conf"
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '1' "$#" 'port|domain'
+case "$mode" in
+	port | domain) ;;
+	*) check_result "$E_INVALID" "invalid webmail link :: $mode" ;;
+esac
+
+# Perform verification if read-only mode is enabled
+check_arcpanel_demo_mode
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+$BIN/v-change-sys-config-value 'WEBMAIL_LINK' "$mode" > /dev/null
+check_result $? "the webmail link could not be changed" "$E_UPDATE"
+
+#----------------------------------------------------------#
+#                         ArcPanel                         #
+#----------------------------------------------------------#
+
+$BIN/v-log-action "system" "Info" "System" "Webmail link changed (New Value: $mode)."
+log_event "$OK" "$ARGUMENTS"
+
+exit

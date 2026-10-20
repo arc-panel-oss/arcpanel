@@ -330,6 +330,9 @@ installed_v="$(grep RCMAIL_VERSION "$RC_INSTALL_DIR/program/include/iniset.php" 
 [[ -f "$RC_CONFIG_DIR/config.inc.php" ]] \
 	|| fail "Configuration file $RC_CONFIG_DIR/config.inc.php is missing"
 
+# Webmail and database tools ports (E46)
+$BIN/v-update-sys-tool-ports > /dev/null
+
 #----------------------------------------------------------#
 #                         ArcPanel                         #
 #----------------------------------------------------------#

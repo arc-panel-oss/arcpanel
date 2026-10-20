@@ -2644,6 +2644,9 @@ fi
 # Set backend port
 $ARCPANEL/bin/v-change-sys-port $port > /dev/null 2>&1
 
+# Webmail and database tools ports (E46)
+$ARCPANEL/bin/v-add-sys-tool-ports
+
 # Create default configuration files
 $ARCPANEL/bin/v-update-sys-defaults
 
