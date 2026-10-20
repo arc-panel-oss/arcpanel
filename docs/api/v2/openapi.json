@@ -41673,7 +41673,7 @@
                     },
                     "checks": {
                         "type": "array",
-                        "description": "`check` is `manifest`, `version`,\n     `disk`, `packages`, `activity` or `attention`; `status` is `ok`, `warn` or `fail`",
+                        "description": "`check` is `manifest`, `version`, `disk`, `packages`, `activity` or `attention`; `status` is `ok`, `warn` or `fail`",
                         "items": {
                             "type": "object",
                             "properties": {

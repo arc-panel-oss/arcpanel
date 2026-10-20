@@ -21,10 +21,7 @@ final class UpdatePreflightResource extends JsonResource
             'version' => $this->resource['version'],
             /** @var bool no check failed; the update task runs the same checks again before it installs anything */
             'ready' => $this->resource['ready'],
-            /**
-             * @var list<array{check: string, status: string, message: string}> `check` is `manifest`, `version`,
-             *      `disk`, `packages`, `activity` or `attention`; `status` is `ok`, `warn` or `fail`
-             */
+            /** @var list<array{check: string, status: string, message: string}> `check` is `manifest`, `version`, `disk`, `packages`, `activity` or `attention`; `status` is `ok`, `warn` or `fail` */
             'checks' => $this->resource['checks'],
         ];
     }

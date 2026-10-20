@@ -814,6 +814,53 @@ check "getServiceLogs answers an administrator's v2-observe key" 200 "$(call "$A
 check "getServiceLogs answers 404 for a service the server does not list" 404 "$(call "$ADMIN" GET /system/services/arcsmoke-none/logs)"
 check "getServiceLogs refuses a user's key" 403 "$(call "$ACCOUNTS_KEY" GET /system/services/arcpanel/logs)"
 
+# Update Center (E33 phase 1 spec §9): the policy is changed and restored; nothing is installed or rolled back
+check "getUpdatePolicy answers 200" 200 "$(call "$ADMIN" GET /system/updates/policy)"
+check "the policy is one of off, notify and patch" yes "$(json 'if (.data.policy | IN("off", "notify", "patch")) then "yes" else .data.policy end')"
+check "the installed version is the server's" "$(conf_value VERSION)" "$(json .data.installed.version)"
+update_policy_saved="$(json '.data | {policy, window_days, window_hours, delay_days}')"
+check "getUpdatePolicy answers an administrator's v2-observe key" 200 "$(call "$ADMIN_OBSERVER" GET /system/updates/policy)"
+check "getUpdatePolicy refuses a user's key" 403 "$(call "$ACCOUNTS_KEY" GET /system/updates/policy)"
+check "setUpdatePolicy dry run answers 200" 200 "$(call "$ADMIN" PATCH '/system/updates/policy?dry_run=1' '{"policy": "notify", "window_hours": "01-03"}')"
+check "the dry run plans v-change-sys-update-policy" v-change-sys-update-policy "$(json '.data.steps[0].command')"
+check "the dry run changed nothing" "$(jq -r .window_hours <<< "$update_policy_saved")" "$(call "$ADMIN" GET /system/updates/policy > /dev/null && json .data.window_hours)"
+check "a window that starts and ends at the same hour answers 422" 422 "$(call "$ADMIN" PATCH /system/updates/policy '{"window_hours": "05-05"}')"
+# A value that differs from the stored one: a request that changes nothing runs no command
+other_policy=notify
+[ "$(jq -r .policy <<< "$update_policy_saved")" = notify ] && other_policy=off
+check "an administrator's v2-observe key may not change the policy" 403 "$(call "$ADMIN_OBSERVER" PATCH /system/updates/policy "{\"policy\": \"$other_policy\"}")"
+check "the refusal names the command" v-change-sys-update-policy "$(json '.error.commands | join(",")')"
+check "setUpdatePolicy answers 200" 200 "$(call "$ADMIN" PATCH /system/updates/policy '{"policy": "notify", "window_days": ["sat", "sun"], "window_hours": "01-03", "delay_days": 3}')"
+check "the answer holds the new policy" "notify sat,sun 01-03 3" "$(json '.data | "\(.policy) \(.window_days | join(",")) \(.window_hours) \(.delay_days)"')"
+check "the server stores the new policy" "notify 01-03" "$("$ARCPANEL/bin/v-list-sys-update-policy" json | jq -r '"\(.POLICY) \(.WINDOW_HOURS)"')"
+check "the hourly check is in the cron table" 1 "$(grep -c 'v-run-sys-arcpanel-autoupdate' "/var/spool/cron/crontabs/arcpanelweb" 2> /dev/null)"
+check "resumeAutoUpdates answers 200" 200 "$(call "$ADMIN" POST /system/updates/resume)"
+check "automatic updates are not paused" false "$(json .data.paused)"
+check "setUpdatePolicy restores the saved policy" 200 "$(call "$ADMIN" PATCH /system/updates/policy "$update_policy_saved")"
+check "the saved policy is back" "$(jq -r '"\(.policy) \(.window_hours) \(.delay_days)"' <<< "$update_policy_saved")" "$(json '.data | "\(.policy) \(.window_hours) \(.delay_days)"')"
+releases_status="$(call "$ADMIN" GET '/system/updates/releases?refresh=true')"
+if [ "$releases_status" = 404 ]; then
+	skip "update releases: no verified release manifest on this server ($(json .error.message))"
+else
+	check "listPanelReleases answers 200" 200 "$releases_status"
+	check "the releases are a list" array "$(json '.data | type')"
+	release_version="$(json '.data[0].version // empty')"
+	if [ -z "$release_version" ]; then
+		skip "update releases: the manifest lists no release newer than this server"
+	else
+		check "checkPanelRelease answers 200" 200 "$(call "$ADMIN" GET "/system/updates/releases/$release_version/preflight")"
+		check "the pre-flight has its version and a ready flag" "$release_version boolean" "$(json '"\(.data.version) \(.data.ready | type)"')"
+		check "the pre-flight checked the manifest" 1 "$(json '[.data.checks[] | select(.check == "manifest")] | length')"
+	fi
+fi
+check "listUpdateHistory answers 200" 200 "$(call "$ADMIN" GET /system/updates/history)"
+check "the history is a list" array "$(json '.data | type')"
+check "rollbackPanelUpdate dry run answers 200" 200 "$(call "$ADMIN" POST '/system/updates/history/999999/rollback?dry_run=1')"
+check "the dry run plans the rollback task" "v-start-sys-task arcpanel-rollback" "$(json '.data.steps[0] | "\(.command) \(.args[0])"')"
+check "a rollback of a run that does not exist answers 409" 409 "$(call "$ADMIN" POST /system/updates/history/999999/rollback)"
+check "the refusal is E_FORBIDDEN" E_FORBIDDEN "$(json .error.code)"
+check "rollbackPanelUpdate refuses a user's key" 403 "$(call "$ACCOUNTS_KEY" POST /system/updates/history/1/rollback)"
+
 # Server settings (§5.7, D58): no secret in the answer; stored values are compared here, never printed
 check "getServerSettings answers 200" 200 "$(call "$ADMIN" GET /system/settings)"
 check "the settings hold no PHPMYADMIN_KEY field" false "$(json '[.. | objects | has("PHPMYADMIN_KEY")] | any')"
