@@ -2177,12 +2177,15 @@ echo   "1.2.3.4" >> $ARCPANEL/data/firewall/excludes.conf
 @test "List firewall rules" {
   run v-list-firewall csv
   assert_success
-  assert_line --partial '11,DROP,TCP,8083,22,ipset:country-nl'
+  # The number depends on the default rules (the tool ports of E46 add two)
+  assert_line --regexp '^[0-9]+,DROP,TCP,8083,22,ipset:country-nl,'
 
 }
 
 @test "Delete firewall with Ipset" {
-  run v-delete-firewall-rule '11'
+  rule="$(v-list-firewall csv | grep ',DROP,TCP,8083,22,ipset:country-nl,' | cut -d, -f1)"
+  [ -n "$rule" ]
+  run v-delete-firewall-rule "$rule"
   assert_success
   refute_output
 }
