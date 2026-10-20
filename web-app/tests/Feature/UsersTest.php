@@ -39,8 +39,10 @@ it('lists every user with role and owner for an admin, with an owner tree', func
         ->assertSee('Owner tree')
         ->assertSeeInOrder(['hostco', 'bob', 'resb', 'carol', 'dave']);
 
-    $this->get('/users?role=reseller')->assertOk()->assertSee('hostco')->assertDontSee('Carol Shop');
-    $this->get('/users?owner=resb')->assertOk()->assertSee('Carol Shop')->assertDontSee('Bob Builder');
+    // The Switch user menu lists every account on every page: the filters apply to the table
+    $rows = fn (string $uri) => expect((string) str($this->get($uri)->assertOk()->getContent())->between('<tbody>', '</tbody>'));
+    $rows('/users?role=reseller')->toContain('hostco')->not->toContain('Carol Shop');
+    $rows('/users?owner=resb')->toContain('Carol Shop')->not->toContain('Bob Builder');
 });
 
 it('lists only the customers of a reseller', function () {
