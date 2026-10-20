@@ -205,3 +205,6 @@ jobs:
 
       - name: Test the build, installer and APT repository scripts (E47)
         run: test/test_helper/bats-core/bin/bats test/arcpanel-arm64.bats
+
+      - name: Test the release branch script
+        run: test/test_helper/bats-core/bin/bats test/arcpanel-release-branches.bats

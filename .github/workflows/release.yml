@@ -3,8 +3,11 @@ name: Release
 # Builds, signs and publishes the ArcPanel APT repository (ADR-0006, spec WP3).
 #
 # Tag naming follows src/deb/arcpanel/control:
-#   Version 1.0.0        -> tag v1.0.0        -> stable repository  https://apt.arcpanel.top/
-#   Version 1.0.1~beta1  -> tag v1.0.1-beta1  -> beta repository    https://apt.arcpanel.top/beta/
+#   Version 2.3.0         -> tag v2.3.0         -> stable repository  https://apt.arcpanel.top/
+#   Version 2.3.0~beta.1  -> tag v2.3.0-beta.1  -> beta repository    https://apt.arcpanel.top/beta/
+#
+# Every tag sits on its release line branch vX.Y.x; after a stable release the release and
+# master branches move forward to the tag (docs/operations/releasing.md, release-branches.sh).
 #
 # A stable release builds every supported distribution on amd64 and arm64 (arm64 since 2.2.1,
 # after arm64-trial.yml passed, E47; installs on arm64 are not supported yet); a pre-release
@@ -39,6 +42,11 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Check that the tag is on its release line
+        run: bash .github/scripts/release-branches.sh check "${GITHUB_REF_NAME}"
 
       - name: Compare tag, package and installer versions
         id: version
@@ -124,3 +132,19 @@ jobs:
             rsync -az --delete --exclude '/beta/' -e "$ssh_cmd" repo/ "${APT_DEPLOY_TARGET}/"
           fi
           rm -f ~/.ssh/id_deploy
+
+  advance-branches:
+    name: Advance release and master
+    needs: [check-version, publish]
+    if: needs.check-version.outputs.channel == 'stable'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Fast-forward release and master to the tag
+        run: bash .github/scripts/release-branches.sh advance "${GITHUB_REF_NAME}"

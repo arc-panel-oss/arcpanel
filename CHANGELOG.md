@@ -2,6 +2,8 @@
 
 All notable changes to ArcPanel are listed here. ArcPanel is based on HestiaCP 1.10.5 and, since 2.0, a hard fork of it ([ADR-0007](https://github.com/arc-panel-oss/docs/blob/main/adr/0007-full-rename-and-hard-fork.md)).
 
+## Unreleased
+
 ## 2.2.1 — 2026-10-20
 
 Webmail and the database tools on their own ports with webmail sign-on (E46), and `arm64` packages again (E47). See the [E46 spec](https://github.com/arc-panel-oss/docs/blob/main/features/specs/2026-10-20-002-e46-webmail-db-admin-ports-design.md) and the [E47 spec](https://github.com/arc-panel-oss/docs/blob/main/features/specs/2026-10-20-003-e47-arm64-packages-design.md).
