@@ -21,6 +21,18 @@ All notable changes to ArcPanel are listed here. ArcPanel is based on HestiaCP 1
 - The firewall rule list shows `0.0.0.0/0` and `::/0` as "Any address, IPv4 and IPv6", and the rule form says that both mean every address of both versions.
 - A queued task whose command fails and asks to run again (Let's Encrypt while DNS propagates) is retried at most `QUEUE_MAX_ATTEMPTS` times, 3 by default, and then fails; before, it was retried every five minutes without end. Every failed queue task carries the reason from its log in `error`.
 - The REST API v2 document declares `Link` on every `202` that starts a task and `Location` only where the answer names a resource, as the panel answers. Before, it declared `Location` on the backup, snapshot, malware scan, Docker engine and PHP operations, which send only `Link`.
+
+### Fixed
+
+- The ban list of the panel and REST API v2 accepts the `RECIDIVE` chain of Fail2Ban.
+- A backup with only remote backup hosts that fails to upload exits with the error code of the upload instead of 0.
+
+## 2.2.2 — 2026-10-20
+
+Automatic updates that stay on the installed release line, and an APT repository that keeps every version (E33 phase 1). See the [E33 phase 1 spec](https://github.com/arc-panel-oss/docs/blob/main/features/specs/2026-10-20-005-e33-update-center-phase-1-design.md).
+
+### Changed
+
 - **Automatic updates stay on the installed release line.** With automatic updates on, a server now installs only the patch releases of its line (2.2.x on 2.2), never a new minor or major release such as 2.3.0, which can change how the server works (2.3.0 moves the firewall to nftables). When a newer line is published, the administrator gets a panel notification and, with update e-mails on, an e-mail, once per version, and updates from Server → Updates after reading the release notes. The engine packages stay with the line while a newer one waits. Servers with automatic updates off keep them off.
 - Automatic updates run at a random night time between 01:00 and 06:59 of the server; installs before 2.2.2 all ran at 04:41. Their output goes to `/usr/local/arcpanel/log/autoupdate.log`, and a failure sends one line through the cron e-mail.
 - A failed update of an ArcPanel package now shows the output of `apt-get` in the task log instead of only "update failed", and never waits for a question about a changed configuration file (the installed file is kept).
@@ -29,8 +41,6 @@ All notable changes to ArcPanel are listed here. ArcPanel is based on HestiaCP 1
 
 ### Fixed
 
-- The ban list of the panel and REST API v2 accepts the `RECIDIVE` chain of Fail2Ban.
-- A backup with only remote backup hosts that fails to upload exits with the error code of the upload instead of 0.
 - The Updates page compares package versions as versions; it compared them as text, so a package 2.10 looked older than 2.9.
 
 ## 2.2.1 — 2026-10-20
