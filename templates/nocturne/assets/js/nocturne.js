@@ -56,7 +56,16 @@
 		el.hidden = true;
 		lastFocus?.focus();
 	};
-	for (const t of document.querySelectorAll("[data-open]")) t.addEventListener("click", () => open(t.dataset.open));
+	for (const t of document.querySelectorAll("[data-open]")) {
+		t.addEventListener("click", () => {
+			// A dialog that opens the next step (pre-flight → progress) hands over its focus return.
+			const parent = t.closest(".ap-overlay");
+			const back = parent ? lastFocus : null;
+			if (parent) parent.hidden = true;
+			open(t.dataset.open);
+			if (back) lastFocus = back;
+		});
+	}
 	for (const ov of document.querySelectorAll(".ap-overlay")) {
 		ov.addEventListener("click", (e) => {
 			if (e.target === ov || e.target.closest("[data-close]")) close(ov);
@@ -99,6 +108,21 @@
 			b.setAttribute("aria-pressed", String(show));
 			b.setAttribute("aria-label", show ? "Hide password" : "Show password");
 		});
+	}
+
+	// Confirmations: a [data-requires="id"] button stays disabled until every box in #id is ticked.
+	for (const btn of document.querySelectorAll("[data-requires]")) {
+		const group = document.getElementById(btn.dataset.requires);
+		if (!group) continue;
+		const boxes = [...group.querySelectorAll("input[type=checkbox]")];
+		const count = document.querySelector(`[data-confirm-count="${group.id}"]`);
+		const sync = () => {
+			const n = boxes.filter((b) => b.checked).length;
+			btn.disabled = n < boxes.length;
+			if (count) count.textContent = `${n} of ${boxes.length} confirmed`;
+		};
+		for (const b of boxes) b.addEventListener("change", sync);
+		sync();
 	}
 
 	// Toast dismiss.
