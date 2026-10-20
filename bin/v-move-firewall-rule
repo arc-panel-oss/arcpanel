@@ -26,6 +26,8 @@ direction=$(echo "$2" | tr '[:lower:]' '[:upper:]')
 source /etc/arcpanel/arcpanel.conf
 # shellcheck source=/usr/local/arcpanel/func/main.sh
 source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/firewall.sh
+source $ARCPANEL/func/firewall.sh
 # load config file
 source_conf "$ARCPANEL/conf/arcpanel.conf"
 
@@ -85,6 +87,9 @@ check_arcpanel_demo_mode
 #                       Action                             #
 #----------------------------------------------------------#
 
+# The rules before the change, put back when the load fails
+fw_keep_rules
+
 target_rule=$(get_rule_id "$source_rule" "$direction")
 
 # Get the rule that will be moved
@@ -125,8 +130,8 @@ echo "$target_str" >> $ARCPANEL/data/firewall/rules.conf
 # Sorting firewall rules by id number
 sort_fw_rules
 
-# Updating system firewall
-$BIN/v-update-firewall
+# Updating system firewall; a table nft refuses fails the command
+fw_apply_rules
 
 #----------------------------------------------------------#
 #                         ArcPanel                         #

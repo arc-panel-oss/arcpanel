@@ -24,6 +24,8 @@ rule=$6
 source /etc/arcpanel/arcpanel.conf
 # shellcheck source=/usr/local/arcpanel/func/main.sh
 source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/firewall.sh
+source $ARCPANEL/func/firewall.sh
 # load config file
 source_conf "$ARCPANEL/conf/arcpanel.conf"
 
@@ -73,6 +75,9 @@ check_arcpanel_demo_mode
 #                       Action                             #
 #----------------------------------------------------------#
 
+# The rules before the change, put back when the load fails
+fw_keep_rules
+
 # Generating timestamp
 time_n_date=$(date +'%T %F')
 time=$(echo "$time_n_date" | cut -f 1 -d \ )
@@ -92,8 +97,8 @@ chmod 660 $ARCPANEL/data/firewall/rules.conf
 # Sorting firewall rules by id number
 sort_fw_rules
 
-# Updating system firewall
-$BIN/v-update-firewall
+# Updating system firewall; a table nft refuses fails the command
+fw_apply_rules
 
 #----------------------------------------------------------#
 #                         ArcPanel                         #

@@ -1517,16 +1517,28 @@ is_fw_protocol_format_valid() {
 	fi
 }
 
-# Firewall port validator
+# Firewall port validator: 0 (every port), or a list of ports and ranges
+# (22, 80,443, 12000-12100, 1:65535) of ports 1 to 65535, each range from a
+# lower to a higher port; nft refuses or misreads anything else
 is_fw_port_format_valid() {
-	if [ "${#1}" -eq 1 ]; then
-		if ! [[ "$1" =~ [0-9] ]]; then
+	local item='[1-9][0-9]{0,4}([-:][1-9][0-9]{0,4})?' part low high
+	[ "$1" = '0' ] && return
+	if [ "${#1}" -gt 78 ] || ! [[ "$1" =~ ^$item(,$item)*$ ]]; then
+		check_result "$E_INVALID" "invalid port format and/or more than 78 chars used :: $1"
+	fi
+	for part in ${1//,/ }; do
+		low="${part%%[-:]*}"
+		high="${part##*[-:]}"
+		if [ "$low" -gt 65535 ] || [ "$high" -gt 65535 ] || { [ "$low" != "$part" ] && [ "$low" -ge "$high" ]; }; then
 			check_result "$E_INVALID" "invalid port format :: $1"
 		fi
-	else
-		if ! [[ "$1" =~ ^[0-9][-|,|:|0-9]{0,76}[0-9]$ ]]; then
-			check_result "$E_INVALID" "invalid port format and/or more than 78 chars used :: $1"
-		fi
+	done
+}
+
+# Firewall chain validator: the chain names nft sets, which take no "|"
+is_fw_chain_format_valid() {
+	if ! [[ "$1" =~ ^[a-zA-Z0-9][-._a-zA-Z0-9]{0,64}[a-zA-Z0-9]$ ]]; then
+		check_result "$E_INVALID" "invalid chain format :: $1"
 	fi
 }
 
@@ -1763,7 +1775,7 @@ is_format_valid() {
 				backup) is_object_format_valid "$arg" 'backup' ;;
 				charset) is_object_format_valid "$arg" "$arg_name" ;;
 				charsets) is_common_format_valid "$arg" 'charsets' ;;
-				chain) is_object_format_valid "$arg" 'chain' ;;
+				chain) is_fw_chain_format_valid "$arg" ;;
 				comment) is_comment_format_valid "$arg" 'comment' ;;
 				cron_command) is_cron_command_valid_format "$arg" ;;
 				database) is_database_format_valid "$arg" 'database' ;;
