@@ -67,6 +67,26 @@ rclone_as() {
         RCLONE_CONFIG_OS_FORCE_PATH_STYLE=true RCLONE_CONFIG_OS_NO_CHECK_BUCKET=true RCLONE_CONFIG=/dev/null rclone "$@"
 }
 
+# Let mcli fail for calls whose arguments hold WORDS, as a Silo that is not
+# ready yet answers; restore_mcli puts the real one back
+fail_mcli() {
+    [ -e /usr/local/bin/mcli.real ] || mv /usr/local/bin/mcli /usr/local/bin/mcli.real
+    cat > /usr/local/bin/mcli << EOF
+#!/bin/bash
+case " \$* " in
+    *" $1 "*) echo '{"status":"error","error":{"message":"Server not initialized"}}'; exit 1 ;;
+esac
+exec /usr/local/bin/mcli.real "\$@"
+EOF
+    chmod 755 /usr/local/bin/mcli
+}
+
+restore_mcli() {
+    if [ -e /usr/local/bin/mcli.real ]; then
+        mv -f /usr/local/bin/mcli.real /usr/local/bin/mcli
+    fi
+}
+
 make_package() {
     local name="$1" tmp
     tmp=$(mktemp)
@@ -134,6 +154,7 @@ setup_file() {
 }
 
 teardown_file() {
+    restore_mcli
     for u in "$U1" "$U2" "$RES"; do
         v-delete-user "$u" > /dev/null 2>&1 || true
     done
@@ -397,6 +418,62 @@ teardown_file() {
     save_key u1rw "$output"
     run aws_as u1rw s3 ls "s3://$B1"
     assert_success
+}
+
+@test "object storage: a key listing that fails keeps every key and its record" {
+    local before
+    before=$(v-list-user-s3-keys "$U1" json | jq -r 'keys | sort | join(",")')
+    [ -n "$before" ]
+    fail_mcli 'svcacct list'
+    for _ in 1 2 3 4; do
+        run v-check-sys-silo repair json
+        assert_success
+        assert_output --partial 'could not be listed'
+    done
+    restore_mcli
+    assert_equal "$(v-list-user-s3-keys "$U1" json | jq -r 'keys | sort | join(",")')" "$before"
+    run aws_as u1rw s3 ls "s3://$B1"
+    assert_success
+    run v-check-sys-silo repair
+    assert_output ''
+    assert_equal "$(v-list-user-s3-keys "$U1" json | jq -r 'keys | sort | join(",")')" "$before"
+}
+
+@test "object storage: a repair right after a restart keeps every key" {
+    local before
+    before=$(v-list-user-s3-keys "$U1" json | jq -r 'keys | sort | join(",")')
+    systemctl restart arcpanel-silo
+    run v-check-sys-silo repair
+    assert_success
+    assert_equal "$(v-list-user-s3-keys "$U1" json | jq -r 'keys | sort | join(",")')" "$before"
+    run aws_as u1rw s3 ls "s3://$B1"
+    assert_success
+}
+
+@test "object storage: a key record and a service account that disagree are dropped after three repairs" {
+    local gone extra
+    run v-add-user-s3-key "$U1" "gone key" '' ro '' json
+    assert_success
+    gone=$(jq -r .KEY <<< "$output")
+    mcli_root admin user svcacct remove arc "$gone" > /dev/null
+    extra=$(mcli_root admin user svcacct add arc "arc-$U1" --json | jq -r .accessKey)
+    [ -n "$extra" ]
+    for _ in 1 2; do
+        run v-check-sys-silo repair
+        assert_output --partial "S3 key $gone is missing"
+        assert_output --partial "service account $extra has no S3 key record"
+        run v-list-user-s3-keys "$U1" json
+        assert_output --partial "\"$gone\""
+        run mcli_root admin user svcacct info arc "$extra"
+        assert_success
+    done
+    run v-check-sys-silo repair
+    run v-list-user-s3-keys "$U1" json
+    refute_output --partial "\"$gone\""
+    run mcli_root admin user svcacct info arc "$extra"
+    assert_failure
+    run v-check-sys-silo no
+    assert_output ''
 }
 
 @test "object storage: a backup carries the buckets and their objects; a restore brings them back" {

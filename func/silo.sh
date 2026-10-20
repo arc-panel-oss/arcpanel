@@ -28,6 +28,9 @@ SILO_DATA_DEFAULT=/srv/arcpanel-silo
 SILO_ROOT_USER=arcpanel-root
 SILO_KEYS_MAX=20
 SILO_REGION=us-east-1
+# Repairs in a row that must see a key differ before it is fixed (spec §8)
+SILO_MISSES="$SILO_DIR/repair.misses"
+SILO_MISS_LIMIT=3
 
 # Keys of a line of buckets.conf and of s3keys.conf, in order
 SILO_BUCKET_KEYS=(BUCKET QUOTA VERSIONING USED OBJECTS SUSPENDED TIME DATE)
@@ -60,11 +63,13 @@ silo_mcli() {
 		"$SILO_MCLI" --config-dir "$SILO_DIR/mcli" --no-color --disable-pager "$@"
 }
 
-# The S3 port answers within 30 seconds
+# Silo answers within 30 seconds: the S3 port, and the admin calls, which
+# fail for a while after a start, before the IAM data is loaded
 silo_wait() {
 	local i
 	for i in $(seq 1 30); do
-		if [ "$(curl -s -o /dev/null -m 2 -w '%{http_code}' "http://127.0.0.1:$SILO_PORT/minio/health/live")" = '200' ]; then
+		if [ "$(curl -s -o /dev/null -m 2 -w '%{http_code}' "http://127.0.0.1:$SILO_PORT/minio/health/live")" = '200' ] \
+			&& silo_mcli admin user list arc --json > /dev/null 2>&1; then
 			return 0
 		fi
 		sleep 1
@@ -515,9 +520,12 @@ silo_key_remove() {
 	silo_mcli admin user svcacct remove arc "$1" > /dev/null 2>&1
 }
 
-# Access key IDs of the service accounts of USER in Silo, one per line
+# Access key IDs of the service accounts of USER in Silo, one per line; 1
+# when Silo does not list them, which is not the same as no keys
 silo_key_ids() {
-	silo_mcli admin user svcacct list arc "$(silo_iam_user "$1")" --json 2> /dev/null | jq -r 'select(.accessKey) | .accessKey'
+	local out
+	out=$(silo_mcli admin user svcacct list arc "$(silo_iam_user "$1")" --json 2> /dev/null) || return 1
+	jq -r 'select(.accessKey) | .accessKey' <<< "$out"
 }
 
 #----------------------------------------------------------#
@@ -593,23 +601,35 @@ silo_rebuild_user() {
 		fi
 	done < <(cat "$file" 2> /dev/null)
 
+	local recreated=''
 	if [ -n "$(silo_buckets "$user")" ] || [ -n "$(silo_keys "$user")" ]; then
 		if ! silo_iam_exists "$user"; then
 			echo "$user|user|$(silo_iam_user "$user") is missing in object storage"
+			recreated='yes'
 		fi
 		if [ "$repair" = 'yes' ]; then
-			silo_sync_user "$user"
+			silo_sync_user "$user" || recreated=''
 		fi
 	fi
 
 	# Keys: a line without its service account cannot come back (the secret
-	# is gone); a service account without a line is not the panel's
-	ids=$(silo_key_ids "$user")
+	# is gone); a service account without a line is not the panel's. Both
+	# are permanent, so a listing that fails changes nothing, and a
+	# difference is fixed only when SILO_MISS_LIMIT repairs in a row saw it,
+	# or at once for the lines of an IAM user that had to be created again
+	if ! ids=$(silo_key_ids "$user"); then
+		echo "$user|key|the S3 keys could not be listed"
+		return 0
+	fi
+	SILO_MISSES_NEW=''
 	for key in $(silo_keys "$user"); do
 		if ! grep -qx -- "$key" <<< "$ids"; then
 			echo "$user|key|S3 key $key is missing in object storage"
 			if [ "$repair" = 'yes' ]; then
-				silo_delete_line "$(silo_keys_file "$user")" KEY "$key"
+				silo_miss "$user" record "$key"
+				if [ "$recreated" = 'yes' ] || [ "$SILO_MISS_COUNT" -ge "$SILO_MISS_LIMIT" ]; then
+					silo_delete_line "$(silo_keys_file "$user")" KEY "$key"
+				fi
 			fi
 		fi
 	done
@@ -617,11 +637,41 @@ silo_rebuild_user() {
 		if [ -z "$(silo_key_line "$user" "$key")" ]; then
 			echo "$user|key|service account $key has no S3 key record"
 			if [ "$repair" = 'yes' ]; then
-				silo_key_remove "$key"
+				silo_miss "$user" account "$key"
+				if [ "$SILO_MISS_COUNT" -ge "$SILO_MISS_LIMIT" ]; then
+					silo_key_remove "$key"
+				fi
 			fi
 		fi
 	done
+	if [ "$repair" = 'yes' ]; then
+		silo_misses_save "$user"
+	fi
 	return 0
+}
+
+# Count one more repair that saw KIND ID of USER differ (record: a key line
+# without its service account, account: the reverse) into SILO_MISS_COUNT;
+# the count is kept in SILO_MISSES_NEW until silo_misses_save. A difference
+# fixed now is not carried on
+silo_miss() {
+	local n
+	n=$(awk -F'|' -v u="$1" -v k="$2" -v i="$3" '$1 == u && $2 == k && $3 == i { print $4 }' "$SILO_MISSES" 2> /dev/null)
+	SILO_MISS_COUNT=$((${n:-0} + 1))
+	if [ "$SILO_MISS_COUNT" -lt "$SILO_MISS_LIMIT" ]; then
+		SILO_MISSES_NEW+="$1|$2|$3|$SILO_MISS_COUNT"$'\n'
+	fi
+}
+
+# Replace the counts of USER by those of this repair, so a difference that
+# went away starts again from zero
+silo_misses_save() {
+	local tmp
+	tmp=$(mktemp)
+	awk -F'|' -v u="$1" '$1 != u' "$SILO_MISSES" 2> /dev/null > "$tmp"
+	printf '%s' "$SILO_MISSES_NEW" >> "$tmp"
+	install -m 600 "$tmp" "$SILO_MISSES"
+	rm -f "$tmp"
 }
 
 #----------------------------------------------------------#

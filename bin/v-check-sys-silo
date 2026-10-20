@@ -91,7 +91,9 @@ case $format in
 		printf '%s\n' "$findings" | jq -R -s 'split("\n") | map(select(length > 0) | split("|") | {USER: .[0], KIND: .[1], DETAIL: .[2]})'
 		;;
 	plain | csv | shell)
-		[ -n "$findings" ] && printf '%s\n' "$findings"
+		if [ -n "$findings" ]; then
+			printf '%s\n' "$findings"
+		fi
 		;;
 esac
 
