@@ -117,9 +117,11 @@ $BIN/v-restore-database-restic "$user" "$snapshot" '*'
 echo "[ * ] Restore Cronjobs"
 $BIN/v-restore-cron-job-restic "$user" "$snapshot"
 echo "[ * ] Restore user files"
-restic_restore_data "$tmpdir" "$snapshot" --include="/home/$user" --exclude="/home/$user/web" \
-	--exclude="/home/$user/conf" --exclude="/home/$user/mail" --exclude="/home/$user/backup"
-check_result $? "Unable to download user folders"
+mapfile -t includes < <(restic_home_includes "$snapshot" web conf mail backup)
+if [ "${#includes[@]}" -gt 0 ]; then
+	restic_restore_data "$tmpdir" "$snapshot" "${includes[@]}"
+	check_result $? "Unable to download user folders"
+fi
 if [ -d "$tmpdir/home/$user" ]; then
 	copy_into_home "$tmpdir/home/$user" "$HOMEDIR/$user" || echo "[ ! ] Some user files could not be restored"
 fi

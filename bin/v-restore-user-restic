@@ -82,9 +82,11 @@ fi
 if [ "$udir" = "yes" ]; then
 	echo "[ * ] Restore user files"
 	safe_workdir restore-user
-	restic_restore_data "$SAFE_WORKDIR" "$snapshot" --include="/home/$user" --exclude="/home/$user/web" \
-		--exclude="/home/$user/conf" --exclude="/home/$user/mail" --exclude="/home/$user/backup"
-	check_result $? "Unable to download user folders"
+	mapfile -t includes < <(restic_home_includes "$snapshot" web conf mail backup)
+	if [ "${#includes[@]}" -gt 0 ]; then
+		restic_restore_data "$SAFE_WORKDIR" "$snapshot" "${includes[@]}"
+		check_result $? "Unable to download user folders"
+	fi
 	if [ -d "$SAFE_WORKDIR/home/$user" ]; then
 		copy_into_home "$SAFE_WORKDIR/home/$user" "$HOMEDIR/$user" || echo "[ ! ] Some user files could not be restored"
 	fi
