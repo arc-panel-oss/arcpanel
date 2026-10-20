@@ -321,6 +321,9 @@ if [ -n "$web_data" ] || [ -n "$dns_data" ] || [ -n "$mail_data" ]; then
 	$BIN/v-add-user-notification "$user" "$domain has been added to your account" ''
 fi
 
+# End the webmail sign-on sessions (E46)
+$BIN/v-delete-mail-account-sso "$domain" > /dev/null 2>&1
+
 #----------------------------------------------------------#
 #                         ArcPanel                         #
 #----------------------------------------------------------#

@@ -1,0 +1,83 @@
+#!/bin/bash
+# info: exchange a webmail sign-on ticket for a session password
+# options: TICKET_FILE CLIENT_IP [FORMAT]
+#
+# example: v-check-mail-account-sso /tmp/ticket 203.0.113.5 json
+#
+# This function consumes the ticket in TICKET_FILE (written by the panel)
+# and prints the address and a new session password of the mail account,
+# which Dovecot accepts from the loopback address only for 8 hours. The
+# ticket must be valid, unused and issued for CLIENT_IP, and the account,
+# its domain and its user must not be suspended since (E46).
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+ticket_file=$1
+client_ip=$2
+format=${3-shell}
+
+# Includes
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/mail-sso.sh
+source $ARCPANEL/func/mail-sso.sh
+# load config file
+source_conf "$ARCPANEL/conf/arcpanel.conf"
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '2' "$#" 'TICKET_FILE CLIENT_IP [FORMAT]'
+is_ip46_format_valid "$client_ip"
+if ! ticket=$(read_value_file "$ticket_file"); then
+	check_result "$E_INVALID" "the ticket must be passed in a file"
+fi
+is_system_enabled "$MAIL_SYSTEM" 'MAIL_SYSTEM'
+
+# Perform verification if read-only mode is enabled
+check_arcpanel_demo_mode
+
+mail_sso_lock
+if ! mail_sso_ticket_take "$ticket"; then
+	check_result "$E_FORBIDEN" "the sign-on is not valid"
+fi
+if [ "$SSO_EXPIRES" -le "$(date +%s)" ] || [ "$SSO_CLIENT_IP" != "$client_ip" ]; then
+	check_result "$E_FORBIDEN" "the sign-on is not valid"
+fi
+user=$SSO_USER
+USER_DATA=$ARCPANEL/data/users/$user
+account=${SSO_ADDRESS%@*}
+domain=${SSO_ADDRESS#*@}
+is_format_valid 'user' 'domain' 'account'
+is_object_valid 'user' 'USER' "$user"
+is_object_unsuspended 'user' 'USER' "$user"
+is_object_valid 'mail' 'DOMAIN' "$domain"
+is_object_unsuspended 'mail' 'DOMAIN' "$domain"
+is_object_valid "mail/$domain" 'ACCOUNT' "$account"
+is_object_unsuspended "mail/$domain" 'ACCOUNT' "$account"
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+password=$(mail_sso_session_add "$account@$domain")
+check_result $? "the session could not be created" "$E_UPDATE"
+
+case "$format" in
+	json) echo "{\"USER\": \"$account@$domain\", \"PASSWORD\": \"$password\"}" ;;
+	*) echo -e "USER:     $account@$domain\nPASSWORD: $password" ;;
+esac
+
+#----------------------------------------------------------#
+#                         ArcPanel                         #
+#----------------------------------------------------------#
+
+log_event "$OK" "$ARGUMENTS"
+
+exit

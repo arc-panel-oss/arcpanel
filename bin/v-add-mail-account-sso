@@ -1,0 +1,76 @@
+#!/bin/bash
+# info: start a webmail sign-on for a mail account
+# options: USER DOMAIN ACCOUNT ACTOR CLIENT_IP
+#
+# example: v-add-mail-account-sso admin example.com info admin 203.0.113.5
+#
+# This function prints a ticket that signs the browser at CLIENT_IP into
+# Roundcube as ACCOUNT@DOMAIN without the account password: valid for 60
+# seconds and once. ACTOR is the panel user who asked for it; the sign-on is
+# written to the action log of USER (E46).
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+user=$1
+domain=$2
+account=$3
+actor=$4
+client_ip=$5
+
+# Includes
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/mail-sso.sh
+source $ARCPANEL/func/mail-sso.sh
+# load config file
+source_conf "$ARCPANEL/conf/arcpanel.conf"
+
+# Additional argument formatting
+format_domain
+format_domain_idn
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '5' "$#" 'USER DOMAIN ACCOUNT ACTOR CLIENT_IP'
+is_format_valid 'user' 'domain' 'account'
+is_user_format_valid "$actor" 'actor'
+is_ip46_format_valid "$client_ip"
+is_system_enabled "$MAIL_SYSTEM" 'MAIL_SYSTEM'
+if [[ ! ",$WEBMAIL_SYSTEM," =~ ,roundcube, ]]; then
+	check_result "$E_DISABLED" "Roundcube is not installed"
+fi
+is_object_valid 'user' 'USER' "$user"
+is_object_unsuspended 'user' 'USER' "$user"
+is_object_valid 'mail' 'DOMAIN' "$domain"
+is_object_unsuspended 'mail' 'DOMAIN' "$domain"
+is_object_valid "mail/$domain" 'ACCOUNT' "$account"
+is_object_unsuspended "mail/$domain" 'ACCOUNT' "$account"
+if [ "$(get_object_value 'mail' 'DOMAIN' "$domain" '$WEBMAIL')" != 'roundcube' ]; then
+	check_result "$E_DISABLED" "the webmail of $domain is not Roundcube"
+fi
+
+# Perform verification if read-only mode is enabled
+check_arcpanel_demo_mode
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+mail_sso_lock
+mail_sso_ticket_add "$user" "$account@$domain" "$client_ip" "$actor"
+
+#----------------------------------------------------------#
+#                         ArcPanel                         #
+#----------------------------------------------------------#
+
+$BIN/v-log-action "$user" "Info" "Mail" "Webmail sign-on (Account: $account@$domain, By: $actor)."
+log_event "$OK" "$ARGUMENTS"
+
+exit

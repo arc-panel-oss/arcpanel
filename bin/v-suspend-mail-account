@@ -62,6 +62,9 @@ if [[ "$MAIL_SYSTEM" =~ exim ]]; then
 	echo "$str" >> "$HOMEDIR/$user/conf/mail/$domain/passwd"
 fi
 
+# End the webmail sign-on sessions (E46)
+$BIN/v-delete-mail-account-sso "$domain" "$account" > /dev/null 2>&1
+
 #----------------------------------------------------------#
 #                         ArcPanel                         #
 #----------------------------------------------------------#

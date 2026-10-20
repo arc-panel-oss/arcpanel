@@ -57,6 +57,9 @@ fi
 # Removing webmail configuration
 $BIN/v-delete-mail-domain-webmail $user $domain 'yes'
 
+# End the webmail sign-on sessions (E46)
+$BIN/v-delete-mail-account-sso "$domain" > /dev/null 2>&1
+
 #----------------------------------------------------------#
 #                         ArcPanel                         #
 #----------------------------------------------------------#
