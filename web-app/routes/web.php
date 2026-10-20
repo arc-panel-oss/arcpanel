@@ -5,6 +5,7 @@ use App\Http\Controllers\AppProcesses\AppProcessPageController;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\LogoutController;
 use App\Http\Controllers\Auth\MailPasswordController;
+use App\Http\Controllers\Auth\MailSsoController;
 use App\Http\Controllers\Auth\ResetController;
 use App\Http\Controllers\Auth\SudoController;
 use App\Http\Controllers\Auth\TwoFactorController;
@@ -130,6 +131,9 @@ Route::middleware('guest.arc')->group(function () {
 // Mail password change for the webmail clients of this server (1.x
 // web/reset/mail); no session, the controller checks the caller's address
 Route::post('/reset/mail', MailPasswordController::class)->name('reset.mail');
+// Webmail sign-on tickets from Roundcube's arcpanel_sso plugin (E46 spec §7.5);
+// loopback only, the controller checks the caller's address
+Route::post('/sso/mail', MailSsoController::class)->name('sso.mail');
 
 Route::middleware('auth.arc')->group(function () {
     // Sudo mode: the password before a sensitive change of one's own account (E39 W2 spec §7)
@@ -725,6 +729,7 @@ Route::middleware('auth.arc')->group(function () {
                     foreach (['general', 'forwarding', 'autoreply'] as $tab) {
                         Route::post('/{account}/edit/'.$tab, [MailAccountController::class, $tab])->name('update.'.$tab);
                     }
+                    Route::post('/{account}/webmail', [MailAccountController::class, 'webmail'])->middleware('no-referrer')->name('webmail');
                     Route::post('/{account}/suspend', [MailActionController::class, 'suspendAccount'])->name('suspend');
                     Route::post('/{account}/unsuspend', [MailActionController::class, 'unsuspendAccount'])->name('unsuspend');
                     Route::delete('/{account}', [MailActionController::class, 'destroyAccount'])->name('destroy');

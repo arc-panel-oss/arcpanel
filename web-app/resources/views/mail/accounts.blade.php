@@ -93,6 +93,9 @@
                                 @if ($webmailUrl && ! $account->suspended)
                                     <a class="ap-menu-item" href="{{ $webmailUrl.'?'.http_build_query(['_user' => $email]) }}" target="_blank" rel="noopener"><x-ap-icon name="external" />{{ __('Open Webmail') }}</a>
                                 @endif
+                                @if ($signOn($account))
+                                    <x-ap-button class="ap-menu-item" :form-action="route('mail.accounts.webmail', $accountParams)" icon="key" formtarget="_blank">{{ __('Open Webmail (signed in)') }}</x-ap-button>
+                                @endif
                                 @if ($can['update'] && ! $account->suspended)
                                     <a class="ap-menu-item" href="{{ route('mail.accounts.edit', $accountParams) }}"><x-ap-icon name="edit" />{{ __('Edit Mail Account') }}</a>
                                 @endif

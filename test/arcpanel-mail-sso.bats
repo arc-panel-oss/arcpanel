@@ -245,3 +245,37 @@ teardown_file() {
     run stat -c '%U:%G %a' "$PASSDB"
     assert_output 'root:dovecot 640'
 }
+
+@test "Roundcube: a ticket posted to the webmail port signs in, once" {
+    v-add-sys-mail-sso
+    assert_file_exist /var/lib/roundcube/plugins/arcpanel_sso/arcpanel_sso.php
+    run grep -c 'arcpanel_sso' /etc/roundcube/config.inc.php
+    refute_output 0
+    port=$(grep -m1 "^WEBMAIL_PORT=" "$ARCPANEL/conf/arcpanel.conf" | cut -d"'" -f2)
+    [ -n "$port" ]
+    jar=$(mktemp /tmp/sso-bats.XXXXXX)
+    ticket=$(v-add-mail-account-sso "$USER_NAME" "$DOMAIN" info admin 127.0.0.1)
+    run curl -sk -c "$jar" -b "$jar" -o /dev/null -w '%{http_code} %{redirect_url}' \
+        --data-urlencode "_ticket=$ticket" "https://127.0.0.1:$port/?_task=login&_action=arcpanel-sso"
+    assert_output --regexp '^302 .*_task=mail'
+    run curl -sk -c "$jar" -b "$jar" "https://127.0.0.1:$port/?_task=mail&_mbox=INBOX"
+    assert_output --partial "info@$DOMAIN"
+
+    # The same ticket again: the login page, no session
+    rm -f "$jar"
+    run curl -sk -c "$jar" -b "$jar" -o /dev/null -w '%{http_code}' \
+        --data-urlencode "_ticket=$ticket" "https://127.0.0.1:$port/?_task=login&_action=arcpanel-sso"
+    refute_output 302
+    rm -f "$jar"
+}
+
+@test "panel: the ticket exchange answers only on the loopback address" {
+    ticket=$(v-add-mail-account-sso "$USER_NAME" "$DOMAIN" info admin 127.0.0.1)
+    backend=$(grep -m1 "^BACKEND_PORT=" "$ARCPANEL/conf/arcpanel.conf" | cut -d"'" -f2)
+    run curl -sk -o /dev/null -w '%{http_code}' --data "ticket=$ticket&client_ip=127.0.0.1" "https://$(server_ip):${backend:-8083}/sso/mail"
+    assert_output 404
+    run curl -sk -o /dev/null -w '%{http_code}' -H 'X-Forwarded-For: 127.0.0.1' --data "ticket=$ticket&client_ip=127.0.0.1" "https://127.0.0.1:${backend:-8083}/sso/mail"
+    assert_output 404
+    run curl -sk --data "ticket=$ticket&client_ip=127.0.0.1" "https://127.0.0.1:${backend:-8083}/sso/mail"
+    assert_output --partial "\"user\":\"info@$DOMAIN\""
+}

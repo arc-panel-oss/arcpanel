@@ -92,7 +92,7 @@ $config["des_key"] = "%des_key%";
 $config["max_recipients"] = 100;
 
 // List of active plugins (in plugins/ directory)
-$config["plugins"] = ["password", "newmail_notifier", "zipdownload", "archive"];
+$config["plugins"] = ["password", "newmail_notifier", "zipdownload", "archive", "arcpanel_sso"];
 
 $config["default_user"] = "%u";
 

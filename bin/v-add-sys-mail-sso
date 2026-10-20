@@ -84,6 +84,9 @@ if [ -d /var/lib/roundcube/plugins ] && [ -d "$ARCPANEL/install/common/roundcube
 	chown -R root:root "$RC_PLUGIN"
 	chmod 755 "$RC_PLUGIN"
 	chmod 644 "$RC_PLUGIN"/*
+	# The panel port the plugin calls; v-change-sys-port keeps it current
+	printf '<?php\n$config["arcpanel_sso_port"] = "%s";\n' "${BACKEND_PORT:-8083}" > "$RC_PLUGIN/config.inc.php"
+	chmod 644 "$RC_PLUGIN/config.inc.php"
 	rc_config=/etc/roundcube/config.inc.php
 	if [ -f "$rc_config" ] && ! grep -q 'arcpanel_sso' "$rc_config"; then
 		echo '$config["plugins"][] = "arcpanel_sso";' >> "$rc_config"
