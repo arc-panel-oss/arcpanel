@@ -134,17 +134,55 @@
                 </div>
 
                 @if ($shell['canSwitchUser'])
-                    <details class="ap-dropdown ap-user-switch">
+                    {{-- The script (apUserSwitch) replaces the <datalist> with its own list; without it the input still works --}}
+                    <details class="ap-dropdown ap-user-switch" x-data="apUserSwitch({ users: @js($shell['switchEntries']) })" x-on:toggle="opened($event)">
                         <summary class="ap-btn ap-btn-ghost ap-btn-sm" title="{{ __('Switch user') }}"><x-ap-icon name="switch" /><span class="ap-switch-label">{{ __('Switch user') }}</span></summary>
-                        <div class="ap-menu ap-menu-wide">
-                            <form method="post" action="{{ route('impersonate.form') }}" class="ap-switch-form">
+                        <div class="ap-menu ap-switch-menu">
+                            <form method="post" action="{{ route('impersonate.form') }}" class="ap-switch-form" x-on:submit="submit($event)">
                                 @csrf
-                                <label class="sr-only" for="ap-switch-user">{{ __('Username') }}</label>
-                                <input class="ap-input" id="ap-switch-user" name="user" list="ap-switch-users" autocomplete="off" placeholder="{{ __('Username') }}">
+                                <div class="ap-switch-head">
+                                    <span class="eyebrow">{{ __('Log in as') }}</span>
+                                    <span class="ap-switch-count subtle">{{ trans_choice(':count account|:count accounts', count($shell['switchEntries'])) }}</span>
+                                </div>
+                                <label class="sr-only" for="ap-switch-user">{{ __('Search users') }}</label>
+                                <div class="ap-switch-search">
+                                    <x-ap-icon name="search" />
+                                    <input class="ap-input" id="ap-switch-user" name="user" list="ap-switch-users" autocomplete="off" spellcheck="false"
+                                        placeholder="{{ __('Search users') }}" x-ref="input" x-model="query" x-init="$el.removeAttribute('list')" x-on:keydown="keydown($event)"
+                                        role="combobox" aria-autocomplete="list" aria-controls="ap-switch-list" aria-expanded="true"
+                                        x-bind:aria-activedescendant="matches.items[active] ? 'ap-switch-' + matches.items[active].name : null">
+                                </div>
                                 <datalist id="ap-switch-users">
                                     @foreach ($shell['switchUsers'] as $name)<option value="{{ $name }}"></option>@endforeach
                                 </datalist>
-                                <button type="submit" class="ap-btn ap-btn-sm ap-btn-primary">{{ __('Log in as') }}</button>
+                                <ul class="ap-switch-list" id="ap-switch-list" role="listbox" aria-label="{{ __('Users') }}" x-cloak>
+                                    <template x-for="(user, index) in matches.items" x-bind:key="user.name">
+                                        <li class="ap-switch-item" role="option" x-bind:id="'ap-switch-' + user.name" x-bind:aria-selected="(index === active).toString()"
+                                            x-bind:class="{ 'is-active': index === active }" x-on:mousemove="active = index" x-on:click="pick(user.name)">
+                                            <span class="ap-switch-icon" aria-hidden="true" x-bind:class="'is-' + user.role">
+                                                <svg class="ic" x-show="user.role === 'admin'"><use href="#i-shield" /></svg>
+                                                <svg class="ic" x-show="user.role === 'reseller'"><use href="#i-users" /></svg>
+                                                <svg class="ic" x-show="user.role !== 'admin' &amp;&amp; user.role !== 'reseller'"><use href="#i-user" /></svg>
+                                            </span>
+                                            <span class="ap-switch-who">
+                                                <b x-text="user.name"></b>
+                                                <span class="subtle" x-text="user.fullName || user.roleLabel"></span>
+                                            </span>
+                                            <span class="ap-badge is-warn" x-show="user.suspended"><span class="dot"></span>{{ __('Suspended') }}</span>
+                                            <span class="ap-badge" x-show="!user.suspended && user.role !== 'user'" x-bind:class="user.role === 'admin' ? 'is-accent' : 'is-info'"><span class="dot" x-show="user.role !== 'admin'"></span><span x-text="user.roleLabel"></span></span>
+                                        </li>
+                                    </template>
+                                </ul>
+                                <p class="ap-switch-empty subtle" x-show="matches.items.length === 0" x-cloak>
+                                    <span x-show="query.trim() !== ''">{{ __('No user matches.') }}</span>
+                                    <span x-show="query.trim() === ''">{{ __('No user to log in as.') }}</span>
+                                </p>
+                                <p class="ap-switch-more subtle" x-show="matches.more > 0" x-cloak x-text="@js(__(':count more: keep typing to narrow the list.')).replace(':count', matches.more)"></p>
+                                <div class="ap-switch-foot">
+                                    <span class="subtle"><kbd class="ap-kbd">↑</kbd><kbd class="ap-kbd">↓</kbd> {{ __('to move') }} <kbd class="ap-kbd">↵</kbd> {{ __('to log in') }}</span>
+                                    <button type="submit" class="ap-btn ap-btn-sm ap-btn-primary"><x-ap-icon name="arrow" />{{ __('Log in as') }}</button>
+                                </div>
+                                <p class="ap-switch-note subtle"><x-ap-icon name="shield" />{{ __('The switch is recorded in the security log.') }}</p>
                             </form>
                         </div>
                     </details>

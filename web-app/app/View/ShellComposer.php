@@ -36,6 +36,7 @@ final class ShellComposer
             default => [],
         };
         $canSwitch = ! $principal->isImpersonating() && ($principal->loginRole === Role::Admin || $switchUsers !== []);
+        $switchEntries = $this->switchEntries($switchUsers);
         $prefs = self::preferences($principal, $this->config, $this->request);
         $dir = in_array(explode('-', $locale)[0], self::RTL, true) ? 'rtl' : 'ltr';
 
@@ -71,12 +72,46 @@ final class ShellComposer
             'accountUrl' => route('account.edit'),
             'canSwitchUser' => $canSwitch,
             'switchUsers' => $switchUsers,
+            'switchEntries' => $switchEntries,
             'languages' => self::languages(),
             // Mail is searched only where the server runs it
             'searchLabel' => $this->config->get('MAIL_SYSTEM') !== ''
                 ? __('Search users, domains, mail and pages')
                 : __('Search users, domains and pages'),
         ]);
+    }
+
+    /**
+     * The accounts of the user switcher with what the menu shows of them:
+     * full name, role and whether they are suspended (cached v-list-users).
+     *
+     * @param  list<string>  $names
+     * @return list<array{name: string, fullName: string, role: string, roleLabel: string, suspended: bool}>
+     */
+    private function switchEntries(array $names): array
+    {
+        if ($names === []) {
+            return [];
+        }
+        $records = $this->users->all();
+        $entries = [];
+        foreach ($names as $name) {
+            $record = $records[$name] ?? [];
+            $role = Role::fromValue((string) ($record['ROLE'] ?? 'user'));
+            $entries[] = [
+                'name' => $name,
+                'fullName' => (string) ($record['NAME'] ?? ''),
+                'role' => $role->value,
+                'roleLabel' => match ($role) {
+                    Role::Admin => __('Administrator'),
+                    Role::Reseller => __('Reseller'),
+                    default => __('User'),
+                },
+                'suspended' => ($record['SUSPENDED'] ?? '') === 'yes',
+            ];
+        }
+
+        return $entries;
     }
 
     public static function preferences(Principal $principal, SysConfig $config, Request $request): UiPreferences
