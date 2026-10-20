@@ -1,0 +1,11 @@
+# ArcPanel webmail sign-on sessions (E46,
+# docs/features/specs/2026-10-20-002-e46-webmail-db-admin-ports-design.md §7.2).
+# Session passwords written by v-check-mail-account-sso, accepted from the
+# loopback address only (allow_nets in each line); the userdb stays the
+# account's own.
+passdb arcpanel-sso {
+  driver = passwd-file
+  default_password_scheme = SHA512-CRYPT
+  auth_username_format = %{ user | lower }
+  passwd_file_path = /etc/dovecot/arcpanel-sso.passwd
+}

@@ -1,0 +1,59 @@
+#!/bin/bash
+# info: end the webmail sign-on sessions of a mail account or domain
+# options: DOMAIN [ACCOUNT]
+#
+# example: v-delete-mail-account-sso example.com info
+#
+# This function removes the session password of ACCOUNT@DOMAIN, or of every
+# account of DOMAIN, so that Roundcube asks for the password again (E46).
+# The mail commands run it when a password, a status or an owner changes.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+domain=$1
+account=$2
+
+# Includes
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/mail-sso.sh
+source $ARCPANEL/func/mail-sso.sh
+# load config file
+source_conf "$ARCPANEL/conf/arcpanel.conf"
+
+# Additional argument formatting
+format_domain
+format_domain_idn
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '1' "$#" 'DOMAIN [ACCOUNT]'
+is_format_valid 'domain'
+if [ -n "$account" ]; then
+	is_format_valid 'account'
+fi
+
+# Perform verification if read-only mode is enabled
+check_arcpanel_demo_mode
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+mail_sso_lock
+mail_sso_session_delete "$domain" "$account"
+
+#----------------------------------------------------------#
+#                         ArcPanel                         #
+#----------------------------------------------------------#
+
+log_event "$OK" "$ARGUMENTS"
+
+exit

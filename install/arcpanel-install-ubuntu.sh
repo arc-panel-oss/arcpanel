@@ -2322,6 +2322,10 @@ if [ "$dovecot" = 'yes' ]; then
 	touch /var/log/dovecot.log
 	chown -R dovecot:mail /var/log/dovecot.log
 	chmod 660 /var/log/dovecot.log
+	# Webmail sign-on sessions (E46), empty until v-add-sys-mail-sso and the panel
+	touch /etc/dovecot/arcpanel-sso.passwd
+	chown root:dovecot /etc/dovecot/arcpanel-sso.passwd
+	chmod 640 /etc/dovecot/arcpanel-sso.passwd
 	# Alter config for 2.2
 	if [ "$dovecot_version" = "2.2" ]; then
 		echo "[ * ] Downgrade dovecot config to sync with 2.2 settings"
@@ -2704,8 +2708,9 @@ fi
 # Set backend port
 $ARCPANEL/bin/v-change-sys-port $port > /dev/null 2>&1
 
-# Webmail and database tools ports (E46)
+# Webmail and database tools ports and webmail sign-on (E46)
 $ARCPANEL/bin/v-add-sys-tool-ports
+$ARCPANEL/bin/v-add-sys-mail-sso
 
 # Create default configuration files
 $ARCPANEL/bin/v-update-sys-defaults

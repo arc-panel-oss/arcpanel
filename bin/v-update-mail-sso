@@ -1,0 +1,37 @@
+#!/bin/bash
+# info: remove expired webmail sign-on sessions and tickets
+# options: NONE
+#
+# example: v-update-mail-sso
+#
+# This function removes the session passwords and the tickets of webmail
+# sign-ons that have expired. Cron runs it every 5 minutes (E46).
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Includes
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/mail-sso.sh
+source $ARCPANEL/func/mail-sso.sh
+# load config file
+source_conf "$ARCPANEL/conf/arcpanel.conf"
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+mail_sso_lock
+mail_sso_prune
+
+#----------------------------------------------------------#
+#                         ArcPanel                         #
+#----------------------------------------------------------#
+
+log_event "$OK" "$ARGUMENTS"
+
+exit
