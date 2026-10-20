@@ -4142,6 +4142,49 @@ paths:
           $ref: "#/components/responses/InvalidRequest"
         "422":
           $ref: "#/components/responses/Unprocessable"
+  "/api/#v-add-sys-tool-ports":
+    post:
+      operationId: v-add-sys-tool-ports
+      tags:
+        - System
+      summary: Set up the tool ports
+      description: |-
+        This function sets up the webmail port (8086) and the database tools port
+        (8087) when arcpanel.conf has no key for them yet: a port is turned on when
+        its tool is installed and the port is free, otherwise its key stays empty
+        and a warning is printed. WEBMAIL_LINK starts as "port". It runs on every
+        install and upgrade (E46).
+
+        **Arguments:** none.
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-add-sys-tool-ports"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-add-sys-tool-ports"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
   "/api/#v-add-sys-web-templates-meta":
     post:
       operationId: v-add-sys-web-templates-meta
@@ -8315,6 +8358,52 @@ paths:
           $ref: "#/components/responses/InvalidRequest"
         "422":
           $ref: "#/components/responses/Unprocessable"
+  "/api/#v-change-sys-db-admin-port":
+    post:
+      operationId: v-change-sys-db-admin-port
+      tags:
+        - System
+      summary: Change the database tools port
+      description: |-
+        This function serves phpMyAdmin and phpPgAdmin on PORT of every address of
+        the server, with the panel certificate, or stops serving them there with
+        "none".
+        It moves the reservation and the firewall rule of the port (E46).
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `PORT|none` | yes |
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-change-sys-db-admin-port"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-change-sys-db-admin-port"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
   "/api/#v-change-sys-db-alias":
     post:
       operationId: v-change-sys-db-alias
@@ -9210,6 +9299,95 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/v-change-sys-webmail"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+  "/api/#v-change-sys-webmail-link":
+    post:
+      operationId: v-change-sys-webmail-link
+      tags:
+        - System
+      summary: Change the webmail link of the panel
+      description: |-
+        This function sets where "Open Webmail" points: "port" opens the webmail
+        port of the panel host, "domain" opens webmail.<domain> (E46).
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `port|domain` | yes |
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-change-sys-webmail-link"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-change-sys-webmail-link"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+  "/api/#v-change-sys-webmail-port":
+    post:
+      operationId: v-change-sys-webmail-port
+      tags:
+        - System
+      summary: Change the webmail port
+      description: |-
+        This function serves the webmail client on PORT of every address of the
+        server, with the panel certificate, or stops serving it there with "none".
+        It moves the reservation and the firewall rule of the port (E46).
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `PORT|none` | yes |
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-change-sys-webmail-port"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-change-sys-webmail-port"
       responses:
         "200":
           description: "The output of the command; `OK` for an empty output with legacy authentication."
@@ -36428,6 +36606,53 @@ paths:
           $ref: "#/components/responses/InvalidRequest"
         "422":
           $ref: "#/components/responses/Unprocessable"
+  "/api/#v-update-sys-tool-ports":
+    post:
+      operationId: v-update-sys-tool-ports
+      tags:
+        - System
+      summary: Write the NGINX files of the tool ports
+      description: |-
+        This function writes the NGINX files of the webmail port and the database
+        tools port from WEBMAIL_PORT, DB_ADMIN_PORT and the installed tools, and
+        reloads NGINX when a file changed (E46). The commands that install a
+        webmail client, change an alias or the panel certificate run it; RELOAD
+        'yes' reloads NGINX also when no file changed (a new certificate).
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `RELOAD` | no |
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-update-sys-tool-ports"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-update-sys-tool-ports"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
   "/api/#v-update-sys-user-homes":
     post:
       operationId: v-update-sys-user-homes
@@ -40394,6 +40619,20 @@ components:
               default: v-add-sys-tenancy
             returncode:
               $ref: "#/components/schemas/ReturnCode"
+    v-add-sys-tool-ports:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-add-sys-tool-ports
+              default: v-add-sys-tool-ports
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
     v-add-sys-web-templates-meta:
       allOf:
         - $ref: "#/components/schemas/Credentials"
@@ -43463,6 +43702,27 @@ components:
                 - "1.0"
             returncode:
               $ref: "#/components/schemas/ReturnCode"
+    v-change-sys-db-admin-port:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-change-sys-db-admin-port
+              default: v-change-sys-db-admin-port
+            arg1:
+              type: string
+              title: "PORT|none"
+              description: "`PORT|none`"
+              examples:
+                - "8087"
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
     v-change-sys-db-alias:
       allOf:
         - $ref: "#/components/schemas/Credentials"
@@ -44014,6 +44274,48 @@ components:
               description: "`WEBMAIL`"
               examples:
                 - YourtrickyURLhere
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
+    v-change-sys-webmail-link:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-change-sys-webmail-link
+              default: v-change-sys-webmail-link
+            arg1:
+              type: string
+              title: "port|domain"
+              description: "`port|domain`"
+              examples:
+                - domain
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
+    v-change-sys-webmail-port:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-change-sys-webmail-port
+              default: v-change-sys-webmail-port
+            arg1:
+              type: string
+              title: "PORT|none"
+              description: "`PORT|none`"
+              examples:
+                - "8086"
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-change-user-config-value:
@@ -60970,6 +61272,26 @@ components:
               enum:
                 - v-update-sys-sudoers
               default: v-update-sys-sudoers
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
+    v-update-sys-tool-ports:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-update-sys-tool-ports
+              default: v-update-sys-tool-ports
+            arg1:
+              type: string
+              title: RELOAD
+              description: "`RELOAD`, optional"
+              examples:
+                - "yes"
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-update-sys-user-homes:

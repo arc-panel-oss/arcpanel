@@ -7,9 +7,10 @@ use Illuminate\Http\Request;
 
 /**
  * phpMyAdmin and phpPgAdmin links of the database pages
- * (templates/pages/list_db.php): served by the web server of the panel's host
- * name under /phpmyadmin/, /phppgadmin/ or the DB_PMA_ALIAS / DB_PGA_ALIAS
- * aliases; they do not work when the panel is reached by IP address.
+ * (templates/pages/list_db.php), under /phpmyadmin/, /phppgadmin/ or the
+ * DB_PMA_ALIAS / DB_PGA_ALIAS aliases: on the database tools port of the
+ * panel host when DB_ADMIN_PORT is set (E46), which also answers by IP
+ * address; else on the web server of the panel's host name, which does not.
  */
 final class DbAdminLinks
 {
@@ -21,7 +22,19 @@ final class DbAdminLinks
     /** The panel was opened by IP address (ipUsed() in web/inc/main.php). */
     public function ipUsed(): bool
     {
-        return filter_var($this->request->getHost(), FILTER_VALIDATE_IP) !== false;
+        return filter_var(trim($this->request->getHost(), '[]'), FILTER_VALIDATE_IP) !== false;
+    }
+
+    /** The tools answer on the database tools port (E46). */
+    public function onPort(): bool
+    {
+        return $this->config->get('DB_ADMIN_PORT') !== '';
+    }
+
+    /** The links would not work: the panel was opened by IP and the tools have no port. */
+    public function unreachable(): bool
+    {
+        return ! $this->onPort() && $this->ipUsed();
     }
 
     /** "//host/alias/" of a database type. */
@@ -31,7 +44,9 @@ final class DbAdminLinks
             ? ($this->config->get('DB_PGA_ALIAS') ?: 'phppgadmin')
             : ($this->config->get('DB_PMA_ALIAS') ?: 'phpmyadmin');
 
-        return '//'.$this->request->getHost().'/'.trim($alias, '/').'/';
+        $host = $this->request->getHost().($this->onPort() ? ':'.$this->config->get('DB_ADMIN_PORT') : '');
+
+        return '//'.$host.'/'.trim($alias, '/').'/';
     }
 
     /** The link of the "Open phpMyAdmin" hint after a database was added. */
@@ -50,19 +65,19 @@ final class DbAdminLinks
     {
         $buttons = [];
         if (in_array('mysql', $types, true)) {
-            $buttons[] = ['label' => 'phpMyAdmin', 'url' => $this->base('mysql'), 'disabled' => $this->ipUsed()];
+            $buttons[] = ['label' => 'phpMyAdmin', 'url' => $this->base('mysql'), 'disabled' => $this->unreachable()];
         }
         if (in_array('pgsql', $types, true)) {
-            $buttons[] = ['label' => 'phpPgAdmin', 'url' => $this->base('pgsql'), 'disabled' => $this->ipUsed()];
+            $buttons[] = ['label' => 'phpPgAdmin', 'url' => $this->base('pgsql'), 'disabled' => $this->unreachable()];
         }
 
         return $buttons;
     }
 
-    /** Single sign-on into phpMyAdmin needs PHPMYADMIN_KEY (v-add-sys-pma-sso) and a host name. */
+    /** Single sign-on into phpMyAdmin needs PHPMYADMIN_KEY (v-add-sys-pma-sso) and a reachable phpMyAdmin. */
     public function ssoAvailable(): bool
     {
-        return $this->config->get('PHPMYADMIN_KEY') !== '' && ! $this->ipUsed();
+        return $this->config->get('PHPMYADMIN_KEY') !== '' && ! $this->unreachable();
     }
 
     /**

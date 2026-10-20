@@ -57,6 +57,7 @@ final class MailDomainController extends Controller
             'owner' => $selection->owner,
             'webmail' => $this->mail->hasWebmail(),
             'webmailAlias' => $this->mail->webmailAlias(),
+            'webmailPort' => $this->mail->webmailPortUrl(),
             'canCreate' => Capabilities::allows($role, 'mail.create') && ! $principal->isReadOnly(),
             'canBulk' => ! $principal->isReadOnly(),
             'bulkActions' => array_filter([

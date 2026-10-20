@@ -51,8 +51,8 @@ it('lists the accounts of a domain with aliases, forwards and webmail links', fu
         ->assertSeeInOrder(['info@example.com', 'noreply@example.com', 'old@example.com'])
         ->assertSee('sales')->assertSee('a@example.net')->assertSee('Discard all mail')->assertSee('∞')->assertSee('100 MB')
         ->assertSee('/mail/bob/example.com/accounts/info/edit')->assertDontSee('/mail/bob/example.com/accounts/old/edit')
-        // Open Webmail with the account (spec §11)
-        ->assertSee('https://webmail.example.com/?_user=info%40example.com', false)
+        // Open Webmail with the account (spec §11), over HTTP: example.com has no SSL (E46)
+        ->assertSee('http://webmail.example.com/?_user=info%40example.com', false)
         ->assertSee('Are you sure you want to suspend info?')->assertSee('Are you sure you want to unsuspend old?')
         ->assertSee('Are you sure you want to delete info?')
         ->assertSee('/mail/bob/example.com/accounts/create');
@@ -81,7 +81,7 @@ it('shows the add form with the client configuration panel', function () {
     $this->get('/mail/bob/example.com/accounts/create')->assertOk()
         ->assertSee('apMailAccount', false)->assertSee('name="account"', false)->assertSee('name="password"', false)
         ->assertSee('name="quota_unlimited"', false)->assertSee('name="blackhole"', false)->assertSee('name="fwd_only"', false)
-        ->assertSee('Common Account Settings')->assertSee('value="https://webmail.example.com/"', false)
+        ->assertSee('Common Account Settings')->assertSee('value="http://webmail.example.com/"', false)
         ->assertSee('value="mail.example.com"', false)->assertSee('Normal password')
         ->assertSeeInOrder(['IMAP Settings', '993', '143', '143', 'POP3 Settings', '995', '110', '110', 'SMTP Settings', '465', '587', '25'])
         ->assertSee('@example.com');
@@ -144,7 +144,7 @@ it('mails the credentials of a new account with the webmail and host names', fun
 
     expect($this->mailer->sent)->toBe([['me@example.net', [
         'account' => 'new', 'domain' => 'example.com', 'password' => 'Secret-123',
-        'webmail' => 'https://webmail.example.com/', 'hostname' => 'mail.example.com',
+        'webmail' => 'http://webmail.example.com/', 'hostname' => 'mail.example.com',
     ], 'en']]);
 });
 
@@ -206,8 +206,8 @@ it('shows the edit tabs with the account values and the autoreply message', func
         ->assertSee('value="100"', false)
         ->assertSee("sales\nhello", false)->assertSee("a@example.net\nb@example.net", false)
         ->assertSee("Away\nback soon", false)
-        ->assertSee('https://webmail.example.com/?_user=info%40example.com', false)
-        ->assertSee('value="https://webmail.example.com/"', false);
+        ->assertSee('http://webmail.example.com/?_user=info%40example.com', false)
+        ->assertSee('value="http://webmail.example.com/"', false);
 });
 
 it('shows "Discard all mail" ticked and the forwards empty for :blackhole:', function () {
@@ -263,7 +263,7 @@ it('validates the password of the general tab and mails the credentials', functi
         ->assertSessionHas('ok');
     expect($this->mailer->sent)->toBe([['me@example.net', [
         'account' => 'info', 'domain' => 'example.com', 'password' => 'N3w-passwd',
-        'webmail' => 'https://webmail.example.com/', 'hostname' => 'mail.example.com',
+        'webmail' => 'http://webmail.example.com/', 'hostname' => 'mail.example.com',
     ], 'en']]);
 });
 

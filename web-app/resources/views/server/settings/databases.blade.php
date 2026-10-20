@@ -18,6 +18,10 @@
                     @if ($pgsql)
                         <x-ap-input name="pga_alias" :label="__('phpPgAdmin Alias')" :value="$config['DB_PGA_ALIAS'] ?? ''" mono />
                     @endif
+                    @if ($mysql || $pgsql)
+                        <x-ap-input name="db_admin_port" type="number" :label="__('Database Tools Port')" :value="$config['DB_ADMIN_PORT'] ?? ''" mono
+                            :hint="__('phpMyAdmin and phpPgAdmin also answer on this port of every address of the server. Leave empty to turn it off.')" />
+                    @endif
                 </div>
                 @if ($mysql)
                     <input type="hidden" name="pma_sso_shown" value="1">
