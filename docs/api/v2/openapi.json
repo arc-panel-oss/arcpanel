@@ -26620,7 +26620,7 @@
             },
             "post": {
                 "operationId": "createS3Key",
-                "description": "The answer holds `secret`, once: no request can read it again. With\n`save_as` the secret is also saved in the account's secret store,\nwhere apps reference it as `{{secret:NAME}}`. An account holds at\nmost 20 keys (`422 E_LIMIT`).",
+                "description": "The answer holds `secret`, once, with `Cache-Control: no-store`: no\nrequest can read it again. With `save_as` the secret is also saved\nin the account's secret store, where apps reference it as\n`{{secret:NAME}}`; that needs a key with `v2-secrets` or `v2-write`\nbesides `v2-storage`. An account holds at most 20 keys\n(`422 E_LIMIT`).",
                 "summary": "Create an S3 key",
                 "tags": [
                     "Object storage"
@@ -26699,6 +26699,12 @@
                             },
                             "Location": {
                                 "$ref": "#/components/headers/Location"
+                            },
+                            "Cache-Control": {
+                                "description": "`no-store`: the answer carries the secret of the new key, which no other answer shows (E34 batch 6 D62).",
+                                "schema": {
+                                    "type": "string"
+                                }
                             }
                         }
                     },

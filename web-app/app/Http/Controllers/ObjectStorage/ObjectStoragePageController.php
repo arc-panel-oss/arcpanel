@@ -10,6 +10,7 @@ use App\Policies\ObjectStoragePolicy;
 use App\Services\ObjectStorage\ObjectStorageService;
 use App\Services\WebDomains\ApplyResult;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Response;
 use Illuminate\View\View;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
@@ -68,7 +69,7 @@ final class ObjectStoragePageController extends Controller
             sprintf(__('Bucket %s has been deleted.'), $bucket));
     }
 
-    public function storeKey(S3KeyRequest $request, string $user, Principal $principal, ObjectStoragePolicy $policy): View|RedirectResponse
+    public function storeKey(S3KeyRequest $request, string $user, Principal $principal, ObjectStoragePolicy $policy): Response|RedirectResponse
     {
         abort_unless($policy->manage($principal, $user), 403);
         $bucket = (string) ($request->input('bucket') ?? '');
@@ -87,7 +88,8 @@ final class ObjectStoragePageController extends Controller
             $saved = $this->storage->saveSecret($user, $saveAs, $key, $secret);
         }
 
-        return view('object-storage.key-created', [
+        // The page shows the secret once: no cache may keep it (E34 batch 6 D62)
+        return response()->view('object-storage.key-created', [
             'user' => $user,
             'account' => $this->storage->account($user),
             'name' => $name,
@@ -95,7 +97,7 @@ final class ObjectStoragePageController extends Controller
             'secret' => $secret,
             'savedAs' => $saved?->ok() ? $saveAs : null,
             'saveError' => $saved !== null && ! $saved->ok() ? $saved->errorMessage() : null,
-        ]);
+        ])->header('Cache-Control', 'no-store');
     }
 
     public function destroyKey(string $user, string $key, Principal $principal, ObjectStoragePolicy $policy): RedirectResponse

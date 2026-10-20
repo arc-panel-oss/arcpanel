@@ -102,6 +102,7 @@ it('shows a new key with its secret once and saves it in the secret store on req
 
     $this->post('/object-storage/bob/keys', ['name' => 'deploy', 'bucket' => 'bob-media', 'access' => 'ro', 'expires' => '2027-01-31', 'save_as' => '/s3/deploy'])
         ->assertOk()
+        ->assertHeader('Cache-Control', 'no-store, private')
         ->assertSee('AKNEW2')
         ->assertSee('very-secret-value')
         ->assertSee('/s3/deploy');

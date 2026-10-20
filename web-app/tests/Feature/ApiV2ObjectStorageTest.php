@@ -116,9 +116,11 @@ it('creates an S3 key whose secret is in the answer once and can be saved in the
         'AKNEW2' => ['KEY' => 'AKNEW2', 'NAME' => 'deploy', 'BUCKET' => 'bob-media', 'ACCESS' => 'ro', 'EXPIRES' => '2027-01-31', 'EXPIRED' => 'no', 'TIME' => '11:00:00', 'DATE' => '2026-10-19'],
     ]);
 
+    // Saving the secret writes to the secret store, which needs v2-secrets
     $this->postJson('/api/v2/users/bob/s3-keys', ['name' => 'deploy', 'bucket' => 'bob-media', 'access' => 'ro', 'expires_on' => '2027-01-31', 'save_as' => '/s3/deploy'],
-        apiAs($this->fake, 'bob', 'user', area: 'storage'))
+        apiKey($this->fake, 'bob', 'user', ['v2-storage', 'v2-secrets']))
         ->assertCreated()
+        ->assertHeader('Cache-Control', 'no-store, private')
         ->assertJsonPath('data.id', 'AKNEW2')
         ->assertJsonPath('data.secret', 'very-secret-value')
         ->assertJsonPath('data.bucket', 'bob-media')
@@ -132,6 +134,21 @@ it('creates an S3 key whose secret is in the answer once and can be saved in the
     $this->getJson('/api/v2/users/bob/s3-keys', apiAs($this->fake, 'bob', 'user', readOnly: true, area: 'storage'))->assertOk()
         ->assertJsonMissingPath('data.0.secret')
         ->assertDontSee('very-secret-value');
+});
+
+it('keeps the secret store out of v2-storage: save_as needs v2-secrets', function () {
+    expect(apiSetCommands('v2-storage'))->not->toContain('v-add-user-secret')->not->toContain('v-list-user-secret-store');
+    $this->fake->on('v-add-user-s3-key')->returnsJson(['KEY' => 'AKNEW2', 'SECRET' => 'very-secret-value', 'NAME' => 'deploy']);
+    $headers = apiAs($this->fake, 'bob', 'user', area: 'storage');
+
+    $this->postJson('/api/v2/users/bob/s3-keys', ['name' => 'deploy', 'save_as' => '/s3/deploy'], $headers)->assertForbidden();
+    $this->fake->assertNotRan('v-add-user-s3-key');
+    $this->fake->assertNotRan('v-add-user-secret');
+    $this->getJson('/api/v2/users/bob/secrets', $headers)->assertForbidden();
+
+    $this->postJson('/api/v2/users/bob/s3-keys', ['name' => 'deploy'], $headers)->assertCreated()
+        ->assertHeader('Cache-Control', 'no-store, private')
+        ->assertJsonPath('data.secret', 'very-secret-value');
 });
 
 it('refuses a key for a bucket of another account and limits from the command', function () {

@@ -55,10 +55,12 @@ final class S3KeyController extends Controller
     /**
      * Create an S3 key
      *
-     * The answer holds `secret`, once: no request can read it again. With
-     * `save_as` the secret is also saved in the account's secret store,
-     * where apps reference it as `{{secret:NAME}}`. An account holds at
-     * most 20 keys (`422 E_LIMIT`).
+     * The answer holds `secret`, once, with `Cache-Control: no-store`: no
+     * request can read it again. With `save_as` the secret is also saved
+     * in the account's secret store, where apps reference it as
+     * `{{secret:NAME}}`; that needs a key with `v2-secrets` or `v2-write`
+     * besides `v2-storage`. An account holds at most 20 keys
+     * (`422 E_LIMIT`).
      *
      * @operationId createS3Key
      *
@@ -98,7 +100,8 @@ final class S3KeyController extends Controller
         }
 
         return $resource->response()->setStatusCode(201)
-            ->header('Location', route('api.v2.s3-keys.index', ['user' => $user]));
+            ->header('Location', route('api.v2.s3-keys.index', ['user' => $user]))
+            ->header('Cache-Control', 'no-store');
     }
 
     /**

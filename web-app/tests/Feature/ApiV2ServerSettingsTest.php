@@ -309,6 +309,20 @@ it('accepts the SMTP relay password and never answers it, also not in a dry run'
     $this->fake->assertRan('v-delete-sys-smtp-relay');
 });
 
+it('changes and turns off an S3 backup host with a key of the server set (E44)', function () {
+    $this->fake->on('v-list-backup-host-restic')->returnsJson(['restic' => ['REPO' => 'rclone:arcpanel-s3:backups/server1', 'SNAPSHOTS' => '10', 'KEEP_DAILY' => '-1',
+        'KEEP_WEEKLY' => '-1', 'KEEP_MONTHLY' => '-1', 'KEEP_YEARLY' => '-1', 'S3_ENDPOINT' => 'https://s3.example.net', 'S3_REGION' => '', 'S3_KEY_ID' => 'AKIDEXAMPLE']]);
+    $this->fake->on('v-delete-backup-host-s3')->returns();
+    $headers = apiAs($this->fake, 'arcadmin', 'admin', area: 'server');
+
+    $this->patchJson('/api/v2/system/settings/backups', ['keep_daily' => 14], $headers)->assertOk();
+    $this->fake->assertRan('v-add-backup-host-restic', fn ($a) => $a === ['rclone:arcpanel-s3:backups/server1', '10', '14', '-1', '-1', '-1']);
+    $this->patchJson('/api/v2/system/settings/backups', ['incremental' => false], $headers)->assertOk();
+    $this->fake->assertRan('v-delete-backup-host-s3');
+    $this->patchJson('/api/v2/system/settings/backups', ['incremental' => false], apiAs($this->fake, 'arcadmin', 'admin'))->assertOk();
+    expect(apiSetCommands('v2-write'))->toContain('v-delete-backup-host-s3');
+});
+
 it('accepts the backup secrets and keeps the stored repository without showing it', function () {
     $headers = apiAs($this->fake, 'arcadmin', 'admin');
 

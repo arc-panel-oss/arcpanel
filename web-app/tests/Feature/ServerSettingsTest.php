@@ -338,6 +338,23 @@ it('sends incremental backups to an S3 backup host and keeps its connection with
     $this->fake->assertRan('v-delete-backup-host-s3');
 });
 
+it('never keeps the S3 secret in the session when the backup form fails (E44)', function () {
+    withSysConfig($this->fake, ['BACKUP_SYSTEM' => 'local', 'BACKUP_INCREMENTAL' => 'yes', 'BACKUP_MODE' => 'gzip', 'BACKUP_GZIP' => '9']);
+    $this->fake->on('v-list-backup-host-restic')->returnsJson(['restic' => ['REPO' => '/backup/restic', 'SNAPSHOTS' => '30', 'KEEP_DAILY' => '-1', 'KEEP_WEEKLY' => '-1', 'KEEP_MONTHLY' => '-1', 'KEEP_YEARLY' => '-1']]);
+    $this->fake->on('v-delete-backup-host-restic')->returns();
+    $this->fake->on('v-add-backup-host-s3')->returnsExit(ExitCode::Connect, 'Error: the S3 bucket does not answer');
+    signIn('arcadmin', 'admin');
+    $form = ['local' => '1', 'mode' => 'gzip', 'level' => '9', 'incremental' => '1', 'repo_type' => 's3', 'snapshots' => '10', 'keep_daily' => '-1', 'keep_weekly' => '-1',
+        'keep_monthly' => '-1', 'keep_yearly' => '-1', 's3_endpoint' => 'https://s3.example.net', 's3_bucket' => 'backups', 's3_region' => '', 's3_key_id' => 'AKIDEXAMPLE', 's3_secret' => 's3-secret-value'];
+
+    // A refused field, then a refused command: the other fields come back, the secret does not
+    $this->post('/server/settings/backups', ['s3_bucket' => 'Bad Bucket'] + $form)->assertSessionHasErrors('s3_bucket')->assertSessionHasInput('s3_key_id', 'AKIDEXAMPLE');
+    expect(session()->getOldInput('s3_secret'))->toBeNull();
+    $this->post('/server/settings/backups', $form)->assertSessionHas('error')->assertSessionHasInput('s3_key_id', 'AKIDEXAMPLE');
+    $this->fake->assertRan('v-add-backup-host-s3');
+    expect(session()->getOldInput('s3_secret'))->toBeNull();
+});
+
 // SSL
 
 it('changes the panel certificate through a secret directory', function () {

@@ -84,6 +84,9 @@ $app = Application::configure(basePath: dirname(__DIR__))
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->dontReport([ArcCommandException::class, ApiException::class]);
 
+        // Secrets a refused form must not flash into the session with the other fields
+        $exceptions->dontFlash(['s3_secret']);
+
         // A change refused by the protected-administrator guard answers 404
         // under POLICY_SYSTEM_HIDE_ADMIN, on the pages and in API v2 (E39 W4 §5).
         $exceptions->map(fn (Throwable $e) => app()->resolved(ProtectedAdmin::class) ? app(ProtectedAdmin::class)->hide($e) : $e);

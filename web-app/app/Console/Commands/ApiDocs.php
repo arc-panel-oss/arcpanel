@@ -426,7 +426,7 @@ final class ApiDocs extends Command
                 $operation['parameters'][$i]['description'] = 'The secret name, with or without its leading slash: `/shop/db` (encoded as `%2Fshop%2Fdb`) or `shop/db`.';
             }
         }
-        if ($operationId === 'createAccessKey' && isset($responses['201']['headers'])) {
+        if (in_array($operationId, ['createAccessKey', 'createS3Key'], true) && isset($responses['201']['headers'])) {
             $responses['201']['headers']['Cache-Control'] = ['description' => '`no-store`: the answer carries the secret of the new key, which no other answer shows (E34 batch 6 D62).', 'schema' => ['type' => 'string']];
         }
         if ($operationId === 'moveFirewallRule' && isset($responses['200'])) {

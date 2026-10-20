@@ -223,7 +223,7 @@ final class ServerSettingsController extends Controller
             $applied = array_map(fn ($step) => $step->label, $result->applied);
             $detail = $result->error.($applied === [] ? '' : ' '.sprintf(__('Applied before the failure: %s.'), implode(', ', $applied)));
 
-            return $redirect->withInput(request()->except(['password', 'relay_password', 'key', 'certificate', 'repo']))
+            return $redirect->withInput(request()->except(['password', 'relay_password', 'key', 'certificate', 'repo', 's3_secret']))
                 ->with('error', sprintf(__('%s failed'), $result->failed?->label ?? ''))
                 ->with('error_detail', $detail);
         }
