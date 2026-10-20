@@ -85,8 +85,10 @@ pick() {
 	source "$REPO_ROOT/func/updates.sh"
 	upd_in_list 2.3.0 "2.3.0,2.4.0"
 	upd_in_list 2.4.0 "2.3.0,2.4.0"
-	! upd_in_list 2.3.1 "2.3.0,2.4.0"
-	! upd_in_list 2.3.0 ""
+	run upd_in_list 2.3.1 "2.3.0,2.4.0"
+	assert_failure
+	run upd_in_list 2.3.0 ""
+	assert_failure
 }
 
 #----------------------------------------------------------#

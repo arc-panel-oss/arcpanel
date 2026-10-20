@@ -1,0 +1,121 @@
+#!/bin/bash
+# info: list the automatic update policy of ArcPanel
+# options: [FORMAT]
+#
+# example: v-list-sys-update-policy json
+#
+# This function lists the update policy of the panel packages
+# (docs/features/specs/2026-10-20-005-e33-update-center-phase-1-design.md
+# §7.1): POLICY (off, notify, patch), WINDOW_DAYS, WINDOW_HOURS, DELAY_DAYS,
+# PAUSED (the reason automatic updates stopped, or empty), NOTIFIED (the
+# versions already announced), NEXT_WINDOW (the start of the current or next
+# window), the installed VERSION and LINE, the CHANNEL, and the state of the
+# release manifest: MANIFEST_CHECKED (last verified download),
+# MANIFEST_GENERATED and MANIFEST_ERROR (why the last download failed).
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+format=${1-shell}
+
+# Includes
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/updates.sh
+source $ARCPANEL/func/updates.sh
+# load config file
+source_conf "$ARCPANEL/conf/arcpanel.conf"
+
+# JSON list function
+json_list() {
+	jq -n --arg policy "$policy" --arg days "$days" --arg hours "$hours" --argjson delay "$delay" \
+		--arg paused "$paused" --arg notified "$notified" --arg next "$next" --arg version "$version" \
+		--arg line "$line" --arg channel "$channel" --arg checked "$checked" --arg generated "$generated" \
+		--arg error "$error" \
+		'{POLICY: $policy, WINDOW_DAYS: $days, WINDOW_HOURS: $hours, DELAY_DAYS: $delay, PAUSED: $paused,
+		NOTIFIED: $notified, NEXT_WINDOW: $next, VERSION: $version, LINE: $line, CHANNEL: $channel,
+		MANIFEST_CHECKED: $checked, MANIFEST_GENERATED: $generated, MANIFEST_ERROR: $error}'
+}
+
+# SHELL list function
+shell_list() {
+	echo "POLICY:             $policy"
+	echo "WINDOW:             $days $hours"
+	echo "NEXT WINDOW:        ${next:-none}"
+	echo "DELAY DAYS:         $delay"
+	echo "PAUSED:             ${paused:-no}"
+	echo "NOTIFIED:           ${notified:-none}"
+	echo "VERSION:            $version ($channel)"
+	echo "MANIFEST CHECKED:   ${checked:-never}"
+	echo "MANIFEST GENERATED: ${generated:-none}"
+	if [ -n "$error" ]; then
+		echo "MANIFEST ERROR:     $error"
+	fi
+}
+
+# PLAIN list function
+plain_list() {
+	echo -e "$policy\t$days\t$hours\t$delay\t$paused\t$notified\t$next\t$version\t$line\t$channel\t$checked\t$generated\t$error"
+}
+
+# CSV list function
+csv_list() {
+	echo "POLICY,WINDOW_DAYS,WINDOW_HOURS,DELAY_DAYS,PAUSED,NOTIFIED,NEXT_WINDOW,VERSION,LINE,CHANNEL,MANIFEST_CHECKED,MANIFEST_GENERATED,MANIFEST_ERROR"
+	echo "$policy,\"$days\",$hours,$delay,\"$paused\",\"$notified\",$next,$version,$line,$channel,$checked,$generated,\"$error\""
+}
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+is_format_valid 'format'
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+policy="$(upd_policy_get UPDATE_POLICY)"
+days="$(upd_policy_get UPDATE_WINDOW_DAYS)"
+hours="$(upd_policy_get UPDATE_WINDOW_HOURS)"
+delay="$((10#$(upd_policy_get UPDATE_DELAY_DAYS)))"
+paused="$(upd_policy_get UPDATE_PAUSED)"
+notified="$(upd_policy_get UPDATE_NOTIFIED_VERSION)"
+version="$(upd_installed)"
+line="$(upd_version_line "$version")"
+channel="$(upd_channel)"
+
+next=''
+if [ "$policy" = 'patch' ]; then
+	start="$(upd_next_window "$(upd_now)" "$days" "$hours")"
+	if [ -n "$start" ]; then
+		next="$(date -d "@$start" '+%F %H:%M')"
+	fi
+fi
+
+checked="$(upd_state_get CHECKED)"
+if [ -n "$checked" ]; then
+	checked="$(date -d "@$checked" '+%F %T')"
+fi
+error="$(upd_state_get ERROR)"
+generated=''
+if [ -f "$UPD_DIR/releases.json" ]; then
+	generated="$(jq -r '.generated // ""' "$UPD_DIR/releases.json" 2> /dev/null)"
+fi
+
+# Listing data
+case $format in
+	json) json_list ;;
+	plain) plain_list ;;
+	csv) csv_list ;;
+	shell) shell_list ;;
+esac
+
+#----------------------------------------------------------#
+#                         ArcPanel                         #
+#----------------------------------------------------------#
+
+exit

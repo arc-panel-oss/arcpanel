@@ -1,0 +1,64 @@
+#!/bin/bash
+# info: check whether ArcPanel can be updated to a version
+# options: VERSION [FORMAT] [MODE]
+#
+# example: v-check-sys-arcpanel-update 2.5.1 json
+#
+# This function runs the pre-flight of an update of the panel packages to
+# VERSION (docs/features/specs/2026-10-20-005-e33-update-center-phase-1-design.md
+# §7.3) and lists each check (manifest, version, disk, packages, activity,
+# attention) with STATUS ok, warn or fail and a MESSAGE. A failed check
+# refuses the update: the command then exits with an error after listing
+# the checks. MODE is manual (default) or policy; without a verified release
+# manifest a manual run gets a warning and a policy run a failure.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+version=$1
+format=${2-shell}
+mode=${3-manual}
+
+# Includes
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/systask.sh
+source $ARCPANEL/func/systask.sh
+# shellcheck source=/usr/local/arcpanel/func/updates.sh
+source $ARCPANEL/func/updates.sh
+# load config file
+source_conf "$ARCPANEL/conf/arcpanel.conf"
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '1' "$#" 'VERSION [FORMAT] [MODE]'
+if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(~[0-9A-Za-z.]+)?$ ]]; then
+	check_result "$E_INVALID" "invalid version $version"
+fi
+is_format_valid 'format'
+if [ "$mode" != 'manual' ] && [ "$mode" != 'policy' ]; then
+	check_result "$E_INVALID" "invalid mode $mode (manual or policy)"
+fi
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+upd_preflight "$version" "$mode"
+upd_checks_print "$format"
+
+#----------------------------------------------------------#
+#                         ArcPanel                         #
+#----------------------------------------------------------#
+
+if upd_checks_failed; then
+	exit "$E_FORBIDEN"
+fi
+
+exit

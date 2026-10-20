@@ -220,3 +220,6 @@ jobs:
 
       - name: Test the version choice of automatic updates (E33; the server cases skip)
         run: test/test_helper/bats-core/bin/bats test/arcpanel-updates.bats
+
+      - name: Test the update policy rules (E33; the server cases skip)
+        run: test/test_helper/bats-core/bin/bats test/arcpanel-update-center.bats

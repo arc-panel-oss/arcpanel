@@ -1,0 +1,93 @@
+#!/bin/bash
+# info: list the ArcPanel releases newer than the installed version
+# options: [FORMAT] [REFRESH]
+#
+# example: v-list-sys-arcpanel-releases json
+# example: v-list-sys-arcpanel-releases json yes
+#
+# This function lists the releases of the signed release manifest of the
+# server's channel that are newer than the installed version
+# (docs/features/specs/2026-10-20-005-e33-update-center-phase-1-design.md
+# §7.2). The manifest is downloaded again and verified when REFRESH is yes or
+# the stored copy is older than an hour. Each release has the fields of the
+# manifest and KIND (patch, minor, major), AVAILABLE (APT offers it here),
+# ELIGIBLE (the update policy would install it now) and REASON when not
+# (attention, withdrawn, delay until <date>, outside window, paused,
+# min_from <version>, policy, not available).
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+format=${1-shell}
+refresh=${2-no}
+
+# Includes
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/updates.sh
+source $ARCPANEL/func/updates.sh
+# load config file
+source_conf "$ARCPANEL/conf/arcpanel.conf"
+
+# JSON list function
+json_list() {
+	jq '[.[] | {VERSION: .version, LINE: .line, DATE: .date, KIND: .kind, SECURITY: .security,
+		ATTENTION: .attention, ATTENTION_ITEMS: .attention_items, STEPS: .steps, MIN_FROM: .min_from,
+		ENGINES: .engines, NOTES: .notes, WITHDRAWN: .withdrawn, AVAILABLE: .available,
+		ELIGIBLE: .eligible, REASON: .reason}]' <<< "$rows"
+}
+
+# SHELL list function
+shell_list() {
+	echo "VERSION   DATE   KIND   SECURITY   ELIGIBLE   REASON"
+	echo "-------   ----   ----   --------   --------   ------"
+	jq -r '.[] | [.version, .date, .kind, (if .security then "yes" else "no" end),
+		(if .eligible then "yes" else "no" end), (if .reason == "" then "-" else (.reason | gsub(" "; "_")) end)] | join(" ")' <<< "$rows"
+}
+
+# PLAIN list function
+plain_list() {
+	jq -r '.[] | [.version, .date, .kind, .security, .attention, .available, .eligible, .reason] | @tsv' <<< "$rows"
+}
+
+# CSV list function
+csv_list() {
+	echo "VERSION,DATE,KIND,SECURITY,ATTENTION,AVAILABLE,ELIGIBLE,REASON"
+	jq -r '.[] | [.version, .date, .kind, .security, .attention, .available, .eligible, .reason] | @csv' <<< "$rows"
+}
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+is_format_valid 'format'
+if [ "$refresh" != 'yes' ] && [ "$refresh" != 'no' ]; then
+	check_result "$E_INVALID" "invalid refresh value $refresh (yes or no)"
+fi
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+if ! upd_manifest_load "$refresh"; then
+	check_result "$E_NOTEXIST" "$UPD_ERROR"
+fi
+rows="$(upd_release_rows)"
+
+# Listing data
+case $format in
+	json) json_list ;;
+	plain) plain_list ;;
+	csv) csv_list ;;
+	shell) shell_list | column -t ;;
+esac
+
+#----------------------------------------------------------#
+#                         ArcPanel                         #
+#----------------------------------------------------------#
+
+exit
