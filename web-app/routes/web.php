@@ -82,6 +82,7 @@ use App\Services\AppProcesses\AppProcessService;
 use App\Services\Docker\DockerAppService;
 use App\Services\Node\NodeAppService;
 use App\Services\Server\ServerSettings;
+use App\Services\Server\UpdateCenter;
 use Illuminate\Support\Facades\Route;
 
 // Served at the root URL since 2.0 (ADR-0002, E8 spec §5). Link with route
@@ -324,11 +325,17 @@ Route::middleware('auth.arc')->group(function () {
         });
     });
 
-    // Updates (E7 batch 3 spec §10)
+    // Updates: the Update Center (E33 phase 1 spec §8)
     Route::get('/server/updates', [UpdateController::class, 'index'])->name('server.updates');
+    Route::get('/server/updates/releases/{version}/preflight', [UpdateController::class, 'preflight'])
+        ->where('version', UpdateCenter::VERSION_PATTERN)->name('server.updates.preflight');
     Route::prefix('server/updates')->name('server.updates.')->middleware('not-readonly')->group(function () {
+        Route::post('/check', [UpdateController::class, 'check'])->name('check');
+        Route::post('/release', [UpdateController::class, 'release'])->name('release');
         Route::post('/update', [UpdateController::class, 'update'])->name('update');
-        Route::post('/autoupdate', [UpdateController::class, 'autoUpdate'])->name('autoupdate');
+        Route::post('/policy', [UpdateController::class, 'policy'])->name('policy');
+        Route::post('/resume', [UpdateController::class, 'resume'])->name('resume');
+        Route::post('/history/{id}/rollback', [UpdateController::class, 'rollback'])->whereNumber('id')->name('rollback');
         Route::post('/notifications', [UpdateController::class, 'notifications'])->name('notifications');
     });
 

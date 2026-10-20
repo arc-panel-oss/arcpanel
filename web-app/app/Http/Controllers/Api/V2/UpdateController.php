@@ -17,7 +17,6 @@ use App\Services\Server\ServerSettings;
 use App\Services\Server\UpdateCenter;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
-use Illuminate\Validation\ValidationException;
 
 /**
  * Updates of the panel packages for administrators (E34 batch 6 spec §5.4):
@@ -76,7 +75,7 @@ final class UpdateController extends Controller
         $data = $request->validated();
         if (isset($data['version'])) {
             $version = (string) $data['version'];
-            $this->assertRelease($version, (bool) ($data['confirm_attention'] ?? false));
+            $this->center->assertRelease($version, (bool) ($data['confirm_attention'] ?? false));
 
             return $starter->start(UpdateCenter::planRelease($version, 'api', $principal->accessKey ?? $principal->loginUser));
         }
@@ -121,24 +120,5 @@ final class UpdateController extends Controller
             'send_email' => $this->config->get('UPGRADE_SEND_EMAIL') === 'true',
             'send_log' => $this->config->get('UPGRADE_SEND_EMAIL_LOG') === 'true',
         ];
-    }
-
-    /**
-     * The update runs to a release of the manifest: listed, not withdrawn,
-     * and confirmed when it needs attention. The task checks the rest
-     * (E33 phase 1 spec §7.3).
-     */
-    private function assertRelease(string $version, bool $confirmed): void
-    {
-        $release = $this->center->release($version);
-        if ($release === null) {
-            throw ValidationException::withMessages(['version' => sprintf(__('ArcPanel %s is not a release newer than the installed version.'), $version)]);
-        }
-        if (is_array($release['WITHDRAWN'] ?? null)) {
-            throw ValidationException::withMessages(['version' => sprintf(__('ArcPanel %s was withdrawn.'), $version)]);
-        }
-        if (($release['ATTENTION'] ?? false) === true && ! $confirmed) {
-            throw ValidationException::withMessages(['confirm_attention' => sprintf(__('ArcPanel %s needs attention: read its attention items and confirm them.'), $version)]);
-        }
     }
 }

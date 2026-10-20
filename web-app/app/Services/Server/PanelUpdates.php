@@ -3,14 +3,13 @@
 namespace App\Services\Server;
 
 use App\Arc\ArcCommand;
-use App\Arc\CommandResult;
 use App\Arc\Options;
 use App\Services\WebDomains\Step;
 
 /**
- * The packages of the panel and their automatic updates (web/list/updates,
- * web/add|delete/cron/autoupdate), E7 batch 3 spec §10. Updates themselves
- * run as the system task.
+ * The packages of the panel (web/list/updates, E7 batch 3 spec §10).
+ * Updates themselves run as the system task; the automatic updates are the
+ * policy of the Update Center (UpdateCenter, E33 phase 1).
  */
 final class PanelUpdates
 {
@@ -39,11 +38,6 @@ final class PanelUpdates
         return $packages;
     }
 
-    public function autoUpdate(): bool
-    {
-        return trim($this->arc->run('v-list-sys-arcpanel-autoupdate', ['plain'], Options::allowFailure())->stdout) === 'Enabled';
-    }
-
     /**
      * The update of one package, or of every package without one, as the
      * start of the system task (API v2, E34 batch 6 §5.4).
@@ -53,11 +47,5 @@ final class PanelUpdates
         return $package === null
             ? SystemTaskService::step(__('Update every package'), 'arcpanel-update')
             : SystemTaskService::step(sprintf(__('Update %s'), $package), 'arcpanel-update', [$package]);
-    }
-
-    /** `v-add-cron-arcpanel-autoupdate` or `v-delete-cron-arcpanel-autoupdate` */
-    public function setAutoUpdate(bool $on): CommandResult
-    {
-        return $this->arc->run($on ? 'v-add-cron-arcpanel-autoupdate' : 'v-delete-cron-arcpanel-autoupdate', [], Options::allowFailure());
     }
 }

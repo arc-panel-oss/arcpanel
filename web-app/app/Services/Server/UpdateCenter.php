@@ -7,6 +7,7 @@ use App\Arc\ArcCommandException;
 use App\Arc\ExitCode;
 use App\Arc\Options;
 use App\Services\WebDomains\Step;
+use Illuminate\Validation\ValidationException;
 
 /**
  * The Update Center of E33 phase 1 (docs/features/specs/2026-10-20-005-e33-update-center-phase-1-design.md
@@ -90,6 +91,27 @@ final class UpdateCenter
         }
 
         return null;
+    }
+
+    /**
+     * An update runs to a release of the manifest: listed, not withdrawn,
+     * and confirmed when it needs attention. The task checks the rest
+     * (§7.3).
+     *
+     * @throws ValidationException on `version` or `confirm_attention`
+     */
+    public function assertRelease(string $version, bool $confirmed): void
+    {
+        $release = $this->release($version);
+        if ($release === null) {
+            throw ValidationException::withMessages(['version' => sprintf(__('ArcPanel %s is not a release newer than the installed version.'), $version)]);
+        }
+        if (is_array($release['WITHDRAWN'] ?? null)) {
+            throw ValidationException::withMessages(['version' => sprintf(__('ArcPanel %s was withdrawn.'), $version)]);
+        }
+        if (($release['ATTENTION'] ?? false) === true && ! $confirmed) {
+            throw ValidationException::withMessages(['confirm_attention' => sprintf(__('ArcPanel %s needs attention: read its attention items and confirm them.'), $version)]);
+        }
     }
 
     /**

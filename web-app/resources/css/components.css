@@ -5420,3 +5420,328 @@ a.ap-pick:focus-visible {
 	margin-top: var(--ap-space-0-5);
 	color: var(--ap-accent);
 }
+
+/* Update Center (E33 phase 1 spec §8, templates/nocturne/admin/updates.html) */
+.ap-btn-warn {
+	background: var(--ap-warn);
+	border-color: var(--ap-warn);
+	color: var(--ap-accent-fg);
+}
+.ap-btn-warn:hover {
+	background: color-mix(in oklab, var(--ap-warn) 85%, var(--ap-fg));
+	border-color: color-mix(in oklab, var(--ap-warn) 85%, var(--ap-fg));
+}
+.ap-badge-strong.is-accent {
+	background: var(--ap-accent-line);
+	color: var(--ap-fg);
+}
+.ap-status-strip {
+	display: flex;
+	flex-wrap: wrap;
+	border: 1px solid var(--ap-border);
+	border-radius: var(--ap-radius-lg);
+	background: var(--ap-surface);
+	box-shadow: var(--ap-shadow-1);
+	overflow: hidden;
+}
+.ap-status-cell {
+	flex: 1 1 220px;
+	display: flex;
+	flex-direction: column;
+	gap: var(--ap-space-1);
+	padding: var(--ap-space-4) var(--ap-space-5);
+	margin: 0 calc(-1 * var(--ap-space-px)) calc(-1 * var(--ap-space-px)) 0;
+	border-inline-end: 1px solid var(--ap-border);
+	border-bottom: 1px solid var(--ap-border);
+}
+.ap-status-label {
+	font-size: var(--ap-text-xs);
+	color: var(--ap-fg-subtle);
+}
+.ap-status-value {
+	display: flex;
+	align-items: center;
+	gap: var(--ap-space-2);
+	font-size: 17px;
+	font-weight: 600;
+}
+.ap-status-value.mono {
+	font-size: 22px;
+}
+.ap-status-value .ic.is-ok {
+	color: var(--ap-ok);
+}
+.ap-status-value .ic.is-warn {
+	color: var(--ap-warn);
+}
+.ap-status-dot {
+	width: 8px;
+	height: 8px;
+	border-radius: 50%;
+	background: var(--ap-fg-subtle);
+}
+.ap-status-dot.is-ok {
+	background: var(--ap-ok);
+}
+.ap-status-dot.is-warn {
+	background: var(--ap-warn);
+}
+.ap-status-meta {
+	font-size: var(--ap-text-sm);
+	color: var(--ap-fg-muted);
+}
+.ap-updates-grid {
+	display: grid;
+	gap: var(--ap-space-4);
+	align-items: start;
+	grid-template-columns: minmax(0, 1.7fr) minmax(320px, 1fr);
+}
+@media (max-width: 1180px) {
+	.ap-updates-grid {
+		grid-template-columns: minmax(0, 1fr);
+	}
+}
+.ap-releases {
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+.ap-release {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--ap-space-4);
+	padding: var(--ap-space-4-5) var(--ap-space-5);
+	border-bottom: 1px solid var(--ap-border);
+}
+.ap-release:last-child {
+	border-bottom: 0;
+}
+.ap-release-main {
+	flex: 999 1 320px;
+	display: flex;
+	flex-direction: column;
+	gap: var(--ap-space-2);
+	min-width: 0;
+}
+.ap-release-head {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: var(--ap-space-2);
+	font-size: var(--ap-text-sm);
+}
+.ap-release-head a {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--ap-space-1);
+}
+.ap-release-version {
+	font: 600 18px/1.2 var(--ap-font-mono);
+}
+.ap-release.is-withdrawn .ap-release-version {
+	color: var(--ap-fg-subtle);
+	text-decoration: line-through;
+}
+.ap-release-reason {
+	display: flex;
+	align-items: flex-start;
+	gap: var(--ap-space-2);
+	margin: 0;
+	font-size: var(--ap-text-sm);
+	color: var(--ap-fg-muted);
+}
+.ap-release-reason .ic {
+	flex: none;
+	margin-top: var(--ap-space-px);
+	color: var(--ap-fg-subtle);
+}
+.ap-release-reason.is-ok,
+.ap-release-reason.is-ok .ic {
+	color: var(--ap-ok);
+}
+.ap-release-reason.is-warn,
+.ap-release-reason.is-warn .ic {
+	color: var(--ap-warn);
+}
+.ap-release-reason.is-danger .ic {
+	color: var(--ap-danger);
+}
+.ap-release-items {
+	display: flex;
+	flex-direction: column;
+	gap: var(--ap-space-1);
+	margin: 0;
+	padding: var(--ap-space-2-5) var(--ap-space-3-5) var(--ap-space-2-5) calc(var(--ap-space-7) - var(--ap-space-0-5));
+	border-radius: var(--ap-radius-md);
+	background: var(--ap-surface-raised);
+	color: var(--ap-fg-muted);
+	font-size: var(--ap-text-sm);
+}
+.ap-release-action {
+	flex: 1 1 180px;
+	display: flex;
+	align-items: flex-start;
+	justify-content: flex-end;
+	font-size: var(--ap-text-sm);
+}
+.ap-release-action > .subtle {
+	padding-top: var(--ap-space-2-5);
+}
+.ap-picker-stack {
+	grid-template-columns: minmax(0, 1fr);
+	gap: var(--ap-space-2);
+}
+.ap-picker-stack .ap-pick {
+	gap: var(--ap-space-0-5);
+	padding: var(--ap-space-3) calc(var(--ap-space-7-5) + var(--ap-space-1)) var(--ap-space-3) var(--ap-space-3-5);
+	border-radius: var(--ap-radius-md);
+}
+.ap-picker-stack .ap-pick input {
+	top: var(--ap-space-3-5);
+	accent-color: var(--ap-accent);
+}
+.ap-days {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--ap-space-1-5);
+}
+.ap-day {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--ap-space-1-5);
+	height: 34px;
+	padding: 0 var(--ap-space-2-5);
+	border: 1px solid var(--ap-border-strong);
+	border-radius: var(--ap-radius-sm);
+	background: var(--ap-surface);
+	font-size: var(--ap-text-sm);
+	cursor: pointer;
+}
+.ap-day input {
+	margin: 0;
+	accent-color: var(--ap-accent);
+}
+.ap-day:has(input:checked) {
+	border-color: var(--ap-accent-line);
+	background: var(--ap-accent-subtle);
+}
+.ap-window-grid {
+	display: grid;
+	gap: var(--ap-space-3);
+	grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.ap-pkg-list {
+	display: flex;
+	flex-direction: column;
+	margin: 0;
+	padding: var(--ap-space-1-5) var(--ap-space-5) var(--ap-space-2-5);
+	font: 400 var(--ap-text-sm) / 1.5 var(--ap-font-mono);
+}
+.ap-pkg-list > div {
+	display: flex;
+	justify-content: space-between;
+	gap: var(--ap-space-3);
+	padding: var(--ap-space-2) 0;
+	border-bottom: 1px solid var(--ap-border);
+}
+.ap-pkg-list > div:last-child {
+	border-bottom: 0;
+}
+.ap-pkg-list dd {
+	margin: 0;
+	color: var(--ap-fg-muted);
+}
+.ap-modal.is-wide {
+	max-width: 640px;
+}
+.ap-modal-foot-note {
+	flex: 1 1 220px;
+	align-self: center;
+	font-size: var(--ap-text-sm);
+	color: var(--ap-fg-subtle);
+}
+/* The pre-flight checks of the update dialog; .ap-checks is a checkbox group */
+.ap-preflight {
+	margin: 0;
+	padding: 0;
+	list-style: none;
+	border: 1px solid var(--ap-border);
+	border-radius: var(--ap-radius-md);
+}
+.ap-preflight > li {
+	display: flex;
+	gap: var(--ap-space-2-5);
+	padding: var(--ap-space-2-5) var(--ap-space-3-5);
+	border-bottom: 1px solid var(--ap-border);
+}
+.ap-preflight > li:last-child {
+	border-bottom: 0;
+}
+.ap-preflight > li > .ic {
+	flex: none;
+	margin-top: var(--ap-space-0-5);
+}
+.ap-preflight > li > span {
+	display: flex;
+	flex-direction: column;
+	min-width: 0;
+}
+.ap-preflight b {
+	font-weight: 500;
+}
+.ap-preflight b + span {
+	font-size: var(--ap-text-sm);
+	color: var(--ap-fg-muted);
+}
+.ap-preflight .is-ok > .ic {
+	color: var(--ap-ok);
+}
+.ap-preflight .is-warn > .ic {
+	color: var(--ap-warn);
+}
+.ap-preflight .is-fail > .ic {
+	color: var(--ap-danger);
+}
+.ap-confirm-items {
+	display: flex;
+	flex-direction: column;
+	gap: var(--ap-space-2-5);
+	margin: 0;
+	padding: var(--ap-space-3-5) var(--ap-space-4);
+	border: 1px solid color-mix(in oklab, var(--ap-warn) 35%, transparent);
+	border-radius: var(--ap-radius-md);
+	background: var(--ap-warn-subtle);
+}
+.ap-confirm-items legend {
+	padding: 0 var(--ap-space-1-5);
+	font-size: var(--ap-text-sm);
+	font-weight: 600;
+	color: var(--ap-warn);
+}
+.ap-confirm-items label {
+	display: flex;
+	align-items: flex-start;
+	gap: var(--ap-space-2-5);
+	cursor: pointer;
+}
+.ap-confirm-items input {
+	flex: none;
+	width: 16px;
+	height: 16px;
+	margin: calc(var(--ap-space-0-5) + var(--ap-space-px)) 0 0;
+	accent-color: var(--ap-warn);
+}
+@media (max-width: 767px) {
+	.ap-status-cell {
+		flex-basis: 50%;
+		padding: var(--ap-space-3-5);
+	}
+	.ap-release-action,
+	.ap-release-action .ap-btn {
+		flex-basis: 100%;
+		width: 100%;
+	}
+	.ap-window-grid {
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+	}
+}
