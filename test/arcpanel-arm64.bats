@@ -127,3 +127,59 @@ INSTALLERS="install/arcpanel-install-debian.sh install/arcpanel-install-ubuntu.s
 		[ "$guard" -lt "$first_change" ]
 	done
 }
+
+#----------------------------------------------------------#
+#   Architectures of the APT repository                    #
+#   (.github/scripts/build-apt-repo.sh)                    #
+#----------------------------------------------------------#
+
+# Builds an empty package NAME for ARCH into DIR
+fake_deb() {
+	local dir="$1" name="$2" arch="$3" root
+	root="$TMP/pkg-$name-$arch"
+	mkdir -p "$root/DEBIAN" "$dir"
+	printf 'Package: %s\nVersion: 1.0.0\nArchitecture: %s\nMaintainer: Test <test@example.com>\nDescription: test\n' \
+		"$name" "$arch" > "$root/DEBIAN/control"
+	dpkg-deb --build --root-owner-group "$root" "$dir/${name}_1.0.0_${arch}.deb" > /dev/null
+}
+
+apt_setup() {
+	command -v dpkg-deb > /dev/null || skip "dpkg-deb is not installed"
+	load_function .github/scripts/build-apt-repo.sh codename_architectures
+}
+
+@test "apt repo: an amd64-only codename lists amd64" {
+	apt_setup
+	fake_deb "$TMP/debs/noble" arcpanel amd64
+	fake_deb "$TMP/debs/noble" arcpanel-php amd64
+	run codename_architectures "$TMP/debs/noble"
+	assert_success
+	assert_output amd64
+}
+
+@test "apt repo: a codename with amd64 and arm64 packages lists both" {
+	apt_setup
+	fake_deb "$TMP/debs/noble" arcpanel amd64
+	fake_deb "$TMP/debs/noble" arcpanel arm64
+	fake_deb "$TMP/debs/noble" arcpanel-php arm64
+	run codename_architectures "$TMP/debs/noble"
+	assert_success
+	assert_output "amd64 arm64"
+}
+
+@test "apt repo: architecture-independent packages add no architecture" {
+	apt_setup
+	fake_deb "$TMP/debs/noble" arcpanel arm64
+	fake_deb "$TMP/debs/noble" arcpanel-docs all
+	run codename_architectures "$TMP/debs/noble"
+	assert_success
+	assert_output arm64
+}
+
+@test "apt repo: a codename without packages fails" {
+	apt_setup
+	mkdir -p "$TMP/debs/noble"
+	run codename_architectures "$TMP/debs/noble"
+	assert_failure
+	assert_output --partial "no package for noble"
+}
