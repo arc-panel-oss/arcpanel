@@ -82,7 +82,7 @@ test('the administrator sees the service of the server', async ({ page }) => {
 	await login(page, ADMIN);
 	await page.goto('/server/object-storage');
 	await expect(
-		page.getByRole('heading', { name: 'Object storage service', level: 1 }),
+		page.getByRole('heading', { name: 'Object storage', level: 1, exact: true }),
 	).toBeVisible();
 	await expect(page.getByText('Running')).toBeVisible();
 	await expectAccessible(page);

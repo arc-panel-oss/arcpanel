@@ -5309,8 +5309,8 @@ a.ap-pick:focus-visible {
 	font-size: var(--ap-text-xs);
 }
 
-/* Docker engine (E4 spec §7): engine facts, usage tiles, the last install and check */
-.ap-docker-facts {
+/* A row of facts (version, path, endpoint) and compact counter tiles: the Docker engine and object storage pages */
+.ap-fact-strip {
 	display: grid;
 	grid-template-columns: repeat(auto-fit, minmax(min(180px, 100%), 1fr));
 	margin: 0;
@@ -5318,37 +5318,37 @@ a.ap-pick:focus-visible {
 	border-radius: var(--ap-radius-lg);
 	background: var(--ap-surface-raised);
 }
-.ap-docker-facts > div {
+.ap-fact-strip > div {
 	display: flex;
 	flex-direction: column;
 	gap: var(--ap-space-1);
 	min-width: 0;
 	padding: var(--ap-space-3) var(--ap-space-4);
 }
-.ap-docker-facts > div + div {
+.ap-fact-strip > div + div {
 	border-inline-start: 1px solid var(--ap-border);
 }
-.ap-docker-facts dt {
+.ap-fact-strip dt {
 	color: var(--ap-fg-muted);
 	font-size: var(--ap-text-xs);
 }
-.ap-docker-facts dd {
+.ap-fact-strip dd {
 	margin: 0;
 	font-family: var(--ap-font-mono);
 	font-size: var(--ap-text-md);
 	overflow-wrap: anywhere;
 }
 @media (max-width: 639px) {
-	.ap-docker-facts > div + div {
+	.ap-fact-strip > div + div {
 		border-inline-start: 0;
 		border-top: 1px solid var(--ap-border);
 	}
 }
-/* Two tiles a row on a phone, six on a wide screen */
-.ap-docker-tiles {
+/* Two tiles a row on a phone, up to six on a wide screen */
+.ap-stats-tiles-compact {
 	grid-template-columns: repeat(auto-fit, minmax(min(120px, 100%), 1fr));
 }
-.ap-docker-tiles .ap-stats-tile-value small {
+.ap-stats-tiles-compact .ap-stats-tile-value small {
 	margin-inline-start: var(--ap-space-1);
 	color: var(--ap-fg-subtle);
 	font-size: var(--ap-text-sm);
@@ -5391,4 +5391,32 @@ a.ap-pick:focus-visible {
 }
 .ap-empty-art.is-ok {
 	color: var(--ap-ok);
+}
+
+/* Object storage before the installation (E44 spec §11): what it brings, beside the form */
+.ap-storage-install {
+	align-items: start;
+	gap: var(--ap-space-6);
+}
+.ap-storage-install h3 {
+	font-size: var(--ap-text-lg);
+}
+.ap-check-list {
+	display: flex;
+	flex-direction: column;
+	gap: var(--ap-space-2-5);
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+.ap-check-list li {
+	display: flex;
+	align-items: flex-start;
+	gap: var(--ap-space-2-5);
+	color: var(--ap-fg-muted);
+}
+.ap-check-list .ic {
+	flex: none;
+	margin-top: var(--ap-space-0-5);
+	color: var(--ap-accent);
 }

@@ -86,7 +86,7 @@ async function finished(value) {
 						<p><a :href="initial.servicesUrl">{{ t('Open the Services page') }}</a></p>
 					</div>
 				</div>
-				<dl class="ap-docker-facts">
+				<dl class="ap-fact-strip">
 					<div>
 						<dt>{{ t('Version') }}</dt>
 						<dd>{{ status.version || '—' }}</dd>
@@ -100,7 +100,7 @@ async function finished(value) {
 						<dd>{{ status.dataRoot || '—' }}</dd>
 					</div>
 				</dl>
-				<ul class="ap-stats-tiles ap-docker-tiles" :aria-label="t('Usage')">
+				<ul class="ap-stats-tiles ap-stats-tiles-compact" :aria-label="t('Usage')">
 					<li v-for="tile in tiles" :key="tile.key" class="ap-stats-tile">
 						<span class="ap-stats-tile-icon" aria-hidden="true"><ApIcon :name="tile.icon" /></span>
 						<span class="ap-stats-tile-label">{{ t(tile.label) }}</span>

@@ -41,7 +41,9 @@ final class Navigation
      * above, each with 'tab' (its tab label; 'label' names it alone, in the
      * sidebar and the command palette), 'tabs' (the route names of its
      * landing pages, which show the tab bar) and optionally 'userRoute' (its
-     * landing page of one account, linked with the {user} of the current page).
+     * landing page of one account, linked with the {user} of the current page)
+     * and 'alone' (its label when it is the only visible page of the hub and
+     * stands in for it).
      */
     private const GROUPS = [
         'main' => [
@@ -93,7 +95,7 @@ final class Navigation
                 ['hub' => 'storage', 'label' => 'Object storage', 'icon' => 'disk', 'children' => [
                     ['route' => 'storage', 'label' => 'Object storage', 'tab' => 'Buckets', 'icon' => 'disk', 'cap' => 'storage.view', 'storage' => true,
                         'requires' => 'OBJECT_STORAGE_SYSTEM=silo', 'section' => 'storage.', 'tabs' => ['storage.show'], 'userRoute' => 'storage.show'],
-                    ['route' => 'server.object-storage', 'label' => 'Object storage service', 'tab' => 'Service', 'icon' => 'server', 'cap' => 'storage.server',
+                    ['route' => 'server.object-storage', 'label' => 'Object storage service', 'alone' => 'Object storage', 'tab' => 'Service', 'icon' => 'server', 'cap' => 'storage.server',
                         'section' => 'server.object-storage', 'tabs' => ['server.object-storage']],
                 ]],
             ],
@@ -169,7 +171,8 @@ final class Navigation
                 }
                 $children = $this->visibleChildren($principal, $item, $currentRoute);
                 if (count($children) === 1) {
-                    $items[] = $children[0];
+                    $page = array_column($item['children'], null, 'route')[$children[0]['key']];
+                    $items[] = isset($page['alone']) ? ['label' => __($page['alone'])] + $children[0] : $children[0];
                 } elseif ($children !== []) {
                     $items[] = [
                         'key' => 'hub.'.$item['hub'],

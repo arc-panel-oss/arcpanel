@@ -22,7 +22,7 @@ final class ObjectStorageServerController extends Controller
 {
     public function __construct(private readonly ObjectStorageService $storage) {}
 
-    public function page(Principal $principal, ObjectStoragePolicy $policy, ArcCommand $arc): View
+    public function page(Principal $principal, ObjectStoragePolicy $policy, ArcCommand $arc, SystemTaskService $tasks): View
     {
         abort_unless($policy->viewServer($principal), 403);
         $silo = $this->storage->server();
@@ -49,6 +49,8 @@ final class ObjectStorageServerController extends Controller
             'silo' => $silo,
             'accounts' => $accounts,
             'canManage' => $policy->manageServer($principal),
+            // Install and remove run as the system task: the page shows it and waits for it
+            'task' => $tasks->task(),
         ]);
     }
 

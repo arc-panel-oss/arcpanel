@@ -12,6 +12,7 @@ beforeEach(function () {
     $this->fake->on('v-list-package-tenancy', ['developer', 'json'])->returnsJson(['developer' => ['OBJECT_STORAGE' => 'yes']]);
     $this->fake->on('v-list-package-tenancy', ['default', 'json'])->returnsJson(['default' => ['OBJECT_STORAGE' => 'no']]);
     $this->fake->on('v-list-user-bucket')->returnsExit(ExitCode::NotExist, 'Error: bucket does not exist');
+    $this->fake->on('v-list-sys-task')->returnsJson(['ID' => '', 'KIND' => '', 'ARGS' => '', 'STATUS' => '', 'EXIT' => '', 'START' => '', 'END' => '', 'LOG' => '']);
     $this->fake->on('v-list-user-buckets', ['bob', 'json'])->returnsJson(['bob-media' => storageBucket('bob-media', ['VERSIONING' => 'yes'])]);
     $this->fake->on('v-list-user-bucket', ['bob', 'bob-media', 'json'])->returnsJson(['bob-media' => storageBucket('bob-media', ['VERSIONING' => 'yes'])]);
     $this->fake->on('v-list-user-object-storage', ['bob', 'json'])->returnsJson(storageAccount());
@@ -155,7 +156,7 @@ it('installs Silo as the system task and publishes the endpoint', function () {
     $this->fake->on('v-change-sys-silo-endpoint')->returns();
     signIn('arcadmin', 'admin');
 
-    $this->get('/server/object-storage')->assertOk()->assertSee('Install object storage');
+    $this->get('/server/object-storage')->assertOk()->assertSee('Object storage is not installed')->assertSee('Install object storage');
     $this->post('/server/object-storage/install', ['data_path' => '/srv/silo/'])->assertRedirect('/server/object-storage')->assertSessionHas('ok');
     $this->fake->assertRan('v-change-sys-config-value', fn ($a) => $a === ['SILO_DATA', '/srv/silo']);
     $this->fake->assertRan('v-start-sys-task', fn ($a) => in_array('silo', $a, true));
@@ -165,6 +166,30 @@ it('installs Silo as the system task and publishes the endpoint', function () {
     $this->fake->assertRan('v-change-sys-silo-endpoint', fn ($a) => $a === ['s3.example.test', 'yes']);
     $this->post('/server/object-storage/endpoint', ['hostname' => ''])->assertRedirect('/server/object-storage');
     $this->fake->assertRan('v-change-sys-silo-endpoint', fn ($a) => $a === ['none']);
+});
+
+it('shows a running system task on the service page and holds the install until it ends', function () {
+    $this->fake->on('v-list-sys-silo', ['json'])->returnsJson(['INSTALLED' => 'no']);
+    $this->fake->on('v-list-sys-task')->returnsJson(['ID' => '17924741184798', 'KIND' => 'plugin', 'ARGS' => 'silo on', 'STATUS' => 'running',
+        'EXIT' => '', 'START' => '2026-10-20 12:28:38', 'END' => '', 'LOG' => '$ v-add-sys-silo']);
+    signIn('arcadmin', 'admin');
+
+    $this->get('/server/object-storage')->assertOk()
+        ->assertSee('Object storage is not installed')
+        ->assertSee('x-bind:disabled="running"', false)
+        ->assertSee('silo on');
+});
+
+it('names the service page Object storage in the sidebar while it is the only page', function () {
+    $this->fake = fakeArc();
+    fakeServerUsers($this->fake);
+    $this->fake->on('v-list-sys-silo', ['json'])->returnsJson(['INSTALLED' => 'no']);
+    $this->fake->on('v-list-sys-task')->returnsJson(['ID' => '', 'KIND' => '', 'ARGS' => '', 'STATUS' => '', 'EXIT' => '', 'START' => '', 'END' => '', 'LOG' => '']);
+    signIn('arcadmin', 'admin');
+
+    $this->get('/server/object-storage')->assertOk()
+        ->assertSee('<h1', false)
+        ->assertDontSee('Object storage service');
 });
 
 it('removes Silo as the system task only when no bucket is left', function () {
