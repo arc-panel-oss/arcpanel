@@ -18,6 +18,8 @@ rule=$1
 source /etc/arcpanel/arcpanel.conf
 # shellcheck source=/usr/local/arcpanel/func/main.sh
 source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/firewall.sh
+source $ARCPANEL/func/firewall.sh
 # load config file
 source_conf "$ARCPANEL/conf/arcpanel.conf"
 
@@ -37,6 +39,9 @@ check_arcpanel_demo_mode
 #                       Action                             #
 #----------------------------------------------------------#
 
+# The rules before the change, put back when the load fails
+fw_keep_rules
+
 # Deleting rule
 sed -i "/RULE='$rule' /d" $ARCPANEL/data/firewall/rules.conf
 
@@ -48,23 +53,21 @@ if [[ ! -f "$rulesf" ]]; then
 	exit 1
 fi
 
-if [[ ! -s "$rulesf" ]]; then
-	# Empty file, nothing to reorder
-	exit 0
+# An empty file has nothing to reorder, but the table still loses the rule
+if [[ -s "$rulesf" ]]; then
+	rules_tmp="$(mktemp "${rulesf}.XXXXXX")"
+	trap 'rm -f "$rules_tmp"' EXIT
+
+	# Sort by rule number (field 2, quote-delimited) and renumber sequentially
+	sort -n -k 2 -t \' "$rulesf" \
+		| awk -v q="'" '{ n++; sub("RULE=" q "[0-9]+" q, "RULE=" q n q); print }' \
+			> "$rules_tmp"
+
+	mv "$rules_tmp" "$rulesf"
 fi
 
-rules_tmp="$(mktemp "${rulesf}.XXXXXX")"
-trap 'rm -f "$rules_tmp"' EXIT
-
-# Sort by rule number (field 2, quote-delimited) and renumber sequentially
-sort -n -k 2 -t \' "$rulesf" \
-	| awk -v q="'" '{ n++; sub("RULE=" q "[0-9]+" q, "RULE=" q n q); print }' \
-		> "$rules_tmp"
-
-mv "$rules_tmp" "$rulesf"
-
-# Updating system firewall
-$BIN/v-update-firewall
+# Updating system firewall; a table nft refuses fails the command
+fw_apply_rules
 
 #----------------------------------------------------------#
 #                         ArcPanel                         #

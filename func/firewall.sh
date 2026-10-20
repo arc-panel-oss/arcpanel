@@ -112,12 +112,19 @@ fw_is_own_ip() {
 # A set with its elements, read one per line from stdin; empty lines skipped
 fw_set_block() {
 	local name="$1" family="$2" elements
-	elements=$(grep -v '^[[:space:]]*$' | awk 'BEGIN { ORS = "" } NR > 1 { print ",\n\t\t\t" } { print }')
+	# Lists kept since 2.2 may have Windows line ends, which nft refuses
+	elements=$(tr -d '\r' | grep -v '^[[:space:]]*$' | awk 'BEGIN { ORS = "" } NR > 1 { print ",\n\t\t\t" } { print }')
 	printf '\tset %s {\n\t\ttype %s\n\t\tflags interval\n\t\tauto-merge\n' "$name" "$([ "$family" = 6 ] && echo ipv6_addr || echo ipv4_addr)"
 	if [ -n "$elements" ]; then
 		printf '\t\telements = { %s }\n' "$elements"
 	fi
 	printf '\t}\n'
+}
+
+# The banned addresses of a chain and family, read from a ban list on stdin;
+# awk rather than a shell loop, which a long ban list would slow down
+fw_chain_bans() {
+	grep -F "CHAIN='$1'" | sed -n "s/^IP='\([^']*\)'.*/\1/p" | awk -v family="$2" '(index($0, ":") > 0) == (family == 6)'
 }
 
 # Address list of one family for an accept line, or nothing
@@ -158,8 +165,7 @@ fw_render() {
 			parse_object_kv_list "$line"
 			for family in 4 6; do
 				if [ -f "$banlist" ]; then
-					grep -F "CHAIN='$CHAIN'" "$banlist" | sed -n "s/^IP='\([^']*\)'.*/\1/p" \
-						| while IFS= read -r ip; do [ "$(fw_family "$ip")" = "$family" ] && echo "$ip"; done
+					fw_chain_bans "$CHAIN" "$family" < "$banlist"
 				fi | fw_set_block "$(fw_ban_set "$CHAIN" "$family")" "$family"
 			done
 		done < "$chains"
@@ -261,7 +267,14 @@ fw_load() {
 		log_event "$E_UPDATE" "$ARGUMENTS"
 		exit "$E_UPDATE"
 	fi
-	# The saved copy carries custom.nft itself, so boot needs no data path
+	fw_save "$file"
+	fw_state_json > "$FW_STATE.tmp" && chmod 600 "$FW_STATE.tmp" && mv -f "$FW_STATE.tmp" "$FW_STATE"
+}
+
+# Save a rendered file for the boot unit. The saved copy carries custom.nft
+# itself, so boot needs no data path
+fw_save() {
+	local file="$1"
 	if [ -f "$ARCPANEL/data/firewall/custom.nft" ]; then
 		grep -v '^include "' "$file" > "$FW_SAVED.tmp"
 		cat "$ARCPANEL/data/firewall/custom.nft" >> "$FW_SAVED.tmp"
@@ -270,16 +283,55 @@ fw_load() {
 	fi
 	chmod 600 "$FW_SAVED.tmp"
 	mv -f "$FW_SAVED.tmp" "$FW_SAVED"
-	fw_state_json > "$FW_STATE.tmp" && chmod 600 "$FW_STATE.tmp" && mv -f "$FW_STATE.tmp" "$FW_STATE"
+}
+
+# Save the table with the bans of the ban list after a ban changed a set
+# only, so that a reboot without a clean stop restores the same bans. A
+# table nft refuses keeps the saved file; a stopped firewall saves nothing
+fw_save_bans() {
+	local tmp rc=0
+	fw_loaded || return 0
+	tmp=$(mktemp)
+	fw_render > "$tmp"
+	if "$FW_NFT" -c -f "$tmp" > /dev/null 2>&1; then
+		fw_save "$tmp"
+	else
+		rc=1
+	fi
+	rm -f "$tmp"
+	return "$rc"
 }
 
 # Render, then load (the body of v-update-firewall)
 fw_reload() {
-	local tmp
-	tmp=$(mktemp)
-	fw_render > "$tmp"
-	fw_load "$tmp"
-	rm -f "$tmp"
+	FW_RELOAD_TMP=$(mktemp)
+	# fw_load exits when nft refuses the table
+	trap 'rm -f "$FW_RELOAD_TMP"' EXIT
+	fw_render > "$FW_RELOAD_TMP"
+	fw_load "$FW_RELOAD_TMP"
+	rm -f "$FW_RELOAD_TMP"
+	trap - EXIT
+}
+
+# Keep the rules before a rule command changes them (see fw_apply_rules)
+fw_keep_rules() {
+	FW_RULES_KEPT=$(mktemp)
+	cp -f "$ARCPANEL/data/firewall/rules.conf" "$FW_RULES_KEPT" 2> /dev/null
+}
+
+# Load the changed rules. When the load fails, put the kept rules back and
+# fail, so the rule list shows what the table runs
+fw_apply_rules() {
+	local rc=0
+	"$BIN/v-update-firewall" || rc=$?
+	if [ "$rc" -ne 0 ] && [ -s "${FW_RULES_KEPT:-}" ]; then
+		cat "$FW_RULES_KEPT" > "$ARCPANEL/data/firewall/rules.conf"
+	fi
+	rm -f "${FW_RULES_KEPT:-}"
+	if [ "$rc" -ne 0 ]; then
+		log_event "$rc" "$ARGUMENTS"
+		exit "$rc"
+	fi
 }
 
 # ok, drift or missing (spec §10)

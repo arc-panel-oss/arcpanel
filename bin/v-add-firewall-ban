@@ -65,6 +65,8 @@ fi
 conf="$ARCPANEL/data/firewall/banlist.conf"
 check_ip=$(grep -F "IP='$ip_cidr' CHAIN='$chain'" $conf 2> /dev/null)
 if [ -n "$check_ip" ]; then
+	# A listed ban is put back in case its set lost it
+	"$FW_NFT" add element inet arcpanel "$(fw_ban_set "$chain" "$(fw_family "$ip_cidr")")" "{ $ip_cidr }" 2> /dev/null
 	exit
 fi
 
@@ -81,6 +83,9 @@ date=$(echo "$time_n_date" | cut -f 2 -d \ )
 echo "IP='$ip_cidr' CHAIN='$chain' TIME='$time' DATE='$date'" >> $conf
 if ! "$FW_NFT" add element inet arcpanel "$(fw_ban_set "$chain" "$(fw_family "$ip_cidr")")" "{ $ip_cidr }" 2> /dev/null; then
 	"$BIN/v-update-firewall"
+else
+	# The boot unit loads the saved table
+	fw_save_bans
 fi
 
 # Changing permissions

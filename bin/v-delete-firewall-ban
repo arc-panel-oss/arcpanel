@@ -29,12 +29,18 @@ source $ARCPANEL/func/firewall.sh
 source_conf "$ARCPANEL/conf/arcpanel.conf"
 
 # Delete the address from the set of a chain; reload when the set refuses it.
-# The sets merge overlapping bans, so a network that leaves while other bans
-# of the chain remain is rebuilt from the ban list instead.
+# The sets merge overlapping bans, so the set is rebuilt from the ban list
+# instead when a network leaves while other bans of the chain remain, and
+# when an address leaves while a network of its family remains: deleting it
+# from the merged network would cut a hole into that ban.
 unban_element() {
+	local family
+	family=$(fw_family "$2")
 	if [[ "$2" == */* ]] && grep -qF "CHAIN='$1'" "$conf" 2> /dev/null; then
 		reload='yes'
-	elif ! "$FW_NFT" delete element inet arcpanel "$(fw_ban_set "$1" "$(fw_family "$2")")" "{ $2 }" 2> /dev/null; then
+	elif fw_chain_bans "$1" "$family" < "$conf" 2> /dev/null | grep -q '/'; then
+		reload='yes'
+	elif ! "$FW_NFT" delete element inet arcpanel "$(fw_ban_set "$1" "$family")" "{ $2 }" 2> /dev/null; then
 		reload='yes'
 	fi
 }
@@ -104,6 +110,9 @@ fi
 
 if [ "${reload:-no}" = 'yes' ] && fw_loaded; then
 	"$BIN/v-update-firewall"
+else
+	# The boot unit loads the saved table
+	fw_save_bans
 fi
 
 # Changing permissions

@@ -53,6 +53,11 @@ delete_tagged_rules() {
     done
 }
 
+# How often an address is in a set of the saved boot file
+saved_ban_count() {
+    sed -n "/set $1 {/,/^\t}/p" /etc/arcpanel/firewall.nft | grep -c -- "$2" || true
+}
+
 ban_set_has() {
     nft list set inet arcpanel "$1" | grep -q -- "$2"
 }
@@ -210,6 +215,27 @@ teardown_file() {
     assert_output --partial '"2001:db8:ab::/48"'
 }
 
+@test "firewall: ports nft would refuse or misread are invalid" {
+    local port
+    for port in 0 22 80,443 12000-12100 1:65535 65535 22,80,1000-2000; do
+        run v-add-firewall-rule ACCEPT 192.0.2.10 "$port" TCP "$TAG-port"
+        assert_success
+        delete_rule_tagged "$TAG-port"
+    done
+    for port in 65536 99999 2000-1000 1-2-3 '22|80' 22,,80 ,22 22- 00 022 1:2:3 a; do
+        run v-add-firewall-rule ACCEPT 192.0.2.10 "$port" TCP "$TAG-port"
+        assert_failure 2
+        run v-add-firewall-chain ARCBATSPORT "$port" TCP
+        assert_failure 2
+    done
+    run rule_id "$TAG-port"
+    assert_output ''
+    run v-add-firewall-chain 'ARC|BATS' 22 TCP
+    assert_failure 2
+    run v-check-firewall json
+    assert_equal "$(jq -r .STATUS <<< "$output")" ok
+}
+
 @test "firewall: the ICMP rule covers ping and ping6; neighbour discovery stays open" {
     local ping
     ping=$(rule_id PING)
@@ -232,7 +258,8 @@ teardown_file() {
     local before
     run v-add-firewall-chain ARCBATS "$P1" TCP
     assert_success
-    before=$(stat -c %Y /etc/arcpanel/firewall.nft)
+    # A load writes the state file; a ban only saves the table for boot
+    before=$(stat -c %Y /etc/arcpanel/firewall.json)
     sleep 1
 
     run v-add-firewall-ban "$NS4" ARCBATS
@@ -245,7 +272,7 @@ teardown_file() {
     assert_equal "$(probe $HOST6 $P1)" 000
     run grep -c "IP='fd00:77::2' CHAIN='ARCBATS'" "$FW/banlist.conf"
     assert_output 1
-    assert_equal "$(stat -c %Y /etc/arcpanel/firewall.nft)" "$before"
+    assert_equal "$(stat -c %Y /etc/arcpanel/firewall.json)" "$before"
 
     run v-list-firewall-ban json
     assert_output --partial 'fd00:77::2'
@@ -256,7 +283,57 @@ teardown_file() {
     assert_success
     assert_equal "$(probe $HOST4 $P1)" 200
     assert_equal "$(probe $HOST6 $P1)" 200
-    assert_equal "$(stat -c %Y /etc/arcpanel/firewall.nft)" "$before"
+    assert_equal "$(stat -c %Y /etc/arcpanel/firewall.json)" "$before"
+}
+
+@test "firewall: bans and unbans are saved for the boot unit" {
+    run v-add-firewall-ban "$NS4" ARCBATS
+    assert_success
+    run saved_ban_count f2b_ARCBATS_4 "$NS4"
+    assert_output 1
+    run stat -c %a /etc/arcpanel/firewall.nft
+    assert_output 600
+    run v-delete-firewall-ban "$NS4" ARCBATS
+    assert_success
+    run saved_ban_count f2b_ARCBATS_4 "$NS4"
+    assert_output 0
+    # An unclean reboot loads the saved table: the unban holds
+    run systemctl restart arcpanel-firewall
+    assert_success
+    assert_equal "$(probe $HOST4 $P1)" 200
+    run v-check-firewall json
+    assert_equal "$(jq -r .STATUS <<< "$output")" ok
+}
+
+@test "firewall: a ban already listed is put back in its set" {
+    run v-add-firewall-ban "$NS4" ARCBATS
+    assert_success
+    nft delete element inet arcpanel f2b_ARCBATS_4 "{ $NS4 }"
+    assert_equal "$(probe $HOST4 $P1)" 200
+    run v-add-firewall-ban "$NS4" ARCBATS
+    assert_success
+    assert_equal "$(probe $HOST4 $P1)" 000
+    run grep -c "IP='$NS4' CHAIN='ARCBATS'" "$FW/banlist.conf"
+    assert_output 1
+    run v-delete-firewall-ban "$NS4" ARCBATS
+    assert_success
+    assert_equal "$(probe $HOST4 $P1)" 200
+}
+
+@test "firewall: unbanning an address inside a listed network keeps the network banned" {
+    run v-add-firewall-ban 10.254.77.0/24 ARCBATS
+    assert_success
+    run v-add-firewall-ban "$NS4" ARCBATS
+    assert_success
+    run v-delete-firewall-ban "$NS4" ARCBATS
+    assert_success
+    # The set must not split the network around the address
+    assert_equal "$(probe $HOST4 $P1)" 000
+    run v-delete-firewall-ban 10.254.77.0/24 ARCBATS
+    assert_success
+    assert_equal "$(probe $HOST4 $P1)" 200
+    run v-check-firewall json
+    assert_equal "$(jq -r .STATUS <<< "$output")" ok
 }
 
 @test "firewall: overlapping bans fall back to a reload and stay in sync" {
@@ -336,6 +413,23 @@ teardown_file() {
     assert_file_not_exists "$FW/ipset/arcbats-bad.v6.iplist"
 }
 
+@test "firewall: a list file with CRLF line ends still loads" {
+    printf '%s\n' 192.0.2.1 192.0.2.2 192.0.2.3 192.0.2.4 192.0.2.5 > "$BATS_FILE_TMPDIR/l4.txt"
+    run v-add-firewall-ipset arcbats-l4 "file:$BATS_FILE_TMPDIR/l4.txt" v4 no
+    assert_success
+    # A list kept since 2.2, written with Windows line ends
+    printf '%s\r\n' 10.254.77.0/24 192.0.2.1 192.0.2.2 > "$FW/ipset/arcbats-l4.v4.iplist"
+    run v-update-firewall
+    assert_success
+    run v-add-firewall-rule DROP ipset:arcbats-l4 "$P1" TCP "$TAG-l4"
+    assert_success
+    assert_equal "$(probe $HOST4 $P1)" 000
+    delete_rule_tagged "$TAG-l4"
+    run v-delete-firewall-ipset arcbats-l4
+    assert_success
+    assert_equal "$(probe $HOST4 $P1)" 200
+}
+
 @test "firewall: the boot unit restores the table; a missing table is reported" {
     nft delete table inet arcpanel
     run v-check-firewall json
@@ -381,6 +475,46 @@ teardown_file() {
     run v-update-firewall
     assert_success
     assert_equal "$(probe $HOST4 $P4)" 000
+}
+
+@test "firewall: a rule change nft refuses fails and leaves the rules as they were" {
+    local id rules
+    id=$(rule_id "$TAG-open")
+    rules=$(cat "$FW/rules.conf")
+    echo "add rule inet arcpanel input tcp dport bogus accept" > "$FW/custom.nft"
+    run v-add-firewall-rule ACCEPT 0.0.0.0/0 "$P4" TCP "$TAG-refused"
+    assert_failure 19
+    assert_output --partial 'nftables refused'
+    run v-change-firewall-rule "$id" ACCEPT 0.0.0.0/0 "$P4" TCP "$TAG-open"
+    assert_failure 19
+    run v-suspend-firewall-rule "$id"
+    assert_failure 19
+    run v-delete-firewall-rule "$id"
+    assert_failure 19
+    assert_equal "$(cat "$FW/rules.conf")" "$rules"
+    assert_equal "$(probe $HOST4 $P1)" 200
+    assert_equal "$(probe $HOST4 $P4)" 000
+    rm -f "$FW/custom.nft"
+    run v-update-firewall
+    assert_success
+}
+
+@test "firewall: a restart nft refuses keeps the running table and the boot file" {
+    echo "add rule inet arcpanel input tcp dport bogus accept" > "$FW/custom.nft"
+    run v-restart-service nftables
+    assert_failure
+    run nft list table inet arcpanel
+    assert_success
+    assert_file_exists /etc/arcpanel/firewall.nft
+    run systemctl is-enabled arcpanel-firewall
+    assert_output enabled
+    assert_equal "$(probe $HOST4 $P2)" 000
+    assert_equal "$(probe $HOST4 $P1)" 200
+    rm -f "$FW/custom.nft"
+    run v-restart-service nftables
+    assert_success
+    run v-check-firewall json
+    assert_equal "$(jq -r .STATUS <<< "$output")" ok
 }
 
 @test "firewall: the service row is nftables and running" {
