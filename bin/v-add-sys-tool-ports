@@ -1,0 +1,59 @@
+#!/bin/bash
+# info: set up the tool ports
+# options: NONE
+#
+# example: v-add-sys-tool-ports
+#
+# This function sets up the webmail port (8086) and the database tools port
+# (8087) when arcpanel.conf has no key for them yet: a port is turned on when
+# its tool is installed and the port is free, otherwise its key stays empty
+# and a warning is printed. WEBMAIL_LINK starts as "port". It runs on every
+# install and upgrade (E46).
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Includes
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/tenancy.sh
+source $ARCPANEL/func/tenancy.sh
+# shellcheck source=/usr/local/arcpanel/func/ports.sh
+source $ARCPANEL/func/ports.sh
+# shellcheck source=/usr/local/arcpanel/func/tool-ports.sh
+source $ARCPANEL/func/tool-ports.sh
+# load config file
+source_conf "$ARCPANEL/conf/arcpanel.conf"
+
+# Perform verification if read-only mode is enabled
+check_arcpanel_demo_mode
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+ports_lock
+for tool in webmail db-admin; do
+	tool_ports_setup "$tool"
+done
+if ! tool_ports_has_key 'WEBMAIL_LINK'; then
+	$BIN/v-change-sys-config-value 'WEBMAIL_LINK' 'port' > /dev/null
+fi
+
+# Files of ports set up earlier (a tool installed since, a new template)
+source_conf "$ARCPANEL/conf/arcpanel.conf"
+for tool in webmail db-admin; do
+	tool_ports_render "$tool"
+done
+tool_ports_reload
+
+#----------------------------------------------------------#
+#                         ArcPanel                         #
+#----------------------------------------------------------#
+
+log_event "$OK" "$ARGUMENTS"
+
+exit

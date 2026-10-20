@@ -1,0 +1,69 @@
+#!/bin/bash
+# info: write the NGINX files of the tool ports
+# options: [RELOAD]
+#
+# example: v-update-sys-tool-ports yes
+#
+# This function writes the NGINX files of the webmail port and the database
+# tools port from WEBMAIL_PORT, DB_ADMIN_PORT and the installed tools, and
+# reloads NGINX when a file changed (E46). The commands that install a
+# webmail client, change an alias or the panel certificate run it; RELOAD
+# 'yes' reloads NGINX also when no file changed (a new certificate).
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+reload=${1-no}
+
+# Includes
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/tenancy.sh
+source $ARCPANEL/func/tenancy.sh
+# shellcheck source=/usr/local/arcpanel/func/ports.sh
+source $ARCPANEL/func/ports.sh
+# shellcheck source=/usr/local/arcpanel/func/tool-ports.sh
+source $ARCPANEL/func/tool-ports.sh
+# load config file
+source_conf "$ARCPANEL/conf/arcpanel.conf"
+
+is_restart_format_valid "$reload" 'reload'
+
+# Perform verification if read-only mode is enabled
+check_arcpanel_demo_mode
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+failed=''
+ports_lock
+for tool in webmail db-admin; do
+	# Rules and reservations follow the keys (a rule lost since is put back)
+	tool_ports_reserve "$tool" "$(tool_ports_current "$tool")"
+	tool_ports_firewall "$tool" "$(tool_ports_current "$tool")"
+	if ! tool_ports_render "$tool"; then
+		echo "Error: NGINX refused the $tool port configuration, the previous one is kept"
+		failed=yes
+	fi
+done
+if [ "$reload" = 'yes' ] && ls "$TOOL_PORTS_CONF"/arcpanel-*-port.conf > /dev/null 2>&1; then
+	TOOL_PORTS_CHANGED=yes
+fi
+tool_ports_reload
+
+#----------------------------------------------------------#
+#                         ArcPanel                         #
+#----------------------------------------------------------#
+
+if [ -n "$failed" ]; then
+	log_event "$E_UPDATE" "$ARGUMENTS"
+	exit "$E_UPDATE"
+fi
+log_event "$OK" "$ARGUMENTS"
+
+exit

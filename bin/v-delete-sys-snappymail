@@ -64,6 +64,10 @@ if [ -z "$(echo "$WEBMAIL_SYSTEM" | grep -w 'snappymail')" ]; then
 	# remove snappymail from webmail list and make sure the string doesn't start with a comma
 	$BIN/v-change-sys-config-value 'WEBMAIL_SYSTEM' "$(echo "$WEBMAIL_SYSTEM" | sed "s/snappymail//g" | sed 's/^,//g')"
 fi
+
+# Webmail and database tools ports (E46)
+$BIN/v-update-sys-tool-ports > /dev/null
+
 #----------------------------------------------------------#
 #                         ArcPanel                         #
 #----------------------------------------------------------#
