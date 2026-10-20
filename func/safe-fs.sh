@@ -332,6 +332,26 @@ restic_restore_config() {
 	find "$dir" -mindepth 1 \( -type l -o \( ! -type f ! -type d \) \) -delete
 }
 
+# The --include options that restore the home of $user from SNAPSHOT
+# without the folders NAME… directly in it, one per line. restic before
+# 0.17 (Ubuntu 24.04 has 0.16) refuses --include with --exclude, so the
+# entries of the home are listed and included one by one
+restic_home_includes() {
+	local snapshot=$1 home="$HOMEDIR/$user" path name
+	shift
+	restic_user "$user" ls --json -- "$snapshot" "$home" 2> /dev/null | jq -r 'select(.path) | .path' 2> /dev/null \
+		| while IFS= read -r path; do
+			name=${path#"$home"/}
+			if [ "$path" = "$home" ] || [ "$name" = "$path" ] || [[ "$name" == */* ]] || [[ "$name" =~ [[:cntrl:]] ]]; then
+				continue
+			fi
+			case " $* " in
+				*" $name "*) continue ;;
+			esac
+			printf -- '--include=%s\n' "$path"
+		done
+}
+
 # Restores user data (web, mail, files) of SNAPSHOT into DIR, links kept:
 # the result only reaches the home through copy_into_home.
 restic_restore_data() {
