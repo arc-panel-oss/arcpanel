@@ -66,6 +66,8 @@ jobs:
               exit 1
             fi
           done
+          # The release metadata of the manifest (E33 phase 1 spec §4)
+          bash .github/scripts/release-manifest.sh check src/release.json "${pkg_ver}"
           # A pre-release builds Ubuntu 24.04 amd64 only, to save Actions minutes; a stable release builds them all.
           if [[ "${pkg_ver}" == *"~"* ]]; then
             echo "channel=beta" >> "$GITHUB_OUTPUT"
@@ -86,8 +88,9 @@ jobs:
 
   # The repository keeps every published version (E33 phase 1 P0,
   # docs/features/specs/2026-10-20-005-e33-update-center-phase-1-design.md §5.1): the job
-  # pulls the published repository, adds the new packages, uploads the pool without deleting
-  # anything and only then the indexes, and attaches the packages to the GitHub Release.
+  # pulls the published repository, adds the new packages and the release to the signed
+  # manifest, uploads the pool without deleting anything and only then the indexes and the
+  # manifest, and attaches the packages and the manifest to the GitHub Release.
   publish:
     name: Sign and publish (${{ needs.check-version.outputs.channel }})
     needs: [check-version, build]
@@ -109,7 +112,7 @@ jobs:
           merge-multiple: true
 
       - name: Install tools
-        run: sudo apt-get update -qq && sudo apt-get install -y -qq apt-utils rsync
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq apt-utils jq rsync
 
       - name: Restore the published repository from the cache
         uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
@@ -134,13 +137,9 @@ jobs:
           APT_DEPLOY_TARGET: ${{ secrets.APT_DEPLOY_TARGET }}
         run: |
           set -euo pipefail
-          remote="${APT_DEPLOY_TARGET}/"
-          [ "$CHANNEL" = beta ] && remote="${APT_DEPLOY_TARGET}/beta/"
-          mkdir -p current
-          # Only dists/ and pool/: the beta repository under / stays out of the stable copy.
-          rsync -az --delete -e "ssh -i ~/.ssh/id_deploy -o IdentitiesOnly=yes" \
-            --include '/dists/***' --include '/pool/***' --exclude '*' "$remote" current/
-          echo "Published repository: $(find current/pool -name '*.deb' 2> /dev/null | wc -l) packages, $(du -sh current | cut -f1)"
+          remote="${APT_DEPLOY_TARGET}"
+          [ "$CHANNEL" = beta ] && remote="${APT_DEPLOY_TARGET}/beta"
+          bash .github/scripts/apt-host.sh pull "$remote" current
 
       - name: Import signing key
         env:
@@ -159,6 +158,20 @@ jobs:
             bash .github/scripts/build-apt-repo.sh repo "$APT_SIGNING_KEY_ID" - debs
           fi
 
+      - name: Add the release to the manifest
+        env:
+          APT_SIGNING_KEY_ID: ${{ secrets.APT_SIGNING_KEY_ID }}
+        run: |
+          set -euo pipefail
+          manifest=-
+          if [ -f current/releases.json ]; then
+            gpg --batch --verify current/releases.json.sig current/releases.json
+            manifest=current/releases.json
+          fi
+          bash .github/scripts/release-manifest.sh add "$manifest" src/release.json debs "$CHANNEL" > repo/releases.json
+          gpg --batch --yes --local-user "$APT_SIGNING_KEY_ID" --detach-sign -o repo/releases.json.sig repo/releases.json
+          jq -c '.releases[0]' repo/releases.json
+
       - name: Publish repository
         env:
           APT_DEPLOY_TARGET: ${{ secrets.APT_DEPLOY_TARGET }}
@@ -166,14 +179,7 @@ jobs:
           set -euo pipefail
           remote="${APT_DEPLOY_TARGET}"
           [ "$CHANNEL" = beta ] && remote="${APT_DEPLOY_TARGET}/beta"
-          ssh_cmd="ssh -i ~/.ssh/id_deploy -o IdentitiesOnly=yes"
-          # The pool first and never deleted, then the indexes that name its files, the signed
-          # Release files last (excluded files are not deleted by the first pass), then the key.
-          rsync -az -e "$ssh_cmd" repo/pool/ "${remote}/pool/"
-          rsync -az --delete --exclude InRelease --exclude Release --exclude Release.gpg -e "$ssh_cmd" \
-            repo/dists/ "${remote}/dists/"
-          rsync -az --delete -e "$ssh_cmd" repo/dists/ "${remote}/dists/"
-          rsync -az -e "$ssh_cmd" repo/arcpanel.gpg "${remote}/arcpanel.gpg"
+          bash .github/scripts/apt-host.sh push repo "$remote"
           rm -f ~/.ssh/id_deploy
 
       - name: Attach the packages to the GitHub Release
@@ -193,7 +199,7 @@ jobs:
             gh release create "${GITHUB_REF_NAME}" --verify-tag --title "ArcPanel ${GITHUB_REF_NAME#v}" \
               --notes "Packages of ArcPanel ${GITHUB_REF_NAME#v} as published to the ${CHANNEL} APT repository." "${prerelease[@]}"
           fi
-          gh release upload "${GITHUB_REF_NAME}" assets/*.tar --clobber
+          gh release upload "${GITHUB_REF_NAME}" assets/*.tar repo/releases.json repo/releases.json.sig --clobber
 
       - name: Keep the new repository for the next release
         run: rm -rf current && mv repo current

@@ -1,0 +1,86 @@
+name: Rebuild APT repository
+
+# Rebuilds both channels of the APT repository from the packages and manifests attached to
+# the GitHub Releases (E33 phase 1 P0, D6,
+# docs/features/specs/2026-10-20-005-e33-update-center-phase-1-design.md §5.5 and §5.6).
+#   compare  builds in the runner and compares with the published repository; publishes nothing
+#   publish  uploads the rebuilt repository to APT_DEPLOY_TARGET (a new host after a loss)
+# Runs in the release environment, so every run needs an approval.
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "compare or publish"
+        required: true
+        type: choice
+        options: [compare, publish]
+        default: compare
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  rebuild:
+    name: Rebuild (${{ inputs.mode }})
+    runs-on: ubuntu-24.04
+    environment: release
+    env:
+      MODE: ${{ inputs.mode }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install tools
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq apt-utils jq rsync
+
+      - name: Download the releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bash .github/scripts/rebuild-apt-repo.sh download releases
+
+      - name: Import signing key
+        env:
+          APT_SIGNING_KEY: ${{ secrets.APT_SIGNING_KEY }}
+        run: printf '%s\n' "$APT_SIGNING_KEY" | gpg --batch --import > /dev/null 2>&1
+
+      - name: Build both channels
+        env:
+          APT_SIGNING_KEY_ID: ${{ secrets.APT_SIGNING_KEY_ID }}
+        run: bash .github/scripts/rebuild-apt-repo.sh build releases rebuilt "$APT_SIGNING_KEY_ID"
+
+      - name: Set up the deploy key
+        env:
+          APT_DEPLOY_SSH_KEY: ${{ secrets.APT_DEPLOY_SSH_KEY }}
+          APT_DEPLOY_KNOWN_HOSTS: ${{ secrets.APT_DEPLOY_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$APT_DEPLOY_SSH_KEY" > ~/.ssh/id_deploy
+          chmod 600 ~/.ssh/id_deploy
+          printf '%s\n' "$APT_DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
+
+      - name: Compare with or publish to the host
+        env:
+          APT_DEPLOY_TARGET: ${{ secrets.APT_DEPLOY_TARGET }}
+        run: |
+          set -euo pipefail
+          status=0
+          for dir in rebuilt/*/; do
+            channel="$(basename "$dir")"
+            remote="${APT_DEPLOY_TARGET}"
+            [ "$channel" = beta ] && remote="${APT_DEPLOY_TARGET}/beta"
+            if [ "$MODE" = publish ]; then
+              bash .github/scripts/apt-host.sh push "rebuilt/$channel" "$remote"
+            else
+              bash .github/scripts/apt-host.sh pull "$remote" "live/$channel"
+              echo "== $channel"
+              bash .github/scripts/rebuild-apt-repo.sh compare "rebuilt/$channel" "live/$channel" || status=1
+            fi
+          done
+          rm -f ~/.ssh/id_deploy
+          exit "$status"

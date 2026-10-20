@@ -160,3 +160,120 @@ versions() {
 	assert_failure
 	assert_output --partial "no package to publish"
 }
+
+#----------------------------------------------------------#
+#   Rebuild from the GitHub Releases                       #
+#   (.github/scripts/rebuild-apt-repo.sh build|compare)    #
+#----------------------------------------------------------#
+
+REBUILD="$REPO_ROOT/.github/scripts/rebuild-apt-repo.sh"
+
+# A signed manifest in DIR that names GENERATED
+signed_manifest() {
+	local dir="$1" generated="$2"
+	mkdir -p "$dir"
+	printf '{"format": 1, "channel": "stable", "generated": "%s", "releases": []}\n' "$generated" > "$dir/releases.json"
+	gpg --batch --yes --local-user "$KEY_ID" --detach-sign -o "$dir/releases.json.sig" "$dir/releases.json"
+}
+
+# Two releases as the host received them and as the GitHub Releases keep them
+two_releases() {
+	fake_deb "$TMP/gh/stable/0001-v2.2.1/noble" arcpanel 2.2.1-1 amd64
+	fake_deb "$TMP/gh/stable/0001-v2.2.1/noble" arcpanel-php 8.5.11-1 amd64 first
+	signed_manifest "$TMP/gh/stable/0001-v2.2.1" 2026-10-20T10:00:00Z
+	fake_deb "$TMP/gh/stable/0002-v2.2.2/noble" arcpanel 2.2.2-1 amd64
+	fake_deb "$TMP/gh/stable/0002-v2.2.2/noble" arcpanel-php 8.5.11-1 amd64 rebuilt
+	signed_manifest "$TMP/gh/stable/0002-v2.2.2" 2026-10-23T10:00:00Z
+	bash "$BUILD" "$TMP/host1" "$KEY_ID" - "$TMP/gh/stable/0001-v2.2.1"
+	bash "$BUILD" "$TMP/host" "$KEY_ID" "$TMP/host1" "$TMP/gh/stable/0002-v2.2.2"
+	cp "$TMP/gh/stable/0002-v2.2.2/releases.json"* "$TMP/host/"
+}
+
+@test "rebuild: the releases give the same repository as the releases published one by one" {
+	command -v jq > /dev/null || skip "jq is not installed"
+	two_releases
+	run bash "$REBUILD" build "$TMP/gh" "$TMP/rebuilt" "$KEY_ID"
+	assert_success
+	assert_output --partial "stable from 2 releases, manifest of 0002-v2.2.2"
+	run bash "$REBUILD" compare "$TMP/rebuilt/stable" "$TMP/host"
+	assert_success
+	assert_output --partial "same pool (3 packages)"
+	assert_output --partial "same index entries"
+	assert_output --partial "same manifest"
+}
+
+@test "rebuild: compare reports a changed package and a changed manifest" {
+	command -v jq > /dev/null || skip "jq is not installed"
+	two_releases
+	bash "$REBUILD" build "$TMP/gh" "$TMP/rebuilt" "$KEY_ID"
+	fake_deb "$TMP/other" arcpanel 2.2.2-1 amd64 tampered
+	# The pools share files through hard links: replace the file, do not write into it
+	rm "$TMP/host/pool/main/a/arcpanel/arcpanel_2.2.2-1_amd64.deb"
+	cp "$TMP/other/arcpanel_2.2.2-1_amd64.deb" "$TMP/host/pool/main/a/arcpanel/"
+	signed_manifest "$TMP/host" 2026-10-24T00:00:00Z
+	run bash "$REBUILD" compare "$TMP/rebuilt/stable" "$TMP/host"
+	assert_failure
+	assert_output --partial "the pools differ"
+	assert_output --partial "the manifests differ"
+}
+
+@test "rebuild: a manifest whose signature does not verify is refused" {
+	command -v jq > /dev/null || skip "jq is not installed"
+	two_releases
+	sed -i 's/2026-10-23/2026-10-29/' "$TMP/gh/stable/0002-v2.2.2/releases.json"
+	run bash "$REBUILD" build "$TMP/gh" "$TMP/rebuilt" "$KEY_ID"
+	assert_failure
+	assert_output --partial "does not verify"
+}
+
+#----------------------------------------------------------#
+#   Copies to and from the host (.github/scripts/apt-host.sh), #
+#   with a local folder as the host                        #
+#----------------------------------------------------------#
+
+HOST_SCRIPT="$REPO_ROOT/.github/scripts/apt-host.sh"
+
+@test "apt host: a push never deletes from the pool and replaces the indexes" {
+	command -v rsync > /dev/null || skip "rsync is not installed"
+	fake_deb "$TMP/debs1/noble" arcpanel 2.2.1-1 amd64
+	bash "$BUILD" "$TMP/out1" "$KEY_ID" - "$TMP/debs1"
+	signed_manifest "$TMP/out1" 2026-10-20T10:00:00Z
+	bash "$HOST_SCRIPT" push "$TMP/out1" "$TMP/host"
+	# A repository without the 2.2.1 package: the host keeps its file, the index drops it
+	fake_deb "$TMP/debs2/noble" arcpanel 2.2.2-1 amd64
+	bash "$BUILD" "$TMP/out2" "$KEY_ID" - "$TMP/debs2"
+	signed_manifest "$TMP/out2" 2026-10-23T10:00:00Z
+	run bash "$HOST_SCRIPT" push "$TMP/out2" "$TMP/host"
+	assert_success
+	[ -f "$TMP/host/pool/main/a/arcpanel/arcpanel_2.2.1-1_amd64.deb" ]
+	run versions "$TMP/host" noble arcpanel amd64
+	assert_output 2.2.2-1
+	run jq -r .generated "$TMP/host/releases.json"
+	assert_output 2026-10-23T10:00:00Z
+	run gpg --verify "$TMP/host/dists/noble/InRelease"
+	assert_success
+}
+
+@test "apt host: a pull of the stable channel leaves the beta repository out" {
+	command -v rsync > /dev/null || skip "rsync is not installed"
+	fake_deb "$TMP/debs/noble" arcpanel 2.2.1-1 amd64
+	bash "$BUILD" "$TMP/out" "$KEY_ID" - "$TMP/debs"
+	signed_manifest "$TMP/out" 2026-10-20T10:00:00Z
+	bash "$HOST_SCRIPT" push "$TMP/out" "$TMP/host"
+	bash "$HOST_SCRIPT" push "$TMP/out" "$TMP/host/beta"
+	touch "$TMP/host/index.html"
+	run bash "$HOST_SCRIPT" pull "$TMP/host" "$TMP/current"
+	assert_success
+	[ -f "$TMP/current/releases.json.sig" ]
+	[ -d "$TMP/current/pool" ]
+	[ ! -e "$TMP/current/beta" ]
+	[ ! -e "$TMP/current/index.html" ]
+}
+
+@test "apt host: a manifest push needs a signed manifest" {
+	mkdir -p "$TMP/new"
+	echo '{}' > "$TMP/new/releases.json"
+	run bash "$HOST_SCRIPT" push-manifest "$TMP/new" "$TMP/host"
+	assert_failure
+	assert_output --partial "has no signed releases.json"
+}
