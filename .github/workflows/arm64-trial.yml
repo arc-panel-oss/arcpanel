@@ -1,6 +1,7 @@
 name: arm64 trial
 
-# Builds the packages on arm64 with the same steps as a release, without publishing anything
+# Builds the packages on arm64 with the same steps as a release, then installs the Ubuntu 24.04
+# ones in Docker and runs test/test.bats, without publishing anything
 # (E47, docs/features/specs/2026-10-20-003-e47-arm64-packages-design.md §5.3). arm64 joins the
 # stable release matrix only after this run is green. It reads no secret and no environment,
 # and saves no engine cache: a release tag could not read it (§2.3).
@@ -35,3 +36,13 @@ jobs:
       matrix: ${{ format('{{"image":{0},"arch":["arm64"]}}', inputs.images || '["debian:12","debian:13","ubuntu:22.04","ubuntu:24.04","ubuntu:26.04"]') }}
       channel: trial
       save-cache: false
+
+  install-test:
+    name: Install test
+    needs: build
+    # The CI container is Ubuntu 24.04, so the test needs its packages
+    if: contains(inputs.images || 'ubuntu:24.04', 'ubuntu:24.04')
+    uses: ./.github/workflows/docker-bats.yml
+    with:
+      runner: ubuntu-24.04-arm
+      debs-artifact: debs-noble-arm64

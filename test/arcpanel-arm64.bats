@@ -66,3 +66,64 @@ teardown() {
 	assert_success
 	[[ "$output" =~ ^[1-9][0-9]*$ ]]
 }
+
+#----------------------------------------------------------#
+#   arm64 guard of the installers                          #
+#----------------------------------------------------------#
+
+INSTALLERS="install/arcpanel-install-debian.sh install/arcpanel-install-ubuntu.sh"
+
+@test "installers: stop on aarch64 without the escape variable" {
+	local installer
+	for installer in $INSTALLERS; do
+		load_function "$installer" check_result
+		load_function "$installer" check_install_arch
+		unset ARCPANEL_ALLOW_UNSUPPORTED_ARCH
+		run check_install_arch aarch64
+		assert_failure 1
+		assert_output --partial "arm64 (aarch64) is not supported for now"
+	done
+}
+
+@test "installers: continue on aarch64 with a warning when the escape variable is yes" {
+	local installer
+	for installer in $INSTALLERS; do
+		load_function "$installer" check_result
+		load_function "$installer" check_install_arch
+		ARCPANEL_ALLOW_UNSUPPORTED_ARCH=yes run check_install_arch aarch64
+		assert_success
+		assert_output --partial "WARNING: installing on arm64 (aarch64), which is not supported."
+	done
+}
+
+@test "installers: only the value yes opens the escape" {
+	local installer
+	for installer in $INSTALLERS; do
+		load_function "$installer" check_result
+		load_function "$installer" check_install_arch
+		ARCPANEL_ALLOW_UNSUPPORTED_ARCH=1 run check_install_arch aarch64
+		assert_failure 1
+	done
+}
+
+@test "installers: x86_64 passes silently" {
+	local installer
+	for installer in $INSTALLERS; do
+		load_function "$installer" check_result
+		load_function "$installer" check_install_arch
+		unset ARCPANEL_ALLOW_UNSUPPORTED_ARCH
+		run check_install_arch x86_64
+		assert_success
+		assert_output ""
+	done
+}
+
+@test "installers: the guard runs before any change to the system" {
+	local installer guard first_change
+	for installer in $INSTALLERS; do
+		guard="$(tr -d '\r' < "$REPO_ROOT/$installer" | grep -n '^check_install_arch "\$architecture"$' | cut -d: -f1)"
+		first_change="$(tr -d '\r' < "$REPO_ROOT/$installer" | grep -n '80-retries' | head -n 1 | cut -d: -f1)"
+		[ -n "$guard" ] && [ -n "$first_change" ]
+		[ "$guard" -lt "$first_change" ]
+	done
+}
