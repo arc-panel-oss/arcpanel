@@ -6,6 +6,7 @@
 # example: v-start-sys-task php-ext 8.4 redis,apcu -
 # example: v-start-sys-task plugin web-terminal on
 # example: v-start-sys-task arcpanel-update arcpanel
+# example: v-start-sys-task arcpanel-release 2.5.1 admin arcadmin
 # example: v-start-sys-task package python add
 #
 # This function checks a system task and starts v-run-sys-task in a
@@ -22,6 +23,10 @@
 #                             firewall or malware-scan: v-add-sys-NAME or
 #                             v-delete-sys-NAME
 #   arcpanel-update [PACKAGE]   v-update-sys-arcpanel PACKAGE, or every package
+#   arcpanel-release VERSION TRIGGER [ACTOR]  the update of the panel packages
+#                             to a release of the manifest with pre-flight,
+#                             health check and rollback (E33); TRIGGER is
+#                             policy, admin or api, ACTOR the user or key
 #   package SLUG add|delete   v-add-sys-package or v-delete-sys-package of a
 #                             system package of the catalog (E5)
 # The state and the output are read with v-list-sys-task.
@@ -159,6 +164,20 @@ case "$kind" in
 			esac
 		fi
 		args="${2-}"
+		;;
+	arcpanel-release)
+		check_args '3' "$#" 'arcpanel-release VERSION TRIGGER [ACTOR]'
+		if [[ ! "$2" =~ ^[0-9]+\.[0-9]+\.[0-9]+(~[0-9A-Za-z.]+)?$ ]]; then
+			check_result "$E_INVALID" "invalid version :: $2"
+		fi
+		case "$3" in
+			policy | admin | api) ;;
+			*) check_result "$E_INVALID" "invalid trigger :: $3" ;;
+		esac
+		if [[ ! "${4-}" =~ ^[A-Za-z0-9._@:-]{0,64}$ ]]; then
+			check_result "$E_INVALID" "invalid actor :: $4"
+		fi
+		args="$2 $3${4:+ $4}"
 		;;
 	package)
 		check_args '3' "$#" 'package SLUG add|delete'

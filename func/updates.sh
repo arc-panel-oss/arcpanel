@@ -73,7 +73,7 @@ upd_now() {
 # Create the folder of the Update Center (root only)
 upd_dir() {
 	mkdir -p "$UPD_DIR"
-	chown root:root "$UPD_DIR"
+	chown root:root "$UPD_DIR" 2> /dev/null || true
 	chmod 750 "$UPD_DIR"
 }
 
@@ -765,4 +765,298 @@ upd_health() {
 	else
 		upd_check sites ok "the sample sites answer as before"
 	fi
+}
+
+#----------------------------------------------------------#
+#                        History                           #
+#----------------------------------------------------------#
+
+UPD_HISTORY_KEYS="ID FROM TO TRIGGER ACTOR START END RESULT REASON TASK"
+UPD_HISTORY_MAX=200
+
+# Value of KEY in a history LINE
+upd_field() {
+	grep -oE "(^| )$2='[^']*'" <<< "$1" | head -n1 | cut -d\' -f2
+}
+
+# The history line of run ID
+upd_history_line() {
+	grep -m1 "^ID='$1' " "$UPD_DIR/history.conf" 2> /dev/null
+}
+
+# A history line from KEY=VALUE pairs over the keys of LINE
+upd_history_build() {
+	local line="$1" key pair out=''
+	shift
+	local -A values=()
+	for key in $UPD_HISTORY_KEYS; do
+		values[$key]="$(upd_field "$line" "$key")"
+	done
+	for pair in "$@"; do
+		values[${pair%%=*}]="$(printf '%s' "${pair#*=}" | tr -d "'\n\r")"
+	done
+	for key in $UPD_HISTORY_KEYS; do
+		out="$out$key='${values[$key]}' "
+	done
+	echo "${out% }"
+}
+
+# Add a run from KEY=VALUE pairs, keep the newest UPD_HISTORY_MAX runs and
+# print its ID
+upd_history_add() {
+	local file="$UPD_DIR/history.conf"
+	upd_dir
+	(
+		flock -x 9
+		local last id
+		last="$(tail -n1 "$file" 2> /dev/null)"
+		id=$(($(upd_field "$last" ID) + 1))
+		upd_history_build '' "ID=$id" "$@" >> "$file"
+		if [ "$(wc -l < "$file")" -gt "$UPD_HISTORY_MAX" ]; then
+			tail -n "$UPD_HISTORY_MAX" "$file" > "$file.$$"
+			mv -f "$file.$$" "$file"
+		fi
+		chmod 640 "$file"
+		echo "$id"
+	) 9> "$UPD_DIR/history.lock"
+}
+
+# Set KEY=VALUE pairs of run ID
+upd_history_set() {
+	local id="$1" file="$UPD_DIR/history.conf"
+	shift
+	(
+		flock -x 9
+		local line new
+		line="$(upd_history_line "$id")"
+		[ -n "$line" ] || exit 0
+		new="$(upd_history_build "$line" "$@")"
+		awk -v id="ID='$id' " -v new="$new" 'index($0, id) == 1 {print new; next} {print}' "$file" > "$file.$$"
+		chmod 640 "$file.$$"
+		mv -f "$file.$$" "$file"
+	) 9> "$UPD_DIR/history.lock"
+}
+
+# The newest run that is an update (not skipped), as a history line
+upd_history_newest_update() {
+	grep -v "RESULT='skipped'" "$UPD_DIR/history.conf" 2> /dev/null | tail -n1
+}
+
+#----------------------------------------------------------#
+#                   Snapshot and alerts                    #
+#----------------------------------------------------------#
+
+# Save $ARCPANEL/conf and /etc/arcpanel before run ID; keep the last five
+upd_snapshot() {
+	local id="$1" old
+	upd_dir
+	tar -czf "$UPD_DIR/snapshot-$id.tar.gz" -C / "${ARCPANEL#/}/conf" etc/arcpanel 2> /dev/null || return 1
+	chmod 600 "$UPD_DIR/snapshot-$id.tar.gz"
+	for old in $(ls -1t "$UPD_DIR"/snapshot-*.tar.gz 2> /dev/null | tail -n +6); do
+		rm -f "$old"
+	done
+}
+
+# A panel notification for the administrator and, with UPGRADE_SEND_EMAIL,
+# an e-mail: SUBJECT HTML TEXT
+upd_notify_admin() {
+	local subject="$1" html="$2" text="$3" admin email
+	admin="$(upd_policy_get ROOT_USER)"
+	admin="${admin:-admin}"
+	"$BIN/v-add-user-notification" "$admin" "$subject" "$html" > /dev/null 2>&1
+	if [ "$(upd_policy_get UPGRADE_SEND_EMAIL)" = 'true' ]; then
+		email="$("$BIN/v-list-user" "$admin" json 2> /dev/null | jq -r '.[].CONTACT // empty' 2> /dev/null)"
+		if [ -n "$email" ]; then
+			printf '%s\n' "$text" | "$ARCPANEL/lib/mail-wrapper.php" -s "$subject" "$email" > /dev/null 2>&1
+		fi
+	fi
+}
+
+# The failed checks of UPD_CHECKS in one line
+upd_checks_failures() {
+	upd_checks_json | jq -r '[.[] | select(.STATUS == "fail") | "\(.CHECK): \(.MESSAGE)"] | join("; ")'
+}
+
+#----------------------------------------------------------#
+#                       Rollback                           #
+#----------------------------------------------------------#
+
+# Whether run ID may be rolled back (§7.7); prints the refused condition
+upd_rollback_check() {
+	local id="$1" line newest from to release from_release packages
+	line="$(upd_history_line "$id")"
+	if [ -z "$line" ]; then
+		echo "run $id does not exist"
+		return 1
+	fi
+	newest="$(upd_history_newest_update)"
+	if [ "$(upd_field "$newest" ID)" != "$id" ]; then
+		echo "run $id is not the newest update"
+		return 1
+	fi
+	case "$(upd_field "$line" RESULT)" in
+		done | failed | paused) ;;
+		*)
+			echo "run $id is $(upd_field "$line" RESULT)"
+			return 1
+			;;
+	esac
+	from="$(upd_field "$line" FROM)"
+	to="$(upd_field "$line" TO)"
+	if ! upd_manifest_load; then
+		echo "$UPD_ERROR"
+		return 1
+	fi
+	release="$(upd_release "$to")"
+	if [ -z "$release" ]; then
+		echo "ArcPanel $to is not in the release manifest"
+		return 1
+	fi
+	if [ "$(upd_release_kind "$from" "$to")" != patch ]; then
+		echo "ArcPanel $to is not a patch release of the line of $from"
+		return 1
+	fi
+	if [ "$(jq -r '.steps' <<< "$release")" != false ]; then
+		echo "ArcPanel $to has upgrade steps"
+		return 1
+	fi
+	from_release="$(upd_release "$from")"
+	if [ -z "$from_release" ]; then
+		echo "ArcPanel $from is not in the release manifest"
+		return 1
+	fi
+	if ! packages="$(upd_release_packages "$from_release")"; then
+		echo "$packages"
+		return 1
+	fi
+	if [ ! -f "$UPD_DIR/snapshot-$id.tar.gz" ]; then
+		echo "the configuration saved before run $id is missing"
+		return 1
+	fi
+}
+
+# The apt-get install of the panel packages: PACKAGE=VERSION... [OPTION...]
+upd_apt_install() {
+	DEBIAN_FRONTEND=noninteractive apt-get install -y -q -o Dpkg::Options::=--force-confdef \
+		-o Dpkg::Options::=--force-confold "$@" 2>&1
+}
+
+# Refresh the package lists of the ArcPanel repository
+upd_apt_update() {
+	apt-get update -o Dir::Etc::sourcelist="sources.list.d/arcpanel.list" \
+		-o Dir::Etc::sourceparts="-" -o APT::Get::List-Cleanup="0" -qq 2>&1
+}
+
+# Roll run ID back: reinstall FROM and its engines, restore the snapshot,
+# set VERSION and restart the panel. Call upd_rollback_check first.
+upd_rollback() {
+	local id="$1" line from packages
+	line="$(upd_history_line "$id")"
+	from="$(upd_field "$line" FROM)"
+	packages="$(upd_release_packages "$(upd_release "$from")")" || return 1
+	# shellcheck disable=SC2086
+	upd_apt_install --allow-downgrades $packages || return 1
+	tar -xzf "$UPD_DIR/snapshot-$id.tar.gz" -C / || return 1
+	change_sys_value 'VERSION' "$from"
+	"$BIN/v-restart-service" arcpanel > /dev/null 2>&1 || true
+}
+
+#----------------------------------------------------------#
+#                      Update task                         #
+#----------------------------------------------------------#
+
+# The steps of the system task arcpanel-release (§7.6): pre-flight, snapshot
+# and baseline, install, health check, and rollback or pause on a failure.
+# TRIGGER is policy, admin or api; TASK is the ID of the system task.
+upd_task_run() {
+	local version="$1" trigger="$2" actor="${3:-}" task="${4:-}" installed id mode release packages
+	local baseline marker rc=0 reason='' result log rollback outcome
+	installed="$(upd_installed)"
+	id="$(upd_history_add "FROM=$installed" "TO=$version" "TRIGGER=$trigger" "ACTOR=$actor" \
+		"START=$(date '+%F %T')" RESULT=running "TASK=$task")"
+	echo "Update $id: ArcPanel $installed to $version ($trigger${actor:+, $actor})"
+
+	echo "== Pre-flight"
+	mode=manual
+	[ "$trigger" != policy ] || mode=policy
+	upd_preflight "$version" "$mode"
+	upd_checks_print shell
+	if upd_checks_failed; then
+		upd_history_set "$id" "END=$(date '+%F %T')" RESULT=skipped "REASON=$(upd_checks_failures)"
+		echo "The pre-flight refused the update"
+		return "$E_FORBIDEN"
+	fi
+	release="$(upd_release "$version")"
+	if [ -n "$release" ]; then
+		packages="$(upd_release_packages "$release")"
+	else
+		# Without a manifest (a manual run after a warning): the panel package only
+		packages="arcpanel=$(upd_apt_version arcpanel "$version")"
+	fi
+
+	echo "== Snapshot and baseline"
+	upd_snapshot "$id" || echo "Warning: the configuration could not be saved"
+	baseline="$UPD_DIR/baseline-$id.conf"
+	upd_baseline_write "$baseline" "$version"
+	cat "$baseline"
+
+	echo "== Install"
+	marker="$(mktemp)"
+	upd_apt_update
+	# shellcheck disable=SC2086
+	upd_apt_install $packages || rc=$?
+	# The upgrade log of the postinst (func/upgrade.sh)
+	while IFS= read -r log; do
+		echo "-- $log"
+		cat "$log"
+	done < <(find /root/arcpanel_backups -name 'arcpanel-upgrade-*.log' -newer "$marker" 2> /dev/null)
+	rm -f "$marker"
+
+	if [ "$rc" -ne 0 ]; then
+		reason="apt-get failed with exit code $rc"
+	else
+		echo "== Health check"
+		upd_health "$baseline"
+		upd_checks_print shell
+		if upd_checks_failed; then
+			reason="$(upd_checks_failures)"
+		fi
+	fi
+
+	if [ -z "$reason" ]; then
+		upd_history_set "$id" "END=$(date '+%F %T')" RESULT=done
+		echo "ArcPanel $version is installed and healthy"
+		return 0
+	fi
+
+	echo "The update failed: $reason"
+	upd_history_set "$id" RESULT=failed "REASON=$reason"
+	if rollback="$(upd_rollback_check "$id")"; then
+		echo "== Rollback to $installed"
+		result=paused
+		if upd_rollback "$id"; then
+			sed "s/^TARGET=.*/TARGET='$installed'/" "$baseline" > "$baseline.rollback"
+			echo "== Health check after the rollback"
+			upd_health "$baseline.rollback"
+			upd_checks_print shell
+			rm -f "$baseline.rollback"
+			upd_checks_failed || result=rolled-back
+		fi
+	else
+		echo "No rollback: $rollback"
+		result=failed
+	fi
+	if [ "$result" = rolled-back ]; then
+		outcome="ArcPanel $installed is installed again."
+	else
+		outcome="Automatic updates are paused until you resume them in Server › Updates."
+		change_sys_value 'UPDATE_PAUSED' "ArcPanel $version failed ($result): $reason" > /dev/null
+	fi
+	upd_history_set "$id" "END=$(date '+%F %T')" "RESULT=$result" "REASON=$reason"
+	upd_notify_admin "The update to ArcPanel $version failed" \
+		"<p>The update of ArcPanel from <b>$installed</b> to <b>$version</b> failed: $reason.</p><p>Result: <b>$result</b>. $outcome</p><p>The task log is in Server › Updates › History.</p>" \
+		"The update of ArcPanel on $HOSTNAME from $installed to $version failed: $reason.
+Result: $result. $outcome
+The task log is in Server > Updates > History in the panel."
+	return "$E_UPDATE"
 }

@@ -98,6 +98,13 @@ case "$kind" in
 			step v-update-sys-arcpanel-all
 		fi
 		;;
+	arcpanel-release)
+		# The steps of the update task are in func/updates.sh (E33 phase 1 §7.6)
+		# shellcheck source=/usr/local/arcpanel/func/updates.sh
+		source "$ARCPANEL/func/updates.sh"
+		upd_task_run "${args[0]}" "${args[1]}" "${args[2]-}" "$id"
+		rc=$?
+		;;
 	package)
 		if [ "${args[1]}" = 'add' ]; then
 			step v-add-sys-package "${args[0]}"

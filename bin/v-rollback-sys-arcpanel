@@ -1,0 +1,69 @@
+#!/bin/bash
+# info: roll back an update of ArcPanel
+# options: ID
+#
+# example: v-rollback-sys-arcpanel 12
+#
+# This function rolls back the update run ID of the update history
+# (docs/features/specs/2026-10-20-005-e33-update-center-phase-1-design.md
+# §7.7): it reinstalls the previous version and its engine packages from the
+# repository, restores the configuration saved before the update, sets
+# VERSION and restarts the panel. It is allowed only for the newest update,
+# to a patch release without upgrade steps on the same line, while APT still
+# offers the previous version and the saved configuration exists; a refusal
+# names the condition that failed.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+id=$1
+
+# Includes
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/updates.sh
+source $ARCPANEL/func/updates.sh
+# load config file
+source_conf "$ARCPANEL/conf/arcpanel.conf"
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '1' "$#" 'ID'
+if [[ ! "$id" =~ ^[0-9]+$ ]]; then
+	check_result "$E_INVALID" "invalid run ID $id"
+fi
+if ! refusal="$(upd_rollback_check "$id")"; then
+	check_result "$E_FORBIDEN" "the rollback is not allowed: $refusal"
+fi
+
+# Perform verification if read-only mode is enabled
+check_arcpanel_demo_mode
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+line="$(upd_history_line "$id")"
+from="$(upd_field "$line" FROM)"
+to="$(upd_field "$line" TO)"
+if ! upd_rollback "$id"; then
+	check_result "$E_UPDATE" "the rollback of ArcPanel $to to $from failed"
+fi
+reason="$(upd_field "$line" REASON)"
+upd_history_set "$id" RESULT=rolled-back "REASON=${reason:+$reason; }rolled back by hand on $(date '+%F %T')"
+
+#----------------------------------------------------------#
+#                         ArcPanel                         #
+#----------------------------------------------------------#
+
+# Logging
+$BIN/v-log-action "system" "Warning" "Updates" "ArcPanel rolled back (From: $to, To: $from, Run: $id)."
+log_event "$OK" "$ARGUMENTS"
+
+exit

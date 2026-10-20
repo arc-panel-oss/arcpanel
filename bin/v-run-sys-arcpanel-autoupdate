@@ -1,0 +1,128 @@
+#!/bin/bash
+# info: run the automatic update policy of ArcPanel
+# options: NONE
+#
+# example: v-run-sys-arcpanel-autoupdate
+#
+# This function is run hourly by the cron table of arcpanelweb
+# (docs/features/specs/2026-10-20-005-e33-update-center-phase-1-design.md
+# §7.5). With the policy notify or patch it refreshes the ArcPanel package
+# lists and the release manifest and announces each new version that waits
+# for the administrator, once. With patch, inside the window and while
+# automatic updates are not paused, it runs the pre-flight of the target
+# release and starts the system task arcpanel-release, or records why it
+# skipped the target once per version and reason. The output goes to
+# $ARCPANEL/log/autoupdate.log; only an error is printed, because cron mails
+# every output.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Includes
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/systask.sh
+source $ARCPANEL/func/systask.sh
+# shellcheck source=/usr/local/arcpanel/func/updates.sh
+source $ARCPANEL/func/updates.sh
+# load config file
+source_conf "$ARCPANEL/conf/arcpanel.conf"
+
+# The system task starter; the tests replace it
+start_task="${UPD_START_TASK:-$BIN/v-start-sys-task}"
+
+# Announce the releases that wait for the administrator, once per version
+announce() {
+	local rows="$1" policy="$2" version kind reason notified
+	notified="$(upd_policy_get UPDATE_NOTIFIED_VERSION)"
+	while read -r version kind reason; do
+		[ -n "$version" ] || continue
+		case "$reason" in
+			attention | min_from*) ;;
+			policy) [ "$policy" = notify ] || continue ;;
+			*) continue ;;
+		esac
+		upd_in_list "$version" "$notified" && continue
+		upd_notify_admin "ArcPanel $version is available" \
+			"<p>ArcPanel <b>$version</b> ($kind release) is available and waits for you.</p><p>Read the release notes, then update from Server › Updates.</p>" \
+			"ArcPanel $version ($kind release) is available on $HOSTNAME and waits for you.
+Read the release notes, then update from Server > Updates in the panel."
+		notified="${notified:+$notified,}$version"
+		change_sys_value 'UPDATE_NOTIFIED_VERSION' "$notified" > /dev/null
+		echo "Announced ArcPanel $version ($reason)"
+	done < <(jq -r '.[] | "\(.version) \(.kind) \(.reason)"' <<< "$rows")
+}
+
+# Whether the history has a skipped run of VERSION for REASON
+skipped_before() {
+	grep "RESULT='skipped'" "$UPD_DIR/history.conf" 2> /dev/null | grep -F "TO='$1' " | grep -qF "REASON='$2'"
+}
+
+run() {
+	local policy rows target reason task
+	policy="$(upd_policy_get UPDATE_POLICY)"
+	echo "=== $(date '+%F %T') policy $policy, ArcPanel $(upd_installed)"
+	upd_apt_update || echo "Warning: the package lists of ArcPanel could not be refreshed"
+	if ! upd_manifest_load yes; then
+		echo "No release manifest: $UPD_ERROR"
+		return 0
+	fi
+	[ -z "$UPD_ERROR" ] || echo "Warning: $UPD_ERROR"
+	rows="$(upd_release_rows)"
+	announce "$rows" "$policy"
+	[ "$policy" = patch ] || return 0
+
+	target="$(jq -r '[.[] | select(.eligible)][0].version // empty' <<< "$rows")"
+	if [ -z "$target" ]; then
+		echo "No release to install: $(jq -r '[.[] | "\(.version) (\(.reason))"] | join(", ") | if . == "" then "up to date" else . end' <<< "$rows")"
+		return 0
+	fi
+	upd_preflight "$target" policy
+	if upd_checks_failed; then
+		reason="$(upd_checks_failures)"
+		echo "Skipped ArcPanel $target: $reason"
+		if ! skipped_before "$target" "$reason"; then
+			upd_history_add "FROM=$(upd_installed)" "TO=$target" TRIGGER=policy ACTOR=policy \
+				"START=$(date '+%F %T')" "END=$(date '+%F %T')" RESULT=skipped "REASON=$reason" > /dev/null
+		fi
+		return 0
+	fi
+	task="$("$start_task" arcpanel-release "$target" policy policy)" || return 1
+	echo "Started the update to ArcPanel $target (task $task)"
+}
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+# Perform verification if read-only mode is enabled
+check_arcpanel_demo_mode
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+[ "$(upd_policy_get UPDATE_POLICY)" != 'off' ] || exit 0
+
+upd_dir
+exec {lock}> "$UPD_DIR/runner.lock"
+# Another run still works
+flock -n "$lock" || exit 0
+
+log="$ARCPANEL/log/autoupdate.log"
+run >> "$log" 2>&1
+rc=$?
+if [ "$rc" -ne 0 ]; then
+	echo "Error: the automatic update of ArcPanel failed, see $log"
+	log_event "$E_UPDATE" "$ARGUMENTS"
+	exit "$E_UPDATE"
+fi
+
+#----------------------------------------------------------#
+#                         ArcPanel                         #
+#----------------------------------------------------------#
+
+exit

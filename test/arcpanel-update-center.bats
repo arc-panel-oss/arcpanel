@@ -47,6 +47,9 @@ teardown() {
 		cp "$TMP/crontab" "$CRONTAB"
 		cp "$TMP/arcpanel.conf" "$SERVER_ARCPANEL/conf/arcpanel.conf"
 		[ -z "${BACKUP_PID:-}" ] || kill "$BACKUP_PID" 2> /dev/null || true
+		for id in $(notification_ids); do
+			grep -qx "$id" "$TMP/notifications" || "$SERVER_ARCPANEL/bin/v-delete-user-notification" "$ADMIN" "$id" > /dev/null 2>&1 || true
+		done
 	fi
 	[ -z "${TMP:-}" ] || rm -rf "$TMP"
 }
@@ -239,11 +242,24 @@ fails() {
 #   Commands (on the server)                               #
 #----------------------------------------------------------#
 
+notification_ids() {
+	"$SERVER_ARCPANEL/bin/v-list-user-notifications" "$ADMIN" json 2> /dev/null | grep -oE '^ *"[0-9]+"' | tr -dc '0-9
+'
+}
+
+# Notifications of the administrator added since server_setup
+new_notifications() {
+	notification_ids | grep -cvxF -f "$TMP/notifications" || true
+}
+
 server_setup() {
 	[ "$(id -u)" -eq 0 ] && [ -x "$SERVER_ARCPANEL/bin/v-list-sys-arcpanel-releases" ] || skip "needs root on an ArcPanel server"
 	SERVER=yes
 	cp "$CRONTAB" "$TMP/crontab"
 	cp "$SERVER_ARCPANEL/conf/arcpanel.conf" "$TMP/arcpanel.conf"
+	ADMIN="$(grep -m1 "^ROOT_USER=" "$SERVER_ARCPANEL/conf/arcpanel.conf" | cut -d"'" -f2)"
+	ADMIN="${ADMIN:-admin}"
+	notification_ids > "$TMP/notifications"
 	INSTALLED="$(grep -m1 "^VERSION=" "$SERVER_ARCPANEL/conf/arcpanel.conf" | cut -d"'" -f2)"
 	BASE="${INSTALLED%%~*}"
 	LINE="${BASE%.*}"
@@ -523,4 +539,276 @@ health() {
 	assert_output --partial 'invalid baseline'
 	run cmd v-check-sys-arcpanel-health "$UPD_DIR/baseline-../../x.conf"
 	assert_failure
+}
+
+#----------------------------------------------------------#
+#   History (func/updates.sh, no server)                   #
+#----------------------------------------------------------#
+
+@test "update center: history runs are numbered, changed in place and trimmed" {
+	library
+	UPD_HISTORY_MAX=3
+	run upd_history_add FROM=2.5.0 TO=2.5.1 TRIGGER=admin ACTOR=arcadmin RESULT=running
+	assert_output 1
+	upd_history_add FROM=2.5.0 TO=2.5.1 RESULT=skipped "REASON=it's late" > /dev/null
+	upd_history_set 1 RESULT=done "END=2026-11-02 03:10"
+	run upd_field "$(upd_history_line 1)" RESULT
+	assert_output done
+	run upd_field "$(upd_history_line 1)" ACTOR
+	assert_output arcadmin
+	run upd_field "$(upd_history_line 2)" REASON
+	assert_output 'its late'
+	run upd_field "$(upd_history_newest_update)" ID
+	assert_output 1
+	upd_history_add TO=2.5.2 RESULT=done > /dev/null
+	upd_history_add TO=2.5.3 RESULT=done > /dev/null
+	run wc -l < "$UPD_DIR/history.conf"
+	assert_output 3
+	run upd_field "$(head -n1 "$UPD_DIR/history.conf")" ID
+	assert_output 2
+	run upd_field "$(upd_history_newest_update)" ID
+	assert_output 4
+}
+
+#----------------------------------------------------------#
+#   Update task, rollback and runner (on the server)       #
+#----------------------------------------------------------#
+
+# apt-get records its arguments; an install (not a simulation) sets VERSION to
+# the arcpanel version it installs, unless $TMP/no-version exists
+apt_installs() {
+	cat > "$TMP/stubs/apt-get" << EOF
+#!/bin/bash
+echo "\$*" >> $TMP/apt-get.log
+[[ " \$* " == *" -s "* ]] && exit 0
+[ ! -f $TMP/apt-get.fail ] || exit 100
+[ ! -f $TMP/no-version ] || exit 0
+for a in "\$@"; do
+	case "\$a" in
+		arcpanel=*) v="\${a#arcpanel=}"; sed -i "s/^VERSION=.*/VERSION='\${v%-*}'/" $SERVER_ARCPANEL/conf/arcpanel.conf ;;
+	esac
+done
+EOF
+	chmod +x "$TMP/stubs/apt-get"
+}
+
+# The manifest with the installed version, PATCH (STEPS true or false) and MINOR
+task_manifest() {
+	offer arcpanel "$INSTALLED-1+ubuntu24.04" "$PATCH-1+ubuntu24.04" "$MINOR-1+ubuntu24.04"
+	manifest 2026-11-10T10:00:00Z "$(release "$MINOR" "$OLD")" "$(release "$PATCH" "$OLD" ".steps = ${1:-false}")" \
+		"$(release "$INSTALLED" "$OLD")"
+	cmd v-list-sys-arcpanel-releases json yes > /dev/null
+}
+
+# Run the steps of the update task to VERSION as the system task would
+task() {
+	(
+		set +e
+		source /etc/arcpanel/arcpanel.conf
+		source "$SERVER_ARCPANEL/func/main.sh"
+		source "$SERVER_ARCPANEL/func/systask.sh"
+		source "$SERVER_ARCPANEL/func/updates.sh"
+		export PATH="$TMP/stubs:$PATH" UPD_SERVICE_WAIT=0 UPD_PANEL_WAIT=30
+		upd_task_run "$1" admin arcadmin 4242
+	)
+}
+
+history_json() {
+	cmd v-list-sys-update-history json
+}
+
+key() {
+	grep -m1 "^$1=" "$SERVER_ARCPANEL/conf/arcpanel.conf" | cut -d"'" -f2
+}
+
+@test "update center: the update task installs, checks and records a healthy update" {
+	server_setup
+	apt_installs
+	task_manifest
+	run task "$PATCH"
+	assert_success
+	assert_output --partial "ArcPanel $PATCH is installed and healthy"
+	run key VERSION
+	assert_output "$PATCH"
+	run grep -c "install -y -q .* arcpanel=$PATCH-1+ubuntu24.04 arcpanel-nginx=1.30.5-3-1+ubuntu24.04 arcpanel-php=8.5.11-1-1+ubuntu24.04$" "$TMP/apt-get.log"
+	assert_output 1
+	run jq -r '.[0] | "\(.FROM) \(.TO) \(.TRIGGER) \(.ACTOR) \(.RESULT) \(.TASK)"' <<< "$(history_json)"
+	assert_output "$INSTALLED $PATCH admin arcadmin done 4242"
+	[ -f "$UPD_DIR/snapshot-1.tar.gz" ]
+	grep -q "^TARGET='$PATCH'" "$UPD_DIR/baseline-1.conf"
+}
+
+@test "update center: a failed patch without steps is rolled back and checked again" {
+	server_setup
+	apt_installs
+	task_manifest false
+	touch "$TMP/no-version"
+	run task "$PATCH"
+	assert_failure
+	assert_output --partial "== Rollback to $INSTALLED"
+	run grep -c "install -y -q .* --allow-downgrades arcpanel=$INSTALLED-1+ubuntu24.04" "$TMP/apt-get.log"
+	assert_output 1
+	run jq -r '.[0] | "\(.RESULT) \(.REASON)"' <<< "$(history_json)"
+	assert_output --partial "rolled-back packages: ArcPanel $INSTALLED is installed instead of $PATCH"
+	run key VERSION
+	assert_output "$INSTALLED"
+	run key UPDATE_PAUSED
+	assert_output ''
+	run new_notifications
+	assert_output 1
+}
+
+@test "update center: a failed release with steps pauses automatic updates until resumed" {
+	server_setup
+	apt_installs
+	task_manifest true
+	touch "$TMP/apt-get.fail"
+	run task "$PATCH"
+	assert_failure
+	assert_output --partial 'No rollback: ArcPanel'
+	run jq -r '.[0].RESULT' <<< "$(history_json)"
+	assert_output failed
+	run key UPDATE_PAUSED
+	assert_output --partial "ArcPanel $PATCH failed (failed): apt-get failed with exit code 100"
+	run jq -r --arg v "$PATCH" '.[] | select(.VERSION == $v) | .REASON' <<< "$(cmd v-list-sys-arcpanel-releases json)"
+	assert_output paused
+	run cmd v-resume-sys-arcpanel-autoupdate
+	assert_success
+	run key UPDATE_PAUSED
+	assert_output ''
+}
+
+@test "update center: a refused pre-flight records a skipped run and installs nothing" {
+	server_setup
+	apt_installs
+	task_manifest
+	run env UPD_MIN_FREE_KB=999999999999 bash -c "$(declare -f task); $(declare -p TMP SERVER_ARCPANEL); task $PATCH"
+	assert_failure
+	run jq -r '.[0] | "\(.RESULT) \(.REASON)"' <<< "$(history_json)"
+	assert_output --partial 'skipped disk: less than'
+	run grep -c "install -y" "$TMP/apt-get.log"
+	assert_output 0
+}
+
+# Add a finished run and its snapshot: FROM TO RESULT
+finished_run() {
+	(
+		set +e
+		source /etc/arcpanel/arcpanel.conf
+		source "$SERVER_ARCPANEL/func/main.sh"
+		source "$SERVER_ARCPANEL/func/updates.sh"
+		id="$(upd_history_add "FROM=$1" "TO=$2" TRIGGER=policy ACTOR=policy "RESULT=$3")"
+		upd_snapshot "$id"
+		echo "$id"
+	)
+}
+
+@test "update center: a rollback by hand names each refused condition" {
+	server_setup
+	apt_installs
+	task_manifest false
+	old_id="$(finished_run "$INSTALLED" "$PATCH" done)"
+	id="$(finished_run "$INSTALLED" "$PATCH" done)"
+	run jq -r '.[0] | "\(.ID) \(.ROLLBACK)"' <<< "$(history_json)"
+	assert_output "$id yes"
+	run cmd v-rollback-sys-arcpanel "$old_id"
+	assert_failure
+	assert_output --partial "run $old_id is not the newest update"
+	run cmd v-rollback-sys-arcpanel 999
+	assert_output --partial 'run 999 does not exist'
+	rm -f "$UPD_DIR/snapshot-$id.tar.gz"
+	run cmd v-rollback-sys-arcpanel "$id"
+	assert_output --partial "the configuration saved before run $id is missing"
+	finished_run "$INSTALLED" "$PATCH" done > /dev/null
+	offer arcpanel "$PATCH-1+ubuntu24.04"
+	run cmd v-rollback-sys-arcpanel "$((id + 1))"
+	assert_output --partial "APT does not offer arcpanel $INSTALLED"
+	task_manifest true
+	run cmd v-rollback-sys-arcpanel "$((id + 1))"
+	assert_output --partial "ArcPanel $PATCH has upgrade steps"
+	run jq -r '.[0] | "\(.ROLLBACK) \(.ROLLBACK_REASON)"' <<< "$(history_json)"
+	assert_output "no ArcPanel $PATCH has upgrade steps"
+	finished_run "$INSTALLED" "$MINOR" done > /dev/null
+	run cmd v-rollback-sys-arcpanel "$((id + 2))"
+	assert_output --partial "ArcPanel $MINOR is not a patch release of the line of $INSTALLED"
+	run cmd v-rollback-sys-arcpanel x1
+	assert_output --partial 'invalid run ID x1'
+}
+
+@test "update center: a rollback by hand reinstalls the previous version" {
+	server_setup
+	apt_installs
+	task_manifest false
+	id="$(finished_run "$INSTALLED" "$PATCH" done)"
+	sed -i "s/^VERSION=.*/VERSION='$PATCH'/" "$SERVER_ARCPANEL/conf/arcpanel.conf"
+	run cmd v-rollback-sys-arcpanel "$id"
+	assert_success
+	run key VERSION
+	assert_output "$INSTALLED"
+	run jq -r '.[0] | "\(.RESULT) \(.ROLLBACK)"' <<< "$(history_json)"
+	assert_output 'rolled-back no'
+}
+
+@test "update center: the update task kind is checked" {
+	server_setup
+	run cmd v-start-sys-task arcpanel-release '2.5.1;id' admin
+	assert_failure
+	assert_output --partial 'invalid version'
+	run cmd v-start-sys-task arcpanel-release 2.5.1 cron
+	assert_output --partial 'invalid trigger'
+	run cmd v-start-sys-task arcpanel-release 2.5.1 admin 'a b'
+	assert_output --partial 'invalid actor'
+	run cmd v-start-sys-task arcpanel-release 2.5.1
+	assert_failure
+}
+
+# The runner with a stub task starter that records its arguments
+runner() {
+	printf '#!/bin/bash\necho "$*" >> %s/start-task.log\necho 4343\n' "$TMP" > "$TMP/stubs/start-task"
+	chmod +x "$TMP/stubs/start-task"
+	PATH="$TMP/stubs:$PATH" UPD_START_TASK="$TMP/stubs/start-task" "$SERVER_ARCPANEL/bin/v-run-sys-arcpanel-autoupdate"
+}
+
+@test "update center: the runner starts the update of the eligible release and announces the minor one once" {
+	server_setup
+	apt_installs
+	task_manifest
+	sed -i '/^UPDATE_NOTIFIED_VERSION=/d' "$SERVER_ARCPANEL/conf/arcpanel.conf"
+	run runner
+	assert_success
+	assert_output ''
+	run cat "$TMP/start-task.log"
+	assert_output "arcpanel-release $PATCH policy policy"
+	run key UPDATE_NOTIFIED_VERSION
+	assert_output "$MINOR"
+	run new_notifications
+	assert_output 1
+	runner
+	run new_notifications
+	assert_output 1
+}
+
+@test "update center: the runner skips a refused target once and does nothing when off, notify-only or locked" {
+	server_setup
+	apt_installs
+	task_manifest
+	run env UPD_MIN_FREE_KB=999999999999 bash -c "$(declare -f runner); $(declare -p TMP SERVER_ARCPANEL); runner; runner"
+	assert_success
+	run jq -r '[.[] | select(.RESULT == "skipped")] | length' <<< "$(history_json)"
+	assert_output 1
+	[ ! -f "$TMP/start-task.log" ]
+	cmd v-change-sys-update-policy notify > /dev/null
+	runner
+	[ ! -f "$TMP/start-task.log" ]
+	cmd v-change-sys-update-policy patch > /dev/null
+	exec 8> "$UPD_DIR/runner.lock"
+	flock -x 8
+	runner
+	exec 8>&-
+	[ ! -f "$TMP/start-task.log" ]
+	cmd v-change-sys-update-policy off > /dev/null
+	: > "$TMP/apt-get.log"
+	runner
+	run cat "$TMP/apt-get.log"
+	assert_output ''
 }

@@ -1,0 +1,102 @@
+#!/bin/bash
+# info: list the update history of ArcPanel
+# options: [FORMAT]
+#
+# example: v-list-sys-update-history json
+#
+# This function lists the runs of the update history, newest first
+# (docs/features/specs/2026-10-20-005-e33-update-center-phase-1-design.md
+# §7.1, §7.8): ID, FROM, TO, TRIGGER (policy, admin, api), ACTOR, START, END,
+# RESULT (running, done, failed, rolled-back, paused, skipped), REASON and the
+# system TASK. The newest update also has ROLLBACK (yes or no) and, when no,
+# ROLLBACK_REASON.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+format=${1-shell}
+
+# Includes
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/updates.sh
+source $ARCPANEL/func/updates.sh
+# load config file
+source_conf "$ARCPANEL/conf/arcpanel.conf"
+
+# The runs as a JSON array, newest first
+runs_json() {
+	local line key args
+	while read -r line; do
+		[ -n "$line" ] || continue
+		args=()
+		for key in $UPD_HISTORY_KEYS; do
+			args+=(--arg "$key" "$(upd_field "$line" "$key")")
+		done
+		jq -cn "${args[@]}" '{ID: ($ID | tonumber), FROM: $FROM, TO: $TO, TRIGGER: $TRIGGER, ACTOR: $ACTOR,
+			START: $START, END: $END, RESULT: $RESULT, REASON: $REASON, TASK: $TASK}'
+	done < <(tac "$UPD_DIR/history.conf" 2> /dev/null) | jq -s --arg newest "$newest" --arg rollback "$rollback" \
+		--arg why "$rollback_reason" 'map(if (.ID | tostring) == $newest
+			then . + {ROLLBACK: $rollback, ROLLBACK_REASON: $why} else . end)'
+}
+
+# JSON list function
+json_list() {
+	echo "$runs"
+}
+
+# SHELL list function
+shell_list() {
+	echo "ID   FROM   TO   TRIGGER   RESULT   START"
+	echo "--   ----   --   -------   ------   -----"
+	jq -r '.[] | [.ID, .FROM, .TO, .TRIGGER, .RESULT, (.START | gsub(" "; "_"))] | join(" ")' <<< "$runs"
+}
+
+# PLAIN list function
+plain_list() {
+	jq -r '.[] | [.ID, .FROM, .TO, .TRIGGER, .ACTOR, .START, .END, .RESULT, .REASON, .TASK] | @tsv' <<< "$runs"
+}
+
+# CSV list function
+csv_list() {
+	echo "ID,FROM,TO,TRIGGER,ACTOR,START,END,RESULT,REASON,TASK"
+	jq -r '.[] | [.ID, .FROM, .TO, .TRIGGER, .ACTOR, .START, .END, .RESULT, .REASON, .TASK] | @csv' <<< "$runs"
+}
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+is_format_valid 'format'
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+newest="$(upd_field "$(upd_history_newest_update)" ID)"
+rollback=no
+rollback_reason=''
+if [ -n "$newest" ]; then
+	if rollback_reason="$(upd_rollback_check "$newest")"; then
+		rollback=yes
+	fi
+fi
+runs="$(runs_json)"
+
+# Listing data
+case $format in
+	json) json_list ;;
+	plain) plain_list ;;
+	csv) csv_list ;;
+	shell) shell_list | column -t ;;
+esac
+
+#----------------------------------------------------------#
+#                         ArcPanel                         #
+#----------------------------------------------------------#
+
+exit

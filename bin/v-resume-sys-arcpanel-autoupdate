@@ -1,0 +1,51 @@
+#!/bin/bash
+# info: resume the automatic updates of ArcPanel
+# options: NONE
+#
+# example: v-resume-sys-arcpanel-autoupdate
+#
+# This function clears UPDATE_PAUSED, which a failed update sets
+# (docs/features/specs/2026-10-20-005-e33-update-center-phase-1-design.md
+# §7.8), so the update policy installs releases again.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Includes
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/updates.sh
+source $ARCPANEL/func/updates.sh
+# load config file
+source_conf "$ARCPANEL/conf/arcpanel.conf"
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+# Perform verification if read-only mode is enabled
+check_arcpanel_demo_mode
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+paused="$(upd_policy_get UPDATE_PAUSED)"
+if [ -n "$paused" ]; then
+	change_sys_value 'UPDATE_PAUSED' ''
+fi
+
+#----------------------------------------------------------#
+#                         ArcPanel                         #
+#----------------------------------------------------------#
+
+# Logging
+if [ -n "$paused" ]; then
+	$BIN/v-log-action "system" "Info" "Updates" "Automatic updates resumed (Paused: $paused)."
+fi
+log_event "$OK" "$ARGUMENTS"
+
+exit
