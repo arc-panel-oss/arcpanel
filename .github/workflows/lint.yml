@@ -3,8 +3,10 @@ name: Lint
 on:
   pull_request:
   push:
+    # develop and the release lines (docs/features/specs/2026-10-21-001-release-standards-design.md D9)
     branches:
-      - main
+      - develop
+      - "v*.x"
 
 permissions:
   contents: read
@@ -23,6 +25,7 @@ jobs:
           globs: |
             *.md
             docs/**/*.md
+            changelog/**/*.md
 
   supply-chain:
     name: Supply chain
@@ -203,11 +206,28 @@ jobs:
         with:
           submodules: recursive
 
+      - name: Setup Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "22"
+
+      - name: Install Node packages
+        run: npm ci --ignore-scripts
+
+      - name: Test the release tool
+        run: npm run test:release
+
+      - name: Check the versions of this line
+        run: npm run release -- check
+
       - name: Test the build, installer and APT repository scripts (E47)
         run: test/test_helper/bats-core/bin/bats test/arcpanel-arm64.bats
 
       - name: Test the release branch script
         run: test/test_helper/bats-core/bin/bats test/arcpanel-release-branches.bats
+
+      - name: Test changelog fragments across release lines
+        run: test/test_helper/bats-core/bin/bats test/arcpanel-release-changelog.bats
 
       - name: Install the APT repository tools
         run: sudo apt-get update -qq && sudo apt-get install -y -qq apt-utils jq
