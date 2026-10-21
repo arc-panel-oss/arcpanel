@@ -547,8 +547,10 @@ health() {
 	baseline "$INSTALLED"
 	# Sites
 	echo "SITE='arcpanel-health.invalid' IP='127.0.0.1' STATUS='299'" >> "$BASELINE"
+	# A site is the customer's code: a difference warns and fails nothing (E39 W5 N26)
 	run health
-	assert_equal "$(status_of sites "$output")" fail
+	assert_success
+	assert_equal "$(status_of sites "$output")" warn
 	assert_output --partial 'arcpanel-health.invalid'
 	baseline "$INSTALLED"
 	# Web servers: the configuration test of NGINX fails

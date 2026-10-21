@@ -78,6 +78,12 @@ it('lists the releases of the manifest with a key holding only v2-server', funct
     $this->getJson('/api/v2/system/updates/releases?refresh=true', $headers)->assertOk();
     $this->fake->assertRan('v-list-sys-arcpanel-releases', fn ($a) => $a === ['json', 'yes'], 1);
     $this->getJson('/api/v2/system/updates/releases?refresh=maybe', $headers)->assertStatus(422);
+
+    // A read-only key reads the cached manifest: no apt-get update for it (E39 W5 N33)
+    foreach (['read', 'observe'] as $area) {
+        $this->getJson('/api/v2/system/updates/releases?refresh=true', apiAs($this->fake, 'arcadmin', 'admin', area: $area))->assertOk();
+    }
+    $this->fake->assertRan('v-list-sys-arcpanel-releases', fn ($a) => $a === ['json', 'yes'], 1);
 });
 
 it('answers 404 with the reason when no manifest could be verified', function () {

@@ -8832,7 +8832,7 @@
         "/system/updates/releases": {
             "get": {
                 "operationId": "listPanelReleases",
-                "description": "The releases of the signed release manifest that are newer than the\ninstalled version, newest first, with whether the update policy would\ninstall each one and why not. `refresh=true` downloads the manifest\nagain; otherwise a copy older than an hour is downloaded. Without a\nverified manifest the answer is `404 E_NOTEXIST` with the reason;\nrunUpdates without `version` still updates to the latest packages.",
+                "description": "The releases of the signed release manifest that are newer than the\ninstalled version, newest first, with whether the update policy would\ninstall each one and why not. `refresh=true` downloads the manifest\nagain for a key that may run updates (`v2-server` or `v2-write`) and\nis ignored for others; otherwise a copy older than an hour is\ndownloaded. Without a\nverified manifest the answer is `404 E_NOTEXIST` with the reason;\nrunUpdates without `version` still updates to the latest packages.",
                 "summary": "List the panel releases",
                 "tags": [
                     "Server"

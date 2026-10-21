@@ -800,7 +800,9 @@ upd_health() {
 		upd_check packages ok "ArcPanel $version is installed"
 	fi
 
-	# Sites answer as before
+	# Sites answer as before. The sites are the customers' code, which can
+	# answer differently on purpose, so a difference is a warning and never
+	# the reason of a rollback or a pause (E39 W5 N26)
 	out=''
 	while read -r line; do
 		domain="$(cut -d\' -f2 <<< "$line")"
@@ -810,7 +812,7 @@ upd_health() {
 		[ "$after" = "$before" ] || out="$out $domain ($before, now $after)"
 	done < <(grep "^SITE=" "$file")
 	if [ -n "$out" ]; then
-		upd_check sites fail "answer differently:$out"
+		upd_check sites warn "answer differently:$out"
 	else
 		upd_check sites ok "the sample sites answer as before"
 	fi
