@@ -14,8 +14,9 @@
 file	scripts/rename/**
 # Vendored phpPgAdmin, upstream code (install/deb/pga/README.txt)
 file	install/deb/pga/phppgadmin/**
-# Release history and the licence
+# Release history (CHANGELOG.md is built from changelog/) and the licence
 file	CHANGELOG.md
+file	changelog/**
 file	LICENSE
 # Copyright notices of the Debian packages (GPLv3 attribution)
 file	src/deb/*/copyright

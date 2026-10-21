@@ -9,7 +9,7 @@
 	"packageManager": "npm@11.19.1",
 	"scripts": {
 		"build": "node build.js",
-		"lint": "prettier --cache --check . && biome lint . && markdownlint-cli2 *.md docs/**/*.md",
+		"lint": "prettier --cache --check . && biome lint . && markdownlint-cli2 *.md docs/**/*.md changelog/**/*.md",
 		"lint-staged": "lint-staged",
 		"format": "prettier --cache --write .",
 		"preinstall": "npx only-allow npm",
