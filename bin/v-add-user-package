@@ -77,6 +77,11 @@ is_package_consistent() {
 	fi
 	if [ -n "$BACKEND_TEMPLATE" ]; then
 		is_backend_template_valid "$BACKEND_TEMPLATE"
+		# The package's own PHP_VERSIONS (E39 W5 P5)
+		if [[ "$BACKEND_TEMPLATE" =~ PHP-([0-9]{1,2})_([0-9]{1,2})$ ]] \
+			&& ! php_pkg_allows_version "$package" "${BASH_REMATCH[1]}.${BASH_REMATCH[2]}"; then
+			check_result "$E_FORBIDEN" "the backend template $BACKEND_TEMPLATE uses a PHP version the package $package does not allow"
+		fi
 	fi
 	if [ -n "$PROXY_TEMPLATE" ]; then
 		is_proxy_template_valid "$PROXY_TEMPLATE"

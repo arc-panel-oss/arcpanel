@@ -52,6 +52,9 @@ case $type in
 		;;
 	BACKEND)
 		is_backend_template_valid "$template"
+		if ! php_backend_allowed_for_user "$user" "$template" "$(get_user_value '$BACKEND_TEMPLATE')"; then
+			check_result "$E_FORBIDEN" "the backend template $template uses a PHP version the package $(php_user_package "$user") does not allow"
+		fi
 		update_user_value "$user" '$BACKEND_TEMPLATE' "$template"
 		;;
 	DNS)

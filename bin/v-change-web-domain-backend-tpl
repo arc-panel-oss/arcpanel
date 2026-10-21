@@ -46,6 +46,9 @@ is_object_valid 'web' 'DOMAIN' "$domain"
 is_object_unsuspended 'web' 'DOMAIN' "$domain"
 is_backend_template_valid "$template"
 get_domain_values 'web'
+if ! php_backend_allowed_for_user "$user" "$template" "$BACKEND"; then
+	check_result "$E_FORBIDEN" "the backend template $template uses a PHP version the package $(php_user_package "$user") does not allow"
+fi
 
 # Perform verification if read-only mode is enabled
 check_arcpanel_demo_mode

@@ -123,6 +123,15 @@ if [ -n "$reseller" ]; then
 		if tenancy_pkg_tenancy_above "$key" "$value" "$limit"; then
 			check_result "$E_LIMIT" "$key of $package cannot go beyond the reseller's package ($key='$limit')"
 		fi
+		# Under the reseller's *, a list names only versions that * gives the
+		# reseller: installed and not at their end of life (E39 W5 P4)
+		if [ "$key" = 'PHP_VERSIONS' ] && [ "$value" != '*' ] && [ "$(php_pkg_get "$own_package" PHP_VERSIONS)" = '*' ]; then
+			for item in ${value//,/ }; do
+				if ! php_pkg_allows_version "$own_package" "$item"; then
+					check_result "$E_LIMIT" "PHP $item is not allowed by the reseller's package"
+				fi
+			done
+		fi
 	fi
 fi
 

@@ -715,11 +715,10 @@ is_object_value_exist() {
 	fi
 }
 
-# Prints the first line of a value file that the panel (arcpanelweb) or root
-# wrote into /tmp: a plain name directly in /tmp, a regular file, not a link
-# (E39 W1 L3). Returns non-zero for anything else, which then stays the
-# value itself.
-read_value_file() {
+# Whether PATH is a file that the panel (arcpanelweb) or root wrote into
+# /tmp: a plain name directly in /tmp, a regular file, not a link (E39 W1
+# L3, W5 P1)
+is_panel_file() {
 	local path=$1
 	[[ "$path" =~ ^/tmp/[A-Za-z0-9._-]+$ ]] || return 1
 	[ -f "$path" ] && [ ! -L "$path" ] || return 1
@@ -727,7 +726,24 @@ read_value_file() {
 		arcpanelweb | root) ;;
 		*) return 1 ;;
 	esac
-	head -n 1 -- "$path"
+}
+
+# Stop unless the input FILE of a command is a file of the panel
+# (is_panel_file): root reads no other path for the caller (E39 W5 P1, N30)
+is_panel_file_valid() {
+	if [ ! -e "$1" ]; then
+		check_result "$E_NOTEXIST" "file $1 does not exist"
+	fi
+	if ! is_panel_file "$1"; then
+		check_result "$E_FORBIDEN" "FILE must be a file the panel wrote in /tmp, not a link :: $1"
+	fi
+}
+
+# Prints the first line of a value file (is_panel_file). Returns non-zero
+# for anything else, which then stays the value itself.
+read_value_file() {
+	is_panel_file "$1" || return 1
+	head -n 1 -- "$1"
 }
 
 # Check if password is transmitted via file

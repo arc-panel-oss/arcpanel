@@ -306,6 +306,17 @@ it('sets the PHP of a web domain with a key holding only v2-web', function () {
     $this->putJson('/api/v2/users/carol/web-domains/carol.example/php', ['version' => '8.4'], $headers)->assertNotFound();
 });
 
+it('limits PHP changes of web domains to 6 a minute per account (E39 W5 P7)', function () {
+    $this->fake->on('v-change-web-domain-php')->returns();
+    $headers = apiAs($this->fake, 'bob', 'user', area: 'web');
+
+    foreach (range(1, 6) as $i) {
+        $this->putJson('/api/v2/users/bob/web-domains/example.com/php', ['version' => '8.4', 'profile' => 'default'], $headers)->assertOk();
+    }
+    $this->putJson('/api/v2/users/bob/web-domains/example.com/php', ['version' => '8.4', 'profile' => 'default'], $headers)->assertStatus(429);
+    $this->fake->assertRan('v-change-web-domain-php', null, 6);
+});
+
 it('keeps a backend template of a version the package does not allow from users', function () {
     $this->fake->on('v-list-web-templates-backend', ['json'])->returnsJson(['PHP-8_2', 'PHP-8_3', 'default']);
     $this->fake->on('v-list-package-tenancy', ['default', 'json'])->returnsJson(['default' => ['PHP_VERSIONS' => '8.3']]);

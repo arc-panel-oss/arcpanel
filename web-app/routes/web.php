@@ -767,7 +767,7 @@ Route::middleware('auth.arc')->group(function () {
                     Route::post('/'.$tab, [WebDomainEditController::class, $tab])->name('update.'.$tab);
                 }
                 // PHP version and PHP-FPM profile (E41 §8)
-                Route::post('/php', [WebDomainPhpController::class, 'update'])->name('update.php');
+                Route::post('/php', [WebDomainPhpController::class, 'update'])->middleware('throttle:php-switch')->name('update.php');
                 // CSR generator of the SSL tab (E7 batch 3 spec §12.2)
                 Route::post('/ssl/generate', [CsrController::class, 'webDomain'])->name('ssl.generate');
                 Route::post('/suspend', [WebDomainActionController::class, 'suspend'])->name('suspend');

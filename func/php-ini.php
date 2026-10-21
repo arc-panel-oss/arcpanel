@@ -234,7 +234,12 @@ function check_file($file, $sapi) {
 			}
 		} elseif ($name === "date.timezone") {
 			if ($value !== "" && !isset($zones[$value])) {
-				$findings[] = finding($line, "error", $name, "Unknown time zone $value");
+				$findings[] = finding(
+					$line,
+					"error",
+					$name,
+					"date.timezone must be a known time zone",
+				);
 			}
 		} elseif ($name === "error_reporting") {
 			$ok = preg_match('/^[\sA-Z_0-9&|~^()!-]*$/', $value) === 1;
@@ -263,16 +268,27 @@ function check_file($file, $sapi) {
 				$findings[] = finding($line, "error", $name, "$name must be a comma list of names");
 			}
 		} elseif ($name === "extension" || $name === "zend_extension") {
-			if (strpos($value, "/") !== false) {
-				$real = realpath($value);
-				if ($real === false || strpos($real, $extensionDir . "/") !== 0) {
-					$findings[] = finding(
-						$line,
-						"error",
-						$name,
-						"$name must name a file in $extensionDir",
-					);
-				}
+			// A bare name of an installed extension: root loads it to check
+			// the file (E39 W5 P2)
+			$base = preg_replace('/\.so$/', "", $value);
+			if (!preg_match('/^[A-Za-z0-9_-]+$/', $base) || !is_file("$extensionDir/$base.so")) {
+				$findings[] = finding(
+					$line,
+					"error",
+					$name,
+					"$name must be the name of an extension in $extensionDir",
+				);
+			}
+		} elseif (
+			in_array($name, ["opcache.preload", "opcache.preload_user", "ffi.preload"], true)
+		) {
+			if ($value !== "") {
+				$findings[] = finding(
+					$line,
+					"error",
+					$name,
+					"$name cannot be set in the PHP Manager",
+				);
 			}
 		} elseif ($name === "extension_dir") {
 			if (rtrim($value, "/") !== $extensionDir) {
@@ -377,12 +393,12 @@ function ini_value($name, $value) {
 function merge_values($file, $valuesFile, $out, $sapi) {
 	$allowed = form_defaults($sapi);
 	$changes = [];
-	foreach (preg_split('/\r\n|\n|\r/', (string) file_get_contents($valuesFile)) as $line) {
+	foreach (preg_split('/\r\n|\n|\r/', (string) file_get_contents($valuesFile)) as $n => $line) {
 		if (trim($line) === "") {
 			continue;
 		}
 		if (!preg_match('/^([a-z0-9_.]+)=(.*)$/', $line, $m)) {
-			fwrite(STDERR, "invalid line :: $line\n");
+			fwrite(STDERR, "line " . ($n + 1) . " is not a directive=value line\n");
 			exit(2);
 		}
 		if (!array_key_exists($m[1], $allowed)) {

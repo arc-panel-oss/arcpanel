@@ -135,6 +135,11 @@ for domain in "${domains[@]}"; do
 			if ! is_restore_template_valid "$BACKEND" || [ -n "$(is_backend_template_valid "$BACKEND")" ]; then
 				BACKEND='default'
 			fi
+			# Only a PHP version the package allows (E39 W5 P3, P5)
+			if ! php_backend_allowed_for_user "$user" "$BACKEND"; then
+				restore_skip "backend template $BACKEND of" "$domain" "the package does not allow its PHP version, the domain uses default"
+				BACKEND='default'
+			fi
 
 			# Custom roots stay below ~/web of the user
 			if ! is_restore_web_root_valid "$CUSTOM_DOCROOT"; then
@@ -168,11 +173,11 @@ for domain in "${domains[@]}"; do
 			# have falls back to default
 			php_profile=$(grep -oE "PROFILE='[a-z0-9][a-z0-9-]{0,31}'" "$src/arcpanel/web.php.conf" 2> /dev/null | head -n1 | cut -d\' -f2)
 			if [ -n "$php_profile" ] && [ "$WEB_BACKEND_POOL" != 'user' ]; then
-				if php_profile_exists "$php_profile"; then
-					php_domain_profile_set "$user" "$domain" "$php_profile"
-				else
-					restore_skip "PHP-FPM profile $php_profile of" "$domain" "it does not exist on this server, the domain uses default"
+				restored_profile=$(php_restore_profile "$user" "$php_profile")
+				if [ "$restored_profile" != "$php_profile" ]; then
+					restore_skip "PHP-FPM profile $php_profile of" "$domain" "it does not exist on this server or the package does not allow it, the domain uses $restored_profile"
 				fi
+				php_domain_profile_set "$user" "$domain" "$restored_profile"
 			fi
 
 			# Rebuilding backend

@@ -43,7 +43,8 @@ fi
 if php_profile_exists "$name"; then
 	check_result "$E_EXISTS" "profile $name already exists"
 fi
-if [ ! -f "$src" ] || [ "$(stat -c %s "$src")" -gt 4096 ]; then
+is_panel_file_valid "$src"
+if [ "$(stat -c %s "$src")" -gt 4096 ]; then
 	check_result "$E_NOTEXIST" "$src does not exist or is too large"
 fi
 if ! php_profile_read "$src" || ! php_profile_validate; then

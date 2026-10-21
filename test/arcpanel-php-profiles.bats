@@ -45,9 +45,10 @@ make_package() {
     rm -f "$tmp"
 }
 
+# A plain name in /tmp, as the panel writes it (E39 W5 P1)
 profile_file() {
-    printf '%s\n' "$@" > "$BATS_TEST_TMPDIR/profile"
-    echo "$BATS_TEST_TMPDIR/profile"
+    printf '%s\n' "$@" > /tmp/arcbats-profile
+    echo /tmp/arcbats-profile
 }
 
 cleanup() {
@@ -83,6 +84,7 @@ setup_file() {
 
 teardown_file() {
     cp -p "$SAVE/arcpanel.conf" "$ARCPANEL/conf/arcpanel.conf"
+    rm -f /tmp/arcbats-profile
     cleanup
     if [ -f "$SAVE/profiles.conf" ]; then
         cp -p "$SAVE/profiles.conf" "$ARCPANEL/data/php/profiles.conf"
@@ -156,6 +158,17 @@ teardown_file() {
     done
     run v-list-sys-php-profile arcbats
     assert_failure 3
+}
+
+@test "v-add-sys-php-profile: the file must be the panel's and a bad line is named by its number (E39 W5 P1)" {
+    printf "PM='static'\nMAX_CHILDREN='4'\n" > /root/arcbats-profile
+    run v-add-sys-php-profile arcbats /root/arcbats-profile
+    assert_failure 10
+    rm -f /root/arcbats-profile
+    run v-add-sys-php-profile arcbats "$(profile_file "PM='static'" "arcbats-not-a-line")"
+    assert_failure 2
+    assert_output --partial 'line 2'
+    refute_output --partial 'arcbats-not-a-line'
 }
 
 @test "v-add-sys-php-profile: adds a profile and warns about memory" {
@@ -323,6 +336,79 @@ teardown_file() {
     assert_success
     run bash -c "v-list-package-tenancy $RC json | jq -r '.[\"$RC\"] | [.PHP_VERSIONS, .PHP_PROFILES, .PHP_DEFAULT_PROFILE] | join(\" \")'"
     assert_output "$DEFAULT_V default,small small"
+}
+
+@test "Packages: under a reseller's * a sub-package names no version at its end of life (E39 W5 P4)" {
+    catalog="$BATS_TEST_TMPDIR/versions.conf"
+    sed "s/^VERSION='$V' .*/VERSION='$V' RELEASED='2000-01-01' ACTIVE_UNTIL='2000-06-01' EOL='2001-01-01' INSTALLABLE='yes'/" \
+        "$ARCPANEL/install/common/php/versions.conf" > "$catalog"
+    export ARC_PHP_CATALOG="$catalog"
+    v-change-package-tenancy "$RP" PHP_VERSIONS '*'
+    run v-change-package-tenancy "$RC" PHP_VERSIONS "$V,$DEFAULT_V"
+    assert_failure 8
+    assert_output --partial "PHP $V is not allowed by the reseller's package"
+    run v-change-package-tenancy "$RC" PHP_VERSIONS "$DEFAULT_V"
+    assert_success
+    unset ARC_PHP_CATALOG
+}
+
+@test "Domains: every command refuses a backend template of a version the package does not allow (E39 W5 P5)" {
+    tpl="PHP-${V/./_}"
+    v-change-package-tenancy "$P1" PHP_VERSIONS "$DEFAULT_V"
+    run v-change-web-domain-php "$U1" "$D2" $DEFAULT_V small
+    assert_success
+    run v-change-web-domain-backend-tpl "$U1" "$D2" "$tpl"
+    assert_failure 10
+    run v-change-user-template "$U1" BACKEND "$tpl"
+    assert_failure 10
+    v-change-package-tenancy "$P1" PHP_VERSIONS '*'
+    run v-change-web-domain-backend-tpl "$U1" "$D2" "$tpl"
+    assert_success
+}
+
+@test "v-change-web-domain-php: a version switch reloads PHP-FPM instead of restarting it (E39 W5 P7)" {
+    v-change-package-tenancy "$P1" PHP_VERSIONS '*'
+    run v-change-web-domain-php "$U1" "$D2" $DEFAULT_V small
+    assert_success
+    pids=$(systemctl show -p MainPID --value "php$V-fpm" "php$DEFAULT_V-fpm")
+    run v-change-web-domain-php "$U1" "$D2" $V small
+    assert_success
+    run v-change-web-domain-php "$U1" "$D2" $DEFAULT_V small
+    assert_success
+    assert_equal "$(systemctl show -p MainPID --value "php$V-fpm" "php$DEFAULT_V-fpm")" "$pids"
+    run systemctl is-active "php$V-fpm" "php$DEFAULT_V-fpm"
+    assert_success
+}
+
+@test "Restores: a PHP profile or version the package no longer allows falls back to the package's defaults (E39 W5 P3)" {
+    v-change-package-tenancy "$P1" PHP_VERSIONS '*'
+    v-change-package-tenancy "$P1" PHP_PROFILES '*'
+    run v-change-web-domain-php "$U1" "$D2" $V medium
+    assert_success
+    run v-backup-user "$U1"
+    assert_success
+    backup=$(ls -t /backup/$U1.*.tar | head -n1)
+    v-change-package-tenancy "$P1" PHP_PROFILES 'default,small'
+    v-change-package-tenancy "$P1" PHP_VERSIONS "$DEFAULT_V"
+    v-delete-web-domain "$U1" "$D2" > /dev/null
+    run v-restore-user "$U1" "$(basename "$backup")" "$D2" no no no no no no
+    rm -f "$backup"
+    assert_success
+    run grep -F "DOMAIN='$D2' " "$ARCPANEL/data/users/$U1/web.php.conf"
+    assert_output "DOMAIN='$D2' PROFILE='small'"
+    run bash -c "v-list-web-domain $U1 $D2 json | jq -r '.[].BACKEND'"
+    assert_output 'default'
+    v-change-package-tenancy "$P1" PHP_VERSIONS '*'
+    v-change-package-tenancy "$P1" PHP_PROFILES '*'
+}
+
+@test "v-change-sys-php: a loose version is refused and every www pool stays (E39 W5 P6)" {
+    pools=$(ls /etc/php/*/fpm/pool.d/www.conf 2> /dev/null)
+    for version in "$V.*" "$V.0" "x$V" "$V;true" "9.9"; do
+        run v-change-sys-php "$version"
+        assert_failure
+    done
+    assert_equal "$(ls /etc/php/*/fpm/pool.d/www.conf 2> /dev/null)" "$pools"
 }
 
 @test "Domains: the profile follows a rename and goes with the domain" {

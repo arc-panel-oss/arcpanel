@@ -89,6 +89,12 @@ check_arcpanel_demo_mode
 key=$(php_domain_key "$domain")
 php_domain_profile_set "$user" "$key" "$profile"
 
+# A graceful reload of PHP-FPM, not a restart: any user can switch a domain,
+# and a restart cuts the requests of every site of the version (E39 W5 P7)
+if [ "$restart" = 'yes' ]; then
+	restart=reload
+fi
+
 if [ "$version" != "$current_version" ]; then
 	# The backend template writes the pool with the profile
 	$BIN/v-change-web-domain-backend-tpl "$user" "$domain" "$(php_tpl_name "$version")" "$restart"

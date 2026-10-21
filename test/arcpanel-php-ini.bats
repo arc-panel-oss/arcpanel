@@ -37,9 +37,15 @@ teardown_file() {
     systemctl restart php$V-fpm
 }
 
+# Input files are files the panel writes: a plain name in /tmp (E39 W5 P1)
 setup() {
-    CAND="$BATS_TEST_TMPDIR/php.ini"
+    CAND=$(mktemp /tmp/arcbats-ini.XXXXXX)
+    VALUES=$(mktemp /tmp/arcbats-values.XXXXXX)
     cp "$SAVE/fpm.ini" "$CAND"
+}
+
+teardown() {
+    rm -f "$CAND" "$VALUES" /tmp/arcbats-ini-link /root/arcbats-ini /tmp/arcbats-preload.php /tmp/arcbats-preloaded
 }
 
 # The findings of v-check-sys-php-ini for the candidate, one per line:
@@ -86,8 +92,70 @@ value() {
 #----------------------------------------------------------#
 
 @test "v-check-sys-php-ini: the installed file has no errors" {
-    run bash -c "v-check-sys-php-ini $V fpm $FPM_INI json | jq '[.[] | select(.level == \"error\")] | length'"
+    run bash -c "v-check-sys-php-ini $V fpm $CAND json | jq '[.[] | select(.level == \"error\")] | length'"
     assert_output 0
+}
+
+@test "PHP Manager: input files outside /tmp, links and files of other users are refused (E39 W5 P1)" {
+    cp "$CAND" /root/arcbats-ini
+    run v-check-sys-php-ini $V fpm /root/arcbats-ini
+    assert_failure 10
+    ln -s "$CAND" /tmp/arcbats-ini-link
+    run v-check-sys-php-ini $V fpm /tmp/arcbats-ini-link
+    assert_failure 10
+    run v-change-sys-php-ini $V fpm "$FPM_INI"
+    assert_failure 10
+    printf 'memory_limit=192M\n' > "$VALUES"
+    chown nobody "$VALUES"
+    run v-change-sys-php-ini-values $V fpm "$VALUES"
+    assert_failure 10
+    run cmp "$FPM_INI" "$SAVE/fpm.ini"
+    assert_success
+}
+
+@test "PHP Manager: a bad line is named by its number, never by its content (E39 W5 P1)" {
+    printf 'memory_limit=192M\narcbats-not-a-directive\n' > "$VALUES"
+    run v-change-sys-php-ini-values $V fpm "$VALUES"
+    assert_failure 2
+    assert_output --partial 'line 2'
+    refute_output --partial 'arcbats-not-a-directive'
+}
+
+@test "v-check-sys-php-ini: preload scripts, FFI preload and extension paths are refused, and never run (E39 W5 P2)" {
+    printf '<?php touch("/tmp/arcbats-preloaded");\n' > /tmp/arcbats-preload.php
+    printf 'opcache.enable_cli = 1\nopcache.preload = /tmp/arcbats-preload.php\nopcache.preload_user = root\n' >> "$CAND"
+    n=$(last_line)
+    run findings
+    assert_line "$((n - 1)) error opcache.preload"
+    assert_line "$n error opcache.preload_user"
+    run v-change-sys-php-ini $V cli "$CAND"
+    assert_failure 2
+    assert_file_not_exists /tmp/arcbats-preloaded
+
+    cp "$SAVE/fpm.ini" "$CAND"
+    echo 'ffi.preload = /tmp/arcbats.h' >> "$CAND"
+    n=$(last_line)
+    run findings
+    assert_line "$n error ffi.preload"
+
+    # A path, even one in the extension folder, is not a bare name
+    cp "$SAVE/fpm.ini" "$CAND"
+    echo "extension=$(php$V -n -r 'echo PHP_EXTENSION_DIR;')/opcache.so" >> "$CAND"
+    n=$(last_line)
+    run findings
+    assert_line "$n error extension"
+}
+
+@test "v-check-sys-php-ini: PHP runs with the candidate only when it has no error (E39 W5 P2)" {
+    # The unknown directive is found by a run of PHP with the candidate
+    printf 'arcbats.unknown = 1\n' >> "$CAND"
+    n=$(last_line)
+    run findings
+    assert_line "$n warning arcbats.unknown"
+    printf 'memory_limit = lots\n' >> "$CAND"
+    run findings
+    assert_line "$((n + 1)) error memory_limit"
+    refute_line "$n warning arcbats.unknown"
 }
 
 @test "v-check-sys-php-ini: a syntax error is reported with its line" {
@@ -160,10 +228,9 @@ value() {
 
 @test "v-check-sys-php-ini: extensions that do not load or lie outside the extension folder" {
     echo 'extension=arcbats_nosuch' >> "$CAND"
+    n=$(last_line)
     run findings
-    assert_output --partial '0 error'
-    run bash -c "v-check-sys-php-ini $V fpm $CAND json | jq -r '.[0].message'"
-    assert_output --partial 'arcbats_nosuch'
+    assert_line "$n error extension"
 
     cp "$SAVE/fpm.ini" "$CAND"
     echo 'extension=/tmp/arcbats.so' >> "$CAND"
@@ -195,8 +262,8 @@ value() {
 
 @test "v-change-sys-php-ini-values: changes and adds directives in place" {
     comments=$(grep -c '^;' "$FPM_INI")
-    printf 'memory_limit=192M\ncgi.fix_pathinfo=0\n' > "$BATS_TEST_TMPDIR/values"
-    run v-change-sys-php-ini-values $V fpm "$BATS_TEST_TMPDIR/values"
+    printf 'memory_limit=192M\ncgi.fix_pathinfo=0\n' > "$VALUES"
+    run v-change-sys-php-ini-values $V fpm "$VALUES"
     assert_success
     run value memory_limit
     assert_output '192M'
@@ -224,8 +291,8 @@ value() {
 @test "v-change-sys-php-ini-values: refuses bad lines and invalid values" {
     before=$(md5sum < "$FPM_INI")
     for line in 'memory_limit' 'arcbats.nosuch=1' 'memory_limit=1"M' 'memory_limit=${HOME}' 'post_max_size=1M'; do
-        printf '%s\n' "$line" > "$BATS_TEST_TMPDIR/values"
-        run v-change-sys-php-ini-values $V fpm "$BATS_TEST_TMPDIR/values"
+        printf '%s\n' "$line" > "$VALUES"
+        run v-change-sys-php-ini-values $V fpm "$VALUES"
         assert_failure 2
     done
     [ "$(md5sum < "$FPM_INI")" = "$before" ]
@@ -258,8 +325,8 @@ value() {
 
 @test "php.ini backups: ten are kept and one is restored" {
     for i in $(seq 1 11); do
-        printf 'max_input_vars=%s\n' "$((5000 + i))" > "$BATS_TEST_TMPDIR/values"
-        run v-change-sys-php-ini-values $V fpm "$BATS_TEST_TMPDIR/values"
+        printf 'max_input_vars=%s\n' "$((5000 + i))" > "$VALUES"
+        run v-change-sys-php-ini-values $V fpm "$VALUES"
         assert_success
     done
     run bash -c "v-list-sys-php-ini-backups $V fpm json | jq length"
@@ -294,13 +361,13 @@ value() {
 
 @test "v-check-sys-php-ini: values mode checks the file the directives would give" {
     before=$(md5sum < "$FPM_INI")
-    printf 'memory_limit=lots\n' > "$BATS_TEST_TMPDIR/values"
-    run bash -c "v-check-sys-php-ini $V fpm $BATS_TEST_TMPDIR/values json values | jq -r '.[] | select(.level == \"error\") | .directive'"
+    printf 'memory_limit=lots\n' > "$VALUES"
+    run bash -c "v-check-sys-php-ini $V fpm $VALUES json values | jq -r '.[] | select(.level == \"error\") | .directive'"
     assert_output 'memory_limit'
-    printf 'memory_limit=256M\n' > "$BATS_TEST_TMPDIR/values"
-    run bash -c "v-check-sys-php-ini $V fpm $BATS_TEST_TMPDIR/values json values | jq '[.[] | select(.level == \"error\")] | length'"
+    printf 'memory_limit=256M\n' > "$VALUES"
+    run bash -c "v-check-sys-php-ini $V fpm $VALUES json values | jq '[.[] | select(.level == \"error\")] | length'"
     assert_output 0
-    run v-check-sys-php-ini $V fpm "$BATS_TEST_TMPDIR/values" json nosuch
+    run v-check-sys-php-ini $V fpm "$VALUES" json nosuch
     assert_failure 2
     [ "$(md5sum < "$FPM_INI")" = "$before" ]
 }

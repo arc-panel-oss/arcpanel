@@ -45,6 +45,8 @@ php_ini_check_args "$version" "$sapi"
 if [ "$mode" != 'file' ] && [ "$mode" != 'values' ]; then
 	check_result "$E_INVALID" "invalid mode :: $mode (file or values)"
 fi
+# Only a file the panel wrote (E39 W5 P1)
+is_panel_file_valid "$src"
 php_ini_intake "$src"
 candidate=$PHP_INI_CANDIDATE
 if [ "$mode" = 'values' ]; then

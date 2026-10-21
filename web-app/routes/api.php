@@ -358,7 +358,7 @@ Route::middleware('effective-user')->group(function () {
         Route::put('/{domain}/ssl', [WebDomainController::class, 'setSsl'])->name('ssl.update');
         Route::delete('/{domain}/ssl', [WebDomainController::class, 'deleteSsl'])->name('ssl.destroy');
         Route::post('/{domain}/letsencrypt', [WebDomainController::class, 'letsEncrypt'])->name('letsencrypt');
-        Route::put('/{domain}/php', [WebDomainPhpController::class, 'update'])->name('php.update');
+        Route::put('/{domain}/php', [WebDomainPhpController::class, 'update'])->middleware('throttle:php-switch')->name('php.update');
     });
 
     // DNS zones and records (E34 batch 2 spec §6.1)

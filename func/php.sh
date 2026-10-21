@@ -295,7 +295,7 @@ php_fpm_test() {
 	if [ -n "$ini" ]; then
 		args+=(-c "$ini")
 	fi
-	out=$("php-fpm$version" "${args[@]}" 2>&1)
+	out=$("php-fpm$version" "${args[@]}" "${PHP_INI_SAFE_RUN[@]}" 2>&1)
 	rc=$?
 	if [ "$rc" -ne 0 ] || grep -qiE 'PHP (Startup|Warning|Fatal error|Parse error)|ERROR:' <<< "$out"; then
 		echo "$out"
@@ -568,6 +568,10 @@ php_ini_intake() {
 	PHP_INI_CANDIDATE=$tmp
 }
 
+# Settings of every run of PHP with a candidate php.ini as root: no opcache
+# and no preload script, no FFI (E39 W5 P2)
+PHP_INI_SAFE_RUN=(-d opcache.enable_cli=0 -d opcache.preload= -d opcache.preload_user= -d ffi.enable=0 -d ffi.preload=)
+
 # Run the helper with the version's binary and no php.ini
 php_ini_helper() {
 	local version="$1"
@@ -595,10 +599,12 @@ php_ini_validate() {
 	fi
 	parts+=("$dir/semantic.json")
 
-	# A syntax error stops here: PHP would not read the rest
-	if ! jq -e 'any(.[]; .level == "error" and .directive == "")' "$dir/semantic.json" > /dev/null; then
+	# PHP runs with the candidate only when the check found no error at all:
+	# root runs it, so it loads only extensions of the version's folder and
+	# no preload script (E39 W5 P2)
+	if ! jq -e 'any(.[]; .level == "error")' "$dir/semantic.json" > /dev/null; then
 		# Unknown directives, with the extensions the candidate loads
-		PHP_INI_SCAN_DIR="$scan" "php$version" -c "$file" -d display_startup_errors=0 -d display_errors=0 \
+		PHP_INI_SCAN_DIR="$scan" "php$version" -c "$file" "${PHP_INI_SAFE_RUN[@]}" -d display_startup_errors=0 -d display_errors=0 \
 			-d log_errors=0 -d disable_functions= -d disable_classes= -d open_basedir= \
 			-d auto_prepend_file= -d auto_append_file= "$PHP_INI_HELPER" known > "$dir/known.json" 2> /dev/null
 		if jq -e 'type == "array"' "$dir/known.json" > /dev/null 2>&1; then
@@ -607,24 +613,21 @@ php_ini_validate() {
 		fi
 
 		# 3. PHP starts with the candidate: no startup warning (an extension
-		# that does not load); deprecations are warnings. Skipped when a value
-		# is already wrong: PHP would only repeat it without a line.
+		# that does not load); deprecations are warnings.
 		echo '[]' > "$dir/start.json"
-		if ! jq -e 'any(.[]; .level == "error")' "$dir/semantic.json" > /dev/null; then
-			out=$(PHP_INI_SCAN_DIR="$scan" "php$version" -c "$file" -d display_startup_errors=1 \
-				-d display_errors=stderr -d log_errors=0 -d auto_prepend_file= -d auto_append_file= \
-				-r 'exit(0);' 2>&1)
-			while IFS= read -r line; do
-				line=$(sed -e 's/^PHP //' <<< "$line")
-				[ -n "${line// /}" ] || continue
-				level=error
-				if [[ "$line" == *Deprecated* ]]; then
-					level=warning
-				fi
-				jq -c --arg l "$level" --arg m "$line" '. + [{line: 0, level: $l, directive: "", message: $m}]' \
-					"$dir/start.json" > "$dir/start.tmp" && mv -f "$dir/start.tmp" "$dir/start.json"
-			done <<< "$out"
-		fi
+		out=$(PHP_INI_SCAN_DIR="$scan" "php$version" -c "$file" "${PHP_INI_SAFE_RUN[@]}" -d display_startup_errors=1 \
+			-d display_errors=stderr -d log_errors=0 -d auto_prepend_file= -d auto_append_file= \
+			-r 'exit(0);' 2>&1)
+		while IFS= read -r line; do
+			line=$(sed -e 's/^PHP //' <<< "$line")
+			[ -n "${line// /}" ] || continue
+			level=error
+			if [[ "$line" == *Deprecated* ]]; then
+				level=warning
+			fi
+			jq -c --arg l "$level" --arg m "$line" '. + [{line: 0, level: $l, directive: "", message: $m}]' \
+				"$dir/start.json" > "$dir/start.tmp" && mv -f "$dir/start.tmp" "$dir/start.json"
+		done <<< "$out"
 		parts+=("$dir/start.json")
 
 		if [ "$sapi" = 'fpm' ] && ! jq -s -e 'add | any(.[]; .level == "error")' "$dir/semantic.json" "$dir/start.json" > /dev/null; then
@@ -946,14 +949,15 @@ php_profile_warnings() {
 
 # Read a KEY='value' file into PROFILE; unknown keys fail (PHP_ERROR)
 php_profile_read() {
-	local file="$1" line key
+	local file="$1" line key n=0
 	local re="^([A-Z_]+)='([^']*)'$"
 	PROFILE=()
 	while IFS= read -r line || [ -n "$line" ]; do
+		n=$((n + 1))
 		line=${line%$'\r'}
 		[ -n "${line// /}" ] || continue
 		if [[ ! "$line" =~ $re ]]; then
-			PHP_ERROR="invalid line :: $line"
+			PHP_ERROR="line $n is not a KEY='value' line"
 			return 1
 		fi
 		key=${BASH_REMATCH[1]}
@@ -1162,6 +1166,32 @@ php_pkg_allows_profile() {
 		php_profile_exists "$2"
 	else
 		[[ ",$list," == *",$2,"* ]]
+	fi
+}
+
+# Whether the package of USER allows backend TEMPLATE: a template that names
+# a version (PHP-X_Y, also at the end of a custom name) only for a version
+# the package allows; any other template is not about the PHP version. The
+# domain's CURRENT template stays allowed (D11). The panel's
+# PhpManager::templateAllowed answers the same (E39 W5 P5).
+php_backend_allowed_for_user() {
+	local user="$1" template="$2" current="${3-}"
+	if [ -n "$current" ] && [ "$template" = "$current" ]; then
+		return 0
+	fi
+	[[ "$template" =~ PHP-([0-9]{1,2})_([0-9]{1,2})$ ]] || return 0
+	php_pkg_allows_version "$(php_user_package "$user")" "${BASH_REMATCH[1]}.${BASH_REMATCH[2]}"
+}
+
+# The profile a restored domain gets: PROFILE when it exists and the
+# package of USER allows it, else the package's default profile (E39 W5 P3)
+php_restore_profile() {
+	local user="$1" profile="$2" package
+	package=$(php_user_package "$user")
+	if php_profile_exists "$profile" && php_pkg_allows_profile "$package" "$profile"; then
+		echo "$profile"
+	else
+		php_pkg_get "$package" PHP_DEFAULT_PROFILE
 	fi
 }
 

@@ -41,6 +41,8 @@ php_ini_check_args "$version" "$sapi"
 check_arcpanel_demo_mode
 
 php_lock "$version"
+# Only a file the panel wrote (E39 W5 P1)
+is_panel_file_valid "$src"
 php_ini_intake "$src"
 values=$PHP_INI_CANDIDATE
 candidate=$(php_tmp_file ini)

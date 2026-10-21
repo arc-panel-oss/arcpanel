@@ -463,6 +463,16 @@ if (($argv[1] ?? "") === "migrate") { echo "migrated " . implode(" ", array_slic
     assert_failure 2
 }
 
+@test "Settings: the environment file must be one the panel wrote (E39 W5 N30)" {
+    printf 'GREETING=hello\n' > /root/arcbats-env
+    run v-change-app-process-env $U1 $DA web /root/arcbats-env
+    assert_failure 10
+    ln -sf /root/arcbats-env /tmp/arcbats-env-link
+    run v-change-app-process-env $U1 $DA web /tmp/arcbats-env-link
+    assert_failure 10
+    rm -f /root/arcbats-env /tmp/arcbats-env-link
+}
+
 @test "Settings: the environment reaches the process and the panel's keys are refused" {
     tmp=$(mktemp)
     printf '# greeting\nGREETING="hello world"\n' > "$tmp"

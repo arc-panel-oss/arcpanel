@@ -326,6 +326,11 @@ if [ "$web" != 'no' ] && [ -n "$WEB_SYSTEM" ]; then
 			if ! is_restore_template_valid "$BACKEND" || [ -n "$(is_backend_template_valid "$BACKEND")" ]; then
 				BACKEND='default'
 			fi
+			# Only a PHP version the package allows (E39 W5 P3, P5)
+			if ! php_backend_allowed_for_user "$user" "$BACKEND"; then
+				echo "$(date "+%F %T") $domain: backend template $BACKEND uses a PHP version the package does not allow, the domain uses default" | tee -a $tmpdir/restore.log
+				BACKEND='default'
+			fi
 
 			# Custom roots move to the new name and stay below ~/web
 			old_web="$HOMEDIR/$old_user/web/"
@@ -369,14 +374,15 @@ if [ "$web" != 'no' ] && [ -n "$WEB_SYSTEM" ]; then
 			echo "$str" >> $USER_DATA/web.conf
 
 			# PHP-FPM profile of the domain (E41): a profile this server does not
-			# have falls back to default
+			# have, or the package does not allow, falls back to the package's
+			# default profile (E39 W5 P3)
 			php_profile=$(grep -oE "PROFILE='[a-z0-9][a-z0-9-]{0,31}'" "$tmpdir/web/$domain/$backup_system/web.php.conf" 2> /dev/null | head -n1 | cut -d\' -f2)
 			if [ -n "$php_profile" ] && [ "$WEB_BACKEND_POOL" != 'user' ]; then
-				if php_profile_exists "$php_profile"; then
-					php_domain_profile_set "$user" "$domain" "$php_profile"
-				else
-					echo "$(date "+%F %T") $domain: PHP-FPM profile $php_profile does not exist on this server, the domain uses default" | tee -a $tmpdir/restore.log
+				restored_profile=$(php_restore_profile "$user" "$php_profile")
+				if [ "$restored_profile" != "$php_profile" ]; then
+					echo "$(date "+%F %T") $domain: PHP-FPM profile $php_profile does not exist on this server or is not allowed by the package, the domain uses $restored_profile" | tee -a $tmpdir/restore.log
 				fi
+				php_domain_profile_set "$user" "$domain" "$restored_profile"
 			fi
 
 			# Rebuilding backend

@@ -73,6 +73,17 @@ it('changes the version and the profile within the package', function () {
         ->assertSessionHas('error', 'The PHP settings were not saved.')->assertSessionHas('error_detail', 'Error: PHP 8.4 is not allowed by the package default');
 });
 
+it('limits PHP changes to 6 a minute per account (E39 W5 P7)', function () {
+    $this->fake->on('v-change-web-domain-php')->returns();
+    signIn('bob', 'user');
+
+    foreach (range(1, 6) as $i) {
+        $this->post('/web/domains/bob/example.com/php', ['php_version' => '8.4', 'php_profile' => 'default'])->assertRedirect();
+    }
+    $this->post('/web/domains/bob/example.com/php', ['php_version' => '8.4', 'php_profile' => 'default'])->assertStatus(429);
+    $this->fake->assertRan('v-change-web-domain-php', null, 6);
+});
+
 it('lets the reseller of the owner change it and answers 404 outside the tree', function () {
     $this->fake->on('v-change-web-domain-php')->returns();
 

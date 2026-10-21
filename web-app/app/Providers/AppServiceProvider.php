@@ -114,6 +114,9 @@ class AppServiceProvider extends ServiceProvider
             : ClientIp::of($request))));
         // Upload chunks of the File Manager page: 600 a minute per account (E39 W5 §7)
         RateLimiter::for('files-upload', fn (Request $request) => Limit::perMinute(600)->by('files-upload:'.$request->route('user')));
+        // PHP version and profile of a web domain, page and REST API v2: each
+        // change reloads PHP-FPM, 6 a minute per account (E39 W5 P7)
+        RateLimiter::for('php-switch', fn (Request $request) => Limit::perMinute(6)->by('php-switch:'.$request->route('user')));
 
         // resources/views/components/ap/NAME.blade.php is used as <x-ap-NAME> (docs/design/05 §5).
         foreach (glob(resource_path('views/components/ap/*.blade.php')) ?: [] as $file) {

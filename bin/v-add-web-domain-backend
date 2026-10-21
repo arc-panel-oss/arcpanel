@@ -48,7 +48,9 @@ check_arcpanel_demo_mode
 # Defining pool directory
 prepare_web_backend
 get_domain_values 'web'
-
+if ! php_backend_allowed_for_user "$user" "$template" "$BACKEND"; then
+	check_result "$E_FORBIDEN" "the backend template $template uses a PHP version the package $(php_user_package "$user") does not allow"
+fi
 if [[ -n "$BACKEND" && "$BACKEND" != "$template" ]]; then
 	check_result "$E_EXISTS" "Pool already exists"
 fi
