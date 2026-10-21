@@ -151,6 +151,16 @@ it('changes the language for both apps', function () {
     $this->post('/_language', ['language' => 'xx'])->assertStatus(422);
 });
 
+it('keeps the language of a read-only session in the session only (E39 W5 L22)', function () {
+    withSysConfig($this->fake, ['POLICY_USER_VIEW_SUSPENDED' => 'yes']);
+    fakeServerUsers($this->fake, ['bob' => ['SUSPENDED' => 'yes']]);
+    $session = signIn('bob', 'user', ['language' => 'vi']);
+
+    $this->from('/web/domains')->post('/_language', ['language' => 'en'])->assertRedirect('/web/domains');
+    expect($session->data()['language'])->toBe('en');
+    $this->fake->assertRan('v-change-user-language', times: 0);
+});
+
 it('shows the style guide only in debug mode', function () {
     signIn('arcadmin', 'admin');
     $this->get('/_styleguide')->assertNotFound();

@@ -21,6 +21,11 @@ server {
 	proxy_buffering        off;
 	proxy_request_buffering off;
 
+	# The admin API of Silo is for ArcPanel on 127.0.0.1 only (E39 W5 N29)
+	location ^~ /minio/admin/ {
+		return 403;
+	}
+
 	location / {
 		proxy_pass                http://127.0.0.1:9310;
 		proxy_http_version        1.1;

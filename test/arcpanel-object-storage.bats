@@ -199,6 +199,32 @@ teardown_file() {
     assert_output 1
 }
 
+@test "object storage: only ArcPanel puts the internal endpoint template on a domain; its admin API is closed (E39 W5 N29)" {
+    local domain=n29.arcbats.test kind
+    v-add-web-domain "$U1" "$domain" > /dev/null
+    kind=$(bash -c 'source /etc/arcpanel/arcpanel.conf; source $ARCPANEL/func/main.sh; source $ARCPANEL/func/arc-template.sh; arc_tpl_active_kind')
+    if [ "$kind" = web ]; then
+        run v-change-web-domain-tpl "$U1" "$domain" silo-endpoint
+    else
+        run v-change-web-domain-proxy-tpl "$U1" "$domain" silo-endpoint
+    fi
+    assert_failure 10
+    assert_output --partial 'internal template'
+    run v-change-user-template "$U1" "$(echo "$kind" | tr '[:lower:]' '[:upper:]')" silo-endpoint
+    assert_failure 10
+    v-delete-web-domain "$U1" "$domain" > /dev/null
+
+    # MinIO answers an unsigned admin call with an XML error naming the admin
+    # path; NGINX refuses it before MinIO sees it
+    run curl -s -o /dev/null -w '%{http_code}' "http://$ENDPOINT_HOST/minio/admin/v3/info"
+    assert_output 403
+    # The body is the error page of the server, fetched through the proxy
+    run curl -s "http://$ENDPOINT_HOST/minio/admin/v3/info"
+    refute_output --partial '<Resource>/minio/admin'
+    run curl -s -o /dev/null -w '%{http_code}' "http://$ENDPOINT_HOST/minio/health/live"
+    assert_output 200
+}
+
 @test "object storage: a package whose checksum does not match installs nothing" {
     local conf="$ARCPANEL/install/upgrade/upgrade.conf" before
     before=$(dpkg-query -W -f='${Version}' silo)

@@ -7,12 +7,13 @@
     <title>{{ __('phpMyAdmin') }}</title>
 </head>
 <body>
-<form id="ap-sso" action="{{ $action }}" method="post">
+<form id="ap-sso" data-ap-sso action="{{ $action }}" method="post">
     @foreach ($fields as $name => $value)
     <input type="hidden" name="{{ $name }}" value="{{ $value }}">
     @endforeach
     <noscript><button type="submit">{{ __('phpMyAdmin') }}</button></noscript>
 </form>
-<script>document.getElementById('ap-sso').submit();</script>
+{{-- Submitted by resources/js/sso.js: the CSP allows no inline script (E39 W5 §9.2) --}}
+<script type="module" src="@apAsset('sso.js')"></script>
 </body>
 </html>

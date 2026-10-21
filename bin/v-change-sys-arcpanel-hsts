@@ -1,0 +1,72 @@
+#!/bin/bash
+# info: turn HSTS of the panel on or off
+# options: STATUS
+#
+# example: v-change-sys-arcpanel-hsts yes
+#
+# This function sends Strict-Transport-Security from the panel's web server
+# (yes) or stops sending it (no), and stores PANEL_HSTS. Browsers that saw
+# the header refuse the panel for a day when its certificate is not
+# trusted, so yes is refused while the panel certificate is self-signed or
+# otherwise not trusted (E39 W5).
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+status=$1
+
+# Includes
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/panel-headers.sh
+source $ARCPANEL/func/panel-headers.sh
+# load config file
+source_conf "$ARCPANEL/conf/arcpanel.conf"
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '1' "$#" 'STATUS'
+if [ "$status" != 'yes' ] && [ "$status" != 'no' ]; then
+	check_result "$E_INVALID" "invalid status :: $status (yes or no)"
+fi
+if [ ! -d "$PANEL_NGINX_CONF_DIR" ]; then
+	check_result "$E_NOTEXIST" "the panel's NGINX is not installed"
+fi
+if [ "$status" = 'yes' ] && ! panel_cert_trusted; then
+	check_result "$E_FORBIDEN" "the panel certificate is not trusted by browsers (self-signed?); install a trusted certificate first"
+fi
+
+# Perform verification if read-only mode is enabled
+check_arcpanel_demo_mode
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+previous=${PANEL_HSTS:-no}
+PANEL_HEADERS_CHANGED=''
+panel_hsts_write "$status"
+if [ "$PANEL_HEADERS_CHANGED" = 'yes' ] && ! panel_nginx_reload; then
+	panel_hsts_write "$previous"
+	check_result "$E_UPDATE" "the panel's NGINX refused the change; HSTS stays $previous"
+fi
+"$BIN/v-change-sys-config-value" 'PANEL_HSTS' "$status"
+
+#----------------------------------------------------------#
+#                         ArcPanel                         #
+#----------------------------------------------------------#
+
+if [ "$status" = 'yes' ]; then
+	"$BIN/v-log-action" "system" "Info" "System" "HSTS of the panel turned on."
+else
+	"$BIN/v-log-action" "system" "Info" "System" "HSTS of the panel turned off."
+fi
+log_event "$OK" "$ARGUMENTS"
+
+exit

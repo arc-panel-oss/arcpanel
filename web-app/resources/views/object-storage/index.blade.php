@@ -97,7 +97,7 @@
                     <tr data-row data-search="{{ $key->name }} {{ $key->key }} {{ $key->bucket }}" @class(['is-disabled' => $key->expired])>
                         <td data-col="name" data-label="{{ __('Name') }}">{{ $key->name }}</td>
                         <td data-col="id" data-label="{{ __('Access key ID') }}" class="mono">{{ $key->key }}</td>
-                        <td data-col="scope" data-label="{{ __('Buckets') }}">{!! $key->bucket !== '' ? '<span class="mono">'.e($key->bucket).'</span>' : e(__('Every bucket of the account')) !!}</td>
+                        <td data-col="scope" data-label="{{ __('Buckets') }}">@if ($key->bucket !== '')<span class="mono">{{ $key->bucket }}</span>@else{{ __('Every bucket of the account') }}@endif</td>
                         <td data-col="access" data-label="{{ __('Access') }}">
                             <x-ap-badge :tone="$key->access === 'ro' ? null : 'ok'">{{ $key->access === 'ro' ? __('Read only') : __('Read and write') }}</x-ap-badge>
                         </td>

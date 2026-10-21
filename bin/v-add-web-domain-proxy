@@ -48,6 +48,7 @@ if [ -z $template ]; then
 	template=$(get_user_value '$PROXY_TEMPLATE')
 fi
 is_proxy_template_valid $template
+is_template_allowed_for "$template" proxy "$user"
 
 # Perform verification if read-only mode is enabled
 check_arcpanel_demo_mode

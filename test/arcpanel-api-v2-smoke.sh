@@ -650,10 +650,13 @@ else
 	check "the folder comes as a zip" 1 "$(grep -ci '^content-type: application/zip' "$FILES_DIR/headers")"
 	check "the zip is larger than the file" 1 "$([ "$(stat -c %s "$FILES_DIR/unpacked.zip")" -gt "$big_size" ] && echo 1 || echo 0)"
 	check "the zip holds the uploaded file" "$big_hash" "$(unzip -p "$FILES_DIR/unpacked.zip" unpacked/big.bin | sha256sum | cut -d' ' -f1)"
-	dl_code=$(curl -sk -o "$FILES_DIR/note.txt" -w '%{http_code}' -X POST -H "Authorization: Bearer $FILES_READER" \
+	dl_code=$(curl -sk -D "$FILES_DIR/note.headers" -o "$FILES_DIR/note.txt" -w '%{http_code}' -X POST -H "Authorization: Bearer $FILES_READER" \
 		-H 'Content-Type: application/json' --data '{"paths": ["tmp/arcsmoke/note.txt"]}' "$API$FILES/download")
 	check "a v2-read key downloads one file" 200 "$dl_code"
 	check "the file comes as it is" "hello again" "$(cat "$FILES_DIR/note.txt")"
+	# The sandbox policy of the ticket reaches the client through nginx (E39 W5 L8)
+	check "the download carries the sandbox policy" 1 "$(grep -ci "^content-security-policy: default-src 'none'.*; sandbox" "$FILES_DIR/note.headers")"
+	check "the download carries nosniff" 1 "$(grep -ci '^x-content-type-options: nosniff' "$FILES_DIR/note.headers")"
 	check "a path above the home answers 404" 404 "$(call "$FILES_READER" GET "$FILES/content?path=../../etc/passwd")"
 	check "a download above the home answers 404" 404 "$(call "$FILES_READER" POST "$FILES/download" '{"paths": ["../../etc/passwd"]}')"
 

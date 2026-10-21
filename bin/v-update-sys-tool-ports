@@ -55,6 +55,7 @@ if [ "$reload" = 'yes' ] && ls "$TOOL_PORTS_CONF"/arcpanel-*-port.conf > /dev/nu
 	TOOL_PORTS_CHANGED=yes
 fi
 tool_ports_reload
+"$BIN/v-update-sys-panel-headers" > /dev/null 2>&1
 
 #----------------------------------------------------------#
 #                         ArcPanel                         #

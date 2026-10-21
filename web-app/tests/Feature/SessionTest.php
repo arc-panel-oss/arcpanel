@@ -50,6 +50,26 @@ it('ends an impersonation', function () {
     $this->fake->assertRan('v-log-action', fn ($args) => $args[3] === 'User impersonation session ended (User: bob, Administrator: arcadmin)');
 });
 
+it('gives both sessions a new id when an impersonation starts and ends (E39 W5 L22)', function () {
+    $session = ArrayLegacySession::install(sessionOf('arcadmin', 'admin'));
+    $this->withSession(['probe' => 1]);
+    $legacy = $session->id();
+    $laravel = session()->getId();
+
+    $this->post('/impersonate/bob')->assertRedirect('/');
+    expect($session->id())->not->toBe($legacy)
+        ->and(session()->getId())->not->toBe($laravel)
+        ->and($session->data()['look'])->toBe('bob')
+        ->and($session->data()['user'])->toBe('arcadmin');
+
+    $legacy = $session->id();
+    $laravel = session()->getId();
+    $this->post('/impersonate/stop')->assertRedirect('/');
+    expect($session->id())->not->toBe($legacy)
+        ->and(session()->getId())->not->toBe($laravel)
+        ->and($session->data())->not->toHaveKey('look');
+});
+
 it('refuses impersonation by users and of unknown users', function () {
     ArrayLegacySession::install(sessionOf('bob', 'user'));
     $this->post('/impersonate/carol')->assertForbidden();

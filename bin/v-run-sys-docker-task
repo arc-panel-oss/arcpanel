@@ -24,6 +24,9 @@ source $ARCPANEL/func/main.sh
 # load config file
 source_conf "$ARCPANEL/conf/arcpanel.conf"
 
+# Perform verification if read-only mode is enabled (E39 W5 L22)
+check_arcpanel_demo_mode
+
 conf="$ARCPANEL/data/docker/engine-task.state"
 
 #----------------------------------------------------------#

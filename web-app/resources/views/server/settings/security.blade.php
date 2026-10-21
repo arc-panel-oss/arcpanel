@@ -58,6 +58,18 @@
                 </div>
             </x-ap-card>
 
+            @if ($protectAdmin)
+                {{-- HSTS of the panel (E39 W5 §9.1): browsers that saw it refuse an untrusted certificate for a day --}}
+                <x-ap-card :title="__('HTTPS of the panel')" icon="lock">
+                    <div class="ap-form-grid">
+                        <x-ap-select name="PANEL_HSTS" :label="__('Send HSTS (Strict-Transport-Security)')" :options="$yesNo" :value="$value('PANEL_HSTS')"
+                            :disabled="$selfSigned && $value('PANEL_HSTS') === 'no'"
+                            :hint="$selfSigned
+                                ? __('The panel certificate is self-signed. Install a trusted certificate on the SSL tab before you turn HSTS on.')
+                                : __('Browsers then refuse the panel for a day whenever its certificate is not trusted, for example after it expires.')" />
+                    </div>
+                </x-ap-card>
+            @endif
             @foreach ($groups as $group => $title)
                 @continue($group === 'protection' && ! $protectAdmin)
                 <x-ap-card :title="$title" icon="shield">

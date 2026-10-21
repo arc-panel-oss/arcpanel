@@ -27,7 +27,7 @@ final class ImpersonationController extends Controller
         private readonly LegacySession $legacy,
     ) {}
 
-    public function start(string $user, Principal $principal, ImpersonationPolicy $policy): RedirectResponse
+    public function start(Request $request, string $user, Principal $principal, ImpersonationPolicy $policy): RedirectResponse
     {
         abort_unless($policy->start($principal, $user), 403);
 
@@ -43,13 +43,9 @@ final class ImpersonationController extends Controller
             "User impersonation session started (User: {$user}, {$this->actor($principal)}: {$principal->loginUser})",
         ], Options::allowFailure());
 
-        if ($principal->loginRole === Role::Reseller) {
-            $this->legacy->write([PrincipalResolver::RESELLER_LOOK => $user]);
-
-            return redirect()->route('dashboard');
-        }
-
-        $this->legacy->write(['look' => $user]);
+        $this->switchSessions($request, $principal->loginRole === Role::Reseller
+            ? [PrincipalResolver::RESELLER_LOOK => $user]
+            : ['look' => $user]);
 
         return redirect()->route('dashboard');
     }
@@ -61,10 +57,10 @@ final class ImpersonationController extends Controller
             'user' => ['required', 'string', 'regex:/^[[:alnum:]][-.\w]{0,28}[[:alnum:]]$/'],
         ])['user'];
 
-        return $this->start($user, $principal, $policy);
+        return $this->start($request, $user, $principal, $policy);
     }
 
-    public function stop(Principal $principal): RedirectResponse
+    public function stop(Request $request, Principal $principal): RedirectResponse
     {
         if ($principal->isImpersonating()) {
             $this->arc->run('v-log-action', [
@@ -72,15 +68,24 @@ final class ImpersonationController extends Controller
                 "User impersonation session ended (User: {$principal->impersonated}, {$this->actor($principal)}: {$principal->loginUser})",
             ], Options::allowFailure());
 
-            if ($principal->loginRole === Role::Reseller) {
-                $this->legacy->write([PrincipalResolver::RESELLER_LOOK => null]);
-
-                return redirect()->route('dashboard');
-            }
-            $this->legacy->write(['look' => null]);
+            $this->switchSessions($request, $principal->loginRole === Role::Reseller
+                ? [PrincipalResolver::RESELLER_LOOK => null]
+                : ['look' => null]);
         }
 
         return redirect()->route('dashboard');
+    }
+
+    /**
+     * Apply $patch to the legacy session and give it and the Laravel session
+     * new ids, as a sign-in does (E39 W5 L22).
+     *
+     * @param  array<string, string|null>  $patch
+     */
+    private function switchSessions(Request $request, array $patch): void
+    {
+        $this->legacy->establish($patch);
+        $request->session()->regenerate();
     }
 
     private function actor(Principal $principal): string

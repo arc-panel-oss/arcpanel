@@ -4,11 +4,13 @@
 import collapse from '@alpinejs/collapse';
 import Alpine from 'alpinejs';
 import { registerAll } from './alpine/index.js';
+import { initAutoSubmit } from './autosubmit.js';
 import { initDropdowns } from './dropdowns.js';
 import { loadIslands } from './islands/loader.js';
 
 document.documentElement.classList.add('has-js');
 initDropdowns(document);
+initAutoSubmit(document);
 
 window.Alpine = Alpine;
 Alpine.plugin(collapse);

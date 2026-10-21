@@ -80,7 +80,10 @@ chmod 644 "$ARCPANEL"/install/*.sh
 
 # Packaged configuration
 copy_file 0644 "$SRC/src/deb/nginx/nginx.conf" "$ARCPANEL/nginx/conf/nginx.conf"
+copy_file 0644 "$SRC/src/deb/nginx/security-headers.conf" "$ARCPANEL/nginx/conf/security-headers.conf"
+copy_file 0644 "$SRC/src/deb/nginx/security-headers-files.conf" "$ARCPANEL/nginx/conf/security-headers-files.conf"
 copy_file 0644 "$SRC/src/deb/php/php.ini" "$ARCPANEL/php/lib/php.ini"
+copy_file 0644 "$SRC/src/deb/php/php-fpm.conf" "$ARCPANEL/php/etc/php-fpm.conf"
 if [ -d "$ARCPANEL/web-terminal" ]; then
 	# server.js is the ExecStart of the service, so it must stay executable
 	copy_file 0755 "$SRC/src/deb/web-terminal/server.js" "$ARCPANEL/web-terminal/server.js"

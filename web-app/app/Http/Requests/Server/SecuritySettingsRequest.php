@@ -20,6 +20,8 @@ final class SecuritySettingsRequest extends ServerSettingsRequest
             'INACTIVE_SESSION_TIMEOUT' => ['required', 'integer', 'min:1', 'max:1440'],
             'POLICY_CSRF_STRICTNESS' => ['required', 'in:0,1,2'],
             'POLICY_RESELLER_PACKAGE_SHELLS' => ['sometimes', 'string', 'max:255', new ServerShells],
+            // HSTS of the panel (E39 W5 spec §9.1)
+            'PANEL_HSTS' => ['sometimes', 'in:yes,no'],
         ];
         foreach (ServerSettings::SECURITY_POLICIES as $keys) {
             foreach ($keys as $key) {
@@ -65,6 +67,9 @@ final class SecuritySettingsRequest extends ServerSettingsRequest
         }
         if ($this->has('API_ALLOWED_IP')) {
             $values['API_ALLOWED_IP'] = implode(',', $this->allowedIps());
+        }
+        if ($this->has('PANEL_HSTS')) {
+            $values['PANEL_HSTS'] = (string) $this->input('PANEL_HSTS');
         }
         foreach (ServerSettings::SECURITY_POLICIES as $keys) {
             foreach ($keys as $key) {

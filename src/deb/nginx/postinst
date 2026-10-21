@@ -34,6 +34,11 @@ fi
 syshealth_adapt_arcpanel_nginx_listen_ports # Adapt port listing
 syshealth_adapt_nginx_resolver
 
+# Content-Security-Policy and HSTS files of the panel (E39 W5)
+if [ -x /usr/local/arcpanel/bin/v-update-sys-panel-headers ]; then
+	/usr/local/arcpanel/bin/v-update-sys-panel-headers > /dev/null 2>&1 || true
+fi
+
 ###############################################################
 #                Initialize functions/variables               #
 ###############################################################

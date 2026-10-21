@@ -232,6 +232,18 @@ final class ServerSettings
         ];
     }
 
+    /**
+     * Whether the panel certificate signs itself (issuer = subject), so that
+     * the Security tab can tell that HSTS needs another certificate first;
+     * v-change-sys-arcpanel-hsts checks the trust itself (E39 W5 §9.1).
+     */
+    public function panelCertificateSelfSigned(): bool
+    {
+        $ssl = $this->ssl();
+
+        return ($ssl['ISSUER'] ?? '') !== '' && ($ssl['ISSUER'] ?? '') === ($ssl['SUBJECT'] ?? '');
+    }
+
     /** The panel certificate without its key (`v-list-sys-arcpanel-ssl json`). @return array<string, string> */
     public function ssl(): array
     {
@@ -564,6 +576,11 @@ final class ServerSettings
             ...self::SECURITY_POLICIES['users'], ...self::SECURITY_POLICIES['domains']];
         if ($rootUser) {
             $keys = [...$keys, ...self::SECURITY_POLICIES['protection']];
+            // HSTS of the panel: its own command, which refuses an untrusted certificate (E39 W5 §9.1)
+            $hsts = $values['PANEL_HSTS'] ?? null;
+            if ($hsts !== null && $hsts !== (($config['PANEL_HSTS'] ?? '') === 'yes' ? 'yes' : 'no')) {
+                $steps[] = new Step($hsts === 'yes' ? __('Turn HSTS of the panel on') : __('Turn HSTS of the panel off'), 'v-change-sys-arcpanel-hsts', [$hsts]);
+            }
         }
         $wanted = [];
         foreach ($keys as $key) {

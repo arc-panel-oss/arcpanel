@@ -17,6 +17,7 @@ location /%pma_alias% {
 		fastcgi_index index.php;
 		fastcgi_param HTTP_EARLY_DATA $rfc_early_data if_not_empty;
 		fastcgi_param SCRIPT_FILENAME $request_filename;
+		fastcgi_param HTTP_COOKIE $arcpanel_tool_cookie;
 		fastcgi_pass  unix:/run/php/www.sock;
 	}
 

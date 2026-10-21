@@ -1,0 +1,26 @@
+# Weekly update pull requests for what the packages ship and the workflows
+# use (E39 W5 L22); the Lint workflow audits the locked versions.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directories:
+      - /
+      - /src/deb/web-terminal
+    schedule:
+      interval: weekly
+    target-branch: develop
+
+  - package-ecosystem: composer
+    directories:
+      - /web-app
+      - /lib
+      - /lib/quickinstall
+    schedule:
+      interval: weekly
+    target-branch: develop
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    target-branch: develop

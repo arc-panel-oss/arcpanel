@@ -396,6 +396,30 @@ it('switches REST API v1 on its own key and turns it off with the other APIs (E3
     $this->post('/server/settings/security', array_replace($form, ['API_V1' => 'maybe']))->assertSessionHasErrors('API_V1');
 });
 
+it('turns HSTS of the panel on and off through its command and says when the certificate is self-signed (E39 W5 §9.1)', function () {
+    $this->fake->on('v-change-sys-arcpanel-hsts')->returns();
+    $this->fake->on('v-change-sys-api')->returns();
+    signIn('arcadmin', 'admin');
+    $form = ['API_SYSTEM' => '1', 'API' => 'no', 'API_ALLOWED_IP' => '', 'LOGIN_STYLE' => 'default', 'INACTIVE_SESSION_TIMEOUT' => '60', 'POLICY_CSRF_STRICTNESS' => '1'];
+
+    $this->get('/server/settings/security')->assertOk()->assertSee('Send HSTS (Strict-Transport-Security)')
+        ->assertSee('Browsers then refuse the panel for a day');
+    $this->post('/server/settings/security', array_replace($form, ['PANEL_HSTS' => 'yes']))->assertSessionHas('ok', 'Changes have been saved.');
+    $this->fake->assertRan('v-change-sys-arcpanel-hsts', fn ($a) => $a === ['yes']);
+    $this->fake->assertRan('v-change-sys-config-value', fn ($a) => $a[0] === 'PANEL_HSTS', 0);
+    $this->post('/server/settings/security', array_replace($form, ['PANEL_HSTS' => 'no']))->assertSessionHas('ok');
+    $this->fake->assertRan('v-change-sys-arcpanel-hsts', null, 1);
+    $this->post('/server/settings/security', array_replace($form, ['PANEL_HSTS' => 'maybe']))->assertSessionHasErrors('PANEL_HSTS');
+
+    $this->fake->on('v-list-sys-arcpanel-ssl')->returnsJson(['ARCPANEL' => ['CRT' => '', 'KEY' => '', 'SUBJECT' => 'srv1.example.net', 'ISSUER' => 'srv1.example.net']]);
+    $this->get('/server/settings/security')->assertOk()->assertSee('The panel certificate is self-signed');
+
+    // Another administrator does not see the switch
+    fakeServerUsers($this->fake, ['admin2' => ['ROLE' => 'admin']]);
+    signIn('admin2', 'admin');
+    $this->get('/server/settings/security')->assertOk()->assertDontSee('Send HSTS');
+});
+
 it('turns the API off with one command and keeps System Protection for the ROOT_USER', function () {
     $this->fake->on('v-change-sys-api')->returns();
     signIn('arcadmin', 'admin');

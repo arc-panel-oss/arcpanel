@@ -63,6 +63,7 @@ final class ServerSettingsController extends Controller
                 'restic' => $this->settings->restic(),
             ],
             'ssl' => ['ssl' => $this->settings->ssl(), 'hostname' => $this->settings->hostname()],
+            'security' => ['selfSigned' => $this->settings->panelCertificateSelfSigned()],
             'plugins' => [
                 'plugins' => array_map(fn (string $plugin) => $this->settings->pluginInstalled($plugin), array_combine(array_keys(ServerSettings::PLUGINS), array_keys(ServerSettings::PLUGINS))),
                 'task' => $this->tasks->task(),

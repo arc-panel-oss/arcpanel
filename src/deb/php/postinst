@@ -37,6 +37,11 @@ source /usr/local/arcpanel/func/upgrade.sh
 source /usr/local/arcpanel/conf/arcpanel.conf
 source /usr/local/arcpanel/install/upgrade/upgrade.conf
 
+# The open_basedir of the panel pool names the backup folder (E39 W5 L15);
+# the restart below loads it
+source /usr/local/arcpanel/func/panel-headers.sh
+panel_php_basedir_write
+
 # Restart arcpanel service
 if [ -f "/etc/init.d/arcpanel" ]; then
 	systemctl restart arcpanel > /dev/null 2>&1

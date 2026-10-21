@@ -87,7 +87,9 @@ final class ProcessArcCommand implements ArcCommand
 
             $process = new Process(
                 [$this->sudo, rtrim($this->binPath, '/').'/'.$command, ...$argv],
-                '/',
+                // Inside the pool's open_basedir, which leaves out / (E39 W5
+                // L15); every hosting user a command switches to may enter it
+                '/tmp',
                 [
                     'PATH' => '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin',
                     'ARCPANEL' => $this->installDir,

@@ -136,5 +136,7 @@ it('renders tabs, dialogs, code, logs and the remaining components', function (s
     expect(component('<x-ap-card title="Card" icon="globe">Body<x-slot:footer>Foot</x-slot:footer></x-ap-card>', dir: $dir))
         ->toContain('>Card</h2>')->toContain('aria-labelledby="card-')->toContain('ap-card-foot');
     expect(component('<x-ap-icon name="arrow" />', dir: $dir))->toContain('ap-icon--dir')->toContain('aria-hidden="true"');
-    expect(component('<x-ap-i18n />', dir: $dir))->toContain('window.__ap')->toContain('Dismiss');
+    // A JSON block, not an inline script, under the CSP of E39 W5 §9.2
+    expect(component('<x-ap-i18n />', dir: $dir))->toContain('<script type="application/json" id="ap-i18n">')->toContain('"Dismiss":"Dismiss"')
+        ->not->toContain('window.__ap');
 })->with('directions');

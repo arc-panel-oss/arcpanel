@@ -58,7 +58,8 @@ async function buildPanelApp() {
 		manifest['app.css'] = cssName;
 
 		const js = await esbuild.build({
-			entryPoints: { app: `${panelSource}/js/app.js` },
+			// sso: the single sign-on pages, which load nothing else (E39 W5 §9.2)
+			entryPoints: { app: `${panelSource}/js/app.js`, sso: `${panelSource}/js/sso.js` },
 			outdir: panelOutput,
 			bundle: true,
 			minify: true,
@@ -77,8 +78,12 @@ async function buildPanelApp() {
 			loader: { '.css': 'text' },
 		});
 		for (const [file, output] of Object.entries(js.metafile.outputs)) {
-			// Dynamic imports (chart.js) are entry points too; only list the app.
-			if (output.entryPoint?.endsWith('resources/js/app.js') && file.endsWith('.js')) {
+			// Dynamic imports (chart.js) are entry points too; only list ours.
+			const entry = output.entryPoint ?? '';
+			if (
+				(entry.endsWith('resources/js/app.js') || entry.endsWith('resources/js/sso.js')) &&
+				file.endsWith('.js')
+			) {
 				manifest[`${path.basename(output.entryPoint)}`] = path
 					.relative(panelOutput, file)
 					.split(path.sep)

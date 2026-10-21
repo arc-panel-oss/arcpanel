@@ -133,9 +133,10 @@ final class BackupController extends Controller
 
     /**
      * Download an archive (web/download/backup): served by NGINX from the
-     * backup directory; a remote archive is fetched first.
+     * backup directory. A remote archive is fetched first: this link only
+     * asks, the button posts to {@see fetch()} (E39 W5 L22).
      */
-    public function download(string $user, string $backup, Principal $principal, BackupPolicy $policy, BackupPaths $paths): Response|RedirectResponse
+    public function download(string $user, string $backup, Principal $principal, BackupPolicy $policy, BackupPaths $paths): Response|RedirectResponse|View
     {
         abort_unless($policy->download($principal, $user), 403);
         $archive = $this->backups->archive($user, $backup);
@@ -143,12 +144,7 @@ final class BackupController extends Controller
         if (! is_file($paths->localFile($archive->name))) {
             abort_unless($policy->create($principal, $user), 404);
 
-            return $this->queued(
-                $this->backups->scheduleDownload($user, $backup),
-                redirect()->route('backups.archives.index', ['user' => $user]),
-                __('Download of remote backup file has been scheduled.'),
-                __('An existing backup task is already running, please wait for it to complete.'),
-            );
+            return view('backups.download', ['user' => $user, 'archive' => $archive]);
         }
 
         $redirect = $paths->accelRedirect($archive->name);
@@ -161,6 +157,23 @@ final class BackupController extends Controller
             'X-Content-Type-Options' => 'nosniff',
             'Cache-Control' => 'no-store',
         ]);
+    }
+
+    /** POST /backups/{user}/archives/{backup}/download: copy a remote archive to the server. */
+    public function fetch(string $user, string $backup, Principal $principal, BackupPolicy $policy, BackupPaths $paths): RedirectResponse
+    {
+        abort_unless($policy->download($principal, $user) && $policy->create($principal, $user), 403);
+        $archive = $this->backups->archive($user, $backup);
+        if (is_file($paths->localFile($archive->name))) {
+            return redirect()->route('backups.archives.download', ['user' => $user, 'backup' => $archive->name]);
+        }
+
+        return $this->queued(
+            $this->backups->scheduleDownload($user, $backup),
+            redirect()->route('backups.archives.index', ['user' => $user]),
+            __('Download of remote backup file has been scheduled.'),
+            __('An existing backup task is already running, please wait for it to complete.'),
+        );
     }
 
     /**

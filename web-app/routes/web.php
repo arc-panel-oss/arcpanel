@@ -604,6 +604,8 @@ Route::middleware('auth.arc')->group(function () {
             Route::post('/', [BackupController::class, 'store'])->name('archives.store');
             Route::post('/bulk', [BackupController::class, 'bulk'])->name('archives.bulk');
             Route::post('/archives/{backup}/restore', [BackupController::class, 'restore'])->name('archives.restore');
+            // Copies a remote archive to the server (E39 W5 L22)
+            Route::post('/archives/{backup}/download', [BackupController::class, 'fetch'])->name('archives.fetch');
             Route::delete('/archives/{backup}', [BackupController::class, 'destroy'])->name('archives.destroy');
             Route::post('/snapshots', [SnapshotController::class, 'store'])->name('snapshots.store');
             Route::post('/snapshots/{snapshot}/restore', [SnapshotController::class, 'restore'])->name('snapshots.restore');

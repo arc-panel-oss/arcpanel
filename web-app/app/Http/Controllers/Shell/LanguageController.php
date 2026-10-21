@@ -12,7 +12,8 @@ use Illuminate\Http\Request;
 
 /**
  * Language from the user menu: `v-change-user-language` for the logged-in
- * user, then the session language both apps read.
+ * user, then the session language both apps read. A read-only session keeps
+ * its choice in the session only (E39 W5 L22).
  */
 final class LanguageController extends Controller
 {
@@ -21,7 +22,9 @@ final class LanguageController extends Controller
         $language = (string) $request->input('language');
         abort_unless(array_key_exists($language, ShellComposer::languages()), 422);
 
-        $arc->run('v-change-user-language', [$principal->loginUser, $language]);
+        if (! $principal->isReadOnly()) {
+            $arc->run('v-change-user-language', [$principal->loginUser, $language]);
+        }
         $legacy->write(['language' => $language]);
 
         return back();

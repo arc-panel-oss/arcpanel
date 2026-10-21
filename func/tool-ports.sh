@@ -211,11 +211,23 @@ tool_ports_render_block() {
 	echo "$body"
 }
 
+# The map that keeps the panel's session cookies from the tools (E39 W5 N32);
+# their templates use its variable
+tool_ports_cookie_map() {
+	local src="$ARCPANEL/install/deb/nginx/arcpanel-tool-cookie.conf" dst="$TOOL_PORTS_CONF/arcpanel-tool-cookie.conf"
+	if [ -d "$TOOL_PORTS_CONF" ] && [ -f "$src" ] && ! cmp -s "$src" "$dst"; then
+		cp -f "$src" "$dst"
+		chmod 644 "$dst"
+		TOOL_PORTS_CHANGED=yes
+	fi
+}
+
 # Write or remove the NGINX file of TOOL from its key; restore the previous
 # file when the NGINX test fails. Returns 0 when nothing changed or the new
 # file passed the test.
 tool_ports_render() {
 	local tool="$1" port file new backup=''
+	tool_ports_cookie_map
 	port=$(tool_ports_current "$tool")
 	file=$(tool_ports_file "$tool")
 	if [ -z "$port" ] || ! tool_ports_available "$tool"; then
@@ -276,6 +288,9 @@ tool_ports_change() {
 		return "$E_UPDATE"
 	fi
 	tool_ports_reload
+	# The panel's forms post to the tool ports (E39 W5 spec §9.2)
+	"$BIN/v-update-sys-panel-headers" > /dev/null 2>&1
+	return 0
 }
 
 # Whether arcpanel.conf has KEY at all (also when empty)

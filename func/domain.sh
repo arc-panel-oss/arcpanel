@@ -25,6 +25,27 @@ is_web_template_valid() {
 	fi
 }
 
+# Whether NAME is an internal template of KIND (web, proxy): its metadata
+# says "internal": true, as for silo-endpoint
+is_template_internal() {
+	local meta
+	for meta in "$WEBTPL/meta/$2/$1.json" "$WEBTPL/meta/$1.json"; do
+		[ -f "$meta" ] || continue
+		jq -e '.internal == true' "$meta" > /dev/null 2>&1
+		return
+	done
+	return 1
+}
+
+# Internal templates are put by ArcPanel itself on domains of the
+# administrator only; refused for any other USER and for packages, which
+# have no USER (E39 W5 N29)
+is_template_allowed_for() {
+	if [ "$3" != "$ROOT_USER" ] && is_template_internal "$1" "$2"; then
+		check_result "$E_FORBIDEN" "$1 is an internal template of ArcPanel"
+	fi
+}
+
 # Proxy template check
 is_proxy_template_valid() {
 	if [ -n "$PROXY_SYSTEM" ]; then

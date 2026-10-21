@@ -82,7 +82,7 @@
                     <form class="ap-imp" method="post" action="{{ route('impersonate.stop') }}">
                         @csrf
                         <x-ap-icon name="user" size="sm" />
-                        <span>{!! __('Logged in as :user', ['user' => '<b>'.e($shell['effectiveUser']).'</b>']) !!}</span>
+                        <span>{!! str_replace(':user', '<b>'.e($shell['effectiveUser']).'</b>', e(__('Logged in as :user'))) !!}</span>
                         <button type="submit"><x-ap-icon name="return" size="sm" />{{ __('Return') }}</button>
                     </form>
                 @endif
@@ -244,7 +244,7 @@
                         <form method="post" action="{{ route('shell.language') }}" class="ap-menu-row">
                             @csrf
                             <label class="ap-menu-row-label" for="ap-language"><x-ap-icon name="globe" />{{ __('Language') }}</label>
-                            <select class="ap-select ap-select-sm" id="ap-language" name="language" onchange="this.form.requestSubmit()">
+                            <select class="ap-select ap-select-sm" id="ap-language" name="language" data-ap-autosubmit>
                                 @foreach ($shell['languages'] as $code => $name)
                                     <option value="{{ $code }}" @selected($code === app()->getLocale())>{{ $name }}</option>
                                 @endforeach

@@ -92,12 +92,15 @@ final class BackupService
         return BackupArchive::fromArray($user, $name, $this->lookup->one('v-list-user-backup', [$user, $name], $name));
     }
 
-    /** Whether an archive name belongs to the user (USER.… as v-backup-user names them). */
+    /**
+     * Whether an archive name belongs to the user: USER.DATE.tar as
+     * v-backup-user names them, matched in full (E39 W5 L22), so that bob
+     * does not own bob.x.<date>.tar of a user named bob.x.
+     */
     public static function ownsName(string $user, string $name): bool
     {
         return preg_match('/^'.self::NAME_PATTERN.'$/', $name) === 1
-            && str_starts_with($name, $user.'.')
-            && ! str_contains($name, '..');
+            && preg_match('/^'.preg_quote($user, '/').'\.\d{4}-\d{2}-\d{2}(_\d{2}-\d{2}-\d{2})?\.tar(\.gz|\.zst)?$/', $name) === 1;
     }
 
     /** `v-schedule-user-backup USER [FORMAT]`: exit 4 when a backup of the user is already queued. */

@@ -27,6 +27,9 @@ source $ARCPANEL/func/tenancy.sh
 source $ARCPANEL/func/ports.sh
 # load config file
 source_conf "$ARCPANEL/conf/arcpanel.conf"
+
+# Perform verification if read-only mode is enabled (E39 W5 L22)
+check_arcpanel_demo_mode
 # shellcheck source=/usr/local/arcpanel/func/docker.sh
 source $ARCPANEL/func/docker.sh
 

@@ -58,3 +58,33 @@ for upd_step_pair in FILE_MANAGER_UPLOAD_MAX=4G FILE_STAGING_SESSIONS=4 FILE_STA
 	fi
 done
 unset upd_step_pair
+
+# Browser headers (§9): the map that keeps the panel's cookies from the tools
+# comes before the phpMyAdmin and phpPgAdmin includes that use it (N32)
+if [ -d /etc/nginx/conf.d ]; then
+	cp -f "$ARCPANEL/install/deb/nginx/arcpanel-tool-cookie.conf" /etc/nginx/conf.d/
+	for upd_step_inc in /etc/nginx/conf.d/phpmyadmin.inc /etc/nginx/conf.d/phppgadmin.inc; do
+		if [ -f "$upd_step_inc" ] && ! grep -q 'arcpanel_tool_cookie' "$upd_step_inc"; then
+			sed -i 's|^\(\s*\)fastcgi_param SCRIPT_FILENAME \$request_filename;|&\n\1fastcgi_param HTTP_COOKIE     $arcpanel_tool_cookie;|' "$upd_step_inc"
+		fi
+	done
+	unset upd_step_inc
+	"$ARCPANEL/bin/v-update-sys-tool-ports" yes > /dev/null 2>&1
+fi
+# Content-Security-Policy and an empty HSTS file of the panel
+"$ARCPANEL/bin/v-update-sys-panel-headers" > /dev/null 2>&1
+
+# The internal endpoint template closes the admin API of Silo (N29): the new
+# template files, then the endpoint domain written again with them
+for upd_step_dir in nginx nginx/php-fpm; do
+	if [ -d "$ARCPANEL/data/templates/web/$upd_step_dir" ]; then
+		cp -f "$ARCPANEL/install/deb/templates/web/$upd_step_dir"/silo-endpoint.*tpl "$ARCPANEL/data/templates/web/$upd_step_dir/"
+	fi
+done
+unset upd_step_dir
+upd_step_root=$(grep -m1 "^ROOT_USER=" "$ARCPANEL/conf/arcpanel.conf" | cut -d"'" -f2)
+upd_step_host=$(grep -m1 "^SILO_HOSTNAME=" "$ARCPANEL/conf/arcpanel.conf" | cut -d"'" -f2)
+if [ -n "$upd_step_host" ] && grep -q "^DOMAIN='$upd_step_host' " "$ARCPANEL/data/users/${upd_step_root:-admin}/web.conf" 2> /dev/null; then
+	"$ARCPANEL/bin/v-rebuild-web-domain" "${upd_step_root:-admin}" "$upd_step_host" yes > /dev/null 2>&1
+fi
+unset upd_step_root upd_step_host

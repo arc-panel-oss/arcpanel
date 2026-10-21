@@ -47,6 +47,16 @@ rm -f $ARCPANEL/conf/arcpanel.conf.bak
 # Again after the sort: a reader between the two moves found no file
 sys_config_changed
 
+# The panel's PHP pool may read the backup folder only (E39 W5 L15)
+if [ "$key" = 'BACKUP' ]; then
+	# shellcheck source=/usr/local/arcpanel/func/panel-headers.sh
+	source "$ARCPANEL/func/panel-headers.sh"
+	panel_php_basedir_write
+	if [ "$PANEL_PHP_CHANGED" = yes ]; then
+		panel_php_reload
+	fi
+fi
+
 #----------------------------------------------------------#
 #                         ArcPanel                         #
 #----------------------------------------------------------#

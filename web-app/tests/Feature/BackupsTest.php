@@ -114,9 +114,17 @@ it('serves a local archive through NGINX and fetches a remote one first', functi
     $this->get('/backups/bob/archives/'.BK_ARCHIVE.'/download')->assertOk()
         ->assertHeader('X-Accel-Redirect', '/backup/'.BK_ARCHIVE)
         ->assertHeader('Content-Type', 'application/x-tar');
-    $this->get('/backups/bob/archives/bob.2026-10-01_05-10-11.tar/download')->assertRedirect('/backups/bob')
+    // A link only asks; the button posts (E39 W5 L22)
+    $this->get('/backups/bob/archives/bob.2026-10-01_05-10-11.tar/download')->assertOk()
+        ->assertSee('action="'.url('/backups/bob/archives/bob.2026-10-01_05-10-11.tar/download').'"', false)
+        ->assertSee('method="post"', false);
+    $this->fake->assertRan('v-schedule-user-backup-download', times: 0);
+    $this->post('/backups/bob/archives/bob.2026-10-01_05-10-11.tar/download')->assertRedirect('/backups/bob')
         ->assertSessionHas('ok', 'Download of remote backup file has been scheduled.');
     $this->fake->assertRan('v-schedule-user-backup-download', fn ($a) => $a === ['bob', 'bob.2026-10-01_05-10-11.tar']);
+    // A local archive needs no fetch
+    $this->post('/backups/bob/archives/'.BK_ARCHIVE.'/download')->assertRedirect('/backups/bob/archives/'.BK_ARCHIVE.'/download');
+    $this->fake->assertRan('v-schedule-user-backup-download', times: 1);
 
     unlink($dir.'/'.BK_ARCHIVE);
     rmdir($dir);
@@ -236,6 +244,7 @@ it('refuses every change in read-only mode', function () {
     $this->get('/backups/bob')->assertOk()->assertDontSee('Create Backup');
     $this->post('/backups/bob')->assertForbidden();
     $this->post('/backups/bob/archives/'.BK_ARCHIVE.'/restore')->assertForbidden();
+    $this->post('/backups/bob/archives/'.BK_ARCHIVE.'/download')->assertForbidden();
     $this->delete('/backups/bob/archives/'.BK_ARCHIVE)->assertForbidden();
     $this->post('/backups/bob/snapshots')->assertForbidden();
     $this->post('/backups/bob/exclusions', ['userdir' => 'tmp'])->assertForbidden();

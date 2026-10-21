@@ -126,10 +126,12 @@ for domain in "${domains[@]}"; do
 			fi
 
 			# Checking web, proxy and backend templates
-			if ! is_restore_template_valid "$TPL" || [ -n "$(is_web_template_valid "$TPL")" ]; then
+			if ! is_restore_template_valid "$TPL" || [ -n "$(is_web_template_valid "$TPL")" ] \
+				|| [ -n "$(is_template_allowed_for "$TPL" web "$user")" ]; then
 				TPL='default'
 			fi
-			if ! is_restore_template_valid "$PROXY" || [ -n "$(is_proxy_template_valid "$PROXY")" ]; then
+			if ! is_restore_template_valid "$PROXY" || [ -n "$(is_proxy_template_valid "$PROXY")" ] \
+				|| [ -n "$(is_template_allowed_for "$PROXY" proxy "$user")" ]; then
 				PROXY='default'
 			fi
 			if ! is_restore_template_valid "$BACKEND" || [ -n "$(is_backend_template_valid "$BACKEND")" ]; then

@@ -668,6 +668,9 @@ if [ "$NGINX_B" = true ]; then
 
 	# Custom config
 	get_branch_file 'src/deb/nginx/nginx.conf' "${BUILD_DIR_ARCPANELNGINX}/usr/local/arcpanel/nginx/conf/nginx.conf"
+	# Security headers (E39 W5); csp.conf and hsts.conf are written on the server
+	get_branch_file 'src/deb/nginx/security-headers.conf' "${BUILD_DIR_ARCPANELNGINX}/usr/local/arcpanel/nginx/conf/security-headers.conf"
+	get_branch_file 'src/deb/nginx/security-headers-files.conf' "${BUILD_DIR_ARCPANELNGINX}/usr/local/arcpanel/nginx/conf/security-headers-files.conf"
 
 	# Build the package
 	echo Building Nginx DEB

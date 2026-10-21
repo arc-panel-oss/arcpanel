@@ -169,6 +169,14 @@ teardown_file() {
     assert_output enabled
 }
 
+@test "firewall: the server's own addresses are accepted from the loopback interface only (E39 W5 N28)" {
+    # An accept by source address alone; the rules of rules.conf carry a comment
+    run bash -c "nft list chain inet arcpanel input | grep -E '^[[:space:]]*ip6? saddr .* accept$' | grep -v 'fe80::/10'"
+    assert_output ''
+    run bash -c "nft list chain inet arcpanel input | sed -n '3,4p'"
+    assert_line --index 1 --regexp '^[[:space:]]*iif "lo" accept$'
+}
+
 @test "firewall: a port open to all answers over IPv4 and IPv6" {
     assert_equal "$(probe $HOST4 $P1)" 200
     assert_equal "$(probe $HOST6 $P1)" 200

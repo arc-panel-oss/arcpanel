@@ -1484,7 +1484,8 @@ paths:
         tree for arcpanel-nginx to serve: one regular file is copied as read by the
         user; several paths or a folder are zipped as the user (symlinks stored as
         links, never followed). All paths of a zip must share one parent folder.
-        Prints {NAME, SIZE, MIME}.
+        The download must leave FILE_STAGING_RESERVE percent of the staging file
+        system free. Prints {NAME, SIZE, MIME}.
 
         **Arguments**
 
@@ -8573,6 +8574,53 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/v-change-sys-api"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+  "/api/#v-change-sys-arcpanel-hsts":
+    post:
+      operationId: v-change-sys-arcpanel-hsts
+      tags:
+        - System
+      summary: Turn HSTS of the panel on or off
+      description: |-
+        This function sends Strict-Transport-Security from the panel's web server
+        (yes) or stops sending it (no), and stores PANEL_HSTS. Browsers that saw
+        the header refuse the panel for a year when its certificate is not
+        trusted, so yes is refused while the panel certificate is self-signed or
+        otherwise not trusted (E39 W5).
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `STATUS` | yes |
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-change-sys-arcpanel-hsts"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-change-sys-arcpanel-hsts"
       responses:
         "200":
           description: "The output of the command; `OK` for an empty output with legacy authentication."
@@ -32530,7 +32578,10 @@ paths:
         This function is started by v-start-app-process-task and runs the task in
         the foreground as the user, appending its output to
         app-process/logs/task.log of the domain, then records the exit code. COMMAND
-        is base64, for the custom task. Not meant to be called directly.
+        is base64, for the custom task. The task runs in a transient unit in the
+        user's slice with the limits of the process (E39 W5 N24), so it shares the
+        package's resources and stops with all its children. Not meant to be called
+        directly.
 
         **Arguments**
 
@@ -33199,6 +33250,11 @@ paths:
         ignored and quarantined files are left out. New findings send a panel
         notification to the user and the administrator. Prints the scan record.
         A scan of the user that is already running answers E_INUSE.
+
+        The domains share MALWARE_TIMEOUT (an hour). A domain whose scan did not
+        finish keeps its previous findings and makes the scan partial (exit code
+        E_UPDATE); a domain with more than MALWARE_MAX_HITS hits keeps the most
+        severe and sets TRUNCATED (E39 W5 Q2, Q3).
 
         **Arguments**
 
@@ -37997,6 +38053,49 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/v-update-sys-node-releases"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+  "/api/#v-update-sys-panel-headers":
+    post:
+      operationId: v-update-sys-panel-headers
+      tags:
+        - System
+      summary: Write the security headers of the panel's web server
+      description: |-
+        This function writes the Content-Security-Policy of the panel, with the
+        webmail and database tools ports that its forms post to, writes the HSTS
+        file from PANEL_HSTS when it is missing, and reloads the panel's NGINX
+        when a file changed (E39 W5). The installers, the upgrade and the tool
+        port commands run it.
+
+        **Arguments:** none.
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-update-sys-panel-headers"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-update-sys-panel-headers"
       responses:
         "200":
           description: "The output of the command; `OK` for an empty output with legacy authentication."
@@ -46006,6 +46105,27 @@ components:
               description: "`VERSION`, optional"
               examples:
                 - api
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
+    v-change-sys-arcpanel-hsts:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-change-sys-arcpanel-hsts
+              default: v-change-sys-arcpanel-hsts
+            arg1:
+              type: string
+              title: STATUS
+              description: "`STATUS`"
+              examples:
+                - "yes"
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-change-sys-arcpanel-ssl:
@@ -64194,6 +64314,20 @@ components:
               enum:
                 - v-update-sys-node-releases
               default: v-update-sys-node-releases
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
+    v-update-sys-panel-headers:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-update-sys-panel-headers
+              default: v-update-sys-panel-headers
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-update-sys-ports-reserved:

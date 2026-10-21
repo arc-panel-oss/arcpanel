@@ -1,7 +1,7 @@
 {{-- Owner picker (administrators and resellers) and the Backups / Snapshots / Exclusions tabs. --}}
 @if ($owners !== null && count($owners) > 1)
     <form method="get" action="{{ route('backups.index') }}" class="ap-row ap-owner-pick">
-        <x-ap-select name="owner" :label="__('Owner')" :options="array_combine($owners, $owners)" :value="$user" id="pick-owner" onchange="this.form.requestSubmit()" />
+        <x-ap-select name="owner" :label="__('Owner')" :options="array_combine($owners, $owners)" :value="$user" id="pick-owner" data-ap-autosubmit />
         <x-ap-button type="submit" size="sm" class="ap-no-js">{{ __('Show backups') }}</x-ap-button>
     </form>
 @endif

@@ -116,11 +116,41 @@ rm -f "$ARCPANEL/data/api/v2-secret-store"
 # and the allow-list leave out the same root-only commands (E39 W4 spec §9).
 $BIN/v-update-sys-sudoers
 check_result $? "sudo rules failed"
-"$PHP_BIN" "$APP_DIR/artisan" arcpanel:allow-list --bin="$ARCPANEL/bin" --root-only="$ARCPANEL/install/common/sudo/root-only" > /dev/null
-check_result $? "panel app allow-list failed"
-"$PHP_BIN" "$APP_DIR/artisan" arcpanel:i18n-import --locale-dir="$ARCPANEL/lib/locale" > /dev/null
-check_result $? "panel app translations failed"
+# Laravel never boots as root (E39 W5 L15): the web user prints both, root
+# writes them to a temporary file beside the target and moves it into place
 chown -R "$WEB_USER:$WEB_USER" "$APP_DIR/storage" "$APP_DIR/bootstrap/cache"
+tmp=$(mktemp "$APP_DIR/config/.arc-commands.XXXXXX")
+runuser -u "$WEB_USER" -- "$PHP_BIN" "$APP_DIR/artisan" arcpanel:allow-list --bin="$ARCPANEL/bin" \
+	--root-only="$ARCPANEL/install/common/sudo/root-only" --stdout > "$tmp"
+if [ $? -ne 0 ] || ! grep -q '^return \[' "$tmp"; then
+	rm -f "$tmp"
+	check_result "$E_UPDATE" "panel app allow-list failed"
+fi
+chmod 644 "$tmp"
+mv -f "$tmp" "$APP_DIR/config/arc-commands.php"
+mkdir -p "$APP_DIR/lang"
+tmp=$(mktemp "$APP_DIR/lang/.i18n.XXXXXX")
+runuser -u "$WEB_USER" -- "$PHP_BIN" "$APP_DIR/artisan" arcpanel:i18n-import --locale-dir="$ARCPANEL/lib/locale" --stdout > "$tmp"
+if [ $? -ne 0 ] || ! jq -e 'type == "object"' "$tmp" > /dev/null 2>&1; then
+	rm -f "$tmp"
+	check_result "$E_UPDATE" "panel app translations failed"
+fi
+for lang in $(jq -r 'keys[]' "$tmp"); do
+	[[ "$lang" =~ ^[A-Za-z_-]+$ ]] || continue
+	jq --arg l "$lang" '.[$l]' "$tmp" > "$APP_DIR/lang/.$lang.json.tmp" \
+		&& chmod 644 "$APP_DIR/lang/.$lang.json.tmp" \
+		&& mv -f "$APP_DIR/lang/.$lang.json.tmp" "$APP_DIR/lang/$lang.json"
+done
+rm -f "$tmp"
+chown -R "$WEB_USER:$WEB_USER" "$APP_DIR/storage" "$APP_DIR/bootstrap/cache"
+
+# The open_basedir of the panel pool names the backup folder (E39 W5 L15)
+# shellcheck source=/usr/local/arcpanel/func/panel-headers.sh
+source "$ARCPANEL/func/panel-headers.sh"
+panel_php_basedir_write
+if [ "$PANEL_PHP_CHANGED" = yes ]; then
+	panel_php_reload
+fi
 
 # Framework caches, built as the web user. Routes are cached since the panel
 # app serves the root URL (2.0, E8); under the /app prefix of 1.x a route

@@ -44,10 +44,12 @@ check_arcpanel_demo_mode
 case $type in
 	WEB)
 		is_web_template_valid "$template"
+		is_template_allowed_for "$template" web ''
 		update_user_value "$user" '$WEB_TEMPLATE' "$template"
 		;;
 	PROXY)
 		is_proxy_template_valid "$template"
+		is_template_allowed_for "$template" proxy ''
 		update_user_value "$user" '$PROXY_TEMPLATE' "$template"
 		;;
 	BACKEND)

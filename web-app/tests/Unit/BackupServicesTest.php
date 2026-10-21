@@ -54,6 +54,16 @@ it('accepts only archive names of the owner', function () {
         ->and(BackupService::ownsName('bob', 'carol.2026-10-01.tar'))->toBeFalse();
 });
 
+it('matches the whole archive name: the user, a dot and the date of the archive (E39 W5 L22)', function () {
+    expect(BackupService::ownsName('bob', 'bob.2026-10-01.tar'))->toBeTrue()
+        ->and(BackupService::ownsName('bob', 'bob.2026-10-01_05-10-11.tar.zst'))->toBeTrue()
+        ->and(BackupService::ownsName('bob', 'bob.2026-10-01.tar.gz'))->toBeTrue()
+        ->and(BackupService::ownsName('bob', 'bob.x.2026-10-01_05-10-11.tar'))->toBeFalse()
+        ->and(BackupService::ownsName('bob', 'bob.shop.2026-10-01.tar'))->toBeFalse()
+        ->and(BackupService::ownsName('bob', 'bob.2026-10-01_05-10-11.tar.bak'))->toBeFalse()
+        ->and(BackupService::ownsName('bob', 'bob.notes.txt'))->toBeFalse();
+});
+
 it('keeps the direct children of a snapshot folder, folders first', function () {
     $output = implode("\n", [
         json_encode(['time' => '2026-10-06T01:00:00Z', 'struct_type' => 'snapshot', 'short_id' => '4f2a91c0']),

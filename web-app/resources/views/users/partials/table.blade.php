@@ -17,7 +17,7 @@
                     <form method="get" action="{{ route('users.index') }}" class="ap-owner-filter">
                         <label class="sr-only" for="role-filter">{{ __('Role') }}</label>
                         <div class="ap-select-wrap">
-                            <select class="ap-select ap-select-sm" id="role-filter" name="role" onchange="this.form.requestSubmit()">
+                            <select class="ap-select ap-select-sm" id="role-filter" name="role" data-ap-autosubmit>
                                 <option value="">{{ __('All roles') }}</option>
                                 @foreach (['admin', 'reseller', 'user'] as $value)
                                     <option value="{{ $value }}" @selected($roleFilter === $value)>{{ $roleLabels[$value] }}</option>
@@ -27,7 +27,7 @@
                         </div>
                         <label class="sr-only" for="owner-filter">{{ __('Owner') }}</label>
                         <div class="ap-select-wrap">
-                            <select class="ap-select ap-select-sm" id="owner-filter" name="owner" onchange="this.form.requestSubmit()">
+                            <select class="ap-select ap-select-sm" id="owner-filter" name="owner" data-ap-autosubmit>
                                 <option value="">{{ __('All owners') }}</option>
                                 @foreach ([$rootUser, ...$resellers] as $name)
                                     <option value="{{ $name }}" @selected($ownerFilter === $name)>{{ $name }}</option>

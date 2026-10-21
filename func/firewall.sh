@@ -127,16 +127,11 @@ fw_chain_bans() {
 	grep -F "CHAIN='$1'" | sed -n "s/^IP='\([^']*\)'.*/\1/p" | awk -v family="$2" '(index($0, ":") > 0) == (family == 6)'
 }
 
-# Address list of one family for an accept line, or nothing
-fw_addr_list() {
-	grep -v '^[[:space:]]*$' | paste -sd ',' - | sed 's/,/, /g'
-}
-
 # Write the whole table to stdout (spec §4)
 fw_render() {
 	local dir="$ARCPANEL/data/firewall"
 	local rules="$dir/rules.conf" chains="$dir/chains.conf" banlist="$dir/banlist.conf" ipsets="$dir/ipset.conf"
-	local line name ver file family proto port ip set own4 own6 rule_line
+	local line name ver file family proto port ip set rule_line
 	declare -A lists=()
 
 	echo "table inet arcpanel"
@@ -183,11 +178,10 @@ fw_render() {
 
 	echo "	chain input {"
 	echo "		type filter hook input priority filter; policy drop;"
+	# The server's own addresses get no accept rule of their own: its traffic
+	# to itself arrives on lo, and a packet from outside that claims one of
+	# them is spoofed (E39 W5 N28)
 	echo "		iif \"lo\" accept"
-	own4=$(ls "$ARCPANEL/data/ips" 2> /dev/null | fw_addr_list)
-	own6=$(fw_own_ipv6 | fw_addr_list)
-	[ -n "$own4" ] && echo "		ip saddr { $own4 } accept"
-	[ -n "$own6" ] && echo "		ip6 saddr { $own6 } accept"
 	echo "		ct state established,related accept"
 	echo "		icmpv6 type { $FW_ICMPV6_TYPES } accept"
 	echo "		ip6 saddr fe80::/10 udp sport 547 udp dport 546 accept"

@@ -1,0 +1,59 @@
+#!/bin/bash
+# info: write the security headers of the panel's web server
+# options: none
+#
+# example: v-update-sys-panel-headers
+#
+# This function writes the Content-Security-Policy of the panel, with the
+# webmail and database tools ports that its forms post to, writes the HSTS
+# file from PANEL_HSTS when it is missing, and reloads the panel's NGINX
+# when a file changed (E39 W5). The installers, the upgrade and the tool
+# port commands run it.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Includes
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/panel-headers.sh
+source $ARCPANEL/func/panel-headers.sh
+# load config file
+source_conf "$ARCPANEL/conf/arcpanel.conf"
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+if [ ! -d "$PANEL_NGINX_CONF_DIR" ]; then
+	check_result "$E_NOTEXIST" "the panel's NGINX is not installed"
+fi
+
+# Perform verification if read-only mode is enabled
+check_arcpanel_demo_mode
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+PANEL_HEADERS_CHANGED=''
+panel_csp_write
+if [ ! -f "$PANEL_NGINX_CONF_DIR/hsts.conf" ]; then
+	panel_hsts_write "${PANEL_HSTS:-no}"
+fi
+if [ "$PANEL_HEADERS_CHANGED" = 'yes' ] && ! panel_nginx_reload; then
+	# The panel keeps running without the policy rather than not at all
+	rm -f "$PANEL_NGINX_CONF_DIR/csp.conf"
+	check_result "$E_UPDATE" "the panel's NGINX refused the new headers"
+fi
+
+#----------------------------------------------------------#
+#                         ArcPanel                         #
+#----------------------------------------------------------#
+
+log_event "$OK" "$ARGUMENTS"
+
+exit

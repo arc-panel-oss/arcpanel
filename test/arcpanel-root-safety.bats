@@ -203,6 +203,20 @@ lib() {
     assert_output --partial 'security restrictions'
 }
 
+@test "the Docker bulk commands honour demo mode (E39 W5 L22)" {
+    local cmd out='' cmds=(v-backup-docker-apps v-delete-user-docker-apps v-rebuild-docker-apps v-suspend-user-docker-apps
+        v-unsuspend-user-docker-apps v-run-docker-app-task v-run-sys-docker-task)
+    v-change-sys-config-value DEMO_MODE yes
+    for cmd in "${cmds[@]}"; do
+        out+="$cmd: $("$cmd" "$RS_USER" x y z 2>&1 | head -n1)"$'\n'
+    done
+    sed -i "s/^DEMO_MODE='yes'/DEMO_MODE='no'/" "$ARCPANEL/conf/arcpanel.conf"
+    run printf '%s' "$out"
+    for cmd in "${cmds[@]}"; do
+        assert_line --partial "$cmd: ERROR: Unable to perform operation due to security restrictions"
+    done
+}
+
 #----------------------------------------------------------#
 #                 M2: restic restores                      #
 #----------------------------------------------------------#

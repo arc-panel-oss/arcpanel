@@ -4,7 +4,7 @@
 <form method="get" action="{{ route($route, $params) }}" class="ap-owner-filter">
     <label class="sr-only" for="owner-filter">{{ __('Owner') }}</label>
     <div class="ap-select-wrap">
-        <select class="ap-select ap-select-sm" id="owner-filter" name="owner" onchange="this.form.requestSubmit()">
+        <select class="ap-select ap-select-sm" id="owner-filter" name="owner" data-ap-autosubmit>
             <option value="">{{ __('All owners') }}</option>
             @foreach ($owners as $name)
                 <option value="{{ $name }}" @selected($name === $owner)>{{ $name }}</option>

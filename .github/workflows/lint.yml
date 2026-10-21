@@ -97,6 +97,37 @@ jobs:
         working-directory: web-app
         run: php artisan arcpanel:api-docs --check
 
+  # Known advisories of what the packages ship; High and Critical fail (E39 W5 L22)
+  dependency-audit:
+    name: Dependency audit
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "lts/*"
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # 2.40.0
+        with:
+          php-version: "8.5"
+          tools: composer:v2
+          coverage: none
+
+      - name: npm audit of the panel assets and the web terminal
+        run: |
+          npm audit --omit=dev --audit-level=high
+          (cd src/deb/web-terminal && npm audit --omit=dev --audit-level=high)
+
+      - name: composer audit of the panel app, lib and Quick Install
+        run: |
+          for dir in web-app lib lib/quickinstall; do
+            (cd "$dir" && composer audit --locked --no-interaction --ignore-severity=low --ignore-severity=medium)
+          done
+
   shellcheck:
     name: ShellCheck
     runs-on: ubuntu-latest

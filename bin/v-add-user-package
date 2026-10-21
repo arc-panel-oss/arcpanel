@@ -74,6 +74,7 @@ is_package_consistent() {
 	is_boolean_format_valid "$BACKUPS_INCREMENTAL" 'BACKUPS_INCREMENTAL'
 	if [ -n "$WEB_TEMPLATE" ]; then
 		is_web_template_valid "$WEB_TEMPLATE"
+		is_template_allowed_for "$WEB_TEMPLATE" web ''
 	fi
 	if [ -n "$BACKEND_TEMPLATE" ]; then
 		is_backend_template_valid "$BACKEND_TEMPLATE"
@@ -85,6 +86,7 @@ is_package_consistent() {
 	fi
 	if [ -n "$PROXY_TEMPLATE" ]; then
 		is_proxy_template_valid "$PROXY_TEMPLATE"
+		is_template_allowed_for "$PROXY_TEMPLATE" proxy ''
 	fi
 	if [ -n "$DNS_TEMPLATE" ]; then
 		is_dns_template_valid "$DNS_TEMPLATE"

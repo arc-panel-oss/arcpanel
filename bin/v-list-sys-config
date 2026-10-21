@@ -59,6 +59,7 @@ json_list() {
 		"FILE_MANAGER_UPLOAD_MAX": "'$FILE_MANAGER_UPLOAD_MAX'",
 		"FILE_STAGING_LIMIT": "'$FILE_STAGING_LIMIT'",
 		"FILE_STAGING_RESERVE": "'$FILE_STAGING_RESERVE'",
+		"PANEL_HSTS": "'$PANEL_HSTS'",
 		"FILE_STAGING_SESSIONS": "'$FILE_STAGING_SESSIONS'",
 		"FIREWALL_EXTENSION": "'$FIREWALL_EXTENSION'",
 		"FIREWALL_SYSTEM": "'$FIREWALL_SYSTEM'",
@@ -259,6 +260,7 @@ shell_list() {
 		echo "File Manager enabled:             $FILE_MANAGER"
 		echo "File Manager staging:             ${FILE_STAGING_SESSIONS:-4} uploads, ${FILE_STAGING_LIMIT:-8G} per account, ${FILE_STAGING_RESERVE:-10}% kept free, files up to ${FILE_MANAGER_UPLOAD_MAX:-4G}"
 	fi
+	echo "Panel HSTS:                       ${PANEL_HSTS:-no}"
 	if [ -n "$MALWARE_SCAN" ]; then
 		echo "Malware scan enabled:             $MALWARE_SCAN"
 	fi
