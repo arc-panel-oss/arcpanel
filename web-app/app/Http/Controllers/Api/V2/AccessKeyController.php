@@ -20,6 +20,7 @@ use App\Http\Resources\V2\AccessKeySetResource;
 use App\Http\Resources\V2\NewAccessKeyResource;
 use App\Policies\AccessKeyPolicy;
 use App\Services\Keys\AccessKey;
+use App\Services\Keys\AccessKeyRestrictions;
 use App\Services\Keys\AccessKeyService;
 use App\Services\Keys\AccessKeySets;
 use App\Services\Support\PlanRunner;
@@ -93,6 +94,7 @@ final class AccessKeyController extends Controller
         // Without restrictions the arguments of v-add-access-key before E43
         $ips = $request->allowedIps();
         $expires = $request->expires();
+        $this->assertWithinCaller($ips, $expires, $calling);
         $args = $ips === [] && $expires === null
             ? [$user, implode(',', $sets), $comment, 'json']
             : [$user, implode(',', $sets), $comment, implode(',', $ips), $expires === null ? '' : (string) $expires, 'json'];
@@ -220,6 +222,23 @@ final class AccessKeyController extends Controller
         $missing = $calling->unrestricted() ? [] : array_values(array_diff($sets, $calling->sets));
         if ($missing !== []) {
             throw new ApiException(ErrorCode::Forbidden, 'The access key may only give the permission sets it holds; it does not hold '.implode(', ', $missing).'.', 403);
+        }
+    }
+
+    /**
+     * A key limited to addresses or with an expiry creates only keys limited
+     * to addresses inside its own list and expiring no later than it does,
+     * so that it cannot give itself wider access (E39 W5 N27).
+     *
+     * @param  list<string>  $ips
+     */
+    private function assertWithinCaller(array $ips, ?int $expires, KeyPermissions $calling): void
+    {
+        if ($calling->allowedIps !== [] && ($ips === [] || ! AccessKeyRestrictions::within($ips, $calling->allowedIps))) {
+            throw new ApiException(ErrorCode::Forbidden, 'A key limited to addresses may only create keys limited to addresses inside its own list.', 403);
+        }
+        if ($calling->expires !== null && ($expires === null || $expires > $calling->expires->getTimestamp())) {
+            throw new ApiException(ErrorCode::Forbidden, 'A key with an expiry may only create keys that expire no later than it does.', 403);
         }
     }
 
