@@ -132,6 +132,31 @@ it('refuses restrictions outside the rules before any command', function (array 
     'not ISO 8601' => [['expires_at' => 'next friday']],
 ]);
 
+it('lets a restricted key create keys only inside its own address list and expiry (E39 W5 N27)', function () {
+    $until = now()->toImmutable()->addDays(10)->startOfSecond();
+    $this->fake->on('v-check-access-key-permissions')->using(fn (array $args) => [0, (string) json_encode([
+        'ACCESS_KEY_ID' => API_KEY_ID, 'USER' => 'arcadmin', 'ROLE' => 'admin', 'PERMISSIONS' => [], 'COMMANDS' => ['*'],
+        'ALLOWED_IPS' => ['203.0.113.0/24', '2001:db8::/32'], 'EXPIRES' => (string) $until->getTimestamp(),
+    ])]);
+    $headers = ['Authorization' => 'Bearer '.API_KEY_ID.':'.API_SECRET, 'Accept' => 'application/json'];
+    $post = fn (array $body) => $this->postJson('/api/v2/users/bob/access-keys', ['permissions' => ['v2-read'], ...$body], $headers);
+    $inside = ['allowed_ips' => ['203.0.113.7', '203.0.113.128/25', '2001:db8:1::/48'], 'expires_at' => $until->subDay()->toIso8601String()];
+
+    $post([])->assertForbidden()->assertJsonPath('error.code', 'E_FORBIDDEN');
+    $post(['allowed_ips' => $inside['allowed_ips']])->assertForbidden();
+    $post(['expires_at' => $inside['expires_at']])->assertForbidden();
+    $post([...$inside, 'allowed_ips' => ['198.51.100.7']])->assertForbidden();
+    $post([...$inside, 'allowed_ips' => ['203.0.0.0/16']])->assertForbidden();
+    $post([...$inside, 'allowed_ips' => ['2001:db8::/31']])->assertForbidden();
+    $post([...$inside, 'expires_at' => $until->addDay()->toIso8601String()])->assertForbidden();
+    $this->postJson('/api/v2/users/bob/access-keys?dry_run=1', ['permissions' => ['v2-read']], $headers)->assertForbidden();
+    $this->fake->assertNotRan('v-add-access-key');
+
+    $post($inside)->assertCreated();
+    $post([...$inside, 'expires_at' => $until->toIso8601String()])->assertCreated();
+    $this->fake->assertRan('v-add-access-key', null, 2);
+});
+
 it('shows the restrictions in the dry run and refuses a v2-read key before any command', function () {
     $expires = now()->addDays(2)->startOfSecond();
 
