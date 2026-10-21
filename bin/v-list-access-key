@@ -69,6 +69,9 @@ plain_list() {
 check_args '1' "$#" 'ACCESS_KEY_ID [FORMAT]'
 is_format_valid 'access_key_id'
 is_object_valid 'key' 'KEY' "$access_key_id"
+if ! access_key_file_ok "${ARCPANEL}/data/access-keys/${access_key_id}"; then
+	check_result "$E_FORBIDEN" "Access key $access_key_id is damaged"
+fi
 
 #----------------------------------------------------------#
 #                       Action                             #

@@ -1571,10 +1571,11 @@ is_ip_status_format_valid() {
 	fi
 }
 
-# Comment validator
+# Comment validator: a literal space only, never another blank or a line
+# break, because comments are written into records (E39 W5 §4)
 is_comment_format_valid() {
-	if ! [[ "$1" =~ ^[[:alnum:]][[:alnum:][:space:]._-]{0,64}[[:alnum:]]$ ]]; then
-		check_result "$E_INVALID" "invalid $2 format :: $1"
+	if ! [[ "$1" =~ ^[[:alnum:]][[:alnum:]\ ._-]{0,64}[[:alnum:]]$ ]]; then
+		check_result "$E_INVALID" "invalid $2 format"
 	fi
 }
 
@@ -1898,6 +1899,22 @@ is_secret_access_key_format_valid() {
 	fi
 }
 
+# True when an access-key file has the shape v-add-access-key writes: one
+# KEY='value' line per key. source_conf lets a later line win, so a file that
+# names a key twice is refused by every reader (E39 W5 §4).
+access_key_file_ok() {
+	local file="$1" line name seen=" "
+	[[ -f "$file" && ! -L "$file" ]] || return 1
+	while IFS= read -r line || [[ -n "$line" ]]; do
+		[[ -z "$line" ]] && continue
+		[[ "$line" =~ ^([A-Z_]+)=\'[^\']*\'$ ]] || return 1
+		name="${BASH_REMATCH[1]}"
+		[[ "$seen" == *" $name "* ]] && return 1
+		seen+="$name "
+	done < "$file"
+	return 0
+}
+
 # Checks if the secret belongs to the access key
 check_access_key_secret() {
 	local access_key_id="$(basename "$1")"
@@ -1906,6 +1923,9 @@ check_access_key_secret() {
 
 	if [[ -z "$access_key_id" || ! -f "$ARCPANEL/data/access-keys/${access_key_id}" ]]; then
 		check_result "$E_PASSWORD" "Access key $access_key_id doesn't exist"
+	fi
+	if ! access_key_file_ok "$ARCPANEL/data/access-keys/${access_key_id}"; then
+		check_result "$E_FORBIDEN" "Access key $access_key_id is damaged"
 	fi
 
 	if [[ -z "$secret_access_key" ]]; then
@@ -1932,6 +1952,9 @@ check_access_key_user() {
 	if [[ -z "$access_key_id" || ! -f "$ARCPANEL/data/access-keys/${access_key_id}" ]]; then
 		check_result "$E_FORBIDEN" "Access key $access_key_id doesn't exist"
 	fi
+	if ! access_key_file_ok "$ARCPANEL/data/access-keys/${access_key_id}"; then
+		check_result "$E_FORBIDEN" "Access key $access_key_id is damaged"
+	fi
 
 	if [[ -z "$user" ]]; then
 		check_result "$E_FORBIDEN" "User not provided"
@@ -1957,6 +1980,9 @@ check_access_key_cmd() {
 	fi
 	if [[ -z "$access_key_id" || ! -f "$ARCPANEL/data/access-keys/${access_key_id}" ]]; then
 		check_result "$E_FORBIDEN" "Access key $access_key_id doesn't exist"
+	fi
+	if ! access_key_file_ok "$ARCPANEL/data/access-keys/${access_key_id}"; then
+		check_result "$E_FORBIDEN" "Access key $access_key_id is damaged"
 	fi
 
 	if [[ -z "$cmd" ]]; then

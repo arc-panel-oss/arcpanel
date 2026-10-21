@@ -40,7 +40,7 @@ class StoreFirewallRuleRequest extends ApiRequest
             'port' => ['sometimes', 'string', 'max:255'],
             /** An IPv4 or IPv6 address, a network in CIDR format, or `ipset:NAME` for an IPset list of either version. `0.0.0.0/0` and `::/0` mean every address of both versions. */
             'source' => ['required', 'string', 'max:255'],
-            'comment' => ['sometimes', 'nullable', 'string', 'max:255'],
+            'comment' => ['sometimes', 'nullable', 'string', 'max:255', 'not_regex:/[[:cntrl:]]/'],
         ];
     }
 }

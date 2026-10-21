@@ -105,6 +105,9 @@ it('reserves and releases ports of the own pool', function () {
     $this->fake->assertRan('v-allocate-user-port', fn ($a) => $a === ['bob', 'manual', 'udp', '30007', '']);
 
     $this->post('/ports/bob/reserve', ['proto' => 'tcp', 'comment' => "bad'quote"])->assertSessionHasErrors('comment');
+    foreach (["web\tapp", "web\vapp", "web\napp"] as $comment) {
+        $this->post('/ports/bob/reserve', ['proto' => 'tcp', 'comment' => $comment])->assertSessionHasErrors('comment');
+    }
 
     $this->post('/ports/bob/30005/release')->assertSessionHas('ok');
     $this->fake->assertRan('v-release-user-port', fn ($a) => $a === ['bob', '30005']);
