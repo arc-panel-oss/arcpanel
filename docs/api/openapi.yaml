@@ -464,17 +464,20 @@ paths:
         - Cron
       summary: Add cron job for arcpanel automatic updates
       description: |-
-        This function adds a cronjob for arcpanel automatic updates
-        that can be downloaded from apt or git. The apt line runs
-        v-update-sys-arcpanel-all auto at a random night time; an existing apt line
-        is brought to that form (docs/features/specs/2026-10-20-005-e33-update-center-phase-1-design.md
-        §6): auto is added, and the fixed time 41 4 of older installs is replaced.
+        This function turns automatic updates on. Since 2.5.0 the mode apt (the
+        default) sets the update policy patch with v-change-sys-update-policy
+        (docs/features/specs/2026-10-20-005-e33-update-center-phase-1-design.md
+        §10): the window and the delay that are set stay; without them the window
+        starts at the hour of the nightly line of v-update-sys-arcpanel-all that
+        older releases wrote, or at a random night hour, and the delay is 2 days.
+        The mode git adds a nightly line of v-update-sys-arcpanel-git, unless the
+        policy patch already updates the panel.
 
         **Arguments**
 
         | Field | Option | Required |
         | --- | --- | --- |
-        | `arg1` | `MODE` | yes |
+        | `arg1` | `MODE` | no |
       requestBody:
         required: true
         content:
@@ -9601,6 +9604,60 @@ paths:
           $ref: "#/components/responses/InvalidRequest"
         "422":
           $ref: "#/components/responses/Unprocessable"
+  "/api/#v-change-sys-update-policy":
+    post:
+      operationId: v-change-sys-update-policy
+      tags:
+        - System
+      summary: Change the automatic update policy of ArcPanel
+      description: |-
+        This function sets the update policy of the panel packages
+        (docs/features/specs/2026-10-20-005-e33-update-center-phase-1-design.md
+        §7.2). POLICY is off (no checks), notify (check hourly and announce new
+        versions) or patch (also install patch releases of the installed line that
+        need no attention). DAYS is all or a comma list of mon ... sun, HOURS the
+        window HH-HH in the server's time zone (start included, end excluded, may
+        wrap past midnight) and DELAY the days to wait after a release (0-30); a
+        value left out keeps the current one. The policies notify and patch install
+        the hourly cron line of v-run-sys-arcpanel-autoupdate, off removes it.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `POLICY` | yes |
+        | `arg2` | `DAYS` | no |
+        | `arg3` | `HOURS` | no |
+        | `arg4` | `DELAY` | no |
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-change-sys-update-policy"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-change-sys-update-policy"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
   "/api/#v-change-sys-web-terminal-port":
     post:
       operationId: v-change-sys-web-terminal-port
@@ -12144,6 +12201,157 @@ paths:
           $ref: "#/components/responses/InvalidRequest"
         "422":
           $ref: "#/components/responses/Unprocessable"
+  "/api/#v-check-sys-arcpanel-health":
+    post:
+      operationId: v-check-sys-arcpanel-health
+      tags:
+        - System
+      summary: Check the health of the server after an ArcPanel update
+      description: |-
+        This function checks the server after an update of the panel packages
+        (docs/features/specs/2026-10-20-005-e33-update-center-phase-1-design.md
+        §7.4) against BASELINE, the file the update task writes before it installs
+        (TARGET, the running SERVICES and up to five SITE lines with their HTTP
+        STATUS), and lists each check (services, panel, web, firewall, packages,
+        sites) with STATUS ok or fail and a MESSAGE. It exits with an error after
+        listing the checks when one fails.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `BASELINE` | yes |
+        | `arg2` | `FORMAT` | no |
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-check-sys-arcpanel-health"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-check-sys-arcpanel-health"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+            application/json:
+              schema:
+                type: object
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+  "/api/#v-check-sys-arcpanel-update":
+    post:
+      operationId: v-check-sys-arcpanel-update
+      tags:
+        - System
+      summary: Check whether ArcPanel can be updated to a version
+      description: |-
+        This function runs the pre-flight of an update of the panel packages to
+        VERSION (docs/features/specs/2026-10-20-005-e33-update-center-phase-1-design.md
+        §7.3) and lists each check (manifest, version, disk, packages, activity,
+        attention) with STATUS ok, warn or fail and a MESSAGE. A failed check
+        refuses the update: the command then exits with an error after listing
+        the checks. MODE is manual (default) or policy; without a verified release
+        manifest a manual run gets a warning and a policy run a failure.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `VERSION` | yes |
+        | `arg2` | `FORMAT` | no |
+        | `arg3` | `MODE` | no |
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-check-sys-arcpanel-update"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-check-sys-arcpanel-update"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+            application/json:
+              schema:
+                type: object
+              examples:
+                ready:
+                  value:
+                    - CHECK: manifest
+                      STATUS: ok
+                      MESSAGE: ArcPanel 2.5.1 is in the release manifest
+                    - CHECK: version
+                      STATUS: ok
+                      MESSAGE: "2.5.0 to 2.5.1"
+                    - CHECK: disk
+                      STATUS: ok
+                      MESSAGE: "972856 MiB free for /usr/local/arcpanel"
+                    - CHECK: disk
+                      STATUS: ok
+                      MESSAGE: "972856 MiB free for /var/cache/apt"
+                    - CHECK: packages
+                      STATUS: ok
+                      MESSAGE: APT can install arcpanel=2.5.1-1+ubuntu24.04 arcpanel-nginx=1.30.5-3-1+ubuntu24.04 arcpanel-php=8.5.11-1-1+ubuntu24.04
+                    - CHECK: activity
+                      STATUS: ok
+                      MESSAGE: no system task or backup is running
+                    - CHECK: attention
+                      STATUS: ok
+                      MESSAGE: a patch release of ArcPanel 2.5
+                refused:
+                  value:
+                    - CHECK: manifest
+                      STATUS: ok
+                      MESSAGE: ArcPanel 2.6.0 is in the release manifest
+                    - CHECK: version
+                      STATUS: ok
+                      MESSAGE: "2.5.0 to 2.6.0"
+                    - CHECK: disk
+                      STATUS: fail
+                      MESSAGE: less than 1024 MiB free for /var/cache/apt
+                    - CHECK: packages
+                      STATUS: ok
+                      MESSAGE: APT can install arcpanel=2.6.0-1+ubuntu24.04
+                    - CHECK: activity
+                      STATUS: ok
+                      MESSAGE: no system task or backup is running
+                    - CHECK: attention
+                      STATUS: warn
+                      MESSAGE: PHP 8.2 is no longer installed by default
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
   "/api/#v-check-sys-docker":
     post:
       operationId: v-check-sys-docker
@@ -13087,7 +13295,12 @@ paths:
         - Cron
       summary: Delete arcpanel autoupdate cron job
       description: |-
-        This function deletes arcpanel autoupdate cron job.
+        This function turns automatic updates off. Since 2.5.0 it sets the update
+        policy notify with v-change-sys-update-policy, which still announces new
+        versions and installs none, and keeps the window and the delay
+        (docs/features/specs/2026-10-20-005-e33-update-center-phase-1-design.md
+        §10); the policy off stays off. It also removes the nightly line of
+        v-update-sys-arcpanel-git.
 
         **Arguments:** none.
       requestBody:
@@ -22985,7 +23198,10 @@ paths:
         - System
       summary: List arcpanel autoupdate settings
       description: |-
-        This function for obtaining autoupdate settings.
+        This function for obtaining autoupdate settings. Since 2.5.0 automatic
+        updates are enabled when the update policy is patch
+        (docs/features/specs/2026-10-20-005-e33-update-center-phase-1-design.md
+        §10; v-list-sys-update-policy lists the whole policy).
 
         **Arguments**
 
@@ -23014,6 +23230,120 @@ paths:
             application/json:
               schema:
                 type: object
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+  "/api/#v-list-sys-arcpanel-releases":
+    post:
+      operationId: v-list-sys-arcpanel-releases
+      tags:
+        - System
+      summary: List the ArcPanel releases newer than the installed version
+      description: |-
+        This function lists the releases of the signed release manifest of the
+        server's channel that are newer than the installed version
+        (docs/features/specs/2026-10-20-005-e33-update-center-phase-1-design.md
+        §7.2). The manifest is downloaded again and verified when REFRESH is yes or
+        the stored copy is older than an hour; REFRESH yes also refreshes the APT
+        list of the ArcPanel repository. Each release has the fields of the
+        manifest and KIND (patch, minor, major), AVAILABLE (APT offers it here),
+        ELIGIBLE (the update policy would install it now) and REASON when not
+        (attention, withdrawn, delay until <date>, outside window, paused,
+        min_from <version>, policy, not available, rolled back: an update to it was
+        rolled back on this server).
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `FORMAT` | no |
+        | `arg2` | `REFRESH` | no |
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-list-sys-arcpanel-releases"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-list-sys-arcpanel-releases"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+            application/json:
+              schema:
+                type: object
+              examples:
+                default:
+                  value:
+                    - VERSION: "2.6.0"
+                      LINE: "2.6"
+                      DATE: "2026-11-01"
+                      KIND: minor
+                      SECURITY: false
+                      ATTENTION: true
+                      ATTENTION_ITEMS:
+                        - PHP 8.2 is no longer installed by default
+                      STEPS: true
+                      MIN_FROM: "2.5.0"
+                      ENGINES:
+                        arcpanel-nginx: "1.30.5-3-1"
+                        arcpanel-php: "8.5.11-1-1"
+                      NOTES: "https://arcpanel.top/changelog#2.6.0"
+                      WITHDRAWN: null
+                      AVAILABLE: true
+                      ELIGIBLE: false
+                      REASON: attention
+                    - VERSION: "2.5.2"
+                      LINE: "2.5"
+                      DATE: "2026-10-30"
+                      KIND: patch
+                      SECURITY: false
+                      ATTENTION: false
+                      ATTENTION_ITEMS: []
+                      STEPS: false
+                      MIN_FROM: null
+                      ENGINES:
+                        arcpanel-nginx: "1.30.5-3-1"
+                        arcpanel-php: "8.5.11-1-1"
+                      NOTES: "https://arcpanel.top/changelog#2.5.2"
+                      WITHDRAWN:
+                        date: "2026-10-31"
+                        reason: breaks the panel's NGINX configuration
+                      AVAILABLE: true
+                      ELIGIBLE: false
+                      REASON: withdrawn
+                    - VERSION: "2.5.1"
+                      LINE: "2.5"
+                      DATE: "2026-10-28"
+                      KIND: patch
+                      SECURITY: true
+                      ATTENTION: false
+                      ATTENTION_ITEMS: []
+                      STEPS: false
+                      MIN_FROM: null
+                      ENGINES:
+                        arcpanel-nginx: "1.30.5-3-1"
+                        arcpanel-php: "8.5.11-1-1"
+                      NOTES: ""
+                      WITHDRAWN: null
+                      AVAILABLE: true
+                      ELIGIBLE: true
+                      REASON: ""
         "204":
           $ref: "#/components/responses/NoContent"
         "400":
@@ -25598,6 +25928,176 @@ paths:
             application/json:
               schema:
                 type: object
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+  "/api/#v-list-sys-update-history":
+    post:
+      operationId: v-list-sys-update-history
+      tags:
+        - System
+      summary: List the update history of ArcPanel
+      description: |-
+        This function lists the runs of the update history, newest first
+        (docs/features/specs/2026-10-20-005-e33-update-center-phase-1-design.md
+        §7.1, §7.8): ID, FROM, TO, TRIGGER (policy, admin, api), ACTOR, START, END,
+        RESULT (running, done, failed, rolled-back, paused, skipped), REASON and the
+        system TASK. The newest update also has ROLLBACK (yes or no) and, when no,
+        ROLLBACK_REASON.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `FORMAT` | no |
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-list-sys-update-history"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-list-sys-update-history"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+            application/json:
+              schema:
+                type: object
+              examples:
+                default:
+                  value:
+                    - ID: 3
+                      FROM: "2.5.0"
+                      TO: "2.5.1"
+                      TRIGGER: policy
+                      ACTOR: policy
+                      START: "2026-11-03 02:14:05"
+                      END: "2026-11-03 02:16:40"
+                      RESULT: done
+                      REASON: ""
+                      TASK: "17925168372496"
+                      ROLLBACK: "yes"
+                      ROLLBACK_REASON: ""
+                    - ID: 2
+                      FROM: "2.5.0"
+                      TO: "2.5.1"
+                      TRIGGER: policy
+                      ACTOR: policy
+                      START: "2026-11-02 02:14:01"
+                      END: "2026-11-02 02:14:03"
+                      RESULT: skipped
+                      REASON: "activity: a backup is running"
+                      TASK: ""
+                    - ID: 1
+                      FROM: "2.4.1"
+                      TO: "2.5.0"
+                      TRIGGER: api
+                      ACTOR: APIKEY0123456789abcd
+                      START: "2026-10-30 10:00:00"
+                      END: ""
+                      RESULT: rolled-back
+                      REASON: "packages: ArcPanel 2.4.1 is installed instead of 2.5.0"
+                      TASK: "17925000000001"
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+  "/api/#v-list-sys-update-policy":
+    post:
+      operationId: v-list-sys-update-policy
+      tags:
+        - System
+      summary: List the automatic update policy of ArcPanel
+      description: |-
+        This function lists the update policy of the panel packages
+        (docs/features/specs/2026-10-20-005-e33-update-center-phase-1-design.md
+        §7.1): POLICY (off, notify, patch), WINDOW_DAYS, WINDOW_HOURS, DELAY_DAYS,
+        PAUSED (the reason automatic updates stopped, or empty), NOTIFIED (the
+        versions already announced), NEXT_WINDOW (the start of the current or next
+        window), the installed VERSION and LINE, the CHANNEL, and the state of the
+        release manifest: MANIFEST_CHECKED (last verified download),
+        MANIFEST_GENERATED and MANIFEST_ERROR (why the last download failed).
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `FORMAT` | no |
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-list-sys-update-policy"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-list-sys-update-policy"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+            application/json:
+              schema:
+                type: object
+              examples:
+                default:
+                  value:
+                    POLICY: patch
+                    WINDOW_DAYS: all
+                    WINDOW_HOURS: "02-04"
+                    DELAY_DAYS: 2
+                    PAUSED: ""
+                    NOTIFIED: "2.6.0"
+                    NEXT_WINDOW: "2026-11-03 02:00"
+                    VERSION: "2.5.0"
+                    LINE: "2.5"
+                    CHANNEL: stable
+                    MANIFEST_CHECKED: "2026-11-02 14:03:22"
+                    MANIFEST_GENERATED: "2026-11-02T10:12:00Z"
+                    MANIFEST_ERROR: ""
+                paused:
+                  value:
+                    POLICY: notify
+                    WINDOW_DAYS: sat,sun
+                    WINDOW_HOURS: "23-02"
+                    DELAY_DAYS: 0
+                    PAUSED: "ArcPanel 2.5.2 failed (failed): apt-get failed with exit code 100"
+                    NOTIFIED: ""
+                    NEXT_WINDOW: ""
+                    VERSION: "2.5.1"
+                    LINE: "2.5"
+                    CHANNEL: beta
+                    MANIFEST_CHECKED: ""
+                    MANIFEST_GENERATED: ""
+                    MANIFEST_ERROR: "the manifest https://apt.arcpanel.top/beta/releases.json could not be downloaded"
         "204":
           $ref: "#/components/responses/NoContent"
         "400":
@@ -31787,6 +32287,47 @@ paths:
           $ref: "#/components/responses/InvalidRequest"
         "422":
           $ref: "#/components/responses/Unprocessable"
+  "/api/#v-resume-sys-arcpanel-autoupdate":
+    post:
+      operationId: v-resume-sys-arcpanel-autoupdate
+      tags:
+        - System
+      summary: Resume the automatic updates of ArcPanel
+      description: |-
+        This function clears UPDATE_PAUSED, which a failed update sets
+        (docs/features/specs/2026-10-20-005-e33-update-center-phase-1-design.md
+        §7.8), so the update policy installs releases again.
+
+        **Arguments:** none.
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-resume-sys-arcpanel-autoupdate"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-resume-sys-arcpanel-autoupdate"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
   "/api/#v-revoke-api-key":
     post:
       operationId: v-revoke-api-key
@@ -31810,6 +32351,56 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/v-revoke-api-key"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+  "/api/#v-rollback-sys-arcpanel":
+    post:
+      operationId: v-rollback-sys-arcpanel
+      tags:
+        - System
+      summary: Roll back an update of ArcPanel
+      description: |-
+        This function rolls back the update run ID of the update history
+        (docs/features/specs/2026-10-20-005-e33-update-center-phase-1-design.md
+        §7.7): it reinstalls the previous version and its engine packages from the
+        repository, restores the configuration saved before the update, sets
+        VERSION and restarts the panel. It is allowed only for the newest update,
+        to a patch release without upgrade steps on the same line, while APT still
+        offers the previous version and the saved configuration exists; a refusal
+        names the condition that failed.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `ID` | yes |
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-rollback-sys-arcpanel"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-rollback-sys-arcpanel"
       responses:
         "200":
           description: "The output of the command; `OK` for an empty output with legacy authentication."
@@ -32230,6 +32821,54 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/v-run-queue-task"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+  "/api/#v-run-sys-arcpanel-autoupdate":
+    post:
+      operationId: v-run-sys-arcpanel-autoupdate
+      tags:
+        - System
+      summary: Run the automatic update policy of ArcPanel
+      description: |-
+        This function is run hourly by the cron table of arcpanelweb
+        (docs/features/specs/2026-10-20-005-e33-update-center-phase-1-design.md
+        §7.5). With the policy notify or patch it refreshes the ArcPanel package
+        lists and the release manifest and announces each new version that waits
+        for the administrator, once. With patch, inside the window and while
+        automatic updates are not paused, it runs the pre-flight of the target
+        release and starts the system task arcpanel-release, or records why it
+        skipped the target once per version and reason. The output goes to
+        $ARCPANEL/log/autoupdate.log; only an error is printed, because cron mails
+        every output.
+
+        **Arguments:** none.
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-run-sys-arcpanel-autoupdate"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-run-sys-arcpanel-autoupdate"
       responses:
         "200":
           description: "The output of the command; `OK` for an empty output with legacy authentication."
@@ -33627,6 +34266,13 @@ paths:
         firewall or malware-scan: v-add-sys-NAME or
         v-delete-sys-NAME
         arcpanel-update [PACKAGE]   v-update-sys-arcpanel PACKAGE, or every package
+        arcpanel-release VERSION TRIGGER [ACTOR]  the update of the panel packages
+        to a release of the manifest with pre-flight,
+        health check and rollback (E33); TRIGGER is
+        policy, admin or api, ACTOR the user or key
+        arcpanel-rollback ID      v-rollback-sys-arcpanel ID; a rollback that
+        v-rollback-sys-arcpanel would refuse is refused
+        here, before the task starts
         package SLUG add|delete   v-add-sys-package or v-delete-sys-package of a
         system package of the catalog (E5)
         The state and the output are read with v-list-sys-task.
@@ -39348,7 +39994,6 @@ components:
         - type: object
           required:
             - cmd
-            - arg1
           properties:
             cmd:
               type: string
@@ -39358,7 +40003,7 @@ components:
             arg1:
               type: string
               title: MODE
-              description: "`MODE`"
+              description: "`MODE`, optional"
               examples:
                 - ""
             returncode:
@@ -45980,6 +46625,45 @@ components:
                 - Europe/Berlin
             returncode:
               $ref: "#/components/schemas/ReturnCode"
+    v-change-sys-update-policy:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-change-sys-update-policy
+              default: v-change-sys-update-policy
+            arg1:
+              type: string
+              title: POLICY
+              description: "`POLICY`"
+              examples:
+                - patch
+            arg2:
+              type: string
+              title: DAYS
+              description: "`DAYS`, optional"
+              examples:
+                - ""
+            arg3:
+              type: string
+              title: HOURS
+              description: "`HOURS`, optional"
+              examples:
+                - ""
+            arg4:
+              type: string
+              title: DELAY
+              description: "`DELAY`, optional"
+              examples:
+                - ""
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
     v-change-sys-web-terminal-port:
       allOf:
         - $ref: "#/components/schemas/Credentials"
@@ -47856,6 +48540,76 @@ components:
                 - shell
               examples:
                 - json
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
+    v-check-sys-arcpanel-health:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-check-sys-arcpanel-health
+              default: v-check-sys-arcpanel-health
+            arg1:
+              type: string
+              title: BASELINE
+              description: "`BASELINE`"
+              examples:
+                - /usr/local/arcpanel/data/updates/baseline-12.conf
+            arg2:
+              type: string
+              title: FORMAT
+              description: "`FORMAT`, optional"
+              enum:
+                - json
+                - plain
+                - csv
+                - shell
+              examples:
+                - json
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
+    v-check-sys-arcpanel-update:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-check-sys-arcpanel-update
+              default: v-check-sys-arcpanel-update
+            arg1:
+              type: string
+              title: VERSION
+              description: "`VERSION`"
+              examples:
+                - "2.5.1"
+            arg2:
+              type: string
+              title: FORMAT
+              description: "`FORMAT`, optional"
+              enum:
+                - json
+                - plain
+                - csv
+                - shell
+              examples:
+                - json
+            arg3:
+              type: string
+              title: MODE
+              description: "`MODE`, optional"
+              examples:
+                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-check-sys-docker:
@@ -54504,6 +55258,37 @@ components:
                 - json
             returncode:
               $ref: "#/components/schemas/ReturnCode"
+    v-list-sys-arcpanel-releases:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-list-sys-arcpanel-releases
+              default: v-list-sys-arcpanel-releases
+            arg1:
+              type: string
+              title: FORMAT
+              description: "`FORMAT`, optional"
+              enum:
+                - json
+                - plain
+                - csv
+                - shell
+              examples:
+                - json
+            arg2:
+              type: string
+              title: REFRESH
+              description: "`REFRESH`, optional"
+              examples:
+                - ""
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
     v-list-sys-arcpanel-ssl:
       allOf:
         - $ref: "#/components/schemas/Credentials"
@@ -55847,6 +56632,56 @@ components:
               enum:
                 - v-list-sys-themes
               default: v-list-sys-themes
+            arg1:
+              type: string
+              title: FORMAT
+              description: "`FORMAT`, optional"
+              enum:
+                - json
+                - plain
+                - csv
+                - shell
+              examples:
+                - json
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
+    v-list-sys-update-history:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-list-sys-update-history
+              default: v-list-sys-update-history
+            arg1:
+              type: string
+              title: FORMAT
+              description: "`FORMAT`, optional"
+              enum:
+                - json
+                - plain
+                - csv
+                - shell
+              examples:
+                - json
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
+    v-list-sys-update-policy:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-list-sys-update-policy
+              default: v-list-sys-update-policy
             arg1:
               type: string
               title: FORMAT
@@ -59622,6 +60457,20 @@ components:
                 - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
+    v-resume-sys-arcpanel-autoupdate:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-resume-sys-arcpanel-autoupdate
+              default: v-resume-sys-arcpanel-autoupdate
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
     v-revoke-api-key:
       allOf:
         - $ref: "#/components/schemas/Credentials"
@@ -59640,6 +60489,27 @@ components:
               description: "`HASH`, optional"
               examples:
                 - mykey
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
+    v-rollback-sys-arcpanel:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-rollback-sys-arcpanel
+              default: v-rollback-sys-arcpanel
+            arg1:
+              type: string
+              title: ID
+              description: "`ID`"
+              examples:
+                - "12"
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-rollback-sys-php-ini:
@@ -60024,6 +60894,20 @@ components:
               description: "`ARG…`, optional"
               examples:
                 - admin
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
+    v-run-sys-arcpanel-autoupdate:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-run-sys-arcpanel-autoupdate
+              default: v-run-sys-arcpanel-autoupdate
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-run-sys-docker-task:
