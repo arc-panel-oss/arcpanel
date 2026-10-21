@@ -27,7 +27,8 @@ json_list() {
 	local PERMISSIONS_ARR ALLOWED_IPS_ARR ACCESS_KEY_ID
 	for key_file in $ARCPANEL/data/access-keys/*; do
 		key_file="$(basename -- "$key_file")"
-		if [[ "$key_file" =~ ^[[:alnum:]]{20}$ ]]; then
+		# A damaged key file is left out (E39 W5 §4)
+		if [[ "$key_file" =~ ^[[:alnum:]]{20}$ ]] && access_key_file_ok "$ARCPANEL/data/access-keys/$key_file"; then
 			USER="$ROOT_USER" SECRET_ACCESS_KEY="" PERMISSIONS="" DATE="" TIME="" COMMENT="" ALLOWED_IPS="" EXPIRES=""
 			source_conf "$ARCPANEL/data/access-keys/$key_file"
 			if [ "$user" = "$USER" ] || [ -z "$user" ]; then
@@ -69,7 +70,8 @@ shell_list() {
 
 	for key_file in $ARCPANEL/data/access-keys/*; do
 		key_file="$(basename -- "$key_file")"
-		if [[ "$key_file" =~ ^[[:alnum:]]{20}$ ]]; then
+		# A damaged key file is left out (E39 W5 §4)
+		if [[ "$key_file" =~ ^[[:alnum:]]{20}$ ]] && access_key_file_ok "$ARCPANEL/data/access-keys/$key_file"; then
 			USER="$ROOT_USER" SECRET_ACCESS_KEY="" PERMISSIONS="" DATE="" TIME="" COMMENT=""
 			source_conf "$ARCPANEL/data/access-keys/$key_file"
 			if [ "$user" = "$USER" ] || [ -z "$user" ]; then

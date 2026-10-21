@@ -29703,7 +29703,7 @@
                             "string",
                             "null"
                         ],
-                        "pattern": "^[[:alnum:]][[:alnum:][:space:]._-]{0,64}[[:alnum:]]$"
+                        "pattern": "^[[:alnum:]][[:alnum:] ._-]{0,64}[[:alnum:]]$"
                     }
                 },
                 "required": [
@@ -29779,7 +29779,7 @@
                             "string",
                             "null"
                         ],
-                        "pattern": "^[[:alnum:]][[:alnum:][:space:]._-]{0,64}[[:alnum:]]$"
+                        "pattern": "^[[:alnum:]][[:alnum:] ._-]{0,64}[[:alnum:]]$"
                     }
                 },
                 "required": [
@@ -35757,7 +35757,7 @@
                             "string",
                             "null"
                         ],
-                        "pattern": "^[[:alnum:]][[:alnum:][:space:]._-]{0,64}[[:alnum:]]$"
+                        "pattern": "^[[:alnum:]][[:alnum:] ._-]{0,64}[[:alnum:]]$"
                     }
                 },
                 "required": [

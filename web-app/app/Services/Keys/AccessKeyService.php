@@ -16,8 +16,8 @@ use App\Services\Support\ObjectLookup;
  */
 final class AccessKeyService
 {
-    /** The comment that `v-add-access-key` takes (is_comment_format_valid of func/main.sh). */
-    public const COMMENT = '/^[[:alnum:]][[:alnum:][:space:]._-]{0,64}[[:alnum:]]$/';
+    /** The comment that `v-add-access-key` takes (is_comment_format_valid of func/main.sh): a literal space only, no final line break. */
+    public const COMMENT = '/^[[:alnum:]][[:alnum:] ._-]{0,64}[[:alnum:]]$/D';
 
     public function __construct(
         private readonly ArcCommand $arc,
