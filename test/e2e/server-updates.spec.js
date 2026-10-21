@@ -1,7 +1,8 @@
 // Happy paths of the Updates page of the Update Center (E33 phase 1 spec §8).
-// Nothing is installed: the dialog loads the pre-flight of a release and is
-// closed. Updating to a release and rolling it back need the local signed
-// repository of the end-to-end run of M8 (spec §12).
+// The dialog test loads the pre-flight of a release and closes the dialog.
+// Updating to a release and rolling it back runs only against the local
+// signed repository of the end-to-end run of M8 (spec §12), with
+// E2E_UPDATE_RELEASE set; elsewhere that test is skipped.
 import { expect, test } from '@playwright/test';
 import { ADMIN, expectAccessible, expectToast, login, USER } from './helpers.js';
 
@@ -65,6 +66,77 @@ test('admin: the update dialog loads the pre-flight of a release', async ({ page
 	await expect(dialog.locator('.ap-preflight')).toContainText('Manifest');
 	await dialog.getByRole('button', { name: 'Cancel' }).click();
 	await expect(dialog).toBeHidden();
+});
+
+// Installs a release and rolls it back: only against the local signed
+// repository of the end-to-end run (spec §12), where E2E_UPDATE_RELEASE names
+// a patch release without upgrade steps that is flagged for attention and
+// newer than the installed version.
+test('admin: update to a release after confirming its items, then roll it back', async ({
+	page,
+}) => {
+	const version = process.env.E2E_UPDATE_RELEASE;
+	test.skip(!version, 'needs E2E_UPDATE_RELEASE and the local repository of the end-to-end run');
+	test.setTimeout(900_000);
+	await login(page, ADMIN);
+	await page.goto('/server/updates');
+	const status = page.getByRole('region', { name: 'Update status' });
+	const installed = (await status.innerText()).match(/\d+\.\d+\.\d+/)[0];
+	// The release is new: fetch the manifest and the package list
+	await page.getByRole('button', { name: 'Check now' }).click();
+	await expect(page.locator('.ap-toast')).toBeVisible();
+
+	await page
+		.locator('.ap-release', { hasText: version })
+		.getByRole('button', { name: 'Review and update' })
+		.click();
+	const dialog = page.getByRole('dialog', { name: 'Update ArcPanel' });
+	await expect(dialog.locator('.ap-preflight li').first()).toBeVisible({ timeout: 60_000 });
+	const update = dialog.getByRole('button', { name: 'Update', exact: true });
+	const items = dialog.locator('.ap-confirm-items input[type="checkbox"]');
+	await expect(items.first()).toBeVisible();
+	await expect(update).toBeDisabled();
+	for (const item of await items.all()) {
+		await item.check();
+	}
+	await expect(update).toBeEnabled();
+	await update.click();
+	await expect(page.getByText('The update has finished.')).toBeVisible({ timeout: 600_000 });
+	// The update and the rollback restart the panel: reload until it answers
+	// with the expected version
+	const reloadUntil = (expected) =>
+		expect
+			.poll(
+				async () => {
+					await page.goto('/server/updates').catch(() => null);
+					return page
+						.getByRole('region', { name: 'Update status' })
+						.innerText({ timeout: 5_000 })
+						.catch(() => '');
+				},
+				{ timeout: 600_000, intervals: [5_000] },
+			)
+			.toContain(expected);
+	await reloadUntil(version);
+
+	await page.getByRole('button', { name: 'Roll back' }).click();
+	await page
+		.getByRole('dialog', { name: `Roll back to ${installed}?` })
+		.getByRole('button', { name: `Roll back to ${installed}` })
+		.click();
+	await reloadUntil(installed);
+	// The run is marked once the rollback has finished
+	const newest = page.locator('table tbody tr').first();
+	await expect(newest).toContainText(`${installed} → ${version}`);
+	await expect
+		.poll(
+			async () => {
+				await page.goto('/server/updates').catch(() => null);
+				return newest.innerText({ timeout: 5_000 }).catch(() => '');
+			},
+			{ timeout: 300_000, intervals: [5_000] },
+		)
+		.toContain('Rolled back');
 });
 
 test('user: no updates in the menu, 403 on the page', async ({ page }) => {
