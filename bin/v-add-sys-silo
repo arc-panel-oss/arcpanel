@@ -206,6 +206,12 @@ fi
 #----------------------------------------------------------#
 
 $BIN/v-log-action "system" "Info" "System" "Object storage installed (Silo $silo_v, data: $data_path)."
+# Quotas are enforced a few minutes late (E39 W5 N25): data on the root file
+# system can fill it before a full bucket is stopped
+if [ "$(stat -c %d "$data_path" 2> /dev/null)" = "$(stat -c %d / 2> /dev/null)" ]; then
+	echo "Note: $data_path is on the root file system. Bucket quotas take effect within minutes, not at once; mount a file system of its own there (docs/operations/object-storage.md)."
+	$BIN/v-log-action "system" "Warning" "System" "Object storage data ($data_path) is on the root file system; a file system of its own is recommended."
+fi
 log_event "$OK" "$ARGUMENTS"
 
 exit

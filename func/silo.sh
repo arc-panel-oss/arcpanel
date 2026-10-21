@@ -35,7 +35,8 @@ SILO_MISS_LIMIT=3
 SILO_ORPHANS="$SILO_DIR/orphans.conf"
 
 # Keys of a line of buckets.conf and of s3keys.conf, in order
-SILO_BUCKET_KEYS=(BUCKET QUOTA VERSIONING USED OBJECTS SUSPENDED TIME DATE)
+# FULL: yes while the bucket holds more than its quota on disk (E39 W5 N25)
+SILO_BUCKET_KEYS=(BUCKET QUOTA VERSIONING USED OBJECTS SUSPENDED FULL TIME DATE)
 SILO_KEY_KEYS=(KEY NAME BUCKET ACCESS EXPIRES TIME DATE)
 
 # Actions of an account on its buckets (spec D6), and of a read-only key
@@ -401,10 +402,29 @@ silo_resources_json() {
 	echo "[$out]"
 }
 
-# Policy of USER's account (spec D6)
+# Objects of USER's full buckets as a JSON list, empty when none is full
+silo_full_resources_json() {
+	local user="$1" line out='' sep=''
+	while IFS= read -r line; do
+		[ "$(silo_field "$line" FULL)" = 'yes' ] || continue
+		out="$out$sep\"arn:aws:s3:::$(silo_field "$line" BUCKET)/*\""
+		sep=','
+	done < <(cat "$(silo_buckets_file "$user")" 2> /dev/null)
+	if [ -n "$out" ]; then
+		echo "[$out]"
+	fi
+}
+
+# Policy of USER's account (spec D6). Writes to a full bucket are denied;
+# a Deny of the account also binds every key of it (E39 W5 N25).
 silo_policy_json() {
-	printf '{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Action":[%s],"Resource":%s}]}\n' \
-		"$SILO_RW_ACTIONS" "$(silo_resources_json "$1")"
+	local full deny=''
+	full=$(silo_full_resources_json "$1")
+	if [ -n "$full" ]; then
+		deny=",{\"Effect\":\"Deny\",\"Action\":[\"s3:PutObject\"],\"Resource\":$full}"
+	fi
+	printf '{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Action":[%s],"Resource":%s}%s]}\n' \
+		"$SILO_RW_ACTIONS" "$(silo_resources_json "$1")" "$deny"
 }
 
 # Inline policy of a key limited to BUCKET or to read-only, empty for a key
@@ -490,6 +510,24 @@ silo_bucket_configure() {
 		silo_mcli version suspend "arc/$name" > /dev/null 2>&1 || return "$E_CONNECT"
 	fi
 	return 0
+}
+
+# Bytes BUCKET holds in the data path: its objects and the parts of its
+# unfinished multipart uploads. Silo's hard quota is checked against the
+# usage of its background scan, which lags behind fast uploads and leaves
+# unfinished uploads out (E39 W5 N25). Empty when it cannot be measured.
+silo_bucket_disk_bytes() {
+	local bucket="$1" data="${SILO_DATA:-$SILO_DATA_DEFAULT}" objects parts keys
+	[ -d "$data/$bucket" ] || return 0
+	objects=$(timeout 300 nice -n 19 ionice -c3 du -sb "$data/$bucket" 2> /dev/null | cut -f1)
+	[[ "$objects" =~ ^[0-9]+$ ]] || return 0
+	# An unfinished upload of KEY is kept in .minio.sys/multipart/SHA256(BUCKET/KEY)
+	keys=$(silo_mcli ls --incomplete --recursive --json "arc/$bucket" 2> /dev/null) || return 0
+	parts=$(jq -r 'select(.key != null) | .key | @base64' <<< "$keys" | while IFS= read -r key; do
+		printf '%s/%s' "$bucket" "$(base64 -d <<< "$key")" | sha256sum | cut -d' ' -f1
+	done | sort -u | sed "s|^|$data/.minio.sys/multipart/|" | tr '\n' '\0' \
+		| timeout 300 nice -n 19 ionice -c3 xargs -0 -r du -sbc 2> /dev/null | awk '$2 == "total" { s += $1 } END { print s + 0 }')
+	echo $((objects + ${parts:-0}))
 }
 
 # Usage of a bucket from Silo's scanner: "BYTES OBJECTS"
@@ -589,7 +627,7 @@ silo_file_json() {
 # line per difference, and fix it when REPAIR is yes (spec §8). Usage of
 # each bucket is recorded either way.
 silo_rebuild_user() {
-	local user="$1" repair="$2" line bucket quota versioning usage key ids
+	local user="$1" repair="$2" line bucket quota versioning usage key ids bytes full
 	local file
 	file=$(silo_buckets_file "$user")
 	while IFS= read -r line; do
@@ -610,6 +648,19 @@ silo_rebuild_user() {
 		usage=$(silo_bucket_usage "$bucket")
 		if [ -n "$usage" ]; then
 			silo_set_fields "$file" SILO_BUCKET_KEYS "$bucket" "USED=${usage% *}" "OBJECTS=${usage#* }"
+		fi
+		# A bucket above its quota on disk takes no more writes until it is
+		# below again; silo_sync_user writes the policy (E39 W5 N25)
+		bytes=$(silo_bucket_disk_bytes "$bucket")
+		if [ -n "$bytes" ] && [[ "$quota" =~ ^[0-9]+$ ]]; then
+			full=no
+			if [ "$bytes" -gt $((quota * 1048576)) ]; then
+				full=yes
+				echo "$user|bucket|$bucket is over its quota ($((bytes / 1048576)) MB of $quota MB with unfinished uploads); writes are refused until it is below"
+			fi
+			if [ "$repair" = 'yes' ] && [ "$(silo_field "$line" FULL)" != "$full" ]; then
+				silo_set_fields "$file" SILO_BUCKET_KEYS "$bucket" "FULL=$full"
+			fi
 		fi
 	done < <(cat "$file" 2> /dev/null)
 
@@ -784,7 +835,7 @@ silo_restore_user() {
 			local now
 			now=$(date +'%T %F')
 			silo_write_line "$(silo_buckets_file "$user")" SILO_BUCKET_KEYS "BUCKET=$bucket" "QUOTA=$quota" \
-				"VERSIONING=$versioning" "USED=0" "OBJECTS=0" "SUSPENDED=no" "TIME=${now% *}" "DATE=${now#* }"
+				"VERSIONING=$versioning" "USED=0" "OBJECTS=0" "SUSPENDED=no" "FULL=no" "TIME=${now% *}" "DATE=${now#* }"
 		fi
 		if [ -n "$objects" ] && [ -d "$objects/$bucket" ]; then
 			if silo_mcli mirror --quiet --overwrite "$objects/$bucket" "arc/$bucket" > /dev/null 2>&1; then

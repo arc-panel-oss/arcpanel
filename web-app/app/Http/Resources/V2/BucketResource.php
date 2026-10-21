@@ -34,6 +34,8 @@ final class BucketResource extends JsonResource
             'versioning' => $bucket->versioning,
             /** @var bool the account is suspended: its keys fail */
             'suspended' => $bucket->suspended,
+            /** @var bool the bucket holds more than its quota, unfinished uploads included: writes are refused until it is below (checked every five minutes) */
+            'full' => $bucket->full,
             /** @var string|null in the server's time zone, YYYY-MM-DDTHH:MM:SS */
             'created_at' => UserResource::localTime($bucket->date, $bucket->time),
         ];

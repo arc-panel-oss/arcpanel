@@ -24,12 +24,20 @@ beforeEach(function () {
     $this->fake->on('v-list-user-s3-keys', ['carol', 'json'])->returnsJson([]);
 });
 
+it('says when a bucket over its quota takes no writes (E39 W5 N25)', function () {
+    $this->fake->on('v-list-user-buckets', ['bob', 'json'])->returnsJson(['bob-media' => storageBucket('bob-media', ['FULL' => 'yes'])]);
+    signIn('bob', 'user');
+
+    $this->get('/object-storage/bob')->assertOk()->assertSee('Over quota')
+        ->assertSee('Writes are refused until the bucket is below its quota.');
+});
+
 it('shows the buckets, the keys, how to connect and the sidebar link', function () {
     signIn('bob', 'user');
 
     $this->get('/object-storage')->assertRedirect('/object-storage/bob');
     $this->get('/object-storage/bob')->assertOk()
-        ->assertSee('bob-media')
+        ->assertSee('bob-media')->assertDontSee('Over quota')
         ->assertSee('AKEXAMPLE1')
         ->assertSee('https://s3.example.test')
         ->assertSee('no_check_bucket = true')

@@ -896,7 +896,7 @@ function appProcessList(string $user, array $rows, array $overrides = []): array
 function storageBucket(string $name, array $overrides = []): array
 {
     return array_merge(['BUCKET' => $name, 'QUOTA' => '100', 'VERSIONING' => 'no', 'USED' => '2048', 'OBJECTS' => '3',
-        'SUSPENDED' => 'no', 'TIME' => '10:00:00', 'DATE' => '2026-10-19'], $overrides);
+        'SUSPENDED' => 'no', 'FULL' => 'no', 'TIME' => '10:00:00', 'DATE' => '2026-10-19'], $overrides);
 }
 
 /** @return array<string, string> `v-list-user-object-storage USER json` */

@@ -18,6 +18,8 @@ final class Bucket
         public readonly bool $suspended,
         public readonly string $date,
         public readonly string $time,
+        /** Above its quota on disk: the repair denies writes (E39 W5 N25) */
+        public readonly bool $full = false,
     ) {}
 
     /** @param  array<string, mixed>  $row */
@@ -35,6 +37,7 @@ final class Bucket
             suspended: $value('SUSPENDED') === 'yes',
             date: $value('DATE'),
             time: $value('TIME'),
+            full: $value('FULL') === 'yes',
         );
     }
 

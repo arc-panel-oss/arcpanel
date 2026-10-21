@@ -68,7 +68,7 @@ check_result $? "the bucket $bucket could not be created in object storage"
 
 time_n_date=$(date +'%T %F')
 silo_write_line "$(silo_buckets_file "$user")" SILO_BUCKET_KEYS "BUCKET=$bucket" "QUOTA=$quota" \
-	"VERSIONING=$versioning" "USED=0" "OBJECTS=0" "SUSPENDED=no" "TIME=${time_n_date% *}" "DATE=${time_n_date#* }"
+	"VERSIONING=$versioning" "USED=0" "OBJECTS=0" "SUSPENDED=no" "FULL=no" "TIME=${time_n_date% *}" "DATE=${time_n_date#* }"
 
 if ! silo_sync_user "$user"; then
 	silo_bucket_remove "$bucket"

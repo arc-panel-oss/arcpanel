@@ -363,6 +363,40 @@ teardown_file() {
     assert_equal "$refused" yes
 }
 
+@test "object storage: a repair refuses writes to a bucket whose objects and unfinished uploads pass its quota (E39 W5 N25)" {
+    local b=arcbats-n25 uid
+    v-add-user-bucket "$U1" "$b" 1 > /dev/null
+    # Each part is below the quota and Silo does not count unfinished uploads
+    head -c 700000 /dev/urandom > "$BATS_TEST_TMPDIR/part.bin"
+    uid=$(aws_as u1rw s3api create-multipart-upload --bucket "$b" --key mp.bin --query UploadId --output text)
+    for n in 1 2; do
+        run aws_as u1rw s3api upload-part --bucket "$b" --key mp.bin --part-number "$n" --upload-id "$uid" --body "$BATS_TEST_TMPDIR/part.bin"
+        assert_success
+    done
+
+    run v-check-sys-silo no
+    assert_output --partial "$U1|bucket|$b is over its quota"
+    run v-list-user-bucket "$U1" "$b" json
+    refute_output --partial '"FULL": "yes"'
+    run v-check-sys-silo repair
+    assert_success
+    run v-list-user-bucket "$U1" "$b" json
+    assert_output --partial '"FULL": "yes"'
+    run aws_as u1rw s3 cp "$BATS_TEST_TMPDIR/part.bin" "s3://$b/more.bin"
+    assert_failure
+    assert_output --partial 'AccessDenied'
+
+    # Deleting is still allowed; below the quota the next repair lifts it
+    run aws_as u1rw s3api abort-multipart-upload --bucket "$b" --key mp.bin --upload-id "$uid"
+    assert_success
+    v-check-sys-silo repair > /dev/null
+    run v-list-user-bucket "$U1" "$b" json
+    assert_output --partial '"FULL": "no"'
+    run aws_as u1rw s3 cp "$BATS_TEST_TMPDIR/part.bin" "s3://$b/more.bin"
+    assert_success
+    v-delete-user-bucket "$U1" "$b" > /dev/null
+}
+
 @test "object storage: suspending the account makes its keys fail until it is unsuspended" {
     run v-suspend-user "$U1"
     assert_success

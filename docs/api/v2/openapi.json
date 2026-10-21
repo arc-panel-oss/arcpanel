@@ -32182,6 +32182,10 @@
                         "type": "boolean",
                         "description": "the account is suspended: its keys fail"
                     },
+                    "full": {
+                        "type": "boolean",
+                        "description": "the bucket holds more than its quota, unfinished uploads included: writes are refused until it is below (checked every five minutes)"
+                    },
                     "created_at": {
                         "type": [
                             "string",
@@ -32198,6 +32202,7 @@
                     "objects",
                     "versioning",
                     "suspended",
+                    "full",
                     "created_at"
                 ],
                 "title": "Bucket"

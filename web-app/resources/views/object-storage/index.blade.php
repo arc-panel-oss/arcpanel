@@ -55,6 +55,10 @@
                         <td data-col="usage" data-label="{{ __('Usage') }}" class="col-num mono" data-sort-value="{{ $bucket->usedBytes }}">
                             {{ $size($bucket->usedBytes) }} / {{ $mb($bucket->quotaMb) }}
                             <span class="muted">({{ $bucket->percent() }}%)</span>
+                            @if ($bucket->full)
+                                <x-ap-badge tone="danger" :title="__('Writes are refused until the bucket is below its quota.')">{{ __('Over quota') }}</x-ap-badge>
+                                <span class="sr-only">{{ __('Writes are refused until the bucket is below its quota.') }}</span>
+                            @endif
                         </td>
                         <td data-col="objects" data-label="{{ __('Objects') }}" class="col-num mono" data-sort-value="{{ $bucket->objects }}">{{ $bucket->objects }}</td>
                         <td data-col="versioning" data-label="{{ __('Versioning') }}" data-sort-value="{{ $bucket->versioning ? 1 : 0 }}">

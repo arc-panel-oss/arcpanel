@@ -21,7 +21,7 @@ beforeEach(function () {
 it('lists buckets inside the tree and answers 404 outside it', function (string $principal, string $role, string $owner, int $status) {
     $response = $this->getJson("/api/v2/users/{$owner}/buckets", apiAs($this->fake, $principal, $role, readOnly: true, area: 'storage'))->assertStatus($status);
     if ($status === 200) {
-        $response->assertJsonPath('data.0.used_bytes', 2048)
+        $response->assertJsonPath('data.0.used_bytes', 2048)->assertJsonPath('data.0.full', false)
             ->assertJsonPath('meta.storage.quota_limit_mb', 1024)
             ->assertJsonPath('meta.storage.endpoint', 'https://s3.example.test')
             ->assertJsonPath('meta.storage.path_style', true);
