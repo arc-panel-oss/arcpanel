@@ -205,7 +205,8 @@ final class UserController extends Controller
      * Turn off two-factor authentication
      *
      * Users for their own account, administrators for the accounts they
-     * manage. Turning it on stays with the login of the user. Answers 204
+     * manage. Turning it on, with its recovery codes, is done by the user
+     * on the Security tab of the Account page of the panel. Answers 204
      * without a command when it is already off.
      *
      * @operationId disableUserTwoFactor

@@ -92,6 +92,33 @@ final class LoginService
     }
 
     /**
+     * Check a recovery code instead of a 2FA code (E39 W5 spec §11.3): the
+     * code goes to the command in a file and is used up. Answers the result
+     * and the number of codes left; the caller limits the attempts with the
+     * same count as 2FA codes.
+     *
+     * @return array{0: LoginResult, 1: int}
+     */
+    public function verifyRecoveryCode(string $username, string $code, LoginContext $context): array
+    {
+        $code = strtoupper((string) preg_replace('/[\s-]+/', '', $code));
+        if (preg_match('/^[A-Z2-7]{16}$/', $code) !== 1) {
+            return [$this->fail(self::INVALID_2FA), 0];
+        }
+
+        $check = $this->arc->run('v-check-user-2fa-recovery-code', [$username, Secret::file($code), $context->ip], Options::allowFailure());
+        $left = trim($check->stdout);
+        if (! $check->ok() || ! ctype_digit($left)) {
+            // Login history only: the auth.log line is already written.
+            $this->logFailure($username, $context);
+
+            return [$this->fail(self::INVALID_2FA), 0];
+        }
+
+        return [LoginResult::success($username, $this->userRecord($username)), (int) $left];
+    }
+
+    /**
      * Log the successful login and return what the legacy session must hold.
      *
      * @param  array<string, string>  $user

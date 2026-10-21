@@ -1,0 +1,95 @@
+#!/bin/bash
+# info: check a two-factor recovery code of a user
+# options: USER CODE_FILE [IP]
+#
+# example: v-check-user-2fa-recovery-code admin /tmp/tmp.Xp3t7c 203.0.113.7
+#
+# This function accepts one of the user's recovery codes instead of a TOTP
+# code. CODE_FILE is a file the panel wrote in /tmp; its first line is the
+# code. An accepted code is used up and the number of codes left is printed;
+# two-factor authentication stays on. A wrong code is written to the auth
+# log that fail2ban reads, as v-check-user-2fa does.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+user=$1
+code_file=$2
+ip46=${3-127.0.0.1}
+
+# Includes
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/twofa.sh
+source $ARCPANEL/func/twofa.sh
+# load config file
+source_conf "$ARCPANEL/conf/arcpanel.conf"
+
+# Write the failure line of the auth log and stop
+code_mismatch() {
+	echo "$(date +'%F %T') $user $ip46 failed to login (Invalid or missing 2FA token)" >> "$ARCPANEL/log/auth.log"
+	echo "Error: Authentication token mismatch."
+	exit 9
+}
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '2' "$#" 'USER CODE_FILE [IP]'
+is_format_valid 'user' 'ip46'
+is_object_valid 'user' 'USER' "$user"
+is_panel_file_valid "$code_file"
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+# One check at a time per user, so a code cannot be used twice in parallel
+exec {lock_fd}> "$USER_DATA/.twofa.lock"
+if ! flock -w 10 "$lock_fd"; then
+	echo "Error: 2FA check is busy"
+	exit "$E_UPDATE"
+fi
+
+source_conf "$USER_DATA/user.conf"
+if [ -z "$TWOFA" ]; then
+	echo "Error: Two-factor authentication is not enabled."
+	exit "$E_NOTEXIST"
+fi
+
+code=$(twofa_recovery_normalize "$(head -n 1 -- "$code_file")")
+if [[ ! "$code" =~ ^[A-Z2-7]{16}$ ]]; then
+	code_mismatch
+fi
+hash=$(twofa_recovery_hash "$code")
+
+left=''
+found=no
+IFS=',' read -r -a hashes <<< "$TWOFA_RECOVERY"
+for h in "${hashes[@]}"; do
+	if [ "$h" = "$hash" ] && [ "$found" = no ]; then
+		found=yes
+		continue
+	fi
+	[[ "$h" =~ ^[0-9a-f]{64}$ ]] && left="${left:+$left,}$h"
+done
+if [ "$found" != yes ]; then
+	code_mismatch
+fi
+set_user_value "$user" '$TWOFA_RECOVERY' "$left"
+
+twofa_recovery_left "$user"
+
+#----------------------------------------------------------#
+#                         ArcPanel                         #
+#----------------------------------------------------------#
+
+# Logging
+$BIN/v-log-action "$user" "Warning" "Security" "Signed in with a two-factor recovery code."
+
+exit

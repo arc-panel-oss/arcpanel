@@ -1,10 +1,14 @@
 #!/bin/bash
-# info: add 2fa to existing user
-# options: USER
+# info: start the two-factor enrolment of a user
+# options: USER [FORMAT]
 #
-# example: v-add-user-2fa admin
+# example: v-add-user-2fa admin json
 #
-# This function creates a new 2fa token for user.
+# This function writes a new TOTP secret to the user's pending enrolment and
+# prints the secret and its otpauth URI. Two-factor authentication is on only
+# once v-change-user-2fa confirms the enrolment with a code; the pending
+# secret expires after 10 minutes. No QR code is drawn here: the panel draws
+# it itself, so the secret never leaves the server.
 
 #----------------------------------------------------------#
 #                Variables & Functions                     #
@@ -12,12 +16,15 @@
 
 # Argument definition
 user=$1
+format=${2-shell}
 
 # Includes
 # shellcheck source=/etc/arcpanel/arcpanel.conf
 source /etc/arcpanel/arcpanel.conf
 # shellcheck source=/usr/local/arcpanel/func/main.sh
 source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/twofa.sh
+source $ARCPANEL/func/twofa.sh
 # load config file
 source_conf "$ARCPANEL/conf/arcpanel.conf"
 
@@ -25,8 +32,8 @@ source_conf "$ARCPANEL/conf/arcpanel.conf"
 #                    Verifications                         #
 #----------------------------------------------------------#
 
-check_args '1' "$#" 'USER'
-is_format_valid 'user' 'system'
+check_args '1' "$#" 'USER [FORMAT]'
+is_format_valid 'user' 'format'
 is_object_valid 'user' 'USER' "$user"
 
 # Perform verification if read-only mode is enabled
@@ -37,7 +44,7 @@ check_arcpanel_demo_mode
 #----------------------------------------------------------#
 
 # Reading user values
-source $USER_DATA/user.conf
+source_conf "$USER_DATA/user.conf"
 
 # Check if 2FA is already enabled
 if [ -n "$TWOFA" ]; then
@@ -45,17 +52,30 @@ if [ -n "$TWOFA" ]; then
 	exit "$E_EXISTS"
 fi
 
-# Get secret and qr code from 2fa library
-data=$($ARCPANEL_PHP $ARCPANEL/lib/2fa/secret.php)
+secret=$(twofa_new_secret)
+if [[ ! "$secret" =~ ^[A-Z2-7]{32}$ ]]; then
+	echo "Error: no secret could be created"
+	exit "$E_UPDATE"
+fi
+uri=$(twofa_uri "$user" "$secret")
 
-# Split to secret and qrcode using delimiter
-IFS='-' read -r -a array <<< "$data"
-secret=${array[0]}
-qrcode=${array[1]}
+# A new enrolment replaces an older one that was not confirmed
+pending=$(twofa_pending_file "$user")
+rm -f "$pending"
+(
+	umask 077
+	printf "SECRET='%s'\nCREATED='%s'\n" "$secret" "$(date +%s)" > "$pending"
+)
 
-# Save the secret in user config (needs encryption?)
-update_user_value "$user" '$TWOFA' "$secret"
-update_user_value "$user" '$QRCODE' "$qrcode"
+case "$format" in
+	json)
+		jq -n --arg secret "$secret" --arg uri "$uri" '{SECRET: $secret, URI: $uri}'
+		;;
+	*)
+		echo "SECRET: $secret"
+		echo "URI: $uri"
+		;;
+esac
 
 #----------------------------------------------------------#
 #                         ArcPanel                         #

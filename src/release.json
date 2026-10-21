@@ -5,7 +5,8 @@
 	"attention_items": [
 		"A server upgraded from 2.2 moves its firewall from iptables and ipset to nftables. Rules that data/firewall/custom.sh adds with iptables can no longer open ports; move them to data/firewall/custom.nft.",
 		"If the new firewall rules cannot be loaded, the server keeps its iptables rules and the upgrade log says so; check Server > Firewall after the update.",
-		"Access keys that the upgrade moves to data/access-keys/.quarantine/ no longer work; the upgrade log and a notification name them. Review where they were used and create new keys."
+		"Access keys that the upgrade moves to data/access-keys/.quarantine/ no longer work; the upgrade log and a notification name them. Review where they were used and create new keys.",
+		"Accounts that already use two-factor authentication have no recovery codes yet; ask their users to create them on the Security tab of their account. The 2FA reset page is gone: turn 2FA off for a user who lost the app."
 	],
 	"min_from": null
 }

@@ -90,6 +90,26 @@
                         <div class="ap-form-actions"><x-ap-button type="submit" variant="primary" icon="check">{{ __('Save') }}</x-ap-button></div>
                     </x-ap-form>
                 </x-ap-card>
+                @if ($ownLogin)
+                    {{-- E39 W5 §11.3: turn on, recovery codes; turning off stays in the Security card --}}
+                    <x-ap-card :title="__('Two-factor authentication')" icon="key">
+                        @if ($record->twoFactor())
+                            <p>{{ sprintf(__('Two-factor authentication is on. Recovery codes left: %d.'), $record->recoveryCodesLeft()) }}</p>
+                            @if ($record->recoveryCodesLeft() === 0)
+                                <x-ap-alert tone="warn">{{ __('This account has no recovery codes. Without them, only an administrator can let you in when your authenticator app is lost. Create them now and keep them safe.') }}</x-ap-alert>
+                            @endif
+                            <div class="ap-form-actions">
+                                <x-ap-button :form-action="route('account.two-factor.recovery')" icon="refresh"
+                                    :confirm="__('Create new recovery codes? The earlier codes stop working.')">{{ __('Create new recovery codes') }}</x-ap-button>
+                            </div>
+                        @else
+                            <p>{{ __('Sign in with a code from an authenticator app in addition to the password.') }}</p>
+                            <div class="ap-form-actions">
+                                <x-ap-button :href="route('account.two-factor')" variant="primary" icon="key">{{ __('Turn on two-factor authentication') }}</x-ap-button>
+                            </div>
+                        @endif
+                    </x-ap-card>
+                @endif
             </x-ap-tab-panel>
         @endisset
 

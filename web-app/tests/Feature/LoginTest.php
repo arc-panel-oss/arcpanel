@@ -110,6 +110,43 @@ it('counts wrong 2FA codes across logins and answers 429 after five', function (
     Sleep::assertNeverSlept();
 });
 
+it('signs in with a recovery code instead of the 2FA code and says how many are left (E39 W5 §11.3)', function () {
+    bobCanLogIn($this->fake, ['TWOFA' => 'yes']);
+    $this->fake->on('v-check-user-2fa-recovery-code', fn ($args) => $args[1] === 'ABCDEFGHIJKLMNOP')->returns("7\n");
+    $this->fake->on('v-check-user-2fa-recovery-code', fn ($args) => $args[1] === 'ZZZZZZZZZZZZZZZZ')->returnsExit(9, 'Error: Authentication token mismatch.');
+
+    $this->post('/login', ['user' => 'bob', 'password' => 'pw'])->assertRedirect('/login/2fa');
+    $this->get('/login/2fa')->assertOk()->assertSee('Use a recovery code');
+    $this->get('/login/2fa?recovery=1')->assertOk()->assertSee('name="recovery_code"', false)->assertDontSee('name="twofa"', false);
+
+    // A wrong code goes through the 2FA attempt count; one that is not a code runs nothing
+    $this->post('/login/2fa', ['recovery_code' => 'zzzz-zzzz-zzzz-zzzz'])->assertRedirect('/login/2fa?recovery=1')->assertSessionHas('error');
+    $this->post('/login/2fa', ['recovery_code' => 'not a code'])->assertRedirect('/login/2fa?recovery=1');
+    $this->fake->assertRan('v-check-user-2fa-recovery-code', times: 1);
+
+    $this->post('/login/2fa', ['recovery_code' => 'abcd efgh-ijkl mnop'])->assertRedirect('/')
+        ->assertSessionHas('warn', 'You signed in with a recovery code. Recovery codes left: 7.');
+    expect($this->session->data()['user'])->toBe('bob');
+    $this->fake->assertRan('v-check-user-2fa-recovery-code', fn ($a) => $a === ['bob', 'ABCDEFGHIJKLMNOP', '127.0.0.1']);
+    $this->fake->assertNotRan('v-check-user-2fa');
+});
+
+it('counts wrong recovery codes with the 2FA codes (E39 W5 §11.3)', function () {
+    bobCanLogIn($this->fake, ['TWOFA' => 'yes']);
+    $this->fake->on('v-check-user-2fa')->returnsExit(9, 'Error');
+    $this->fake->on('v-check-user-2fa-recovery-code')->returnsExit(9, 'Error');
+
+    $this->post('/login', ['user' => 'bob', 'password' => 'pw']);
+    foreach (range(1, 3) as $attempt) {
+        $this->post('/login/2fa', ['twofa' => '000000']);
+    }
+    foreach (range(1, 2) as $attempt) {
+        $this->post('/login/2fa', ['recovery_code' => 'ZZZZ-ZZZZ-ZZZZ-ZZZZ']);
+    }
+    $this->post('/login/2fa', ['recovery_code' => 'ABCD-EFGH-IJKL-MNOP'])->assertStatus(429);
+    $this->fake->assertRan('v-check-user-2fa-recovery-code', times: 2);
+});
+
 it('logs in with the right code after a few wrong ones and starts the 2FA count again', function () {
     bobCanLogIn($this->fake, ['TWOFA' => 'SECRET']);
     $this->fake->on('v-check-user-2fa', fn ($args) => $args[1] === '000000')->returnsExit(9, 'Error');

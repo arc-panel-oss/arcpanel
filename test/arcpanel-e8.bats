@@ -136,13 +136,16 @@ ARCPANEL_DIR="/usr/local/arcpanel"
 	assert_output "0"
 }
 
-@test "2FA: v-add-user-2fa and v-check-user-2fa work from lib/2fa" {
-	run v-add-user-2fa "$E8_USER"
+@test "2FA: v-change-user-2fa and v-check-user-2fa work from lib/2fa" {
+	run v-add-user-2fa "$E8_USER" json
 	assert_success
-	secret="$(v-list-user "$E8_USER" json | jq -r ".\"$E8_USER\".TWOFA")"
+	secret="$(jq -r .SECRET <<< "$output")"
 	assert [ -n "$secret" ]
-	code="$("$ARCPANEL_DIR/php/bin/php" -r 'require "/usr/local/arcpanel/lib/vendor/autoload.php"; $t = new RobThree\Auth\TwoFactorAuth(new RobThree\Auth\Providers\Qr\QRServerProvider(), "ArcPanel"); echo $t->getCode($argv[1]);' "$secret")"
-	run v-check-user-2fa "$E8_USER" "$code"
+	# The enrolment takes the previous step's code, the check the current one (E39 W5 §11.2)
+	totp='require "/usr/local/arcpanel/lib/vendor/autoload.php"; $q = new class implements RobThree\Auth\Providers\Qr\IQRCodeProvider { public function getQRCodeImage(string $t, int $s): string { throw new LogicException(); } public function getMimeType(): string { return "image/svg+xml"; } }; $t = new RobThree\Auth\TwoFactorAuth($q, "ArcPanel"); echo $t->getCode($argv[1], isset($argv[2]) ? (int) $argv[2] * 30 : null);'
+	run v-change-user-2fa "$E8_USER" "$("$ARCPANEL_DIR/php/bin/php" -r "$totp" "$secret" $(($(date +%s) / 30 - 1)))"
+	assert_success
+	run v-check-user-2fa "$E8_USER" "$("$ARCPANEL_DIR/php/bin/php" -r "$totp" "$secret")"
 	assert_success
 	run v-check-user-2fa "$E8_USER" 000000
 	assert_failure

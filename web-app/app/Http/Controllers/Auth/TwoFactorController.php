@@ -15,7 +15,8 @@ use Illuminate\View\View;
  * Second login step. The pending state lives in the panel-app session only
  * and never holds the password (the legacy login kept it in the session).
  * Wrong codes are counted per user in LoginThrottle, not in the session, so
- * a new login does not start a new count (E39 W2 spec D3).
+ * a new login does not start a new count (E39 W2 spec D3). A recovery code
+ * may stand in for the 2FA code and shares that count (E39 W5 §11.3).
  */
 final class TwoFactorController extends Controller
 {
@@ -32,7 +33,7 @@ final class TwoFactorController extends Controller
             return redirect()->route('login');
         }
 
-        return $this->page();
+        return $this->page(recovery: $request->boolean('recovery'));
     }
 
     public function store(Request $request): RedirectResponse|Response
@@ -50,26 +51,35 @@ final class TwoFactorController extends Controller
         }
 
         $context = $this->responder->context($request);
-        $result = $this->login->verifySecondFactor(
-            $pending['user'],
-            trim((string) $request->input('twofa', '')),
-            $context,
-        );
+        $recovery = $request->has('recovery_code');
+        if ($recovery) {
+            [$result, $left] = $this->login->verifyRecoveryCode($pending['user'], (string) $request->input('recovery_code', ''), $context);
+        } else {
+            $result = $this->login->verifySecondFactor(
+                $pending['user'],
+                trim((string) $request->input('twofa', '')),
+                $context,
+            );
+        }
 
         if ($result->succeeded()) {
             $this->throttle->clearSecondFactor($pending['user']);
+            $response = $this->responder->complete($request, $result->username, $result->user, $context);
 
-            return $this->responder->complete($request, $result->username, $result->user, $context);
+            return $recovery
+                ? $response->with('warn', sprintf(__('You signed in with a recovery code. Recovery codes left: %d.'), $left))
+                : $response;
         }
 
-        return redirect()->route('login.2fa')->with('error', __($result->error));
+        return redirect()->route('login.2fa', $recovery ? ['recovery' => 1] : [])->with('error', __($result->error));
     }
 
-    private function page(?string $tooMany = null): View
+    private function page(?string $tooMany = null, bool $recovery = false): View
     {
         return view('auth.two-factor', [
             'appName' => $this->config->get('APP_NAME', 'ArcPanel'),
             'tooMany' => $tooMany,
+            'recovery' => $recovery,
         ]);
     }
 

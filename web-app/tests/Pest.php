@@ -65,6 +65,7 @@ function userRecord(array $overrides = []): array
         'BACKUPS' => '1',
         'SHELL' => 'nologin',
         'TWOFA' => '',
+        'TWOFA_RECOVERY_LEFT' => '0',
         'ROLE' => 'user',
         'SUSPENDED' => 'no',
         'LANGUAGE' => 'en',

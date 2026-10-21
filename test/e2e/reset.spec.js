@@ -74,15 +74,10 @@ test('guest: reset the password with the code of the e-mail and log in', async (
 	await expect(page).toHaveURL(/^https?:\/\/[^/]+\/$/);
 });
 
-test('guest: a wrong 2FA reset code unlocks nothing', async ({ page }) => {
+test('guest: the removed 2FA reset leads to the login page (E39 W5 N20)', async ({ page }) => {
 	await page.context().clearCookies();
 	await page.goto('/reset2fa');
-	await expect(page.getByRole('heading', { name: 'Unlock Account' })).toBeVisible();
-	await expectAccessible(page);
-	await page.getByLabel('Username').fill(USER);
-	await page.getByLabel('2FA Reset Code').fill('not-the-code');
-	await page.getByRole('button', { name: 'Submit' }).click();
-	await expect(page.getByRole('alert')).toContainText('Invalid username or code');
+	await expect(page).toHaveURL(/\/login$/);
 });
 
 test('the login page links to the reset pages', async ({ page }) => {

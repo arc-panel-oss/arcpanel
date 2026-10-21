@@ -90,9 +90,16 @@ final class UserRecord
         return $this->get('LOGIN_USE_IPLIST') === 'yes';
     }
 
+    /** v-list-user prints TWOFA as yes or empty since 2.6.0 (E39 W5 N19). */
     public function twoFactor(): bool
     {
         return $this->get('TWOFA') !== '';
+    }
+
+    /** Unused two-factor recovery codes (E39 W5 §11.2). */
+    public function recoveryCodesLeft(): int
+    {
+        return (int) $this->get('TWOFA_RECOVERY_LEFT');
     }
 
     /**

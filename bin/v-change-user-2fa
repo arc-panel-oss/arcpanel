@@ -1,0 +1,92 @@
+#!/bin/bash
+# info: confirm the two-factor enrolment of a user
+# options: USER CODE [FORMAT]
+#
+# example: v-change-user-2fa admin 493690 json
+#
+# This function turns two-factor authentication on with the secret of the
+# pending enrolment (v-add-user-2fa) once CODE is a valid code of it. It
+# creates ten recovery codes, keeps only their hashes and prints the codes
+# once.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+user=$1
+code=$2
+format=${3-shell}
+
+# Includes
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/twofa.sh
+source $ARCPANEL/func/twofa.sh
+# load config file
+source_conf "$ARCPANEL/conf/arcpanel.conf"
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '2' "$#" 'USER CODE [FORMAT]'
+is_format_valid 'user' 'format'
+is_object_valid 'user' 'USER' "$user"
+
+# Perform verification if read-only mode is enabled
+check_arcpanel_demo_mode
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+# One change at a time per user, shared with v-check-user-2fa
+exec {lock_fd}> "$USER_DATA/.twofa.lock"
+if ! flock -w 10 "$lock_fd"; then
+	echo "Error: 2FA check is busy"
+	exit "$E_UPDATE"
+fi
+
+source_conf "$USER_DATA/user.conf"
+if [ -n "$TWOFA" ]; then
+	echo "Error: 2FA already enabled"
+	exit "$E_EXISTS"
+fi
+
+secret=$(twofa_pending_secret "$user")
+if [ -z "$secret" ]; then
+	echo "Error: no 2FA enrolment is pending, or it expired"
+	exit "$E_NOTEXIST"
+fi
+
+if [[ ! "$code" =~ ^[0-9]{6}$ ]]; then
+	echo "Error: Authentication token mismatch."
+	exit 9
+fi
+# The secret goes to the helper on stdin, not in argv
+result=$(printf '%s\n%s\n0\n' "$secret" "$code" | $ARCPANEL_PHP $ARCPANEL/lib/2fa/check.php)
+if [[ ! "$result" =~ ^ok\ ([0-9]+)$ ]]; then
+	echo "Error: Authentication token mismatch."
+	exit 9
+fi
+step="${BASH_REMATCH[1]}"
+
+set_user_value "$user" '$TWOFA' "$secret"
+set_user_value "$user" '$TWOFA_STEP' "$step"
+codes=$(twofa_recovery_new "$user")
+rm -f "$(twofa_pending_file "$user")"
+
+echo "$codes" | twofa_recovery_print "$format"
+
+#----------------------------------------------------------#
+#                         ArcPanel                         #
+#----------------------------------------------------------#
+
+# Logging; no log_event, whose line would hold the code
+$BIN/v-log-action "system" "Info" "System" "Two-factor authentication enabled (User: $user)."
+$BIN/v-log-action "$user" "Info" "System" "Two-factor authentication enabled."
+
+exit

@@ -13,7 +13,7 @@ use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\View\View;
 
 /**
- * Password reset and 2FA reset for guests (web/reset, web/reset2fa), E7
+ * Password reset for guests (web/reset), E7
  * batch 3 spec §11: the same answer for every user name, rate limits per IP
  * and per user, single-use codes. A reset code never stays in a URL: the
  * link of the e-mail and the code form put it into the session, and the
@@ -143,27 +143,6 @@ final class ResetController extends Controller
         $this->throttle->clear($data['user']);
 
         return redirect()->route('login')->with('ok', __('Your password has been changed. You can now log in.'));
-    }
-
-    public function twoFactor(): View
-    {
-        return $this->page('auth.reset2fa', ['unlocked' => false]);
-    }
-
-    public function twoFactorStore(Request $request): View|RedirectResponse|Response
-    {
-        $data = $request->validate(['user' => ['required', 'string', 'max:64'], 'twofa' => ['required', 'string', 'max:128']]);
-        if ($limited = $this->limited($request, $data['user'], 'auth.reset2fa', ['unlocked' => false])) {
-            return $limited;
-        }
-
-        if (! $this->reset->resetTwoFactor($data['user'], trim($data['twofa']))) {
-            $this->reset->logFailure($data['user'], $this->responder->context($request), 'Failed to enter correct 2FA reset key');
-
-            return redirect()->route('reset2fa')->withInput($request->only('user'))->with('error', __('Invalid username or code'));
-        }
-
-        return $this->page('auth.reset2fa', ['unlocked' => true]);
     }
 
     private function holdCode(Request $request, string $user, string $code): RedirectResponse

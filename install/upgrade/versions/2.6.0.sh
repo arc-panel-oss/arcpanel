@@ -88,3 +88,11 @@ if [ -n "$upd_step_host" ] && grep -q "^DOMAIN='$upd_step_host' " "$ARCPANEL/dat
 	"$ARCPANEL/bin/v-rebuild-web-domain" "${upd_step_root:-admin}" "$upd_step_host" yes > /dev/null 2>&1
 fi
 unset upd_step_root upd_step_host
+
+# Two-factor authentication (§11.4): the QR code that 1.x kept in user.conf
+# holds the secret; it is no longer written or printed, so it goes
+for upd_step_conf in "$ARCPANEL"/data/users/*/user.conf; do
+	[ -f "$upd_step_conf" ] || continue
+	sed -i "s/^QRCODE='[^']*'$/QRCODE=''/" "$upd_step_conf"
+done
+unset upd_step_conf

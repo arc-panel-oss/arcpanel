@@ -4,7 +4,8 @@
 #
 # example: v-delete-user-2fa admin
 #
-# This function deletes 2fa token of a user.
+# This function deletes 2fa token of a user, with its recovery codes and a
+# pending enrolment.
 
 #----------------------------------------------------------#
 #                Variables & Functions                     #
@@ -18,6 +19,8 @@ user=$1
 source /etc/arcpanel/arcpanel.conf
 # shellcheck source=/usr/local/arcpanel/func/main.sh
 source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/twofa.sh
+source $ARCPANEL/func/twofa.sh
 # load config file
 source_conf "$ARCPANEL/conf/arcpanel.conf"
 
@@ -36,8 +39,11 @@ check_arcpanel_demo_mode
 #                       Action                             #
 #----------------------------------------------------------#
 
+# An enrolment that was not confirmed goes too
+rm -f "$(twofa_pending_file "$user")"
+
 # Reading user values
-source $USER_DATA/user.conf
+source_conf "$USER_DATA/user.conf"
 
 # Check if 2FA is enabled
 if [ -z "$TWOFA" ]; then
@@ -45,9 +51,11 @@ if [ -z "$TWOFA" ]; then
 	exit "$E_NOTEXIST"
 fi
 
-# Remove 2FA from user config
+# Remove 2FA from user config, with the replay step and the recovery codes
 update_user_value "$user" '$TWOFA' ""
 update_user_value "$user" '$QRCODE' ""
+update_user_value "$user" '$TWOFA_STEP' ""
+update_user_value "$user" '$TWOFA_RECOVERY' ""
 
 #----------------------------------------------------------#
 #                         ArcPanel                         #

@@ -69,6 +69,7 @@ use App\Http\Controllers\Shell\RrdController;
 use App\Http\Controllers\Shell\StyleguideController;
 use App\Http\Controllers\Stats\StatsController;
 use App\Http\Controllers\TerminalController;
+use App\Http\Controllers\Users\TwoFactorSetupController;
 use App\Http\Controllers\Users\UserActionController;
 use App\Http\Controllers\Users\UserController;
 use App\Http\Controllers\Users\UserEditController;
@@ -115,8 +116,8 @@ Route::middleware('guest.arc')->group(function () {
     Route::get('/login/2fa', [TwoFactorController::class, 'show'])->name('login.2fa');
     Route::post('/login/2fa', [TwoFactorController::class, 'store'])->name('login.2fa.store');
 
-    // Password and 2FA reset (E7 batch 3 spec §11); codes never leave in a
-    // Referer and never stay in a URL (E39 W2 spec D9)
+    // Password reset (E7 batch 3 spec §11); codes never leave in a Referer
+    // and never stay in a URL (E39 W2 spec D9)
     Route::middleware('no-referrer')->group(function () {
         Route::get('/reset', [ResetController::class, 'show'])->name('reset');
         Route::post('/reset', [ResetController::class, 'request'])->name('reset.request');
@@ -124,10 +125,11 @@ Route::middleware('guest.arc')->group(function () {
         Route::post('/reset/code', [ResetController::class, 'enterCode'])->name('reset.code.store');
         Route::get('/reset/confirm', [ResetController::class, 'confirm'])->name('reset.confirm');
         Route::post('/reset/confirm', [ResetController::class, 'update'])->name('reset.update');
-        Route::get('/reset2fa', [ResetController::class, 'twoFactor'])->name('reset2fa');
-        Route::post('/reset2fa', [ResetController::class, 'twoFactorStore'])->name('reset2fa.store');
     });
 });
+// The 2FA reset by secret is gone: recovery codes took its place, and an
+// administrator turns 2FA off for a user who has none (E39 W5 N20)
+Route::redirect('/reset2fa', '/login');
 
 // Mail password change for the webmail clients of this server (1.x
 // web/reset/mail); no session, the controller checks the caller's address
@@ -165,6 +167,13 @@ Route::middleware('auth.arc')->group(function () {
 
     // Users and customers (E11 spec §7)
     Route::get('/account', [UserEditController::class, 'account'])->name('account.edit');
+    // Two-factor authentication of the login user (E39 W5 spec §11.3)
+    Route::get('/account/two-factor', [TwoFactorSetupController::class, 'show'])->name('account.two-factor');
+    Route::middleware('not-readonly')->group(function () {
+        Route::post('/account/two-factor', [TwoFactorSetupController::class, 'start'])->name('account.two-factor.start');
+        Route::post('/account/two-factor/confirm', [TwoFactorSetupController::class, 'confirm'])->name('account.two-factor.confirm');
+        Route::post('/account/two-factor/recovery-codes', [TwoFactorSetupController::class, 'recoveryCodes'])->name('account.two-factor.recovery');
+    });
     Route::prefix('users')->name('users.')->group(function () {
         Route::get('/', [UserController::class, 'index'])->name('index');
         Route::get('/create', [UserController::class, 'create'])->name('create');

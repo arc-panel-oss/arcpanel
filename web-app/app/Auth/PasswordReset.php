@@ -10,9 +10,9 @@ use App\Support\PanelHost;
 use Illuminate\Support\Str;
 
 /**
- * Password reset by e-mail and 2FA reset by recovery code (web/reset,
- * web/reset2fa), E7 batch 3 spec §11. The answers never tell whether a user
- * exists; the reset code is single use and lives 15 minutes.
+ * Password reset by e-mail (web/reset), E7 batch 3 spec §11. The answers
+ * never tell whether a user exists; the reset code is single use and lives
+ * 15 minutes. The 2FA reset by secret was removed in 2.6.0 (E39 W5 N20).
  */
 final class PasswordReset
 {
@@ -73,18 +73,6 @@ final class PasswordReset
         $this->arc->run('v-change-user-rkey', [$username], Options::allowFailure());
 
         return true;
-    }
-
-    /** Turn 2FA off when the code is the user's 2FA reset code. */
-    public function resetTwoFactor(string $username, string $code): bool
-    {
-        $user = $this->user($username);
-        $secret = $user['TWOFA'] ?? '';
-        if ($user === null || $secret === '' || $code === '' || ! hash_equals($secret, $code)) {
-            return false;
-        }
-
-        return $this->arc->run('v-delete-user-2fa', [$username], Options::allowFailure())->ok();
     }
 
     /** `v-log-user-login USER IP failed FINGERPRINT AGENT yes REASON`, as legacy logs failed resets. */

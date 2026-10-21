@@ -161,6 +161,8 @@ final class UserEditController extends Controller
             'record' => $record,
             'can' => $can,
             'isSelf' => $user === $principal->effectiveUser(),
+            // Two-factor setup is for whoever signs in (E39 W5 §11.3)
+            'ownLogin' => $user === $principal->loginUser && ! $principal->isImpersonating(),
             'packages' => $packageOptions,
             'packageLabel' => UserService::packageLabel($record->package(), $reseller),
             'languages' => $this->users->languages(),

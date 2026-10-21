@@ -49,7 +49,7 @@ json_list() {
         "CRON_REPORTS": "'$CRON_REPORTS'",
         "RKEY": "'$RKEY'",
         "TWOFA": "'$TWOFA'",
-        "QRCODE": "'$QRCODE'",
+        "TWOFA_RECOVERY_LEFT": "'$TWOFA_RECOVERY_LEFT'",
         "ROLE": "'$ROLE'",
         "SUSPENDED": "'$SUSPENDED'",
         "SUSPENDED_USERS": "'$SUSPENDED_USERS'",
@@ -183,6 +183,13 @@ HOME=$HOMEDIR/$user
 source_conf "$ARCPANEL/data/users/$user/user.conf"
 U_USERS=$(awk -F"'" '/^U_USERS=/ {print $2}' "$ARCPANEL/data/users/$ROOT_USER/user.conf")
 SUSPENDED_USERS=$(awk -F"'" '/^SUSPENDED_USERS=/ {print $2}' "$ARCPANEL/data/users/$ROOT_USER/user.conf")
+# 2FA as yes or empty and the number of unused recovery codes: the secret
+# and the code hashes stay in user.conf (E39 W5 N19)
+TWOFA=${TWOFA:+yes}
+TWOFA_RECOVERY_LEFT=0
+if [ -n "$TWOFA_RECOVERY" ]; then
+	TWOFA_RECOVERY_LEFT=$(echo "$TWOFA_RECOVERY" | tr ',' '\n' | grep -c .)
+fi
 
 # Listing data
 case $format in

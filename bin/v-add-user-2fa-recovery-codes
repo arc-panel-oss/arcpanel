@@ -1,0 +1,67 @@
+#!/bin/bash
+# info: create new two-factor recovery codes of a user
+# options: USER [FORMAT]
+#
+# example: v-add-user-2fa-recovery-codes admin json
+#
+# This function replaces the recovery codes of a user with two-factor
+# authentication with ten new ones and prints them once; only their hashes
+# are kept. The codes printed earlier stop working.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+user=$1
+format=${2-shell}
+
+# Includes
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/twofa.sh
+source $ARCPANEL/func/twofa.sh
+# load config file
+source_conf "$ARCPANEL/conf/arcpanel.conf"
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '1' "$#" 'USER [FORMAT]'
+is_format_valid 'user' 'format'
+is_object_valid 'user' 'USER' "$user"
+
+# Perform verification if read-only mode is enabled
+check_arcpanel_demo_mode
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+exec {lock_fd}> "$USER_DATA/.twofa.lock"
+if ! flock -w 10 "$lock_fd"; then
+	echo "Error: 2FA check is busy"
+	exit "$E_UPDATE"
+fi
+
+source_conf "$USER_DATA/user.conf"
+if [ -z "$TWOFA" ]; then
+	echo "Error: two-factor authentication is not enabled"
+	exit "$E_NOTEXIST"
+fi
+
+twofa_recovery_new "$user" | twofa_recovery_print "$format"
+
+#----------------------------------------------------------#
+#                         ArcPanel                         #
+#----------------------------------------------------------#
+
+# Logging
+$BIN/v-log-action "system" "Info" "System" "New two-factor recovery codes created (User: $user)."
+$BIN/v-log-action "$user" "Info" "System" "New two-factor recovery codes created."
+log_event "$OK" "$ARGUMENTS"
+
+exit

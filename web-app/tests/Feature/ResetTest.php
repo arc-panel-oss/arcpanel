@@ -109,22 +109,14 @@ it('limits the requests per address and per user name', function () {
         $this->post('/reset', ['user' => 'nobody', 'email' => 'x@example.com'])->assertRedirect();
     }
     $this->post('/reset', ['user' => 'nobody', 'email' => 'x@example.com'])->assertStatus(429)->assertSee('Too many attempts. Try again in 15 minutes.');
-    $this->post('/reset2fa', ['user' => 'bob', 'twofa' => 'x'])->assertStatus(429);
 });
 
-it('turns 2FA off with the reset code only', function () {
-    fakeServerUsers($this->fake, ['bob' => ['TWOFA' => 'ABCDEF123456']]);
-    $this->fake->on('v-delete-user-2fa')->returns();
+it('sends the removed 2FA reset to the login page and turns nothing off (E39 W5 N20)', function () {
+    fakeServerUsers($this->fake, ['bob' => ['TWOFA' => 'yes']]);
 
-    $this->get('/reset2fa')->assertOk()->assertSee('Unlock Account')->assertSee('2FA Reset Code');
-
-    $this->post('/reset2fa', ['user' => 'bob', 'twofa' => 'WRONG'])
-        ->assertRedirect(route('reset2fa'))->assertSessionHas('error', 'Invalid username or code');
-    $this->fake->assertRan('v-log-user-login', fn ($a) => $a[6] === 'Failed to enter correct 2FA reset key');
+    $this->get('/reset2fa')->assertRedirect('/login');
+    $this->post('/reset2fa', ['user' => 'bob', 'twofa' => 'ABCDEF123456'])->assertRedirect('/login');
     $this->fake->assertNotRan('v-delete-user-2fa');
-
-    $this->post('/reset2fa', ['user' => 'bob', 'twofa' => 'ABCDEF123456'])->assertOk()->assertSee('Account Unlocked');
-    $this->fake->assertRan('v-delete-user-2fa', fn ($a) => $a === ['bob']);
 });
 
 it('answers 404 when password reset is off', function () {

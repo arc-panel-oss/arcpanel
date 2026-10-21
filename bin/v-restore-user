@@ -197,6 +197,8 @@ if [ "$create_user" = 'yes' ]; then
 	# Restoring user.conf
 	mkdir $USER_DATA
 	cp $tmpdir/$backup_system/user.conf $USER_DATA/
+	# Archives of 1.x keep the 2FA QR code, which holds the secret (E39 W5 §11.2)
+	sed -i "s/^QRCODE='[^']*'$/QRCODE=''/" $USER_DATA/user.conf
 	cp -r $tmpdir/$backup_system/ssl $USER_DATA/ > /dev/null 2>&1
 	cp $tmpdir/$backup_system/backup-excludes.conf $USER_DATA/ > /dev/null 2>&1
 

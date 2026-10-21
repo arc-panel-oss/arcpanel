@@ -65,9 +65,11 @@ user_value() {
 }
 
 @test "v-check-user-2fa accepts a code once and logs every wrong one" {
-    v-add-user-2fa "$AUTHUSER" > /dev/null
     local secret code
-    secret=$(user_value "$AUTHUSER" TWOFA)
+    # Enrolment (E39 W5 §11.2) with the code of the previous step, which
+    # leaves the current one unused
+    secret=$(v-add-user-2fa "$AUTHUSER" json | jq -r .SECRET)
+    v-change-user-2fa "$AUTHUSER" "$(totp "$secret" $(($(date +%s) / 30 - 1)))" > /dev/null
     code=$(totp "$secret")
 
     run v-check-user-2fa "$AUTHUSER" "$code" 203.0.113.11

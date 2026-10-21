@@ -4588,15 +4588,20 @@ paths:
       operationId: v-add-user-2fa
       tags:
         - Users
-      summary: Add 2fa to existing user
+      summary: Start the two-factor enrolment of a user
       description: |-
-        This function creates a new 2fa token for user.
+        This function writes a new TOTP secret to the user's pending enrolment and
+        prints the secret and its otpauth URI. Two-factor authentication is on only
+        once v-change-user-2fa confirms the enrolment with a code; the pending
+        secret expires after 10 minutes. No QR code is drawn here: the panel draws
+        it itself, so the secret never leaves the server.
 
         **Arguments**
 
         | Field | Option | Required |
         | --- | --- | --- |
         | `arg1` | `USER` | yes |
+        | `arg2` | `FORMAT` | no |
 
         **User argument:** with the access key of a user other than the admin, `arg1` must be the key's user.
       x-arcpanel-user-arg: 1
@@ -4619,6 +4624,61 @@ paths:
             text/plain:
               schema:
                 type: string
+            application/json:
+              schema:
+                type: object
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+  "/api/#v-add-user-2fa-recovery-codes":
+    post:
+      operationId: v-add-user-2fa-recovery-codes
+      tags:
+        - Users
+      summary: Create new two-factor recovery codes of a user
+      description: |-
+        This function replaces the recovery codes of a user with two-factor
+        authentication with ten new ones and prints them once; only their hashes
+        are kept. The codes printed earlier stop working.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `USER` | yes |
+        | `arg2` | `FORMAT` | no |
+
+        **User argument:** with the access key of a user other than the admin, `arg1` must be the key's user.
+      x-arcpanel-user-arg: 1
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-add-user-2fa-recovery-codes"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-add-user-2fa-recovery-codes"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+            application/json:
+              schema:
+                type: object
         "204":
           $ref: "#/components/responses/NoContent"
         "400":
@@ -9881,6 +9941,60 @@ paths:
           $ref: "#/components/responses/InvalidRequest"
         "422":
           $ref: "#/components/responses/Unprocessable"
+  "/api/#v-change-user-2fa":
+    post:
+      operationId: v-change-user-2fa
+      tags:
+        - Users
+      summary: Confirm the two-factor enrolment of a user
+      description: |-
+        This function turns two-factor authentication on with the secret of the
+        pending enrolment (v-add-user-2fa) once CODE is a valid code of it. It
+        creates ten recovery codes, keeps only their hashes and prints the codes
+        once.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `USER` | yes |
+        | `arg2` | `CODE` | yes |
+        | `arg3` | `FORMAT` | no |
+
+        **User argument:** with the access key of a user other than the admin, `arg1` must be the key's user.
+      x-arcpanel-user-arg: 1
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-change-user-2fa"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-change-user-2fa"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+            application/json:
+              schema:
+                type: object
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
   "/api/#v-change-user-bucket":
     post:
       operationId: v-change-user-bucket
@@ -12751,6 +12865,58 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/v-check-user-2fa"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+  "/api/#v-check-user-2fa-recovery-code":
+    post:
+      operationId: v-check-user-2fa-recovery-code
+      tags:
+        - Users
+      summary: Check a two-factor recovery code of a user
+      description: |-
+        This function accepts one of the user's recovery codes instead of a TOTP
+        code. CODE_FILE is a file the panel wrote in /tmp; its first line is the
+        code. An accepted code is used up and the number of codes left is printed;
+        two-factor authentication stays on. A wrong code is written to the auth
+        log that fail2ban reads, as v-check-user-2fa does.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `USER` | yes |
+        | `arg2` | `CODE_FILE` | yes |
+        | `arg3` | `IP` | no |
+
+        **User argument:** with the access key of a user other than the admin, `arg1` must be the key's user.
+      x-arcpanel-user-arg: 1
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-check-user-2fa-recovery-code"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-check-user-2fa-recovery-code"
       responses:
         "200":
           description: "The output of the command; `OK` for an empty output with legacy authentication."
@@ -16606,7 +16772,8 @@ paths:
         - Users
       summary: Delete 2fa of existing user
       description: |-
-        This function deletes 2fa token of a user.
+        This function deletes 2fa token of a user, with its recovery codes and a
+        pending enrolment.
 
         **Arguments**
 
@@ -43118,6 +43285,49 @@ components:
               description: "`USER`"
               examples:
                 - admin
+            arg2:
+              type: string
+              title: FORMAT
+              description: "`FORMAT`, optional"
+              enum:
+                - json
+                - plain
+                - csv
+                - shell
+              examples:
+                - json
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
+    v-add-user-2fa-recovery-codes:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-add-user-2fa-recovery-codes
+              default: v-add-user-2fa-recovery-codes
+            arg1:
+              type: string
+              title: USER
+              description: "`USER`"
+              examples:
+                - admin
+            arg2:
+              type: string
+              title: FORMAT
+              description: "`FORMAT`, optional"
+              enum:
+                - json
+                - plain
+                - csv
+                - shell
+              examples:
+                - json
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-add-user-bucket:
@@ -46868,6 +47078,45 @@ components:
                 - "8086"
             returncode:
               $ref: "#/components/schemas/ReturnCode"
+    v-change-user-2fa:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+            - arg2
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-change-user-2fa
+              default: v-change-user-2fa
+            arg1:
+              type: string
+              title: USER
+              description: "`USER`"
+              examples:
+                - admin
+            arg2:
+              type: string
+              title: CODE
+              description: "`CODE`"
+              examples:
+                - "493690"
+            arg3:
+              type: string
+              title: FORMAT
+              description: "`FORMAT`, optional"
+              enum:
+                - json
+                - plain
+                - csv
+                - shell
+              examples:
+                - json
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
     v-change-user-bucket:
       allOf:
         - $ref: "#/components/schemas/Credentials"
@@ -48954,6 +49203,40 @@ components:
               description: "`TOKEN`"
               examples:
                 - "493690"
+            arg3:
+              type: string
+              title: IP
+              description: "`IP`, optional"
+              examples:
+                - "203.0.113.7"
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
+    v-check-user-2fa-recovery-code:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+            - arg2
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-check-user-2fa-recovery-code
+              default: v-check-user-2fa-recovery-code
+            arg1:
+              type: string
+              title: USER
+              description: "`USER`"
+              examples:
+                - admin
+            arg2:
+              type: string
+              title: CODE_FILE
+              description: "`CODE_FILE`"
+              examples:
+                - /tmp/tmp.Xp3t7c
             arg3:
               type: string
               title: IP
