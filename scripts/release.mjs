@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 // Versions and changelog of a release line (docs/features/specs/2026-10-21-001-release-standards-design.md §7).
 //
 // Usage: npm run release -- <command>
