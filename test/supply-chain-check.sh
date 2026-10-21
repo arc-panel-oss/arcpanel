@@ -22,6 +22,9 @@ allowed() {
 		*localhost:808* | *127.0.0.1*) return 0 ;;
 		# Docker's repository key is checked against its fingerprint in docker_repo_add (E4)
 		func/docker.sh:*) return 0 ;;
+		# The update health check reads only the HTTP status of the server's own sites through
+		# their IP; it downloads nothing, and a site without a certificate answers on port 80 (E33)
+		func/updates.sh:*'--resolve "$1:80:$2" "http://$1/"'*) return 0 ;;
 	esac
 	return 1
 }
