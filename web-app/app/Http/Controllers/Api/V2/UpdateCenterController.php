@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\V2;
 
 use App\Api\ApiException;
 use App\Api\ErrorCode;
+use App\Api\KeyPermissions;
 use App\Api\Paginates;
 use App\Api\PlanGate;
 use App\Api\SystemTaskStarter;
@@ -44,19 +45,23 @@ final class UpdateCenterController extends Controller
      * The releases of the signed release manifest that are newer than the
      * installed version, newest first, with whether the update policy would
      * install each one and why not. `refresh=true` downloads the manifest
-     * again; otherwise a copy older than an hour is downloaded. Without a
+     * again for a key that may run updates (`v2-server` or `v2-write`) and
+     * is ignored for others; otherwise a copy older than an hour is
+     * downloaded. Without a
      * verified manifest the answer is `404 E_NOTEXIST` with the reason;
      * runUpdates without `version` still updates to the latest packages.
      *
      * @operationId listPanelReleases
      */
-    public function releases(Request $request, Principal $principal, ServerPolicy $policy): AnonymousResourceCollection
+    public function releases(Request $request, Principal $principal, ServerPolicy $policy, KeyPermissions $calling): AnonymousResourceCollection
     {
         abort_unless($policy->viewUpdates($principal), 403);
         // A query string carries `true`, which the boolean rule refuses
         $request->validate(['refresh' => ['sometimes', 'in:true,false,1,0']]);
+        // A refresh makes root run apt-get update: not for a read-only key (E39 W5 N33)
+        $refresh = $request->boolean('refresh') && $policy->manageUpdates($principal) && $calling->allows('v-start-sys-task');
 
-        $page = $this->pages->slice($request, $this->center->releases($request->boolean('refresh')));
+        $page = $this->pages->slice($request, $this->center->releases($refresh));
 
         return PanelReleaseResource::collection($page['items'])->additional(['meta' => $page['meta']]);
     }
