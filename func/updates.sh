@@ -332,6 +332,47 @@ upd_random_hours() {
 	printf '%02d-%02d\n' "$start" "$((start + 2))"
 }
 
+# The 2-hour window that starts at the hour H (22-24, 23-01)
+upd_hours_at() {
+	local start=$((10#$1)) end=$((10#$1 + 2))
+	[ "$end" -le 24 ] || end=$((end - 24))
+	printf '%02d-%02d\n' "$start" "$end"
+}
+
+upd_policy_set() {
+	grep -q "^$1=" "$ARCPANEL/conf/arcpanel.conf" 2> /dev/null
+}
+
+# The hour of the nightly line of v-update-sys-arcpanel-all that 2.4 and
+# older wrote, when it has a fixed hour
+upd_cron_old_hour() {
+	awk '/v-update-sys-arcpanel-all/ && $2 ~ /^([01]?[0-9]|2[0-3])$/ {print $2; exit}' "$UPD_CRONTAB" 2> /dev/null
+}
+
+upd_cron_old() {
+	grep -q 'v-update-sys-arcpanel-all' "$UPD_CRONTAB" 2> /dev/null
+}
+
+# The arguments of v-change-sys-update-policy that set POLICY and keep the
+# window and the delay that are set. Without them (the installer, the 2.5.0
+# step, docs/features/specs/2026-10-20-005-e33-update-center-phase-1-design.md
+# §10) the window starts at the hour of the nightly line, or at a random
+# night hour, and the delay is 2 days.
+upd_policy_args() {
+	local hours hour
+	if upd_policy_set UPDATE_WINDOW_HOURS; then
+		hours="$(upd_policy_get UPDATE_WINDOW_HOURS)"
+	else
+		hour="$(upd_cron_old_hour)"
+		if [ -n "$hour" ]; then
+			hours="$(upd_hours_at "$hour")"
+		else
+			hours="$(upd_random_hours)"
+		fi
+	fi
+	echo "$1 $(upd_policy_get UPDATE_WINDOW_DAYS) $hours $(upd_policy_get UPDATE_DELAY_DAYS)"
+}
+
 # Whether the time T (seconds) is inside the window DAYS HOURS. A window
 # that wraps past midnight belongs to the day it starts on.
 upd_in_window() {

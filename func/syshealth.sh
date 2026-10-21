@@ -612,8 +612,11 @@ function syshealth_repair_system_cronjobs() {
 	echo "20 00 * * * sudo /usr/local/arcpanel/bin/v-update-user-stats" >> /var/spool/cron/crontabs/arcpanelweb
 	echo "*/5 * * * * sudo /usr/local/arcpanel/bin/v-update-sys-rrd" >> /var/spool/cron/crontabs/arcpanelweb
 	echo "$min $hour * * * sudo /usr/local/arcpanel/bin/v-update-letsencrypt-ssl" >> /var/spool/cron/crontabs/arcpanelweb
-	# Automatic updates of the installed line at a random night time (E33 phase 1 §6)
-	echo "$(gen_pass '012345' '2') $(gen_pass '123456' '1') * * * sudo /usr/local/arcpanel/bin/v-update-sys-arcpanel-all auto" >> /var/spool/cron/crontabs/arcpanelweb
+	# The hourly runner of the update policy, unless the policy is off (E33
+	# phase 1 §7.5)
+	if ! grep -q "^UPDATE_POLICY='off'" "$ARCPANEL/conf/arcpanel.conf" 2> /dev/null; then
+		echo "$(gen_pass '012345' '2') * * * * sudo /usr/local/arcpanel/bin/v-run-sys-arcpanel-autoupdate" >> /var/spool/cron/crontabs/arcpanelweb
+	fi
 }
 
 # Adapt Port Listing in ARCPANEL NGINX Backend

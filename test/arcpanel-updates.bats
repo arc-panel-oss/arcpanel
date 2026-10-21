@@ -139,41 +139,28 @@ auto() {
 	PATH="$TMP/stubs:$PATH" "$ARCPANEL/bin/v-update-sys-arcpanel-all" auto
 }
 
-@test "updates: a 41 4 cron line moves to auto at a random night time, once" {
+# Since 2.5.0 the old switch sets the update policy (E33 phase 1 §10), so
+# the 2.2.2 step, run before the 2.5.0 step on an upgrade from 2.2.1, hands
+# the nightly line to the policy; the cases of the switch itself are in
+# test/arcpanel-update-center.bats.
+@test "updates: the 2.2.2 step hands a nightly line to the policy and leaves a server without one alone" {
 	server_setup
-	sed -i '/v-update-sys-arcpanel-all/d' "$CRONTAB"
+	sed -i -E '/^UPDATE_(POLICY|WINDOW_DAYS|WINDOW_HOURS|DELAY_DAYS)=/d' "$CONF"
+	sed -i -e '/v-update-sys-arcpanel-all/d' -e '/v-run-sys-arcpanel-autoupdate/d' "$CRONTAB"
+	ARCPANEL="$ARCPANEL" bash "$REPO_ROOT/install/upgrade/versions/2.2.2.sh"
+	run grep -cE 'v-update-sys-arcpanel-all|v-run-sys-arcpanel-autoupdate' "$CRONTAB"
+	assert_output 0
+	run key UPDATE_POLICY
+	assert_output ""
 	sed -i -e "\$a41 4 * * * sudo /usr/local/arcpanel/bin/v-update-sys-arcpanel-all" "$CRONTAB"
-	run "$ARCPANEL/bin/v-add-cron-arcpanel-autoupdate" apt
-	assert_success
-	run grep -c 'v-update-sys-arcpanel-all' "$CRONTAB"
-	assert_output 1
-	line="$(grep 'v-update-sys-arcpanel-all' "$CRONTAB")"
-	[[ "$line" =~ ^[0-5][0-5]\ [1-6]\ \*\ \*\ \*\ sudo\ /usr/local/arcpanel/bin/v-update-sys-arcpanel-all\ auto$ ]]
-	"$ARCPANEL/bin/v-add-cron-arcpanel-autoupdate" apt
-	run grep 'v-update-sys-arcpanel-all' "$CRONTAB"
-	assert_output "$line"
-}
-
-@test "updates: a line at another time keeps its time and gains auto" {
-	server_setup
-	sed -i '/v-update-sys-arcpanel-all/d' "$CRONTAB"
-	sed -i -e "\$a13 2 * * * sudo /usr/local/arcpanel/bin/v-update-sys-arcpanel-all" "$CRONTAB"
-	"$ARCPANEL/bin/v-add-cron-arcpanel-autoupdate" apt
-	run grep 'v-update-sys-arcpanel-all' "$CRONTAB"
-	assert_output "13 2 * * * sudo /usr/local/arcpanel/bin/v-update-sys-arcpanel-all auto"
-}
-
-@test "updates: the 2.2.2 step converts the line and leaves automatic updates off when they are off" {
-	server_setup
-	sed -i '/v-update-sys-arcpanel-all/d' "$CRONTAB"
+	ARCPANEL="$ARCPANEL" bash "$REPO_ROOT/install/upgrade/versions/2.2.2.sh"
 	ARCPANEL="$ARCPANEL" bash "$REPO_ROOT/install/upgrade/versions/2.2.2.sh"
 	run grep -c 'v-update-sys-arcpanel-all' "$CRONTAB"
 	assert_output 0
-	sed -i -e "\$a41 4 * * * sudo /usr/local/arcpanel/bin/v-update-sys-arcpanel-all" "$CRONTAB"
-	ARCPANEL="$ARCPANEL" bash "$REPO_ROOT/install/upgrade/versions/2.2.2.sh"
-	ARCPANEL="$ARCPANEL" bash "$REPO_ROOT/install/upgrade/versions/2.2.2.sh"
-	run grep -c 'v-update-sys-arcpanel-all auto$' "$CRONTAB"
+	run grep -c 'v-run-sys-arcpanel-autoupdate' "$CRONTAB"
 	assert_output 1
+	run echo "$(key UPDATE_POLICY) $(key UPDATE_WINDOW_HOURS)"
+	assert_output 'patch 04-06'
 }
 
 @test "updates: auto installs the patch release of the line and updates the engines" {

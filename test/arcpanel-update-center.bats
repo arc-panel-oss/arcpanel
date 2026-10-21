@@ -162,6 +162,31 @@ fails() {
 	assert_output 2
 }
 
+@test "update center: the window of the old switch starts at the hour of the nightly line" {
+	export UPD_CRONTAB="$TMP/crontab"
+	library
+	run upd_hours_at 4
+	assert_output 04-06
+	run upd_hours_at 22
+	assert_output 22-24
+	run upd_hours_at 23
+	assert_output 23-01
+	echo '41 4 * * * sudo /usr/local/arcpanel/bin/v-update-sys-arcpanel-all auto' > "$UPD_CRONTAB"
+	run upd_policy_args patch
+	assert_output 'patch all 04-06 2'
+	echo '*/30 * * * * sudo /usr/local/arcpanel/bin/v-update-sys-arcpanel-all auto' > "$UPD_CRONTAB"
+	run upd_policy_args patch
+	assert_output --regexp '^patch all 0[1-5]-0[3-7] 2$'
+	: > "$UPD_CRONTAB"
+	run upd_policy_args notify
+	assert_output --regexp '^notify all 0[1-5]-0[3-7] 2$'
+	# Keys that are set are kept
+	library UPDATE_WINDOW_DAYS=mon UPDATE_WINDOW_HOURS=03-05 UPDATE_DELAY_DAYS=4
+	echo '41 4 * * * sudo /usr/local/arcpanel/bin/v-update-sys-arcpanel-all auto' > "$UPD_CRONTAB"
+	run upd_policy_args patch
+	assert_output 'patch mon 03-05 4'
+}
+
 @test "update center: the kind of a release" {
 	library
 	run upd_release_kind 2.5.0 2.5.1
@@ -830,4 +855,139 @@ runner() {
 	runner
 	run cat "$TMP/apt-get.log"
 	assert_output ''
+}
+
+#----------------------------------------------------------#
+#   The 2.5.0 step and the old switch (§10, server)        #
+#----------------------------------------------------------#
+
+# A server as 2.4 left it: no policy keys, no runner line, and the nightly
+# line of v-update-sys-arcpanel-all at TIME (none when TIME is empty)
+before_250() {
+	sed -i -E '/^UPDATE_(POLICY|WINDOW_DAYS|WINDOW_HOURS|DELAY_DAYS)=/d' "$SERVER_ARCPANEL/conf/arcpanel.conf"
+	sed -i -e '/v-run-sys-arcpanel-autoupdate/d' -e '/v-update-sys-arcpanel-all/d' -e '/v-update-sys-arcpanel-git/d' "$CRONTAB"
+	[ -z "$1" ] || sed -i -e "\$a$1 * * * sudo /usr/local/arcpanel/bin/v-update-sys-arcpanel-all auto" "$CRONTAB"
+}
+
+step_250() {
+	ARCPANEL="$SERVER_ARCPANEL" bash "$REPO_ROOT/install/upgrade/versions/2.5.0.sh"
+}
+
+policy_now() {
+	jq -r '"\(.POLICY) \(.WINDOW_DAYS) \(.WINDOW_HOURS) \(.DELAY_DAYS)"' <<< "$(cmd v-list-sys-update-policy json)"
+}
+
+# The cron lines of automatic updates: runner, nightly apt line, git line
+cron_counts() {
+	echo "$(grep -c 'v-run-sys-arcpanel-autoupdate' "$CRONTAB") $(grep -c 'v-update-sys-arcpanel-all' "$CRONTAB") $(grep -c 'v-update-sys-arcpanel-git' "$CRONTAB")"
+}
+
+@test "update center: the 2.5.0 step turns the nightly line into patch with a window at its hour, once" {
+	server_setup
+	before_250 '41 4'
+	run step_250
+	assert_success
+	run policy_now
+	assert_output 'patch all 04-06 2'
+	run cron_counts
+	assert_output '1 0 0'
+	line="$(grep 'v-run-sys-arcpanel-autoupdate' "$CRONTAB")"
+	step_250
+	run policy_now
+	assert_output 'patch all 04-06 2'
+	run grep 'v-run-sys-arcpanel-autoupdate' "$CRONTAB"
+	assert_output "$line"
+	# A late hour wraps past midnight
+	before_250 '07 23'
+	step_250
+	run policy_now
+	assert_output 'patch all 23-01 2'
+}
+
+@test "update center: the 2.5.0 step gives notify and a random window to a server without the nightly line" {
+	server_setup
+	before_250 ''
+	run step_250
+	assert_success
+	run policy_now
+	assert_output --regexp '^notify all 0[1-5]-0[3-7] 2$'
+	run cron_counts
+	assert_output '1 0 0'
+}
+
+@test "update center: the 2.5.0 step keeps a policy that is already set" {
+	server_setup
+	cmd v-change-sys-update-policy off mon 03-05 4 > /dev/null
+	sed -i -e '$a13 2 * * * sudo /usr/local/arcpanel/bin/v-update-sys-arcpanel-all auto' "$CRONTAB"
+	step_250
+	run policy_now
+	assert_output 'off mon 03-05 4'
+	run cron_counts
+	assert_output '0 0 0'
+	cmd v-change-sys-update-policy notify > /dev/null
+	sed -i -e '$a13 2 * * * sudo /usr/local/arcpanel/bin/v-update-sys-arcpanel-all auto' "$CRONTAB"
+	step_250
+	run policy_now
+	assert_output 'notify mon 03-05 4'
+	run cron_counts
+	assert_output '1 0 0'
+}
+
+@test "update center: the old switch turns the patch policy on and off" {
+	server_setup
+	before_250 ''
+	run cmd v-add-cron-arcpanel-autoupdate apt
+	assert_success
+	run policy_now
+	assert_output --regexp '^patch all 0[1-5]-0[3-7] 2$'
+	run cron_counts
+	assert_output '1 0 0'
+	run cmd v-list-sys-arcpanel-autoupdate plain
+	assert_output 'Enabled'
+	# Off keeps the window and the delay, and still announces new versions
+	cmd v-change-sys-update-policy patch mon,fri 22-01 5 > /dev/null
+	run cmd v-delete-cron-arcpanel-autoupdate
+	assert_success
+	run policy_now
+	assert_output 'notify mon,fri 22-01 5'
+	run cron_counts
+	assert_output '1 0 0'
+	run cmd v-list-sys-arcpanel-autoupdate plain
+	assert_output 'Disabled'
+	cmd v-add-cron-arcpanel-autoupdate apt
+	run policy_now
+	assert_output 'patch mon,fri 22-01 5'
+	# The policy off stays off
+	cmd v-change-sys-update-policy off > /dev/null
+	cmd v-delete-cron-arcpanel-autoupdate
+	run policy_now
+	assert_output 'off mon,fri 22-01 5'
+	run cron_counts
+	assert_output '0 0 0'
+}
+
+@test "update center: the old switch takes the window from a nightly line it finds" {
+	server_setup
+	before_250 '20 3'
+	cmd v-add-cron-arcpanel-autoupdate
+	run policy_now
+	assert_output 'patch all 03-05 2'
+	run cron_counts
+	assert_output '1 0 0'
+}
+
+@test "update center: git updates are added only when the patch policy is off" {
+	server_setup
+	cmd v-change-sys-update-policy patch > /dev/null
+	cmd v-add-cron-arcpanel-autoupdate git
+	run cron_counts
+	assert_output '1 0 0'
+	cmd v-change-sys-update-policy notify > /dev/null
+	cmd v-add-cron-arcpanel-autoupdate git
+	cmd v-add-cron-arcpanel-autoupdate git
+	run cron_counts
+	assert_output '1 0 1'
+	cmd v-delete-cron-arcpanel-autoupdate
+	run cron_counts
+	assert_output '1 0 0'
 }

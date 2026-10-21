@@ -2,7 +2,14 @@
 # info: delete arcpanel autoupdate cron job
 # options: NONE
 #
-# This function deletes arcpanel autoupdate cron job.
+# example: v-delete-cron-arcpanel-autoupdate
+#
+# This function turns automatic updates off. Since 2.5.0 it sets the update
+# policy notify with v-change-sys-update-policy, which still announces new
+# versions and installs none, and keeps the window and the delay
+# (docs/features/specs/2026-10-20-005-e33-update-center-phase-1-design.md
+# §10); the policy off stays off. It also removes the nightly line of
+# v-update-sys-arcpanel-git.
 
 #----------------------------------------------------------#
 #                Variables & Functions                     #
@@ -13,6 +20,8 @@
 source /etc/arcpanel/arcpanel.conf
 # shellcheck source=/usr/local/arcpanel/func/main.sh
 source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/updates.sh
+source $ARCPANEL/func/updates.sh
 # load config file
 source_conf "$ARCPANEL/conf/arcpanel.conf"
 
@@ -29,19 +38,26 @@ check_arcpanel_demo_mode
 #                       Action                             #
 #----------------------------------------------------------#
 
-sed -i "/v-update-sys-arcpanel-all/d" "/var/spool/cron/crontabs/arcpanelweb"
-sed -i "/v-update-sys-arcpanel-git/d" "/var/spool/cron/crontabs/arcpanelweb"
+if grep -q 'v-update-sys-arcpanel-git' "$UPD_CRONTAB"; then
+	sed -i "/v-update-sys-arcpanel-git/d" "$UPD_CRONTAB"
+	$BIN/v-restart-cron
+	check_result $? "Cron restart failed" > /dev/null
+	$BIN/v-log-action "system" "Warning" "Updates" "Automatic updates from Git disabled."
+fi
+
+policy='notify'
+if [ "$(upd_policy_get UPDATE_POLICY)" = 'off' ]; then
+	policy='off'
+fi
+# shellcheck disable=SC2046
+$BIN/v-change-sys-update-policy $(upd_policy_args "$policy")
+check_result $? "Update policy change failed" > /dev/null
 
 #----------------------------------------------------------#
 #                         ArcPanel                         #
 #----------------------------------------------------------#
 
-# Restarting crond
-$BIN/v-restart-cron
-check_result $? "Cron restart failed" > /dev/null
-
 # Logging
-$BIN/v-log-action "system" "Warning" "System" "Automatic updates disabled."
 log_event "$OK" "$ARGUMENTS"
 
 exit

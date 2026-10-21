@@ -1,25 +1,33 @@
 #!/bin/bash
 # info: add cron job for arcpanel automatic updates
-# options: MODE
+# options: [MODE]
 #
-# This function adds a cronjob for arcpanel automatic updates
-# that can be downloaded from apt or git. The apt line runs
-# v-update-sys-arcpanel-all auto at a random night time; an existing apt line
-# is brought to that form (docs/features/specs/2026-10-20-005-e33-update-center-phase-1-design.md
-# §6): auto is added, and the fixed time 41 4 of older installs is replaced.
+# example: v-add-cron-arcpanel-autoupdate
+# example: v-add-cron-arcpanel-autoupdate git
+#
+# This function turns automatic updates on. Since 2.5.0 the mode apt (the
+# default) sets the update policy patch with v-change-sys-update-policy
+# (docs/features/specs/2026-10-20-005-e33-update-center-phase-1-design.md
+# §10): the window and the delay that are set stay; without them the window
+# starts at the hour of the nightly line of v-update-sys-arcpanel-all that
+# older releases wrote, or at a random night hour, and the delay is 2 days.
+# The mode git adds a nightly line of v-update-sys-arcpanel-git, unless the
+# policy patch already updates the panel.
 
 #----------------------------------------------------------#
 #                Variables & Functions                     #
 #----------------------------------------------------------#
 
 # Argument definition
-mode=$1
+mode=${1:-apt}
 
 # Includes
 # shellcheck source=/etc/arcpanel/arcpanel.conf
 source /etc/arcpanel/arcpanel.conf
 # shellcheck source=/usr/local/arcpanel/func/main.sh
 source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/updates.sh
+source $ARCPANEL/func/updates.sh
 # load config file
 source_conf "$ARCPANEL/conf/arcpanel.conf"
 
@@ -27,75 +35,45 @@ source_conf "$ARCPANEL/conf/arcpanel.conf"
 #                    Verifications                         #
 #----------------------------------------------------------#
 
+if [ "$mode" != 'apt' ] && [ "$mode" != 'git' ]; then
+	check_result "$E_INVALID" "invalid mode $mode (apt or git)"
+fi
 is_system_enabled "$CRON_SYSTEM" 'CRON_SYSTEM'
-crontab_file="/var/spool/cron/crontabs/arcpanelweb"
-check_cron_apt=$(grep 'v-update-sys-arcpanel-all' "$crontab_file" | head -n 1)
-check_cron_git=$(grep 'v-update-sys-arcpanel-git' "$crontab_file")
 
 # Perform verification if read-only mode is enabled
 check_arcpanel_demo_mode
-
-if [ -n "$check_cron_apt" ]; then
-	# Bring the existing line to the automatic mode and a random time
-	updated="$check_cron_apt"
-	if [[ "$updated" =~ ^41\ 4\  ]]; then
-		updated="$(generate_password '012345' '2') $(generate_password '123456' '1') ${updated#41 4 }"
-	fi
-	if [[ "$updated" != *'v-update-sys-arcpanel-all auto'* ]]; then
-		updated="${updated/v-update-sys-arcpanel-all/v-update-sys-arcpanel-all auto}"
-	fi
-	if [ "$updated" != "$check_cron_apt" ]; then
-		# In place with sed: the crontabs folder is sticky, so even root may not
-		# open the file of arcpanelweb for writing (fs.protected_regular)
-		sed -i '/v-update-sys-arcpanel-all/d' "$crontab_file"
-		sed -i -e "\$a$updated" "$crontab_file"
-		$BIN/v-restart-cron > /dev/null
-	fi
-	exit
-fi
-if [ -n "$check_cron_git" ]; then
-	exit
-fi
 
 #----------------------------------------------------------#
 #                       Action                             #
 #----------------------------------------------------------#
 
-# Generating timestamp
-time_n_date=$(date +'%T %F')
-time=$(echo "$time_n_date" | cut -f 1 -d \ )
-date=$(echo "$time_n_date" | cut -f 2 -d \ )
-
-# Define time somewhere at night
-if [ -z "$mode" ] || [ "$mode" = "apt" ]; then
-	min=$(generate_password '012345' '2')
-	hour=$(generate_password '123456' '1')
-	day='*'
-	month='*'
-	wday='*'
-	command='v-update-sys-arcpanel-all auto'
+if [ "$mode" = 'apt' ]; then
+	# Nothing to do when the policy patch is set and its line is in place
+	if upd_policy_set UPDATE_POLICY && [ "$(upd_policy_get UPDATE_POLICY)" = 'patch' ] \
+		&& upd_cron_installed && ! upd_cron_old; then
+		exit
+	fi
+	# shellcheck disable=SC2046
+	$BIN/v-change-sys-update-policy $(upd_policy_args patch)
+	check_result $? "Update policy change failed" > /dev/null
+	exit
 fi
 
-if [ "$mode" = "git" ]; then
-	min='0'
-	hour='0'
-	day='*'
-	month='*'
-	wday='*'
-	command='v-update-sys-arcpanel-git'
+if [ "$(upd_policy_get UPDATE_POLICY)" = 'patch' ] || grep -q 'v-update-sys-arcpanel-git' "$UPD_CRONTAB"; then
+	exit
 fi
-
-sed -i -e "\$a$min $hour * * * sudo /usr/local/arcpanel/bin/$command" "/var/spool/cron/crontabs/arcpanelweb"
+sed -i -e "\$a0 0 * * * sudo /usr/local/arcpanel/bin/v-update-sys-arcpanel-git" "$UPD_CRONTAB"
 
 #----------------------------------------------------------#
 #                         ArcPanel                         #
 #----------------------------------------------------------#
+
 # Restarting cron
 $BIN/v-restart-cron
 check_result $? "Cron restart failed" > /dev/null
 
 # Logging
-$BIN/v-log-action "system" "Info" "Updates" "Automatic updates enabled."
+$BIN/v-log-action "system" "Info" "Updates" "Automatic updates from Git enabled."
 log_event "$OK" "$ARGUMENTS"
 
 exit

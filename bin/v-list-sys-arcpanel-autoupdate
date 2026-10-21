@@ -4,7 +4,10 @@
 #
 # example: v-list-sys-arcpanel-autoupdate
 #
-# This function for obtaining autoupdate settings.
+# This function for obtaining autoupdate settings. Since 2.5.0 automatic
+# updates are enabled when the update policy is patch
+# (docs/features/specs/2026-10-20-005-e33-update-center-phase-1-design.md
+# §10; v-list-sys-update-policy lists the whole policy).
 
 #----------------------------------------------------------#
 #                Variables & Functions                     #
@@ -18,6 +21,8 @@ format=${1-shell}
 source /etc/arcpanel/arcpanel.conf
 # shellcheck source=/usr/local/arcpanel/func/main.sh
 source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/updates.sh
+source $ARCPANEL/func/updates.sh
 # load config file
 source_conf "$ARCPANEL/conf/arcpanel.conf"
 
@@ -25,7 +30,7 @@ source_conf "$ARCPANEL/conf/arcpanel.conf"
 json_list() {
 	echo '['
 	if [ -z "$check_cron" ]; then
-		echo -e "\t\"Disabled\","
+		echo -e "\t\"Disabled\""
 	else
 		echo -e "\t\"Enabled\""
 	fi
@@ -65,8 +70,11 @@ csv_list() {
 #                       Action                             #
 #----------------------------------------------------------#
 
-# Check cron tab
-check_cron=$(grep 'v-update-sys-arcpanel-all' /var/spool/cron/crontabs/arcpanelweb)
+# Enabled with the policy patch
+check_cron=''
+if [ "$(upd_policy_get UPDATE_POLICY)" = 'patch' ]; then
+	check_cron='yes'
+fi
 
 # Listing data
 case $format in
