@@ -104,6 +104,9 @@ it('refuses a set the key does not hold and a set the owner may not have (D62)',
     $this->postJson('/api/v2/users/bob/access-keys', ['permissions' => []], $headers)->assertUnprocessable();
     $this->postJson('/api/v2/users/bob/access-keys', ['comment' => 'no sets'], $headers)->assertUnprocessable();
     $this->postJson('/api/v2/users/bob/access-keys', ['permissions' => ['v2-accounts'], 'comment' => "a\nb"], $headers)->assertUnprocessable();
+    foreach (["a\tb", "a\vb", "a\fb", "ab\x1b"] as $comment) {
+        $this->postJson('/api/v2/users/bob/access-keys', ['permissions' => ['v2-accounts'], 'comment' => $comment], $headers)->assertUnprocessable();
+    }
     $this->fake->assertNotRan('v-add-access-key');
 });
 

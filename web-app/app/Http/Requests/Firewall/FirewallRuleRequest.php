@@ -28,7 +28,7 @@ final class FirewallRuleRequest extends FormRequest
             'protocol' => ['required', 'string', Rule::in(FirewallService::PROTOCOLS)],
             'port' => ['required', 'string', 'max:255', $line],
             'ip' => ['required', 'string', 'max:255', $line],
-            'comment' => ['nullable', 'string', 'max:255', $line],
+            'comment' => ['nullable', 'string', 'max:255', 'not_regex:/[[:cntrl:]]/'],
         ];
     }
 

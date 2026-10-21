@@ -71,6 +71,12 @@ date=$(echo "$time_n_date" | cut -f 2 -d \ )
 #----------------------------------------------------------#
 
 check_args '1' "$#" 'USER [PERMISSIONS] [COMMENT] [ALLOWED_IPS] [EXPIRES] [FORMAT]'
+# Every value ends up in the key file, one line per key (E39 W5 §4)
+for arg in "$@"; do
+	if [[ "$arg" == *[[:cntrl:]]* ]]; then
+		check_result "$E_INVALID" "invalid argument: control characters are not allowed"
+	fi
+done
 is_format_valid 'user' 'comment' 'format'
 is_object_valid 'user' 'USER' "$user"
 is_key_permissions_format_valid "$permissions" "$user"
