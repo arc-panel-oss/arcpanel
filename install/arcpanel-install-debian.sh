@@ -1601,6 +1601,12 @@ write_config_value "THEME" "nocturne"
 # Inactive session timeout
 write_config_value "INACTIVE_SESSION_TIMEOUT" "60"
 
+# File Manager staging limits per account (E39 W5)
+write_config_value "FILE_MANAGER_UPLOAD_MAX" "4G"
+write_config_value "FILE_STAGING_SESSIONS" "4"
+write_config_value "FILE_STAGING_LIMIT" "8G"
+write_config_value "FILE_STAGING_RESERVE" "10"
+
 # Version & Release Branch
 # VERSION is the ArcPanel version (ADR-0007)
 write_config_value "VERSION" "${ARCPANEL_INSTALL_VER}"

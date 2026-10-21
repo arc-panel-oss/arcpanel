@@ -24,20 +24,37 @@ final class DownloadTickets
     public function __construct(
         private readonly FileStaging $staging,
         private readonly FileService $files,
+        private readonly StagingLimits $limits,
     ) {}
 
     /**
+     * A new ticket. Its size counts against the account's staging limit
+     * with the uploads and tickets it holds (E39 W5 §7, N17): an account at
+     * its limit gets no copy, and a copy that passes it is removed (507).
+     *
      * @param  list<FilePath>  $paths
      * @return array{ticket: string, name: string, size: int, mime: string}
      */
     public function create(string $owner, string $user, array $paths): array
     {
         $ticket = FileStaging::token();
+        $this->limits->admitBytes($this->staging->usage($user)['bytes'], 1);
         try {
             $info = $this->files->prepareDownload($user, $ticket, $paths);
         } catch (ArcCommandException $e) {
             throw UploadRefused::fromCommand($e);
         }
+        $this->staging->admission(function () use ($user, $ticket, $info): void {
+            try {
+                $this->limits->admitBytes($this->staging->usage($user, except: $ticket)['bytes'], (int) $info['size']);
+            } catch (UploadRefused $e) {
+                @unlink($this->staging->downloads().'/'.$ticket);
+
+                throw $e;
+            }
+            // The sidecar counts the ticket for the next admission
+            file_put_contents($this->staging->downloads().'/'.$ticket.'.json', json_encode(['user' => $user, 'created' => time(), 'size' => (int) $info['size']], JSON_THROW_ON_ERROR));
+        });
         // `file` names what it does not recognise application/octet-stream;
         // the extension then tells the browser what it is (fonts, media)
         if ($info['mime'] === 'application/octet-stream') {

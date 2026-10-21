@@ -156,6 +156,21 @@ fs_staging_free() {
 	df --output=avail -B1 -- "$FS_STAGING" 2> /dev/null | tail -n 1 | tr -d ' '
 }
 
+# Bytes of the staging file system that a new download leaves free:
+# FILE_STAGING_RESERVE percent (default 10) of its size (E39 W5 §7)
+fs_staging_reserve() {
+	local total percent=${FILE_STAGING_RESERVE:-10}
+	[[ "$percent" =~ ^[0-9]{1,2}$ ]] || percent=10
+	total=$(df --output=size -B1 -- "$FS_STAGING" 2> /dev/null | tail -n 1 | tr -d ' ')
+	echo $(((${total:-0} * 10#$percent + 99) / 100))
+}
+
+# Free bytes of the staging file system above its reserve (negative when the
+# reserve is already used)
+fs_staging_room() {
+	echo $(($(fs_staging_free) - $(fs_staging_reserve)))
+}
+
 #----------------------------------------------------------#
 #                    Running as the user                   #
 #----------------------------------------------------------#

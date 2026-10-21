@@ -14,6 +14,7 @@ use App\Services\Files\FilePath;
 use App\Services\Files\FileService;
 use App\Services\Files\FileStaging;
 use App\Services\Files\InvalidFilePath;
+use App\Services\Files\StagingLimits;
 use App\Services\Files\UploadRefused;
 use App\Services\Files\UploadSessions;
 use App\Tenancy\TenancyDirectory;
@@ -273,4 +274,90 @@ it('names the type of files that `file` does not recognise after their extension
 
     $this->fake->on('v-add-fs-download')->returns('{"NAME":"blob.unknownext","SIZE":1,"MIME":"application/octet-stream"}');
     expect(app(DownloadTickets::class)->create('bob', 'bob', [FilePath::from('blob.unknownext')])['mime'])->toBe('application/octet-stream');
+});
+
+// E39 W5 §7 (M9, N17): what one account may stage
+
+it('limits the open uploads of an account across its logins and keys', function () {
+    withSysConfig($this->fake, ['FILE_STAGING_SESSIONS' => '2']);
+    $sessions = app(UploadSessions::class);
+    $file = fn (string $name) => ['path' => FilePath::root(), 'name' => $name, 'relativePath' => '', 'size' => 10, 'lastModified' => 1];
+
+    $first = $sessions->init('bob', 'bob', $file('a'), 100, false);
+    $sessions->init('api:KEY0123456789abcdef', 'bob', $file('b'), 100, false);
+    expect(fn () => $sessions->init('hostco', 'bob', $file('c'), 100, false))
+        ->toThrow(fn (UploadRefused $e) => expect([$e->errorCode, $e->status])->toBe(['E_LIMIT', 507]));
+    expect(fn () => $sessions->admit('bob', 10, false))->toThrow(UploadRefused::class);
+    // A resumed session is not admitted again; another account has its own limit
+    expect($sessions->init('bob', 'bob', $file('a'), 100, false)['token'])->toBe($first['token']);
+    expect($sessions->init('carol', 'carol', $file('c'), 100, false)['token'])->toMatch('/^[a-f0-9]{32}$/');
+
+    // Two hours after its last chunk a session is closed, counts no more and is removed
+    touch($this->staging.'/uploads/'.$first['token'].'/meta.json', time() - UploadSessions::IDLE - 10);
+    expect(fn () => $sessions->putChunk('bob', 'bob', $first['token'], 0, bodyStream(str_repeat('a', 10))))
+        ->toThrow(fn (UploadRefused $e) => expect($e->status)->toBe(404));
+    expect($sessions->init('bob', 'bob', $file('c'), 100, false)['token'])->toMatch('/^[a-f0-9]{32}$/');
+    expect($sessions->gc())->toBe(1)->and(is_dir($this->staging.'/uploads/'.$first['token']))->toBeFalse();
+});
+
+it('keeps a session open while chunks arrive', function () {
+    $sessions = app(UploadSessions::class);
+    $session = $sessions->init('bob', 'bob', ['path' => FilePath::root(), 'name' => 'a', 'relativePath' => '', 'size' => UploadSessions::CHUNK + 1, 'lastModified' => 1], UploadSessions::maxBytes('4G'), false);
+    $meta = $this->staging.'/uploads/'.$session['token'].'/meta.json';
+    touch($meta, time() - UploadSessions::IDLE + 60);
+    $sessions->putChunk('bob', 'bob', $session['token'], 1, bodyStream('z'));
+    clearstatcache(true, $meta);
+    expect(time() - filemtime($meta))->toBeLessThan(5);
+});
+
+it('counts staged uploads and download tickets against the bytes of an account', function () {
+    withSysConfig($this->fake, ['FILE_STAGING_LIMIT' => '1M']);
+    $sessions = app(UploadSessions::class);
+    $file = fn (string $name, int $size) => ['path' => FilePath::root(), 'name' => $name, 'relativePath' => '', 'size' => $size, 'lastModified' => 1];
+
+    $sessions->init('bob', 'bob', $file('a', 600 * 1024), UploadSessions::maxBytes('4G'), false);
+    expect(fn () => $sessions->init('api:KEY0123456789abcdef', 'bob', $file('b', 600 * 1024), UploadSessions::maxBytes('4G'), false))
+        ->toThrow(fn (UploadRefused $e) => expect([$e->errorCode, $e->status, $e->getMessage()])
+            ->toBe(['E_LIMIT', 507, 'Uploads and downloads in progress for this account may hold at most 1 MB at a time; 600 KB is in use.']));
+
+    // A ticket that passes the limit is removed; at the limit no copy is made
+    $this->fake->on('v-add-fs-download')->using(function (array $args) {
+        file_put_contents($this->staging.'/downloads/'.$args[1], str_repeat('z', 500 * 1024));
+
+        return [0, (string) json_encode(['NAME' => 'site.zip', 'SIZE' => 500 * 1024, 'MIME' => 'application/zip'])];
+    });
+    $tickets = app(DownloadTickets::class);
+    expect(fn () => $tickets->create('bob', 'bob', [FilePath::from('web/site')]))
+        ->toThrow(fn (UploadRefused $e) => expect($e->status)->toBe(507));
+    expect(glob($this->staging.'/downloads/*'))->toBe([]);
+    $this->fake->on('v-add-fs-download')->using(function (array $args) {
+        file_put_contents($this->staging.'/downloads/'.$args[1], str_repeat('z', 400 * 1024));
+
+        return [0, (string) json_encode(['NAME' => 'site.zip', 'SIZE' => 400 * 1024, 'MIME' => 'application/zip'])];
+    });
+    $tickets->create('bob', 'bob', [FilePath::from('web/site')]);
+    expect(app(FileStaging::class)->usage('bob'))->toBe(['sessions' => 1, 'bytes' => 1000 * 1024]);
+    expect(fn () => $tickets->create('bob', 'bob', [FilePath::from('web/site')]))->toThrow(UploadRefused::class);
+    expect(count(glob($this->staging.'/downloads/*.json')))->toBe(1);
+    $this->fake->assertRan('v-add-fs-download', null, 3);
+    withSysConfig($this->fake, ['FILE_STAGING_LIMIT' => '1000K']);
+    expect(fn () => app(DownloadTickets::class)->create('bob', 'bob', [FilePath::from('web/site')]))->toThrow(UploadRefused::class);
+    $this->fake->assertRan('v-add-fs-download', null, 3);
+});
+
+it('reads the staging settings with their defaults', function () {
+    $limits = app(StagingLimits::class);
+    expect([$limits->sessions, $limits->bytes, $limits->reserve])->toBe([4, 8 * 1073741824, 10])
+        ->and($limits->reserveBytes(1000))->toBe(100);
+
+    withSysConfig($this->fake, ['FILE_STAGING_SESSIONS' => '0', 'FILE_STAGING_LIMIT' => 'lots', 'FILE_STAGING_RESERVE' => '100']);
+    $limits = app(StagingLimits::class);
+    expect([$limits->sessions, $limits->bytes, $limits->reserve])->toBe([4, 8 * 1073741824, 10]);
+    withSysConfig($this->fake, ['FILE_STAGING_SESSIONS' => '9', 'FILE_STAGING_LIMIT' => '512M', 'FILE_STAGING_RESERVE' => '0']);
+    $limits = app(StagingLimits::class);
+    expect([$limits->sessions, $limits->bytes, $limits->reserve])->toBe([9, 512 * 1048576, 0]);
+});
+
+it('throttles the upload chunks of the File Manager page per account', function () {
+    expect(app('router')->getRoutes()->getByName('files.api.upload.chunk')->gatherMiddleware())->toContain('throttle:files-upload');
 });

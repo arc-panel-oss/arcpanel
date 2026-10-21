@@ -72,6 +72,81 @@ final class FileStaging
         return $free === false ? PHP_INT_MAX : (int) $free;
     }
 
+    /** Size of the staging file system in bytes; 0 when unknown. */
+    public function totalBytes(): int
+    {
+        $total = @disk_total_space(is_dir($this->uploads()) ? $this->uploads() : $this->root);
+
+        return $total === false ? 0 : (int) $total;
+    }
+
+    /**
+     * Run $admit under the admission lock of the staging tree, so that two
+     * requests of one account cannot both pass its limits (E39 W5 §7).
+     *
+     * @template T
+     *
+     * @param  callable(): T  $admit
+     * @return T
+     */
+    public function admission(callable $admit): mixed
+    {
+        $lock = @fopen($this->root.'/.admission', 'c');
+        if ($lock === false) {
+            throw new RuntimeException('The file manager staging tree is missing (v-add-sys-panel-files).');
+        }
+        try {
+            flock($lock, LOCK_EX);
+
+            return $admit();
+        } finally {
+            flock($lock, LOCK_UN);
+            fclose($lock);
+        }
+    }
+
+    /**
+     * What $user holds in the staging tree now: open upload sessions and the
+     * bytes of their declared sizes plus those of live download tickets.
+     * $except is a token that does not count (the ticket being admitted).
+     *
+     * @return array{sessions: int, bytes: int}
+     */
+    public function usage(string $user, ?int $now = null, string $except = ''): array
+    {
+        $now ??= time();
+        $sessions = 0;
+        $bytes = 0;
+        foreach (scandir($this->uploads()) ?: [] as $token) {
+            $meta = self::validToken($token) ? self::meta($this->uploads().'/'.$token.'/meta.json') : null;
+            if ($meta !== null && ($meta['user'] ?? '') === $user && UploadSessions::live($this->uploads().'/'.$token.'/meta.json', $meta, $now)) {
+                $sessions++;
+                $bytes += (int) ($meta['size'] ?? 0);
+            }
+        }
+        foreach (scandir($this->downloads()) ?: [] as $name) {
+            $ticket = substr($name, 0, 32);
+            if ($name !== $ticket.'.json' || ! self::validToken($ticket) || $ticket === $except) {
+                continue;
+            }
+            $meta = self::meta($this->downloads().'/'.$name);
+            if ($meta !== null && ($meta['user'] ?? '') === $user && $now - (int) ($meta['created'] ?? 0) <= DownloadTickets::TTL
+                && is_file($this->downloads().'/'.$ticket)) {
+                $bytes += (int) ($meta['size'] ?? 0);
+            }
+        }
+
+        return ['sessions' => $sessions, 'bytes' => $bytes];
+    }
+
+    /** @return array<string, mixed>|null */
+    private static function meta(string $file): ?array
+    {
+        $meta = is_file($file) ? json_decode((string) file_get_contents($file), true) : null;
+
+        return is_array($meta) ? $meta : null;
+    }
+
     public static function removeTree(string $dir): void
     {
         if (! is_dir($dir) || is_link($dir)) {

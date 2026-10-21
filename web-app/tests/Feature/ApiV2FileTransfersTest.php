@@ -230,8 +230,12 @@ it('refuses uploads above the limit, over the quota and beyond the staging space
         ->assertJsonPath('error.message', 'Disk quota exceeded.');
     $this->postJson('/api/v2/users/bob/files/uploads?dry_run=1', $big, $headers)->assertUnprocessable()->assertJsonPath('error.code', 'E_LIMIT');
 
-    // More than the staging file system holds
-    withSysConfig($this->fake, ['API_SYSTEM' => '2', 'API_ALLOWED_IP' => 'allow-all', 'FILE_MANAGER_UPLOAD_MAX' => '100000000G']);
+    // More than the account may stage (E39 W5 §7), more than the staging file system holds
+    withSysConfig($this->fake, ['API_SYSTEM' => '2', 'API_ALLOWED_IP' => 'allow-all', 'FILE_STAGING_LIMIT' => '1M']);
+    $this->postJson('/api/v2/users/bob/files/uploads', ['path' => 'web', 'name' => 'new.bin', 'size' => 2 * 1048576], $headers)->assertStatus(507)
+        ->assertJsonPath('error.code', 'E_LIMIT')
+        ->assertJsonPath('error.message', 'Uploads and downloads in progress for this account may hold at most 1 MB at a time; 0 B is in use.');
+    withSysConfig($this->fake, ['API_SYSTEM' => '2', 'API_ALLOWED_IP' => 'allow-all', 'FILE_MANAGER_UPLOAD_MAX' => '100000000G', 'FILE_STAGING_LIMIT' => '100000000G']);
     $huge = ['path' => 'web', 'name' => 'new.bin', 'size' => 1024 ** 5 * 50];
     $this->postJson('/api/v2/users/bob/files/uploads', $huge, $headers)->assertStatus(507)->assertJsonPath('error.code', 'E_DISK');
     $this->postJson('/api/v2/users/bob/files/uploads?dry_run=1', $huge, $headers)->assertStatus(507);

@@ -49,3 +49,12 @@
 		echo "[ ! ] $found records above keep working; correct them before they are changed again (release notes of 2.6.0)"
 	fi
 )
+
+# File Manager staging limits per account (§7): the panel reads these keys
+# from v-list-sys-config now; values the administrator set are kept
+for upd_step_pair in FILE_MANAGER_UPLOAD_MAX=4G FILE_STAGING_SESSIONS=4 FILE_STAGING_LIMIT=8G FILE_STAGING_RESERVE=10; do
+	if ! grep -q "^${upd_step_pair%%=*}=" "$ARCPANEL/conf/arcpanel.conf"; then
+		"$ARCPANEL/bin/v-change-sys-config-value" "${upd_step_pair%%=*}" "${upd_step_pair#*=}" > /dev/null 2>&1
+	fi
+done
+unset upd_step_pair

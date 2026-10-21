@@ -9,9 +9,10 @@ use Symfony\Component\HttpKernel\Exception\HttpException;
  * Resumable chunked uploads (E3 spec §6.2). A session is a private folder
  * uploads/<token>/ with meta.json and chunks/<index>; it belongs to the owner
  * that started it (FileStaging::owner(): the login user on the page, the
- * access key in REST API v2, E34 batch 5 D50) and lives 24 hours. finish()
- * assembles the chunks and hands the file to v-add-fs-upload, which writes
- * it as the target user.
+ * access key in REST API v2, E34 batch 5 D50) and lives 24 hours, or 2
+ * hours after its last chunk (E39 W5 §7). The account's open sessions and
+ * staged bytes are limited (StagingLimits). finish() assembles the chunks
+ * and hands the file to v-add-fs-upload, which writes it as the target user.
  */
 final class UploadSessions
 {
@@ -19,19 +20,29 @@ final class UploadSessions
 
     public const TTL = 86400;
 
+    /** Seconds after the last chunk that a session stays open */
+    public const IDLE = 7200;
+
     /** Default FILE_MANAGER_UPLOAD_MAX */
     public const DEFAULT_MAX = '4G';
 
     public function __construct(
         private readonly FileStaging $staging,
         private readonly FileService $files,
+        private readonly StagingLimits $limits,
     ) {}
 
     /** FILE_MANAGER_UPLOAD_MAX in bytes (K, M, G suffixes). */
     public static function maxBytes(string $value): int
     {
-        if (preg_match('/^\s*(\d+)\s*([KMG]?)B?\s*$/i', $value !== '' ? $value : self::DEFAULT_MAX, $m) !== 1) {
-            return self::maxBytes(self::DEFAULT_MAX);
+        return self::bytes($value, self::DEFAULT_MAX);
+    }
+
+    /** A size with a K, M or G suffix in bytes; $default when empty or invalid. */
+    public static function bytes(string $value, string $default): int
+    {
+        if (preg_match('/^\s*(\d+)\s*([KMG]?)B?\s*$/i', $value !== '' ? $value : $default, $m) !== 1) {
+            return $value === $default ? 0 : self::bytes($default, $default);
         }
 
         return (int) $m[1] * match (strtoupper($m[2])) {
@@ -40,6 +51,19 @@ final class UploadSessions
             'G' => 1073741824,
             default => 1,
         };
+    }
+
+    /**
+     * Whether the session of $meta (read from $file) is still open: younger
+     * than TTL and touched by a chunk within IDLE.
+     *
+     * @param  array<string, mixed>  $meta
+     */
+    public static function live(string $file, array $meta, int $now): bool
+    {
+        clearstatcache(true, $file);
+
+        return $now - (int) ($meta['created'] ?? 0) <= self::TTL && $now - (int) @filemtime($file) <= self::IDLE;
     }
 
     /**
@@ -69,32 +93,42 @@ final class UploadSessions
             return ['token' => $existing['token'], 'chunkSize' => (int) $existing['chunkSize'], 'received' => $this->received($existing['token'])];
         }
 
-        $this->admit($user, $file['size'], $quotaEnforced);
         if (count($this->tokens()) > 100) {
             $this->gc();
         }
 
-        $token = FileStaging::token();
-        $dir = $this->staging->newSessionDir($token);
-        mkdir($dir.'/chunks', 0700);
-        $meta += ['token' => $token, 'chunkSize' => self::CHUNK, 'chunks' => max(1, (int) ceil($file['size'] / self::CHUNK)), 'created' => time()];
-        file_put_contents($dir.'/meta.json', json_encode($meta, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
-        chmod($dir.'/meta.json', 0600);
+        // Admitted and written under one lock: two requests of the account
+        // cannot both pass its limits
+        return $this->staging->admission(function () use ($user, $file, $quotaEnforced, $meta): array {
+            $this->admit($user, $file['size'], $quotaEnforced);
+            $token = FileStaging::token();
+            $dir = $this->staging->newSessionDir($token);
+            mkdir($dir.'/chunks', 0700);
+            $meta += ['token' => $token, 'chunkSize' => self::CHUNK, 'chunks' => max(1, (int) ceil($file['size'] / self::CHUNK)), 'created' => time()];
+            file_put_contents($dir.'/meta.json', json_encode($meta, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
+            chmod($dir.'/meta.json', 0600);
 
-        return ['token' => $token, 'chunkSize' => self::CHUNK, 'received' => []];
+            return ['token' => $token, 'chunkSize' => self::CHUNK, 'received' => []];
+        });
     }
 
     /**
      * The checks of a new session: the package's disk quota when quotas are
-     * enforced (422) and free space for the chunks and the assembled file
-     * in the staging tree (507).
+     * enforced (422), the account's open sessions and staged bytes, and
+     * free space for the chunks and the assembled file in the staging tree
+     * above its reserve (507).
      */
     public function admit(string $user, int $size, bool $quotaEnforced): void
     {
         if ($quotaEnforced && $this->files->account($user)->exceedsQuota($size)) {
             throw new UploadRefused('E_DISK', __('Disk quota exceeded.'), 422);
         }
-        if ($this->staging->freeBytes() < (int) ceil($size * 1.05)) {
+        $usage = $this->staging->usage($user);
+        if ($usage['sessions'] >= $this->limits->sessions) {
+            throw new UploadRefused('E_LIMIT', sprintf(__('This account has %d uploads open; finish or cancel one first.'), $usage['sessions']), 507);
+        }
+        $this->limits->admitBytes($usage['bytes'], $size);
+        if ($this->staging->freeBytes() - (int) ceil($size * 1.05) < $this->limits->reserveBytes($this->staging->totalBytes())) {
             throw new UploadRefused('E_DISK', __('The server cannot take this upload now.'), 507);
         }
     }
@@ -134,6 +168,8 @@ final class UploadSessions
             throw new UploadRefused('E_INVALID', __('Invalid upload chunk.'), 422);
         }
         rename($part, $dir.'/'.$index);
+        // The session stays open for IDLE after its last chunk
+        touch($this->staging->uploads().'/'.$token.'/meta.json');
 
         return $this->received($token);
     }
@@ -216,7 +252,8 @@ final class UploadSessions
     }
 
     /**
-     * Remove sessions older than TTL and editor saves left behind.
+     * Remove sessions that are no longer open (TTL, IDLE) and editor saves
+     * left behind.
      *
      * @return int sessions removed
      */
@@ -226,10 +263,12 @@ final class UploadSessions
         $removed = 0;
         foreach ($this->tokens() as $token) {
             $dir = $this->staging->uploads().'/'.$token;
-            $meta = $dir.'/meta.json';
-            $created = is_file($meta) ? (int) (json_decode((string) file_get_contents($meta), true)['created'] ?? filemtime($meta)) : (int) filemtime($dir);
-            $age = is_file($meta) ? self::TTL : 3600;
-            if ($now - $created > $age) {
+            $file = $dir.'/meta.json';
+            $meta = is_file($file) ? json_decode((string) file_get_contents($file), true) : null;
+            $stale = is_file($file)
+                ? ! is_array($meta) || ! self::live($file, $meta, $now)
+                : $now - (int) filemtime($dir) > 3600;
+            if ($stale) {
                 FileStaging::removeTree($dir);
                 $removed++;
             }
@@ -256,7 +295,7 @@ final class UploadSessions
     {
         $file = $this->staging->uploads().'/'.$token.'/meta.json';
         $meta = FileStaging::validToken($token) && is_file($file) ? json_decode((string) file_get_contents($file), true) : null;
-        if (! is_array($meta) || time() - (int) ($meta['created'] ?? 0) > self::TTL) {
+        if (! is_array($meta) || ! self::live($file, $meta, time())) {
             throw new UploadRefused('E_NOTEXIST', __('This upload has expired; it starts again.'), 404);
         }
         if (($meta['owner'] ?? '') !== $owner || ($meta['user'] ?? '') !== $user) {
@@ -275,7 +314,7 @@ final class UploadSessions
         foreach ($this->tokens() as $token) {
             $file = $this->staging->uploads().'/'.$token.'/meta.json';
             $meta = is_file($file) ? json_decode((string) file_get_contents($file), true) : null;
-            if (! is_array($meta) || time() - (int) ($meta['created'] ?? 0) > self::TTL) {
+            if (! is_array($meta) || ! self::live($file, $meta, time())) {
                 continue;
             }
             if (array_intersect_key($meta, $wanted) == $wanted) {
@@ -328,7 +367,7 @@ final class UploadSessions
         return $file;
     }
 
-    private static function human(int $bytes): string
+    public static function human(int $bytes): string
     {
         foreach (['GB' => 1073741824, 'MB' => 1048576, 'KB' => 1024] as $unit => $size) {
             if ($bytes >= $size) {

@@ -58,10 +58,13 @@ final class FileTransferController extends Controller
      * `path`, or resumes the session of this access key for the same file
      * (folder, name, size and `modified_at`): `received` lists the chunks
      * it already holds. Send the file in chunks of `chunk_size` bytes with
-     * uploadChunk, then finishUpload. A session lives 24 hours. Files above
-     * `FILE_MANAGER_UPLOAD_MAX` answer `413` `E_LIMIT`, a full disk quota
-     * `422` `E_LIMIT` (when the server enforces quotas), too little space
-     * in the panel's staging folder `507` `E_DISK`.
+     * uploadChunk, then finishUpload. A session lives 24 hours, or 2 hours
+     * after its last chunk. Files above `FILE_MANAGER_UPLOAD_MAX` answer
+     * `413` `E_LIMIT`, a full disk quota `422` `E_LIMIT` (when the server
+     * enforces quotas), more open uploads or staged bytes than the account
+     * may hold (`FILE_STAGING_SESSIONS`, `FILE_STAGING_LIMIT`, shared by all
+     * its keys and logins) `507` `E_LIMIT`, too little space in the panel's
+     * staging folder `507` `E_DISK`.
      *
      * @operationId startUpload
      */
@@ -210,8 +213,10 @@ final class FileTransferController extends Controller
      * links). The panel prepares the download with `v-add-fs-download` as
      * the user and arcpanel-nginx sends it (`X-Accel-Redirect`, with range
      * requests). `inline` shows one image, audio or video file, PDF or plain
-     * text in the browser; SVG is always an attachment. Too little space in
-     * the panel's staging folder answers `507` `E_DISK`. A zip that takes
+     * text in the browser; SVG is always an attachment. A download counts
+     * against the bytes the account may stage (`FILE_STAGING_LIMIT`) for an
+     * hour: above it the answer is `507` `E_LIMIT`. Too little space in the
+     * panel's staging folder answers `507` `E_DISK`. A zip that takes
      * longer than 600 seconds answers `504` from the web server.
      *
      * @operationId downloadFiles
@@ -254,8 +259,9 @@ final class FileTransferController extends Controller
     /**
      * Run an upload or download step with the statuses of D50 and D55: a
      * session of another key or an expired one is 404, a full quota 422
-     * `E_LIMIT`, too little staging space 507 `E_DISK` (for a download, the
-     * `E_DISK` of the command too).
+     * `E_LIMIT`, the account's staging limits 507 `E_LIMIT`, too little
+     * staging space 507 `E_DISK` (for a download, the `E_DISK` of the
+     * command too).
      *
      * @template T
      *

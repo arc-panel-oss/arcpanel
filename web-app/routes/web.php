@@ -581,7 +581,7 @@ Route::middleware('auth.arc')->group(function () {
                     }
                     Route::post('/upload', [FileTransferController::class, 'init'])->name('upload');
                     Route::put('/upload/{token}/{index}', [FileTransferController::class, 'chunk'])
-                        ->where(['token' => '[a-f0-9]{32}', 'index' => '[0-9]{1,6}'])->name('upload.chunk');
+                        ->where(['token' => '[a-f0-9]{32}', 'index' => '[0-9]{1,6}'])->middleware('throttle:files-upload')->name('upload.chunk');
                     Route::post('/upload/{token}/finish', [FileTransferController::class, 'finish'])->where('token', '[a-f0-9]{32}')->name('upload.finish');
                     Route::delete('/upload/{token}', [FileTransferController::class, 'cancel'])->where('token', '[a-f0-9]{32}')->name('upload.cancel');
                 });

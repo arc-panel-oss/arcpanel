@@ -337,6 +337,22 @@ stage() {
     assert_failure 2
 }
 
+@test "Download: leaves the staging reserve free, and the staging keys are listed (E39 W5)" {
+    v-list-sys-config json | jq -e '.config | has("FILE_MANAGER_UPLOAD_MAX") and has("FILE_STAGING_SESSIONS") and has("FILE_STAGING_LIMIT") and has("FILE_STAGING_RESERVE")'
+    before=$(grep "^FILE_STAGING_RESERVE=" "$ARCPANEL/conf/arcpanel.conf" | cut -d"'" -f2)
+    as_user sh -c "printf 'hello' > '$T/reserve.txt'"
+    v-change-sys-config-value FILE_STAGING_RESERVE 99
+    ticket=$(token)
+    run v-add-fs-download $U1 "$ticket" "$T/reserve.txt"
+    assert_failure 13
+    assert_file_not_exists "$DOWNLOADS/$ticket"
+    v-change-sys-config-value FILE_STAGING_RESERVE 0
+    run v-add-fs-download $U1 "$ticket" "$T/reserve.txt"
+    assert_success
+    rm -f "$DOWNLOADS/$ticket"
+    v-change-sys-config-value FILE_STAGING_RESERVE "${before:-10}"
+}
+
 @test "Zip creates an archive owned by the user and never replaces one" {
     as_user sh -c "mkdir '$T/a dir'; printf 1 > '$T/a dir/1.txt'; printf 2 > '$T/2.txt'"
     run v-add-fs-zip $U1 "$T/pack.zip" "$T/a dir" "$T/2.txt"

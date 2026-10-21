@@ -13,6 +13,7 @@ use App\Auth\OwnerScope;
 use App\Auth\Principal;
 use App\Auth\ProtectedAdmin;
 use App\Services\Files\FileStaging;
+use App\Services\Files\StagingLimits;
 use App\Services\Mail\AccountMailer;
 use App\Services\Mail\CredentialsMailer;
 use App\Services\Mail\HostingCredentialsMailer;
@@ -71,6 +72,7 @@ class AppServiceProvider extends ServiceProvider
 
         // File manager staging tree (E3)
         $this->app->bind(FileStaging::class, fn () => FileStaging::fromConfig());
+        $this->app->bind(StagingLimits::class, fn ($app) => StagingLimits::fromConfig($app->make(SysConfig::class)));
 
         // The Principal is bound per request by ResolvePrincipal; the guard of
         // the protected administrator remembers its refusals for the request (E39 W4).
@@ -110,6 +112,8 @@ class AppServiceProvider extends ServiceProvider
         RateLimiter::for('api-v2-upload', fn (Request $request) => Limit::perMinute(600)->by('api-v2-upload:'.(app()->bound(KeyPermissions::class)
             ? app(KeyPermissions::class)->keyId
             : ClientIp::of($request))));
+        // Upload chunks of the File Manager page: 600 a minute per account (E39 W5 §7)
+        RateLimiter::for('files-upload', fn (Request $request) => Limit::perMinute(600)->by('files-upload:'.$request->route('user')));
 
         // resources/views/components/ap/NAME.blade.php is used as <x-ap-NAME> (docs/design/05 §5).
         foreach (glob(resource_path('views/components/ap/*.blade.php')) ?: [] as $file) {

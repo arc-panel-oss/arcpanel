@@ -9,8 +9,9 @@ use RuntimeException;
 
 /**
  * A refused upload, save or download with the code the page shows
- * (E3 spec §8): E_DISK 422 (quota) or 507 (staging), E_LIMIT 413, the
- * session errors, and E_FORBIDEN 403 naming a read-only folder.
+ * (E3 spec §8): E_DISK 422 (quota) or 507 (staging), E_LIMIT 413 or 507
+ * (the account's staging limits, E39 W5 §7), the session errors, and
+ * E_FORBIDEN 403 naming a read-only folder.
  */
 final class UploadRefused extends RuntimeException
 {

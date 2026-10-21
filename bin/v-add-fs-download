@@ -8,7 +8,8 @@
 # tree for arcpanel-nginx to serve: one regular file is copied as read by the
 # user; several paths or a folder are zipped as the user (symlinks stored as
 # links, never followed). All paths of a zip must share one parent folder.
-# Prints {NAME, SIZE, MIME}.
+# The download must leave FILE_STAGING_RESERVE percent of the staging file
+# system free. Prints {NAME, SIZE, MIME}.
 
 #----------------------------------------------------------#
 #                Variables & Functions                     #
@@ -78,7 +79,7 @@ cleanup_fail() {
 if [ "${#reals[@]}" -eq 1 ] && fs_user_test -f "${reals[0]}"; then
 	name=$(basename -- "${reals[0]}")
 	size=$(user_exec stat -c %s -- "${reals[0]}" 2> /dev/null)
-	if [ "${size:-0}" -gt "$(fs_staging_free)" ]; then
+	if [ "${size:-0}" -gt "$(fs_staging_room)" ]; then
 		check_result "$E_DISK" "not enough space on the server for this download"
 	fi
 	install -o "$FS_STAGING_OWNER" -g "$FS_STAGING_OWNER" -m 600 /dev/null "$target"
@@ -92,7 +93,7 @@ else
 		names+=("./$(basename -- "$real")")
 	done
 	estimate=$(fs_user_exec_timeout 120 du -sbc -- "${reals[@]}" 2> /dev/null | tail -n 1 | cut -f 1)
-	if [ "${estimate:-0}" -gt "$(fs_staging_free)" ]; then
+	if [ "${estimate:-0}" -gt "$(fs_staging_room)" ]; then
 		check_result "$E_DISK" "not enough space on the server for this download"
 	fi
 	if [ "${#reals[@]}" -eq 1 ]; then

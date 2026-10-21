@@ -18707,7 +18707,7 @@
         "/users/{user}/files/download": {
             "post": {
                 "operationId": "downloadFiles",
-                "description": "Answers the bytes in this request: one file as it is, a folder or\nseveral entries of one folder as a zip (symbolic links stored as\nlinks). The panel prepares the download with `v-add-fs-download` as\nthe user and arcpanel-nginx sends it (`X-Accel-Redirect`, with range\nrequests). `inline` shows one image, audio or video file, PDF or plain\ntext in the browser; SVG is always an attachment. Too little space in\nthe panel's staging folder answers `507` `E_DISK`. A zip that takes\nlonger than 600 seconds answers `504` from the web server.",
+                "description": "Answers the bytes in this request: one file as it is, a folder or\nseveral entries of one folder as a zip (symbolic links stored as\nlinks). The panel prepares the download with `v-add-fs-download` as\nthe user and arcpanel-nginx sends it (`X-Accel-Redirect`, with range\nrequests). `inline` shows one image, audio or video file, PDF or plain\ntext in the browser; SVG is always an attachment. A download counts\nagainst the bytes the account may stage (`FILE_STAGING_LIMIT`) for an\nhour: above it the answer is `507` `E_LIMIT`. Too little space in the\npanel's staging folder answers `507` `E_DISK`. A zip that takes\nlonger than 600 seconds answers `504` from the web server.",
                 "summary": "Download files",
                 "tags": [
                     "Files"
@@ -19537,7 +19537,7 @@
         "/users/{user}/files/uploads": {
             "post": {
                 "operationId": "startUpload",
-                "description": "Opens an upload session for one file of `size` bytes in the folder\n`path`, or resumes the session of this access key for the same file\n(folder, name, size and `modified_at`): `received` lists the chunks\nit already holds. Send the file in chunks of `chunk_size` bytes with\nuploadChunk, then finishUpload. A session lives 24 hours. Files above\n`FILE_MANAGER_UPLOAD_MAX` answer `413` `E_LIMIT`, a full disk quota\n`422` `E_LIMIT` (when the server enforces quotas), too little space\nin the panel's staging folder `507` `E_DISK`.",
+                "description": "Opens an upload session for one file of `size` bytes in the folder\n`path`, or resumes the session of this access key for the same file\n(folder, name, size and `modified_at`): `received` lists the chunks\nit already holds. Send the file in chunks of `chunk_size` bytes with\nuploadChunk, then finishUpload. A session lives 24 hours, or 2 hours\nafter its last chunk. Files above `FILE_MANAGER_UPLOAD_MAX` answer\n`413` `E_LIMIT`, a full disk quota `422` `E_LIMIT` (when the server\nenforces quotas), more open uploads or staged bytes than the account\nmay hold (`FILE_STAGING_SESSIONS`, `FILE_STAGING_LIMIT`, shared by all\nits keys and logins) `507` `E_LIMIT`, too little space in the panel's\nstaging folder `507` `E_DISK`.",
                 "summary": "Start or resume an upload",
                 "tags": [
                     "Files"
