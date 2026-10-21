@@ -129,7 +129,9 @@ help() {
   -s, --hostname          Set hostname
   -e, --email             Set admin email
   -u, --username          Set admin user
-  -p, --password          Set admin password
+  -p, --password          Set admin password (other users of the machine
+                          can see it in the process list; prefer -P)
+  -P, --password-file     Read the admin password from the first line of FILE
   -D, --with-debs         Path to ArcPanel debs
   -f, --force             Force installation
   -h, --help              Print this help
@@ -217,9 +219,12 @@ write_config_value() {
 # Write final copy to $ARCPANEL/conf/arcpanel.conf for active usage
 # Duplicate file to $ARCPANEL/conf/defaults/arcpanel.conf to restore known good installation values
 sort_config_file() {
-	sort $ARCPANEL/conf/arcpanel.conf -o /tmp/updconf
+	local sorted
+	sorted=$(mktemp)
+	sort $ARCPANEL/conf/arcpanel.conf -o "$sorted"
 	mv $ARCPANEL/conf/arcpanel.conf $ARCPANEL/conf/arcpanel.conf.bak
-	mv /tmp/updconf $ARCPANEL/conf/arcpanel.conf
+	mv "$sorted" $ARCPANEL/conf/arcpanel.conf
+	chmod 644 $ARCPANEL/conf/arcpanel.conf
 	rm -f $ARCPANEL/conf/arcpanel.conf.bak
 	if [ ! -d "$ARCPANEL/conf/defaults/" ]; then
 		mkdir -p "$ARCPANEL/conf/defaults/"
@@ -429,6 +434,7 @@ for arg; do
 		--email) args="${args}-e " ;;
 		--username) args="${args}-u " ;;
 		--password) args="${args}-p " ;;
+		--password-file) args="${args}-P " ;;
 		--force) args="${args}-f " ;;
 		--with-debs) args="${args}-D " ;;
 		--help) args="${args}-h " ;;
@@ -441,7 +447,7 @@ done
 eval set -- "$args"
 
 # Parsing arguments
-while getopts "a:w:v:j:k:m:M:g:d:A:x:z:Z:c:t:i:b:r:o:q:L:l:y:s:u:e:p:W:D:fh" Option; do
+while getopts "a:w:v:j:k:m:M:g:d:A:x:z:Z:c:t:i:b:r:o:q:L:l:y:s:u:e:p:P:W:D:fh" Option; do
 	case $Option in
 		a) apache=$OPTARG ;;        # Apache
 		w) phpfpm=$OPTARG ;;        # PHP-FPM
@@ -471,6 +477,7 @@ while getopts "a:w:v:j:k:m:M:g:d:A:x:z:Z:c:t:i:b:r:o:q:L:l:y:s:u:e:p:W:D:fh" Opt
 		e) email=$OPTARG ;;         # Admin email
 		u) username=$OPTARG ;;      # Admin username
 		p) vpass=$OPTARG ;;         # Admin password
+		P) vpass_file=$OPTARG ;;    # File with the admin password (E39 W5 L13)
 		D) withdebs=$OPTARG ;;      # ArcPanel debs path
 		f) force='yes' ;;           # Force install
 		h) help ;;                  # Help
@@ -885,6 +892,19 @@ if [ "$interactive" = 'yes' ]; then
 	read -p 'Would you like to continue with the installation? [y/N]: ' answer
 	if [ "$answer" != 'y' ] && [ "$answer" != 'Y' ]; then
 		echo 'Goodbye'
+		exit 1
+	fi
+fi
+
+# The admin password from a file (E39 W5 L13)
+if [ -n "$vpass_file" ]; then
+	if [ ! -r "$vpass_file" ]; then
+		echo "Error: cannot read the password file $vpass_file"
+		exit 1
+	fi
+	vpass=$(head -n 1 "$vpass_file" | tr -d '\r')
+	if [ -z "$vpass" ]; then
+		echo "Error: the password file $vpass_file is empty"
 		exit 1
 	fi
 fi
@@ -1687,16 +1707,19 @@ fi
 
 # Generating SSL certificate
 echo "[ * ] Generating default self-signed SSL certificate..."
+# A private folder of root, never a fixed name in /tmp (E39 W5 L13)
+cert_dir=$(mktemp -d /root/arcpanel-cert.XXXXXX)
+chmod 700 "$cert_dir"
 $ARCPANEL/bin/v-generate-ssl-cert $(hostname) '' 'US' 'California' \
-	'San Francisco' 'ArcPanel' 'IT' > /tmp/hst.pem
+	'San Francisco' 'ArcPanel' 'IT' > "$cert_dir/hst.pem"
 
-crt_end=$(grep -n "END CERTIFICATE-" /tmp/hst.pem | head -n1 | cut -f 1 -d:)
+crt_end=$(grep -n "END CERTIFICATE-" "$cert_dir/hst.pem" | head -n1 | cut -f 1 -d:)
 # Newer OpenSSL may emit BEGIN PRIVATE KEY while older flows emit BEGIN RSA PRIVATE KEY.
-key_start=$(grep -nE "BEGIN (RSA |EC |ENCRYPTED )?PRIVATE KEY" /tmp/hst.pem | head -n1 | cut -f 1 -d:)
-key_end=$(grep -nE "END (RSA |EC |ENCRYPTED )?PRIVATE KEY" /tmp/hst.pem | head -n1 | cut -f 1 -d:)
+key_start=$(grep -nE "BEGIN (RSA |EC |ENCRYPTED )?PRIVATE KEY" "$cert_dir/hst.pem" | head -n1 | cut -f 1 -d:)
+key_end=$(grep -nE "END (RSA |EC |ENCRYPTED )?PRIVATE KEY" "$cert_dir/hst.pem" | head -n1 | cut -f 1 -d:)
 if [ -z "$key_start" ] || [ -z "$key_end" ]; then
-	key_start=$(grep -n "BEGIN RSA" /tmp/hst.pem | head -n1 | cut -f 1 -d:)
-	key_end=$(grep -n "END RSA" /tmp/hst.pem | head -n1 | cut -f 1 -d:)
+	key_start=$(grep -n "BEGIN RSA" "$cert_dir/hst.pem" | head -n1 | cut -f 1 -d:)
+	key_end=$(grep -n "END RSA" "$cert_dir/hst.pem" | head -n1 | cut -f 1 -d:)
 fi
 check_result $(
 	[ -n "$crt_end" ] && [ -n "$key_start" ] && [ -n "$key_end" ]
@@ -1706,13 +1729,13 @@ check_result $(
 # Adding SSL certificate
 echo "[ * ] Adding SSL certificate to ArcPanel..."
 cd $ARCPANEL/ssl
-sed -n "1,${crt_end}p" /tmp/hst.pem > certificate.crt
-sed -n "$key_start,${key_end}p" /tmp/hst.pem > certificate.key
+sed -n "1,${crt_end}p" "$cert_dir/hst.pem" > certificate.crt
+sed -n "$key_start,${key_end}p" "$cert_dir/hst.pem" > certificate.key
 chown root:mail $ARCPANEL/ssl/*
 chmod 660 $ARCPANEL/ssl/*
 # The certificate is public: the phpMyAdmin single sign-on checks the panel with it (E39 W3)
 chmod 644 $ARCPANEL/ssl/certificate.crt
-rm /tmp/hst.pem
+rm -rf "$cert_dir"
 
 # Install dhparam.pem
 cp -f $ARCPANEL_INSTALL_DIR/ssl/dhparam.pem /etc/ssl
@@ -1729,8 +1752,13 @@ check_result $? "can't enable ssh jail"
 
 # Adding ArcPanel admin account
 echo "[ * ] Creating default admin account..."
-$ARCPANEL/bin/v-add-user "$username" "$vpass" "$email" "default" "System Administrator"
-check_result $? "can't create admin user"
+# The password goes in a value file, not on the command line (E39 W5 L13)
+vpass_tmp=$(mktemp /tmp/arcpanel-pass.XXXXXX)
+printf '%s\n' "$vpass" > "$vpass_tmp"
+$ARCPANEL/bin/v-add-user "$username" "$vpass_tmp" "$email" "default" "System Administrator"
+add_user_result=$?
+rm -f "$vpass_tmp"
+check_result $add_user_result "can't create admin user"
 $ARCPANEL/bin/v-change-user-shell "$username" nologin
 $ARCPANEL/bin/v-change-user-role "$username" admin
 $ARCPANEL/bin/v-change-user-language "$username" "$lang"
@@ -2667,6 +2695,8 @@ $ARCPANEL/bin/v-change-sys-port $port > /dev/null 2>&1
 $ARCPANEL/bin/v-add-sys-tool-ports
 # Security headers of the panel, with the tool ports (E39 W5)
 $ARCPANEL/bin/v-update-sys-panel-headers
+# Mail and FTP logins over encrypted connections only (E39 W5 L17)
+$ARCPANEL/bin/v-change-sys-tls-login yes > /dev/null 2>&1
 $ARCPANEL/bin/v-add-sys-mail-sso
 
 # Create default configuration files
@@ -2732,7 +2762,16 @@ echo -e "\n"
 echo "===================================================================="
 echo -e "\n"
 
-# Sending notification to admin email
+# Sending notification to admin email; the summary goes to a new private
+# file, and the mail leaves the password out (E39 W5 L13)
+tmpfile=$(
+	umask 077
+	mktemp
+)
+mailfile=$(
+	umask 077
+	mktemp
+)
 echo -e "Congratulations!
 
 You have successfully installed ArcPanel on your server.
@@ -2767,7 +2806,9 @@ The ArcPanel development team
 " >> $tmpfile
 
 send_mail="$ARCPANEL/lib/mail-wrapper.php"
-cat $tmpfile | $send_mail -s "ArcPanel" $email
+sed "s|^\(\s*Password:\s*\).*|\1(not sent by e-mail)|" "$tmpfile" > "$mailfile"
+$send_mail -s "ArcPanel" $email < "$mailfile"
+rm -f "$mailfile"
 
 # Congrats
 echo

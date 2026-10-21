@@ -572,6 +572,13 @@ final class ServerSettings
             }
         }
 
+        // Mail and FTP logins: their own command, which changes the services (E39 W5 §12.2)
+        $tlsLogin = $values['TLS_LOGIN_ONLY'] ?? null;
+        if ($tlsLogin !== null && $tlsLogin !== (($config['TLS_LOGIN_ONLY'] ?? '') === 'yes' ? 'yes' : 'no')) {
+            $steps[] = new Step($tlsLogin === 'yes' ? __('Allow mail and FTP logins over TLS only') : __('Allow mail and FTP logins without TLS'),
+                'v-change-sys-tls-login', [$tlsLogin]);
+        }
+
         $keys = ['LOGIN_STYLE', 'INACTIVE_SESSION_TIMEOUT', 'POLICY_CSRF_STRICTNESS', 'POLICY_RESELLER_PACKAGE_SHELLS', ...self::SECURITY_POLICIES['login'],
             ...self::SECURITY_POLICIES['users'], ...self::SECURITY_POLICIES['domains']];
         if ($rootUser) {

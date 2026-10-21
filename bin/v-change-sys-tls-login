@@ -1,0 +1,124 @@
+#!/bin/bash
+# info: allow mail and FTP logins over encrypted connections only
+# options: STATUS
+#
+# example: v-change-sys-tls-login yes
+#
+# This function makes Dovecot (IMAP, POP3) and the FTP server refuse a login
+# that is not encrypted (yes), or accept it again (no), stores
+# TLS_LOGIN_ONLY and restarts the services. Dovecot treats connections from
+# the server itself as encrypted, so webmail keeps working. Dovecot 2.4
+# refuses unencrypted logins either way; vsftpd always answers passive
+# connections from the client's address only (E39 W5 L17).
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+status=$1
+
+# Includes
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# load config file
+source_conf "$ARCPANEL/conf/arcpanel.conf"
+
+# Set KEY to VALUE in FILE, a "KEY=VALUE" or "KEY = VALUE" file; the line is
+# added when the file has none. Sets changed=yes when the file changed.
+set_conf_line() {
+	local file="$1" key="$2" value="$3" sep="$4" line
+	[ -f "$file" ] || return 0
+	line="$key$sep$value"
+	grep -qxF "$line" "$file" && return 0
+	if grep -qE "^#?[[:space:]]*${key}[[:space:]]*=" "$file"; then
+		sed -i -E "s|^#?[[:space:]]*${key}[[:space:]]*=.*|$line|" "$file"
+	else
+		echo "$line" >> "$file"
+	fi
+	changed=yes
+}
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '1' "$#" 'STATUS'
+if [ "$status" != 'yes' ] && [ "$status" != 'no' ]; then
+	check_result "$E_INVALID" "invalid status :: $status (yes or no)"
+fi
+
+# Perform verification if read-only mode is enabled
+check_arcpanel_demo_mode
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+# Dovecot 2.3 names the setting; 2.4 has auth_allow_cleartext = no and keeps it
+auth_conf=/etc/dovecot/conf.d/10-auth.conf
+if [ "$IMAP_SYSTEM" = 'dovecot' ] && grep -qE '^#?[[:space:]]*disable_plaintext_auth[[:space:]]*=' "$auth_conf" 2> /dev/null; then
+	changed=no
+	if [ "$status" = 'yes' ]; then
+		set_conf_line "$auth_conf" disable_plaintext_auth yes ' = '
+	else
+		set_conf_line "$auth_conf" disable_plaintext_auth no ' = '
+	fi
+	if [ "$changed" = 'yes' ]; then
+		$BIN/v-restart-service dovecot > /dev/null
+		check_result $? "dovecot restart failed" > /dev/null
+	fi
+fi
+
+case "$FTP_SYSTEM" in
+	vsftpd)
+		changed=no
+		set_conf_line /etc/vsftpd.conf pasv_promiscuous NO '='
+		if [ "$status" = 'yes' ]; then
+			set_conf_line /etc/vsftpd.conf force_local_logins_ssl YES '='
+		else
+			set_conf_line /etc/vsftpd.conf force_local_logins_ssl NO '='
+		fi
+		if [ "$changed" = 'yes' ]; then
+			$BIN/v-restart-service vsftpd > /dev/null
+			check_result $? "vsftpd restart failed" > /dev/null
+		fi
+		;;
+	proftpd)
+		changed=no
+		file=/etc/proftpd/tls.conf
+		if [ -f "$file" ]; then
+			if [ "$status" = 'yes' ]; then
+				value=auth
+			else
+				value=off
+			fi
+			if ! grep -qE "^TLSRequired[[:space:]]+$value$" "$file"; then
+				sed -i -E "s|^#?[[:space:]]*TLSRequired[[:space:]].*|TLSRequired                             $value|" "$file"
+				grep -qE "^TLSRequired" "$file" || echo "TLSRequired                             $value" >> "$file"
+				changed=yes
+			fi
+		fi
+		if [ "$changed" = 'yes' ]; then
+			$BIN/v-restart-service proftpd > /dev/null
+			check_result $? "proftpd restart failed" > /dev/null
+		fi
+		;;
+esac
+
+"$BIN/v-change-sys-config-value" 'TLS_LOGIN_ONLY' "$status"
+
+#----------------------------------------------------------#
+#                         ArcPanel                         #
+#----------------------------------------------------------#
+
+if [ "$status" = 'yes' ]; then
+	$BIN/v-log-action "system" "Info" "System" "Mail and FTP logins need an encrypted connection."
+else
+	$BIN/v-log-action "system" "Warning" "System" "Mail and FTP logins are allowed without encryption."
+fi
+log_event "$OK" "$ARGUMENTS"
+
+exit

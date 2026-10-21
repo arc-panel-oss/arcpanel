@@ -9712,6 +9712,54 @@ paths:
           $ref: "#/components/responses/InvalidRequest"
         "422":
           $ref: "#/components/responses/Unprocessable"
+  "/api/#v-change-sys-tls-login":
+    post:
+      operationId: v-change-sys-tls-login
+      tags:
+        - System
+      summary: Allow mail and FTP logins over encrypted connections only
+      description: |-
+        This function makes Dovecot (IMAP, POP3) and the FTP server refuse a login
+        that is not encrypted (yes), or accept it again (no), stores
+        TLS_LOGIN_ONLY and restarts the services. Dovecot treats connections from
+        the server itself as encrypted, so webmail keeps working. Dovecot 2.4
+        refuses unencrypted logins either way; vsftpd always answers passive
+        connections from the client's address only (E39 W5 L17).
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `STATUS` | yes |
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-change-sys-tls-login"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-change-sys-tls-login"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
   "/api/#v-change-sys-update-policy":
     post:
       operationId: v-change-sys-update-policy
@@ -46953,6 +47001,27 @@ components:
               description: "`TIMEZONE`"
               examples:
                 - Europe/Berlin
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
+    v-change-sys-tls-login:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-change-sys-tls-login
+              default: v-change-sys-tls-login
+            arg1:
+              type: string
+              title: STATUS
+              description: "`STATUS`"
+              examples:
+                - "yes"
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-change-sys-update-policy:

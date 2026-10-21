@@ -22,6 +22,8 @@ final class SecuritySettingsRequest extends ServerSettingsRequest
             'POLICY_RESELLER_PACKAGE_SHELLS' => ['sometimes', 'string', 'max:255', new ServerShells],
             // HSTS of the panel (E39 W5 spec §9.1)
             'PANEL_HSTS' => ['sometimes', 'in:yes,no'],
+            // Mail and FTP logins over TLS only (E39 W5 spec §12.2)
+            'TLS_LOGIN_ONLY' => ['sometimes', 'in:yes,no'],
         ];
         foreach (ServerSettings::SECURITY_POLICIES as $keys) {
             foreach ($keys as $key) {
@@ -70,6 +72,9 @@ final class SecuritySettingsRequest extends ServerSettingsRequest
         }
         if ($this->has('PANEL_HSTS')) {
             $values['PANEL_HSTS'] = (string) $this->input('PANEL_HSTS');
+        }
+        if ($this->has('TLS_LOGIN_ONLY')) {
+            $values['TLS_LOGIN_ONLY'] = (string) $this->input('TLS_LOGIN_ONLY');
         }
         foreach (ServerSettings::SECURITY_POLICIES as $keys) {
             foreach ($keys as $key) {

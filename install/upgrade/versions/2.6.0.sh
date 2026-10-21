@@ -96,3 +96,11 @@ for upd_step_conf in "$ARCPANEL"/data/users/*/user.conf; do
 	sed -i "s/^QRCODE='[^']*'$/QRCODE=''/" "$upd_step_conf"
 done
 unset upd_step_conf
+
+# Mail and FTP (§12.2): vsftpd answers passive connections from the client's
+# address only, which no client notices; login over plain text stays as it
+# is until the administrator turns on v-change-sys-tls-login
+if [ -f /etc/vsftpd.conf ] && grep -q '^pasv_promiscuous=YES' /etc/vsftpd.conf; then
+	sed -i 's/^pasv_promiscuous=YES/pasv_promiscuous=NO/' /etc/vsftpd.conf
+	systemctl try-restart vsftpd > /dev/null 2>&1
+fi

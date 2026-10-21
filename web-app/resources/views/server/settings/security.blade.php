@@ -58,6 +58,14 @@
                 </div>
             </x-ap-card>
 
+            {{-- Mail and FTP logins over TLS only (E39 W5 §12.2); Dovecot treats webmail on the server as encrypted --}}
+            <x-ap-card :title="__('Mail and FTP')" icon="mail">
+                <div class="ap-form-grid">
+                    <x-ap-select name="TLS_LOGIN_ONLY" :label="__('Mail and FTP logins over TLS only')" :options="$yesNo" :value="$value('TLS_LOGIN_ONLY')"
+                        :hint="__('Mail clients and FTP clients that sign in without encryption stop working; webmail keeps working.')" />
+                </div>
+            </x-ap-card>
+
             @if ($protectAdmin)
                 {{-- HSTS of the panel (E39 W5 §9.1): browsers that saw it refuse an untrusted certificate for a day --}}
                 <x-ap-card :title="__('HTTPS of the panel')" icon="lock">
