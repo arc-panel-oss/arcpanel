@@ -332,6 +332,10 @@ cmd() {
 	run cmd v-list-sys-arcpanel-releases
 	assert_success
 	assert_output --partial "$PATCH"
+	# A refresh also refreshes the ArcPanel package list, which AVAILABLE
+	# and the pre-flight read; a plain list does not
+	run grep -c '^update .*sources.list.d/arcpanel.list' "$TMP/apt-get.log"
+	assert_output 1
 }
 
 @test "update center: an older, a badly signed or a foreign manifest is refused and the stored one stays" {

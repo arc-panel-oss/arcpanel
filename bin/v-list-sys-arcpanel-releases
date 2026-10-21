@@ -9,7 +9,8 @@
 # server's channel that are newer than the installed version
 # (docs/features/specs/2026-10-20-005-e33-update-center-phase-1-design.md
 # §7.2). The manifest is downloaded again and verified when REFRESH is yes or
-# the stored copy is older than an hour. Each release has the fields of the
+# the stored copy is older than an hour; REFRESH yes also refreshes the APT
+# list of the ArcPanel repository. Each release has the fields of the
 # manifest and KIND (patch, minor, major), AVAILABLE (APT offers it here),
 # ELIGIBLE (the update policy would install it now) and REASON when not
 # (attention, withdrawn, delay until <date>, outside window, paused,
@@ -74,6 +75,11 @@ fi
 #                       Action                             #
 #----------------------------------------------------------#
 
+if [ "$refresh" = 'yes' ]; then
+	# What APT offers decides AVAILABLE and the pre-flight: refresh the
+	# ArcPanel package list with the manifest (a failure keeps the old list)
+	upd_apt_update > /dev/null 2>&1 || true
+fi
 if ! upd_manifest_load "$refresh"; then
 	check_result "$E_NOTEXIST" "$UPD_ERROR"
 fi
