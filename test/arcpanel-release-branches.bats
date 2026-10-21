@@ -69,6 +69,17 @@ remote_ref() {
 	assert_success
 }
 
+@test "check accepts a release candidate tag on its line branch" {
+	git switch -q v2.3.x
+	commit_version 2.3.1~rc.1
+	git tag -a v2.3.1-rc.1 -m v2.3.1-rc.1
+	git push -q origin v2.3.x v2.3.1-rc.1
+	git fetch -q origin
+	run bash "$SCRIPT" check v2.3.1-rc.1
+	assert_success
+	assert_output --partial "v2.3.x"
+}
+
 @test "check refuses a tag that is not on its line branch" {
 	git switch -q -c stray v2.2.1
 	commit_version 2.4.0

@@ -15,7 +15,7 @@ module.exports = {
 	overrides: [
 		// JavaScript files
 		{
-			files: ['*.{js,cjs}'],
+			files: ['*.{js,cjs,mjs}'],
 			options: {
 				singleQuote: true,
 			},
