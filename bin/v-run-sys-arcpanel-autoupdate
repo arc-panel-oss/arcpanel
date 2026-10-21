@@ -74,6 +74,12 @@ run() {
 	rows="$(upd_release_rows)"
 	announce "$rows" "$policy"
 	[ "$policy" = patch ] || return 0
+	# An update, a rollback or another task runs: its pre-flight would refuse
+	# with a reason that does not last, so the next run checks again
+	if st_task_running; then
+		echo "A system task is running ($(st_task_get KIND)); the next run checks again"
+		return 0
+	fi
 
 	target="$(jq -r '[.[] | select(.eligible)][0].version // empty' <<< "$rows")"
 	if [ -z "$target" ]; then

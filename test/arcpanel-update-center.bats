@@ -864,6 +864,26 @@ runner() {
 	assert_output ''
 }
 
+@test "update center: the runner waits while a system task runs and records nothing" {
+	server_setup
+	apt_installs
+	task_manifest
+	conf="$SERVER_ARCPANEL/data/sys-task/task.conf"
+	cp "$conf" "$TMP/task.conf" 2> /dev/null || true
+	bash -c 'exec -a v-run-sys-task sleep 60' &
+	pid=$!
+	echo "ID='1' KIND='arcpanel-release' ARGS='$PATCH policy policy' STATUS='running' PID='$pid' UNIT='' EXIT='' START='' END=''" > "$conf"
+	run runner
+	kill "$pid" 2> /dev/null || true
+	if [ -f "$TMP/task.conf" ]; then cp "$TMP/task.conf" "$conf"; else rm -f "$conf"; fi
+	assert_success
+	[ ! -f "$TMP/start-task.log" ]
+	run jq -r 'length' <<< "$(history_json)"
+	assert_output 0
+	run tail -n 1 "$SERVER_ARCPANEL/log/autoupdate.log"
+	assert_output --partial 'A system task is running (arcpanel-release)'
+}
+
 #----------------------------------------------------------#
 #   The 2.5.0 step and the old switch (§10, server)        #
 #----------------------------------------------------------#
