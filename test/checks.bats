@@ -548,3 +548,16 @@ r' "key"
 r' "key"
     assert_failure $E_INVALID
 }
+
+@test "is_comment_format_valid with spaces, dots, dashes, underscores (Pass)" {
+    run is_comment_format_valid 'deploy key-2.prod_eu' "comment"
+    assert_success
+}
+
+@test "is_comment_format_valid control characters (Fail)" {
+    local c
+    for c in $'\n' $'\r' $'\t' $'\v' $'\f'; do
+        run is_comment_format_valid "ab${c}USER admin" "comment"
+        assert_failure $E_INVALID
+    done
+}

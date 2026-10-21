@@ -116,6 +116,7 @@ it('requires action, protocol, port and address', function () {
             'ip' => 'Field "IP Address" can not be blank.',
         ]);
     $this->post('/server/firewall', ['action' => 'REJECT', 'protocol' => 'TCP', 'port' => '22', 'ip' => '1.2.3.4'])->assertSessionHasErrors(['action']);
+    $this->post('/server/firewall', ['action' => 'DROP', 'protocol' => 'TCP', 'port' => '22', 'ip' => '1.2.3.4', 'comment' => "ssh\tblock"])->assertSessionHasErrors(['comment']);
     $this->fake->assertNotRan('v-add-firewall-rule');
 });
 

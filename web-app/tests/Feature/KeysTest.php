@@ -178,7 +178,7 @@ it('requires permissions and refuses sets of other roles', function () {
 it('refuses a comment that v-add-access-key would refuse, next to the field', function () {
     signIn('bob', 'user', ['SUDO_UNTIL' => time() + SudoMode::SECONDS]);
 
-    foreach (['x', 'deploy bot!', '-ci', str_repeat('a', 67)] as $comment) {
+    foreach (['x', 'deploy bot!', '-ci', str_repeat('a', 67), "ab\tcd", "ab\vcd", "ab\ncd"] as $comment) {
         $this->post('/access-keys/bob', ['sets' => ['v2-read'], 'comment' => $comment])->assertSessionHasErrors('comment');
     }
     $this->fake->assertNotRan('v-add-access-key');

@@ -1,7 +1,9 @@
 {
 	"version": "2.2.3",
-	"security": false,
-	"attention": false,
-	"attention_items": [],
+	"security": true,
+	"attention": true,
+	"attention_items": [
+		"Access keys that the upgrade moves to data/access-keys/.quarantine/ no longer work; the upgrade log and a notification name them. Review where they were used and create new keys."
+	],
 	"min_from": null
 }

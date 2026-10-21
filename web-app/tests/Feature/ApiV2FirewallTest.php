@@ -164,6 +164,7 @@ it('refuses an identical rule with the existing one, bad values and registry com
     $this->postJson('/api/v2/system/firewall/rules', ['action' => 'DROP', 'protocol' => 'TCP'], $headers)->assertStatus(422)->assertJsonPath('error.fields.source.0', fn ($m) => is_string($m));
     $this->postJson('/api/v2/system/firewall/rules', ['action' => 'DROP', 'protocol' => 'TCP', 'port' => ',,', 'source' => '1.2.3.4'], $headers)->assertStatus(422)->assertJsonPath('error.fields.port.0', 'The port is empty.');
     $this->postJson('/api/v2/system/firewall/rules', ['action' => 'DROP', 'protocol' => 'TCP', 'source' => "1.2.3.4\n"], $headers)->assertStatus(422);
+    $this->postJson('/api/v2/system/firewall/rules', ['action' => 'DROP', 'protocol' => 'TCP', 'source' => '1.2.3.4', 'comment' => "ssh\tblock"], $headers)->assertStatus(422);
     $this->postJson('/api/v2/system/firewall/rules', ['action' => 'ACCEPT', 'protocol' => 'TCP', 'port' => '30006', 'source' => '0.0.0.0/0', 'comment' => 'arcpanel-port-30006-bob'], $headers)
         ->assertStatus(422)->assertJsonPath('error.fields.comment.0', 'Comments of the form arcpanel-port-PORT-USER belong to the port registry.');
     $this->fake->assertNotRan('v-add-firewall-rule');

@@ -15,7 +15,7 @@ final class PortActions
     /** A port or a range, as the commands take it */
     public const RANGE = '/^\d{1,5}(-\d{1,5})?$/';
 
-    public const COMMENT = '/^[[:alnum:]][[:alnum:][:space:]._-]{0,64}[[:alnum:]]$/';
+    public const COMMENT = '/^[[:alnum:]][[:alnum:] ._-]{0,64}[[:alnum:]]$/D';
 
     public const USER = '/^[[:alnum:]][-.\w]{0,28}[[:alnum:]]$/';
 
