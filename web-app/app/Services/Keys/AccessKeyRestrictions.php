@@ -38,6 +38,62 @@ final class AccessKeyRestrictions
         return ctype_digit($parts[1]) && (int) $parts[1] <= (str_contains($ip, ':') ? 128 : 32);
     }
 
+    /**
+     * Whether every address and network of $inner lies inside a network of
+     * $outer, so that a key limited to $outer gives no wider access (E39 W5
+     * N27). IPv4 and IPv6 never contain each other.
+     *
+     * @param  list<string>  $inner
+     * @param  list<string>  $outer
+     */
+    public static function within(array $inner, array $outer): bool
+    {
+        foreach ($inner as $entry) {
+            $network = self::network($entry);
+            $inside = false;
+            foreach ($outer as $candidate) {
+                $around = self::network($candidate);
+                if ($network !== null && $around !== null && strlen($network[0]) === strlen($around[0]) && $network[1] >= $around[1]
+                    && self::prefix($network[0], $around[1]) === self::prefix($around[0], $around[1])) {
+                    $inside = true;
+                    break;
+                }
+            }
+            if (! $inside) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /** @return array{0: string, 1: int}|null the packed address and the prefix length */
+    private static function network(string $value): ?array
+    {
+        if (! self::isAddressOrNetwork($value)) {
+            return null;
+        }
+        $parts = explode('/', $value);
+        $packed = inet_pton($parts[0]);
+        if ($packed === false) {
+            return null;
+        }
+
+        return [$packed, isset($parts[1]) ? (int) $parts[1] : strlen($packed) * 8];
+    }
+
+    /** The first $bits bits of a packed address, the rest of the last byte cleared. */
+    private static function prefix(string $packed, int $bits): string
+    {
+        $bytes = intdiv($bits, 8);
+        $prefix = substr($packed, 0, $bytes);
+        if ($bits % 8 > 0) {
+            $prefix .= chr(ord($packed[$bytes]) & (0xFF << (8 - $bits % 8)) & 0xFF);
+        }
+
+        return $prefix;
+    }
+
     /** The validation rule of one entry of the list. */
     public static function addressRule(): Closure
     {
