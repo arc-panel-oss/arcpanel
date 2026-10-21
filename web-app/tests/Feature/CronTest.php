@@ -112,9 +112,19 @@ it('keeps the input and shows the command error when the job cannot be added', f
     $this->fake->on('v-add-cron-job')->returnsExit(ExitCode::Invalid, 'Error: invalid min format :: 61');
     signIn('bob', 'user');
 
-    $this->from('/cron/create')->post('/cron', ['min' => '61', 'hour' => '*', 'day' => '*', 'month' => '*', 'wday' => '*', 'cmd' => 'echo hi'])
+    $this->from('/cron/create')->post('/cron', ['min' => '5', 'hour' => '*', 'day' => '*', 'month' => '*', 'wday' => '*', 'cmd' => 'echo hi'])
         ->assertRedirect('/cron/create')->assertSessionHas('error', 'Error: invalid min format :: 61')
         ->assertSessionHasInput('cmd', 'echo hi');
+});
+
+it('refuses a schedule field outside the crontab grammar before any command (E39 W5)', function () {
+    signIn('bob', 'user');
+
+    foreach (['61', '5 * * * * evil', "5'", "5\tx", 'jan'] as $min) {
+        $this->from('/cron/create')->post('/cron', ['min' => $min, 'hour' => '*', 'day' => '*', 'month' => '*', 'wday' => '*', 'cmd' => 'echo hi'])
+            ->assertSessionHasErrors('min');
+    }
+    $this->fake->assertNotRan('v-add-cron-job');
 });
 
 it('lets an admin add a cron job for another user and warns about its own account', function () {
@@ -168,6 +178,10 @@ it('requires every field on edit and shows the command error', function () {
     $this->fake->assertNotRan('v-change-cron-job');
 
     $this->post('/cron/bob/1/edit', ['min' => '0', 'hour' => '25', 'day' => '*', 'month' => '*', 'wday' => '*', 'cmd' => 'x'])
+        ->assertSessionHasErrors('hour');
+    $this->fake->assertNotRan('v-change-cron-job');
+
+    $this->post('/cron/bob/1/edit', ['min' => '0', 'hour' => '2', 'day' => '*', 'month' => '*', 'wday' => '*', 'cmd' => 'x'])
         ->assertRedirect('/cron/bob/1/edit')->assertSessionHas('error', 'Error: invalid hour format :: 25');
 });
 

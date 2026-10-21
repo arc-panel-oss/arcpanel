@@ -29,7 +29,7 @@ final class UpdateUserRequest extends ApiRequest
 
         return [
             /** The full name. */
-            'name' => ['sometimes', 'required', 'string', 'max:100', 'not_regex:/[\'"\\\\\n\r]/'],
+            'name' => ['sometimes', 'required', 'string', 'max:100', 'not_regex:/[\'"\\\\$`<>[:cntrl:]]/'],
             'email' => ['sometimes', 'required', 'email', 'max:254'],
             'language' => ['sometimes', 'required', 'string', 'max:10', 'regex:/^[a-z]{2,3}(-[a-z]{2})?$/'],
             /** 2 to 8 host names. Administrators and resellers for their customers, an administrator for itself. */

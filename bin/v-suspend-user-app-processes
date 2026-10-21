@@ -42,6 +42,7 @@ check_arcpanel_demo_mode
 #                       Action                             #
 #----------------------------------------------------------#
 
+appproc_task_stop "$user"
 if [ "$(appproc_count "$user")" -gt 0 ]; then
 	appproc_lock "$user"
 	for id in $(appproc_ids "$user"); do

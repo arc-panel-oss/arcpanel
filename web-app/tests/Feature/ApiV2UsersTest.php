@@ -183,6 +183,10 @@ it('validates the request and the choices', function () {
         ->assertJsonPath('error.fields.package.0', 'Please select a valid package.');
     $this->postJson('/api/v2/users', $input + ['package' => 'starter', 'language' => 'xx'], $headers)->assertUnprocessable()
         ->assertJsonPath('error.fields.language.0', 'Please select a valid language.');
+    foreach (['New $HOME', 'New `id`', "New\tOne", "New\x1bOne"] as $name) {
+        $this->postJson('/api/v2/users', ['name' => $name, 'package' => 'starter'] + $input, $headers)->assertUnprocessable()
+            ->assertJsonStructure(['error' => ['fields' => ['name']]]);
+    }
     $this->fake->on('v-check-reseller-quota', ['hostco', 'starter'])->returnsExit(ExitCode::Limit, 'USERS');
     $this->postJson('/api/v2/users', $input + ['package' => 'starter'], $headers)->assertUnprocessable()
         ->assertJsonPath('error.fields.package.0', 'The plan has no room for USERS.');

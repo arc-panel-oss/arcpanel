@@ -13,7 +13,7 @@ final class UserGeneralRequest extends UserTabRequest
     public function rules(): array
     {
         return [
-            'name' => ['required', 'string', 'max:100', 'not_regex:/[\'"\\\\\n\r]/'],
+            'name' => ['required', 'string', 'max:100', 'not_regex:/[\'"\\\\$`<>[:cntrl:]]/'],
             'email' => ['required', 'email', 'max:254'],
             'password' => ['nullable', 'string', 'min:8', 'max:256', 'regex:/[a-z]/', 'regex:/[A-Z]/', 'regex:/\d/'],
             'language' => ['required', 'string', 'max:10', 'regex:/^[a-z]{2,3}(-[a-z]{2})?$/'],

@@ -362,7 +362,15 @@ is_package_new() {
 
 # Validate system type
 is_type_valid() {
-	if [ -z "$(echo $1 | grep -w $2)" ]; then
+	local item found=''
+	local -a items
+	read -r -a items <<< "${1//,/ }"
+	for item in "${items[@]}"; do
+		if [ -n "$2" ] && [ "$item" = "$2" ]; then
+			found='yes'
+		fi
+	done
+	if [ -z "$found" ]; then
 		check_result "$E_INVALID" "$2 type is invalid"
 	fi
 }
@@ -1046,11 +1054,11 @@ is_user_format_valid() {
 	else
 		if [ -n "$3" ]; then
 			maxlenght=$(($3 - 2))
-			if ! [[ "$1" =~ ^[[:alnum:]][-|\.|_[:alnum:]]{0,$maxlenght}[[:alnum:]]$ ]]; then
+			if ! [[ "$1" =~ ^[[:alnum:]][-._[:alnum:]]{0,$maxlenght}[[:alnum:]]$ ]]; then
 				check_result "$E_INVALID" "invalid $2 format :: $1"
 			fi
 		else
-			if ! [[ "$1" =~ ^[[:alnum:]][-|\.|_[:alnum:]]{0,28}[[:alnum:]]$ ]]; then
+			if ! [[ "$1" =~ ^[[:alnum:]][-._[:alnum:]]{0,28}[[:alnum:]]$ ]]; then
 				check_result "$E_INVALID" "invalid $2 format :: $1"
 			fi
 		fi
@@ -1061,7 +1069,7 @@ is_user_format_valid() {
 
 	# Only for new users
 	if [[ "$FROM_V_ADD_USER" == "true" ]]; then
-		if ! [[ "$1" =~ ^[a-zA-Z][-|_[:alnum:]]{0,28}[[:alnum:]]$ ]]; then
+		if ! [[ "$1" =~ ^[a-zA-Z][-_[:alnum:]]{0,28}[[:alnum:]]$ ]]; then
 			check_result "$E_INVALID" "invalid $2 format :: $1"
 		fi
 	fi
@@ -1088,7 +1096,13 @@ is_domain_format_valid() {
 
 # Alias forman validator
 is_alias_format_valid() {
-	for object in ${1//,/ }; do
+	local object
+	local -a objects
+	if [[ "$1" == *[[:cntrl:]]* ]]; then
+		check_result "$E_INVALID" "invalid alias format"
+	fi
+	read -r -a objects <<< "${1//,/ }"
+	for object in "${objects[@]}"; do
 		exclude='[][!@#$^&()+={},<>?_/\\"|'\''`;%[:space:]]'
 		if [[ $object =~ $exclude ]] \
 			|| [[ $object =~ \.\. ]] \
@@ -1405,9 +1419,8 @@ is_common_format_spaces_valid() {
 }
 
 is_no_new_line_format() {
-	test=$(echo "$1" | head -n1)
-	if [[ "$test" != "$1" ]]; then
-		check_result "$E_INVALID" "invalid value :: $1"
+	if [[ "$1" == *[[:cntrl:]]* ]]; then
+		check_result "$E_INVALID" "invalid value: control characters are not allowed"
 	fi
 }
 
@@ -1419,7 +1432,7 @@ is_string_format_valid() {
 	is_no_new_line_format "$1"
 }
 is_cron_command_valid_format() {
-	if [[ "$1" == *'`'* ]] || [[ "$1" != "${1//$'\n'/}" ]]; then
+	if [[ "$1" == *'`'* ]] || [[ "$1" == *$'\n'* ]] || [[ "$1" == *$'\r'* ]]; then
 		check_result "$E_INVALID" "Invalid cron command format"
 	fi
 }
@@ -1544,7 +1557,7 @@ is_fw_chain_format_valid() {
 
 # DNS record id validator
 is_id_format_valid() {
-	if ! echo "$1" | grep -qE '^[1-9][0-9]{0,}$'; then
+	if ! [[ "$1" =~ ^[1-9][0-9]*$ ]]; then
 		check_result "$E_INVALID" "invalid $2 format :: $1"
 	fi
 }
@@ -1559,14 +1572,14 @@ is_int_format_valid() {
 # Interface validator
 is_interface_format_valid() {
 	nic_names="$(ip -d -j link show | jq -r '.[] | if .link_type == "loopback" then empty else .ifname, if .altnames then .altnames[] else empty end end')"
-	if [ -z "$(echo "$nic_names" | grep -x "$1")" ]; then
+	if [[ -z "$1" || "$1" == *[[:cntrl:]]* ]] || ! grep -qxF -- "$1" <<< "$nic_names"; then
 		check_result "$E_INVALID" "invalid interface format :: $1"
 	fi
 }
 
 # IP status validator
 is_ip_status_format_valid() {
-	if [ -z "$(echo shared,dedicated | grep -w "$1")" ]; then
+	if [ "$1" != 'shared' ] && [ "$1" != 'dedicated' ]; then
 		check_result "$E_INVALID" "invalid status format :: $1"
 	fi
 }
@@ -1609,51 +1622,51 @@ is_notification_notice_valid() {
 	fi
 }
 
-# Cron validator
+# Cron validator: one crontab field, a comma list of *, */STEP, N, N-M or
+# N-M/STEP with numbers in the field's range (E39 W5 §6.1; the same rule as
+# web-app/app/Rules/CronField.php)
 is_cron_format_valid() {
-	limit=59
-	check_format=''
-	if [ "$2" = 'hour' ]; then
-		limit=23
+	local value="$1" min=0 max=59 item low high step
+	local -a items
+	case "$2" in
+		hour) max=23 ;;
+		day) min=1 max=31 ;;
+		month) min=1 max=12 ;;
+		wday) max=7 ;;
+	esac
+	if [[ -z "$value" || ${#value} -gt 128 || ! "$value" =~ ^[0-9*/,-]+$ ]]; then
+		check_result "$E_INVALID" "invalid $2 format"
 	fi
-
-	if [ "$2" = 'day' ]; then
-		limit=31
+	if [[ "$value" == ,* || "$value" == *, || "$value" == *,,* ]]; then
+		check_result "$E_INVALID" "invalid $2 format :: $value"
 	fi
-	if [ "$2" = 'month' ]; then
-		limit=12
+	IFS=',' read -r -a items <<< "$value"
+	if [ "${#items[@]}" -gt 64 ]; then
+		check_result "$E_INVALID" "invalid $2 format :: $value"
 	fi
-	if [ "$2" = 'wday' ]; then
-		limit=7
-	fi
-	if [ "$1" = '*' ]; then
-		check_format='ok'
-	fi
-	if [[ "$1" =~ ^[\*]+[/]+[0-9] ]]; then
-		if [ "$(echo $1 | cut -f 2 -d /)" -lt $limit ]; then
-			check_format='ok'
-		fi
-	fi
-	if [[ "$1" =~ ^[0-9][-|,|0-9]{0,70}[\/][0-9]$ ]]; then
-		check_format='ok'
-		crn_values=${1//,/ }
-		crn_values=${crn_values//-/ }
-		crn_values=${crn_values//\// }
-		for crn_vl in $crn_values; do
-			if [ "$crn_vl" -gt $limit ]; then
-				check_format='invalid'
+	for item in "${items[@]}"; do
+		step=''
+		if [[ "$item" =~ ^\*(/([0-9]{1,2}))?$ ]]; then
+			step="${BASH_REMATCH[2]}"
+		elif [[ "$item" =~ ^([0-9]{1,2})(-([0-9]{1,2})(/([0-9]{1,2}))?)?$ ]]; then
+			low=$((10#${BASH_REMATCH[1]}))
+			high="${BASH_REMATCH[3]}"
+			step="${BASH_REMATCH[5]}"
+			if [ -n "$high" ]; then
+				high=$((10#$high))
+			else
+				high=$low
 			fi
-		done
-	fi
-	crn_values=$(echo $1 | tr "," " " | tr "-" " ")
-	for crn_vl in $crn_values; do
-		if [[ "$crn_vl" =~ ^[0-9]+$ ]] && [ "$crn_vl" -le $limit ]; then
-			check_format='ok'
+			if [ "$low" -lt "$min" ] || [ "$high" -gt "$max" ] || [ "$low" -gt "$high" ]; then
+				check_result "$E_INVALID" "invalid $2 format :: $value"
+			fi
+		else
+			check_result "$E_INVALID" "invalid $2 format :: $value"
+		fi
+		if [ -n "$step" ] && { [ $((10#$step)) -lt 1 ] || [ $((10#$step)) -gt "$max" ]; }; then
+			check_result "$E_INVALID" "invalid $2 format :: $value"
 		fi
 	done
-	if [ "$check_format" != 'ok' ]; then
-		check_result "$E_INVALID" "invalid $2 format :: $1"
-	fi
 }
 
 # Validate CPU Quota:
@@ -1686,13 +1699,13 @@ is_valid_swap_size() {
 }
 
 is_object_name_format_valid() {
-	if ! [[ "$1" =~ ^[-|\ |\.|_[:alnum:]]{0,50}$ ]]; then
+	if ! [[ "$1" =~ ^[-\ ._[:alnum:]]{1,50}$ ]]; then
 		check_result "$E_INVALID" "invalid $2 format :: $1"
 	fi
 }
 # Name validator
 is_name_format_valid() {
-	exclude="['|\"|<|>]"
+	exclude="['\"<>\$\`\\]"
 	if [[ "$1" =~ $exclude ]]; then
 		check_result "$E_INVALID" "Invalid $2 contains qoutes (\" or ') :: $1"
 	fi
@@ -1701,7 +1714,7 @@ is_name_format_valid() {
 
 # Object validator
 is_object_format_valid() {
-	if ! [[ "$1" =~ ^[[:alnum:]][-|\.|_[:alnum:]]{0,64}[[:alnum:]]$ ]]; then
+	if ! [[ "$1" =~ ^[[:alnum:]][-._[:alnum:]]{0,64}[[:alnum:]]$ ]]; then
 		check_result "$E_INVALID" "invalid $2 format :: $1"
 	fi
 }
@@ -1731,7 +1744,8 @@ is_password_format_valid() {
 # Before: validate_format_shell
 # After: is_format_valid_shell
 is_format_valid_shell() {
-	if [ -z "$(grep -w $1 /etc/shells)" ]; then
+	if [[ -z "$1" || ! "$1" =~ ^[[:alnum:]/._-]+$ ]] \
+		|| ! awk -v s="$1" '$0 == s || (s !~ /\// && $0 ~ /\// && substr($0, length($0) - length(s)) == "/" s) { f = 1 } END { exit !f }' /etc/shells; then
 		echo "Error: shell $1 is not valid"
 		log_event "$E_INVALID" "$EVENT"
 		exit $E_INVALID
@@ -1740,13 +1754,13 @@ is_format_valid_shell() {
 
 # Service name validator
 is_service_format_valid() {
-	if ! [[ "$1" =~ ^[[:alnum:]][-|\.|_[:alnum:]]{0,64}$ ]]; then
+	if ! [[ "$1" =~ ^[[:alnum:]][-._[:alnum:]]{0,64}$ ]]; then
 		check_result "$E_INVALID" "invalid $2 format :: $1"
 	fi
 }
 
 is_hash_format_valid() {
-	if ! [[ "$1" =~ ^[[:alnum:]|\:|\=|_|-]{1,80}$ ]]; then
+	if ! [[ "$1" =~ ^[[:alnum:]:=_-]{1,80}$ ]]; then
 		check_result "$E_INVALID" "invalid $2 format :: $1"
 	fi
 }
@@ -1872,7 +1886,7 @@ is_folder_exists() {
 }
 
 is_command_valid_format() {
-	if [[ ! "$1" =~ ^v-[[:alnum:]][-|\.|_[:alnum:]]{0,64}[[:alnum:]]$ ]]; then
+	if [[ ! "$1" =~ ^v-[[:alnum:]][-._[:alnum:]]{0,64}[[:alnum:]]$ ]]; then
 		check_result "$E_INVALID" "Invalid command format"
 	fi
 	if [[ -n $(echo "$1" | grep -e '\-\-') ]]; then
@@ -1894,7 +1908,7 @@ is_access_key_id_format_valid() {
 is_secret_access_key_format_valid() {
 	local hash="$1"
 
-	if ! [[ "$hash" =~ ^[[:alnum:]|_|\.|\+|/|\^|~|=|%|\-]{40}$ ]]; then
+	if ! [[ "$hash" =~ ^[[:alnum:]_.+/^~=%-]{40}$ ]]; then
 		check_result "$E_INVALID" "invalid $2 format"
 	fi
 }
@@ -1930,7 +1944,7 @@ check_access_key_secret() {
 
 	if [[ -z "$secret_access_key" ]]; then
 		check_result "$E_PASSWORD" "Secret key not provided for key $access_key_id"
-	elif ! [[ "$secret_access_key" =~ ^[[:alnum:]|_|\.|\+|/|\^|~|=|%|\-]{40}$ ]]; then
+	elif ! [[ "$secret_access_key" =~ ^[[:alnum:]_.+/^~=%-]{40}$ ]]; then
 		check_result "$E_PASSWORD" "Invalid secret key for key $access_key_id"
 	else
 		SECRET_ACCESS_KEY="" EXPIRES="" ALLOWED_IPS=""

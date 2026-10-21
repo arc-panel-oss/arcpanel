@@ -32,7 +32,7 @@ final class StoreUserRequest extends FormRequest
             'username' => ['required', 'string', 'min:2', 'max:30', 'regex:/^[a-z0-9][-.a-z0-9_]*[a-z0-9]$/'],
             'password' => ['required', 'string', 'min:8', 'max:256', 'regex:/[a-z]/', 'regex:/[A-Z]/', 'regex:/\d/'],
             'email' => ['required', 'email', 'max:254'],
-            'name' => ['required', 'string', 'max:100', 'not_regex:/[\'"\\\\\n\r]/'],
+            'name' => ['required', 'string', 'max:100', 'not_regex:/[\'"\\\\$`<>[:cntrl:]]/'],
             'language' => ['required', 'string', 'max:10', 'regex:/^[a-z]{2,3}(-[a-z]{2})?$/'],
             'package' => ['required', 'string', 'max:100', 'regex:/^[[:alnum:]][-.\w]*$/'],
             'role' => ['nullable', 'in:user,admin,reseller'],

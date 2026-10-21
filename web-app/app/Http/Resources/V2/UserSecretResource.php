@@ -40,7 +40,7 @@ final class UserSecretResource extends JsonResource
                 'fingerprint' => (string) ($version['FINGERPRINT'] ?? ''),
                 'created_at' => self::timestamp($version),
             ], array_values(array_filter((array) ($row['VERSIONS'] ?? []), 'is_array')));
-            /** @var list<array{type: string, id: string}> the apps whose environment references the secret: `node` (id: web domain) or `docker` (id: app name) */
+            /** @var list<array{type: string, id: string}> the apps whose environment references the secret: `node` (id: web domain), `docker` (id: app name) or `app`, an app process (id: web domain/process name) */
             $data['used_by'] = self::apps(array_map('strval', $row['USED_BY']));
         } else {
             /** @var int how many apps reference the secret */
@@ -51,7 +51,7 @@ final class UserSecretResource extends JsonResource
     }
 
     /**
-     * node:DOMAIN and docker:NAME words as objects.
+     * node:DOMAIN, docker:NAME and app:DOMAIN/NAME words as objects.
      *
      * @param  list<string>  $words
      * @return list<array{type: string, id: string}>
@@ -60,7 +60,7 @@ final class UserSecretResource extends JsonResource
     {
         $apps = [];
         foreach ($words as $word) {
-            if (preg_match('/^(node|docker):(\S+)$/', $word, $m) === 1) {
+            if (preg_match('/^(node|docker|app):(\S+)$/', $word, $m) === 1) {
                 $apps[] = ['type' => $m[1], 'id' => $m[2]];
             }
         }

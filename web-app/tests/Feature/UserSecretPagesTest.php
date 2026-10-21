@@ -83,6 +83,17 @@ it('shows one secret with its versions, its reference and the apps that use it',
     $this->get('/secrets/bob/item?name=bad name')->assertNotFound();
 });
 
+it('links an app process that uses a secret (E39 W5)', function () {
+    $item = userSecretItem('/shop/db_password');
+    $item['/shop/db_password']['USED_BY'] = ['app:shop.bob.example/worker'];
+    $this->fake->on('v-list-user-secret')->returns((string) json_encode($item));
+    signIn('bob', 'user');
+
+    $this->get('/secrets/bob/item?name=/shop/db_password')->assertOk()
+        ->assertSee('App process')->assertSee('shop.bob.example/worker')
+        ->assertSee(route('app-processes.show', ['user' => 'bob', 'domain' => 'shop.bob.example', 'name' => 'worker']), false);
+});
+
 it('adds a secret and passes the value in a file', function () {
     $this->fake->on('v-add-user-secret')->returns();
     signIn('bob', 'user');

@@ -8,13 +8,16 @@
     $current = (string) ($secret['VERSION'] ?? '');
     $fingerprint = (string) ($secret['FINGERPRINT'] ?? '');
     $list = route('secrets.list', ['user' => $user]);
-    // node:<domain> and docker:<name> (spec §6.3) as kind, label, icon and link
+    // node:<domain>, docker:<name> (spec §6.3) and app:<domain>/<name> (E39 W5) as kind, label, icon and link
     $apps = array_map(function (string $app) use ($user): array {
         [$kind, $id] = array_pad(explode(':', $app, 2), 2, '');
 
         return match ($kind) {
             'node' => [__('Node.js app'), $id, 'hexagon', route('node.apps.show', ['user' => $user, 'domain' => $id])],
             'docker' => [__('Docker app'), $id, 'container', route('docker.apps.show', ['user' => $user, 'name' => $id])],
+            'app' => str_contains($id, '/')
+                ? [__('App process'), $id, 'terminal', route('app-processes.show', ['user' => $user, 'domain' => explode('/', $id, 2)[0], 'name' => explode('/', $id, 2)[1]])]
+                : ['app', $id, 'package', null],
             default => [$kind, $id !== '' ? $id : $app, 'package', null],
         };
     }, $usedBy);

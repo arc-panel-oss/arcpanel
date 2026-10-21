@@ -312,6 +312,16 @@ teardown_file() {
     v-delete-user-secret $U1 /app/short
 }
 
+@test "Docker: a changed secret must still pass the checks of the variables that use it (E39 W5)" {
+    docker_ready
+    # tiny's SECRET, a password of at least 8 characters, references /app/db
+    run v-change-user-secret $U1 /app/db "$(value_file 'abc')"
+    assert_failure 2
+    assert_output --partial 'SECRET'
+    refute_output --partial 'abc'
+    assert_equal "$(container_env $U1 tiny SECRET)" 'tsa-db-pass-2'
+}
+
 @test "Docker: a re-added secret must suit the apps that still reference it" {
     docker_ready
     v-add-user-secret $U1 /app/gone "$(value_file 'tsa-gone-value')"

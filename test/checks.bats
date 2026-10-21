@@ -561,3 +561,146 @@ r' "key"
         assert_failure $E_INVALID
     done
 }
+
+# Cron fields (E39 W5 §6.1); the same cases as web-app/tests/Unit/CronFieldTest.php
+
+@test "is_cron_format_valid builder, import and padded values (Pass)" {
+    local pair
+    for pair in 'min *' 'min */5' 'min */30' 'min */59' 'min 0' 'min 00' 'min 05' 'min 0-59/15' 'min 1,15,30,45' \
+        'hour */12' 'hour 23' 'hour 0-23/2' 'day 1-31/2' 'day */15' 'day 31' 'month 1-11/2' 'month */6' 'month 12' \
+        'wday 1,2,3,4,5' 'wday 0,6' 'wday 7' 'wday 1-5'; do
+        run is_cron_format_valid "${pair#* }" "${pair%% *}"
+        assert_success
+    done
+}
+
+@test "is_cron_format_valid out of range, names, macros, quotes, control characters (Fail)" {
+    local pair
+    for pair in 'min 60' 'min */60' 'min */0' 'min 5/15' 'min 1,' 'min ,1' 'min 1,,2' 'min 30-10' 'min 100' 'min -1' \
+        'min *-5' 'min 1|2' "min 5'" 'min 5"' 'hour 24' 'day 0' 'day 32' 'month 0' 'month 13' 'month jan' \
+        'wday 8' 'wday mon' 'min @daily'; do
+        run is_cron_format_valid "${pair#* }" "${pair%% *}"
+        assert_failure $E_INVALID
+    done
+    for value in '' '5 * * * * evil' $'5\nevil' $'5\rx' $'5\tx' "$(printf '1,%.0s' $(seq 1 64))1"; do
+        run is_cron_format_valid "$value" "min"
+        assert_failure $E_INVALID
+    done
+}
+
+# Validators of E39 W5 §6.2
+
+@test "Names, objects, services, hashes and commands refuse a pipe (Fail)" {
+    run is_user_format_valid 'ab|cd' "user"
+    assert_failure $E_INVALID
+    run is_object_format_valid 'ab|cd' "object"
+    assert_failure $E_INVALID
+    run is_object_name_format_valid 'ab|cd' "object"
+    assert_failure $E_INVALID
+    run is_object_name_format_valid '' "object"
+    assert_failure $E_INVALID
+    run is_service_format_valid 'nginx|x' "service"
+    assert_failure $E_INVALID
+    run is_hash_format_valid 'abc|def' "hash"
+    assert_failure $E_INVALID
+    run is_command_valid_format 'v-list|users' "command"
+    assert_failure $E_INVALID
+    run is_secret_access_key_format_valid "$(printf 'a%.0s' $(seq 1 39))|" "secret"
+    assert_failure $E_INVALID
+}
+
+@test "Names, objects, services and commands keep dots, dashes and underscores (Pass)" {
+    run is_user_format_valid 'ab.c-d_e' "user"
+    assert_success
+    run is_object_format_valid 'pkg.small-1_x' "object"
+    assert_success
+    run is_object_name_format_valid 'my object.1' "object"
+    assert_success
+    run is_service_format_valid 'php8.3-fpm' "service"
+    assert_success
+    run is_command_valid_format 'v-list-users' "command"
+    assert_success
+}
+
+@test "Common values refuse tab, carriage return and other control characters (Fail)" {
+    local c
+    for c in $'\t' $'\r' $'\e' $'\x01'; do
+        run is_common_format_valid "ab${c}cd" "value"
+        assert_failure $E_INVALID
+        run is_string_format_valid "ab${c}cd" "value"
+        assert_failure $E_INVALID
+        run is_database_format_valid "ab${c}cd" "database"
+        assert_failure $E_INVALID
+        run is_dbuser_format_valid "ab${c}cd" "dbuser"
+        assert_failure $E_INVALID
+        run is_domain_format_valid "ab${c}cd.example" "domain"
+        assert_failure $E_INVALID
+        run is_common_format_spaces_valid "ab${c}cd" "value"
+        assert_failure $E_INVALID
+    done
+}
+
+@test "is_no_new_line_format accepts -n and -e and refuses CR (Pass, Fail)" {
+    run is_no_new_line_format '-n'
+    assert_success
+    run is_no_new_line_format '-e'
+    assert_success
+    run is_no_new_line_format $'ab\rcd'
+    assert_failure $E_INVALID
+}
+
+@test "is_name_format_valid refuses dollar, backtick, backslash and control characters (Fail)" {
+    local v
+    for v in 'Jane $HOME' 'Jane `id`' 'Jane\Doe' $'Jane\tDoe' $'Jane\rDoe'; do
+        run is_name_format_valid "$v" "name"
+        assert_failure $E_INVALID
+    done
+    run is_name_format_valid 'Jane Doe-Smith' "name"
+    assert_success
+}
+
+@test "is_alias_format_valid splits on commas without control characters (Pass, Fail)" {
+    run is_alias_format_valid 'a.example,b.example' "alias"
+    assert_success
+    run is_alias_format_valid 'a.example, b.example' "alias"
+    assert_success
+    run is_alias_format_valid $'a.example\nb.example' "alias"
+    assert_failure $E_INVALID
+    run is_alias_format_valid $'a.example\tb.example' "alias"
+    assert_failure $E_INVALID
+}
+
+@test "Ids, IP status and system types match exactly (Pass, Fail)" {
+    run is_id_format_valid '5' "id"
+    assert_success
+    run is_id_format_valid $'5\nfoo' "id"
+    assert_failure $E_INVALID
+    run is_ip_status_format_valid 'shared' "status"
+    assert_success
+    run is_ip_status_format_valid 'shared,dedicated' "status"
+    assert_failure $E_INVALID
+    run is_type_valid 'plain json shell csv' 'json'
+    assert_success
+    run is_type_valid 'plain json shell csv' 'js'
+    assert_failure $E_INVALID
+    run is_type_valid 'nginx,apache2' 'apache'
+    assert_failure $E_INVALID
+    run is_type_valid 'sftp,ftp,b2,rclone' 'b2'
+    assert_success
+}
+
+@test "is_format_valid_shell matches a shell of /etc/shells exactly (Pass, Fail)" {
+    run is_format_valid_shell 'bash'
+    assert_success
+    run is_format_valid_shell '/bin/bash'
+    assert_success
+    run is_format_valid_shell 'ba'
+    assert_failure $E_INVALID
+    run is_format_valid_shell 'bash x'
+    assert_failure $E_INVALID
+}
+
+@test "is_cron_command_valid_format carriage return (Fail)" {
+    run is_cron_command_valid_format $'echo hi\r' "command"
+    assert_failure $E_INVALID
+}

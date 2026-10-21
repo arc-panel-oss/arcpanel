@@ -193,6 +193,15 @@ it('saves only the changed general values', function () {
     $this->fake->assertNotRan('v-change-user-name');
 });
 
+it('refuses an account name that v-change-user-name would refuse (E39 W5)', function () {
+    signIn('hostco', 'reseller');
+
+    foreach (['Bob $HOME', 'Bob `id`', 'Bob\\B', "Bob\tB", 'Bob <b>'] as $name) {
+        $this->post('/users/bob/general', ['name' => $name, 'email' => 'bob@example.com', 'language' => 'en'])->assertSessionHasErrors('name', null, 'general');
+    }
+    $this->fake->assertNotRan('v-change-user-name');
+});
+
 it('changes the package of a customer through the reseller command', function () {
     signIn('hostco', 'reseller');
     $this->fake->on('v-change-reseller-user-package')->returns();

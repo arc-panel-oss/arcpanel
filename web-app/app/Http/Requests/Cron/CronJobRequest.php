@@ -2,12 +2,13 @@
 
 namespace App\Http\Requests\Cron;
 
+use App\Rules\CronField;
 use Illuminate\Foundation\Http\FormRequest;
 
 /**
  * The fields of web/add/cron and web/edit/cron: the five schedule fields and
- * the command, all required ("0" is a value). v-add-cron-job and
- * v-change-cron-job check the schedule format (is_cron_format_valid).
+ * the command, all required ("0" is a value). The schedule fields follow
+ * is_cron_format_valid of v-add-cron-job and v-change-cron-job (CronField).
  */
 class CronJobRequest extends FormRequest
 {
@@ -23,11 +24,11 @@ class CronJobRequest extends FormRequest
         $line = 'not_regex:/[\r\n\x00]/';
 
         return [
-            'min' => ['required', 'string', 'max:128', $line],
-            'hour' => ['required', 'string', 'max:128', $line],
-            'day' => ['required', 'string', 'max:128', $line],
-            'month' => ['required', 'string', 'max:128', $line],
-            'wday' => ['required', 'string', 'max:128', $line],
+            'min' => ['required', 'string', 'max:128', new CronField('min')],
+            'hour' => ['required', 'string', 'max:128', new CronField('hour')],
+            'day' => ['required', 'string', 'max:128', new CronField('day')],
+            'month' => ['required', 'string', 'max:128', new CronField('month')],
+            'wday' => ['required', 'string', 'max:128', new CronField('wday')],
             'cmd' => ['required', 'string', 'max:4096', $line],
         ];
     }

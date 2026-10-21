@@ -2,11 +2,12 @@
 
 namespace App\Api;
 
+use App\Rules\CronField;
 use Illuminate\Validation\ValidationException;
 
 /**
  * One cron `schedule` of five crontab fields (E34 batch 2 spec D28).
- * Each field follows the rule of the page's five inputs. A macro such as
+ * Each field follows the rule of the page's five inputs (CronField). A macro such as
  * `@daily` is refused: the commands store five fields.
  */
 final class CronSchedule
@@ -22,19 +23,15 @@ final class CronSchedule
         if (count($fields) !== 5 || in_array('', $fields, true)) {
             throw ValidationException::withMessages(['schedule' => __('A schedule is five crontab fields.')]);
         }
-        foreach ($fields as $field) {
-            if (strlen($field) > 128 || preg_match('/[\r\n\x00]/', $field) === 1) {
+        $named = array_combine(['min', 'hour', 'day', 'month', 'wday'], $fields);
+        foreach ($named as $name => $field) {
+            if (! CronField::valid($name, $field)) {
                 throw ValidationException::withMessages(['schedule' => __('A schedule is five crontab fields.')]);
             }
         }
 
-        return [
-            'min' => $fields[0],
-            'hour' => $fields[1],
-            'day' => $fields[2],
-            'month' => $fields[3],
-            'wday' => $fields[4],
-        ];
+        /** @var array{min: string, hour: string, day: string, month: string, wday: string} $named */
+        return $named;
     }
 
     /** @param  array{min: string, hour: string, day: string, month: string, wday: string}  $fields */

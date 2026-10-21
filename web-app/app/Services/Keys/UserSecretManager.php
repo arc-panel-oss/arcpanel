@@ -128,13 +128,13 @@ final class UserSecretManager
     }
 
     /**
-     * The apps a change command printed (node:DOMAIN, docker:NAME).
+     * The apps a change command printed (node:DOMAIN, docker:NAME, app:DOMAIN/NAME).
      *
      * @return list<string>
      */
     public static function usedBy(CommandResult|string $result): array
     {
-        return self::matching($result, '/^((?:node|docker):\S+)$/');
+        return self::matching($result, '/^((?:node|docker|app):\S+)$/');
     }
 
     /**
@@ -144,7 +144,7 @@ final class UserSecretManager
      */
     public static function failedRestarts(CommandResult|string $result): array
     {
-        return self::matching($result, '/^failed:((?:node|docker):\S+)$/');
+        return self::matching($result, '/^failed:((?:node|docker|app):\S+)$/');
     }
 
     /** @return list<string> */

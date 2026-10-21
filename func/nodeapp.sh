@@ -736,6 +736,10 @@ nodeapp_secret_env_write() {
 			echo "$key: $SECRET_REASON"
 			return "$rc"
 		fi
+		if [[ "$resolved" == *[[:cntrl:]]* ]]; then
+			echo "$key: a secret it references has a control character"
+			return "$E_INVALID"
+		fi
 		lines+="$key"$'\t'"$resolved"$'\n'
 	done <<< "$content"
 	printf '%s' "$lines" | jq -Rn '[inputs | capture("^(?<k>[^\t]*)\t(?<v>.*)$") | { (.k): .v }] | add // {}' \

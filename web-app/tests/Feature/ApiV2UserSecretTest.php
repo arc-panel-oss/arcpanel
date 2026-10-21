@@ -23,7 +23,7 @@ beforeEach(function () {
         if ($row === null) {
             return [ExitCode::NotExist->value, "Error: secret {$args[1]} not found"];
         }
-        $row['USED_BY'] = $args[1] === '/shop/db' ? ['node:shop.bob.example', 'docker:shop'] : [];
+        $row['USED_BY'] = $args[1] === '/shop/db' ? ['node:shop.bob.example', 'docker:shop', 'app:shop.bob.example/worker'] : [];
         $row['REFERENCE'] = '{{secret:'.$args[1].'}}';
         $row['VERSIONS'] = [
             ['VERSION' => '1', 'FINGERPRINT' => 'eeee1111', 'TIME' => '09:00:00', 'DATE' => '2026-10-08'],
@@ -68,7 +68,8 @@ it('shows one secret with its versions and the apps that use it', function (?str
             ['version' => 1, 'fingerprint' => 'eeee1111', 'created_at' => '2026-10-08T09:00:00'],
             ['version' => 2, 'fingerprint' => 'a1b2c3d4', 'created_at' => '2026-10-09T10:00:00'],
         ])
-        ->assertJsonPath('data.used_by', [['type' => 'node', 'id' => 'shop.bob.example'], ['type' => 'docker', 'id' => 'shop']]);
+        ->assertJsonPath('data.used_by', [['type' => 'node', 'id' => 'shop.bob.example'], ['type' => 'docker', 'id' => 'shop'],
+            ['type' => 'app', 'id' => 'shop.bob.example/worker']]);
     $this->getJson('/api/v2/users/bob/secrets/nope', apiAs($this->fake, 'bob', 'user'))->assertNotFound();
     $this->getJson('/api/v2/users/bob/secrets/a/../b', apiAs($this->fake, 'bob', 'user'))->assertNotFound();
 })->with('secret keys');
@@ -135,13 +136,14 @@ it('plans a change without running it and refuses a v2-read key before any comma
 });
 
 it('replaces a value, restarts the apps on request and rolls back', function (?string $area) {
-    $this->fake->on('v-change-user-secret')->returns("node:shop.bob.example\ndocker:shop");
+    $this->fake->on('v-change-user-secret')->returns("node:shop.bob.example\ndocker:shop\napp:shop.bob.example/worker");
     $this->fake->on('v-rollback-user-secret')->returns("node:shop.bob.example\ndocker:shop");
     $headers = apiAs($this->fake, 'bob', 'user', area: $area);
 
     $this->putJson('/api/v2/users/bob/secrets/shop/db/value', ['value' => API_STORE_VALUE, 'restart' => true], $headers)->assertOk()
         ->assertJsonPath('data.secret.name', '/shop/db')
-        ->assertJsonPath('data.apps', [['type' => 'node', 'id' => 'shop.bob.example'], ['type' => 'docker', 'id' => 'shop']])
+        ->assertJsonPath('data.apps', [['type' => 'node', 'id' => 'shop.bob.example'], ['type' => 'docker', 'id' => 'shop'],
+            ['type' => 'app', 'id' => 'shop.bob.example/worker']])
         ->assertJsonPath('data.restarted', true)
         ->assertJsonPath('data.failed', []);
     $this->fake->assertRan('v-change-user-secret', fn ($a) => $a === ['bob', '/shop/db', API_STORE_VALUE, 'yes']);
@@ -180,7 +182,8 @@ it('refuses to delete a used secret unless forced', function (?string $area) {
 
     $this->deleteJson('/api/v2/users/bob/secrets/shop/db', [], $headers)->assertStatus(409)
         ->assertJsonPath('error.code', 'E_INUSE')
-        ->assertJsonPath('error.used_by', [['type' => 'node', 'id' => 'shop.bob.example'], ['type' => 'docker', 'id' => 'shop']]);
+        ->assertJsonPath('error.used_by', [['type' => 'node', 'id' => 'shop.bob.example'], ['type' => 'docker', 'id' => 'shop'],
+            ['type' => 'app', 'id' => 'shop.bob.example/worker']]);
     $this->deleteJson('/api/v2/users/bob/secrets/shop/db?force=1', [], $headers)->assertNoContent();
     $this->fake->assertRan('v-delete-user-secret', fn ($a) => $a === ['bob', '/shop/db', 'yes']);
     $this->deleteJson('/api/v2/users/bob/secrets/ghost', [], $headers)->assertNotFound();

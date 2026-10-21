@@ -406,7 +406,7 @@ secret_refs() {
 # dockerapp_rdir, written out so the secret commands need not load the app
 # libraries.
 secret_refs_of_user() {
-	local user="$1" domain app name file
+	local user="$1" domain app name file line
 	for domain in $(grep -oE "^DOMAIN='[^']*'" "$ARCPANEL/data/users/$user/nodeapps.conf" 2> /dev/null | cut -d"'" -f2); do
 		file="$HOMEDIR/$user/web/$domain/nodeapp/.env"
 		for name in $(secret_refs "$(user="$user" user_exec head -c 65536 -- "$file" 2> /dev/null | grep -v '^[[:space:]]*#')"); do
@@ -419,6 +419,17 @@ secret_refs_of_user() {
 			printf 'docker:%s\t%s\n' "$app" "$name"
 		done
 	done
+	# App processes (E42): ~/web/DOMAIN/app-process/NAME.env, read as the user
+	while IFS= read -r line; do
+		[[ "$line" =~ \ DOMAIN=\'([^\']*)\' ]] || continue
+		domain=${BASH_REMATCH[1]}
+		[[ "$line" =~ \ NAME=\'([^\']*)\' ]] || continue
+		app=${BASH_REMATCH[1]}
+		file="$HOMEDIR/$user/web/$domain/app-process/$app.env"
+		for name in $(secret_refs "$(user="$user" user_exec head -c 65536 -- "$file" 2> /dev/null | grep -v '^[[:space:]]*#')"); do
+			printf 'app:%s/%s\t%s\n' "$domain" "$app" "$name"
+		done
+	done < <(cat "$ARCPANEL/data/users/$user/appprocesses.conf" 2> /dev/null)
 }
 
 # Print the apps of USER that reference NAME, one per line
@@ -449,12 +460,46 @@ secret_check_value_usable() {
 		echo "secret $name is used by $(echo "$used" | tr '\n' ' ' | sed 's/ $//') and cannot have several lines"
 		return "$E_INVALID"
 	fi
+	if grep -q '^app:' <<< "$used" && [[ "$value" == *[[:cntrl:]]* ]]; then
+		echo "secret $name is used by an app process and cannot hold control characters"
+		return "$E_INVALID"
+	fi
 	if grep -q '^docker:' <<< "$used"; then
 		if [ "${#value}" -gt 1024 ] || [[ "$value" == *[\'\"\$\`\\]* ]]; then
 			echo "secret $name is used by a Docker app and cannot hold quotes, \$, \` or \\ or more than 1024 characters"
 			return "$E_INVALID"
 		fi
+		secret_check_docker_vars "$user" "$name" "$value" "$used" || return "$E_INVALID"
 	fi
+	return 0
+}
+
+# Whether VALUE as the new value of USER's NAME still passes the checks of
+# every Docker variable that references it (E39 W5 §6.3). USED lists the
+# apps (docker:APP lines). Prints the app and the variable, never the value.
+secret_check_docker_vars() {
+	local user="$1" name="$2" value="$3" used="$4" app manifest line key raw resolved var reason
+	# shellcheck source=/usr/local/arcpanel/func/docker.sh
+	declare -F docker_var_check > /dev/null || source "$ARCPANEL/func/docker.sh"
+	for app in $(grep '^docker:' <<< "$used" | cut -d: -f2-); do
+		manifest=$(docker_manifest "$(dockerapp_get "$user" "$app" SLUG)" "$(dockerapp_get "$user" "$app" VERSION)")
+		while IFS= read -r line || [ -n "$line" ]; do
+			[[ "$line" == *"{{secret:$name}}"* ]] || continue
+			[[ "$line" =~ ^([A-Za-z_][A-Za-z0-9_]*)=\'(.*)\'$ ]] || continue
+			key=${BASH_REMATCH[1]}
+			raw=${BASH_REMATCH[2]}
+			raw=${raw//"{{secret:$name}}"/$value}
+			resolved=$raw
+			if [[ "$raw" == *'{{secret:'* ]] && ! secret_resolve_into "$user" "$raw" resolved; then
+				continue
+			fi
+			var=$(jq -c --arg n "$key" '(.variables // [])[] | select(.name == $n)' "$manifest" 2> /dev/null | head -n1)
+			if [ -n "$var" ] && ! reason=$(docker_var_check "$var" "$resolved"); then
+				echo "secret $name does not suit the Docker app $app: $reason"
+				return 1
+			fi
+		done < "$ARCPANEL/data/users/$user/docker/$app/.env"
+	done
 	return 0
 }
 
@@ -463,7 +508,7 @@ secret_check_value_usable() {
 # is printed again as failed:APP; the change itself stands, so the command
 # still succeeds and a caller does not store the value again.
 secret_after_change() {
-	local user="$1" name="$2" restart="$3" used app
+	local user="$1" name="$2" restart="$3" used app domain
 	used=$(secret_used_by "$user" "$name")
 	if [ -z "$used" ]; then
 		return 0
@@ -482,6 +527,14 @@ secret_after_change() {
 			docker:*)
 				if [ "$(grep "^NAME='${app#docker:}' " "$ARCPANEL/data/users/$user/dockerapps.conf" 2> /dev/null | grep -oE " STATE='[^']*'" | cut -d"'" -f2)" = 'running' ]; then
 					$BIN/v-restart-docker-app "$user" "${app#docker:}" > /dev/null 2>&1 || echo "failed:$app"
+				fi
+				;;
+			app:*/*)
+				domain=${app#app:}
+				domain=${domain%%/*}
+				if grep -F " DOMAIN='$domain' " "$ARCPANEL/data/users/$user/appprocesses.conf" 2> /dev/null \
+					| grep -F " NAME='${app##*/}' " | grep -q " STATE='running'"; then
+					$BIN/v-restart-app-process "$user" "$domain" "${app##*/}" > /dev/null 2>&1 || echo "failed:$app"
 				fi
 				;;
 		esac

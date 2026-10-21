@@ -29,7 +29,7 @@ final class StoreUserRequest extends ApiRequest
             'password' => ['required', 'string', 'min:8', 'max:256', 'regex:/[a-z]/', 'regex:/[A-Z]/', 'regex:/\d/'],
             'email' => ['required', 'email', 'max:254'],
             /** The full name. */
-            'name' => ['required', 'string', 'max:100', 'not_regex:/[\'"\\\\\n\r]/'],
+            'name' => ['required', 'string', 'max:100', 'not_regex:/[\'"\\\\$`<>[:cntrl:]]/'],
             /** A package the caller may assign (see GET /packages). */
             'package' => ['required', 'string', 'max:100', 'regex:/^[[:alnum:]][-.\w]*$/'],
             /** A language of the server; the server language when left out. */

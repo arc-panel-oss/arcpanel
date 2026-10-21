@@ -853,12 +853,13 @@ docker_secret_value_ok() {
 # dockerapp_dc writes it only for a command that starts containers and
 # removes it right after.
 dockerapp_env_run() {
-	local user="$1" name="$2" rdir line key value resolved out='' rc
+	local user="$1" name="$2" rdir line key value resolved out='' rc manifest var reason
 	rdir=$(dockerapp_rdir "$user" "$name")
 	if ! grep -qF '{{secret:' "$rdir/.env" 2> /dev/null; then
 		rm -f "$rdir/.env.run"
 		return 0
 	fi
+	manifest=$(docker_manifest "$(dockerapp_get "$user" "$name" SLUG)" "$(dockerapp_get "$user" "$name" VERSION)")
 	while IFS= read -r line || [ -n "$line" ]; do
 		if [[ "$line" == *'{{secret:'* ]] && [[ "$line" =~ ^([A-Za-z_][A-Za-z0-9_]*)=\'(.*)\'$ ]]; then
 			key=${BASH_REMATCH[1]}
@@ -875,6 +876,12 @@ dockerapp_env_run() {
 			fi
 			if ! docker_secret_value_ok "$resolved"; then
 				echo "$key: $DOCKER_SECRET_REFUSED"
+				return "$E_INVALID"
+			fi
+			# The value a secret holds now must still suit the variable (E39 W5 §6.3)
+			var=$(jq -c --arg n "$key" '(.variables // [])[] | select(.name == $n)' "$manifest" 2> /dev/null | head -n1)
+			if [ -n "$var" ] && ! reason=$(docker_var_check "$var" "$resolved"); then
+				echo "$reason (from a secret it references)"
 				return "$E_INVALID"
 			fi
 			line="$key='$resolved'"
