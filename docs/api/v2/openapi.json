@@ -34992,7 +34992,7 @@
                     },
                     "severity": {
                         "type": "string",
-                        "description": "critical, high or medium: the most severe of the rules"
+                        "description": "critical, high, medium or low (low: the scanner could not check the file, rule scan-error): the most severe of the rules"
                     },
                     "rules": {
                         "type": "array",
@@ -35162,7 +35162,7 @@
                     },
                     "status": {
                         "type": "string",
-                        "description": "running, done or failed"
+                        "description": "running, done, partial (a domain did not finish; its findings are from its previous scan) or failed"
                     },
                     "started_at": {
                         "type": [
@@ -35219,15 +35219,23 @@
                                 },
                                 "medium": {
                                     "type": "integer"
+                                },
+                                "low": {
+                                    "type": "integer"
                                 }
                             },
                             "required": [
                                 "domain",
                                 "critical",
                                 "high",
-                                "medium"
+                                "medium",
+                                "low"
                             ]
                         }
+                    },
+                    "truncated": {
+                        "type": "boolean",
+                        "description": "a domain had more findings than the scan keeps (1,000): the most severe are kept"
                     },
                     "rules_version": {
                         "type": "string",
@@ -35256,6 +35264,7 @@
                     "findings",
                     "new",
                     "new_summary",
+                    "truncated",
                     "rules_version",
                     "error"
                 ],
@@ -35280,6 +35289,9 @@
                     "medium": {
                         "type": "integer"
                     },
+                    "low": {
+                        "type": "integer"
+                    },
                     "quarantined": {
                         "type": "integer"
                     },
@@ -35295,7 +35307,7 @@
                             "string",
                             "null"
                         ],
-                        "description": "running, done or failed"
+                        "description": "running, done, partial or failed"
                     }
                 },
                 "required": [
@@ -35304,6 +35316,7 @@
                     "critical",
                     "high",
                     "medium",
+                    "low",
                     "quarantined",
                     "last_scan_at",
                     "last_status"

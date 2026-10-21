@@ -39,6 +39,7 @@ check_arcpanel_demo_mode
 #----------------------------------------------------------#
 
 report=''
+trouble=''
 total=0
 for user in $("$BIN/v-list-users" json | jq -r 'keys[]'); do
 	result=$("$BIN/v-scan-user-web" "$user" '' incremental nightly json 2> /dev/null)
@@ -49,24 +50,39 @@ for user in $("$BIN/v-list-users" json | jq -r 'keys[]'); do
 	fi
 	if ! jq -e 'type == "object"' <<< "$result" > /dev/null 2>&1; then
 		echo "$user: failed (exit code $rc)"
+		trouble+="$user: the scan failed (exit code $rc)"$'\n'
 		continue
 	fi
+	# Partial and failed scans go into the mail too (E39 W5 Q3)
+	case "$(jq -r '.STATUS' <<< "$result")" in
+		partial | failed) trouble+=$(jq -r --arg user "$user" '"\($user): \(.STATUS), \(.ERROR)"' <<< "$result")$'\n' ;;
+	esac
 	new=$(jq -r '.NEW' <<< "$result")
 	echo "$user: $(jq -r '"\(.FILES) files, \(.CHANGED) read, \(.FINDINGS) open, \(.NEW) new"' <<< "$result")"
 	if [ "$new" -gt 0 ]; then
 		total=$((total + new))
 		report+=$(jq -r --arg user "$user" '.NEW_SUMMARY[] |
-			"\($user) / \(.DOMAIN): \(.CRITICAL) critical, \(.HIGH) high, \(.MEDIUM) medium"' <<< "$result")
+			"\($user) / \(.DOMAIN): \(.CRITICAL) critical, \(.HIGH) high, \(.MEDIUM) medium, \(.LOW // 0) low"' <<< "$result")
 		report+=$'\n'
 	fi
 done
 
-if [ "$total" -gt 0 ]; then
+if [ "$total" -gt 0 ] || [ -n "$trouble" ]; then
 	email=$(grep CONTACT "$ARCPANEL/data/users/$ROOT_USER/user.conf" | cut -f 2 -d \')
-	subject="Malware scan: $total new suspicious file(s) on $(hostname -f 2> /dev/null || hostname)"
+	if [ "$total" -gt 0 ]; then
+		subject="Malware scan: $total new suspicious file(s) on $(hostname -f 2> /dev/null || hostname)"
+	else
+		subject="Malware scan: scans that did not finish on $(hostname -f 2> /dev/null || hostname)"
+	fi
 	if [ -n "$email" ]; then
-		printf '%s\n%s\n%s\n' "The nightly malware scan found new suspicious files:" "" "$report" \
-			| $SENDMAIL -s "$subject" "$email" 'yes'
+		{
+			if [ "$total" -gt 0 ]; then
+				printf '%s\n\n%s\n' "The nightly malware scan found new suspicious files:" "$report"
+			fi
+			if [ -n "$trouble" ]; then
+				printf '%s\n\n%s\n' "These scans did not cover every web domain; the findings of the domains left out are those of their last scan:" "$trouble"
+			fi
+		} | $SENDMAIL -s "$subject" "$email" 'yes'
 	fi
 fi
 

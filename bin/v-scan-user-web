@@ -14,6 +14,11 @@
 # ignored and quarantined files are left out. New findings send a panel
 # notification to the user and the administrator. Prints the scan record.
 # A scan of the user that is already running answers E_INUSE.
+#
+# The domains share MALWARE_TIMEOUT (an hour). A domain whose scan did not
+# finish keeps its previous findings and makes the scan partial (exit code
+# E_UPDATE); a domain with more than MALWARE_MAX_HITS hits keeps the most
+# severe and sets TRUNCATED (E39 W5 Q2, Q3).
 
 #----------------------------------------------------------#
 #                Variables & Functions                     #
@@ -69,9 +74,15 @@ check_arcpanel_demo_mode
 #----------------------------------------------------------#
 
 malware_init "$user"
-if ! malware_scan_lock "$user"; then
+# v-start-user-malware-scan hands over the scan lock it holds
+if [[ "${MALWARE_SCAN_HELD:-}" =~ ^[0-9]+$ ]] \
+	&& [ "$(readlink "/proc/$$/fd/$MALWARE_SCAN_HELD" 2> /dev/null)" = "$(malware_dir "$user")/scan.lock" ] \
+	&& flock -n "$MALWARE_SCAN_HELD"; then
+	MALWARE_SCAN_FD=$MALWARE_SCAN_HELD
+elif ! malware_scan_lock "$user"; then
 	check_result "$E_INUSE" "a malware scan of $user is running"
 fi
+unset MALWARE_SCAN_HELD
 
 dir=$(malware_dir "$user")
 id=$(malware_new_id)
@@ -80,6 +91,7 @@ while [ -e "$dir/scans/$id.json" ]; do
 done
 version=$(malware_rules_version)
 start=$(date +'%F %T')
+deadline=$(($(date +%s) + MALWARE_TIMEOUT))
 work=$(mktemp -d)
 chmod 700 "$work"
 trap 'rm -rf "$work"' EXIT
@@ -95,7 +107,7 @@ record() {
 		--argjson counts "$counts" '
 		{ ID: $id, DOMAIN: $domain, MODE: $mode, TRIGGER: $trigger, STATUS: $status,
 			START: $start, END: $end, FILES: 0, CHANGED: 0, SKIPPED: 0, ERRORS: 0,
-			FINDINGS: 0, NEW: 0, NEW_SUMMARY: [], RULES: $rules, ERROR: "" } + $counts'
+			FINDINGS: 0, NEW: 0, NEW_SUMMARY: [], TRUNCATED: false, RULES: $rules, ERROR: "" } + $counts'
 }
 malware_write "$dir/scans/$id.json" "$(record running)"
 
@@ -109,6 +121,8 @@ run="$work/run.jsonl"
 : > "$run"
 scanned=()
 problems=()
+unfinished=()
+truncated=false
 files=0
 changed=0
 skipped=0
@@ -119,8 +133,16 @@ for d in "${domains[@]}"; do
 	if [ "$mode" = 'incremental' ] && [ -f "$state" ] && [ "$(head -n 1 "$state")" = "#rules $version" ]; then
 		feed=$state
 	fi
-	malware_run_scanner "$user" "$(malware_docroot "$user" "$d")" < "$feed" > "$work/out" 2> "$work/err"
-	rc=$?
+	left=$((deadline - $(date +%s)))
+	if [ "$left" -le 0 ]; then
+		problems+=("$d: not scanned, the scan time of the user ran out")
+		unfinished+=("$d")
+		continue
+	fi
+	# Output and errors capped: a tree of many files cannot fill root's disk
+	malware_run_scanner "$user" "$(malware_docroot "$user" "$d")" "$d" "$left" < "$feed" \
+		2> >(log_cap 65536 > "$work/err") | log_cap "$MALWARE_MAX_OUTPUT" > "$work/out"
+	rc=${PIPESTATUS[0]}
 	if [ "$rc" -eq 3 ]; then
 		problems+=("$d: public_html does not exist")
 		rm -f "$state"
@@ -128,10 +150,14 @@ for d in "${domains[@]}"; do
 	fi
 	if ! tail -n 1 "$work/out" | jq -e '.t == "done"' > /dev/null 2>&1; then
 		problems+=("$d: the scan did not finish (exit code $rc)")
+		unfinished+=("$d")
 		continue
 	fi
 	scanned+=("$d")
 	jq -c --arg d "$d" 'select(.t == "file" or .t == "hit") + {d: $d}' "$work/out" >> "$run"
+	if tail -n 1 "$work/out" | jq -e '.truncated == true' > /dev/null 2>&1; then
+		truncated=true
+	fi
 	read -r f c s e < <(tail -n 1 "$work/out" | jq -r '"\(.files) \(.changed) \(.skipped) \(.errors)"')
 	files=$((files + f))
 	changed=$((changed + c))
@@ -139,19 +165,15 @@ for d in "${domains[@]}"; do
 	errors=$((errors + e))
 	{
 		echo "#rules $version"
-		jq -r 'select(.t == "file") | [.path, (.mtime | tostring), (.size | tostring), .sha256] | @tsv' "$work/out"
+		jq -r 'select(.t == "file") | [.path, (.mtime | tostring), (.size | tostring), .sha256,
+			(.ctime | tostring), (.ino | tostring)] | @tsv' "$work/out"
 	} > "$state.$$"
 	chmod 640 "$state.$$"
 	mv -f "$state.$$" "$state"
 done
 
-# Hits with their finding ids
-: > "$work/hits.jsonl"
-while IFS= read -r hit; do
-	hit_domain=$(jq -r '.d' <<< "$hit")
-	hit_path=$(jq -r '.path' <<< "$hit")
-	jq -c --arg id "$(malware_finding_id "$hit_domain" "$hit_path")" '. + {id: $id}' <<< "$hit" >> "$work/hits.jsonl"
-done < <(jq -c 'select(.t == "hit")' "$run")
+# Hits with the finding ids the scanner gave them
+jq -c 'select(.t == "hit")' "$run" > "$work/hits.jsonl"
 
 scanned_json=$(printf '%s\n' "${scanned[@]}" | jq -R . | jq -sc 'map(select(. != ""))')
 now=$(date +'%F %T')
@@ -163,7 +185,7 @@ malware_read "$user" quarantine > "$work/quarantine.json"
 jq -n --slurpfile prev "$work/prev.json" --slurpfile ignore "$work/ignore.json" \
 	--slurpfile quarantine "$work/quarantine.json" --slurpfile hits "$work/hits.jsonl" \
 	--slurpfile run "$run" --argjson scanned "$scanned_json" --arg scan "$id" --arg now "$now" '
-	{critical: 0, high: 1, medium: 2} as $rank
+	{critical: 0, high: 1, medium: 2, low: 3} as $rank
 	| ($ignore[0] | map({(.SHA256): true}) | add // {}) as $ignored
 	| ($quarantine[0] | map({"\(.DOMAIN)/\(.PATH)/\(.SHA256)": true}) | add // {}) as $quarantined
 	| ($run | map(select(.t == "file") | {"\(.d)/\(.path)": .}) | add // {}) as $files
@@ -188,15 +210,20 @@ new=$(jq '.new | length' "$work/merged.json")
 status=done
 if [ "${#scanned[@]}" -eq 0 ] && [ "${#problems[@]}" -gt 0 ]; then
 	status=failed
+elif [ "${#unfinished[@]}" -gt 0 ]; then
+	# The domains that did not finish keep the findings of their last scan
+	status=partial
 fi
 counts=$(jq -c --argjson files "$files" --argjson changed "$changed" --argjson skipped "$skipped" \
-	--argjson errors "$errors" --arg error "$(printf '%s; ' "${problems[@]}" | sed 's/; $//')" '
+	--argjson errors "$errors" --arg error "$(printf '%s; ' "${problems[@]}" | sed 's/; $//')" \
+	--argjson truncated "$truncated" '
 	{ FILES: $files, CHANGED: $changed, SKIPPED: $skipped, ERRORS: $errors,
-		FINDINGS: .scanned, NEW: (.new | length), ERROR: $error,
+		FINDINGS: .scanned, NEW: (.new | length), ERROR: $error, TRUNCATED: $truncated,
 		NEW_SUMMARY: (.new | group_by(.DOMAIN) | map({ DOMAIN: .[0].DOMAIN,
 			CRITICAL: map(select(.SEVERITY == "critical")) | length,
 			HIGH: map(select(.SEVERITY == "high")) | length,
-			MEDIUM: map(select(.SEVERITY == "medium")) | length })) }' "$work/merged.json")
+			MEDIUM: map(select(.SEVERITY == "medium")) | length,
+			LOW: map(select(.SEVERITY == "low")) | length })) }' "$work/merged.json")
 result=$(record "$status" "$(date +'%F %T')" "$counts")
 malware_write "$dir/scans/$id.json" "$result"
 
@@ -228,6 +255,8 @@ if [ "$(malware_task_get "$user" PID)" = "$$" ]; then
 	exit_code=0
 	if [ "$status" = 'failed' ]; then
 		exit_code=$E_NOTEXIST
+	elif [ "$status" = 'partial' ]; then
+		exit_code=$E_UPDATE
 	fi
 	malware_task_set "$user" "STATUS=$status" "EXIT=$exit_code" "END=$(date +'%F %T')" PID=
 fi
@@ -242,6 +271,10 @@ malware_print_object "$result" "$format"
 if [ "$status" = 'failed' ]; then
 	log_event "$E_NOTEXIST" "$ARGUMENTS"
 	exit "$E_NOTEXIST"
+fi
+if [ "$status" = 'partial' ]; then
+	log_event "$E_UPDATE" "$ARGUMENTS"
+	exit "$E_UPDATE"
 fi
 log_event "$OK" "$ARGUMENTS"
 
