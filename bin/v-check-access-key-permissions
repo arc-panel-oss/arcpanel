@@ -115,6 +115,9 @@ is_object_unsuspended 'user' 'USER' "$user"
 role="$(get_user_value '$ROLE')"
 
 # Permission sets of the key; the administrator's key without sets may run any command
+if ! access_key_file_ok "$ARCPANEL/data/access-keys/$access_key_id"; then
+	check_result "$E_FORBIDEN" "Access key $access_key_id is damaged"
+fi
 USER="" PERMISSIONS="" EXPIRES="" ALLOWED_IPS=""
 source_conf "$ARCPANEL/data/access-keys/$access_key_id"
 permissions="$PERMISSIONS"

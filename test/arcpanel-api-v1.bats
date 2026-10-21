@@ -172,6 +172,25 @@ setup() {
 	assert_output --partial "Only the admin can run this API"
 }
 
+@test "API v1 gives a user key no way to write a line break into a key file (E39 W5 L11)" {
+	local user="arcbatsv1usr" pass key id secret before
+	pass="$(head -c 18 /dev/urandom | base64 | tr -dc 'A-Za-z0-9' | head -c 20)Aa1"
+	v-add-user "$user" "$pass" "$user@example.invalid" default > /dev/null
+	key="$(new_key "$user" v2-accounts)"
+	id="$(echo "$key" | jq -r .ACCESS_KEY_ID)"
+	secret="$(echo "$key" | jq -r .SECRET_ACCESS_KEY)"
+	before="$(ls /usr/local/arcpanel/data/access-keys | wc -l)"
+
+	run v1_post "$id" "$secret" v-add-access-key "$user" v2-read $'ab\nUSER '"$ROOT_USER"$'\nPERMISSIONS\nzz' json
+	refute_output --partial '"ACCESS_KEY_ID"'
+	assert_equal "$(ls /usr/local/arcpanel/data/access-keys | wc -l)" "$before"
+	run grep -lc "^USER='$ROOT_USER'" $(grep -l "^USER='$user'" /usr/local/arcpanel/data/access-keys/* 2> /dev/null) /dev/null
+	refute_output --partial "/data/access-keys/"
+
+	v-delete-access-key "$id" > /dev/null 2>&1
+	v-delete-user "$user" > /dev/null 2>&1 || true
+}
+
 @test "v-change-sys-api switches keys and refuses unknown versions" {
 	run v-change-sys-api enable v1
 	assert_success

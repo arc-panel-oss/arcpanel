@@ -18,7 +18,7 @@ final class CreateAccessKeyRequest extends ApiRequest
             'permissions' => ['present', 'array', 'list', 'max:50'],
             'permissions.*' => ['string', 'distinct', 'max:64', 'regex:/^[A-Za-z0-9][A-Za-z0-9_.-]*$/'],
             /** A note for the key, at most 255 characters. */
-            'comment' => ['nullable', 'string', 'max:255', 'not_regex:/[\'"\\\\]/'],
+            'comment' => ['nullable', 'string', 'max:255', 'not_regex:/[\'"\\\\[:cntrl:]]/'],
             /** IPv4 or IPv6 addresses or CIDR networks the key is limited to, at most 20; empty or absent means any address. Set once: a different list means a new key. */
             'allowed_ips' => ['sometimes', 'nullable', 'array', 'list', 'max:'.AccessKeyRestrictions::MAX_IPS],
             'allowed_ips.*' => ['string', 'distinct', 'max:43', AccessKeyRestrictions::addressRule()],
