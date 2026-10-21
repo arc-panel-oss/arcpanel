@@ -143,3 +143,24 @@ teardown_file() {
 	[ -f "$ARCPANEL/data/access-keys/$good" ] || fail "a good key was moved"
 	rm -f "$ARCPANEL/data/access-keys/.quarantine/$bad"
 }
+
+@test "A key with an address list or an expiry cannot create keys over API v1 (E39 W5 N27)" {
+	local key id secret ids=()
+	for args in "127.0.0.1|" "|$(($(date +%s) + 86400))"; do
+		key="$(v-add-access-key "$ROOT_USER" '' keys-bats "${args%%|*}" "${args#*|}" json)"
+		id="$(echo "$key" | jq -r .ACCESS_KEY_ID)"
+		secret="$(echo "$key" | jq -r .SECRET_ACCESS_KEY)"
+		ids+=("$id")
+		run v-check-access-key "$id" "$secret" v-add-access-key 127.0.0.1 json
+		assert_failure 10
+		run v-check-access-key "$id" "$secret" v-list-users 127.0.0.1 json
+		assert_success
+	done
+	key="$(v-add-access-key "$ROOT_USER" '' keys-bats json)"
+	ids+=("$(echo "$key" | jq -r .ACCESS_KEY_ID)")
+	run v-check-access-key "${ids[2]}" "$(echo "$key" | jq -r .SECRET_ACCESS_KEY)" v-add-access-key 127.0.0.1 json
+	assert_success
+	for id in "${ids[@]}"; do
+		v-delete-access-key "$id" > /dev/null
+	done
+}

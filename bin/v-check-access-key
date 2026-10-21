@@ -89,6 +89,11 @@ is_format_valid 'secret_access_key'
 check_access_key_secret "$access_key_id" "$secret_access_key" user
 check_access_key_restrictions "$access_key_id" "$ip46" "$E_FORBIDEN" "IP is not allowed to connect with API"
 check_access_key_cmd "$access_key_id" "$arc_command" user_arg_pos
+# API v1 cannot pass a key's restrictions on to the keys it creates, so a
+# restricted key creates none there (E39 W5 N27)
+if [ "$arc_command" = 'v-add-access-key' ] && { [ -n "$ALLOWED_IPS" ] || [ -n "$EXPIRES" ]; }; then
+	check_result "$E_FORBIDEN" "A key with an address list or an expiry cannot create keys over API v1"
+fi
 
 # Check if key owner is active
 is_format_valid 'user'
