@@ -415,6 +415,11 @@ upd_next_window() {
 	done
 }
 
+# Whether an update to VERSION was rolled back on this server
+upd_rolled_back() {
+	grep "RESULT='rolled-back'" "$UPD_DIR/history.conf" 2> /dev/null | grep -qF "TO='$1' "
+}
+
 # Why the policy would not install the release JSON now, or nothing when it
 # would (§7.2). AVAILABLE is yes or no.
 upd_release_reason() {
@@ -434,6 +439,9 @@ upd_release_reason() {
 		echo "min_from $min_from"
 	elif [ "$available" != yes ]; then
 		echo 'not available'
+	elif upd_rolled_back "$version"; then
+		# Not again every hour of the window after a failed health check
+		echo 'rolled back'
 	elif [ "$(upd_policy_get UPDATE_POLICY)" != patch ]; then
 		echo policy
 	elif [ -n "$(upd_policy_get UPDATE_PAUSED)" ]; then

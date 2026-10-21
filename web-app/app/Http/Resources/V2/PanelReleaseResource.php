@@ -49,7 +49,7 @@ final class PanelReleaseResource extends JsonResource
             'available' => ($row['AVAILABLE'] ?? false) === true,
             /** @var bool the update policy would install the release now */
             'eligible' => ($row['ELIGIBLE'] ?? false) === true,
-            /** @var string|null why the policy does not install it: `attention`, `withdrawn`, `delay until <date>`, `outside window`, `paused`, `min_from <version>`, `policy` or `not available` */
+            /** @var string|null why the policy does not install it: `attention`, `withdrawn`, `delay until <date>`, `outside window`, `paused`, `min_from <version>`, `policy`, `not available` or `rolled back` (an update to it was rolled back on this server) */
             'reason' => is_string($row['REASON'] ?? null) && $row['REASON'] !== '' ? $row['REASON'] : null,
         ];
     }

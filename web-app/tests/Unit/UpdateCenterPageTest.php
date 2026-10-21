@@ -36,6 +36,7 @@ it('explains why a release is or is not installed on its own', function (array $
     'min_from' => [['REASON' => 'min_from 2.5.1'], [], null, 'Needs 2.5.1 or newer first. Update to 2.5.1, then to this release.'],
     'paused' => [['REASON' => 'paused'], [], null, 'Automatic updates are paused. Resume them, or install it by hand.'],
     'not available' => [['REASON' => 'not available'], [], null, 'Not in the APT repository for this server yet.'],
+    'rolled back' => [['REASON' => 'rolled back'], [], 'warn', 'Rolled back on this server after a failed update. It will not be installed on its own; install it by hand.'],
     'notify' => [['REASON' => 'policy'], ['policy' => 'notify'], null, 'The policy is Notify only. Install it by hand.'],
     'off' => [['REASON' => 'policy'], ['policy' => 'off', 'nextWindow' => null], null, 'Automatic updates are off. Install it by hand.'],
 ]);

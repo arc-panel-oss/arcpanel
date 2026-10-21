@@ -130,6 +130,7 @@ final class UpdateCenterPage
                 : __('Outside the update window.')],
             'paused' => ['tone' => null, 'icon' => 'pause', 'text' => __('Automatic updates are paused. Resume them, or install it by hand.')],
             'not available' => ['tone' => null, 'icon' => 'package', 'text' => __('Not in the APT repository for this server yet.')],
+            'rolled back' => ['tone' => 'warn', 'icon' => 'alert', 'text' => __('Rolled back on this server after a failed update. It will not be installed on its own; install it by hand.')],
             default => ['tone' => null, 'icon' => 'bell', 'text' => match ($this->policy['policy']) {
                 'off' => __('Automatic updates are off. Install it by hand.'),
                 'notify' => __('The policy is Notify only. Install it by hand.'),

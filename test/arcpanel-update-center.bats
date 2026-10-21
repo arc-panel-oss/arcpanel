@@ -230,6 +230,13 @@ fails() {
 	assert_output 'min_from 2.5.1'
 	run reason 2.5.1 2026-11-01 '' no
 	assert_output 'not available'
+	# A release rolled back on this server is not installed on its own again
+	echo "ID='3' FROM='2.5.0' TO='2.5.1' TRIGGER='policy' ACTOR='policy' START='' END='' RESULT='rolled-back' REASON='panel' TASK=''" > "$UPD_DIR/history.conf"
+	run reason 2.5.1 2026-11-01
+	assert_output 'rolled back'
+	run reason 2.5.2 2026-11-01
+	assert_output ''
+	rm "$UPD_DIR/history.conf"
 	run reason 2.5.1 2026-11-09
 	assert_output 'delay until 2026-11-11'
 	run reason 2.5.1 2026-11-09 '.security = true'

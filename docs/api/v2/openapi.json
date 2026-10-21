@@ -36498,7 +36498,7 @@
                             "string",
                             "null"
                         ],
-                        "description": "why the policy does not install it: `attention`, `withdrawn`, `delay until <date>`, `outside window`, `paused`, `min_from <version>`, `policy` or `not available`"
+                        "description": "why the policy does not install it: `attention`, `withdrawn`, `delay until <date>`, `outside window`, `paused`, `min_from <version>`, `policy`, `not available` or `rolled back` (an update to it was rolled back on this server)"
                     }
                 },
                 "required": [

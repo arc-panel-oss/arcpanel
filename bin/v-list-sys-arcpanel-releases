@@ -13,7 +13,8 @@
 # manifest and KIND (patch, minor, major), AVAILABLE (APT offers it here),
 # ELIGIBLE (the update policy would install it now) and REASON when not
 # (attention, withdrawn, delay until <date>, outside window, paused,
-# min_from <version>, policy, not available).
+# min_from <version>, policy, not available, rolled back: an update to it was
+# rolled back on this server).
 
 #----------------------------------------------------------#
 #                Variables & Functions                     #
