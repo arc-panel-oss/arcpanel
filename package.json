@@ -9,16 +9,18 @@
 	"packageManager": "npm@11.19.1",
 	"scripts": {
 		"build": "node build.js",
-		"lint": "prettier --cache --check . && biome lint . && markdownlint-cli2 *.md docs/**/*.md",
+		"lint": "prettier --cache --check . && biome lint . && markdownlint-cli2 *.md docs/**/*.md changelog/**/*.md",
 		"lint-staged": "lint-staged",
 		"format": "prettier --cache --write .",
 		"preinstall": "npx only-allow npm",
 		"prepare": "husky",
 		"dev": "node build.js --watch",
 		"test:js": "vitest run --config web-app/vitest.config.js",
+		"test:release": "vitest run --config scripts/vitest.config.js",
 		"test:e2e": "playwright test --config test/e2e/playwright.config.js",
 		"docs:api": "node scripts/build-openapi.js",
-		"docs:api:check": "node scripts/build-openapi.js --check"
+		"docs:api:check": "node scripts/build-openapi.js --check",
+		"release": "node scripts/release.mjs"
 	},
 	"dependencies": {
 		"@alpinejs/collapse": "^3.17.3",

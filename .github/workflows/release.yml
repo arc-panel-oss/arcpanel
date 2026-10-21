@@ -6,6 +6,7 @@ name: Release
 # Tag naming follows src/deb/arcpanel/control:
 #   Version 2.3.0         -> tag v2.3.0         -> stable repository  https://apt.arcpanel.top/
 #   Version 2.3.0~beta.1  -> tag v2.3.0-beta.1  -> beta repository    https://apt.arcpanel.top/beta/
+#   Version 2.3.0~rc.1    -> tag v2.3.0-rc.1    -> beta repository    https://apt.arcpanel.top/beta/
 #
 # Every tag sits on its release line branch vX.Y.x; after a stable release the release and
 # master branches move forward to the tag (docs/operations/releasing.md, release-branches.sh).
@@ -49,23 +50,19 @@ jobs:
       - name: Check that the tag is on its release line
         run: bash .github/scripts/release-branches.sh check "${GITHUB_REF_NAME}"
 
+      - name: Setup Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "22"
+
       - name: Compare tag, package and installer versions
         id: version
         run: |
           set -euo pipefail
+          # The control file, both installers, src/release.json and the tag agree
+          # (docs/features/specs/2026-10-21-001-release-standards-design.md §7.2)
+          npm run release -- check --tag "${GITHUB_REF_NAME}"
           pkg_ver="$(awk '/^Version:/ {print $2}' src/deb/arcpanel/control)"
-          expected_tag="v${pkg_ver//\~/-}"
-          if [ "${GITHUB_REF_NAME}" != "${expected_tag}" ]; then
-            echo "::error::Tag ${GITHUB_REF_NAME} does not match src/deb/arcpanel/control Version ${pkg_ver} (expected ${expected_tag})"
-            exit 1
-          fi
-          for installer in install/arcpanel-install-debian.sh install/arcpanel-install-ubuntu.sh; do
-            inst_ver="$(grep "^ARCPANEL_INSTALL_VER=" "$installer" | cut -d"'" -f2)"
-            if [ "${inst_ver}" != "${pkg_ver}" ]; then
-              echo "::error::${installer} ARCPANEL_INSTALL_VER=${inst_ver} does not match package Version ${pkg_ver}"
-              exit 1
-            fi
-          done
           # The release metadata of the manifest (E33 phase 1 spec §4)
           bash .github/scripts/release-manifest.sh check src/release.json "${pkg_ver}"
           # A pre-release builds Ubuntu 24.04 amd64 only, to save Actions minutes; a stable release builds them all.
@@ -103,6 +100,16 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "22"
+
+      - name: Write the release notes from the changelog
+        # A stable release: changelog/X.Y.Z.md; a pre-release: the fragments of its line
+        # (docs/features/specs/2026-10-21-001-release-standards-design.md §5.6)
+        run: node scripts/release.mjs changelog notes "${GITHUB_REF_NAME}" > release-notes.md
 
       - name: Download packages
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
@@ -197,7 +204,7 @@ jobs:
             prerelease=()
             [ "$CHANNEL" = beta ] && prerelease=(--prerelease)
             gh release create "${GITHUB_REF_NAME}" --verify-tag --title "ArcPanel ${GITHUB_REF_NAME#v}" \
-              --notes "Packages of ArcPanel ${GITHUB_REF_NAME#v} as published to the ${CHANNEL} APT repository." "${prerelease[@]}"
+              --notes-file release-notes.md "${prerelease[@]}"
           fi
           gh release upload "${GITHUB_REF_NAME}" assets/*.tar repo/releases.json repo/releases.json.sig --clobber
 
