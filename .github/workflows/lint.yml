@@ -3,8 +3,10 @@ name: Lint
 on:
   pull_request:
   push:
+    # develop and the release lines (docs/features/specs/2026-10-21-001-release-standards-design.md D9)
     branches:
-      - main
+      - develop
+      - "v*.x"
 
 permissions:
   contents: read
@@ -202,6 +204,20 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           submodules: recursive
+
+      - name: Setup Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "22"
+
+      - name: Install Node packages
+        run: npm ci --ignore-scripts
+
+      - name: Test the release tool
+        run: npm run test:release
+
+      - name: Check the versions of this line
+        run: npm run release -- check
 
       - name: Test the build, installer and APT repository scripts (E47)
         run: test/test_helper/bats-core/bin/bats test/arcpanel-arm64.bats
