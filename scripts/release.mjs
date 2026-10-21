@@ -10,6 +10,7 @@
 //                       creates a fragment in changelog/unreleased/
 //   changelog build     writes CHANGELOG.md from changelog/header.md and the release files
 //   changelog preview   prints the next release section from the fragments
+//   changelog notes TAG prints the GitHub Release notes of a tag
 //
 // The tool never commits, tags or pushes. No dependencies, Node.js 22.
 // RELEASE_ROOT replaces the repository root and RELEASE_BRANCH the current branch (tests).
@@ -602,6 +603,66 @@ function today() {
 	return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
 }
 
+// The attention items of the release of a tag: src/release.json when it describes that version,
+// else the file at the tag
+function attentionItems(root, tag, version) {
+	let metadata = readMetadata(root);
+	if (metadata.version !== version) {
+		try {
+			metadata = JSON.parse(
+				execFileSync('git', ['show', `${tag}:${FILES.metadata}`], {
+					cwd: root,
+					encoding: 'utf8',
+					stdio: ['ignore', 'pipe', 'ignore'],
+				}),
+			);
+		} catch {
+			return [];
+		}
+	}
+	return metadata.version === version && Array.isArray(metadata.attention_items)
+		? metadata.attention_items
+		: [];
+}
+
+// The notes of a GitHub Release (spec §5.6): a stable release from its release file, a beta or a
+// release candidate from the fragments of its line
+export function releaseNotes(root, tag) {
+	const match = /^v(\d+\.\d+\.\d+)(?:-((?:beta|rc)\.[1-9]\d*))?$/.exec(tag);
+	if (!match) {
+		throw new ReleaseError(`${tag} is not vX.Y.Z, vX.Y.Z-beta.N or vX.Y.Z-rc.N`);
+	}
+	const [, base, pre] = match;
+	const parts = [];
+	if (!pre) {
+		const file = `${FILES.changelog}/${base}.md`;
+		if (!existsSync(join(root, file))) {
+			throw new ReleaseError(`${file} does not exist`);
+		}
+		parts.push(
+			lf(read(root, file))
+				.trim()
+				.replace(/^## [^\n]*\n+/, ''),
+		);
+		const items = attentionItems(root, tag, base);
+		if (items.length) {
+			parts.push(`**Before you update:** ${items.join(' ')}`);
+		}
+		parts.push(
+			`Full changelog: https://github.com/arc-panel-oss/arcpanel/blob/${tag}/${FILES.built}`,
+		);
+	} else {
+		const { major, minor, patch } = parseVersion(base);
+		const previous =
+			patch > 0
+				? `${major}.${minor}.${patch - 1}`
+				: `the ${minor > 0 ? `${major}.${minor - 1}` : `${major - 1}.x`} line`;
+		const body = sectionBody(fragmentsOrFail(root));
+		parts.push(`Changes since ${previous}:`, body || 'No changes listed yet.');
+	}
+	return `${parts.join('\n\n')}\n`;
+}
+
 export function writeChangelog(root) {
 	writeFileSync(join(root, FILES.built), buildChangelog(root));
 }
@@ -734,8 +795,11 @@ function changelog(root, args, out) {
 			);
 			return 0;
 		}
+		case 'notes':
+			out.log(releaseNotes(root, single(rest, 'changelog notes TAG')).trimEnd());
+			return 0;
 		default:
-			throw new ReleaseError('usage: changelog new|build|preview …');
+			throw new ReleaseError('usage: changelog new|build|preview|notes …');
 	}
 }
 

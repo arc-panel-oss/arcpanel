@@ -11,7 +11,14 @@ import {
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { compareVersions, parseFragment, run, runChecks, writeChangelog } from './release.mjs';
+import {
+	compareVersions,
+	parseFragment,
+	releaseNotes,
+	run,
+	runChecks,
+	writeChangelog,
+} from './release.mjs';
 
 let root;
 
@@ -581,5 +588,71 @@ describe('cut', () => {
 
 	it('refuses a bad date', () => {
 		expect(tool('cut', '--date', '28.10.2026').output).toContain('is not YYYY-MM-DD');
+	});
+});
+
+describe('release notes', () => {
+	beforeEach(() => {
+		write(
+			'changelog/2.2.2.md',
+			'## 2.2.2 — 2026-10-20\n\nUpdates that stay on the line.\n\n### Fixed\n\n- A fix.\n',
+		);
+		fragment('e40-firewall', 'type: added', '- IPv6 in the firewall.');
+		fragment('e40-fix', 'type: fixed', '- A fix of 2.3.');
+	});
+
+	it('prints a stable release from its file with a link to the changelog', () => {
+		expect(releaseNotes(root, 'v2.2.2')).toBe(
+			[
+				'Updates that stay on the line.',
+				'',
+				'### Fixed',
+				'',
+				'- A fix.',
+				'',
+				'Full changelog: https://github.com/arc-panel-oss/arcpanel/blob/v2.2.2/CHANGELOG.md',
+				'',
+			].join('\n'),
+		);
+	});
+
+	it('adds the attention items of the release', () => {
+		write('changelog/2.3.0.md', '## 2.3.0 — 2026-10-28\n\n### Added\n\n- IPv6.\n');
+		setVersions('2.3.0');
+		setMetadata({ attention: true, attention_items: ['The firewall moves.', 'Check it.'] });
+		expect(releaseNotes(root, 'v2.3.0')).toContain(
+			'- IPv6.\n\n**Before you update:** The firewall moves. Check it.\n\nFull changelog:',
+		);
+	});
+
+	it('prints a beta of a .0 from the fragments of the line', () => {
+		const result = tool('changelog', 'notes', 'v2.3.0-beta.1');
+		expect(result.code).toBe(0);
+		expect(result.output).toBe(
+			[
+				'Changes since the 2.2 line:',
+				'',
+				'### Added',
+				'',
+				'- IPv6 in the firewall.',
+				'',
+				'### Fixed',
+				'',
+				'- A fix of 2.3.',
+			].join('\n'),
+		);
+	});
+
+	it('prints a release candidate of a patch since the previous patch', () => {
+		expect(releaseNotes(root, 'v2.3.2-rc.1')).toMatch(/^Changes since 2\.3\.1:\n\n### Added/);
+		expect(releaseNotes(root, 'v3.0.0-rc.1')).toMatch(/^Changes since the 2\.x line:/);
+	});
+
+	it('refuses a tag without a release file or of another form', () => {
+		expect(tool('changelog', 'notes', 'v2.3.0').output).toContain(
+			'changelog/2.3.0.md does not exist',
+		);
+		expect(tool('changelog', 'notes', 'v2.3.0-alpha').output).toContain('is not vX.Y.Z');
+		expect(tool('changelog', 'notes').code).toBe(1);
 	});
 });
