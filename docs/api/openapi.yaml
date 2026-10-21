@@ -465,7 +465,10 @@ paths:
       summary: Add cron job for arcpanel automatic updates
       description: |-
         This function adds a cronjob for arcpanel automatic updates
-        that can be downloaded from apt or git.
+        that can be downloaded from apt or git. The apt line runs
+        v-update-sys-arcpanel-all auto at a random night time; an existing apt line
+        is brought to that form (docs/features/specs/2026-10-20-005-e33-update-center-phase-1-design.md
+        §6): auto is added, and the fixed time 41 4 of older installs is replaced.
 
         **Arguments**
 
@@ -37057,14 +37060,18 @@ paths:
         - System
       summary: Update arcpanel package/configs
       description: |-
-        This function runs as apt update trigger. It pulls shell script from arcpanel
-        server and runs it. (arcpanel, arcpanel-nginx and arcpanel-php are valid options)
+        This function installs the newest version of an ArcPanel package from the
+        ArcPanel APT repository, or VERSION when given (the repository keeps every
+        version, docs/features/specs/2026-10-20-005-e33-update-center-phase-1-design.md
+        §6). Valid packages: arcpanel, arcpanel-nginx, arcpanel-php and
+        arcpanel-web-terminal. The output of apt-get is printed.
 
         **Arguments**
 
         | Field | Option | Required |
         | --- | --- | --- |
         | `arg1` | `PACKAGE` | yes |
+        | `arg2` | `VERSION` | no |
       requestBody:
         required: true
         content:
@@ -37101,9 +37108,20 @@ paths:
         - System
       summary: Update all arcpanel packages
       description: |-
-        This function of updating all arcpanel packages
+        This function updates every ArcPanel package to its newest version. With the
+        mode auto, which the automatic update cron line uses, it stays on the
+        installed release line X.Y (docs/features/specs/2026-10-20-005-e33-update-center-phase-1-design.md
+        §6): it installs the newest patch release of that line, updates the engine
+        packages only while no newer line is available, and announces a newer line
+        to the administrator once per version (panel notification and, with
+        UPGRADE_SEND_EMAIL, an e-mail). In auto mode the output goes to
+        $ARCPANEL/log/autoupdate.log and only an error is printed.
 
-        **Arguments:** none.
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `MODE` | no |
       requestBody:
         required: true
         content:
@@ -63162,6 +63180,12 @@ components:
               description: "`PACKAGE`"
               examples:
                 - arcpanel-php
+            arg2:
+              type: string
+              title: VERSION
+              description: "`VERSION`, optional"
+              examples:
+                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-update-sys-arcpanel-all:
@@ -63176,6 +63200,12 @@ components:
               enum:
                 - v-update-sys-arcpanel-all
               default: v-update-sys-arcpanel-all
+            arg1:
+              type: string
+              title: MODE
+              description: "`MODE`, optional"
+              examples:
+                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-update-sys-arcpanel-git:
