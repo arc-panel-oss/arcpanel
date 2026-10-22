@@ -1264,6 +1264,35 @@ appproc_task_conf() {
 	echo "$ARCPANEL/data/users/$1/app-process-task.conf"
 }
 
+# The transient unit that runs USER's one-off task (E39 W5 N24)
+appproc_task_unit() {
+	echo "arcpanel-app-task-$1.service"
+}
+
+# The unit properties of a task of USER's record ID, one -p argument pair per
+# line: the memory, CPU and task limits of the process, its sandbox and port
+# rules, and the task timeout
+appproc_task_properties() {
+	local user="$1" id="$2" line hundredths range
+	line=$(appproc_line "$user" "$id")
+	hundredths=$(appproc_cpus_hundredths "$(appproc_field "$line" CPUS)") || hundredths=100
+	printf -- '-p\n%s\n' "MemoryMax=$(appproc_field "$line" MEMORY)M" MemorySwapMax=0 "CPUQuota=${hundredths}%" \
+		"TasksMax=$APPPROC_TASKS_MAX" "RuntimeMaxSec=$APPPROC_TASK_TIMEOUT" Nice=10 KillMode=control-group \
+		NoNewPrivileges=yes PrivateTmp=yes ProtectSystem=full ProtectKernelTunables=yes ProtectKernelModules=yes \
+		ProtectControlGroups=yes RestrictSUIDSGID=yes
+	if [ "$PORT_REGISTRY" != 'no' ]; then
+		for range in $(appproc_bind_ranges "$user"); do
+			printf -- '-p\n%s\n' "SocketBindAllow=$range"
+		done
+		printf -- '-p\n%s\n' SocketBindDeny=any
+	fi
+}
+
+# Stop the one-off task of USER with every process it started
+appproc_task_stop() {
+	systemctl stop "$(appproc_task_unit "$1")" > /dev/null 2>&1 || true
+}
+
 appproc_task_get() {
 	local file
 	file=$(appproc_task_conf "$1")
