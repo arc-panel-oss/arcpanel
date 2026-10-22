@@ -12,7 +12,7 @@
     // No DNS or mail card on a server without them, unless the backup holds some
     $sections = array_filter($sections, fn ($type) => ($systems[$type] ?? true) || $archive->items[$type] !== [], ARRAY_FILTER_USE_KEY);
 @endphp
-<x-ap-page :title="$archive->name" :crumbs="[['label' => __('Backups'), 'url' => route('backups.archives.index', ['user' => $user])], ['label' => $archive->name]]"
+<x-ap-page :title="$archive->name" :crumbs="[['label' => __('Backups'), 'url' => route('backups.overview', ['user' => $user])], ['label' => __('Archives'), 'url' => route('backups.archives.index', ['user' => $user])], ['label' => $archive->name]]"
     :eyebrow="__('Owner').': '.$user.' · '.$archive->date.' '.$archive->time">
     <x-slot:actions>
         @if ($can['download'])

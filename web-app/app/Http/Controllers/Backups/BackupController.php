@@ -11,6 +11,7 @@ use App\Policies\BackupPolicy;
 use App\Services\Backups\BackupArchive;
 use App\Services\Backups\BackupPaths;
 use App\Services\Backups\BackupService;
+use App\Services\Backups\JobService;
 use App\Services\Support\OwnerList;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -33,27 +34,49 @@ final class BackupController extends Controller
     /** /backups: the effective account, or the owner picked by an administrator or reseller. */
     public function entry(Request $request, OwnerList $owners): RedirectResponse
     {
-        return redirect()->route('backups.archives.index', ['user' => $owners->forCreate($request->query('owner'))]);
+        return redirect()->route('backups.overview', ['user' => $owners->forCreate($request->query('owner'))]);
     }
 
-    public function index(string $user, Principal $principal, BackupPolicy $policy, OwnerList $owners): View
+    public function index(Request $request, string $user, Principal $principal, BackupPolicy $policy, OwnerList $owners, JobService $jobs): View
     {
         abort_unless($policy->view($principal, $user), 403);
+        $archives = $this->backups->archives($user);
+        $destinations = array_values(array_unique(array_merge([], ...array_map(fn (BackupArchive $a) => $a->destinations, $archives))));
+        sort($destinations);
+        // The filter by destination (E48 spec §8.1)
+        $destination = (string) $request->query('destination', '');
+        if ($destination !== '') {
+            $archives = array_values(array_filter($archives, fn (BackupArchive $a) => in_array($destination, $a->destinations, true)));
+        }
 
         return view('backups.index', [
             ...$this->page($user, $principal, $policy, $owners),
-            'archives' => $this->backups->archives($user),
+            'archives' => $archives,
+            'destinations' => $destinations,
+            'destination' => in_array($destination, $destinations, true) ? $destination : '',
+            'jobNames' => array_map(fn ($job) => $job->name, $jobs->all()),
         ]);
     }
 
-    /** "Create backup": queued, the user gets an e-mail when it is done. */
-    public function store(string $user, Principal $principal, BackupPolicy $policy): RedirectResponse
+    /**
+     * "Create backup": queued, the user gets an e-mail when it is done. JOB
+     * picks one of the archive jobs that cover the account (E48 spec §8.1).
+     */
+    public function store(Request $request, string $user, Principal $principal, BackupPolicy $policy, JobService $jobs): RedirectResponse
     {
         abort_unless($policy->create($principal, $user), 403);
+        $job = (string) $request->input('job', '');
+        if ($job !== '') {
+            $package = $this->backups->settings($user)['package'];
+            $ids = array_map(fn ($covering) => $covering->id, array_filter($jobs->covering($user, $package), fn ($covering) => $covering->engine === 'archive'));
+            abort_unless(in_array($job, $ids, true), 404);
+        }
 
         return $this->queued(
-            $this->backups->schedule($user),
-            redirect()->route('backups.archives.index', ['user' => $user]),
+            $this->backups->schedule($user, 'shell', $job),
+            $request->input('from') === 'overview'
+                ? redirect()->route('backups.overview', ['user' => $user])
+                : redirect()->route('backups.archives.index', ['user' => $user]),
             __('Task has been added to the queue. You will receive an email notification when your backup is ready for download.'),
             __('An existing backup task is already running, please wait for it to complete.'),
         );
@@ -79,6 +102,14 @@ final class BackupController extends Controller
             'items.*.*' => ['string', 'max:255', 'regex:/^[^,\s\'"]+$/'],
         ]);
         $archive = $this->backups->archive($user, $backup);
+        // The restore wizard (E48) restores everything unless mode is "some", and then something must be picked
+        if ($request->boolean('wizard')) {
+            if ($request->input('mode') !== 'some') {
+                $data['items'] = [];
+            } elseif (empty($data['items'])) {
+                return redirect()->route('backups.restore', ['user' => $user, 'archive' => $backup])->with('error', __('No items were selected to restore.'));
+            }
+        }
 
         $selection = null;
         if (! empty($data['items'])) {
@@ -96,7 +127,10 @@ final class BackupController extends Controller
 
         return $this->queued(
             $this->backups->restore($user, $backup, $selection),
-            redirect()->route('backups.archives.show', ['user' => $user, 'backup' => $backup]),
+            // The restore wizard (E48) comes back to itself
+            $request->boolean('wizard')
+                ? redirect()->route('backups.restore', ['user' => $user, 'archive' => $backup])
+                : redirect()->route('backups.archives.show', ['user' => $user, 'backup' => $backup]),
             __('Task has been added to the queue. You will receive an email notification when your restore has been completed.'),
             __('An existing restoration task is already running. Please wait for it to finish before launching it again.'),
         );
@@ -188,7 +222,7 @@ final class BackupController extends Controller
         return [
             'user' => $user,
             'owners' => $owners->pickable(),
-            'can' => $policy->abilities($principal, $user),
+            'can' => $policy->abilities($principal, $user) + ['history' => $policy->viewHistory($principal, $user)],
             'incremental' => $settings['incremental'],
             'limit' => $settings['backups'],
             // DNS and mail sections of a backup are shown when the server runs them or the backup holds some

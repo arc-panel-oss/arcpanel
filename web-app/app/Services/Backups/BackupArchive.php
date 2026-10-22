@@ -12,6 +12,7 @@ final class BackupArchive
 
     /**
      * @param  array<string, list<string>>  $items  type => objects (web domains, databases …)
+     * @param  list<string>  $destinations  backup destinations that hold the archive (E48)
      */
     public function __construct(
         public readonly string $user,
@@ -22,6 +23,9 @@ final class BackupArchive
         public readonly int $runtime,
         public readonly string $date,
         public readonly string $time,
+        public readonly string $job = '',
+        public readonly array $destinations = [],
+        public readonly bool $encrypted = false,
     ) {}
 
     /** @param  array<string, mixed>  $row */
@@ -42,6 +46,10 @@ final class BackupArchive
             runtime: (int) $value('RUNTIME'),
             date: $value('DATE'),
             time: $value('TIME'),
+            // E48: the job that made it, the destinations that hold it (TYPE before E48)
+            job: $value('JOB'),
+            destinations: array_values(array_filter(explode(',', $value('DESTINATIONS') !== '' ? $value('DESTINATIONS') : $value('TYPE')), fn ($v) => $v !== '')),
+            encrypted: $value('ENCRYPTED') === 'yes',
         );
     }
 

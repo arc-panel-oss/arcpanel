@@ -2,8 +2,8 @@
     Multi-step form (apWizard). steps: list of step titles; the slot holds one
     <fieldset data-step> per step. Without JavaScript all steps show at once.
 --}}
-@props(['steps' => [], 'submitLabel' => null])
-<div {{ $attributes->merge(['class' => 'ap-wizard']) }} x-data="apWizard()">
+@props(['steps' => [], 'submitLabel' => null, 'start' => 0])
+<div {{ $attributes->merge(['class' => 'ap-wizard']) }} x-data="{{ (int) $start > 0 ? 'apWizard({ start: '.(int) $start.' })' : 'apWizard()' }}">
     <ol class="ap-steps">
         @foreach ($steps as $index => $title)
             <li x-bind:class="{ 'is-done': step > {{ $index }}, 'is-current': step === {{ $index }} }" x-bind:aria-current="step === {{ $index }} ? 'step' : null">

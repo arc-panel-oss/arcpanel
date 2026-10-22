@@ -559,7 +559,37 @@ function fakeBackupData(ArcCommandFake $fake): void
     $fake->on('v-list-user-backup-exclusions')->returnsJson([
         'WEB' => ['example.com' => 'public_html/cache'], 'DNS' => ['example.com' => ''], 'MAIL' => [], 'DB' => [], 'CRON' => ['*' => ''], 'USER' => ['tmp' => '', 'apps/kuma' => ''],
     ]);
+    // E48: the jobs and destinations of the server, the runs of bob, the records the exclusions pick from
+    $fake->on('v-list-backup-jobs', ['json'])->returnsJson([
+        '179267621466' => ['ID' => '179267621466', 'NAME' => 'Nightly archives', 'ENGINE' => 'archive', 'SCOPE' => 'all', 'EXCLUDE_USERS' => '', 'SCHEDULE' => 'daily:05:10',
+            'TARGETS' => 'local:-1:-1:-1:-1:-1,offsite:-1:-1:-1:-1:-1', 'STATE' => 'enabled', 'NEXT_RUN' => '2026-10-23 05:10:00', 'LAST_STATUS' => 'success', 'RUNNING' => 'no'],
+        '179267621499' => ['ID' => '179267621499', 'NAME' => 'Hourly snapshots', 'ENGINE' => 'snapshot', 'SCOPE' => 'users:bob', 'EXCLUDE_USERS' => '', 'SCHEDULE' => 'hourly:15',
+            'TARGETS' => 'offsite:24:7:-1:-1:-1', 'STATE' => 'enabled', 'NEXT_RUN' => '2026-10-22 23:15:00', 'LAST_STATUS' => '', 'RUNNING' => 'no'],
+    ]);
+    $fake->on('v-list-backup-destinations', ['json'])->returnsJson([
+        'local' => ['NAME' => 'local', 'DRIVER' => 'local', 'ENCRYPT' => 'no', 'PATH' => '/backup', 'STATE' => 'ok', 'SECRETS' => '', 'JOBS' => '179267621466'],
+        'offsite' => ['NAME' => 'offsite', 'DRIVER' => 's3', 'ENCRYPT' => 'yes', 'BUCKET' => 'secret-bucket-name', 'PATH' => 'server1', 'STATE' => 'ok', 'SECRETS' => 'SECRET_ACCESS_KEY',
+            'JOBS' => '179267621466,179267621499'],
+        'unused' => ['NAME' => 'unused', 'DRIVER' => 'sftp', 'ENCRYPT' => 'no', 'HOST' => 'unused.example.net', 'STATE' => 'ok', 'SECRETS' => 'PASSWORD', 'JOBS' => ''],
+    ]);
+    $fake->on('v-list-user-backup-runs')->using(fn (array $a) => [0, (string) json_encode((object) ($a[0] === 'bob' ? [
+        '17926789981107' => ['ENGINE' => 'tar', 'TRIGGER' => 'schedule', 'TASK' => '', 'STATUS' => 'succeeded', 'START' => '2026-10-22 05:10:02', 'END' => '2026-10-22 05:13:20',
+            'EXIT' => '0', 'ERROR' => '', 'ARCHIVE' => BK_ARCHIVE_NAME, 'SIZE' => '412', 'PID' => '', 'JOB' => '179267621466', 'DESTS' => 'local:ok,offsite:failed'],
+        '17926000000001' => ['ENGINE' => 'tar', 'TRIGGER' => 'request', 'TASK' => '17926000000001', 'STATUS' => 'failed', 'START' => '2026-10-21 10:00:00', 'END' => '2026-10-21 10:00:05',
+            'EXIT' => '13', 'ERROR' => 'not enough disk space', 'ARCHIVE' => '', 'SIZE' => '', 'PID' => '', 'JOB' => '', 'DESTS' => ''],
+    ] : []))]);
 }
+
+/** The records the backup exclusions pick from (E48 spec §8.1); other tests fake these lists with helpers of their own. */
+function fakeBackupObjects(ArcCommandFake $fake): void
+{
+    $fake->on('v-list-web-domains')->using(fn (array $a) => [0, (string) json_encode((object) ($a[0] === 'bob' ? ['example.com' => [], 'shop.example' => []] : []))]);
+    $fake->on('v-list-mail-domains')->using(fn (array $a) => [0, (string) json_encode((object) ($a[0] === 'bob' ? ['example.com' => []] : []))]);
+    $fake->on('v-list-databases')->using(fn (array $a) => [0, (string) json_encode((object) ($a[0] === 'bob' ? ['bob_wp' => [], 'bob_shop' => []] : []))]);
+}
+
+/** The newest archive of bob in tests/Fixtures/commands/v-list-user-backups/bob.json. */
+const BK_ARCHIVE_NAME = 'bob.2026-10-03_05-10-09.tar';
 
 /** Restart commands answer success. */
 function fakeRestarts(ArcCommandFake $fake): void

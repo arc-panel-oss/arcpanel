@@ -1,10 +1,12 @@
 #!/bin/bash
 # info: schedule user backup creation
-# options: USER [FORMAT]
+# options: USER [FORMAT] [JOB]
 #
 # example: v-schedule-user-backup admin
+#          v-schedule-user-backup alice json 179271000012
 #
-# This function for scheduling user backup creation.
+# This function for scheduling user backup creation. With JOB (E48) the
+# archive goes to the targets of that archive job.
 
 #----------------------------------------------------------#
 #                Variables & Functions                     #
@@ -13,6 +15,7 @@
 # Argument definition
 user=$1
 format=shell
+job=${3-}
 
 # Includes
 # shellcheck source=/etc/arcpanel/arcpanel.conf
@@ -21,6 +24,8 @@ source /etc/arcpanel/arcpanel.conf
 source $ARCPANEL/func/main.sh
 # shellcheck source=/usr/local/arcpanel/func/queuetask.sh
 source $ARCPANEL/func/queuetask.sh
+# shellcheck source=/usr/local/arcpanel/func/backup-job.sh
+source $ARCPANEL/func/backup-job.sh
 # load config file
 source_conf "$ARCPANEL/conf/arcpanel.conf"
 
@@ -28,18 +33,24 @@ source_conf "$ARCPANEL/conf/arcpanel.conf"
 #                    Verifications                         #
 #----------------------------------------------------------#
 
-if [ "$#" -gt 2 ]; then
+if [ "$#" -gt 3 ]; then
 	check_result "$E_ARGS" "too many arguments"
 fi
-if [ "$#" -eq 2 ]; then
+if [ "$#" -ge 2 ] && [ -n "$2" ]; then
 	format=$2
 fi
-check_args '1' "$#" 'USER [FORMAT]'
+check_args '1' "$#" 'USER [FORMAT] [JOB]'
 is_format_valid 'user' 'format'
 is_system_enabled "$BACKUP_SYSTEM" 'BACKUP_SYSTEM'
 is_object_valid 'user' 'USER' "$user"
 is_backup_enabled
 is_backup_scheduled 'backup'
+if [ -n "$job" ]; then
+	bj_check_exists "$job"
+	if [ "$(bj_value "$job" ENGINE)" != archive ]; then
+		check_result "$E_INVALID" "backup job $job does not make archives"
+	fi
+fi
 
 # Perform verification if read-only mode is enabled
 check_arcpanel_demo_mode
@@ -51,7 +62,7 @@ check_arcpanel_demo_mode
 # Adding backup task to the queue
 log=$ARCPANEL/log/backup.log
 qt_queue backup '' "$ARCPANEL/data/queue/backup.pipe" \
-	"$BIN/v-backup-user $user yes >> $log 2>&1"
+	"$BIN/v-backup-user $user yes${job:+ $job} >> $log 2>&1"
 
 #----------------------------------------------------------#
 #                         ArcPanel                         #

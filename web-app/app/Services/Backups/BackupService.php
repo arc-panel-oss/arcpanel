@@ -35,7 +35,7 @@ final class BackupService
      * Backup keys of the account's package: BACKUPS (archives kept) and
      * BACKUPS_INCREMENTAL. Only `v-list-user` prints the latter.
      *
-     * @return array{backups: string, incremental: bool}
+     * @return array{backups: string, incremental: bool, package: string}
      */
     public function settings(string $user): array
     {
@@ -44,7 +44,7 @@ final class BackupService
             'is_scalar',
         ));
 
-        return ['backups' => $record['BACKUPS'] ?? '', 'incremental' => ($record['BACKUPS_INCREMENTAL'] ?? 'no') === 'yes'];
+        return ['backups' => $record['BACKUPS'] ?? '', 'incremental' => ($record['BACKUPS_INCREMENTAL'] ?? 'no') === 'yes', 'package' => $record['PACKAGE'] ?? ''];
     }
 
     public function incremental(string $user): bool
@@ -103,10 +103,17 @@ final class BackupService
             && preg_match('/^'.preg_quote($user, '/').'\.\d{4}-\d{2}-\d{2}(_\d{2}-\d{2}-\d{2})?\.tar(\.gz|\.zst)?$/', $name) === 1;
     }
 
-    /** `v-schedule-user-backup USER [FORMAT]`: exit 4 when a backup of the user is already queued. */
-    public function schedule(string $user, string $format = 'shell'): CommandResult
+    /**
+     * `v-schedule-user-backup USER [FORMAT] [JOB]`: exit 4 when a backup of
+     * the user is already queued; JOB picks the archive job (E48).
+     */
+    public function schedule(string $user, string $format = 'shell', string $job = ''): CommandResult
     {
-        $args = $format === 'shell' ? [$user] : [$user, $format];
+        $args = match (true) {
+            $job !== '' => [$user, $format, $job],
+            $format === 'shell' => [$user],
+            default => [$user, $format],
+        };
 
         return $this->arc->run('v-schedule-user-backup', $args, Options::allowFailure());
     }
@@ -280,5 +287,18 @@ final class BackupService
     public function saveExclusions(string $user, BackupExclusions $exclusions): CommandResult
     {
         return $this->arc->run('v-update-user-backup-exclusions', [$user, Secret::file($exclusions->toFile())], Options::allowFailure());
+    }
+
+    /**
+     * The account's web domains, mail domains and databases, the objects
+     * the exclusions pick from (E48 spec §8.1).
+     *
+     * @return array{WEB: list<string>, MAIL: list<string>, DB: list<string>}
+     */
+    public function objectNames(string $user): array
+    {
+        $names = fn (string $command): array => array_values(array_map('strval', array_keys($this->arc->json($command, [$user], Options::allowFailure()))));
+
+        return ['WEB' => $names('v-list-web-domains'), 'MAIL' => $names('v-list-mail-domains'), 'DB' => $names('v-list-databases')];
     }
 }

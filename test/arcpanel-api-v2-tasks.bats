@@ -228,6 +228,24 @@ qt_record_value() {
     rm -f "$dir/$old_id.conf"
 }
 
+@test "v-schedule-user-backup: JOB names an archive job and is passed to v-backup-user" {
+    local id job
+    qt_enable_incremental_backups
+    run v-schedule-user-backup "$QT_USER" json 1
+    assert_failure 3
+    run v-schedule-user-backup "$QT_USER" json '../x'
+    assert_failure 3
+    # The snapshot job of the setup makes no archives
+    run v-schedule-user-backup "$QT_USER" json "$(cat "$BATS_FILE_TMPDIR/snapshot-job")"
+    assert_failure 2
+    job=$(v-add-backup-job arcbatsqt-archives archive "users:$QT_USER" daily:04:00 arcbatsqt-snap:2)
+    id=$(v-schedule-user-backup "$QT_USER" json "$job" | jq -r .ID)
+    v-delete-backup-job "$job"
+    [[ "$id" =~ ^[0-9]{14}$ ]]
+    run grep "v-backup-user $QT_USER yes $job " "$PIPE"
+    assert_success
+}
+
 @test "v-schedule-user-backup: duplicate checks still refuse a second backup" {
     run v-schedule-user-backup "$QT_USER" json
     assert_success

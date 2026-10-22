@@ -5858,3 +5858,23 @@ a.ap-pick:focus-visible {
 		grid-template-columns: repeat(2, minmax(0, 1fr));
 	}
 }
+
+/* Text inside a flush card keeps the card's padding (empty sections of a
+   backup, the hidden files of the restore wizard) */
+.ap-card-pad {
+	margin: 0;
+	padding: var(--ap-space-4) var(--ap-card-pad);
+}
+.ap-backup-counts {
+	margin-top: var(--ap-space-3);
+	gap: var(--ap-space-2) var(--ap-space-5);
+}
+.ap-exclusion-list > li {
+	flex-wrap: wrap;
+	min-height: 48px;
+	padding-inline: 0;
+}
+.ap-exclusion-list > li .ap-input {
+	flex: 1 1 16rem;
+	max-width: 32rem;
+}

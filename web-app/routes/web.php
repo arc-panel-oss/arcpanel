@@ -11,6 +11,9 @@ use App\Http\Controllers\Auth\SudoController;
 use App\Http\Controllers\Auth\TwoFactorController;
 use App\Http\Controllers\Backups\BackupController;
 use App\Http\Controllers\Backups\ExclusionController;
+use App\Http\Controllers\Backups\HistoryController as BackupHistoryController;
+use App\Http\Controllers\Backups\OverviewController as BackupOverviewPageController;
+use App\Http\Controllers\Backups\RestoreController as BackupRestoreController;
 use App\Http\Controllers\Backups\SnapshotController;
 use App\Http\Controllers\Cron\CronActionController;
 use App\Http\Controllers\Cron\CronController;
@@ -650,7 +653,11 @@ Route::middleware('auth.arc')->group(function () {
     // Backups (E7 batch 1 spec §10)
     Route::get('/backups', [BackupController::class, 'entry'])->name('backups.index');
     Route::prefix('backups/{user}')->name('backups.')->middleware('effective-user')->group(function () {
-        Route::get('/', [BackupController::class, 'index'])->name('archives.index');
+        // Tabs of E48 spec §8.1: Overview, Archives, Snapshots, History, Exclusions; the restore wizard
+        Route::get('/', BackupOverviewPageController::class)->name('overview');
+        Route::get('/archives', [BackupController::class, 'index'])->name('archives.index');
+        Route::get('/history', BackupHistoryController::class)->name('history');
+        Route::get('/restore', BackupRestoreController::class)->name('restore');
         Route::get('/archives/{backup}', [BackupController::class, 'show'])->name('archives.show');
         // A download changes nothing (web/download/backup)
         Route::get('/archives/{backup}/download', [BackupController::class, 'download'])->name('archives.download');

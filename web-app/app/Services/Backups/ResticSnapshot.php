@@ -18,6 +18,7 @@ final class ResticSnapshot
         public readonly ?DateTimeImmutable $time,
         public readonly string $hostname,
         public readonly array $paths,
+        public readonly string $destination = '',
     ) {}
 
     /** @param  array<string, mixed>  $row */
@@ -40,6 +41,8 @@ final class ResticSnapshot
             time: $time,
             hostname: (string) ($row['hostname'] ?? ''),
             paths: array_values(array_map('strval', array_filter((array) ($row['paths'] ?? []), 'is_scalar'))),
+            // The destination of the repository (E48); one list merges them
+            destination: is_scalar($row['destination'] ?? null) ? (string) $row['destination'] : '',
         );
     }
 

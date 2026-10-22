@@ -17,8 +17,10 @@ use Throwable;
 
 /**
  * Backup exclusions (web/edit/backup/exclusions; E7 batch 1 spec §10.2 and
- * D5): the four textareas of the legacy page, DNS and CRON kept as they
- * are, and toggles for the Node.js runtimes (E13) and each Docker app (E4).
+ * D5): since E48 (spec §8.1) web domains, mail domains and databases are
+ * lists of the account's records, cron jobs a switch and user folders free
+ * entries; DNS is kept as it is; toggles for the Node.js runtimes (E13) and
+ * each Docker app (E4).
  */
 final class ExclusionController extends Controller
 {
@@ -35,6 +37,7 @@ final class ExclusionController extends Controller
             'can' => $policy->abilities($principal, $user),
             'incremental' => $this->backups->incremental($user),
             'exclusions' => $exclusions,
+            'lists' => self::lists($exclusions, $this->backups->objectNames($user)),
             'userLines' => implode("\n", array_diff($exclusions->get('USER'), array_keys($this->toggles($user, $exclusions, $node, $docker)))),
             'toggles' => $this->toggles($user, $exclusions, $node, $docker),
         ]);
@@ -51,9 +54,11 @@ final class ExclusionController extends Controller
         }
 
         $updated = $current->with([
-            'WEB' => BackupExclusions::parseLines($request->input('web')),
-            'MAIL' => BackupExclusions::parseLines($request->input('mail')),
-            'DB' => BackupExclusions::parseLines($request->input('db')),
+            'WEB' => $request->entries('WEB'),
+            'MAIL' => $request->entries('MAIL'),
+            'DB' => $request->entries('DB'),
+            // The cron jobs switch (E48 spec §8.1): all of them or none
+            'CRON' => $request->boolean('cron') ? ['*'] : [],
             'USER' => BackupExclusions::mergeToggles(BackupExclusions::parseLines($request->input('userdir')), $toggles),
         ]);
 
@@ -64,6 +69,37 @@ final class ExclusionController extends Controller
         }
 
         return $back->with('ok', __('Changes have been saved.'));
+    }
+
+    /**
+     * The rows of each structured list (E48 spec §8.1): the account's own
+     * records plus any name the exclusions already hold, each with whether
+     * it is left out and its folders or accounts; "all" when the list is "*".
+     *
+     * @param  array{WEB: list<string>, MAIL: list<string>, DB: list<string>}  $objects
+     * @return array<string, array{all: bool, rows: array<string, array{excluded: bool, parts: string}>}>
+     */
+    public static function lists(BackupExclusions $exclusions, array $objects): array
+    {
+        $lists = [];
+        foreach (['WEB', 'MAIL', 'DB'] as $key) {
+            $current = [];
+            foreach ($exclusions->get($key) as $entry) {
+                $parts = explode(':', $entry);
+                $current[array_shift($parts)] = implode(' ', $parts);
+            }
+            $all = array_key_exists('*', $current);
+            unset($current['*']);
+            $names = array_unique([...$objects[$key], ...array_keys($current)]);
+            sort($names);
+            $rows = [];
+            foreach ($names as $name) {
+                $rows[$name] = ['excluded' => array_key_exists($name, $current), 'parts' => $current[$name] ?? ''];
+            }
+            $lists[$key] = ['all' => $all, 'rows' => $rows];
+        }
+
+        return $lists;
     }
 
     /**

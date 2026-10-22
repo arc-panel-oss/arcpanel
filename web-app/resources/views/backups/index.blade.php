@@ -1,16 +1,17 @@
-{{-- Tar backups of an account (web/list/backup, E7 batch 1 spec §10.2). --}}
+{{-- Archives of an account (web/list/backup, E7 batch 1 spec §10.2) with their job and destinations (E48 spec §8.1). --}}
 @php
     $columns = [
         ['key' => 'name', 'label' => __('File Name'), 'sortable' => true],
         ['key' => 'date', 'label' => __('Date'), 'sortable' => true],
         ['key' => 'size', 'label' => __('Size'), 'sortable' => true, 'type' => 'number'],
-        ['key' => 'type', 'label' => __('Type'), 'sortable' => true, 'optional' => true],
+        ['key' => 'destinations', 'label' => __('Destinations')],
+        ['key' => 'job', 'label' => __('Job'), 'sortable' => true, 'optional' => true],
         ['key' => 'runtime', 'label' => __('Runtime'), 'sortable' => true, 'type' => 'number', 'optional' => true],
     ];
     $size = fn (int $mb) => \App\Services\Dashboard\DashboardService::size($mb);
     $canBulk = $can['delete'];
 @endphp
-<x-ap-page :title="__('Backups')" :crumbs="[['label' => __('Backups')]]" :eyebrow="__('Owner').': '.$user"
+<x-ap-page :title="__('Archives')" :crumbs="[['label' => __('Backups'), 'url' => route('backups.overview', ['user' => $user])], ['label' => __('Archives')]]" :eyebrow="__('Owner').': '.$user"
     :description="$systems['mail']
         ? __('Daily backups of websites, mail, databases, cron jobs and files. New backups and restores are queued and run in the background.')
         : __('Daily backups of websites, databases, cron jobs and files. New backups and restores are queued and run in the background.')">
@@ -22,9 +23,18 @@
 
     @include('backups.partials.nav', ['current' => 'archives'])
 
+    @if (count($destinations) > 1)
+        <div class="ap-row" role="group" aria-label="{{ __('Destination') }}" data-destination-filter>
+            <x-ap-chip :active="$destination === ''"><a href="{{ route('backups.archives.index', ['user' => $user]) }}">{{ __('All destinations') }}</a></x-ap-chip>
+            @foreach ($destinations as $name)
+                <x-ap-chip :active="$destination === $name"><a class="mono" href="{{ route('backups.archives.index', ['user' => $user, 'destination' => $name]) }}">{{ $name }}</a></x-ap-chip>
+            @endforeach
+        </div>
+    @endif
+
     <x-ap-card :flush="true">
         @if ($archives === [])
-            <x-ap-empty icon="archive" :title="__('No backups yet')">{{ __('Backups are created every night, or now with Create Backup.') }}</x-ap-empty>
+            <x-ap-empty icon="archive" :title="__('No backups yet')">{{ __('Backups are created by the backup jobs of the server, or now with Create Backup.') }}</x-ap-empty>
         @else
             @if ($canBulk)
                 <x-ap-bulk-bar table="backups" :action="route('backups.archives.bulk', ['user' => $user])"
@@ -42,7 +52,10 @@
                         </td>
                         <td data-col="date" data-label="{{ __('Date') }}" data-sort-value="{{ $archive->date }} {{ $archive->time }}" class="mono">{{ $archive->date }} {{ $archive->time }}</td>
                         <td data-col="size" data-label="{{ __('Size') }}" class="col-num mono" data-sort-value="{{ $archive->sizeMb }}">{{ $size($archive->sizeMb) }}</td>
-                        <td data-col="type" data-label="{{ __('Type') }}" class="muted">{{ $archive->type }}</td>
+                        <td data-col="destinations" data-label="{{ __('Destinations') }}">
+                            <span class="ap-row">@foreach ($archive->destinations as $name)<x-ap-badge mono>{{ $name }}</x-ap-badge>@endforeach @if ($archive->encrypted)<x-ap-icon name="lock" size="sm" /><span class="sr-only">{{ __('Encrypted') }}</span>@endif</span>
+                        </td>
+                        <td data-col="job" data-label="{{ __('Job') }}" class="muted">{{ $jobNames[$archive->job] ?? ($archive->job !== '' ? $archive->job : '—') }}</td>
                         <td data-col="runtime" data-label="{{ __('Runtime') }}" class="col-num mono" data-sort-value="{{ $archive->runtime }}">{{ sprintf(__('%d minutes'), $archive->runtime) }}</td>
                         <td class="col-actions">
                             <details class="ap-dropdown ap-row-menu">
@@ -51,7 +64,10 @@
                                     @if ($can['download'])
                                         <a class="ap-menu-item" href="{{ route('backups.archives.download', $params) }}"><x-ap-icon name="download" />{{ __('Download') }}</a>
                                     @endif
-                                    <a class="ap-menu-item" href="{{ route('backups.archives.show', $params) }}"><x-ap-icon name="list" />{{ __('Restore') }}</a>
+                                    @if ($can['restore'])
+                                        <a class="ap-menu-item" href="{{ route('backups.restore', ['user' => $user, 'archive' => $archive->name]) }}"><x-ap-icon name="history" />{{ __('Restore') }}</a>
+                                    @endif
+                                    <a class="ap-menu-item" href="{{ route('backups.archives.show', $params) }}"><x-ap-icon name="list" />{{ __('Contents') }}</a>
                                     @if ($can['delete'])
                                         <div class="ap-menu-sep" role="separator"></div>
                                         <x-ap-button class="ap-menu-item is-danger" variant="danger" :form-action="route('backups.archives.destroy', $params)" form-method="DELETE" icon="trash"

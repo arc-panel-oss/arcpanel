@@ -41,6 +41,16 @@ final class JobService
         return $job;
     }
 
+    /**
+     * The enabled jobs that back up USER of PACKAGE (E48 spec §8.1).
+     *
+     * @return list<BackupJob>
+     */
+    public function covering(string $user, string $package): array
+    {
+        return array_values(array_filter($this->all(), fn (BackupJob $job) => $job->enabled && $job->covers($user, $package)));
+    }
+
     /** @param  array{name: string, engine: string, scope: string, schedule: string, targets: string, exclude: string}  $values */
     public function add(array $values, bool $enabled = true): CommandResult
     {

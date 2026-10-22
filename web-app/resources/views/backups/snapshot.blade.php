@@ -12,7 +12,7 @@
     $sections = array_filter($sections, fn ($type) => ($systems[$type] ?? true) || $content->items[$type] !== [], ARRAY_FILTER_USE_KEY);
 @endphp
 <x-ap-page :title="sprintf(__('Snapshot %s'), $snapshot->shortId)"
-    :crumbs="[['label' => __('Backups'), 'url' => route('backups.archives.index', ['user' => $user])], ['label' => __('Snapshots'), 'url' => route('backups.snapshots.index', ['user' => $user])], ['label' => $snapshot->shortId]]"
+    :crumbs="[['label' => __('Backups'), 'url' => route('backups.overview', ['user' => $user])], ['label' => __('Snapshots'), 'url' => route('backups.snapshots.index', ['user' => $user])], ['label' => $snapshot->shortId]]"
     :eyebrow="__('Owner').': '.$user.' · '.$snapshot->label()">
     <x-slot:actions>
         @if ($browse)

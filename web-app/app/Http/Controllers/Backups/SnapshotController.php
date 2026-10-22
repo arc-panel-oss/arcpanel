@@ -30,16 +30,17 @@ final class SnapshotController extends Controller
     public function index(string $user, Principal $principal, BackupPolicy $policy, OwnerList $owners): View
     {
         abort_unless($policy->view($principal, $user), 403);
-        $this->assertIncremental($user);
+        // Always a tab (E48 spec §8.1): without incremental backups it explains them
+        $incremental = $this->backups->incremental($user);
 
         return view('backups.snapshots', [
             'user' => $user,
             'owners' => $owners->pickable(),
             'can' => $policy->abilities($principal, $user),
-            'incremental' => true,
+            'incremental' => $incremental,
             // The snapshot browser lives in the file manager (FILE_MANAGER)
             'browse' => $this->config->is('FILE_MANAGER', 'true'),
-            'snapshots' => $this->backups->snapshots($user),
+            'snapshots' => $incremental ? $this->backups->snapshots($user) : [],
         ]);
     }
 
@@ -82,6 +83,16 @@ final class SnapshotController extends Controller
     {
         abort_unless($policy->restore($principal, $user), 403);
         $this->assertIncremental($user);
+        // The restore wizard (E48) sends mode "all", or "some" with pick "type:object"
+        $wizard = $request->boolean('wizard');
+        $pick = $wizard ? ($request->input('mode') === 'some' ? (string) $request->input('pick', '') : 'all') : '';
+        if ($wizard && $pick === '') {
+            return redirect()->route('backups.restore', ['user' => $user, 'snapshot' => $snapshot])->with('error', __('No items were selected to restore.'));
+        }
+        if ($pick !== '' && $pick !== 'all') {
+            [$type, $object] = array_pad(explode(':', $pick, 2), 2, '');
+            $request->merge(['type' => $type, 'object' => $type === 'cron' ? null : $object]);
+        }
         $data = $request->validate([
             'type' => ['nullable', Rule::in(['web', 'dns', 'mail', 'db', 'cron'])],
             'object' => ['nullable', 'required_if:type,web,dns,mail,db', 'string', 'max:255', 'regex:/^[^,\s\'"]+$/'],
@@ -95,7 +106,9 @@ final class SnapshotController extends Controller
         }
 
         $result = $this->backups->restoreSnapshot($user, $snapshot, $type, (string) ($data['object'] ?? ''));
-        $back = redirect()->route('backups.snapshots.show', ['user' => $user, 'snapshot' => $snapshot]);
+        $back = $wizard
+            ? redirect()->route('backups.restore', ['user' => $user, 'snapshot' => $snapshot])
+            : redirect()->route('backups.snapshots.show', ['user' => $user, 'snapshot' => $snapshot]);
         if ($result->ok()) {
             return $back->with('ok', __('Task has been added to the queue. You will receive an email notification when your restore has been completed.'));
         }

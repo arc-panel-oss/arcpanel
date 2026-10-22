@@ -34724,7 +34724,10 @@ paths:
         - Users
       summary: Schedule user backup creation
       description: |-
-        This function for scheduling user backup creation.
+        v-schedule-user-backup alice json 179271000012
+
+        This function for scheduling user backup creation. With JOB (E48) the
+        archive goes to the targets of that archive job.
 
         **Arguments**
 
@@ -34732,6 +34735,7 @@ paths:
         | --- | --- | --- |
         | `arg1` | `USER` | yes |
         | `arg2` | `FORMAT` | no |
+        | `arg3` | `JOB` | no |
 
         **User argument:** with the access key of a user other than the admin, `arg1` must be the key's user.
       x-arcpanel-user-arg: 1
@@ -63873,6 +63877,12 @@ components:
                 - shell
               examples:
                 - json
+            arg3:
+              type: string
+              title: JOB
+              description: "`JOB`, optional"
+              examples:
+                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-schedule-user-backup-download:
