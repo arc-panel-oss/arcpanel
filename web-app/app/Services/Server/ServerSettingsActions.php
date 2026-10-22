@@ -81,7 +81,7 @@ final class ServerSettingsActions
      * Backups: the fields of the remote type, and its password or key when
      * the remote is written again (not for rclone).
      *
-     * @param  array<string, mixed>  $values  BackupSettingsRequest::values()
+     * @param  array<string, mixed>  $values  the backup values of PATCH /api/v2/system/settings (ServerSettingsApi)
      */
     public function checkBackups(array $values): void
     {

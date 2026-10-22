@@ -56,6 +56,8 @@ final class PackageRequest extends FormRequest
             'object_storage_buckets' => ['nullable', 'integer', 'min:0', 'max:999'],
             'object_storage_quota' => ['nullable', 'string', 'max:20', 'regex:/^(unlimited|\d{1,9}[MGT]?)$/'],
             'object_storage_backup' => ['nullable', 'boolean'],
+            // How often a scheduled backup job backs up an account at most (E48 spec §8.2)
+            'backup_frequency' => ['nullable', 'in:hourly,daily,weekly'],
             // PHP of the package (E41 §7.5), sent with the php_group marker
             'php_versions_all' => ['nullable', 'boolean'],
             'php_versions' => ['nullable', 'array', Rule::requiredIf(fn () => $this->boolean('php_group') && ! $this->boolean('php_versions_all'))],
@@ -205,9 +207,10 @@ final class PackageRequest extends FormRequest
     /**
      * Object storage keys of the package sidecar (E44): OBJECT_STORAGE,
      * OBJECT_STORAGE_BUCKETS (a number, or unlimited when ticked),
-     * OBJECT_STORAGE_QUOTA (per bucket) and OBJECT_STORAGE_BACKUP.
+     * OBJECT_STORAGE_QUOTA (per bucket) and OBJECT_STORAGE_BACKUP; and the
+     * backup frequency of E48, BACKUP_FREQUENCY.
      *
-     * @return array{OBJECT_STORAGE: string, OBJECT_STORAGE_BUCKETS: string, OBJECT_STORAGE_QUOTA: string, OBJECT_STORAGE_BACKUP: string}
+     * @return array{OBJECT_STORAGE: string, OBJECT_STORAGE_BUCKETS: string, OBJECT_STORAGE_QUOTA: string, OBJECT_STORAGE_BACKUP: string, BACKUP_FREQUENCY: string}
      */
     public function storageValues(): array
     {
@@ -216,6 +219,7 @@ final class PackageRequest extends FormRequest
             'OBJECT_STORAGE_BUCKETS' => $this->boolean('object_storage_buckets_unlimited') ? 'unlimited' : (string) $this->integer('object_storage_buckets', 3),
             'OBJECT_STORAGE_QUOTA' => (string) ($this->input('object_storage_quota') ?: '1G'),
             'OBJECT_STORAGE_BACKUP' => $this->boolean('object_storage_backup') ? 'yes' : 'no',
+            'BACKUP_FREQUENCY' => (string) ($this->input('backup_frequency') ?: 'daily'),
         ];
     }
 

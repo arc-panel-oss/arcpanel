@@ -46,6 +46,9 @@
                 @endforeach
                 <x-ap-input name="rate_limit" type="number" :label="__('Mail rate limit')" :value="$values['RATE_LIMIT']" suffix="/h" :hint="$own('RATE_LIMIT')" required />
                 <x-ap-input name="backups" type="number" :label="__('Backups')" :value="$values['BACKUPS']" :hint="$own('BACKUPS')" required />
+                <x-ap-select name="backup_frequency" :label="__('Backup frequency at most')" :value="$values['BACKUP_FREQUENCY'] ?? 'daily'"
+                    :options="['hourly' => __('Every hour'), 'daily' => __('Every day'), 'weekly' => __('Every week')]"
+                    :hint="$ownStorage !== null ? sprintf(__('Your plan: %s'), $ownStorage['BACKUP_FREQUENCY']) : __('Scheduled backup jobs skip an account backed up more recently than this.')" />
                 <x-ap-unlimited-input name="ports" :label="__('Ports')" :value="$values['PORTS'] ?? '0'"
                     :hint="$ownPorts !== null ? sprintf(__('Your plan: %s'), $ownPorts) : __('Allocated to each new user of this package.')" />
             </div>

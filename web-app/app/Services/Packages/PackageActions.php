@@ -440,7 +440,7 @@ final class PackageActions
     /**
      * The object storage keys of a reseller's own package (E44).
      *
-     * @return array{OBJECT_STORAGE: string, OBJECT_STORAGE_BUCKETS: string, OBJECT_STORAGE_QUOTA: string, OBJECT_STORAGE_BACKUP: string}
+     * @return array{OBJECT_STORAGE: string, OBJECT_STORAGE_BUCKETS: string, OBJECT_STORAGE_QUOTA: string, OBJECT_STORAGE_BACKUP: string, BACKUP_FREQUENCY?: string}
      */
     public function ownStorage(string $reseller): array
     {
@@ -456,8 +456,8 @@ final class PackageActions
     /**
      * Object storage keys of a package; a reseller may not go beyond its own.
      *
-     * @param  array{OBJECT_STORAGE: string, OBJECT_STORAGE_BUCKETS: string, OBJECT_STORAGE_QUOTA: string, OBJECT_STORAGE_BACKUP: string}|null  $storage
-     * @return array{OBJECT_STORAGE: string, OBJECT_STORAGE_BUCKETS: string, OBJECT_STORAGE_QUOTA: string, OBJECT_STORAGE_BACKUP: string}|null
+     * @param  array{OBJECT_STORAGE: string, OBJECT_STORAGE_BUCKETS: string, OBJECT_STORAGE_QUOTA: string, OBJECT_STORAGE_BACKUP: string, BACKUP_FREQUENCY?: string}|null  $storage
+     * @return array{OBJECT_STORAGE: string, OBJECT_STORAGE_BUCKETS: string, OBJECT_STORAGE_QUOTA: string, OBJECT_STORAGE_BACKUP: string, BACKUP_FREQUENCY?: string}|null
      *
      * @throws ValidationException
      */
@@ -471,8 +471,8 @@ final class PackageActions
         if ($storage['OBJECT_STORAGE'] === 'yes' && $own['OBJECT_STORAGE'] !== 'yes') {
             $errors['object_storage'] = __('Object storage is not included in your plan.');
         }
-        foreach (['OBJECT_STORAGE_BUCKETS', 'OBJECT_STORAGE_QUOTA', 'OBJECT_STORAGE_BACKUP'] as $key) {
-            if (PackageLimits::above($key, $storage[$key], $own[$key])) {
+        foreach (['OBJECT_STORAGE_BUCKETS', 'OBJECT_STORAGE_QUOTA', 'OBJECT_STORAGE_BACKUP', 'BACKUP_FREQUENCY'] as $key) {
+            if (isset($storage[$key]) && PackageLimits::above($key, $storage[$key], $own[$key])) {
                 $errors[strtolower($key)] = sprintf(__('At most %s on your plan.'), $own[$key]);
             }
         }

@@ -1,5 +1,6 @@
 // Registers every Alpine module of the panel app (docs/design/05 §5.1).
 import apAccessKeySecret from './access-key-secret.js';
+import apBackupJob from './backup-job.js';
 import apBulkBar from './bulk-bar.js';
 import apCardPicker from './card-picker.js';
 import apConfirm from './confirm.js';
@@ -31,6 +32,7 @@ import apWizard from './wizard.js';
 
 export const modules = {
 	apAccessKeySecret,
+	apBackupJob,
 	apBulkBar,
 	apCardPicker,
 	apConfirm,

@@ -127,6 +127,12 @@ final class Capabilities
         'backups.restore' => self::ALL_ROLES,
         'backups.delete' => self::ALL_ROLES,
         'backups.exclusions.edit' => self::ALL_ROLES,
+        // The history of a user's backup runs (E48 spec §8.1); the
+        // administrators' Backups hub: destinations, jobs and their runs (§8.2)
+        'backups.history.view' => self::ALL_ROLES,
+        'backups.destinations.manage' => self::ADMIN,
+        'backups.jobs.manage' => self::ADMIN,
+        'backups.activity.view' => self::ADMIN,
 
         // Server pages of E7 batch 2 (spec §5.1)
         'server.firewall' => self::ADMIN,

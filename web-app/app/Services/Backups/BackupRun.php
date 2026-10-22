@@ -5,7 +5,8 @@ namespace App\Services\Backups;
 /**
  * One recorded run of v-backup-user or v-backup-user-restic as
  * `v-list-user-backup-runs USER json` returns it (Fleet PD2,
- * docs/features/specs/2026-10-19-001-fleet-pd-api-v2-follow-up-design.md §5).
+ * docs/features/specs/2026-10-19-001-fleet-pd-api-v2-follow-up-design.md §5),
+ * with the job and the destinations of E48.
  */
 final class BackupRun
 {
@@ -22,6 +23,8 @@ final class BackupRun
         public readonly string $error,
         public readonly string $archive,
         public readonly string $size,
+        public readonly string $job = '',
+        public readonly string $dests = '',
     ) {}
 
     /** @param  array<string, mixed>  $row */
@@ -42,7 +45,26 @@ final class BackupRun
             error: $value('ERROR'),
             archive: $value('ARCHIVE'),
             size: $value('SIZE'),
+            job: $value('JOB'),
+            dests: $value('DESTS'),
         );
+    }
+
+    /**
+     * The state of the run on each destination (E48 spec §5.4): DESTS is
+     * DEST:ok or DEST:failed items.
+     *
+     * @return array<string, string> destination => ok or failed
+     */
+    public function destinationStates(): array
+    {
+        $states = [];
+        foreach (array_filter(explode(',', $this->dests)) as $item) {
+            [$name, $state] = array_pad(explode(':', $item, 2), 2, '');
+            $states[$name] = $state;
+        }
+
+        return $states;
     }
 
     /** Newest first: the id starts with the start time in seconds. */

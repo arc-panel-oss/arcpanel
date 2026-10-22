@@ -4,7 +4,6 @@ namespace App\Http\Controllers\Server;
 
 use App\Auth\Principal;
 use App\Http\Controllers\Controller;
-use App\Http\Requests\Server\BackupSettingsRequest;
 use App\Http\Requests\Server\DatabaseSettingsRequest;
 use App\Http\Requests\Server\GeneralSettingsRequest;
 use App\Http\Requests\Server\MailSettingsRequest;
@@ -58,10 +57,6 @@ final class ServerSettingsController extends Controller
             'web' => ['php' => $this->settings->phpVersions(), 'task' => $this->tasks->task()],
             'dns' => ['hosts' => $this->settings->dnsHosts()],
             'databases' => ['hosts' => $this->settings->databaseHosts()],
-            'backups' => [
-                'remote' => $this->settings->backupHost($this->settings->remoteBackupType($config)),
-                'restic' => $this->settings->restic(),
-            ],
             'ssl' => ['ssl' => $this->settings->ssl(), 'hostname' => $this->settings->hostname()],
             'security' => ['selfSigned' => $this->settings->panelCertificateSelfSigned()],
             'plugins' => [
@@ -150,15 +145,6 @@ final class ServerSettingsController extends Controller
 
         return $this->finish('databases', $this->settings->apply(
             $this->settings->planDatabaseHostPassword($type, $host, $data['user'], $data['password'])));
-    }
-
-    public function backups(BackupSettingsRequest $request, Principal $principal, ServerPolicy $policy): RedirectResponse
-    {
-        abort_unless($policy->editSettings($principal), 403);
-        $values = $request->values();
-        $this->actions->checkBackups($values);
-
-        return $this->finish('backups', $this->settings->apply($this->settings->planBackups($values)));
     }
 
     public function ssl(SslSettingsRequest $request, Principal $principal, ServerPolicy $policy): RedirectResponse

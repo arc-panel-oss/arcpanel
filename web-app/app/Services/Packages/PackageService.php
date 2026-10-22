@@ -18,8 +18,8 @@ use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
  */
 final class PackageService
 {
-    /** Defaults of the object storage keys (E44 spec §6, func/tenancy.sh). */
-    public const STORAGE_DEFAULTS = ['OBJECT_STORAGE' => 'no', 'OBJECT_STORAGE_BUCKETS' => '3', 'OBJECT_STORAGE_QUOTA' => '1G', 'OBJECT_STORAGE_BACKUP' => 'no'];
+    /** Defaults of the object storage keys (E44 spec §6) and of the backup frequency (E48 spec §8.2), as func/tenancy.sh has them. */
+    public const STORAGE_DEFAULTS = ['OBJECT_STORAGE' => 'no', 'OBJECT_STORAGE_BUCKETS' => '3', 'OBJECT_STORAGE_QUOTA' => '1G', 'OBJECT_STORAGE_BACKUP' => 'no', 'BACKUP_FREQUENCY' => 'daily'];
 
     public function __construct(
         private readonly ArcCommand $arc,
@@ -340,10 +340,11 @@ final class PackageService
     }
 
     /**
-     * Object storage keys of the package sidecar (E44 spec §6) that are set
-     * or changed; the limits before OBJECT_STORAGE, as for app processes.
+     * Object storage keys of the package sidecar (E44 spec §6) and the
+     * backup frequency (E48 spec §8.2) that are set or changed; the limits
+     * before OBJECT_STORAGE, as for app processes.
      *
-     * @param  array{OBJECT_STORAGE: string, OBJECT_STORAGE_BUCKETS: string, OBJECT_STORAGE_QUOTA: string, OBJECT_STORAGE_BACKUP: string}|null  $storage
+     * @param  array{OBJECT_STORAGE: string, OBJECT_STORAGE_BUCKETS: string, OBJECT_STORAGE_QUOTA: string, OBJECT_STORAGE_BACKUP: string, BACKUP_FREQUENCY?: string}|null  $storage
      * @return list<Step>
      */
     private function storageSteps(string $name, ?array $storage, ?PackageRecord $current): array
@@ -352,7 +353,7 @@ final class PackageService
             return [];
         }
         $steps = [];
-        foreach (['OBJECT_STORAGE_BUCKETS', 'OBJECT_STORAGE_QUOTA', 'OBJECT_STORAGE_BACKUP', 'OBJECT_STORAGE'] as $key) {
+        foreach (['OBJECT_STORAGE_BUCKETS', 'OBJECT_STORAGE_QUOTA', 'OBJECT_STORAGE_BACKUP', 'OBJECT_STORAGE', 'BACKUP_FREQUENCY'] as $key) {
             if (! isset($storage[$key])) {
                 continue;
             }

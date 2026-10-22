@@ -50,6 +50,38 @@ final class BackupPolicy
         return $this->allows($principal, 'backups.exclusions.edit', $owner);
     }
 
+    /** The backup runs of OWNER (E48 spec §8.1 History). */
+    public function viewHistory(Principal $principal, string $owner): bool
+    {
+        return Capabilities::allows($principal->actingRole(), 'backups.history.view', fn () => $this->scope->canSee($owner));
+    }
+
+    /** The administrators' Backups hub: overview and activity (E48 spec §8.2). */
+    public function viewHub(Principal $principal): bool
+    {
+        return Capabilities::allows($principal->actingRole(), 'backups.activity.view');
+    }
+
+    public function viewDestinations(Principal $principal): bool
+    {
+        return Capabilities::allows($principal->actingRole(), 'backups.destinations.manage');
+    }
+
+    public function manageDestinations(Principal $principal): bool
+    {
+        return $this->viewDestinations($principal) && ! $principal->isReadOnly();
+    }
+
+    public function viewJobs(Principal $principal): bool
+    {
+        return Capabilities::allows($principal->actingRole(), 'backups.jobs.manage');
+    }
+
+    public function manageJobs(Principal $principal): bool
+    {
+        return $this->viewJobs($principal) && ! $principal->isReadOnly();
+    }
+
     /** @return array<string, bool> what the views may show */
     public function abilities(Principal $principal, string $owner): array
     {

@@ -104,6 +104,18 @@ final class Navigation
             'label' => 'Server',
             'items' => [
                 ['route' => 'server.settings', 'label' => 'Configure', 'icon' => 'sliders', 'cap' => 'server.settings', 'section' => 'server.settings'],
+                ['hub' => 'server-backups', 'label' => 'Backups', 'icon' => 'archive', 'children' => [
+                    ['route' => 'server.backups', 'label' => 'Backup overview', 'tab' => 'Overview', 'icon' => 'archive', 'cap' => 'backups.activity.view',
+                        'tabs' => ['server.backups']],
+                    ['route' => 'server.backups.destinations', 'label' => 'Backup destinations', 'tab' => 'Destinations', 'icon' => 'disk', 'cap' => 'backups.destinations.manage',
+                        'section' => 'server.backups.destinations', 'tabs' => ['server.backups.destinations']],
+                    ['route' => 'server.backups.jobs', 'label' => 'Backup schedules', 'tab' => 'Schedules', 'icon' => 'clock', 'cap' => 'backups.jobs.manage',
+                        'section' => 'server.backups.jobs', 'tabs' => ['server.backups.jobs']],
+                    ['route' => 'server.backups.activity', 'label' => 'Backup activity', 'tab' => 'Activity', 'icon' => 'activity', 'cap' => 'backups.activity.view',
+                        'section' => 'server.backups.activity', 'tabs' => ['server.backups.activity']],
+                    ['route' => 'server.backups.settings', 'label' => 'Backup settings', 'tab' => 'Settings', 'icon' => 'sliders', 'cap' => 'server.settings',
+                        'section' => 'server.backups.settings', 'tabs' => ['server.backups.settings']],
+                ]],
                 ['hub' => 'services', 'label' => 'Services', 'icon' => 'activity', 'children' => [
                     ['route' => 'server.services', 'label' => 'Services', 'tab' => 'Services', 'icon' => 'activity', 'cap' => 'server.services', 'services' => true,
                         'section' => 'server.services', 'tabs' => ['server.services']],

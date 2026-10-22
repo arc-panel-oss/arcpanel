@@ -298,6 +298,25 @@ it('sets the object storage keys of a package, within the reseller plan for a re
     $this->fake->assertNotRan('v-add-reseller-package');
 });
 
+it('sets how often scheduled jobs back up the accounts of a package, at most as often as the reseller plan (E48)', function () {
+    $this->fake->on('v-add-user-package')->returns();
+    $this->fake->on('v-add-reseller-package')->returns();
+    $this->fake->on('v-change-package-tenancy')->returns();
+
+    signIn('arcadmin', 'admin');
+    $this->get('/packages/create')->assertOk()->assertSee('name="backup_frequency"', false)->assertSee('Backup frequency at most');
+    $this->post('/packages', packageInput(['backup_frequency' => 'hourly']))->assertRedirect('/packages');
+    $this->fake->assertRan('v-change-package-tenancy', fn ($a) => $a === ['business', 'BACKUP_FREQUENCY', 'hourly']);
+    $this->post('/packages', packageInput(['backup_frequency' => 'minutely']))->assertSessionHasErrors('backup_frequency');
+
+    // the reseller plan backs up daily: hourly goes beyond it, weekly does not
+    signIn('hostco', 'reseller');
+    $this->post('/packages', packageInput(['backup_frequency' => 'hourly']))->assertSessionHasErrors(['backup_frequency' => 'At most daily on your plan.']);
+    $this->fake->assertNotRan('v-add-reseller-package');
+    $this->post('/packages', packageInput(['backup_frequency' => 'weekly']))->assertRedirect('/packages');
+    $this->fake->assertRan('v-change-package-tenancy', fn ($a) => $a === ['hostco_business', 'BACKUP_FREQUENCY', 'weekly']);
+});
+
 it('sets the PHP keys of a package with the default profile kept allowed at each step (E41)', function () {
     $this->fake->on('v-add-user-package')->returns();
     $this->fake->on('v-update-user-package')->returns();

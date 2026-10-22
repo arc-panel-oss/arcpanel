@@ -54,6 +54,11 @@ use App\Http\Controllers\Packages\PackageController;
 use App\Http\Controllers\Ports\PortController;
 use App\Http\Controllers\Ports\ServerPortController;
 use App\Http\Controllers\SearchController;
+use App\Http\Controllers\Server\Backups\ActivityController as BackupActivityController;
+use App\Http\Controllers\Server\Backups\DestinationController as BackupDestinationController;
+use App\Http\Controllers\Server\Backups\JobController as BackupJobController;
+use App\Http\Controllers\Server\Backups\OverviewController as BackupOverviewController;
+use App\Http\Controllers\Server\Backups\SettingsController as BackupSettingsController;
 use App\Http\Controllers\Server\PhpController;
 use App\Http\Controllers\Server\PhpProfileController;
 use App\Http\Controllers\Server\RrdPageController;
@@ -321,7 +326,8 @@ Route::middleware('auth.arc')->group(function () {
         Route::get('/{tab}', [ServerSettingsController::class, 'show'])
             ->whereIn('tab', ServerSettings::TABS)->name('server.settings.tab');
         Route::middleware('not-readonly')->name('server.settings.')->group(function () {
-            foreach (['general', 'web', 'mail', 'databases', 'backups', 'ssl', 'security', 'plugins'] as $tab) {
+            // Backups moved to the Backups hub (E48 spec §8.2)
+            foreach (['general', 'web', 'mail', 'databases', 'ssl', 'security', 'plugins'] as $tab) {
                 Route::post('/'.$tab, [ServerSettingsController::class, $tab])->name('update.'.$tab);
             }
             Route::post('/white-label', [ServerSettingsController::class, 'whiteLabel'])->name('update.white-label');
@@ -332,6 +338,40 @@ Route::middleware('auth.arc')->group(function () {
                 ->whereIn('plugin', array_keys(ServerSettings::PLUGINS))->name('plugin');
             Route::post('/white-label/logo', [ServerSettingsController::class, 'logo'])->name('logo');
             Route::post('/ssl/csr', [CsrController::class, 'server'])->name('csr');
+        });
+    });
+
+    // The Backups hub: destinations, jobs, activity and settings (E48 spec §8.2)
+    Route::get('/server/backups', BackupOverviewController::class)->name('server.backups');
+    Route::prefix('server/backups')->name('server.backups')->group(function () {
+        Route::get('/destinations', [BackupDestinationController::class, 'index'])->name('.destinations');
+        Route::get('/destinations/new', [BackupDestinationController::class, 'create'])->name('.destinations.create');
+        Route::get('/destinations/{destination}', [BackupDestinationController::class, 'edit'])
+            ->where('destination', '[a-z0-9][a-z0-9-]{0,31}')->name('.destinations.edit');
+        Route::get('/jobs', [BackupJobController::class, 'index'])->name('.jobs');
+        Route::get('/jobs/new', [BackupJobController::class, 'create'])->name('.jobs.create');
+        Route::get('/jobs/preview', [BackupJobController::class, 'preview'])->name('.jobs.preview');
+        Route::get('/jobs/{job}', [BackupJobController::class, 'edit'])->where('job', '\d{10,16}')->name('.jobs.edit');
+        Route::get('/activity', [BackupActivityController::class, 'index'])->name('.activity');
+        Route::get('/activity/{job}/{run}', [BackupActivityController::class, 'show'])
+            ->where(['job' => '\d{10,16}', 'run' => '\d{10,20}'])->name('.activity.show');
+        Route::get('/settings', [BackupSettingsController::class, 'show'])->name('.settings');
+        Route::middleware('not-readonly')->group(function () {
+            Route::post('/destinations', [BackupDestinationController::class, 'store'])->name('.destinations.store');
+            Route::where(['destination' => '[a-z0-9][a-z0-9-]{0,31}'])->group(function () {
+                Route::put('/destinations/{destination}', [BackupDestinationController::class, 'update'])->name('.destinations.update');
+                Route::delete('/destinations/{destination}', [BackupDestinationController::class, 'destroy'])->name('.destinations.destroy');
+                Route::post('/destinations/{destination}/check', [BackupDestinationController::class, 'check'])->name('.destinations.check');
+                Route::post('/destinations/{destination}/kit', [BackupDestinationController::class, 'kit'])->name('.destinations.kit');
+            });
+            Route::post('/jobs', [BackupJobController::class, 'store'])->name('.jobs.store');
+            Route::where(['job' => '\d{10,16}'])->group(function () {
+                Route::put('/jobs/{job}', [BackupJobController::class, 'update'])->name('.jobs.update');
+                Route::delete('/jobs/{job}', [BackupJobController::class, 'destroy'])->name('.jobs.destroy');
+                Route::post('/jobs/{job}/enabled', [BackupJobController::class, 'toggle'])->name('.jobs.toggle');
+                Route::post('/jobs/{job}/run', [BackupJobController::class, 'run'])->name('.jobs.run');
+            });
+            Route::post('/settings', [BackupSettingsController::class, 'update'])->name('.settings.update');
         });
     });
 

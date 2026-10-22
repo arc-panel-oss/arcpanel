@@ -5814,3 +5814,47 @@ a.ap-pick:focus-visible {
 		grid-template-columns: max-content;
 	}
 }
+
+/* Backup jobs (E48 spec §8.2): the next runs of the schedule, the rows of
+   the destinations with their retention, the users left out */
+.ap-schedule-preview {
+	margin: var(--ap-space-3) 0;
+}
+.ap-schedule-preview ul {
+	margin: var(--ap-space-1-5) 0 0;
+	padding: 0;
+	list-style: none;
+}
+.ap-target-row {
+	display: grid;
+	grid-template-columns: minmax(12rem, 2fr) minmax(7rem, 1fr) auto;
+	align-items: end;
+	gap: var(--ap-space-3);
+	padding-bottom: var(--ap-space-3);
+	border-bottom: 1px solid var(--ap-border);
+}
+.ap-target-row:has(.ap-target-keep) {
+	grid-template-columns: minmax(12rem, 2fr) minmax(7rem, 1fr) minmax(0, 4fr) auto;
+}
+.ap-target-keep {
+	display: grid;
+	grid-template-columns: repeat(4, minmax(5rem, 1fr));
+	gap: var(--ap-space-3);
+}
+.ap-disclosure-plain > summary {
+	cursor: pointer;
+	color: var(--ap-fg-muted);
+	font-size: var(--ap-text-sm);
+}
+.ap-disclosure-plain[open] > summary {
+	margin-bottom: var(--ap-space-3);
+}
+@media (max-width: 767px) {
+	.ap-target-row,
+	.ap-target-row:has(.ap-target-keep) {
+		grid-template-columns: minmax(0, 1fr);
+	}
+	.ap-target-keep {
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+	}
+}

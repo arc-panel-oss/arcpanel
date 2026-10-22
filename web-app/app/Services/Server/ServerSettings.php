@@ -421,7 +421,7 @@ final class ServerSettings
     }
 
     /**
-     * @param  array<string, mixed>  $values  BackupSettingsRequest::values()
+     * @param  array<string, mixed>  $values  the backup values of PATCH /api/v2/system/settings (ServerSettingsApi)
      * @return list<Step>
      */
     public function planBackups(array $values): array
@@ -666,6 +666,29 @@ final class ServerSettings
         $this->config->forget();
 
         return $result;
+    }
+
+    /**
+     * Settings of the Backups hub (E48 spec §8.2): compression, temporary
+     * folder, backups at once, load limit, report and suspended users.
+     *
+     * @param  array{mode: string, level: int, temp: string, parallel: int, la_limit: int, report: string, suspended: bool}  $values
+     * @return list<Step>
+     */
+    public function planBackupHub(array $values): array
+    {
+        $config = $this->config();
+
+        return self::configSteps($config, [
+            'BACKUP_MODE' => $values['mode'],
+            'BACKUP_GZIP' => $values['mode'] === 'gzip' ? '9' : (string) $values['level'],
+            // v-list-sys-config prints BACKUP when BACKUP_TEMP is not set
+            'BACKUP_TEMP' => $values['temp'],
+            'BACKUP_PARALLEL' => (string) $values['parallel'],
+            'BACKUP_LA_LIMIT' => (string) $values['la_limit'],
+            'BACKUP_REPORT' => $values['report'],
+            'POLICY_BACKUP_SUSPENDED_USERS' => $values['suspended'] ? 'yes' : 'no',
+        ]);
     }
 
     /**
