@@ -140,6 +140,23 @@ setup() {
     v-delete-backup-host rclone > /dev/null
 }
 
+@test "rclone: an absolute folder of a local remote stays absolute, never under the user's home" {
+    local dir="$RCLONE_DIR-abs"
+    printf '\n[%s-local]\ntype = local\n' "$RCLONE_REMOTE" >> /root/.config/rclone/rclone.conf
+    mkdir -p "$dir"
+    run v-add-backup-host rclone "$RCLONE_REMOTE-local" '' '' "$dir/"
+    assert_success
+    assert_equal "$(grep -o "^PATH='[^']*'" "$ARCPANEL/data/backup/destinations/rclone.conf")" "PATH='$dir'"
+    run v-backup-user "$BH_USER"
+    assert_success
+    run sh -c "ls '$dir' | grep -c '^$BH_USER\..*\.tar$'"
+    assert_output '1'
+    assert_file_not_exists "/home/$BH_USER/${dir#/}"
+    v-delete-backup-host rclone > /dev/null
+    sed -i "/^\[$RCLONE_REMOTE-local\]$/,/^type = local$/d" /root/.config/rclone/rclone.conf
+    rm -rf "$dir"
+}
+
 @test "restic: a server without archive backups still makes snapshots" {
     sed -i "s/^BACKUP_SYSTEM=.*/BACKUP_SYSTEM=''/" "$ARCPANEL/conf/arcpanel.conf"
     mkdir -p "$REPO_DIR"

@@ -121,7 +121,8 @@ for type in ftp sftp b2 rclone; do
 			bl_rclone_section "$remote" > "$BD_RUN/secrets/CONFIG"
 			printf "REMOTE='%s'\n" "$remote" > "$BD_RUN/options"
 			bpath=$(old_value "$conf" BPATH)
-			[ -n "$bpath" ] && printf "PATH='%s'\n" "${bpath#/}" >> "$BD_RUN/options"
+			# As given: earlier versions copied to HOST:BPATH, so an absolute folder stays absolute
+			[ -n "$bpath" ] && printf "PATH='%s'\n" "${bpath%/}" >> "$BD_RUN/options"
 			;;
 	esac
 	if add_destination "$type" "$type"; then

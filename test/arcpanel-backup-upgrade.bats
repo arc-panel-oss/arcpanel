@@ -131,7 +131,7 @@ teardown_file() {
     assert_equal "$(dest_value ftp SECRETS)" PASSWORD
     assert_equal "$(dest_value rclone DRIVER)" rclone
     assert_equal "$(dest_value rclone REMOTE)" "$REMOTE"
-    assert_equal "$(dest_value rclone PATH)" arc
+    assert_equal "$(dest_value rclone PATH)" /arc
     assert_equal "$(dest_value rclone SECRETS)" CONFIG
     assert_equal "$(dest_value restic DRIVER)" local
     assert_equal "$(dest_value restic PATH)" "$REPO"

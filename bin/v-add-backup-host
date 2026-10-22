@@ -111,7 +111,8 @@ case "$type" in
 		fi
 		printf '%s\n' "$section" > "$secrets/CONFIG"
 		printf "REMOTE='%s'\n" "$host" >> "$options"
-		[ -n "$path" ] && printf "PATH='%s'\n" "${path#/}" >> "$options"
+		# As given: earlier versions copied to HOST:PATH, so an absolute folder stays absolute
+		[ -n "$path" ] && printf "PATH='%s'\n" "${path%/}" >> "$options"
 		;;
 esac
 existed=no
