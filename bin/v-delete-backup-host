@@ -41,7 +41,7 @@ check_arcpanel_demo_mode
 #----------------------------------------------------------#
 
 # Deleting host config
-rm -f $ARCPANEL/conf/$type.backup.conf
+rm -f $ARCPANEL/conf/$type.backup.conf $ARCPANEL/conf/$type.backup.key
 
 #----------------------------------------------------------#
 #                         ArcPanel                         #

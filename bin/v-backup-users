@@ -28,7 +28,15 @@ check_arcpanel_demo_mode
 # Auto-repair all databases before backuping all accounts
 mysqlrepair --all-databases --check --auto-repair > /dev/null 2>&1
 
+# Incremental backups of the users whose package allows them, after the archives
+run_incremental() {
+	if [ "$BACKUP_INCREMENTAL" = 'yes' ]; then
+		ARC_SKIP_DB_REPAIR=yes "$BIN/v-backup-users-restic"
+	fi
+}
+
 if [ -z "$BACKUP_SYSTEM" ]; then
+	run_incremental
 	exit
 fi
 for user in $("$BIN/v-list-users" list); do
@@ -48,6 +56,8 @@ for user in $("$BIN/v-list-users" list); do
 		echo -e "\n--------------------------------\n\n" >> $log
 	fi
 done
+
+run_incremental
 
 #----------------------------------------------------------#
 #                         ArcPanel                         #
