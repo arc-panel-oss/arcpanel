@@ -29,6 +29,12 @@
 #                                 DokuWiki page, quickinstall-clean deletes it
 #   prepare.sh ports RANGE        allocates RANGE to arce2euser (E6)
 #   prepare.sh listen PORT        serves "arce2e-app-PORT" on 127.0.0.1:PORT
+#   prepare.sh fetch-listen PORT  serves the upload from URL fixtures on
+#                                 127.0.0.1:PORT: /file/N (N bytes), /echo
+#                                 (Authorization and X-Test), /slow (1000
+#                                 bytes, 5 a second); fetch-clean cancels and
+#                                 removes the downloads of arce2euser,
+#                                 fetch-temp counts its partial files
 #   prepare.sh http DOMAIN        prints the HTTP status, then the start of
 #                                 the body, of arce2euser's DOMAIN
 #   prepare.sh files              fixtures of the file manager spec (E3);
@@ -120,6 +126,7 @@ backups_prepare() {
 
 stop_listeners() {
 	pkill -f 'python3 -m http.server 399' > /dev/null 2>&1 || true
+	pkill -f 'php -S 127.0.0.1:399' > /dev/null 2>&1 || true
 	rm -rf /tmp/arce2e-listen-*
 }
 
@@ -569,6 +576,50 @@ case "${1:-}" in
 			sleep 0.2
 		done
 		exit 1
+		;;
+	fetch-listen)
+		port="${2:?port}"
+		dir="/tmp/arce2e-listen-fetch-$port"
+		mkdir -p "$dir"
+		cat > "$dir/router.php" << 'PHP'
+<?php
+$path = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
+$headers = array_change_key_case(getallheaders(), CASE_LOWER);
+if (preg_match('#^/file/(\d+)#', $path, $m)) {
+	header('Content-Length: ' . $m[1]);
+	echo str_repeat('a', (int) $m[1]);
+} elseif ($path === '/echo') {
+	echo ($headers['authorization'] ?? '') . '|' . ($headers['x-test'] ?? '') . '|';
+} elseif ($path === '/slow') {
+	set_time_limit(0);
+	header('Content-Length: 1000');
+	for ($i = 0; $i < 1000; $i++) {
+		echo 'c';
+		flush();
+		usleep(200000);
+	}
+} else {
+	http_response_code(404);
+}
+PHP
+		cd "$dir" || exit 1
+		PHP_CLI_SERVER_WORKERS=8 setsid nohup "$ARCPANEL/php/bin/php" -S "127.0.0.1:$port" router.php > /dev/null 2>&1 < /dev/null &
+		for _ in $(seq 1 25); do
+			if ss -Hltn "sport = :$port" | grep -q .; then
+				exit 0
+			fi
+			sleep 0.2
+		done
+		exit 1
+		;;
+	fetch-clean)
+		"$B/v-delete-fs-fetch" arce2euser active > /dev/null 2>&1 || true
+		rm -rf "$ARCPANEL/data/users/arce2euser/fetches"
+		exit 0
+		;;
+	fetch-temp)
+		find "$FILES_ROOT" -maxdepth 1 -name '.arc-fetch-*' | wc -l
+		exit 0
 		;;
 	http)
 		domain="${2:?domain}"

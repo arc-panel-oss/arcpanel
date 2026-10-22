@@ -1527,6 +1527,66 @@ paths:
           $ref: "#/components/responses/InvalidRequest"
         "422":
           $ref: "#/components/responses/Unprocessable"
+  "/api/#v-add-fs-fetch":
+    post:
+      operationId: v-add-fs-fetch
+      tags:
+        - Files
+      summary: Download a URL into a user's folder (E3)
+      description: |-
+        This function queues a download of the URL in REQUEST_FILE into DEST_DIR,
+        run in the background as the user (v-run-fs-fetch), and prints its ID;
+        follow it with v-list-fs-fetches. REQUEST_FILE holds one directive per
+        line: "url URL" (http or https), and optionally "name FILE_NAME", up to 50
+        "header Name: value" lines and one of "basic USER:PASSWORD" or "bearer
+        TOKEN"; it is copied, so the caller may remove it. An existing file is
+        kept and the new one gets the first free "name_(n).ext" (ON_CONFLICT
+        rename, default), replaced (overwrite) or not downloaded (skip). Private
+        and local addresses are refused unless PRIVATE is yes. Three fetches run
+        at once per user and at most 20 wait or run; FILE_FETCH='no' turns the
+        command off, FILE_FETCH_MAX_SIZE limits the size (default 2G).
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `USER` | yes |
+        | `arg2` | `DEST_DIR` | yes |
+        | `arg3` | `REQUEST_FILE` | yes |
+        | `arg4` | `ON_CONFLICT` | no |
+        | `arg5` | `PRIVATE` | no |
+
+        **User argument:** with the access key of a user other than the admin, `arg1` must be the key's user.
+      x-arcpanel-user-arg: 1
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-add-fs-fetch"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-add-fs-fetch"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
   "/api/#v-add-fs-file":
     post:
       operationId: v-add-fs-file
@@ -14543,6 +14603,56 @@ paths:
           $ref: "#/components/responses/InvalidRequest"
         "422":
           $ref: "#/components/responses/Unprocessable"
+  "/api/#v-delete-fs-fetch":
+    post:
+      operationId: v-delete-fs-fetch
+      tags:
+        - Files
+      summary: Cancel or remove a user's download from a URL (E3)
+      description: |-
+        This function cancels a queued or running fetch of v-add-fs-fetch (its
+        partial file is removed) or removes the record of a finished one. ID
+        "active" cancels every queued and running fetch of the user and keeps the
+        finished ones (used when the user is suspended or deleted).
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `USER` | yes |
+        | `arg2` | `ID` | yes |
+
+        **User argument:** with the access key of a user other than the admin, `arg1` must be the key's user.
+      x-arcpanel-user-arg: 1
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-delete-fs-fetch"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-delete-fs-fetch"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
   "/api/#v-delete-fs-file":
     post:
       operationId: v-delete-fs-file
@@ -22236,6 +22346,62 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/v-list-fs-disk-usage"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+            application/json:
+              schema:
+                type: object
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+  "/api/#v-list-fs-fetches":
+    post:
+      operationId: v-list-fs-fetches
+      tags:
+        - Files
+      summary: List a user's downloads from URLs (E3)
+      description: |-
+        This function lists the fetches of v-add-fs-fetch, newest first: STATUS
+        queued, running, done, skipped, failed or cancelled; BYTES received (live
+        while running) and TOTAL announced by the server (empty when unknown);
+        ERROR and HTTP of a failure. URL is shown without user information and
+        with the query replaced by "?…". Finished fetches are removed after 24
+        hours, and a running fetch whose runner is gone ends as failed
+        (interrupted).
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `USER` | yes |
+        | `arg2` | `FORMAT` | no |
+
+        **User argument:** with the access key of a user other than the admin, `arg1` must be the key's user.
+      x-arcpanel-user-arg: 1
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-list-fs-fetches"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-list-fs-fetches"
       responses:
         "200":
           description: "The output of the command; `OK` for an empty output with legacy authentication."
@@ -32940,6 +33106,59 @@ paths:
           $ref: "#/components/responses/InvalidRequest"
         "422":
           $ref: "#/components/responses/Unprocessable"
+  "/api/#v-run-fs-fetch":
+    post:
+      operationId: v-run-fs-fetch
+      tags:
+        - Files
+      summary: Run a fetch of upload from URL (E3)
+      description: |-
+        This function is started by v-add-fs-fetch (through the queue) and
+        downloads the URL of the fetch into its folder as the user: curl runs in a
+        transient unit in the user's slice, pinned to an address that
+        func/fetch.php allowed, for at most 6 requests (5 redirects). The file is
+        written as a hidden partial file and renamed when complete, with the
+        conflict rule of the fetch. Then the next queued fetch of the user starts.
+        Not meant to be called directly.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `USER` | yes |
+        | `arg2` | `ID` | yes |
+
+        **User argument:** with the access key of a user other than the admin, `arg1` must be the key's user.
+      x-arcpanel-user-arg: 1
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-run-fs-fetch"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-run-fs-fetch"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
   "/api/#v-run-node-app-build":
     post:
       operationId: v-run-node-app-build
@@ -41333,6 +41552,53 @@ components:
               type: string
               title: PATH
               description: "`PATH`, repeatable, optional"
+              examples:
+                - ""
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
+    v-add-fs-fetch:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+            - arg2
+            - arg3
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-add-fs-fetch
+              default: v-add-fs-fetch
+            arg1:
+              type: string
+              title: USER
+              description: "`USER`"
+              examples:
+                - alice
+            arg2:
+              type: string
+              title: DEST_DIR
+              description: "`DEST_DIR`"
+              examples:
+                - /home/alice/web/example.com/public_html
+            arg3:
+              type: string
+              title: REQUEST_FILE
+              description: "`REQUEST_FILE`"
+              examples:
+                - /tmp/request
+            arg4:
+              type: string
+              title: ON_CONFLICT
+              description: "`ON_CONFLICT`, optional"
+              examples:
+                - rename
+            arg5:
+              type: string
+              title: PRIVATE
+              description: "`PRIVATE`, optional"
               examples:
                 - ""
             returncode:
@@ -50254,6 +50520,34 @@ components:
                 - /home/admin/report1
             returncode:
               $ref: "#/components/schemas/ReturnCode"
+    v-delete-fs-fetch:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+            - arg2
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-delete-fs-fetch
+              default: v-delete-fs-fetch
+            arg1:
+              type: string
+              title: USER
+              description: "`USER`"
+              examples:
+                - alice
+            arg2:
+              type: string
+              title: ID
+              description: "`ID`"
+              examples:
+                - "17611234560042"
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
     v-delete-fs-file:
       allOf:
         - $ref: "#/components/schemas/Credentials"
@@ -54952,6 +55246,38 @@ components:
               examples:
                 - /home/alice/web/example.com
             arg3:
+              type: string
+              title: FORMAT
+              description: "`FORMAT`, optional"
+              enum:
+                - json
+                - plain
+                - csv
+                - shell
+              examples:
+                - json
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
+    v-list-fs-fetches:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-list-fs-fetches
+              default: v-list-fs-fetches
+            arg1:
+              type: string
+              title: USER
+              description: "`USER`"
+              examples:
+                - alice
+            arg2:
               type: string
               title: FORMAT
               description: "`FORMAT`, optional"
@@ -61256,6 +61582,34 @@ components:
               description: "`VERSION`, optional"
               examples:
                 - ""
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
+    v-run-fs-fetch:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+            - arg2
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-run-fs-fetch
+              default: v-run-fs-fetch
+            arg1:
+              type: string
+              title: USER
+              description: "`USER`"
+              examples:
+                - alice
+            arg2:
+              type: string
+              title: ID
+              description: "`ID`"
+              examples:
+                - "17611234560042"
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-run-node-app-build:
