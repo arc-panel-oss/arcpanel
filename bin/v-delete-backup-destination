@@ -1,0 +1,67 @@
+#!/bin/bash
+# info: delete a backup destination (E48)
+# options: NAME
+#
+# example: v-delete-backup-destination offsite
+#
+# This function deletes the backup destination NAME: its record, secrets,
+# key and pinned host key. It refuses while a backup job targets NAME.
+# Archives and snapshots on the storage stay where they are; the archive
+# records of the users forget that NAME holds them. Export the recovery
+# kit first to read encrypted archives later.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+name=$1
+
+# Includes
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/secret.sh
+source $ARCPANEL/func/secret.sh
+# shellcheck source=/usr/local/arcpanel/func/backup-driver.sh
+source $ARCPANEL/func/backup-driver.sh
+# shellcheck source=/usr/local/arcpanel/func/backup-job.sh
+source $ARCPANEL/func/backup-job.sh
+# load config file
+source_conf "$ARCPANEL/conf/arcpanel.conf"
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '1' "$#" 'NAME'
+bd_check_exists "$name"
+jobs=$(bd_jobs_of "$name")
+if [ -n "$jobs" ]; then
+	check_result "$E_INUSE" "backup destination $name is used by the jobs $jobs"
+fi
+
+# Perform verification if read-only mode is enabled
+check_arcpanel_demo_mode
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+rm -f -- "$BD_DIR/$name.conf" "$BD_DIR/$name.secret.age" "$BD_DIR/$name.key.age" \
+	"$BD_DIR/$name.recipient" "$BD_DIR/$name.known_hosts"
+for owner in $("$BIN/v-list-users" list); do
+	bj_registry_forget_destination "$owner" "$name"
+	rm -f -- "$ARCPANEL/data/users/$owner/restic/$name.age"
+done
+
+#----------------------------------------------------------#
+#                         ArcPanel                         #
+#----------------------------------------------------------#
+
+bd_sync_backup_system
+$BIN/v-log-action "system" "Info" "Backup" "Backup destination deleted (Name: $name)."
+log_event "$OK" "$name"
+
+exit

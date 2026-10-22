@@ -1,0 +1,81 @@
+#!/bin/bash
+# info: export the recovery kit of a backup destination (E48)
+# options: NAME [FILE]
+#
+# example: v-export-backup-destination-key offsite /root/offsite-kit.txt
+#
+# This function writes the recovery kit of the backup destination NAME to
+# FILE (mode 600), or prints it when FILE is not given: the destination's
+# age identity with its driver, path and the host name of this server.
+# The identity decrypts the archives and the restic passwords stored on
+# the destination, so keep the kit away from the server. Importing it with
+# v-add-backup-destination reads the backups on another server.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+name=$1
+file=$2
+
+# Includes
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/secret.sh
+source $ARCPANEL/func/secret.sh
+# shellcheck source=/usr/local/arcpanel/func/backup-driver.sh
+source $ARCPANEL/func/backup-driver.sh
+# load config file
+source_conf "$ARCPANEL/conf/arcpanel.conf"
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '1' "$#" 'NAME [FILE]'
+bd_check_exists "$name"
+if [ -n "$file" ] && { [ -e "$file" ] || [ -L "$file" ]; }; then
+	check_result "$E_EXISTS" "$file already exists"
+fi
+
+# Perform verification if read-only mode is enabled
+check_arcpanel_demo_mode
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+bd_check_keys
+identity=$(bd_identity "$name")
+if [ -z "$identity" ]; then
+	check_result "$E_FORBIDEN" "the key of $name could not be read"
+fi
+new_timestamp
+kit() {
+	echo "# ArcPanel backup destination recovery kit"
+	echo "# Keep this file away from the server. It decrypts the archives and the"
+	echo "# restic passwords stored on the destination."
+	echo "# Import: v-add-backup-destination NAME DRIVER OPTIONS SECRETS KIT_FILE"
+	echo "SERVER='$(hostname -f 2> /dev/null || hostname)' NAME='$name' DRIVER='$(bd_value "$name" DRIVER)' PATH='$(bd_value "$name" PATH)' BUCKET='$(bd_value "$name" BUCKET)' EXPORTED='$date $time'"
+	printf '%s\n' "$identity" | grep '^AGE-SECRET-KEY-'
+}
+if [ -n "$file" ]; then
+	(umask 077 && kit > "$file")
+	check_result $? "the kit could not be written" "$E_FORBIDEN"
+	chmod 600 "$file"
+else
+	kit
+fi
+bd_set "$name" "KIT=$date $time"
+
+#----------------------------------------------------------#
+#                         ArcPanel                         #
+#----------------------------------------------------------#
+
+$BIN/v-log-action "system" "Warning" "Backup" "Recovery kit exported (Destination: $name)."
+log_event "$OK" "$name"
+
+exit

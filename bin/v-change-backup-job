@@ -1,0 +1,71 @@
+#!/bin/bash
+# info: change a backup job (E48)
+# options: ID NAME ENGINE SCOPE SCHEDULE TARGETS [EXCLUDE_USERS]
+#
+# example: v-change-backup-job 179271000012 'Nightly archives' archive all daily:04:30 local,offsite:14
+#
+# This function replaces the name, engine, scope, schedule, targets and
+# excluded users of the backup job ID (see v-add-backup-job) and computes
+# its next run. Its state (enabled or paused) stays.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+id=$1
+name=$2
+engine=$3
+scope=$4
+schedule=$5
+targets=$6
+exclude=$7
+
+# Includes
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/secret.sh
+source $ARCPANEL/func/secret.sh
+# shellcheck source=/usr/local/arcpanel/func/backup-driver.sh
+source $ARCPANEL/func/backup-driver.sh
+# shellcheck source=/usr/local/arcpanel/func/backup-job.sh
+source $ARCPANEL/func/backup-job.sh
+# load config file
+source_conf "$ARCPANEL/conf/arcpanel.conf"
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '6' "$#" 'ID NAME ENGINE SCOPE SCHEDULE TARGETS [EXCLUDE_USERS]'
+bj_check_exists "$id"
+bj_name_valid "$name" || check_result "$E_INVALID" "invalid job name"
+bj_engine_valid "$engine" || check_result "$E_INVALID" "invalid engine $engine"
+bj_check_scope "$scope"
+bj_schedule_valid "$schedule" || check_result "$E_INVALID" "invalid schedule"
+targets=$(bj_normalize_targets "$targets") || check_result $? "$targets"
+bj_check_exclude "$exclude"
+
+# Perform verification if read-only mode is enabled
+check_arcpanel_demo_mode
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+new_timestamp
+next=$(bj_next "$schedule" "$(date +%s)")
+bj_set "$id" "NAME=$name" "ENGINE=$engine" "SCOPE=$scope" "EXCLUDE_USERS=$exclude" "SCHEDULE=$schedule" \
+	"TARGETS=$targets" "NEXT_RUN_TS=$next" "NEXT_RUN=$([ -n "$next" ] && date -d "@$next" +'%F %T')" "UPDATED=$date $time"
+
+#----------------------------------------------------------#
+#                         ArcPanel                         #
+#----------------------------------------------------------#
+
+bj_sync_incremental
+$BIN/v-log-action "system" "Info" "Backup" "Backup job changed (ID: $id, Name: $name)."
+log_event "$OK" "$id"
+
+exit

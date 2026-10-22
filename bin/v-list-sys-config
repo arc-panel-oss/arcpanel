@@ -38,8 +38,12 @@ json_list() {
 		"BACKUP": "'$BACKUP'",
 		"BACKUP_GZIP": "'$BACKUP_GZIP'",
 		"BACKUP_INCREMENTAL": "'$BACKUP_INCREMENTAL'",
+		"BACKUP_LA_LIMIT": "'$BACKUP_LA_LIMIT'",
 		"BACKUP_MODE": "'$BACKUP_MODE'",
+		"BACKUP_PARALLEL": "'${BACKUP_PARALLEL:-1}'",
+		"BACKUP_REPORT": "'${BACKUP_REPORT:-failures}'",
 		"BACKUP_SYSTEM": "'$BACKUP_SYSTEM'",
+		"BACKUP_TEMP": "'${BACKUP_TEMP:-$BACKUP}'",
 		"CRON_SYSTEM": "'$CRON_SYSTEM'",
 		"DB_ADMIN_PORT": "'$DB_ADMIN_PORT'",
 		"DB_PGA_ALIAS": "'$DB_PGA_ALIAS'",
@@ -223,6 +227,10 @@ shell_list() {
 	if [ -n "$BACKUP_SYSTEM" ]; then
 		echo "Backups:                          ${BACKUP_SYSTEM//,/, }"
 		echo "Backup Directory:                 $BACKUP"
+		echo "Backups at once:                  ${BACKUP_PARALLEL:-1}"
+		echo "Backup load limit:                $BACKUP_LA_LIMIT"
+		echo "Backup report:                    ${BACKUP_REPORT:-failures}"
+		echo "Backup temporary folder:          ${BACKUP_TEMP:-$BACKUP}"
 	fi
 	if [ -n "$DISK_QUOTA" ]; then
 		echo "Disk Quota enabled:               $DISK_QUOTA"

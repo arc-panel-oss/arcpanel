@@ -1,0 +1,59 @@
+#!/bin/bash
+# info: list a backup job (E48)
+# options: ID [FORMAT]
+#
+# example: v-list-backup-job 179271000012 json
+#
+# This function prints the backup job ID with its schedule, targets, next
+# run, the state of its last run and the users it covers now (USERS).
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+id=$1
+format=${2-shell}
+
+# Includes
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/secret.sh
+source $ARCPANEL/func/secret.sh
+# shellcheck source=/usr/local/arcpanel/func/backup-driver.sh
+source $ARCPANEL/func/backup-driver.sh
+# shellcheck source=/usr/local/arcpanel/func/backup-job.sh
+source $ARCPANEL/func/backup-job.sh
+# load config file
+source_conf "$ARCPANEL/conf/arcpanel.conf"
+
+job_json() {
+	jq -c --arg u "$(bj_users "$id" | tr '\n' ',' | sed 's/,$//')" '. + {USERS: $u}' <<< "$(bj_json "$id")"
+}
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '1' "$#" 'ID [FORMAT]'
+is_format_valid 'format'
+bj_check_exists "$id"
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+case $format in
+	json) jq --arg n "$id" '{($n): .}' <<< "$(job_json)" ;;
+	plain) job_json | jq -r '[.[]] | @tsv' ;;
+	csv) job_json | jq -r '(keys_unsorted | @csv), ([.[]] | @csv)' ;;
+	shell) job_json | jq -r 'to_entries[] | "\(.key):\t\(.value)"' ;;
+esac
+
+#----------------------------------------------------------#
+#                         ArcPanel                         #
+#----------------------------------------------------------#
+
+exit

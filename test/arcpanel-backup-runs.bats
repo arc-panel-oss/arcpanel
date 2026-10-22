@@ -108,9 +108,9 @@ teardown_file() {
     ARC_BACKUP_TRIGGER=schedule run v-backup-user "$BR_USER"
     assert_success
     assert_equal "$(br_value "$(br_last "$BR_USER")" TRIGGER)" schedule
-    # The nightly loops set it for every user they back up
-    grep -q '^export ARC_BACKUP_TRIGGER=schedule' "$BIN/v-backup-users"
-    grep -q '^export ARC_BACKUP_TRIGGER=schedule' "$BIN/v-backup-users-restic"
+    # Scheduled runs of backup jobs (E48) set it for every user they back up
+    grep -q 'ARC_BACKUP_TRIGGER=\$run_trigger' "$BIN/v-run-backup-job"
+    grep -q '^\s*run_trigger=schedule' "$BIN/v-run-backup-job"
 }
 
 @test "v-run-queue-task: a requested backup is recorded with its task" {
@@ -203,7 +203,7 @@ teardown_file() {
     assert_success
     assert_line --index 0 --partial '17000000000002'
     run v-list-user-backup-runs "$BR_USER" csv
-    assert_line --index 0 'ID,ENGINE,TRIGGER,TASK,STATUS,START,END,EXIT,ERROR,ARCHIVE,SIZE'
+    assert_line --index 0 'ID,ENGINE,TRIGGER,TASK,STATUS,START,END,EXIT,ERROR,ARCHIVE,SIZE,JOB,DESTS'
     run v-list-user-backup-runs "$BR_USER" shell
     assert_success
     assert_output --partial 'succeeded'

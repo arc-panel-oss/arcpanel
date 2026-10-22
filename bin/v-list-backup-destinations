@@ -1,0 +1,87 @@
+#!/bin/bash
+# info: list backup destinations (E48)
+# options: [FORMAT]
+#
+# example: v-list-backup-destinations json
+#
+# This function lists the backup destinations with their fields, state and
+# the names (never the values) of their stored secrets, and the jobs that
+# target each.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+format=${1-shell}
+
+# Includes
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/secret.sh
+source $ARCPANEL/func/secret.sh
+# shellcheck source=/usr/local/arcpanel/func/backup-driver.sh
+source $ARCPANEL/func/backup-driver.sh
+# load config file
+source_conf "$ARCPANEL/conf/arcpanel.conf"
+
+# JSON list function
+json_list() {
+	local name
+	for name in $(bd_names); do
+		jq -c --arg n "$name" '{($n): .}' <<< "$(bd_json "$name")"
+	done | jq -s 'add // {}'
+}
+
+# SHELL list function
+shell_list() {
+	local name
+	{
+		echo "NAME DRIVER ENCRYPT STATE CHECKED JOBS"
+		echo "---- ------ ------- ----- ------- ----"
+		for name in $(bd_names); do
+			echo "$name $(bd_value "$name" DRIVER) $(bd_value "$name" ENCRYPT) $(bd_value "$name" STATE)" \
+				"$(bd_value_or "$name" CHECKED - | tr ' ' '_') $(bd_jobs_of "$name" | sed 's/^$/-/')"
+		done
+	} | column -t
+}
+
+# PLAIN list function
+plain_list() {
+	local name
+	for name in $(bd_names); do
+		echo -e "$name\t$(bd_value "$name" DRIVER)\t$(bd_value "$name" PATH)\t$(bd_value "$name" ENCRYPT)\t$(bd_value "$name" STATE)\t$(bd_value "$name" CHECKED)\t$(bd_jobs_of "$name")"
+	done
+}
+
+# CSV list function
+csv_list() {
+	echo "NAME,DRIVER,PATH,ENCRYPT,STATE,CHECKED,JOBS"
+	plain_list | sed 's/,/;/g' | tr '\t' ','
+}
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+is_format_valid 'format'
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+# Listing data
+case $format in
+	json) json_list ;;
+	plain) plain_list ;;
+	csv) csv_list ;;
+	shell) shell_list ;;
+esac
+
+#----------------------------------------------------------#
+#                         ArcPanel                         #
+#----------------------------------------------------------#
+
+exit

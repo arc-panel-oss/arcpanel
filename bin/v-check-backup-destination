@@ -1,0 +1,119 @@
+#!/bin/bash
+# info: check a backup destination (E48)
+# options: NAME [ACCEPT_HOST_KEY] [FORMAT]
+#
+# example: v-check-backup-destination offsite
+#          v-check-backup-destination offsite SHA256:Nq2Qb3H0yZ… json
+#
+# This function writes a small file to the backup destination NAME, lists
+# it, reads it back and deletes it, then records the result (STATE ok or
+# failing, CHECKED). An SFTP destination needs its host key first: without
+# a pinned key the check prints the server's key (HOST_KEY) and fails;
+# run it again with that fingerprint as ACCEPT_HOST_KEY to pin it. The
+# result is printed with OK, ERROR, HOST_KEY and LATENCY_MS; the exit code
+# is not zero when the check fails.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+name=$1
+accept=$2
+format=${3-shell}
+
+# Includes
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/secret.sh
+source $ARCPANEL/func/secret.sh
+# shellcheck source=/usr/local/arcpanel/func/backup-driver.sh
+source $ARCPANEL/func/backup-driver.sh
+# load config file
+source_conf "$ARCPANEL/conf/arcpanel.conf"
+
+# Print the result and leave with RC
+result() {
+	local ok="$1" error="$2" rc="$3"
+	case "$format" in
+		json)
+			jq -n --arg n "$name" --arg ok "$ok" --arg e "$error" --arg k "$host_key" --arg l "$latency" \
+				'{($n): {OK: $ok, ERROR: $e, HOST_KEY: $k, LATENCY_MS: $l}}'
+			;;
+		*)
+			echo "OK:          $ok"
+			[ -n "$error" ] && echo "ERROR:       $error"
+			[ -n "$host_key" ] && echo "HOST_KEY:    $host_key"
+			[ -n "$latency" ] && echo "LATENCY_MS:  $latency"
+			;;
+	esac
+	if [ "$rc" -ne 0 ]; then
+		log_event "$rc" "$ARGUMENTS"
+	else
+		log_event "$OK" "$ARGUMENTS"
+	fi
+	exit "$rc"
+}
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '1' "$#" 'NAME [ACCEPT_HOST_KEY] [FORMAT]'
+is_format_valid 'format'
+bd_check_exists "$name"
+if [ -n "$accept" ] && [[ ! "$accept" =~ ^SHA256:[A-Za-z0-9+/=]{20,64}$ ]]; then
+	check_result "$E_INVALID" "invalid host key fingerprint"
+fi
+
+# Perform verification if read-only mode is enabled
+check_arcpanel_demo_mode
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+bd_check_keys
+driver=$(bd_value "$name" DRIVER)
+host_key=$(bd_value "$name" HOST_KEY)
+latency=''
+new_timestamp
+
+if [ "$driver" = sftp ]; then
+	bd_session
+	fingerprint=$(bd_scan_host_key "$(bd_value "$name" HOST)" "$(bd_value_or "$name" PORT 22)" "$BD_RUN/known_hosts")
+	if [ -z "$fingerprint" ]; then
+		bd_set "$name" STATE=failing "CHECKED=$date $time"
+		result no "the host key could not be read: the server does not answer" "$E_CONNECT"
+	fi
+	if [ -n "$accept" ]; then
+		if [ "$accept" != "$fingerprint" ]; then
+			host_key=$fingerprint
+			result no "the server's host key is not the one accepted" "$E_FORBIDEN"
+		fi
+		cp -f "$BD_RUN/known_hosts" "$BD_DIR/$name.known_hosts"
+		chmod 600 "$BD_DIR/$name.known_hosts"
+		bd_set "$name" "HOST_KEY=$fingerprint"
+		host_key=$fingerprint
+	elif [ -z "$host_key" ]; then
+		host_key=$fingerprint
+		result no "accept the host key of the server first" "$E_FORBIDEN"
+	elif [ "$host_key" != "$fingerprint" ]; then
+		bd_set "$name" STATE=failing "CHECKED=$date $time"
+		host_key=$fingerprint
+		result no "host key changed" "$E_FORBIDEN"
+	fi
+fi
+
+start=$(date +%s%3N)
+if error=$(bd_check "$name"); then
+	latency=$(($(date +%s%3N) - start))
+	bd_set "$name" STATE=ok FAILURES=0 "CHECKED=$date $time"
+	$BIN/v-log-action "system" "Info" "Backup" "Backup destination checked (Name: $name)."
+	result yes '' 0
+fi
+bd_set "$name" STATE=failing "CHECKED=$date $time"
+$BIN/v-log-action "system" "Warning" "Backup" "Backup destination check failed (Name: $name)."
+result no "$error" "$E_CONNECT"

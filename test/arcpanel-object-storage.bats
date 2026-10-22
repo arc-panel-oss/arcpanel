@@ -39,6 +39,23 @@ mcli_root() {
     )
 }
 
+# restic on the repository of USER on its snapshot destination (E48)
+user_restic() {
+    local owner="$1"
+    shift
+    (
+        # The trap of bats must not run in this subshell
+        trap - EXIT
+        . /etc/arcpanel/arcpanel.conf
+        . "$ARCPANEL/func/main.sh"
+        . "$ARCPANEL/func/secret.sh"
+        . "$ARCPANEL/func/backup-driver.sh"
+        . "$ARCPANEL/func/backup-job.sh"
+        restic_select "$owner" ""
+        restic "$@"
+    )
+}
+
 # Save a key's ID and secret from v-add-user-s3-key json under NAME
 save_key() {
     jq -r .KEY <<< "$2" > "$BATS_FILE_TMPDIR/$1.id"
@@ -609,17 +626,18 @@ teardown_file() {
     printf 'AWS_ACCESS_KEY_ID=%s\nAWS_SECRET_ACCESS_KEY=%s\n' "$(cat "$BATS_FILE_TMPDIR/restic.id")" "$(cat "$BATS_FILE_TMPDIR/restic.secret")" > "$BATS_TEST_TMPDIR/s3.env"
     run v-add-backup-host-s3 http://127.0.0.1:9310 arcbats-restic/server "$BATS_TEST_TMPDIR/s3.env" us-east-1 3
     assert_success
-    run grep "^REPO=" "$ARCPANEL/conf/restic.conf"
-    assert_output "REPO='rclone:arcpanel-s3:arcbats-restic/server'"
+    # Since E48 the S3 host is the backup destination s3 of the job "Nightly snapshots"
+    run sh -c "v-list-backup-host-restic json | jq -r .restic.REPO"
+    assert_output 'rclone:arcpanel-s3:arcbats-restic/server'
     run v-list-backup-host-restic json
     assert_equal "$(jq -r '.restic | "\(.S3_ENDPOINT) \(.S3_REGION)"' <<< "$output")" 'http://127.0.0.1:9310 us-east-1'
     refute_output --partial "$(sed -n 's/^AWS_SECRET_ACCESS_KEY=//p' "$BATS_TEST_TMPDIR/s3.env")"
     # A change of the retention keeps the connection
     run v-add-backup-host-restic rclone:arcpanel-s3:arcbats-restic/server 5 -1 -1 -1 -1
     assert_success
-    run grep -c '^S3_' "$ARCPANEL/conf/restic.conf"
-    assert_output 3
-    run stat -c %a /root/.config/rclone/rclone.conf
+    run sh -c "v-list-backup-host-restic json | jq -r '.restic | \"\(.SNAPSHOTS) \(.S3_KEY_ID)\"'"
+    assert_output "5 $(cat "$BATS_FILE_TMPDIR/restic.id")"
+    run stat -c %a "$ARCPANEL/data/backup/destinations/s3.secret.age"
     assert_output 600
     run v-backup-user-restic "$U2"
     assert_success
@@ -627,8 +645,7 @@ teardown_file() {
     [ "$(jq 'length' <<< "$output")" -ge 1 ]
     run v-delete-backup-host-s3
     assert_success
-    run grep -c '^\[arcpanel-s3\]' /root/.config/rclone/rclone.conf
-    assert_output 0
+    assert_file_not_exists "$ARCPANEL/data/backup/destinations/s3.conf"
 }
 
 @test "object storage: the cross-user list covers every account or a reseller's tree" {
@@ -648,13 +665,13 @@ teardown_file() {
     mkdir -p "$repo"
     run v-add-backup-host-restic "$repo" 3 -1 -1 -1 -1
     assert_success
-    rm -f "$ARCPANEL/data/users/$U2/restic.conf"
+    rm -rf "$ARCPANEL/data/users/$U2/restic.conf" "$ARCPANEL/data/users/$U2/restic"
     run v-backup-user-restic "$U2"
     assert_success
     assert_dir_not_exists "/backup/arcpanel-objects-$U2"
     assert_dir_not_exists "$ARCPANEL/data/silo/backup/$U2"
-    snapshot=$(restic --repo "$repo/$U2" --password-file "$ARCPANEL/data/users/$U2/restic.conf" snapshots --json | jq -r 'last.short_id')
-    run restic --repo "$repo/$U2" --password-file "$ARCPANEL/data/users/$U2/restic.conf" cat snapshot "$snapshot"
+    snapshot=$(user_restic "$U2" snapshots --json | jq -r 'last.short_id')
+    run user_restic "$U2" cat snapshot "$snapshot"
     assert_output --partial "\"/backup/arcpanel-objects-$U2\""
     v-delete-user-bucket "$U2" arcbats-u2 > /dev/null
     # Everything, as the panel restores a snapshot
@@ -668,7 +685,7 @@ teardown_file() {
     v-delete-backup-host-restic > /dev/null
     rm -rf "$repo"
     # A later repository of the account needs a new password and init
-    rm -f "$ARCPANEL/data/users/$U2/restic.conf"
+    rm -rf "$ARCPANEL/data/users/$U2/restic.conf" "$ARCPANEL/data/users/$U2/restic"
 }
 
 @test "object storage: removing Silo is refused while buckets exist" {

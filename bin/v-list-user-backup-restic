@@ -22,6 +22,12 @@ format=${3-plain}
 source /etc/arcpanel/arcpanel.conf
 # shellcheck source=/usr/local/arcpanel/func/main.sh
 source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/secret.sh
+source $ARCPANEL/func/secret.sh
+# shellcheck source=/usr/local/arcpanel/func/backup-driver.sh
+source $ARCPANEL/func/backup-driver.sh
+# shellcheck source=/usr/local/arcpanel/func/backup-job.sh
+source $ARCPANEL/func/backup-job.sh
 # shellcheck source=/usr/local/arcpanel/func/safe-fs.sh
 source $ARCPANEL/func/safe-fs.sh
 # load config file
@@ -83,7 +89,8 @@ plain_list() {
 	echo -e "$UDIR\t$RUNTIME\t$TIME\t$DATE"
 }
 
-source_conf $ARCPANEL/conf/restic.conf
+# The user's repository on the destination that holds the snapshot (E48)
+restic_select "$user" "$snapshot"
 
 safe_workdir list-backup
 read_snapshot_index "$SAFE_WORKDIR" "$snapshot"

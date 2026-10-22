@@ -4,8 +4,17 @@
 #
 # example: v-add-backup-host sftp backup.acme.com admin 'P4$$w@rD'
 #          v-add-backup-host b2 bucketName keyID applicationKey
+#          v-add-backup-host local
 #
-# Add a new remote backup location. Currently SFTP, FTP and Backblaze are supported
+# Add a remote backup location of the kind earlier versions knew: local,
+# SFTP, FTP, Backblaze B2 or an rclone remote of root's rclone
+# configuration. Since E48 the host is the backup destination named TYPE,
+# and it becomes a target of the backup job "Nightly archives" (created
+# when missing, daily at 05:10 for all users). For SFTP, PASSWORD may be a
+# file with a private key; the server's host key is pinned on first use.
+# The host is checked; it is not kept when the check fails. Use
+# v-add-backup-destination for more destinations of a kind and for the
+# other drivers.
 
 #----------------------------------------------------------#
 #                Variables & Functions                     #
@@ -21,58 +30,44 @@ HIDE=4
 path=${5-/backup}
 port=$6
 
-# CPU Architecture
-arch=$(arch)
-
 # Includes
 # shellcheck source=/etc/arcpanel/arcpanel.conf
 source /etc/arcpanel/arcpanel.conf
 # shellcheck source=/usr/local/arcpanel/func/main.sh
 source $ARCPANEL/func/main.sh
-# shellcheck source=/usr/local/arcpanel/func/backup.sh
-source $ARCPANEL/func/backup.sh
-# shellcheck source=/usr/local/arcpanel/func/download.sh
-source $ARCPANEL/func/download.sh
+# shellcheck source=/usr/local/arcpanel/func/secret.sh
+source $ARCPANEL/func/secret.sh
+# shellcheck source=/usr/local/arcpanel/func/backup-driver.sh
+source $ARCPANEL/func/backup-driver.sh
+# shellcheck source=/usr/local/arcpanel/func/backup-job.sh
+source $ARCPANEL/func/backup-job.sh
+# shellcheck source=/usr/local/arcpanel/func/backup-legacy.sh
+source $ARCPANEL/func/backup-legacy.sh
 # load config file
 source_conf "$ARCPANEL/conf/arcpanel.conf"
-# Fetch current verison B2 CLI tool
-source_conf "$ARCPANEL/install/upgrade/upgrade.conf"
-
-# Paths
-b2cli="/usr/local/bin/b2"
-b2lnk="https://github.com/Backblaze/B2_Command_Line_Tool/releases/download/v$b2_v/b2-linux"
 
 #----------------------------------------------------------#
 #                    Verifications                         #
 #----------------------------------------------------------#
 
+check_args '1' "$#" "TYPE HOST USERNAME PASSWORD [PATH] [PORT]"
+is_type_valid 'local,sftp,ftp,b2,rclone' "$type"
+privatekey=no
 if [ "$type" != 'local' ]; then
 	check_args '2' "$#" "TYPE HOST USERNAME PASSWORD [PATH] [PORT]"
-	is_format_valid 'host' 'path' 'port'
-	is_type_valid 'sftp,ftp,b2,rclone' "$type"
-	is_username_format_valid "$user" "username"
-	privatekey="no"
-	if [ -f "$raw_password" ]; then
-		if grep -q "OPENSSH PRIVATE" "$raw_password"; then
-			privatekey="yes"
-			password="$ARCPANEL/conf/$type.backup.key"
+	if [ "$type" != b2 ]; then
+		is_format_valid 'host'
+	fi
+	[ -n "$port" ] && is_format_valid 'port'
+	if [ "$type" = ftp ] || [ "$type" = sftp ]; then
+		is_username_format_valid "$user" "username"
+		if [ -f "$raw_password" ] && grep -q "PRIVATE KEY" "$raw_password"; then
+			privatekey=yes
 		else
 			is_password_valid
 		fi
-	else
+	elif [ "$type" = b2 ]; then
 		is_password_valid
-	fi
-	format_no_quotes "$password" "password"
-
-	if [ "$type" = 'sftp' ]; then
-		which expect > /dev/null 2>&1
-		check_result $? "expect command not found" "$E_NOTEXIST"
-	fi
-	if [ "$type" != 'b2' ] && [ "$type" != 'rclone' ]; then
-		if ! (is_ip_format_valid "$host" > /dev/null); then
-			host "$host" > /dev/null 2>&1
-			check_result $? "host connection failed" "$E_CONNECT"
-		fi
 	fi
 fi
 
@@ -83,173 +78,67 @@ check_arcpanel_demo_mode
 #                       Action                             #
 #----------------------------------------------------------#
 
-# Checking network connection
-if [ "$type" = 'ftp' ]; then
-	if [ -z $port ]; then
-		port=21
-	fi
-	PORT=$port
-	USERNAME=$user
-	PASSWORD=$password
-	HOST=$host
-	PRIVATEKEY=$privatekey
-
-	fconn=$(ftpc 2>&1)
-	ferror=$(echo $fconn \
-		| grep -i -e failed -e error -e "can't" -e "not conn" -e "incorrect")
-	if [ -n "$ferror" ]; then
-		echo "Error: can't login to ftp $user@$host"
-		log_event "$E_CONNECT" "$ARGUMENTS"
-		exit "$E_CONNECT"
-	fi
-
-	# Checking write permissions
-	if [ -z $path ]; then
-		ftmpdir="vst.bK76A9SUkt"
-	else
-		ftpc "mkdir $path" > /dev/null 2>&1
-		ftmpdir="$path/vst.bK76A9SUkt"
-	fi
-	ftp_result=$(ftpc "mkdir $ftmpdir" "rm $ftmpdir" | grep -v Trying)
-	if [ -n "$ftp_result" ]; then
-		echo "$ftp_result"
-		rm -rf $tmpdir
-		echo "Error: can't create $ftmpdir folder on the ftp"
-		log_event "$E_FTP" "$ARGUMENTS"
-		exit "$E_FTP"
-	fi
-fi
-
-if [ "$type" = 'sftp' ]; then
-	if [ -z $port ]; then
-		port=22
-	fi
-	# The key file given as PASSWORD may be a temporary file of the panel
-	if [ "$privatekey" = 'yes' ]; then
-		(umask 077 && cp -f -- "$raw_password" "$password.new") \
-			&& mv -f -- "$password.new" "$password"
-		check_result $? "the private key could not be saved" "$E_NOTEXIST"
-		chmod 600 "$password"
-	fi
-	PORT=$port
-	USERNAME=$user
-	PASSWORD=$password
-	HOST=$host
-	PRIVATEKEY=$privatekey
-
-	if [ -z $path ]; then
-		sftmpdir="vst.bK76A9SUkt"
-		sftpc "mkdir $sftmpdir" "rmdir $sftmpdir" > /dev/null 2>&1
-	else
-		if sftpc "mkdir $path" > /dev/null 2>&1; then
-			sftmpdir="$path/vst.bK76A9SUkt"
-			sftpc "mkdir $sftmpdir" "rmdir $sftmpdir" > /dev/null 2>&1
+bd_check_keys
+bd_session
+options="$BD_RUN/options"
+secrets="$BD_RUN/secrets"
+mkdir -p "$secrets"
+: > "$options"
+case "$type" in
+	local)
+		printf "PATH='%s'\n" "${BACKUP:-/backup}" >> "$options"
+		;;
+	ftp | sftp)
+		printf "HOST='%s'\nUSERNAME='%s'\n" "$host" "$user" >> "$options"
+		[ -n "$port" ] && printf "PORT='%s'\n" "$port" >> "$options"
+		[ -n "$path" ] && printf "PATH='%s'\n" "$path" >> "$options"
+		# Earlier versions sent FTP without TLS
+		[ "$type" = ftp ] && printf "TLS='none'\n" >> "$options"
+		if [ "$privatekey" = yes ]; then
+			cp -- "$raw_password" "$secrets/PRIVATE_KEY"
 		else
-			sftmpdir="$path/vst.bK76A9SUkt"
-			sftpc "mkdir $sftmpdir" "rmdir $sftmpdir" > /dev/null 2>&1
+			printf '%s' "$password" > "$secrets/PASSWORD"
 		fi
-	fi
-	rc=$?
-	if [[ "$rc" -ne 0 ]]; then
-		case $rc in
-			$E_CONNECT) echo "Error: can't login to sftp $user@$host" ;;
-			$E_FTP) echo "Error: can't create temp folder on the sftp host" ;;
-			*) echo "Error Unable to connect via sftp." ;;
-		esac
-		log_event "$rc" "$ARGUMENTS"
-		exit "$rc"
-	fi
-fi
-
-if [ "$type" = 'b2' ]; then
-	# Download b2 binary
-	if [ ! -f "$b2cli" ]; then
-		if [ "$arch" = 'aarch64' ] || [ "$arch" = 'arm64' ]; then
-			echo "Error: B2 binary for arm64 must be downloaded manually."
-			exit 3
-		elif fetch_verified "$b2lnk" "$b2_sha256" "$b2cli.new"; then
-			install -m 0755 "$b2cli.new" "$b2cli"
-			rm -f "$b2cli.new"
+		;;
+	b2)
+		printf "BUCKET='%s'\nKEY_ID='%s'\n" "$host" "$user" >> "$options"
+		printf '%s' "$password" > "$secrets/APP_KEY"
+		;;
+	rclone)
+		section=$(bl_rclone_section "$host")
+		if [ -z "$section" ]; then
+			check_result "$E_CONNECT" "Rclone config does not exist"
 		fi
-		if [ ! -f "$b2cli" ]; then
-			echo "Error: Binary download failed, b2 doesn't work as expected."
-			exit 3
-		fi
-	fi
-
-	# Validate b2 binary
-	b2version="$(b2 version)"
-	if [[ ! "$b2version" =~ "b2 command line tool" ]]; then
-		echo "Error: Binary download failed, b2 doesn't work as expected."
-		exit 3
-	fi
-
-	b2 account clear > /dev/null 2>&1
-	b2 account authorize "$user" "$password" > /dev/null 2>&1
-	b2 ls --long "b2://$host/$user" > /dev/null 2>&1
-
-	if [ $? -ne 0 ]; then
-		check_result "$E_CONNECT" "b2 failed to verify connection"
-	fi
+		printf '%s\n' "$section" > "$secrets/CONFIG"
+		printf "REMOTE='%s'\n" "$host" >> "$options"
+		[ -n "$path" ] && printf "PATH='%s'\n" "${path#/}" >> "$options"
+		;;
+esac
+existed=no
+bd_exists "$type" && existed=yes
+out=$(bl_destination "$type" "$type" "$options" "$secrets" 2>&1)
+check_result $? "$out"
+# Archives of earlier versions are not encrypted; a host added this way
+# keeps that until the administrator turns encryption on
+if [ "$existed" = no ] && [ "$type" != local ]; then
+	bd_set "$type" ENCRYPT=no
 fi
-
-if [ "$type" = 'rclone' ]; then
-	$BIN/v-add-sys-rclone > /dev/null
-	check_result $? "rclone could not be installed" "$E_CONNECT"
-	# Verify account exists
-	if [ ! -z "$(cat /root/.config/rclone/rclone.conf | grep "\[$host\]")" ]; then
-		echo "test" > /tmp/arcpanel-backup.txt
-		# Try to upload a single file
-		if [ -z "$path" ]; then
-			rclone copy /tmp/arcpanel-backup.txt $host:/arcpanel-backup.txt
-			rclone delete $host:/arcpanel-backup.txt
-		else
-			rclone copy /tmp/arcpanel-backup.txt $host:$path/arcpanel-backup.txt
-			rclone delete $host:$path/arcpanel-backup.txt
-		fi
-	else
-		check_result "$E_CONNECT" "Rclone config does not exist"
+if [ "$type" != local ] && ! bl_check "$type"; then
+	error=$("$BIN/v-check-backup-destination" "$type" '' json 2> /dev/null | jq -r --arg n "$type" '.[$n].ERROR // empty')
+	if [ "$existed" = no ]; then
+		"$BIN/v-delete-backup-destination" "$type" > /dev/null 2>&1
 	fi
+	check_result "$E_CONNECT" "can't connect to the $type backup host${error:+: $error}"
 fi
-
-# Adding backup host
-if [ $type == 'ftp' ] || [ $type = 'sftp' ]; then
-	new_timestamp
-	str="HOST='$host'\nUSERNAME='$user'\nPASSWORD='$password'\nPRIVATEKEY='$privatekey'"
-	str="$str\nBPATH='$path'\nPORT='$port'\nTIME='$time'\nDATE='$date'"
-	echo -e "$str" > $ARCPANEL/conf/$type.backup.conf
-	chmod 660 $ARCPANEL/conf/$type.backup.conf
-elif [ $type == 'b2' ]; then
-	new_timestamp
-	str="BUCKET='$host'\nB2_KEYID='$user'\nB2_KEY='$password'"
-	str="$str\nTIME='$time'\nDATE='$date'"
-	echo -e "$str" > $ARCPANEL/conf/$type.backup.conf
-	chmod 660 $ARCPANEL/conf/$type.backup.conf
-elif [ $type == "rclone" ]; then
-	new_timestamp
-	str="HOST='$host'\nBPATH='$path'"
-	str="$str\nTIME='$time'\nDATE='$date'"
-	echo -e "$str" > $ARCPANEL/conf/$type.backup.conf
-fi
+bl_target_set "$BL_ARCHIVE_JOB" archive daily:05:10 "$type:-1"
+check_result $? "the backup job could not be changed"
 
 #----------------------------------------------------------#
 #                         ArcPanel                         #
 #----------------------------------------------------------#
 
-# Update arcpanel.conf
-if [ -z "$(grep BACKUP_SYSTEM $ARCPANEL/conf/arcpanel.conf)" ]; then
-	echo "BACKUP_SYSTEM='$type'" >> $ARCPANEL/conf/arcpanel.conf
-else
-	bckp=$(echo "$BACKUP_SYSTEM,$type" \
-		| sed "s/,/\n/g" \
-		| sort -r -u \
-		| sed "/^$/d" \
-		| sed ':a;N;$!ba;s/\n/,/g')
-	sed -i "s/BACKUP_SYSTEM=.*/BACKUP_SYSTEM='$bckp'/g" $ARCPANEL/conf/arcpanel.conf
-fi
-sys_config_changed
-
-# Logging
+bd_sync_backup_system
+$BIN/v-log-action "system" "Info" "Backup" "Added backup host (Type: $type)."
 log_event "$OK" "$ARGUMENTS"
 
 exit

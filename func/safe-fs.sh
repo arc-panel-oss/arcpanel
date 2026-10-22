@@ -302,7 +302,12 @@ restore_records_file() {
 restic_user() {
 	local owner=$1
 	shift
-	restic --repo "${REPO%/}/$owner" --password-file "$ARCPANEL/data/users/$owner/restic.conf" "$@"
+	# The repository chosen by restic_select (E48), else the one of restic.conf
+	if [ -n "${RESTIC_REPOSITORY-}" ]; then
+		restic "$@"
+	else
+		restic --repo "${REPO%/}/$owner" --password-file "$ARCPANEL/data/users/$owner/restic.conf" "$@"
+	fi
 }
 
 # Whether PATH is /home/$user or below it, absolute and normalised: no "."

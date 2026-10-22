@@ -1,11 +1,18 @@
 #!/bin/bash
-# info: add backup host
-# options: TYPE HOST USERNAME PASSWORD [PATH] [PORT]
+# info: add the incremental backup host
+# options: REPO SNAPSHOTS DAILY WEEKLY MONTHLY YEARLY
 #
-# example: v-add-backup-host sftp backup.acme.com admin 'P4$$w@rD'
-#          v-add-backup-host b2 bucketName keyID applicationKey
+# example: v-add-backup-host-restic /backup/restic 30 -1 -1 -1 -1
+#          v-add-backup-host-restic rclone:offsite:restic 10 7 4 12 -1
 #
-# Add a new remote backup location. Currently SFTP, FTP and Backblaze are supported
+# This function sends incremental (restic) backups to REPO, as earlier
+# versions did: a folder of this server or rclone:REMOTE:PATH of a remote in
+# root's rclone configuration (an S3 host: v-add-backup-host-s3). Since E48
+# the repository is the backup destination restic and the target of the
+# backup job "Nightly snapshots" (created when missing, daily at 05:40 for
+# all users), with the retention given (-1 keeps all). The repository of
+# each user is REPO/USER, as before. Other restic URLs are refused: add a
+# backup destination instead.
 
 #----------------------------------------------------------#
 #                Variables & Functions                     #
@@ -19,37 +26,41 @@ weekly=$4
 monthly=$5
 yearly=$6
 
-# CPU Architecture
-arch=$(arch)
-
 # Includes
 # shellcheck source=/etc/arcpanel/arcpanel.conf
 source /etc/arcpanel/arcpanel.conf
 # shellcheck source=/usr/local/arcpanel/func/main.sh
 source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/secret.sh
+source $ARCPANEL/func/secret.sh
+# shellcheck source=/usr/local/arcpanel/func/backup-driver.sh
+source $ARCPANEL/func/backup-driver.sh
+# shellcheck source=/usr/local/arcpanel/func/backup-job.sh
+source $ARCPANEL/func/backup-job.sh
+# shellcheck source=/usr/local/arcpanel/func/backup-legacy.sh
+source $ARCPANEL/func/backup-legacy.sh
 # load config file
 source_conf "$ARCPANEL/conf/arcpanel.conf"
-# Fetch current verison B2 CLI tool
-source_conf "$ARCPANEL/install/upgrade/upgrade.conf"
-
-is_negative_one_or_int() {
-	if [[ "$1" != '-1' ]]; then
-		is_int_format_valid "$1" "$2"
-	fi
-}
 
 #----------------------------------------------------------#
 #                    Verifications                         #
 #----------------------------------------------------------#
 
 check_args '6' "$#" "REPO SNAPSHOTS DAILY WEEKLY MONTHLY YEARLY"
-
-format_no_quotes $repo 'Repository host'
-is_negative_one_or_int $snapshots 'Snapshots'
-is_negative_one_or_int $daily 'Daily snapshots'
-is_negative_one_or_int $weekly 'Weekly snapshots'
-is_negative_one_or_int $monthly 'Monthly snapshots'
-is_negative_one_or_int $yearly 'Yearly snapshots'
+format_no_quotes "$repo" 'Repository host'
+is_negative_one_or_int "$snapshots" 'Snapshots'
+is_negative_one_or_int "$daily" 'Daily snapshots'
+is_negative_one_or_int "$weekly" 'Weekly snapshots'
+is_negative_one_or_int "$monthly" 'Monthly snapshots'
+is_negative_one_or_int "$yearly" 'Yearly snapshots'
+repo="${repo%/}"
+if ! parsed=$(bl_restic_repo "$repo"); then
+	check_result "$E_INVALID" "unsupported repository: use a folder or rclone:REMOTE:PATH, or add a backup destination"
+fi
+IFS=$'\t' read -r kind path remote <<< "$parsed"
+if [ "$kind" = local ] && [ ! -d "$path" ]; then
+	check_result "$E_NOTEXIST" "Directory '$path' does not exist"
+fi
 
 # Perform verification if read-only mode is enabled
 check_arcpanel_demo_mode
@@ -58,58 +69,58 @@ check_arcpanel_demo_mode
 #                       Action                             #
 #----------------------------------------------------------#
 
-# Check if Restic is allready installed if not install it ...
-if ! which /usr/bin/restic > /dev/null 2>&1; then
-	apt install restic
+if ! command -v restic > /dev/null 2>&1; then
+	apt-get -y install restic > /dev/null 2>&1
 fi
-# Update restic to last release
-restic self-update > /dev/null 2>&1
-
-# Check if $repo starts with a slash
-if [[ $repo == "/"* ]]; then
-	if [ ! -d "$repo" ]; then
-		check_result $E_NOTEXIST "Directory '$repo' does not exist"
+bd_check_keys
+bd_session
+retention="$snapshots:$daily:$weekly:$monthly:$yearly"
+if [ "$kind" = s3 ]; then
+	# The S3 host of v-add-backup-host-s3: only the retention changes
+	if ! bd_exists s3; then
+		check_result "$E_NOTEXIST" "no S3 backup host: use v-add-backup-host-s3"
+	fi
+	dest=s3
+else
+	dest=restic
+	options="$BD_RUN/options"
+	secrets="$BD_RUN/secrets"
+	mkdir -p "$secrets"
+	if [ "$kind" = local ]; then
+		printf "PATH='%s'\n" "$path" > "$options"
+		driver=local
+	else
+		section=$(bl_rclone_section "$remote")
+		if [ -z "$section" ]; then
+			check_result "$E_NOTEXIST" "Rclone repository '$remote' does not exist"
+		fi
+		printf '%s\n' "$section" > "$secrets/CONFIG"
+		printf "REMOTE='%s'\nPATH='%s'\n" "$remote" "$path" > "$options"
+		driver=rclone
+	fi
+	# Earlier versions had one incremental host: a folder or remote replaces S3
+	if bd_exists s3 && [ "$(bl_snapshot_destination)" = s3 ]; then
+		bl_drop_destination s3
+	fi
+	if bd_exists restic && [ "$(bd_value restic DRIVER)" != "$driver" ]; then
+		bl_drop_destination restic
+	fi
+	out=$(bl_destination restic "$driver" "$options" "$secrets" 2>&1)
+	check_result $? "$out"
+	# Repositories of earlier versions are REPO/USER
+	bd_set restic RESTIC_PREFIX= ENCRYPT=no
+	if ! "$BIN/v-check-backup-destination" restic > /dev/null 2>&1; then
+		check_result "$E_NOTEXIST" "Rclone repository '$remote:$path' does not exist"
 	fi
 fi
-
-# Check if $repo starts with rclone
-if [[ $repo == "rclone:"* ]]; then
-	# remove rclone: from $repo
-	repo2=$(echo "$repo" | sed 's/rclone://')
-	# check if rclone is working
-	if ! rclone lsd "$repo2" > /dev/null 2>&1; then
-		check_result $E_NOTEXIST "Rclone repository '$repo2' does not exist"
-	fi
-fi
-
-# Normalize repository path by removing any trailing slash so the
-# per-user repo path is always built as "$REPO/$user" (see #5100)
-repo="${repo%/}"
-
-# The connection of an S3 backup host (v-add-backup-host-s3) stays while its
-# repository does, so a change of the retention keeps it
-s3_lines=''
-if [[ $repo == rclone:arcpanel-s3:* ]] && grep -q "^REPO='$repo'$" /usr/local/arcpanel/conf/restic.conf 2> /dev/null; then
-	s3_lines=$(grep '^S3_' /usr/local/arcpanel/conf/restic.conf)
-fi
-
-echo "REPO='$repo'" > /usr/local/arcpanel/conf/restic.conf
-echo "SNAPSHOTS='$snapshots'" >> /usr/local/arcpanel/conf/restic.conf
-echo "KEEP_DAILY='$daily'" >> /usr/local/arcpanel/conf/restic.conf
-echo "KEEP_WEEKLY='$weekly'" >> /usr/local/arcpanel/conf/restic.conf
-echo "KEEP_MONTHLY='$monthly'" >> /usr/local/arcpanel/conf/restic.conf
-echo "KEEP_YEARLY='$yearly'" >> /usr/local/arcpanel/conf/restic.conf
-if [ -n "$s3_lines" ]; then
-	echo "$s3_lines" >> /usr/local/arcpanel/conf/restic.conf
-fi
-
-$BIN/v-change-sys-config-value 'BACKUP_INCREMENTAL' 'yes'
+bl_target_set "$BL_SNAPSHOT_JOB" snapshot daily:05:40 "$dest:$retention"
+check_result $? "the backup job could not be changed"
 
 #----------------------------------------------------------#
 #                         ArcPanel                         #
 #----------------------------------------------------------#
 
-# Logging
+$BIN/v-log-action "system" "Info" "Backup" "Incremental backups go to $dest."
 log_event "$OK" "$ARGUMENTS"
 
 exit

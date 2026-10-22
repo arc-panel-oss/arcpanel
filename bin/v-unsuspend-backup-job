@@ -1,0 +1,56 @@
+#!/bin/bash
+# info: enable a paused backup job (E48)
+# options: ID
+#
+# example: v-unsuspend-backup-job 179271000012
+#
+# This function enables the backup job ID again and computes its next run
+# from now: runs missed while it was paused do not run.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+id=$1
+
+# Includes
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/secret.sh
+source $ARCPANEL/func/secret.sh
+# shellcheck source=/usr/local/arcpanel/func/backup-driver.sh
+source $ARCPANEL/func/backup-driver.sh
+# shellcheck source=/usr/local/arcpanel/func/backup-job.sh
+source $ARCPANEL/func/backup-job.sh
+# load config file
+source_conf "$ARCPANEL/conf/arcpanel.conf"
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '1' "$#" 'ID'
+bj_check_exists "$id"
+
+# Perform verification if read-only mode is enabled
+check_arcpanel_demo_mode
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+new_timestamp
+next=$(bj_next "$(bj_value "$id" SCHEDULE)" "$(date +%s)")
+bj_set "$id" STATE=enabled "NEXT_RUN_TS=$next" "NEXT_RUN=$([ -n "$next" ] && date -d "@$next" +'%F %T')" "UPDATED=$date $time"
+
+#----------------------------------------------------------#
+#                         ArcPanel                         #
+#----------------------------------------------------------#
+
+$BIN/v-log-action "system" "Info" "Backup" "Backup job enabled (ID: $id)."
+log_event "$OK" "$id"
+
+exit

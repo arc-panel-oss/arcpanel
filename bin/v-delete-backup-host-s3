@@ -4,9 +4,8 @@
 #
 # example: v-delete-backup-host-s3
 #
-# This function turns off incremental backups when their repository is the
-# S3 backup host, and removes the rclone remote arcpanel-s3. The snapshots
-# stay in the bucket.
+# This function deletes the S3 backup host (the backup destination s3): it
+# leaves every backup job and is deleted. The snapshots stay in the bucket.
 
 #----------------------------------------------------------#
 #                Variables & Functions                     #
@@ -17,19 +16,16 @@
 source /etc/arcpanel/arcpanel.conf
 # shellcheck source=/usr/local/arcpanel/func/main.sh
 source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/secret.sh
+source $ARCPANEL/func/secret.sh
+# shellcheck source=/usr/local/arcpanel/func/backup-driver.sh
+source $ARCPANEL/func/backup-driver.sh
+# shellcheck source=/usr/local/arcpanel/func/backup-job.sh
+source $ARCPANEL/func/backup-job.sh
+# shellcheck source=/usr/local/arcpanel/func/backup-legacy.sh
+source $ARCPANEL/func/backup-legacy.sh
 # load config file
 source_conf "$ARCPANEL/conf/arcpanel.conf"
-
-REMOTE=arcpanel-s3
-
-#----------------------------------------------------------#
-#                    Verifications                         #
-#----------------------------------------------------------#
-
-if [ "$(id -u)" != '0' ]; then
-	echo "Error: v-delete-backup-host-s3 can only be executed by the root user"
-	exit "$E_FORBIDEN"
-fi
 
 # Perform verification if read-only mode is enabled
 check_arcpanel_demo_mode
@@ -38,27 +34,15 @@ check_arcpanel_demo_mode
 #                       Action                             #
 #----------------------------------------------------------#
 
-if grep -q "^REPO='rclone:$REMOTE:" "$ARCPANEL/conf/restic.conf" 2> /dev/null; then
-	$BIN/v-delete-backup-host-restic
-fi
-
-config=$(rclone config file 2> /dev/null | tail -n 1)
-if [ -n "$config" ] && [ -f "$config" ]; then
-	tmp=$(mktemp)
-	chmod 600 "$tmp"
-	awk -v remote="[$REMOTE]" '
-		$0 == remote { skip = 1; next }
-		/^\[/ { skip = 0 }
-		!skip { print }' "$config" > "$tmp"
-	mv -f "$tmp" "$config"
-	chmod 600 "$config"
+if bd_exists s3; then
+	bl_drop_destination s3
 fi
 
 #----------------------------------------------------------#
 #                         ArcPanel                         #
 #----------------------------------------------------------#
 
-$BIN/v-log-action "system" "Info" "Backup" "S3 backup host removed."
+$BIN/v-log-action "system" "Info" "Backup" "The S3 backup host was removed."
 log_event "$OK" "$ARGUMENTS"
 
 exit

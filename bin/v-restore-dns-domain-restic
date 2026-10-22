@@ -22,6 +22,12 @@ notify=${4-no}
 source /etc/arcpanel/arcpanel.conf
 # shellcheck source=/usr/local/arcpanel/func/main.sh
 source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/secret.sh
+source $ARCPANEL/func/secret.sh
+# shellcheck source=/usr/local/arcpanel/func/backup-driver.sh
+source $ARCPANEL/func/backup-driver.sh
+# shellcheck source=/usr/local/arcpanel/func/backup-job.sh
+source $ARCPANEL/func/backup-job.sh
 # shellcheck source=/usr/local/arcpanel/func/domain.sh
 source $ARCPANEL/func/domain.sh
 # shellcheck source=/usr/local/arcpanel/func/ip.sh
@@ -44,7 +50,8 @@ check_args '3' "$#" "$args_usage"
 is_format_valid 'user' 'snapshot'
 is_object_valid 'user' 'USER' "$user"
 
-source_conf $ARCPANEL/conf/restic.conf
+# The user's repository on the destination that holds the snapshot (E48)
+restic_select "$user" "$snapshot"
 
 #----------------------------------------------------------#
 #                       Action                             #

@@ -27,7 +27,7 @@ source $ARCPANEL/func/backuprun.sh
 # load config file
 source_conf "$ARCPANEL/conf/arcpanel.conf"
 
-LIST_KEYS=(ENGINE TRIGGER TASK STATUS START END EXIT ERROR ARCHIVE SIZE)
+LIST_KEYS=(ENGINE TRIGGER TASK STATUS START END EXIT ERROR ARCHIVE SIZE JOB DESTS)
 
 # The record lines, newest first, without lines that have no id
 runs() {

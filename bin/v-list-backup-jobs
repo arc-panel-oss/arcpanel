@@ -1,0 +1,87 @@
+#!/bin/bash
+# info: list backup jobs (E48)
+# options: [FORMAT]
+#
+# example: v-list-backup-jobs json
+#
+# This function lists the backup jobs with their schedule, targets, next
+# run and the state of their last run.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+format=${1-shell}
+
+# Includes
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/secret.sh
+source $ARCPANEL/func/secret.sh
+# shellcheck source=/usr/local/arcpanel/func/backup-driver.sh
+source $ARCPANEL/func/backup-driver.sh
+# shellcheck source=/usr/local/arcpanel/func/backup-job.sh
+source $ARCPANEL/func/backup-job.sh
+# load config file
+source_conf "$ARCPANEL/conf/arcpanel.conf"
+
+# JSON list function
+json_list() {
+	local id
+	for id in $(bj_ids); do
+		jq -c --arg n "$id" '{($n): .}' <<< "$(bj_json "$id")"
+	done | jq -s 'add // {}'
+}
+
+# SHELL list function
+shell_list() {
+	local id
+	{
+		echo "ID NAME ENGINE SCHEDULE STATE NEXT_RUN"
+		echo "-- ---- ------ -------- ----- --------"
+		for id in $(bj_ids); do
+			echo "$id $(bj_value "$id" NAME | tr ' ' '_') $(bj_value "$id" ENGINE) $(bj_value "$id" SCHEDULE | tr ' ' '_')" \
+				"$(bj_value "$id" STATE) $(bj_value "$id" NEXT_RUN | tr ' ' '_')"
+		done
+	} | column -t
+}
+
+# PLAIN list function
+plain_list() {
+	local id
+	for id in $(bj_ids); do
+		echo -e "$id\t$(bj_value "$id" NAME)\t$(bj_value "$id" ENGINE)\t$(bj_value "$id" SCOPE)\t$(bj_value "$id" SCHEDULE)\t$(bj_value "$id" TARGETS)\t$(bj_value "$id" STATE)\t$(bj_value "$id" NEXT_RUN)"
+	done
+}
+
+# CSV list function
+csv_list() {
+	echo "ID,NAME,ENGINE,SCOPE,SCHEDULE,TARGETS,STATE,NEXT_RUN"
+	plain_list | sed 's/,/;/g' | tr '\t' ','
+}
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+is_format_valid 'format'
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+case $format in
+	json) json_list ;;
+	plain) plain_list ;;
+	csv) csv_list ;;
+	shell) shell_list ;;
+esac
+
+#----------------------------------------------------------#
+#                         ArcPanel                         #
+#----------------------------------------------------------#
+
+exit

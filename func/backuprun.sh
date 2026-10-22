@@ -12,7 +12,7 @@
 #===========================================================================#
 
 # An array: the backup commands change IFS
-BR_KEYS=(ID ENGINE TRIGGER TASK STATUS START END EXIT ERROR ARCHIVE SIZE PID)
+BR_KEYS=(ID ENGINE TRIGGER TASK STATUS START END EXIT ERROR ARCHIVE SIZE PID JOB DESTS)
 BR_KEEP=30
 
 br_file() {
@@ -113,7 +113,7 @@ br_on_exit() {
 	fi
 	br_lock "$BR_USER" || return 0
 	br_set_unlocked "$BR_USER" "$BR_ID" "STATUS=$status" "END=$(date +'%F %T')" "EXIT=$rc" \
-		"ERROR=${BR_ERROR:0:300}" "ARCHIVE=${BR_ARCHIVE-}" "SIZE=${BR_SIZE-}" PID=
+		"ERROR=$(printf '%.300s' "${BR_ERROR:-${BR_ERROR_PARTIAL-}}")" "ARCHIVE=${BR_ARCHIVE-}" "SIZE=${BR_SIZE-}" PID= "DESTS=${BR_DESTS-}"
 	br_unlock
 }
 
@@ -141,7 +141,7 @@ br_begin() {
 		BR_ID="$(date +%s)$(printf '%04d' $((RANDOM % 10000)))"
 	done
 	br_set_unlocked "$BR_USER" "$BR_ID" "ENGINE=$2" "TRIGGER=$trigger" "TASK=$task" STATUS=running \
-		"START=$(date +'%F %T')" END= EXIT= ERROR= ARCHIVE= SIZE= "PID=$$"
+		"START=$(date +'%F %T')" END= EXIT= ERROR= ARCHIVE= SIZE= "PID=$$" "JOB=${BR_JOB-}" DESTS=
 	br_unlock
 	# shellcheck disable=SC2034
 	CHECK_RESULT_CALLBACK=br_check_result

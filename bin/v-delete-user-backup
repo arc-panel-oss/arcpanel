@@ -1,10 +1,13 @@
 #!/bin/bash
 # info: delete user backup
-# options: USER BACKUP
+# options: USER BACKUP [DESTINATION]
 #
 # example: v-delete-user-backup admin admin.2012-12-21_00-10-00.tar
+#          v-delete-user-backup alice alice.2026-10-22_05-10-00.tar offsite
 #
-# This function deletes user backup.
+# This function deletes user backup from every destination that holds it,
+# or from DESTINATION only (E48); the record goes when no destination holds
+# the archive any more.
 
 #----------------------------------------------------------#
 #                Variables & Functions                     #
@@ -13,6 +16,7 @@
 # Argument definition
 user=$1
 backup=$2
+destination=$3
 
 # Includes
 # shellcheck source=/etc/arcpanel/arcpanel.conf
@@ -21,6 +25,12 @@ source /etc/arcpanel/arcpanel.conf
 source $ARCPANEL/func/main.sh
 # shellcheck source=/usr/local/arcpanel/func/backup.sh
 source $ARCPANEL/func/backup.sh
+# shellcheck source=/usr/local/arcpanel/func/secret.sh
+source $ARCPANEL/func/secret.sh
+# shellcheck source=/usr/local/arcpanel/func/backup-driver.sh
+source $ARCPANEL/func/backup-driver.sh
+# shellcheck source=/usr/local/arcpanel/func/backup-job.sh
+source $ARCPANEL/func/backup-job.sh
 # load config file
 source_conf "$ARCPANEL/conf/arcpanel.conf"
 
@@ -28,9 +38,8 @@ source_conf "$ARCPANEL/conf/arcpanel.conf"
 #                    Verifications                         #
 #----------------------------------------------------------#
 
-check_args '2' "$#" 'USER BACKUP'
+check_args '2' "$#" 'USER BACKUP [DESTINATION]'
 is_format_valid 'user' 'backup'
-is_system_enabled "$BACKUP_SYSTEM" 'BACKUP_SYSTEM'
 is_object_valid 'user' 'USER' "$user"
 is_object_valid 'backup' 'BACKUP' "$2"
 
@@ -41,31 +50,22 @@ check_arcpanel_demo_mode
 #                       Action                             #
 #----------------------------------------------------------#
 
-backup_folder="$BACKUP"
-
-line=$(grep "BACKUP='$backup'" $USER_DATA/backup.conf)
-parse_object_kv_list "$line"
-
-deleted=0
-if [[ "$TYPE" =~ "sftp" ]]; then
-	sftp_delete "$backup"
-	deleted=1
+dests=$(bj_archive_destinations "$user" "$backup")
+if [ -n "$destination" ]; then
+	if [[ ",$dests," != *",$destination,"* ]]; then
+		check_result "$E_NOTEXIST" "$destination does not hold $backup"
+	fi
+	dests=$destination
 fi
-if [[ "$TYPE" =~ "ftp" ]] && [ "$deleted" == "0" ]; then
-	ftp_delete "$backup"
+bd_session
+for dest in ${dests//,/ }; do
+	bj_delete_archive "$user" "$backup" "$dest"
+done
+if [ -z "$destination" ]; then
+	# A copy fetched to the server for a restore or a download
+	rm -f "$BACKUP/$backup"
+	sed -i "/^BACKUP='$backup' /d" "$USER_DATA/backup.conf"
 fi
-if [[ "$TYPE" =~ "b2" ]]; then
-	b2_delete "$user" "$backup"
-fi
-if [[ "$TYPE" =~ "rclone" ]]; then
-	rclone_delete "$backup"
-fi
-if [[ "$TYPE" =~ "local" ]]; then
-	rm -f "$backup_folder/$2"
-fi
-
-# Deleting backup
-sed -i "/BACKUP='$2' /d" "$USER_DATA/backup.conf"
 
 #----------------------------------------------------------#
 #                         ArcPanel                         #

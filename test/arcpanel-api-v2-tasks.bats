@@ -46,6 +46,12 @@ setup_file() {
 
 teardown_file() {
     sed -i '/^QUEUE_MAX_ATTEMPTS=/d' "$ARCPANEL/conf/arcpanel.conf"
+    # The snapshot job and destination of qt_enable_incremental_backups
+    if [ -f "$BATS_FILE_TMPDIR/snapshot-job" ]; then
+        v-delete-backup-job "$(cat "$BATS_FILE_TMPDIR/snapshot-job")" > /dev/null 2>&1 || true
+        v-delete-backup-destination arcbatsqt-snap > /dev/null 2>&1 || true
+        rm -rf /backup/arcbatsqt-snap
+    fi
     qt_clear_user_queue
     v-delete-user "$QT_USER" > /dev/null 2>&1 || true
     rm -rf "$(qt_tasks_dir)"
@@ -304,8 +310,17 @@ qt_record_value() {
     v-delete-web-domain "$QT_USER" "$domain" > /dev/null
 }
 
+# Incremental backups for QT_USER: a package that allows them and, since
+# E48, a snapshot job that covers the user (BACKUP_INCREMENTAL follows it)
 qt_enable_incremental_backups() {
-    local pkg=arcbatsqt-inc
+    local pkg=arcbatsqt-inc options
+    if [ ! -f "$BATS_FILE_TMPDIR/snapshot-job" ]; then
+        options=$(mktemp)
+        printf "PATH='/backup/arcbatsqt-snap'\nENCRYPT='no'\n" > "$options"
+        v-add-backup-destination arcbatsqt-snap local "$options" > /dev/null
+        rm -f "$options"
+        v-add-backup-job arcbatsqt-snapshots snapshot "users:$QT_USER" daily:03:00 arcbatsqt-snap:3 > "$BATS_FILE_TMPDIR/snapshot-job"
+    fi
     if ! v-list-user-package "$pkg" > /dev/null 2>&1; then
         local tmp
         tmp=$(mktemp)
@@ -332,9 +347,6 @@ qt_enable_incremental_backups() {
 
 @test "v-schedule-user-restore-restic: prints an id and queues the wrapped line" {
     local snapshot id
-    if [ ! -f "$ARCPANEL/conf/restic.conf" ]; then
-        skip "restic backup host is not configured"
-    fi
     qt_enable_incremental_backups
     runuser -u "$QT_USER" -- sh -c "mkdir -p /home/$QT_USER/tmp/qt && echo x > /home/$QT_USER/tmp/qt/a.txt"
     v-backup-user-restic "$QT_USER" > /dev/null 2>&1
@@ -354,9 +366,6 @@ qt_enable_incremental_backups() {
 
 @test "v-schedule-user-restore-file-restic: prints an id and queues the wrapped line" {
     local snapshot id path
-    if [ ! -f "$ARCPANEL/conf/restic.conf" ]; then
-        skip "restic backup host is not configured"
-    fi
     qt_enable_incremental_backups
     runuser -u "$QT_USER" -- sh -c "mkdir -p /home/$QT_USER/tmp/qt && echo x > /home/$QT_USER/tmp/qt/a.txt"
     v-backup-user-restic "$QT_USER" > /dev/null 2>&1

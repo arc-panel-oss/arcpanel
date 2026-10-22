@@ -1,0 +1,250 @@
+#!/bin/bash
+# info: move the backup settings of earlier versions to destinations and jobs (E48)
+# options: NONE
+#
+# example: v-update-sys-backup-config
+#
+# This function converts the backup settings of earlier versions once, and
+# does nothing the next time (spec §10.2): the local folder becomes the
+# destination local; conf/{ftp,sftp,b2,rclone}.backup.conf become
+# destinations of the same names, their passwords and keys encrypted and
+# their archives left unencrypted; conf/restic.conf becomes the destination
+# restic (or s3 for the S3 host of E44). The nightly run becomes the job
+# "Nightly archives" (05:10) and, with incremental backups, the job
+# "Nightly snapshots" (05:40). Archive records learn their job and
+# destinations, the plain restic passwords of the users are encrypted, and
+# the cron line of v-backup-users gives way to the dispatcher. The old
+# files are renamed *.migrated. The installers and the upgrade run it.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Includes
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/secret.sh
+source $ARCPANEL/func/secret.sh
+# shellcheck source=/usr/local/arcpanel/func/backup-driver.sh
+source $ARCPANEL/func/backup-driver.sh
+# shellcheck source=/usr/local/arcpanel/func/backup-job.sh
+source $ARCPANEL/func/backup-job.sh
+# shellcheck source=/usr/local/arcpanel/func/backup-legacy.sh
+source $ARCPANEL/func/backup-legacy.sh
+# load config file
+source_conf "$ARCPANEL/conf/arcpanel.conf"
+
+say() {
+	echo "[ * ] Backups: $*"
+}
+
+warn() {
+	echo "[ ! ] Backups: $*"
+}
+
+# Value of KEY in a conf file of earlier versions
+old_value() {
+	grep -m1 "^$2=" "$1" 2> /dev/null | cut -d"'" -f2
+}
+
+# Add destination NAME from OPTIONS and SECRETS, unencrypted
+add_destination() {
+	local name="$1" driver="$2" out
+	if bd_exists "$name"; then
+		return 0
+	fi
+	if ! out=$("$BIN/v-add-backup-destination" "$name" "$driver" "$BD_RUN/options" "$BD_RUN/secrets" 2>&1); then
+		warn "$name could not be converted: $out"
+		return 1
+	fi
+	bd_set "$name" ENCRYPT=no
+	say "the $name host is now the backup destination $name"
+}
+
+fresh() {
+	rm -rf -- "$BD_RUN/options" "$BD_RUN/secrets"
+	: > "$BD_RUN/options"
+	mkdir -p "$BD_RUN/secrets"
+}
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+bd_check_keys
+bd_init_dir
+bj_init_dirs
+bd_session
+archive_targets=()
+
+# The local folder
+if [[ ",$BACKUP_SYSTEM," == *",local,"* ]] && [ ! -f "$ARCPANEL/data/backup/.converted" ]; then
+	fresh
+	printf "PATH='%s'\n" "${BACKUP:-/backup}" > "$BD_RUN/options"
+	add_destination local local && archive_targets+=("local:-1")
+fi
+
+# Remote hosts of the archives
+for type in ftp sftp b2 rclone; do
+	conf="$ARCPANEL/conf/$type.backup.conf"
+	[ -f "$conf" ] || continue
+	fresh
+	case "$type" in
+		ftp | sftp)
+			printf "HOST='%s'\nUSERNAME='%s'\n" "$(old_value "$conf" HOST)" "$(old_value "$conf" USERNAME)" > "$BD_RUN/options"
+			port=$(old_value "$conf" PORT)
+			bpath=$(old_value "$conf" BPATH)
+			[ -n "$port" ] && printf "PORT='%s'\n" "$port" >> "$BD_RUN/options"
+			[ -n "$bpath" ] && printf "PATH='%s'\n" "$bpath" >> "$BD_RUN/options"
+			[ "$type" = ftp ] && printf "TLS='none'\n" >> "$BD_RUN/options"
+			password=$(old_value "$conf" PASSWORD)
+			if [ "$(old_value "$conf" PRIVATEKEY)" = yes ]; then
+				if [ -f "$password" ]; then
+					cp -- "$password" "$BD_RUN/secrets/PRIVATE_KEY"
+				else
+					warn "the private key of the sftp host ($password) is missing; set it on the destination sftp"
+					printf 'missing' > "$BD_RUN/secrets/PASSWORD"
+				fi
+			else
+				printf '%s' "$password" > "$BD_RUN/secrets/PASSWORD"
+			fi
+			;;
+		b2)
+			printf "BUCKET='%s'\nKEY_ID='%s'\n" "$(old_value "$conf" BUCKET)" "$(old_value "$conf" B2_KEYID)" > "$BD_RUN/options"
+			printf '%s' "$(old_value "$conf" B2_KEY)" > "$BD_RUN/secrets/APP_KEY"
+			warn "archives of earlier versions on B2 stay in their user folders; new archives go to the root of the bucket"
+			;;
+		rclone)
+			remote=$(old_value "$conf" HOST)
+			bl_rclone_section "$remote" > "$BD_RUN/secrets/CONFIG"
+			printf "REMOTE='%s'\n" "$remote" > "$BD_RUN/options"
+			bpath=$(old_value "$conf" BPATH)
+			[ -n "$bpath" ] && printf "PATH='%s'\n" "${bpath#/}" >> "$BD_RUN/options"
+			;;
+	esac
+	if add_destination "$type" "$type"; then
+		archive_targets+=("$type:-1")
+		[ "$type" = sftp ] && bl_check sftp > /dev/null 2>&1
+		mv -f "$conf" "$conf.migrated"
+		[ -f "$ARCPANEL/conf/$type.backup.key" ] && mv -f "$ARCPANEL/conf/$type.backup.key" "$ARCPANEL/conf/$type.backup.key.migrated"
+	fi
+done
+
+# The repository of incremental backups
+snapshot_target=''
+restic_conf="$ARCPANEL/conf/restic.conf"
+if [ -f "$restic_conf" ]; then
+	repo=$(old_value "$restic_conf" REPO)
+	retention=''
+	for key in SNAPSHOTS KEEP_DAILY KEEP_WEEKLY KEEP_MONTHLY KEEP_YEARLY; do
+		value=$(old_value "$restic_conf" "$key")
+		retention="$retention${retention:+:}${value:--1}"
+	done
+	fresh
+	dest=''
+	if parsed=$(bl_restic_repo "${repo%/}"); then
+		IFS=$'\t' read -r kind path remote <<< "$parsed"
+		case "$kind" in
+			local)
+				printf "PATH='%s'\n" "$path" > "$BD_RUN/options"
+				add_destination restic local && dest=restic
+				;;
+			rclone)
+				bl_rclone_section "$remote" > "$BD_RUN/secrets/CONFIG"
+				printf "REMOTE='%s'\nPATH='%s'\n" "$remote" "$path" > "$BD_RUN/options"
+				add_destination restic rclone && dest=restic
+				;;
+			s3)
+				section=$(bl_rclone_section arcpanel-s3)
+				get() { sed -n "s/^[[:space:]]*$1[[:space:]]*=[[:space:]]*//p" <<< "$section" | head -n1; }
+				bucket=${path%%/*}
+				printf "PROVIDER='Other'\nENDPOINT='%s'\nREGION='%s'\nBUCKET='%s'\nACCESS_KEY_ID='%s'\nPATH_STYLE='yes'\n" \
+					"$(get endpoint)" "$(get region)" "$bucket" "$(get access_key_id)" > "$BD_RUN/options"
+				[[ "$path" == */* ]] && printf "PATH='%s'\n" "${path#*/}" >> "$BD_RUN/options"
+				printf '%s' "$(get secret_access_key)" > "$BD_RUN/secrets/SECRET_ACCESS_KEY"
+				add_destination s3 s3 && dest=s3
+				;;
+		esac
+	else
+		warn "the restic repository $repo cannot be converted: add a backup destination and a snapshot job for it"
+	fi
+	if [ -n "$dest" ]; then
+		bd_set "$dest" RESTIC_PREFIX=
+		snapshot_target="$dest:$retention"
+		mv -f "$restic_conf" "$restic_conf.migrated"
+	fi
+fi
+
+# The nightly runs become jobs
+if [ "${#archive_targets[@]}" -gt 0 ] && ! bl_job "$BL_ARCHIVE_JOB" archive > /dev/null; then
+	targets=$(
+		IFS=,
+		echo "${archive_targets[*]}"
+	)
+	if out=$("$BIN/v-add-backup-job" "$BL_ARCHIVE_JOB" archive all daily:05:10 "$targets" 2>&1); then
+		say "the nightly backup is now the job \"$BL_ARCHIVE_JOB\" ($out)"
+	else
+		warn "the job \"$BL_ARCHIVE_JOB\" could not be created: $out"
+	fi
+fi
+if [ -n "$snapshot_target" ] && ! bl_job "$BL_SNAPSHOT_JOB" snapshot > /dev/null; then
+	if out=$("$BIN/v-add-backup-job" "$BL_SNAPSHOT_JOB" snapshot all daily:05:40 "$snapshot_target" 2>&1); then
+		say "incremental backups are now the job \"$BL_SNAPSHOT_JOB\" ($out)"
+	else
+		warn "the job \"$BL_SNAPSHOT_JOB\" could not be created: $out"
+	fi
+fi
+
+# Archive records learn their job and destinations; plain restic passwords
+# are encrypted
+archive_job=$(bl_job "$BL_ARCHIVE_JOB" archive)
+snapshot_dest=$(bl_snapshot_destination 2> /dev/null)
+for dir in "$ARCPANEL"/data/users/*/; do
+	owner=$(basename "$dir")
+	registry="$dir/backup.conf"
+	if [ -s "$registry" ] && grep -q "^BACKUP=" "$registry" && grep -vq " DESTINATIONS='" "$registry"; then
+		while IFS= read -r line; do
+			if [[ "$line" == *" DESTINATIONS='"* ]] || [[ "$line" != BACKUP=* ]]; then
+				printf '%s\n' "$line"
+				continue
+			fi
+			dests=$(bj_line_value "$line" TYPE | tr ',' '\n' | while IFS= read -r d; do bd_exists "$d" && echo "$d"; done | tr '\n' ',' | sed 's/,$//')
+			printf "%s JOB='%s' DESTINATIONS='%s' ENCRYPTED=''\n" "$line" "$archive_job" "$dests"
+		done < "$registry" > "$registry.e48"
+		chmod 660 "$registry.e48"
+		chown --reference="$registry" "$registry.e48" 2> /dev/null
+		mv -f "$registry.e48" "$registry"
+	fi
+	if [ -s "$dir/restic.conf" ] && [ -n "$snapshot_dest" ]; then
+		if bd_restic_password "$owner" "$snapshot_dest" > /dev/null 2>&1; then
+			rm -f "$dir/restic.conf"
+		else
+			warn "the restic password of $owner could not be moved; it stays in $dir/restic.conf"
+		fi
+	fi
+done
+
+# The dispatcher replaces the nightly cron lines
+crontab=/var/spool/cron/crontabs/arcpanelweb
+if [ -f "$crontab" ]; then
+	sed -i -e '/v-backup-users$/d' -e '/v-backup-users /d' -e '/v-backup-docker-apps all/d' "$crontab"
+	if ! grep -q "v-update-backup-jobs" "$crontab"; then
+		sed -i -e "\$a* * * * * sudo /usr/local/arcpanel/bin/v-update-backup-jobs > /dev/null 2>&1" "$crontab"
+	fi
+	chown arcpanelweb:arcpanelweb "$crontab"
+	chmod 600 "$crontab"
+fi
+
+bd_sync_backup_system
+bj_sync_incremental
+touch "$ARCPANEL/data/backup/.converted"
+
+#----------------------------------------------------------#
+#                         ArcPanel                         #
+#----------------------------------------------------------#
+
+log_event "$OK" "$ARGUMENTS"
+
+exit

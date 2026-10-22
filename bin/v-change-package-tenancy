@@ -28,6 +28,9 @@
 # OBJECT_STORAGE_QUOTA (MB, or with G or T, or unlimited) and
 # OBJECT_STORAGE_BACKUP (yes or no) allow object storage (E44): buckets and
 # the sum of their quotas, and whether backups carry the objects.
+# BACKUP_FREQUENCY (hourly, daily or weekly) is how often scheduled backup
+# jobs may back up the package's users (E48); a reseller's own package
+# cannot allow more often than the reseller's.
 
 #----------------------------------------------------------#
 #                Variables & Functions                     #
@@ -63,6 +66,7 @@ case "$key" in
 	PHP_VERSIONS | PHP_PROFILES | PHP_DEFAULT_PROFILE) ;;
 	APP_PROCESSES | APP_PROCESSES_MAX | APP_PROCESSES_MEMORY | APP_PROCESSES_CPUS) ;;
 	OBJECT_STORAGE | OBJECT_STORAGE_BUCKETS | OBJECT_STORAGE_QUOTA | OBJECT_STORAGE_BACKUP) ;;
+	BACKUP_FREQUENCY) ;;
 	*) check_result "$E_INVALID" "invalid key $key" ;;
 esac
 if ! tenancy_pkg_value_valid "$key" "$value"; then

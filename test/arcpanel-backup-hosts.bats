@@ -28,8 +28,9 @@ conf_value() {
 
 setup_file() {
     local tmp pass
-    if [ -e "$ARCPANEL/conf/sftp.backup.conf" ] || [ -e "$ARCPANEL/conf/rclone.backup.conf" ] \
-        || [ -e "$ARCPANEL/conf/restic.conf" ]; then
+    # Since E48 the hosts are the backup destinations of the same names
+    if [ -e "$ARCPANEL/data/backup/destinations/sftp.conf" ] || [ -e "$ARCPANEL/data/backup/destinations/rclone.conf" ] \
+        || [ -e "$ARCPANEL/data/backup/destinations/restic.conf" ]; then
         echo skip > "$STATE"
         return 0
     fi
@@ -92,11 +93,9 @@ setup() {
     run v-add-backup-host sftp 127.0.0.1 "$SFTP_USER" "$key" "$SFTP_HOME/backup" 22
     assert_success
     rm -f "$key"
-    assert_file_exists "$ARCPANEL/conf/sftp.backup.key"
-    run stat -c '%a %U' "$ARCPANEL/conf/sftp.backup.key"
-    assert_output '600 root'
-    run grep "^PASSWORD='$ARCPANEL/conf/sftp.backup.key'" "$ARCPANEL/conf/sftp.backup.conf"
-    assert_success
+    # The key is a secret of the destination sftp (E48)
+    run sh -c "v-list-backup-destination sftp json | jq -r .sftp.SECRETS"
+    assert_output 'PRIVATE_KEY'
 
     run v-backup-user "$BH_USER"
     assert_success
@@ -117,7 +116,8 @@ setup() {
 @test "sftp: deleting the host removes the key" {
     run v-delete-backup-host sftp
     assert_success
-    assert_file_not_exists "$ARCPANEL/conf/sftp.backup.key"
+    assert_file_not_exists "$ARCPANEL/data/backup/destinations/sftp.conf"
+    assert_file_not_exists "$ARCPANEL/data/backup/destinations/sftp.secret.age"
 }
 
 @test "rclone: without a folder the archive goes to the root of the remote" {

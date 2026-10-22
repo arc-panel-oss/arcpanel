@@ -19,6 +19,10 @@ format=${2-shell}
 source /etc/arcpanel/arcpanel.conf
 # shellcheck source=/usr/local/arcpanel/func/main.sh
 source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/secret.sh
+source $ARCPANEL/func/secret.sh
+# shellcheck source=/usr/local/arcpanel/func/backup-driver.sh
+source $ARCPANEL/func/backup-driver.sh
 # load config file
 source_conf "$ARCPANEL/conf/arcpanel.conf"
 
@@ -119,13 +123,21 @@ is_common_format_valid "$type" "type"
 #                       Action                             #
 #----------------------------------------------------------#
 
-# Checking backup config
-if [ ! -e "$ARCPANEL/conf/$type.backup.conf" ]; then
+# The backup destination named TYPE (E48)
+if ! bd_exists "$type"; then
 	exit
 fi
-
-# Parsing backup config
-source_conf "$ARCPANEL/conf/$type.backup.conf"
+HOST=$(bd_value "$type" HOST)
+USERNAME=$(bd_value "$type" USERNAME)
+PORT=$(bd_value "$type" PORT)
+BPATH=$(bd_value "$type" PATH)
+BUCKET=$(bd_value "$type" BUCKET)
+B2_KEYID=$(bd_value "$type" KEY_ID)
+TIME=$(bd_value "$type" CREATED | cut -d' ' -f2)
+DATE=$(bd_value "$type" CREATED | cut -d' ' -f1)
+if [ "$type" = rclone ]; then
+	HOST=$(bd_value "$type" REMOTE)
+fi
 
 # Listing data
 case $format in

@@ -1,0 +1,75 @@
+#!/bin/bash
+# info: list a backup destination (E48)
+# options: NAME [FORMAT]
+#
+# example: v-list-backup-destination offsite json
+#
+# This function prints the fields and state of the backup destination
+# NAME, the names (never the values) of its stored secrets and the jobs
+# that target it.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+name=$1
+format=${2-shell}
+
+# Includes
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/secret.sh
+source $ARCPANEL/func/secret.sh
+# shellcheck source=/usr/local/arcpanel/func/backup-driver.sh
+source $ARCPANEL/func/backup-driver.sh
+# load config file
+source_conf "$ARCPANEL/conf/arcpanel.conf"
+
+# JSON list function
+json_list() {
+	jq -c --arg n "$name" '{($n): .}' <<< "$(bd_json "$name")" | jq .
+}
+
+# SHELL list function
+shell_list() {
+	bd_json "$name" | jq -r 'to_entries[] | "\(.key):\t\(.value)"'
+}
+
+# PLAIN list function
+plain_list() {
+	bd_json "$name" | jq -r '[.[]] | @tsv'
+}
+
+# CSV list function
+csv_list() {
+	bd_json "$name" | jq -r '(keys_unsorted | @csv), ([.[]] | @csv)'
+}
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '1' "$#" 'NAME [FORMAT]'
+is_format_valid 'format'
+bd_check_exists "$name"
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+# Listing data
+case $format in
+	json) json_list ;;
+	plain) plain_list ;;
+	csv) csv_list ;;
+	shell) shell_list ;;
+esac
+
+#----------------------------------------------------------#
+#                         ArcPanel                         #
+#----------------------------------------------------------#
+
+exit

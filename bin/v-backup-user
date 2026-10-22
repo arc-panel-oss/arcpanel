@@ -1,10 +1,15 @@
 #!/bin/bash
 # info: backup system user with all its objects
-# options: USER NOTIFY
+# options: USER [NOTIFY] [JOB]
 #
 # example: v-backup-user admin yes
+#          v-backup-user alice no 179271000012
 #
 # This function is used for backing up user with all its domains and databases.
+# The archive is built once and stored on every target of the backup job JOB
+# (E48), encrypted on the destinations that say so; each target keeps its own
+# number of archives. Without JOB the first archive job that covers the user
+# is used, else the destination local.
 
 #----------------------------------------------------------#
 #                Variables & Functions                     #
@@ -13,6 +18,7 @@
 # Argument definition
 user=$1
 notify=${2-no}
+job=$3
 
 # Includes
 # shellcheck source=/etc/arcpanel/arcpanel.conf
@@ -29,6 +35,10 @@ source $ARCPANEL/func/backup.sh
 source $ARCPANEL/func/secret.sh
 # shellcheck source=/usr/local/arcpanel/func/backuprun.sh
 source $ARCPANEL/func/backuprun.sh
+# shellcheck source=/usr/local/arcpanel/func/backup-driver.sh
+source $ARCPANEL/func/backup-driver.sh
+# shellcheck source=/usr/local/arcpanel/func/backup-job.sh
+source $ARCPANEL/func/backup-job.sh
 # load config file
 source_conf "$ARCPANEL/conf/arcpanel.conf"
 
@@ -142,10 +152,26 @@ get_user_disk_usage() {
 #                    Verifications                         #
 #----------------------------------------------------------#
 
-check_args '1' "$#" 'USER [NOTIFY]'
+check_args '1' "$#" 'USER [NOTIFY] [JOB]'
 is_format_valid 'user'
-is_system_enabled "$BACKUP_SYSTEM" 'BACKUP_SYSTEM'
 is_object_valid 'user' 'USER' "$user"
+# The targets: those of the job, of the user's default archive job, or the
+# destination local (E48 §5.4)
+if [ -n "$job" ]; then
+	bj_check_exists "$job"
+	if [ "$(bj_value "$job" ENGINE)" != archive ]; then
+		check_result "$E_INVALID" "backup job $job does not make archives"
+	fi
+else
+	job=$(bj_default_job "$user" archive)
+fi
+if [ -n "$job" ]; then
+	targets=$(bj_value "$job" TARGETS)
+elif bd_exists local; then
+	targets='local:-1:-1:-1:-1:-1'
+else
+	check_result "$E_NOTEXIST" "no backup destination: add one and a backup job"
+fi
 if [ "$POLICY_BACKUP_SUSPENDED_USERS" != "yes" ]; then
 	is_object_unsuspended 'user' 'USER' "$user"
 fi
@@ -159,7 +185,10 @@ check_arcpanel_demo_mode
 #----------------------------------------------------------#
 
 # Record this run, failed ones included (Fleet PD2)
+# shellcheck disable=SC2034
+BR_JOB=$job
 br_begin "$user" tar
+bd_session
 
 check_backup_conditions
 
@@ -785,31 +814,64 @@ backup_new_date=$(date +"%Y-%m-%d_%H-%M-%S")
 
 echo -e "\n-- SUMMARY --" | tee -a $BACKUP/$user.log
 
-errorcode="0"
-# Switching on backup system types
-for backup_type in $(echo -e "${BACKUP_SYSTEM//,/\\n}"); do
-	case $backup_type in
-		local) local_backup ;;
-		ftp) ftp_backup ;;
-		sftp) sftp_backup ;;
-		b2) b2_backup ;;
-		rclone) rclone_backup ;;
-	esac
-done
+archive="$user.$backup_new_date.tar"
+# The parsing above changes IFS
+IFS=',' read -r -a target_list <<< "$targets"
 
-# Removing tmpdir
+# Checking disk space
+disk_usage=$(df "$BACKUP_TEMP" | tail -n1 | tr ' ' '\n' | grep % | cut -f 1 -d %)
+if [ "$disk_usage" -ge "$BACKUP_DISK_LIMIT" ]; then
+	rm -rf $tmpdir
+	sed -i "/v-backup-user $user /d" $ARCPANEL/data/queue/backup.pipe
+	echo "Not enough disk space" | $SENDMAIL -s "$subj" "$email" "yes"
+	check_result "$E_DISK" "Not enough disk space"
+fi
+
+# The archive is built once, then stored on every target (E48 §5.4)
+work="$BACKUP_TEMP/.$archive.work"
+(cd $tmpdir && tar -cf "$work" .)
+tar_rc=$?
 rm -rf $tmpdir
-if [[ "$errorcode" != "0" ]]; then
-	if [[ "$BACKUP_SYSTEM" =~ "local" ]]; then
-		echo -e "$(date "+%F %T") *** Local backup was successfully executed. Remote backup failed ***" \
-			| tee -a $BACKUP/$user.log
-		BACKUP_SYSTEM="local"
-	else
-		echo -e "$(date "+%F %T") *** Remote backup failed ***" \
-			| tee -a $BACKUP/$user.log
+if [ "$tar_rc" -ne 0 ]; then
+	rm -f "$work"
+	check_result "$E_DISK" "the archive could not be written"
+fi
+chmod 640 "$work"
+chown "arcpanelweb":"$user" "$work"
 
-		check_result "$errorcode" "remote backup failed"
+delivered=''
+encrypted=''
+drivers=''
+failures=''
+BR_DESTS=''
+for target in "${target_list[@]}"; do
+	dest=${target%%:*}
+	if ! bd_exists "$dest"; then
+		failures="$failures$dest: the destination does not exist; "
+		BR_DESTS="$BR_DESTS${BR_DESTS:+,}$dest:failed"
+		continue
 	fi
+	if bj_put_archive "$user" "$work" "$archive" "$dest"; then
+		delivered="$delivered${delivered:+,}$dest"
+		[ "$BJ_ENCRYPTED" = yes ] && encrypted="$encrypted${encrypted:+,}$dest"
+		drivers="$drivers${drivers:+,}$(bd_value "$dest" DRIVER)"
+		BR_DESTS="$BR_DESTS${BR_DESTS:+,}$dest:ok"
+		echo -e "$(date "+%F %T") Stored on $dest: $archive" | tee -a $BACKUP/$user.log
+	else
+		failures="$failures$BJ_ERROR; "
+		BR_DESTS="$BR_DESTS${BR_DESTS:+,}$dest:failed"
+		echo -e "$(date "+%F %T") *** Not stored on $dest: $BJ_ERROR ***" | tee -a $BACKUP/$user.log
+	fi
+done
+rm -f "$work"
+if [ -z "$delivered" ]; then
+	sed -i "/v-backup-user $user /d" $ARCPANEL/data/queue/backup.pipe
+	echo "$failures" | $SENDMAIL -s "$subj" "$email" "yes"
+	check_result "$E_CONNECT" "the archive could not be stored on any destination: ${failures%; }"
+fi
+if [ -n "$failures" ]; then
+	# shellcheck disable=SC2034
+	BR_ERROR_PARTIAL="${failures%; }"
 fi
 # Calculation run time
 run_time=$((end_time - start_time))
@@ -836,7 +898,7 @@ sed -i "/$user.$backup_new_date.tar/d" $USER_DATA/backup.conf
 
 # Registering new backup
 backup_str="BACKUP='$user.$backup_new_date.tar'"
-backup_str="$backup_str TYPE='$BACKUP_SYSTEM' SIZE='$size'"
+backup_str="$backup_str TYPE='$drivers' SIZE='$size'"
 backup_str="$backup_str WEB='${web_list// /,}'"
 backup_str="$backup_str DNS='${dns_list// /,}'"
 backup_str="$backup_str MAIL='${mail_list// /,}'"
@@ -844,15 +906,20 @@ backup_str="$backup_str DB='${db_list// /,}'"
 backup_str="$backup_str CRON='$cron_list'"
 backup_str="$backup_str UDIR='${udir_list// /,}'"
 backup_str="$backup_str RUNTIME='$run_time' TIME='$time' DATE='$date'"
+backup_str="$backup_str JOB='$job' DESTINATIONS='$delivered' ENCRYPTED='$encrypted'"
 echo "$backup_str" >> $USER_DATA/backup.conf
 # shellcheck disable=SC2034
 BR_ARCHIVE="$user.$backup_new_date.tar"
 # shellcheck disable=SC2034
 BR_SIZE=$size
 
-# Removing old backups
-tail -n $BACKUPS $USER_DATA/backup.conf > $USER_DATA/backup.conf_
-mv -f $USER_DATA/backup.conf_ $USER_DATA/backup.conf
+# Removing old backups: each target keeps its own number (E48 §5.2)
+for target in "${target_list[@]}"; do
+	dest=${target%%:*}
+	if [[ ",$delivered," == *",$dest,"* ]]; then
+		bj_retention_archives "$user" "$job" "$dest" "$(cut -d: -f2 <<< "$target")" | tee -a $BACKUP/$user.log
+	fi
+done
 chmod 660 $USER_DATA/backup.conf
 chmod 660 $BACKUP/$user.log
 

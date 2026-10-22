@@ -1,0 +1,140 @@
+#!/bin/bash
+# info: add a backup destination (E48)
+# options: NAME DRIVER OPTIONS_FILE [SECRETS_DIR] [KIT_FILE]
+#
+# example: v-add-backup-destination offsite sftp /tmp/options /tmp/secrets
+#          v-add-backup-destination nas local /tmp/options
+#
+# This function adds the backup destination NAME (lower-case letters,
+# digits and -, at most 32 characters) with the driver local, ftp, sftp,
+# s3, b2, gdrive, dropbox, onedrive, webdav or rclone. OPTIONS_FILE holds
+# KEY='value' lines of the driver's fields (PATH, HOST, PORT, USERNAME,
+# BUCKET and so on) and of DESCRIPTION, ENCRYPT and BWLIMIT. SECRETS_DIR
+# holds one file per secret field (PASSWORD, PRIVATE_KEY, PASSPHRASE,
+# SECRET_ACCESS_KEY, APP_KEY, TOKEN, SERVICE_ACCOUNT, CONFIG); secrets are
+# stored encrypted and never printed. KIT_FILE, a recovery kit of
+# v-export-backup-destination-key, imports the destination's key instead
+# of creating a new one. The destination starts unchecked: run
+# v-check-backup-destination.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+name=$1
+driver=$2
+options=$3
+secrets=$4
+kit=$5
+
+# Includes
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/secret.sh
+source $ARCPANEL/func/secret.sh
+# shellcheck source=/usr/local/arcpanel/func/backup-driver.sh
+source $ARCPANEL/func/backup-driver.sh
+# load config file
+source_conf "$ARCPANEL/conf/arcpanel.conf"
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '3' "$#" 'NAME DRIVER OPTIONS_FILE [SECRETS_DIR] [KIT_FILE]'
+if ! bd_name_valid "$name"; then
+	check_result "$E_INVALID" "invalid destination name"
+fi
+if ! bd_driver_valid "$driver"; then
+	check_result "$E_INVALID" "invalid driver $driver"
+fi
+if bd_exists "$name"; then
+	check_result "$E_EXISTS" "backup destination $name already exists"
+fi
+values=$(bd_read_options "$driver" "$options") || check_result $? "$values"
+bd_check_secret_dir "$driver" "$secrets"
+for field in $(bd_required_fields "$driver"); do
+	if ! grep -q "^$field=." <<< "$values"; then
+		check_result "$E_ARGS" "$field is required for the $driver driver"
+	fi
+done
+for any in $(bd_required_secrets "$driver"); do
+	found=no
+	for field in ${any//|/ }; do
+		if [ -n "$secrets" ] && [ -s "$secrets/$field" ]; then
+			found=yes
+		fi
+	done
+	if [ "$found" = no ]; then
+		check_result "$E_ARGS" "${any//|/ or } is required for the $driver driver"
+	fi
+done
+if [ -n "$kit" ] && ! grep -q '^AGE-SECRET-KEY-' "$kit" 2> /dev/null; then
+	check_result "$E_INVALID" "the recovery kit holds no key"
+fi
+if ! command -v rclone > /dev/null 2>&1 && [ "$driver" != local ]; then
+	$BIN/v-add-sys-rclone > /dev/null 2>&1
+	check_result $? "rclone could not be installed" "$E_NOTEXIST"
+fi
+
+# Perform verification if read-only mode is enabled
+check_arcpanel_demo_mode
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+bd_check_keys
+bd_init_dir
+
+# Remote archives are encrypted unless the options say otherwise (D8)
+encrypt=no
+if [ "$driver" != local ]; then
+	encrypt=yes
+fi
+new_timestamp
+(
+	umask 077
+	printf "NAME='%s'\nDRIVER='%s'\nENCRYPT='%s'\nBWLIMIT=''\nRESTIC_PREFIX='restic'\nHOST_KEY=''\n" "$name" "$driver" "$encrypt"
+	printf "STATE='unchecked'\nCHECKED=''\nFAILURES='0'\nKIT=''\nCREATED='%s %s'\nUPDATED='%s %s'\n" "$date" "$time" "$date" "$time"
+) > "$(bd_conf "$name")"
+pairs=()
+while IFS= read -r line; do
+	[ -n "$line" ] && pairs+=("$line")
+done <<< "$values"
+if [ "${#pairs[@]}" -gt 0 ]; then
+	bd_set "$name" "${pairs[@]}"
+fi
+
+if ! bd_init_key "$name" "$kit"; then
+	rm -f "$BD_DIR/$name".*
+	check_result "$E_FORBIDEN" "the key of the destination could not be created"
+fi
+if ! bd_store_secrets "$name" "$secrets"; then
+	rm -f "$BD_DIR/$name".*
+	check_result "$E_FORBIDEN" "the secrets could not be stored"
+fi
+: > "$BD_DIR/$name.known_hosts"
+chmod 600 "$BD_DIR/$name".*
+
+if [ "$driver" = local ]; then
+	path=$(bd_value "$name" PATH)
+	mkdir -p -- "$path"
+	chmod 711 -- "$path"
+fi
+if [ -n "$kit" ]; then
+	bd_set "$name" "KIT=$date $time"
+fi
+
+#----------------------------------------------------------#
+#                         ArcPanel                         #
+#----------------------------------------------------------#
+
+bd_sync_backup_system
+$BIN/v-log-action "system" "Info" "Backup" "Backup destination added (Name: $name, Driver: $driver)."
+log_event "$OK" "$name $driver"
+
+exit

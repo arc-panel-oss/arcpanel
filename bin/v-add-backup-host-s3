@@ -5,10 +5,10 @@
 # example: v-add-backup-host-s3 https://s3.example.com backups/server1 /tmp/s3.env us-east-1 10 -1 -1 -1 -1
 #
 # This function sends incremental (restic) backups to an S3-compatible
-# provider (AWS, Cloudflare R2, Wasabi, Silo on another server). The
-# connection is kept as the rclone remote arcpanel-s3 in root's rclone
-# configuration (0600), and the restic repository becomes
-# rclone:arcpanel-s3:BUCKET/PATH, so every restic command works unchanged.
+# provider (AWS, Cloudflare R2, Wasabi, Silo on another server). Since E48
+# the connection is the backup destination s3 (its secret encrypted) and
+# the target of the backup job "Nightly snapshots"; the repository of each
+# user stays BUCKET/PATH/USER.
 # CREDENTIALS_FILE holds AWS_ACCESS_KEY_ID= and AWS_SECRET_ACCESS_KEY= lines;
 # it is read, never printed. Retention: as v-add-backup-host-restic (-1 is
 # no limit), 10 snapshots by default.
@@ -33,6 +33,14 @@ yearly=${9:--1}
 source /etc/arcpanel/arcpanel.conf
 # shellcheck source=/usr/local/arcpanel/func/main.sh
 source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/secret.sh
+source $ARCPANEL/func/secret.sh
+# shellcheck source=/usr/local/arcpanel/func/backup-driver.sh
+source $ARCPANEL/func/backup-driver.sh
+# shellcheck source=/usr/local/arcpanel/func/backup-job.sh
+source $ARCPANEL/func/backup-job.sh
+# shellcheck source=/usr/local/arcpanel/func/backup-legacy.sh
+source $ARCPANEL/func/backup-legacy.sh
 # load config file
 source_conf "$ARCPANEL/conf/arcpanel.conf"
 
@@ -90,47 +98,34 @@ check_arcpanel_demo_mode
 $BIN/v-add-sys-rclone > /dev/null
 check_result $? "rclone could not be installed"
 
-config=$(rclone config file 2> /dev/null | tail -n 1)
-[ -n "$config" ] || config=/root/.config/rclone/rclone.conf
-mkdir -p "$(dirname "$config")"
-touch "$config"
-chmod 600 "$config"
-
-# The remote, replacing an earlier one, in root's 0600 rclone configuration
-# (rclone keeps the S3 secret as it is; it obscures passwords only)
-tmp=$(mktemp)
-chmod 600 "$tmp"
-awk -v remote="[$REMOTE]" '
-	$0 == remote { skip = 1; next }
-	/^\[/ { skip = 0 }
-	!skip { print }' "$config" > "$tmp"
-{
-	echo "[$REMOTE]"
-	echo "type = s3"
-	echo "provider = Other"
-	echo "endpoint = $endpoint"
-	echo "region = $region"
-	echo "access_key_id = $key_id"
-	echo "secret_access_key = $secret"
-	echo "force_path_style = true"
-	echo "no_check_bucket = true"
-	echo
-} >> "$tmp"
-mv -f "$tmp" "$config"
-chmod 600 "$config"
-
-if ! rclone lsf "$REMOTE:${target%%/*}" --max-depth 1 > /dev/null 2>&1; then
-	check_result "$E_CONNECT" "the bucket ${target%%/*} cannot be listed at $endpoint with these credentials"
+bd_check_keys
+bd_session
+options="$BD_RUN/options"
+secrets="$BD_RUN/secrets"
+mkdir -p "$secrets"
+bucket=${target%%/*}
+path=
+[[ "$target" == */* ]] && path=${target#*/}
+printf "PROVIDER='Other'\nENDPOINT='%s'\nREGION='%s'\nBUCKET='%s'\nACCESS_KEY_ID='%s'\nPATH_STYLE='yes'\n" \
+	"$endpoint" "$region" "$bucket" "$key_id" > "$options"
+[ -n "$path" ] && printf "PATH='%s'\n" "$path" >> "$options"
+printf '%s' "$secret" > "$secrets/SECRET_ACCESS_KEY"
+existed=no
+bd_exists s3 && existed=yes
+out=$(bl_destination s3 s3 "$options" "$secrets" 2>&1)
+check_result $? "$out"
+# Repositories of E44 are BUCKET/PATH/USER
+bd_set s3 RESTIC_PREFIX=
+if ! "$BIN/v-check-backup-destination" s3 > /dev/null 2>&1; then
+	[ "$existed" = no ] && "$BIN/v-delete-backup-destination" s3 > /dev/null 2>&1
+	check_result "$E_CONNECT" "the bucket $bucket cannot be listed at $endpoint with these credentials"
 fi
-
-$BIN/v-add-backup-host-restic "rclone:$REMOTE:$target" "$snapshots" "$daily" "$weekly" "$monthly" "$yearly"
-check_result $? "the restic repository could not be registered"
-# Where the remote points, for the panel's form (never the secret)
-{
-	echo "S3_ENDPOINT='$endpoint'"
-	echo "S3_REGION='$region'"
-	echo "S3_KEY_ID='$key_id'"
-} >> "$ARCPANEL/conf/restic.conf"
+# Earlier versions had one incremental host: S3 replaces a folder or remote
+if bd_exists restic; then
+	bl_drop_destination restic
+fi
+bl_target_set "$BL_SNAPSHOT_JOB" snapshot daily:05:40 "s3:$snapshots:$daily:$weekly:$monthly:$yearly"
+check_result $? "the backup job could not be changed"
 
 #----------------------------------------------------------#
 #                         ArcPanel                         #

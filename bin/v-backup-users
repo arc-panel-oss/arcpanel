@@ -4,7 +4,9 @@
 #
 # example: v-backup-users
 #
-# This function backups all system users.
+# This function backs up every user now: it runs each enabled archive job
+# (E48) in turn, then the snapshot jobs (v-backup-users-restic). The
+# dispatcher v-update-backup-jobs runs the jobs on their schedules.
 
 #----------------------------------------------------------#
 #                Variables & Functions                     #
@@ -15,6 +17,12 @@
 source /etc/arcpanel/arcpanel.conf
 # shellcheck source=/usr/local/arcpanel/func/main.sh
 source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/secret.sh
+source $ARCPANEL/func/secret.sh
+# shellcheck source=/usr/local/arcpanel/func/backup-driver.sh
+source $ARCPANEL/func/backup-driver.sh
+# shellcheck source=/usr/local/arcpanel/func/backup-job.sh
+source $ARCPANEL/func/backup-job.sh
 # load config file
 source_conf "$ARCPANEL/conf/arcpanel.conf"
 
@@ -25,41 +33,13 @@ check_arcpanel_demo_mode
 #                       Action                             #
 #----------------------------------------------------------#
 
-# Auto-repair all databases before backuping all accounts
-mysqlrepair --all-databases --check --auto-repair > /dev/null 2>&1
-
-# Incremental backups of the users whose package allows them, after the archives
-run_incremental() {
-	if [ "$BACKUP_INCREMENTAL" = 'yes' ]; then
-		ARC_SKIP_DB_REPAIR=yes "$BIN/v-backup-users-restic"
-	fi
-}
-
-if [ -z "$BACKUP_SYSTEM" ]; then
-	run_incremental
-	exit
-fi
-# The runs are recorded as nightly ones (Fleet PD2)
-export ARC_BACKUP_TRIGGER=schedule
-for user in $("$BIN/v-list-users" list); do
-	check_suspend=$(grep "SUSPENDED='no'" $ARCPANEL/data/users/$user/user.conf)
-	log=$ARCPANEL/log/backup.log
-	if [ ! -f "$ARCPANEL/data/users/$user/user.conf" ]; then
-		continue
-	fi
-	check_backup_conditions
-	check_suspend=$(grep "SUSPENDED='no'" $ARCPANEL/data/users/$user/user.conf)
-	log=$ARCPANEL/log/backup.log
-	if [ -n "$check_suspend" ]; then
-		echo -e "================================" >> $log
-		echo -e "$user" >> $log
-		echo -e "--------------------------------\n" >> $log
-		nice -n 19 ionice -c2 -n7 $BIN/v-backup-user $user >> $log 2>&1
-		echo -e "\n--------------------------------\n\n" >> $log
-	fi
+for id in $(bj_ids); do
+	[ "$(bj_value "$id" ENGINE)" = archive ] || continue
+	[ "$(bj_value "$id" STATE)" = enabled ] || continue
+	"$BIN/v-run-backup-job" "$id" > /dev/null 2>&1
 done
 
-run_incremental
+"$BIN/v-backup-users-restic"
 
 #----------------------------------------------------------#
 #                         ArcPanel                         #

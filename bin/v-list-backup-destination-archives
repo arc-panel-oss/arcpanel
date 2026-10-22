@@ -1,0 +1,113 @@
+#!/bin/bash
+# info: list the archives stored on a backup destination (E48)
+# options: NAME [USER] [FORMAT]
+#
+# example: v-list-backup-destination-archives offsite alice json
+#
+# This function lists the archive files (USER.YYYY-MM-DD_HH-MM-SS.tar, or
+# .tar.age when encrypted) that the backup destination NAME holds, of USER
+# or of every user, with their size and whether the user's archive records
+# know them. v-import-user-backup registers one that they do not know, for
+# example on a new server.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+name=$1
+owner=$2
+format=${3-shell}
+
+# Includes
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/secret.sh
+source $ARCPANEL/func/secret.sh
+# shellcheck source=/usr/local/arcpanel/func/backup-driver.sh
+source $ARCPANEL/func/backup-driver.sh
+# load config file
+source_conf "$ARCPANEL/conf/arcpanel.conf"
+
+# ARCHIVE<TAB>USER<TAB>SIZE<TAB>ENCRYPTED<TAB>REGISTERED
+rows() {
+	local file size user archive registered encrypted
+	while IFS=$'\t' read -r file size; do
+		if [[ ! "$file" =~ ^([a-z0-9][a-z0-9_.-]*)\.[0-9]{4}-[0-9]{2}-[0-9]{2}_[0-9]{2}-[0-9]{2}-[0-9]{2}\.tar(\.age)?$ ]]; then
+			continue
+		fi
+		user=${BASH_REMATCH[1]}
+		if [ -n "$owner" ] && [ "$user" != "$owner" ]; then
+			continue
+		fi
+		encrypted=no
+		archive=$file
+		if [[ "$file" == *.age ]]; then
+			encrypted=yes
+			archive=${file%.age}
+		fi
+		registered=no
+		if grep -q "^BACKUP='$archive' .*DESTINATIONS='\([^']*,\)\?$name\(,[^']*\)\?'" "$ARCPANEL/data/users/$user/backup.conf" 2> /dev/null; then
+			registered=yes
+		fi
+		printf '%s\t%s\t%s\t%s\t%s\n' "$archive" "$user" "$size" "$encrypted" "$registered"
+	done < <(bd_list "$name")
+}
+
+# JSON list function
+json_list() {
+	rows | jq -R -s 'split("\n") | map(select(length > 0) | split("\t")
+		| {ARCHIVE: .[0], USER: .[1], SIZE: .[2], ENCRYPTED: .[3], REGISTERED: .[4]})'
+}
+
+# SHELL list function
+shell_list() {
+	{
+		echo "ARCHIVE USER SIZE ENCRYPTED REGISTERED"
+		echo "------- ---- ---- --------- ----------"
+		rows | tr '\t' ' '
+	} | column -t
+}
+
+# PLAIN list function
+plain_list() {
+	rows
+}
+
+# CSV list function
+csv_list() {
+	echo "ARCHIVE,USER,SIZE,ENCRYPTED,REGISTERED"
+	rows | tr '\t' ','
+}
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '1' "$#" 'NAME [USER] [FORMAT]'
+is_format_valid 'format'
+bd_check_exists "$name"
+if [ -n "$owner" ]; then
+	user=$owner
+	is_format_valid 'user'
+fi
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+bd_check_keys
+case $format in
+	json) json_list ;;
+	plain) plain_list ;;
+	csv) csv_list ;;
+	shell) shell_list ;;
+esac
+
+#----------------------------------------------------------#
+#                         ArcPanel                         #
+#----------------------------------------------------------#
+
+exit

@@ -1,10 +1,13 @@
 #!/bin/bash
-# info: backup system user with all its objects
-# options: USER NOTIFY
+# info: list the restic snapshots of a user
+# options: USER [FORMAT]
 #
-# example: v-backup-user admin yes
+# example: v-list-user-backups-restic alice json
 #
-# This function is used for backing up user with all its domains and databases.
+# This function lists the snapshots of USER on every destination of the
+# snapshot jobs that cover the user (E48). In json each snapshot of restic
+# gains "destination", the destination that holds it; plain prints restic's
+# table per destination.
 
 #----------------------------------------------------------#
 #                Variables & Functions                     #
@@ -13,25 +16,45 @@
 # Argument definition
 user=$1
 format=${2-plain}
+
 # Includes
 # shellcheck source=/etc/arcpanel/arcpanel.conf
 source /etc/arcpanel/arcpanel.conf
 # shellcheck source=/usr/local/arcpanel/func/main.sh
 source $ARCPANEL/func/main.sh
-# shellcheck source=/usr/local/arcpanel/func/domain.sh
-source $ARCPANEL/func/domain.sh
-# shellcheck source=/usr/local/arcpanel/func/db.sh
-source $ARCPANEL/func/db.sh
-# shellcheck source=/usr/local/arcpanel/func/backup.sh
-source $ARCPANEL/func/backup.sh
+# shellcheck source=/usr/local/arcpanel/func/secret.sh
+source $ARCPANEL/func/secret.sh
+# shellcheck source=/usr/local/arcpanel/func/backup-driver.sh
+source $ARCPANEL/func/backup-driver.sh
+# shellcheck source=/usr/local/arcpanel/func/backup-job.sh
+source $ARCPANEL/func/backup-job.sh
 # load config file
 source_conf "$ARCPANEL/conf/arcpanel.conf"
+
+json_list() {
+	local dest json
+	for dest in $(bj_snapshot_destinations "$user"); do
+		bd_restic_env "$user" "$dest" 2> /dev/null || continue
+		json=$(restic --json snapshots 2> /dev/null) || continue
+		bj_snapshot_map_write "$user" "$dest" "$json"
+		jq -c --arg d "$dest" 'map(. + {destination: $d})' <<< "$json"
+	done | jq -s 'add // [] | sort_by(.time)'
+}
+
+plain_list() {
+	local dest
+	for dest in $(bj_snapshot_destinations "$user"); do
+		echo "== $dest"
+		bd_restic_env "$user" "$dest" 2> /dev/null || continue
+		restic snapshots
+	done
+}
 
 #----------------------------------------------------------#
 #                    Verifications                         #
 #----------------------------------------------------------#
 
-check_args '1' "$#" 'USER'
+check_args '1' "$#" 'USER [FORMAT]'
 is_format_valid 'user'
 is_system_enabled "$BACKUP_INCREMENTAL" 'BACKUP_INCREMENTAL'
 is_object_valid 'user' 'USER' "$user"
@@ -44,20 +67,10 @@ check_arcpanel_demo_mode
 #                       Action                             #
 #----------------------------------------------------------#
 
-source_conf $ARCPANEL/conf/restic.conf
-
-function json_list() {
-	restic --repo "${REPO%/}/$user" --password-file $USER_DATA/restic.conf --json snapshots
-}
-
-function plain_list() {
-	restic --repo "${REPO%/}/$user" --password-file $USER_DATA/restic.conf snapshots
-}
-
-# Listing data
+bd_session
 case $format in
 	json) json_list ;;
-	plain) plain_list ;;
+	plain | shell) plain_list ;;
 esac
 
 #----------------------------------------------------------#

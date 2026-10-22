@@ -41,7 +41,10 @@ json_list() {
         "UDIR": "'$UDIR'",
         "RUNTIME": "'$RUNTIME'",
         "TIME": "'$TIME'",
-        "DATE": "'$DATE'"
+        "DATE": "'$DATE'",
+        "JOB": "'$JOB'",
+        "DESTINATIONS": "'$DESTINATIONS'",
+        "ENCRYPTED": "'$ENCRYPTED'"
     }'
 	echo '}'
 }
@@ -60,19 +63,22 @@ shell_list() {
 	echo "UDIR:           ${UDIR//,/ }"
 	echo "TIME:           $TIME"
 	echo "DATE:           $DATE"
+	echo "JOB:            $JOB"
+	echo "DESTINATIONS:   ${DESTINATIONS//,/ }"
+	echo "ENCRYPTED:      ${ENCRYPTED//,/ }"
 }
 
 # PLAIN list function
 plain_list() {
 	echo -ne "$BACKUP\t$TYPE\t$SIZE\t$WEB\t$DNS\t$MAIL\t$DB\t$CRON\t"
-	echo -e "$UDIR\t$RUNTIME\t$TIME\t$DATE"
+	echo -e "$UDIR\t$RUNTIME\t$TIME\t$DATE\t$JOB\t$DESTINATIONS\t$ENCRYPTED"
 }
 
 # CSV list function
 csv_list() {
-	echo "BACKUP,TYPE,SIZE,WEB,DNS,MAIL,DB,CRON,UDIR,RUNTIME,TIME,DATE"
+	echo "BACKUP,TYPE,SIZE,WEB,DNS,MAIL,DB,CRON,UDIR,RUNTIME,TIME,DATE,JOB,DESTINATIONS,ENCRYPTED"
 	echo -n "$BACKUP,$TYPE,$SIZE,\"$WEB\",\"$DNS\",\"$MAIL\",\"$DB\","
-	echo "\"$CRON\",\"$UDIR\",$RUNTIME,$TIME,$DATE"
+	echo "\"$CRON\",\"$UDIR\",$RUNTIME,$TIME,$DATE,$JOB,\"$DESTINATIONS\",\"$ENCRYPTED\""
 }
 
 #----------------------------------------------------------#
@@ -88,7 +94,8 @@ is_object_valid 'backup' 'BACKUP' "$backup"
 #                       Action                             #
 #----------------------------------------------------------#
 
-# Parsing backup config
+# Parsing backup config; records of earlier versions have no job (E48)
+JOB='' DESTINATIONS='' ENCRYPTED=''
 parse_object_kv_list $(grep "BACKUP='$backup'" $USER_DATA/backup.conf)
 
 # Listing data

@@ -1,0 +1,83 @@
+#!/bin/bash
+# info: add a backup job (E48)
+# options: NAME ENGINE SCOPE SCHEDULE TARGETS [EXCLUDE_USERS] [STATE]
+#
+# example: v-add-backup-job 'Nightly archives' archive all daily:05:10 local,offsite:7
+#          v-add-backup-job Snapshots snapshot packages:business 'cron:0 */6 * * *' s3-main:-1:7:4:12:-1
+#
+# This function adds a backup job and prints its ID. ENGINE is archive
+# (the tar archive of v-backup-user) or snapshot (restic). SCOPE is all,
+# packages:A,B or users:X,Y; EXCLUDE_USERS leaves users out. SCHEDULE is
+# hourly:MM, daily:HH:MM, weekly:D:HH:MM (Monday 1), monthly:DD:HH:MM
+# (DD 1-28) or cron:M H DOM MON DOW, in the server's time zone. TARGETS
+# lists DEST[:KEEP_LAST[:DAILY:WEEKLY:MONTHLY:YEARLY]] items: archive jobs
+# keep the newest KEEP_LAST archives per destination, at most the
+# package's BACKUPS (-1: BACKUPS); snapshot jobs pass every value to
+# restic forget (-1 keeps all). STATE is enabled (default) or paused.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+name=$1
+engine=$2
+scope=$3
+schedule=$4
+targets=$5
+exclude=$6
+state=${7-enabled}
+
+# Includes
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/secret.sh
+source $ARCPANEL/func/secret.sh
+# shellcheck source=/usr/local/arcpanel/func/backup-driver.sh
+source $ARCPANEL/func/backup-driver.sh
+# shellcheck source=/usr/local/arcpanel/func/backup-job.sh
+source $ARCPANEL/func/backup-job.sh
+# load config file
+source_conf "$ARCPANEL/conf/arcpanel.conf"
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '5' "$#" 'NAME ENGINE SCOPE SCHEDULE TARGETS [EXCLUDE_USERS] [STATE]'
+bj_name_valid "$name" || check_result "$E_INVALID" "invalid job name"
+bj_engine_valid "$engine" || check_result "$E_INVALID" "invalid engine $engine"
+bj_check_scope "$scope"
+bj_schedule_valid "$schedule" || check_result "$E_INVALID" "invalid schedule"
+targets=$(bj_normalize_targets "$targets") || check_result $? "$targets"
+bj_check_exclude "$exclude"
+[[ "$state" =~ ^(enabled|paused)$ ]] || check_result "$E_INVALID" "invalid state $state"
+
+# Perform verification if read-only mode is enabled
+check_arcpanel_demo_mode
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+bj_init_dirs
+id=$(bj_new_id)
+new_timestamp
+next=$(bj_next "$schedule" "$(date +%s)")
+: > "$(bj_conf "$id")"
+bj_set "$id" "NAME=$name" "ENGINE=$engine" "SCOPE=$scope" "EXCLUDE_USERS=$exclude" "SCHEDULE=$schedule" \
+	"TARGETS=$targets" "STATE=$state" LAST_RUN= "NEXT_RUN_TS=$next" \
+	"NEXT_RUN=$([ -n "$next" ] && date -d "@$next" +'%F %T')" "CREATED=$date $time" "UPDATED=$date $time"
+echo "$id"
+
+#----------------------------------------------------------#
+#                         ArcPanel                         #
+#----------------------------------------------------------#
+
+bj_sync_incremental
+$BIN/v-log-action "system" "Info" "Backup" "Backup job added (ID: $id, Name: $name)."
+log_event "$OK" "$id"
+
+exit

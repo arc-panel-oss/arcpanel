@@ -299,6 +299,65 @@ paths:
           $ref: "#/components/responses/InvalidRequest"
         "422":
           $ref: "#/components/responses/Unprocessable"
+  "/api/#v-add-backup-destination":
+    post:
+      operationId: v-add-backup-destination
+      tags:
+        - Backups
+      summary: Add a backup destination (E48)
+      description: |-
+        v-add-backup-destination nas local /tmp/options
+
+        This function adds the backup destination NAME (lower-case letters,
+        digits and -, at most 32 characters) with the driver local, ftp, sftp,
+        s3, b2, gdrive, dropbox, onedrive, webdav or rclone. OPTIONS_FILE holds
+        KEY='value' lines of the driver's fields (PATH, HOST, PORT, USERNAME,
+        BUCKET and so on) and of DESCRIPTION, ENCRYPT and BWLIMIT. SECRETS_DIR
+        holds one file per secret field (PASSWORD, PRIVATE_KEY, PASSPHRASE,
+        SECRET_ACCESS_KEY, APP_KEY, TOKEN, SERVICE_ACCOUNT, CONFIG); secrets are
+        stored encrypted and never printed. KIT_FILE, a recovery kit of
+        v-export-backup-destination-key, imports the destination's key instead
+        of creating a new one. The destination starts unchecked: run
+        v-check-backup-destination.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `NAME` | yes |
+        | `arg2` | `DRIVER` | yes |
+        | `arg3` | `OPTIONS_FILE` | yes |
+        | `arg4` | `SECRETS_DIR` | no |
+        | `arg5` | `KIT_FILE` | no |
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-add-backup-destination"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-add-backup-destination"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
   "/api/#v-add-backup-host":
     post:
       operationId: v-add-backup-host
@@ -307,8 +366,17 @@ paths:
       summary: Add backup host
       description: |-
         v-add-backup-host b2 bucketName keyID applicationKey
+        v-add-backup-host local
 
-        Add a new remote backup location. Currently SFTP, FTP and Backblaze are supported
+        Add a remote backup location of the kind earlier versions knew: local,
+        SFTP, FTP, Backblaze B2 or an rclone remote of root's rclone
+        configuration. Since E48 the host is the backup destination named TYPE,
+        and it becomes a target of the backup job "Nightly archives" (created
+        when missing, daily at 05:10 for all users). For SFTP, PASSWORD may be a
+        file with a private key; the server's host key is pinned on first use.
+        The host is checked; it is not kept when the check fails. Use
+        v-add-backup-destination for more destinations of a kind and for the
+        other drivers.
 
         **Arguments**
 
@@ -354,22 +422,29 @@ paths:
       operationId: v-add-backup-host-restic
       tags:
         - Backups
-      summary: Add backup host
+      summary: Add the incremental backup host
       description: |-
-        v-add-backup-host b2 bucketName keyID applicationKey
+        v-add-backup-host-restic rclone:offsite:restic 10 7 4 12 -1
 
-        Add a new remote backup location. Currently SFTP, FTP and Backblaze are supported
+        This function sends incremental (restic) backups to REPO, as earlier
+        versions did: a folder of this server or rclone:REMOTE:PATH of a remote in
+        root's rclone configuration (an S3 host: v-add-backup-host-s3). Since E48
+        the repository is the backup destination restic and the target of the
+        backup job "Nightly snapshots" (created when missing, daily at 05:40 for
+        all users), with the retention given (-1 keeps all). The repository of
+        each user is REPO/USER, as before. Other restic URLs are refused: add a
+        backup destination instead.
 
         **Arguments**
 
         | Field | Option | Required |
         | --- | --- | --- |
-        | `arg1` | `TYPE` | yes |
-        | `arg2` | `HOST` | yes |
-        | `arg3` | `USERNAME` | yes |
-        | `arg4` | `PASSWORD` | yes |
-        | `arg5` | `PATH` | no |
-        | `arg6` | `PORT` | no |
+        | `arg1` | `REPO` | yes |
+        | `arg2` | `SNAPSHOTS` | yes |
+        | `arg3` | `DAILY` | yes |
+        | `arg4` | `WEEKLY` | yes |
+        | `arg5` | `MONTHLY` | yes |
+        | `arg6` | `YEARLY` | yes |
       requestBody:
         required: true
         content:
@@ -407,10 +482,10 @@ paths:
       summary: Add an S3 backup host for incremental backups
       description: |-
         This function sends incremental (restic) backups to an S3-compatible
-        provider (AWS, Cloudflare R2, Wasabi, Silo on another server). The
-        connection is kept as the rclone remote arcpanel-s3 in root's rclone
-        configuration (0600), and the restic repository becomes
-        rclone:arcpanel-s3:BUCKET/PATH, so every restic command works unchanged.
+        provider (AWS, Cloudflare R2, Wasabi, Silo on another server). Since E48
+        the connection is the backup destination s3 (its secret encrypted) and
+        the target of the backup job "Nightly snapshots"; the repository of each
+        user stays BUCKET/PATH/USER.
         CREDENTIALS_FILE holds AWS_ACCESS_KEY_ID= and AWS_SECRET_ACCESS_KEY= lines;
         it is read, never printed. Retention: as v-add-backup-host-restic (-1 is
         no limit), 10 snapshots by default.
@@ -437,6 +512,65 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/v-add-backup-host-s3"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+  "/api/#v-add-backup-job":
+    post:
+      operationId: v-add-backup-job
+      tags:
+        - Backups
+      summary: Add a backup job (E48)
+      description: |-
+        v-add-backup-job Snapshots snapshot packages:business 'cron:0 */6 * * *' s3-main:-1:7:4:12:-1
+
+        This function adds a backup job and prints its ID. ENGINE is archive
+        (the tar archive of v-backup-user) or snapshot (restic). SCOPE is all,
+        packages:A,B or users:X,Y; EXCLUDE_USERS leaves users out. SCHEDULE is
+        hourly:MM, daily:HH:MM, weekly:D:HH:MM (Monday 1), monthly:DD:HH:MM
+        (DD 1-28) or cron:M H DOM MON DOW, in the server's time zone. TARGETS
+        lists DEST[:KEEP_LAST[:DAILY:WEEKLY:MONTHLY:YEARLY]] items: archive jobs
+        keep the newest KEEP_LAST archives per destination, at most the
+        package's BACKUPS (-1: BACKUPS); snapshot jobs pass every value to
+        restic forget (-1 keeps all). STATE is enabled (default) or paused.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `NAME` | yes |
+        | `arg2` | `ENGINE` | yes |
+        | `arg3` | `SCOPE` | yes |
+        | `arg4` | `SCHEDULE` | yes |
+        | `arg5` | `TARGETS` | yes |
+        | `arg6` | `EXCLUDE_USERS` | no |
+        | `arg7` | `STATE` | no |
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-add-backup-job"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-add-backup-job"
       responses:
         "200":
           description: "The output of the command; `OK` for an empty output with legacy authentication."
@@ -6467,14 +6601,21 @@ paths:
         - Users
       summary: Backup system user with all its objects
       description: |-
+        v-backup-user alice no 179271000012
+
         This function is used for backing up user with all its domains and databases.
+        The archive is built once and stored on every target of the backup job JOB
+        (E48), encrypted on the destinations that say so; each target keeps its own
+        number of archives. Without JOB the first archive job that covers the user
+        is used, else the destination local.
 
         **Arguments**
 
         | Field | Option | Required |
         | --- | --- | --- |
         | `arg1` | `USER` | yes |
-        | `arg2` | `NOTIFY` | yes |
+        | `arg2` | `NOTIFY` | no |
+        | `arg3` | `JOB` | no |
 
         **User argument:** with the access key of a user other than the admin, `arg1` must be the key's user.
       x-arcpanel-user-arg: 1
@@ -6564,14 +6705,21 @@ paths:
         - Users
       summary: Backup system user with all its objects to restic backup
       description: |-
-        Backup user with all its objects to restic backup. If the repo doesn't exists a new one will be created.
+        v-backup-user-restic alice no 179271000012
+
+        Backup user with all its objects to restic: one snapshot in the user's
+        repository on every target of the snapshot job JOB (E48), each pruned
+        with its own retention. Without JOB the first snapshot job that covers
+        the user is used. A repository that does not exist yet is created; its
+        password is kept encrypted on the server and on the destination.
 
         **Arguments**
 
         | Field | Option | Required |
         | --- | --- | --- |
         | `arg1` | `USER` | yes |
-        | `arg2` | `NOTIFY` | yes |
+        | `arg2` | `NOTIFY` | no |
+        | `arg3` | `JOB` | no |
 
         **User argument:** with the access key of a user other than the admin, `arg1` must be the key's user.
       x-arcpanel-user-arg: 1
@@ -6611,7 +6759,9 @@ paths:
         - Users
       summary: Backup all users
       description: |-
-        This function backups all system users.
+        This function backs up every user now: it runs each enabled archive job
+        (E48) in turn, then the snapshot jobs (v-backup-users-restic). The
+        dispatcher v-update-backup-jobs runs the jobs on their schedules.
 
         **Arguments:** none.
       requestBody:
@@ -6648,9 +6798,11 @@ paths:
       operationId: v-backup-users-restic
       tags:
         - Users
-      summary: Backup all users
+      summary: Backup all users with restic
       description: |-
-        This function backups all system users.
+        This function makes snapshots of every user now: it runs each enabled
+        snapshot job (E48) in turn. The dispatcher v-update-backup-jobs runs the
+        jobs on their schedules.
 
         **Arguments:** none.
       requestBody:
@@ -6823,6 +6975,107 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/v-change-app-process-start"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+  "/api/#v-change-backup-destination":
+    post:
+      operationId: v-change-backup-destination
+      tags:
+        - Backups
+      summary: Change a backup destination (E48)
+      description: |-
+        This function changes the fields of the backup destination NAME that
+        OPTIONS_FILE names (KEY='value' lines, as for v-add-backup-destination)
+        and the secrets that SECRETS_DIR holds (one file per secret field; an
+        empty file removes that secret). Fields and secrets not given keep their
+        values. A change of the connection sets the destination back to
+        unchecked; a new SFTP host forgets the pinned host key.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `NAME` | yes |
+        | `arg2` | `OPTIONS_FILE` | yes |
+        | `arg3` | `SECRETS_DIR` | no |
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-change-backup-destination"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-change-backup-destination"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+  "/api/#v-change-backup-job":
+    post:
+      operationId: v-change-backup-job
+      tags:
+        - Backups
+      summary: Change a backup job (E48)
+      description: |-
+        This function replaces the name, engine, scope, schedule, targets and
+        excluded users of the backup job ID (see v-add-backup-job) and computes
+        its next run. Its state (enabled or paused) stays.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `ID` | yes |
+        | `arg2` | `NAME` | yes |
+        | `arg3` | `ENGINE` | yes |
+        | `arg4` | `SCOPE` | yes |
+        | `arg5` | `SCHEDULE` | yes |
+        | `arg6` | `TARGETS` | yes |
+        | `arg7` | `EXCLUDE_USERS` | no |
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-change-backup-job"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-change-backup-job"
       responses:
         "200":
           description: "The output of the command; `OK` for an empty output with legacy authentication."
@@ -8385,6 +8638,9 @@ paths:
         OBJECT_STORAGE_QUOTA (MB, or with G or T, or unlimited) and
         OBJECT_STORAGE_BACKUP (yes or no) allow object storage (E44): buckets and
         the sum of their quotas, and whether backups carry the objects.
+        BACKUP_FREQUENCY (hourly, daily or weekly) is how often scheduled backup
+        jobs may back up the package's users (E48); a reseller's own package
+        cannot allow more often than the reseller's.
 
         **Arguments**
 
@@ -12112,6 +12368,62 @@ paths:
           $ref: "#/components/responses/InvalidRequest"
         "422":
           $ref: "#/components/responses/Unprocessable"
+  "/api/#v-check-backup-destination":
+    post:
+      operationId: v-check-backup-destination
+      tags:
+        - Backups
+      summary: Check a backup destination (E48)
+      description: |-
+        v-check-backup-destination offsite SHA256:Nq2Qb3H0yZ… json
+
+        This function writes a small file to the backup destination NAME, lists
+        it, reads it back and deletes it, then records the result (STATE ok or
+        failing, CHECKED). An SFTP destination needs its host key first: without
+        a pinned key the check prints the server's key (HOST_KEY) and fails;
+        run it again with that fingerprint as ACCEPT_HOST_KEY to pin it. The
+        result is printed with OK, ERROR, HOST_KEY and LATENCY_MS; the exit code
+        is not zero when the check fails.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `NAME` | yes |
+        | `arg2` | `ACCEPT_HOST_KEY` | no |
+        | `arg3` | `FORMAT` | no |
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-check-backup-destination"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-check-backup-destination"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+            application/json:
+              schema:
+                type: object
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
   "/api/#v-check-docker-catalog":
     post:
       operationId: v-check-docker-catalog
@@ -13482,14 +13794,64 @@ paths:
           $ref: "#/components/responses/InvalidRequest"
         "422":
           $ref: "#/components/responses/Unprocessable"
+  "/api/#v-delete-backup-destination":
+    post:
+      operationId: v-delete-backup-destination
+      tags:
+        - Backups
+      summary: Delete a backup destination (E48)
+      description: |-
+        This function deletes the backup destination NAME: its record, secrets,
+        key and pinned host key. It refuses while a backup job targets NAME.
+        Archives and snapshots on the storage stay where they are; the archive
+        records of the users forget that NAME holds them. Export the recovery
+        kit first to read encrypted archives later.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `NAME` | yes |
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-delete-backup-destination"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-delete-backup-destination"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
   "/api/#v-delete-backup-host":
     post:
       operationId: v-delete-backup-host
       tags:
         - Backups
-      summary: Delete backup ftp server
+      summary: Delete backup host
       description: |-
-        This function deletes ftp backup host
+        This function deletes the backup host of TYPE (local, ftp, sftp, b2 or
+        rclone): since E48 the backup destination named TYPE. It leaves every
+        backup job first; a job left without targets is deleted. Archives on
+        the host stay where they are.
 
         **Arguments**
 
@@ -13531,15 +13893,14 @@ paths:
       operationId: v-delete-backup-host-restic
       tags:
         - Backups
-      summary: Delete backup ftp server
+      summary: Delete the incremental backup host
       description: |-
-        This function deletes ftp backup host
+        This function turns incremental backups off as earlier versions did: the
+        destinations of the backup job "Nightly snapshots" leave it, the job is
+        deleted and so are destinations no other job uses. Snapshots stay where
+        they are.
 
-        **Arguments**
-
-        | Field | Option | Required |
-        | --- | --- | --- |
-        | `arg1` | `NONE` | no |
+        **Arguments:** none.
       requestBody:
         required: true
         content:
@@ -13576,9 +13937,8 @@ paths:
         - Backups
       summary: Delete the S3 backup host of incremental backups
       description: |-
-        This function turns off incremental backups when their repository is the
-        S3 backup host, and removes the rclone remote arcpanel-s3. The snapshots
-        stay in the bucket.
+        This function deletes the S3 backup host (the backup destination s3): it
+        leaves every backup job and is deleted. The snapshots stay in the bucket.
 
         **Arguments:** none.
       requestBody:
@@ -13590,6 +13950,51 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/v-delete-backup-host-s3"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+  "/api/#v-delete-backup-job":
+    post:
+      operationId: v-delete-backup-job
+      tags:
+        - Backups
+      summary: Delete a backup job (E48)
+      description: |-
+        This function deletes the backup job ID and its run records. It refuses
+        while the job runs. Archives and snapshots the job made stay; no job
+        prunes them any more.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `ID` | yes |
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-delete-backup-job"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-delete-backup-job"
       responses:
         "200":
           description: "The output of the command; `OK` for an empty output with legacy authentication."
@@ -17071,7 +17476,11 @@ paths:
         - Users
       summary: Delete user backup
       description: |-
-        This function deletes user backup.
+        v-delete-user-backup alice alice.2026-10-22_05-10-00.tar offsite
+
+        This function deletes user backup from every destination that holds it,
+        or from DESTINATION only (E48); the record goes when no destination holds
+        the archive any more.
 
         **Arguments**
 
@@ -17079,6 +17488,7 @@ paths:
         | --- | --- | --- |
         | `arg1` | `USER` | yes |
         | `arg2` | `BACKUP` | yes |
+        | `arg3` | `DESTINATION` | no |
 
         **User argument:** with the access key of a user other than the admin, `arg1` must be the key's user.
       x-arcpanel-user-arg: 1
@@ -19134,6 +19544,55 @@ paths:
           $ref: "#/components/responses/InvalidRequest"
         "422":
           $ref: "#/components/responses/Unprocessable"
+  "/api/#v-export-backup-destination-key":
+    post:
+      operationId: v-export-backup-destination-key
+      tags:
+        - Backups
+      summary: Export the recovery kit of a backup destination (E48)
+      description: |-
+        This function writes the recovery kit of the backup destination NAME to
+        FILE (mode 600), or prints it when FILE is not given: the destination's
+        age identity with its driver, path and the host name of this server.
+        The identity decrypts the archives and the restic passwords stored on
+        the destination, so keep the kit away from the server. Importing it with
+        v-add-backup-destination reads the backups on another server.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `NAME` | yes |
+        | `arg2` | `FILE` | no |
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-export-backup-destination-key"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-export-backup-destination-key"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
   "/api/#v-export-rrd":
     post:
       operationId: v-export-rrd
@@ -19993,6 +20452,55 @@ paths:
           $ref: "#/components/responses/InvalidRequest"
         "422":
           $ref: "#/components/responses/Unprocessable"
+  "/api/#v-import-user-backup":
+    post:
+      operationId: v-import-user-backup
+      tags:
+        - Users
+      summary: Import an archive from a backup destination (E48)
+      description: |-
+        This function copies the archive BACKUP (USER.YYYY-MM-DD_HH-MM-SS.tar)
+        from DESTINATION to the backup folder of this server, decrypting it with
+        the destination's key when it is stored encrypted, so that v-restore-user
+        can restore it, for example on a new server after the recovery kit was
+        imported. When USER exists, its archive records learn that DESTINATION
+        holds the archive.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `DESTINATION` | yes |
+        | `arg2` | `BACKUP` | yes |
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-import-user-backup"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-import-user-backup"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
   "/api/#v-insert-dns-domain":
     post:
       operationId: v-insert-dns-domain
@@ -20661,6 +21169,158 @@ paths:
           $ref: "#/components/responses/InvalidRequest"
         "422":
           $ref: "#/components/responses/Unprocessable"
+  "/api/#v-list-backup-destination":
+    post:
+      operationId: v-list-backup-destination
+      tags:
+        - Backups
+      summary: List a backup destination (E48)
+      description: |-
+        This function prints the fields and state of the backup destination
+        NAME, the names (never the values) of its stored secrets and the jobs
+        that target it.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `NAME` | yes |
+        | `arg2` | `FORMAT` | no |
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-list-backup-destination"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-list-backup-destination"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+            application/json:
+              schema:
+                type: object
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+  "/api/#v-list-backup-destination-archives":
+    post:
+      operationId: v-list-backup-destination-archives
+      tags:
+        - Backups
+      summary: List the archives stored on a backup destination (E48)
+      description: |-
+        This function lists the archive files (USER.YYYY-MM-DD_HH-MM-SS.tar, or
+        .tar.age when encrypted) that the backup destination NAME holds, of USER
+        or of every user, with their size and whether the user's archive records
+        know them. v-import-user-backup registers one that they do not know, for
+        example on a new server.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `NAME` | yes |
+        | `arg2` | `USER` | no |
+        | `arg3` | `FORMAT` | no |
+
+        **User argument:** with the access key of a user other than the admin, `arg2` must be the key's user.
+      x-arcpanel-user-arg: 2
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-list-backup-destination-archives"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-list-backup-destination-archives"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+            application/json:
+              schema:
+                type: object
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+  "/api/#v-list-backup-destinations":
+    post:
+      operationId: v-list-backup-destinations
+      tags:
+        - Backups
+      summary: List backup destinations (E48)
+      description: |-
+        This function lists the backup destinations with their fields, state and
+        the names (never the values) of their stored secrets, and the jobs that
+        target each.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `FORMAT` | no |
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-list-backup-destinations"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-list-backup-destinations"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+            application/json:
+              schema:
+                type: object
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
   "/api/#v-list-backup-host":
     post:
       operationId: v-list-backup-host
@@ -20716,8 +21376,9 @@ paths:
       summary: List the incremental backup host
       description: |-
         This function lists the restic repository of incremental backups and its
-        retention; for an S3 backup host (v-add-backup-host-s3) also its endpoint,
-        region and access key ID, never the secret.
+        retention as earlier versions did: the destination and retention of the
+        backup job "Nightly snapshots" (E48); for an S3 backup host also its
+        endpoint, region and access key ID, never the secret.
 
         **Arguments**
 
@@ -20733,6 +21394,203 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/v-list-backup-host-restic"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+            application/json:
+              schema:
+                type: object
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+  "/api/#v-list-backup-job":
+    post:
+      operationId: v-list-backup-job
+      tags:
+        - Backups
+      summary: List a backup job (E48)
+      description: |-
+        This function prints the backup job ID with its schedule, targets, next
+        run, the state of its last run and the users it covers now (USERS).
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `ID` | yes |
+        | `arg2` | `FORMAT` | no |
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-list-backup-job"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-list-backup-job"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+            application/json:
+              schema:
+                type: object
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+  "/api/#v-list-backup-job-runs":
+    post:
+      operationId: v-list-backup-job-runs
+      tags:
+        - Backups
+      summary: List the runs of backup jobs (E48)
+      description: |-
+        v-list-backup-job-runs '' json
+
+        This function lists the runs of the backup job ID, or of every job when
+        ID is empty, newest first: trigger, state (running, success, partial,
+        failed), start, end and the counts of users done, failed and skipped.
+        The results per user are in v-list-sys-backup-runs.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `ID` | no |
+        | `arg2` | `FORMAT` | no |
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-list-backup-job-runs"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-list-backup-job-runs"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+            application/json:
+              schema:
+                type: object
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+  "/api/#v-list-backup-jobs":
+    post:
+      operationId: v-list-backup-jobs
+      tags:
+        - Backups
+      summary: List backup jobs (E48)
+      description: |-
+        This function lists the backup jobs with their schedule, targets, next
+        run and the state of their last run.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `FORMAT` | no |
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-list-backup-jobs"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-list-backup-jobs"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+            application/json:
+              schema:
+                type: object
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+  "/api/#v-list-backup-schedule":
+    post:
+      operationId: v-list-backup-schedule
+      tags:
+        - Backups
+      summary: List the next runs of a backup schedule (E48)
+      description: |-
+        This function checks SCHEDULE (see v-add-backup-job) and prints its next
+        COUNT runs (default 5, at most 20) in the server's time zone, the same
+        way the dispatcher computes them. The panel shows them as a preview.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `SCHEDULE` | yes |
+        | `arg2` | `COUNT` | no |
+        | `arg3` | `FORMAT` | no |
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-list-backup-schedule"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-list-backup-schedule"
       responses:
         "200":
           description: "The output of the command; `OK` for an empty output with legacy authentication."
@@ -27189,16 +28047,19 @@ paths:
       operationId: v-list-user-backups-restic
       tags:
         - Users
-      summary: Backup system user with all its objects
+      summary: List the restic snapshots of a user
       description: |-
-        This function is used for backing up user with all its domains and databases.
+        This function lists the snapshots of USER on every destination of the
+        snapshot jobs that cover the user (E48). In json each snapshot of restic
+        gains "destination", the destination that holds it; plain prints restic's
+        table per destination.
 
         **Arguments**
 
         | Field | Option | Required |
         | --- | --- | --- |
         | `arg1` | `USER` | yes |
-        | `arg2` | `NOTIFY` | yes |
+        | `arg2` | `FORMAT` | no |
 
         **User argument:** with the access key of a user other than the admin, `arg1` must be the key's user.
       x-arcpanel-user-arg: 1
@@ -27221,6 +28082,9 @@ paths:
             text/plain:
               schema:
                 type: string
+            application/json:
+              schema:
+                type: object
         "204":
           $ref: "#/components/responses/NoContent"
         "400":
@@ -33006,6 +33870,66 @@ paths:
           $ref: "#/components/responses/InvalidRequest"
         "422":
           $ref: "#/components/responses/Unprocessable"
+  "/api/#v-run-backup-job":
+    post:
+      operationId: v-run-backup-job
+      tags:
+        - Backups
+      summary: Run a backup job (E48)
+      description: |-
+        v-run-backup-job 179271000012 alice
+
+        This function runs the backup job ID now and waits for it. With USER it
+        backs up that user only, to the job's targets, and records nothing for
+        the job itself (requests from the panel and the API). Without USER it
+        backs up every user the job covers, at most BACKUP_PARALLEL users at
+        once on the server, dumps the databases of each user's Docker apps
+        first, and records a job run: success, partial (some users or
+        destinations failed) or failed (all failed). A scheduled run (TRIGGER
+        schedule) skips users whose package does not allow backups that often
+        (BACKUP_FREQUENCY). TRIGGER is schedule, request or cli (default). The
+        dispatcher v-update-backup-jobs and v-start-backup-job start whole runs
+        in the background.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `ID` | yes |
+        | `arg2` | `USER` | no |
+        | `arg3` | `TRIGGER` | no |
+
+        **User argument:** with the access key of a user other than the admin, `arg2` must be the key's user.
+      x-arcpanel-user-arg: 2
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-run-backup-job"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-run-backup-job"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
   "/api/#v-run-cli-cmd":
     post:
       operationId: v-run-cli-cmd
@@ -34495,6 +35419,52 @@ paths:
           $ref: "#/components/responses/InvalidRequest"
         "422":
           $ref: "#/components/responses/Unprocessable"
+  "/api/#v-start-backup-job":
+    post:
+      operationId: v-start-backup-job
+      tags:
+        - Backups
+      summary: Start a backup job now in the background (E48)
+      description: |-
+        This function starts a whole run of the backup job ID in the background
+        ("Run now" in the panel) and returns at once; the run shows in
+        v-list-backup-job-runs. It refuses while the job runs. A paused job may
+        be started this way too.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `ID` | yes |
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-start-backup-job"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-start-backup-job"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
   "/api/#v-start-docker-app":
     post:
       operationId: v-start-docker-app
@@ -35166,6 +36136,50 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/v-stop-service"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+  "/api/#v-suspend-backup-job":
+    post:
+      operationId: v-suspend-backup-job
+      tags:
+        - Backups
+      summary: Pause a backup job (E48)
+      description: |-
+        This function pauses the backup job ID: the dispatcher no longer starts
+        it. A run in progress finishes. v-unsuspend-backup-job enables it again.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `ID` | yes |
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-suspend-backup-job"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-suspend-backup-job"
       responses:
         "200":
           description: "The output of the command; `OK` for an empty output with legacy authentication."
@@ -36422,6 +37436,50 @@ paths:
           $ref: "#/components/responses/InvalidRequest"
         "422":
           $ref: "#/components/responses/Unprocessable"
+  "/api/#v-unsuspend-backup-job":
+    post:
+      operationId: v-unsuspend-backup-job
+      tags:
+        - Backups
+      summary: Enable a paused backup job (E48)
+      description: |-
+        This function enables the backup job ID again and computes its next run
+        from now: runs missed while it was paused do not run.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `ID` | yes |
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-unsuspend-backup-job"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-unsuspend-backup-job"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
   "/api/#v-unsuspend-cron-job":
     post:
       operationId: v-unsuspend-cron-job
@@ -37608,6 +38666,50 @@ paths:
           $ref: "#/components/responses/InvalidRequest"
         "422":
           $ref: "#/components/responses/Unprocessable"
+  "/api/#v-update-backup-jobs":
+    post:
+      operationId: v-update-backup-jobs
+      tags:
+        - Backups
+      summary: Start the backup jobs that are due (E48)
+      description: |-
+        This function is the dispatcher of backup jobs; cron runs it every
+        minute. It starts each enabled job whose next run is due in the
+        background and computes its next run from now, so a job missed while
+        the server was off runs once, not once per missed slot. A job still
+        running when it is due again skips that slot. Once a day after 07:00 it
+        sends the summary mail when BACKUP_REPORT is daily.
+
+        **Arguments:** none.
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-update-backup-jobs"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-update-backup-jobs"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
   "/api/#v-update-database-disk":
     post:
       operationId: v-update-database-disk
@@ -38317,6 +39419,55 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/v-update-sys-arcpanel-git"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+  "/api/#v-update-sys-backup-config":
+    post:
+      operationId: v-update-sys-backup-config
+      tags:
+        - System
+      summary: Move the backup settings of earlier versions to destinations and jobs (E48)
+      description: |-
+        This function converts the backup settings of earlier versions once, and
+        does nothing the next time (spec §10.2): the local folder becomes the
+        destination local; conf/{ftp,sftp,b2,rclone}.backup.conf become
+        destinations of the same names, their passwords and keys encrypted and
+        their archives left unencrypted; conf/restic.conf becomes the destination
+        restic (or s3 for the S3 host of E44). The nightly run becomes the job
+        "Nightly archives" (05:10) and, with incremental backups, the job
+        "Nightly snapshots" (05:40). Archive records learn their job and
+        destinations, the plain restic passwords of the users are encrypted, and
+        the cron line of v-backup-users gives way to the dispatcher. The old
+        files are renamed *.migrated. The installers and the upgrade run it.
+
+        **Arguments:** none.
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-update-sys-backup-config"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-update-sys-backup-config"
       responses:
         "200":
           description: "The output of the command; `OK` for an empty output with legacy authentication."
@@ -40342,6 +41493,53 @@ components:
                 - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
+    v-add-backup-destination:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+            - arg2
+            - arg3
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-add-backup-destination
+              default: v-add-backup-destination
+            arg1:
+              type: string
+              title: NAME
+              description: "`NAME`"
+              examples:
+                - offsite
+            arg2:
+              type: string
+              title: DRIVER
+              description: "`DRIVER`"
+              examples:
+                - sftp
+            arg3:
+              type: string
+              title: OPTIONS_FILE
+              description: "`OPTIONS_FILE`"
+              examples:
+                - /tmp/options
+            arg4:
+              type: string
+              title: SECRETS_DIR
+              description: "`SECRETS_DIR`, optional"
+              examples:
+                - /tmp/secrets
+            arg5:
+              type: string
+              title: KIT_FILE
+              description: "`KIT_FILE`, optional"
+              examples:
+                - ""
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
     v-add-backup-host:
       allOf:
         - $ref: "#/components/schemas/Credentials"
@@ -40406,6 +41604,8 @@ components:
             - arg2
             - arg3
             - arg4
+            - arg5
+            - arg6
           properties:
             cmd:
               type: string
@@ -40414,40 +41614,40 @@ components:
               default: v-add-backup-host-restic
             arg1:
               type: string
-              title: TYPE
-              description: "`TYPE`"
+              title: REPO
+              description: "`REPO`"
               examples:
-                - sftp
+                - /backup/restic
             arg2:
               type: string
-              title: HOST
-              description: "`HOST`"
+              title: SNAPSHOTS
+              description: "`SNAPSHOTS`"
               examples:
-                - backup.acme.com
+                - "30"
             arg3:
               type: string
-              title: USERNAME
-              description: "`USERNAME`"
+              title: DAILY
+              description: "`DAILY`"
               examples:
-                - admin
+                - "-1"
             arg4:
               type: string
-              title: PASSWORD
-              description: "`PASSWORD`"
+              title: WEEKLY
+              description: "`WEEKLY`"
               examples:
-                - "P4$$w@rD"
+                - "-1"
             arg5:
               type: string
-              title: PATH
-              description: "`PATH`, optional"
+              title: MONTHLY
+              description: "`MONTHLY`"
               examples:
-                - ""
+                - "-1"
             arg6:
               type: string
-              title: PORT
-              description: "`PORT`, optional"
+              title: YEARLY
+              description: "`YEARLY`"
               examples:
-                - ""
+                - "-1"
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-add-backup-host-s3:
@@ -40519,6 +41719,67 @@ components:
               description: "`YEARLY`, optional"
               examples:
                 - "-1"
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
+    v-add-backup-job:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+            - arg2
+            - arg3
+            - arg4
+            - arg5
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-add-backup-job
+              default: v-add-backup-job
+            arg1:
+              type: string
+              title: NAME
+              description: "`NAME`"
+              examples:
+                - Nightly archives
+            arg2:
+              type: string
+              title: ENGINE
+              description: "`ENGINE`"
+              examples:
+                - archive
+            arg3:
+              type: string
+              title: SCOPE
+              description: "`SCOPE`"
+              examples:
+                - all
+            arg4:
+              type: string
+              title: SCHEDULE
+              description: "`SCHEDULE`"
+              examples:
+                - "daily:05:10"
+            arg5:
+              type: string
+              title: TARGETS
+              description: "`TARGETS`"
+              examples:
+                - "local,offsite:7"
+            arg6:
+              type: string
+              title: EXCLUDE_USERS
+              description: "`EXCLUDE_USERS`, optional"
+              examples:
+                - ""
+            arg7:
+              type: string
+              title: STATE
+              description: "`STATE`, optional"
+              examples:
+                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-add-cron-arcpanel-autoupdate:
@@ -44923,7 +46184,6 @@ components:
           required:
             - cmd
             - arg1
-            - arg2
           properties:
             cmd:
               type: string
@@ -44939,9 +46199,15 @@ components:
             arg2:
               type: string
               title: NOTIFY
-              description: "`NOTIFY`"
+              description: "`NOTIFY`, optional"
               examples:
                 - "yes"
+            arg3:
+              type: string
+              title: JOB
+              description: "`JOB`, optional"
+              examples:
+                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-backup-user-config:
@@ -44979,7 +46245,6 @@ components:
           required:
             - cmd
             - arg1
-            - arg2
           properties:
             cmd:
               type: string
@@ -44995,9 +46260,15 @@ components:
             arg2:
               type: string
               title: NOTIFY
-              description: "`NOTIFY`"
+              description: "`NOTIFY`, optional"
               examples:
                 - "yes"
+            arg3:
+              type: string
+              title: JOB
+              description: "`JOB`, optional"
+              examples:
+                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-backup-users:
@@ -45163,6 +46434,102 @@ components:
               type: string
               title: CWD
               description: "`CWD`, optional"
+              examples:
+                - ""
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
+    v-change-backup-destination:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+            - arg2
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-change-backup-destination
+              default: v-change-backup-destination
+            arg1:
+              type: string
+              title: NAME
+              description: "`NAME`"
+              examples:
+                - offsite
+            arg2:
+              type: string
+              title: OPTIONS_FILE
+              description: "`OPTIONS_FILE`"
+              examples:
+                - /tmp/options
+            arg3:
+              type: string
+              title: SECRETS_DIR
+              description: "`SECRETS_DIR`, optional"
+              examples:
+                - /tmp/secrets
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
+    v-change-backup-job:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+            - arg2
+            - arg3
+            - arg4
+            - arg5
+            - arg6
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-change-backup-job
+              default: v-change-backup-job
+            arg1:
+              type: string
+              title: ID
+              description: "`ID`"
+              examples:
+                - "179271000012"
+            arg2:
+              type: string
+              title: NAME
+              description: "`NAME`"
+              examples:
+                - Nightly archives
+            arg3:
+              type: string
+              title: ENGINE
+              description: "`ENGINE`"
+              examples:
+                - archive
+            arg4:
+              type: string
+              title: SCOPE
+              description: "`SCOPE`"
+              examples:
+                - all
+            arg5:
+              type: string
+              title: SCHEDULE
+              description: "`SCHEDULE`"
+              examples:
+                - "daily:04:30"
+            arg6:
+              type: string
+              title: TARGETS
+              description: "`TARGETS`"
+              examples:
+                - "local,offsite:14"
+            arg7:
+              type: string
+              title: EXCLUDE_USERS
+              description: "`EXCLUDE_USERS`, optional"
               examples:
                 - ""
             returncode:
@@ -49023,6 +50390,44 @@ components:
                 - "127.0.0.1"
             returncode:
               $ref: "#/components/schemas/ReturnCode"
+    v-check-backup-destination:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-check-backup-destination
+              default: v-check-backup-destination
+            arg1:
+              type: string
+              title: NAME
+              description: "`NAME`"
+              examples:
+                - offsite
+            arg2:
+              type: string
+              title: ACCEPT_HOST_KEY
+              description: "`ACCEPT_HOST_KEY`, optional"
+              examples:
+                - ""
+            arg3:
+              type: string
+              title: FORMAT
+              description: "`FORMAT`, optional"
+              enum:
+                - json
+                - plain
+                - csv
+                - shell
+              examples:
+                - json
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
     v-check-docker-catalog:
       allOf:
         - $ref: "#/components/schemas/Credentials"
@@ -49870,6 +51275,27 @@ components:
                 - queue
             returncode:
               $ref: "#/components/schemas/ReturnCode"
+    v-delete-backup-destination:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-delete-backup-destination
+              default: v-delete-backup-destination
+            arg1:
+              type: string
+              title: NAME
+              description: "`NAME`"
+              examples:
+                - offsite
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
     v-delete-backup-host:
       allOf:
         - $ref: "#/components/schemas/Credentials"
@@ -49909,12 +51335,6 @@ components:
               enum:
                 - v-delete-backup-host-restic
               default: v-delete-backup-host-restic
-            arg1:
-              type: string
-              title: NONE
-              description: "`NONE`, optional"
-              examples:
-                - sftp
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-delete-backup-host-s3:
@@ -49929,6 +51349,27 @@ components:
               enum:
                 - v-delete-backup-host-s3
               default: v-delete-backup-host-s3
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
+    v-delete-backup-job:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-delete-backup-job
+              default: v-delete-backup-job
+            arg1:
+              type: string
+              title: ID
+              description: "`ID`"
+              examples:
+                - "179271000012"
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-delete-cron-arcpanel-autoupdate:
@@ -51879,6 +53320,12 @@ components:
               description: "`BACKUP`"
               examples:
                 - admin.2012-12-21_00-10-00.tar
+            arg3:
+              type: string
+              title: DESTINATION
+              description: "`DESTINATION`, optional"
+              examples:
+                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-delete-user-backup-exclusions:
@@ -53119,6 +54566,33 @@ components:
                 - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
+    v-export-backup-destination-key:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-export-backup-destination-key
+              default: v-export-backup-destination-key
+            arg1:
+              type: string
+              title: NAME
+              description: "`NAME`"
+              examples:
+                - offsite
+            arg2:
+              type: string
+              title: FILE
+              description: "`FILE`, optional"
+              examples:
+                - /root/offsite-kit.txt
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
     v-export-rrd:
       allOf:
         - $ref: "#/components/schemas/Credentials"
@@ -53745,6 +55219,34 @@ components:
                 - /backup/backup.tar.gz
             returncode:
               $ref: "#/components/schemas/ReturnCode"
+    v-import-user-backup:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+            - arg2
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-import-user-backup
+              default: v-import-user-backup
+            arg1:
+              type: string
+              title: DESTINATION
+              description: "`DESTINATION`"
+              examples:
+                - offsite
+            arg2:
+              type: string
+              title: BACKUP
+              description: "`BACKUP`"
+              examples:
+                - alice.2026-10-22_05-10-00.tar
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
     v-insert-dns-domain:
       allOf:
         - $ref: "#/components/schemas/Credentials"
@@ -54226,6 +55728,101 @@ components:
                 - json
             returncode:
               $ref: "#/components/schemas/ReturnCode"
+    v-list-backup-destination:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-list-backup-destination
+              default: v-list-backup-destination
+            arg1:
+              type: string
+              title: NAME
+              description: "`NAME`"
+              examples:
+                - offsite
+            arg2:
+              type: string
+              title: FORMAT
+              description: "`FORMAT`, optional"
+              enum:
+                - json
+                - plain
+                - csv
+                - shell
+              examples:
+                - json
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
+    v-list-backup-destination-archives:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-list-backup-destination-archives
+              default: v-list-backup-destination-archives
+            arg1:
+              type: string
+              title: NAME
+              description: "`NAME`"
+              examples:
+                - offsite
+            arg2:
+              type: string
+              title: USER
+              description: "`USER`, optional"
+              examples:
+                - alice
+            arg3:
+              type: string
+              title: FORMAT
+              description: "`FORMAT`, optional"
+              enum:
+                - json
+                - plain
+                - csv
+                - shell
+              examples:
+                - json
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
+    v-list-backup-destinations:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-list-backup-destinations
+              default: v-list-backup-destinations
+            arg1:
+              type: string
+              title: FORMAT
+              description: "`FORMAT`, optional"
+              enum:
+                - json
+                - plain
+                - csv
+                - shell
+              examples:
+                - json
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
     v-list-backup-host:
       allOf:
         - $ref: "#/components/schemas/Credentials"
@@ -54271,6 +55868,132 @@ components:
                 - v-list-backup-host-restic
               default: v-list-backup-host-restic
             arg1:
+              type: string
+              title: FORMAT
+              description: "`FORMAT`, optional"
+              enum:
+                - json
+                - plain
+                - csv
+                - shell
+              examples:
+                - json
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
+    v-list-backup-job:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-list-backup-job
+              default: v-list-backup-job
+            arg1:
+              type: string
+              title: ID
+              description: "`ID`"
+              examples:
+                - "179271000012"
+            arg2:
+              type: string
+              title: FORMAT
+              description: "`FORMAT`, optional"
+              enum:
+                - json
+                - plain
+                - csv
+                - shell
+              examples:
+                - json
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
+    v-list-backup-job-runs:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-list-backup-job-runs
+              default: v-list-backup-job-runs
+            arg1:
+              type: string
+              title: ID
+              description: "`ID`, optional"
+              examples:
+                - "179271000012"
+            arg2:
+              type: string
+              title: FORMAT
+              description: "`FORMAT`, optional"
+              enum:
+                - json
+                - plain
+                - csv
+                - shell
+              examples:
+                - json
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
+    v-list-backup-jobs:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-list-backup-jobs
+              default: v-list-backup-jobs
+            arg1:
+              type: string
+              title: FORMAT
+              description: "`FORMAT`, optional"
+              enum:
+                - json
+                - plain
+                - csv
+                - shell
+              examples:
+                - json
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
+    v-list-backup-schedule:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-list-backup-schedule
+              default: v-list-backup-schedule
+            arg1:
+              type: string
+              title: SCHEDULE
+              description: "`SCHEDULE`"
+              examples:
+                - "cron:0 */6 * * 1-5"
+            arg2:
+              type: string
+              title: COUNT
+              description: "`COUNT`, optional"
+              examples:
+                - "5"
+            arg3:
               type: string
               title: FORMAT
               description: "`FORMAT`, optional"
@@ -57870,7 +59593,6 @@ components:
           required:
             - cmd
             - arg1
-            - arg2
           properties:
             cmd:
               type: string
@@ -57882,13 +59604,18 @@ components:
               title: USER
               description: "`USER`"
               examples:
-                - admin
+                - alice
             arg2:
               type: string
-              title: NOTIFY
-              description: "`NOTIFY`"
+              title: FORMAT
+              description: "`FORMAT`, optional"
+              enum:
+                - json
+                - plain
+                - csv
+                - shell
               examples:
-                - "yes"
+                - json
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-list-user-bucket:
@@ -61442,6 +63169,39 @@ components:
                 - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
+    v-run-backup-job:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-run-backup-job
+              default: v-run-backup-job
+            arg1:
+              type: string
+              title: ID
+              description: "`ID`"
+              examples:
+                - "179271000012"
+            arg2:
+              type: string
+              title: USER
+              description: "`USER`, optional"
+              examples:
+                - ""
+            arg3:
+              type: string
+              title: TRIGGER
+              description: "`TRIGGER`, optional"
+              examples:
+                - ""
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
     v-run-cli-cmd:
       allOf:
         - $ref: "#/components/schemas/Credentials"
@@ -62666,6 +64426,27 @@ components:
                 - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
+    v-start-backup-job:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-start-backup-job
+              default: v-start-backup-job
+            arg1:
+              type: string
+              title: ID
+              description: "`ID`"
+              examples:
+                - "179271000012"
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
     v-start-docker-app:
       allOf:
         - $ref: "#/components/schemas/Credentials"
@@ -63184,6 +64965,27 @@ components:
               description: "`SERVICE`"
               examples:
                 - apache2
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
+    v-suspend-backup-job:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-suspend-backup-job
+              default: v-suspend-backup-job
+            arg1:
+              type: string
+              title: ID
+              description: "`ID`"
+              examples:
+                - "179271000012"
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-suspend-cron-job:
@@ -63896,6 +65698,27 @@ components:
                 - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
+    v-unsuspend-backup-job:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-unsuspend-backup-job
+              default: v-unsuspend-backup-job
+            arg1:
+              type: string
+              title: ID
+              description: "`ID`"
+              examples:
+                - "179271000012"
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
     v-unsuspend-cron-job:
       allOf:
         - $ref: "#/components/schemas/Credentials"
@@ -64572,6 +66395,20 @@ components:
                 - "no"
             returncode:
               $ref: "#/components/schemas/ReturnCode"
+    v-update-backup-jobs:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-update-backup-jobs
+              default: v-update-backup-jobs
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
     v-update-database-disk:
       allOf:
         - $ref: "#/components/schemas/Credentials"
@@ -64951,6 +66788,20 @@ components:
               description: "`INSTALL`"
               examples:
                 - install
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
+    v-update-sys-backup-config:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-update-sys-backup-config
+              default: v-update-sys-backup-config
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-update-sys-defaults:

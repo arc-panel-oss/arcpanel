@@ -29,6 +29,8 @@ json_list() {
 	objects=$(grep BACKUP $USER_DATA/backup.conf | wc -l)
 	echo "{"
 	while read -r str; do
+		# Records of earlier versions have no job or destinations (E48)
+		JOB='' DESTINATIONS='' ENCRYPTED=''
 		parse_object_kv_list "$str"
 		echo -n '    "'$BACKUP'": {
         "TYPE": "'$TYPE'",
@@ -41,7 +43,10 @@ json_list() {
         "UDIR": "'$UDIR'",
         "RUNTIME": "'$RUNTIME'",
         "TIME": "'$TIME'",
-        "DATE": "'$DATE'"
+        "DATE": "'$DATE'",
+        "JOB": "'$JOB'",
+        "DESTINATIONS": "'$DESTINATIONS'",
+        "ENCRYPTED": "'$ENCRYPTED'"
     }'
 		if [ "$i" -lt "$objects" ]; then
 			echo ','
@@ -59,6 +64,7 @@ shell_list() {
 	echo "BACKUP   TYPE   SIZE  TIME  DATE"
 	echo "------   ----   ---   ----  ----"
 	while read -r str; do
+		JOB='' DESTINATIONS='' ENCRYPTED=''
 		parse_object_kv_list "$str"
 		echo "$BACKUP $TYPE $SIZE $RUNTIME $DATE"
 	done < <(cat $USER_DATA/backup.conf)
@@ -68,20 +74,22 @@ shell_list() {
 plain_list() {
 	IFS=$'\n'
 	while read -r str; do
+		JOB='' DESTINATIONS='' ENCRYPTED=''
 		parse_object_kv_list "$str"
 		echo -ne "$BACKUP\t$TYPE\t$SIZE\t$WEB\t$DNS\t$MAIL\t$CRON\t$UDIR\t"
-		echo -e "$RUNTIME\t$TIME\t$DATE"
+		echo -e "$RUNTIME\t$TIME\t$DATE\t$JOB\t$DESTINATIONS\t$ENCRYPTED"
 	done < <(cat $USER_DATA/backup.conf)
 }
 
 # CSV list function
 csv_list() {
 	IFS=$'\n'
-	echo "BACKUP,TYPE,SIZE,WEB,DNS,MAIL,CRON,UDIR,RUNTIME,TIME,DATE"
+	echo "BACKUP,TYPE,SIZE,WEB,DNS,MAIL,CRON,UDIR,RUNTIME,TIME,DATE,JOB,DESTINATIONS,ENCRYPTED"
 	while read -r str; do
+		JOB='' DESTINATIONS='' ENCRYPTED=''
 		parse_object_kv_list "$str"
 		echo -n "$BACKUP,$TYPE,$SIZE,\"$WEB\",\"$DNS\",\"$MAIL\",\"$CRON\","
-		echo "\"$UDIR\",$RUNTIME,$TIME,$DATE"
+		echo "\"$UDIR\",$RUNTIME,$TIME,$DATE,$JOB,\"$DESTINATIONS\",\"$ENCRYPTED\""
 	done < <(cat $USER_DATA/backup.conf)
 }
 

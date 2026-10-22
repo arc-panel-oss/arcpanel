@@ -1,0 +1,105 @@
+#!/bin/bash
+# info: list the runs of backup jobs (E48)
+# options: [ID] [FORMAT]
+#
+# example: v-list-backup-job-runs 179271000012 json
+#          v-list-backup-job-runs '' json
+#
+# This function lists the runs of the backup job ID, or of every job when
+# ID is empty, newest first: trigger, state (running, success, partial,
+# failed), start, end and the counts of users done, failed and skipped.
+# The results per user are in v-list-sys-backup-runs.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+id=$1
+format=${2-shell}
+
+# Includes
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/secret.sh
+source $ARCPANEL/func/secret.sh
+# shellcheck source=/usr/local/arcpanel/func/backup-driver.sh
+source $ARCPANEL/func/backup-driver.sh
+# shellcheck source=/usr/local/arcpanel/func/backup-job.sh
+source $ARCPANEL/func/backup-job.sh
+# load config file
+source_conf "$ARCPANEL/conf/arcpanel.conf"
+
+# JOB<TAB>line of every run, newest first
+rows() {
+	local job ids line n=0
+	ids=$id
+	[ -z "$ids" ] && ids=$(bj_ids)
+	# Runs that started in the same second keep the order of their file
+	for job in $ids; do
+		bj_runs_reap "$job"
+		while IFS= read -r line; do
+			n=$((n + 1))
+			[ -n "$line" ] && printf '%s\t%08d\t%s\t%s\n' "$(bj_line_value "$line" START)" "$n" "$job" "$line"
+		done < <(cat "$(bj_runs_file "$job")" 2> /dev/null)
+	done | sort -r | cut -f3-
+}
+
+json_list() {
+	local job line key json
+	while IFS=$'\t' read -r job line; do
+		json=$(jq -n -c --arg j "$job" --arg n "$(bj_value "$job" NAME)" '{JOB: $j, JOB_NAME: $n}')
+		for key in "${BJ_RUN_KEYS[@]}"; do
+			json=$(jq -c --arg k "$key" --arg v "$(bj_line_value "$line" "$key")" '. + {($k): $v}' <<< "$json")
+		done
+		printf '%s\n' "$json"
+	done < <(rows) | jq -s '.'
+}
+
+plain_list() {
+	local job line key out
+	while IFS=$'\t' read -r job line; do
+		out=$job
+		for key in "${BJ_RUN_KEYS[@]}"; do
+			out="$out"$'\t'"$(bj_line_value "$line" "$key")"
+		done
+		echo "$out"
+	done < <(rows)
+}
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+is_format_valid 'format'
+if [ -n "$id" ]; then
+	bj_check_exists "$id"
+fi
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+case $format in
+	json) json_list ;;
+	plain) plain_list ;;
+	csv)
+		echo "JOB,${BJ_RUN_KEYS[*]}" | tr ' ' ','
+		plain_list | tr '\t' ','
+		;;
+	shell)
+		{
+			echo "JOB RUN TRIGGER STATUS START USERS DONE FAILED"
+			echo "--- --- ------- ------ ----- ----- ---- ------"
+			plain_list | awk -F'\t' '{ gsub(" ", "_", $5); print $1, $2, $3, $4, $5, $7, $8, $9 }'
+		} | column -t
+		;;
+esac
+
+#----------------------------------------------------------#
+#                         ArcPanel                         #
+#----------------------------------------------------------#
+
+exit

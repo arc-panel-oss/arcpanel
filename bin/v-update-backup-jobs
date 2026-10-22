@@ -1,0 +1,65 @@
+#!/bin/bash
+# info: start the backup jobs that are due (E48)
+# options: NONE
+#
+# example: v-update-backup-jobs
+#
+# This function is the dispatcher of backup jobs; cron runs it every
+# minute. It starts each enabled job whose next run is due in the
+# background and computes its next run from now, so a job missed while
+# the server was off runs once, not once per missed slot. A job still
+# running when it is due again skips that slot. Once a day after 07:00 it
+# sends the summary mail when BACKUP_REPORT is daily.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Includes
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/secret.sh
+source $ARCPANEL/func/secret.sh
+# shellcheck source=/usr/local/arcpanel/func/backup-driver.sh
+source $ARCPANEL/func/backup-driver.sh
+# shellcheck source=/usr/local/arcpanel/func/backup-job.sh
+source $ARCPANEL/func/backup-job.sh
+# load config file
+source_conf "$ARCPANEL/conf/arcpanel.conf"
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+[ -d "$BJ_DIR" ] || exit 0
+exec {lock_fd}> "$ARCPANEL/data/backup/dispatcher.lock"
+flock -n "$lock_fd" || exit 0
+
+now=$(date +%s)
+for id in $(bj_ids); do
+	[ "$(bj_value "$id" STATE)" = enabled ] || continue
+	schedule=$(bj_value "$id" SCHEDULE)
+	due=$(bj_value "$id" NEXT_RUN_TS)
+	if [[ "$due" =~ ^[0-9]+$ ]] && [ "$now" -ge "$due" ]; then
+		if bj_running "$id"; then
+			echo "$(date "+%F %T") Backup job $id is still running: this run is skipped" >> "$ARCPANEL/log/backup.log"
+		else
+			bj_start_detached "$id" schedule
+		fi
+		due=''
+	fi
+	if [ -z "$due" ]; then
+		next=$(bj_next "$schedule" "$now")
+		bj_set "$id" "NEXT_RUN_TS=$next" "NEXT_RUN=$([ -n "$next" ] && date -d "@$next" +'%F %T')"
+	fi
+done
+
+bj_daily_report
+
+#----------------------------------------------------------#
+#                         ArcPanel                         #
+#----------------------------------------------------------#
+
+exit

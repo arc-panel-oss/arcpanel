@@ -1,0 +1,60 @@
+#!/bin/bash
+# info: delete a backup job (E48)
+# options: ID
+#
+# example: v-delete-backup-job 179271000012
+#
+# This function deletes the backup job ID and its run records. It refuses
+# while the job runs. Archives and snapshots the job made stay; no job
+# prunes them any more.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+id=$1
+
+# Includes
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/secret.sh
+source $ARCPANEL/func/secret.sh
+# shellcheck source=/usr/local/arcpanel/func/backup-driver.sh
+source $ARCPANEL/func/backup-driver.sh
+# shellcheck source=/usr/local/arcpanel/func/backup-job.sh
+source $ARCPANEL/func/backup-job.sh
+# load config file
+source_conf "$ARCPANEL/conf/arcpanel.conf"
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '1' "$#" 'ID'
+bj_check_exists "$id"
+if bj_running "$id"; then
+	check_result "$E_INUSE" "backup job $id is running"
+fi
+
+# Perform verification if read-only mode is enabled
+check_arcpanel_demo_mode
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+name=$(bj_value "$id" NAME)
+rm -f -- "$(bj_conf "$id")" "$BJ_DIR/$id.lock" "$(bj_runs_file "$id")" "$(bj_runs_file "$id").lock"
+
+#----------------------------------------------------------#
+#                         ArcPanel                         #
+#----------------------------------------------------------#
+
+bj_sync_incremental
+$BIN/v-log-action "system" "Info" "Backup" "Backup job deleted (ID: $id, Name: $name)."
+log_event "$OK" "$id"
+
+exit

@@ -113,3 +113,9 @@ if [ -f /etc/vsftpd.conf ] && grep -q '^pasv_promiscuous=YES' /etc/vsftpd.conf; 
 	sed -i 's/^pasv_promiscuous=YES/pasv_promiscuous=NO/' /etc/vsftpd.conf
 	systemctl try-restart vsftpd > /dev/null 2>&1
 fi
+
+# Backups (E48, docs/features/specs/2026-10-22-002-e48-backup-destinations-and-schedules-design.md §10.2):
+# the hosts of earlier versions become backup destinations, the nightly runs
+# become backup jobs and the dispatcher replaces the cron line of
+# v-backup-users. The command does nothing the second time.
+"$ARCPANEL/bin/v-update-sys-backup-config"

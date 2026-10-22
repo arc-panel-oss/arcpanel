@@ -1,0 +1,213 @@
+#!/bin/bash
+# info: run a backup job (E48)
+# options: ID [USER] [TRIGGER]
+#
+# example: v-run-backup-job 179271000012
+#          v-run-backup-job 179271000012 alice
+#
+# This function runs the backup job ID now and waits for it. With USER it
+# backs up that user only, to the job's targets, and records nothing for
+# the job itself (requests from the panel and the API). Without USER it
+# backs up every user the job covers, at most BACKUP_PARALLEL users at
+# once on the server, dumps the databases of each user's Docker apps
+# first, and records a job run: success, partial (some users or
+# destinations failed) or failed (all failed). A scheduled run (TRIGGER
+# schedule) skips users whose package does not allow backups that often
+# (BACKUP_FREQUENCY). TRIGGER is schedule, request or cli (default). The
+# dispatcher v-update-backup-jobs and v-start-backup-job start whole runs
+# in the background.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+id=$1
+only=$2
+trigger=${3-cli}
+
+# Includes
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/secret.sh
+source $ARCPANEL/func/secret.sh
+# shellcheck source=/usr/local/arcpanel/func/backup-driver.sh
+source $ARCPANEL/func/backup-driver.sh
+# shellcheck source=/usr/local/arcpanel/func/backup-job.sh
+source $ARCPANEL/func/backup-job.sh
+# load config file
+source_conf "$ARCPANEL/conf/arcpanel.conf"
+
+# The backup command of the job's engine for one user
+engine_command() {
+	if [ "$engine" = snapshot ]; then
+		echo v-backup-user-restic
+	else
+		echo v-backup-user
+	fi
+}
+
+# Result of USER in this run: ok, partial or failed, from the user's last
+# backup run of the job
+user_result() {
+	local owner="$1" rc="$2" line status dests
+	line=$(grep "JOB='$id'" "$ARCPANEL/data/users/$owner/backup-runs.conf" 2> /dev/null | tail -n1)
+	status=$(bj_line_value "$line" STATUS)
+	dests=$(bj_line_value "$line" DESTS)
+	if [ "$rc" -ne 0 ] || [ "$status" = failed ]; then
+		echo failed
+	elif [[ "$dests" == *:failed* ]]; then
+		echo partial
+	else
+		echo ok
+	fi
+}
+
+# Back up one user in the background slot of this run
+worker() {
+	local owner="$1" rc result
+	bj_slot_take
+	{
+		echo -e "================================"
+		echo -e "$owner (job $id)"
+		echo -e "--------------------------------\n"
+	} >> "$log"
+	"$BIN/v-backup-docker-apps" "$owner" > /dev/null 2>&1
+	ARC_BACKUP_TRIGGER=$run_trigger nice -n 19 ionice -c2 -n7 "$BIN/$(engine_command)" "$owner" no "$id" >> "$log" 2>&1
+	rc=$?
+	echo -e "\n--------------------------------\n\n" >> "$log"
+	result=$(user_result "$owner" "$rc")
+	printf '%s\t%s\n' "$owner" "$result" >> "$results"
+	if [ "$result" != ok ]; then
+		"$BIN/v-add-user-notification" "$owner" "$(notice_title "$result")" \
+			"<p>$(notice_body "$owner")</p>" > /dev/null 2>&1
+	fi
+}
+
+notice_title() {
+	if [ "$1" = partial ]; then
+		echo "Backup partly failed"
+	else
+		echo "Backup failed"
+	fi
+}
+
+notice_body() {
+	local line
+	line=$(grep "JOB='$id'" "$ARCPANEL/data/users/$1/backup-runs.conf" 2> /dev/null | tail -n1)
+	echo "Job: <code>$(bj_value "$id" NAME)</code>. $(bj_line_value "$line" ERROR | sed 's/[<>&]//g') $(bj_line_value "$line" DESTS | sed 's/[<>&]//g')"
+}
+
+# Mark an interrupted run failed
+on_exit() {
+	if [ -n "${run-}" ] && [ "${finished-}" != yes ]; then
+		bj_run_set "$id" "$run" STATUS=failed "END=$(date +'%F %T')" PID=
+	fi
+	rm -f -- "${results-}"
+}
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '1' "$#" 'ID [USER] [TRIGGER]'
+bj_check_exists "$id"
+if [ -n "$only" ]; then
+	user=$only
+	is_format_valid 'user'
+	is_object_valid 'user' 'USER' "$user"
+fi
+[[ "$trigger" =~ ^(schedule|request|cli)$ ]] || check_result "$E_INVALID" "invalid trigger $trigger"
+
+# Perform verification if read-only mode is enabled
+check_arcpanel_demo_mode
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+engine=$(bj_value "$id" ENGINE)
+log="$ARCPANEL/log/backup.log"
+run_trigger=''
+if [ "$trigger" = schedule ]; then
+	run_trigger=schedule
+fi
+
+# One user: the engine in the foreground, its exit code
+if [ -n "$only" ]; then
+	"$BIN/v-backup-docker-apps" "$only" > /dev/null 2>&1
+	ARC_BACKUP_TRIGGER=$run_trigger "$BIN/$(engine_command)" "$only" no "$id"
+	exit $?
+fi
+
+bj_init_dirs
+if ! bj_lock "$id"; then
+	check_result "$E_INUSE" "backup job $id is already running"
+fi
+bj_runs_reap "$id"
+run="$(date +%s)$(printf '%04d' $((RANDOM % 10000)))"
+results=$(mktemp)
+trap on_exit EXIT
+
+# Auto-repair the databases once before backing up the users
+mysqlrepair --all-databases --check --auto-repair > /dev/null 2>&1
+
+users=()
+skipped=0
+for owner in $(bj_users "$id"); do
+	if [ "$POLICY_BACKUP_SUSPENDED_USERS" != yes ] && grep -q "^SUSPENDED='yes'" "$ARCPANEL/data/users/$owner/user.conf"; then
+		skipped=$((skipped + 1))
+		continue
+	fi
+	if [ "$engine" = snapshot ] && ! grep -q "^BACKUPS_INCREMENTAL='yes'" "$ARCPANEL/data/users/$owner/user.conf"; then
+		skipped=$((skipped + 1))
+		continue
+	fi
+	if [ "$trigger" = schedule ] && ! bj_frequency_allows "$owner" "$id"; then
+		skipped=$((skipped + 1))
+		continue
+	fi
+	users+=("$owner")
+done
+bj_run_set "$id" "$run" "TRIGGER=$trigger" STATUS=running "START=$(date +'%F %T')" END= \
+	"USERS=${#users[@]}" DONE=0 FAILED=0 "SKIPPED=$skipped" "PID=$$"
+bj_set "$id" "LAST_RUN=$run"
+
+parallel=${BACKUP_PARALLEL:-1}
+[[ "$parallel" =~ ^[0-9]+$ ]] && [ "$parallel" -ge 1 ] || parallel=1
+for owner in "${users[@]}"; do
+	while [ "$(jobs -rp | wc -l)" -ge "$parallel" ]; do
+		wait -n
+	done
+	check_backup_conditions
+	worker "$owner" &
+done
+wait
+
+done_count=$(grep -c $'\tok$' "$results")
+partial_count=$(grep -c $'\tpartial$' "$results")
+failed_count=$(grep -c $'\tfailed$' "$results")
+status=success
+if [ "$failed_count" -gt 0 ] || [ "$partial_count" -gt 0 ]; then
+	status=partial
+fi
+if [ "${#users[@]}" -gt 0 ] && [ "$failed_count" -eq "${#users[@]}" ]; then
+	status=failed
+fi
+bj_run_set "$id" "$run" "STATUS=$status" "END=$(date +'%F %T')" "DONE=$((done_count + partial_count))" \
+	"FAILED=$failed_count" PID=
+finished=yes
+
+#----------------------------------------------------------#
+#                         ArcPanel                         #
+#----------------------------------------------------------#
+
+if [ "$status" != success ]; then
+	bj_notify_admins "$id" "$run" "$status" "$(awk -F'\t' '$2 != "ok" { print $1 " (" $2 ")" }' "$results" | tr '\n' ' ')"
+fi
+$BIN/v-log-action "system" "Info" "Backup" "Backup job finished (ID: $id, Status: $status)."
+log_event "$OK" "$ARGUMENTS"
+
+exit

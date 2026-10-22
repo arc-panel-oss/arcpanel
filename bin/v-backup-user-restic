@@ -1,18 +1,25 @@
 #!/bin/bash
 # info: backup system user with all its objects to restic backup
-# options: USER NOTIFY
+# options: USER [NOTIFY] [JOB]
 #
 # example: v-backup-user-restic admin yes
+#          v-backup-user-restic alice no 179271000012
 #
-# Backup user with all its objects to restic backup. If the repo doesn't exists a new one will be created.
-#
+# Backup user with all its objects to restic: one snapshot in the user's
+# repository on every target of the snapshot job JOB (E48), each pruned
+# with its own retention. Without JOB the first snapshot job that covers
+# the user is used. A repository that does not exist yet is created; its
+# password is kept encrypted on the server and on the destination.
 
 #----------------------------------------------------------#
 #                Variables & Functions                     #
 #----------------------------------------------------------#
+
 # Argument definition
 user=$1
 notify=${2-no}
+job=$3
+
 # Includes
 # shellcheck source=/etc/arcpanel/arcpanel.conf
 source /etc/arcpanel/arcpanel.conf
@@ -26,19 +33,50 @@ source $ARCPANEL/func/db.sh
 source $ARCPANEL/func/backup.sh
 # shellcheck source=/usr/local/arcpanel/func/backuprun.sh
 source $ARCPANEL/func/backuprun.sh
+# shellcheck source=/usr/local/arcpanel/func/secret.sh
+source $ARCPANEL/func/secret.sh
+# shellcheck source=/usr/local/arcpanel/func/backup-driver.sh
+source $ARCPANEL/func/backup-driver.sh
+# shellcheck source=/usr/local/arcpanel/func/backup-job.sh
+source $ARCPANEL/func/backup-job.sh
 # load config file
 source_conf "$ARCPANEL/conf/arcpanel.conf"
+
+# restic forget flags of a target DEST:KEEP_LAST:DAILY:WEEKLY:MONTHLY:YEARLY
+forget_flags() {
+	local -a values flags=()
+	local n flag
+	IFS=: read -r -a values <<< "$1"
+	n=1
+	for flag in --keep-last --keep-daily --keep-weekly --keep-monthly --keep-yearly; do
+		if [[ "${values[$n]}" =~ ^[0-9]+$ ]]; then
+			flags+=("$flag" "${values[$n]}")
+		fi
+		n=$((n + 1))
+	done
+	echo "${flags[@]}"
+}
 
 #----------------------------------------------------------#
 #                    Verifications                         #
 #----------------------------------------------------------#
 
-check_args '1' "$#" 'USER'
+check_args '1' "$#" 'USER [NOTIFY] [JOB]'
 is_format_valid 'user'
-is_system_enabled "$BACKUP_INCREMENTAL" 'BACKUP_INCREMENTAL'
 is_object_valid 'user' 'USER' "$user"
 is_object_unsuspended 'user' 'USER' "$user"
 is_incremental_backup_enabled
+if [ -n "$job" ]; then
+	bj_check_exists "$job"
+	if [ "$(bj_value "$job" ENGINE)" != snapshot ]; then
+		check_result "$E_INVALID" "backup job $job does not make snapshots"
+	fi
+else
+	job=$(bj_default_job "$user" snapshot)
+fi
+if [ -z "$job" ]; then
+	check_result "$E_DISABLED" "no snapshot job covers $user"
+fi
 
 # Perform verification if read-only mode is enabled
 check_arcpanel_demo_mode
@@ -48,31 +86,14 @@ check_arcpanel_demo_mode
 #----------------------------------------------------------#
 
 # Record this run, failed ones included (Fleet PD2)
+# shellcheck disable=SC2034
+BR_JOB=$job
 br_begin "$user" restic
+bd_session
 
 # Set notification email and subject
 subj="$user → backup failed"
 email=$(grep CONTACT "$ARCPANEL/data/users/$ROOT_USER/user.conf" | cut -f 2 -d \')
-
-source_conf $ARCPANEL/conf/restic.conf
-
-if [ ! -f "$USER_DATA/restic.conf" ]; then
-	password=$(generate_password '' '32')
-	echo "$password" > $USER_DATA/restic.conf
-
-	restic --repo "${REPO%/}/$user" --password-file $USER_DATA/restic.conf init
-	if [ $? -ne 0 ]; then
-		check_result $E_CONNECT "Unable to create restic repo"
-	fi
-else
-	# Check if repo exists and is accessible with restic key
-	restic --repo "${REPO%/}/$user" --password-file $USER_DATA/restic.conf --json snapshots > /dev/null
-	if [ $? -ne 0 ]; then
-		# Send an email
-		echo "Unable to open restic backup. It might not exists or key is incorrect" | $SENDMAIL -s "$subj" "$email" "yes"
-		check_result $E_CONNECT "Unable to access restic repo"
-	fi
-fi
 
 # create backup of the user.conf an database
 $BIN/v-backup-user-config $user
@@ -101,41 +122,66 @@ if [ "$OBJECT_STORAGE_SYSTEM" = 'silo' ] && [ -s "$USER_DATA/buckets.conf" ]; th
 		paths+=("$objects_dir")
 	fi
 fi
-# pm2 keeps the environment of running apps, resolved secrets included (E38 D14)
-ionice -c2 -n7 nice -n 19 restic --repo "${REPO%/}/$user" --limit-upload 10240 --read-concurrency 2 --password-file $USER_DATA/restic.conf backup "${paths[@]}" \
-	--exclude "/home/$user/.pm2/dump.pm2*" --exclude "$HOMEDIR/.arcpanel-apps/$user/*/.incoming"
-backup_rc=$?
+
+BR_DESTS=''
+failures=''
+IFS=',' read -r -a target_list <<< "$(bj_value "$job" TARGETS)"
+for target in "${target_list[@]}"; do
+	dest=${target%%:*}
+	if ! bd_exists "$dest" || ! bd_restic_env "$user" "$dest" 2> /dev/null; then
+		failures="$failures$dest: the repository could not be opened; "
+		BR_DESTS="$BR_DESTS${BR_DESTS:+,}$dest:failed"
+		bd_record_transfer "$dest" failed
+		continue
+	fi
+	# A new repository is created on first use
+	if ! restic cat config > /dev/null 2>&1 && ! restic init > /dev/null 2>&1; then
+		failures="$failures$dest: the repository could not be created; "
+		BR_DESTS="$BR_DESTS${BR_DESTS:+,}$dest:failed"
+		bd_record_transfer "$dest" failed
+		continue
+	fi
+	limit=()
+	bw=$(bd_value "$dest" BWLIMIT)
+	if [[ "$bw" =~ ^([0-9]+)([KMG]?)$ ]]; then
+		case "${BASH_REMATCH[2]}" in
+			M) limit=(--limit-upload $((BASH_REMATCH[1] * 1024))) ;;
+			G) limit=(--limit-upload $((BASH_REMATCH[1] * 1024 * 1024))) ;;
+			*) limit=(--limit-upload "${BASH_REMATCH[1]}") ;;
+		esac
+	fi
+	# pm2 keeps the environment of running apps, resolved secrets included (E38 D14)
+	ionice -c2 -n7 nice -n 19 restic "${limit[@]}" --read-concurrency 2 backup "${paths[@]}" \
+		--exclude "/home/$user/.pm2/dump.pm2*" --exclude "$HOMEDIR/.arcpanel-apps/$user/*/.incoming"
+	if [ $? -ne 0 ]; then
+		failures="$failures$dest: the snapshot could not be made; "
+		BR_DESTS="$BR_DESTS${BR_DESTS:+,}$dest:failed"
+		bd_record_transfer "$dest" failed
+		continue
+	fi
+	bd_record_transfer "$dest" ok
+	BR_DESTS="$BR_DESTS${BR_DESTS:+,}$dest:ok"
+	# The snapshot of this run: the repository holds only this user's
+	if [ -z "${BR_ARCHIVE-}" ]; then
+		# shellcheck disable=SC2034
+		BR_ARCHIVE=$(restic --json snapshots --latest 1 2> /dev/null \
+			| jq -r 'sort_by(.time) | last | .short_id // empty' 2> /dev/null)
+	fi
+	# shellcheck disable=SC2046
+	restic forget $(forget_flags "$target") --prune > /dev/null
+done
 if [ -n "$objects_dir" ]; then
 	rm -rf -- "$objects_dir"
 fi
 
-if [ "$backup_rc" -ne 0 ]; then
-	echo "Unable to create the backup" | $SENDMAIL -s "$subj" "$email" "yes"
-	check_result $E_BACKUP "Unable to backup user"
+if [[ "$BR_DESTS" != *:ok* ]]; then
+	echo "Unable to create the backup: ${failures%; }" | $SENDMAIL -s "$subj" "$email" "yes"
+	check_result "$E_CONNECT" "Unable to backup user: ${failures%; }"
 fi
-
-# The snapshot of this run: the repository holds only this user's
-# shellcheck disable=SC2034
-BR_ARCHIVE=$(restic --repo "${REPO%/}/$user" --password-file $USER_DATA/restic.conf --json snapshots --latest 1 2> /dev/null \
-	| jq -r 'sort_by(.time) | last | .short_id // empty' 2> /dev/null)
-
-if [[ -n "$SNAPSHOTS" && "$SNAPSHOTS" -ge 0 ]]; then
-	restic_prune="$restic_prune --keep-last $SNAPSHOTS"
+if [ -n "$failures" ]; then
+	# shellcheck disable=SC2034
+	BR_ERROR_PARTIAL="${failures%; }"
 fi
-if [[ -n "$KEEP_DAILY" && "$KEEP_DAILY" -ge 0 ]]; then
-	restic_prune="$restic_prune --keep-daily $KEEP_DAILY"
-fi
-if [[ -n "$KEEP_WEEKLY" && "$KEEP_WEEKLY" -ge 0 ]]; then
-	restic_prune="$restic_prune --keep-weekly $KEEP_WEEKLY"
-fi
-if [[ -n "$KEEP_MONTHLY" && "$KEEP_MONTHLY" -ge 0 ]]; then
-	restic_prune="$restic_prune --keep-monthly $KEEP_MONTHLY"
-fi
-if [[ -n "$KEEP_YEARLY" && "$KEEP_YEARLY" -ge 0 ]]; then
-	restic_prune="$restic_prune --keep-yearly $KEEP_YEARLY"
-fi
-
-restic --repo "${REPO%/}/$user" --password-file $USER_DATA/restic.conf forget $restic_prune --prune
 
 # Send notification
 if [ -e "$BACKUP/$user.log" ] && [ "$notify" = "yes" ]; then

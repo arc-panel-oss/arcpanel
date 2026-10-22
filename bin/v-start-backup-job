@@ -1,0 +1,59 @@
+#!/bin/bash
+# info: start a backup job now in the background (E48)
+# options: ID
+#
+# example: v-start-backup-job 179271000012
+#
+# This function starts a whole run of the backup job ID in the background
+# ("Run now" in the panel) and returns at once; the run shows in
+# v-list-backup-job-runs. It refuses while the job runs. A paused job may
+# be started this way too.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+id=$1
+
+# Includes
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/secret.sh
+source $ARCPANEL/func/secret.sh
+# shellcheck source=/usr/local/arcpanel/func/backup-driver.sh
+source $ARCPANEL/func/backup-driver.sh
+# shellcheck source=/usr/local/arcpanel/func/backup-job.sh
+source $ARCPANEL/func/backup-job.sh
+# load config file
+source_conf "$ARCPANEL/conf/arcpanel.conf"
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '1' "$#" 'ID'
+bj_check_exists "$id"
+if bj_running "$id"; then
+	check_result "$E_INUSE" "backup job $id is already running"
+fi
+
+# Perform verification if read-only mode is enabled
+check_arcpanel_demo_mode
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+bj_start_detached "$id" request
+
+#----------------------------------------------------------#
+#                         ArcPanel                         #
+#----------------------------------------------------------#
+
+$BIN/v-log-action "system" "Info" "Backup" "Backup job started (ID: $id)."
+log_event "$OK" "$id"
+
+exit

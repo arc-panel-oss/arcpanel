@@ -5,8 +5,9 @@
 # example: v-list-backup-host-restic json
 #
 # This function lists the restic repository of incremental backups and its
-# retention; for an S3 backup host (v-add-backup-host-s3) also its endpoint,
-# region and access key ID, never the secret.
+# retention as earlier versions did: the destination and retention of the
+# backup job "Nightly snapshots" (E48); for an S3 backup host also its
+# endpoint, region and access key ID, never the secret.
 
 #----------------------------------------------------------#
 #                Variables & Functions                     #
@@ -20,6 +21,14 @@ format=${1-shell}
 source /etc/arcpanel/arcpanel.conf
 # shellcheck source=/usr/local/arcpanel/func/main.sh
 source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/secret.sh
+source $ARCPANEL/func/secret.sh
+# shellcheck source=/usr/local/arcpanel/func/backup-driver.sh
+source $ARCPANEL/func/backup-driver.sh
+# shellcheck source=/usr/local/arcpanel/func/backup-job.sh
+source $ARCPANEL/func/backup-job.sh
+# shellcheck source=/usr/local/arcpanel/func/backup-legacy.sh
+source $ARCPANEL/func/backup-legacy.sh
 # load config file
 source_conf "$ARCPANEL/conf/arcpanel.conf"
 
@@ -68,13 +77,10 @@ plain_list() {
 #                       Action                             #
 #----------------------------------------------------------#
 
-# Checking backup config
-if [ ! -e "$ARCPANEL/conf/restic.conf" ]; then
+# The job "Nightly snapshots" and its destination (E48)
+if ! bl_restic_values; then
 	exit
 fi
-
-# Parsing backup config
-source_conf "$ARCPANEL/conf/restic.conf"
 
 # Listing data
 case $format in

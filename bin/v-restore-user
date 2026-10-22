@@ -38,6 +38,12 @@ source $ARCPANEL/func/main.sh
 source $ARCPANEL/func/backup.sh
 # shellcheck source=/usr/local/arcpanel/func/secret.sh
 source $ARCPANEL/func/secret.sh
+# shellcheck source=/usr/local/arcpanel/func/backup-driver.sh
+source $ARCPANEL/func/backup-driver.sh
+# shellcheck source=/usr/local/arcpanel/func/backup-job.sh
+source $ARCPANEL/func/backup-job.sh
+# shellcheck source=/usr/local/arcpanel/func/secret.sh
+source $ARCPANEL/func/secret.sh
 # shellcheck source=/usr/local/arcpanel/func/domain.sh
 source $ARCPANEL/func/domain.sh
 # shellcheck source=/usr/local/arcpanel/func/ip.sh
@@ -82,20 +88,9 @@ fi
 
 # Checking local backup
 if [ ! -e "$BACKUP/$backup" ]; then
-	if [[ "$BACKUP_SYSTEM" =~ "sftp" ]] && [ -z "$downloaded" ]; then
-		sftp_download "$backup"
-		downloaded='yes'
-	fi
-	if [[ "$BACKUP_SYSTEM" =~ "ftp" ]] && [ -z "$downloaded" ]; then
-		ftp_download "$backup"
-		downloaded='yes'
-	fi
-	if [[ "$BACKUP_SYSTEM" =~ "b2" ]] && [ -z "$downloaded" ]; then
-		b2_download "$backup"
-		downloaded='yes'
-	fi
-	if [[ "$BACKUP_SYSTEM" =~ "rclone" ]] && [ -z "$downloaded" ]; then
-		rclone_download "$backup"
+	# From a destination that holds it, decrypted (E48)
+	bd_session
+	if bj_fetch_archive "$user" "$backup"; then
 		downloaded='yes'
 	fi
 	if [ -z "$downloaded" ]; then

@@ -199,7 +199,7 @@ function syshealth_update_system_config_format() {
 	# SYSTEM CONFIGURATION
 	# Create array of known keys in configuration file
 	system="system"
-	known_keys="ANTISPAM_SYSTEM ANTIVIRUS_SYSTEM API_ALLOWED_IP API BACKEND_PORT BACKUP_GZIP BACKUP_MODE BACKUP_SYSTEM CRON_SYSTEM DB_PMA_ALIAS DB_SYSTEM DISK_QUOTA DNS_SYSTEM ENFORCE_SUBDOMAIN_OWNERSHIP FILE_MANAGER FIREWALL_EXTENSION FIREWALL_SYSTEM FTP_SYSTEM IMAP_SYSTEM INACTIVE_SESSION_TIMEOUT LANGUAGE LOGIN_STYLE MAIL_SYSTEM PROXY_PORT PROXY_SSL_PORT PROXY_SYSTEM RELEASE_BRANCH STATS_SYSTEM THEME UPDATE_HOSTNAME_SSL UPGRADE_SEND_EMAIL UPGRADE_SEND_EMAIL_LOG WEB_BACKEND WEBMAIL_ALIAS WEBMAIL_SYSTEM WEB_PORT WEB_RGROUPS WEB_SSL WEB_SSL_PORT WEB_SYSTEM WEB_TERMINAL WEB_TERMINAL_PORT VERSION DISABLE_IP_CHECK"
+	known_keys="ANTISPAM_SYSTEM ANTIVIRUS_SYSTEM API_ALLOWED_IP API BACKEND_PORT BACKUP_GZIP BACKUP_MODE BACKUP_SYSTEM BACKUP_PARALLEL BACKUP_REPORT BACKUP_LA_LIMIT CRON_SYSTEM DB_PMA_ALIAS DB_SYSTEM DISK_QUOTA DNS_SYSTEM ENFORCE_SUBDOMAIN_OWNERSHIP FILE_MANAGER FIREWALL_EXTENSION FIREWALL_SYSTEM FTP_SYSTEM IMAP_SYSTEM INACTIVE_SESSION_TIMEOUT LANGUAGE LOGIN_STYLE MAIL_SYSTEM PROXY_PORT PROXY_SSL_PORT PROXY_SYSTEM RELEASE_BRANCH STATS_SYSTEM THEME UPDATE_HOSTNAME_SSL UPGRADE_SEND_EMAIL UPGRADE_SEND_EMAIL_LOG WEB_BACKEND WEBMAIL_ALIAS WEBMAIL_SYSTEM WEB_PORT WEB_RGROUPS WEB_SSL WEB_SSL_PORT WEB_SYSTEM WEB_TERMINAL WEB_TERMINAL_PORT VERSION DISABLE_IP_CHECK"
 	write_kv_config_file
 	unset system
 	unset known_keys
@@ -608,7 +608,7 @@ function syshealth_repair_system_cronjobs() {
 	echo "10 00 * * * sudo /usr/local/arcpanel/bin/v-update-sys-queue traffic" >> /var/spool/cron/crontabs/arcpanelweb
 	echo "30 03 * * * sudo /usr/local/arcpanel/bin/v-update-sys-queue webstats" >> /var/spool/cron/crontabs/arcpanelweb
 	echo "*/5 * * * * sudo /usr/local/arcpanel/bin/v-update-sys-queue backup" >> /var/spool/cron/crontabs/arcpanelweb
-	echo "10 05 * * * sudo /usr/local/arcpanel/bin/v-backup-users" >> /var/spool/cron/crontabs/arcpanelweb
+	echo "* * * * * sudo /usr/local/arcpanel/bin/v-update-backup-jobs > /dev/null 2>&1" >> /var/spool/cron/crontabs/arcpanelweb
 	echo "20 00 * * * sudo /usr/local/arcpanel/bin/v-update-user-stats" >> /var/spool/cron/crontabs/arcpanelweb
 	echo "*/5 * * * * sudo /usr/local/arcpanel/bin/v-update-sys-rrd" >> /var/spool/cron/crontabs/arcpanelweb
 	echo "$min $hour * * * sudo /usr/local/arcpanel/bin/v-update-letsencrypt-ssl" >> /var/spool/cron/crontabs/arcpanelweb

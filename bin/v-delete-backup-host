@@ -1,10 +1,13 @@
 #!/bin/bash
-# info: delete backup ftp server
+# info: delete backup host
 # options: TYPE [HOST]
 #
 # example: v-delete-backup-host sftp
 #
-# This function deletes ftp backup host
+# This function deletes the backup host of TYPE (local, ftp, sftp, b2 or
+# rclone): since E48 the backup destination named TYPE. It leaves every
+# backup job first; a job left without targets is deleted. Archives on
+# the host stay where they are.
 
 #----------------------------------------------------------#
 #                Variables & Functions                     #
@@ -12,12 +15,21 @@
 
 # Argument definition
 type=$1
+host=$2
 
 # Includes
 # shellcheck source=/etc/arcpanel/arcpanel.conf
 source /etc/arcpanel/arcpanel.conf
 # shellcheck source=/usr/local/arcpanel/func/main.sh
 source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/secret.sh
+source $ARCPANEL/func/secret.sh
+# shellcheck source=/usr/local/arcpanel/func/backup-driver.sh
+source $ARCPANEL/func/backup-driver.sh
+# shellcheck source=/usr/local/arcpanel/func/backup-job.sh
+source $ARCPANEL/func/backup-job.sh
+# shellcheck source=/usr/local/arcpanel/func/backup-legacy.sh
+source $ARCPANEL/func/backup-legacy.sh
 # load config file
 source_conf "$ARCPANEL/conf/arcpanel.conf"
 
@@ -26,8 +38,7 @@ source_conf "$ARCPANEL/conf/arcpanel.conf"
 #----------------------------------------------------------#
 
 check_args '1' "$#" 'TYPE [HOST]'
-types=$(echo "$BACKUP_SYSTEM" | sed "s/,/\n/g" | grep "^$type$")
-if [ -z "$types" ]; then
+if ! bd_exists "$type"; then
 	echo "Error: invalid backup type"
 	log_event "$E_INVALID" "$ARGUMENTS"
 	exit "$E_INVALID"
@@ -40,23 +51,14 @@ check_arcpanel_demo_mode
 #                       Action                             #
 #----------------------------------------------------------#
 
-# Deleting host config
-rm -f $ARCPANEL/conf/$type.backup.conf $ARCPANEL/conf/$type.backup.key
+bl_target_drop "$type"
+"$BIN/v-delete-backup-destination" "$type"
+check_result $? "the backup host could not be deleted"
 
 #----------------------------------------------------------#
 #                         ArcPanel                         #
 #----------------------------------------------------------#
 
-# Updating arcpanel.conf
-bckp=$(echo "$BACKUP_SYSTEM" \
-	| sed "s/,/\n/g" \
-	| sed "s/^$type$//" \
-	| sed "/^$/d" \
-	| sed ':a;N;$!ba;s/\n/,/g')
-sed -i "s/BACKUP_SYSTEM=.*/BACKUP_SYSTEM='$bckp'/g" $ARCPANEL/conf/arcpanel.conf
-sys_config_changed
-
-# Logging
 $BIN/v-log-action "system" "Info" "Backup" "Removed remote backup host (Host: $host, Type: $type)."
 log_event "$OK" "$ARGUMENTS"
 

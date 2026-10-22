@@ -1,0 +1,62 @@
+#!/bin/bash
+# info: list the next runs of a backup schedule (E48)
+# options: SCHEDULE [COUNT] [FORMAT]
+#
+# example: v-list-backup-schedule 'cron:0 */6 * * 1-5' 5 json
+#
+# This function checks SCHEDULE (see v-add-backup-job) and prints its next
+# COUNT runs (default 5, at most 20) in the server's time zone, the same
+# way the dispatcher computes them. The panel shows them as a preview.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+schedule=$1
+count=${2-5}
+format=${3-shell}
+
+# Includes
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/backup-job.sh
+source $ARCPANEL/func/backup-job.sh
+# load config file
+source_conf "$ARCPANEL/conf/arcpanel.conf"
+
+runs() {
+	bj_schedule_php next "$schedule" "$(date +%s)" "$count"
+}
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '1' "$#" 'SCHEDULE [COUNT] [FORMAT]'
+is_format_valid 'format'
+bj_schedule_valid "$schedule" || check_result "$E_INVALID" "invalid schedule"
+if [[ ! "$count" =~ ^[0-9]{1,2}$ ]] || [ "$count" -lt 1 ] || [ "$count" -gt 20 ]; then
+	check_result "$E_INVALID" "invalid count"
+fi
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+case $format in
+	json)
+		runs | jq -R -s --arg tz "$(bj_tz)" 'split("\n") | map(select(length > 0) | split("\t")
+			| {TIMESTAMP: .[0], TIME: .[1], TIMEZONE: $tz})'
+		;;
+	plain | csv) runs | cut -f2 ;;
+	shell) runs | cut -f2 ;;
+esac
+
+#----------------------------------------------------------#
+#                         ArcPanel                         #
+#----------------------------------------------------------#
+
+exit

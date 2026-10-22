@@ -1,28 +1,33 @@
 #!/bin/bash
-# info: delete backup ftp server
-# options: [NONE]
+# info: delete the incremental backup host
+# options: NONE
 #
-# example: v-delete-backup-host sftp
+# example: v-delete-backup-host-restic
 #
-# This function deletes ftp backup host
+# This function turns incremental backups off as earlier versions did: the
+# destinations of the backup job "Nightly snapshots" leave it, the job is
+# deleted and so are destinations no other job uses. Snapshots stay where
+# they are.
 
 #----------------------------------------------------------#
 #                Variables & Functions                     #
 #----------------------------------------------------------#
-
-# Argument definition
 
 # Includes
 # shellcheck source=/etc/arcpanel/arcpanel.conf
 source /etc/arcpanel/arcpanel.conf
 # shellcheck source=/usr/local/arcpanel/func/main.sh
 source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/secret.sh
+source $ARCPANEL/func/secret.sh
+# shellcheck source=/usr/local/arcpanel/func/backup-driver.sh
+source $ARCPANEL/func/backup-driver.sh
+# shellcheck source=/usr/local/arcpanel/func/backup-job.sh
+source $ARCPANEL/func/backup-job.sh
+# shellcheck source=/usr/local/arcpanel/func/backup-legacy.sh
+source $ARCPANEL/func/backup-legacy.sh
 # load config file
 source_conf "$ARCPANEL/conf/arcpanel.conf"
-
-#----------------------------------------------------------#
-#                    Verifications                         #
-#----------------------------------------------------------#
 
 # Perform verification if read-only mode is enabled
 check_arcpanel_demo_mode
@@ -31,17 +36,22 @@ check_arcpanel_demo_mode
 #                       Action                             #
 #----------------------------------------------------------#
 
-# Deleting host config
-rm -f $ARCPANEL/conf/restic.conf
+if id=$(bl_job "$BL_SNAPSHOT_JOB" snapshot); then
+	dests=$(bj_target_names "$id")
+	"$BIN/v-delete-backup-job" "$id" > /dev/null
+	for dest in $dests; do
+		if [ -z "$(bd_jobs_of "$dest")" ]; then
+			"$BIN/v-delete-backup-destination" "$dest" > /dev/null
+		fi
+	done
+fi
+rm -f "$ARCPANEL/conf/restic.conf"
 
 #----------------------------------------------------------#
 #                         ArcPanel                         #
 #----------------------------------------------------------#
 
-$BIN/v-change-sys-config-value 'BACKUP_INCREMENTAL' 'no'
-
-# Logging
-$BIN/v-log-action "system" "Info" "Backup" "Removed remote backup host (Type: Restic)."
+$BIN/v-log-action "system" "Info" "Backup" "Incremental backups turned off."
 log_event "$OK" "$ARGUMENTS"
 
 exit

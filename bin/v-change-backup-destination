@@ -1,0 +1,118 @@
+#!/bin/bash
+# info: change a backup destination (E48)
+# options: NAME OPTIONS_FILE [SECRETS_DIR]
+#
+# example: v-change-backup-destination offsite /tmp/options /tmp/secrets
+#
+# This function changes the fields of the backup destination NAME that
+# OPTIONS_FILE names (KEY='value' lines, as for v-add-backup-destination)
+# and the secrets that SECRETS_DIR holds (one file per secret field; an
+# empty file removes that secret). Fields and secrets not given keep their
+# values. A change of the connection sets the destination back to
+# unchecked; a new SFTP host forgets the pinned host key.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+name=$1
+options=$2
+secrets=$3
+
+# Includes
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/secret.sh
+source $ARCPANEL/func/secret.sh
+# shellcheck source=/usr/local/arcpanel/func/backup-driver.sh
+source $ARCPANEL/func/backup-driver.sh
+# load config file
+source_conf "$ARCPANEL/conf/arcpanel.conf"
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '2' "$#" 'NAME OPTIONS_FILE [SECRETS_DIR]'
+bd_check_exists "$name"
+driver=$(bd_value "$name" DRIVER)
+values=$(bd_read_options "$driver" "$options") || check_result $? "$values"
+bd_check_secret_dir "$driver" "$secrets"
+for field in $(bd_required_fields "$driver"); do
+	if grep -q "^$field=$" <<< "$values"; then
+		check_result "$E_ARGS" "$field is required for the $driver driver"
+	fi
+done
+
+# Perform verification if read-only mode is enabled
+check_arcpanel_demo_mode
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+bd_check_keys
+connection=no
+pairs=()
+while IFS= read -r line; do
+	[ -n "$line" ] || continue
+	key=${line%%=*}
+	if [ "$(bd_value "$name" "$key")" != "${line#*=}" ]; then
+		case "$key" in
+			DESCRIPTION | ENCRYPT | BWLIMIT) ;;
+			*) connection=yes ;;
+		esac
+		if [ "$key" = HOST ] || [ "$key" = PORT ]; then
+			# The pinned key belongs to the old host
+			: > "$BD_DIR/$name.known_hosts"
+			pairs+=("HOST_KEY=")
+		fi
+		pairs+=("$line")
+	fi
+done <<< "$values"
+if [ -n "$secrets" ]; then
+	for field in $(bd_driver_secrets "$driver"); do
+		if [ -f "$secrets/$field" ]; then
+			connection=yes
+		fi
+	done
+fi
+
+new_timestamp
+pairs+=("UPDATED=$date $time")
+if [ "$connection" = yes ]; then
+	pairs+=("STATE=unchecked" "FAILURES=0")
+fi
+bd_set "$name" "${pairs[@]}"
+if [ -n "$secrets" ]; then
+	bd_store_secrets "$name" "$secrets" yes
+	check_result $? "the secrets could not be stored" "$E_FORBIDEN"
+fi
+for any in $(bd_required_secrets "$driver"); do
+	found=no
+	for field in ${any//|/ }; do
+		if [ -n "$(bd_secret "$name" "$field")" ]; then
+			found=yes
+		fi
+	done
+	if [ "$found" = no ]; then
+		echo "Warning: ${any//|/ or } is not set; transfers will fail"
+	fi
+done
+if [ "$driver" = local ]; then
+	path=$(bd_value "$name" PATH)
+	mkdir -p -- "$path"
+	chmod 711 -- "$path"
+fi
+
+#----------------------------------------------------------#
+#                         ArcPanel                         #
+#----------------------------------------------------------#
+
+$BIN/v-log-action "system" "Info" "Backup" "Backup destination changed (Name: $name)."
+log_event "$OK" "$name"
+
+exit

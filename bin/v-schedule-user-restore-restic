@@ -23,6 +23,12 @@ format=shell
 source /etc/arcpanel/arcpanel.conf
 # shellcheck source=/usr/local/arcpanel/func/main.sh
 source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/secret.sh
+source $ARCPANEL/func/secret.sh
+# shellcheck source=/usr/local/arcpanel/func/backup-driver.sh
+source $ARCPANEL/func/backup-driver.sh
+# shellcheck source=/usr/local/arcpanel/func/backup-job.sh
+source $ARCPANEL/func/backup-job.sh
 # shellcheck source=/usr/local/arcpanel/func/queuetask.sh
 source $ARCPANEL/func/queuetask.sh
 # shellcheck source=/usr/local/arcpanel/func/safe-fs.sh
@@ -49,7 +55,8 @@ is_backup_scheduled 'restore'
 # Perform verification if read-only mode is enabled
 check_arcpanel_demo_mode
 
-source_conf $ARCPANEL/conf/restic.conf
+# The user's repository on the destination that holds the snapshot (E48)
+restic_select "$user" "$snapshot"
 #----------------------------------------------------------#
 #                       Action                             #
 #----------------------------------------------------------#

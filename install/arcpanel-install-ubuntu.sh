@@ -2718,7 +2718,7 @@ echo "15 02 * * * sudo /usr/local/arcpanel/bin/v-update-sys-queue disk" >> /var/
 echo "10 00 * * * sudo /usr/local/arcpanel/bin/v-update-sys-queue traffic" >> /var/spool/cron/crontabs/arcpanelweb
 echo "30 03 * * * sudo /usr/local/arcpanel/bin/v-update-sys-queue webstats" >> /var/spool/cron/crontabs/arcpanelweb
 echo "*/5 * * * * sudo /usr/local/arcpanel/bin/v-update-sys-queue backup" >> /var/spool/cron/crontabs/arcpanelweb
-echo "10 05 * * * sudo /usr/local/arcpanel/bin/v-backup-users" >> /var/spool/cron/crontabs/arcpanelweb
+echo "* * * * * sudo /usr/local/arcpanel/bin/v-update-backup-jobs > /dev/null 2>&1" >> /var/spool/cron/crontabs/arcpanelweb
 echo "20 00 * * * sudo /usr/local/arcpanel/bin/v-update-user-stats" >> /var/spool/cron/crontabs/arcpanelweb
 echo "*/5 * * * * sudo /usr/local/arcpanel/bin/v-update-sys-rrd" >> /var/spool/cron/crontabs/arcpanelweb
 echo "$min $hour * * * sudo /usr/local/arcpanel/bin/v-update-letsencrypt-ssl" >> /var/spool/cron/crontabs/arcpanelweb
@@ -2734,6 +2734,8 @@ $ARCPANEL/bin/v-add-sys-app-processes
 $ARCPANEL/bin/v-add-sys-panel-files
 # Secret store: the master key (E38); keep a copy of it off the server
 $ARCPANEL/bin/v-add-sys-secret-key
+# Backups: the local folder becomes a destination and the nightly job (E48)
+$ARCPANEL/bin/v-update-sys-backup-config > /dev/null
 # Server identifier for API clients (E43)
 $ARCPANEL/bin/v-update-sys-server-id > /dev/null
 
