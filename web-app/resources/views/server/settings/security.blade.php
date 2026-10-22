@@ -16,6 +16,7 @@
         'POLICY_SYNC_ERROR_DOCUMENTS' => __('Sync error documents on update'),
         'POLICY_SYNC_SKELETON' => __('Sync the skeleton directory on update'),
         'ENFORCE_SUBDOMAIN_OWNERSHIP' => __('Enforce subdomain ownership'),
+        'FILE_FETCH' => __('Allow users to upload files from a URL'),
     ];
     // The login policies sit in the Login card above
     $groups = [
@@ -24,7 +25,8 @@
         'domains' => __('Domains'),
     ];
     $bacon = ($config['POLICY_SYSTEM_ENABLE_BACON'] ?? '') === 'true';
-    $value = fn (string $key) => ($config[$key] ?? '') === 'yes' ? 'yes' : 'no';
+    // FILE_FETCH is on until the administrator turns it off (E3 upload from URL D11)
+    $value = fn (string $key) => ($config[$key] ?? ($key === 'FILE_FETCH' ? 'yes' : '')) === 'yes' ? 'yes' : 'no';
     // One address per line; built here because a "\n" inside the component attribute breaks the tag
     $allowedIps = str_replace(',', PHP_EOL, $config['API_ALLOWED_IP'] ?? '');
 @endphp

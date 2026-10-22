@@ -10,6 +10,7 @@ use App\Http\Middleware\Api\AuthenticateAccessKey;
 use App\Http\Middleware\Api\JournalApiRequest;
 use App\Http\Middleware\Api\StartApiRequest;
 use App\Http\Middleware\BindEffectiveUser;
+use App\Http\Middleware\FetchEnabled;
 use App\Http\Middleware\FilesEnabled;
 use App\Http\Middleware\NoReferrer;
 use App\Http\Middleware\NotReadOnly;
@@ -82,6 +83,7 @@ $app = Application::configure(basePath: dirname(__DIR__))
             'no-referrer' => NoReferrer::class,
             'effective-user' => BindEffectiveUser::class,
             'files.enabled' => FilesEnabled::class,
+            'files.fetch' => FetchEnabled::class,
             'sys-config' => RequireSysConfig::class,
         ]);
     })

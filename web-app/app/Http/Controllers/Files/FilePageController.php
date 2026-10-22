@@ -6,6 +6,7 @@ use App\Arc\ArcCommandException;
 use App\Arc\ExitCode;
 use App\Arc\SysConfig;
 use App\Auth\Principal;
+use App\Auth\Role;
 use App\Http\Controllers\Controller;
 use App\Policies\BackupPolicy;
 use App\Policies\FilePolicy;
@@ -13,6 +14,7 @@ use App\Services\Backups\BackupService;
 use App\Services\Files\FileEntry;
 use App\Services\Files\FilePath;
 use App\Services\Files\FileService;
+use App\Services\Files\RemoteFetches;
 use App\Services\Files\UploadSessions;
 use App\Tenancy\TenancyDirectory;
 use Illuminate\Http\RedirectResponse;
@@ -57,12 +59,25 @@ final class FilePageController extends Controller
         'A folder cannot go inside itself.', 'Could not copy', 'Could not move', 'Read-only folder', 'The items are already in this folder.',
         'This folder is read-only. Open a folder inside it, such as public_html.',
         'This folder is read-only: you can open, copy and download what is in it, but not add, move, rename or delete. Your site files go in public_html.',
+        // Upload from URL (docs/features/specs/2026-10-22-001-e3-upload-from-url-design.md §3.2)
+        'Upload from URL', 'Files go into ~/%s',
+        'How to describe the download', 'Simple', 'cURL', 'Custom', 'URL', 'Paste one curl command',
+        'The command is read, never run: only the URL, headers and credentials are used.', 'HTTP headers', 'Value', 'Header name %d',
+        'Header value %d', 'Remove header %d', 'Add header', 'Authentication', 'None', 'Basic (user name and password)', 'Bearer token', 'User name',
+        'Password', 'Token', 'File name (optional)', 'The name the server sends', 'If the name exists', 'Keep both (name_(1).ext)',
+        'Allow private addresses', 'Lets the server reach its own network and local services. Only administrators can choose this.',
+        'Files up to %s; up to 3 downloads run at once.', 'Add', 'Downloads', 'Clear finished', 'Files you add from a URL appear here.',
+        'Open the folder of %s', 'Remove %s from the list', '%d downloads running', 'Skipped: a file with this name exists',
+        'Blocked: private and local addresses are not allowed', 'Not a valid http or https address', 'The host name could not be found',
+        'The server answered %d', 'Too many redirects', 'Larger than the size limit', 'Not enough disk space or quota', 'Timed out',
+        'A folder with this name exists, or the folder is not writable', 'Interrupted', 'Could not connect', 'Downloading', 'Skipped', 'Failed',
     ];
 
     public function __construct(
         private readonly FileService $files,
         private readonly SysConfig $config,
         private readonly TenancyDirectory $tenancy,
+        private readonly RemoteFetches $fetches,
     ) {}
 
     /** /files: the effective account. */
@@ -126,6 +141,12 @@ final class FilePageController extends Controller
                     'editMax' => FileService::EDIT_MAX,
                 ],
                 'quota' => $account->quota(),
+                // Upload from URL: administrators may allow private addresses (spec D10)
+                'fetch' => [
+                    'enabled' => $this->fetches->enabled(),
+                    'maxBytes' => $this->fetches->maxBytes(),
+                    'private' => $principal->actingRole() === Role::Admin,
+                ],
                 'listing' => [
                     'path' => $path->relative(),
                     'dir' => $dir->toArray(),

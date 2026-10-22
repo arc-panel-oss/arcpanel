@@ -45,6 +45,8 @@ final class ServerSettings
             'POLICY_USER_EDIT_DETAILS', 'POLICY_USER_EDIT_WEB_TEMPLATES', 'POLICY_USER_EDIT_DNS_TEMPLATES',
             'POLICY_USER_VIEW_LOGS', 'POLICY_USER_DELETE_LOGS', 'POLICY_USER_VIEW_SUSPENDED',
             'POLICY_BACKUP_SUSPENDED_USERS', 'POLICY_SYNC_ERROR_DOCUMENTS', 'POLICY_SYNC_SKELETON',
+            // Upload from URL in the File Manager (E3, docs/features/specs/2026-10-22-001-e3-upload-from-url-design.md D11)
+            'FILE_FETCH',
         ],
         'domains' => ['ENFORCE_SUBDOMAIN_OWNERSHIP'],
     ];

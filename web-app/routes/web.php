@@ -25,6 +25,7 @@ use App\Http\Controllers\Docker\DockerAppController;
 use App\Http\Controllers\Docker\DockerAppPageController;
 use App\Http\Controllers\Docker\DockerEngineController;
 use App\Http\Controllers\Files\FileController;
+use App\Http\Controllers\Files\FileFetchController;
 use App\Http\Controllers\Files\FilePageController;
 use App\Http\Controllers\Files\FileTransferController;
 use App\Http\Controllers\Files\SnapshotFileController;
@@ -593,6 +594,14 @@ Route::middleware('auth.arc')->group(function () {
                         ->where(['token' => '[a-f0-9]{32}', 'index' => '[0-9]{1,6}'])->middleware('throttle:files-upload')->name('upload.chunk');
                     Route::post('/upload/{token}/finish', [FileTransferController::class, 'finish'])->where('token', '[a-f0-9]{32}')->name('upload.finish');
                     Route::delete('/upload/{token}', [FileTransferController::class, 'cancel'])->where('token', '[a-f0-9]{32}')->name('upload.cancel');
+                });
+                // Upload from URL (docs/features/specs/2026-10-22-001-e3-upload-from-url-design.md §6.1)
+                Route::middleware('files.fetch')->group(function () {
+                    Route::get('/fetches', [FileFetchController::class, 'index'])->name('fetches.index');
+                    Route::middleware('not-readonly')->group(function () {
+                        Route::post('/fetches', [FileFetchController::class, 'store'])->name('fetches.store');
+                        Route::delete('/fetches/{id}', [FileFetchController::class, 'destroy'])->where('id', '[0-9]{10,14}')->name('fetches.destroy');
+                    });
                 });
             });
         });

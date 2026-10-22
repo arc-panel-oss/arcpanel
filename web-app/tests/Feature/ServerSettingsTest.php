@@ -549,3 +549,16 @@ it('counts the firewall plugin as installed with nftables or a not yet moved ipt
     'iptables' => ['iptables', true],
     'off' => ['', false],
 ]);
+
+it('switches upload from URL on the Security tab, shown on while the key is missing (E3 upload from URL D11)', function () {
+    $this->fake->on('v-change-sys-api')->returns();
+    signIn('arcadmin', 'admin');
+    $form = ['API_SYSTEM' => '1', 'API' => 'no', 'API_ALLOWED_IP' => '', 'LOGIN_STYLE' => 'default', 'INACTIVE_SESSION_TIMEOUT' => '60', 'POLICY_CSRF_STRICTNESS' => '1'];
+
+    $page = $this->get('/server/settings/security')->assertOk()->assertSee('Allow users to upload files from a URL')->getContent();
+    expect($page)->toMatch('/<option value="yes"\s+selected[^>]*>[^<]*<\/option>(?:(?!<select).)*FILE_FETCH|name="FILE_FETCH"(?:(?!<\/select>).)*value="yes"\s+selected/s');
+
+    $this->post('/server/settings/security', array_replace($form, ['FILE_FETCH' => 'no']))->assertSessionHas('ok');
+    $this->fake->assertRan('v-change-sys-config-value', fn ($a) => $a === ['FILE_FETCH', 'no']);
+    $this->post('/server/settings/security', array_replace($form, ['FILE_FETCH' => 'maybe']))->assertSessionHasErrors('FILE_FETCH');
+});
