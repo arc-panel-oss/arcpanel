@@ -46,6 +46,7 @@ check_arcpanel_demo_mode
 #                       Action                             #
 #----------------------------------------------------------#
 
+appproc_task_stop "$user"
 if [ -d "$ARCPANEL/data/users/$user" ]; then
 	appproc_lock "$user"
 	for id in $(appproc_ids "$user"); do
