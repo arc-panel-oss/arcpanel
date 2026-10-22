@@ -33,6 +33,7 @@ API="$PANEL/api/v2"
 CONF="$ARCPANEL/conf/arcpanel.conf"
 SMOKE_USER="arcsmoke$RANDOM"
 SMOKE_PACKAGE="arcsmoke-pkg$RANDOM"
+SMOKE_DEST="arcsmoke-dest$RANDOM"
 APPS_USER="${SMOKE_USER}a"
 FILES_USER="${SMOKE_USER}f"
 ACCOUNTS_USER="${SMOKE_USER}c"
@@ -78,6 +79,12 @@ cleanup() {
 	for rule in $("$ARCPANEL/bin/v-list-firewall" json 2> /dev/null | jq -r 'to_entries[] | select(.value.COMMENT == "arcsmoke") | .key' | sort -rn); do
 		"$ARCPANEL/bin/v-delete-firewall-rule" "$rule" > /dev/null 2>&1 || true
 	done
+	# A backup job and destination left by a failed run (E48)
+	for job in $("$ARCPANEL/bin/v-list-backup-jobs" json 2> /dev/null | jq -r 'to_entries[] | select(.value.NAME == "arcsmoke") | .key'); do
+		"$ARCPANEL/bin/v-delete-backup-job" "$job" > /dev/null 2>&1 || true
+	done
+	"$ARCPANEL/bin/v-delete-backup-destination" "$SMOKE_DEST" > /dev/null 2>&1 || true
+	rm -rf "/backup/${SMOKE_DEST:?}"
 	rm -f "/etc/logrotate.d/arcpanel-node-$APPS_USER"
 	for package in "$SMOKE_PACKAGE" "$SMOKE_PACKAGE-copy" "$APPS_PACKAGE" "$PHP_PACKAGE" "$STORAGE_PACKAGE"; do
 		"$ARCPANEL/bin/v-delete-user-package" "$package" > /dev/null 2>&1 || true
@@ -427,6 +434,38 @@ if [ "$(call "$BACKUP_KEY" GET "/tasks/$BK_TASK")" = 200 ] && [ "$(json .data.st
 else
 	fail "backup task did not succeed; skipping archive download and restore"
 fi
+
+# Backup destinations and jobs (E48 spec §9), with a key holding only v2-server
+SERVER_KEY=$(new_key "$ROOT_USER" v2-server)
+READ_KEY=$(new_key "$ROOT_USER" v2-read)
+check "a v2-read key cannot add a backup destination" 403 \
+	"$(call "$READ_KEY" POST /system/backup-destinations "{\"name\": \"$SMOKE_DEST\", \"driver\": \"local\", \"fields\": {\"PATH\": \"/backup/$SMOKE_DEST\"}}")"
+check "createBackupDestination answers 201" 201 \
+	"$(call "$SERVER_KEY" POST /system/backup-destinations "{\"name\": \"$SMOKE_DEST\", \"driver\": \"local\", \"fields\": {\"PATH\": \"/backup/$SMOKE_DEST\"}}")"
+check "checkBackupDestination: the folder works" true "$(call "$SERVER_KEY" POST "/system/backup-destinations/$SMOKE_DEST/check" > /dev/null && json .data.ok)"
+check "getBackupDestination: ok after the test" ok "$(call "$SERVER_KEY" GET "/system/backup-destinations/$SMOKE_DEST" > /dev/null && json .data.state)"
+check "createBackupJob answers 201" 201 "$(call "$SERVER_KEY" POST /system/backup-jobs "{\"name\": \"arcsmoke\", \"engine\": \"archive\",
+	\"schedule\": \"daily:03:00\", \"scope\": \"users\", \"users\": [\"$SMOKE_USER\"], \"targets\": [{\"destination\": \"$SMOKE_DEST\", \"keep_last\": 2}], \"enabled\": false}")"
+SMOKE_JOB="$(json .data.id)"
+check "the new job is paused" false "$(json .data.enabled)"
+job_code=$(call "$BACKUP_KEY" POST "$BK" "{\"job\": \"$SMOKE_JOB\"}")
+check "createBackup with the paused job answers 202" 202 "$job_code"
+JOB_TASK="$(json .data.id)"
+if [ "$job_code" = 202 ] && wait_v2_task "$BACKUP_KEY" "$JOB_TASK" 900; then
+	check "the archive of the job names its job and destination" "$SMOKE_JOB $SMOKE_DEST" \
+		"$(call "$BACKUP_KEY" GET "$BK" > /dev/null && json '.data[0] | "\(.job) \(.destinations | join(","))"')"
+fi
+check "runBackupJob answers 202" 202 "$(call "$SERVER_KEY" POST "/system/backup-jobs/$SMOKE_JOB/run")"
+for _ in $(seq 1 90); do
+	[ "$(call "$SERVER_KEY" GET "/system/backup-jobs/$SMOKE_JOB" > /dev/null && json .data.running)" = false ] && break
+	sleep 2
+done
+check "listBackupJobRuns: the run succeeded for one user" "success 1" \
+	"$(call "$SERVER_KEY" GET "/system/backup-job-runs?job=$SMOKE_JOB" > /dev/null && json '.data[0] | "\(.status) \(.done)"')"
+check "deleteBackupDestination refuses a destination in use" 409 "$(call "$SERVER_KEY" DELETE "/system/backup-destinations/$SMOKE_DEST")"
+check "deleteBackupJob answers 204" 204 "$(call "$SERVER_KEY" DELETE "/system/backup-jobs/$SMOKE_JOB")"
+check "deleteBackupDestination answers 204" 204 "$(call "$SERVER_KEY" DELETE "/system/backup-destinations/$SMOKE_DEST")"
+rm -rf "/backup/${SMOKE_DEST:?}"
 
 check "the user of the web domains is deleted" 204 "$(call "$ADMIN" DELETE "/users/$SMOKE_USER")"
 

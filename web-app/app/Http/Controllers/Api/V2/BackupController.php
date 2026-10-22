@@ -25,9 +25,11 @@ use App\Http\Resources\V2\SnapshotResource;
 use App\Http\Resources\V2\TaskResource;
 use App\Policies\BackupPolicy;
 use App\Services\Backups\BackupArchive;
+use App\Services\Backups\BackupJob;
 use App\Services\Backups\BackupPaths;
 use App\Services\Backups\BackupRun;
 use App\Services\Backups\BackupService;
+use App\Services\Backups\JobService;
 use App\Services\Files\FilePath;
 use App\Services\Files\InvalidFilePath;
 use App\Services\Tasks\TaskMapper;
@@ -139,8 +141,11 @@ final class BackupController extends Controller
     /**
      * Create a backup
      *
-     * Queues a backup of the user. When a backup or restore is already queued,
-     * answers 409 `E_EXISTS` with `existing` set to that task.
+     * Queues a backup of the user. With `job`, the archive goes to the
+     * destinations of that archive job, which must cover the user (E48);
+     * without it, to those of the server's default archive job. When a
+     * backup or restore is already queued, answers 409 `E_EXISTS` with
+     * `existing` set to that task.
      *
      * @operationId createBackup
      *
@@ -150,17 +155,28 @@ final class BackupController extends Controller
      *
      * @conflict E_EXISTS A backup of the user is queued or running: `existing` is that task when the key may read it.
      */
-    public function store(string $user, Principal $principal, BackupPolicy $policy): TaskResource|JsonResponse
+    public function store(Request $request, string $user, Principal $principal, BackupPolicy $policy, JobService $jobs): TaskResource|JsonResponse
     {
         $this->assertOwner($user, $principal, $policy);
         abort_unless($policy->create($principal, $user), 403);
-        $steps = [new Step(__('Create backup'), 'v-schedule-user-backup', [$user, 'json'])];
-        $this->gate->authorize($steps);
+        $data = $request->validate([
+            /** An archive job that covers the user (`listBackupJobs`, or the `job` of an archive). */
+            'job' => ['nullable', 'string', 'regex:/^\d{8,20}$/'],
+        ]);
+        $job = (string) ($data['job'] ?? '');
+        $steps = [new Step(__('Create backup'), 'v-schedule-user-backup', [$user, 'json', ...($job !== '' ? [$job] : [])])];
+        $this->gate->authorize($steps, $job !== '' ? ['v-list-backup-jobs'] : []);
+        if ($job !== '') {
+            $covering = array_filter($jobs->covering($user, $this->backups->settings($user)['package'], enabledOnly: false), fn (BackupJob $j) => $j->id === $job && $j->engine === 'archive');
+            if ($covering === []) {
+                throw ValidationException::withMessages(['job' => __('This is not an archive job that backs up the user.')]);
+            }
+        }
         if ($this->gate->dryRun()) {
             return $this->gate->preview($steps);
         }
 
-        return $this->queued($user, $this->backups->schedule($user, 'json'), 'backup');
+        return $this->queued($user, $this->backups->schedule($user, 'json', $job), 'backup');
     }
 
     /**

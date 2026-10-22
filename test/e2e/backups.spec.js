@@ -1,6 +1,6 @@
-// Happy paths of the Backups module (E7 batch 1 spec §10): tar archives,
-// exclusions, restic snapshots and a single-file restore from the file
-// manager's snapshot mode.
+// Happy paths of the Backups module (E7 batch 1 spec §10, E48 spec §8.1):
+// the overview, archives, the restore wizard, history, exclusions, restic
+// snapshots and a single-file restore from the file manager's snapshot mode.
 import { expect, test } from '@playwright/test';
 import { expectAccessible, expectToast, login, USER } from './helpers.js';
 import { runOnServer } from './server.js';
@@ -14,13 +14,19 @@ test.beforeAll(() => {
 	runOnServer(['backups']);
 });
 
-test('user: archives list, detail and a restore of one object', async ({ page }) => {
+test('user: the overview, then an archive and a restore of one object', async ({ page }) => {
 	await login(page, BACKUP_USER);
 	await page
 		.getByRole('navigation', { name: 'Sections' })
 		.getByRole('link', { name: 'Backups' })
 		.click();
 	await expect(page).toHaveURL(new RegExp(`/backups/${BACKUP_USER}$`));
+	await expect(page.getByRole('heading', { name: 'Last backup' })).toBeVisible();
+	await expect(page.getByRole('heading', { name: 'Next backups' })).toBeVisible();
+	await expectAccessible(page);
+
+	await page.getByRole('link', { name: 'Archives', exact: true }).click();
+	await expect(page).toHaveURL(new RegExp(`/backups/${BACKUP_USER}/archives$`));
 	const archive = page.getByRole('link', { name: new RegExp(`^${BACKUP_USER}\\.`) }).first();
 	await expect(archive).toBeVisible();
 	await expectAccessible(page);
@@ -34,18 +40,60 @@ test('user: archives list, detail and a restore of one object', async ({ page })
 	runOnServer(['backups-clear-queue']);
 });
 
-test('user: exclusions keep their lines and the toggle list', async ({ page }) => {
+test('user: the restore wizard restores the items picked', async ({ page }) => {
+	await login(page, BACKUP_USER);
+	await page.goto(`/backups/${BACKUP_USER}/restore`);
+	await expectAccessible(page);
+	await page
+		.getByRole('link', { name: new RegExp(`^${BACKUP_USER}\\.`) })
+		.first()
+		.click();
+
+	// Step 2 of 3: some items of the archive
+	await expect(page.getByText('Step 2 / 3')).toBeVisible();
+	await page.getByRole('radio', { name: 'Some items' }).check();
+	await page.getByRole('checkbox', { name: 'e2e-backup.example' }).check();
+	await expectAccessible(page);
+	await page.getByRole('button', { name: 'Continue' }).click();
+	await expect(page.getByText('Restoring replaces what is there now')).toBeVisible();
+	await page.getByRole('button', { name: 'Restore', exact: true }).click();
+	await expectToast(page, 'Task has been added to the queue.');
+	await expect(page).toHaveURL(new RegExp(`/backups/${BACKUP_USER}/restore\\?archive=`));
+	runOnServer(['backups-clear-queue']);
+});
+
+test('user: the history lists the runs of the account', async ({ page }) => {
+	await login(page, BACKUP_USER);
+	await page.goto(`/backups/${BACKUP_USER}`);
+	await page.getByRole('link', { name: 'History', exact: true }).click();
+	await expect(page).toHaveURL(new RegExp(`/backups/${BACKUP_USER}/history$`));
+	await expect(page.getByRole('heading', { name: 'Backup history' })).toBeVisible();
+	await expect(page.getByRole('row').nth(1)).toContainText('Succeeded');
+	await expectAccessible(page);
+});
+
+test('user: exclusions list the account records and keep the folders', async ({ page }) => {
 	await login(page, BACKUP_USER);
 	await page.goto(`/backups/${BACKUP_USER}/exclusions`);
 	await expectAccessible(page);
-	await page.getByLabel('User Directories').fill('tmp/cache');
+	const web = page.locator('[data-exclusions="web"]');
+	await expect(web).toContainText('e2e-backup.example');
+	await page.getByLabel('Folders of the home directory').fill('tmp/cache');
+	await web.getByRole('checkbox', { name: 'e2e-backup.example' }).check();
+	await web.getByRole('textbox', { name: /e2e-backup\.example/ }).fill('public_html/cache');
 	await page.getByRole('button', { name: 'Save' }).click();
 	await expectToast(page, 'Changes have been saved.');
-	await expect(page.getByLabel('User Directories')).toHaveValue('tmp/cache');
+	await expect(page.getByLabel('Folders of the home directory')).toHaveValue('tmp/cache');
+	await expect(web.getByRole('checkbox', { name: 'e2e-backup.example' })).toBeChecked();
+	await expect(web.getByRole('textbox', { name: /e2e-backup\.example/ })).toHaveValue(
+		'public_html/cache',
+	);
 
-	await page.getByLabel('User Directories').fill('');
+	await page.getByLabel('Folders of the home directory').fill('');
+	await web.getByRole('checkbox', { name: 'e2e-backup.example' }).uncheck();
 	await page.getByRole('button', { name: 'Save' }).click();
 	await expectToast(page, 'Changes have been saved.');
+	await expect(web.getByRole('checkbox', { name: 'e2e-backup.example' })).not.toBeChecked();
 });
 
 test('user: browse a snapshot and restore one file', async ({ page }) => {
@@ -72,14 +120,22 @@ test('user: browse a snapshot and restore one file', async ({ page }) => {
 	expect(runOnServer(['backups-run-queue']).trim()).toBe('original');
 });
 
-test('another user’s backups are not found', async ({ page }) => {
-	await login(page, USER);
-	const response = await page.goto(`/backups/${BACKUP_USER}`);
-	expect(response.status()).toBe(404);
+test('user: the backup pages fit a phone', async ({ page }) => {
+	await page.setViewportSize({ width: 375, height: 812 });
+	await login(page, BACKUP_USER);
+	for (const path of ['', '/archives', '/history', '/restore', '/exclusions']) {
+		await page.goto(`/backups/${BACKUP_USER}${path}`);
+		const overflow = await page.evaluate(
+			() => document.documentElement.scrollWidth > window.innerWidth,
+		);
+		expect(overflow, `/backups/${BACKUP_USER}${path} overflows`).toBe(false);
+	}
 });
 
-test('legacy backup list redirects to the panel app', async ({ page }) => {
-	await login(page, BACKUP_USER);
-	await page.goto('/list/backup/');
-	await expect(page).toHaveURL(new RegExp(`/backups/${BACKUP_USER}$`));
+test('another user’s backups are not found', async ({ page }) => {
+	await login(page, USER);
+	for (const path of ['', '/archives', '/history', '/restore']) {
+		const response = await page.goto(`/backups/${BACKUP_USER}${path}`);
+		expect(response.status()).toBe(404);
+	}
 });

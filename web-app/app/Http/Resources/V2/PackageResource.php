@@ -69,6 +69,8 @@ final class PackageResource extends JsonResource
             'nameservers' => $package->nameservers(),
             /** @var bool */
             'backups_incremental' => $get('BACKUPS_INCREMENTAL') === 'yes',
+            /** @var 'hourly'|'daily'|'weekly' how often scheduled backup jobs may back up a user of the package at most (E48) */
+            'backup_frequency' => in_array($get('BACKUP_FREQUENCY', 'daily'), ['hourly', 'daily', 'weekly'], true) ? $get('BACKUP_FREQUENCY', 'daily') : 'daily',
             /** What a reseller on this package may do (E11) */
             'reseller' => [
                 /** @var int|null customers a reseller on this package may have */

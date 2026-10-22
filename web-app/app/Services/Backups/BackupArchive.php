@@ -49,7 +49,8 @@ final class BackupArchive
             // E48: the job that made it, the destinations that hold it (TYPE before E48)
             job: $value('JOB'),
             destinations: array_values(array_filter(explode(',', $value('DESTINATIONS') !== '' ? $value('DESTINATIONS') : $value('TYPE')), fn ($v) => $v !== '')),
-            encrypted: $value('ENCRYPTED') === 'yes',
+            // ENCRYPTED lists the destinations that hold it encrypted
+            encrypted: $value('ENCRYPTED') !== '',
         );
     }
 

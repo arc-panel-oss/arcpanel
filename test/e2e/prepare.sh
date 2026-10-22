@@ -48,7 +48,8 @@
 #                                 one tar backup and one snapshot for
 #                                 arce2ebackup (E7); backups-clear-queue,
 #                                 backups-change-file and backups-run-queue go
-#                                 with it
+#                                 with it; backups-admin-clean removes the job
+#                                 and destination of the hub spec (E48)
 #   prepare.sh reset-user PASSWORD
 #                                 arce2ereset whose contact is the mailbox
 #                                 reset@e2e-mail.example (E7 batch 3 reset);
@@ -107,7 +108,8 @@ delete_users() {
 # Backups spec (E7): restic repository, domain, file, one archive, one snapshot
 backups_prepare() {
 	local user=arce2ebackup
-	if [ ! -f "$ARCPANEL/conf/restic.conf" ]; then
+	# Since E48 the restic host is the destination "restic" of the job "Nightly snapshots"
+	if ! "$B/v-list-backup-destination" restic > /dev/null 2>&1; then
 		mkdir -p "$RESTIC_REPO"
 		"$B/v-add-backup-host-restic" "$RESTIC_REPO" 5 -1 -1 -1 -1 > /dev/null
 		touch "$RESTIC_STATE"
@@ -684,6 +686,16 @@ PHP
 		;;
 	backups)
 		backups_prepare
+		exit 0
+		;;
+	backups-admin-clean)
+		# The job and destination of backups-admin.spec.js, left by a failed run (E48)
+		for job in $("$B/v-list-backup-jobs" json 2> /dev/null | jq -r 'to_entries[] | select(.value.NAME == "arce2e-job") | .key'); do
+			rm -f "$ARCPANEL/data/backup/jobs/$job.lock"
+			"$B/v-delete-backup-job" "$job" > /dev/null 2>&1 || true
+		done
+		"$B/v-delete-backup-destination" arce2e-dest > /dev/null 2>&1 || true
+		rm -rf /backup/arce2e-dest
 		exit 0
 		;;
 	backups-clear-queue)

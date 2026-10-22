@@ -182,9 +182,11 @@ it('keeps every area set inside v2-write and its reads inside v2-read', function
         $commands = apiSetCommands($area);
         expect(array_values(array_diff($commands, $write)))->toBe([], "{$area} is not part of v2-write");
         // v-check-sys-ports runs only as `repair` (repairPorts), a write: it stays out of v2-read.
+        // v-check-backup-destination records the state of the destination (checkBackupDestination), a write too.
         $reads = array_values(array_filter(
             $commands,
-            fn (string $command) => (str_starts_with($command, 'v-list-') || str_starts_with($command, 'v-check-')) && $command !== 'v-check-sys-ports',
+            fn (string $command) => (str_starts_with($command, 'v-list-') || str_starts_with($command, 'v-check-'))
+                && ! in_array($command, ['v-check-sys-ports', 'v-check-backup-destination'], true),
         ));
         expect(array_values(array_diff($reads, $read)))->toBe([], "{$area} has a read command outside v2-read");
         $content = (string) file_get_contents(base_path('../install/common/api/'.AccessKeySets::fileOfSet($area)));

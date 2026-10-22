@@ -151,6 +151,22 @@ it('sets the object storage keys of a package, within the reseller plan for a re
     $this->fake->assertNotRan('v-add-reseller-package');
 });
 
+it('sets the backup frequency of a package, at most that of the reseller plan (E48)', function () {
+    apiPackageAdded($this, 'v-add-user-package', 'business');
+    $this->fake->on('v-change-package-tenancy')->returns();
+
+    $this->postJson('/api/v2/packages', ['name' => 'business', 'backup_frequency' => 'hourly'], apiAs($this->fake, 'arcadmin', 'admin'))->assertCreated();
+    $this->fake->assertRan('v-change-package-tenancy', fn ($a) => $a === ['business', 'BACKUP_FREQUENCY', 'hourly']);
+    $this->postJson('/api/v2/packages', ['name' => 'other', 'backup_frequency' => 'monthly'], apiAs($this->fake, 'arcadmin', 'admin'))
+        ->assertUnprocessable()->assertJsonStructure(['error' => ['fields' => ['backup_frequency']]]);
+    $this->getJson('/api/v2/packages/default', apiAs($this->fake, 'arcadmin', 'admin'))->assertOk()->assertJsonPath('data.backup_frequency', 'daily');
+
+    // hostco's own package backs up daily at most
+    $this->postJson('/api/v2/packages', ['name' => 'business', 'backup_frequency' => 'hourly'], apiAs($this->fake, 'hostco', 'reseller'))
+        ->assertUnprocessable()->assertJsonStructure(['error' => ['fields' => ['backup_frequency']]]);
+    $this->fake->assertNotRan('v-add-reseller-package');
+});
+
 it('answers a repeated create with 409 and runs nothing', function () {
     $this->postJson('/api/v2/packages', ['name' => 'starter'], apiAs($this->fake, 'arcadmin', 'admin'))->assertStatus(409)
         ->assertJsonPath('error.code', 'E_EXISTS');

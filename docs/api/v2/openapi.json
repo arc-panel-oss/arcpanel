@@ -2102,6 +2102,1241 @@
                 "x-arcpanel-permission-set": "v2-accounts"
             }
         },
+        "/system/backup-destinations": {
+            "get": {
+                "operationId": "listBackupDestinations",
+                "description": "Sorted by name.",
+                "summary": "List the backup destinations",
+                "tags": [
+                    "Backups"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Array of `BackupDestination`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/components/schemas/BackupDestination"
+                                            }
+                                        },
+                                        "meta": {
+                                            "$ref": "#/components/schemas/ListMeta"
+                                        }
+                                    },
+                                    "required": [
+                                        "data",
+                                        "meta"
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    }
+                },
+                "parameters": [
+                    {
+                        "name": "limit",
+                        "in": "query",
+                        "description": "Page size, from 1 to 1000. Without it the list is complete.",
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 1000
+                        }
+                    },
+                    {
+                        "name": "offset",
+                        "in": "query",
+                        "description": "Items to skip. Used when `limit` is set; 0 when omitted.",
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 0
+                        }
+                    }
+                ],
+                "x-arcpanel-permission-set": "v2-server"
+            },
+            "post": {
+                "operationId": "createBackupDestination",
+                "description": "The destination starts `unchecked`: test it with\n`checkBackupDestination`. A name in use answers `409 E_EXISTS`.",
+                "summary": "Add a backup destination",
+                "tags": [
+                    "Backups"
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/StoreBackupDestinationRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "With `dry_run`: the planned steps; nothing ran.",
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/DryRun"
+                                }
+                            }
+                        }
+                    },
+                    "201": {
+                        "description": "`BackupDestination`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/BackupDestination"
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            },
+                            "Location": {
+                                "$ref": "#/components/headers/Location"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "409": {
+                        "$ref": "#/components/responses/Conflict"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    },
+                    "503": {
+                        "$ref": "#/components/responses/Unavailable"
+                    }
+                },
+                "parameters": [
+                    {
+                        "name": "dry_run",
+                        "in": "query",
+                        "description": "Validate, authorize and plan the change, and answer with its steps instead of running them.",
+                        "schema": {
+                            "type": "boolean",
+                            "default": false
+                        }
+                    }
+                ],
+                "x-arcpanel-permission-set": "v2-server"
+            }
+        },
+        "/system/backup-destinations/{destination}": {
+            "get": {
+                "operationId": "getBackupDestination",
+                "summary": "Get a backup destination",
+                "tags": [
+                    "Backups"
+                ],
+                "parameters": [
+                    {
+                        "name": "destination",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "`BackupDestination`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/BackupDestination"
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    }
+                },
+                "x-arcpanel-permission-set": "v2-server"
+            },
+            "patch": {
+                "operationId": "updateBackupDestination",
+                "description": "Fields left out keep their value and secrets left out stay stored;\nthe driver does not change. A change of the connection makes the\ndestination `unchecked` until it is tested again.",
+                "summary": "Update a backup destination",
+                "tags": [
+                    "Backups"
+                ],
+                "parameters": [
+                    {
+                        "name": "destination",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "dry_run",
+                        "in": "query",
+                        "description": "Validate, authorize and plan the change, and answer with its steps instead of running them.",
+                        "schema": {
+                            "type": "boolean",
+                            "default": false
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/UpdateBackupDestinationRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "`BackupDestination`; with `dry_run`, the planned steps.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "oneOf": [
+                                        {
+                                            "type": "object",
+                                            "properties": {
+                                                "data": {
+                                                    "$ref": "#/components/schemas/BackupDestination"
+                                                }
+                                            },
+                                            "required": [
+                                                "data"
+                                            ]
+                                        },
+                                        {
+                                            "$ref": "#/components/schemas/DryRun"
+                                        }
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "409": {
+                        "$ref": "#/components/responses/Conflict"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    },
+                    "503": {
+                        "$ref": "#/components/responses/Unavailable"
+                    }
+                },
+                "x-arcpanel-permission-set": "v2-server"
+            },
+            "delete": {
+                "operationId": "deleteBackupDestination",
+                "description": "The backups stored there are left in place. A destination that a job\nstill stores to answers `409 E_INUSE`.",
+                "summary": "Delete a backup destination",
+                "tags": [
+                    "Backups"
+                ],
+                "parameters": [
+                    {
+                        "name": "destination",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "dry_run",
+                        "in": "query",
+                        "description": "Validate, authorize and plan the change, and answer with its steps instead of running them.",
+                        "schema": {
+                            "type": "boolean",
+                            "default": false
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "With `dry_run`: the planned steps; nothing ran.",
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/DryRun"
+                                }
+                            }
+                        }
+                    },
+                    "204": {
+                        "description": "No content.",
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "409": {
+                        "$ref": "#/components/responses/Conflict"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    },
+                    "503": {
+                        "$ref": "#/components/responses/Unavailable"
+                    }
+                },
+                "x-arcpanel-permission-set": "v2-server"
+            }
+        },
+        "/system/backup-destinations/{destination}/check": {
+            "post": {
+                "operationId": "checkBackupDestination",
+                "description": "Connects, writes, lists and removes a small file, and records the\nstate (`ok` or `failing`). An SFTP destination answers its host key's\nfingerprint in `host_key` the first time with `ok: false`: send it\nback as `accept` once you have compared it with the server's.",
+                "summary": "Test a backup destination",
+                "tags": [
+                    "Backups"
+                ],
+                "parameters": [
+                    {
+                        "name": "destination",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "dry_run",
+                        "in": "query",
+                        "description": "Validate, authorize and plan the change, and answer with its steps instead of running them.",
+                        "schema": {
+                            "type": "boolean",
+                            "default": false
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "accept": {
+                                        "type": [
+                                            "string",
+                                            "null"
+                                        ],
+                                        "description": "The SHA256 fingerprint of the SFTP host key to pin, as `host_key` gave it.",
+                                        "pattern": "^SHA256:[A-Za-z0-9+\\/=]{20,64}$"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "; with `dry_run`, the planned steps.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "oneOf": [
+                                        {
+                                            "type": "object",
+                                            "properties": {
+                                                "data": {
+                                                    "type": "object",
+                                                    "properties": {
+                                                        "ok": {
+                                                            "type": "boolean"
+                                                        },
+                                                        "error": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ]
+                                                        },
+                                                        "host_key": {
+                                                            "type": [
+                                                                "string",
+                                                                "null"
+                                                            ],
+                                                            "description": "the fingerprint to confirm with `accept` (SFTP)"
+                                                        },
+                                                        "latency_ms": {
+                                                            "type": [
+                                                                "integer",
+                                                                "null"
+                                                            ]
+                                                        }
+                                                    },
+                                                    "required": [
+                                                        "ok",
+                                                        "error",
+                                                        "host_key",
+                                                        "latency_ms"
+                                                    ]
+                                                }
+                                            },
+                                            "required": [
+                                                "data"
+                                            ]
+                                        },
+                                        {
+                                            "$ref": "#/components/schemas/DryRun"
+                                        }
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "409": {
+                        "$ref": "#/components/responses/Conflict"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    },
+                    "503": {
+                        "$ref": "#/components/responses/Unavailable"
+                    }
+                },
+                "x-arcpanel-permission-set": "v2-server"
+            }
+        },
+        "/system/backup-job-runs": {
+            "get": {
+                "operationId": "listBackupJobRuns",
+                "description": "Newest first; `job` keeps the runs of one job. Each job keeps its\nlast 50 runs.",
+                "summary": "List the runs of the backup jobs",
+                "tags": [
+                    "Backups"
+                ],
+                "parameters": [
+                    {
+                        "name": "job",
+                        "in": "query",
+                        "description": "A job ID.",
+                        "schema": {
+                            "type": [
+                                "string",
+                                "null"
+                            ],
+                            "pattern": "^\\d{8,20}$"
+                        }
+                    },
+                    {
+                        "name": "status",
+                        "in": "query",
+                        "description": "`running`, `success`, `partial` or `failed`.",
+                        "schema": {
+                            "type": [
+                                "string",
+                                "null"
+                            ],
+                            "enum": [
+                                "running",
+                                "success",
+                                "partial",
+                                "failed",
+                                null
+                            ]
+                        }
+                    },
+                    {
+                        "name": "limit",
+                        "in": "query",
+                        "description": "Page size, from 1 to 1000. Without it the list is complete.",
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 1000
+                        }
+                    },
+                    {
+                        "name": "offset",
+                        "in": "query",
+                        "description": "Items to skip. Used when `limit` is set; 0 when omitted.",
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 0
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Array of `BackupJobRun`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/components/schemas/BackupJobRun"
+                                            }
+                                        },
+                                        "meta": {
+                                            "$ref": "#/components/schemas/ListMeta"
+                                        }
+                                    },
+                                    "required": [
+                                        "data",
+                                        "meta"
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    }
+                },
+                "x-arcpanel-permission-set": "v2-server"
+            }
+        },
+        "/system/backup-job-runs/{run}": {
+            "get": {
+                "operationId": "getBackupJobRun",
+                "summary": "Get a run of a backup job",
+                "tags": [
+                    "Backups"
+                ],
+                "parameters": [
+                    {
+                        "name": "run",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "`BackupJobRun`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/BackupJobRun"
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    }
+                },
+                "x-arcpanel-permission-set": "v2-server"
+            }
+        },
+        "/system/backup-jobs": {
+            "get": {
+                "operationId": "listBackupJobs",
+                "description": "Oldest first.",
+                "summary": "List the backup jobs",
+                "tags": [
+                    "Backups"
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Array of `BackupJob`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/components/schemas/BackupJob"
+                                            }
+                                        },
+                                        "meta": {
+                                            "$ref": "#/components/schemas/ListMeta"
+                                        }
+                                    },
+                                    "required": [
+                                        "data",
+                                        "meta"
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    }
+                },
+                "parameters": [
+                    {
+                        "name": "limit",
+                        "in": "query",
+                        "description": "Page size, from 1 to 1000. Without it the list is complete.",
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 1000
+                        }
+                    },
+                    {
+                        "name": "offset",
+                        "in": "query",
+                        "description": "Items to skip. Used when `limit` is set; 0 when omitted.",
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 0
+                        }
+                    }
+                ],
+                "x-arcpanel-permission-set": "v2-server"
+            },
+            "post": {
+                "operationId": "createBackupJob",
+                "description": "The destinations must exist, and the schedule must run at least once\na year. The job runs first at its next scheduled time.",
+                "summary": "Add a backup job",
+                "tags": [
+                    "Backups"
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/StoreBackupJobRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "With `dry_run`: the planned steps; nothing ran.",
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/DryRun"
+                                }
+                            }
+                        }
+                    },
+                    "201": {
+                        "description": "`BackupJob`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/BackupJob"
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            },
+                            "Location": {
+                                "$ref": "#/components/headers/Location"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "409": {
+                        "$ref": "#/components/responses/Conflict"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    },
+                    "503": {
+                        "$ref": "#/components/responses/Unavailable"
+                    }
+                },
+                "parameters": [
+                    {
+                        "name": "dry_run",
+                        "in": "query",
+                        "description": "Validate, authorize and plan the change, and answer with its steps instead of running them.",
+                        "schema": {
+                            "type": "boolean",
+                            "default": false
+                        }
+                    }
+                ],
+                "x-arcpanel-permission-set": "v2-server"
+            }
+        },
+        "/system/backup-jobs/{job}": {
+            "get": {
+                "operationId": "getBackupJob",
+                "summary": "Get a backup job",
+                "tags": [
+                    "Backups"
+                ],
+                "parameters": [
+                    {
+                        "name": "job",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "`BackupJob`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/BackupJob"
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    }
+                },
+                "x-arcpanel-permission-set": "v2-server"
+            },
+            "patch": {
+                "operationId": "updateBackupJob",
+                "description": "Fields left out keep their value; a new `scope` replaces the packages\nor users of the old one. `enabled` pauses or resumes the job.",
+                "summary": "Update a backup job",
+                "tags": [
+                    "Backups"
+                ],
+                "parameters": [
+                    {
+                        "name": "job",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "dry_run",
+                        "in": "query",
+                        "description": "Validate, authorize and plan the change, and answer with its steps instead of running them.",
+                        "schema": {
+                            "type": "boolean",
+                            "default": false
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/UpdateBackupJobRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "`BackupJob`; with `dry_run`, the planned steps.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "oneOf": [
+                                        {
+                                            "type": "object",
+                                            "properties": {
+                                                "data": {
+                                                    "$ref": "#/components/schemas/BackupJob"
+                                                }
+                                            },
+                                            "required": [
+                                                "data"
+                                            ]
+                                        },
+                                        {
+                                            "$ref": "#/components/schemas/DryRun"
+                                        }
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "409": {
+                        "$ref": "#/components/responses/Conflict"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    },
+                    "503": {
+                        "$ref": "#/components/responses/Unavailable"
+                    }
+                },
+                "x-arcpanel-permission-set": "v2-server"
+            },
+            "delete": {
+                "operationId": "deleteBackupJob",
+                "description": "The backups it made are kept. A running job answers `409 E_INUSE`.",
+                "summary": "Delete a backup job",
+                "tags": [
+                    "Backups"
+                ],
+                "parameters": [
+                    {
+                        "name": "job",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "dry_run",
+                        "in": "query",
+                        "description": "Validate, authorize and plan the change, and answer with its steps instead of running them.",
+                        "schema": {
+                            "type": "boolean",
+                            "default": false
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "With `dry_run`: the planned steps; nothing ran.",
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/DryRun"
+                                }
+                            }
+                        }
+                    },
+                    "204": {
+                        "description": "No content.",
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "409": {
+                        "$ref": "#/components/responses/Conflict"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    },
+                    "503": {
+                        "$ref": "#/components/responses/Unavailable"
+                    }
+                },
+                "x-arcpanel-permission-set": "v2-server"
+            }
+        },
+        "/system/backup-jobs/{job}/run": {
+            "post": {
+                "operationId": "runBackupJob",
+                "description": "Starts a whole run in the background, paused jobs included, and\nanswers the job with `running: true`; `Content-Location` lists its runs, of\nwhich the newest is this one. A running job answers `409 E_INUSE`.",
+                "summary": "Run a backup job now",
+                "tags": [
+                    "Backups"
+                ],
+                "parameters": [
+                    {
+                        "name": "job",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "dry_run",
+                        "in": "query",
+                        "description": "Validate, authorize and plan the change, and answer with its steps instead of running them.",
+                        "schema": {
+                            "type": "boolean",
+                            "default": false
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "With `dry_run`: the planned steps; nothing ran.",
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/DryRun"
+                                }
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "409": {
+                        "$ref": "#/components/responses/Conflict"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    },
+                    "503": {
+                        "$ref": "#/components/responses/Unavailable"
+                    }
+                },
+                "x-arcpanel-permission-set": "v2-server"
+            }
+        },
         "/system/docker": {
             "get": {
                 "operationId": "getDockerEngine",
@@ -12182,7 +13417,7 @@
             },
             "post": {
                 "operationId": "createBackup",
-                "description": "Queues a backup of the user. When a backup or restore is already queued,\nanswers 409 `E_EXISTS` with `existing` set to that task.",
+                "description": "Queues a backup of the user. With `job`, the archive goes to the\ndestinations of that archive job, which must cover the user (E48);\nwithout it, to those of the server's default archive job. When a\nbackup or restore is already queued, answers 409 `E_EXISTS` with\n`existing` set to that task.",
                 "summary": "Create a backup",
                 "tags": [
                     "Backups"
@@ -12206,6 +13441,25 @@
                         }
                     }
                 ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "type": "object",
+                                "properties": {
+                                    "job": {
+                                        "type": [
+                                            "string",
+                                            "null"
+                                        ],
+                                        "description": "An archive job that covers the user (`listBackupJobs`, or the `job` of an archive).",
+                                        "pattern": "^\\d{8,20}$"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
                 "responses": {
                     "200": {
                         "description": "With `dry_run`: the planned steps; nothing ran.",
@@ -32249,6 +33503,24 @@
                             "udir",
                             "cron"
                         ]
+                    },
+                    "job": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "the backup job that made the archive (E48), for `getBackupJob`"
+                    },
+                    "destinations": {
+                        "type": "array",
+                        "description": "the destinations that hold the archive (E48); `local` or the old backup host type before E48",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "encrypted": {
+                        "type": "boolean",
+                        "description": "whether the archive is encrypted on at least one destination (E48)"
                     }
                 },
                 "required": [
@@ -32258,9 +33530,121 @@
                     "size_mb",
                     "created_at",
                     "runtime_seconds",
-                    "content"
+                    "content",
+                    "job",
+                    "destinations",
+                    "encrypted"
                 ],
                 "title": "Backup"
+            },
+            "BackupDestination": {
+                "type": "object",
+                "properties": {
+                    "name": {
+                        "type": "string"
+                    },
+                    "driver": {
+                        "type": "string",
+                        "enum": [
+                            "local",
+                            "sftp",
+                            "ftp",
+                            "s3",
+                            "b2",
+                            "gdrive",
+                            "dropbox",
+                            "onedrive",
+                            "webdav",
+                            "rclone"
+                        ]
+                    },
+                    "description": {
+                        "type": "string"
+                    },
+                    "encrypt": {
+                        "type": "boolean",
+                        "description": "archives and snapshot passwords are encrypted with the destination's key"
+                    },
+                    "bwlimit": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "bandwidth limit of transfers, for example `10M`; null for none"
+                    },
+                    "fields": {
+                        "type": "object",
+                        "description": "the fields of the driver, for example `HOST`, `PORT`, `PATH`",
+                        "additionalProperties": {
+                            "type": "string"
+                        }
+                    },
+                    "secrets": {
+                        "type": "array",
+                        "description": "the secrets that are stored, for example `PASSWORD`; their values are never returned",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "state": {
+                        "type": "string",
+                        "enum": [
+                            "ok",
+                            "failing",
+                            "unchecked"
+                        ]
+                    },
+                    "checked_at": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "time of the last test of the connection"
+                    },
+                    "host_key": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "fingerprint of the pinned SSH host key of an SFTP destination"
+                    },
+                    "recovery_kit_exported_at": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "time the recovery kit of an encrypted destination was last exported; the kit is not in the API"
+                    },
+                    "jobs": {
+                        "type": "array",
+                        "description": "the backup jobs that store to it",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "created_at": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    }
+                },
+                "required": [
+                    "name",
+                    "driver",
+                    "description",
+                    "encrypt",
+                    "bwlimit",
+                    "fields",
+                    "secrets",
+                    "state",
+                    "checked_at",
+                    "host_key",
+                    "recovery_kit_exported_at",
+                    "jobs",
+                    "created_at"
+                ],
+                "title": "BackupDestination"
             },
             "BackupExclusions": {
                 "type": "object",
@@ -32311,6 +33695,242 @@
                     "user"
                 ],
                 "title": "BackupExclusions"
+            },
+            "BackupJob": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "description": "the Unix time of its creation and two digits"
+                    },
+                    "name": {
+                        "type": "string"
+                    },
+                    "engine": {
+                        "type": "string",
+                        "description": "tar archives or restic snapshots",
+                        "enum": [
+                            "archive",
+                            "snapshot"
+                        ]
+                    },
+                    "enabled": {
+                        "type": "boolean",
+                        "description": "false while the job is paused"
+                    },
+                    "schedule": {
+                        "type": "string",
+                        "description": "`hourly:MM`, `daily:HH:MM`, `weekly:D:HH:MM` (1 is Monday), `monthly:DD:HH:MM` or `cron:EXPRESSION`, in the server's time zone"
+                    },
+                    "schedule_text": {
+                        "type": "string",
+                        "description": "the schedule in words"
+                    },
+                    "scope": {
+                        "type": "string",
+                        "enum": [
+                            "all",
+                            "packages",
+                            "users"
+                        ]
+                    },
+                    "packages": {
+                        "type": "array",
+                        "description": "the packages of a `packages` scope",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "users": {
+                        "type": "array",
+                        "description": "the users of a `users` scope",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "exclude_users": {
+                        "type": "array",
+                        "description": "users left out of an `all` or `packages` scope",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "targets": {
+                        "type": "array",
+                        "description": "null keeps the package's number (archives) or sets no rule (snapshots)",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "destination": {
+                                    "type": "string"
+                                },
+                                "keep_last": {
+                                    "type": [
+                                        "integer",
+                                        "null"
+                                    ]
+                                },
+                                "daily": {
+                                    "type": [
+                                        "integer",
+                                        "null"
+                                    ]
+                                },
+                                "weekly": {
+                                    "type": [
+                                        "integer",
+                                        "null"
+                                    ]
+                                },
+                                "monthly": {
+                                    "type": [
+                                        "integer",
+                                        "null"
+                                    ]
+                                },
+                                "yearly": {
+                                    "type": [
+                                        "integer",
+                                        "null"
+                                    ]
+                                }
+                            },
+                            "required": [
+                                "destination",
+                                "keep_last",
+                                "daily",
+                                "weekly",
+                                "monthly",
+                                "yearly"
+                            ]
+                        }
+                    },
+                    "next_run_at": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "the next scheduled run"
+                    },
+                    "last_status": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "the state of the last run",
+                        "enum": [
+                            "running",
+                            "success",
+                            "partial",
+                            "failed",
+                            null
+                        ]
+                    },
+                    "last_finished_at": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
+                    "running": {
+                        "type": "boolean"
+                    }
+                },
+                "required": [
+                    "id",
+                    "name",
+                    "engine",
+                    "enabled",
+                    "schedule",
+                    "schedule_text",
+                    "scope",
+                    "packages",
+                    "users",
+                    "exclude_users",
+                    "targets",
+                    "next_run_at",
+                    "last_status",
+                    "last_finished_at",
+                    "running"
+                ],
+                "title": "BackupJob"
+            },
+            "BackupJobRun": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "description": "14 digits, the start time in seconds and four random digits"
+                    },
+                    "job": {
+                        "type": "string",
+                        "description": "the job, for `getBackupJob`"
+                    },
+                    "job_name": {
+                        "type": "string",
+                        "description": "the job's name at the time of the run"
+                    },
+                    "trigger": {
+                        "type": "string",
+                        "description": "`request` for Run now in the panel or `runBackupJob`, `cli` for a run started on the server",
+                        "enum": [
+                            "schedule",
+                            "request",
+                            "cli"
+                        ]
+                    },
+                    "status": {
+                        "type": "string",
+                        "description": "`partial` when some users or destinations failed",
+                        "enum": [
+                            "running",
+                            "success",
+                            "partial",
+                            "failed"
+                        ]
+                    },
+                    "started_at": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
+                    "finished_at": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "set when the run has ended"
+                    },
+                    "users": {
+                        "type": "integer",
+                        "description": "the users the run covers"
+                    },
+                    "done": {
+                        "type": "integer"
+                    },
+                    "failed": {
+                        "type": "integer"
+                    },
+                    "skipped": {
+                        "type": "integer",
+                        "description": "users skipped, for example suspended ones or those over the package's backup frequency"
+                    }
+                },
+                "required": [
+                    "id",
+                    "job",
+                    "job_name",
+                    "trigger",
+                    "status",
+                    "started_at",
+                    "finished_at",
+                    "users",
+                    "done",
+                    "failed",
+                    "skipped"
+                ],
+                "title": "BackupJobRun"
             },
             "BackupRun": {
                 "type": "object",
@@ -32395,6 +34015,36 @@
                             "null"
                         ],
                         "description": "size of a tar archive in megabytes"
+                    },
+                    "job": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "the backup job of the run (E48), for `getBackupJob`"
+                    },
+                    "destinations": {
+                        "type": "array",
+                        "description": "the destinations the run stored to and how each went (E48); empty before E48",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "name": {
+                                    "type": "string"
+                                },
+                                "state": {
+                                    "type": "string",
+                                    "enum": [
+                                        "ok",
+                                        "failed"
+                                    ]
+                                }
+                            },
+                            "required": [
+                                "name",
+                                "state"
+                            ]
+                        }
                     }
                 },
                 "required": [
@@ -32409,7 +34059,9 @@
                     "exit_code",
                     "error",
                     "archive",
-                    "size_mb"
+                    "size_mb",
+                    "job",
+                    "destinations"
                 ],
                 "title": "BackupRun"
             },
@@ -36683,6 +38335,15 @@
                     "backups_incremental": {
                         "type": "boolean"
                     },
+                    "backup_frequency": {
+                        "type": "string",
+                        "description": "how often scheduled backup jobs may back up a user of the package at most (E48)",
+                        "enum": [
+                            "hourly",
+                            "daily",
+                            "weekly"
+                        ]
+                    },
                     "reseller": {
                         "type": "object",
                         "description": "What a reseller on this package may do (E11)",
@@ -36896,6 +38557,7 @@
                     "shell",
                     "nameservers",
                     "backups_incremental",
+                    "backup_frequency",
                     "reseller",
                     "ports",
                     "node",
@@ -40044,6 +41706,201 @@
                 ],
                 "title": "StoreAppProcessRequest"
             },
+            "StoreBackupDestinationRequest": {
+                "type": "object",
+                "description": "POST /system/backup-destinations (E48 spec §9): the fields of the driver\nin `fields`, its secrets in `secrets` (write-only).",
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "description": "Lower-case letters, digits and hyphens, at most 32.",
+                        "pattern": "^[a-z0-9][a-z0-9-]{0,31}$"
+                    },
+                    "driver": {
+                        "type": "string",
+                        "enum": [
+                            "local",
+                            "sftp",
+                            "ftp",
+                            "s3",
+                            "b2",
+                            "gdrive",
+                            "dropbox",
+                            "onedrive",
+                            "webdav",
+                            "rclone"
+                        ]
+                    },
+                    "fields": {
+                        "type": "object",
+                        "description": "The fields of the driver by name, for example `{\"HOST\": \"backup.example.com\", \"PORT\": \"22\", \"PATH\": \"server1\"}`, and `DESCRIPTION`, `ENCRYPT` (`yes` or `no`) and `BWLIMIT`.",
+                        "properties": {
+                            "DESCRIPTION": {
+                                "type": [
+                                    "string",
+                                    "null"
+                                ],
+                                "maxLength": 128
+                            },
+                            "ENCRYPT": {
+                                "type": [
+                                    "string",
+                                    "null"
+                                ],
+                                "enum": [
+                                    "yes",
+                                    "no",
+                                    null
+                                ]
+                            },
+                            "BWLIMIT": {
+                                "type": [
+                                    "string",
+                                    "null"
+                                ],
+                                "pattern": "^\\d{1,6}[KMG]?$"
+                            }
+                        }
+                    },
+                    "secrets": {
+                        "type": "array",
+                        "description": "The secrets of the driver by name, for example `{\"PASSWORD\": \"…\"}`; never returned.",
+                        "items": {
+                            "type": "string"
+                        }
+                    }
+                },
+                "required": [
+                    "name",
+                    "driver"
+                ],
+                "title": "StoreBackupDestinationRequest"
+            },
+            "StoreBackupJobRequest": {
+                "type": "object",
+                "description": "POST /system/backup-jobs (E48 spec §5.1, §9). v-add-backup-job checks\nagain, including that the destinations exist and the schedule ever runs.",
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "pattern": "^[^'\"\\\\`$\\x00-\\x1f]{1,64}$"
+                    },
+                    "engine": {
+                        "type": "string",
+                        "description": "`archive` for tar archives, `snapshot` for restic snapshots.",
+                        "enum": [
+                            "archive",
+                            "snapshot"
+                        ]
+                    },
+                    "schedule": {
+                        "type": "string",
+                        "description": "`hourly:MM`, `daily:HH:MM`, `weekly:D:HH:MM` (1 is Monday), `monthly:DD:HH:MM` (1–28) or `cron:M H DOM MON DOW`, in the server's time zone.",
+                        "pattern": "^(hourly:[0-5]?\\d|daily:([01]?\\d|2[0-3]):[0-5]?\\d|weekly:[1-7]:([01]?\\d|2[0-3]):[0-5]?\\d|monthly:(0?[1-9]|1\\d|2[0-8]):([01]?\\d|2[0-3]):[0-5]?\\d|cron:[0-9*\\/,\\- ]{9,128})$"
+                    },
+                    "scope": {
+                        "type": "string",
+                        "description": "`all` (default), `packages` or `users`.",
+                        "enum": [
+                            "all",
+                            "packages",
+                            "users"
+                        ]
+                    },
+                    "packages": {
+                        "type": "array",
+                        "description": "The packages of a `packages` scope.",
+                        "items": {
+                            "type": "string",
+                            "pattern": "^[A-Za-z0-9_.-]{1,64}$"
+                        }
+                    },
+                    "users": {
+                        "type": "array",
+                        "description": "The users of a `users` scope.",
+                        "items": {
+                            "type": "string",
+                            "pattern": "^[a-z0-9][a-z0-9_.-]{0,31}$"
+                        }
+                    },
+                    "exclude_users": {
+                        "type": "array",
+                        "description": "Users left out of an `all` or `packages` scope.",
+                        "items": {
+                            "type": "string",
+                            "pattern": "^[a-z0-9][a-z0-9_.-]{0,31}$"
+                        }
+                    },
+                    "targets": {
+                        "type": "array",
+                        "description": "One to eight destinations with their retention; null or -1 keeps the package's number (archives) or sets no rule (snapshots).",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "destination": {
+                                    "type": "string",
+                                    "pattern": "^[a-z0-9][a-z0-9-]{0,31}$"
+                                },
+                                "keep_last": {
+                                    "type": [
+                                        "integer",
+                                        "null"
+                                    ],
+                                    "minimum": -1,
+                                    "maximum": 9999
+                                },
+                                "daily": {
+                                    "type": [
+                                        "integer",
+                                        "null"
+                                    ],
+                                    "minimum": -1,
+                                    "maximum": 9999
+                                },
+                                "weekly": {
+                                    "type": [
+                                        "integer",
+                                        "null"
+                                    ],
+                                    "minimum": -1,
+                                    "maximum": 9999
+                                },
+                                "monthly": {
+                                    "type": [
+                                        "integer",
+                                        "null"
+                                    ],
+                                    "minimum": -1,
+                                    "maximum": 9999
+                                },
+                                "yearly": {
+                                    "type": [
+                                        "integer",
+                                        "null"
+                                    ],
+                                    "minimum": -1,
+                                    "maximum": 9999
+                                }
+                            },
+                            "required": [
+                                "destination"
+                            ]
+                        },
+                        "minItems": 1,
+                        "maxItems": 8,
+                        "uniqueItems": true
+                    },
+                    "enabled": {
+                        "type": "boolean",
+                        "description": "Paused when false. Default true."
+                    }
+                },
+                "required": [
+                    "name",
+                    "engine",
+                    "schedule",
+                    "targets"
+                ],
+                "title": "StoreBackupJobRequest"
+            },
             "StoreBucketRequest": {
                 "type": "object",
                 "description": "POST /users/{user}/buckets (E44 spec §10).",
@@ -40993,6 +42850,14 @@
                             }
                         }
                     },
+                    "backup_frequency": {
+                        "type": "string",
+                        "enum": [
+                            "hourly",
+                            "daily",
+                            "weekly"
+                        ]
+                    },
                     "php": {
                         "type": "object",
                         "properties": {
@@ -41477,6 +43342,169 @@
                     }
                 },
                 "title": "UpdateAppProcessRequest"
+            },
+            "UpdateBackupDestinationRequest": {
+                "type": "object",
+                "description": "PATCH /system/backup-destinations/{destination} (E48 spec §9): fields\nleft out keep their value, secrets left out stay stored. Administrators\nonly (403 before validation), an unknown destination 404.",
+                "properties": {
+                    "fields": {
+                        "type": "object",
+                        "description": "Only the fields that change; `DESCRIPTION`, `ENCRYPT` and `BWLIMIT` included.",
+                        "properties": {
+                            "DESCRIPTION": {
+                                "type": [
+                                    "string",
+                                    "null"
+                                ],
+                                "maxLength": 128
+                            },
+                            "ENCRYPT": {
+                                "type": [
+                                    "string",
+                                    "null"
+                                ],
+                                "enum": [
+                                    "yes",
+                                    "no",
+                                    null
+                                ]
+                            },
+                            "BWLIMIT": {
+                                "type": [
+                                    "string",
+                                    "null"
+                                ],
+                                "pattern": "^\\d{1,6}[KMG]?$"
+                            }
+                        }
+                    },
+                    "secrets": {
+                        "type": "array",
+                        "description": "Only the secrets that change; never returned.",
+                        "items": {
+                            "type": "string"
+                        }
+                    }
+                },
+                "title": "UpdateBackupDestinationRequest"
+            },
+            "UpdateBackupJobRequest": {
+                "type": "object",
+                "description": "PATCH /system/backup-jobs/{job} (E48 spec §9): fields left out keep their\nvalue. Administrators only (403 before validation), an unknown job 404.",
+                "properties": {
+                    "name": {
+                        "type": "string",
+                        "pattern": "^[^'\"\\\\`$\\x00-\\x1f]{1,64}$"
+                    },
+                    "engine": {
+                        "type": "string",
+                        "enum": [
+                            "archive",
+                            "snapshot"
+                        ]
+                    },
+                    "schedule": {
+                        "type": "string",
+                        "pattern": "^(hourly:[0-5]?\\d|daily:([01]?\\d|2[0-3]):[0-5]?\\d|weekly:[1-7]:([01]?\\d|2[0-3]):[0-5]?\\d|monthly:(0?[1-9]|1\\d|2[0-8]):([01]?\\d|2[0-3]):[0-5]?\\d|cron:[0-9*\\/,\\- ]{9,128})$"
+                    },
+                    "scope": {
+                        "type": "string",
+                        "description": "`all` (default), `packages` or `users`.",
+                        "enum": [
+                            "all",
+                            "packages",
+                            "users"
+                        ]
+                    },
+                    "packages": {
+                        "type": "array",
+                        "description": "The packages of a `packages` scope.",
+                        "items": {
+                            "type": "string",
+                            "pattern": "^[A-Za-z0-9_.-]{1,64}$"
+                        }
+                    },
+                    "users": {
+                        "type": "array",
+                        "description": "The users of a `users` scope.",
+                        "items": {
+                            "type": "string",
+                            "pattern": "^[a-z0-9][a-z0-9_.-]{0,31}$"
+                        }
+                    },
+                    "exclude_users": {
+                        "type": "array",
+                        "description": "Users left out of an `all` or `packages` scope.",
+                        "items": {
+                            "type": "string",
+                            "pattern": "^[a-z0-9][a-z0-9_.-]{0,31}$"
+                        }
+                    },
+                    "targets": {
+                        "type": "array",
+                        "description": "One to eight destinations with their retention; null or -1 keeps the package's number (archives) or sets no rule (snapshots).",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "destination": {
+                                    "type": "string",
+                                    "pattern": "^[a-z0-9][a-z0-9-]{0,31}$"
+                                },
+                                "keep_last": {
+                                    "type": [
+                                        "integer",
+                                        "null"
+                                    ],
+                                    "minimum": -1,
+                                    "maximum": 9999
+                                },
+                                "daily": {
+                                    "type": [
+                                        "integer",
+                                        "null"
+                                    ],
+                                    "minimum": -1,
+                                    "maximum": 9999
+                                },
+                                "weekly": {
+                                    "type": [
+                                        "integer",
+                                        "null"
+                                    ],
+                                    "minimum": -1,
+                                    "maximum": 9999
+                                },
+                                "monthly": {
+                                    "type": [
+                                        "integer",
+                                        "null"
+                                    ],
+                                    "minimum": -1,
+                                    "maximum": 9999
+                                },
+                                "yearly": {
+                                    "type": [
+                                        "integer",
+                                        "null"
+                                    ],
+                                    "minimum": -1,
+                                    "maximum": 9999
+                                }
+                            },
+                            "required": [
+                                "destination"
+                            ]
+                        },
+                        "minItems": 1,
+                        "maxItems": 8,
+                        "uniqueItems": true
+                    },
+                    "enabled": {
+                        "type": "boolean",
+                        "description": "Pauses the job when false, resumes it when true."
+                    }
+                },
+                "title": "UpdateBackupJobRequest"
             },
             "UpdateBucketRequest": {
                 "type": "object",
@@ -42141,6 +44169,14 @@
                                 "type": "boolean"
                             }
                         }
+                    },
+                    "backup_frequency": {
+                        "type": "string",
+                        "enum": [
+                            "hourly",
+                            "daily",
+                            "weekly"
+                        ]
                     },
                     "php": {
                         "type": "object",

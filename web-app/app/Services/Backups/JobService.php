@@ -42,13 +42,14 @@ final class JobService
     }
 
     /**
-     * The enabled jobs that back up USER of PACKAGE (E48 spec §8.1).
+     * The jobs that back up USER of PACKAGE (E48 spec §8.1): the enabled ones,
+     * or the paused ones too for a requested backup.
      *
      * @return list<BackupJob>
      */
-    public function covering(string $user, string $package): array
+    public function covering(string $user, string $package, bool $enabledOnly = true): array
     {
-        return array_values(array_filter($this->all(), fn (BackupJob $job) => $job->enabled && $job->covers($user, $package)));
+        return array_values(array_filter($this->all(), fn (BackupJob $job) => ($job->enabled || ! $enabledOnly) && $job->covers($user, $package)));
     }
 
     /** @param  array{name: string, engine: string, scope: string, schedule: string, targets: string, exclude: string}  $values */

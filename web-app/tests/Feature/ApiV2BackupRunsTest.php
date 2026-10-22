@@ -18,7 +18,8 @@ function backupRunRows(string $user): array
             '17923000004321' => $run('tar', 'request', '17923000001111', 'running', '2026-10-18 09:00:00', '', '', '', '', ''),
             '17922000001234' => $run('restic', 'schedule', '', 'succeeded', '2026-10-17 05:10:00', '2026-10-17 05:12:00', '0', '', '4f2a91c0', ''),
             '17921000005678' => $run('tar', 'schedule', '', 'failed', '2026-10-16 05:10:00', '2026-10-16 05:10:05', '3', 'cant create tmp dir', '', ''),
-            '17920000000001' => $run('tar', 'cli', '', 'succeeded', '2026-10-15 05:10:00', '2026-10-15 05:11:00', '0', '', 'bob.2026-10-15_05-11-00.tar', '12'),
+            '17920000000001' => ['JOB' => '179267621466', 'DESTS' => 'local:ok,offsite:failed']
+                + $run('tar', 'cli', '', 'succeeded', '2026-10-15 05:10:00', '2026-10-15 05:11:00', '0', '', 'bob.2026-10-15_05-11-00.tar', '12'),
         ],
         'carol' => [
             '17921500000002' => $run('tar', 'schedule', '', 'succeeded', '2026-10-16 05:20:00', '2026-10-16 05:21:00', '0', '', 'carol.2026-10-16_05-21-00.tar', '3'),
@@ -70,11 +71,13 @@ it('answers every run newest first with its fields', function () {
     expect($data[0])->toBe([
         'id' => '17923000004321', 'user' => 'bob', 'engine' => 'tar', 'trigger' => 'request', 'task' => 'queue:bob:17923000001111',
         'status' => 'running', 'started_at' => '2026-10-18T09:00:00', 'finished_at' => null, 'exit_code' => null, 'error' => null,
-        'archive' => null, 'size_mb' => null,
+        'archive' => null, 'size_mb' => null, 'job' => null, 'destinations' => [],
     ]);
     expect($data[1])->toMatchArray(['engine' => 'restic', 'trigger' => 'schedule', 'task' => null, 'status' => 'succeeded', 'exit_code' => 0, 'archive' => '4f2a91c0', 'size_mb' => null]);
     expect($data[2])->toMatchArray(['status' => 'failed', 'exit_code' => 3, 'error' => 'cant create tmp dir', 'finished_at' => '2026-10-16T05:10:05', 'archive' => null]);
     expect($data[3])->toMatchArray(['trigger' => 'cli', 'archive' => 'bob.2026-10-15_05-11-00.tar', 'size_mb' => 12]);
+    // E48: the job and the state of each destination
+    expect($data[3])->toMatchArray(['job' => '179267621466', 'destinations' => [['name' => 'local', 'state' => 'ok'], ['name' => 'offsite', 'state' => 'failed']]]);
     $this->fake->assertRan('v-list-user-backup-runs', fn (array $a) => $a === ['bob', 'json']);
 });
 

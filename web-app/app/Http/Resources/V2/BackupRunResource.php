@@ -19,8 +19,7 @@ final class BackupRunResource extends JsonResource
     {
         $run = $this->resource;
         $finished = $run->status !== 'running';
-        $time = fn (string $stamp): ?string => preg_match('/^(\d{4}-\d{2}-\d{2}) (\d{2}:\d{2}:\d{2})$/', $stamp, $m) === 1
-            ? UserResource::localTime($m[1], $m[2]) : null;
+        $time = self::stamp(...);
 
         return [
             /** @var string 14 digits, the start time in seconds and four random digits */
@@ -47,6 +46,17 @@ final class BackupRunResource extends JsonResource
             'archive' => $run->archive !== '' ? $run->archive : null,
             /** @var int|null size of a tar archive in megabytes */
             'size_mb' => ctype_digit($run->size) ? (int) $run->size : null,
+            /** @var string|null the backup job of the run (E48), for `getBackupJob` */
+            'job' => $run->job !== '' ? $run->job : null,
+            /** @var list<array{name: string, state: 'ok'|'failed'}> the destinations the run stored to and how each went (E48); empty before E48 */
+            'destinations' => array_map(fn (string $name, string $state) => ['name' => $name, 'state' => $state],
+                array_keys($run->destinationStates()), array_values($run->destinationStates())),
         ];
+    }
+
+    /** "YYYY-MM-DD HH:MM:SS" of a record as YYYY-MM-DDTHH:MM:SS, or null. */
+    public static function stamp(string $stamp): ?string
+    {
+        return preg_match('/^(\d{4}-\d{2}-\d{2}) (\d{2}:\d{2}:\d{2})$/', $stamp, $m) === 1 ? UserResource::localTime($m[1], $m[2]) : null;
     }
 }

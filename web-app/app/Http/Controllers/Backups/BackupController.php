@@ -68,7 +68,7 @@ final class BackupController extends Controller
         $job = (string) $request->input('job', '');
         if ($job !== '') {
             $package = $this->backups->settings($user)['package'];
-            $ids = array_map(fn ($covering) => $covering->id, array_filter($jobs->covering($user, $package), fn ($covering) => $covering->engine === 'archive'));
+            $ids = array_map(fn ($covering) => $covering->id, array_filter($jobs->covering($user, $package, enabledOnly: false), fn ($covering) => $covering->engine === 'archive'));
             abort_unless(in_array($job, $ids, true), 404);
         }
 

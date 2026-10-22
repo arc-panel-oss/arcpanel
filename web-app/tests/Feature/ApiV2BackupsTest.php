@@ -60,6 +60,44 @@ it('creates a backup with a v2-backup key and follows it with Link', function ()
     $this->fake->assertRan('v-schedule-user-backup', fn ($a) => $a === ['bob', 'json']);
 });
 
+it('creates a backup with an archive job that covers the user, and only with such a job (E48)', function () {
+    $this->fake->on('v-schedule-user-backup')->returnsJson(['ID' => '17290000009002']);
+    $headers = apiAs($this->fake, 'bob', 'user', area: 'backup');
+
+    $this->postJson('/api/v2/users/bob/backups', ['job' => '179267621466'], $headers)->assertStatus(202)->assertJsonPath('data.id', 'queue:bob:17290000009002');
+    $this->fake->assertRan('v-schedule-user-backup', fn ($a) => $a === ['bob', 'json', '179267621466']);
+    // The snapshot job, an unknown job, a bad value
+    $this->postJson('/api/v2/users/bob/backups', ['job' => '179267621499'], $headers)->assertUnprocessable()->assertJsonStructure(['error' => ['fields' => ['job']]]);
+    $this->postJson('/api/v2/users/bob/backups', ['job' => '179200000000'], $headers)->assertUnprocessable();
+    $this->postJson('/api/v2/users/bob/backups', ['job' => 'x; rm'], $headers)->assertUnprocessable();
+    $this->postJson('/api/v2/users/bob/backups?dry_run=1', ['job' => '179267621466'], $headers)->assertOk()
+        ->assertJsonPath('data.steps.0.args', ['bob', 'json', '179267621466']);
+    $this->fake->assertRan('v-schedule-user-backup', null, 1);
+
+    // A paused job backs up on request too, as Run now does
+    $this->fake->on('v-list-backup-jobs', ['json'])->returnsJson(['179267621466' => ['ID' => '179267621466', 'NAME' => 'Nightly archives', 'ENGINE' => 'archive',
+        'SCOPE' => 'all', 'SCHEDULE' => 'daily:05:10', 'TARGETS' => 'local:-1:-1:-1:-1:-1', 'STATE' => 'paused']]);
+    $this->postJson('/api/v2/users/bob/backups', ['job' => '179267621466'], $headers)->assertStatus(202);
+    $this->fake->assertRan('v-schedule-user-backup', null, 2);
+});
+
+it('names the job and the destinations of an archive (E48)', function () {
+    $archive = [API_BK_ARCHIVE => ['TYPE' => 'local', 'SIZE' => '2', 'WEB' => 'example.com', 'DNS' => '', 'MAIL' => '',
+        'DB' => '', 'CRON' => '', 'UDIR' => '', 'RUNTIME' => '1', 'TIME' => '05:10:09', 'DATE' => '2026-10-03', 'JOB' => '179267621466',
+        'DESTINATIONS' => 'local,offsite', 'ENCRYPTED' => 'offsite']];
+    $this->fake->on('v-list-user-backups')->returnsJson($archive);
+    $this->fake->on('v-list-user-backup')->returnsJson($archive);
+    $headers = apiAs($this->fake, 'bob', 'user', readOnly: true);
+
+    $this->getJson('/api/v2/users/bob/backups/'.API_BK_ARCHIVE, $headers)->assertOk()
+        ->assertJsonPath('data.job', '179267621466')->assertJsonPath('data.destinations', ['local', 'offsite'])->assertJsonPath('data.encrypted', true);
+    $this->getJson('/api/v2/users/bob/backups', $headers)->assertOk()->assertJsonPath('data.0.destinations', ['local', 'offsite']);
+    // Before E48 the type of the backup host stands for the destination
+    fakeBackupData($this->fake);
+    $this->getJson('/api/v2/users/bob/backups/'.API_BK_ARCHIVE, $headers)->assertOk()
+        ->assertJsonPath('data.job', null)->assertJsonPath('data.destinations', ['local'])->assertJsonPath('data.encrypted', false);
+});
+
 it('answers 409 with the queued task when a backup is already scheduled', function () {
     $this->fake->on('v-list-user-tasks', ['bob', 'json'])->returnsJson([
         '17290000008001' => ['ID' => '17290000008001', 'KIND' => 'backup', 'ARGS' => '', 'STATUS' => 'queued', 'EXIT' => '', 'ERROR' => '',

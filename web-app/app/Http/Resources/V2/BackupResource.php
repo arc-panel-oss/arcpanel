@@ -40,6 +40,12 @@ final class BackupResource extends JsonResource
                 'udir' => $archive->items['udir'],
                 'cron' => $archive->items['cron'] !== [],
             ],
+            /** @var string|null the backup job that made the archive (E48), for `getBackupJob` */
+            'job' => $archive->job !== '' ? $archive->job : null,
+            /** @var list<string> the destinations that hold the archive (E48); `local` or the old backup host type before E48 */
+            'destinations' => $archive->destinations,
+            /** @var bool whether the archive is encrypted on at least one destination (E48) */
+            'encrypted' => $archive->encrypted,
         ];
     }
 

@@ -4,6 +4,9 @@ use App\Api\ApiHeaders;
 use App\Http\Controllers\Api\V2\AccessKeyController;
 use App\Http\Controllers\Api\V2\AppProcessController;
 use App\Http\Controllers\Api\V2\BackupController;
+use App\Http\Controllers\Api\V2\BackupDestinationController;
+use App\Http\Controllers\Api\V2\BackupJobController;
+use App\Http\Controllers\Api\V2\BackupJobRunController;
 use App\Http\Controllers\Api\V2\BucketController;
 use App\Http\Controllers\Api\V2\CronController;
 use App\Http\Controllers\Api\V2\DatabaseController;
@@ -217,6 +220,28 @@ Route::prefix('/system/settings')->name('system.settings.')->group(function () {
         Route::patch('/{tab}', [ServerSettingsController::class, 'update'])
             ->where('tab', 'general|web|dns|mail|databases|backups|ssl|security|plugins|white-label')
             ->name('update');
+    });
+});
+
+// Backup destinations, jobs and their runs (E48 spec §9); administrators only
+Route::prefix('/system')->name('system.')->group(function () {
+    $destination = ['destination' => '[a-z0-9][a-z0-9-]{0,31}'];
+    $job = ['job' => '\d{8,20}'];
+    Route::get('/backup-destinations', [BackupDestinationController::class, 'index'])->name('backup-destinations.index');
+    Route::get('/backup-destinations/{destination}', [BackupDestinationController::class, 'show'])->where($destination)->name('backup-destinations.show');
+    Route::get('/backup-jobs', [BackupJobController::class, 'index'])->name('backup-jobs.index');
+    Route::get('/backup-jobs/{job}', [BackupJobController::class, 'show'])->where($job)->name('backup-jobs.show');
+    Route::get('/backup-job-runs', [BackupJobRunController::class, 'index'])->name('backup-job-runs.index');
+    Route::get('/backup-job-runs/{run}', [BackupJobRunController::class, 'show'])->where('run', '\d{14}')->name('backup-job-runs.show');
+    Route::middleware('not-readonly')->group(function () use ($destination, $job) {
+        Route::post('/backup-destinations', [BackupDestinationController::class, 'store'])->name('backup-destinations.store');
+        Route::patch('/backup-destinations/{destination}', [BackupDestinationController::class, 'update'])->where($destination)->name('backup-destinations.update');
+        Route::delete('/backup-destinations/{destination}', [BackupDestinationController::class, 'destroy'])->where($destination)->name('backup-destinations.destroy');
+        Route::post('/backup-destinations/{destination}/check', [BackupDestinationController::class, 'check'])->where($destination)->name('backup-destinations.check');
+        Route::post('/backup-jobs', [BackupJobController::class, 'store'])->name('backup-jobs.store');
+        Route::patch('/backup-jobs/{job}', [BackupJobController::class, 'update'])->where($job)->name('backup-jobs.update');
+        Route::delete('/backup-jobs/{job}', [BackupJobController::class, 'destroy'])->where($job)->name('backup-jobs.destroy');
+        Route::post('/backup-jobs/{job}/run', [BackupJobController::class, 'run'])->where($job)->name('backup-jobs.run');
     });
 });
 

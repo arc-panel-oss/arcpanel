@@ -6,42 +6,6 @@ use App\Auth\SudoMode;
 // The administrators' Backups hub (E48 spec §8.2): destinations, jobs,
 // activity and settings over the v-*-backup-destination and -job commands.
 
-/** `v-list-backup-destinations json`, as the command prints it */
-function backupDestinations(array $overrides = []): array
-{
-    $rows = [
-        'local' => ['NAME' => 'local', 'DRIVER' => 'local', 'DESCRIPTION' => '', 'ENCRYPT' => 'no', 'BWLIMIT' => '', 'RESTIC_PREFIX' => 'restic',
-            'HOST_KEY' => '', 'STATE' => 'ok', 'CHECKED' => '2026-10-22 20:37:00', 'FAILURES' => '0', 'KIT' => '', 'CREATED' => '2026-10-22 20:36:54',
-            'UPDATED' => '2026-10-22 20:36:54', 'PATH' => '/backup', 'SECRETS' => '', 'JOBS' => '179267621466'],
-        'offsite' => ['NAME' => 'offsite', 'DRIVER' => 'sftp', 'DESCRIPTION' => 'Storage box', 'ENCRYPT' => 'yes', 'BWLIMIT' => '10M', 'RESTIC_PREFIX' => 'restic',
-            'HOST_KEY' => 'SHA256:abcdefghijklmnopqrstuvwxyz0123456789ABCDEFG', 'STATE' => 'failing', 'CHECKED' => '2026-10-22 21:00:00', 'FAILURES' => '3',
-            'KIT' => '', 'CREATED' => '2026-10-22 20:40:00', 'UPDATED' => '2026-10-22 20:40:00', 'HOST' => 'box.example.net', 'PORT' => '23',
-            'USERNAME' => 'u123', 'PATH' => 'arc', 'SECRETS' => 'PASSWORD', 'JOBS' => ''],
-    ];
-
-    return array_replace_recursive($rows, $overrides);
-}
-
-/** `v-list-backup-jobs json` */
-function backupJobs(): array
-{
-    return ['179267621466' => ['ID' => '179267621466', 'NAME' => 'Nightly archives', 'ENGINE' => 'archive', 'SCOPE' => 'all', 'EXCLUDE_USERS' => 'carol',
-        'SCHEDULE' => 'daily:05:10', 'TARGETS' => 'local:-1:-1:-1:-1:-1', 'STATE' => 'enabled', 'LAST_RUN' => '17926789985709',
-        'NEXT_RUN' => '2026-10-23 05:10:00', 'NEXT_RUN_TS' => '1792707000', 'CREATED' => '2026-10-22 20:36:54', 'UPDATED' => '2026-10-22 21:23:09',
-        'LAST_STATUS' => 'partial', 'LAST_END' => '2026-10-22 21:23:26', 'RUNNING' => 'no']];
-}
-
-/** `v-list-backup-job-runs [ID] json` */
-function backupJobRuns(): array
-{
-    return [
-        ['JOB' => '179267621466', 'JOB_NAME' => 'Nightly archives', 'RUN' => '17926789985709', 'TRIGGER' => 'schedule', 'STATUS' => 'partial',
-            'START' => now()->subHour()->format('Y-m-d H:i:s'), 'END' => now()->subMinutes(50)->format('Y-m-d H:i:s'), 'USERS' => '2', 'DONE' => '2', 'FAILED' => '0', 'SKIPPED' => '1', 'PID' => ''],
-        ['JOB' => '179267621466', 'JOB_NAME' => 'Nightly archives', 'RUN' => '17926000000001', 'TRIGGER' => 'cli', 'STATUS' => 'success',
-            'START' => '2026-10-01 05:10:00', 'END' => '2026-10-01 05:12:00', 'USERS' => '2', 'DONE' => '2', 'FAILED' => '0', 'SKIPPED' => '0', 'PID' => ''],
-    ];
-}
-
 beforeEach(function () {
     $this->fake = fakeArc(['BACKUP' => '/backup', 'BACKUP_MODE' => 'gzip', 'BACKUP_GZIP' => '9', 'BACKUP_PARALLEL' => '1', 'BACKUP_LA_LIMIT' => '4',
         'BACKUP_REPORT' => 'failures', 'BACKUP_TEMP' => '/backup', 'POLICY_BACKUP_SUSPENDED_USERS' => 'no', 'BACKUP_SYSTEM' => 'local,sftp']);

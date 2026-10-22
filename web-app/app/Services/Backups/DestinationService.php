@@ -48,12 +48,7 @@ final class DestinationService
      */
     public function add(string $name, string $driver, array $fields, array $secrets): CommandResult
     {
-        $args = [$name, $driver, Secret::file(self::optionsFile($fields))];
-        if ($secrets !== []) {
-            $args[] = Secret::directory($secrets);
-        }
-
-        return $this->arc->run('v-add-backup-destination', $args, Options::allowFailure());
+        return $this->arc->run('v-add-backup-destination', self::args($name, $driver, $fields, $secrets), Options::allowFailure());
     }
 
     /**
@@ -62,12 +57,7 @@ final class DestinationService
      */
     public function change(string $name, array $fields, array $secrets): CommandResult
     {
-        $args = [$name, Secret::file(self::optionsFile($fields))];
-        if ($secrets !== []) {
-            $args[] = Secret::directory($secrets);
-        }
-
-        return $this->arc->run('v-change-backup-destination', $args, Options::allowFailure());
+        return $this->arc->run('v-change-backup-destination', self::args($name, null, $fields, $secrets), Options::allowFailure());
     }
 
     public function delete(string $name): CommandResult
@@ -101,6 +91,24 @@ final class DestinationService
     public function recoveryKit(string $name): CommandResult
     {
         return $this->arc->run('v-export-backup-destination-key', [$name], Options::allowFailure());
+    }
+
+    /**
+     * The arguments of v-add-backup-destination (NAME and DRIVER given) or
+     * v-change-backup-destination (NAME only).
+     *
+     * @param  array<string, string>  $fields
+     * @param  array<string, string>  $secrets
+     * @return list<string|Secret>
+     */
+    public static function args(string $name, ?string $driver, array $fields, array $secrets): array
+    {
+        $args = [$name, ...($driver !== null ? [$driver] : []), Secret::file(self::optionsFile($fields))];
+        if ($secrets !== []) {
+            $args[] = Secret::directory($secrets);
+        }
+
+        return $args;
     }
 
     /** @param  array<string, string>  $fields */

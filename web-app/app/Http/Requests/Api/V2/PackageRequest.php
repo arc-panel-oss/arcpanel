@@ -101,6 +101,8 @@ abstract class PackageRequest extends ApiRequest
             'object_storage.quota' => ['sometimes', 'nullable', 'string', 'max:20', 'regex:/^\d{1,9}[MGT]?$/'],
             /** Whether user backups include the objects of the buckets. */
             'object_storage.backup' => ['sometimes', 'boolean'],
+            /** How often scheduled backup jobs may back up a user of the package at most: `hourly`, `daily` or `weekly` (E48). */
+            'backup_frequency' => ['sometimes', 'string', 'in:hourly,daily,weekly'],
             'php' => ['sometimes', 'array'],
             /** `*` (every installed version that has not reached its end of life) or a comma list of versions such as `8.3,8.4` (E41). */
             'php.versions' => ['sometimes', 'string', 'max:200', 'regex:/^(\*|\d{1,2}\.\d{1,2}(,\d{1,2}\.\d{1,2})*)$/'],
@@ -219,7 +221,7 @@ abstract class PackageRequest extends ApiRequest
 
     /**
      * @param  array<string, string>  $base
-     * @return array{OBJECT_STORAGE: string, OBJECT_STORAGE_BUCKETS: string, OBJECT_STORAGE_QUOTA: string, OBJECT_STORAGE_BACKUP: string}
+     * @return array{OBJECT_STORAGE: string, OBJECT_STORAGE_BUCKETS: string, OBJECT_STORAGE_QUOTA: string, OBJECT_STORAGE_BACKUP: string, BACKUP_FREQUENCY: string}
      */
     public function storageValues(array $base): array
     {
@@ -230,6 +232,7 @@ abstract class PackageRequest extends ApiRequest
             'OBJECT_STORAGE_BUCKETS' => $this->has('object_storage.buckets') ? self::number($this->input('object_storage.buckets')) : ($base['OBJECT_STORAGE_BUCKETS'] ?? '3'),
             'OBJECT_STORAGE_QUOTA' => $this->has('object_storage.quota') ? (string) ($this->input('object_storage.quota') ?? 'unlimited') : ($base['OBJECT_STORAGE_QUOTA'] ?? '1G'),
             'OBJECT_STORAGE_BACKUP' => $flag('object_storage.backup', 'OBJECT_STORAGE_BACKUP'),
+            'BACKUP_FREQUENCY' => $this->has('backup_frequency') ? (string) $this->input('backup_frequency') : ($base['BACKUP_FREQUENCY'] ?? 'daily'),
         ];
     }
 
@@ -293,6 +296,7 @@ abstract class PackageRequest extends ApiRequest
                 'app_processes_memory' => 'app_processes.memory', 'app_processes_cpus' => 'app_processes.cpus',
                 'object_storage' => 'object_storage.enabled', 'object_storage_buckets' => 'object_storage.buckets',
                 'object_storage_quota' => 'object_storage.quota', 'object_storage_backup' => 'object_storage.backup',
+                'backup_frequency' => 'backup_frequency',
             ];
             foreach (self::LIMITS as $field => $key) {
                 $names[strtolower($key)] = 'limits.'.$field;
