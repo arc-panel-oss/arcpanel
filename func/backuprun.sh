@@ -115,6 +115,14 @@ br_on_exit() {
 	br_set_unlocked "$BR_USER" "$BR_ID" "STATUS=$status" "END=$(date +'%F %T')" "EXIT=$rc" \
 		"ERROR=$(printf '%.300s' "${BR_ERROR:-${BR_ERROR_PARTIAL-}}")" "ARCHIVE=${BR_ARCHIVE-}" "SIZE=${BR_SIZE-}" PID= "DESTS=${BR_DESTS-}"
 	br_unlock
+	# The user hears of a failed or partial backup (E48 spec §7)
+	if declare -F bj_notify_user > /dev/null; then
+		if [ "$status" = failed ]; then
+			bj_notify_user "$BR_USER" failed "$(printf '%.300s' "${BR_ERROR:-exit code $rc}")"
+		elif [ -n "${BR_ERROR_PARTIAL-}" ]; then
+			bj_notify_user "$BR_USER" partial "$(printf '%.300s' "$BR_ERROR_PARTIAL")"
+		fi
+	fi
 }
 
 # br_begin USER ENGINE: record a running run of this process and finish it

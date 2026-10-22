@@ -75,7 +75,7 @@ worker() {
 		echo -e "--------------------------------\n"
 	} >> "$log"
 	"$BIN/v-backup-docker-apps" "$owner" > /dev/null 2>&1
-	ARC_BACKUP_TRIGGER=$run_trigger nice -n 19 ionice -c2 -n7 "$BIN/$(engine_command)" "$owner" no "$id" >> "$log" 2>&1
+	ARC_BACKUP_JOB_RUN=yes ARC_BACKUP_TRIGGER=$run_trigger nice -n 19 ionice -c2 -n7 "$BIN/$(engine_command)" "$owner" no "$id" >> "$log" 2>&1
 	rc=$?
 	echo -e "\n--------------------------------\n\n" >> "$log"
 	result=$(user_result "$owner" "$rc")

@@ -209,9 +209,8 @@ fi
 # Get current time
 start_time=$(date '+%s')
 
-# Set notification email and subject
+# Subject of the failure mails (bj_mail_failure)
 subj="$user → backup failed"
-email=$(grep CONTACT "$ARCPANEL/data/users/$ROOT_USER/user.conf" | cut -f 2 -d \')
 
 # Validate available disk space (take usage * 2, due to the backup handling)
 let u_disk=$(($(get_user_disk_usage) * 2))
@@ -220,7 +219,7 @@ let v_disk=$(echo "$(stat -f --format='%a*%S' $BACKUP) / 1024 / 1024" | bc)
 if [ "$u_disk" -gt "$v_disk" ]; then
 	let u_disk_original=$(get_user_disk_usage)
 	# Always notify on failure
-	echo "Not enough disk space available ($v_disk mb) to perform the backup  of $user. ( $u_disk_original mb * 2 = $u_disk mb). https://docs.arcpanel.top/docs/server-administration/backup-restore.html" | $SENDMAIL -s "$subj" "$email" "yes"
+	echo "Not enough disk space available ($v_disk mb) to perform the backup  of $user. ( $u_disk_original mb * 2 = $u_disk mb). https://docs.arcpanel.top/docs/server-administration/backup-restore.html" | bj_mail_failure "$subj"
 	# Deleting task from queue
 	sed -i "/v-backup-user $user /d" $ARCPANEL/data/queue/backup.pipe
 	check_result "$E_LIMIT" "not enough disk space available ($v_disk mb) to perform the backup  of $user. ( $u_disk_original mb * 2 = $u_disk mb)."
@@ -234,7 +233,7 @@ fi
 tmpdir=$(mktemp -p $BACKUP_TEMP -d)
 
 if [ "$?" -ne 0 ]; then
-	echo "Can't create tmp dir $tmpdir" | $SENDMAIL -s "$subj" "$email" "yes"
+	echo "Can't create tmp dir $tmpdir" | bj_mail_failure "$subj"
 	# Deleting task from queue
 	sed -i "/v-backup-user $user /d" $ARCPANEL/data/queue/backup.pipe
 	check_result "$E_NOTEXIST" "can't create tmp dir"
@@ -823,7 +822,7 @@ disk_usage=$(df "$BACKUP_TEMP" | tail -n1 | tr ' ' '\n' | grep % | cut -f 1 -d %
 if [ "$disk_usage" -ge "$BACKUP_DISK_LIMIT" ]; then
 	rm -rf $tmpdir
 	sed -i "/v-backup-user $user /d" $ARCPANEL/data/queue/backup.pipe
-	echo "Not enough disk space" | $SENDMAIL -s "$subj" "$email" "yes"
+	echo "Not enough disk space" | bj_mail_failure "$subj"
 	check_result "$E_DISK" "Not enough disk space"
 fi
 
@@ -866,7 +865,7 @@ done
 rm -f "$work"
 if [ -z "$delivered" ]; then
 	sed -i "/v-backup-user $user /d" $ARCPANEL/data/queue/backup.pipe
-	echo "$failures" | $SENDMAIL -s "$subj" "$email" "yes"
+	echo "$failures" | bj_mail_failure "$subj"
 	check_result "$E_CONNECT" "the archive could not be stored on any destination: ${failures%; }"
 fi
 if [ -n "$failures" ]; then

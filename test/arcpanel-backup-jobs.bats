@@ -76,6 +76,20 @@ user_run() {
     grep "JOB='$2'" "$ARCPANEL/data/users/$1/backup-runs.conf" | tail -n1 | grep -oE " $3='[^']*'" | cut -d"'" -f2
 }
 
+# Notices of USER with TOPIC
+notices() {
+    v-list-user-notifications "$1" json | jq --arg t "$2" '[.[] | select(.TOPIC == $t)] | length'
+}
+
+# Mails to the administrator noted in log/backup.log after line FROM
+mails_since() {
+    tail -n +"$(($1 + 1))" "$ARCPANEL/log/backup.log" | grep 'Mail to the administrator: ' || true
+}
+
+log_lines() {
+    grep -c '' "$ARCPANEL/log/backup.log" 2> /dev/null || echo 0
+}
+
 setup_file() {
     local tmp pass
     cleanup
@@ -84,6 +98,8 @@ setup_file() {
     rm -rf "$DIR" "$DAV_DIR"
     pkill -f "rclone serve webdav $DAV_DIR" > /dev/null 2>&1 || true
     grep -E '^BACKUP_PARALLEL=' "$ARCPANEL/conf/arcpanel.conf" > "$STATE" || true
+    grep -E '^BACKUP_REPORT=' "$ARCPANEL/conf/arcpanel.conf" > "$STATE.report" || true
+    cp -p "$ARCPANEL/data/backup/report.last" "$STATE.report-last" 2> /dev/null || true
 
     tmp=$(mktemp)
     sed -e "s/^BACKUPS=.*/BACKUPS='3'/" -e "s/^BACKUPS_INCREMENTAL=.*/BACKUPS_INCREMENTAL='yes'/" \
@@ -117,6 +133,16 @@ teardown_file() {
         v-change-sys-config-value BACKUP_PARALLEL "$(cut -d"'" -f2 "$STATE")" > /dev/null
     else
         sed -i '/^BACKUP_PARALLEL=/d' "$ARCPANEL/conf/arcpanel.conf"
+    fi
+    if [ -s "$STATE.report" ]; then
+        v-change-sys-config-value BACKUP_REPORT "$(cut -d"'" -f2 "$STATE.report")" > /dev/null
+    else
+        sed -i '/^BACKUP_REPORT=/d' "$ARCPANEL/conf/arcpanel.conf"
+    fi
+    if [ -f "$STATE.report-last" ]; then
+        cp -p "$STATE.report-last" "$ARCPANEL/data/backup/report.last"
+    else
+        rm -f "$ARCPANEL/data/backup/report.last"
     fi
 }
 
@@ -307,4 +333,89 @@ teardown_file() {
     assert_output true
     run v-list-sys-config shell
     assert_output --partial 'Backups at once:'
+}
+
+@test "notices: a failed backup tells the user once and mails follow BACKUP_REPORT" {
+    local id from before
+    id=$(v-add-backup-job arcbats-notice archive "users:$U1" daily:01:00 arcbats-down)
+    v-change-sys-config-value BACKUP_REPORT failures > /dev/null
+
+    # A backup with the job outside a job run (a request, the command line)
+    before=$(notices "$U1" 'Backup failed')
+    from=$(log_lines)
+    run v-backup-user "$U1" no "$id"
+    assert_failure
+    assert_equal "$(notices "$U1" 'Backup failed')" "$((before + 1))"
+    run v-list-user-notifications "$U1" json
+    assert_output --partial 'arcbats-notice'
+    run mails_since "$from"
+    assert_output --partial "$U1 → backup failed"
+    assert_equal "$(mails_since "$from" | wc -l)" 1
+
+    # A job run: one notice for the user, one mail for the job, none per user
+    before=$(notices "$U1" 'Backup failed')
+    from=$(log_lines)
+    v-run-backup-job "$id" > /dev/null
+    assert_equal "$(last_run "$id" STATUS)" failed
+    assert_equal "$(notices "$U1" 'Backup failed')" "$((before + 1))"
+    run mails_since "$from"
+    assert_output --partial 'Backup job arcbats-notice: failed'
+    assert_equal "$(mails_since "$from" | wc -l)" 1
+
+    # BACKUP_REPORT off: no mail, the notices stay
+    v-change-sys-config-value BACKUP_REPORT off > /dev/null
+    before=$(notices "$U1" 'Backup failed')
+    from=$(log_lines)
+    v-backup-user "$U1" no "$id" > /dev/null 2>&1 || true
+    v-run-backup-job "$id" > /dev/null
+    assert_equal "$(notices "$U1" 'Backup failed')" "$((before + 2))"
+    assert_equal "$(mails_since "$from" | wc -l)" 0
+
+    v-change-sys-config-value BACKUP_REPORT failures > /dev/null
+    v-delete-backup-job "$id" > /dev/null
+}
+
+# bj_daily_report with the hour of the day set to $1
+daily_report_at() {
+    HOUR="$1" bash <<'SCRIPT'
+source /etc/arcpanel/arcpanel.conf
+source "$ARCPANEL/func/main.sh"
+source "$ARCPANEL/func/secret.sh"
+source "$ARCPANEL/func/backup-driver.sh"
+source "$ARCPANEL/func/backup-job.sh"
+source_conf "$ARCPANEL/conf/arcpanel.conf"
+date() {
+    if [ "$1" = +%H ]; then
+        echo "$HOUR"
+    else
+        command date "$@"
+    fi
+}
+bj_daily_report
+SCRIPT
+}
+
+@test "notices: the daily report is mailed once a day after 07:00, only when BACKUP_REPORT is daily" {
+    local id from
+    id=$(v-add-backup-job arcbats-report archive "users:$U1" daily:01:00 arcbats-l1)
+    v-run-backup-job "$id" > /dev/null
+    rm -f "$ARCPANEL/data/backup/report.last"
+
+    v-change-sys-config-value BACKUP_REPORT failures > /dev/null
+    from=$(log_lines)
+    daily_report_at 08
+    assert_equal "$(mails_since "$from" | wc -l)" 0
+
+    v-change-sys-config-value BACKUP_REPORT daily > /dev/null
+    daily_report_at 06
+    assert_equal "$(mails_since "$from" | wc -l)" 0
+    daily_report_at 08
+    daily_report_at 09
+    run mails_since "$from"
+    assert_output --partial "Backup report $(hostname) $(date +%F)"
+    assert_equal "$(mails_since "$from" | wc -l)" 1
+    assert_equal "$(cat "$ARCPANEL/data/backup/report.last")" "$(date +%F)"
+
+    v-change-sys-config-value BACKUP_REPORT failures > /dev/null
+    v-delete-backup-job "$id" > /dev/null
 }

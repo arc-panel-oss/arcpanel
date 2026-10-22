@@ -609,20 +609,52 @@ bj_admins() {
 # the mail to the administrator contact (spec §7)
 bj_notify_admins() {
 	local IFS=$' \t\n'
-	local id="$1" run="$2" status="$3" details="$4" name admin email subj
+	local id="$1" run="$2" status="$3" details="$4" name admin
 	name=$(bj_value "$id" NAME)
 	for admin in $(bj_admins); do
 		"$BIN/v-add-user-notification" "$admin" "Backup job $status" \
 			"<p>Job <code>$(sed 's/[<>&]//g' <<< "$name")</code> ended $status. $(sed 's/[<>&]//g' <<< "$details")</p>" > /dev/null 2>&1
 	done
-	if [ "${BACKUP_REPORT:-failures}" != off ]; then
-		email=$(grep -m1 "^CONTACT='" "$ARCPANEL/data/users/$ROOT_USER/user.conf" | cut -d"'" -f2)
-		subj="Backup job $name: $status"
-		if [ -n "$email" ] && [ -n "$SENDMAIL" ]; then
-			printf 'The backup job %s (run %s) ended %s.\n%s\n' "$name" "$run" "$status" "$details" \
-				| $SENDMAIL -s "$subj" "$email" yes > /dev/null 2>&1
-		fi
+	printf 'The backup job %s (run %s) ended %s.\n%s\n' "$name" "$run" "$status" "$details" \
+		| bj_mail "Backup job $name: $status"
+}
+
+# bj_mail SUBJECT: mail stdin to the contact of the administrator account,
+# unless BACKUP_REPORT is off (spec §7). The subject, never the address, is
+# noted in log/backup.log.
+bj_mail() {
+	local subj="$1" email
+	email=$(grep -m1 "^CONTACT='" "$ARCPANEL/data/users/$ROOT_USER/user.conf" 2> /dev/null | cut -d"'" -f2)
+	if [ "${BACKUP_REPORT:-failures}" = off ] || [ -z "$email" ] || [ -z "$SENDMAIL" ]; then
+		cat > /dev/null
+		return 0
 	fi
+	$SENDMAIL -s "$subj" "$email" yes > /dev/null 2>&1
+	echo "$(date '+%F %T') Mail to the administrator: $subj" >> "$ARCPANEL/log/backup.log"
+}
+
+# bj_mail_failure SUBJECT: the mail of a failed backup of one user. Inside
+# a job run (ARC_BACKUP_JOB_RUN) the job's own mail lists it, so that one
+# run sends one mail.
+bj_mail_failure() {
+	if [ -n "${ARC_BACKUP_JOB_RUN-}" ]; then
+		cat > /dev/null
+		return 0
+	fi
+	bj_mail "$1"
+}
+
+# bj_notify_user USER STATUS ERROR: a backup of USER failed or partly
+# failed outside a job run (a request, the command line); inside a job run
+# v-run-backup-job tells the user (spec §7)
+bj_notify_user() {
+	local owner="$1" status="$2" error="$3" title="Backup failed" job=''
+	[ -z "${ARC_BACKUP_JOB_RUN-}" ] || return 0
+	[ "$status" = partial ] && title="Backup partly failed"
+	if [ -n "${BR_JOB-}" ] && bj_exists "$BR_JOB"; then
+		job="Job: <code>$(bj_value "$BR_JOB" NAME | sed 's/[<>&]//g')</code>. "
+	fi
+	"$BIN/v-add-user-notification" "$owner" "$title" "<p>$job$(sed 's/[<>&]//g' <<< "$error")</p>" > /dev/null 2>&1
 }
 
 # A destination became failing: tell the administrators once per change
@@ -638,7 +670,7 @@ bj_notify_destination() {
 # The daily summary mail (BACKUP_REPORT='daily'), once a day after 07:00
 bj_daily_report() {
 	local IFS=$' \t\n'
-	local stamp="$ARCPANEL/data/backup/report.last" today since id line email body='' name
+	local stamp="$ARCPANEL/data/backup/report.last" today since id line body='' name
 	[ "${BACKUP_REPORT:-failures}" = daily ] || return 0
 	today=$(date +%F)
 	[ "$(date +%H)" -ge 7 ] || return 0
@@ -657,11 +689,8 @@ bj_daily_report() {
 	for name in $(bd_names); do
 		body="$body$(printf 'Destination %s: %s (checked %s)' "$name" "$(bd_value "$name" STATE)" "$(bd_value "$name" CHECKED)")"$'\n'
 	done
-	email=$(grep -m1 "^CONTACT='" "$ARCPANEL/data/users/$ROOT_USER/user.conf" | cut -d"'" -f2)
-	if [ -n "$email" ] && [ -n "$SENDMAIL" ]; then
-		printf 'Backups of the last 24 hours on %s\n\n%s' "$(hostname)" "${body:-No backup job ran.}" \
-			| $SENDMAIL -s "Backup report $(hostname) $today" "$email" yes > /dev/null 2>&1
-	fi
+	printf 'Backups of the last 24 hours on %s\n\n%s' "$(hostname)" "${body:-No backup job ran.}" \
+		| bj_mail "Backup report $(hostname) $today"
 }
 
 #----------------------------------------------------------#

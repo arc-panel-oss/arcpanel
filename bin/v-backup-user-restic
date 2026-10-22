@@ -91,9 +91,8 @@ BR_JOB=$job
 br_begin "$user" restic
 bd_session
 
-# Set notification email and subject
+# Subject of the failure mails (bj_mail_failure)
 subj="$user → backup failed"
-email=$(grep CONTACT "$ARCPANEL/data/users/$ROOT_USER/user.conf" | cut -f 2 -d \')
 
 # create backup of the user.conf an database
 $BIN/v-backup-user-config $user
@@ -175,7 +174,7 @@ if [ -n "$objects_dir" ]; then
 fi
 
 if [[ "$BR_DESTS" != *:ok* ]]; then
-	echo "Unable to create the backup: ${failures%; }" | $SENDMAIL -s "$subj" "$email" "yes"
+	echo "Unable to create the backup: ${failures%; }" | bj_mail_failure "$subj"
 	check_result "$E_CONNECT" "Unable to backup user: ${failures%; }"
 fi
 if [ -n "$failures" ]; then
