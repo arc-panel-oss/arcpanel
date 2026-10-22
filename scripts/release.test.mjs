@@ -564,6 +564,34 @@ describe('cut', () => {
 		expect(check({ tag: 'v2.3.0' })).toEqual([]);
 	});
 
+	it('keeps a security release valid at its tag', () => {
+		setMetadata({
+			security: true,
+			attention: true,
+			attention_items: ['The firewall moves to nftables.'],
+		});
+		fragment('e40-cve', 'type: security', '- A security fix.');
+		expect(tool('cut', '--date', '2026-10-28').code).toBe(0);
+		expect(check({ tag: 'v2.3.0' })).toEqual([]);
+	});
+
+	it('C7 reads the release file at a release version', () => {
+		expect(tool('cut', '--date', '2026-10-28').code).toBe(0);
+		setMetadata({ security: true, attention: true, attention_items: ['Read this.'] });
+		expect(check({ tag: 'v2.3.0' })).toEqual([
+			'C7 src/release.json says security: true without a security fragment',
+		]);
+		setMetadata({ attention: true, attention_items: ['Read this.'] });
+		write(
+			'changelog/2.3.0.md',
+			`${read('changelog/2.3.0.md')}\n### Security\n\n- A security fix.\n`,
+		);
+		rebuild();
+		expect(check({ tag: 'v2.3.0' })).toEqual([
+			'C7 changelog/2.3.0.md needs security: true in src/release.json',
+		]);
+	});
+
 	it('cuts a stable release after a beta', () => {
 		setVersions('2.3.0~beta.2');
 		setMetadata({ version: '2.3.0~beta.2', attention: true, attention_items: ['Read this.'] });
