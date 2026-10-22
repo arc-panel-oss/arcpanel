@@ -1,6 +1,6 @@
 {
 	"version": "2.5.0",
-	"security": true,
+	"security": false,
 	"attention": true,
 	"attention_items": [
 		"A server upgraded from 2.2 moves its firewall from iptables and ipset to nftables. Rules that data/firewall/custom.sh adds with iptables can no longer open ports; move them to data/firewall/custom.nft.",
