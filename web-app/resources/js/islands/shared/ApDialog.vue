@@ -9,6 +9,8 @@ const props = defineProps({
 	title: { type: String, required: true },
 	description: { type: String, default: '' },
 	icon: { type: String, default: '' },
+	/** the wider dialog of .ap-modal.is-wide */
+	wide: { type: Boolean, default: false },
 });
 const emit = defineEmits(['close']);
 
@@ -63,7 +65,7 @@ function onKeydown(event) {
 	<div v-if="open" class="ap-overlay" @click.self="emit('close')" @keydown="onKeydown">
 		<div
 			ref="dialog"
-			class="ap-modal"
+			:class="['ap-modal', { 'is-wide': wide }]"
 			role="dialog"
 			aria-modal="true"
 			:aria-labelledby="`${id}-title`"

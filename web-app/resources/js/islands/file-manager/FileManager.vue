@@ -11,11 +11,13 @@ import { translator } from '../shared/strings.js';
 import { createApi, createSnapshotApi } from './api.js';
 import ConflictDialog from './ConflictDialog.vue';
 import ContextMenu from './ContextMenu.vue';
+import FetchDialog from './FetchDialog.vue';
 import FileAside from './FileAside.vue';
 import FileEditor from './FileEditor.vue';
 import FileList from './FileList.vue';
 import FileTree from './FileTree.vue';
 import FolderPickDialog from './FolderPickDialog.vue';
+import { createFetches } from './fetches.js';
 import {
 	baseName,
 	breadcrumb,
@@ -78,6 +80,29 @@ const conflict = reactive({ open: false, names: [], busy: false, retry: null });
 const preview = reactive({ open: false, entry: null, kind: '', url: '' });
 const shortcutsOpen = ref(false);
 const restoring = reactive({ open: false, entry: null, busy: false });
+
+// Upload from URL (docs/features/specs/2026-10-22-001-e3-upload-from-url-design.md §3)
+const fetchConfig = props.initial.fetch ?? { enabled: false, maxBytes: 0, private: false };
+const fetchOpen = ref(false);
+const fetchTick = ref(0);
+const fetches = fetchConfig.enabled && manage
+	? createFetches({
+			api,
+			onChange: () => {
+				fetchTick.value++;
+			},
+			onDone: (item) => {
+				if (item.path === path.value) {
+					clearTimeout(refreshTimer);
+					refreshTimer = setTimeout(() => refresh(), 400);
+				}
+			},
+		})
+	: null;
+const fetchActive = computed(() => {
+	fetchTick.value;
+	return fetches?.state.active ?? 0;
+});
 
 const uploadTick = ref(0);
 const showUploads = ref(false);
@@ -595,6 +620,7 @@ function menuItems(entry) {
 						{ action: 'touch', label: t('New file'), icon: 'file' },
 						{ action: 'upload', label: t('Upload files'), icon: 'upload' },
 						{ action: 'upload-folder', label: t('Upload a folder'), icon: 'upload' },
+						...(fetches ? [{ action: 'fetch', label: t('Upload from URL'), icon: 'link' }] : []),
 					]
 				: []),
 			...(canWriteHere.value && clipboard.value ? [{ action: 'paste', label: t('Paste'), icon: 'clipboard', kbd: 'Ctrl V' }] : []),
@@ -703,6 +729,9 @@ function act(action) {
 		case 'upload-folder':
 			folderInput.value?.click();
 			break;
+		case 'fetch':
+			openFetch();
+			break;
 		case 'select-all':
 			selected.value = entries.value.map((item) => item.name);
 			break;
@@ -776,6 +805,23 @@ function onKeydown(event) {
 
 /* ---------- Uploads ---------- */
 
+function openFetch() {
+	if (fetches && canWriteHere.value) {
+		fetchOpen.value = true;
+		fetches.setOpen(true);
+	}
+}
+
+function closeFetch() {
+	fetchOpen.value = false;
+	fetches?.setOpen(false);
+}
+
+function openFetchFolder(folder) {
+	closeFetch();
+	navigate(folder);
+}
+
 function queue(files) {
 	if (!canWriteHere.value || files.length === 0) {
 		return;
@@ -825,11 +871,14 @@ function onPopState(event) {
 
 onMounted(() => {
 	history.replaceState({ path: path.value, edit: editing.value }, '', location.href);
+	// Downloads that still run after a reload show on the badge
+	fetches?.refresh().then(() => fetches.setOpen(false)).catch(() => {});
 	window.addEventListener('popstate', onPopState);
 });
 onBeforeUnmount(() => {
 	window.removeEventListener('popstate', onPopState);
 	clearTimeout(refreshTimer);
+	fetches?.stop();
 });
 </script>
 
@@ -877,6 +926,10 @@ onBeforeUnmount(() => {
 					<template v-if="canWriteHere">
 						<button type="button" class="ap-btn ap-btn-primary ap-btn-sm" @click="act('upload')"><ApIcon name="upload" />{{ t('Upload') }}</button>
 						<button type="button" class="ap-btn ap-btn-ghost ap-btn-sm" @click="act('upload-folder')"><ApIcon name="upload" />{{ t('Upload a folder') }}</button>
+						<button v-if="fetches" type="button" class="ap-btn ap-btn-ghost ap-btn-sm" @click="act('fetch')">
+							<ApIcon name="link" />{{ t('Upload from URL') }}
+							<span v-if="fetchActive > 0" class="ap-badge is-accent" :aria-label="t('%d downloads running', fetchActive)">{{ fetchActive }}</span>
+						</button>
 						<button type="button" class="ap-btn ap-btn-ghost ap-btn-sm" @click="askName('mkdir')"><ApIcon name="folder" />{{ t('New folder') }}</button>
 						<button type="button" class="ap-btn ap-btn-ghost ap-btn-sm" @click="askName('touch')"><ApIcon name="file" />{{ t('New file') }}</button>
 						<span class="ap-fm-sep"></span>
@@ -1062,6 +1115,18 @@ onBeforeUnmount(() => {
 			@submit="transfer"
 		/>
 
+		<FetchDialog
+			v-if="fetches"
+			:open="fetchOpen"
+			:store="fetches"
+			:tick="fetchTick"
+			:path="path"
+			:can-private="fetchConfig.private"
+			:max-bytes="fetchConfig.maxBytes"
+			:t="t"
+			@close="closeFetch"
+			@open-folder="openFetchFolder"
+		/>
 		<ConflictDialog :open="conflict.open" :names="conflict.names" :busy="conflict.busy" :t="t" @close="conflict.open = false" @resolve="(choice) => conflict.retry?.(choice)" />
 
 		<PreviewDialog

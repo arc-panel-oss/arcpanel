@@ -4235,6 +4235,42 @@ a.ap-pick:focus-visible {
 	padding: var(--ap-space-3) var(--ap-space-5);
 	border-top: 1px solid var(--ap-border);
 }
+/* Upload from URL (E3): header rows of the Custom form, the empty list, and
+   the bar of a download whose size is not known */
+.ap-fetch-header {
+	display: grid;
+	grid-template-columns: minmax(0, 2fr) minmax(0, 3fr) auto;
+	gap: var(--ap-space-2);
+	align-items: center;
+}
+.ap-fetch-header .ap-error {
+	grid-column: 1 / -1;
+	margin: 0;
+}
+.ap-fetch-empty {
+	margin: 0;
+	padding: var(--ap-space-4) var(--ap-space-5);
+	border-top: 1px solid var(--ap-border);
+}
+.ap-bar.is-indeterminate > span {
+	width: 30% !important;
+	animation: ap-bar-slide 1.2s ease-in-out infinite;
+}
+@keyframes ap-bar-slide {
+	from {
+		transform: translateX(-100%);
+	}
+	to {
+		transform: translateX(340%);
+	}
+}
+@media (prefers-reduced-motion: reduce) {
+	.ap-bar.is-indeterminate > span {
+		width: 100% !important;
+		opacity: 0.5;
+		animation: none;
+	}
+}
 .ap-upload-row {
 	display: flex;
 	align-items: center;

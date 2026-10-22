@@ -70,6 +70,10 @@ export function createApi(base, t) {
 		compress: (paths, name) => post('compress', { paths, name }),
 		extract: (path, dest) => post('extract', { path, dest }),
 		download: (paths) => post('download', { paths }),
+		// Upload from URL (docs/features/specs/2026-10-22-001-e3-upload-from-url-design.md §6.5)
+		fetches: () => get('fetches'),
+		startFetch: (body) => post('fetches', body),
+		cancelFetch: (id) => call(`${base}/fetches/${encodeURIComponent(id)}`, { method: 'DELETE' }),
 		/** An error toast; TITLE names what failed ("Could not move") */
 		fail(error, title = undefined) {
 			toast('error', title ?? t('Something went wrong'), error instanceof Error ? error.message : String(error));
