@@ -28,7 +28,7 @@
     // FILE_FETCH is on until the administrator turns it off (E3 upload from URL D11)
     $value = fn (string $key) => ($config[$key] ?? ($key === 'FILE_FETCH' ? 'yes' : '')) === 'yes' ? 'yes' : 'no';
     // One address per line; built here because a "\n" inside the component attribute breaks the tag
-    $allowedIps = str_replace(',', PHP_EOL, $config['API_ALLOWED_IP'] ?? '');
+    $allowedIps = str_replace(',', "\n", $config['API_ALLOWED_IP'] ?? '');
 @endphp
 <x-ap-page :title="__('Server settings')" :crumbs="[['label' => __('Server')], ['label' => __('Server settings')], ['label' => __('Security')]]">
     @include('server.settings.partials.nav')
