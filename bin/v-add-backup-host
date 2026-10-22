@@ -53,9 +53,9 @@ if [ "$type" != 'local' ]; then
 	is_username_format_valid "$user" "username"
 	privatekey="no"
 	if [ -f "$raw_password" ]; then
-		if [[ $(cat "$raw_password" | grep "OPENSSH PRIVATE") ]]; then
+		if grep -q "OPENSSH PRIVATE" "$raw_password"; then
 			privatekey="yes"
-			password="$raw_password"
+			password="$ARCPANEL/conf/$type.backup.key"
 		else
 			is_password_valid
 		fi
@@ -123,6 +123,13 @@ fi
 if [ "$type" = 'sftp' ]; then
 	if [ -z $port ]; then
 		port=22
+	fi
+	# The key file given as PASSWORD may be a temporary file of the panel
+	if [ "$privatekey" = 'yes' ]; then
+		(umask 077 && cp -f -- "$raw_password" "$password.new") \
+			&& mv -f -- "$password.new" "$password"
+		check_result $? "the private key could not be saved" "$E_NOTEXIST"
+		chmod 600 "$password"
 	fi
 	PORT=$port
 	USERNAME=$user
