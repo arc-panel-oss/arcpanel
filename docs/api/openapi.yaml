@@ -30988,7 +30988,10 @@ paths:
         This function is started by v-start-app-process-task and runs the task in
         the foreground as the user, appending its output to
         app-process/logs/task.log of the domain, then records the exit code. COMMAND
-        is base64, for the custom task. Not meant to be called directly.
+        is base64, for the custom task. The task runs in a transient unit in the
+        user's slice with the limits of the process (E39 W5 N24), so it shares the
+        package's resources and stops with all its children. Not meant to be called
+        directly.
 
         **Arguments**
 
