@@ -84,7 +84,9 @@ for domain in $(grep -oE "^DOMAIN='[^']*'" "$ARCPANEL/data/users/$user/web.conf"
 			fi
 			id=$(appproc_next_id "$user")
 			mapfile -t fields <<< "$pairs"
-			appproc_set "$user" "$id" "${fields[@]}" "PORT=$(appproc_field "$line" PORT)"
+			port=$(appproc_field "$line" PORT)
+			[[ "$port" =~ ^[1-9][0-9]{0,4}$ ]] || port=''
+			appproc_set "$user" "$id" "${fields[@]}" "PORT=$port"
 			if [ "$pass" = 'web' ]; then
 				if ! out=$(appproc_port_ensure "$user" "$id"); then
 					appproc_files_remove "$user" "$id"

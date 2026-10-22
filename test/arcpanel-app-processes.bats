@@ -759,6 +759,28 @@ check_types() {
     runuser -u $U2 -- rm -f "$dir/evil.conf"
 }
 
+@test "Persistence: a copy cannot add a port range or ports beyond the package to the pool (E39 W5)" {
+    count() {
+        bash -c 'source /etc/arcpanel/arcpanel.conf; source $ARCPANEL/func/main.sh; source $ARCPANEL/func/tenancy.sh
+            source $ARCPANEL/func/ports.sh; source_conf $ARCPANEL/conf/arcpanel.conf; ports_count "$1"' count "$1"
+    }
+    dir=/home/$U1/web/$DC/app-process
+    runuser -u $U1 -- mkdir -p "$dir"
+    start=$(printf 'python3 server.py' | base64 -w0)
+    before=$(count $U1)
+    for port in 39990-39999 39995; do
+        printf "ID='1' DOMAIN='%s' NAME='wide' KIND='web' PRESET='custom' START='%s' CWD='public_html' PORT='%s' MEMORY='64' CPUS='1' TEMPLATE='flask-fastapi' PREV_TPL='' STATE='stopped' SUSPENDED='no' TIME='' DATE=''\n" "$DC" "$start" "$port" \
+            | runuser -u $U1 -- tee "$dir/wide.conf" > /dev/null
+        run v-rebuild-app-processes $U1
+        assert_success
+        run grep -c "PORT='3999[0-9]" "$PORTS_DIR/$U1.conf"
+        assert_output "0"
+        [ "$(count $U1)" -le "$((before > 10 ? before : 10))" ]
+        v-delete-app-process $U1 $DC wide > /dev/null 2>&1 || true
+    done
+    runuser -u $U1 -- rm -f "$dir/wide.conf"
+}
+
 @test "Persistence: deleting the domain removes its processes at the next check" {
     port=$(field $U2 $DD web PORT)
     v-delete-web-domain $U2 $DD > /dev/null

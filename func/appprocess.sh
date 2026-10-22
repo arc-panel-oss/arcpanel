@@ -1177,13 +1177,21 @@ appproc_copy_check() {
 # back from the server range), else a new one. Returns an error code with
 # the reason on failure.
 appproc_port_ensure() {
-	local user="$1" id="$2" domain port app out template
+	local user="$1" id="$2" domain port app out template limit
 	domain=$(appproc_get "$user" "$id" DOMAIN)
 	port=$(appproc_get "$user" "$id" PORT)
+	# The port comes from the user's copy: one port, and taken back into the
+	# pool only while the pool is below the package PORTS (E39 W5 N23)
+	if ! [[ "$port" =~ ^[1-9][0-9]{0,4}$ ]]; then
+		port=''
+	fi
 	if [ -n "$port" ]; then
 		app=$(ports_record "$user" "$port" | cut -d'|' -f4)
+		limit=$(ports_limit "$user")
 		if [ "$app" != "app:$domain" ] && ! "$BIN/v-allocate-user-port" "$user" "app:$domain" tcp "$port" > /dev/null 2>&1; then
-			if ! "$BIN/v-add-user-port" "$user" "$port" no restored > /dev/null 2>&1 \
+			if [ -n "$(ports_record "$user" "$port")" ] \
+				|| { [ "$limit" != 'unlimited' ] && [ "$(ports_count "$user")" -ge "$limit" ]; } \
+				|| ! "$BIN/v-add-user-port" "$user" "$port" no restored > /dev/null 2>&1 \
 				|| ! "$BIN/v-allocate-user-port" "$user" "app:$domain" tcp "$port" > /dev/null 2>&1; then
 				port=''
 			fi
