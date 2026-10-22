@@ -143,8 +143,12 @@ setup() {
 @test "restic: a server without archive backups still makes snapshots" {
     sed -i "s/^BACKUP_SYSTEM=.*/BACKUP_SYSTEM=''/" "$ARCPANEL/conf/arcpanel.conf"
     mkdir -p "$REPO_DIR"
+    # The retention numbers are checked: -1 or an integer
+    run v-add-backup-host-restic "$REPO_DIR" five -1 -1 -1 -1
+    assert_failure 2
     run v-add-backup-host-restic "$REPO_DIR" 5 -1 -1 -1 -1
     assert_success
+    refute_output --partial 'command not found'
     run v-backup-user-restic "$BH_USER"
     assert_success
     run v-list-user-backups-restic "$BH_USER" json

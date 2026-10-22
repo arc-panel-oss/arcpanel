@@ -44,10 +44,7 @@ test('user: the restore wizard restores the items picked', async ({ page }) => {
 	await login(page, BACKUP_USER);
 	await page.goto(`/backups/${BACKUP_USER}/restore`);
 	await expectAccessible(page);
-	await page
-		.getByRole('link', { name: new RegExp(`^${BACKUP_USER}\\.`) })
-		.first()
-		.click();
+	await page.getByRole('region', { name: 'Archives' }).getByRole('link').first().click();
 
 	// Step 2 of 3: some items of the archive
 	await expect(page.getByText('Step 2 / 3')).toBeVisible();
