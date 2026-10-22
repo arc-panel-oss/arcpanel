@@ -25,8 +25,11 @@ check_arcpanel_demo_mode
 #                       Action                             #
 #----------------------------------------------------------#
 
-# Auto-repair all databases before backuping all accounts
-mysqlrepair --all-databases --check --auto-repair > /dev/null 2>&1
+# Auto-repair all databases before backuping all accounts (v-backup-users has
+# done it already when it calls this command)
+if [ "$ARC_SKIP_DB_REPAIR" != 'yes' ]; then
+	mysqlrepair --all-databases --check --auto-repair > /dev/null 2>&1
+fi
 
 if [ "$BACKUP_INCREMENTAL" != "yes" ]; then
 	exit

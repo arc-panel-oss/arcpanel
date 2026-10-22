@@ -331,12 +331,10 @@ sftp_download() {
 }
 
 sftp_delete() {
-	echo "$1"
 	source_conf "$ARCPANEL/conf/sftp.backup.conf"
 	if [ -z "$PORT" ]; then
 		PORT='22'
 	fi
-	echo $BPATH
 	if [ -z $BPATH ]; then
 		sftpc "rm $1" > /dev/null 2>&1
 	else
@@ -522,7 +520,7 @@ rclone_backup() {
 	cd $BACKUP/
 
 	if [ -z "$BPATH" ]; then
-		rclone copy -v $user.$backup_new_date.tar $HOST:$backup
+		rclone copy -v $user.$backup_new_date.tar $HOST:
 		if [ "$?" -ne 0 ]; then
 			check_result "$E_CONNECT" "Unable to upload backup"
 		fi

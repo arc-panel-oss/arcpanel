@@ -42,7 +42,7 @@ if [ "$#" -eq 5 ]; then
 fi
 check_args '2' "$#" 'USER SNAPSHOT [OBJECT] [VALUE] [FORMAT]'
 is_format_valid 'user' 'snapshot' 'value' 'format'
-is_system_enabled "$BACKUP_SYSTEM" 'BACKUP_SYSTEM'
+is_system_enabled "$BACKUP_INCREMENTAL" 'BACKUP_INCREMENTAL'
 is_object_valid 'user' 'USER' "$user"
 is_backup_scheduled 'restore'
 
