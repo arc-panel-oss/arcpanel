@@ -467,13 +467,22 @@ export function runChecks(root, { tag = null, branch = currentBranch(root) } = {
 		failures.push(`C6 more than one summary: ${names(summaries)}`);
 	}
 
-	// C7: a security fragment exactly when the release is a security release
-	const security = fragments.filter((fragment) => fragment.type === 'security');
+	// C7: a security fragment exactly when the release is a security release;
+	// after the cut the fragments are in the release file
+	const releaseFile = parsed && !parsed.pre ? `${FILES.changelog}/${parsed.base}.md` : null;
+	const cut = releaseFile !== null && existsSync(join(root, releaseFile));
+	const security = cut
+		? /^### Security$/m.test(lf(read(root, releaseFile)))
+			? [{ name: releaseFile }]
+			: []
+		: fragments.filter((fragment) => fragment.type === 'security');
 	if (metadata.security === true && !security.length) {
 		failures.push(`C7 ${FILES.metadata} says security: true without a security fragment`);
 	}
 	if (metadata.security === false && security.length) {
-		failures.push(`C7 ${names(security)} needs security: true in ${FILES.metadata}`);
+		failures.push(
+			`C7 ${cut ? releaseFile : names(security)} needs security: true in ${FILES.metadata}`,
+		);
 	}
 
 	// C8: fragments that need attention
