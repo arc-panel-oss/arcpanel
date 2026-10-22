@@ -51,7 +51,8 @@ final class ServerSettingsApi
             'directory' => 'string', 'local' => 'boolean', 'mode' => 'string', 'level' => 'integer',
             'remote' => 'boolean', 'remote_type' => '?string', 'host' => '?string', 'port' => '?integer', 'username' => '?string',
             'path' => '?string', 'bucket' => '?string', 'key_id' => '?string', 'password' => 'secret',
-            'incremental' => 'boolean', 'repo' => 'secret', 'snapshots' => 'integer',
+            'incremental' => 'boolean', 'repo' => 'secret', 'repo_type' => '?string', 's3_endpoint' => '?string', 's3_bucket' => '?string',
+            's3_region' => '?string', 's3_key_id' => '?string', 's3_secret' => 'secret', 'snapshots' => 'integer',
             'keep_daily' => 'integer', 'keep_weekly' => 'integer', 'keep_monthly' => 'integer', 'keep_yearly' => 'integer',
         ],
         'ssl' => [
@@ -83,7 +84,8 @@ final class ServerSettingsApi
         'databases' => ['pma_alias', 'pga_alias', 'db_admin_port'],
         'backups' => [
             'local', 'mode', 'level', 'remote', 'remote_type', 'host', 'port', 'username', 'password', 'path', 'bucket', 'key_id',
-            'incremental', 'repo', 'snapshots', 'keep_daily', 'keep_weekly', 'keep_monthly', 'keep_yearly',
+            'incremental', 'repo', 'repo_type', 's3_endpoint', 's3_bucket', 's3_region', 's3_key_id', 's3_secret',
+            'snapshots', 'keep_daily', 'keep_weekly', 'keep_monthly', 'keep_yearly',
         ],
         'ssl' => ['certificate', 'key'],
         'security' => [
@@ -302,6 +304,13 @@ final class ServerSettingsApi
             'incremental' => $incremental,
             // The repository may hold credentials (D58)
             'repo' => ['set' => $incremental && $restic['repo'] !== ''],
+            // The S3 host of E44: its connection without the secret access key
+            'repo_type' => $incremental ? ($restic['s3'] !== null ? 's3' : 'path') : null,
+            's3_endpoint' => $incremental ? $restic['s3']['endpoint'] ?? null : null,
+            's3_bucket' => $incremental ? $restic['s3']['bucket'] ?? null : null,
+            's3_region' => $incremental ? $restic['s3']['region'] ?? null : null,
+            's3_key_id' => $incremental ? $restic['s3']['keyId'] ?? null : null,
+            's3_secret' => ['set' => $incremental && $restic['s3'] !== null],
             'snapshots' => (int) $restic['snapshots'],
             'keep_daily' => (int) $restic['daily'],
             'keep_weekly' => (int) $restic['weekly'],
@@ -423,6 +432,7 @@ final class ServerSettingsApi
         $stored = $type === $current ? $this->settings->backupHost($current) : ['host' => '', 'port' => '', 'username' => '', 'path' => '', 'bucket' => '', 'keyId' => ''];
         $incremental = ($config['BACKUP_INCREMENTAL'] ?? '') === 'yes';
         $restic = $this->settings->restic();
+        $s3 = $incremental ? $restic['s3'] : null;
         $text = fn (string $field, string $stored) => $given($field) ? trim((string) ($data[$field] ?? '')) : $stored;
         $number = fn (string $field, string $stored) => $given($field) && $data[$field] !== null ? (string) (int) $data[$field] : $stored;
         $port = $number('port', $stored['port']);
@@ -443,6 +453,13 @@ final class ServerSettingsApi
             'incremental' => $given('incremental') ? (bool) $data['incremental'] : $incremental,
             // The stored repository is used, never shown, when the request leaves it out
             'repo' => $text('repo', $incremental ? $restic['repo'] : ''),
+            // The page's S3 fields (E44); a stored S3 host stays S3 unless the request says otherwise
+            'repo_type' => $given('repo_type') ? (string) $data['repo_type'] : ($s3 !== null ? 's3' : 'path'),
+            's3_endpoint' => rtrim($text('s3_endpoint', $s3['endpoint'] ?? ''), '/'),
+            's3_bucket' => trim($text('s3_bucket', $s3['bucket'] ?? ''), '/'),
+            's3_region' => $text('s3_region', $s3['region'] ?? '') ?: 'us-east-1',
+            's3_key_id' => $text('s3_key_id', $s3['keyId'] ?? ''),
+            's3_secret' => $given('s3_secret') && (string) $data['s3_secret'] !== '' ? (string) $data['s3_secret'] : null,
             'snapshots' => $number('snapshots', $restic['snapshots']),
             'keep_daily' => $number('keep_daily', $restic['daily']),
             'keep_weekly' => $number('keep_weekly', $restic['weekly']),
@@ -451,7 +468,11 @@ final class ServerSettingsApi
         ];
         $errors = array_filter([
             'remote_type' => $values['remote'] && $type === '' ? sprintf(__('Field "%s" can not be blank.'), __('Protocol')) : null,
-            'repo' => $values['incremental'] && $values['repo'] === '' ? sprintf(__('Field "%s" can not be blank.'), __('Repository')) : null,
+            'repo' => $values['incremental'] && $values['repo_type'] !== 's3' && $values['repo'] === '' ? sprintf(__('Field "%s" can not be blank.'), __('Repository')) : null,
+            ...($values['incremental'] && $values['repo_type'] === 's3' ? array_map(
+                fn (string $label) => sprintf(__('Field "%s" can not be blank.'), $label),
+                array_filter(['s3_endpoint' => __('Endpoint'), 's3_bucket' => __('Bucket and path'), 's3_key_id' => __('Access key ID')], fn (string $label, string $field) => $values[$field] === '', ARRAY_FILTER_USE_BOTH),
+            ) : []),
         ]);
         if ($errors !== []) {
             throw ValidationException::withMessages($errors);
