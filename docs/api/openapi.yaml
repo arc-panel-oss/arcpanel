@@ -8663,7 +8663,7 @@ paths:
       description: |-
         This function sends Strict-Transport-Security from the panel's web server
         (yes) or stops sending it (no), and stores PANEL_HSTS. Browsers that saw
-        the header refuse the panel for a year when its certificate is not
+        the header refuse the panel for a day when its certificate is not
         trusted, so yes is refused while the panel certificate is self-signed or
         otherwise not trusted (E39 W5).
 
