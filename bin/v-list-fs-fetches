@@ -1,0 +1,154 @@
+#!/bin/bash
+# info: list a user's downloads from URLs (E3)
+# options: USER [FORMAT]
+#
+# example: v-list-fs-fetches alice json
+#
+# This function lists the fetches of v-add-fs-fetch, newest first: STATUS
+# queued, running, done, skipped, failed or cancelled; BYTES received (live
+# while running) and TOTAL announced by the server (empty when unknown);
+# ERROR and HTTP of a failure. URL is shown without user information and
+# with the query replaced by "?…". Finished fetches are removed after 24
+# hours, and a running fetch whose runner is gone ends as failed
+# (interrupted).
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+user=$1
+format=${2-shell}
+
+# Includes
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/fs.sh
+source $ARCPANEL/func/fs.sh
+# shellcheck source=/usr/local/arcpanel/func/fetch.sh
+source $ARCPANEL/func/fetch.sh
+# load config file
+source_conf "$ARCPANEL/conf/arcpanel.conf"
+
+# The keys of the list (the record without its internal keys)
+LIST_KEYS="ID URL DIR NAME ON_CONFLICT STATUS BYTES TOTAL ERROR HTTP CREATED START END"
+
+# Record lines, newest first, with live bytes
+records() {
+	local id line temp size
+	for id in $(fetch_ids "$user" | sort -rn); do
+		line=$(head -n1 "$(fetch_conf "$user" "$id")")
+		if [ "$(fetch_field "$line" STATUS)" = 'running' ]; then
+			temp=$(fetch_field "$line" TEMP)
+			size=$(stat -c %s -- "$temp" 2> /dev/null)
+			line=$(sed "s/BYTES='[^']*'/BYTES='${size:-0}'/" <<< "$line")
+		fi
+		echo "$line"
+	done
+}
+
+json_list() {
+	local line key first=1 value
+	echo '{'
+	while IFS= read -r line; do
+		[ -n "$line" ] || continue
+		[ "$first" -eq 1 ] || echo ','
+		first=0
+		printf '    "%s": {' "$(fetch_field "$line" ID)"
+		local sep=''
+		for key in $LIST_KEYS; do
+			value=$(fetch_field "$line" "$key")
+			printf '%s\n        "%s": %s' "$sep" "$key" "$(jq -Rn --arg v "$value" '$v')"
+			sep=','
+		done
+		printf '\n    }'
+	done < <(records)
+	echo
+	echo '}'
+}
+
+shell_list() {
+	local line
+	echo "ID   NAME   STATUS   BYTES   TOTAL   ERROR   URL"
+	echo "--   ----   ------   -----   -----   -----   ---"
+	while IFS= read -r line; do
+		[ -n "$line" ] || continue
+		echo "$(fetch_field "$line" ID) $(fetch_field "$line" NAME) $(fetch_field "$line" STATUS) $(fetch_field "$line" BYTES) $(fetch_field "$line" TOTAL) $(fetch_field "$line" ERROR) $(fetch_field "$line" URL)"
+	done < <(records)
+}
+
+plain_list() {
+	local line key out
+	while IFS= read -r line; do
+		[ -n "$line" ] || continue
+		out=''
+		for key in $LIST_KEYS; do
+			out="$out$(fetch_field "$line" "$key")"$'\t'
+		done
+		echo "${out%$'\t'}"
+	done < <(records)
+}
+
+csv_list() {
+	local line key out
+	echo "${LIST_KEYS// /,}"
+	while IFS= read -r line; do
+		[ -n "$line" ] || continue
+		out=''
+		for key in $LIST_KEYS; do
+			out="$out\"$(fetch_field "$line" "$key" | sed 's/"/""/g')\","
+		done
+		echo "${out%,}"
+	done < <(records)
+}
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '1' "$#" 'USER [FORMAT]'
+is_format_valid 'user'
+is_object_valid 'user' 'USER' "$user"
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+if [ -d "$(fetch_dir "$user")" ]; then
+	now=$(date +%s)
+	for id in $(fetch_ids "$user"); do
+		status=$(fetch_get "$user" "$id" STATUS)
+		if fetch_finished "$status"; then
+			end=$(date -d "$(fetch_get "$user" "$id" END)" +%s 2> /dev/null)
+			if [ $((now - ${end:-0})) -gt "$FETCH_KEEP" ]; then
+				fetch_forget "$user" "$id"
+				rm -f "$(fetch_conf "$user" "$id")"
+			fi
+		elif [ "$status" = 'running' ] && ! fetch_alive "$user" "$id"; then
+			# The runner went away (a restart): give it a moment to write its end
+			sleep 0.2
+			if [ "$(fetch_get "$user" "$id" STATUS)" = 'running' ] && ! fetch_alive "$user" "$id"; then
+				fetch_abandon "$user" "$id" failed interrupted
+			fi
+		fi
+	done
+	# Queued fetches with free slots (after an interrupted one, for example)
+	if [ "$(fetch_count "$user" queued)" -gt 0 ]; then
+		fetch_start_next "$user"
+	fi
+fi
+
+case $format in
+	json) json_list ;;
+	plain) plain_list ;;
+	csv) csv_list ;;
+	shell) shell_list | column -t ;;
+esac
+
+#----------------------------------------------------------#
+#                         ArcPanel                         #
+#----------------------------------------------------------#
+
+exit

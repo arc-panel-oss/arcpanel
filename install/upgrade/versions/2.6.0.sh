@@ -59,6 +59,15 @@ for upd_step_pair in FILE_MANAGER_UPLOAD_MAX=4G FILE_STAGING_SESSIONS=4 FILE_STA
 done
 unset upd_step_pair
 
+# Upload from URL in the File Manager
+# (docs/features/specs/2026-10-22-001-e3-upload-from-url-design.md §9)
+for upd_step_pair in FILE_FETCH=yes FILE_FETCH_MAX_SIZE=2G; do
+	if ! grep -q "^${upd_step_pair%%=*}=" "$ARCPANEL/conf/arcpanel.conf"; then
+		"$ARCPANEL/bin/v-change-sys-config-value" "${upd_step_pair%%=*}" "${upd_step_pair#*=}" > /dev/null 2>&1
+	fi
+done
+unset upd_step_pair
+
 # Browser headers (§9): the map that keeps the panel's cookies from the tools
 # comes before the phpMyAdmin and phpPgAdmin includes that use it (N32)
 if [ -d /etc/nginx/conf.d ]; then

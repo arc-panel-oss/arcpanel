@@ -1,0 +1,115 @@
+#!/bin/bash
+# info: download a URL into a user's folder (E3)
+# options: USER DEST_DIR REQUEST_FILE [ON_CONFLICT] [PRIVATE]
+#
+# example: v-add-fs-fetch alice /home/alice/web/example.com/public_html /tmp/request rename
+#
+# This function queues a download of the URL in REQUEST_FILE into DEST_DIR,
+# run in the background as the user (v-run-fs-fetch), and prints its ID;
+# follow it with v-list-fs-fetches. REQUEST_FILE holds one directive per
+# line: "url URL" (http or https), and optionally "name FILE_NAME", up to 50
+# "header Name: value" lines and one of "basic USER:PASSWORD" or "bearer
+# TOKEN"; it is copied, so the caller may remove it. An existing file is
+# kept and the new one gets the first free "name_(n).ext" (ON_CONFLICT
+# rename, default), replaced (overwrite) or not downloaded (skip). Private
+# and local addresses are refused unless PRIVATE is yes. Three fetches run
+# at once per user and at most 20 wait or run; FILE_FETCH='no' turns the
+# command off, FILE_FETCH_MAX_SIZE limits the size (default 2G).
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+user=$1
+dest=$2
+request_file=$3
+on_conflict=${4:-rename}
+private=${5:-no}
+
+# Includes
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/fs.sh
+source $ARCPANEL/func/fs.sh
+# shellcheck source=/usr/local/arcpanel/func/fetch.sh
+source $ARCPANEL/func/fetch.sh
+# load config file
+source_conf "$ARCPANEL/conf/arcpanel.conf"
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '3' "$#" 'USER DEST_DIR REQUEST_FILE [ON_CONFLICT] [PRIVATE]'
+is_format_valid 'user'
+is_object_valid 'user' 'USER' "$user"
+is_object_unsuspended 'user' 'USER' "$user"
+if [ "${FILE_FETCH:-yes}" = 'no' ]; then
+	check_result "$E_DISABLED" "upload from URL is turned off (FILE_FETCH)"
+fi
+case "$on_conflict" in
+	rename | overwrite | skip) ;;
+	*) check_result "$E_INVALID" "invalid conflict mode $on_conflict" ;;
+esac
+case "$private" in
+	yes | no) ;;
+	*) check_result "$E_INVALID" "PRIVATE must be yes or no" ;;
+esac
+fs_check_path "$dest"
+if ! fs_user_test -d "$FS_REAL"; then
+	check_result "$E_NOTEXIST" "$dest is not a folder"
+fi
+fs_check_writable_parent "$FS_REAL/."
+if [ ! -f "$request_file" ] || [ -L "$request_file" ]; then
+	check_result "$E_NOTEXIST" "the request file doesn't exist"
+fi
+if ! reason=$(fetch_php validate "$request_file" 2>&1 > /dev/null); then
+	check_result "$E_INVALID" "${reason:-invalid request}"
+fi
+
+# Perform verification if read-only mode is enabled
+check_arcpanel_demo_mode
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+dir=$(fetch_dir "$user")
+if [ ! -d "$dir" ]; then
+	mkdir -p "$dir"
+	chmod 700 "$dir"
+fi
+
+exec {lock}> "$dir/.queue.lock"
+flock -x "$lock"
+if [ "$(fetch_count "$user" queued running)" -ge "$FETCH_ACTIVE_MAX" ]; then
+	check_result "$E_LIMIT" "$user already has $FETCH_ACTIVE_MAX downloads from URLs waiting or running"
+fi
+id="$(date +%s)$(printf '%04d' $((RANDOM % 10000)))"
+while [ -e "$dir/$id.conf" ]; do
+	id="$(date +%s)$(printf '%04d' $((RANDOM % 10000)))"
+done
+install -m 600 /dev/null "$dir/$id.request"
+cat -- "$request_file" > "$dir/$id.request"
+url=$(fetch_php get "$dir/$id.request" url)
+display=$(FETCH_URL="$url" fetch_php display)
+fetch_set "$user" "$id" "ID=$id" "URL=$display" "DIR=$FS_REAL" "NAME=$(fetch_php get "$dir/$id.request" name)" \
+	"ON_CONFLICT=$on_conflict" "PRIVATE=$private" STATUS=queued BYTES=0 "CREATED=$(fetch_now)"
+flock -u "$lock"
+exec {lock}>&-
+
+fetch_start_next "$user"
+echo "$id"
+
+#----------------------------------------------------------#
+#                         ArcPanel                         #
+#----------------------------------------------------------#
+
+# Logging
+$BIN/v-log-action "$user" "Info" "Files" "Download from a URL added (URL: $display, Folder: $FS_REAL)."
+log_event "$OK" "$user $id"
+
+exit

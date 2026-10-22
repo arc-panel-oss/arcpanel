@@ -1,0 +1,111 @@
+#!/bin/bash
+# info: cancel or remove a user's download from a URL (E3)
+# options: USER ID
+#
+# example: v-delete-fs-fetch alice 17611234560042
+# example: v-delete-fs-fetch alice active
+#
+# This function cancels a queued or running fetch of v-add-fs-fetch (its
+# partial file is removed) or removes the record of a finished one. ID
+# "active" cancels every queued and running fetch of the user and keeps the
+# finished ones (used when the user is suspended or deleted).
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+user=$1
+id=$2
+
+# Includes
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/fs.sh
+source $ARCPANEL/func/fs.sh
+# shellcheck source=/usr/local/arcpanel/func/fetch.sh
+source $ARCPANEL/func/fetch.sh
+# load config file
+source_conf "$ARCPANEL/conf/arcpanel.conf"
+
+# Cancels or removes one fetch
+delete_one() {
+	local id=$1 status n lock
+	# The queue lock: a finishing runner may be starting this fetch now
+	exec {lock}> "$(fetch_dir "$user")/.queue.lock"
+	flock -x "$lock"
+	status=$(fetch_get "$user" "$id" STATUS)
+	if [ "$status" = 'queued' ]; then
+		fetch_forget "$user" "$id"
+		fetch_set "$user" "$id" STATUS=cancelled "END=$(fetch_now)"
+	fi
+	flock -u "$lock"
+	exec {lock}>&-
+	case "$status" in
+		queued) ;;
+		running)
+			echo cancelled > "$(fetch_dir "$user")/$id.stop"
+			fetch_stop_transfer "$user" "$id"
+			# The runner removes the partial file and writes the end
+			for ((n = 0; n < 50; n++)); do
+				fetch_finished "$(fetch_get "$user" "$id" STATUS)" && return 0
+				fetch_alive "$user" "$id" || break
+				sleep 0.2
+			done
+			if [ "$(fetch_get "$user" "$id" STATUS)" = 'running' ]; then
+				fetch_abandon "$user" "$id" cancelled ''
+			fi
+			;;
+		*)
+			if [ "$id" = "$target" ]; then
+				fetch_forget "$user" "$id"
+				rm -f "$(fetch_conf "$user" "$id")"
+			fi
+			;;
+	esac
+}
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '2' "$#" 'USER ID'
+is_format_valid 'user'
+is_object_valid 'user' 'USER' "$user"
+target=$id
+if [ "$id" != 'active' ]; then
+	if ! fetch_id_valid "$id" || [ ! -f "$(fetch_conf "$user" "$id")" ]; then
+		check_result "$E_NOTEXIST" "fetch $id doesn't exist"
+	fi
+fi
+
+# Perform verification if read-only mode is enabled
+check_arcpanel_demo_mode
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+if [ "$id" = 'active' ]; then
+	if [ -d "$(fetch_dir "$user")" ]; then
+		# Queued ones first, so that cancelling a running one starts nothing
+		for id in $(fetch_ids "$user"); do
+			[ "$(fetch_get "$user" "$id" STATUS)" = 'queued' ] && delete_one "$id"
+		done
+		for id in $(fetch_ids "$user"); do
+			[ "$(fetch_get "$user" "$id" STATUS)" = 'running' ] && delete_one "$id"
+		done
+	fi
+else
+	delete_one "$id"
+fi
+
+#----------------------------------------------------------#
+#                         ArcPanel                         #
+#----------------------------------------------------------#
+
+log_event "$OK" "$user $target"
+
+exit

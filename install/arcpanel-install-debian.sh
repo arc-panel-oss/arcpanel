@@ -1627,6 +1627,10 @@ write_config_value "FILE_STAGING_SESSIONS" "4"
 write_config_value "FILE_STAGING_LIMIT" "8G"
 write_config_value "FILE_STAGING_RESERVE" "10"
 
+# Upload from URL in the File Manager (E3)
+write_config_value "FILE_FETCH" "yes"
+write_config_value "FILE_FETCH_MAX_SIZE" "2G"
+
 # Version & Release Branch
 # VERSION is the ArcPanel version (ADR-0007)
 write_config_value "VERSION" "${ARCPANEL_INSTALL_VER}"

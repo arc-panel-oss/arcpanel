@@ -55,6 +55,8 @@ json_list() {
 		"DNS_CLUSTER_SYSTEM": "'$DNS_CLUSTER_SYSTEM'",
 		"DNS_SYSTEM": "'$DNS_SYSTEM'",
 		"ENFORCE_SUBDOMAIN_OWNERSHIP": "'$ENFORCE_SUBDOMAIN_OWNERSHIP'",
+		"FILE_FETCH": "'$FILE_FETCH'",
+		"FILE_FETCH_MAX_SIZE": "'$FILE_FETCH_MAX_SIZE'",
 		"FILE_MANAGER": "'$FILE_MANAGER'",
 		"FILE_MANAGER_UPLOAD_MAX": "'$FILE_MANAGER_UPLOAD_MAX'",
 		"FILE_STAGING_LIMIT": "'$FILE_STAGING_LIMIT'",
@@ -260,6 +262,7 @@ shell_list() {
 	if [ -n "$FILE_MANAGER" ]; then
 		echo "File Manager enabled:             $FILE_MANAGER"
 		echo "File Manager staging:             ${FILE_STAGING_SESSIONS:-4} uploads, ${FILE_STAGING_LIMIT:-8G} per account, ${FILE_STAGING_RESERVE:-10}% kept free, files up to ${FILE_MANAGER_UPLOAD_MAX:-4G}"
+		echo "File Manager upload from URL:     ${FILE_FETCH:-yes}, files up to ${FILE_FETCH_MAX_SIZE:-2G}"
 	fi
 	echo "Panel HSTS:                       ${PANEL_HSTS:-no}"
 	echo "TLS-only mail and FTP login:      ${TLS_LOGIN_ONLY:-no}"

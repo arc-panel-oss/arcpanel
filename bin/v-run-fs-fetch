@@ -1,0 +1,216 @@
+#!/bin/bash
+# info: run a fetch of upload from URL (E3)
+# options: USER ID
+#
+# example: v-run-fs-fetch alice 17611234560042
+#
+# This function is started by v-add-fs-fetch (through the queue) and
+# downloads the URL of the fetch into its folder as the user: curl runs in a
+# transient unit in the user's slice, pinned to an address that
+# func/fetch.php allowed, for at most 6 requests (5 redirects). The file is
+# written as a hidden partial file and renamed when complete, with the
+# conflict rule of the fetch. Then the next queued fetch of the user starts.
+# Not meant to be called directly.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+user=$1
+id=$2
+
+# Includes
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/fs.sh
+source $ARCPANEL/func/fs.sh
+# shellcheck source=/usr/local/arcpanel/func/fetch.sh
+source $ARCPANEL/func/fetch.sh
+# load config file
+source_conf "$ARCPANEL/conf/arcpanel.conf"
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '2' "$#" 'USER ID'
+is_format_valid 'user'
+is_object_valid 'user' 'USER' "$user"
+if ! fetch_id_valid "$id" || [ ! -f "$(fetch_conf "$user" "$id")" ]; then
+	check_result "$E_NOTEXIST" "fetch $id doesn't exist"
+fi
+if [ "$(fetch_get "$user" "$id" STATUS)" != 'running' ]; then
+	check_result "$E_INVALID" "fetch $id is not running"
+fi
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+dir=$(fetch_dir "$user")
+request="$dir/$id.request"
+headers="$dir/$id.headers"
+errors="$dir/$id.err"
+stopfile="$dir/$id.stop"
+folder=$(fetch_get "$user" "$id" DIR)
+private=$(fetch_get "$user" "$id" PRIVATE)
+on_conflict=$(fetch_get "$user" "$id" ON_CONFLICT)
+max=$(fetch_bytes "$FILE_FETCH_MAX_SIZE")
+temp="$folder/.arc-fetch-$id"
+started=$(date +%s)
+
+# Ends the fetch with STATUS and ERROR, then starts the next queued one
+finish() {
+	local status=$1 error=$2
+	user_exec rm -f -- "$temp" > /dev/null 2>&1
+	fetch_forget "$user" "$id"
+	fetch_set "$user" "$id" "STATUS=$status" "ERROR=$error" "END=$(fetch_now)" TEMP= PID=
+	fetch_start_next "$user"
+	if [ "$status" = 'done' ]; then
+		$BIN/v-log-action "$user" "Info" "Files" "File downloaded from a URL (Name: $(fetch_get "$user" "$id" NAME), Folder: $folder)."
+	elif [ "$status" = 'failed' ]; then
+		$BIN/v-log-action "$user" "Warning" "Files" "Download from a URL failed (URL: $(fetch_get "$user" "$id" URL), Error: $error)."
+	fi
+	log_event "$OK" "$user $id $status $error"
+	exit 0
+}
+
+# Every second while curl runs: the size limit, the time limit, a cancel,
+# and the size announced by the response
+watchdog() {
+	local size announced=''
+	while sleep 1; do
+		if [ -f "$stopfile" ]; then
+			fetch_stop_transfer "$user" "$id"
+			return
+		fi
+		size=$(stat -c %s -- "$temp" 2> /dev/null)
+		if [ "${size:-0}" -gt "$max" ]; then
+			echo too-large > "$stopfile"
+			fetch_stop_transfer "$user" "$id"
+			return
+		fi
+		if [ $(($(date +%s) - started)) -gt "$FETCH_TIMEOUT" ]; then
+			echo timeout > "$stopfile"
+			fetch_stop_transfer "$user" "$id"
+			return
+		fi
+		if [ -z "$announced" ] && grep -q $'^\r\?$' "$headers" 2> /dev/null; then
+			announced=yes
+			length=$(fetch_header_value "$headers" content-length)
+			[[ "$length" =~ ^[0-9]+$ ]] || length=''
+			fetch_set "$user" "$id" "HTTP=$(fetch_header_status "$headers")" "TOTAL=$length"
+		fi
+	done
+}
+
+if ! fs_user_test -d "$folder" || ! fs_user_test -w "$folder"; then
+	finish failed exists
+fi
+if ! url=$(fetch_php get "$request" url 2> /dev/null); then
+	finish failed bad-url
+fi
+mapfile -t own < <(fetch_own_addresses)
+fetch_set "$user" "$id" "TEMP=$temp"
+
+for ((hop = 1; hop <= FETCH_HOPS; hop++)); do
+	target=$(FETCH_URL="$url" fetch_php check "$private" "${own[@]}" 2> /dev/null)
+	case $? in
+		0) ;;
+		3) finish failed dns ;;
+		4) finish failed blocked ;;
+		*) finish failed bad-url ;;
+	esac
+	read -r _ host port address <<< "$target"
+	remaining=$((FETCH_TIMEOUT - ($(date +%s) - started)))
+	if [ "$remaining" -le 0 ]; then
+		finish failed timeout
+	fi
+	: > "$headers"
+	chmod 600 "$headers"
+	watchdog &
+	watcher=$!
+	FETCH_URL="$url" fetch_php config "$request" \
+		| fetch_curl "$user" "$id" "$temp" "$host" "$port" "$address" "$remaining" "$max" > "$headers" 2> "$errors"
+	rc=${PIPESTATUS[1]}
+	kill "$watcher" > /dev/null 2>&1
+	wait "$watcher" 2> /dev/null
+
+	if [ -f "$stopfile" ]; then
+		reason=$(head -n1 "$stopfile")
+		if [ "$reason" = 'cancelled' ]; then
+			finish cancelled ''
+		fi
+		finish failed "${reason:-network}"
+	fi
+	code=$(fetch_header_status "$headers")
+	length=$(fetch_header_value "$headers" content-length)
+	[[ "$length" =~ ^[0-9]+$ ]] || length=''
+	fetch_set "$user" "$id" "HTTP=$code" "TOTAL=$length"
+	if [ "$rc" -ne 0 ]; then
+		finish failed "$(fetch_curl_error "$rc")"
+	fi
+	case "$code" in
+		2??)
+			break
+			;;
+		301 | 302 | 303 | 307 | 308)
+			location=$(fetch_header_value "$headers" location)
+			if [ -z "$location" ] || ! url=$(FETCH_URL="$url" FETCH_LOCATION="$location" fetch_php location 2> /dev/null); then
+				finish failed bad-url
+			fi
+			;;
+		*)
+			finish failed http
+			;;
+	esac
+done
+if [ "$hop" -gt "$FETCH_HOPS" ]; then
+	finish failed redirects
+fi
+
+# The file name: asked for, or from the response and the final URL
+name=$(fetch_get "$user" "$id" NAME)
+if [ -z "$name" ]; then
+	name=$(FETCH_URL="$url" fetch_php name "$headers" 2> /dev/null)
+fi
+if ! fs_name_valid "$name"; then
+	name=download
+fi
+fetch_set "$user" "$id" "NAME=$name"
+
+target="$folder/$name"
+if fs_user_test -e "$target" || fs_user_test -L "$target"; then
+	case "$on_conflict" in
+		skip)
+			finish skipped ''
+			;;
+		overwrite)
+			if fs_user_test -d "$target" && ! fs_user_test -L "$target"; then
+				finish failed exists
+			fi
+			;;
+		*)
+			if ! name=$(fetch_free_name "$folder" "$name"); then
+				finish failed exists
+			fi
+			target="$folder/$name"
+			fetch_set "$user" "$id" "NAME=$name"
+			;;
+	esac
+fi
+user_exec chmod 0644 -- "$temp" > /dev/null 2>&1
+if ! user_exec mv -fT -- "$temp" "$target" > /dev/null 2>&1; then
+	finish failed exists
+fi
+fetch_set "$user" "$id" "BYTES=$(stat -c %s -- "$target" 2> /dev/null)"
+finish 'done' ''
+
+#----------------------------------------------------------#
+#                         ArcPanel                         #
+#----------------------------------------------------------#
+
+exit
