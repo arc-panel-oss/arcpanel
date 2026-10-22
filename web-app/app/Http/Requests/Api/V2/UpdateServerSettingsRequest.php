@@ -101,10 +101,10 @@ final class UpdateServerSettingsRequest extends ApiRequest
             'POLICY_SYNC_ERROR_DOCUMENTS' => ['sometimes', 'string', 'in:yes,no'],
             'POLICY_SYNC_SKELETON' => ['sometimes', 'string', 'in:yes,no'],
             'ENFORCE_SUBDOMAIN_OWNERSHIP' => ['sometimes', 'string', 'in:yes,no'],
-            /** Upload from URL in the File Manager and REST API v2 (`yes` by default). */
-            'FILE_FETCH' => ['sometimes', 'string', 'in:yes,no'],
             /** Comma list of shells of the server (`v-list-sys-shells`) that resellers may put into their packages. */
             'POLICY_RESELLER_PACKAGE_SHELLS' => ['sometimes', 'string', 'max:255', 'regex:/^[\w.-]+(,[\w.-]+)*$/'],
+            /** Upload from URL in the File Manager and REST API v2 (`yes` by default). */
+            'FILE_FETCH' => ['sometimes', 'string', 'in:yes,no'],
         ],
         'plugins' => [
             'app_installer' => ['sometimes', 'boolean'],

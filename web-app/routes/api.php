@@ -12,6 +12,7 @@ use App\Http\Controllers\Api\V2\DockerAppController;
 use App\Http\Controllers\Api\V2\DockerCatalogController;
 use App\Http\Controllers\Api\V2\DockerEngineController;
 use App\Http\Controllers\Api\V2\FileController;
+use App\Http\Controllers\Api\V2\FileFetchController;
 use App\Http\Controllers\Api\V2\FileTransferController;
 use App\Http\Controllers\Api\V2\FirewallBanController;
 use App\Http\Controllers\Api\V2\FirewallIpsetController;
@@ -542,6 +543,15 @@ Route::middleware('effective-user')->group(function () {
         Route::get('/size', [FileController::class, 'size'])->name('size');
         // A download changes nothing: read-only keys may download (D51)
         Route::post('/download', [FileTransferController::class, 'download'])->name('download');
+        // Upload from URL (docs/features/specs/2026-10-22-001-e3-upload-from-url-design.md §8); FILE_FETCH off answers 404
+        Route::middleware('files.fetch')->group(function () {
+            Route::get('/fetches', [FileFetchController::class, 'index'])->name('fetches.index');
+            Route::get('/fetches/{id}', [FileFetchController::class, 'show'])->where('id', '[0-9]{10,14}')->name('fetches.show');
+            Route::middleware('not-readonly')->group(function () {
+                Route::post('/fetches', [FileFetchController::class, 'store'])->name('fetches.store');
+                Route::delete('/fetches/{id}', [FileFetchController::class, 'destroy'])->where('id', '[0-9]{10,14}')->name('fetches.destroy');
+            });
+        });
         Route::middleware('not-readonly')->group(function () {
             Route::post('/uploads', [FileTransferController::class, 'start'])->name('uploads.store');
             // Chunks have their own limiter instead of the 60 a minute of every call (D50)

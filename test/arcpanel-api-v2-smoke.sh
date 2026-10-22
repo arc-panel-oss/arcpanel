@@ -660,6 +660,33 @@ else
 	check "a path above the home answers 404" 404 "$(call "$FILES_READER" GET "$FILES/content?path=../../etc/passwd")"
 	check "a download above the home answers 404" 404 "$(call "$FILES_READER" POST "$FILES/download" '{"paths": ["../../etc/passwd"]}')"
 
+	# Upload from URL (spec 2026-10-22-001 §8)
+	if grep -q "^FILE_FETCH='no'" "$ARCPANEL/conf/arcpanel.conf"; then
+		skip "upload from URL: FILE_FETCH is off on this server"
+	else
+		check "startFileFetch of a local address answers 201" 201 "$(call "$FILES_KEY" POST "$FILES/fetches" '{"url": "http://127.0.0.1/", "path": "tmp/arcsmoke"}')"
+		fetch_id=$(json .data.id)
+		for _ in $(seq 50); do
+			call "$FILES_READER" GET "$FILES/fetches/$fetch_id" > /dev/null
+			[ "$(json .data.status)" = 'failed' ] && break
+			sleep 0.2
+		done
+		check "the local address is blocked" blocked "$(json .data.error)"
+		check "a v2-read key lists the downloads" 200 "$(call "$FILES_READER" GET "$FILES/fetches")"
+		check "a v2-read key may not start one" 403 "$(call "$FILES_READER" POST "$FILES/fetches" '{"url": "https://example.com/"}')"
+		check "allow_private needs an administrator key" 422 "$(call "$FILES_KEY" POST "$FILES/fetches" '{"url": "http://127.0.0.1/", "allow_private": true}')"
+		check "an administrator key may allow it" 201 "$(call "$ADMIN" POST "$FILES/fetches" '{"url": "http://127.0.0.1/", "path": "tmp/arcsmoke", "name": "local.html", "allow_private": true}')"
+		admin_fetch=$(json .data.id)
+		for _ in $(seq 50); do
+			call "$FILES_READER" GET "$FILES/fetches/$admin_fetch" > /dev/null
+			case "$(json .data.status)" in done | failed) break ;; esac
+			sleep 0.2
+		done
+		check "the allowed download is not blocked" 0 "$([ "$(json .data.error)" = 'blocked' ] && echo 1 || echo 0)"
+		check "cancelFileFetch removes a finished download" 200 "$(call "$FILES_KEY" DELETE "$FILES/fetches/$fetch_id")"
+		check "the removed download is gone" 404 "$(call "$FILES_READER" GET "$FILES/fetches/$fetch_id")"
+	fi
+
 	check "deleteFiles answers 204" 204 "$(call "$FILES_KEY" POST "$FILES/delete" '{"paths": ["tmp/arcsmoke"]}')"
 	if [ -e "$FILES_HOME/tmp/arcsmoke" ]; then fail "the folder is still there"; else ok "the folder is gone"; fi
 	check "the files user is deleted" 204 "$(call "$ADMIN" DELETE "/users/$FILES_USER")"

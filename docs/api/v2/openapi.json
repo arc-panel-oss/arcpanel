@@ -18940,6 +18940,376 @@
                 "x-arcpanel-permission-set": "v2-files"
             }
         },
+        "/users/{user}/files/fetches": {
+            "get": {
+                "operationId": "listFileFetches",
+                "description": "The account's downloads, newest first: waiting and running ones, and\nfinished ones for 24 hours. `bytes` grows while a download runs.\nPaged with `limit` and `offset` (D20).",
+                "summary": "List downloads from URLs",
+                "tags": [
+                    "Files"
+                ],
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "limit",
+                        "in": "query",
+                        "description": "Page size, from 1 to 1000. Without it the list is complete.",
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 1000
+                        }
+                    },
+                    {
+                        "name": "offset",
+                        "in": "query",
+                        "description": "Items to skip. Used when `limit` is set; 0 when omitted.",
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 0
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Array of `FileFetch`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/components/schemas/FileFetch"
+                                            }
+                                        },
+                                        "meta": {
+                                            "$ref": "#/components/schemas/ListMeta"
+                                        }
+                                    },
+                                    "required": [
+                                        "data",
+                                        "meta"
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    }
+                },
+                "x-arcpanel-permission-set": "v2-files"
+            },
+            "post": {
+                "operationId": "startFileFetch",
+                "description": "Queues a GET of `url` into the folder `path`, run as the user: 3\ndownloads run at once per account and at most 20 wait or run (`422`\n`E_LIMIT` above). The answer is `201` with the queued download and its\n`Location`; follow it with getFileFetch until `status` is `done`,\n`skipped`, `failed` or `cancelled`. Every address of the host and of each redirect\n(5 at most) must be public unless `allow_private` is set by an\nadministrator key; a refused address ends the download as `failed`\nwith `error` `blocked`. Files are limited by `FILE_FETCH_MAX_SIZE`\n(2G by default) and 1 hour. The headers and credentials are never\nanswered, also not by a dry run.",
+                "summary": "Start a download from a URL",
+                "tags": [
+                    "Files"
+                ],
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "dry_run",
+                        "in": "query",
+                        "description": "Validate, authorize and plan the change, and answer with its steps instead of running them.",
+                        "schema": {
+                            "type": "boolean",
+                            "default": false
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "required": true,
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/StartFileFetchRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "With `dry_run`: the planned steps; nothing ran.",
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/DryRun"
+                                }
+                            }
+                        }
+                    },
+                    "201": {
+                        "description": "`FileFetch`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/FileFetch"
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            },
+                            "Location": {
+                                "$ref": "#/components/headers/Location"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "409": {
+                        "$ref": "#/components/responses/Conflict"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    },
+                    "503": {
+                        "$ref": "#/components/responses/Unavailable"
+                    }
+                },
+                "x-arcpanel-permission-set": "v2-files"
+            }
+        },
+        "/users/{user}/files/fetches/{id}": {
+            "get": {
+                "operationId": "getFileFetch",
+                "summary": "Show a download from a URL",
+                "tags": [
+                    "Files"
+                ],
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "`FileFetch`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/FileFetch"
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    }
+                },
+                "x-arcpanel-permission-set": "v2-files"
+            },
+            "delete": {
+                "operationId": "cancelFileFetch",
+                "description": "Cancels a waiting or running download (its partial file is removed),\nor removes a finished one from the list. Answers the download as it\nended; a removed one answers its last state.",
+                "summary": "Cancel or remove a download from a URL",
+                "tags": [
+                    "Files"
+                ],
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "dry_run",
+                        "in": "query",
+                        "description": "Validate, authorize and plan the change, and answer with its steps instead of running them.",
+                        "schema": {
+                            "type": "boolean",
+                            "default": false
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "`FileFetch`; with `dry_run`, the planned steps.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "oneOf": [
+                                        {
+                                            "type": "object",
+                                            "properties": {
+                                                "data": {
+                                                    "$ref": "#/components/schemas/FileFetch"
+                                                }
+                                            },
+                                            "required": [
+                                                "data"
+                                            ]
+                                        },
+                                        {
+                                            "$ref": "#/components/schemas/DryRun"
+                                        }
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "409": {
+                        "$ref": "#/components/responses/Conflict"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    },
+                    "503": {
+                        "$ref": "#/components/responses/Unavailable"
+                    }
+                },
+                "x-arcpanel-permission-set": "v2-files"
+            }
+        },
         "/users/{user}/files/info": {
             "get": {
                 "operationId": "getFileInfo",
@@ -33952,6 +34322,118 @@
                 ],
                 "title": "FileEntry"
             },
+            "FileFetch": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "string"
+                    },
+                    "url": {
+                        "type": "string",
+                        "description": "the URL without user information, its query replaced by `?…`"
+                    },
+                    "path": {
+                        "type": "string",
+                        "description": "destination folder relative to the home directory; empty for the home directory"
+                    },
+                    "name": {
+                        "type": "string",
+                        "description": "file name; empty until the server's answer names it"
+                    },
+                    "status": {
+                        "type": "string",
+                        "enum": [
+                            "queued",
+                            "running",
+                            "done",
+                            "skipped",
+                            "failed",
+                            "cancelled"
+                        ]
+                    },
+                    "bytes": {
+                        "type": "integer",
+                        "description": "bytes received (the file's size when done)"
+                    },
+                    "total": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ],
+                        "description": "bytes the server announced; null when unknown"
+                    },
+                    "percent": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ],
+                        "description": "percent received; null while the size is unknown"
+                    },
+                    "error": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "reason of a failure",
+                        "enum": [
+                            "blocked",
+                            "bad-url",
+                            "dns",
+                            "http",
+                            "redirects",
+                            "too-large",
+                            "disk",
+                            "timeout",
+                            "network",
+                            "exists",
+                            "interrupted",
+                            null
+                        ]
+                    },
+                    "http_status": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ],
+                        "description": "status code of the last response"
+                    },
+                    "created_at": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "server time zone, YYYY-MM-DDTHH:MM:SS"
+                    },
+                    "started_at": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
+                    "ended_at": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    }
+                },
+                "required": [
+                    "id",
+                    "url",
+                    "path",
+                    "name",
+                    "status",
+                    "bytes",
+                    "total",
+                    "percent",
+                    "error",
+                    "http_status",
+                    "created_at",
+                    "started_at",
+                    "ended_at"
+                ],
+                "title": "FileFetch"
+            },
             "FileSearchMeta": {
                 "type": "object",
                 "description": "A name search answers at most 500 entries; the list is not paginated (E34 batch 5 §4.1).",
@@ -38153,6 +38635,9 @@
                     },
                     "POLICY_RESELLER_PACKAGE_SHELLS": {
                         "type": "string"
+                    },
+                    "FILE_FETCH": {
+                        "type": "string"
                     }
                 },
                 "required": [
@@ -38177,7 +38662,8 @@
                     "POLICY_SYNC_ERROR_DOCUMENTS",
                     "POLICY_SYNC_SKELETON",
                     "ENFORCE_SUBDOMAIN_OWNERSHIP",
-                    "POLICY_RESELLER_PACKAGE_SHELLS"
+                    "POLICY_RESELLER_PACKAGE_SHELLS",
+                    "FILE_FETCH"
                 ]
             },
             "ServerSettings": {
@@ -39163,6 +39649,103 @@
                     "action"
                 ],
                 "title": "StartDockerAppTaskRequest"
+            },
+            "StartFileFetchRequest": {
+                "type": "object",
+                "description": "Body of `startFileFetch` (docs/features/specs/2026-10-22-001-e3-upload-from-url-design.md §8).",
+                "properties": {
+                    "url": {
+                        "type": "string",
+                        "description": "The http or https URL, without user information (use `auth`).",
+                        "maxLength": 8192
+                    },
+                    "path": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "Folder relative to the home directory; the home directory when left out."
+                    },
+                    "name": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "File name; when left out, the name the server sends (Content-Disposition) or the last segment of the URL.",
+                        "maxLength": 255
+                    },
+                    "headers": {
+                        "type": "array",
+                        "description": "Request headers, at most 50; `Host`, `Content-Length`, `Transfer-Encoding`, `Connection` and `Range` are refused. They are dropped when a redirect leaves the URL's host.",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "name": {
+                                    "type": "string",
+                                    "maxLength": 256
+                                },
+                                "value": {
+                                    "type": [
+                                        "string",
+                                        "null"
+                                    ],
+                                    "maxLength": 8000
+                                }
+                            },
+                            "required": [
+                                "name",
+                                "value"
+                            ]
+                        },
+                        "maxItems": 50
+                    },
+                    "auth": {
+                        "type": "object",
+                        "description": "Authentication: `{type: basic, username, password}` or `{type: bearer, token}`; dropped when a redirect leaves the URL's host.",
+                        "properties": {
+                            "type": {
+                                "type": "string",
+                                "enum": [
+                                    "none",
+                                    "basic",
+                                    "bearer"
+                                ]
+                            },
+                            "username": {
+                                "type": "string",
+                                "maxLength": 256
+                            },
+                            "password": {
+                                "type": [
+                                    "string",
+                                    "null"
+                                ],
+                                "maxLength": 1024
+                            },
+                            "token": {
+                                "type": "string",
+                                "maxLength": 8000
+                            }
+                        }
+                    },
+                    "on_conflict": {
+                        "type": "string",
+                        "description": "When the name exists: keep both with the first free `name_(n).ext` (`rename`, default), `overwrite` a file, or `skip`.",
+                        "enum": [
+                            "rename",
+                            "overwrite",
+                            "skip"
+                        ]
+                    },
+                    "allow_private": {
+                        "type": "boolean",
+                        "description": "Allow private and local addresses; administrator keys only."
+                    }
+                },
+                "required": [
+                    "url"
+                ],
+                "title": "StartFileFetchRequest"
             },
             "StartMalwareScanRequest": {
                 "type": "object",
@@ -42129,6 +42712,13 @@
                         "type": "string",
                         "pattern": "^[\\w.-]+(,[\\w.-]+)*$",
                         "maxLength": 255
+                    },
+                    "FILE_FETCH": {
+                        "type": "string",
+                        "enum": [
+                            "yes",
+                            "no"
+                        ]
                     },
                     "app_installer": {
                         "type": "boolean"

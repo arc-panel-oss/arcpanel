@@ -5,6 +5,7 @@ namespace App\Services\Files;
 use App\Arc\ArcCommand;
 use App\Arc\Secret;
 use App\Arc\SysConfig;
+use App\Services\WebDomains\Step;
 
 /**
  * Upload from URL (docs/features/specs/2026-10-22-001-e3-upload-from-url-design.md
@@ -55,21 +56,36 @@ final class RemoteFetches
         return null;
     }
 
-    /** Queues a fetch into DIR and returns its ID. */
-    public function start(string $user, FilePath $dir, FetchRequest $request, string $onConflict = 'rename', bool $private = false): string
+    /** The command that queues a fetch into DIR (REST API v2 checks and previews it). */
+    public function startStep(string $user, FilePath $dir, FetchRequest $request, string $onConflict = 'rename', bool $private = false): Step
     {
-        return trim($this->arc->run('v-add-fs-fetch', [
+        return new Step(__('Download a file from a URL'), 'v-add-fs-fetch', [
             $user,
             $this->files->absolute($user, $dir),
             Secret::file($request->toRequestFile()),
             $onConflict,
             $private ? 'yes' : 'no',
-        ])->stdout);
+        ]);
+    }
+
+    /** Queues a fetch into DIR and returns its ID. */
+    public function start(string $user, FilePath $dir, FetchRequest $request, string $onConflict = 'rename', bool $private = false): string
+    {
+        $step = $this->startStep($user, $dir, $request, $onConflict, $private);
+
+        return trim($this->arc->run($step->command, $step->args)->stdout);
+    }
+
+    /** The command that cancels or removes fetch ID. */
+    public function deleteStep(string $user, string $id): Step
+    {
+        return new Step(__('Cancel or remove a download from a URL'), 'v-delete-fs-fetch', [$user, $id]);
     }
 
     /** Cancels a waiting or running fetch, or removes a finished one. */
     public function delete(string $user, string $id): void
     {
-        $this->arc->run('v-delete-fs-fetch', [$user, $id]);
+        $step = $this->deleteStep($user, $id);
+        $this->arc->run($step->command, $step->args);
     }
 }

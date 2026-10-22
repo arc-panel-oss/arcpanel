@@ -17,6 +17,8 @@ function observeExclusions(): array
         'v-open-fs-file', 'v-read-fs-file', 'v-add-fs-download', 'v-search-fs-object', 'v-list-fs-directory-json', 'v-get-fs-file-info', 'v-list-fs-disk-usage',
         'v-list-user-secret-store', 'v-list-user-secret',
         'v-list-user-files-restic',
+        // Upload from URL: URLs and file names of the account's downloads
+        'v-list-fs-fetches',
     ];
 }
 
