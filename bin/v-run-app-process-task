@@ -7,7 +7,10 @@
 # This function is started by v-start-app-process-task and runs the task in
 # the foreground as the user, appending its output to
 # app-process/logs/task.log of the domain, then records the exit code. COMMAND
-# is base64, for the custom task. Not meant to be called directly.
+# is base64, for the custom task. The task runs in a transient unit in the
+# user's slice with the limits of the process (E39 W5 N24), so it shares the
+# package's resources and stops with all its children. Not meant to be called
+# directly.
 
 #----------------------------------------------------------#
 #                Variables & Functions                     #
@@ -28,6 +31,8 @@ source /etc/arcpanel/arcpanel.conf
 source $ARCPANEL/func/main.sh
 # shellcheck source=/usr/local/arcpanel/func/tenancy.sh
 source $ARCPANEL/func/tenancy.sh
+# shellcheck source=/usr/local/arcpanel/func/ports.sh
+source $ARCPANEL/func/ports.sh
 # shellcheck source=/usr/local/arcpanel/func/appprocess.sh
 source $ARCPANEL/func/appprocess.sh
 # load config file
@@ -61,7 +66,13 @@ if ! reason=$(appproc_task_args "$user" "$APPPROC_ID" "$task" "$custom"); then
 else
 	appproc_task_args "$user" "$APPPROC_ID" "$task" "$custom" > /dev/null
 	cwd=$(appproc_cwd_path "$user" "$domain" "$(appproc_get "$user" "$APPPROC_ID" CWD)")
-	node_as_user "$user" timeout --kill-after=15 "$APPPROC_TASK_TIMEOUT" nice -n 10 bash -c '
+	mapfile -t props < <(appproc_task_properties "$user" "$APPPROC_ID")
+	home=$(node_home "$user")
+	systemd-run --quiet --wait --collect --unit="$(appproc_task_unit "$user")" \
+		--uid="$user" --gid="$user" --slice="user-$(id -u "$user").slice" "${props[@]}" \
+		--working-directory="$home" -E HOME="$home" -E USER="$user" -E LOGNAME="$user" \
+		-E PATH=/usr/local/bin:/usr/bin:/bin -E LANG=C.UTF-8 -E TERM=dumb \
+		-E NO_UPDATE_NOTIFIER=1 -E NPM_CONFIG_UPDATE_NOTIFIER=false -- bash -c '
 		umask 022
 		log=$1 dir=$2
 		shift 2
@@ -69,6 +80,9 @@ else
 		exec > "$log" 2>&1
 		printf "%s %s\n" "$(date "+%F %T")" "$*"
 		cd -- "$dir" || exit 1
+		# A stop (suspension, deletion) ends the task as failed: systemd
+		# counts a shell killed by SIGTERM as a clean exit
+		trap : TERM
 		"$@"
 		rc=$?
 		printf "%s exit %s\n" "$(date "+%F %T")" "$rc"

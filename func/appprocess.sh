@@ -1177,13 +1177,21 @@ appproc_copy_check() {
 # back from the server range), else a new one. Returns an error code with
 # the reason on failure.
 appproc_port_ensure() {
-	local user="$1" id="$2" domain port app out template
+	local user="$1" id="$2" domain port app out template limit
 	domain=$(appproc_get "$user" "$id" DOMAIN)
 	port=$(appproc_get "$user" "$id" PORT)
+	# The port comes from the user's copy: one port, and taken back into the
+	# pool only while the pool is below the package PORTS (E39 W5 N23)
+	if ! [[ "$port" =~ ^[1-9][0-9]{0,4}$ ]]; then
+		port=''
+	fi
 	if [ -n "$port" ]; then
 		app=$(ports_record "$user" "$port" | cut -d'|' -f4)
+		limit=$(ports_limit "$user")
 		if [ "$app" != "app:$domain" ] && ! "$BIN/v-allocate-user-port" "$user" "app:$domain" tcp "$port" > /dev/null 2>&1; then
-			if ! "$BIN/v-add-user-port" "$user" "$port" no restored > /dev/null 2>&1 \
+			if [ -n "$(ports_record "$user" "$port")" ] \
+				|| { [ "$limit" != 'unlimited' ] && [ "$(ports_count "$user")" -ge "$limit" ]; } \
+				|| ! "$BIN/v-add-user-port" "$user" "$port" no restored > /dev/null 2>&1 \
 				|| ! "$BIN/v-allocate-user-port" "$user" "app:$domain" tcp "$port" > /dev/null 2>&1; then
 				port=''
 			fi
@@ -1262,6 +1270,35 @@ APPPROC_TASK_TIMEOUT=1800
 
 appproc_task_conf() {
 	echo "$ARCPANEL/data/users/$1/app-process-task.conf"
+}
+
+# The transient unit that runs USER's one-off task (E39 W5 N24)
+appproc_task_unit() {
+	echo "arcpanel-app-task-$1.service"
+}
+
+# The unit properties of a task of USER's record ID, one -p argument pair per
+# line: the memory, CPU and task limits of the process, its sandbox and port
+# rules, and the task timeout
+appproc_task_properties() {
+	local user="$1" id="$2" line hundredths range
+	line=$(appproc_line "$user" "$id")
+	hundredths=$(appproc_cpus_hundredths "$(appproc_field "$line" CPUS)") || hundredths=100
+	printf -- '-p\n%s\n' "MemoryMax=$(appproc_field "$line" MEMORY)M" MemorySwapMax=0 "CPUQuota=${hundredths}%" \
+		"TasksMax=$APPPROC_TASKS_MAX" "RuntimeMaxSec=$APPPROC_TASK_TIMEOUT" Nice=10 KillMode=control-group \
+		NoNewPrivileges=yes PrivateTmp=yes ProtectSystem=full ProtectKernelTunables=yes ProtectKernelModules=yes \
+		ProtectControlGroups=yes RestrictSUIDSGID=yes
+	if [ "$PORT_REGISTRY" != 'no' ]; then
+		for range in $(appproc_bind_ranges "$user"); do
+			printf -- '-p\n%s\n' "SocketBindAllow=$range"
+		done
+		printf -- '-p\n%s\n' SocketBindDeny=any
+	fi
+}
+
+# Stop the one-off task of USER with every process it started
+appproc_task_stop() {
+	systemctl stop "$(appproc_task_unit "$1")" > /dev/null 2>&1 || true
 }
 
 appproc_task_get() {
