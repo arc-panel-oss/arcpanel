@@ -575,6 +575,34 @@ task_status() {
     assert_output --partial "exit 0"
 }
 
+@test "Tasks: a task runs in the user's slice with the process limits and leaves no process behind (E39 W5)" {
+    run v-start-app-process-task $U1 $DA web custom 'bash -c "cat /proc/self/cgroup; setsid sleep 300 > /dev/null 2>&1 & echo started"'
+    assert_success
+    run eventually "done" task_status $U1
+    assert_output "done"
+    log=/home/$U1/web/$DA/app-process/logs/task.log
+    grep -q "user-$(id -u $U1).slice/arcpanel-app-task-$U1.service" "$log"
+    grep -qx "started" "$log"
+    run pgrep -u $U1 -f "sleep 300"
+    assert_failure
+    run v-start-app-process-task $U1 $DA web custom 'sleep 120'
+    assert_success
+    run eventually "active" systemctl is-active "arcpanel-app-task-$U1.service"
+    assert_output "active"
+    assert_equal "$(systemctl show -p MemoryMax --value "arcpanel-app-task-$U1.service")" "$(($(field $U1 $DA web MEMORY) * 1048576))"
+    assert_equal "$(systemctl show -p NoNewPrivileges --value "arcpanel-app-task-$U1.service")" "yes"
+    run v-suspend-user-app-processes $U1
+    assert_success
+    run pgrep -u $U1 -f "sleep 120"
+    assert_failure
+    run eventually "failed" task_status $U1
+    assert_output "failed"
+    run v-unsuspend-user-app-processes $U1
+    assert_success
+    run eventually "running" status_of $U1 $DA web
+    assert_output "running"
+}
+
 @test "Tasks: one task at a time, refusals and failures" {
     run v-start-app-process-task $U1 $DA web custom 'sleep 4'
     assert_success
@@ -729,6 +757,28 @@ check_types() {
     run v-delete-app-process $U2 $DD other
     assert_success
     runuser -u $U2 -- rm -f "$dir/evil.conf"
+}
+
+@test "Persistence: a copy cannot add a port range or ports beyond the package to the pool (E39 W5)" {
+    count() {
+        bash -c 'source /etc/arcpanel/arcpanel.conf; source $ARCPANEL/func/main.sh; source $ARCPANEL/func/tenancy.sh
+            source $ARCPANEL/func/ports.sh; source_conf $ARCPANEL/conf/arcpanel.conf; ports_count "$1"' count "$1"
+    }
+    dir=/home/$U1/web/$DC/app-process
+    runuser -u $U1 -- mkdir -p "$dir"
+    start=$(printf 'python3 server.py' | base64 -w0)
+    before=$(count $U1)
+    for port in 39990-39999 39995; do
+        printf "ID='1' DOMAIN='%s' NAME='wide' KIND='web' PRESET='custom' START='%s' CWD='public_html' PORT='%s' MEMORY='64' CPUS='1' TEMPLATE='flask-fastapi' PREV_TPL='' STATE='stopped' SUSPENDED='no' TIME='' DATE=''\n" "$DC" "$start" "$port" \
+            | runuser -u $U1 -- tee "$dir/wide.conf" > /dev/null
+        run v-rebuild-app-processes $U1
+        assert_success
+        run grep -c "PORT='3999[0-9]" "$PORTS_DIR/$U1.conf"
+        assert_output "0"
+        [ "$(count $U1)" -le "$((before > 10 ? before : 10))" ]
+        v-delete-app-process $U1 $DC wide > /dev/null 2>&1 || true
+    done
+    runuser -u $U1 -- rm -f "$dir/wide.conf"
 }
 
 @test "Persistence: deleting the domain removes its processes at the next check" {
