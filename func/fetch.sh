@@ -237,11 +237,12 @@ fetch_abandon() {
 #----------------------------------------------------------#
 
 # One request of a fetch, run as the user: the curl config comes on standard
-# input, the response headers go to standard output, the body to TEMP.
+# input, the response headers go to standard output, unbuffered (stdbuf) so
+# that the size is known while the body arrives, the body to TEMP.
 # Usage: fetch_curl USER ID TEMP HOST PORT ADDRESSES SECONDS MAX
 fetch_curl() {
 	local user=$1 id=$2 temp=$3 host=$4 port=$5 addresses=$6 seconds=$7 max=$8 home
-	local -a args=(curl -q -sS --proto '=http,https' --max-redirs 0 --noproxy '*' --connect-timeout 20
+	local -a args=(stdbuf -o0 curl -q -sS --proto '=http,https' --max-redirs 0 --noproxy '*' --connect-timeout 20
 		--speed-limit 1024 --speed-time 60 --max-time "$seconds" --max-filesize "$max" -D - -o "$temp" -K -)
 	# A literal address needs no pinning: no name is resolved
 	if [ "$host" != "${addresses//[\[\]]/}" ]; then

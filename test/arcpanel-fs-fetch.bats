@@ -423,6 +423,12 @@ count() {
     id=$(fetch "$BASE/slow?sig=QUERYSECRET" 'bearer TOKENSECRET' 'header X-Key: HEADERSECRET')
     wait_for "$id" running
     sleep 1
+    # The announced size is known while the body arrives
+    for _ in $(seq 20); do
+        [ -n "$(field "$id" TOTAL)" ] && break
+        sleep 0.2
+    done
+    assert_equal "$(field "$id" TOTAL)" 1000
     run bash -c "ps -eo args | grep -v grep | grep -E 'QUERYSECRET|TOKENSECRET|HEADERSECRET'"
     assert_failure
     run grep -rE 'QUERYSECRET|TOKENSECRET|HEADERSECRET' "$ARCPANEL/data/users/$U1/fetches/$id.conf"

@@ -53,7 +53,6 @@ fi
 dir=$(fetch_dir "$user")
 request="$dir/$id.request"
 headers="$dir/$id.headers"
-errors="$dir/$id.err"
 stopfile="$dir/$id.stop"
 folder=$(fetch_get "$user" "$id" DIR)
 private=$(fetch_get "$user" "$id" PRIVATE)
@@ -98,7 +97,7 @@ watchdog() {
 			fetch_stop_transfer "$user" "$id"
 			return
 		fi
-		if [ -z "$announced" ] && grep -q $'^\r\?$' "$headers" 2> /dev/null; then
+		if [ -z "$announced" ] && grep -qE $'^\r?$' "$headers" 2> /dev/null; then
 			announced=yes
 			length=$(fetch_header_value "$headers" content-length)
 			[[ "$length" =~ ^[0-9]+$ ]] || length=''
@@ -134,7 +133,7 @@ for ((hop = 1; hop <= FETCH_HOPS; hop++)); do
 	watchdog &
 	watcher=$!
 	FETCH_URL="$url" fetch_php config "$request" \
-		| fetch_curl "$user" "$id" "$temp" "$host" "$port" "$address" "$remaining" "$max" > "$headers" 2> "$errors"
+		| fetch_curl "$user" "$id" "$temp" "$host" "$port" "$address" "$remaining" "$max" > "$headers" 2> /dev/null
 	rc=${PIPESTATUS[1]}
 	kill "$watcher" > /dev/null 2>&1
 	wait "$watcher" 2> /dev/null
