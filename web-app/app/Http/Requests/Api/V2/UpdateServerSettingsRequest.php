@@ -76,6 +76,14 @@ final class UpdateServerSettingsRequest extends ApiRequest
             'key_id' => ['sometimes', 'nullable', 'string', 'max:128', 'regex:/^[A-Za-z0-9]+$/'],
             'incremental' => ['sometimes', 'boolean'],
             'repo' => ['sometimes', 'string', 'max:1024', self::NO_QUOTES],
+            /** `path` (a folder or restic URL in `repo`) or `s3` (the S3 host of E44 in the `s3_*` fields). */
+            'repo_type' => ['sometimes', 'string', 'in:path,s3'],
+            's3_endpoint' => ['sometimes', 'nullable', 'string', 'max:255', 'regex:/^(https:\/\/[A-Za-z0-9.-]+|http:\/\/(127\.0\.0\.1|localhost))(:\d{1,5})?\/?$/'],
+            's3_bucket' => ['sometimes', 'nullable', 'string', 'max:255', 'regex:/^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9](\/[A-Za-z0-9._-]+)*\/?$/'],
+            's3_region' => ['sometimes', 'nullable', 'string', 'max:32', 'regex:/^[a-z0-9-]+$/'],
+            's3_key_id' => ['sometimes', 'nullable', 'string', 'max:128', 'regex:/^[A-Za-z0-9+\/=._-]{3,128}$/'],
+            's3_secret' => ['sometimes', 'string', 'max:256', 'not_regex:/[
+]/'],
             'snapshots' => ['sometimes', 'integer', 'min:-1', 'max:9999'],
             'keep_daily' => ['sometimes', 'integer', 'min:-1', 'max:9999'],
             'keep_weekly' => ['sometimes', 'integer', 'min:-1', 'max:9999'],

@@ -323,6 +323,37 @@ it('changes and turns off an S3 backup host with a key of the server set (E44)',
     expect(apiSetCommands('v2-write'))->toContain('v-delete-backup-host-s3');
 });
 
+it('answers the S3 backup host without its secret (E48 M0)', function () {
+    $this->fake->on('v-list-backup-host-restic')->returnsJson(['restic' => ['REPO' => 'rclone:arcpanel-s3:backups/server1', 'SNAPSHOTS' => '10', 'KEEP_DAILY' => '-1',
+        'KEEP_WEEKLY' => '-1', 'KEEP_MONTHLY' => '-1', 'KEEP_YEARLY' => '-1', 'S3_ENDPOINT' => 'https://s3.example.net', 'S3_REGION' => 'eu-central-1', 'S3_KEY_ID' => 'AKIDEXAMPLE']]);
+
+    $this->getJson('/api/v2/system/settings', apiAs($this->fake, 'arcadmin', 'admin'))->assertOk()
+        ->assertJsonPath('data.backups.repo_type', 's3')->assertJsonPath('data.backups.s3_endpoint', 'https://s3.example.net')
+        ->assertJsonPath('data.backups.s3_bucket', 'backups/server1')->assertJsonPath('data.backups.s3_region', 'eu-central-1')
+        ->assertJsonPath('data.backups.s3_key_id', 'AKIDEXAMPLE')->assertJsonPath('data.backups.s3_secret', ['set' => true]);
+});
+
+it('sends incremental backups to a new S3 host with a key of the server set (E48 M0)', function () {
+    withSysConfig($this->fake, settingsApiConfig(['BACKUP_INCREMENTAL' => 'no']));
+    $this->fake->on('v-add-backup-host-s3')->returns();
+    $headers = apiAs($this->fake, 'arcadmin', 'admin', area: 'server');
+    $s3 = ['incremental' => true, 'repo_type' => 's3', 's3_endpoint' => 'https://s3.example.net/', 's3_bucket' => 'backups/server1', 's3_key_id' => 'AKIDEXAMPLE'];
+
+    // A new connection needs the secret access key
+    $this->patchJson('/api/v2/system/settings/backups', $s3, $headers)->assertStatus(422)
+        ->assertJsonPath('error.fields.s3_secret.0', 'Enter the secret access key: the connection changes.');
+    $this->patchJson('/api/v2/system/settings/backups', ['incremental' => true, 'repo_type' => 's3'], $headers)->assertStatus(422)
+        ->assertJsonStructure(['error' => ['fields' => ['s3_endpoint', 's3_bucket', 's3_key_id']]]);
+    $this->fake->assertNotRan('v-add-backup-host-s3');
+
+    $response = $this->patchJson('/api/v2/system/settings/backups', [...$s3, 's3_secret' => 'SECRET-S3-KEY-2210'], $headers)->assertOk();
+    expect($response->getContent())->not->toContain('SECRET-');
+    $this->fake->assertRan('v-add-backup-host-s3', fn ($a) => array_slice($a, 0, 2) === ['https://s3.example.net', 'backups/server1']
+        && $a[3] === 'us-east-1' && array_slice($a, 4) === ['30', '7', '-1', '-1', '-1']);
+    expect(apiSetCommands('v2-server'))->toContain('v-add-backup-host-s3');
+    expect(apiSetCommands('v2-write'))->toContain('v-add-backup-host-s3');
+});
+
 it('accepts the backup secrets and keeps the stored repository without showing it', function () {
     $headers = apiAs($this->fake, 'arcadmin', 'admin');
 
