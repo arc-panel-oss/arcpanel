@@ -31541,6 +31541,39 @@
                     "repo": {
                         "$ref": "#/components/schemas/SecretFlag"
                     },
+                    "repo_type": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
+                    "s3_endpoint": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
+                    "s3_bucket": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
+                    "s3_region": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
+                    "s3_key_id": {
+                        "type": [
+                            "string",
+                            "null"
+                        ]
+                    },
+                    "s3_secret": {
+                        "$ref": "#/components/schemas/SecretFlag"
+                    },
                     "snapshots": {
                         "type": "integer"
                     },
@@ -31573,6 +31606,12 @@
                     "password",
                     "incremental",
                     "repo",
+                    "repo_type",
+                    "s3_endpoint",
+                    "s3_bucket",
+                    "s3_region",
+                    "s3_key_id",
+                    "s3_secret",
                     "snapshots",
                     "keep_daily",
                     "keep_weekly",
@@ -40996,6 +41035,49 @@
                     "repo": {
                         "type": "string",
                         "maxLength": 1024
+                    },
+                    "repo_type": {
+                        "type": "string",
+                        "enum": [
+                            "path",
+                            "s3"
+                        ]
+                    },
+                    "s3_endpoint": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "pattern": "^(https:\\/\\/[A-Za-z0-9.-]+|http:\\/\\/(127\\.0\\.0\\.1|localhost))(:\\d{1,5})?\\/?$",
+                        "maxLength": 255
+                    },
+                    "s3_bucket": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "pattern": "^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9](\\/[A-Za-z0-9._-]+)*\\/?$",
+                        "maxLength": 255
+                    },
+                    "s3_region": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "pattern": "^[a-z0-9-]+$",
+                        "maxLength": 32
+                    },
+                    "s3_key_id": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "pattern": "^[A-Za-z0-9+\\/=._-]{3,128}$",
+                        "maxLength": 128
+                    },
+                    "s3_secret": {
+                        "type": "string",
+                        "maxLength": 256
                     },
                     "snapshots": {
                         "type": "integer",
