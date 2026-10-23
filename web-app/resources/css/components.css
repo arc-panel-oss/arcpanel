@@ -758,11 +758,13 @@
 .ap-check input:checked::after {
 	opacity: 1;
 }
-.ap-check input:indeterminate {
+/* checkboxes only: every radio of a group with no choice yet matches
+   :indeterminate too and would look selected */
+.ap-check input[type="checkbox"]:indeterminate {
 	background: var(--ap-accent);
 	border-color: var(--ap-accent);
 }
-.ap-check input:indeterminate::after {
+.ap-check input[type="checkbox"]:indeterminate::after {
 	opacity: 1;
 	width: 8px;
 	height: 0;
