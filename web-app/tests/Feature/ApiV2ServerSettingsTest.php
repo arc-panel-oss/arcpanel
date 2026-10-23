@@ -512,3 +512,16 @@ it('refuses the webmail port on a server without webmail (E46)', function () {
         ->assertJsonPath('error.fields.webmail_port.0', 'This server has no webmail.');
     $this->fake->assertNotRan('v-change-sys-webmail-port');
 });
+
+it('reads and writes the audit log settings (E23)', function () {
+    withSysConfig($this->fake, array_merge(['API_SYSTEM' => '2', 'API_ALLOWED_IP' => 'allow-all'], settingsApiConfig(['AUDIT_RETENTION_DAYS' => '90', 'AUDIT_SYSLOG' => 'yes'])));
+    $this->fake->on('v-change-sys-config-value')->returns();
+    $fake = $this->fake;
+    $headers = apiAs($fake, 'arcadmin', 'admin');
+
+    $this->getJson('/api/v2/system/settings', $headers)->assertOk()
+        ->assertJsonPath('data.security.AUDIT_RETENTION_DAYS', '90')->assertJsonPath('data.security.AUDIT_SYSLOG', 'yes');
+    $this->patchJson('/api/v2/system/settings/security', ['AUDIT_RETENTION_DAYS' => 30], $headers)->assertOk();
+    $fake->assertRan('v-change-sys-config-value', fn ($a) => $a === ['AUDIT_RETENTION_DAYS', '30']);
+    $this->patchJson('/api/v2/system/settings/security', ['AUDIT_RETENTION_DAYS' => 3], $headers)->assertUnprocessable();
+});

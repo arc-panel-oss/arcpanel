@@ -68,6 +68,17 @@
                 </div>
             </x-ap-card>
 
+            {{-- Audit log of the server (E23 spec D8, §9) --}}
+            <x-ap-card :title="__('Audit log')" icon="history">
+                <div class="ap-form-grid">
+                    <x-ap-input name="AUDIT_RETENTION_DAYS" type="number" min="7" max="3650" :label="__('Keep events for')" :suffix="__('days')"
+                        :value="$config['AUDIT_RETENTION_DAYS'] ?? '180'"
+                        :hint="$auditSize === null ? __('From 7 to 3650 days.') : sprintf(__('From 7 to 3650 days. The log takes %s MB now.'), number_format($auditSize / 1048576, 1))" />
+                    <x-ap-select name="AUDIT_SYSLOG" :label="__('Send events to syslog')" :options="$yesNo" :value="$value('AUDIT_SYSLOG')"
+                        :hint="__('Each event also goes to the local syslog with the tag arcpanel-audit, for rsyslog to forward to another server.')" />
+                </div>
+            </x-ap-card>
+
             @if ($protectAdmin)
                 {{-- HSTS of the panel (E39 W5 §9.1): browsers that saw it refuse an untrusted certificate for a day --}}
                 <x-ap-card :title="__('HTTPS of the panel')" icon="lock">

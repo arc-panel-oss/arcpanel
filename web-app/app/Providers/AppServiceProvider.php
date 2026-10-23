@@ -6,6 +6,8 @@ use App\Api\KeyPermissions;
 use App\Arc\ArcCommand;
 use App\Arc\ProcessArcCommand;
 use App\Arc\SysConfig;
+use App\Audit\AuditWriter;
+use App\Audit\CommandAuditWriter;
 use App\Auth\ClientIp;
 use App\Auth\LegacySession;
 use App\Auth\NativeLegacySession;
@@ -78,6 +80,9 @@ class AppServiceProvider extends ServiceProvider
         // the protected administrator remembers its refusals for the request (E39 W4).
         $this->app->scoped(ProtectedAdmin::class);
         $this->app->bind(OwnerScope::class, fn ($app) => new OwnerScope($app->make(Principal::class), $app->make(TenancyDirectory::class), $app->make(ProtectedAdmin::class)));
+
+        // The audit log of the server (E23): events go to v-add-sys-audit-event
+        $this->app->bind(AuditWriter::class, CommandAuditWriter::class);
 
         $this->app->singleton(AssetManifest::class, fn () => new AssetManifest(public_path('build/manifest.json')));
 

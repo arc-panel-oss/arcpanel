@@ -27,7 +27,7 @@ use ReflectionMethod;
 final class ApiDocs extends Command
 {
     /** List operations whose `meta` is not paginated `ListMeta` (E34 batch 3 §5, batch 4 §4.2, batch 6 D60). */
-    private const LIST_WITHOUT_PAGINATION = ['listSystemTasks', 'listNodeApps', 'listAppProcesses', 'listDockerApps', 'listDockerCatalog', 'listPorts', 'listUserLogs', 'listUserAuthLogs', 'listServices', 'listUpdates'];
+    private const LIST_WITHOUT_PAGINATION = ['listSystemTasks', 'listNodeApps', 'listAppProcesses', 'listDockerApps', 'listDockerCatalog', 'listPorts', 'listUserLogs', 'listUserAuthLogs', 'listServices', 'listUpdates', 'listAuditEvents'];
 
     /** Cross-user lists of administrators and resellers with `CrossUserListMeta` (E43 B2). */
     private const CROSS_USER_LISTS = ['listAllWebDomains', 'listAllDatabases', 'listAllCronJobs', 'listAllNodeApps', 'listAllBackups', 'listAllBackupRuns', 'listAllBuckets'];

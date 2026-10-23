@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Users;
 
+use App\Audit\AuditRecorder;
 use App\Auth\Principal;
 use App\Auth\SudoMode;
 use App\Http\Controllers\Controller;
@@ -26,6 +27,7 @@ final class TwoFactorSetupController extends Controller
     public function __construct(
         private readonly TwoFactorService $twoFactor,
         private readonly UserService $users,
+        private readonly AuditRecorder $audit,
     ) {}
 
     /** GET /account/two-factor: what turning it on means, with the button. */
@@ -77,6 +79,7 @@ final class TwoFactorSetupController extends Controller
 
         $code = preg_replace('/\s+/', '', $data['code']) ?? '';
         $codes = preg_match('/^[0-9]{6}$/', $code) === 1 ? $this->twoFactor->confirm($user, $code) : null;
+        $this->audit->explicit($request, 'account.2fa.enable', $codes === null ? 'denied' : 'ok', $this->accountObject($user));
         if ($codes === null) {
             return $this->setupPage($user, $data['secret'], $data['uri'], __('The code is not right, or the setup took longer than 10 minutes. Try the next code, or start again.'));
         }
@@ -92,11 +95,18 @@ final class TwoFactorSetupController extends Controller
             return $sudo->challenge($request);
         }
         $codes = $this->users->find($user)->twoFactor() ? $this->twoFactor->newRecoveryCodes($user) : null;
+        $this->audit->explicit($request, 'account.2fa.recovery', $codes === null ? 'failed' : 'ok', $this->accountObject($user));
         if ($codes === null) {
             return redirect()->route('account.edit')->with('error', __('New recovery codes could not be created.'));
         }
 
         return $this->codesPage($user, $codes, __('New recovery codes are ready. The earlier codes no longer work.'));
+    }
+
+    /** @return array{type: string, user: string, name: string} */
+    private function accountObject(string $user): array
+    {
+        return ['type' => 'user', 'user' => $user, 'name' => $user];
     }
 
     /** The login user, refused while impersonating: 2FA belongs to whoever signs in. */

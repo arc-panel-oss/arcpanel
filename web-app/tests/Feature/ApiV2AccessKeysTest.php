@@ -1,6 +1,7 @@
 <?php
 
 use App\Arc\ExitCode;
+use App\Audit\AuditWriter;
 
 // REST API v2, access keys (E34 batch 6 spec §4.6, D62). The key of the
 // requests is API_KEY_ID; bob also has BOB_API_KEY. hostco owns bob, resb
@@ -91,6 +92,12 @@ it('creates a key with a set it holds and shows the secret once', function () {
             'id' => NEW_API_KEY, 'permissions' => ['v2-accounts'], 'comment' => 'ci', 'created_at' => '2026-10-08T12:00:00', 'allowed_ips' => [], 'expires_at' => null, 'secret' => NEW_SECRET,
         ]);
     $this->fake->assertRan('v-add-access-key', fn ($a) => $a === ['bob', 'v2-accounts', 'ci', 'json']);
+    // E23: the new key's id is the object, never its secret
+    $events = app(AuditWriter::class)->events();
+    expect($events)->toHaveCount(1)
+        ->and($events[0]['action'])->toBe('access-keys.create')
+        ->and($events[0]['object'])->toBe(['type' => 'access_key', 'user' => 'bob', 'name' => NEW_API_KEY])
+        ->and(json_encode($events[0]))->not->toContain(NEW_SECRET);
 });
 
 it('refuses a set the key does not hold and a set the owner may not have (D62)', function () {

@@ -1,0 +1,4 @@
+# REST API v2 (E23): the audit log of the server, read-only, plus the foundation reads. Administrators read and verify it, resellers read their tree. API v1 skips this set.
+ROLE='user'
+API_VERSION='2'
+COMMANDS='v-list-sys-config,v-list-users,v-list-user-owners,v-list-user,v-list-sys-languages,v-list-reseller-packages,v-list-package-tenancy,v-check-reseller-quota,v-list-sys-audit,v-check-sys-audit'

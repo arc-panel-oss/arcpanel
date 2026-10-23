@@ -113,6 +113,10 @@ final class UpdateServerSettingsRequest extends ApiRequest
             'POLICY_RESELLER_PACKAGE_SHELLS' => ['sometimes', 'string', 'max:255', 'regex:/^[\w.-]+(,[\w.-]+)*$/'],
             /** Upload from URL in the File Manager and REST API v2 (`yes` by default). */
             'FILE_FETCH' => ['sometimes', 'string', 'in:yes,no'],
+            /** Days the audit log keeps its events, 7 to 3650 (`180` by default). */
+            'AUDIT_RETENTION_DAYS' => ['sometimes', 'integer', 'min:7', 'max:3650'],
+            /** Whether each audit event also goes to the local syslog with the tag `arcpanel-audit`. */
+            'AUDIT_SYSLOG' => ['sometimes', 'string', 'in:yes,no'],
         ],
         'plugins' => [
             'app_installer' => ['sometimes', 'boolean'],

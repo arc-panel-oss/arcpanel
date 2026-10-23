@@ -163,7 +163,7 @@ it('folds related pages into hubs (sidebar hubs spec H4 to H6)', function () {
     $groups = collect(app(Navigation::class)->for($admin, null))->mapWithKeys(fn ($group) => [$group['key'] => collect($group['items'])->pluck('key')->all()]);
 
     expect($groups['hosting'])->toBe(['web.domains.index', 'dns.index', 'mail.index', 'db.index', 'cron.index', 'backups.index', 'malware.index', 'hub.files', 'hub.node', 'app-processes', 'hub.docker', 'server.object-storage'])
-        ->and($groups['server'])->toBe(['server.settings', 'hub.server-backups', 'hub.services', 'hub.network', 'server.php.index', 'hub.updates'])
+        ->and($groups['server'])->toBe(['server.settings', 'hub.server-backups', 'hub.services', 'hub.network', 'server.php.index', 'audit.index', 'hub.updates'])
         ->and($groups['account'])->toBe(['logs.index', 'stats.index', 'hub.keys', 'secrets.index']);
 
     $items = navItems($admin);

@@ -147,6 +147,10 @@ final class Capabilities
         'logs.delete' => self::ALL_ROLES,
         'stats.view' => self::ALL_ROLES,
 
+        // Audit log of the server (E23 spec D9): resellers read their tree
+        'audit.view' => self::MANAGERS,
+        'audit.verify' => self::ADMIN,
+
         // Access keys and SSH keys (E7 batch 2 spec D7, D8): own account,
         // administrators any; AccessKeyPolicy adds API_SYSTEM
         'access-keys.view' => self::OWN,

@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Arc\ArcCommand;
 use App\Arc\Options;
+use App\Audit\AuditRecorder;
 use App\Auth\LegacySession;
 use App\Auth\Principal;
 use App\Auth\PrincipalResolver;
@@ -25,6 +26,7 @@ final class ImpersonationController extends Controller
     public function __construct(
         private readonly ArcCommand $arc,
         private readonly LegacySession $legacy,
+        private readonly AuditRecorder $audit,
     ) {}
 
     public function start(Request $request, string $user, Principal $principal, ImpersonationPolicy $policy): RedirectResponse
@@ -46,6 +48,7 @@ final class ImpersonationController extends Controller
         $this->switchSessions($request, $principal->loginRole === Role::Reseller
             ? [PrincipalResolver::RESELLER_LOOK => $user]
             : ['look' => $user]);
+        $this->audit->explicit($request, 'impersonate.start', 'ok', ['type' => 'user', 'user' => $user, 'name' => $user], effectiveUser: $user);
 
         return redirect()->route('dashboard');
     }
@@ -63,6 +66,7 @@ final class ImpersonationController extends Controller
     public function stop(Request $request, Principal $principal): RedirectResponse
     {
         if ($principal->isImpersonating()) {
+            $this->audit->explicit($request, 'impersonate.stop', 'ok', ['type' => 'user', 'user' => $principal->impersonated, 'name' => $principal->impersonated], effectiveUser: $principal->impersonated);
             $this->arc->run('v-log-action', [
                 'system', 'Warning', 'Security',
                 "User impersonation session ended (User: {$principal->impersonated}, {$this->actor($principal)}: {$principal->loginUser})",

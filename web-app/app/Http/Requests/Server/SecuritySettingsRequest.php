@@ -24,6 +24,9 @@ final class SecuritySettingsRequest extends ServerSettingsRequest
             'PANEL_HSTS' => ['sometimes', 'in:yes,no'],
             // Mail and FTP logins over TLS only (E39 W5 spec §12.2)
             'TLS_LOGIN_ONLY' => ['sometimes', 'in:yes,no'],
+            // Audit log (E23 spec D8)
+            'AUDIT_RETENTION_DAYS' => ['sometimes', 'integer', 'min:7', 'max:3650'],
+            'AUDIT_SYSLOG' => ['sometimes', 'in:yes,no'],
         ];
         foreach (ServerSettings::SECURITY_POLICIES as $keys) {
             foreach ($keys as $key) {
@@ -75,6 +78,12 @@ final class SecuritySettingsRequest extends ServerSettingsRequest
         }
         if ($this->has('TLS_LOGIN_ONLY')) {
             $values['TLS_LOGIN_ONLY'] = (string) $this->input('TLS_LOGIN_ONLY');
+        }
+        if ($this->has('AUDIT_RETENTION_DAYS')) {
+            $values['AUDIT_RETENTION_DAYS'] = (string) (int) $this->input('AUDIT_RETENTION_DAYS');
+        }
+        if ($this->has('AUDIT_SYSLOG')) {
+            $values['AUDIT_SYSLOG'] = (string) $this->input('AUDIT_SYSLOG');
         }
         foreach (ServerSettings::SECURITY_POLICIES as $keys) {
             foreach ($keys as $key) {

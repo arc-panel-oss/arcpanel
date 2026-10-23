@@ -3,6 +3,7 @@
 use App\Api\ApiHeaders;
 use App\Http\Controllers\Api\V2\AccessKeyController;
 use App\Http\Controllers\Api\V2\AppProcessController;
+use App\Http\Controllers\Api\V2\AuditController;
 use App\Http\Controllers\Api\V2\BackupController;
 use App\Http\Controllers\Api\V2\BackupDestinationController;
 use App\Http\Controllers\Api\V2\BackupJobController;
@@ -98,6 +99,10 @@ Route::get('/node-apps', [NodeAppController::class, 'indexAll'])->name('node-app
 Route::get('/backups', [BackupController::class, 'indexAll'])->name('backups.all');
 Route::get('/backup-runs', [BackupController::class, 'runsAll'])->name('backup-runs.all');
 Route::get('/buckets', [BucketController::class, 'indexAll'])->middleware('sys-config:OBJECT_STORAGE_SYSTEM=silo')->name('buckets.all');
+
+// Audit log of the server (E23 spec §7.2): administrators and resellers, read-only
+Route::get('/audit', [AuditController::class, 'index'])->name('audit.index');
+Route::get('/audit/verify', [AuditController::class, 'verify'])->name('audit.verify');
 
 // Malware scan summary of the principal's tree (E25 batch 1 spec §9)
 Route::get('/malware', [MalwareController::class, 'summary'])->middleware('sys-config:MALWARE_SCAN=yes')->name('malware.summary');
@@ -637,6 +642,7 @@ foreach (Route::getRoutes() as $route) {
     $area = match (true) {
         // The settings host path names a database host, not the db area
         str_starts_with($uri, 'api/v2/system/settings/') => 'server',
+        str_starts_with($uri, 'api/v2/audit') => 'audit',
         // App processes and their tasks, before the /tasks match
         str_contains($uri, '/app-process') => 'apps',
         str_contains($uri, '/web-domains') => 'web',

@@ -112,6 +112,310 @@
                 "x-arcpanel-permission-set": "v2-accounts"
             }
         },
+        "/audit": {
+            "get": {
+                "operationId": "listAuditEvents",
+                "description": "Newest first, between the UTC days `from` and `to` (default: the last\n7 days). `limit` events (default 100) after skipping `offset` newer\nones; `meta.total` counts the matching events. `user` matches the\nactor, the effective user or the object's user; `action` matches the\nstart of the action. A reseller sees only the events of its tree.",
+                "summary": "List audit events",
+                "tags": [
+                    "Audit log"
+                ],
+                "parameters": [
+                    {
+                        "name": "from",
+                        "in": "query",
+                        "description": "First UTC day, YYYY-MM-DD; default six days before `to`.",
+                        "schema": {
+                            "type": [
+                                "string",
+                                "null"
+                            ],
+                            "format": "date"
+                        }
+                    },
+                    {
+                        "name": "to",
+                        "in": "query",
+                        "description": "Last UTC day, YYYY-MM-DD; default today.",
+                        "schema": {
+                            "type": [
+                                "string",
+                                "null"
+                            ],
+                            "format": "date"
+                        }
+                    },
+                    {
+                        "name": "actor",
+                        "in": "query",
+                        "description": "The signed-in user or the owner of the access key.",
+                        "schema": {
+                            "type": [
+                                "string",
+                                "null"
+                            ],
+                            "pattern": "^\\S+$",
+                            "maxLength": 128
+                        }
+                    },
+                    {
+                        "name": "user",
+                        "in": "query",
+                        "description": "The actor, the effective user or the object's user.",
+                        "schema": {
+                            "type": [
+                                "string",
+                                "null"
+                            ],
+                            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$"
+                        }
+                    },
+                    {
+                        "name": "action",
+                        "in": "query",
+                        "description": "The start of the action, for example `web.domains` or `auth.`.",
+                        "schema": {
+                            "type": [
+                                "string",
+                                "null"
+                            ],
+                            "pattern": "^[a-z0-9][a-z0-9._-]{0,127}$"
+                        }
+                    },
+                    {
+                        "name": "result",
+                        "in": "query",
+                        "description": "`ok`, `denied`, `invalid` or `failed`.",
+                        "schema": {
+                            "type": [
+                                "string",
+                                "null"
+                            ],
+                            "enum": [
+                                "ok",
+                                "denied",
+                                "invalid",
+                                "failed",
+                                null
+                            ]
+                        }
+                    },
+                    {
+                        "name": "channel",
+                        "in": "query",
+                        "description": "`web`, `api_v2`, `api_v1` or `system`.",
+                        "schema": {
+                            "type": [
+                                "string",
+                                "null"
+                            ],
+                            "enum": [
+                                "web",
+                                "api_v2",
+                                "api_v1",
+                                "system",
+                                null
+                            ]
+                        }
+                    },
+                    {
+                        "name": "limit",
+                        "in": "query",
+                        "description": "Events to return, from 1 to 1000. Defaults to 100.",
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 1000
+                        }
+                    },
+                    {
+                        "name": "offset",
+                        "in": "query",
+                        "description": "Newer events to skip.",
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 0,
+                            "maximum": 100000000
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Array of `AuditEvent`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/components/schemas/AuditEvent"
+                                            }
+                                        },
+                                        "meta": {
+                                            "$ref": "#/components/schemas/ListMeta"
+                                        }
+                                    },
+                                    "required": [
+                                        "data",
+                                        "meta"
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    }
+                },
+                "x-arcpanel-permission-set": "v2-audit"
+            }
+        },
+        "/audit/verify": {
+            "get": {
+                "operationId": "verifyAuditChain",
+                "description": "Recomputes the SHA-256 chain between `from` and `to` (default: from\nthe first kept day to today). `ok` is false with the first broken\n`day`, `line` and `reason`. Administrators only.",
+                "summary": "Verify the audit chain",
+                "tags": [
+                    "Audit log"
+                ],
+                "parameters": [
+                    {
+                        "name": "from",
+                        "in": "query",
+                        "description": "First UTC day, YYYY-MM-DD; default the first day the retention keeps.",
+                        "schema": {
+                            "type": [
+                                "string",
+                                "null"
+                            ],
+                            "format": "date"
+                        }
+                    },
+                    {
+                        "name": "to",
+                        "in": "query",
+                        "description": "Last UTC day, YYYY-MM-DD; default today.",
+                        "schema": {
+                            "type": [
+                                "string",
+                                "null"
+                            ],
+                            "format": "date"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "object",
+                                            "properties": {
+                                                "ok": {
+                                                    "type": "boolean"
+                                                },
+                                                "from": {
+                                                    "type": "string"
+                                                },
+                                                "to": {
+                                                    "type": "string"
+                                                },
+                                                "count": {
+                                                    "type": "integer",
+                                                    "description": "events checked"
+                                                },
+                                                "day": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ],
+                                                    "description": "the first broken day"
+                                                },
+                                                "line": {
+                                                    "type": [
+                                                        "integer",
+                                                        "null"
+                                                    ],
+                                                    "description": "its line, 0 when the day's file is missing"
+                                                },
+                                                "reason": {
+                                                    "type": [
+                                                        "string",
+                                                        "null"
+                                                    ]
+                                                }
+                                            },
+                                            "required": [
+                                                "ok",
+                                                "from",
+                                                "to",
+                                                "count",
+                                                "day",
+                                                "line",
+                                                "reason"
+                                            ]
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    }
+                },
+                "x-arcpanel-permission-set": "v2-audit"
+            }
+        },
         "/backup-runs": {
             "get": {
                 "operationId": "listAllBackupRuns",
@@ -33673,6 +33977,151 @@
                     "next"
                 ]
             },
+            "AuditEvent": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "description": "ULID of the event, sortable by time"
+                    },
+                    "time": {
+                        "type": "string",
+                        "description": "UTC with milliseconds, YYYY-MM-DDTHH:MM:SS.mmmZ"
+                    },
+                    "request_id": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "the X-Request-Id of the request"
+                    },
+                    "channel": {
+                        "type": "string",
+                        "description": "`web`, `api_v2`, `api_v1` or `system`"
+                    },
+                    "actor": {
+                        "type": "object",
+                        "properties": {
+                            "user": {
+                                "type": "string",
+                                "description": "the signed-in user or the owner of the access key; empty when nobody signed in"
+                            },
+                            "role": {
+                                "type": "string",
+                                "description": "`admin`, `reseller`, `user`, `system` or empty"
+                            },
+                            "ip": {
+                                "type": [
+                                    "string",
+                                    "null"
+                                ]
+                            },
+                            "access_key": {
+                                "type": [
+                                    "string",
+                                    "null"
+                                ],
+                                "description": "the access key id"
+                            },
+                            "user_agent_hash": {
+                                "type": [
+                                    "string",
+                                    "null"
+                                ],
+                                "description": "SHA-256 of the user agent, 16 hex characters"
+                            }
+                        },
+                        "required": [
+                            "user",
+                            "role",
+                            "ip",
+                            "access_key",
+                            "user_agent_hash"
+                        ]
+                    },
+                    "effective_user": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "the user acted on during login-as, else the actor"
+                    },
+                    "action": {
+                        "type": "string",
+                        "description": "`<module>.<object>.<action>`: the route name or an explicit action such as `auth.login`"
+                    },
+                    "object": {
+                        "type": [
+                            "object",
+                            "null"
+                        ],
+                        "properties": {
+                            "type": {
+                                "type": "string"
+                            },
+                            "user": {
+                                "type": [
+                                    "string",
+                                    "null"
+                                ]
+                            },
+                            "name": {
+                                "type": [
+                                    "string",
+                                    "null"
+                                ]
+                            }
+                        },
+                        "required": [
+                            "type",
+                            "user",
+                            "name"
+                        ]
+                    },
+                    "result": {
+                        "type": "string",
+                        "description": "`ok`, `denied`, `invalid` or `failed`"
+                    },
+                    "status": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ],
+                        "description": "the HTTP status of the answer"
+                    },
+                    "fields": {
+                        "type": "array",
+                        "description": "names of the input fields",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "prev": {
+                        "type": "string",
+                        "description": "SHA-256 of the event before this one"
+                    },
+                    "hash": {
+                        "type": "string",
+                        "description": "SHA-256 of prev and this event"
+                    }
+                },
+                "required": [
+                    "id",
+                    "time",
+                    "request_id",
+                    "channel",
+                    "actor",
+                    "effective_user",
+                    "action",
+                    "object",
+                    "result",
+                    "status",
+                    "fields",
+                    "prev",
+                    "hash"
+                ],
+                "title": "AuditEvent"
+            },
             "AuthLogEntry": {
                 "type": "object",
                 "properties": {
@@ -40642,6 +41091,12 @@
                     },
                     "FILE_FETCH": {
                         "type": "string"
+                    },
+                    "AUDIT_RETENTION_DAYS": {
+                        "type": "string"
+                    },
+                    "AUDIT_SYSLOG": {
+                        "type": "string"
                     }
                 },
                 "required": [
@@ -40667,7 +41122,9 @@
                     "POLICY_SYNC_SKELETON",
                     "ENFORCE_SUBDOMAIN_OWNERSHIP",
                     "POLICY_RESELLER_PACKAGE_SHELLS",
-                    "FILE_FETCH"
+                    "FILE_FETCH",
+                    "AUDIT_RETENTION_DAYS",
+                    "AUDIT_SYSLOG"
                 ]
             },
             "ServerSettings": {
@@ -45271,6 +45728,18 @@
                         "maxLength": 255
                     },
                     "FILE_FETCH": {
+                        "type": "string",
+                        "enum": [
+                            "yes",
+                            "no"
+                        ]
+                    },
+                    "AUDIT_RETENTION_DAYS": {
+                        "type": "integer",
+                        "minimum": 7,
+                        "maximum": 3650
+                    },
+                    "AUDIT_SYSLOG": {
                         "type": "string",
                         "enum": [
                             "yes",

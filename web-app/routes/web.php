@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\AppProcesses\AppProcessController;
 use App\Http\Controllers\AppProcesses\AppProcessPageController;
+use App\Http\Controllers\Audit\AuditController;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\Auth\LogoutController;
 use App\Http\Controllers\Auth\MailPasswordController;
@@ -139,7 +140,7 @@ Route::middleware('guest.arc')->group(function () {
 });
 // The 2FA reset by secret is gone: recovery codes took its place, and an
 // administrator turns 2FA off for a user who has none (E39 W5 N20)
-Route::redirect('/reset2fa', '/login');
+Route::redirect('/reset2fa', '/login')->name('reset2fa');
 
 // Mail password change for the webmail clients of this server (1.x
 // web/reset/mail); no session, the controller checks the caller's address
@@ -315,6 +316,13 @@ Route::middleware('auth.arc')->group(function () {
             Route::delete('/', [LogController::class, 'destroy'])->name('destroy');
             Route::delete('/auth', [LogController::class, 'destroyLogins'])->name('auth.destroy');
         });
+    });
+
+    // Audit log of the server (E23 spec §7.1): administrators and resellers
+    Route::prefix('audit')->name('audit.')->group(function () {
+        Route::get('/', [AuditController::class, 'index'])->name('index');
+        Route::get('/export', [AuditController::class, 'export'])->name('export');
+        Route::get('/verify', [AuditController::class, 'verify'])->name('verify');
     });
 
     // Statistics and server graphs (E7 batch 2 spec §9.4, §9.5)

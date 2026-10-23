@@ -51,6 +51,9 @@ final class ServerSettings
         'domains' => ['ENFORCE_SUBDOMAIN_OWNERSHIP'],
     ];
 
+    /** Settings of the audit log on the Security tab (E23 spec §6, D8). */
+    public const AUDIT_KEYS = ['AUDIT_RETENTION_DAYS', 'AUDIT_SYSLOG'];
+
     public const WHITE_LABEL_KEYS = ['APP_NAME', 'TITLE', 'SUBJECT_EMAIL', 'FROM_NAME', 'FROM_EMAIL', 'HIDE_DOCS'];
 
     public const REMOTE_BACKUPS = ['ftp', 'sftp', 'b2', 'rclone'];
@@ -582,7 +585,7 @@ final class ServerSettings
         }
 
         $keys = ['LOGIN_STYLE', 'INACTIVE_SESSION_TIMEOUT', 'POLICY_CSRF_STRICTNESS', 'POLICY_RESELLER_PACKAGE_SHELLS', ...self::SECURITY_POLICIES['login'],
-            ...self::SECURITY_POLICIES['users'], ...self::SECURITY_POLICIES['domains']];
+            ...self::SECURITY_POLICIES['users'], ...self::SECURITY_POLICIES['domains'], ...self::AUDIT_KEYS];
         if ($rootUser) {
             $keys = [...$keys, ...self::SECURITY_POLICIES['protection']];
             // HSTS of the panel: its own command, which refuses an untrusted certificate (E39 W5 §9.1)

@@ -74,6 +74,15 @@ return [
             'replace_placeholders' => true,
         ],
 
+        // Audit events that v-add-sys-audit-event could not write (E23 D11)
+        'audit' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/audit.log'),
+            'level' => env('LOG_LEVEL', 'info'),
+            'max_files' => 30,
+            'replace_placeholders' => true,
+        ],
+
         'daily' => [
             'driver' => 'daily',
             'path' => storage_path('logs/laravel.log'),

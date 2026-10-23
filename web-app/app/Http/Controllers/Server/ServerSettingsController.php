@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Server;
 
+use App\Arc\ArcCommandException;
 use App\Auth\Principal;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Server\DatabaseSettingsRequest;
@@ -11,6 +12,7 @@ use App\Http\Requests\Server\SecuritySettingsRequest;
 use App\Http\Requests\Server\SslSettingsRequest;
 use App\Http\Requests\Server\WhiteLabelRequest;
 use App\Policies\ServerPolicy;
+use App\Services\Audit\AuditLog;
 use App\Services\Server\ServerSettings;
 use App\Services\Server\ServerSettingsActions;
 use App\Services\Server\SystemTaskService;
@@ -58,7 +60,7 @@ final class ServerSettingsController extends Controller
             'dns' => ['hosts' => $this->settings->dnsHosts()],
             'databases' => ['hosts' => $this->settings->databaseHosts()],
             'ssl' => ['ssl' => $this->settings->ssl(), 'hostname' => $this->settings->hostname()],
-            'security' => ['selfSigned' => $this->settings->panelCertificateSelfSigned()],
+            'security' => ['selfSigned' => $this->settings->panelCertificateSelfSigned(), 'auditSize' => $this->auditSize()],
             'plugins' => [
                 'plugins' => array_map(fn (string $plugin) => $this->settings->pluginInstalled($plugin), array_combine(array_keys(ServerSettings::PLUGINS), array_keys(ServerSettings::PLUGINS))),
                 'task' => $this->tasks->task(),
@@ -203,6 +205,16 @@ final class ServerSettingsController extends Controller
     }
 
     /** Back to the tab with a toast; a failure names the step that failed and the steps already applied. */
+    /** Bytes of data/audit/ (E23 spec §9); null when the log cannot be read. */
+    private function auditSize(): ?int
+    {
+        try {
+            return app(AuditLog::class)->size();
+        } catch (ArcCommandException) {
+            return null;
+        }
+    }
+
     private function finish(string $tab, ApplyResult $result): RedirectResponse
     {
         $redirect = redirect()->route('server.settings.tab', ['tab' => $tab]);

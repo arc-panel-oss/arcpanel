@@ -15,6 +15,7 @@ use App\Http\Middleware\FilesEnabled;
 use App\Http\Middleware\NoReferrer;
 use App\Http\Middleware\NotReadOnly;
 use App\Http\Middleware\PreventRequestForgery;
+use App\Http\Middleware\RecordAuditEvent;
 use App\Http\Middleware\RedirectIfLoggedIn;
 use App\Http\Middleware\RequirePrincipal;
 use App\Http\Middleware\RequireSysConfig;
@@ -69,6 +70,10 @@ $app = Application::configure(basePath: dirname(__DIR__))
             // A secret value keeps its spaces (E38)
             fn (Request $request) => $request->is('secrets/*', 'api/v2/users/*/secrets', 'api/v2/users/*/secrets/*'),
         ]);
+        // The audit log (E23 spec §5.1) records in terminate(), once the web
+        // or API v2 group has resolved the principal; global, so that a
+        // request the router does not know is recorded too (http.unrouted).
+        $middleware->append(RecordAuditEvent::class);
         $middleware->web(append: [
             ResolvePrincipal::class,
             SetLocale::class,

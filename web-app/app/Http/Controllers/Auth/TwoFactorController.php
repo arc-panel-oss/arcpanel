@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Arc\SysConfig;
+use App\Audit\AuditRecorder;
 use App\Auth\LoginService;
 use App\Auth\LoginThrottle;
 use App\Http\Controllers\Controller;
@@ -25,6 +26,7 @@ final class TwoFactorController extends Controller
         private readonly LoginResponder $responder,
         private readonly SysConfig $config,
         private readonly LoginThrottle $throttle,
+        private readonly AuditRecorder $audit,
     ) {}
 
     public function show(Request $request): View|RedirectResponse
@@ -46,6 +48,7 @@ final class TwoFactorController extends Controller
         $wait = $this->throttle->attemptSecondFactor($pending['user']);
         if ($wait !== null) {
             $request->session()->forget('pending_2fa');
+            $this->audit->explicit($request, 'auth.2fa.verify', 'denied', null, $pending['user']);
 
             return response($this->page(LoginResponder::tooMany($wait)), 429);
         }
@@ -62,6 +65,7 @@ final class TwoFactorController extends Controller
             );
         }
 
+        $this->audit->explicit($request, 'auth.2fa.verify', $result->succeeded() ? 'ok' : 'denied', null, $pending['user'], $result->user['ROLE'] ?? null);
         if ($result->succeeded()) {
             $this->throttle->clearSecondFactor($pending['user']);
             $response = $this->responder->complete($request, $result->username, $result->user, $context);

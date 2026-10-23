@@ -13,7 +13,7 @@
 # denied, invalid, failed), CHANNEL (web, api_v2, api_v1, system) and OWNER
 # (only events whose users are in the tree of that reseller). LIMIT is 1 to
 # 100000 (default 100); the json format also prints TOTAL, the number of
-# matching events. See
+# matching events, and SIZE, the bytes of data/audit/. See
 # docs/features/specs/2026-10-23-002-e23-audit-log-design.md §6.
 
 #----------------------------------------------------------#

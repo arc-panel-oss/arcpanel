@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Users;
 
 use App\Arc\SysConfig;
+use App\Audit\AuditRecorder;
 use App\Auth\LegacySession;
 use App\Auth\LoginService;
 use App\Auth\Principal;
@@ -110,8 +111,12 @@ final class UserEditController extends Controller
         $record = $this->users->find($user);
         $manage = $policy->manageSecurity($principal, $user);
         $steps = $actions->planSecurity($principal, $record, $request->values(withLogin: $manage), $manage);
+        $response = $this->finish($user, $principal, 'security', $this->users->apply($steps));
+        if (array_filter($steps, fn ($step) => $step->command === 'v-delete-user-2fa') !== []) {
+            app(AuditRecorder::class)->explicit($request, 'account.2fa.disable');
+        }
 
-        return $this->finish($user, $principal, 'security', $this->users->apply($steps));
+        return $response;
     }
 
     public function administration(UserAdministrationRequest $request, string $user, Principal $principal, UserPolicy $policy, UserActions $actions): RedirectResponse

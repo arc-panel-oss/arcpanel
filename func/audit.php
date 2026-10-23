@@ -29,7 +29,7 @@ const AUDIT_MAX_LINE = 8192;
 const AUDIT_GZIP_AFTER_DAYS = 7;
 const AUDIT_CHANNELS = ["web", "api_v2", "api_v1", "system"];
 const AUDIT_RESULTS = ["ok", "denied", "invalid", "failed"];
-const AUDIT_ROLES = ["admin", "reseller", "user", "system", ""];
+const AUDIT_ROLES = ["admin", "reseller", "user", "dns-cluster", "system", ""];
 const AUDIT_LINE = '/^(\{.*),"prev":"([0-9a-f]{64})","hash":"([0-9a-f]{64})"\}$/';
 const AUDIT_JSON = JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR;
 
@@ -152,7 +152,7 @@ function audit_event(array $in, string $ts): array {
 		"ts" => $ts,
 		"request_id" => audit_pattern(
 			$in["request_id"] ?? null,
-			'/^[A-Za-z0-9._:-]{1,64}$/',
+			'/^[A-Za-z0-9._:-]{1,128}$/',
 			"request id",
 		),
 		"channel" => $channel,
@@ -497,8 +497,21 @@ function audit_list(string $dir, array $args): void {
 	}
 
 	if ($format === "json") {
+		// SIZE: the bytes of data/audit/, which the server settings show
+		$size = 0;
+		foreach (is_dir($dir) ? (scandir($dir) ?: []) : [] as $name) {
+			if (is_file("$dir/$name")) {
+				$size += (int) filesize("$dir/$name");
+			}
+		}
 		echo json_encode(
-		["TOTAL" => $total, "LIMIT" => $limit, "OFFSET" => $offset, "EVENTS" => $events],
+		[
+			"TOTAL" => $total,
+			"LIMIT" => $limit,
+			"OFFSET" => $offset,
+			"SIZE" => $size,
+			"EVENTS" => $events,
+		],
 		AUDIT_JSON | JSON_PRETTY_PRINT,
 	),
 			"\n";

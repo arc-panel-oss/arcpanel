@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Keys;
 
+use App\Audit\AuditRecorder;
 use App\Auth\Principal;
 use App\Auth\Role;
 use App\Auth\SudoMode;
@@ -106,6 +107,7 @@ final class AccessKeyController extends Controller
         if (! $key instanceof AccessKey) {
             return back()->withInput()->with('error', $key->errorMessage());
         }
+        app(AuditRecorder::class)->objectName($request, $key->id, 'access_key');
 
         return response()->view('keys.access-key', [
             'user' => $user,
@@ -151,6 +153,7 @@ final class AccessKeyController extends Controller
         ]);
         $owned = array_map(fn (AccessKey $key) => $key->id, $this->keys->forUser($user));
         $items = array_values(array_unique($data['items']));
+        app(AuditRecorder::class)->objectName($request, implode(',', $items), 'access_key');
         foreach ($items as $key) {
             abort_unless(in_array($key, $owned, true), 404);
         }

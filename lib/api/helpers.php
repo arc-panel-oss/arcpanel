@@ -178,3 +178,106 @@ function display_title($tab) {
 	$array2 = [$tab, get_hostname(), $_SERVER["REMOTE_ADDR"], $_SESSION["APP_NAME"]];
 	return str_replace($array1, $array2, $_SESSION["TITLE"]);
 }
+
+/**
+ * Record a command run through REST API v1 in the audit log of the server
+ * (E23, docs/features/specs/2026-10-23-002-e23-audit-log-design.md §5.3):
+ * the actor, the command as the action api_v1.<command> and the exit code
+ * as the result. The event is written by v-add-sys-audit-event after the
+ * answer is sent; read commands (v-list-*) are not recorded.
+ *
+ * @param string|null $object_user The user argument of the command, when the key names its position.
+ */
+function api_audit(
+	string $command,
+	int $exit_code,
+	int $status,
+	string $user,
+	string $role,
+	?string $key,
+	?string $object_user,
+): void {
+	if (str_starts_with($command, "v-list-")) {
+		return;
+	}
+	$result = match (true) {
+		$exit_code === 0 => "ok",
+		$exit_code === E_FORBIDDEN,
+		$exit_code === E_PASSWORD,
+		$exit_code === E_API_DISABLED
+			=> "denied",
+		in_array($exit_code, [E_ARGS, E_INVALID, E_NOTEXIST, E_EXISTS], true) => "invalid",
+		default => "failed",
+	};
+	$request_id = (string) ($_SERVER["HTTP_X_REQUEST_ID"] ?? "");
+	$agent = (string) ($_SERVER["HTTP_USER_AGENT"] ?? "");
+	$ip = get_real_user_ip();
+	$event = [
+		"v" => 1,
+		"id" => api_audit_ulid(),
+		"request_id" =>
+			preg_match('/^[A-Za-z0-9._:-]{1,128}$/', $request_id) === 1
+				? $request_id
+				: bin2hex(random_bytes(16)),
+		"channel" => "api_v1",
+		"actor" => [
+			"user" => $user,
+			"role" => in_array($role, ["admin", "reseller", "user", "dns-cluster"], true)
+				? $role
+				: "",
+			"ip" => $ip === "" ? null : $ip,
+			"key" => $key,
+			"ua" => $agent === "" ? null : substr(hash("sha256", $agent), 0, 16),
+		],
+		"effective_user" => $user,
+		"action" => "api_v1." . strtolower($command),
+		"object" =>
+			$object_user === null || $object_user === ""
+				? null
+				: ["type" => "user", "user" => $object_user, "name" => $object_user],
+		"result" => $result,
+		"status" => $status,
+		"fields" => [],
+	];
+	register_shutdown_function(function () use ($event, $command): void {
+		if (function_exists("fastcgi_finish_request")) {
+			fastcgi_finish_request();
+		}
+		$file = tempnam(sys_get_temp_dir(), "arc");
+		if ($file === false) {
+			error_log("ArcPanel audit log: no temporary file for the event of $command");
+			return;
+		}
+		chmod($file, 0600);
+		file_put_contents(
+			$file,
+			json_encode($event, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
+		);
+		exec(ARCPANEL_CMD . "v-add-sys-audit-event " . quoteshellarg($file), $output, $code);
+		@unlink($file);
+		if ($code !== 0) {
+			error_log(
+				"ArcPanel audit log: the event of $command could not be written (exit $code)",
+			);
+		}
+	});
+}
+
+/** A ULID: 48 bits of milliseconds and 80 random bits in Crockford base32. */
+function api_audit_ulid(): string {
+	$alphabet = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
+	$time = (int) floor(microtime(true) * 1000);
+	$out = "";
+	for ($i = 0; $i < 10; $i++) {
+		$out = $alphabet[$time % 32] . $out;
+		$time = intdiv($time, 32);
+	}
+	$bits = "";
+	foreach (str_split(random_bytes(10)) as $byte) {
+		$bits .= str_pad(decbin(ord($byte)), 8, "0", STR_PAD_LEFT);
+	}
+	foreach (str_split($bits, 5) as $chunk) {
+		$out .= $alphabet[bindec($chunk)];
+	}
+	return $out;
+}

@@ -477,3 +477,19 @@ it('switches upload from URL on the Security tab, shown on while the key is miss
     $this->fake->assertRan('v-change-sys-config-value', fn ($a) => $a === ['FILE_FETCH', 'no']);
     $this->post('/server/settings/security', array_replace($form, ['FILE_FETCH' => 'maybe']))->assertSessionHasErrors('FILE_FETCH');
 });
+
+it('shows and saves the audit log settings on the Security tab (E23)', function () {
+    $this->fake->on('v-change-sys-api')->returns();
+    signIn('arcadmin', 'admin');
+    $form = ['API_SYSTEM' => '1', 'API' => 'no', 'API_ALLOWED_IP' => '', 'LOGIN_STYLE' => 'default', 'INACTIVE_SESSION_TIMEOUT' => '60', 'POLICY_CSRF_STRICTNESS' => '1'];
+
+    $this->get('/server/settings/security')->assertOk()
+        ->assertSee('Keep events for')->assertSee('Send events to syslog')->assertSee('The log takes 0.0 MB now.');
+
+    $this->post('/server/settings/security', $form + ['AUDIT_RETENTION_DAYS' => '365', 'AUDIT_SYSLOG' => 'yes'])->assertSessionHas('ok');
+    $this->fake->assertRan('v-change-sys-config-value', fn ($a) => $a === ['AUDIT_RETENTION_DAYS', '365']);
+    $this->fake->assertRan('v-change-sys-config-value', fn ($a) => $a === ['AUDIT_SYSLOG', 'yes']);
+
+    $this->post('/server/settings/security', $form + ['AUDIT_RETENTION_DAYS' => '6'])->assertSessionHasErrors('AUDIT_RETENTION_DAYS');
+    $this->post('/server/settings/security', $form + ['AUDIT_SYSLOG' => 'maybe'])->assertSessionHasErrors('AUDIT_SYSLOG');
+});

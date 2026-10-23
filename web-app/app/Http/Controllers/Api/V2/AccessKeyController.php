@@ -10,6 +10,7 @@ use App\Api\Paginates;
 use App\Api\PlanGate;
 use App\Arc\ArcCommand;
 use App\Arc\SysConfig;
+use App\Audit\AuditRecorder;
 use App\Auth\OwnerScope;
 use App\Auth\Principal;
 use App\Auth\Role;
@@ -110,6 +111,7 @@ final class AccessKeyController extends Controller
         if ($key->id === '' || $key->secret === null) {
             throw new ApiException(ErrorCode::Server, 'The access key was created, but its secret could not be read.', 500);
         }
+        app(AuditRecorder::class)->objectName($request, $key->id, 'access_key');
 
         return (new NewAccessKeyResource($key))->response()->setStatusCode(201)
             ->header('Location', route('api.v2.access-keys.show', ['user' => $user, 'key' => $key->id]))

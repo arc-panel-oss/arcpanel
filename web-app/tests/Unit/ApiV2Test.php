@@ -364,6 +364,7 @@ it('declares an area on the batch 1 routes', function () {
         $area = match (true) {
             // The settings host path names a database host, not the db area
             str_starts_with($uri, 'api/v2/system/settings/') => 'server',
+            str_starts_with($uri, 'api/v2/audit') => 'audit',
             str_contains($uri, '/app-process') => 'apps',
             str_contains($uri, '/web-domains') => 'web',
             str_contains($uri, '/secrets') => 'secrets',

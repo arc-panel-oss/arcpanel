@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Arc\SysConfig;
+use App\Audit\AuditRecorder;
 use App\Auth\LoginService;
 use App\Auth\LoginThrottle;
 use App\Http\Controllers\Controller;
@@ -21,6 +22,7 @@ final class LoginController extends Controller
         private readonly LoginResponder $responder,
         private readonly SysConfig $config,
         private readonly LoginThrottle $throttle,
+        private readonly AuditRecorder $audit,
     ) {}
 
     public function show(Request $request): View
@@ -38,10 +40,15 @@ final class LoginController extends Controller
         // The limits answer before any command runs (E39 W2 spec §4.2).
         $wait = $this->throttle->attempt($username, $context->ip, fn () => $this->login->allowListed($username, $context->ip));
         if ($wait !== null) {
+            $this->audit->explicit($request, 'auth.login', 'denied', null, $username);
+
             return response($this->page(LoginResponder::tooMany($wait)), 429);
         }
 
         $result = $this->login->attempt($username, (string) $request->input('password', ''), $context);
+        // A password that needs the second factor is a sign-in that goes on (auth.2fa.verify)
+        $this->audit->explicit($request, 'auth.login', $result->succeeded() || $result->needsSecondFactor() ? 'ok' : 'denied', null,
+            $result->username !== '' ? $result->username : $username, $result->user['ROLE'] ?? null);
 
         if ($result->needsSecondFactor()) {
             $request->session()->put('pending_2fa', [

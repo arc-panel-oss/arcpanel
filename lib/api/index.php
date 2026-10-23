@@ -179,7 +179,10 @@ function api_legacy(array $request_data) {
 	api_limit_check($v_real_user_ip, $arc_return);
 
 	//This exists, so native JSON can be used without the repeating the code twice, so future code changes are easier and don't need to be replicated twice
-	// Authentication
+	// Authentication: the administrator's password or a hash key of the
+	// administrator, so ROOT_USER acts in the audit log (E23)
+	$audit_user = (string) ($settings["config"]["ROOT_USER"] ?? "admin");
+	$audit_key = null;
 	if (empty($request_data["hash"])) {
 		exec(ARCPANEL_CMD . "v-list-sys-config json", $output, $return_var);
 		$data = json_decode(implode("", $output), true);
@@ -259,6 +262,10 @@ function api_legacy(array $request_data) {
 		}
 	} else {
 		$key = "/usr/local/arcpanel/data/keys/" . basename((string) $request_data["hash"]);
+		$audit_key =
+			preg_match('/^[A-Za-z0-9]{20}$/', basename((string) $request_data["hash"])) === 1
+				? basename((string) $request_data["hash"])
+				: null;
 		$v_ip = quoteshellarg($v_real_user_ip);
 		exec(
 			ARCPANEL_CMD . "v-check-api-key " . quoteshellarg($key) . " " . $v_ip,
@@ -300,6 +307,7 @@ function api_legacy(array $request_data) {
 		// Run cmd query
 		exec($cmdquery, $output, $cmd_exit_code);
 	}
+	api_audit($arc_cmd, (int) ($cmd_exit_code ?? 0), 200, $audit_user, "admin", $audit_key, null);
 
 	if (!empty($arc_return) && $arc_return == "code") {
 		echo $cmd_exit_code;
@@ -445,6 +453,38 @@ function api_connection(array $request_data) {
 	}
 
 	header("ArcPanel-Exit-Code: $cmd_exit_code");
+	if (!str_starts_with($arc_cmd, "v-list-")) {
+		$audit_role = "admin";
+		if ($key_user !== $root_user) {
+			exec(
+				ARCPANEL_CMD . "v-list-user " . quoteshellarg($key_user) . " json",
+				$audit_output,
+				$audit_code,
+			);
+			$audit_record = json_decode(implode("", $audit_output), true);
+			$audit_role = (string) ($audit_record[$key_user]["ROLE"] ?? "");
+			unset($audit_output, $audit_code, $audit_record);
+		}
+		$audit_status =
+			$arc_return == "code"
+				? 200
+				: ($cmd_exit_code > 0
+					? exit_code_to_http_code($cmd_exit_code)
+					: (empty($cmd_output)
+						? 204
+						: 200));
+		api_audit(
+			$arc_cmd,
+			(int) $cmd_exit_code,
+			$audit_status,
+			$key_user,
+			$audit_role,
+			$arc_access_key_id,
+			$user_arg_position > 0
+				? (string) ($arc_cmd_args["arg{$user_arg_position}"] ?? "")
+				: null,
+		);
+	}
 
 	if ($arc_return == "code") {
 		echo $cmd_exit_code;

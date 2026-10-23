@@ -1019,7 +1019,41 @@ check "the scan was a full manual one" "full manual" "$(json '.data[0] | "\(.mod
 check "the v2-security key may not delete the domain" 403 "$(call "$MALWARE_KEY" DELETE "/users/$MALWARE_USER/web-domains/$MALWARE_DOMAIN")"
 check "getMalwareSummary answers 200" 200 "$(call "$ADMIN" GET "/malware?limit=200")"
 check "the summary has the user, with no open finding after the quarantine" 0 "$(json "[.data[] | select(.user == \"$MALWARE_USER\")][0].findings")"
+# E23: a user's key may not read the audit log, even with v2-read
+check "a v2-read key of a user may not read the audit log" 403 "$(call "$(new_key "$MALWARE_USER" v2-read)" GET /audit)"
 check "the malware user is deleted" 204 "$(call "$ADMIN" DELETE "/users/$MALWARE_USER")"
+
+# Audit log (E23 spec §7.2, §10): the run's own requests are in the log. The
+# panel writes an event after its answer is sent, so the reads wait for it.
+AUDIT_KEY="$(new_key "$ROOT_USER" v2-audit)"
+AUDIT_FROM="$(date -u -d '1 day ago' +%F)"
+audit_find() {
+	local filter="$1" i
+	for i in $(seq 1 20); do
+		call "$AUDIT_KEY" GET "/audit?from=$AUDIT_FROM&user=$MALWARE_USER&limit=1000" > /dev/null
+		if [ "$(jq -r "[.data[] | select($filter)] | length" "$BODY")" -gt 0 ]; then
+			jq -r "[.data[] | select($filter)][0]" "$BODY"
+			return 0
+		fi
+		sleep 0.5
+	done
+	echo '{}'
+}
+check "listAuditEvents answers 200 with a key holding only v2-audit" 200 "$(call "$AUDIT_KEY" GET "/audit?from=$AUDIT_FROM&limit=1")"
+check "the deletion of the malware user is recorded with the administrator's key" "api_v2 ok 204 ${ADMIN%%:*} $ROOT_USER" \
+	"$(audit_find '.action == "api.v2.users.destroy"' | jq -r '"\(.channel) \(.result) \(.status) \(.actor.access_key) \(.actor.user)"')"
+check "the refused deletion of the domain is recorded as denied with the v2-security key" "denied 403 ${MALWARE_KEY%%:*}" \
+	"$(audit_find '.action == "api.v2.web-domains.destroy" and .result == "denied"' | jq -r '"\(.result) \(.status) \(.actor.access_key)"')"
+check "the quarantine names its object" "malware_finding $MALWARE_USER" \
+	"$(audit_find '.action == "api.v2.malware.findings.quarantine"' | jq -r '"\(.object.type) \(.object.user)"')"
+check "an event holds the names of the fields, never their values" '["domain"]' \
+	"$(audit_find '.action == "api.v2.malware.scans.store"' | jq -c '.fields')"
+check "a dry run is not recorded" 0 "$(
+	call "$AUDIT_KEY" GET "/audit?from=$AUDIT_FROM&action=api.v2.users.store&result=ok&limit=1000" > /dev/null
+	json '[.data[] | select(.status == 200)] | length'
+)"
+check "verifyAuditChain answers an intact chain" true "$(call "$AUDIT_KEY" GET "/audit/verify?from=$AUDIT_FROM" > /dev/null && json .data.ok)"
+check "v-check-sys-audit agrees" 0 "$("$ARCPANEL/bin/v-check-sys-audit" "$AUDIT_FROM" > /dev/null && echo 0 || echo $?)"
 
 if [ "$failures" -gt 0 ]; then
 	echo "$failures check(s) failed"

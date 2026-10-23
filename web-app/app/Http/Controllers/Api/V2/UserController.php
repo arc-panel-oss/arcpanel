@@ -8,6 +8,7 @@ use App\Api\Paginates;
 use App\Api\PlanGate;
 use App\Arc\Secret;
 use App\Arc\SysConfig;
+use App\Audit\AuditRecorder;
 use App\Auth\Principal;
 use App\Auth\Role;
 use App\Http\Controllers\Controller;
@@ -222,8 +223,12 @@ final class UserController extends Controller
         $steps = $this->actions->planSecurity($principal, $record, [
             'use_iplist' => $record->loginUsesIpList(), 'allowed_ips' => null, 'login_disabled' => null, 'twofa_off' => true,
         ], $manage);
+        $response = $this->gate->execute($steps, $this->users->apply(...));
+        if ($response === null && $steps !== []) {
+            app(AuditRecorder::class)->explicit(request(), 'account.2fa.disable');
+        }
 
-        return $this->gate->execute($steps, $this->users->apply(...)) ?? response()->noContent();
+        return $response ?? response()->noContent();
     }
 
     /**

@@ -57,6 +57,8 @@ final class Navigation
             'items' => [
                 ['route' => 'users.index', 'label' => 'Users', 'labels' => ['reseller' => 'Customers'], 'icon' => 'users', 'cap' => 'users.view', 'section' => 'users.'],
                 ['route' => 'packages.index', 'label' => 'Packages', 'icon' => 'package', 'cap' => 'packages.view', 'section' => 'packages.'],
+                // Resellers read the audit log of their tree here; administrators under Server (E23 §7.1)
+                ['route' => 'audit.index', 'label' => 'Audit log', 'icon' => 'history', 'cap' => 'audit.view', 'roles' => ['reseller'], 'section' => 'audit.'],
             ],
         ],
         'hosting' => [
@@ -128,6 +130,7 @@ final class Navigation
                     ['route' => 'server.ports', 'label' => 'Ports', 'tab' => 'Ports', 'icon' => 'plug', 'cap' => 'server.ports', 'section' => 'server.ports', 'tabs' => ['server.ports']],
                 ]],
                 ['route' => 'server.php.index', 'label' => 'PHP', 'icon' => 'code', 'cap' => 'server.php', 'section' => 'server.php.'],
+                ['route' => 'audit.index', 'label' => 'Audit log', 'icon' => 'history', 'cap' => 'audit.verify', 'section' => 'audit.'],
                 ['hub' => 'updates', 'label' => 'Updates', 'icon' => 'refresh', 'children' => [
                     ['route' => 'server.updates', 'label' => 'Updates', 'tab' => 'ArcPanel', 'icon' => 'refresh', 'cap' => 'server.updates', 'section' => 'server.updates',
                         'tabs' => ['server.updates']],
@@ -341,6 +344,9 @@ final class Navigation
     private function visible(Principal $principal, array $item): bool
     {
         if (! Capabilities::allows($principal->actingRole(), $item['cap'])) {
+            return false;
+        }
+        if (isset($item['roles']) && ! in_array($principal->actingRole()->value, $item['roles'], true)) {
             return false;
         }
         if (isset($item['requires']) && ! $this->configAllows($item['requires'])) {

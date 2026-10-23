@@ -1,5 +1,6 @@
 <?php
 
+use App\Audit\AuditWriter;
 use App\Auth\SudoMode;
 
 // Turning two-factor authentication on and recovery codes (E39 W5 spec §11.3).
@@ -75,6 +76,10 @@ it('turns 2FA on with a right code and shows the recovery codes once, with a dow
     // A URI that is not the one of the secret is refused before any command
     $this->post('/account/two-factor/confirm', ['code' => '123456', 'secret' => TF_SECRET, 'uri' => 'otpauth://totp/x?secret=OTHER'])->assertStatus(422);
     $this->fake->assertRan('v-change-user-2fa', times: 2);
+    // The audit log has the wrong code and the change, not the setup routes (E23 §5.2)
+    expect(array_map(fn ($e) => $e['action'].' '.$e['result'], app(AuditWriter::class)->events('account.2fa.enable')))
+        ->toBe(['account.2fa.enable denied', 'account.2fa.enable ok']);
+    expect(app(AuditWriter::class)->events('account.two-factor.confirm'))->toHaveCount(1);
 });
 
 it('creates new recovery codes only when 2FA is on', function () {
@@ -87,6 +92,7 @@ it('creates new recovery codes only when 2FA is on', function () {
     fakeServerUsers($this->fake, ['bob' => ['TWOFA' => 'yes', 'TWOFA_RECOVERY_LEFT' => '2']]);
     $this->post('/account/two-factor/recovery-codes')->assertOk()
         ->assertSee('The earlier codes no longer work.')->assertSee('AAAA-BBBB-CCCC-DDAA');
+    expect(array_map(fn ($e) => $e['result'], app(AuditWriter::class)->events('account.2fa.recovery')))->toBe(['failed', 'ok']);
 });
 
 it('is for the login user only: not while impersonating and not in a read-only session', function () {
