@@ -102,6 +102,8 @@ final class WebDomainEditController extends Controller
             'isAdminView' => $user !== $principal->effectiveUser(),
             'php' => $domainPhp,
             'phpProfiles' => $domainPhp !== null ? array_intersect_key($php->profiles(), array_flip([...$domainPhp['profiles'], $domainPhp['profile']])) : [],
+            // Per-domain PHP settings (E19 §6) of a domain that runs PHP
+            'phpSettings' => $domainPhp !== null && $domainPhp['version'] !== '' ? $php->settings($user, $domain) : null,
             'appProcesses' => $this->appProcessesTab($user, $domain, $principal, $appProcesses, $processPolicy),
         ]);
     }

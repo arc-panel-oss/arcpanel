@@ -4,20 +4,6 @@ use App\Arc\ExitCode;
 
 // The PHP tab of a web domain and the backend templates of a package (E41 §7.5, §8).
 
-function domainPhpRow(array $overrides = []): array
-{
-    return array_replace([
-        'DOMAIN' => 'example.com', 'VERSION' => '8.3', 'BACKEND' => 'PHP-8_3', 'PROFILE' => 'small', 'PROFILE_APPLIED' => 'yes',
-        'VERSION_ALLOWED' => 'yes', 'PROFILE_ALLOWED' => 'yes', 'ALLOWED' => 'yes', 'PACKAGE' => 'default', 'DEFAULT_PROFILE' => 'default',
-        'VERSIONS' => ['8.3' => ['STATUS' => 'security', 'EOL' => '2027-12-31'], '8.4' => ['STATUS' => 'active', 'EOL' => '2028-12-31']],
-        'PROFILES' => ['default', 'small'],
-        'EFFECTIVE' => [
-            'memory_limit' => ['VALUE' => '128M', 'SOURCE' => 'profile'],
-            'upload_max_filesize' => ['VALUE' => '100M', 'SOURCE' => 'php.ini'],
-        ],
-    ], $overrides);
-}
-
 beforeEach(function () {
     $this->fake = fakeArc();
     fakeResellers($this->fake);

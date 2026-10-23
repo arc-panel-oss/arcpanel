@@ -368,6 +368,8 @@ function fakeWebDomains(ArcCommandFake $fake): void
     $fake->on('v-list-web-templates-meta', ['web', 'json'])->returnsFixture('v-list-web-templates-meta/web.json');
     $fake->on('v-list-web-templates-meta', ['proxy', 'json'])->returnsFixture('v-list-web-templates-meta/proxy.json');
     $fake->on('v-list-web-domain-tpl-vars')->returnsFixture('v-list-web-domain-tpl-vars/none.json');
+    // Per-domain PHP settings of the PHP tab (E19)
+    $fake->on('v-list-web-domain-php-settings')->returnsJson(domainPhpSettingsRow());
     $fake->on('v-delete-web-domain-tpl-vars')->returns();
     // Runtimes of the template badges (E5): no Node.js runtime, Python only
     $fake->on('v-list-user-node-versions')->returnsJson(['ENABLED' => 'no', 'VERSIONS' => []]);
@@ -974,4 +976,42 @@ function storageAccount(array $overrides = []): array
     return array_merge(['INSTALLED' => 'yes', 'ALLOWED' => 'yes', 'BACKUP' => 'no', 'SUSPENDED' => 'no',
         'BUCKETS' => '1', 'BUCKETS_LIMIT' => '3', 'QUOTA_USED' => '100', 'QUOTA_LIMIT' => '1024', 'USED' => '2048',
         'OBJECTS' => '3', 'KEYS' => '1', 'KEYS_LIMIT' => '20', 'ENDPOINT' => 'https://s3.example.test', 'REGION' => 'us-east-1', 'PATH_STYLE' => 'yes'], $overrides);
+}
+
+/** A row of `v-list-web-domain-php USER DOMAIN json` (E41 §8). */
+function domainPhpRow(array $overrides = []): array
+{
+    return array_replace([
+        'DOMAIN' => 'example.com', 'VERSION' => '8.3', 'BACKEND' => 'PHP-8_3', 'PROFILE' => 'small', 'PROFILE_APPLIED' => 'yes',
+        'VERSION_ALLOWED' => 'yes', 'PROFILE_ALLOWED' => 'yes', 'ALLOWED' => 'yes', 'PACKAGE' => 'default', 'DEFAULT_PROFILE' => 'default',
+        'VERSIONS' => ['8.3' => ['STATUS' => 'security', 'EOL' => '2027-12-31'], '8.4' => ['STATUS' => 'active', 'EOL' => '2028-12-31']],
+        'PROFILES' => ['default', 'small'],
+        'EFFECTIVE' => [
+            'memory_limit' => ['VALUE' => '128M', 'SOURCE' => 'profile'],
+            'upload_max_filesize' => ['VALUE' => '100M', 'SOURCE' => 'php.ini'],
+        ],
+    ], $overrides);
+}
+
+/** A row of `v-list-web-domain-php-settings USER DOMAIN json` (E19 §5). */
+function domainPhpSettingsRow(array $overrides = [], array $settings = []): array
+{
+    $setting = fn (string $value, string $max, string $ini, string $profile, string $effective, string $source) => [
+        'VALUE' => $value, 'MAX' => $max, 'INI' => $ini, 'PROFILE' => $profile, 'EFFECTIVE' => $effective, 'SOURCE' => $source,
+    ];
+
+    return array_replace([
+        'DOMAIN' => 'example.com', 'POOL' => 'domain', 'SUPPORTED' => 'yes', 'PACKAGE' => 'default', 'PROFILE' => 'small', 'VERSION' => '8.3',
+        'NGINX_MAX_BODY' => '1024m',
+        'SETTINGS' => array_replace([
+            'memory_limit' => $setting('', '512M', '128M', '128M', '128M', 'profile'),
+            'upload_max_filesize' => $setting('64M', '256M', '2M', '32M', '64M', 'domain'),
+            'post_max_size' => $setting('64M', '256M', '8M', '32M', '64M', 'domain'),
+            'max_execution_time' => $setting('', '300', '30', '60', '60', 'profile'),
+            'max_input_vars' => $setting('', '10000', '1000', '2000', '2000', 'profile'),
+            'display_errors' => $setting('', '', 'Off', '', 'Off', 'php.ini'),
+            'date.timezone' => $setting('', '', 'UTC', '', 'UTC', 'php.ini'),
+        ], $settings),
+        'WARNINGS' => [],
+    ], $overrides);
 }

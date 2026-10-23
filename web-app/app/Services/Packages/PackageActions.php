@@ -249,7 +249,7 @@ final class PackageActions
     /**
      * PHP keys of the reseller's own package (E41 §7.5).
      *
-     * @return array{PHP_VERSIONS: string, PHP_PROFILES: string, PHP_DEFAULT_PROFILE: string}
+     * @return array{PHP_VERSIONS: string, PHP_PROFILES: string, PHP_DEFAULT_PROFILE: string, PHP_MAX_MEMORY: string, PHP_MAX_UPLOAD: string, PHP_MAX_EXECUTION_TIME: string, PHP_MAX_INPUT_VARS: string}
      */
     public function ownPhp(string $reseller): array
     {
@@ -260,8 +260,8 @@ final class PackageActions
      * PHP keys of a package (E41 D12): a reseller allows only versions and
      * profiles that its own package allows, and * only when that is *.
      *
-     * @param  array{PHP_VERSIONS: string, PHP_PROFILES: string, PHP_DEFAULT_PROFILE: string}|null  $php
-     * @return array{PHP_VERSIONS: string, PHP_PROFILES: string, PHP_DEFAULT_PROFILE: string}|null
+     * @param  array{PHP_VERSIONS: string, PHP_PROFILES: string, PHP_DEFAULT_PROFILE: string, PHP_MAX_MEMORY?: string, PHP_MAX_UPLOAD?: string, PHP_MAX_EXECUTION_TIME?: string, PHP_MAX_INPUT_VARS?: string}|null  $php
+     * @return array{PHP_VERSIONS: string, PHP_PROFILES: string, PHP_DEFAULT_PROFILE: string, PHP_MAX_MEMORY?: string, PHP_MAX_UPLOAD?: string, PHP_MAX_EXECUTION_TIME?: string, PHP_MAX_INPUT_VARS?: string}|null
      *
      * @throws ValidationException
      */
@@ -283,6 +283,12 @@ final class PackageActions
                 $outside = $php[$key] === '*' ? ['*'] : array_diff(explode(',', $php[$key]), explode(',', $own[$key]));
                 if ($outside !== []) {
                     $errors[$field] = sprintf(__('Your plan allows only %s.'), str_replace(',', ', ', $own[$key]));
+                }
+            }
+            // Maximums of the per-domain settings (E19 D6)
+            foreach (array_keys(PhpManager::SETTING_MAXIMUMS) as $key) {
+                if (isset($php[$key]) && PackageLimits::above($key, $php[$key], $own[$key])) {
+                    $errors[strtolower($key)] = sprintf(__('At most %s on your plan.'), $own[$key]);
                 }
             }
         }

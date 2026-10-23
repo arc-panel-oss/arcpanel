@@ -114,6 +114,11 @@ it('refuses the changes to a v2-read key before any command, and reads with it',
     $this->getJson('/api/v2/system/php/versions/8.4/ini/cli', $headers)->assertOk();
     $this->getJson('/api/v2/system/php/profiles', $headers)->assertOk();
     $this->getJson('/api/v2/users/bob/web-domains/example.com/php', $headers)->assertOk();
+    $this->getJson('/api/v2/users/bob/web-domains/example.com/php/settings', $headers)->assertOk();
+    $this->putJson('/api/v2/users/bob/web-domains/example.com/php/settings', ['memory_limit' => '256M'], $headers)->assertForbidden();
+    $this->deleteJson('/api/v2/users/bob/web-domains/example.com/php/settings', [], $headers)->assertForbidden();
+    $this->fake->assertNotRan('v-change-web-domain-php-setting');
+    $this->fake->assertNotRan('v-delete-web-domain-php-setting');
 
     $this->postJson('/api/v2/system/php/versions/8.5', [], $headers)->assertForbidden()->assertJsonPath('error.commands', ['v-start-sys-task']);
     $this->putJson('/api/v2/system/php/versions/8.4/ini/fpm?dry_run=1', ['content' => "[PHP]\n"], $headers)->assertForbidden();
@@ -306,6 +311,76 @@ it('sets the PHP of a web domain with a key holding only v2-web', function () {
     $this->putJson('/api/v2/users/carol/web-domains/carol.example/php', ['version' => '8.4'], $headers)->assertNotFound();
 });
 
+it('reads the PHP settings of a web domain within the owner tree (E19)', function (string $principal, string $role, int $status) {
+    $response = $this->getJson('/api/v2/users/bob/web-domains/example.com/php/settings', apiAs($this->fake, $principal, $role, readOnly: true))->assertStatus($status);
+    if ($status === 200) {
+        $response->assertJsonPath('data.supported', true)
+            ->assertJsonPath('data.pool', 'domain')
+            ->assertJsonPath('data.nginx_max_body', '1024m')
+            ->assertJsonPath('data.settings.upload_max_filesize', [
+                'directive' => 'upload_max_filesize', 'value' => '64M', 'max' => '256M', 'ini' => '2M', 'profile' => '32M', 'effective' => '64M', 'source' => 'domain',
+            ])
+            ->assertJsonPath('data.settings.memory_limit.value', null)
+            ->assertJsonPath('data.settings.display_errors.max', null)
+            ->assertJsonPath('data.settings.date_timezone.directive', 'date.timezone')
+            ->assertJsonPath('data.warnings', []);
+    } else {
+        $response->assertJsonPath('error.code', 'E_NOTEXIST');
+    }
+})->with([
+    'administrator' => ['arcadmin', 'admin', 200],
+    'reseller A' => ['hostco', 'reseller', 200],
+    'reseller B' => ['resb', 'reseller', 404],
+    'user' => ['bob', 'user', 200],
+    'other user' => ['carol', 'user', 404],
+]);
+
+it('changes the PHP settings of a web domain with a key holding only v2-web (E19)', function () {
+    $this->fake->on('v-change-web-domain-php-setting')->returns();
+    $this->fake->on('v-delete-web-domain-php-setting')->returns();
+    $headers = apiAs($this->fake, 'bob', 'user', area: 'web');
+
+    $this->putJson('/api/v2/users/bob/web-domains/example.com/php/settings?dry_run=1', ['memory_limit' => '256M', 'upload_max_filesize' => null, 'post_max_size' => null], $headers)
+        ->assertOk()
+        ->assertJsonPath('data.steps.0.args', ['bob', 'example.com', 'memory_limit', '256M', 'no'])
+        ->assertJsonPath('data.steps.1.args', ['bob', 'example.com', 'upload_max_filesize', 'no'])
+        ->assertJsonPath('data.steps.2.args', ['bob', 'example.com', 'post_max_size', 'yes']);
+    $this->fake->assertNotRan('v-change-web-domain-php-setting');
+    $this->fake->assertNotRan('v-delete-web-domain-php-setting');
+
+    $this->putJson('/api/v2/users/bob/web-domains/example.com/php/settings', ['date_timezone' => 'Europe/Berlin', 'display_errors' => 'off'], $headers)
+        ->assertOk()->assertJsonPath('data.pool', 'domain');
+    expect(collect($this->fake->calls('v-change-web-domain-php-setting'))->pluck('args')->all())->toBe([
+        ['bob', 'example.com', 'display_errors', 'off', 'no'],
+        ['bob', 'example.com', 'date.timezone', 'Europe/Berlin', 'yes'],
+    ]);
+    // the current values change nothing
+    $this->putJson('/api/v2/users/bob/web-domains/example.com/php/settings', ['upload_max_filesize' => '64M'], $headers)->assertOk();
+    $this->fake->assertRan('v-change-web-domain-php-setting', null, 2);
+
+    $this->putJson('/api/v2/users/bob/web-domains/example.com/php/settings', ['display_errors' => 'stderr'], $headers)
+        ->assertStatus(422)->assertJsonPath('error.fields', fn ($fields) => isset($fields['display_errors']));
+    $this->putJson('/api/v2/users/bob/web-domains/example.com/php/settings', ['memory_limit' => '600M', 'post_max_size' => '32M'], $headers)
+        ->assertStatus(422)->assertJsonPath('error.fields', fn ($fields) => isset($fields['memory_limit'], $fields['post_max_size']));
+    $this->fake->assertRan('v-change-web-domain-php-setting', null, 2);
+    $this->putJson('/api/v2/users/carol/web-domains/carol.example/php/settings', ['memory_limit' => '256M'], $headers)->assertNotFound();
+});
+
+it('resets the PHP settings of a web domain, and refuses a template without the profile line (E19)', function () {
+    $this->fake->on('v-delete-web-domain-php-setting')->returns();
+    $headers = apiAs($this->fake, 'bob', 'user', area: 'web');
+
+    $this->deleteJson('/api/v2/users/bob/web-domains/example.com/php/settings?dry_run=1', [], $headers)->assertOk()
+        ->assertJsonPath('data.steps.0.args', ['bob', 'example.com', 'all']);
+    $this->fake->assertNotRan('v-delete-web-domain-php-setting');
+    $this->deleteJson('/api/v2/users/bob/web-domains/example.com/php/settings', [], $headers)->assertOk()->assertJsonPath('data.supported', true);
+    $this->fake->assertRan('v-delete-web-domain-php-setting', fn ($a) => $a === ['bob', 'example.com', 'all']);
+
+    $this->fake->on('v-list-web-domain-php-settings')->returnsJson(domainPhpSettingsRow(['SUPPORTED' => 'no']));
+    $this->putJson('/api/v2/users/bob/web-domains/example.com/php/settings', ['memory_limit' => '256M'], $headers)->assertStatus(409)
+        ->assertJsonPath('error.code', 'E_DISABLED');
+});
+
 it('limits PHP changes of web domains to 6 a minute per account (E39 W5 P7)', function () {
     $this->fake->on('v-change-web-domain-php')->returns();
     $headers = apiAs($this->fake, 'bob', 'user', area: 'web');
@@ -331,7 +406,8 @@ it('keeps a backend template of a version the package does not allow from users'
 
 it('shows and sets the PHP of a package', function () {
     $this->fake->on('v-list-package-tenancy', ['all', 'json'])->returnsJson([
-        'default' => ['WEB_TEMPLATE' => 'default', 'NS' => 'ns1.example.com,ns2.example.com', 'PHP_VERSIONS' => '8.3,8.4', 'PHP_PROFILES' => 'default,small', 'PHP_DEFAULT_PROFILE' => 'small'],
+        'default' => ['WEB_TEMPLATE' => 'default', 'NS' => 'ns1.example.com,ns2.example.com', 'PHP_VERSIONS' => '8.3,8.4', 'PHP_PROFILES' => 'default,small', 'PHP_DEFAULT_PROFILE' => 'small',
+            'PHP_MAX_MEMORY' => '512M', 'PHP_MAX_UPLOAD' => 'unlimited', 'PHP_MAX_EXECUTION_TIME' => '300', 'PHP_MAX_INPUT_VARS' => '10000'],
     ]);
     $this->fake->on('v-add-user-package')->returns();
     $this->fake->on('v-update-user-package')->returns();
@@ -344,7 +420,8 @@ it('shows and sets the PHP of a package', function () {
     $headers = apiAs($this->fake, 'arcadmin', 'admin', area: 'accounts');
 
     $this->getJson('/api/v2/packages/default', $headers)->assertOk()
-        ->assertJsonPath('data.php', ['versions' => '8.3,8.4', 'profiles' => 'default,small', 'default_profile' => 'small']);
+        ->assertJsonPath('data.php', ['versions' => '8.3,8.4', 'profiles' => 'default,small', 'default_profile' => 'small',
+            'max_memory' => '512M', 'max_upload' => null, 'max_execution_time' => 300, 'max_input_vars' => 10000]);
     $this->patchJson('/api/v2/packages/default', ['php' => ['versions' => '*', 'profiles' => 'medium', 'default_profile' => 'medium']], $headers)->assertOk();
     $steps = collect($this->fake->calls('v-change-package-tenancy'))->pluck('args')->all();
     expect($steps)->toBe([
@@ -356,4 +433,33 @@ it('shows and sets the PHP of a package', function () {
     $this->patchJson('/api/v2/packages/default', ['php' => ['versions' => '8.3;id']], $headers)->assertStatus(422);
     $this->patchJson('/api/v2/packages/default', ['php' => ['profiles' => 'small', 'default_profile' => 'medium']], $headers)->assertStatus(422)
         ->assertJsonPath('error.fields', fn ($fields) => isset($fields['php.default_profile']));
+});
+
+it('sets the maximums of the per-domain PHP settings of a package (E19)', function () {
+    $this->fake->on('v-list-package-tenancy', ['all', 'json'])->returnsJson([
+        'default' => ['WEB_TEMPLATE' => 'default', 'NS' => 'ns1.example.com,ns2.example.com', 'PHP_VERSIONS' => '*', 'PHP_PROFILES' => 'default', 'PHP_DEFAULT_PROFILE' => 'default'],
+    ]);
+    $this->fake->on('v-add-user-package')->returns();
+    $this->fake->on('v-update-user-package')->returns();
+    $this->fake->on('v-list-web-templates', ['json'])->returnsJson(['default']);
+    $this->fake->on('v-list-web-templates-backend', ['json'])->returnsJson(['default']);
+    $this->fake->on('v-list-web-templates-proxy', ['json'])->returnsJson(['default']);
+    $this->fake->on('v-list-dns-templates', ['json'])->returnsJson(['default']);
+    $this->fake->on('v-list-sys-shells', ['json'])->returnsJson(['bash', 'nologin']);
+    $this->fake->on('v-change-package-tenancy')->returns();
+    $headers = apiAs($this->fake, 'arcadmin', 'admin', area: 'accounts');
+
+    // a package without the keys has the default maximums
+    $this->getJson('/api/v2/packages/default', $headers)->assertOk()
+        ->assertJsonPath('data.php.max_memory', '512M')->assertJsonPath('data.php.max_upload', '256M')
+        ->assertJsonPath('data.php.max_execution_time', 300)->assertJsonPath('data.php.max_input_vars', 10000);
+    $this->patchJson('/api/v2/packages/default', ['php' => ['max_memory' => '1G', 'max_upload' => null, 'max_input_vars' => 20000]], $headers)->assertOk();
+    $steps = collect($this->fake->calls('v-change-package-tenancy'))->pluck('args')->all();
+    expect($steps)->toBe([
+        ['default', 'PHP_MAX_MEMORY', '1G'], ['default', 'PHP_MAX_UPLOAD', 'unlimited'], ['default', 'PHP_MAX_INPUT_VARS', '20000'],
+    ]);
+    foreach (['max_memory' => '1T', 'max_upload' => 'unlimited', 'max_execution_time' => 0, 'max_input_vars' => 1000001] as $field => $value) {
+        $this->patchJson('/api/v2/packages/default', ['php' => [$field => $value]], $headers)->assertStatus(422)
+            ->assertJsonPath('error.fields', fn ($fields) => isset($fields['php.'.$field]));
+    }
 });

@@ -371,6 +371,8 @@ Route::middleware('effective-user')->group(function () {
     Route::get('/users/{user}/web-domains/{domain}/logs', [WebDomainController::class, 'logs'])->name('web-domains.logs');
     // PHP version and PHP-FPM profile (E41 §9)
     Route::get('/users/{user}/web-domains/{domain}/php', [WebDomainPhpController::class, 'show'])->name('web-domains.php.show');
+    // Per-domain PHP settings (E19 §7)
+    Route::get('/users/{user}/web-domains/{domain}/php/settings', [WebDomainPhpController::class, 'settings'])->name('web-domains.php.settings.show');
     Route::middleware('not-readonly')->prefix('/users/{user}/web-domains')->name('web-domains.')->group(function () {
         Route::post('/', [WebDomainController::class, 'store'])->name('store');
         Route::patch('/{domain}', [WebDomainController::class, 'update'])->name('update');
@@ -385,6 +387,8 @@ Route::middleware('effective-user')->group(function () {
         Route::delete('/{domain}/ssl', [WebDomainController::class, 'deleteSsl'])->name('ssl.destroy');
         Route::post('/{domain}/letsencrypt', [WebDomainController::class, 'letsEncrypt'])->name('letsencrypt');
         Route::put('/{domain}/php', [WebDomainPhpController::class, 'update'])->middleware('throttle:php-switch')->name('php.update');
+        Route::put('/{domain}/php/settings', [WebDomainPhpController::class, 'updateSettings'])->middleware('throttle:php-switch')->name('php.settings.update');
+        Route::delete('/{domain}/php/settings', [WebDomainPhpController::class, 'resetSettings'])->middleware('throttle:php-switch')->name('php.settings.destroy');
     });
 
     // DNS zones and records (E34 batch 2 spec §6.1)

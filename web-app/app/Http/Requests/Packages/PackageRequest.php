@@ -3,6 +3,8 @@
 namespace App\Http\Requests\Packages;
 
 use App\Services\Packages\PackageRecord;
+use App\Services\Php\PhpManager;
+use Closure;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -66,6 +68,11 @@ final class PackageRequest extends FormRequest
             'php_profiles' => ['nullable', 'array', Rule::requiredIf(fn () => $this->boolean('php_group') && ! $this->boolean('php_profiles_all'))],
             'php_profiles.*' => ['string', 'regex:/^[a-z0-9][a-z0-9-]{0,31}$/'],
             'php_default_profile' => ['nullable', 'required_if:php_group,1', 'string', 'regex:/^[a-z0-9][a-z0-9-]{0,31}$/'],
+            // Maximums of the per-domain PHP settings (E19 §3.2)
+            'php_max_memory' => ['nullable', 'string', 'max:20', 'regex:/^(unlimited|\d{1,6}[KMG]?)$/', 'not_regex:/^0+[KMG]?$/'],
+            'php_max_upload' => ['nullable', 'string', 'max:20', 'regex:/^(unlimited|\d{1,6}[KMG]?)$/', 'not_regex:/^0+[KMG]?$/'],
+            'php_max_execution_time' => ['nullable', 'string', 'max:20', self::range(1, 86400)],
+            'php_max_input_vars' => ['nullable', 'string', 'max:20', self::range(1, 1000000)],
         ];
         foreach (PackageRecord::COUNTED as $key) {
             $rules[strtolower($key)] = ['nullable', 'required_without:'.strtolower($key).'_unlimited', 'integer', 'min:0', 'max:100000000'];
@@ -112,7 +119,7 @@ final class PackageRequest extends FormRequest
      * PHP keys of the package sidecar (E41 §7.5), or null when the form has
      * no PHP group (a server without PHP-FPM).
      *
-     * @return array{PHP_VERSIONS: string, PHP_PROFILES: string, PHP_DEFAULT_PROFILE: string}|null
+     * @return array{PHP_VERSIONS: string, PHP_PROFILES: string, PHP_DEFAULT_PROFILE: string, PHP_MAX_MEMORY?: string, PHP_MAX_UPLOAD?: string, PHP_MAX_EXECUTION_TIME?: string, PHP_MAX_INPUT_VARS?: string}|null
      */
     public function phpValues(): ?array
     {
@@ -129,11 +136,31 @@ final class PackageRequest extends FormRequest
             return implode(',', $items);
         };
 
-        return [
+        $values = [
             'PHP_VERSIONS' => $list('php_versions'),
             'PHP_PROFILES' => $list('php_profiles'),
             'PHP_DEFAULT_PROFILE' => (string) $this->input('php_default_profile', 'default'),
         ];
+        // An empty maximum stays as it is
+        foreach (array_keys(PhpManager::SETTING_MAXIMUMS) as $key) {
+            $value = trim((string) $this->input(strtolower($key)));
+            if ($value !== '') {
+                $values[$key] = $value;
+            }
+        }
+
+        return $values;
+    }
+
+    /** A whole number from $min to $max, or unlimited. */
+    public static function range(int $min, int $max): Closure
+    {
+        return function (string $attribute, mixed $value, Closure $fail) use ($min, $max): void {
+            $value = (string) $value;
+            if ($value !== 'unlimited' && (preg_match('/^\d{1,7}$/D', $value) !== 1 || (int) $value < $min || (int) $value > $max)) {
+                $fail(sprintf(__('A number from %1$s to %2$s, or unlimited.'), $min, $max));
+            }
+        };
     }
 
     /** @return array{USERS: string, RESELLER_PACKAGES: string, RESELLER_VISIBLE: string} */

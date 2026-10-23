@@ -32250,6 +32250,277 @@
                 "x-arcpanel-permission-set": "v2-web"
             }
         },
+        "/users/{user}/web-domains/{domain}/php/settings": {
+            "get": {
+                "operationId": "getWebDomainPhpSettings",
+                "description": "The seven per-domain settings (E19): the domain's value, the package\nmaximum, the values of php.ini and the profile, and the effective value\nwith its source; with one pool per user they are the user's.",
+                "summary": "Get the PHP settings of a web domain",
+                "tags": [
+                    "Web domains"
+                ],
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "domain",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "`WebDomainPhpSettings`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/WebDomainPhpSettings"
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    }
+                },
+                "x-arcpanel-permission-set": "v2-web"
+            },
+            "put": {
+                "operationId": "updateWebDomainPhpSettings",
+                "description": "Settings left out stay; `null` resets one to the value of the profile\nor php.ini. Values must be within the package maximums (`422`);\nPHP-FPM reloads once. A backend template without the profile line\ntakes no settings (`409`).",
+                "summary": "Change the PHP settings of a web domain",
+                "tags": [
+                    "Web domains"
+                ],
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "domain",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "dry_run",
+                        "in": "query",
+                        "description": "Validate, authorize and plan the change, and answer with its steps instead of running them.",
+                        "schema": {
+                            "type": "boolean",
+                            "default": false
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/SetWebDomainPhpSettingsRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "`WebDomainPhpSettings`; with `dry_run`, the planned steps.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "oneOf": [
+                                        {
+                                            "type": "object",
+                                            "properties": {
+                                                "data": {
+                                                    "$ref": "#/components/schemas/WebDomainPhpSettings"
+                                                }
+                                            },
+                                            "required": [
+                                                "data"
+                                            ]
+                                        },
+                                        {
+                                            "$ref": "#/components/schemas/DryRun"
+                                        }
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "409": {
+                        "$ref": "#/components/responses/Conflict"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    },
+                    "503": {
+                        "$ref": "#/components/responses/Unavailable"
+                    }
+                },
+                "x-arcpanel-permission-set": "v2-web"
+            },
+            "delete": {
+                "operationId": "resetWebDomainPhpSettings",
+                "description": "Every setting takes the value of the profile or php.ini again.",
+                "summary": "Reset the PHP settings of a web domain",
+                "tags": [
+                    "Web domains"
+                ],
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "domain",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "dry_run",
+                        "in": "query",
+                        "description": "Validate, authorize and plan the change, and answer with its steps instead of running them.",
+                        "schema": {
+                            "type": "boolean",
+                            "default": false
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "`WebDomainPhpSettings`; with `dry_run`, the planned steps.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "oneOf": [
+                                        {
+                                            "type": "object",
+                                            "properties": {
+                                                "data": {
+                                                    "$ref": "#/components/schemas/WebDomainPhpSettings"
+                                                }
+                                            },
+                                            "required": [
+                                                "data"
+                                            ]
+                                        },
+                                        {
+                                            "$ref": "#/components/schemas/DryRun"
+                                        }
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "409": {
+                        "$ref": "#/components/responses/Conflict"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    },
+                    "503": {
+                        "$ref": "#/components/responses/Unavailable"
+                    }
+                },
+                "x-arcpanel-permission-set": "v2-web"
+            }
+        },
         "/users/{user}/web-domains/{domain}/purge-cache": {
             "post": {
                 "operationId": "purgeWebDomainCache",
@@ -38530,12 +38801,44 @@
                             "default_profile": {
                                 "type": "string",
                                 "description": "the profile of new web domains"
+                            },
+                            "max_memory": {
+                                "type": [
+                                    "string",
+                                    "null"
+                                ],
+                                "description": "the largest `memory_limit` users may set on a web domain; null for unlimited (E19)"
+                            },
+                            "max_upload": {
+                                "type": [
+                                    "string",
+                                    "null"
+                                ],
+                                "description": "the largest `upload_max_filesize` and `post_max_size` on a web domain"
+                            },
+                            "max_execution_time": {
+                                "type": [
+                                    "integer",
+                                    "null"
+                                ],
+                                "description": "the largest `max_execution_time` on a web domain, in seconds"
+                            },
+                            "max_input_vars": {
+                                "type": [
+                                    "integer",
+                                    "null"
+                                ],
+                                "description": "the largest `max_input_vars` on a web domain"
                             }
                         },
                         "required": [
                             "versions",
                             "profiles",
-                            "default_profile"
+                            "default_profile",
+                            "max_memory",
+                            "max_upload",
+                            "max_execution_time",
+                            "max_input_vars"
                         ]
                     },
                     "created_at": {
@@ -41052,6 +41355,78 @@
                 },
                 "title": "SetWebDomainPhpRequest"
             },
+            "SetWebDomainPhpSettingsRequest": {
+                "type": "object",
+                "description": "PUT /users/{user}/web-domains/{domain}/php/settings (E19 §7): the\nsettings to change; a field left out stays, null resets it to the\nprofile's or php.ini's value.",
+                "properties": {
+                    "memory_limit": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "`memory_limit`, a size such as `256M`, within the package maximum.",
+                        "pattern": "^\\d{1,6}[KMG]?$",
+                        "maxLength": 20
+                    },
+                    "upload_max_filesize": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "`upload_max_filesize`, a size, within the package maximum.",
+                        "pattern": "^\\d{1,6}[KMG]?$",
+                        "maxLength": 20
+                    },
+                    "post_max_size": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "`post_max_size`, a size, at least `upload_max_filesize` when both are set on the domain.",
+                        "pattern": "^\\d{1,6}[KMG]?$",
+                        "maxLength": 20
+                    },
+                    "max_execution_time": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ],
+                        "description": "`max_execution_time` in seconds, 0–86400, within the package maximum.",
+                        "minimum": 0,
+                        "maximum": 86400
+                    },
+                    "max_input_vars": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ],
+                        "description": "`max_input_vars`, 1–1000000, within the package maximum.",
+                        "minimum": 1,
+                        "maximum": 1000000
+                    },
+                    "display_errors": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "`display_errors`: `on` or `off`.",
+                        "enum": [
+                            "on",
+                            "off",
+                            null
+                        ]
+                    },
+                    "date_timezone": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "`date.timezone`, a time zone such as `Europe/Berlin`.",
+                        "maxLength": 64
+                    }
+                },
+                "title": "SetWebDomainPhpSettingsRequest"
+            },
             "Snapshot": {
                 "type": "object",
                 "properties": {
@@ -42874,6 +43249,38 @@
                             "default_profile": {
                                 "type": "string",
                                 "pattern": "^[a-z0-9][a-z0-9-]{0,31}$"
+                            },
+                            "max_memory": {
+                                "type": [
+                                    "string",
+                                    "null"
+                                ],
+                                "pattern": "^\\d{1,6}[KMG]?$",
+                                "maxLength": 20
+                            },
+                            "max_upload": {
+                                "type": [
+                                    "string",
+                                    "null"
+                                ],
+                                "pattern": "^\\d{1,6}[KMG]?$",
+                                "maxLength": 20
+                            },
+                            "max_execution_time": {
+                                "type": [
+                                    "integer",
+                                    "null"
+                                ],
+                                "minimum": 1,
+                                "maximum": 86400
+                            },
+                            "max_input_vars": {
+                                "type": [
+                                    "integer",
+                                    "null"
+                                ],
+                                "minimum": 1,
+                                "maximum": 1000000
                             }
                         }
                     }
@@ -44194,6 +44601,38 @@
                             "default_profile": {
                                 "type": "string",
                                 "pattern": "^[a-z0-9][a-z0-9-]{0,31}$"
+                            },
+                            "max_memory": {
+                                "type": [
+                                    "string",
+                                    "null"
+                                ],
+                                "pattern": "^\\d{1,6}[KMG]?$",
+                                "maxLength": 20
+                            },
+                            "max_upload": {
+                                "type": [
+                                    "string",
+                                    "null"
+                                ],
+                                "pattern": "^\\d{1,6}[KMG]?$",
+                                "maxLength": 20
+                            },
+                            "max_execution_time": {
+                                "type": [
+                                    "integer",
+                                    "null"
+                                ],
+                                "minimum": 1,
+                                "maximum": 86400
+                            },
+                            "max_input_vars": {
+                                "type": [
+                                    "integer",
+                                    "null"
+                                ],
+                                "minimum": 1,
+                                "maximum": 1000000
                             }
                         }
                     }
@@ -45812,6 +46251,44 @@
                     "effective"
                 ],
                 "title": "WebDomainPhp"
+            },
+            "WebDomainPhpSettings": {
+                "type": "object",
+                "properties": {
+                    "pool": {
+                        "type": "string",
+                        "description": "`domain`, or `user` when the user's web domains share one pool and so one set of settings"
+                    },
+                    "supported": {
+                        "type": "boolean",
+                        "description": "false for a domain without PHP or a backend template without the profile line"
+                    },
+                    "nginx_max_body": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "the nginx `client_max_body_size` of the domain, which also caps uploads"
+                    },
+                    "settings": {
+                        "type": "string",
+                        "description": "The seven settings keyed by directive, with `date.timezone` as `date_timezone`."
+                    },
+                    "warnings": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    }
+                },
+                "required": [
+                    "pool",
+                    "supported",
+                    "nginx_max_body",
+                    "settings",
+                    "warnings"
+                ],
+                "title": "WebDomainPhpSettings"
             },
             "WebDomainSslRequest": {
                 "type": "object",

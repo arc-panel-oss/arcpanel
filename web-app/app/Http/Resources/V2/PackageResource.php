@@ -129,6 +129,14 @@ final class PackageResource extends JsonResource
                 'profiles' => $get('PHP_PROFILES', 'default') ?: 'default',
                 /** @var string the profile of new web domains */
                 'default_profile' => $get('PHP_DEFAULT_PROFILE', 'default') ?: 'default',
+                /** @var string|null the largest `memory_limit` users may set on a web domain; null for unlimited (E19) */
+                'max_memory' => self::value($get('PHP_MAX_MEMORY', '512M') ?: '512M'),
+                /** @var string|null the largest `upload_max_filesize` and `post_max_size` on a web domain */
+                'max_upload' => self::value($get('PHP_MAX_UPLOAD', '256M') ?: '256M'),
+                /** @var int|null the largest `max_execution_time` on a web domain, in seconds */
+                'max_execution_time' => UserResource::limit($get('PHP_MAX_EXECUTION_TIME', '300') ?: '300'),
+                /** @var int|null the largest `max_input_vars` on a web domain */
+                'max_input_vars' => UserResource::limit($get('PHP_MAX_INPUT_VARS', '10000') ?: '10000'),
             ],
             /** @var string|null creation time in the server's time zone, YYYY-MM-DDTHH:MM:SS */
             'created_at' => UserResource::localTime($get('DATE'), $get('TIME')),

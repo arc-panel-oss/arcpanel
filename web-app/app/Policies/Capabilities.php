@@ -92,6 +92,8 @@ final class Capabilities
         'web.templates.edit' => self::ALL_ROLES,
         // PHP version and PHP-FPM profile of a domain within the package (E41 §8)
         'web.domains.php' => self::ALL_ROLES,
+        // Per-domain PHP settings within the package maximums (E19 §6)
+        'web.domains.php.settings' => self::ALL_ROLES,
 
         // Databases (E7 batch 1 spec §5.1)
         'db.view' => self::ALL_ROLES,

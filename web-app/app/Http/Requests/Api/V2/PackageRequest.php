@@ -110,6 +110,14 @@ abstract class PackageRequest extends ApiRequest
             'php.profiles' => ['sometimes', 'string', 'max:500', 'regex:/^(\*|[a-z0-9][a-z0-9-]{0,31}(,[a-z0-9][a-z0-9-]{0,31})*)$/'],
             /** The profile of new web domains, one of the allowed profiles. */
             'php.default_profile' => ['sometimes', 'string', 'regex:/^[a-z0-9][a-z0-9-]{0,31}$/'],
+            /** Maximum `memory_limit` users may set on a web domain, a size such as `512M`; null for unlimited (E19). */
+            'php.max_memory' => ['sometimes', 'nullable', 'string', 'max:20', 'regex:/^\d{1,6}[KMG]?$/', 'not_regex:/^0+[KMG]?$/'],
+            /** Maximum `upload_max_filesize` and `post_max_size` on a web domain, a size; null for unlimited. */
+            'php.max_upload' => ['sometimes', 'nullable', 'string', 'max:20', 'regex:/^\d{1,6}[KMG]?$/', 'not_regex:/^0+[KMG]?$/'],
+            /** Maximum `max_execution_time` on a web domain, in seconds; null for unlimited. */
+            'php.max_execution_time' => ['sometimes', 'nullable', 'integer', 'min:1', 'max:86400'],
+            /** Maximum `max_input_vars` on a web domain; null for unlimited. */
+            'php.max_input_vars' => ['sometimes', 'nullable', 'integer', 'min:1', 'max:1000000'],
         ];
         foreach (array_keys(self::TEMPLATES) as $field) {
             $rules['templates.'.$field] = $object;
@@ -255,7 +263,7 @@ abstract class PackageRequest extends ApiRequest
      * has no `php` object, so they stay as they are.
      *
      * @param  array<string, string>  $base
-     * @return array{PHP_VERSIONS: string, PHP_PROFILES: string, PHP_DEFAULT_PROFILE: string}|null
+     * @return array{PHP_VERSIONS: string, PHP_PROFILES: string, PHP_DEFAULT_PROFILE: string, PHP_MAX_MEMORY?: string, PHP_MAX_UPLOAD?: string, PHP_MAX_EXECUTION_TIME?: string, PHP_MAX_INPUT_VARS?: string}|null
      */
     public function phpValues(array $base): ?array
     {
@@ -267,6 +275,10 @@ abstract class PackageRequest extends ApiRequest
             'PHP_VERSIONS' => $this->has('php.versions') ? (string) $this->input('php.versions') : (($base['PHP_VERSIONS'] ?? '') ?: '*'),
             'PHP_PROFILES' => $this->has('php.profiles') ? (string) $this->input('php.profiles') : (($base['PHP_PROFILES'] ?? '') ?: 'default'),
             'PHP_DEFAULT_PROFILE' => $this->has('php.default_profile') ? (string) $this->input('php.default_profile') : (($base['PHP_DEFAULT_PROFILE'] ?? '') ?: 'default'),
+            'PHP_MAX_MEMORY' => $this->has('php.max_memory') ? (string) ($this->input('php.max_memory') ?? 'unlimited') : (($base['PHP_MAX_MEMORY'] ?? '') ?: '512M'),
+            'PHP_MAX_UPLOAD' => $this->has('php.max_upload') ? (string) ($this->input('php.max_upload') ?? 'unlimited') : (($base['PHP_MAX_UPLOAD'] ?? '') ?: '256M'),
+            'PHP_MAX_EXECUTION_TIME' => $this->has('php.max_execution_time') ? self::number($this->input('php.max_execution_time')) : (($base['PHP_MAX_EXECUTION_TIME'] ?? '') ?: '300'),
+            'PHP_MAX_INPUT_VARS' => $this->has('php.max_input_vars') ? self::number($this->input('php.max_input_vars')) : (($base['PHP_MAX_INPUT_VARS'] ?? '') ?: '10000'),
         ];
     }
 
@@ -292,6 +304,8 @@ abstract class PackageRequest extends ApiRequest
                 'node' => 'node.enabled', 'node_versions' => 'node.versions', 'node_apps' => 'node.apps', 'node_allowed' => 'node.allowed',
                 'docker' => 'docker.enabled', 'docker_apps' => 'docker.apps', 'docker_cpus' => 'docker.cpus', 'docker_memory' => 'docker.memory',
                 'php_versions' => 'php.versions', 'php_profiles' => 'php.profiles', 'php_default_profile' => 'php.default_profile',
+                'php_max_memory' => 'php.max_memory', 'php_max_upload' => 'php.max_upload',
+                'php_max_execution_time' => 'php.max_execution_time', 'php_max_input_vars' => 'php.max_input_vars',
                 'app_processes' => 'app_processes.enabled', 'app_processes_max' => 'app_processes.max',
                 'app_processes_memory' => 'app_processes.memory', 'app_processes_cpus' => 'app_processes.cpus',
                 'object_storage' => 'object_storage.enabled', 'object_storage_buckets' => 'object_storage.buckets',

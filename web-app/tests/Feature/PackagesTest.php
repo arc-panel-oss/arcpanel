@@ -372,6 +372,48 @@ it('limits the PHP of a reseller package to the reseller plan (E41 D12)', functi
     $this->fake->assertRan('v-change-package-tenancy', fn ($a) => $a === ['hostco_business', 'PHP_DEFAULT_PROFILE', 'small']);
 });
 
+it('sets the maximums of the per-domain PHP settings of a package (E19)', function () {
+    $this->fake->on('v-add-user-package')->returns();
+    $this->fake->on('v-change-package-tenancy')->returns();
+    $php = ['php_group' => '1', 'php_versions_all' => '1', 'php_profiles' => ['default'], 'php_default_profile' => 'default'];
+
+    signIn('arcadmin', 'admin');
+    $this->get('/packages/create')->assertOk()->assertSee('name="php_max_memory"', false)->assertSee('name="php_max_upload"', false)
+        ->assertSee('name="php_max_execution_time"', false)->assertSee('name="php_max_input_vars"', false)->assertSee('value="512M"', false);
+    $this->post('/packages', packageInput($php + ['php_max_memory' => '1G', 'php_max_upload' => 'unlimited', 'php_max_execution_time' => '300', 'php_max_input_vars' => '20000']))
+        ->assertRedirect('/packages');
+    $steps = collect($this->fake->calls('v-change-package-tenancy'))->pluck('args')->filter(fn ($a) => str_starts_with($a[1], 'PHP_MAX_'))->values()->all();
+    // the default maximum of execution time needs no step
+    expect($steps)->toBe([
+        ['business', 'PHP_MAX_MEMORY', '1G'], ['business', 'PHP_MAX_UPLOAD', 'unlimited'], ['business', 'PHP_MAX_INPUT_VARS', '20000'],
+    ]);
+    foreach (['php_max_memory' => '1T', 'php_max_upload' => '-1', 'php_max_execution_time' => '0', 'php_max_input_vars' => 'all'] as $field => $value) {
+        $this->post('/packages', packageInput($php + [$field => $value]))->assertSessionHasErrors($field);
+    }
+    $this->post('/packages', packageInput($php + ['php_max_execution_time' => '86401']))->assertSessionHasErrors('php_max_execution_time');
+});
+
+it('keeps the PHP maximums of a reseller package within the reseller plan (E19)', function () {
+    $this->fake->on('v-add-reseller-package')->returns();
+    $this->fake->on('v-change-package-tenancy')->returns();
+    $this->fake->on('v-list-package-tenancy', ['all', 'json'])->returnsJson([
+        'reseller' => ['USERS' => '25', 'RESELLER_PACKAGES' => '*', 'PHP_VERSIONS' => '*', 'PHP_PROFILES' => '*', 'PHP_DEFAULT_PROFILE' => 'default', 'PHP_MAX_MEMORY' => '256M'],
+        'starter' => ['RESELLER_VISIBLE' => 'yes'],
+    ]);
+    $php = ['php_group' => '1', 'php_versions_all' => '1', 'php_profiles_all' => '1', 'php_default_profile' => 'default'];
+
+    signIn('hostco', 'reseller');
+    $this->get('/packages/create')->assertOk()->assertSee('Your plan: 256M');
+    $this->post('/packages', packageInput($php + ['php_max_memory' => '512M']))->assertSessionHasErrors('php_max_memory');
+    // without the key the reseller's plan has the default maximum
+    $this->post('/packages', packageInput($php + ['php_max_memory' => '128M', 'php_max_input_vars' => 'unlimited']))->assertSessionHasErrors('php_max_input_vars');
+    $this->fake->assertNotRan('v-add-reseller-package');
+
+    $this->post('/packages', packageInput($php + ['php_max_memory' => '128M', 'php_max_upload' => '64M']))->assertRedirect('/packages');
+    $this->fake->assertRan('v-change-package-tenancy', fn ($a) => $a === ['hostco_business', 'PHP_MAX_MEMORY', '128M']);
+    $this->fake->assertRan('v-change-package-tenancy', fn ($a) => $a === ['hostco_business', 'PHP_MAX_UPLOAD', '64M']);
+});
+
 it('keeps a reseller package to the shells and templates of the plan (E39 W4 §8.1)', function () {
     signIn('hostco', 'reseller');
     $this->fake->on('v-add-reseller-package')->returns();

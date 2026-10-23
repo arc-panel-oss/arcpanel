@@ -46,6 +46,15 @@ final class PhpManager
     /** The shipped profiles from the smallest pool to the largest, the order of the lists */
     public const SHIPPED_PROFILE_ORDER = ['default', 'small', 'medium', 'large'];
 
+    /** Per-domain PHP settings and their kind, in the order of the pool lines (E19 §1) */
+    public const DOMAIN_SETTINGS = [
+        'memory_limit' => 'size', 'upload_max_filesize' => 'size', 'post_max_size' => 'size', 'max_execution_time' => 'seconds',
+        'max_input_vars' => 'count', 'display_errors' => 'flag', 'date.timezone' => 'zone',
+    ];
+
+    /** Package maximums of the per-domain PHP settings with the defaults of a package without them (E19 D7) */
+    public const SETTING_MAXIMUMS = ['PHP_MAX_MEMORY' => '512M', 'PHP_MAX_UPLOAD' => '256M', 'PHP_MAX_EXECUTION_TIME' => '300', 'PHP_MAX_INPUT_VARS' => '10000'];
+
     /** @var array<string, array<string, mixed>>|null per request */
     private ?array $versions = null;
 
@@ -516,27 +525,178 @@ final class PhpManager
         return $this->arc->run('v-change-web-domain-php', [$user, $domain, $version, $profile], new Options(300, true));
     }
 
+    /**
+     * The per-domain PHP settings of a web domain (E19 §5,
+     * `v-list-web-domain-php-settings USER DOMAIN json`), or null when the
+     * command fails.
+     *
+     * @return array{pool: string, supported: bool, nginxMaxBody: string, settings: array<string, array{value: string, max: string, ini: string, profile: string, effective: string, source: string}>, warnings: list<string>}|null
+     */
+    public function settings(string $user, string $domain): ?array
+    {
+        $result = $this->arc->run('v-list-web-domain-php-settings', [$user, $domain, 'json'], Options::allowFailure());
+        $row = $result->ok() ? json_decode($result->stdout, true) : null;
+        if (! is_array($row)) {
+            return null;
+        }
+        $settings = [];
+        foreach (array_keys(self::DOMAIN_SETTINGS) as $directive) {
+            $value = (array) ($row['SETTINGS'][$directive] ?? []);
+            $settings[$directive] = [
+                'value' => (string) ($value['VALUE'] ?? ''), 'max' => (string) ($value['MAX'] ?? ''), 'ini' => (string) ($value['INI'] ?? ''),
+                'profile' => (string) ($value['PROFILE'] ?? ''), 'effective' => (string) ($value['EFFECTIVE'] ?? ''), 'source' => (string) ($value['SOURCE'] ?? ''),
+            ];
+        }
+
+        return [
+            'pool' => (string) ($row['POOL'] ?? 'domain'),
+            'supported' => ($row['SUPPORTED'] ?? '') === 'yes',
+            'nginxMaxBody' => (string) ($row['NGINX_MAX_BODY'] ?? ''),
+            'settings' => $settings,
+            'warnings' => array_values(array_map('strval', (array) ($row['WARNINGS'] ?? []))),
+        ];
+    }
+
+    /** `v-change-web-domain-php-setting USER DOMAIN DIRECTIVE VALUE RESTART` */
+    public function setSetting(string $user, string $domain, string $directive, string $value, bool $reload = true): CommandResult
+    {
+        return $this->arc->run('v-change-web-domain-php-setting', [$user, $domain, $directive, $value, $reload ? 'yes' : 'no'], new Options(120, true));
+    }
+
+    /** `v-delete-web-domain-php-setting USER DOMAIN DIRECTIVE|all [RESTART]`; all resets every setting with one reload */
+    public function resetSetting(string $user, string $domain, string $directive, bool $reload = true): CommandResult
+    {
+        $args = $directive === 'all' ? [$user, $domain, 'all'] : [$user, $domain, $directive, $reload ? 'yes' : 'no'];
+
+        return $this->arc->run('v-delete-web-domain-php-setting', $args, new Options(120, true));
+    }
+
+    /**
+     * Errors of wanted settings against the package maximums and the pair
+     * rule (E19 §5.1): post_max_size below upload_max_filesize when the
+     * domain sets both. An empty value resets and is never an error.
+     *
+     * @param  array<string, array{value: string, max: string}>  $settings  of settings()
+     * @param  array<string, string>  $wanted  directive => value
+     * @return array<string, string> directive => message
+     */
+    public static function settingErrors(array $settings, array $wanted): array
+    {
+        $errors = [];
+        foreach ($wanted as $directive => $value) {
+            $max = $settings[$directive]['max'] ?? '';
+            if ($value === '' || $max === '' || $max === 'unlimited') {
+                continue;
+            }
+            $above = self::DOMAIN_SETTINGS[$directive] === 'size'
+                ? (self::sizeBytes($value) ?? 0) > (self::sizeBytes($max) ?? PHP_INT_MAX)
+                : (int) $value > (int) $max;
+            if ($above) {
+                $errors[$directive] = sprintf(__('At most %s on the package of this domain.'), $max);
+            }
+        }
+        $upload = $wanted['upload_max_filesize'] ?? ($settings['upload_max_filesize']['value'] ?? '');
+        $post = $wanted['post_max_size'] ?? ($settings['post_max_size']['value'] ?? '');
+        if ($upload !== '' && $post !== '' && (self::sizeBytes($post) ?? 0) < (self::sizeBytes($upload) ?? 0)) {
+            $errors['post_max_size'] ??= sprintf(__('At least upload_max_filesize (%s).'), $upload);
+        }
+
+        return $errors;
+    }
+
+    /**
+     * The commands that bring a domain from its settings to the wanted ones:
+     * [directive, value] to set, [directive, null] to reset, in the order of
+     * the pool lines, except that post_max_size goes first when
+     * upload_max_filesize grows beyond the domain's post_max_size, so the
+     * pair rule holds after each command.
+     *
+     * @param  array<string, array{value: string}>  $settings  of settings()
+     * @param  array<string, string>  $wanted  directive => value, '' resets
+     * @return list<array{0: string, 1: string|null}>
+     */
+    public static function settingsPlan(array $settings, array $wanted): array
+    {
+        $plan = [];
+        foreach (array_keys(self::DOMAIN_SETTINGS) as $directive) {
+            if (! array_key_exists($directive, $wanted) || $wanted[$directive] === ($settings[$directive]['value'] ?? '')) {
+                continue;
+            }
+            $plan[$directive] = $wanted[$directive] === '' ? null : $wanted[$directive];
+        }
+        $post = $settings['post_max_size']['value'] ?? '';
+        $upload = $plan['upload_max_filesize'] ?? null;
+        if ($upload !== null && $post !== '' && array_key_exists('post_max_size', $plan)
+            && (self::sizeBytes($upload) ?? 0) > (self::sizeBytes($post) ?? 0)) {
+            $ordered = [];
+            foreach ($plan as $directive => $value) {
+                if ($directive === 'upload_max_filesize') {
+                    $ordered['post_max_size'] = $plan['post_max_size'];
+                }
+                $ordered[$directive] = $value;
+            }
+            $plan = $ordered;
+        }
+
+        return array_map(fn (string $directive) => [$directive, $plan[$directive]], array_keys($plan));
+    }
+
+    /**
+     * Run a plan of settingsPlan(), the last command with the PHP-FPM
+     * reload; stops at the first failure.
+     *
+     * @param  list<array{0: string, 1: string|null}>  $plan
+     */
+    public function applySettings(string $user, string $domain, array $plan): CommandResult
+    {
+        $result = null;
+        foreach ($plan as $i => [$directive, $value]) {
+            $reload = $i === count($plan) - 1;
+            $result = $value === null ? $this->resetSetting($user, $domain, $directive, $reload) : $this->setSetting($user, $domain, $directive, $value, $reload);
+            if (! $result->ok()) {
+                break;
+            }
+        }
+
+        return $result ?? new CommandResult('v-change-web-domain-php-setting', [], 0, '');
+    }
+
+    /** Bytes of a PHP size such as 128M, or null when it is not one. */
+    public static function sizeBytes(string $value): ?int
+    {
+        if (preg_match('/^(\d{1,12})([KMGkmg]?)$/D', $value, $m) !== 1) {
+            return null;
+        }
+
+        return (int) $m[1] * 1024 ** ['' => 0, 'K' => 1, 'M' => 2, 'G' => 3][strtoupper($m[2])];
+    }
+
     // ---------------------------------------------------------------- packages
 
     /**
      * The PHP keys of a package sidecar (§7.5) with their defaults.
      *
      * @param  array<string, mixed>  $row  of v-list-package-tenancy
-     * @return array{PHP_VERSIONS: string, PHP_PROFILES: string, PHP_DEFAULT_PROFILE: string}
+     * @return array{PHP_VERSIONS: string, PHP_PROFILES: string, PHP_DEFAULT_PROFILE: string, PHP_MAX_MEMORY: string, PHP_MAX_UPLOAD: string, PHP_MAX_EXECUTION_TIME: string, PHP_MAX_INPUT_VARS: string}
      */
     public static function packageKeys(array $row): array
     {
-        return [
+        $keys = [
             'PHP_VERSIONS' => (string) (($row['PHP_VERSIONS'] ?? '') ?: '*'),
             'PHP_PROFILES' => (string) (($row['PHP_PROFILES'] ?? '') ?: 'default'),
             'PHP_DEFAULT_PROFILE' => (string) (($row['PHP_DEFAULT_PROFILE'] ?? '') ?: 'default'),
         ];
+        foreach (self::SETTING_MAXIMUMS as $key => $default) {
+            $keys[$key] = (string) (($row[$key] ?? '') ?: $default);
+        }
+
+        return $keys;
     }
 
     /**
      * The PHP keys of a package (`v-list-package-tenancy PACKAGE json`).
      *
-     * @return array{PHP_VERSIONS: string, PHP_PROFILES: string, PHP_DEFAULT_PROFILE: string}
+     * @return array{PHP_VERSIONS: string, PHP_PROFILES: string, PHP_DEFAULT_PROFILE: string, PHP_MAX_MEMORY: string, PHP_MAX_UPLOAD: string, PHP_MAX_EXECUTION_TIME: string, PHP_MAX_INPUT_VARS: string}
      */
     public function packageOf(string $package): array
     {

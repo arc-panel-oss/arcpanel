@@ -64,6 +64,13 @@ final class WebDomainPolicy
             && ! $principal->isReadOnly();
     }
 
+    /** The per-domain PHP settings of a domain, within the package maximums (E19 §6). */
+    public function changePhpSettings(Principal $principal, string $owner): bool
+    {
+        return Capabilities::allows($principal->actingRole(), 'web.domains.php.settings', fn () => $this->scope->canManage($owner))
+            && ! $principal->isReadOnly();
+    }
+
     /** Quick Install of an application on the owner's domain (E7 batch 2 spec §10). */
     public function installApp(Principal $principal, string $owner): bool
     {
@@ -111,6 +118,7 @@ final class WebDomainPolicy
             'rebuild' => $this->rebuild($principal, $owner),
             'viewPhp' => $this->viewPhp($principal, $owner),
             'changePhp' => $this->changePhp($principal, $owner),
+            'changePhpSettings' => $this->changePhpSettings($principal, $owner),
         ];
     }
 }

@@ -45,7 +45,7 @@ final class PackageService
             'USERS' => '0', 'RESELLER_PACKAGES' => '', 'RESELLER_VISIBLE' => 'no', 'PORTS' => '0',
             'NODE' => 'no', 'NODE_VERSIONS' => '3', 'NODE_ALLOWED' => 'lts', 'NODE_APPS' => '3',
             'DOCKER' => 'no', 'DOCKER_APPS' => '0', 'DOCKER_CPUS' => 'unlimited', 'DOCKER_MEMORY' => 'unlimited',
-            'PHP_VERSIONS' => '*', 'PHP_PROFILES' => 'default', 'PHP_DEFAULT_PROFILE' => 'default',
+            'PHP_VERSIONS' => '*', 'PHP_PROFILES' => 'default', 'PHP_DEFAULT_PROFILE' => 'default', ...PhpManager::SETTING_MAXIMUMS,
             'APP_PROCESSES' => 'no', 'APP_PROCESSES_MAX' => '3', 'APP_PROCESSES_MEMORY' => 'unlimited', 'APP_PROCESSES_CPUS' => '1',
         ];
     }
@@ -373,7 +373,7 @@ final class PackageService
      * changes, then the list becomes the new one. The command checks a
      * reseller's package against the reseller's keys.
      *
-     * @param  array{PHP_VERSIONS: string, PHP_PROFILES: string, PHP_DEFAULT_PROFILE: string}|null  $php
+     * @param  array{PHP_VERSIONS: string, PHP_PROFILES: string, PHP_DEFAULT_PROFILE: string, PHP_MAX_MEMORY?: string, PHP_MAX_UPLOAD?: string, PHP_MAX_EXECUTION_TIME?: string, PHP_MAX_INPUT_VARS?: string}|null  $php
      * @return list<Step>
      */
     private function phpSteps(string $name, ?array $php, ?PackageRecord $current): array
@@ -399,6 +399,12 @@ final class PackageService
             }
             if ($keepOld !== $profiles) {
                 $steps[] = $set('PHP_PROFILES', $profiles);
+            }
+        }
+        // Maximums of the per-domain settings (E19); the command writes the pools they cap again
+        foreach (array_keys(PhpManager::SETTING_MAXIMUMS) as $key) {
+            if (isset($php[$key]) && $php[$key] !== $before[$key]) {
+                $steps[] = $set($key, $php[$key]);
             }
         }
 

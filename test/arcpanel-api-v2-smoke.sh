@@ -970,6 +970,17 @@ check "setWebDomainPhp answers 200" 200 "$(call "$PHP_KEY" PUT "/users/$PHP_USER
 check "the domain is on the small profile" small "$(json .data.profile)"
 check "the pool has the small profile" 1 "$(grep -c '^pm.max_children = 4$' "$(find /etc/php/*/fpm/pool.d -name "$PHP_DOMAIN.conf" | head -n1)")"
 check "a profile the package does not allow answers 403" 403 "$(call "$PHP_KEY" PUT "/users/$PHP_USER/web-domains/$PHP_DOMAIN/php" '{"profile": "large"}')"
+# Per-domain PHP settings (E19 §7), within the default package maximums
+check "getWebDomainPhpSettings answers 200" 200 "$(call "$PHP_KEY" GET "/users/$PHP_USER/web-domains/$PHP_DOMAIN/php/settings")"
+check "the domain takes PHP settings" true "$(json .data.supported)"
+check "the default maximum of memory_limit" 512M "$(json .data.settings.memory_limit.max)"
+check "updateWebDomainPhpSettings answers 200" 200 "$(call "$PHP_KEY" PUT "/users/$PHP_USER/web-domains/$PHP_DOMAIN/php/settings" '{"memory_limit": "256M", "date_timezone": "Europe/Berlin"}')"
+check "memory_limit comes from the domain" domain "$(json .data.settings.memory_limit.source)"
+check "the pool runs with the domain's memory_limit" 'php_admin_value[memory_limit] = 256M' \
+	"$(grep '^php_admin_value\[memory_limit\]' "$(find /etc/php/*/fpm/pool.d -name "$PHP_DOMAIN.conf" | head -n1)" | tail -n1)"
+check "a value above the package maximum answers 422" 422 "$(call "$PHP_KEY" PUT "/users/$PHP_USER/web-domains/$PHP_DOMAIN/php/settings" '{"memory_limit": "2G"}')"
+check "resetWebDomainPhpSettings answers 200" 200 "$(call "$PHP_KEY" DELETE "/users/$PHP_USER/web-domains/$PHP_DOMAIN/php/settings")"
+check "memory_limit is inherited again" null "$(json .data.settings.memory_limit.value)"
 check "the PHP user is deleted" 204 "$(call "$ADMIN" DELETE "/users/$PHP_USER")"
 check "the PHP package is deleted" 204 "$(call "$ADMIN" DELETE "/packages/$PHP_PACKAGE")"
 

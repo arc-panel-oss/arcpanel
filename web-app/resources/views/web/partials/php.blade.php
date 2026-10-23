@@ -21,7 +21,7 @@
             'badgeTone' => 'warn',
         ];
     }
-    $sourceLabel = ['profile' => __('PHP-FPM profile'), 'php.ini' => 'php.ini'];
+    $sourceLabel = ['profile' => __('PHP-FPM profile'), 'php.ini' => 'php.ini', 'domain' => __('This domain')];
     $directiveLabel = [
         'memory_limit' => __('Memory limit'), 'upload_max_filesize' => __('Maximum upload size'), 'post_max_size' => __('Maximum POST size'),
         'max_execution_time' => __('Maximum execution time'), 'max_input_vars' => __('Maximum input variables'),
@@ -56,6 +56,60 @@
         @endif
     </x-ap-form>
 </x-ap-card>
+
+@if (($phpSettings ?? null) !== null)
+    {{-- Per-domain PHP settings within the package maximums (E19 spec §6) --}}
+    @php
+        $canSettings = $can['changePhpSettings'] ?? false;
+        $settingLabel = $directiveLabel + ['display_errors' => __('Display errors'), 'date.timezone' => __('Time zone')];
+        $settingSource = ['profile' => __('the PHP-FPM profile'), 'php.ini' => 'php.ini', 'domain' => __('this domain'), 'capped' => __('the package maximum')];
+    @endphp
+    <x-ap-card :title="__('PHP settings')" icon="sliders">
+        @if (! $phpSettings['supported'])
+            <p class="muted">{{ __('This backend template takes no PHP settings.') }}</p>
+        @else
+            <p class="muted">{{ __('A value set here wins over the PHP-FPM profile and php.ini. Leave a field empty to use the inherited value.') }}</p>
+            @if ($phpSettings['pool'] === 'user')
+                <x-ap-alert tone="info">{{ __('These settings apply to every web domain of this user, which share one PHP-FPM pool.') }}</x-ap-alert>
+            @endif
+            @foreach ($phpSettings['warnings'] as $warning)
+                <x-ap-alert tone="warn">{{ $warning }}</x-ap-alert>
+            @endforeach
+            <x-ap-form :action="route('web.domains.update.php-settings', $params)">
+                <div class="ap-form-grid">
+                    @foreach ($phpSettings['settings'] as $directive => $setting)
+                        @php
+                            $field = 'settings['.str_replace('.', '_', $directive).']';
+                            $inherited = $setting['profile'] !== '' ? $setting['profile'] : $setting['ini'];
+                            $hint = $directive.' · '.($setting['max'] !== '' ? sprintf(__('Maximum %s.'), $setting['max']).' ' : '')
+                                .sprintf(__('Now %1$s from %2$s.'), $setting['effective'] !== '' ? $setting['effective'] : '—', $settingSource[$setting['source']] ?? $setting['source']);
+                        @endphp
+                        <div>
+                            @if ($directive === 'display_errors')
+                                <x-ap-select :name="$field" :label="$settingLabel[$directive] ?? $directive" :value="$setting['value']" bag="phpSettings" :hint="$hint"
+                                    :options="['' => sprintf(__('Inherited (%s)'), $inherited !== '' ? $inherited : '—'), 'on' => __('On'), 'off' => __('Off')]" :disabled="! $canSettings" />
+                            @else
+                                <x-ap-input :name="$field" :label="$settingLabel[$directive] ?? $directive" :value="$setting['value']" :placeholder="$inherited" mono
+                                    bag="phpSettings" :hint="$hint" :disabled="! $canSettings" />
+                            @endif
+                            @if ($setting['source'] === 'capped')
+                                <x-ap-badge tone="warn">{{ __('Capped') }}</x-ap-badge>
+                            @endif
+                        </div>
+                    @endforeach
+                </div>
+                @if ($canSettings)
+                    <div class="ap-form-actions"><x-ap-button type="submit" variant="primary" icon="check">{{ __('Save') }}</x-ap-button></div>
+                @endif
+            </x-ap-form>
+            @if ($canSettings)
+                <x-ap-form :action="route('web.domains.reset.php-settings', $params)">
+                    <x-ap-button type="submit" variant="ghost" icon="refresh">{{ __('Reset all') }}</x-ap-button>
+                </x-ap-form>
+            @endif
+        @endif
+    </x-ap-card>
+@endif
 
 @if ($php['effective'] !== [])
     <x-ap-card :title="__('Effective PHP limits')" icon="sliders">

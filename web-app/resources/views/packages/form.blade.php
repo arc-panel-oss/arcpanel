@@ -186,6 +186,19 @@
                 </fieldset>
                 <x-ap-select name="php_default_profile" :label="__('Default profile')" :options="array_combine($profileChoices, $profileChoices)"
                     :value="$values['PHP_DEFAULT_PROFILE'] ?? 'default'" :hint="__('The profile of new web domains; it must be one of the allowed profiles.')" />
+                {{-- Maximums of the per-domain PHP settings (E19 §6) --}}
+                <p class="muted">{{ __('Users may set these PHP values for each of their web domains, up to the maximums below.') }}</p>
+                <div class="ap-form-grid">
+                    @foreach ([
+                        'PHP_MAX_MEMORY' => [__('Maximum memory_limit'), __('A size such as 512M, or unlimited')],
+                        'PHP_MAX_UPLOAD' => [__('Maximum upload and post size'), __('upload_max_filesize and post_max_size; a size such as 256M, or unlimited')],
+                        'PHP_MAX_EXECUTION_TIME' => [__('Maximum max_execution_time'), __('Seconds, or unlimited')],
+                        'PHP_MAX_INPUT_VARS' => [__('Maximum max_input_vars'), __('A number, or unlimited')],
+                    ] as $key => [$label, $hint])
+                        <x-ap-input :name="strtolower($key)" :label="$label" :value="$values[$key] ?? \App\Services\Php\PhpManager::SETTING_MAXIMUMS[$key]" mono
+                            :hint="$php['own'] !== null ? sprintf(__('Your plan: %s'), $php['own'][$key]) : $hint" />
+                    @endforeach
+                </div>
             </x-ap-card>
         @endif
 

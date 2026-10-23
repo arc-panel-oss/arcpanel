@@ -17,7 +17,8 @@ final class PackageLimits
     private const UNITS = ['' => [0, 18], 'K' => [1, 15], 'M' => [2, 12], 'G' => [3, 9], 'T' => [4, 6]];
 
     /**
-     * Bytes for MEMORY_LIMIT and SWAP_LIMIT (K, M, G, T are powers of 1024),
+     * Bytes for MEMORY_LIMIT, SWAP_LIMIT, PHP_MAX_MEMORY and PHP_MAX_UPLOAD
+     * (K, M, G, T are powers of 1024),
      * the same for DOCKER_MEMORY with a plain number in MB, hundredths of a
      * CPU for DOCKER_CPUS, percent for CPU_QUOTA, milliseconds for
      * CPU_QUOTA_PERIOD, 1 and 0 for yes and no, the plain integer otherwise.
@@ -31,7 +32,7 @@ final class PackageLimits
         }
 
         return match ($key) {
-            'MEMORY_LIMIT', 'SWAP_LIMIT', 'DOCKER_MEMORY', 'APP_PROCESSES_MEMORY' => self::bytes($key, $value),
+            'MEMORY_LIMIT', 'SWAP_LIMIT', 'DOCKER_MEMORY', 'APP_PROCESSES_MEMORY', 'PHP_MAX_MEMORY', 'PHP_MAX_UPLOAD' => self::bytes($key, $value),
             'DOCKER_CPUS', 'APP_PROCESSES_CPUS' => preg_match('/^(\d{1,9})(?:\.(\d{1,2}))?$/D', $value, $m) === 1
                 ? (int) $m[1] * 100 + (int) substr(($m[2] ?? '').'00', 0, 2) : null,
             // MB, or GB and TB with G and T (E44), as func/tenancy.sh reads it

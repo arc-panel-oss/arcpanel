@@ -88,6 +88,7 @@ use App\Http\Controllers\WebDomains\WebDomainController;
 use App\Http\Controllers\WebDomains\WebDomainEditController;
 use App\Http\Controllers\WebDomains\WebDomainLogController;
 use App\Http\Controllers\WebDomains\WebDomainPhpController;
+use App\Http\Controllers\WebDomains\WebDomainPhpSettingsController;
 use App\Services\AppProcesses\AppProcessService;
 use App\Services\Docker\DockerAppService;
 use App\Services\Node\NodeAppService;
@@ -835,6 +836,9 @@ Route::middleware('auth.arc')->group(function () {
                 }
                 // PHP version and PHP-FPM profile (E41 §8)
                 Route::post('/php', [WebDomainPhpController::class, 'update'])->middleware('throttle:php-switch')->name('update.php');
+                // Per-domain PHP settings (E19 §6)
+                Route::post('/php/settings', [WebDomainPhpSettingsController::class, 'update'])->middleware('throttle:php-switch')->name('update.php-settings');
+                Route::post('/php/settings/reset', [WebDomainPhpSettingsController::class, 'reset'])->middleware('throttle:php-switch')->name('reset.php-settings');
                 // CSR generator of the SSL tab (E7 batch 3 spec §12.2)
                 Route::post('/ssl/generate', [CsrController::class, 'webDomain'])->name('ssl.generate');
                 Route::post('/suspend', [WebDomainActionController::class, 'suspend'])->name('suspend');

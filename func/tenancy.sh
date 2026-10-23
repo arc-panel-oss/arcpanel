@@ -418,7 +418,8 @@ tenancy_check_quota() {
 }
 
 # A limit in one base unit per key (E39 W4 spec §8.2), in REPLY: bytes for
-# MEMORY_LIMIT and SWAP_LIMIT (K, M, G, T are powers of 1024), the same for
+# MEMORY_LIMIT, SWAP_LIMIT, PHP_MAX_MEMORY and PHP_MAX_UPLOAD (K, M, G, T
+# are powers of 1024), the same for
 # DOCKER_MEMORY with a plain number in MB, hundredths of a CPU for
 # DOCKER_CPUS, percent for CPU_QUOTA, milliseconds for CPU_QUOTA_PERIOD, 1
 # and 0 for yes and no, and the plain integer for the counted limits;
