@@ -3212,6 +3212,54 @@ paths:
           $ref: "#/components/responses/InvalidRequest"
         "422":
           $ref: "#/components/responses/Unprocessable"
+  "/api/#v-add-sys-audit-event":
+    post:
+      operationId: v-add-sys-audit-event
+      tags:
+        - System
+      summary: Record one event in the audit log
+      description: |-
+        This function reads one audit event (JSON, schema v 1) from FILE, checks
+        it, sets its time, chains it to the previous event with SHA-256 and
+        appends it to the day's file in data/audit/. With AUDIT_SYSLOG='yes' the
+        line also goes to the local syslog with the tag arcpanel-audit. FILE is
+        removed. The panel runs it once per state-changing request. See
+        docs/features/specs/2026-10-23-002-e23-audit-log-design.md §6.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `FILE` | yes |
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-add-sys-audit-event"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-add-sys-audit-event"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
   "/api/#v-add-sys-cgroups":
     post:
       operationId: v-add-sys-cgroups
@@ -8641,6 +8689,10 @@ paths:
         BACKUP_FREQUENCY (hourly, daily or weekly) is how often scheduled backup
         jobs may back up the package's users (E48); a reseller's own package
         cannot allow more often than the reseller's.
+        PHP_MAX_MEMORY and PHP_MAX_UPLOAD (sizes such as 512M, or unlimited),
+        PHP_MAX_EXECUTION_TIME (seconds) and PHP_MAX_INPUT_VARS (integer, or
+        unlimited) cap the per-domain PHP settings of the package's users (E19);
+        the pools whose values the change affects are written again.
 
         **Arguments**
 
@@ -11907,6 +11959,64 @@ paths:
           $ref: "#/components/responses/InvalidRequest"
         "422":
           $ref: "#/components/responses/Unprocessable"
+  "/api/#v-change-web-domain-php-setting":
+    post:
+      operationId: v-change-web-domain-php-setting
+      tags:
+        - Web
+      summary: Change a PHP setting of a web domain (E19)
+      description: |-
+        This function sets one per-domain PHP setting of a web domain's PHP-FPM
+        pool: memory_limit, upload_max_filesize, post_max_size (sizes such as
+        256M), max_execution_time (seconds), max_input_vars, display_errors (on or
+        off) or date.timezone. Sizes, times and input vars must be within the
+        maximums of the user's package (PHP_MAX_MEMORY, PHP_MAX_UPLOAD,
+        PHP_MAX_EXECUTION_TIME, PHP_MAX_INPUT_VARS). The pool lists the settings
+        after the PHP-FPM profile, so they win over the profile and php.ini. With
+        WEB_BACKEND_POOL='user' the setting is the one of the user's shared pool.
+        RESTART no writes the pool without reloading PHP-FPM.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `USER` | yes |
+        | `arg2` | `DOMAIN` | yes |
+        | `arg3` | `KEY` | yes |
+        | `arg4` | `VALUE` | yes |
+        | `arg5` | `RESTART` | no |
+
+        **User argument:** with the access key of a user other than the admin, `arg1` must be the key's user.
+      x-arcpanel-user-arg: 1
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-change-web-domain-php-setting"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-change-web-domain-php-setting"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
   "/api/#v-change-web-domain-proxy-tpl":
     post:
       operationId: v-change-web-domain-proxy-tpl
@@ -12924,6 +13034,61 @@ paths:
                     - CHECK: attention
                       STATUS: warn
                       MESSAGE: PHP 8.2 is no longer installed by default
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+  "/api/#v-check-sys-audit":
+    post:
+      operationId: v-check-sys-audit
+      tags:
+        - System
+      summary: Verify the hash chain of the audit log
+      description: |-
+        This function recomputes the SHA-256 chain of the audit log between two
+        UTC days (default: from the first kept day to today) and compares each
+        day's anchor with its file. It prints OK and the number of events, or the
+        first broken day and line with the reason, and then exits with E_INVALID.
+        Days purged by the retention are skipped through their anchors. The chain
+        detects a changed, removed or inserted line; root can still rewrite the
+        whole log, which only an off-server copy (AUDIT_SYSLOG) answers. See
+        docs/features/specs/2026-10-23-002-e23-audit-log-design.md §4.2.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `FROM` | no |
+        | `arg2` | `TO` | no |
+        | `arg3` | `FORMAT` | no |
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-check-sys-audit"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-check-sys-audit"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+            application/json:
+              schema:
+                type: object
         "204":
           $ref: "#/components/responses/NoContent"
         "400":
@@ -18917,6 +19082,58 @@ paths:
           $ref: "#/components/responses/InvalidRequest"
         "422":
           $ref: "#/components/responses/Unprocessable"
+  "/api/#v-delete-web-domain-php-setting":
+    post:
+      operationId: v-delete-web-domain-php-setting
+      tags:
+        - Web
+      summary: Reset a PHP setting of a web domain (E19)
+      description: |-
+        This function removes one per-domain PHP setting of a web domain's PHP-FPM
+        pool, or all of them with KEY all, so that the pool takes the value of the
+        PHP-FPM profile or of php.ini again. RESTART no writes the pool without
+        reloading PHP-FPM.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `USER` | yes |
+        | `arg2` | `DOMAIN` | yes |
+        | `arg3` | `KEY` | yes |
+        | `arg4` | `RESTART` | no |
+
+        **User argument:** with the access key of a user other than the admin, `arg1` must be the key's user.
+      x-arcpanel-user-arg: 1
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-delete-web-domain-php-setting"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-delete-web-domain-php-setting"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
   "/api/#v-delete-web-domain-proxy":
     post:
       operationId: v-delete-web-domain-proxy
@@ -24750,6 +24967,65 @@ paths:
           $ref: "#/components/responses/InvalidRequest"
         "422":
           $ref: "#/components/responses/Unprocessable"
+  "/api/#v-list-sys-audit":
+    post:
+      operationId: v-list-sys-audit
+      tags:
+        - System
+      summary: List the events of the audit log
+      description: |-
+        This function lists the audit events between two UTC days (YYYY-MM-DD),
+        newest first, from plain and gzipped day files. FILTERS is one argument of
+        KEY=value words: ACTOR (the signed-in user), USER (the actor, the
+        effective user or the object's user), ACTION (a prefix), RESULT (ok,
+        denied, invalid, failed), CHANNEL (web, api_v2, api_v1, system) and OWNER
+        (only events whose users are in the tree of that reseller). LIMIT is 1 to
+        100000 (default 100); the json format also prints TOTAL, the number of
+        matching events. See
+        docs/features/specs/2026-10-23-002-e23-audit-log-design.md §6.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `FROM` | yes |
+        | `arg2` | `TO` | yes |
+        | `arg3` | `FILTERS` | no |
+        | `arg4` | `FORMAT` | no |
+        | `arg5` | `LIMIT` | no |
+        | `arg6` | `OFFSET` | no |
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-list-sys-audit"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-list-sys-audit"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+            application/json:
+              schema:
+                type: object
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
   "/api/#v-list-sys-backup-runs":
     post:
       operationId: v-list-sys-backup-runs
@@ -29893,7 +30169,8 @@ paths:
         PROFILE_ALLOWED (no when the package no longer allows the domain's value),
         ALLOWED (both), the VERSIONS (installed, with STATUS and EOL) and PROFILES
         the package allows, DEFAULT_PROFILE, and EFFECTIVE: the values of the PHP
-        limits with their SOURCE (php.ini of the version, or the profile).
+        limits with their SOURCE (php.ini of the version, the profile, or the
+        domain's own setting of E19, clamped to the package maximum).
 
         **Arguments**
 
@@ -29914,6 +30191,65 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/v-list-web-domain-php"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+            application/json:
+              schema:
+                type: object
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+  "/api/#v-list-web-domain-php-settings":
+    post:
+      operationId: v-list-web-domain-php-settings
+      tags:
+        - Web
+      summary: List the per-domain PHP settings of a web domain (E19)
+      description: |-
+        This function lists the per-domain PHP settings of a web domain's pool:
+        for each of memory_limit, upload_max_filesize, post_max_size,
+        max_execution_time, max_input_vars, display_errors and date.timezone the
+        VALUE set on the domain, the package MAX, the INI value of the version's
+        php.ini, the PROFILE value, and the EFFECTIVE value with its SOURCE
+        (php.ini, profile, domain, or capped when the package maximum lowers it).
+        Also POOL (domain, or user for a shared pool), SUPPORTED (no for no-php or
+        a backend template without the %php_profile% line), NGINX_MAX_BODY (the
+        client_max_body_size that applies to the domain) and WARNINGS.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `USER` | yes |
+        | `arg2` | `DOMAIN` | yes |
+        | `arg3` | `FORMAT` | no |
+
+        **User argument:** with the access key of a user other than the admin, `arg1` must be the key's user.
+      x-arcpanel-user-arg: 1
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-list-web-domain-php-settings"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-list-web-domain-php-settings"
       responses:
         "200":
           description: "The output of the command; `OK` for an empty output with legacy authentication."
@@ -39443,6 +39779,60 @@ paths:
           $ref: "#/components/responses/InvalidRequest"
         "422":
           $ref: "#/components/responses/Unprocessable"
+  "/api/#v-update-sys-audit":
+    post:
+      operationId: v-update-sys-audit
+      tags:
+        - System
+      summary: Seal, compress and purge the audit log
+      description: |-
+        This function runs once a day from the cron of arcpanelweb (MODE daily,
+        the default): it seals the anchors of the past days, gzips the day files
+        older than 7 days, removes the day files older than AUDIT_RETENTION_DAYS
+        (default 180; the anchors stay, so the remaining chain still verifies)
+        and records a system event audit.purge whose object name is the number of
+        files removed. See
+        docs/features/specs/2026-10-23-002-e23-audit-log-design.md §6 and D8.
+
+        MODE start creates data/audit/ and records a system event audit.start
+        whose object name is VERSION (default: the installed version), so that
+        the chain begins at the install or the upgrade (§8).
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `MODE` | no |
+        | `arg2` | `VERSION` | no |
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-update-sys-audit"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-update-sys-audit"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
   "/api/#v-update-sys-backup-config":
     post:
       operationId: v-update-sys-backup-config
@@ -44072,6 +44462,27 @@ components:
               enum:
                 - v-add-sys-arcpanel
               default: v-add-sys-arcpanel
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
+    v-add-sys-audit-event:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-add-sys-audit-event
+              default: v-add-sys-audit-event
+            arg1:
+              type: string
+              title: FILE
+              description: "`FILE`"
+              examples:
+                - /tmp/arcXXXXXX
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-add-sys-cgroups:
@@ -49965,6 +50376,55 @@ components:
                 - "no"
             returncode:
               $ref: "#/components/schemas/ReturnCode"
+    v-change-web-domain-php-setting:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+            - arg2
+            - arg3
+            - arg4
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-change-web-domain-php-setting
+              default: v-change-web-domain-php-setting
+            arg1:
+              type: string
+              title: USER
+              description: "`USER`"
+              examples:
+                - alice
+            arg2:
+              type: string
+              title: DOMAIN
+              description: "`DOMAIN`"
+              examples:
+                - example.com
+            arg3:
+              type: string
+              title: KEY
+              description: "`KEY`"
+              examples:
+                - upload_max_filesize
+            arg4:
+              type: string
+              title: VALUE
+              description: "`VALUE`"
+              examples:
+                - "64M"
+            arg5:
+              type: string
+              title: RESTART
+              description: "`RESTART`, optional"
+              enum:
+                - "yes"
+                - "no"
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
     v-change-web-domain-proxy-tpl:
       allOf:
         - $ref: "#/components/schemas/Credentials"
@@ -50723,6 +51183,43 @@ components:
               description: "`MODE`, optional"
               examples:
                 - ""
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
+    v-check-sys-audit:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-check-sys-audit
+              default: v-check-sys-audit
+            arg1:
+              type: string
+              title: FROM
+              description: "`FROM`, optional"
+              examples:
+                - ""
+            arg2:
+              type: string
+              title: TO
+              description: "`TO`, optional"
+              examples:
+                - ""
+            arg3:
+              type: string
+              title: FORMAT
+              description: "`FORMAT`, optional"
+              enum:
+                - json
+                - plain
+                - csv
+                - shell
+              examples:
+                - json
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-check-sys-docker:
@@ -54132,6 +54629,48 @@ components:
               description: "`AUTH_USER`"
               examples:
                 - alice
+            arg4:
+              type: string
+              title: RESTART
+              description: "`RESTART`, optional"
+              enum:
+                - "yes"
+                - "no"
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
+    v-delete-web-domain-php-setting:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+            - arg2
+            - arg3
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-delete-web-domain-php-setting
+              default: v-delete-web-domain-php-setting
+            arg1:
+              type: string
+              title: USER
+              description: "`USER`"
+              examples:
+                - alice
+            arg2:
+              type: string
+              title: DOMAIN
+              description: "`DOMAIN`"
+              examples:
+                - example.com
+            arg3:
+              type: string
+              title: KEY
+              description: "`KEY`"
+              examples:
+                - memory_limit
             arg4:
               type: string
               title: RESTART
@@ -57864,6 +58403,63 @@ components:
                 - json
             returncode:
               $ref: "#/components/schemas/ReturnCode"
+    v-list-sys-audit:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+            - arg2
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-list-sys-audit
+              default: v-list-sys-audit
+            arg1:
+              type: string
+              title: FROM
+              description: "`FROM`"
+              examples:
+                - "2026-10-01"
+            arg2:
+              type: string
+              title: TO
+              description: "`TO`"
+              examples:
+                - "2026-10-23"
+            arg3:
+              type: string
+              title: FILTERS
+              description: "`FILTERS`, optional"
+              examples:
+                - ""
+            arg4:
+              type: string
+              title: FORMAT
+              description: "`FORMAT`, optional"
+              enum:
+                - json
+                - plain
+                - csv
+                - shell
+              examples:
+                - json
+            arg5:
+              type: string
+              title: LIMIT
+              description: "`LIMIT`, optional"
+              examples:
+                - ""
+            arg6:
+              type: string
+              title: OFFSET
+              description: "`OFFSET`, optional"
+              examples:
+                - ""
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
     v-list-sys-backup-runs:
       allOf:
         - $ref: "#/components/schemas/Credentials"
@@ -60731,6 +61327,45 @@ components:
               enum:
                 - v-list-web-domain-php
               default: v-list-web-domain-php
+            arg1:
+              type: string
+              title: USER
+              description: "`USER`"
+              examples:
+                - alice
+            arg2:
+              type: string
+              title: DOMAIN
+              description: "`DOMAIN`"
+              examples:
+                - example.com
+            arg3:
+              type: string
+              title: FORMAT
+              description: "`FORMAT`, optional"
+              enum:
+                - json
+                - plain
+                - csv
+                - shell
+              examples:
+                - json
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
+    v-list-web-domain-php-settings:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+            - arg2
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-list-web-domain-php-settings
+              default: v-list-web-domain-php-settings
             arg1:
               type: string
               title: USER
@@ -66798,6 +67433,32 @@ components:
               description: "`INSTALL`"
               examples:
                 - install
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
+    v-update-sys-audit:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-update-sys-audit
+              default: v-update-sys-audit
+            arg1:
+              type: string
+              title: MODE
+              description: "`MODE`, optional"
+              examples:
+                - ""
+            arg2:
+              type: string
+              title: VERSION
+              description: "`VERSION`, optional"
+              examples:
+                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-update-sys-backup-config:

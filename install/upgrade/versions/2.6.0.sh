@@ -119,3 +119,26 @@ fi
 # become backup jobs and the dispatcher replaces the cron line of
 # v-backup-users. The command does nothing the second time.
 "$ARCPANEL/bin/v-update-sys-backup-config"
+
+# Audit log (E23, docs/features/specs/2026-10-23-002-e23-audit-log-design.md §8):
+# data/audit/, the daily cron line, the two settings and a first event, so
+# that the chain begins at the upgrade
+mkdir -p "$ARCPANEL/data/audit"
+chown root:root "$ARCPANEL/data/audit"
+chmod 700 "$ARCPANEL/data/audit"
+upd_step_cron=/var/spool/cron/crontabs/arcpanelweb
+if [ -f "$upd_step_cron" ] && ! grep -q 'v-update-sys-audit' "$upd_step_cron"; then
+	sed -i -e "\$a20 00 * * * sudo /usr/local/arcpanel/bin/v-update-sys-audit" "$upd_step_cron"
+	chown arcpanelweb:arcpanelweb "$upd_step_cron"
+	chmod 600 "$upd_step_cron"
+fi
+unset upd_step_cron
+for upd_step_pair in AUDIT_RETENTION_DAYS=180 AUDIT_SYSLOG=no; do
+	if ! grep -q "^${upd_step_pair%%=*}=" "$ARCPANEL/conf/arcpanel.conf"; then
+		"$ARCPANEL/bin/v-change-sys-config-value" "${upd_step_pair%%=*}" "${upd_step_pair#*=}" > /dev/null 2>&1
+	fi
+done
+unset upd_step_pair
+if [ ! -f "$ARCPANEL/data/audit/.started" ]; then
+	"$ARCPANEL/bin/v-update-sys-audit" start "${new_version:-2.6.0}" > /dev/null 2>&1 && touch "$ARCPANEL/data/audit/.started"
+fi

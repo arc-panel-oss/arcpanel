@@ -1675,6 +1675,10 @@ write_config_value "FILE_STAGING_RESERVE" "10"
 write_config_value "FILE_FETCH" "yes"
 write_config_value "FILE_FETCH_MAX_SIZE" "2G"
 
+# Audit log (E23): retention in days and the copy to syslog
+write_config_value "AUDIT_RETENTION_DAYS" "180"
+write_config_value "AUDIT_SYSLOG" "no"
+
 # Version & Release Branch
 # VERSION is the ArcPanel version (ADR-0007)
 write_config_value "VERSION" "${ARCPANEL_INSTALL_VER}"
@@ -2722,6 +2726,7 @@ echo "* * * * * sudo /usr/local/arcpanel/bin/v-update-backup-jobs > /dev/null 2>
 echo "20 00 * * * sudo /usr/local/arcpanel/bin/v-update-user-stats" >> /var/spool/cron/crontabs/arcpanelweb
 echo "*/5 * * * * sudo /usr/local/arcpanel/bin/v-update-sys-rrd" >> /var/spool/cron/crontabs/arcpanelweb
 echo "$min $hour * * * sudo /usr/local/arcpanel/bin/v-update-letsencrypt-ssl" >> /var/spool/cron/crontabs/arcpanelweb
+echo "20 00 * * * sudo /usr/local/arcpanel/bin/v-update-sys-audit" >> /var/spool/cron/crontabs/arcpanelweb
 # Reseller usage totals and policies (E11)
 $ARCPANEL/bin/v-add-sys-tenancy
 # Port registry: server range, reserved ports, nightly check (E12)
@@ -2738,6 +2743,8 @@ $ARCPANEL/bin/v-add-sys-secret-key
 $ARCPANEL/bin/v-update-sys-backup-config > /dev/null
 # Server identifier for API clients (E43)
 $ARCPANEL/bin/v-update-sys-server-id > /dev/null
+# Audit log: data/audit/ and its first event (E23)
+$ARCPANEL/bin/v-update-sys-audit start "${ARCPANEL_INSTALL_VER}" > /dev/null
 
 chmod 600 /var/spool/cron/crontabs/arcpanelweb
 chown arcpanelweb:arcpanelweb /var/spool/cron/crontabs/arcpanelweb

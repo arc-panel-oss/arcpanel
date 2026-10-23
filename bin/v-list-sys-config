@@ -34,6 +34,8 @@ json_list() {
 		"API_SYSTEM": "'$API_SYSTEM'",
 		"API_V1": "'$API_V1'",
 		"APP_NAME": "'$APP_NAME'",
+		"AUDIT_RETENTION_DAYS": "'${AUDIT_RETENTION_DAYS:-180}'",
+		"AUDIT_SYSLOG": "'${AUDIT_SYSLOG:-no}'",
 		"BACKEND_PORT": "'$BACKEND_PORT'",
 		"BACKUP": "'$BACKUP'",
 		"BACKUP_GZIP": "'$BACKUP_GZIP'",
@@ -274,6 +276,7 @@ shell_list() {
 	fi
 	echo "Panel HSTS:                       ${PANEL_HSTS:-no}"
 	echo "TLS-only mail and FTP login:      ${TLS_LOGIN_ONLY:-no}"
+	echo "Audit log:                        ${AUDIT_RETENTION_DAYS:-180} days, syslog ${AUDIT_SYSLOG:-no}"
 	if [ -n "$MALWARE_SCAN" ]; then
 		echo "Malware scan enabled:             $MALWARE_SCAN"
 	fi

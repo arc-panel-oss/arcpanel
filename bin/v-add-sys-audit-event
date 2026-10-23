@@ -1,0 +1,52 @@
+#!/bin/bash
+# info: record one event in the audit log
+# options: FILE
+#
+# example: v-add-sys-audit-event /tmp/arcXXXXXX
+#
+# This function reads one audit event (JSON, schema v 1) from FILE, checks
+# it, sets its time, chains it to the previous event with SHA-256 and
+# appends it to the day's file in data/audit/. With AUDIT_SYSLOG='yes' the
+# line also goes to the local syslog with the tag arcpanel-audit. FILE is
+# removed. The panel runs it once per state-changing request. See
+# docs/features/specs/2026-10-23-002-e23-audit-log-design.md §6.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+file=$1
+
+# Includes
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/audit.sh
+source $ARCPANEL/func/audit.sh
+# load config file
+source_conf "$ARCPANEL/conf/arcpanel.conf"
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '1' "$#" 'FILE'
+audit_check_event_file "$file"
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+# The file goes whether the event is valid or not
+trap 'rm -f -- "$file"' EXIT
+audit_append_file "$file"
+
+#----------------------------------------------------------#
+#                         ArcPanel                         #
+#----------------------------------------------------------#
+
+# The audit log does not audit itself, and v-log-action would write each
+# panel action twice (D6)
+exit

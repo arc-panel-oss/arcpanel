@@ -1,0 +1,68 @@
+#!/bin/bash
+# info: verify the hash chain of the audit log
+# options: [FROM] [TO] [FORMAT]
+#
+# example: v-check-sys-audit
+# example: v-check-sys-audit 2026-10-01 2026-10-23 json
+#
+# This function recomputes the SHA-256 chain of the audit log between two
+# UTC days (default: from the first kept day to today) and compares each
+# day's anchor with its file. It prints OK and the number of events, or the
+# first broken day and line with the reason, and then exits with E_INVALID.
+# Days purged by the retention are skipped through their anchors. The chain
+# detects a changed, removed or inserted line; root can still rewrite the
+# whole log, which only an off-server copy (AUDIT_SYSLOG) answers. See
+# docs/features/specs/2026-10-23-002-e23-audit-log-design.md §4.2.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+from=${1-}
+to=${2-}
+format=${3-shell}
+
+# Includes
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/audit.sh
+source $ARCPANEL/func/audit.sh
+# load config file
+source_conf "$ARCPANEL/conf/arcpanel.conf"
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+if [ -n "$from" ]; then
+	audit_check_day "$from" 'start day'
+fi
+if [ -n "$to" ]; then
+	audit_check_day "$to" 'end day'
+fi
+case "$format" in
+	json | plain | shell) ;;
+	*) check_result "$E_INVALID" "invalid format :: $format" ;;
+esac
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+audit_php check "$AUDIT_DIR" "$from" "$to" "$(audit_keep_from)" "$format"
+if [ -n "$AUDIT_OUT" ]; then
+	echo "$AUDIT_OUT"
+fi
+if [ "$AUDIT_RC" -eq 3 ]; then
+	exit "$E_INVALID"
+fi
+audit_check_rc
+
+#----------------------------------------------------------#
+#                         ArcPanel                         #
+#----------------------------------------------------------#
+
+exit

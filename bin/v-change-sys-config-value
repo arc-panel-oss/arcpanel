@@ -33,6 +33,19 @@ check_arcpanel_demo_mode
 check_args '2' "$#" 'KEY VALUE'
 is_common_format_valid "$key" 'key'
 format_no_quotes "$value" 'value'
+# Keys with a fixed range (E23 audit log)
+case "$key" in
+	AUDIT_RETENTION_DAYS)
+		if ! [[ "$value" =~ ^[0-9]{1,4}$ ]] || [ "$value" -lt 7 ] || [ "$value" -gt 3650 ]; then
+			check_result "$E_INVALID" "invalid audit retention :: $value (7 to 3650 days)"
+		fi
+		;;
+	AUDIT_SYSLOG)
+		if [ "$value" != 'yes' ] && [ "$value" != 'no' ]; then
+			check_result "$E_INVALID" "invalid audit syslog :: $value (yes or no)"
+		fi
+		;;
+esac
 #----------------------------------------------------------#
 #                       Action                             #
 #----------------------------------------------------------#

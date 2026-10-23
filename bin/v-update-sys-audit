@@ -1,0 +1,68 @@
+#!/bin/bash
+# info: seal, compress and purge the audit log
+# options: [MODE] [VERSION]
+#
+# example: v-update-sys-audit
+# example: v-update-sys-audit start 2.6.0
+#
+# This function runs once a day from the cron of arcpanelweb (MODE daily,
+# the default): it seals the anchors of the past days, gzips the day files
+# older than 7 days, removes the day files older than AUDIT_RETENTION_DAYS
+# (default 180; the anchors stay, so the remaining chain still verifies)
+# and records a system event audit.purge whose object name is the number of
+# files removed. See
+# docs/features/specs/2026-10-23-002-e23-audit-log-design.md §6 and D8.
+#
+# MODE start creates data/audit/ and records a system event audit.start
+# whose object name is VERSION (default: the installed version), so that
+# the chain begins at the install or the upgrade (§8).
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+mode=${1:-daily}
+version=${2-}
+
+# Includes
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/audit.sh
+source $ARCPANEL/func/audit.sh
+# load config file
+source_conf "$ARCPANEL/conf/arcpanel.conf"
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+case "$mode" in
+	daily | start) ;;
+	*) check_result "$E_INVALID" "invalid mode :: $mode (daily or start)" ;;
+esac
+version=${version:-$VERSION}
+if ! [[ "$version" =~ ^[0-9A-Za-z.~+-]{0,64}$ ]]; then
+	check_result "$E_INVALID" "invalid version :: $version"
+fi
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+audit_dir_init
+if [ "$mode" = 'start' ]; then
+	audit_system_event 'audit.start' "$version"
+	exit
+fi
+audit_php update "$AUDIT_DIR" "$(audit_retention)"
+audit_check_rc
+audit_system_event 'audit.purge' "${AUDIT_OUT:-0}"
+
+#----------------------------------------------------------#
+#                         ArcPanel                         #
+#----------------------------------------------------------#
+
+exit

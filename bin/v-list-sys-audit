@@ -1,0 +1,92 @@
+#!/bin/bash
+# info: list the events of the audit log
+# options: FROM TO [FILTERS] [FORMAT] [LIMIT] [OFFSET]
+#
+# example: v-list-sys-audit 2026-10-01 2026-10-23
+# example: v-list-sys-audit 2026-10-01 2026-10-23 'USER=alice RESULT=denied' json 50 0
+# example: v-list-sys-audit 2026-10-01 2026-10-23 'OWNER=reseller1' csv 100000
+#
+# This function lists the audit events between two UTC days (YYYY-MM-DD),
+# newest first, from plain and gzipped day files. FILTERS is one argument of
+# KEY=value words: ACTOR (the signed-in user), USER (the actor, the
+# effective user or the object's user), ACTION (a prefix), RESULT (ok,
+# denied, invalid, failed), CHANNEL (web, api_v2, api_v1, system) and OWNER
+# (only events whose users are in the tree of that reseller). LIMIT is 1 to
+# 100000 (default 100); the json format also prints TOTAL, the number of
+# matching events. See
+# docs/features/specs/2026-10-23-002-e23-audit-log-design.md §6.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+from=$1
+to=$2
+filters=${3-}
+format=${4-shell}
+limit=${5:-100}
+offset=${6:-0}
+
+# Includes
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/tenancy.sh
+source $ARCPANEL/func/tenancy.sh
+# shellcheck source=/usr/local/arcpanel/func/audit.sh
+source $ARCPANEL/func/audit.sh
+# load config file
+source_conf "$ARCPANEL/conf/arcpanel.conf"
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '2' "$#" 'FROM TO [FILTERS] [FORMAT] [LIMIT] [OFFSET]'
+audit_check_day "$from" 'start day'
+audit_check_day "$to" 'end day'
+case "$format" in
+	json | csv | plain | shell) ;;
+	*) check_result "$E_INVALID" "invalid format :: $format" ;;
+esac
+if ! [[ "$limit" =~ ^[0-9]{1,6}$ ]] || [ "$limit" -lt 1 ] || [ "$limit" -gt 100000 ]; then
+	check_result "$E_INVALID" "invalid limit :: $limit (1 to 100000)"
+fi
+if ! [[ "$offset" =~ ^[0-9]{1,9}$ ]]; then
+	check_result "$E_INVALID" "invalid offset :: $offset"
+fi
+
+# OWNER: the reseller (or user) and its customers
+tree=''
+if [[ " $filters " =~ [[:space:]]OWNER=([^[:space:]]+)[[:space:]] ]]; then
+	owner="${BASH_REMATCH[1]}"
+	user="$owner"
+	is_format_valid 'user'
+	is_object_valid 'user' 'USER' "$owner"
+	tree=$(audit_tree "$owner")
+fi
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+err=$(mktemp)
+if [ "$format" = 'shell' ]; then
+	"$ARCPANEL_PHP" "$AUDIT_HELPER" list "$AUDIT_DIR" "$from" "$to" "$filters" shell "$limit" "$offset" "$tree" 2> "$err" | column -t -s $'\t'
+	rc=${PIPESTATUS[0]}
+else
+	"$ARCPANEL_PHP" "$AUDIT_HELPER" list "$AUDIT_DIR" "$from" "$to" "$filters" "$format" "$limit" "$offset" "$tree" 2> "$err"
+	rc=$?
+fi
+AUDIT_RC=$rc
+AUDIT_MSG=$(head -c 300 "$err")
+rm -f "$err"
+audit_check_rc
+
+#----------------------------------------------------------#
+#                         ArcPanel                         #
+#----------------------------------------------------------#
+
+exit
