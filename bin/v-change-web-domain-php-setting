@@ -1,0 +1,108 @@
+#!/bin/bash
+# info: change a PHP setting of a web domain (E19)
+# options: USER DOMAIN KEY VALUE [RESTART]
+#
+# example: v-change-web-domain-php-setting alice example.com upload_max_filesize 64M
+#
+# This function sets one per-domain PHP setting of a web domain's PHP-FPM
+# pool: memory_limit, upload_max_filesize, post_max_size (sizes such as
+# 256M), max_execution_time (seconds), max_input_vars, display_errors (on or
+# off) or date.timezone. Sizes, times and input vars must be within the
+# maximums of the user's package (PHP_MAX_MEMORY, PHP_MAX_UPLOAD,
+# PHP_MAX_EXECUTION_TIME, PHP_MAX_INPUT_VARS). The pool lists the settings
+# after the PHP-FPM profile, so they win over the profile and php.ini. With
+# WEB_BACKEND_POOL='user' the setting is the one of the user's shared pool.
+# RESTART no writes the pool without reloading PHP-FPM.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+user=$1
+domain=$2
+domain_idn=$2
+directive=$3
+value=$4
+restart=${5:-yes}
+
+# Includes
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/domain.sh
+source $ARCPANEL/func/domain.sh
+# load config file
+source_conf "$ARCPANEL/conf/arcpanel.conf"
+
+# Additional argument formatting
+format_domain
+format_domain_idn
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '4' "$#" 'USER DOMAIN KEY VALUE [RESTART]'
+is_format_valid 'user' 'domain' 'restart'
+is_system_enabled "$WEB_BACKEND" 'WEB_BACKEND'
+is_object_valid 'user' 'USER' "$user"
+is_object_unsuspended 'user' 'USER' "$user"
+is_object_valid 'web' 'DOMAIN' "$domain"
+is_object_unsuspended 'web' 'DOMAIN' "$domain"
+get_domain_values 'web'
+
+if ! php_setting_column "$directive"; then
+	check_result "$E_INVALID" "$directive is not a per-domain PHP setting"
+fi
+column=$REPLY
+if ! php_setting_valid "$directive" "$value"; then
+	check_result "$E_INVALID" "$PHP_ERROR"
+fi
+backend=${BACKEND:-default}
+if [ "$backend" = 'no-php' ] || ! php_template_has_profile "$PHP_FPM_TPL_DIR/$backend.tpl"; then
+	check_result "$E_DISABLED" "the backend template $backend of $domain takes no PHP settings"
+fi
+package=$(php_user_package "$user")
+max=$(php_setting_max "$package" "$directive")
+if php_setting_above "$directive" "$value" "$max"; then
+	check_result "$E_LIMIT" "$directive $value is above the maximum $max of the package $package"
+fi
+key=$(php_domain_key "$domain")
+if php_setting_pair_invalid "$user" "$key" "$directive" "$value"; then
+	check_result "$E_INVALID" "$PHP_ERROR"
+fi
+
+# Perform verification if read-only mode is enabled
+check_arcpanel_demo_mode
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+previous=$(php_kv "$(php_domain_line "$user" "$key")" "$column")
+php_domain_line_update "$user" "$key" '' "$column" "$value"
+
+if ! php_settings_apply "$user" "$domain" "$backend" "$restart"; then
+	# Back to the previous value and pool
+	version=$(php_backend_version "$backend")
+	php_fpm_log "$version"
+	php_domain_line_update "$user" "$key" '' "$column" "$previous"
+	"$BIN/v-add-web-domain-backend" "$user" "$domain" "$backend" no > /dev/null 2>&1
+	"$BIN/v-restart-service" "php$version-fpm" > /dev/null 2>&1
+	check_result "$E_RESTART" "PHP-FPM $version did not run with $directive $value; the previous value was restored"
+fi
+
+# What the domain should know about the values it runs with
+php_domain_settings_json "$user" "$domain" "$backend" | jq -r '.WARNINGS[] | "Warning: \(.)"'
+
+#----------------------------------------------------------#
+#                         ArcPanel                         #
+#----------------------------------------------------------#
+
+# Logging
+$BIN/v-log-action "$user" "Info" "Web" "PHP setting changed (Domain: $domain, $directive: $value)."
+log_event "$OK" "$ARGUMENTS"
+
+exit

@@ -188,6 +188,11 @@ for domain in "${domains[@]}"; do
 				fi
 				php_domain_profile_set "$user" "$domain" "$restored_profile"
 			fi
+			# PHP settings of the domain (E19): valid values are kept, and one
+			# above the package maximum is clamped in the pool
+			if [ "$WEB_BACKEND_POOL" != 'user' ]; then
+				php_domain_settings_restore "$user" "$domain" "$(head -n1 "$src/arcpanel/web.php.conf" 2> /dev/null)"
+			fi
 
 			# Rebuilding backend
 			if [ -n "$WEB_BACKEND" ]; then

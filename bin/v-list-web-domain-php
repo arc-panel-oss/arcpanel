@@ -10,7 +10,8 @@
 # PROFILE_ALLOWED (no when the package no longer allows the domain's value),
 # ALLOWED (both), the VERSIONS (installed, with STATUS and EOL) and PROFILES
 # the package allows, DEFAULT_PROFILE, and EFFECTIVE: the values of the PHP
-# limits with their SOURCE (php.ini of the version, or the profile).
+# limits with their SOURCE (php.ini of the version, the profile, or the
+# domain's own setting of E19, clamped to the package maximum).
 
 #----------------------------------------------------------#
 #                Variables & Functions                     #
@@ -77,15 +78,23 @@ for v in $(php_pkg_versions "$package"); do
 done
 profiles=$(php_pkg_profiles "$package" | jq -Rn '[inputs]')
 
-# Effective PHP limits: the profile's php_admin_value wins over php.ini (D16)
+# Effective PHP limits: the domain's setting (E19) wins over the profile's
+# php_admin_value, which wins over php.ini (D16)
 effective='{}'
 if [ -n "$version" ] && php_version_installed "$version"; then
 	ini=$(php_ini_helper "$version" values "$(php_ini_file "$version" fpm)" fpm 2> /dev/null)
+	domain_line=$(php_domain_line "$user" "$(php_domain_key "$domain")")
 	for pair in $PHP_PROFILE_LIMITS; do
 		key=${pair%%:*}
 		directive=${pair#*:}
-		value=$(php_profile_get "$profile" "$key")
+		value=$(php_kv "$domain_line" "$key")
 		if [ "$applied" = 'yes' ] && [ -n "$value" ]; then
+			max=$(php_setting_max "$package" "$directive")
+			if php_setting_above "$directive" "$value" "$max"; then
+				value=$max
+			fi
+			origin='domain'
+		elif value=$(php_profile_get "$profile" "$key") && [ "$applied" = 'yes' ] && [ -n "$value" ]; then
 			origin='profile'
 		else
 			value=$(jq -r --arg d "$directive" '.[$d].VALUE // ""' <<< "${ini:-"{}"}")

@@ -117,11 +117,9 @@ if [ -n "$BACKEND" ]; then
 	delete_web_backend
 fi
 
-# The PHP-FPM profile moves with the domain (E41)
+# The PHP-FPM profile and the PHP settings move with the domain (E41, E19)
 if [ "$WEB_BACKEND_POOL" != 'user' ]; then
-	php_profile=$(php_domain_profile "$user" "$domain")
-	php_domain_profile_delete "$user" "$domain"
-	php_domain_profile_set "$user" "$new_domain" "$php_profile"
+	php_domain_line_rename "$user" "$domain" "$new_domain"
 fi
 
 #----------------------------------------------------------#

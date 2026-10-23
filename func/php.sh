@@ -813,11 +813,19 @@ php_template_has_profile() {
 	grep -qE "^[[:space:]]*${PHP_PROFILE_PLACEHOLDER}[[:space:]]*$" "$1" 2> /dev/null
 }
 
-# A pool template with the placeholder replaced by the lines of a profile;
-# a template without the placeholder is printed as it is
+# A pool template with the placeholder replaced by the lines of a profile
+# and, with USER and KEY (the sidecar key of the pool), the domain's
+# settings after them (E19 spec §4); a template without the placeholder is
+# printed as it is
 php_pool_template() {
-	local tpl="$1" profile="$2" block
+	local tpl="$1" profile="$2" user="${3-}" key="${4-}" block settings
 	block=$(php_profile_block "$profile")
+	if [ -n "$user" ] && [ -n "$key" ]; then
+		settings=$(php_domain_settings_block "$user" "$key")
+		if [ -n "$settings" ]; then
+			block="$block"$'\n'"$settings"
+		fi
+	fi
 	PHP_POOL_BLOCK="$block" awk -v ph="$PHP_PROFILE_PLACEHOLDER" '
 		{ line = $0; gsub(/^[ \t]+|[ \t]+$/, "", line) }
 		line == ph { print ENVIRON["PHP_POOL_BLOCK"]; next }
@@ -1049,24 +1057,381 @@ php_domain_profile() {
 	echo "${profile:-default}"
 }
 
-# Set the profile of a domain's pool; default removes the line
-php_domain_profile_set() {
-	local user="$1" key="$2" profile="$3" file tmp
+# The sidecar line of a pool key (a domain, or *)
+php_domain_line() {
+	grep -F "DOMAIN='$2' " "$(php_domain_sidecar "$1")" 2> /dev/null | head -n1
+}
+
+# Rewrite the line of a pool key under the sidecar's lock (E19 spec §3.1):
+# PROFILE when $3 is not empty, setting column $4 set to $5 (* with an empty
+# $5 clears all of them); the other values stay. Only settings with a value
+# are written, and the line goes when the profile is default and no setting
+# is left.
+php_domain_line_update() {
+	local user="$1" key="$2" profile="$3" column="$4" value="$5" file tmp line out pair name current any=no
 	file=$(php_domain_sidecar "$user")
 	(
 		flock -x 9
+		line=$(grep -F "DOMAIN='$key' " "$file" 2> /dev/null | head -n1)
+		if [ -z "$profile" ]; then
+			profile=$(php_kv "$line" PROFILE)
+		fi
+		profile=${profile:-default}
+		out="DOMAIN='$key' PROFILE='$profile'"
+		for pair in $PHP_DOMAIN_SETTINGS; do
+			name=${pair%%:*}
+			current=$(php_kv "$line" "$name")
+			if [ "$column" = '*' ] || [ "$column" = "$name" ]; then
+				current=$value
+			fi
+			if [ -n "$current" ]; then
+				out="$out $name='$current'"
+				any=yes
+			fi
+		done
 		tmp=$(mktemp "$file.XXXXXX")
 		grep -vF "DOMAIN='$key' " "$file" 2> /dev/null > "$tmp"
-		if [ "$profile" != 'default' ]; then
-			echo "DOMAIN='$key' PROFILE='$profile'" >> "$tmp"
+		if [ "$profile" != 'default' ] || [ "$any" = 'yes' ]; then
+			echo "$out" >> "$tmp"
 		fi
 		chmod 640 "$tmp"
 		mv -f "$tmp" "$file"
 	) 9> "$file.lock"
 }
 
+# Set the profile of a domain's pool; the settings stay, and default with
+# no setting removes the line
+php_domain_profile_set() {
+	php_domain_line_update "$1" "$2" "$3" '' ''
+}
+
+# Remove the line of a domain: its profile and its settings
 php_domain_profile_delete() {
-	php_domain_profile_set "$1" "$2" default
+	local file tmp
+	file=$(php_domain_sidecar "$1")
+	(
+		flock -x 9
+		tmp=$(mktemp "$file.XXXXXX")
+		grep -vF "DOMAIN='$2' " "$file" 2> /dev/null > "$tmp"
+		chmod 640 "$tmp"
+		mv -f "$tmp" "$file"
+	) 9> "$file.lock"
+}
+
+# Move the line of a domain to its new name
+php_domain_line_rename() {
+	local file tmp line
+	file=$(php_domain_sidecar "$1")
+	(
+		flock -x 9
+		line=$(grep -F "DOMAIN='$2' " "$file" 2> /dev/null | head -n1)
+		tmp=$(mktemp "$file.XXXXXX")
+		grep -vF -e "DOMAIN='$2' " -e "DOMAIN='$3' " "$file" 2> /dev/null > "$tmp"
+		if [ -n "$line" ]; then
+			echo "DOMAIN='$3' ${line#"DOMAIN='$2' "}" >> "$tmp"
+		fi
+		chmod 640 "$tmp"
+		mv -f "$tmp" "$file"
+	) 9> "$file.lock"
+}
+
+#----------------------------------------------------------#
+#                Per-domain settings (E19)                 #
+#----------------------------------------------------------#
+
+# Sidecar column, directive and package maximum of each setting, in the
+# order of the pool lines (E19 spec §1)
+PHP_DOMAIN_SETTINGS="MEMORY_LIMIT:memory_limit:PHP_MAX_MEMORY UPLOAD_MAX_FILESIZE:upload_max_filesize:PHP_MAX_UPLOAD POST_MAX_SIZE:post_max_size:PHP_MAX_UPLOAD MAX_EXECUTION_TIME:max_execution_time:PHP_MAX_EXECUTION_TIME MAX_INPUT_VARS:max_input_vars:PHP_MAX_INPUT_VARS DISPLAY_ERRORS:display_errors: DATE_TIMEZONE:date.timezone:"
+
+# Column of a directive, in REPLY with its maximum key in PHP_SETTING_MAX_KEY;
+# fails for a directive that is not a setting
+php_setting_column() {
+	local pair rest
+	for pair in $PHP_DOMAIN_SETTINGS; do
+		rest=${pair#*:}
+		if [ "${rest%%:*}" = "$1" ]; then
+			REPLY=${pair%%:*}
+			PHP_SETTING_MAX_KEY=${rest#*:}
+			return 0
+		fi
+	done
+	return 1
+}
+
+# Validate VALUE of a directive (E19 spec §5.1); the error is in PHP_ERROR
+php_setting_valid() {
+	local directive="$1" value="$2"
+	case "$directive" in
+		memory_limit | upload_max_filesize | post_max_size)
+			if [[ ! "$value" =~ ^[0-9]{1,6}[KMG]?$ ]] || [ "$(php_size_bytes "$value")" -lt 1 ]; then
+				PHP_ERROR="$directive must be a size such as 256M"
+				return 1
+			fi
+			;;
+		max_execution_time)
+			if [[ ! "$value" =~ ^[0-9]{1,5}$ ]] || [ "$value" -gt 86400 ]; then
+				PHP_ERROR="max_execution_time must be seconds from 0 to 86400"
+				return 1
+			fi
+			;;
+		max_input_vars)
+			if [[ ! "$value" =~ ^[0-9]{1,7}$ ]] || [ "$value" -lt 1 ] || [ "$value" -gt 1000000 ]; then
+				PHP_ERROR="max_input_vars must be a number from 1 to 1000000"
+				return 1
+			fi
+			;;
+		display_errors)
+			if [ "$value" != 'on' ] && [ "$value" != 'off' ]; then
+				PHP_ERROR="display_errors must be on or off"
+				return 1
+			fi
+			;;
+		date.timezone)
+			if [[ ! "$value" =~ ^[A-Za-z][A-Za-z0-9_+-]*(/[A-Za-z0-9_+-]+){0,2}$ ]] || [ ! -f "/usr/share/zoneinfo/$value" ]; then
+				PHP_ERROR="date.timezone must be a time zone such as Europe/Berlin"
+				return 1
+			fi
+			;;
+		*)
+			PHP_ERROR="$directive is not a per-domain PHP setting"
+			return 1
+			;;
+	esac
+}
+
+# Package maximum of a directive (empty for none), with the default of a
+# package that does not set it (D7)
+php_setting_max() {
+	php_setting_column "$2" || return 0
+	[ -n "$PHP_SETTING_MAX_KEY" ] || return 0
+	php_pkg_get "$1" "$PHP_SETTING_MAX_KEY"
+}
+
+# Whether VALUE of a directive is above MAX (unlimited or empty is no maximum)
+php_setting_above() {
+	local directive="$1" value="$2" max="$3"
+	if [ -z "$max" ] || [ "$max" = 'unlimited' ]; then
+		return 1
+	fi
+	case "$directive" in
+		memory_limit | upload_max_filesize | post_max_size)
+			[ "$(php_size_bytes "$value")" -gt "$(php_size_bytes "$max")" ]
+			;;
+		*)
+			[ "$value" -gt "$max" ]
+			;;
+	esac
+}
+
+# The pool lines of a pool key's settings, each clamped to the package
+# maximum of the user (D9); nothing when it has no setting
+php_domain_settings_block() {
+	local user="$1" key="$2" line package pair column directive rest value max printed=no
+	line=$(php_domain_line "$user" "$key")
+	[ -n "$line" ] || return 0
+	package=$(php_user_package "$user")
+	for pair in $PHP_DOMAIN_SETTINGS; do
+		column=${pair%%:*}
+		rest=${pair#*:}
+		directive=${rest%%:*}
+		value=$(php_kv "$line" "$column")
+		[ -n "$value" ] || continue
+		max=$(php_setting_max "$package" "$directive")
+		if php_setting_above "$directive" "$value" "$max"; then
+			value=$max
+		fi
+		if [ "$printed" = 'no' ]; then
+			echo '; E19 per-domain settings'
+			printed=yes
+		fi
+		if [ "$directive" = 'display_errors' ]; then
+			echo "php_admin_flag[$directive] = $value"
+		else
+			echo "php_admin_value[$directive] = $value"
+		fi
+	done
+}
+
+# Users whose package is PACKAGE, one per line
+php_package_users() {
+	grep -lx "PACKAGE='$1'" "$ARCPANEL"/data/users/*/user.conf 2> /dev/null | xargs -r -n1 dirname | xargs -r -n1 basename
+}
+
+# Write again the pools of USER whose settings are governed by MAX_KEY (all
+# maximums when empty) and above OLD or NEW of it (any value when OLD and
+# NEW are empty); print the PHP versions of the pools written
+php_settings_rerender() {
+	local user="$1" max_key="${2-}" old="${3-}" new="${4-}" line key domain backend pair column rest directive value hit
+	[ -f "$(php_domain_sidecar "$user")" ] || return 0
+	while IFS= read -r line; do
+		key=$(php_kv "$line" DOMAIN)
+		hit=no
+		for pair in $PHP_DOMAIN_SETTINGS; do
+			column=${pair%%:*}
+			rest=${pair#*:}
+			directive=${rest%%:*}
+			[ -n "${rest#*:}" ] || continue
+			[ -z "$max_key" ] || [ "${rest#*:}" = "$max_key" ] || continue
+			value=$(php_kv "$line" "$column")
+			[ -n "$value" ] || continue
+			if [ -z "$old$new" ] || php_setting_above "$directive" "$value" "$old" || php_setting_above "$directive" "$value" "$new"; then
+				hit=yes
+			fi
+		done
+		[ "$hit" = 'yes' ] || continue
+		# In user-pool mode any domain of the user writes the shared pool
+		if [ "$key" = '*' ]; then
+			domain=$(grep -m1 -o "^DOMAIN='[^']*'" "$ARCPANEL/data/users/$user/web.conf" 2> /dev/null | cut -d\' -f2)
+		else
+			domain=$key
+		fi
+		[ -n "$domain" ] || continue
+		backend=$(grep -F "DOMAIN='$domain' " "$ARCPANEL/data/users/$user/web.conf" 2> /dev/null | head -n1)
+		backend=$(php_kv "$backend" BACKEND)
+		backend=${backend:-default}
+		[ "$backend" != 'no-php' ] || continue
+		"$BIN/v-add-web-domain-backend" "$user" "$domain" "$backend" no > /dev/null 2>&1
+		php_backend_version "$backend"
+	done < "$(php_domain_sidecar "$user")"
+}
+
+# Whether post_max_size would fall below upload_max_filesize when the pool
+# key sets both (E19 spec §5.1); the error is in PHP_ERROR. An inherited one
+# only warns (php_domain_settings_json).
+php_setting_pair_invalid() {
+	local line upload post
+	line=$(php_domain_line "$1" "$2")
+	upload=$(php_kv "$line" UPLOAD_MAX_FILESIZE)
+	post=$(php_kv "$line" POST_MAX_SIZE)
+	case "$3" in
+		upload_max_filesize) upload=$4 ;;
+		post_max_size) post=$4 ;;
+		*) return 1 ;;
+	esac
+	if [ -n "$upload" ] && [ -n "$post" ] && [ "$(php_size_bytes "$post")" -lt "$(php_size_bytes "$upload")" ]; then
+		PHP_ERROR="post_max_size $post must be at least upload_max_filesize $upload"
+		return 0
+	fi
+	return 1
+}
+
+# Write the pool of a domain again and, unless RESTART is no, reload its
+# PHP-FPM and check that it still runs
+php_settings_apply() {
+	local user="$1" domain="$2" backend="$3" restart="$4"
+	"$BIN/v-add-web-domain-backend" "$user" "$domain" "$backend" no > /dev/null 2>&1 || return 1
+	if [ "$restart" = 'no' ]; then
+		return 0
+	fi
+	php_fpm_reload "$(php_backend_version "$backend")"
+}
+
+# The nginx client_max_body_size of a domain: its own configuration, else the
+# server's (E19 D10)
+php_nginx_max_body() {
+	local value
+	value=$(grep -hoE '^[[:space:]]*client_max_body_size[[:space:]]+[0-9]+[kKmMgG]?' \
+		"$HOMEDIR/$1/conf/web/$2/nginx.conf" "$HOMEDIR/$1/conf/web/$2/nginx.ssl.conf" 2> /dev/null | head -n1)
+	if [ -z "$value" ]; then
+		value=$(grep -hoE '^[[:space:]]*client_max_body_size[[:space:]]+[0-9]+[kKmMgG]?' /etc/nginx/nginx.conf 2> /dev/null | head -n1)
+	fi
+	echo "${value##* }"
+}
+
+# The settings of a domain's pool as JSON (E19 spec §5): POOL, SUPPORTED,
+# PACKAGE, NGINX_MAX_BODY, SETTINGS with VALUE, MAX, INI, PROFILE,
+# EFFECTIVE and SOURCE (php.ini, profile, domain or capped) per directive,
+# and WARNINGS
+php_domain_settings_json() {
+	local user="$1" domain="$2" backend="${3:-default}"
+	local key line package profile version='' ini='{}' supported=no pool=domain nginx json='{}' warnings=()
+	local pair column rest directive value max ini_value profile_value effective origin
+	local -A eff=() origins=()
+	key=$(php_domain_key "$domain")
+	if [ "$key" = '*' ]; then
+		pool=user
+	fi
+	line=$(php_domain_line "$user" "$key")
+	package=$(php_user_package "$user")
+	profile=$(php_domain_profile "$user" "$domain")
+	if [ -n "$WEB_BACKEND" ] && [ "$backend" != 'no-php' ]; then
+		version=$(php_backend_version "$backend")
+		if php_template_has_profile "$PHP_FPM_TPL_DIR/$backend.tpl"; then
+			supported=yes
+		fi
+		if php_version_installed "$version"; then
+			ini=$(php_ini_helper "$version" values "$(php_ini_file "$version" fpm)" fpm 2> /dev/null)
+		fi
+	fi
+	for pair in $PHP_DOMAIN_SETTINGS; do
+		column=${pair%%:*}
+		rest=${pair#*:}
+		directive=${rest%%:*}
+		value=$(php_kv "$line" "$column")
+		max=$(php_setting_max "$package" "$directive")
+		ini_value=$(jq -r --arg d "$directive" '.[$d].VALUE // ""' <<< "${ini:-"{}"}")
+		profile_value=''
+		if [[ " $PHP_PROFILE_LIMITS " == *" $column:"* ]]; then
+			profile_value=$(php_profile_get "$profile" "$column")
+		fi
+		if [ "$supported" = 'yes' ] && [ -n "$value" ]; then
+			effective=$value
+			origin=domain
+			if php_setting_above "$directive" "$value" "$max"; then
+				effective=$max
+				origin=capped
+				warnings+=("$directive $value is above the package maximum $max and applies as $max")
+			fi
+		elif [ "$supported" = 'yes' ] && [ -n "$profile_value" ]; then
+			effective=$profile_value
+			origin=profile
+		else
+			effective=$ini_value
+			origin=php.ini
+		fi
+		eff["$directive"]=$effective
+		origins["$directive"]=$origin
+		json=$(jq -c --arg d "$directive" --arg v "$value" --arg m "$max" --arg i "$ini_value" --arg p "$profile_value" \
+			--arg e "$effective" --arg s "$origin" \
+			'. + {($d): {VALUE: $v, MAX: $m, INI: $i, PROFILE: $p, EFFECTIVE: $e, SOURCE: $s}}' <<< "$json")
+	done
+
+	local memory post upload body
+	memory=$(php_size_bytes "${eff[memory_limit]}")
+	post=$(php_size_bytes "${eff[post_max_size]}")
+	upload=$(php_size_bytes "${eff[upload_max_filesize]}")
+	if [ -n "$memory" ] && [ -n "$post" ] && [ "$memory" -gt 0 ] && [ "$post" -gt 0 ] && [ "$memory" -lt "$post" ]; then
+		warnings+=("memory_limit ${eff[memory_limit]} is below post_max_size ${eff[post_max_size]}")
+	fi
+	if [ -n "$post" ] && [ -n "$upload" ] && [ "$post" -gt 0 ] && [ "$post" -lt "$upload" ]; then
+		warnings+=("post_max_size ${eff[post_max_size]} (${origins[post_max_size]}) is below upload_max_filesize ${eff[upload_max_filesize]}, which limits uploads to ${eff[post_max_size]}")
+	fi
+	nginx=$(php_nginx_max_body "$user" "$domain")
+	body=$(php_size_bytes "$nginx")
+	if [ -n "$body" ] && [ -n "$upload" ] && [ "$body" -gt 0 ] && [ "$upload" -gt "$body" ]; then
+		warnings+=("upload_max_filesize ${eff[upload_max_filesize]} is above the nginx client_max_body_size $nginx of the domain, which stops larger uploads")
+	fi
+
+	jq -n --arg d "$domain" --arg pool "$pool" --arg s "$supported" --arg pk "$package" --arg pr "$profile" \
+		--arg v "$version" --arg n "$nginx" --argjson settings "$json" \
+		--argjson w "$(printf '%s\n' "${warnings[@]}" | jq -Rn '[inputs | select(length > 0)]')" \
+		'{DOMAIN: $d, POOL: $pool, SUPPORTED: $s, PACKAGE: $pk, PROFILE: $pr, VERSION: $v,
+			NGINX_MAX_BODY: $n, SETTINGS: $settings, WARNINGS: $w}'
+}
+
+# Settings of a backed-up sidecar LINE for a restored domain: every valid
+# value is kept, also one above the package maximum, which the pool clamps
+php_domain_settings_restore() {
+	local user="$1" key="$2" line="$3" pair column rest directive value
+	for pair in $PHP_DOMAIN_SETTINGS; do
+		column=${pair%%:*}
+		rest=${pair#*:}
+		directive=${rest%%:*}
+		value=$(php_kv "$line" "$column")
+		if [ -n "$value" ] && php_setting_valid "$directive" "$value"; then
+			php_domain_line_update "$user" "$key" '' "$column" "$value"
+		fi
+	done
 }
 
 # Web domains with their pool's profile: "USER DOMAIN BACKEND PROFILE" lines;
@@ -1142,6 +1507,11 @@ php_pkg_get() {
 		case "$2" in
 			PHP_VERSIONS) value='*' ;;
 			PHP_PROFILES | PHP_DEFAULT_PROFILE) value='default' ;;
+			# Maximums of the per-domain settings (E19 D7)
+			PHP_MAX_MEMORY) value='512M' ;;
+			PHP_MAX_UPLOAD) value='256M' ;;
+			PHP_MAX_EXECUTION_TIME) value='300' ;;
+			PHP_MAX_INPUT_VARS) value='10000' ;;
 		esac
 	fi
 	echo "$value"

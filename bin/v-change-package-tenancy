@@ -31,6 +31,10 @@
 # BACKUP_FREQUENCY (hourly, daily or weekly) is how often scheduled backup
 # jobs may back up the package's users (E48); a reseller's own package
 # cannot allow more often than the reseller's.
+# PHP_MAX_MEMORY and PHP_MAX_UPLOAD (sizes such as 512M, or unlimited),
+# PHP_MAX_EXECUTION_TIME (seconds) and PHP_MAX_INPUT_VARS (integer, or
+# unlimited) cap the per-domain PHP settings of the package's users (E19);
+# the pools whose values the change affects are written again.
 
 #----------------------------------------------------------#
 #                Variables & Functions                     #
@@ -64,6 +68,7 @@ case "$key" in
 	USERS | RESELLER_PACKAGES | RESELLER_VISIBLE | PORTS | NODE | NODE_VERSIONS | NODE_APPS | NODE_ALLOWED) ;;
 	DOCKER | DOCKER_APPS | DOCKER_CPUS | DOCKER_MEMORY) ;;
 	PHP_VERSIONS | PHP_PROFILES | PHP_DEFAULT_PROFILE) ;;
+	PHP_MAX_MEMORY | PHP_MAX_UPLOAD | PHP_MAX_EXECUTION_TIME | PHP_MAX_INPUT_VARS) ;;
 	APP_PROCESSES | APP_PROCESSES_MAX | APP_PROCESSES_MEMORY | APP_PROCESSES_CPUS) ;;
 	OBJECT_STORAGE | OBJECT_STORAGE_BUCKETS | OBJECT_STORAGE_QUOTA | OBJECT_STORAGE_BACKUP) ;;
 	BACKUP_FREQUENCY) ;;
@@ -146,8 +151,21 @@ check_arcpanel_demo_mode
 #                       Action                             #
 #----------------------------------------------------------#
 
+previous=$(tenancy_pkg_get "$package" "$key")
 tenancy_pkg_set "$package" "$key" "$value"
 check_result $? "package $package was not updated" "$E_UPDATE"
+
+# Pools with a per-domain setting above the old or the new maximum (E19 §4.1)
+if [[ "$key" == PHP_MAX_* ]] && [ "$previous" != "$value" ]; then
+	versions=$(
+		for user in $(php_package_users "$package"); do
+			php_settings_rerender "$user" "$key" "$previous" "$value"
+		done | sort -u
+	)
+	for version in $versions; do
+		"$BIN/v-restart-web-backend" yes "$version" > /dev/null 2>&1
+	done
+fi
 
 #----------------------------------------------------------#
 #                         ArcPanel                         #

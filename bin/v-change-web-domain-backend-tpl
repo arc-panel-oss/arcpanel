@@ -74,8 +74,9 @@ for port in $ports; do
 done
 
 # Changing backend config
-# The profile of the pool fills the %php_profile% line of the template (E41)
-php_pool_template "$WEBTPL/$WEB_BACKEND/$template.tpl" "$(php_domain_profile "$user" "$domain")" \
+# The profile of the pool fills the %php_profile% line of the template (E41),
+# followed by the domain's settings (E19)
+php_pool_template "$WEBTPL/$WEB_BACKEND/$template.tpl" "$(php_domain_profile "$user" "$domain")" "$user" "$(php_domain_key "$domain")" \
 	| sed -e "s|%backend_port%|$backend_port|" \
 		-e "s|%user%|$user|g" \
 		-e "s|%domain%|$domain|g" \

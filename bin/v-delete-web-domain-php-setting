@@ -1,0 +1,101 @@
+#!/bin/bash
+# info: reset a PHP setting of a web domain (E19)
+# options: USER DOMAIN KEY [RESTART]
+#
+# example: v-delete-web-domain-php-setting alice example.com memory_limit
+#
+# This function removes one per-domain PHP setting of a web domain's PHP-FPM
+# pool, or all of them with KEY all, so that the pool takes the value of the
+# PHP-FPM profile or of php.ini again. RESTART no writes the pool without
+# reloading PHP-FPM.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+user=$1
+domain=$2
+domain_idn=$2
+directive=$3
+restart=${4:-yes}
+
+# Includes
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/domain.sh
+source $ARCPANEL/func/domain.sh
+# load config file
+source_conf "$ARCPANEL/conf/arcpanel.conf"
+
+# Additional argument formatting
+format_domain
+format_domain_idn
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '3' "$#" 'USER DOMAIN KEY [RESTART]'
+is_format_valid 'user' 'domain' 'restart'
+is_system_enabled "$WEB_BACKEND" 'WEB_BACKEND'
+is_object_valid 'user' 'USER' "$user"
+is_object_unsuspended 'user' 'USER' "$user"
+is_object_valid 'web' 'DOMAIN' "$domain"
+is_object_unsuspended 'web' 'DOMAIN' "$domain"
+get_domain_values 'web'
+
+if [ "$directive" = 'all' ]; then
+	column='*'
+elif php_setting_column "$directive"; then
+	column=$REPLY
+else
+	check_result "$E_INVALID" "$directive is not a per-domain PHP setting"
+fi
+
+# Perform verification if read-only mode is enabled
+check_arcpanel_demo_mode
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+key=$(php_domain_key "$domain")
+backend=${BACKEND:-default}
+line=$(php_domain_line "$user" "$key")
+php_domain_line_update "$user" "$key" '' "$column" ''
+
+# A pool that cannot take settings has none to remove from its file
+if [ "$backend" != 'no-php' ] && php_template_has_profile "$PHP_FPM_TPL_DIR/$backend.tpl"; then
+	if ! php_settings_apply "$user" "$domain" "$backend" "$restart"; then
+		version=$(php_backend_version "$backend")
+		php_fpm_log "$version"
+		# Back to the previous line and pool
+		file=$(php_domain_sidecar "$user")
+		(
+			flock -x 9
+			tmp=$(mktemp "$file.XXXXXX")
+			grep -vF "DOMAIN='$key' " "$file" 2> /dev/null > "$tmp"
+			if [ -n "$line" ]; then
+				echo "$line" >> "$tmp"
+			fi
+			chmod 640 "$tmp"
+			mv -f "$tmp" "$file"
+		) 9> "$file.lock"
+		"$BIN/v-add-web-domain-backend" "$user" "$domain" "$backend" no > /dev/null 2>&1
+		"$BIN/v-restart-service" "php$version-fpm" > /dev/null 2>&1
+		check_result "$E_RESTART" "PHP-FPM $version did not run without $directive; the previous settings were restored"
+	fi
+fi
+
+#----------------------------------------------------------#
+#                         ArcPanel                         #
+#----------------------------------------------------------#
+
+# Logging
+$BIN/v-log-action "$user" "Info" "Web" "PHP setting reset (Domain: $domain, Setting: $directive)."
+log_event "$OK" "$ARGUMENTS"
+
+exit

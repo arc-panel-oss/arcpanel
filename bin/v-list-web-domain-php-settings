@@ -1,0 +1,72 @@
+#!/bin/bash
+# info: list the per-domain PHP settings of a web domain (E19)
+# options: USER DOMAIN [FORMAT]
+#
+# example: v-list-web-domain-php-settings alice example.com json
+#
+# This function lists the per-domain PHP settings of a web domain's pool:
+# for each of memory_limit, upload_max_filesize, post_max_size,
+# max_execution_time, max_input_vars, display_errors and date.timezone the
+# VALUE set on the domain, the package MAX, the INI value of the version's
+# php.ini, the PROFILE value, and the EFFECTIVE value with its SOURCE
+# (php.ini, profile, domain, or capped when the package maximum lowers it).
+# Also POOL (domain, or user for a shared pool), SUPPORTED (no for no-php or
+# a backend template without the %php_profile% line), NGINX_MAX_BODY (the
+# client_max_body_size that applies to the domain) and WARNINGS.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+user=$1
+domain=$2
+format=${3-shell}
+
+# Includes
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/domain.sh
+source $ARCPANEL/func/domain.sh
+# load config file
+source_conf "$ARCPANEL/conf/arcpanel.conf"
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '2' "$#" 'USER DOMAIN [FORMAT]'
+is_format_valid 'user' 'domain'
+is_object_valid 'user' 'USER' "$user"
+is_object_valid 'web' 'DOMAIN' "$domain"
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+get_domain_values 'web'
+json=$(php_domain_settings_json "$user" "$domain" "${BACKEND:-default}")
+
+case "$format" in
+	json) jq . <<< "$json" ;;
+	plain)
+		jq -r '.SETTINGS | to_entries[] | [.key, .value.VALUE, .value.MAX, .value.EFFECTIVE, .value.SOURCE] | join("\t")' <<< "$json"
+		;;
+	csv)
+		jq -r '"KEY,VALUE,MAX,INI,PROFILE,EFFECTIVE,SOURCE",
+			(.SETTINGS | to_entries[] | [.key, .value.VALUE, .value.MAX, .value.INI, .value.PROFILE, .value.EFFECTIVE, .value.SOURCE] | @csv)' <<< "$json"
+		;;
+	*)
+		jq -r '"POOL: \(.POOL)", "SUPPORTED: \(.SUPPORTED)", "NGINX_MAX_BODY: \(.NGINX_MAX_BODY)",
+			(.SETTINGS | to_entries[] | "\(.key): \(.value.EFFECTIVE) (\(.value.SOURCE)\(if .value.MAX != "" then ", max \(.value.MAX)" else "" end))"),
+			(.WARNINGS[] | "Warning: \(.)")' <<< "$json"
+		;;
+esac
+
+#----------------------------------------------------------#
+#                         ArcPanel                         #
+#----------------------------------------------------------#
+
+exit
