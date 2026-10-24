@@ -72,7 +72,7 @@ info:
     | `sync-dns-cluster` | admin | `v-list-users`, `v-list-sys-config`, `v-list-user`, `v-add-cron-restart-job`, `v-delete-dns-domains-src`, `v-insert-dns-domain`, `v-insert-dns-record`, `v-insert-dns-records`, `v-rebuild-dns-domains`, `v-rebuild-dns-domain`, `v-delete-dns-record`, `v-make-tmp-file`, `v-delete-dns-domain` |
     | `update-dns-records` | user | `v-list-dns-records`, `v-change-dns-record` |
 
-    The sets `v2-accounts` and `v2-apps` and `v2-backup` and `v2-cron` and `v2-db` and `v2-dns` and `v2-files` and `v2-mail` and `v2-observe` and `v2-read` and `v2-secrets` and `v2-security` and `v2-server` and `v2-storage` and `v2-web` and `v2-write` belong to REST API v2 (`/api/v2/`, documented in `docs/api/v2/openapi.json`): this API ignores them, so a key with only those sets may run no command here.
+    The sets `v2-accounts` and `v2-apps` and `v2-audit` and `v2-backup` and `v2-cron` and `v2-db` and `v2-dns` and `v2-files` and `v2-mail` and `v2-observe` and `v2-read` and `v2-secrets` and `v2-security` and `v2-server` and `v2-storage` and `v2-web` and `v2-write` belong to REST API v2 (`/api/v2/`, documented in `docs/api/v2/openapi.json`): this API ignores them, so a key with only those sets may run no command here.
   license:
     name: GPL-3.0-or-later
     identifier: GPL-3.0-or-later
@@ -24981,7 +24981,7 @@ paths:
         denied, invalid, failed), CHANNEL (web, api_v2, api_v1, system) and OWNER
         (only events whose users are in the tree of that reseller). LIMIT is 1 to
         100000 (default 100); the json format also prints TOTAL, the number of
-        matching events. See
+        matching events, and SIZE, the bytes of data/audit/. See
         docs/features/specs/2026-10-23-002-e23-audit-log-design.md §6.
 
         **Arguments**
