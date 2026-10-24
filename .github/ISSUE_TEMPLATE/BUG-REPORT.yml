@@ -36,17 +36,23 @@ body:
       label: Which components are affected by this bug?
       multiple: true
       options:
-        - Control Panel Backend
-        - Control Panel Command Line Interface
-        - Control Panel Installation or Upgrade
-        - Control Panel Web Interface
-        - (Backend) Web Server (Nginx, Apache2)
-        - Database (MariaDB, MySQL, PostgreSQL)
-        - Let's Encrypt SSL
-        - Mail (Exim, Dovecot)
-        - Mail Security (Antivirus, Antispam)
-        - Webmail (Roundcube, SnappyMail)
-        - Firewall (Iptables, Fail2ban)
+        - Installation or upgrade
+        - Web interface
+        - Command line (v-* commands)
+        - REST API
+        - Users, packages and resellers
+        - Web domains and web server (Nginx, Apache)
+        - SSL (Let's Encrypt)
+        - DNS
+        - Mail and mail security (Exim, Dovecot, antivirus, antispam)
+        - Webmail and database tools (Roundcube, SnappyMail, phpMyAdmin)
+        - Databases (MariaDB, MySQL, PostgreSQL)
+        - Backups and restore
+        - Firewall and Fail2ban
+        - Node.js and Docker apps
+        - File manager and web terminal
+        - Update Center
+        - Other
     validations:
       required: true
   - type: input
@@ -54,7 +60,7 @@ body:
     attributes:
       label: ArcPanel Version
       description: Shown on the About page, or run `grep ^VERSION= /usr/local/arcpanel/conf/arcpanel.conf`.
-      placeholder: 1.x.x
+      placeholder: 2.2.3
     validations:
       required: true
   - type: input

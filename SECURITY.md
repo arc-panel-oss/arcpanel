@@ -8,7 +8,7 @@ We are mostly interested in reports by actual ArcPanel users, but all high quali
 
 If you believe you have discovered a vulnerability in ArcPanel, please report it privately through a [GitHub Security Advisory](https://github.com/arc-panel-oss/arcpanel/security/advisories/new) on the `arc-panel-oss/arcpanel` repository.
 
-Please include a detailed description of the vulnerability, a list of services involved (e.g. exim, dovecot) and the versions which you've tested (the ArcPanel version and, if known, the upstream base version shown on the About page), full steps to reproduce the vulnerability, and your findings and expected results.
+Please include a detailed description of the vulnerability, a list of services involved (e.g. exim, dovecot) and the versions which you've tested (the ArcPanel version and, if known, the upstream base version shown on the About page), full steps to reproduce the vulnerability, and your findings and expected results. We answer within 3 working days.
 
 Please do not open any public issue on GitHub or post on any other channel or social media before the advisory has been published and a fix has been released.
 
