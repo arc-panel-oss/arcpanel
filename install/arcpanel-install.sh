@@ -4,7 +4,7 @@
 #
 # ArcPanel Control Panel Installation Routine
 # Automatic OS detection wrapper
-# https://arcpanel.top/
+# https://arcpanel.org/
 #
 # Currently Supported Operating Systems:
 #

@@ -90,7 +90,7 @@ release_debs() {
 	run jq -r '[.format, .channel, .generated, (.releases | map(.version) | join(","))] | join(" ")' "$TMP/m.json"
 	assert_output "1 stable 2026-10-23T10:00:00Z 2.2.2,2.2.1"
 	run jq -c '.releases[0] | {line, date, steps, engines, notes, withdrawn}' "$TMP/m.json"
-	assert_output '{"line":"2.2","date":"2026-10-23","steps":true,"engines":{"arcpanel-nginx":"1.30.5-3-1","arcpanel-php":"8.5.11-1-1","arcpanel-web-terminal":"1.0.5-1-1"},"notes":"https://arcpanel.top/changelog#2.2.2","withdrawn":null}'
+	assert_output '{"line":"2.2","date":"2026-10-23","steps":true,"engines":{"arcpanel-nginx":"1.30.5-3-1","arcpanel-php":"8.5.11-1-1","arcpanel-web-terminal":"1.0.5-1-1"},"notes":"https://arcpanel.org/changelog#2.2.2","withdrawn":null}'
 }
 
 @test "manifest: a release without an upgrade step has no steps" {

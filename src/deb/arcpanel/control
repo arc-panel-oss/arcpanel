@@ -3,8 +3,8 @@ Package: arcpanel
 Priority: optional
 Version: 2.2.4~alpha
 Section: admin
-Maintainer: ArcPanel <info@arcpanel.top>
-Homepage: https://arcpanel.top
+Maintainer: ArcPanel <support@arcpanel.org>
+Homepage: https://arcpanel.org
 Architecture: amd64
 Depends: bash, awk, sed, acl, sysstat, setpriv | util-linux (>= 2.33), zstd, lsb-release, idn2, jq, bubblewrap, at, age
 Conflicts: hestia

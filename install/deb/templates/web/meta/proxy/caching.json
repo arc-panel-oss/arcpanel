@@ -3,5 +3,5 @@
 	"description": "Standard proxy that caches Apache responses for a few minutes.",
 	"category": "general",
 	"runtime": "php",
-	"docs": "https://docs.arcpanel.top/docs/server-administration/web-templates.html"
+	"docs": "https://arcpanel.org/docs/web-domains"
 }

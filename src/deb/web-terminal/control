@@ -3,8 +3,8 @@ Package: arcpanel-web-terminal
 Priority: optional
 Version: 1.0.5-1
 Section: admin
-Maintainer: ArcPanel <info@arcpanel.top>
-Homepage: https://arcpanel.top
+Maintainer: ArcPanel <support@arcpanel.org>
+Homepage: https://arcpanel.org
 Architecture: amd64
 Depends: arcpanel, nodejs (>= 20.0.0)
 Conflicts: hestia-web-terminal

@@ -1,6 +1,6 @@
 [Unit]
 Description=ArcPanel (panel web server and PHP-FPM)
-Documentation=https://docs.arcpanel.top/docs/
+Documentation=https://arcpanel.org/docs
 After=network-online.target remote-fs.target nss-lookup.target
 Wants=network-online.target
 
