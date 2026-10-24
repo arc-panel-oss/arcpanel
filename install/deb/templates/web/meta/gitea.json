@@ -3,5 +3,5 @@
 	"description": "Proxies the domain to a Gitea server on localhost port 3000.",
 	"category": "proxy",
 	"runtime": "none",
-	"docs": "https://docs.arcpanel.top/docs/server-administration/web-templates.html"
+	"docs": "https://arcpanel.org/docs/web-domains"
 }

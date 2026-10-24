@@ -23,7 +23,7 @@ file	src/deb/*/copyright
 # Test helpers are git submodules
 file	test/test_helper/**
 # The restore suite names the users and domains inside the HestiaCP and
-# VestaCP sample archives on storage.arcpanel.top (§5.9); M6 edits it by hand
+# VestaCP sample archives on storage.arcpanel.org (§5.9); M6 edits it by hand
 file	test/restore.bats
 # Suites that check the old names are gone and the old backup formats restore
 file	test/arcpanel-names.bats

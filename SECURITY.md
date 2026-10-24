@@ -33,7 +33,7 @@ With that, good luck hacking us ;)
 - Cross-site scripting (XSS)
 - Performing limited admin actions without authorization
 - CSRF
-- Compromise of the release process: package signing, the APT repository at `apt.arcpanel.top` or the installer at `arcpanel.top/install.sh`
+- Compromise of the release process: package signing, the APT repository at `apt.arcpanel.org` or the installer at `arcpanel.org/install.sh`
 
 ### Vulnerabilities we accept
 

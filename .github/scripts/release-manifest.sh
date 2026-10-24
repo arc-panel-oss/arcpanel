@@ -117,7 +117,7 @@ cmd_add() {
 		steps: $steps,
 		min_from,
 		engines: $engines,
-		notes: ("https://arcpanel.top/changelog#" + .version),
+		notes: ("https://arcpanel.org/changelog#" + .version),
 		withdrawn: null
 	}' "$metadata")"
 

@@ -11,5 +11,5 @@
   "CHANNEL": "beta",
   "MANIFEST_CHECKED": "",
   "MANIFEST_GENERATED": "",
-  "MANIFEST_ERROR": "the manifest https://apt.arcpanel.top/beta/releases.json could not be downloaded"
+  "MANIFEST_ERROR": "the manifest https://apt.arcpanel.org/beta/releases.json could not be downloaded"
 }

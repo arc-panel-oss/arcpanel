@@ -4,9 +4,9 @@ name: Release
 # every published version (E33 phase 1 P0); the packages are also attached to the GitHub Release.
 #
 # Tag naming follows src/deb/arcpanel/control:
-#   Version 2.3.0         -> tag v2.3.0         -> stable repository  https://apt.arcpanel.top/
-#   Version 2.3.0~beta.1  -> tag v2.3.0-beta.1  -> beta repository    https://apt.arcpanel.top/beta/
-#   Version 2.3.0~rc.1    -> tag v2.3.0-rc.1    -> beta repository    https://apt.arcpanel.top/beta/
+#   Version 2.3.0         -> tag v2.3.0         -> stable repository  https://apt.arcpanel.org/
+#   Version 2.3.0~beta.1  -> tag v2.3.0-beta.1  -> beta repository    https://apt.arcpanel.org/beta/
+#   Version 2.3.0~rc.1    -> tag v2.3.0-rc.1    -> beta repository    https://apt.arcpanel.org/beta/
 #
 # Every tag sits on its release line branch vX.Y.x; after a stable release the release and
 # master branches move forward to the tag (docs/operations/releasing.md, release-branches.sh).

@@ -111,7 +111,7 @@ function setup() {
 }
 
 @test "[ Redirect ] Add Domain redirect to other website" {
-    run v-add-web-domain-redirect $user "redirect.$domain" "https://arcpanel.top" 301 "yes"
+    run v-add-web-domain-redirect $user "redirect.$domain" "https://arcpanel.org" 301 "yes"
     assert_success
     refute_output
 }

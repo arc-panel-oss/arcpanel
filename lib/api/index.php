@@ -513,7 +513,7 @@ if (isset($_POST["access_key"]) || isset($_POST["user"]) || isset($_POST["hash"]
 } else {
 	api_error(
 		405,
-		"Error: data received is null or invalid, check https://docs.arcpanel.top/docs/server-administration/rest-api.html",
+		"Error: data received is null or invalid, check https://arcpanel.org/docs/rest-api",
 		"",
 	);
 }
@@ -540,7 +540,7 @@ if (isset($request_data["access_key"]) && isset($request_data["secret_key"])) {
 } else {
 	api_error(
 		405,
-		"Error: data received is null or invalid, check https://docs.arcpanel.top/docs/server-administration/rest-api.html",
+		"Error: data received is null or invalid, check https://arcpanel.org/docs/rest-api",
 		"",
 	);
 }

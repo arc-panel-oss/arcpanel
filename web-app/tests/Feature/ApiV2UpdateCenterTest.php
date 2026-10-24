@@ -67,7 +67,7 @@ it('lists the releases of the manifest with a key holding only v2-server', funct
         ->assertJsonPath('data.0', [
             'version' => '2.6.0', 'line' => '2.6', 'date' => '2026-11-01', 'kind' => 'minor', 'security' => false, 'attention' => true,
             'attention_items' => ['PHP 8.2 is no longer installed by default'], 'steps' => true, 'min_from' => '2.5.0',
-            'engines' => ['arcpanel-nginx' => '1.30.5-3-1', 'arcpanel-php' => '8.5.11-1-1'], 'notes' => 'https://arcpanel.top/changelog#2.6.0',
+            'engines' => ['arcpanel-nginx' => '1.30.5-3-1', 'arcpanel-php' => '8.5.11-1-1'], 'notes' => 'https://arcpanel.org/changelog#2.6.0',
             'withdrawn' => null, 'available' => true, 'eligible' => false, 'reason' => 'attention',
         ])
         ->assertJsonPath('data.1.withdrawn', ['date' => '2026-10-31', 'reason' => "breaks the panel's NGINX configuration"])
@@ -87,7 +87,7 @@ it('lists the releases of the manifest with a key holding only v2-server', funct
 });
 
 it('answers 404 with the reason when no manifest could be verified', function () {
-    $this->fake->on('v-list-sys-arcpanel-releases')->returnsExit(ExitCode::NotExist, 'Error: the manifest https://apt.arcpanel.top/releases.json has a bad signature');
+    $this->fake->on('v-list-sys-arcpanel-releases')->returnsExit(ExitCode::NotExist, 'Error: the manifest https://apt.arcpanel.org/releases.json has a bad signature');
 
     $this->getJson('/api/v2/system/updates/releases', apiAs($this->fake, 'arcadmin', 'admin'))->assertNotFound()
         ->assertJsonPath('error.code', 'E_NOTEXIST')
