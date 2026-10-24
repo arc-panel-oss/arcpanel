@@ -55,7 +55,7 @@ announce_line() {
 				echo
 				echo "Automatic updates install only patch releases of the installed line, ArcPanel $line,"
 				echo "so this release waits for you. Read the release notes first:"
-				echo "https://arcpanel.top/changelog"
+				echo "https://arcpanel.org/changelog"
 				echo
 				echo "Then update from Server > Updates in the panel."
 			} | $ARCPANEL/lib/mail-wrapper.php -s "ArcPanel $version is available" "$admin_email" > /dev/null 2>&1

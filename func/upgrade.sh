@@ -136,8 +136,8 @@ upgrade_complete_message() {
 	echo "Sincerely,                                                                   "
 	echo "The ArcPanel development team                                                "
 	echo
-	echo "Web:      https://arcpanel.top/                                          "
-	echo "Docs:     https://docs.arcpanel.top/										   "
+	echo "Web:      https://arcpanel.org/                                          "
+	echo "Docs:     https://arcpanel.org/docs										   "
 	echo "GitHub:   https://github.com/arc-panel-oss/arcpanel/                              "
 	echo
 	echo "============================================================================="

@@ -3,5 +3,5 @@
 	"description": "PHP-FPM pool on a socket named after the backend.",
 	"category": "general",
 	"runtime": "php",
-	"docs": "https://docs.arcpanel.top/docs/server-administration/web-templates.html"
+	"docs": "https://arcpanel.org/docs/web-domains"
 }

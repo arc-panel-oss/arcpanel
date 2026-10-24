@@ -3,5 +3,5 @@
 	"description": "Open Social, the Drupal community distribution, served from html/.",
 	"category": "php-cms",
 	"runtime": "php",
-	"docs": "https://docs.arcpanel.top/docs/server-administration/web-templates.html"
+	"docs": "https://arcpanel.org/docs/web-domains"
 }
