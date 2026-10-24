@@ -78,7 +78,7 @@ ArcPanel installs on a **fresh** operating system only. Upgrading an existing He
 2. Download the installer:
 
    ```bash
-   wget https://arcpanel.top/install.sh
+   wget https://arcpanel.org/install.sh
    ```
 
    If the download fails with an SSL error, install `ca-certificates` first (`apt-get update && apt-get install ca-certificates`).

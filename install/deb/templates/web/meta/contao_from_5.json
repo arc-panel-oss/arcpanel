@@ -3,5 +3,5 @@
 	"description": "Contao 5 and later, served from the public/ folder.",
 	"category": "php-cms",
 	"runtime": "php",
-	"docs": "https://docs.arcpanel.top/docs/server-administration/web-templates.html"
+	"docs": "https://arcpanel.org/docs/web-domains"
 }

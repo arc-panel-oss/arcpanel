@@ -116,7 +116,7 @@ $application
 		foreach ($appInstallers as $appInstaller) {
 			$app = basename(dirname($appInstaller));
 			$arcpanel = new \ArcPanel\System\ArcPanelApp();
-			$domain = "demo.arcpanel.top";
+			$domain = "demo.arcpanel.org";
 			if (
 				!file_exists(
 					__DIR__ .

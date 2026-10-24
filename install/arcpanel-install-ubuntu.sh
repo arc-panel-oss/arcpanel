@@ -3,7 +3,7 @@
 # ======================================================== #
 #
 # ArcPanel Control Panel Installer for Ubuntu
-# https://arcpanel.top/
+# https://arcpanel.org/
 #
 # Currently Supported Versions:
 # Ubuntu 22.04, 24.04, 26.04 LTS
@@ -15,7 +15,7 @@
 #----------------------------------------------------------#
 export PATH=$PATH:/sbin
 export DEBIAN_FRONTEND=noninteractive
-RHOST='apt.arcpanel.top'
+RHOST='apt.arcpanel.org'
 VERSION='ubuntu'
 ARCPANEL='/usr/local/arcpanel'
 LOG="/root/arcpanel_install_backups/arc_install-$(date +%d%m%Y%H%M).log"
@@ -135,7 +135,7 @@ help() {
   -f, --force             Force installation
   -h, --help              Print this help
 
-  Example: bash $0 -e demo@arcpanel.top -p p4ssw0rd --multiphp yes"
+  Example: bash $0 -e demo@arcpanel.org -p p4ssw0rd --multiphp yes"
 	exit 1
 }
 
@@ -712,7 +712,7 @@ if [ -z "$withdebs" ] || [ ! -d "$withdebs" ]; then
 		echo -e "\e[33mERROR: Install script version does not match package version!\e[0m"
 		echo -e "\e[33mPlease download the installer from the release branch in order to continue:\e[0m"
 		echo ""
-		echo -e "\e[33mhttps://arcpanel.top/install.sh\e[0m"
+		echo -e "\e[33mhttps://arcpanel.org/install.sh\e[0m"
 		echo ""
 		echo -e "\e[33mTo test pre-release versions, build the .deb packages and re-run the installer:\e[0m"
 		echo -e "  \e[33m./arcpanel-build.sh \e[1m--arcpanel branchname no\e[21m\e[0m"
@@ -770,7 +770,7 @@ install_welcome_message() {
 		echo "                          USE AT YOUR OWN RISK                      "
 	fi
 	echo "                                  ${DISPLAY_VER}                        "
-	echo "                              arcpanel.top                              "
+	echo "                              arcpanel.org                              "
 	echo "                           Based on HestiaCP                            "
 	echo
 	echo "========================================================================"
@@ -2614,7 +2614,7 @@ if [ "$iptables" = 'yes' ]; then
 fi
 
 # Get public IP
-pub_ipv4="$(curl -fsLm5 --retry 2 --ipv4 https://ip.arcpanel.top/ || curl -fsLm5 --retry 2 --ipv4 https://api.ipify.org/)"
+pub_ipv4="$(curl -fsLm5 --retry 2 --ipv4 https://arcpanel.org/ip || curl -fsLm5 --retry 2 --ipv4 https://api.ipify.org/)"
 if [ -n "$pub_ipv4" ] && [ "$pub_ipv4" != "$ip" ]; then
 	if [ -e /etc/rc.local ]; then
 		sed -i '/exit 0/d' /etc/rc.local
@@ -2801,7 +2801,7 @@ we hope that you enjoy using it as much as we do!
 Please feel free to contact us at any time if you have any questions,
 or if you encounter any bugs or problems:
 
-Documentation:  https://docs.arcpanel.top/
+Documentation:  https://arcpanel.org/docs
 GitHub:         https://github.com/arc-panel-oss/arcpanel
 
 Note: Automatic updates are enabled by default. If you would like to disable them,
@@ -2824,7 +2824,7 @@ cat $tmpfile
 rm -f $tmpfile
 
 # Add welcome message to notification panel
-$ARCPANEL/bin/v-add-user-notification "$username" 'Welcome to ArcPanel!' '<p>You are now ready to begin adding <a href="/users/create">user accounts</a> and <a href="/web/domains/create">domains</a>. For help and assistance, <a href="https://docs.arcpanel.top/docs/" target="_blank">view the documentation</a>.</p><p>Please <a href="https://github.com/arc-panel-oss/arcpanel/issues" target="_blank">report any issues via GitHub</a>.</p><p class="u-text-bold">Have a wonderful day!</p><p><i class="fas fa-heart icon-red"></i> The ArcPanel development team</p>'
+$ARCPANEL/bin/v-add-user-notification "$username" 'Welcome to ArcPanel!' '<p>You are now ready to begin adding <a href="/users/create">user accounts</a> and <a href="/web/domains/create">domains</a>. For help and assistance, <a href="https://arcpanel.org/docs" target="_blank">view the documentation</a>.</p><p>Please <a href="https://github.com/arc-panel-oss/arcpanel/issues" target="_blank">report any issues via GitHub</a>.</p><p class="u-text-bold">Have a wonderful day!</p><p><i class="fas fa-heart icon-red"></i> The ArcPanel development team</p>'
 
 # Clean-up
 # Sort final configuration file

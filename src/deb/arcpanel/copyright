@@ -3,7 +3,7 @@ Upstream-Name: arcpanel
 Source: https://github.com/arc-panel-oss/arcpanel
 
 Files: *
-Copyright: 2026, ArcPanel <info@arcpanel.top>
+Copyright: 2026, ArcPanel <support@arcpanel.org>
            2018-2025, Hestia Control Panel <info@hestiacp.com>
 License: GPL-3.0+
 Remarks: ArcPanel is based on HestiaCP (https://hestiacp.com). Hestia Control Panel is a fork from VestaCP, special thanks to vestacp.com and Serghey Rodin
