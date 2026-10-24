@@ -23303,7 +23303,7 @@ paths:
                       ENGINES:
                         arcpanel-nginx: "1.30.5-3-1"
                         arcpanel-php: "8.5.11-1-1"
-                      NOTES: "https://arcpanel.top/changelog#2.6.0"
+                      NOTES: "https://arcpanel.org/changelog#2.6.0"
                       WITHDRAWN: null
                       AVAILABLE: true
                       ELIGIBLE: false
@@ -23320,7 +23320,7 @@ paths:
                       ENGINES:
                         arcpanel-nginx: "1.30.5-3-1"
                         arcpanel-php: "8.5.11-1-1"
-                      NOTES: "https://arcpanel.top/changelog#2.5.2"
+                      NOTES: "https://arcpanel.org/changelog#2.5.2"
                       WITHDRAWN:
                         date: "2026-10-31"
                         reason: breaks the panel's NGINX configuration
@@ -26097,7 +26097,7 @@ paths:
                     CHANNEL: beta
                     MANIFEST_CHECKED: ""
                     MANIFEST_GENERATED: ""
-                    MANIFEST_ERROR: "the manifest https://apt.arcpanel.top/beta/releases.json could not be downloaded"
+                    MANIFEST_ERROR: "the manifest https://apt.arcpanel.org/beta/releases.json could not be downloaded"
         "204":
           $ref: "#/components/responses/NoContent"
         "400":

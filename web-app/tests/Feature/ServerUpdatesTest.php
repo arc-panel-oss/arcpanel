@@ -35,7 +35,7 @@ it('shows the status, the releases with their reasons, the policy, the packages 
         ->assertSeeInOrder(['2.6.0', 'minor', 'attention', 'A new line needs an administrator. Automatic updates stay on 2.5.', 'PHP 8.2 is no longer installed by default', 'Review and update'])
         ->assertSeeInOrder(['2.5.2', 'withdrawn', "Withdrawn on Oct 31, 2026: breaks the panel's NGINX configuration. It will not be installed.", 'Not installable'])
         ->assertSeeInOrder(['2.5.1', 'security', 'Installs on its own in the next window, Nov 3, 02:00. Security release, so the delay does not apply.', 'Update to 2.5.1'])
-        ->assertSee('https://arcpanel.top/changelog#2.6.0', false)
+        ->assertSee('https://arcpanel.org/changelog#2.6.0', false)
         ->assertSeeInOrder(['Installed packages', 'arcpanel', '2.5.0', 'arcpanel-php', '8.5.11-1-1'])
         ->assertSeeInOrder(['#3', '2.5.0', '2.5.1', 'Done', 'Policy', 'Nov 3, 02:14', '2 min 35 s', 'Roll back'])
         ->assertSeeInOrder(['#2', 'Skipped', 'activity: a backup is running'])
@@ -57,11 +57,11 @@ it('shows the paused banner with Resume and resumes the automatic updates', func
 });
 
 it('warns without a verified manifest and offers the newest packages behind a confirmation', function () {
-    $this->fake->on('v-list-sys-arcpanel-releases')->returnsExit(ExitCode::NotExist, 'Error: the manifest https://apt.arcpanel.top/releases.json has a bad signature');
+    $this->fake->on('v-list-sys-arcpanel-releases')->returnsExit(ExitCode::NotExist, 'Error: the manifest https://apt.arcpanel.org/releases.json has a bad signature');
     signIn('arcadmin', 'admin');
 
     $this->get('/server/updates')->assertOk()
-        ->assertSeeInOrder(['The release manifest could not be verified', 'the manifest https://apt.arcpanel.top/releases.json has a bad signature', 'Try again', 'Update to latest…'])
+        ->assertSeeInOrder(['The release manifest could not be verified', 'the manifest https://apt.arcpanel.org/releases.json has a bad signature', 'Try again', 'Update to latest…'])
         ->assertSee('No verified release manifest')
         ->assertSee('Update to the newest packages?')
         ->assertSee('I understand that this may move the server to a new line.');

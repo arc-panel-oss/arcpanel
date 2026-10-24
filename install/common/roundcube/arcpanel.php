@@ -4,7 +4,7 @@
  * ArcPanel password driver, based on HestiaCP's driver
  *
  * @version 1.0
- * @author ArcPanel <info@arcpanel.top>
+ * @author ArcPanel <support@arcpanel.org>
  */
 class rcube_arcpanel_password {
 	public function save($curpass, $passwd) {

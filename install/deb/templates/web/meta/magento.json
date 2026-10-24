@@ -3,5 +3,5 @@
 	"description": "Magento 2 store served from the pub/ folder.",
 	"category": "ecommerce",
 	"runtime": "php",
-	"docs": "https://docs.arcpanel.top/docs/server-administration/web-templates.html"
+	"docs": "https://arcpanel.org/docs/web-domains"
 }

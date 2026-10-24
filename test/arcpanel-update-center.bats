@@ -59,7 +59,7 @@ release() {
 	jq -cn --arg v "$1" --arg d "$2" '{version: $v, line: ($v | split(".")[0:2] | join(".")), date: $d,
 		security: false, attention: false, attention_items: [], steps: false, min_from: null,
 		engines: {"arcpanel-nginx": "1.30.5-3-1", "arcpanel-php": "8.5.11-1-1"},
-		notes: "https://arcpanel.top/changelog", withdrawn: null}'"${3:+ | $3}"
+		notes: "https://arcpanel.org/changelog", withdrawn: null}'"${3:+ | $3}"
 }
 
 # Write the signed manifest of the repository: GENERATED RELEASE...

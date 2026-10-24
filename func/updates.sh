@@ -88,7 +88,7 @@ upd_repo() {
 	echo "${url%/} ${keyring:-$UPD_DEFAULT_KEYRING}"
 }
 
-# The channel of the repository: beta for https://apt.arcpanel.top/beta/
+# The channel of the repository: beta for https://apt.arcpanel.org/beta/
 upd_channel() {
 	local url keyring
 	read -r url keyring < <(upd_repo) || true

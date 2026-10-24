@@ -3,5 +3,5 @@
 	"description": "Standard proxy that also refuses symlinks to files the user does not own.",
 	"category": "general",
 	"runtime": "php",
-	"docs": "https://docs.arcpanel.top/docs/server-administration/web-templates.html"
+	"docs": "https://arcpanel.org/docs/web-domains"
 }

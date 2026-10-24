@@ -1,7 +1,7 @@
 #=========================================================================#
 # ArcPanel Web Domain Template: Node.js app with WebSockets
 # DO NOT MODIFY THIS FILE! CHANGES WILL BE LOST WHEN REBUILDING DOMAINS   #
-# https://docs.arcpanel.top/docs/server-administration/web-templates.html #
+# https://arcpanel.org/docs/web-domains                                   #
 #=========================================================================#
 
 server {

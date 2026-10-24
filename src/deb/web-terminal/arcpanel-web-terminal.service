@@ -1,6 +1,6 @@
 [Unit]
 Description=ArcPanel Web Terminal
-Documentation=https://docs.arcpanel.top/docs/
+Documentation=https://arcpanel.org/docs
 After=network.target
 
 [Service]

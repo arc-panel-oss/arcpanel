@@ -3,8 +3,8 @@ Package: arcpanel-php
 Priority: optional
 Version: 8.5.11-1
 Section: admin
-Maintainer: ArcPanel <info@arcpanel.top>
-Homepage: https://arcpanel.top
+Maintainer: ArcPanel <support@arcpanel.org>
+Homepage: https://arcpanel.org
 Architecture: amd64
 Depends: arcpanel, unzip, @LIBZIP_DEP@, @ONIG_DEP@
 Conflicts: hestia-php
