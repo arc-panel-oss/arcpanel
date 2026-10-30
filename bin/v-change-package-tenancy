@@ -31,6 +31,8 @@
 # BACKUP_FREQUENCY (hourly, daily or weekly) is how often scheduled backup
 # jobs may back up the package's users (E48); a reseller's own package
 # cannot allow more often than the reseller's.
+# GIT_DEPLOY (yes or no, yes when missing) allows Git Deploy on the package's
+# web domains (E20).
 # PHP_MAX_MEMORY and PHP_MAX_UPLOAD (sizes such as 512M, or unlimited),
 # PHP_MAX_EXECUTION_TIME (seconds) and PHP_MAX_INPUT_VARS (integer, or
 # unlimited) cap the per-domain PHP settings of the package's users (E19);
@@ -71,7 +73,7 @@ case "$key" in
 	PHP_MAX_MEMORY | PHP_MAX_UPLOAD | PHP_MAX_EXECUTION_TIME | PHP_MAX_INPUT_VARS) ;;
 	APP_PROCESSES | APP_PROCESSES_MAX | APP_PROCESSES_MEMORY | APP_PROCESSES_CPUS) ;;
 	OBJECT_STORAGE | OBJECT_STORAGE_BUCKETS | OBJECT_STORAGE_QUOTA | OBJECT_STORAGE_BACKUP) ;;
-	BACKUP_FREQUENCY) ;;
+	BACKUP_FREQUENCY | GIT_DEPLOY) ;;
 	*) check_result "$E_INVALID" "invalid key $key" ;;
 esac
 if ! tenancy_pkg_value_valid "$key" "$value"; then

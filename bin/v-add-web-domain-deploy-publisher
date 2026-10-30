@@ -1,0 +1,118 @@
+#!/bin/bash
+# info: add a trusted publisher to a web domain's Git Deploy
+# options: USER DOMAIN ISSUER REPO [REF] [ENVIRONMENT] [WORKFLOW] [FORMAT]
+#
+# example: v-add-web-domain-deploy-publisher alice shop.example.com https://token.actions.githubusercontent.com acme/shop refs/heads/main '' .github/workflows/deploy.yml
+#
+# This function adds a trusted publisher to a domain in push mode (E20
+# §6.3): a CI whose OIDC token comes from ISSUER (one of
+# DEPLOY_OIDC_ISSUERS) for the repository REPO (GitHub owner/name, GitLab
+# group/project) may upload archives. REF (refs/heads/… or refs/tags/…)
+# and ENVIRONMENT narrow it; at least one of them is required, so a
+# publisher never accepts every branch. WORKFLOW (GitHub) names the
+# workflow file. Prints the publisher's ID.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+user=$1
+domain=$2
+issuer=${3%/}
+repo=$4
+ref=$5
+environment=$6
+workflow=$7
+format=${8:-shell}
+
+# Includes
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/domain.sh
+source $ARCPANEL/func/domain.sh
+# shellcheck source=/usr/local/arcpanel/func/tenancy.sh
+source $ARCPANEL/func/tenancy.sh
+# shellcheck source=/usr/local/arcpanel/func/queuetask.sh
+source $ARCPANEL/func/queuetask.sh
+# shellcheck source=/usr/local/arcpanel/func/deploy.sh
+source $ARCPANEL/func/deploy.sh
+# load config file
+source_conf "$ARCPANEL/conf/arcpanel.conf"
+
+# Additional argument formatting
+format_domain
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '4' "$#" 'USER DOMAIN ISSUER REPO [REF] [ENVIRONMENT] [WORKFLOW] [FORMAT]'
+is_format_valid 'user' 'domain' 'format'
+is_object_valid 'user' 'USER' "$user"
+is_object_unsuspended 'user' 'USER' "$user"
+is_object_valid 'web' 'DOMAIN' "$domain"
+if ! deploy_exists "$user" "$domain"; then
+	check_result "$E_NOTEXIST" "deploy is not on for $domain"
+fi
+if [ "$(deploy_get "$user" "$domain" MODE)" != 'push' ]; then
+	check_result "$E_INVALID" "trusted publishers belong to push mode"
+fi
+allowed=no
+for item in $(deploy_issuers | tr ',' ' '); do
+	[ "${item%/}" = "$issuer" ] && allowed=yes
+done
+[ "$allowed" = 'yes' ] || check_result "$E_INVALID" "the issuer is not allowed on this server :: $issuer"
+if ! [[ "$repo" =~ ^[A-Za-z0-9._-]+(/[A-Za-z0-9._-]+){1,9}$ ]] || [ "${#repo}" -gt 200 ]; then
+	check_result "$E_INVALID" "invalid repository :: $repo"
+fi
+if [ -z "$ref" ] && [ -z "$environment" ]; then
+	check_result "$E_INVALID" "a publisher needs a branch (REF) or an environment"
+fi
+if [ -n "$ref" ]; then
+	if ! [[ "$ref" =~ ^refs/(heads|tags)/ ]] || ! deploy_valid_ref "${ref#refs/*/}"; then
+		check_result "$E_INVALID" "invalid ref :: $ref"
+	fi
+fi
+if [ -n "$environment" ] && { ! [[ "$environment" =~ ^[A-Za-z0-9._\ -]+$ ]] || [ "${#environment}" -gt 100 ]; }; then
+	check_result "$E_INVALID" "invalid environment :: $environment"
+fi
+if [ -n "$workflow" ] && { ! deploy_valid_relpath "$workflow" || [[ "$workflow" != *.yml && "$workflow" != *.yaml ]]; }; then
+	check_result "$E_INVALID" "invalid workflow :: $workflow"
+fi
+file=$(deploy_publishers_file "$user" "$domain")
+if [ "$(grep -c "^PUB=" "$file" 2> /dev/null)" -ge 20 ]; then
+	check_result "$E_LIMIT" "$domain has 20 trusted publishers"
+fi
+if ! deploy_package_allows "$user"; then
+	check_result "$E_FORBIDEN" "the package of $user does not allow Git Deploy"
+fi
+
+# Perform verification if read-only mode is enabled
+check_arcpanel_demo_mode
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+deploy_lock "$user" "$domain"
+n=1
+while grep -q "^PUB='p$n' " "$file" 2> /dev/null; do
+	n=$((n + 1))
+done
+pub="p$n"
+echo "PUB='$pub' ISSUER='$issuer' SUBJECT_REPO='$repo' REF='$ref' ENVIRONMENT='$environment' WORKFLOW='$workflow'" >> "$file"
+chmod 640 "$file"
+deploy_unlock
+qt_emit_id "$pub" "$format"
+
+#----------------------------------------------------------#
+#                         ArcPanel                         #
+#----------------------------------------------------------#
+
+$BIN/v-log-action "$user" "Info" "Web" "Git Deploy publisher added (Domain: $domain, Repository: $repo)."
+log_event "$OK" "$ARGUMENTS"
+
+exit

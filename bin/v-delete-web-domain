@@ -116,6 +116,11 @@ rm -f /var/log/$WEB_SYSTEM/domains/$domain.log*
 rm -f /var/log/$WEB_SYSTEM/domains/$domain.bytes
 rm -f /var/log/$WEB_SYSTEM/domains/$domain.error*
 
+# Deleting the Git Deploy of the domain (E20)
+if [ -f "$ARCPANEL/data/users/$user/deploy/$domain.conf" ]; then
+	$BIN/v-delete-web-domain-deploy "$user" "$domain" > /dev/null 2>&1
+fi
+
 # Deleting directory
 rm -rf $HOMEDIR/$user/web/$domain
 rm -rf $HOMEDIR/$user/conf/web/$domain

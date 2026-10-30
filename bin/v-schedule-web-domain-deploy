@@ -1,0 +1,111 @@
+#!/bin/bash
+# info: start a Git Deploy of a web domain
+# options: USER DOMAIN [REF|--artifact FILE] [FORMAT]
+#
+# example: v-schedule-web-domain-deploy alice shop.example.com
+# example: v-schedule-web-domain-deploy alice shop.example.com 3f2c9a1e…
+# example: v-schedule-web-domain-deploy alice shop.example.com --artifact /root/release.tar.gz
+#
+# This function creates a deploy task record (KIND deploy) and starts it at
+# once in a transient unit in the user's slice (E20 D15). Pull mode deploys
+# the branch, or REF (a commit or a ref name) when given; push mode deploys
+# the tar.gz FILE, which is copied for the run and must not be larger than
+# DEPLOY_MAX_ARTIFACT. While a deploy of the domain runs, the request waits
+# as the pending one: a newer request replaces it. Prints the task ID
+# (FORMAT json prints {"ID":"…"}).
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+user=$1
+domain=$2
+ref=$3
+artifact=''
+format=shell
+if [ "$3" = '--artifact' ]; then
+	ref=''
+	artifact=$4
+	format=${5:-shell}
+else
+	format=${4:-shell}
+fi
+
+# Includes
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/domain.sh
+source $ARCPANEL/func/domain.sh
+# shellcheck source=/usr/local/arcpanel/func/tenancy.sh
+source $ARCPANEL/func/tenancy.sh
+# shellcheck source=/usr/local/arcpanel/func/queuetask.sh
+source $ARCPANEL/func/queuetask.sh
+# shellcheck source=/usr/local/arcpanel/func/deploy.sh
+source $ARCPANEL/func/deploy.sh
+# load config file
+source_conf "$ARCPANEL/conf/arcpanel.conf"
+
+# Additional argument formatting
+format_domain
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '2' "$#" 'USER DOMAIN [REF|--artifact FILE] [FORMAT]'
+is_format_valid 'user' 'domain' 'format'
+is_object_valid 'user' 'USER' "$user"
+is_object_unsuspended 'user' 'USER' "$user"
+is_object_valid 'web' 'DOMAIN' "$domain"
+is_object_unsuspended 'web' 'DOMAIN' "$domain"
+if ! deploy_exists "$user" "$domain"; then
+	check_result "$E_NOTEXIST" "deploy is not on for $domain"
+fi
+if ! deploy_package_allows "$user"; then
+	check_result "$E_FORBIDEN" "the package of $user does not allow Git Deploy"
+fi
+mode=$(deploy_get "$user" "$domain" MODE)
+if [ "$mode" = 'push' ]; then
+	if [ -z "$artifact" ]; then
+		check_result "$E_INVALID" "push mode deploys an archive (--artifact FILE)"
+	fi
+	if [ ! -f "$artifact" ] || [ -L "$artifact" ]; then
+		check_result "$E_NOTEXIST" "archive $artifact does not exist"
+	fi
+	if [ "$(stat -c %s "$artifact")" -gt "$(deploy_max_artifact)" ]; then
+		check_result "$E_LIMIT" "the archive is larger than DEPLOY_MAX_ARTIFACT"
+	fi
+else
+	if [ -n "$artifact" ]; then
+		check_result "$E_INVALID" "pull mode fetches the repository and takes no archive"
+	fi
+	if [ -n "$ref" ] && ! [[ "$ref" =~ ^[0-9a-f]{40}$ ]] && ! deploy_valid_ref "${ref#refs/heads/}"; then
+		check_result "$E_INVALID" "invalid ref :: $ref"
+	fi
+fi
+
+# Perform verification if read-only mode is enabled
+check_arcpanel_demo_mode
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+if [ "$mode" = 'push' ]; then
+	task=$(deploy_schedule "$user" "$domain" "$domain archive" "$artifact")
+else
+	task=$(deploy_schedule "$user" "$domain" "$domain pull ${ref:-$(deploy_get "$user" "$domain" BRANCH)}")
+fi
+qt_emit_id "$task" "$format"
+
+#----------------------------------------------------------#
+#                         ArcPanel                         #
+#----------------------------------------------------------#
+
+$BIN/v-log-action "$user" "Info" "Web" "Git Deploy started (Domain: $domain, Task: $task)."
+log_event "$OK" "$ARGUMENTS"
+
+exit

@@ -1,0 +1,79 @@
+#!/bin/bash
+# info: roll a web domain back to an earlier Git Deploy release
+# options: USER DOMAIN RELEASE [FORMAT]
+#
+# example: v-rollback-web-domain-deploy alice shop.example.com 20261029-142501
+#
+# This function switches current to an existing release of the domain (E20
+# §5.3): no build and no migration, so a database migration of a later
+# release is not reverted. It runs as a deploy task, after a deploy that
+# runs. Prints the task ID (FORMAT json prints {"ID":"…"}).
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+user=$1
+domain=$2
+release=$3
+format=${4:-shell}
+
+# Includes
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/domain.sh
+source $ARCPANEL/func/domain.sh
+# shellcheck source=/usr/local/arcpanel/func/tenancy.sh
+source $ARCPANEL/func/tenancy.sh
+# shellcheck source=/usr/local/arcpanel/func/queuetask.sh
+source $ARCPANEL/func/queuetask.sh
+# shellcheck source=/usr/local/arcpanel/func/deploy.sh
+source $ARCPANEL/func/deploy.sh
+# load config file
+source_conf "$ARCPANEL/conf/arcpanel.conf"
+
+# Additional argument formatting
+format_domain
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '3' "$#" 'USER DOMAIN RELEASE [FORMAT]'
+is_format_valid 'user' 'domain' 'format'
+is_object_valid 'user' 'USER' "$user"
+is_object_unsuspended 'user' 'USER' "$user"
+is_object_valid 'web' 'DOMAIN' "$domain"
+is_object_unsuspended 'web' 'DOMAIN' "$domain"
+if ! deploy_exists "$user" "$domain"; then
+	check_result "$E_NOTEXIST" "deploy is not on for $domain"
+fi
+deploy_valid_release "$release" || check_result "$E_INVALID" "invalid release :: $release"
+if ! deploy_releases "$user" "$domain" | grep -qx "$release"; then
+	check_result "$E_NOTEXIST" "release $release does not exist"
+fi
+if ! deploy_package_allows "$user"; then
+	check_result "$E_FORBIDEN" "the package of $user does not allow Git Deploy"
+fi
+
+# Perform verification if read-only mode is enabled
+check_arcpanel_demo_mode
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+task=$(deploy_schedule "$user" "$domain" "$domain rollback $release")
+qt_emit_id "$task" "$format"
+
+#----------------------------------------------------------#
+#                         ArcPanel                         #
+#----------------------------------------------------------#
+
+$BIN/v-log-action "$user" "Info" "Web" "Git Deploy rollback started (Domain: $domain, Release: $release)."
+log_event "$OK" "$ARGUMENTS"
+
+exit

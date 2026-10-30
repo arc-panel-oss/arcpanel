@@ -1,0 +1,89 @@
+#!/bin/bash
+# info: turn off Git Deploy for a web domain
+# options: USER DOMAIN
+#
+# example: v-delete-web-domain-deploy alice shop.example.com
+#
+# This function turns off a domain's Git Deploy (E20): running and pending
+# deploys stop, the docroot from before the first deploy comes back, the
+# deploy key, token and webhook secret are deleted, and so are the
+# configuration and the trusted publishers. releases/ and shared/ stay on
+# disk. v-delete-web-domain calls it.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+user=$1
+domain=$2
+
+# Includes
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/domain.sh
+source $ARCPANEL/func/domain.sh
+# shellcheck source=/usr/local/arcpanel/func/tenancy.sh
+source $ARCPANEL/func/tenancy.sh
+# shellcheck source=/usr/local/arcpanel/func/queuetask.sh
+source $ARCPANEL/func/queuetask.sh
+# shellcheck source=/usr/local/arcpanel/func/secret.sh
+source $ARCPANEL/func/secret.sh
+# shellcheck source=/usr/local/arcpanel/func/ports.sh
+source $ARCPANEL/func/ports.sh
+# shellcheck source=/usr/local/arcpanel/func/tool-ports.sh
+source $ARCPANEL/func/tool-ports.sh
+# shellcheck source=/usr/local/arcpanel/func/deploy.sh
+source $ARCPANEL/func/deploy.sh
+# load config file
+source_conf "$ARCPANEL/conf/arcpanel.conf"
+
+# Additional argument formatting
+format_domain
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '2' "$#" 'USER DOMAIN'
+is_format_valid 'user' 'domain'
+is_object_valid 'user' 'USER' "$user"
+if ! deploy_exists "$user" "$domain"; then
+	check_result "$E_NOTEXIST" "deploy is not on for $domain"
+fi
+
+# Perform verification if read-only mode is enabled
+check_arcpanel_demo_mode
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+deploy_stop "$user" "$domain"
+state=$(deploy_get "$user" "$domain" STATE)
+prev_docroot=$(deploy_get "$user" "$domain" PREV_DOCROOT)
+prev_phproot=$(deploy_get "$user" "$domain" PREV_PHPROOT)
+
+deploy_delete_credentials "$user" "$domain"
+rm -f "$(deploy_conf "$user" "$domain")" "$(deploy_publishers_file "$user" "$domain")" \
+	"$(deploy_dir "$user")/$domain.lock"
+
+# The docroot goes back when the domain still exists (not during its deletion)
+if [ "$state" = 'active' ] && grep -qF "DOMAIN='$domain' " "$ARCPANEL/data/users/$user/web.conf" 2> /dev/null; then
+	deploy_set_docroot "$user" "$domain" "$prev_docroot" "$prev_phproot"
+fi
+
+# The deploy port closes with the last domain that uses it
+ports_lock
+deploy_port_update > /dev/null 2>&1
+
+#----------------------------------------------------------#
+#                         ArcPanel                         #
+#----------------------------------------------------------#
+
+$BIN/v-log-action "$user" "Info" "Web" "Git Deploy turned off (Domain: $domain)."
+log_event "$OK" "$ARGUMENTS"
+
+exit

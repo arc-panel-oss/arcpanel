@@ -1,0 +1,103 @@
+#!/bin/bash
+# info: list the Git Deploy releases and tasks of a web domain
+# options: USER DOMAIN [FORMAT]
+#
+# example: v-list-web-domain-deploys alice shop.example.com json
+#
+# This function lists the releases of a domain's Git Deploy (E20), newest
+# first (ID, SOURCE, COMMIT, REF, CREATED, TASK, CURRENT), and its last 20
+# deploy tasks, newest first (the task record keys).
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+user=$1
+domain=$2
+format=${3:-shell}
+
+# Includes
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/domain.sh
+source $ARCPANEL/func/domain.sh
+# shellcheck source=/usr/local/arcpanel/func/tenancy.sh
+source $ARCPANEL/func/tenancy.sh
+# shellcheck source=/usr/local/arcpanel/func/queuetask.sh
+source $ARCPANEL/func/queuetask.sh
+# shellcheck source=/usr/local/arcpanel/func/deploy.sh
+source $ARCPANEL/func/deploy.sh
+# load config file
+source_conf "$ARCPANEL/conf/arcpanel.conf"
+
+# Additional argument formatting
+format_domain
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '2' "$#" 'USER DOMAIN [FORMAT]'
+is_format_valid 'user' 'domain' 'format'
+is_object_valid 'user' 'USER' "$user"
+is_object_valid 'web' 'DOMAIN' "$domain"
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+current=$(deploy_get "$user" "$domain" CURRENT)
+releases=$(
+	deploy_releases "$user" "$domain" | sort -r | while IFS= read -r release; do
+		is_current=no
+		[ "$release" = "$current" ] && is_current=yes
+		jq -nc --arg id "$release" \
+			--arg source "$(deploy_release_value "$user" "$domain" "$release" SOURCE)" \
+			--arg commit "$(deploy_release_value "$user" "$domain" "$release" COMMIT)" \
+			--arg ref "$(deploy_release_value "$user" "$domain" "$release" REF)" \
+			--arg created "$(deploy_release_value "$user" "$domain" "$release" CREATED)" \
+			--arg task "$(deploy_release_value "$user" "$domain" "$release" TASK)" \
+			--arg current "$is_current" \
+			'{ID: $id, SOURCE: $source, COMMIT: $commit, REF: $ref, CREATED: $created, TASK: $task, CURRENT: $current}'
+	done | jq -sc '.'
+)
+
+tasks=$(
+	dir=$(qt_dir "$user")
+	if [ -d "$dir" ]; then
+		grep -lE "(^| )KIND='deploy' " "$dir"/*.conf 2> /dev/null | while IFS= read -r file; do
+			grep -qE "(^| )ARGS='$domain " "$file" || continue
+			line=$(head -n1 "$file")
+			jq -nc --arg id "$(deploy_kv "$line" ID)" --arg args "$(deploy_kv "$line" ARGS)" \
+				--arg status "$(deploy_kv "$line" STATUS)" --arg exit "$(deploy_kv "$line" EXIT)" \
+				--arg error "$(deploy_kv "$line" ERROR)" --arg queued "$(deploy_kv "$line" QUEUED)" \
+				--arg start "$(deploy_kv "$line" START)" --arg end "$(deploy_kv "$line" END)" \
+				'{ID: $id, ACTION: ($args | split(" ")[1] // ""), VALUE: ($args | split(" ")[2] // ""),
+					STATUS: $status, EXIT: $exit, ERROR: $error, QUEUED: $queued, START: $start, END: $end}'
+		done
+	fi | jq -sc 'sort_by(.ID) | reverse | .[0:20]'
+)
+
+json=$(jq -n --argjson releases "$releases" --argjson tasks "$tasks" '{releases: $releases, tasks: $tasks}')
+
+case "$format" in
+	json) echo "$json" ;;
+	plain) jq -r '.releases[] | [.ID, .SOURCE, .COMMIT, .CREATED, .CURRENT] | @tsv' <<< "$json" ;;
+	csv) jq -r '.releases[] | [.ID, .SOURCE, .COMMIT, .CREATED, .CURRENT] | @csv' <<< "$json" ;;
+	*)
+		{
+			echo "RELEASE	SOURCE	COMMIT	CREATED	CURRENT"
+			echo "-------	------	------	-------	-------"
+			jq -r '.releases[] | [.ID, .SOURCE, (.COMMIT[0:12]), .CREATED, .CURRENT] | @tsv' <<< "$json"
+		} | column -t -s $'\t'
+		;;
+esac
+
+#----------------------------------------------------------#
+#                         ArcPanel                         #
+#----------------------------------------------------------#
+
+exit

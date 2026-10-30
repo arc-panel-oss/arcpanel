@@ -1635,6 +1635,12 @@ write_config_value "FILE_FETCH_MAX_SIZE" "2G"
 write_config_value "AUDIT_RETENTION_DAYS" "180"
 write_config_value "AUDIT_SYSLOG" "no"
 
+# Git Deploy (E20): the deploy port opens when a domain turns deploy on
+write_config_value "DEPLOY_PORT" "8088"
+write_config_value "DEPLOY_MAX_ARTIFACT" "512M"
+write_config_value "DEPLOY_BUILD_TIMEOUT" "900"
+write_config_value "DEPLOY_OIDC_ISSUERS" "https://token.actions.githubusercontent.com,https://gitlab.com"
+
 # Version & Release Branch
 # VERSION is the ArcPanel version (ADR-0007)
 write_config_value "VERSION" "${ARCPANEL_INSTALL_VER}"

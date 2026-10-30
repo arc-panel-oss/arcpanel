@@ -1,0 +1,87 @@
+#!/bin/bash
+# info: get what the deploy endpoint needs for a deploy ID
+# options: ID KIND
+#
+# example: v-get-web-domain-deploy-endpoint k3v9q2m7x1c8 hook
+#
+# This function serves the deploy endpoint of the panel (E20 §6): for the
+# deploy whose ID is ID it prints, as JSON, the owner, the domain, the mode,
+# the branch and the state, and for KIND hook (pull mode) the webhook
+# secret, for KIND upload (push mode) the trusted publishers, the allowed
+# OIDC issuers and the audience (the upload URL). A domain that cannot
+# deploy (suspended, package without GIT_DEPLOY) answers E_NOTEXIST like an
+# unknown ID. It is meant for the panel only and is in no API permission set.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+id=$1
+kind=$2
+
+# Includes
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/tenancy.sh
+source $ARCPANEL/func/tenancy.sh
+# shellcheck source=/usr/local/arcpanel/func/queuetask.sh
+source $ARCPANEL/func/queuetask.sh
+# shellcheck source=/usr/local/arcpanel/func/secret.sh
+source $ARCPANEL/func/secret.sh
+# shellcheck source=/usr/local/arcpanel/func/deploy.sh
+source $ARCPANEL/func/deploy.sh
+# load config file
+source_conf "$ARCPANEL/conf/arcpanel.conf"
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '2' "$#" 'ID KIND'
+if ! [[ "$id" =~ ^[a-z0-9]{12}$ ]]; then
+	check_result "$E_INVALID" "invalid id"
+fi
+if [ "$kind" != 'hook' ] && [ "$kind" != 'upload' ]; then
+	check_result "$E_INVALID" "invalid kind :: $kind"
+fi
+read -r owner domain <<< "$(deploy_find_id "$id")"
+if [ -z "$owner" ] || [ -z "$domain" ]; then
+	check_result "$E_NOTEXIST" "no deploy with this id"
+fi
+mode=$(deploy_get "$owner" "$domain" MODE)
+if { [ "$kind" = 'hook' ] && [ "$mode" != 'pull' ]; } || { [ "$kind" = 'upload' ] && [ "$mode" != 'push' ]; }; then
+	check_result "$E_NOTEXIST" "no deploy with this id"
+fi
+web=$(grep -F "DOMAIN='$domain' " "$ARCPANEL/data/users/$owner/web.conf" 2> /dev/null)
+if [ -z "$web" ] || [[ "$web" == *"SUSPENDED='yes'"* ]] \
+	|| grep -q "^SUSPENDED='yes'" "$ARCPANEL/data/users/$owner/user.conf" 2> /dev/null \
+	|| ! deploy_package_allows "$owner"; then
+	check_result "$E_NOTEXIST" "no deploy with this id"
+fi
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+secret=''
+publishers='[]'
+if [ "$kind" = 'hook' ]; then
+	secret=$(deploy_read_secret "$owner" "$domain" webhook)
+else
+	publishers=$(deploy_publishers_json "$owner" "$domain")
+fi
+jq -n --arg user "$owner" --arg domain "$domain" --arg mode "$mode" \
+	--arg branch "$(deploy_get "$owner" "$domain" BRANCH)" --arg state "$(deploy_get "$owner" "$domain" STATE)" \
+	--arg secret "$secret" --argjson publishers "$publishers" --arg issuers "$(deploy_issuers)" \
+	--arg audience "$(deploy_endpoint_url upload "$id")" \
+	'{USER: $user, DOMAIN: $domain, MODE: $mode, BRANCH: $branch, STATE: $state, SECRET: $secret,
+		PUBLISHERS: $publishers, ISSUERS: ($issuers | split(",")), AUDIENCE: $audience}'
+
+#----------------------------------------------------------#
+#                         ArcPanel                         #
+#----------------------------------------------------------#
+
+exit

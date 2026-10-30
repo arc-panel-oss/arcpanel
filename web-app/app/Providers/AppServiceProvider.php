@@ -122,6 +122,11 @@ class AppServiceProvider extends ServiceProvider
         // PHP version and profile of a web domain, page and REST API v2: each
         // change reloads PHP-FPM, 6 a minute per account (E39 W5 P7)
         RateLimiter::for('php-switch', fn (Request $request) => Limit::perMinute(6)->by('php-switch:'.$request->route('user')));
+        // Git Deploy (E20 spec §6.1, §7): the deploy endpoint, 30 requests a
+        // minute per address behind the deploy port (NGINX limits it too);
+        // Deploy now and roll back, 10 a minute per account
+        RateLimiter::for('deploy-endpoint', fn (Request $request) => Limit::perMinute(30)->by('deploy-endpoint:'.$request->header('X-Forwarded-For', ClientIp::of($request))));
+        RateLimiter::for('deploy', fn (Request $request) => Limit::perMinute(10)->by('deploy:'.$request->route('user')));
 
         // resources/views/components/ap/NAME.blade.php is used as <x-ap-NAME> (docs/design/05 §5).
         foreach (glob(resource_path('views/components/ap/*.blade.php')) ?: [] as $file) {

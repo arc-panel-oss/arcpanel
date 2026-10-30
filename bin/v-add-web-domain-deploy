@@ -1,0 +1,147 @@
+#!/bin/bash
+# info: turn on Git Deploy for a web domain
+# options: USER DOMAIN MODE [URL] [BRANCH] [PRESET] [AUTH]
+#
+# example: v-add-web-domain-deploy alice shop.example.com pull git@github.com:acme/shop.git main laravel key
+# example: v-add-web-domain-deploy alice shop.example.com push
+#
+# This function turns on Git Deploy (E20) for a web domain. MODE pull lets
+# the server fetch URL (git@host:path, ssh:// or https://) at BRANCH and
+# build it with PRESET (none, laravel, static, custom); AUTH key (default)
+# creates a deploy key and prints its public part once, AUTH token waits
+# for a token (v-change-web-domain-deploy-credential). MODE push accepts
+# archives built by a CI from trusted publishers
+# (v-add-web-domain-deploy-publisher). The domain's pool is rebuilt so that
+# PHP can read the releases (D17); public_html and the docroot stay as they
+# are until the first deploy succeeds.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+user=$1
+domain=$2
+mode=$3
+url=$4
+branch=$5
+preset=${6:-none}
+auth=$7
+
+# Includes
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/domain.sh
+source $ARCPANEL/func/domain.sh
+# shellcheck source=/usr/local/arcpanel/func/tenancy.sh
+source $ARCPANEL/func/tenancy.sh
+# shellcheck source=/usr/local/arcpanel/func/queuetask.sh
+source $ARCPANEL/func/queuetask.sh
+# shellcheck source=/usr/local/arcpanel/func/secret.sh
+source $ARCPANEL/func/secret.sh
+# shellcheck source=/usr/local/arcpanel/func/ports.sh
+source $ARCPANEL/func/ports.sh
+# shellcheck source=/usr/local/arcpanel/func/tool-ports.sh
+source $ARCPANEL/func/tool-ports.sh
+# shellcheck source=/usr/local/arcpanel/func/deploy.sh
+source $ARCPANEL/func/deploy.sh
+# load config file
+source_conf "$ARCPANEL/conf/arcpanel.conf"
+
+# Additional argument formatting
+format_domain
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '3' "$#" 'USER DOMAIN MODE [URL] [BRANCH] [PRESET] [AUTH]'
+is_format_valid 'user' 'domain'
+is_system_enabled "$WEB_SYSTEM" 'WEB_SYSTEM'
+is_object_valid 'user' 'USER' "$user"
+is_object_unsuspended 'user' 'USER' "$user"
+is_object_valid 'web' 'DOMAIN' "$domain"
+is_object_unsuspended 'web' 'DOMAIN' "$domain"
+deploy_valid_mode "$mode" || check_result "$E_INVALID" "invalid mode :: $mode"
+deploy_valid_preset "$preset" || check_result "$E_INVALID" "invalid preset :: $preset"
+if [ "$mode" = 'pull' ]; then
+	auth=${auth:-key}
+	deploy_valid_url "$url" || check_result "$E_INVALID" "invalid repository URL :: $url"
+	branch=${branch:-main}
+	deploy_valid_ref "$branch" || check_result "$E_INVALID" "invalid branch :: $branch"
+	if [ "$auth" != 'key' ] && [ "$auth" != 'token' ]; then
+		check_result "$E_INVALID" "invalid authentication :: $auth"
+	fi
+	if [ "$auth" = 'token' ] && [[ "$url" != https://* ]]; then
+		check_result "$E_INVALID" "a token needs an https:// repository URL"
+	fi
+	# The deploy key, token and webhook secret live in the E38 store
+	secret_check_system
+else
+	if [ -n "$url" ] || [ -n "$branch" ] || [ -n "$auth" ] || [ "$preset" != 'none' ]; then
+		check_result "$E_INVALID" "push mode takes no URL, branch, preset or authentication"
+	fi
+fi
+if deploy_exists "$user" "$domain"; then
+	check_result "$E_EXISTS" "deploy is already on for $domain"
+fi
+get_domain_values 'web'
+case "$(deploy_unsupported_reason "$user")" in
+	package) check_result "$E_FORBIDEN" "the package of $user does not allow Git Deploy" ;;
+	backend) check_result "$E_DISABLED" "$domain has no PHP-FPM backend" ;;
+	template) check_result "$E_DISABLED" "the pool template ${BACKEND:-default} does not allow the releases and shared folders" ;;
+esac
+
+# Perform verification if read-only mode is enabled
+check_arcpanel_demo_mode
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+mapfile -t defaults < <(deploy_preset_defaults "$preset")
+deploy_lock "$user" "$domain"
+deploy_set "$user" "$domain" "ID=$(deploy_new_id)" "MODE=$mode" "URL=$url" "BRANCH=$branch" \
+	"AUTH=$auth" "PRESET=$preset" "SHARED=${defaults[0]}" KEEP=5 "WEBROOT=${defaults[1]}" \
+	"MIGRATE=${defaults[2]}" HEALTH_PATH= PREV_DOCROOT= PREV_PHPROOT= STATE=new CURRENT= RUNNING= PENDING=
+deploy_unlock
+if [ "$mode" = 'push' ]; then
+	touch "$(deploy_publishers_file "$user" "$domain")"
+	chmod 640 "$(deploy_publishers_file "$user" "$domain")"
+else
+	# Shown once: the public key to add to the Git host, the webhook secret
+	if [ "$auth" = 'key' ]; then
+		if ! public_key=$(deploy_new_key "$user" "$domain"); then
+			rm -f "$(deploy_conf "$user" "$domain")"
+			check_result "$E_FORBIDEN" "the deploy key could not be created"
+		fi
+		deploy_lock "$user" "$domain"
+		deploy_set "$user" "$domain" "PUBLIC_KEY=$public_key"
+		deploy_unlock
+		echo "PUBLIC_KEY='$public_key'"
+	fi
+	if ! webhook_secret=$(deploy_new_webhook_secret "$user" "$domain"); then
+		deploy_delete_credentials "$user" "$domain"
+		rm -f "$(deploy_conf "$user" "$domain")"
+		check_result "$E_FORBIDEN" "the webhook secret could not be created"
+	fi
+	echo "WEBHOOK_SECRET='$webhook_secret'"
+fi
+
+# The pool learns the paths of D17
+$BIN/v-rebuild-web-domain "$user" "$domain" yes > /dev/null 2>&1
+
+# The deploy port opens with the first domain that uses it (§6.1)
+ports_lock
+deploy_port_update > /dev/null 2>&1 || echo "Warning: the deploy port could not be opened" >&2
+
+#----------------------------------------------------------#
+#                         ArcPanel                         #
+#----------------------------------------------------------#
+
+$BIN/v-log-action "$user" "Info" "Web" "Git Deploy turned on (Domain: $domain, Mode: $mode)."
+log_event "$OK" "$ARGUMENTS"
+
+exit

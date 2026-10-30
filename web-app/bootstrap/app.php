@@ -4,6 +4,7 @@ use App\Api\ApiException;
 use App\Api\ErrorRenderer;
 use App\Arc\ArcCommandException;
 use App\Auth\ProtectedAdmin;
+use App\Http\Controllers\Deploy\DeployEndpointController;
 use App\Http\Controllers\HealthController;
 use App\Http\Middleware\Api\ApiEnabled;
 use App\Http\Middleware\Api\AuthenticateAccessKey;
@@ -42,6 +43,13 @@ $app = Application::configure(basePath: dirname(__DIR__))
         // Outside the web group: no sessions, no cookies.
         then: function (): void {
             Route::get('/_health', HealthController::class)->name('health');
+
+            // Git Deploy endpoint (E20 spec §6), proxied from the deploy port
+            Route::prefix('_deploy')->name('deploy.endpoint.')->middleware('throttle:deploy-endpoint')->group(function (): void {
+                Route::post('hooks/{id}', [DeployEndpointController::class, 'hook'])->where('id', '[a-z0-9]{12}')->name('hook');
+                Route::post('upload/{id}', [DeployEndpointController::class, 'upload'])->where('id', '[a-z0-9]{12}')->name('upload');
+                Route::get('status/{id}/{task}', [DeployEndpointController::class, 'status'])->where(['id' => '[a-z0-9]{12}', 'task' => '\d{14}'])->name('status');
+            });
 
             // REST API v2 (E34 spec D1): stateless, authenticated by access key
             Route::prefix('api/v2')

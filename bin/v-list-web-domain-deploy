@@ -1,0 +1,112 @@
+#!/bin/bash
+# info: list the Git Deploy configuration of a web domain
+# options: USER DOMAIN [FORMAT]
+#
+# example: v-list-web-domain-deploy alice shop.example.com json
+#
+# This function lists a domain's Git Deploy (E20): the configuration
+# (STATE off when deploy is not on), the trusted publishers of push mode,
+# the webhook and upload URLs, whether the domain can use deploy
+# (SUPPORTED, with the REASON when it cannot: package, backend, template)
+# and whether the deploy port is open. Secrets are never listed.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+user=$1
+domain=$2
+format=${3:-shell}
+
+# Includes
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/domain.sh
+source $ARCPANEL/func/domain.sh
+# shellcheck source=/usr/local/arcpanel/func/tenancy.sh
+source $ARCPANEL/func/tenancy.sh
+# shellcheck source=/usr/local/arcpanel/func/queuetask.sh
+source $ARCPANEL/func/queuetask.sh
+# shellcheck source=/usr/local/arcpanel/func/deploy.sh
+source $ARCPANEL/func/deploy.sh
+# load config file
+source_conf "$ARCPANEL/conf/arcpanel.conf"
+
+# Additional argument formatting
+format_domain
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '2' "$#" 'USER DOMAIN [FORMAT]'
+is_format_valid 'user' 'domain' 'format'
+is_object_valid 'user' 'USER' "$user"
+is_object_valid 'web' 'DOMAIN' "$domain"
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+get_domain_values 'web'
+reason=$(deploy_unsupported_reason "$user")
+supported=yes
+[ -n "$reason" ] && supported=no
+docroot=$CUSTOM_DOCROOT
+
+declare -A conf=()
+for key in $DEPLOY_KEYS; do
+	conf[$key]=$(deploy_get "$user" "$domain" "$key")
+done
+if ! deploy_exists "$user" "$domain"; then
+	conf[STATE]=off
+fi
+webhook=''
+upload=''
+if [ -n "${conf[ID]}" ]; then
+	if [ "${conf[MODE]}" = 'pull' ]; then
+		webhook=$(deploy_endpoint_url hooks "${conf[ID]}")
+	else
+		upload=$(deploy_endpoint_url upload "${conf[ID]}")
+	fi
+fi
+port_open=no
+if [ -f "$DEPLOY_PORT_CONF" ]; then
+	port_open=yes
+fi
+publishers=$(deploy_publishers_json "$user" "$domain")
+
+json=$(
+	jq -n --arg domain "$domain" --arg id "${conf[ID]}" --arg mode "${conf[MODE]}" \
+		--arg url "${conf[URL]}" --arg branch "${conf[BRANCH]}" --arg auth "${conf[AUTH]}" \
+		--arg preset "${conf[PRESET]}" --arg shared "${conf[SHARED]}" --arg keep "${conf[KEEP]}" \
+		--arg webroot "${conf[WEBROOT]}" --arg migrate "${conf[MIGRATE]}" \
+		--arg health "${conf[HEALTH_PATH]}" --arg state "${conf[STATE]}" \
+		--arg current "${conf[CURRENT]}" --arg running "${conf[RUNNING]}" \
+		--arg pending "${conf[PENDING]}" --arg supported "$supported" --arg reason "$reason" \
+		--arg webhook "$webhook" --arg upload "$upload" --arg docroot "$docroot" \
+		--arg port "$(deploy_port)" --arg port_open "$port_open" --argjson publishers "$publishers" \
+		--arg public_key "${conf[PUBLIC_KEY]}" \
+		'{($domain): {ID: $id, MODE: $mode, URL: $url, BRANCH: $branch, AUTH: $auth, PRESET: $preset,
+			SHARED: $shared, KEEP: $keep, WEBROOT: $webroot, MIGRATE: $migrate, HEALTH_PATH: $health,
+			STATE: $state, CURRENT: $current, RUNNING: $running, PENDING: $pending,
+			SUPPORTED: $supported, REASON: $reason, WEBHOOK_URL: $webhook, UPLOAD_URL: $upload,
+			DOCROOT: $docroot, DEPLOY_PORT: $port, PORT_OPEN: $port_open, PUBLIC_KEY: $public_key,
+			PUBLISHERS: $publishers}}'
+)
+
+case "$format" in
+	json) echo "$json" ;;
+	plain) jq -r '.[] | [.STATE, .MODE, .URL, .BRANCH, .PRESET, .CURRENT, .SUPPORTED] | @tsv' <<< "$json" ;;
+	csv) jq -r '.[] | [.STATE, .MODE, .URL, .BRANCH, .PRESET, .CURRENT, .SUPPORTED] | @csv' <<< "$json" ;;
+	*) jq -r '.[] | to_entries[] | select(.key != "PUBLISHERS") | "\(.key):\t\(.value)"' <<< "$json" | column -t -s $'\t' ;;
+esac
+
+#----------------------------------------------------------#
+#                         ArcPanel                         #
+#----------------------------------------------------------#
+
+exit

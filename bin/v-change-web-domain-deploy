@@ -1,0 +1,91 @@
+#!/bin/bash
+# info: change a setting of a web domain's Git Deploy
+# options: USER DOMAIN KEY VALUE
+#
+# example: v-change-web-domain-deploy alice shop.example.com KEEP 10
+# example: v-change-web-domain-deploy alice shop.example.com SHARED 'storage/ .env'
+#
+# This function changes one setting of a domain's Git Deploy (E20): BRANCH,
+# URL (pull mode), PRESET (none, laravel, static, custom), SHARED (relative
+# paths linked into every release, at most 20, a trailing / for a folder),
+# KEEP (releases kept, 1-20), WEBROOT (. or a folder of the release served
+# as the docroot), MIGRATE (yes or no) and HEALTH_PATH (empty, or a path
+# starting with /). A new WEBROOT moves the docroot of an active deploy.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+user=$1
+domain=$2
+key=${3^^}
+value=$4
+
+# Includes
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/domain.sh
+source $ARCPANEL/func/domain.sh
+# shellcheck source=/usr/local/arcpanel/func/tenancy.sh
+source $ARCPANEL/func/tenancy.sh
+# shellcheck source=/usr/local/arcpanel/func/queuetask.sh
+source $ARCPANEL/func/queuetask.sh
+# shellcheck source=/usr/local/arcpanel/func/deploy.sh
+source $ARCPANEL/func/deploy.sh
+# load config file
+source_conf "$ARCPANEL/conf/arcpanel.conf"
+
+# Additional argument formatting
+format_domain
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '3' "$#" 'USER DOMAIN KEY VALUE'
+is_format_valid 'user' 'domain'
+is_object_valid 'user' 'USER' "$user"
+is_object_unsuspended 'user' 'USER' "$user"
+is_object_valid 'web' 'DOMAIN' "$domain"
+if ! deploy_exists "$user" "$domain"; then
+	check_result "$E_NOTEXIST" "deploy is not on for $domain"
+fi
+if [[ " $DEPLOY_CHANGE_KEYS " != *" $key "* ]]; then
+	check_result "$E_INVALID" "invalid key :: $key"
+fi
+mode=$(deploy_get "$user" "$domain" MODE)
+if [ "$mode" = 'push' ] && { [ "$key" = 'URL' ] || [ "$key" = 'BRANCH' ] || [ "$key" = 'PRESET' ] || [ "$key" = 'MIGRATE' ]; }; then
+	check_result "$E_INVALID" "$key is a setting of pull mode"
+fi
+deploy_check_value "$key" "$value" "$mode"
+if ! deploy_package_allows "$user"; then
+	check_result "$E_FORBIDEN" "the package of $user does not allow Git Deploy"
+fi
+
+# Perform verification if read-only mode is enabled
+check_arcpanel_demo_mode
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+deploy_lock "$user" "$domain"
+deploy_set "$user" "$domain" "$key=$value"
+state=$(deploy_get "$user" "$domain" STATE)
+deploy_unlock
+
+if [ "$key" = 'WEBROOT' ] && [ "$state" = 'active' ]; then
+	deploy_set_docroot "$user" "$domain" "$(deploy_docroot_for "$user" "$domain" "$value")"
+fi
+
+#----------------------------------------------------------#
+#                         ArcPanel                         #
+#----------------------------------------------------------#
+
+$BIN/v-log-action "$user" "Info" "Web" "Git Deploy setting changed (Domain: $domain, Key: $key)."
+log_event "$OK" "$ARGUMENTS"
+
+exit

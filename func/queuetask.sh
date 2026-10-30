@@ -43,6 +43,7 @@ qt_command_allowed() {
 		v-restore-cron-job-restic) return 0 ;;
 		v-restore-file-restic) return 0 ;;
 		v-add-letsencrypt-domain) return 0 ;;
+		v-run-web-domain-deploy) return 0 ;;
 		*) return 1 ;;
 	esac
 }
@@ -269,6 +270,8 @@ qt_reap_unlocked() {
 	for file in "$dir"/*.conf; do
 		id=$(basename "$file" .conf)
 		status=$(qt_get "$user" "$id" STATUS)
+		# Deploys (E20) run in their own units, not through a pipe
+		[ "$(qt_get "$user" "$id" KIND)" = 'deploy' ] && continue
 		if [ "$status" = "queued" ] && ! qt_line_queued "$user" "$id"; then
 			qt_set "$user" "$id" STATUS=failed "ERROR=$QT_REMOVED_ERROR" \
 				"END=$(date +'%F %T')"

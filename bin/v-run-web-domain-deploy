@@ -1,0 +1,222 @@
+#!/bin/bash
+# info: run a Git Deploy task of a web domain
+# options: USER DOMAIN TASK
+#
+# example: v-run-web-domain-deploy alice shop.example.com 17617400001234
+#
+# This function runs the pipeline of a deploy task (E20 §5): it gets the
+# files into a new release (an archive unpacked as the user, or a clone in
+# pull mode), links the shared paths, runs the preset, switches current with
+# one rename, reloads PHP-FPM and the domain's app processes, checks the
+# health path (a failure switches back), and prunes old releases. A
+# rollback task switches to an existing release. A failed step leaves
+# current where it was. The runner unit started by v-schedule-web-domain-deploy
+# calls it through v-run-queue-task; it is not meant to be called directly.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+user=$1
+domain=$2
+task=$3
+
+# Includes
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/domain.sh
+source $ARCPANEL/func/domain.sh
+# shellcheck source=/usr/local/arcpanel/func/ip.sh
+source $ARCPANEL/func/ip.sh
+# shellcheck source=/usr/local/arcpanel/func/php.sh
+source $ARCPANEL/func/php.sh
+# shellcheck source=/usr/local/arcpanel/func/tenancy.sh
+source $ARCPANEL/func/tenancy.sh
+# shellcheck source=/usr/local/arcpanel/func/queuetask.sh
+source $ARCPANEL/func/queuetask.sh
+# shellcheck source=/usr/local/arcpanel/func/secret.sh
+source $ARCPANEL/func/secret.sh
+# shellcheck source=/usr/local/arcpanel/func/deploy.sh
+source $ARCPANEL/func/deploy.sh
+# load config file
+source_conf "$ARCPANEL/conf/arcpanel.conf"
+
+# Additional argument formatting
+format_domain
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '3' "$#" 'USER DOMAIN TASK'
+is_format_valid 'user' 'domain'
+is_object_valid 'user' 'USER' "$user"
+is_object_valid 'web' 'DOMAIN' "$domain"
+if ! [[ "$task" =~ ^[0-9]{14}$ ]]; then
+	check_result "$E_INVALID" "invalid task :: $task"
+fi
+if [ "$(qt_get "$user" "$task" KIND)" != 'deploy' ]; then
+	check_result "$E_NOTEXIST" "task $task is not a deploy task of $user"
+fi
+read -r task_domain action value <<< "$(qt_get "$user" "$task" ARGS)"
+if [ "$task_domain" != "$domain" ]; then
+	check_result "$E_INVALID" "task $task is not a deploy of $domain"
+fi
+if ! deploy_exists "$user" "$domain"; then
+	check_result "$E_NOTEXIST" "deploy is not on for $domain"
+fi
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+web=$(deploy_web "$user" "$domain")
+artifact="$DEPLOY_UPLOADS/$task.tar.gz"
+new_release=''
+
+# Hand the domain on to the pending request whatever happens
+finish() {
+	rm -f "$artifact"
+	deploy_lock "$user" "$domain"
+	deploy_handover_unlocked "$user" "$domain"
+	deploy_unlock
+}
+trap finish EXIT
+
+# End the task as failed: the new release goes, current stays
+fail() {
+	echo "Error: $1"
+	if [ -n "$new_release" ] && [ "$(readlink "$web/current" 2> /dev/null)" != "releases/$new_release" ]; then
+		deploy_remove_release "$user" "$domain" "$new_release"
+	fi
+	log_event "$E_UPDATE" "$ARGUMENTS"
+	exit "$E_UPDATE"
+}
+
+state=$(deploy_get "$user" "$domain" STATE)
+previous=$(deploy_get "$user" "$domain" CURRENT)
+webroot=$(deploy_get "$user" "$domain" WEBROOT)
+shared=$(deploy_get "$user" "$domain" SHARED)
+keep=$(deploy_get "$user" "$domain" KEEP)
+deploy_valid_keep "$keep" || keep=5
+[ "$state" = 'off' ] && fail "deploy is turned off for $domain"
+if grep -F "DOMAIN='$domain' " "$ARCPANEL/data/users/$user/web.conf" | grep -q "SUSPENDED='yes'"; then
+	fail "$domain is suspended"
+fi
+deploy_log "task $task: $action ${value:-} of $domain"
+
+case "$action" in
+	archive)
+		[ -f "$artifact" ] || fail "the archive of task $task is missing"
+		deploy_log "unpacking the archive"
+		deploy_new_release "$user" "$domain" || fail "the release folder could not be created"
+		new_release=$DEPLOY_RELEASE
+		reason=$(deploy_unpack "$user" "$domain" "$new_release" "$artifact") || fail "${reason#Error: }"
+		deploy_write_release_info "$user" "$domain" "$new_release" archive '' '' "$task" \
+			|| fail "the release information could not be written"
+		release=$new_release
+		;;
+	pull)
+		started=$(date +%s)
+		deploy_new_release "$user" "$domain" || fail "the release folder could not be created"
+		new_release=$DEPLOY_RELEASE
+		deploy_log "fetching $value from $(deploy_get "$user" "$domain" URL)"
+		commit=$(deploy_fetch "$user" "$domain" "$new_release" "$value" "$(deploy_budget "$started")") \
+			|| fail "${commit:-the repository could not be fetched}"
+		deploy_log "commit $commit"
+		ref="refs/heads/${value#refs/heads/}"
+		[[ "$value" =~ ^[0-9a-f]{40}$ ]] && ref="refs/heads/$(deploy_get "$user" "$domain" BRANCH)"
+		deploy_write_release_info "$user" "$domain" "$new_release" pull "$commit" "$ref" "$task" \
+			|| fail "the release information could not be written"
+		release=$new_release
+		;;
+	rollback)
+		deploy_valid_release "$value" || fail "invalid release :: $value"
+		deploy_releases "$user" "$domain" | grep -qx "$value" || fail "release $value does not exist"
+		release=$value
+		;;
+	*)
+		fail "unknown deploy action :: $action"
+		;;
+esac
+
+if [ "$action" != 'rollback' ]; then
+	deploy_log "linking the shared paths: ${shared:-none}"
+	deploy_link_shared "$user" "$domain" "$release" "$shared" || fail "the shared paths could not be linked"
+fi
+
+# Preset (pull mode only: a pushed archive is built by the CI)
+preset=$(deploy_get "$user" "$domain" PRESET)
+if [ "$action" = 'pull' ] && [ "${preset:-none}" != 'none' ]; then
+	deploy_log "running the $preset preset"
+	deploy_run_preset "$user" "$domain" "$release" "$preset" "$(deploy_budget "$started")"
+	rc=$?
+	if [ "$rc" -eq 124 ]; then
+		fail "the $preset preset timed out after $(deploy_build_timeout) seconds"
+	elif [ "$rc" -ne 0 ]; then
+		fail "the $preset preset failed with exit code $rc"
+	fi
+fi
+
+# Switch
+deploy_log "switching current to $release"
+deploy_switch "$user" "$domain" "$release" || fail "current could not be switched"
+if [ "$state" != 'active' ]; then
+	get_domain_values 'web'
+	deploy_lock "$user" "$domain"
+	deploy_set "$user" "$domain" "PREV_DOCROOT=$CUSTOM_DOCROOT" "PREV_PHPROOT=$CUSTOM_PHPROOT"
+	deploy_unlock
+	deploy_log "moving the docroot to $(deploy_docroot_for "$user" "$domain" "$webroot")"
+	deploy_set_docroot "$user" "$domain" "$(deploy_docroot_for "$user" "$domain" "$webroot")"
+fi
+
+# Reload
+deploy_log "reloading PHP-FPM, NGINX and the app processes"
+reload_failed=''
+if ! deploy_reload "$user" "$domain"; then
+	reload_failed=yes
+fi
+
+# Health check (not for a rollback)
+health=$(deploy_get "$user" "$domain" HEALTH_PATH)
+if [ "$action" != 'rollback' ] && [ -n "$health" ] && ! deploy_health "$user" "$domain" "$health"; then
+	if [ -n "$previous" ] && [ -d "$web/releases/$previous" ]; then
+		deploy_switch "$user" "$domain" "$previous"
+		deploy_reload "$user" "$domain"
+		deploy_remove_release "$user" "$domain" "$release"
+		new_release=''
+		fail "health check failed, rolled back to $previous"
+	fi
+	# The first deploy: the docroot goes back
+	deploy_set_docroot "$user" "$domain" "$(deploy_get "$user" "$domain" PREV_DOCROOT)" \
+		"$(deploy_get "$user" "$domain" PREV_PHPROOT)"
+	deploy_as_user "$user" rm -f -- "$web/current"
+	deploy_remove_release "$user" "$domain" "$release"
+	new_release=''
+	fail "health check failed, the previous docroot is back"
+fi
+
+# Prune and record
+deploy_prune "$user" "$domain" "$keep" "$release"
+deploy_lock "$user" "$domain"
+deploy_set "$user" "$domain" "CURRENT=$release" STATE=active
+deploy_unlock
+new_release=''
+
+if [ -n "$reload_failed" ]; then
+	echo "Error: PHP-FPM could not be reloaded; current is $release and its files are valid"
+	exit "$E_RESTART"
+fi
+deploy_log "release $release is live"
+
+#----------------------------------------------------------#
+#                         ArcPanel                         #
+#----------------------------------------------------------#
+
+$BIN/v-log-action "$user" "Info" "Web" "Git Deploy finished (Domain: $domain, Release: $release)."
+log_event "$OK" "$ARGUMENTS"
+
+exit

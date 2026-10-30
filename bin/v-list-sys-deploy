@@ -1,0 +1,59 @@
+#!/bin/bash
+# info: list the server settings of Git Deploy
+# options: [FORMAT]
+#
+# example: v-list-sys-deploy json
+#
+# This function lists the server settings of Git Deploy (E20 §3.4): the
+# port, the largest archive, the build timeout and the OIDC issuers, with
+# the number of domains that use deploy and whether the port is open.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+format=${1:-shell}
+
+# Includes
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/queuetask.sh
+source $ARCPANEL/func/queuetask.sh
+# shellcheck source=/usr/local/arcpanel/func/deploy.sh
+source $ARCPANEL/func/deploy.sh
+# load config file
+source_conf "$ARCPANEL/conf/arcpanel.conf"
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+is_format_valid 'format'
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+port_open=no
+[ -f "$DEPLOY_PORT_CONF" ] && port_open=yes
+json=$(jq -n --arg port "$(deploy_port_current)" --arg max "${DEPLOY_MAX_ARTIFACT:-512M}" \
+	--arg timeout "$(deploy_build_timeout)" --arg issuers "$(deploy_issuers)" \
+	--arg domains "$(deploy_count)" --arg open "$port_open" \
+	'{DEPLOY_PORT: $port, DEPLOY_MAX_ARTIFACT: $max, DEPLOY_BUILD_TIMEOUT: $timeout,
+		DEPLOY_OIDC_ISSUERS: $issuers, DOMAINS: $domains, PORT_OPEN: $open}')
+
+case "$format" in
+	json) echo "$json" ;;
+	plain) jq -r '[.DEPLOY_PORT, .DEPLOY_MAX_ARTIFACT, .DEPLOY_BUILD_TIMEOUT, .DEPLOY_OIDC_ISSUERS, .DOMAINS, .PORT_OPEN] | @tsv' <<< "$json" ;;
+	csv) jq -r '[.DEPLOY_PORT, .DEPLOY_MAX_ARTIFACT, .DEPLOY_BUILD_TIMEOUT, .DEPLOY_OIDC_ISSUERS, .DOMAINS, .PORT_OPEN] | @csv' <<< "$json" ;;
+	*) jq -r 'to_entries[] | "\(.key):\t\(.value)"' <<< "$json" | column -t -s $'\t' ;;
+esac
+
+#----------------------------------------------------------#
+#                         ArcPanel                         #
+#----------------------------------------------------------#
+
+exit

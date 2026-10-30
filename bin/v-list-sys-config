@@ -53,6 +53,10 @@ json_list() {
 		"DB_SYSTEM": "'$DB_SYSTEM'",
 		"DEBUG_MODE": "'$DEBUG_MODE'",
 		"DEMO_MODE": "'$DEMO_MODE'",
+		"DEPLOY_BUILD_TIMEOUT": "'${DEPLOY_BUILD_TIMEOUT:-900}'",
+		"DEPLOY_MAX_ARTIFACT": "'${DEPLOY_MAX_ARTIFACT:-512M}'",
+		"DEPLOY_OIDC_ISSUERS": "'${DEPLOY_OIDC_ISSUERS:-https://token.actions.githubusercontent.com,https://gitlab.com}'",
+		"DEPLOY_PORT": "'${DEPLOY_PORT:-8088}'",
 		"DISABLE_IP_CHECK": "'$DISABLE_IP_CHECK'",
 		"DISK_QUOTA": "'$DISK_QUOTA'",
 		"PANEL_HOSTNAMES": "'$PANEL_HOSTNAMES'",
@@ -277,6 +281,7 @@ shell_list() {
 	echo "Panel HSTS:                       ${PANEL_HSTS:-no}"
 	echo "TLS-only mail and FTP login:      ${TLS_LOGIN_ONLY:-no}"
 	echo "Audit log:                        ${AUDIT_RETENTION_DAYS:-180} days, syslog ${AUDIT_SYSLOG:-no}"
+	echo "Git Deploy:                       port ${DEPLOY_PORT:-8088}, archives up to ${DEPLOY_MAX_ARTIFACT:-512M}, builds up to ${DEPLOY_BUILD_TIMEOUT:-900} s"
 	if [ -n "$MALWARE_SCAN" ]; then
 		echo "Malware scan enabled:             $MALWARE_SCAN"
 	fi

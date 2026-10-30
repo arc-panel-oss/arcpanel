@@ -1,0 +1,76 @@
+#!/bin/bash
+# info: remove a trusted publisher from a web domain's Git Deploy
+# options: USER DOMAIN PUB
+#
+# example: v-delete-web-domain-deploy-publisher alice shop.example.com p1
+#
+# This function removes the trusted publisher PUB of a domain in push mode
+# (E20): its CI can no longer upload archives.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+user=$1
+domain=$2
+pub=$3
+
+# Includes
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/domain.sh
+source $ARCPANEL/func/domain.sh
+# shellcheck source=/usr/local/arcpanel/func/tenancy.sh
+source $ARCPANEL/func/tenancy.sh
+# shellcheck source=/usr/local/arcpanel/func/queuetask.sh
+source $ARCPANEL/func/queuetask.sh
+# shellcheck source=/usr/local/arcpanel/func/deploy.sh
+source $ARCPANEL/func/deploy.sh
+# load config file
+source_conf "$ARCPANEL/conf/arcpanel.conf"
+
+# Additional argument formatting
+format_domain
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '3' "$#" 'USER DOMAIN PUB'
+is_format_valid 'user' 'domain'
+is_object_valid 'user' 'USER' "$user"
+is_object_unsuspended 'user' 'USER' "$user"
+is_object_valid 'web' 'DOMAIN' "$domain"
+if ! deploy_exists "$user" "$domain"; then
+	check_result "$E_NOTEXIST" "deploy is not on for $domain"
+fi
+if ! [[ "$pub" =~ ^p[0-9]{1,3}$ ]]; then
+	check_result "$E_INVALID" "invalid publisher :: $pub"
+fi
+file=$(deploy_publishers_file "$user" "$domain")
+if ! grep -q "^PUB='$pub' " "$file" 2> /dev/null; then
+	check_result "$E_NOTEXIST" "publisher $pub does not exist"
+fi
+
+# Perform verification if read-only mode is enabled
+check_arcpanel_demo_mode
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+deploy_lock "$user" "$domain"
+sed -i "/^PUB='$pub' /d" "$file"
+deploy_unlock
+
+#----------------------------------------------------------#
+#                         ArcPanel                         #
+#----------------------------------------------------------#
+
+$BIN/v-log-action "$user" "Info" "Web" "Git Deploy publisher removed (Domain: $domain, Publisher: $pub)."
+log_event "$OK" "$ARGUMENTS"
+
+exit
