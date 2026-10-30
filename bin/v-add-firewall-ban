@@ -79,9 +79,12 @@ time=$(echo "$time_n_date" | cut -f 1 -d \ )
 date=$(echo "$time_n_date" | cut -f 2 -d \ )
 
 # Adding ip to banlist, then to the set; a reload when the set refuses it
-# (for example a network that overlaps a ban)
+# (for example a network that overlaps a ban). A stopped firewall stays
+# stopped and loads the ban with its next start
 echo "IP='$ip_cidr' CHAIN='$chain' TIME='$time' DATE='$date'" >> $conf
-if ! "$FW_NFT" add element inet arcpanel "$(fw_ban_set "$chain" "$(fw_family "$ip_cidr")")" "{ $ip_cidr }" 2> /dev/null; then
+if fw_stopped; then
+	:
+elif ! "$FW_NFT" add element inet arcpanel "$(fw_ban_set "$chain" "$(fw_family "$ip_cidr")")" "{ $ip_cidr }" 2> /dev/null; then
 	"$BIN/v-update-firewall"
 else
 	# The boot unit loads the saved table
