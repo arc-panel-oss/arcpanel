@@ -230,7 +230,7 @@ jobs:
         run: test/test_helper/bats-core/bin/bats test/arcpanel-release-changelog.bats
 
       - name: Install the APT repository tools
-        run: sudo apt-get update -qq && sudo apt-get install -y -qq apt-utils jq
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq apt-utils jq rclone
 
       - name: Test the versioned APT repository and its rebuild (E33)
         run: test/test_helper/bats-core/bin/bats test/arcpanel-apt-repo.bats
