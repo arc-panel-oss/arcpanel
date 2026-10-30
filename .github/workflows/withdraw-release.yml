@@ -4,6 +4,7 @@ name: Withdraw release
 # so servers never install it on their own (E33 phase 1 P0, D12,
 # docs/features/specs/2026-10-20-005-e33-update-center-phase-1-design.md §5.5). The packages
 # and indexes are not touched. Runs in the release environment, so every run needs an approval.
+# The secrets are those of release.yml.
 
 on:
   workflow_dispatch:
@@ -26,6 +27,9 @@ on:
 permissions:
   contents: read
 
+env:
+  APT_REMOTE: r2:arcpanel-apt
+
 concurrency:
   group: release
   cancel-in-progress: false
@@ -46,18 +50,14 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Install tools
-        run: sudo apt-get update -qq && sudo apt-get install -y -qq jq rsync
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq jq rclone
 
-      - name: Set up the deploy key
+      - name: Set up the R2 remote
         env:
-          APT_DEPLOY_SSH_KEY: ${{ secrets.APT_DEPLOY_SSH_KEY }}
-          APT_DEPLOY_KNOWN_HOSTS: ${{ secrets.APT_DEPLOY_KNOWN_HOSTS }}
-        run: |
-          set -euo pipefail
-          install -m 700 -d ~/.ssh
-          printf '%s\n' "$APT_DEPLOY_SSH_KEY" > ~/.ssh/id_deploy
-          chmod 600 ~/.ssh/id_deploy
-          printf '%s\n' "$APT_DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          APT_R2_ACCESS_KEY_ID: ${{ secrets.APT_R2_ACCESS_KEY_ID }}
+          APT_R2_SECRET_ACCESS_KEY: ${{ secrets.APT_R2_SECRET_ACCESS_KEY }}
+          APT_R2_ENDPOINT: ${{ secrets.APT_R2_ENDPOINT }}
+        run: bash .github/scripts/apt-host.sh configure
 
       - name: Import signing key
         env:
@@ -66,20 +66,18 @@ jobs:
 
       - name: Withdraw the version in the manifest
         env:
-          APT_DEPLOY_TARGET: ${{ secrets.APT_DEPLOY_TARGET }}
           APT_SIGNING_KEY_ID: ${{ secrets.APT_SIGNING_KEY_ID }}
         run: |
           set -euo pipefail
-          remote="${APT_DEPLOY_TARGET}"
-          [ "$CHANNEL" = beta ] && remote="${APT_DEPLOY_TARGET}/beta"
-          mkdir -p current new
-          rsync -az -e "ssh -i ~/.ssh/id_deploy -o IdentitiesOnly=yes" \
-            "${remote}/releases.json" "${remote}/releases.json.sig" current/
+          remote="${APT_REMOTE}"
+          [ "$CHANNEL" = beta ] && remote="${APT_REMOTE}/beta"
+          mkdir -p new
+          bash .github/scripts/apt-host.sh pull-manifest "$remote" current
           gpg --batch --verify current/releases.json.sig current/releases.json
           bash .github/scripts/release-manifest.sh withdraw current/releases.json "$VERSION" "$REASON" > new/releases.json
           gpg --batch --yes --local-user "$APT_SIGNING_KEY_ID" --detach-sign -o new/releases.json.sig new/releases.json
           bash .github/scripts/apt-host.sh push-manifest new "$remote"
-          rm -f ~/.ssh/id_deploy
+          bash .github/scripts/apt-host.sh unconfigure
           jq -c --arg v "$VERSION" '.releases[] | select(.version == $v) | {version, withdrawn}' new/releases.json
 
       - name: Keep the manifest on the GitHub Release
