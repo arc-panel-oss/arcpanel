@@ -227,14 +227,14 @@ two_releases() {
 }
 
 #----------------------------------------------------------#
-#   Copies to and from the host (.github/scripts/apt-host.sh), #
-#   with a local folder as the host                        #
+#   Copies to and from the bucket (.github/scripts/apt-host.sh), #
+#   with a local folder as the bucket                      #
 #----------------------------------------------------------#
 
 HOST_SCRIPT="$REPO_ROOT/.github/scripts/apt-host.sh"
 
 @test "apt host: a push never deletes from the pool and replaces the indexes" {
-	command -v rsync > /dev/null || skip "rsync is not installed"
+	command -v rclone > /dev/null || skip "rclone is not installed"
 	fake_deb "$TMP/debs1/noble" arcpanel 2.2.1-1 amd64
 	bash "$BUILD" "$TMP/out1" "$KEY_ID" - "$TMP/debs1"
 	signed_manifest "$TMP/out1" 2026-10-20T10:00:00Z
@@ -246,6 +246,7 @@ HOST_SCRIPT="$REPO_ROOT/.github/scripts/apt-host.sh"
 	run bash "$HOST_SCRIPT" push "$TMP/out2" "$TMP/host"
 	assert_success
 	[ -f "$TMP/host/pool/main/a/arcpanel/arcpanel_2.2.1-1_amd64.deb" ]
+	grep -q 'ArcPanel APT repository' "$TMP/host/index.html"
 	run versions "$TMP/host" noble arcpanel amd64
 	assert_output 2.2.2-1
 	run jq -r .generated "$TMP/host/releases.json"
@@ -255,7 +256,7 @@ HOST_SCRIPT="$REPO_ROOT/.github/scripts/apt-host.sh"
 }
 
 @test "apt host: a pull of the stable channel leaves the beta repository out" {
-	command -v rsync > /dev/null || skip "rsync is not installed"
+	command -v rclone > /dev/null || skip "rclone is not installed"
 	fake_deb "$TMP/debs/noble" arcpanel 2.2.1-1 amd64
 	bash "$BUILD" "$TMP/out" "$KEY_ID" - "$TMP/debs"
 	signed_manifest "$TMP/out" 2026-10-20T10:00:00Z
@@ -271,9 +272,54 @@ HOST_SCRIPT="$REPO_ROOT/.github/scripts/apt-host.sh"
 }
 
 @test "apt host: a manifest push needs a signed manifest" {
+	command -v rclone > /dev/null || skip "rclone is not installed"
 	mkdir -p "$TMP/new"
 	echo '{}' > "$TMP/new/releases.json"
 	run bash "$HOST_SCRIPT" push-manifest "$TMP/new" "$TMP/host"
 	assert_failure
 	assert_output --partial "has no signed releases.json"
+}
+
+@test "apt host: a pull of a channel never published leaves an empty copy" {
+	command -v rclone > /dev/null || skip "rclone is not installed"
+	mkdir -p "$TMP/host" "$TMP/current/pool" "$TMP/current/dists"
+	echo stale > "$TMP/current/releases.json"
+	run bash "$HOST_SCRIPT" pull "$TMP/host/beta" "$TMP/current"
+	assert_success
+	assert_output --partial "nothing published"
+	[ ! -e "$TMP/current/pool" ]
+	[ ! -e "$TMP/current/dists" ]
+	[ ! -e "$TMP/current/releases.json" ]
+}
+
+@test "apt host: a manifest pull copies the manifest only" {
+	command -v rclone > /dev/null || skip "rclone is not installed"
+	fake_deb "$TMP/debs/noble" arcpanel 2.2.1-1 amd64
+	bash "$BUILD" "$TMP/out" "$KEY_ID" - "$TMP/debs"
+	signed_manifest "$TMP/out" 2026-10-20T10:00:00Z
+	bash "$HOST_SCRIPT" push "$TMP/out" "$TMP/host"
+	run bash "$HOST_SCRIPT" pull-manifest "$TMP/host" "$TMP/current"
+	assert_success
+	run gpg --verify "$TMP/current/releases.json.sig" "$TMP/current/releases.json"
+	assert_success
+	[ ! -e "$TMP/current/pool" ]
+	run bash "$HOST_SCRIPT" pull-manifest "$TMP/host/beta" "$TMP/beta"
+	assert_failure
+	assert_output --partial "has no signed releases.json"
+}
+
+@test "apt host: the R2 remote is written for the owner only and needs every secret" {
+	export RCLONE_CONFIG="$TMP/rclone/rclone.conf"
+	APT_R2_ACCESS_KEY_ID=id APT_R2_SECRET_ACCESS_KEY= APT_R2_ENDPOINT=https://example.invalid \
+		run bash "$HOST_SCRIPT" configure
+	assert_failure
+	assert_output --partial "APT_R2_SECRET_ACCESS_KEY is empty"
+	APT_R2_ACCESS_KEY_ID=id APT_R2_SECRET_ACCESS_KEY=secret APT_R2_ENDPOINT=https://example.invalid \
+		run bash "$HOST_SCRIPT" configure
+	assert_success
+	[ "$(stat -c %a "$RCLONE_CONFIG")" = 600 ]
+	grep -qx 'no_check_bucket = true' "$RCLONE_CONFIG"
+	run bash "$HOST_SCRIPT" unconfigure
+	assert_success
+	[ ! -e "$RCLONE_CONFIG" ]
 }
