@@ -1,0 +1,55 @@
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Questions with these details usually get an answer on the first reply. Search [Q&A](https://github.com/arc-panel-oss/arcpanel/discussions/categories/q-a) and the [documentation](https://arcpanel.org/docs) first.
+        To report a security vulnerability, do not post here: follow the [security policy](https://github.com/arc-panel-oss/arcpanel/security/policy) instead.
+        **Never post passwords, API keys, private keys or your customers' data.**
+  - type: input
+    id: version
+    attributes:
+      label: ArcPanel version
+      description: Shown on the About page, or run `grep ^VERSION= /usr/local/arcpanel/conf/arcpanel.conf`.
+      placeholder: 2.2.4
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: Operating system and where it runs
+      placeholder: Ubuntu 24.04 on a Hetzner VPS
+    validations:
+      required: true
+  - type: textarea
+    id: action
+    attributes:
+      label: What did you do?
+      description: The page and button, or the exact `v-*` command, `arc` command or API call.
+      placeholder: |
+        1. Web → Add Web Domain.
+        2. Entered example.com with SSL enabled and pressed Save.
+    validations:
+      required: true
+  - type: textarea
+    id: result
+    attributes:
+      label: What happened, and what did you expect?
+      description: The message on screen, word for word.
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: |
+        Panel logs are in `/usr/local/arcpanel/log/` (`system.log`, `error.log`); a service's log with `journalctl -u <service> --since "10 min ago"`. This is formatted as code, so no need for backticks. **Remove secrets before posting.** You may replace domains and IP addresses, but keep them consistent.
+      render: shell
+  - type: checkboxes
+    id: searched
+    attributes:
+      label: Before posting
+      options:
+        - label: I searched existing discussions and the documentation.
+          required: true
+        - label: I removed passwords, keys and customer data from this post.
+          required: true
