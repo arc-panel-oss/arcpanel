@@ -4,8 +4,9 @@ name: Rebuild APT repository
 # the GitHub Releases (E33 phase 1 P0, D6,
 # docs/features/specs/2026-10-20-005-e33-update-center-phase-1-design.md §5.5 and §5.6).
 #   compare  builds in the runner and compares with the published repository; publishes nothing
-#   publish  uploads the rebuilt repository to APT_DEPLOY_TARGET (a new host after a loss)
-# Runs in the release environment, so every run needs an approval.
+#   publish  uploads the rebuilt repository to the R2 bucket (after a loss, or to fill a new bucket)
+# Runs in the release environment, so every run needs an approval. The secrets are those of
+# release.yml.
 
 on:
   workflow_dispatch:
@@ -19,6 +20,9 @@ on:
 
 permissions:
   contents: read
+
+env:
+  APT_REMOTE: r2:arcpanel-apt
 
 concurrency:
   group: release
@@ -36,7 +40,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Install tools
-        run: sudo apt-get update -qq && sudo apt-get install -y -qq apt-utils jq rsync
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq apt-utils jq rclone
 
       - name: Download the releases
         env:
@@ -53,27 +57,21 @@ jobs:
           APT_SIGNING_KEY_ID: ${{ secrets.APT_SIGNING_KEY_ID }}
         run: bash .github/scripts/rebuild-apt-repo.sh build releases rebuilt "$APT_SIGNING_KEY_ID"
 
-      - name: Set up the deploy key
+      - name: Set up the R2 remote
         env:
-          APT_DEPLOY_SSH_KEY: ${{ secrets.APT_DEPLOY_SSH_KEY }}
-          APT_DEPLOY_KNOWN_HOSTS: ${{ secrets.APT_DEPLOY_KNOWN_HOSTS }}
-        run: |
-          set -euo pipefail
-          install -m 700 -d ~/.ssh
-          printf '%s\n' "$APT_DEPLOY_SSH_KEY" > ~/.ssh/id_deploy
-          chmod 600 ~/.ssh/id_deploy
-          printf '%s\n' "$APT_DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          APT_R2_ACCESS_KEY_ID: ${{ secrets.APT_R2_ACCESS_KEY_ID }}
+          APT_R2_SECRET_ACCESS_KEY: ${{ secrets.APT_R2_SECRET_ACCESS_KEY }}
+          APT_R2_ENDPOINT: ${{ secrets.APT_R2_ENDPOINT }}
+        run: bash .github/scripts/apt-host.sh configure
 
-      - name: Compare with or publish to the host
-        env:
-          APT_DEPLOY_TARGET: ${{ secrets.APT_DEPLOY_TARGET }}
+      - name: Compare with or publish to the bucket
         run: |
           set -euo pipefail
           status=0
           for dir in rebuilt/*/; do
             channel="$(basename "$dir")"
-            remote="${APT_DEPLOY_TARGET}"
-            [ "$channel" = beta ] && remote="${APT_DEPLOY_TARGET}/beta"
+            remote="${APT_REMOTE}"
+            [ "$channel" = beta ] && remote="${APT_REMOTE}/beta"
             if [ "$MODE" = publish ]; then
               bash .github/scripts/apt-host.sh push "rebuilt/$channel" "$remote"
             else
@@ -82,5 +80,5 @@ jobs:
               bash .github/scripts/rebuild-apt-repo.sh compare "rebuilt/$channel" "live/$channel" || status=1
             fi
           done
-          rm -f ~/.ssh/id_deploy
+          bash .github/scripts/apt-host.sh unconfigure
           exit "$status"
