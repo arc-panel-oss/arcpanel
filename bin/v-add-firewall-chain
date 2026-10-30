@@ -115,7 +115,8 @@ fi
 # Changing permissions
 [ -f "$chains" ] && chmod 660 "$chains"
 
-if [ "${reload:-no}" = 'yes' ] && [ -z "${ARCPANEL_FIREWALL_NO_RELOAD:-}" ]; then
+# A stopped firewall stays stopped; its next start loads the chain
+if [ "${reload:-no}" = 'yes' ] && [ -z "${ARCPANEL_FIREWALL_NO_RELOAD:-}" ] && ! fw_stopped; then
 	"$BIN/v-update-firewall"
 	check_result $? "Unable to reload the firewall" "$E_UPDATE"
 fi
