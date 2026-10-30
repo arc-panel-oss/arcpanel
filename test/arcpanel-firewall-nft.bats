@@ -169,6 +169,14 @@ teardown_file() {
     assert_output enabled
 }
 
+@test "firewall: the server's own addresses are accepted from the loopback interface only (E39 W5 N28)" {
+    # An accept by source address alone; the rules of rules.conf carry a comment
+    run bash -c "nft list chain inet arcpanel input | grep -E '^[[:space:]]*ip6? saddr .* accept$' | grep -v 'fe80::/10'"
+    assert_output ''
+    run bash -c "nft list chain inet arcpanel input | sed -n '3,4p'"
+    assert_line --index 1 --regexp '^[[:space:]]*iif "lo" accept$'
+}
+
 @test "firewall: a port open to all answers over IPv4 and IPv6" {
     assert_equal "$(probe $HOST4 $P1)" 200
     assert_equal "$(probe $HOST6 $P1)" 200
@@ -305,6 +313,21 @@ teardown_file() {
     assert_equal "$(jq -r .STATUS <<< "$output")" ok
 }
 
+@test "firewall: a new address of the server is no drift after a reboot (E40 m5)" {
+    # A rotating SLAAC privacy address: a ban saves the boot file while the
+    # address exists, the reboot loads it after the address is gone
+    ip -6 addr add 2001:db8:77::5/64 dev "$HOST_IF" nodad
+    run v-add-firewall-ban "$NS4" ARCBATS
+    assert_success
+    run v-delete-firewall-ban "$NS4" ARCBATS
+    assert_success
+    ip -6 addr del 2001:db8:77::5/64 dev "$HOST_IF"
+    run systemctl restart arcpanel-firewall
+    assert_success
+    run v-check-firewall json
+    assert_equal "$(jq -r .STATUS <<< "$output")" ok
+}
+
 @test "firewall: a ban already listed is put back in its set" {
     run v-add-firewall-ban "$NS4" ARCBATS
     assert_success
@@ -368,6 +391,32 @@ teardown_file() {
     assert_failure
     run grep -c "CHAIN='ARCBATS'" "$FW/banlist.conf"
     assert_output 0
+    assert_equal "$(probe $HOST4 $P1)" 200
+}
+
+@test "firewall: a ban or a chain leaves a stopped firewall stopped (E40 m2)" {
+    run v-stop-firewall
+    assert_success
+    run v-add-firewall-chain ARCBATSTWO "$P2" TCP
+    assert_success
+    run v-add-firewall-ban "$NS4" ARCBATSTWO
+    assert_success
+    # Fail2Ban's start of a known chain whose sets are missing
+    run v-add-firewall-chain ARCBATSTWO "$P2" TCP
+    assert_success
+    run nft list table inet arcpanel
+    assert_failure
+    assert_file_not_exists /etc/arcpanel/firewall.nft
+    run grep -c "IP='$NS4' CHAIN='ARCBATSTWO'" "$FW/banlist.conf"
+    assert_output 1
+    # The next start loads the chain with its ban
+    run v-start-service nftables
+    assert_success
+    ban_set_has f2b_ARCBATSTWO_4 "$NS4"
+    run v-delete-firewall-chain ARCBATSTWO
+    assert_success
+    run v-check-firewall json
+    assert_equal "$(jq -r .STATUS <<< "$output")" ok
     assert_equal "$(probe $HOST4 $P1)" 200
 }
 
