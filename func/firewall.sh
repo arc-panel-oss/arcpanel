@@ -97,6 +97,14 @@ fw_loaded() {
 	"$FW_NFT" list table inet arcpanel > /dev/null 2>&1
 }
 
+# Whether the administrator stopped the firewall: v-stop-firewall removes
+# the table and the saved file. A ban or a chain change then only updates
+# the lists, which the next start loads; a table lost otherwise (for
+# example a flush by nftables.service) still loads again (spec §17 m2)
+fw_stopped() {
+	! fw_loaded && [ ! -e "$FW_SAVED" ]
+}
+
 # The server's global IPv6 addresses (spec D5)
 fw_own_ipv6() {
 	ip -6 -o addr show scope global 2> /dev/null | awk '{ split($4, a, "/"); print a[1] }' | sort -u
