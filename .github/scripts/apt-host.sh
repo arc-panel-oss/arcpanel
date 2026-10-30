@@ -36,7 +36,9 @@ die() {
 	exit 1
 }
 
-# The token is limited to the bucket, so rclone must not check or create the bucket
+# The token is limited to the bucket, so rclone must not check or create the bucket. R2
+# answered 501 to the HEAD that rclone 1.60 sends after each upload (the objects were
+# stored, the retry passed), so the upload's own ETag checks the MD5 instead (no_head).
 configure() {
 	local name
 	for name in APT_R2_ACCESS_KEY_ID APT_R2_SECRET_ACCESS_KEY APT_R2_ENDPOINT; do
@@ -45,7 +47,7 @@ configure() {
 	mkdir -p "$(dirname "$RCLONE_CONF")"
 	(
 		umask 077
-		printf '[r2]\ntype = s3\nprovider = Cloudflare\naccess_key_id = %s\nsecret_access_key = %s\nendpoint = %s\nacl = private\nno_check_bucket = true\n' \
+		printf '[r2]\ntype = s3\nprovider = Cloudflare\naccess_key_id = %s\nsecret_access_key = %s\nendpoint = %s\nacl = private\nno_check_bucket = true\nno_head = true\n' \
 			"$APT_R2_ACCESS_KEY_ID" "$APT_R2_SECRET_ACCESS_KEY" "$APT_R2_ENDPOINT" > "$RCLONE_CONF"
 	)
 }
@@ -54,14 +56,18 @@ unconfigure() {
 	rm -f "$RCLONE_CONF"
 }
 
-# Succeeds when the channel at $1 has a dists/ folder; an empty channel is not an error,
-# a failed listing is (rclone exit 3 is "directory not found")
+# Succeeds when the channel at $1 has files under dists/; an empty channel is not an error,
+# a failed listing is. A local folder answers rclone exit 3 ("directory not found"), a
+# bucket an empty listing.
 published() {
-	local remote="$1" status=0 err
+	local remote="$1" status=0 err listing
 	err="$(mktemp)"
-	rclone lsf --max-depth 1 "$remote/dists" > /dev/null 2> "$err" || status=$?
+	listing="$(rclone lsf --max-depth 1 "$remote/dists" 2> "$err")" || status=$?
 	case "$status" in
-		0) rm -f "$err" ;;
+		0)
+			rm -f "$err"
+			[ -n "$listing" ]
+			;;
 		3)
 			rm -f "$err"
 			return 1
