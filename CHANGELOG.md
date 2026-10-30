@@ -6,6 +6,20 @@ All notable changes to ArcPanel are listed here. ArcPanel is based on HestiaCP 1
 
 Changes that are not released yet are in `changelog/unreleased/` of each release line.
 
+## 2.2.4 — 2026-10-27
+
+### Changed
+
+- **The project moves to arcpanel.org.** New installs use the package repository `apt.arcpanel.org`, the panel looks up its public address at `https://arcpanel.org/ip`, and the packages, messages and templates link to `https://arcpanel.org`. `arcpanel.top` and `apt.arcpanel.top` keep working until 30 April 2027; to move an installed server now, change `apt.arcpanel.top` to `apt.arcpanel.org` in `/etc/apt/sources.list.d/arcpanel.list`.
+
+### Fixed
+
+- A list of options where nothing is chosen yet, such as the Node.js versions in "Install a version", no longer shows every option as selected.
+- Incremental (restic) backups now run every night after the archive backups, also on servers that keep no archive backups; before, they ran only when started by hand.
+- An SFTP backup host set up with a private key in the panel keeps working: the key is stored root-only next to the host's settings instead of pointing at a temporary file that was deleted.
+- An rclone backup host without a folder uploads archives to the root of the remote.
+- Deleting an archive on an SFTP backup host no longer prints debug output, and downloading a remote archive no longer calls a Google Drive function that does not exist.
+
 ## 2.2.3 — 2026-10-22
 
 ### Security

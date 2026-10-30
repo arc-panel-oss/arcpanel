@@ -16,11 +16,13 @@ name: Release
 # builds Ubuntu 24.04 amd64 only. The build steps are in build-debs.yml.
 #
 # Required secrets of the release environment (see docs/operations/release-signing.md):
-#   APT_SIGNING_KEY         ASCII-armored private signing subkey
-#   APT_SIGNING_KEY_ID      fingerprint of that subkey
-#   APT_DEPLOY_SSH_KEY      private SSH key allowed to write to the APT host
-#   APT_DEPLOY_KNOWN_HOSTS  known_hosts line(s) for the APT host
-#   APT_DEPLOY_TARGET       user@host:/path/to/webroot (no trailing slash)
+#   APT_SIGNING_KEY           ASCII-armored private signing subkey
+#   APT_SIGNING_KEY_ID        fingerprint of that subkey
+#   APT_R2_ACCESS_KEY_ID      access key id of an R2 API token (Object Read & Write, bucket arcpanel-apt only)
+#   APT_R2_SECRET_ACCESS_KEY  secret access key of that token
+#   APT_R2_ENDPOINT           https://<account-id>.r2.cloudflarestorage.com
+# The repository is the Cloudflare R2 bucket arcpanel-apt (APT_REMOTE), served at
+# https://apt.arcpanel.org/ and https://apt.arcpanel.top/.
 
 on:
   push:
@@ -29,6 +31,9 @@ on:
 
 permissions:
   contents: read
+
+env:
+  APT_REMOTE: r2:arcpanel-apt
 
 concurrency:
   group: release
@@ -85,9 +90,9 @@ jobs:
 
   # The repository keeps every published version (E33 phase 1 P0,
   # docs/features/specs/2026-10-20-005-e33-update-center-phase-1-design.md §5.1): the job
-  # pulls the published repository, adds the new packages and the release to the signed
-  # manifest, uploads the pool without deleting anything and only then the indexes and the
-  # manifest, and attaches the packages and the manifest to the GitHub Release.
+  # pulls the published repository from the bucket, adds the new packages and the release to
+  # the signed manifest, uploads the pool without deleting anything and only then the indexes
+  # and the manifest, and attaches the packages and the manifest to the GitHub Release.
   publish:
     name: Sign and publish (${{ needs.check-version.outputs.channel }})
     needs: [check-version, build]
@@ -119,7 +124,7 @@ jobs:
           merge-multiple: true
 
       - name: Install tools
-        run: sudo apt-get update -qq && sudo apt-get install -y -qq apt-utils jq rsync
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq apt-utils jq rclone
 
       - name: Restore the published repository from the cache
         uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
@@ -128,24 +133,19 @@ jobs:
           key: apt-repo-${{ env.CHANNEL }}-${{ github.run_id }}
           restore-keys: apt-repo-${{ env.CHANNEL }}-
 
-      - name: Set up the deploy key
+      - name: Set up the R2 remote
+        # A token limited to the bucket may not check or create it, hence no_check_bucket
         env:
-          APT_DEPLOY_SSH_KEY: ${{ secrets.APT_DEPLOY_SSH_KEY }}
-          APT_DEPLOY_KNOWN_HOSTS: ${{ secrets.APT_DEPLOY_KNOWN_HOSTS }}
-        run: |
-          set -euo pipefail
-          install -m 700 -d ~/.ssh
-          printf '%s\n' "$APT_DEPLOY_SSH_KEY" > ~/.ssh/id_deploy
-          chmod 600 ~/.ssh/id_deploy
-          printf '%s\n' "$APT_DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          APT_R2_ACCESS_KEY_ID: ${{ secrets.APT_R2_ACCESS_KEY_ID }}
+          APT_R2_SECRET_ACCESS_KEY: ${{ secrets.APT_R2_SECRET_ACCESS_KEY }}
+          APT_R2_ENDPOINT: ${{ secrets.APT_R2_ENDPOINT }}
+        run: bash .github/scripts/apt-host.sh configure
 
       - name: Pull the published repository
-        env:
-          APT_DEPLOY_TARGET: ${{ secrets.APT_DEPLOY_TARGET }}
         run: |
           set -euo pipefail
-          remote="${APT_DEPLOY_TARGET}"
-          [ "$CHANNEL" = beta ] && remote="${APT_DEPLOY_TARGET}/beta"
+          remote="${APT_REMOTE}"
+          [ "$CHANNEL" = beta ] && remote="${APT_REMOTE}/beta"
           bash .github/scripts/apt-host.sh pull "$remote" current
 
       - name: Import signing key
@@ -180,14 +180,12 @@ jobs:
           jq -c '.releases[0]' repo/releases.json
 
       - name: Publish repository
-        env:
-          APT_DEPLOY_TARGET: ${{ secrets.APT_DEPLOY_TARGET }}
         run: |
           set -euo pipefail
-          remote="${APT_DEPLOY_TARGET}"
-          [ "$CHANNEL" = beta ] && remote="${APT_DEPLOY_TARGET}/beta"
+          remote="${APT_REMOTE}"
+          [ "$CHANNEL" = beta ] && remote="${APT_REMOTE}/beta"
           bash .github/scripts/apt-host.sh push repo "$remote"
-          rm -f ~/.ssh/id_deploy
+          bash .github/scripts/apt-host.sh unconfigure
 
       - name: Attach the packages to the GitHub Release
         env:
