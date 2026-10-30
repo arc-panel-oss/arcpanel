@@ -452,6 +452,15 @@ if [ "$web" != 'no' ] && [ -n "$WEB_SYSTEM" ]; then
 				-exec chown -h $user:$user {} \;
 		fi
 
+		# Git Deploy (E20 D14): the web server reads releases/ and shared/
+		# through the www-data group, as when deploy created them
+		for dir in releases shared; do
+			if [ -d "$HOMEDIR/$user/web/$domain/$dir" ] && [ ! -L "$HOMEDIR/$user/web/$domain/$dir" ]; then
+				user_exec chmod 750 "$HOMEDIR/$user/web/$domain/$dir"
+				chgrp -h www-data "$HOMEDIR/$user/web/$domain/$dir"
+			fi
+		done
+
 		# Rebuilding web config for the second time to make sure ftp users keep working
 		rebuild_web_domain_conf
 	done

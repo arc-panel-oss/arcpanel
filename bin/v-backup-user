@@ -440,6 +440,11 @@ if [ -n "$WEB_SYSTEM" ] && [ "$WEB" != '*' ]; then
 		fi
 		set +f
 
+		# Git Deploy (E20 D14): of releases/, only the release current points to
+		while IFS= read -r release; do
+			fargs+=(--exclude="./releases/$release")
+		done < <(backup_deploy_stale "$HOMEDIR/$user/web/$domain")
+
 		# Backup files
 		if [ "$BACKUP_MODE" = 'zstd' ]; then
 			tar "${fargs[@]}" -cpf- -- . | pzstd -"$BACKUP_GZIP" - > $tmpdir/web/$domain/domain_data.tar.zst

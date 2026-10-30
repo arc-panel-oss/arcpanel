@@ -122,6 +122,14 @@ if [ "$OBJECT_STORAGE_SYSTEM" = 'silo' ] && [ -s "$USER_DATA/buckets.conf" ]; th
 	fi
 fi
 
+# Git Deploy (E20 D14): of each releases/, only the release current points to
+deploy_excludes=()
+for web in "$HOMEDIR/$user"/web/*; do
+	while IFS= read -r release; do
+		deploy_excludes+=(--exclude "$web/releases/$release")
+	done < <(backup_deploy_stale "$web")
+done
+
 BR_DESTS=''
 failures=''
 IFS=',' read -r -a target_list <<< "$(bj_value "$job" TARGETS)"
@@ -151,7 +159,7 @@ for target in "${target_list[@]}"; do
 	fi
 	# pm2 keeps the environment of running apps, resolved secrets included (E38 D14)
 	ionice -c2 -n7 nice -n 19 restic "${limit[@]}" --read-concurrency 2 backup "${paths[@]}" \
-		--exclude "/home/$user/.pm2/dump.pm2*" --exclude "$HOMEDIR/.arcpanel-apps/$user/*/.incoming"
+		--exclude "/home/$user/.pm2/dump.pm2*" --exclude "$HOMEDIR/.arcpanel-apps/$user/*/.incoming" "${deploy_excludes[@]}"
 	if [ $? -ne 0 ]; then
 		failures="$failures$dest: the snapshot could not be made; "
 		BR_DESTS="$BR_DESTS${BR_DESTS:+,}$dest:failed"

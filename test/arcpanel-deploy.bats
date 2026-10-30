@@ -14,6 +14,7 @@ load 'test_helper/bats-file/load'
 ARCPANEL=/usr/local/arcpanel
 PKG_DIR=$ARCPANEL/data/packages
 TPL_DIR=$ARCPANEL/data/templates/web/php-fpm
+BACKUP=/backup
 PASS="Tt-e20-Pass"
 U1=e20du1
 U2=e20du2
@@ -275,6 +276,66 @@ teardown_file() {
     [ "$(task_value "$U1" "$task" STATUS)" = 'succeeded' ]
     [ "$(ls "/home/$U1/web/$D1/releases" | wc -l)" -eq 2 ]
     [ -d "/home/$U1/web/$D1/releases/$(conf_value "$U1" "$D1" CURRENT)" ]
+}
+
+@test "backup: carries current and shared/ only; restore rebuilds the layout (D14)" {
+    web="/home/$U1/web/$D1"
+    current=$(conf_value "$U1" "$D1" CURRENT)
+    old=$(ls "$web/releases" | grep -vx "$current" | head -n1)
+    [ -n "$old" ]
+    rm -f "$BACKUP/$U1".*.tar
+    run v-backup-user "$U1"
+    assert_success
+    backup=$(basename "$(ls -t "$BACKUP/$U1".*.tar | head -n1)")
+    rm -rf "$WORK/backup"
+    mkdir -p "$WORK/backup"
+    tar -xf "$BACKUP/$backup" -C "$WORK/backup" "./web/$D1"
+    list=$(tar -tf "$WORK/backup/web/$D1"/domain_data.tar.*)
+    echo "$list" | grep -qx "./releases/$current/index.html"
+    echo "$list" | grep -qx './current'
+    echo "$list" | grep -qx './shared/storage/note.txt'
+    [ -z "$(echo "$list" | grep "^./releases/$old")" ]
+
+    # Restore into a domain whose deploy folders are gone (the older release
+    # is put back afterwards for the tests that follow)
+    rm -rf "$WORK/old-release"
+    mv "$web/releases/$old" "$WORK/old-release"
+    rm -rf "$web/releases" "$web/shared" "$web/current"
+    run v-restore-user "$U1" "$backup" "$D1" no no no no no
+    assert_success
+    [ "$(readlink "$web/current")" = "releases/$current" ]
+    [ "$(ls "$web/releases")" = "$current" ]
+    assert_file_exists "$web/shared/storage/note.txt"
+    [ "$(stat -c %G "$web/releases")" = 'www-data' ]
+    [ "$(stat -c %G "$web/shared")" = 'www-data' ]
+    [ "$(stat -c %a "$web/releases")" = '750' ]
+    [ "$(stat -c %U "$web/releases/$current/index.html")" = "$U1" ]
+    for i in $(seq 1 20); do
+        [ "$(fetch "$D1" /index.html)" = 'three' ] && break
+        sleep 0.5
+    done
+    [ "$(fetch "$D1" /index.html)" = 'three' ]
+    mv "$WORK/old-release" "$web/releases/$old"
+    v-delete-user-backup "$U1" "$backup" > /dev/null 2>&1 || rm -f "$BACKUP/$backup"
+}
+
+@test "backup: backup_deploy_stale lists the releases current does not point to" {
+    dir="$WORK/stale"
+    rm -rf "$dir"
+    mkdir -p "$dir/releases/20260101-000000" "$dir/releases/20260102-000000" "$dir/releases/20260103-000000"
+    ln -s releases/20260102-000000 "$dir/current"
+    run bash -c "source $ARCPANEL/func/main.sh; source $ARCPANEL/func/backup.sh; backup_deploy_stale '$dir'"
+    assert_success
+    assert_output $'20260101-000000\n20260103-000000'
+    # Without deploy, or with releases/ as a link, nothing is excluded
+    rm "$dir/current"
+    run bash -c "source $ARCPANEL/func/main.sh; source $ARCPANEL/func/backup.sh; backup_deploy_stale '$dir'"
+    assert_output ''
+    ln -s releases/20260102-000000 "$dir/current"
+    mv "$dir/releases" "$dir/r"
+    ln -s r "$dir/releases"
+    run bash -c "source $ARCPANEL/func/main.sh; source $ARCPANEL/func/backup.sh; backup_deploy_stale '$dir'"
+    assert_output ''
 }
 
 @test "deploys: lists releases and the deploy tasks" {
