@@ -73,7 +73,7 @@ final class PackageActions
      *
      * @throws ValidationException
      */
-    public function planCreate(Principal $principal, string $name, array $values, ?array $tenancy, string $ports, array $node, array $docker, ?array $php = null, ?array $processes = null, ?array $storage = null): array
+    public function planCreate(Principal $principal, string $name, array $values, ?array $tenancy, string $ports, array $node, array $docker, ?array $php = null, ?array $processes = null, ?array $storage = null, ?array $deploy = null): array
     {
         $reseller = self::resellerOf($principal);
         if ($this->packages->exists(self::storedName($principal, $name))) {
@@ -83,7 +83,7 @@ final class PackageActions
 
         return $this->packages->planCreate($name, $values, $reseller === '' ? $tenancy : null, $reseller,
             $this->checkPorts($ports, $reseller), $this->checkNode($node, $reseller), $this->checkDocker($docker, $reseller), $this->checkPhp($php, $reseller),
-            $this->checkProcesses($processes, $reseller), $this->checkStorage($storage, $reseller));
+            $this->checkProcesses($processes, $reseller), $this->checkStorage($storage, $reseller), $this->checkDeploy($deploy, $reseller));
     }
 
     /**
@@ -97,7 +97,7 @@ final class PackageActions
      *
      * @throws ValidationException
      */
-    public function planUpdate(Principal $principal, PackageRecord $record, string $newName, array $values, ?array $tenancy, string $ports, array $node, array $docker, ?array $php = null, ?array $processes = null, ?array $storage = null): array
+    public function planUpdate(Principal $principal, PackageRecord $record, string $newName, array $values, ?array $tenancy, string $ports, array $node, array $docker, ?array $php = null, ?array $processes = null, ?array $storage = null, ?array $deploy = null): array
     {
         $reseller = self::resellerOf($principal);
         $newName = $reseller !== '' ? $record->name : $newName;
@@ -108,7 +108,7 @@ final class PackageActions
 
         return $this->packages->planUpdate($record, $newName, $values, $reseller === '' ? $tenancy : null, $reseller,
             $this->checkPorts($ports, $reseller), $this->checkNode($node, $reseller), $this->checkDocker($docker, $reseller), $this->checkPhp($php, $reseller),
-            $this->checkProcesses($processes, $reseller), $this->checkStorage($storage, $reseller));
+            $this->checkProcesses($processes, $reseller), $this->checkStorage($storage, $reseller), $this->checkDeploy($deploy, $reseller));
     }
 
     /**
@@ -487,6 +487,37 @@ final class PackageActions
         }
 
         return $storage;
+    }
+
+    /**
+     * GIT_DEPLOY of a reseller's own package (E20 D13); yes when missing.
+     *
+     * @return array{GIT_DEPLOY: string}
+     */
+    public function ownDeploy(string $reseller): array
+    {
+        return ['GIT_DEPLOY' => PackageService::gitDeploy($this->ownPackage($reseller)?->data ?? [])];
+    }
+
+    /**
+     * GIT_DEPLOY of a package; a reseller cannot give Git Deploy it does
+     * not have.
+     *
+     * @param  array{GIT_DEPLOY: string}|null  $deploy
+     * @return array{GIT_DEPLOY: string}|null
+     *
+     * @throws ValidationException
+     */
+    public function checkDeploy(?array $deploy, string $reseller): ?array
+    {
+        if ($deploy === null || $reseller === '') {
+            return $deploy;
+        }
+        if (PackageLimits::above('GIT_DEPLOY', $deploy['GIT_DEPLOY'], $this->ownDeploy($reseller)['GIT_DEPLOY'])) {
+            throw ValidationException::withMessages(['git_deploy' => __('Git Deploy is not included in your plan.')]);
+        }
+
+        return $deploy;
     }
 
     private function ownPackage(string $reseller): ?PackageRecord

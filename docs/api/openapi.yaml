@@ -72,7 +72,7 @@ info:
     | `sync-dns-cluster` | admin | `v-list-users`, `v-list-sys-config`, `v-list-user`, `v-add-cron-restart-job`, `v-delete-dns-domains-src`, `v-insert-dns-domain`, `v-insert-dns-record`, `v-insert-dns-records`, `v-rebuild-dns-domains`, `v-rebuild-dns-domain`, `v-delete-dns-record`, `v-make-tmp-file`, `v-delete-dns-domain` |
     | `update-dns-records` | user | `v-list-dns-records`, `v-change-dns-record` |
 
-    The sets `v2-accounts` and `v2-apps` and `v2-audit` and `v2-backup` and `v2-cron` and `v2-db` and `v2-dns` and `v2-files` and `v2-mail` and `v2-observe` and `v2-read` and `v2-secrets` and `v2-security` and `v2-server` and `v2-storage` and `v2-web` and `v2-write` belong to REST API v2 (`/api/v2/`, documented in `docs/api/v2/openapi.json`): this API ignores them, so a key with only those sets may run no command here.
+    The sets `v2-accounts` and `v2-apps` and `v2-audit` and `v2-backup` and `v2-cron` and `v2-db` and `v2-deploy` and `v2-dns` and `v2-files` and `v2-mail` and `v2-observe` and `v2-read` and `v2-secrets` and `v2-security` and `v2-server` and `v2-storage` and `v2-web` and `v2-write` belong to REST API v2 (`/api/v2/`, documented in `docs/api/v2/openapi.json`): this API ignores them, so a key with only those sets may run no command here.
   license:
     name: GPL-3.0-or-later
     identifier: GPL-3.0-or-later
@@ -5988,6 +5988,128 @@ paths:
           $ref: "#/components/responses/InvalidRequest"
         "422":
           $ref: "#/components/responses/Unprocessable"
+  "/api/#v-add-web-domain-deploy":
+    post:
+      operationId: v-add-web-domain-deploy
+      tags:
+        - Web
+      summary: Turn on Git Deploy for a web domain
+      description: |-
+        This function turns on Git Deploy (E20) for a web domain. MODE pull lets
+        the server fetch URL (git@host:path, ssh:// or https://) at BRANCH and
+        build it with PRESET (none, laravel, static, custom); AUTH key (default)
+        creates a deploy key and prints its public part once, AUTH token waits
+        for a token (v-change-web-domain-deploy-credential). MODE push accepts
+        archives built by a CI from trusted publishers
+        (v-add-web-domain-deploy-publisher). The domain's pool is rebuilt so that
+        PHP can read the releases (D17); public_html and the docroot stay as they
+        are until the first deploy succeeds.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `USER` | yes |
+        | `arg2` | `DOMAIN` | yes |
+        | `arg3` | `MODE` | yes |
+        | `arg4` | `URL` | no |
+        | `arg5` | `BRANCH` | no |
+        | `arg6` | `PRESET` | no |
+        | `arg7` | `AUTH` | no |
+
+        **User argument:** with the access key of a user other than the admin, `arg1` must be the key's user.
+      x-arcpanel-user-arg: 1
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-add-web-domain-deploy"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-add-web-domain-deploy"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+  "/api/#v-add-web-domain-deploy-publisher":
+    post:
+      operationId: v-add-web-domain-deploy-publisher
+      tags:
+        - Web
+      summary: Add a trusted publisher to a web domain's Git Deploy
+      description: |-
+        This function adds a trusted publisher to a domain in push mode (E20
+        §6.3): a CI whose OIDC token comes from ISSUER (one of
+        DEPLOY_OIDC_ISSUERS) for the repository REPO (GitHub owner/name, GitLab
+        group/project) may upload archives. REF (refs/heads/… or refs/tags/…)
+        and ENVIRONMENT narrow it; at least one of them is required, so a
+        publisher never accepts every branch. WORKFLOW (GitHub) names the
+        workflow file. Prints the publisher's ID.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `USER` | yes |
+        | `arg2` | `DOMAIN` | yes |
+        | `arg3` | `ISSUER` | yes |
+        | `arg4` | `REPO` | yes |
+        | `arg5` | `REF` | no |
+        | `arg6` | `ENVIRONMENT` | no |
+        | `arg7` | `WORKFLOW` | no |
+        | `arg8` | `FORMAT` | no |
+
+        **User argument:** with the access key of a user other than the admin, `arg1` must be the key's user.
+      x-arcpanel-user-arg: 1
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-add-web-domain-deploy-publisher"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-add-web-domain-deploy-publisher"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+            application/json:
+              schema:
+                type: object
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
   "/api/#v-add-web-domain-ftp":
     post:
       operationId: v-add-web-domain-ftp
@@ -8689,6 +8811,8 @@ paths:
         BACKUP_FREQUENCY (hourly, daily or weekly) is how often scheduled backup
         jobs may back up the package's users (E48); a reseller's own package
         cannot allow more often than the reseller's.
+        GIT_DEPLOY (yes or no, yes when missing) allows Git Deploy on the package's
+        web domains (E20).
         PHP_MAX_MEMORY and PHP_MAX_UPLOAD (sizes such as 512M, or unlimited),
         PHP_MAX_EXECUTION_TIME (seconds) and PHP_MAX_INPUT_VARS (integer, or
         unlimited) cap the per-domain PHP settings of the package's users (E19);
@@ -9280,6 +9404,56 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/v-change-sys-demo-mode"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+  "/api/#v-change-sys-deploy":
+    post:
+      operationId: v-change-sys-deploy
+      tags:
+        - System
+      summary: Change a server setting of Git Deploy
+      description: |-
+        This function changes a server setting of Git Deploy (E20 §3.4):
+        DEPLOY_PORT (the port of the webhook and upload endpoint, 1024-65535, or
+        empty to turn the endpoint off), DEPLOY_MAX_ARTIFACT (the largest archive,
+        1M to 1024M), DEPLOY_BUILD_TIMEOUT (seconds, 60-7200) and
+        DEPLOY_OIDC_ISSUERS (comma-separated https:// issuers allowed for trusted
+        publishers). A new port moves the NGINX file, the reservation and the
+        firewall rule.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `KEY` | yes |
+        | `arg2` | `VALUE` | yes |
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-change-sys-deploy"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-change-sys-deploy"
       responses:
         "200":
           description: "The output of the command; `OK` for an empty output with legacy authentication."
@@ -11532,6 +11706,115 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/v-change-web-domain-backend-tpl"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+  "/api/#v-change-web-domain-deploy":
+    post:
+      operationId: v-change-web-domain-deploy
+      tags:
+        - Web
+      summary: Change a setting of a web domain's Git Deploy
+      description: |-
+        This function changes one setting of a domain's Git Deploy (E20): BRANCH,
+        URL (pull mode), PRESET (none, laravel, static, custom), SHARED (relative
+        paths linked into every release, at most 20, a trailing / for a folder),
+        KEEP (releases kept, 1-20), WEBROOT (. or a folder of the release served
+        as the docroot), MIGRATE (yes or no) and HEALTH_PATH (empty, or a path
+        starting with /). A new WEBROOT moves the docroot of an active deploy.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `USER` | yes |
+        | `arg2` | `DOMAIN` | yes |
+        | `arg3` | `KEY` | yes |
+        | `arg4` | `VALUE` | yes |
+
+        **User argument:** with the access key of a user other than the admin, `arg1` must be the key's user.
+      x-arcpanel-user-arg: 1
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-change-web-domain-deploy"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-change-web-domain-deploy"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+  "/api/#v-change-web-domain-deploy-credential":
+    post:
+      operationId: v-change-web-domain-deploy-credential
+      tags:
+        - Web
+      summary: Renew a credential of a web domain's Git Deploy
+      description: |-
+        This function renews a credential of a domain's Git Deploy (E20). KIND
+        key creates a new deploy key (pull mode, the authentication becomes key)
+        and prints its public part once; token stores the token read from
+        VALUE_FILE (pull mode with an https:// URL, the authentication becomes
+        token); webhook creates a new webhook secret (pull mode) and prints it
+        once; id gives the domain a new ID, so the webhook and upload URLs change.
+        Secrets live in the E38 store and are never written to the configuration.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `USER` | yes |
+        | `arg2` | `DOMAIN` | yes |
+        | `arg3` | `KIND` | yes |
+        | `arg4` | `VALUE_FILE` | no |
+
+        **User argument:** with the access key of a user other than the admin, `arg1` must be the key's user.
+      x-arcpanel-user-arg: 1
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-change-web-domain-deploy-credential"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-change-web-domain-deploy-credential"
       responses:
         "200":
           description: "The output of the command; `OK` for an empty output with legacy authentication."
@@ -18985,6 +19268,106 @@ paths:
           $ref: "#/components/responses/InvalidRequest"
         "422":
           $ref: "#/components/responses/Unprocessable"
+  "/api/#v-delete-web-domain-deploy":
+    post:
+      operationId: v-delete-web-domain-deploy
+      tags:
+        - Web
+      summary: Turn off Git Deploy for a web domain
+      description: |-
+        This function turns off a domain's Git Deploy (E20): running and pending
+        deploys stop, the docroot from before the first deploy comes back, the
+        deploy key, token and webhook secret are deleted, and so are the
+        configuration and the trusted publishers. releases/ and shared/ stay on
+        disk. v-delete-web-domain calls it.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `USER` | yes |
+        | `arg2` | `DOMAIN` | yes |
+
+        **User argument:** with the access key of a user other than the admin, `arg1` must be the key's user.
+      x-arcpanel-user-arg: 1
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-delete-web-domain-deploy"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-delete-web-domain-deploy"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+  "/api/#v-delete-web-domain-deploy-publisher":
+    post:
+      operationId: v-delete-web-domain-deploy-publisher
+      tags:
+        - Web
+      summary: Remove a trusted publisher from a web domain's Git Deploy
+      description: |-
+        This function removes the trusted publisher PUB of a domain in push mode
+        (E20): its CI can no longer upload archives.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `USER` | yes |
+        | `arg2` | `DOMAIN` | yes |
+        | `arg3` | `PUB` | yes |
+
+        **User argument:** with the access key of a user other than the admin, `arg1` must be the key's user.
+      x-arcpanel-user-arg: 1
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-delete-web-domain-deploy-publisher"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-delete-web-domain-deploy-publisher"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
   "/api/#v-delete-web-domain-ftp":
     post:
       operationId: v-delete-web-domain-ftp
@@ -20510,6 +20893,56 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/v-get-user-value"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+  "/api/#v-get-web-domain-deploy-endpoint":
+    post:
+      operationId: v-get-web-domain-deploy-endpoint
+      tags:
+        - Web
+      summary: Get what the deploy endpoint needs for a deploy ID
+      description: |-
+        This function serves the deploy endpoint of the panel (E20 §6): for the
+        deploy whose ID is ID it prints, as JSON, the owner, the domain, the mode,
+        the branch and the state, and for KIND hook (pull mode) the webhook
+        secret, for KIND upload (push mode) the trusted publishers, the allowed
+        OIDC issuers and the audience (the upload URL). A domain that cannot
+        deploy (suspended, package without GIT_DEPLOY) answers E_NOTEXIST like an
+        unknown ID. It is meant for the panel only and is in no API permission set.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `ID` | yes |
+        | `arg2` | `KIND` | yes |
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-get-web-domain-deploy-endpoint"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-get-web-domain-deploy-endpoint"
       responses:
         "200":
           description: "The output of the command; `OK` for an empty output with legacy authentication."
@@ -25477,6 +25910,54 @@ paths:
           $ref: "#/components/responses/InvalidRequest"
         "422":
           $ref: "#/components/responses/Unprocessable"
+  "/api/#v-list-sys-deploy":
+    post:
+      operationId: v-list-sys-deploy
+      tags:
+        - System
+      summary: List the server settings of Git Deploy
+      description: |-
+        This function lists the server settings of Git Deploy (E20 §3.4): the
+        port, the largest archive, the build timeout and the OIDC issuers, with
+        the number of domains that use deploy and whether the port is open.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `FORMAT` | no |
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-list-sys-deploy"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-list-sys-deploy"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+            application/json:
+              schema:
+                type: object
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
   "/api/#v-list-sys-disk-status":
     post:
       operationId: v-list-sys-disk-status
@@ -30104,6 +30585,114 @@ paths:
           $ref: "#/components/responses/InvalidRequest"
         "422":
           $ref: "#/components/responses/Unprocessable"
+  "/api/#v-list-web-domain-deploy":
+    post:
+      operationId: v-list-web-domain-deploy
+      tags:
+        - Web
+      summary: List the Git Deploy configuration of a web domain
+      description: |-
+        This function lists a domain's Git Deploy (E20): the configuration
+        (STATE off when deploy is not on), the trusted publishers of push mode,
+        the webhook and upload URLs, whether the domain can use deploy
+        (SUPPORTED, with the REASON when it cannot: package, backend, template)
+        and whether the deploy port is open. Secrets are never listed.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `USER` | yes |
+        | `arg2` | `DOMAIN` | yes |
+        | `arg3` | `FORMAT` | no |
+
+        **User argument:** with the access key of a user other than the admin, `arg1` must be the key's user.
+      x-arcpanel-user-arg: 1
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-list-web-domain-deploy"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-list-web-domain-deploy"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+            application/json:
+              schema:
+                type: object
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+  "/api/#v-list-web-domain-deploys":
+    post:
+      operationId: v-list-web-domain-deploys
+      tags:
+        - Web
+      summary: List the Git Deploy releases and tasks of a web domain
+      description: |-
+        This function lists the releases of a domain's Git Deploy (E20), newest
+        first (ID, SOURCE, COMMIT, REF, CREATED, TASK, CURRENT), and its last 20
+        deploy tasks, newest first (the task record keys).
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `USER` | yes |
+        | `arg2` | `DOMAIN` | yes |
+        | `arg3` | `FORMAT` | no |
+
+        **User argument:** with the access key of a user other than the admin, `arg1` must be the key's user.
+      x-arcpanel-user-arg: 1
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-list-web-domain-deploys"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-list-web-domain-deploys"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+            application/json:
+              schema:
+                type: object
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
   "/api/#v-list-web-domain-errorlog":
     post:
       operationId: v-list-web-domain-errorlog
@@ -34149,6 +34738,61 @@ paths:
           $ref: "#/components/responses/InvalidRequest"
         "422":
           $ref: "#/components/responses/Unprocessable"
+  "/api/#v-rollback-web-domain-deploy":
+    post:
+      operationId: v-rollback-web-domain-deploy
+      tags:
+        - Web
+      summary: Roll a web domain back to an earlier Git Deploy release
+      description: |-
+        This function switches current to an existing release of the domain (E20
+        §5.3): no build and no migration, so a database migration of a later
+        release is not reverted. It runs as a deploy task, after a deploy that
+        runs. Prints the task ID (FORMAT json prints {"ID":"…"}).
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `USER` | yes |
+        | `arg2` | `DOMAIN` | yes |
+        | `arg3` | `RELEASE` | yes |
+        | `arg4` | `FORMAT` | no |
+
+        **User argument:** with the access key of a user other than the admin, `arg1` must be the key's user.
+      x-arcpanel-user-arg: 1
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-rollback-web-domain-deploy"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-rollback-web-domain-deploy"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+            application/json:
+              schema:
+                type: object
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
   "/api/#v-run-app-process-task":
     post:
       operationId: v-run-app-process-task
@@ -34829,6 +35473,61 @@ paths:
           $ref: "#/components/responses/InvalidRequest"
         "422":
           $ref: "#/components/responses/Unprocessable"
+  "/api/#v-run-web-domain-deploy":
+    post:
+      operationId: v-run-web-domain-deploy
+      tags:
+        - Web
+      summary: Run a Git Deploy task of a web domain
+      description: |-
+        This function runs the pipeline of a deploy task (E20 §5): it gets the
+        files into a new release (an archive unpacked as the user, or a clone in
+        pull mode), links the shared paths, runs the preset, switches current with
+        one rename, reloads PHP-FPM and the domain's app processes, checks the
+        health path (a failure switches back), and prunes old releases. A
+        rollback task switches to an existing release. A failed step leaves
+        current where it was. The runner unit started by v-schedule-web-domain-deploy
+        calls it through v-run-queue-task; it is not meant to be called directly.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `USER` | yes |
+        | `arg2` | `DOMAIN` | yes |
+        | `arg3` | `TASK` | yes |
+
+        **User argument:** with the access key of a user other than the admin, `arg1` must be the key's user.
+      x-arcpanel-user-arg: 1
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-run-web-domain-deploy"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-run-web-domain-deploy"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
   "/api/#v-save-fs-file":
     post:
       operationId: v-save-fs-file
@@ -35353,6 +36052,64 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/v-schedule-user-restore-restic"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+            application/json:
+              schema:
+                type: object
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+  "/api/#v-schedule-web-domain-deploy":
+    post:
+      operationId: v-schedule-web-domain-deploy
+      tags:
+        - Web
+      summary: Start a Git Deploy of a web domain
+      description: |-
+        This function creates a deploy task record (KIND deploy) and starts it at
+        once in a transient unit in the user's slice (E20 D15). Pull mode deploys
+        the branch, or REF (a commit or a ref name) when given; push mode deploys
+        the tar.gz FILE, which is copied for the run and must not be larger than
+        DEPLOY_MAX_ARTIFACT. While a deploy of the domain runs, the request waits
+        as the pending one: a newer request replaces it. Prints the task ID
+        (FORMAT json prints {"ID":"…"}).
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `USER` | yes |
+        | `arg2` | `DOMAIN` | yes |
+        | `arg3` | `REF|--artifact FILE` | no |
+        | `arg4` | `FORMAT` | no |
+
+        **User argument:** with the access key of a user other than the admin, `arg1` must be the key's user.
+      x-arcpanel-user-arg: 1
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-schedule-web-domain-deploy"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-schedule-web-domain-deploy"
       responses:
         "200":
           description: "The output of the command; `OK` for an empty output with legacy authentication."
@@ -46057,6 +46814,136 @@ components:
                 - "yes"
             returncode:
               $ref: "#/components/schemas/ReturnCode"
+    v-add-web-domain-deploy:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+            - arg2
+            - arg3
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-add-web-domain-deploy
+              default: v-add-web-domain-deploy
+            arg1:
+              type: string
+              title: USER
+              description: "`USER`"
+              examples:
+                - alice
+            arg2:
+              type: string
+              title: DOMAIN
+              description: "`DOMAIN`"
+              examples:
+                - shop.example.com
+            arg3:
+              type: string
+              title: MODE
+              description: "`MODE`"
+              examples:
+                - pull
+            arg4:
+              type: string
+              title: URL
+              description: "`URL`, optional"
+              examples:
+                - "git@github.com:acme/shop.git"
+            arg5:
+              type: string
+              title: BRANCH
+              description: "`BRANCH`, optional"
+              examples:
+                - main
+            arg6:
+              type: string
+              title: PRESET
+              description: "`PRESET`, optional"
+              examples:
+                - laravel
+            arg7:
+              type: string
+              title: AUTH
+              description: "`AUTH`, optional"
+              examples:
+                - key
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
+    v-add-web-domain-deploy-publisher:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+            - arg2
+            - arg3
+            - arg4
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-add-web-domain-deploy-publisher
+              default: v-add-web-domain-deploy-publisher
+            arg1:
+              type: string
+              title: USER
+              description: "`USER`"
+              examples:
+                - alice
+            arg2:
+              type: string
+              title: DOMAIN
+              description: "`DOMAIN`"
+              examples:
+                - shop.example.com
+            arg3:
+              type: string
+              title: ISSUER
+              description: "`ISSUER`"
+              examples:
+                - "https://token.actions.githubusercontent.com"
+            arg4:
+              type: string
+              title: REPO
+              description: "`REPO`"
+              examples:
+                - acme/shop
+            arg5:
+              type: string
+              title: REF
+              description: "`REF`, optional"
+              examples:
+                - refs/heads/main
+            arg6:
+              type: string
+              title: ENVIRONMENT
+              description: "`ENVIRONMENT`, optional"
+              examples:
+                - ""
+            arg7:
+              type: string
+              title: WORKFLOW
+              description: "`WORKFLOW`, optional"
+              examples:
+                - ".github/workflows/deploy.yml"
+            arg8:
+              type: string
+              title: FORMAT
+              description: "`FORMAT`, optional"
+              enum:
+                - json
+                - plain
+                - csv
+                - shell
+              examples:
+                - json
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
     v-add-web-domain-ftp:
       allOf:
         - $ref: "#/components/schemas/Credentials"
@@ -48562,6 +49449,34 @@ components:
                 - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
+    v-change-sys-deploy:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+            - arg2
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-change-sys-deploy
+              default: v-change-sys-deploy
+            arg1:
+              type: string
+              title: KEY
+              description: "`KEY`"
+              examples:
+                - DEPLOY_PORT
+            arg2:
+              type: string
+              title: VALUE
+              description: "`VALUE`"
+              examples:
+                - "8090"
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
     v-change-sys-hostname:
       allOf:
         - $ref: "#/components/schemas/Credentials"
@@ -50022,6 +50937,89 @@ components:
               enum:
                 - "yes"
                 - "no"
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
+    v-change-web-domain-deploy:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+            - arg2
+            - arg3
+            - arg4
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-change-web-domain-deploy
+              default: v-change-web-domain-deploy
+            arg1:
+              type: string
+              title: USER
+              description: "`USER`"
+              examples:
+                - alice
+            arg2:
+              type: string
+              title: DOMAIN
+              description: "`DOMAIN`"
+              examples:
+                - shop.example.com
+            arg3:
+              type: string
+              title: KEY
+              description: "`KEY`"
+              examples:
+                - KEEP
+            arg4:
+              type: string
+              title: VALUE
+              description: "`VALUE`"
+              examples:
+                - "10"
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
+    v-change-web-domain-deploy-credential:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+            - arg2
+            - arg3
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-change-web-domain-deploy-credential
+              default: v-change-web-domain-deploy-credential
+            arg1:
+              type: string
+              title: USER
+              description: "`USER`"
+              examples:
+                - alice
+            arg2:
+              type: string
+              title: DOMAIN
+              description: "`DOMAIN`"
+              examples:
+                - shop.example.com
+            arg3:
+              type: string
+              title: KIND
+              description: "`KIND`"
+              examples:
+                - key
+            arg4:
+              type: string
+              title: VALUE_FILE
+              description: "`VALUE_FILE`, optional"
+              examples:
+                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-change-web-domain-dirlist:
@@ -54561,6 +55559,69 @@ components:
                 - "no"
             returncode:
               $ref: "#/components/schemas/ReturnCode"
+    v-delete-web-domain-deploy:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+            - arg2
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-delete-web-domain-deploy
+              default: v-delete-web-domain-deploy
+            arg1:
+              type: string
+              title: USER
+              description: "`USER`"
+              examples:
+                - alice
+            arg2:
+              type: string
+              title: DOMAIN
+              description: "`DOMAIN`"
+              examples:
+                - shop.example.com
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
+    v-delete-web-domain-deploy-publisher:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+            - arg2
+            - arg3
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-delete-web-domain-deploy-publisher
+              default: v-delete-web-domain-deploy-publisher
+            arg1:
+              type: string
+              title: USER
+              description: "`USER`"
+              examples:
+                - alice
+            arg2:
+              type: string
+              title: DOMAIN
+              description: "`DOMAIN`"
+              examples:
+                - shop.example.com
+            arg3:
+              type: string
+              title: PUB
+              description: "`PUB`"
+              examples:
+                - p1
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
     v-delete-web-domain-ftp:
       allOf:
         - $ref: "#/components/schemas/Credentials"
@@ -55677,6 +56738,34 @@ components:
               description: "`KEY`"
               examples:
                 - FNAME
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
+    v-get-web-domain-deploy-endpoint:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+            - arg2
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-get-web-domain-deploy-endpoint
+              default: v-get-web-domain-deploy-endpoint
+            arg1:
+              type: string
+              title: ID
+              description: "`ID`"
+              examples:
+                - k3v9q2m7x1c8
+            arg2:
+              type: string
+              title: KIND
+              description: "`KIND`"
+              examples:
+                - hook
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-import-cpanel:
@@ -58723,6 +59812,31 @@ components:
               default: v-list-sys-db-status
             returncode:
               $ref: "#/components/schemas/ReturnCode"
+    v-list-sys-deploy:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-list-sys-deploy
+              default: v-list-sys-deploy
+            arg1:
+              type: string
+              title: FORMAT
+              description: "`FORMAT`, optional"
+              enum:
+                - json
+                - plain
+                - csv
+                - shell
+              examples:
+                - json
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
     v-list-sys-disk-status:
       allOf:
         - $ref: "#/components/schemas/Credentials"
@@ -61268,6 +62382,84 @@ components:
                 - json
             returncode:
               $ref: "#/components/schemas/ReturnCode"
+    v-list-web-domain-deploy:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+            - arg2
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-list-web-domain-deploy
+              default: v-list-web-domain-deploy
+            arg1:
+              type: string
+              title: USER
+              description: "`USER`"
+              examples:
+                - alice
+            arg2:
+              type: string
+              title: DOMAIN
+              description: "`DOMAIN`"
+              examples:
+                - shop.example.com
+            arg3:
+              type: string
+              title: FORMAT
+              description: "`FORMAT`, optional"
+              enum:
+                - json
+                - plain
+                - csv
+                - shell
+              examples:
+                - json
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
+    v-list-web-domain-deploys:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+            - arg2
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-list-web-domain-deploys
+              default: v-list-web-domain-deploys
+            arg1:
+              type: string
+              title: USER
+              description: "`USER`"
+              examples:
+                - alice
+            arg2:
+              type: string
+              title: DOMAIN
+              description: "`DOMAIN`"
+              examples:
+                - shop.example.com
+            arg3:
+              type: string
+              title: FORMAT
+              description: "`FORMAT`, optional"
+              enum:
+                - json
+                - plain
+                - csv
+                - shell
+              examples:
+                - json
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
     v-list-web-domain-errorlog:
       allOf:
         - $ref: "#/components/schemas/Credentials"
@@ -63753,6 +64945,52 @@ components:
                 - "no"
             returncode:
               $ref: "#/components/schemas/ReturnCode"
+    v-rollback-web-domain-deploy:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+            - arg2
+            - arg3
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-rollback-web-domain-deploy
+              default: v-rollback-web-domain-deploy
+            arg1:
+              type: string
+              title: USER
+              description: "`USER`"
+              examples:
+                - alice
+            arg2:
+              type: string
+              title: DOMAIN
+              description: "`DOMAIN`"
+              examples:
+                - shop.example.com
+            arg3:
+              type: string
+              title: RELEASE
+              description: "`RELEASE`"
+              examples:
+                - "20261029-142501"
+            arg4:
+              type: string
+              title: FORMAT
+              description: "`FORMAT`, optional"
+              enum:
+                - json
+                - plain
+                - csv
+                - shell
+              examples:
+                - json
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
     v-run-app-process-task:
       allOf:
         - $ref: "#/components/schemas/Credentials"
@@ -64320,6 +65558,41 @@ components:
                 - DokuWiki
             returncode:
               $ref: "#/components/schemas/ReturnCode"
+    v-run-web-domain-deploy:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+            - arg2
+            - arg3
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-run-web-domain-deploy
+              default: v-run-web-domain-deploy
+            arg1:
+              type: string
+              title: USER
+              description: "`USER`"
+              examples:
+                - alice
+            arg2:
+              type: string
+              title: DOMAIN
+              description: "`DOMAIN`"
+              examples:
+                - shop.example.com
+            arg3:
+              type: string
+              title: TASK
+              description: "`TASK`"
+              examples:
+                - "17617400001234"
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
     v-save-fs-file:
       allOf:
         - $ref: "#/components/schemas/Credentials"
@@ -64751,6 +66024,51 @@ components:
               examples:
                 - example.com
             arg5:
+              type: string
+              title: FORMAT
+              description: "`FORMAT`, optional"
+              enum:
+                - json
+                - plain
+                - csv
+                - shell
+              examples:
+                - json
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
+    v-schedule-web-domain-deploy:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+            - arg2
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-schedule-web-domain-deploy
+              default: v-schedule-web-domain-deploy
+            arg1:
+              type: string
+              title: USER
+              description: "`USER`"
+              examples:
+                - alice
+            arg2:
+              type: string
+              title: DOMAIN
+              description: "`DOMAIN`"
+              examples:
+                - shop.example.com
+            arg3:
+              type: string
+              title: "REF|--artifact FILE"
+              description: "`REF|--artifact FILE`, optional"
+              examples:
+                - ""
+            arg4:
               type: string
               title: FORMAT
               description: "`FORMAT`, optional"

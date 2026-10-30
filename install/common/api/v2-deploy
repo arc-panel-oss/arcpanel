@@ -1,0 +1,4 @@
+# REST API v2 (E20): Git Deploy of web domains (configuration, deploys, releases, rollback, trusted publishers), plus the foundation reads. API v1 skips this set.
+ROLE='user'
+API_VERSION='2'
+COMMANDS='v-list-sys-config,v-list-users,v-list-user-owners,v-list-user,v-list-sys-languages,v-list-reseller-packages,v-list-package-tenancy,v-check-reseller-quota,v-list-web-domain-deploy,v-list-web-domain-deploys,v-add-web-domain-deploy,v-change-web-domain-deploy,v-change-web-domain-deploy-credential,v-add-web-domain-deploy-publisher,v-delete-web-domain-deploy-publisher,v-schedule-web-domain-deploy,v-rollback-web-domain-deploy,v-delete-web-domain-deploy'

@@ -71,6 +71,19 @@ final class WebDomainPolicy
             && ! $principal->isReadOnly();
     }
 
+    /** Git Deploy of a domain (E20 spec §7): its tab, releases and tasks. */
+    public function viewDeploy(Principal $principal, string $owner): bool
+    {
+        return Capabilities::allows($principal->actingRole(), 'web.domains.deploy', fn () => $this->scope->canSee($owner));
+    }
+
+    /** Turn Git Deploy on or off, change it, deploy and roll back. */
+    public function deploy(Principal $principal, string $owner): bool
+    {
+        return Capabilities::allows($principal->actingRole(), 'web.domains.deploy', fn () => $this->scope->canManage($owner))
+            && ! $principal->isReadOnly();
+    }
+
     /** Quick Install of an application on the owner's domain (E7 batch 2 spec §10). */
     public function installApp(Principal $principal, string $owner): bool
     {
@@ -119,6 +132,8 @@ final class WebDomainPolicy
             'viewPhp' => $this->viewPhp($principal, $owner),
             'changePhp' => $this->changePhp($principal, $owner),
             'changePhpSettings' => $this->changePhpSettings($principal, $owner),
+            'viewDeploy' => $this->viewDeploy($principal, $owner),
+            'deploy' => $this->deploy($principal, $owner),
         ];
     }
 }

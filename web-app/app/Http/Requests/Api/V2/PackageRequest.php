@@ -3,6 +3,7 @@
 namespace App\Http\Requests\Api\V2;
 
 use App\Services\Packages\PackageRecord;
+use App\Services\Packages\PackageService;
 use Closure;
 use Illuminate\Validation\ValidationException;
 
@@ -103,6 +104,8 @@ abstract class PackageRequest extends ApiRequest
             'object_storage.backup' => ['sometimes', 'boolean'],
             /** How often scheduled backup jobs may back up a user of the package at most: `hourly`, `daily` or `weekly` (E48). */
             'backup_frequency' => ['sometimes', 'string', 'in:hourly,daily,weekly'],
+            /** Whether users may deploy their web domains from Git or from their CI (E20); `true` when the package never set it. */
+            'git_deploy' => ['sometimes', 'boolean'],
             'php' => ['sometimes', 'array'],
             /** `*` (every installed version that has not reached its end of life) or a comma list of versions such as `8.3,8.4` (E41). */
             'php.versions' => ['sometimes', 'string', 'max:200', 'regex:/^(\*|\d{1,2}\.\d{1,2}(,\d{1,2}\.\d{1,2})*)$/'],
@@ -259,6 +262,18 @@ abstract class PackageRequest extends ApiRequest
     }
 
     /**
+     * GIT_DEPLOY of the package sidecar (E20 D13): the sent field over
+     * $base, yes when neither has it.
+     *
+     * @param  array<string, string>  $base
+     * @return array{GIT_DEPLOY: string}
+     */
+    public function deployValues(array $base): array
+    {
+        return ['GIT_DEPLOY' => $this->has('git_deploy') ? ($this->boolean('git_deploy') ? 'yes' : 'no') : PackageService::gitDeploy($base)];
+    }
+
+    /**
      * PHP keys of the package sidecar (E41 §7.5), or null when the request
      * has no `php` object, so they stay as they are.
      *
@@ -310,7 +325,7 @@ abstract class PackageRequest extends ApiRequest
                 'app_processes_memory' => 'app_processes.memory', 'app_processes_cpus' => 'app_processes.cpus',
                 'object_storage' => 'object_storage.enabled', 'object_storage_buckets' => 'object_storage.buckets',
                 'object_storage_quota' => 'object_storage.quota', 'object_storage_backup' => 'object_storage.backup',
-                'backup_frequency' => 'backup_frequency',
+                'backup_frequency' => 'backup_frequency', 'git_deploy' => 'git_deploy',
             ];
             foreach (self::LIMITS as $field => $key) {
                 $names[strtolower($key)] = 'limits.'.$field;

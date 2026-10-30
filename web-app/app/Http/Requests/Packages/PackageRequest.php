@@ -60,6 +60,8 @@ final class PackageRequest extends FormRequest
             'object_storage_backup' => ['nullable', 'boolean'],
             // How often a scheduled backup job backs up an account at most (E48 spec §8.2)
             'backup_frequency' => ['nullable', 'in:hourly,daily,weekly'],
+            // Git Deploy of the web domains (E20 D13), sent with the git_deploy_group marker
+            'git_deploy' => ['nullable', 'boolean'],
             // PHP of the package (E41 §7.5), sent with the php_group marker
             'php_versions_all' => ['nullable', 'boolean'],
             'php_versions' => ['nullable', 'array', Rule::requiredIf(fn () => $this->boolean('php_group') && ! $this->boolean('php_versions_all'))],
@@ -248,6 +250,22 @@ final class PackageRequest extends FormRequest
             'OBJECT_STORAGE_BACKUP' => $this->boolean('object_storage_backup') ? 'yes' : 'no',
             'BACKUP_FREQUENCY' => (string) ($this->input('backup_frequency') ?: 'daily'),
         ];
+    }
+
+    /**
+     * GIT_DEPLOY of the package sidecar (E20 D13), or null when the form
+     * has no git_deploy_group marker, so it stays as it is: the key is yes
+     * when missing, and a form without the switch must not turn it off.
+     *
+     * @return array{GIT_DEPLOY: string}|null
+     */
+    public function deployValues(): ?array
+    {
+        if (! $this->boolean('git_deploy_group')) {
+            return null;
+        }
+
+        return ['GIT_DEPLOY' => $this->boolean('git_deploy') ? 'yes' : 'no'];
     }
 
     /** @return list<string> */

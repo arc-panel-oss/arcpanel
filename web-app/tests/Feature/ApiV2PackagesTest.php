@@ -307,3 +307,29 @@ it('keeps a reseller package to the shells, templates and units of the plan (E39
         ->assertUnprocessable()->assertJsonStructure(['error' => ['fields' => ['node.allowed']]]);
     $this->postJson('/api/v2/packages', ['name' => 'business', 'resources' => ['memory_limit' => '1024M']], $headers)->assertCreated();
 });
+
+it('describes, sets and keeps Git Deploy of a package, within the reseller plan (E20 D13)', function () {
+    $this->packages['starter']['GIT_DEPLOY'] = 'no';
+    $this->getJson('/api/v2/packages/default', apiAs($this->fake, 'arcadmin', 'admin'))->assertOk()->assertJsonPath('data.git_deploy', true);
+    $this->getJson('/api/v2/packages/starter', apiAs($this->fake, 'arcadmin', 'admin'))->assertOk()->assertJsonPath('data.git_deploy', false);
+
+    apiPackageAdded($this, 'v-add-user-package', 'business');
+    $this->fake->on('v-update-user-package')->returns();
+    $this->fake->on('v-change-package-tenancy')->returns();
+    $this->postJson('/api/v2/packages', ['name' => 'business', 'git_deploy' => false], apiAs($this->fake, 'arcadmin', 'admin'))->assertCreated();
+    $this->fake->assertRan('v-change-package-tenancy', fn ($a) => $a === ['business', 'GIT_DEPLOY', 'no'], 1);
+    $this->postJson('/api/v2/packages', ['name' => 'other', 'git_deploy' => 'maybe'], apiAs($this->fake, 'arcadmin', 'admin'))
+        ->assertUnprocessable()->assertJsonStructure(['error' => ['fields' => ['git_deploy']]]);
+
+    // Left out, the field keeps the value of the package
+    $this->patchJson('/api/v2/packages/starter', ['limits' => ['web_domains' => 2]], apiAs($this->fake, 'arcadmin', 'admin'))->assertOk();
+    $this->fake->assertRan('v-change-package-tenancy', null, 1);
+    $this->patchJson('/api/v2/packages/starter', ['git_deploy' => true], apiAs($this->fake, 'arcadmin', 'admin'))->assertOk();
+    $this->fake->assertRan('v-change-package-tenancy', fn ($a) => $a === ['starter', 'GIT_DEPLOY', 'yes'], 1);
+
+    // The own package of hostco has no Git Deploy
+    $this->packages['reseller']['GIT_DEPLOY'] = 'no';
+    $this->postJson('/api/v2/packages', ['name' => 'business', 'git_deploy' => true], apiAs($this->fake, 'hostco', 'reseller'))
+        ->assertUnprocessable()->assertJsonStructure(['error' => ['fields' => ['git_deploy']]]);
+    $this->fake->assertNotRan('v-add-reseller-package');
+});

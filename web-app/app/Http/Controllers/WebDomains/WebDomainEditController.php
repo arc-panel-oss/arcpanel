@@ -17,8 +17,10 @@ use App\Policies\FilePolicy;
 use App\Policies\WebDomainPolicy;
 use App\Services\AppProcesses\AppProcess;
 use App\Services\AppProcesses\AppProcessService;
+use App\Services\Deploy\DeployService;
 use App\Services\Mail\CredentialsMailer;
 use App\Services\Php\PhpManager;
+use App\Services\Tasks\TaskService;
 use App\Services\UserDirectory;
 use App\Services\WebDomains\ApplyResult;
 use App\Services\WebDomains\Input;
@@ -47,7 +49,7 @@ final class WebDomainEditController extends Controller
         private readonly TemplateCatalog $catalog,
     ) {}
 
-    public function edit(string $user, string $domain, Principal $principal, WebDomainPolicy $policy, SysConfig $config, UserDirectory $directory, TemplateForm $form, FilePolicy $files, PhpManager $php, WebDomainActions $actions, AppProcessService $appProcesses, AppProcessPolicy $processPolicy): View
+    public function edit(string $user, string $domain, Principal $principal, WebDomainPolicy $policy, SysConfig $config, UserDirectory $directory, TemplateForm $form, FilePolicy $files, PhpManager $php, WebDomainActions $actions, AppProcessService $appProcesses, AppProcessPolicy $processPolicy, DeployService $deploy, TaskService $tasks): View
     {
         abort_unless($policy->view($principal, $user), 403);
         $record = $this->web->find($user, $domain);
@@ -105,7 +107,42 @@ final class WebDomainEditController extends Controller
             // Per-domain PHP settings (E19 §6) of a domain that runs PHP
             'phpSettings' => $domainPhp !== null && $domainPhp['version'] !== '' ? $php->settings($user, $domain) : null,
             'appProcesses' => $this->appProcessesTab($user, $domain, $principal, $appProcesses, $processPolicy),
+            'deploy' => $this->deployTab($user, $domain, $can, $deploy, $tasks),
         ]);
+    }
+
+    /**
+     * The Deploy tab (E20 spec §7): hidden when the package does not allow
+     * Git Deploy and it is off, or when the configuration cannot be read.
+     *
+     * @param  array<string, bool>  $can
+     * @return array{config: array<string, mixed>, history: array{releases: list<array<string, string>>, tasks: list<array<string, string>>}, issuers: array<string, string>, running: array<string, mixed>|null, canChange: bool}|null
+     */
+    private function deployTab(string $user, string $domain, array $can, DeployService $deploy, TaskService $tasks): ?array
+    {
+        if (! ($can['viewDeploy'] ?? false)) {
+            return null;
+        }
+        try {
+            $config = $deploy->config($user, $domain);
+            $state = (string) ($config['STATE'] ?? 'off');
+            if ($state === 'off' && ($config['REASON'] ?? '') === 'package') {
+                return null;
+            }
+            $history = $state !== 'off' ? $deploy->history($user, $domain) : ['releases' => [], 'tasks' => []];
+            $issuers = $state === 'off' || ($config['MODE'] ?? '') === 'push' ? $deploy->issuers() : [];
+        } catch (ArcCommandException) {
+            return null;
+        }
+        $running = (string) ($config['RUNNING'] ?? '') !== '' ? WebDomainDeployController::readTask($tasks, $user, $domain, (string) $config['RUNNING']) : null;
+
+        return [
+            'config' => $config,
+            'history' => $history,
+            'issuers' => $issuers,
+            'running' => $running !== null && in_array($running['task']['status'], ['running', 'queued'], true) ? $running : null,
+            'canChange' => $can['deploy'] ?? false,
+        ];
     }
 
     /**

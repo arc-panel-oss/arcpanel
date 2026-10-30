@@ -52,6 +52,7 @@ use App\Http\Controllers\Api\V2\UpdateCenterController;
 use App\Http\Controllers\Api\V2\UpdateController;
 use App\Http\Controllers\Api\V2\UserController;
 use App\Http\Controllers\Api\V2\WebDomainController;
+use App\Http\Controllers\Api\V2\WebDomainDeployController;
 use App\Http\Controllers\Api\V2\WebDomainPhpController;
 use App\Services\Server\UpdateCenter;
 use Illuminate\Support\Facades\Route;
@@ -396,6 +397,21 @@ Route::middleware('effective-user')->group(function () {
         Route::delete('/{domain}/php/settings', [WebDomainPhpController::class, 'resetSettings'])->middleware('throttle:php-switch')->name('php.settings.destroy');
     });
 
+    // Git Deploy of a web domain (E20 §8); a release is a UTC timestamp, a publisher p1…p999
+    Route::prefix('/users/{user}/web-domains/{domain}/deploy')->name('web-domains.deploy.')->group(function () {
+        $release = ['id' => '\d{8}-\d{6}'];
+        Route::get('/', [WebDomainDeployController::class, 'show'])->name('show');
+        Route::get('/releases', [WebDomainDeployController::class, 'releases'])->name('releases.index');
+        Route::middleware('not-readonly')->group(function () use ($release) {
+            Route::put('/', [WebDomainDeployController::class, 'update'])->name('update');
+            Route::delete('/', [WebDomainDeployController::class, 'destroy'])->name('destroy');
+            Route::post('/runs', [WebDomainDeployController::class, 'run'])->middleware('throttle:deploy')->name('runs.store');
+            Route::post('/releases/{id}/rollback', [WebDomainDeployController::class, 'rollback'])->where($release)->middleware('throttle:deploy')->name('releases.rollback');
+            Route::post('/publishers', [WebDomainDeployController::class, 'addPublisher'])->name('publishers.store');
+            Route::delete('/publishers/{pub}', [WebDomainDeployController::class, 'deletePublisher'])->where('pub', 'p\d{1,3}')->name('publishers.destroy');
+        });
+    });
+
     // DNS zones and records (E34 batch 2 spec §6.1)
     Route::get('/users/{user}/dns-zones', [DnsController::class, 'index'])->name('dns-zones.index');
     Route::get('/users/{user}/dns-zones/{domain}', [DnsController::class, 'show'])->name('dns-zones.show');
@@ -645,6 +661,8 @@ foreach (Route::getRoutes() as $route) {
         str_starts_with($uri, 'api/v2/audit') => 'audit',
         // App processes and their tasks, before the /tasks match
         str_contains($uri, '/app-process') => 'apps',
+        // Git Deploy has its own set (E20 D13), before the /web-domains match
+        str_contains($uri, '/web-domains/{domain}/deploy') => 'deploy',
         str_contains($uri, '/web-domains') => 'web',
         str_contains($uri, '/secrets') => 'secrets',
         str_contains($uri, '/buckets'), str_contains($uri, '/s3-keys') => 'storage',

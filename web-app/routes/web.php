@@ -86,6 +86,7 @@ use App\Http\Controllers\Users\UserEditController;
 use App\Http\Controllers\WebDomains\QuickInstallController;
 use App\Http\Controllers\WebDomains\WebDomainActionController;
 use App\Http\Controllers\WebDomains\WebDomainController;
+use App\Http\Controllers\WebDomains\WebDomainDeployController;
 use App\Http\Controllers\WebDomains\WebDomainEditController;
 use App\Http\Controllers\WebDomains\WebDomainLogController;
 use App\Http\Controllers\WebDomains\WebDomainPhpController;
@@ -344,6 +345,9 @@ Route::middleware('auth.arc')->group(function () {
             }
             Route::post('/white-label', [ServerSettingsController::class, 'whiteLabel'])->name('update.white-label');
             Route::post('/web/php', [ServerSettingsController::class, 'php'])->name('php');
+            // The Git Deploy card (E20 spec §3.4, §7)
+            Route::post('/web/deploy', [ServerSettingsController::class, 'deploy'])->name('deploy');
+            Route::delete('/web/deploy/issuers', [ServerSettingsController::class, 'removeDeployIssuer'])->name('deploy.issuers.destroy');
             Route::post('/databases/hosts/{type}/{host}/password', [ServerSettingsController::class, 'databaseHostPassword'])
                 ->where(['type' => 'mysql|pgsql', 'host' => '[A-Za-z0-9][A-Za-z0-9.:_-]{0,252}'])->name('dbhost');
             Route::post('/plugins/{plugin}', [ServerSettingsController::class, 'plugin'])
@@ -837,6 +841,9 @@ Route::middleware('auth.arc')->group(function () {
             Route::get('/install/{app}', [QuickInstallController::class, 'form'])->where('app', '[A-Za-z][A-Za-z0-9]{0,63}')->name('install.form');
             Route::get('/install-task', [QuickInstallController::class, 'task'])->name('install.task');
             Route::post('/install/{app}', [QuickInstallController::class, 'start'])->where('app', '[A-Za-z][A-Za-z0-9]{0,63}')->middleware('not-readonly')->name('install.start');
+            // Git Deploy (E20 §7): the state of the tab and the log of a deploy task
+            Route::get('/deploy/state', [WebDomainDeployController::class, 'state'])->name('deploy.state');
+            Route::get('/deploy/tasks/{task}', [WebDomainDeployController::class, 'task'])->where('task', '\d{14}')->name('deploy.task');
 
             Route::middleware('not-readonly')->group(function () {
                 foreach (['general', 'ssl', 'redirect', 'advanced', 'ftp', 'stats'] as $tab) {
@@ -847,6 +854,15 @@ Route::middleware('auth.arc')->group(function () {
                 // Per-domain PHP settings (E19 §6)
                 Route::post('/php/settings', [WebDomainPhpSettingsController::class, 'update'])->middleware('throttle:php-switch')->name('update.php-settings');
                 Route::post('/php/settings/reset', [WebDomainPhpSettingsController::class, 'reset'])->middleware('throttle:php-switch')->name('reset.php-settings');
+                // Git Deploy (E20 §7)
+                Route::post('/deploy', [WebDomainDeployController::class, 'store'])->name('deploy.store');
+                Route::post('/deploy/settings', [WebDomainDeployController::class, 'update'])->name('deploy.update');
+                Route::post('/deploy/run', [WebDomainDeployController::class, 'run'])->middleware('throttle:deploy')->name('deploy.run');
+                Route::post('/deploy/rollback/{release}', [WebDomainDeployController::class, 'rollback'])->where('release', '\d{8}-\d{6}')->middleware('throttle:deploy')->name('deploy.rollback');
+                Route::post('/deploy/credential/{kind}', [WebDomainDeployController::class, 'credential'])->whereIn('kind', ['key', 'webhook', 'id', 'token'])->name('deploy.credential');
+                Route::post('/deploy/publishers', [WebDomainDeployController::class, 'addPublisher'])->name('deploy.publishers.store');
+                Route::delete('/deploy/publishers/{pub}', [WebDomainDeployController::class, 'deletePublisher'])->where('pub', 'p\d{1,3}')->name('deploy.publishers.destroy');
+                Route::delete('/deploy', [WebDomainDeployController::class, 'destroy'])->name('deploy.destroy');
                 // CSR generator of the SSL tab (E7 batch 3 spec §12.2)
                 Route::post('/ssl/generate', [CsrController::class, 'webDomain'])->name('ssl.generate');
                 Route::post('/suspend', [WebDomainActionController::class, 'suspend'])->name('suspend');

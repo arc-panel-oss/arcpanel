@@ -372,6 +372,11 @@ function fakeWebDomains(ArcCommandFake $fake): void
     $fake->on('v-list-web-domain-tpl-vars')->returnsFixture('v-list-web-domain-tpl-vars/none.json');
     // Per-domain PHP settings of the PHP tab (E19)
     $fake->on('v-list-web-domain-php-settings')->returnsJson(domainPhpSettingsRow());
+    // Git Deploy of the Deploy tab (E20): off, and allowed by the package
+    $fake->on('v-list-web-domain-deploy')->using(fn (array $args) => [0, json_encode([$args[1] => deployRow()])]);
+    $fake->on('v-list-web-domain-deploys')->returnsJson(['releases' => [], 'tasks' => []]);
+    $fake->on('v-list-sys-deploy')->returnsJson(['DEPLOY_PORT' => '8088', 'DEPLOY_MAX_ARTIFACT' => '512M', 'DEPLOY_BUILD_TIMEOUT' => '900',
+        'DEPLOY_OIDC_ISSUERS' => 'https://token.actions.githubusercontent.com,https://gitlab.com', 'DOMAINS' => '0', 'PORT_OPEN' => 'no']);
     $fake->on('v-delete-web-domain-tpl-vars')->returns();
     // Runtimes of the template badges (E5): no Node.js runtime, Python only
     $fake->on('v-list-user-node-versions')->returnsJson(['ENABLED' => 'no', 'VERSIONS' => []]);
@@ -981,6 +986,17 @@ function storageAccount(array $overrides = []): array
 }
 
 /** A row of `v-list-web-domain-php USER DOMAIN json` (E41 §8). */
+/** A row of v-list-web-domain-deploy json (E20); off and allowed by default. */
+function deployRow(array $overrides = []): array
+{
+    return array_replace([
+        'ID' => '', 'MODE' => '', 'URL' => '', 'BRANCH' => '', 'AUTH' => '', 'PRESET' => '', 'SHARED' => '', 'KEEP' => '',
+        'WEBROOT' => '', 'MIGRATE' => '', 'HEALTH_PATH' => '', 'STATE' => 'off', 'CURRENT' => '', 'RUNNING' => '', 'PENDING' => '',
+        'SUPPORTED' => 'yes', 'REASON' => '', 'WEBHOOK_URL' => '', 'UPLOAD_URL' => '', 'DOCROOT' => '', 'DEPLOY_PORT' => '8088',
+        'PORT_OPEN' => 'no', 'PUBLIC_KEY' => '', 'PUBLISHERS' => [],
+    ], $overrides);
+}
+
 function domainPhpRow(array $overrides = []): array
 {
     return array_replace([

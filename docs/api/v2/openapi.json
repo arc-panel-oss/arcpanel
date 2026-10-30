@@ -32141,6 +32141,843 @@
                 "x-arcpanel-permission-set": "v2-web"
             }
         },
+        "/users/{user}/web-domains/{domain}/deploy": {
+            "get": {
+                "operationId": "getWebDomainDeploy",
+                "description": "Its state (`off`, `new` until the first deploy succeeded, `active`),\nmode, settings, endpoint URLs, trusted publishers, and whether the\ndomain can use deploy at all (`supported`, `reason`).",
+                "summary": "Get the Git Deploy of a web domain",
+                "tags": [
+                    "Web domains"
+                ],
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "domain",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "`WebDomainDeploy`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/WebDomainDeploy"
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    }
+                },
+                "x-arcpanel-permission-set": "v2-deploy"
+            },
+            "put": {
+                "operationId": "configureWebDomainDeploy",
+                "description": "When deploy is off, turns it on: `mode` `pull` with `url` (and\n`branch`, `preset`, `auth`, `token`) or `push` with an optional first\n`publisher`; the other settings are saved after it. A new deploy key\nand webhook secret are answered once (`public_key`, `webhook_secret`).\nWhen deploy is on, saves the settings that differ; `auth` `key` makes a\nnew key pair (answered once), `token` stores a new token. The mode\ncannot change while deploy is on. A package without Git Deploy answers\n`403`, a domain whose template cannot serve releases `409` `E_DISABLED`.",
+                "summary": "Configure the Git Deploy of a web domain",
+                "tags": [
+                    "Web domains"
+                ],
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "domain",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "dry_run",
+                        "in": "query",
+                        "description": "Validate, authorize and plan the change, and answer with its steps instead of running them.",
+                        "schema": {
+                            "type": "boolean",
+                            "default": false
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/ConfigureWebDomainDeployRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "`WebDomainDeploy`; with `dry_run`, the planned steps.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "oneOf": [
+                                        {
+                                            "type": "object",
+                                            "properties": {
+                                                "data": {
+                                                    "$ref": "#/components/schemas/WebDomainDeploy"
+                                                }
+                                            },
+                                            "required": [
+                                                "data"
+                                            ]
+                                        },
+                                        {
+                                            "$ref": "#/components/schemas/DryRun"
+                                        }
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "409": {
+                        "description": "`E_DISABLED`: The domain has no PHP-FPM backend, or its pool template lacks the release paths.",
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/Error"
+                                }
+                            }
+                        }
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    },
+                    "503": {
+                        "$ref": "#/components/responses/Unavailable"
+                    }
+                },
+                "x-arcpanel-permission-set": "v2-deploy"
+            },
+            "delete": {
+                "operationId": "disableWebDomainDeploy",
+                "description": "Running and pending deploys stop, the document root from before the\nfirst deploy comes back and the credentials are deleted; `releases/`\nand `shared/` stay in the home directory.",
+                "summary": "Turn the Git Deploy of a web domain off",
+                "tags": [
+                    "Web domains"
+                ],
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "domain",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "dry_run",
+                        "in": "query",
+                        "description": "Validate, authorize and plan the change, and answer with its steps instead of running them.",
+                        "schema": {
+                            "type": "boolean",
+                            "default": false
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "`WebDomainDeploy`; with `dry_run`, the planned steps.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "oneOf": [
+                                        {
+                                            "type": "object",
+                                            "properties": {
+                                                "data": {
+                                                    "$ref": "#/components/schemas/WebDomainDeploy"
+                                                }
+                                            },
+                                            "required": [
+                                                "data"
+                                            ]
+                                        },
+                                        {
+                                            "$ref": "#/components/schemas/DryRun"
+                                        }
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "409": {
+                        "$ref": "#/components/responses/Conflict"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    },
+                    "503": {
+                        "$ref": "#/components/responses/Unavailable"
+                    }
+                },
+                "x-arcpanel-permission-set": "v2-deploy"
+            }
+        },
+        "/users/{user}/web-domains/{domain}/deploy/publishers": {
+            "post": {
+                "operationId": "addWebDomainDeployPublisher",
+                "description": "Push mode: a CI whose OIDC token comes from `issuer` for `repository`,\nand matches `ref` or `environment` (at least one), may upload archives.\nAn issuer the server does not allow answers `422`.",
+                "summary": "Add a trusted publisher to a web domain's Git Deploy",
+                "tags": [
+                    "Web domains"
+                ],
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "domain",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "dry_run",
+                        "in": "query",
+                        "description": "Validate, authorize and plan the change, and answer with its steps instead of running them.",
+                        "schema": {
+                            "type": "boolean",
+                            "default": false
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/AddWebDomainDeployPublisherRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "`WebDomainDeploy`; with `dry_run`, the planned steps.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "oneOf": [
+                                        {
+                                            "type": "object",
+                                            "properties": {
+                                                "data": {
+                                                    "$ref": "#/components/schemas/WebDomainDeploy"
+                                                }
+                                            },
+                                            "required": [
+                                                "data"
+                                            ]
+                                        },
+                                        {
+                                            "$ref": "#/components/schemas/DryRun"
+                                        }
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "409": {
+                        "$ref": "#/components/responses/Conflict"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    },
+                    "503": {
+                        "$ref": "#/components/responses/Unavailable"
+                    }
+                },
+                "x-arcpanel-permission-set": "v2-deploy"
+            }
+        },
+        "/users/{user}/web-domains/{domain}/deploy/publishers/{pub}": {
+            "delete": {
+                "operationId": "deleteWebDomainDeployPublisher",
+                "description": "Its CI can no longer upload archives.",
+                "summary": "Remove a trusted publisher from a web domain's Git Deploy",
+                "tags": [
+                    "Web domains"
+                ],
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "domain",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "pub",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "dry_run",
+                        "in": "query",
+                        "description": "Validate, authorize and plan the change, and answer with its steps instead of running them.",
+                        "schema": {
+                            "type": "boolean",
+                            "default": false
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "`WebDomainDeploy`; with `dry_run`, the planned steps.",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "oneOf": [
+                                        {
+                                            "type": "object",
+                                            "properties": {
+                                                "data": {
+                                                    "$ref": "#/components/schemas/WebDomainDeploy"
+                                                }
+                                            },
+                                            "required": [
+                                                "data"
+                                            ]
+                                        },
+                                        {
+                                            "$ref": "#/components/schemas/DryRun"
+                                        }
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "409": {
+                        "$ref": "#/components/responses/Conflict"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    },
+                    "503": {
+                        "$ref": "#/components/responses/Unavailable"
+                    }
+                },
+                "x-arcpanel-permission-set": "v2-deploy"
+            }
+        },
+        "/users/{user}/web-domains/{domain}/deploy/releases": {
+            "get": {
+                "operationId": "listWebDomainDeployReleases",
+                "description": "Newest first, with the one that is live (`current`).",
+                "summary": "List the releases of a web domain's Git Deploy",
+                "tags": [
+                    "Web domains"
+                ],
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "domain",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "limit",
+                        "in": "query",
+                        "description": "Page size, from 1 to 1000. Without it the list is complete.",
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 1000
+                        }
+                    },
+                    {
+                        "name": "offset",
+                        "in": "query",
+                        "description": "Items to skip. Used when `limit` is set; 0 when omitted.",
+                        "schema": {
+                            "type": "integer",
+                            "minimum": 0
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Array of `WebDomainDeployRelease`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/components/schemas/WebDomainDeployRelease"
+                                            }
+                                        },
+                                        "meta": {
+                                            "$ref": "#/components/schemas/ListMeta"
+                                        }
+                                    },
+                                    "required": [
+                                        "data",
+                                        "meta"
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    }
+                },
+                "x-arcpanel-permission-set": "v2-deploy"
+            }
+        },
+        "/users/{user}/web-domains/{domain}/deploy/releases/{id}/rollback": {
+            "post": {
+                "operationId": "rollbackWebDomainDeploy",
+                "description": "Switches to the release without a build; database migrations of later\nreleases are not undone. Runs as a deploy task, after a deploy that runs.",
+                "summary": "Roll a web domain back to a release",
+                "tags": [
+                    "Web domains"
+                ],
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "domain",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "id",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "dry_run",
+                        "in": "query",
+                        "description": "Validate, authorize and plan the change, and answer with its steps instead of running them.",
+                        "schema": {
+                            "type": "boolean",
+                            "default": false
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "With `dry_run`: the planned steps; nothing ran.",
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/DryRun"
+                                }
+                            }
+                        }
+                    },
+                    "202": {
+                        "description": "`Task`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/Task"
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            },
+                            "Link": {
+                                "$ref": "#/components/headers/Link"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "409": {
+                        "$ref": "#/components/responses/Conflict"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    },
+                    "503": {
+                        "$ref": "#/components/responses/Unavailable"
+                    }
+                },
+                "x-arcpanel-permission-set": "v2-deploy"
+            }
+        },
+        "/users/{user}/web-domains/{domain}/deploy/runs": {
+            "post": {
+                "operationId": "runWebDomainDeploy",
+                "description": "Pull mode: fetches the branch, or `ref` (a commit or a ref name), builds\nit with the preset and switches to it. While a deploy of the domain\nruns, the request waits as the pending one (the newest wins). A domain\nin push mode deploys the archives its CI uploads (`422`).",
+                "summary": "Deploy a web domain",
+                "tags": [
+                    "Web domains"
+                ],
+                "parameters": [
+                    {
+                        "name": "user",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "domain",
+                        "in": "path",
+                        "required": true,
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    {
+                        "name": "dry_run",
+                        "in": "query",
+                        "description": "Validate, authorize and plan the change, and answer with its steps instead of running them.",
+                        "schema": {
+                            "type": "boolean",
+                            "default": false
+                        }
+                    }
+                ],
+                "requestBody": {
+                    "content": {
+                        "application/json": {
+                            "schema": {
+                                "$ref": "#/components/schemas/RunWebDomainDeployRequest"
+                            }
+                        }
+                    }
+                },
+                "responses": {
+                    "200": {
+                        "description": "With `dry_run`: the planned steps; nothing ran.",
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            }
+                        },
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "$ref": "#/components/schemas/DryRun"
+                                }
+                            }
+                        }
+                    },
+                    "202": {
+                        "description": "`Task`",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/components/schemas/Task"
+                                        }
+                                    },
+                                    "required": [
+                                        "data"
+                                    ]
+                                }
+                            }
+                        },
+                        "headers": {
+                            "X-Request-Id": {
+                                "$ref": "#/components/headers/RequestId"
+                            },
+                            "ArcPanel-Version": {
+                                "$ref": "#/components/headers/Version"
+                            },
+                            "Link": {
+                                "$ref": "#/components/headers/Link"
+                            }
+                        }
+                    },
+                    "401": {
+                        "$ref": "#/components/responses/Unauthenticated"
+                    },
+                    "403": {
+                        "$ref": "#/components/responses/Forbidden"
+                    },
+                    "404": {
+                        "$ref": "#/components/responses/NotFound"
+                    },
+                    "409": {
+                        "$ref": "#/components/responses/Conflict"
+                    },
+                    "422": {
+                        "$ref": "#/components/responses/ValidationFailed"
+                    },
+                    "429": {
+                        "$ref": "#/components/responses/TooManyRequests"
+                    },
+                    "500": {
+                        "$ref": "#/components/responses/ServerError"
+                    },
+                    "503": {
+                        "$ref": "#/components/responses/Unavailable"
+                    }
+                },
+                "x-arcpanel-permission-set": "v2-deploy"
+            }
+        },
         "/users/{user}/web-domains/{domain}/letsencrypt": {
             "post": {
                 "operationId": "requestWebDomainLetsEncrypt",
@@ -33625,6 +34462,48 @@
                 ],
                 "title": "AddSshKeyRequest"
             },
+            "AddWebDomainDeployPublisherRequest": {
+                "type": "object",
+                "description": "POST /users/{user}/web-domains/{domain}/deploy/publishers (E20 §8): a\ntrusted publisher of push mode. The issuer must be one the server allows\n(`DEPLOY_OIDC_ISSUERS`), which the command checks.",
+                "properties": {
+                    "issuer": {
+                        "type": "string",
+                        "description": "The OIDC issuer: `https://token.actions.githubusercontent.com`, `https://gitlab.com` or one the administrator added.",
+                        "pattern": "^https:\\/\\/[A-Za-z0-9.-]+(:[0-9]{1,5})?(\\/[A-Za-z0-9._~\\/-]*)?$",
+                        "maxLength": 200
+                    },
+                    "repository": {
+                        "type": "string",
+                        "description": "The repository: GitHub `owner/name`, GitLab `group/project`.",
+                        "maxLength": 200
+                    },
+                    "ref": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "The branch (`main`, `refs/heads/main`) or tag (`refs/tags/v1`); this or `environment` is required.",
+                        "maxLength": 200
+                    },
+                    "environment": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "The deployment environment of the CI job; this or `ref` is required.",
+                        "maxLength": 100
+                    },
+                    "workflow": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "GitHub: the workflow file that may deploy, such as `.github/workflows/deploy.yml`.",
+                        "maxLength": 200
+                    }
+                },
+                "title": "AddWebDomainDeployPublisherRequest"
+            },
             "AdoptPortRuleRequest": {
                 "type": "object",
                 "properties": {
@@ -35107,6 +35986,125 @@
                     "name"
                 ],
                 "title": "CompressFilesRequest"
+            },
+            "ConfigureWebDomainDeployRequest": {
+                "type": "object",
+                "description": "PUT /users/{user}/web-domains/{domain}/deploy (E20 §8): turn Git Deploy on\n(`mode` and its settings) or change the settings of a deploy that is on.\nFields left out stay; the format checks are those of the commands (§4.1),\nthe checks that depend on the mode are made by the controller.",
+                "properties": {
+                    "mode": {
+                        "type": "string",
+                        "description": "`pull` (the server fetches and builds) or `push` (a CI uploads a built archive); needed to turn deploy on, and cannot change while it is on.",
+                        "enum": [
+                            "pull",
+                            "push"
+                        ]
+                    },
+                    "url": {
+                        "type": "string",
+                        "description": "Pull mode: the repository, `git@host:path`, `ssh://…` or `https://…`.",
+                        "maxLength": 500
+                    },
+                    "branch": {
+                        "type": "string",
+                        "description": "Pull mode: the branch to deploy (`main` when turning on).",
+                        "maxLength": 200
+                    },
+                    "preset": {
+                        "type": "string",
+                        "description": "Pull mode: the build preset (`none` when turning on).",
+                        "enum": [
+                            "none",
+                            "laravel",
+                            "static",
+                            "custom"
+                        ]
+                    },
+                    "auth": {
+                        "type": "string",
+                        "description": "Pull mode: `key` (a deploy key is created and its public part answered once) or `token` (an HTTPS token, with an `https://` URL).",
+                        "enum": [
+                            "key",
+                            "token"
+                        ]
+                    },
+                    "token": {
+                        "type": "string",
+                        "description": "Pull mode: the HTTPS token; stored in the secret store, never answered.",
+                        "maxLength": 4096
+                    },
+                    "webroot": {
+                        "type": "string",
+                        "description": "`.` or the folder of the release served as the document root (`public`, `dist`).",
+                        "maxLength": 200
+                    },
+                    "shared": {
+                        "type": "array",
+                        "description": "Paths linked from `shared/` into every release (a trailing `/` for a folder), at most 20.",
+                        "items": {
+                            "type": "string",
+                            "maxLength": 200
+                        },
+                        "maxItems": 20
+                    },
+                    "keep": {
+                        "type": "integer",
+                        "description": "Releases kept, 1–20.",
+                        "minimum": 1,
+                        "maximum": 20
+                    },
+                    "migrate": {
+                        "type": "boolean",
+                        "description": "Pull mode with the laravel preset: run the migrations before the switch."
+                    },
+                    "health_path": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "A path checked after the switch (a failure rolls back), or null for none.",
+                        "maxLength": 200
+                    },
+                    "publisher": {
+                        "type": [
+                            "object",
+                            "null"
+                        ],
+                        "description": "Push mode, when turning on: the first trusted publisher.",
+                        "properties": {
+                            "issuer": {
+                                "type": "string",
+                                "pattern": "^https:\\/\\/[A-Za-z0-9.-]+(:[0-9]{1,5})?(\\/[A-Za-z0-9._~\\/-]*)?$",
+                                "maxLength": 200
+                            },
+                            "repository": {
+                                "type": "string",
+                                "maxLength": 200
+                            },
+                            "ref": {
+                                "type": [
+                                    "string",
+                                    "null"
+                                ],
+                                "maxLength": 200
+                            },
+                            "environment": {
+                                "type": [
+                                    "string",
+                                    "null"
+                                ],
+                                "maxLength": 100
+                            },
+                            "workflow": {
+                                "type": [
+                                    "string",
+                                    "null"
+                                ],
+                                "maxLength": 200
+                            }
+                        }
+                    }
+                },
+                "title": "ConfigureWebDomainDeployRequest"
             },
             "CopyPackageRequest": {
                 "type": "object",
@@ -39236,6 +40234,10 @@
                             "backup"
                         ]
                     },
+                    "git_deploy": {
+                        "type": "boolean",
+                        "description": "users may deploy their web domains from Git or from their CI (E20); true when the package never set it"
+                    },
                     "php": {
                         "type": "object",
                         "properties": {
@@ -39316,6 +40318,7 @@
                     "docker",
                     "app_processes",
                     "object_storage",
+                    "git_deploy",
                     "php",
                     "created_at"
                 ],
@@ -40847,6 +41850,21 @@
                     }
                 },
                 "title": "RunUpdatesRequest"
+            },
+            "RunWebDomainDeployRequest": {
+                "type": "object",
+                "description": "POST /users/{user}/web-domains/{domain}/deploy/runs (E20 §8): a deploy of\npull mode, of the branch or of one commit or ref.",
+                "properties": {
+                    "ref": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "A commit (40 hex digits) or a ref name to deploy instead of the head of the branch.",
+                        "maxLength": 200
+                    }
+                },
+                "title": "RunWebDomainDeployRequest"
             },
             "S3Key": {
                 "type": "object",
@@ -43690,6 +44708,9 @@
                             "weekly"
                         ]
                     },
+                    "git_deploy": {
+                        "type": "boolean"
+                    },
                     "php": {
                         "type": "object",
                         "properties": {
@@ -45041,6 +46062,9 @@
                             "daily",
                             "weekly"
                         ]
+                    },
+                    "git_deploy": {
+                        "type": "boolean"
                     },
                     "php": {
                         "type": "object",
@@ -46582,6 +47606,329 @@
                     "alias"
                 ],
                 "title": "WebDomainAliasRequest"
+            },
+            "WebDomainDeploy": {
+                "type": "object",
+                "properties": {
+                    "domain": {
+                        "type": "string"
+                    },
+                    "state": {
+                        "type": "string",
+                        "description": "`new` until the first deploy succeeded",
+                        "enum": [
+                            "off",
+                            "new",
+                            "active"
+                        ]
+                    },
+                    "mode": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "enum": [
+                            "pull",
+                            "push",
+                            null
+                        ]
+                    },
+                    "id": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "the ID of the endpoint URLs; it hides the domain name"
+                    },
+                    "url": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "pull mode: the repository"
+                    },
+                    "branch": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "pull mode: the branch deployed"
+                    },
+                    "auth": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "pull mode: how the server reaches the repository",
+                        "enum": [
+                            "key",
+                            "token",
+                            null
+                        ]
+                    },
+                    "preset": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "enum": [
+                            "none",
+                            "laravel",
+                            "static",
+                            "custom",
+                            null
+                        ]
+                    },
+                    "shared": {
+                        "type": "array",
+                        "description": "paths linked from `shared/` into every release",
+                        "items": {
+                            "type": "string"
+                        }
+                    },
+                    "keep": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ],
+                        "description": "releases kept"
+                    },
+                    "webroot": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "`.` or the folder of the release served as the document root"
+                    },
+                    "migrate": {
+                        "type": [
+                            "boolean",
+                            "null"
+                        ],
+                        "description": "pull mode: migrations run before the switch"
+                    },
+                    "health_path": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "the path checked after the switch"
+                    },
+                    "current_release": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "the release that is live (`YYYYMMDD-HHMMSS`)"
+                    },
+                    "running_task": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "the deploy task that runs, for `getTask`"
+                    },
+                    "pending_task": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "the deploy task that waits for it (the newest request wins)"
+                    },
+                    "supported": {
+                        "type": "boolean",
+                        "description": "whether the domain can use deploy"
+                    },
+                    "reason": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "why it cannot",
+                        "enum": [
+                            "package",
+                            "backend",
+                            "template",
+                            null
+                        ]
+                    },
+                    "webhook_url": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "pull mode: the URL of the Git host's webhook"
+                    },
+                    "upload_url": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "push mode: the URL the CI uploads to (the audience of its OIDC token)"
+                    },
+                    "document_root": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "the custom document root of the domain"
+                    },
+                    "deploy_port": {
+                        "type": [
+                            "integer",
+                            "null"
+                        ]
+                    },
+                    "port_open": {
+                        "type": "boolean",
+                        "description": "whether the deploy port is open (a domain of the server uses deploy)"
+                    },
+                    "publishers": {
+                        "type": "array",
+                        "description": "push mode: the trusted publishers",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "id": {
+                                    "type": "string"
+                                },
+                                "issuer": {
+                                    "type": "string"
+                                },
+                                "repository": {
+                                    "type": "string"
+                                },
+                                "ref": {
+                                    "type": [
+                                        "string",
+                                        "null"
+                                    ]
+                                },
+                                "environment": {
+                                    "type": [
+                                        "string",
+                                        "null"
+                                    ]
+                                },
+                                "workflow": {
+                                    "type": [
+                                        "string",
+                                        "null"
+                                    ]
+                                }
+                            },
+                            "required": [
+                                "id",
+                                "issuer",
+                                "repository",
+                                "ref",
+                                "environment",
+                                "workflow"
+                            ]
+                        }
+                    },
+                    "public_key": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "the public deploy key, to add to the Git host: only in the answer of the request that created the key pair"
+                    },
+                    "webhook_secret": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "the webhook secret, to enter at the Git host: only in the answer of the request that created it"
+                    }
+                },
+                "required": [
+                    "domain",
+                    "state",
+                    "mode",
+                    "id",
+                    "url",
+                    "branch",
+                    "auth",
+                    "preset",
+                    "shared",
+                    "keep",
+                    "webroot",
+                    "migrate",
+                    "health_path",
+                    "current_release",
+                    "running_task",
+                    "pending_task",
+                    "supported",
+                    "reason",
+                    "webhook_url",
+                    "upload_url",
+                    "document_root",
+                    "deploy_port",
+                    "port_open",
+                    "publishers",
+                    "public_key",
+                    "webhook_secret"
+                ],
+                "title": "WebDomainDeploy"
+            },
+            "WebDomainDeployRelease": {
+                "type": "object",
+                "properties": {
+                    "id": {
+                        "type": "string",
+                        "description": "`YYYYMMDD-HHMMSS` (UTC), the release to roll back to"
+                    },
+                    "source": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "`pull` or `archive`"
+                    },
+                    "commit": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "the commit of a pull deploy"
+                    },
+                    "ref": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "the ref deployed"
+                    },
+                    "created_at": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "UTC"
+                    },
+                    "task": {
+                        "type": [
+                            "string",
+                            "null"
+                        ],
+                        "description": "the task that made it, for `getTask` while the task record is kept"
+                    },
+                    "current": {
+                        "type": "boolean",
+                        "description": "whether it is live"
+                    }
+                },
+                "required": [
+                    "id",
+                    "source",
+                    "commit",
+                    "ref",
+                    "created_at",
+                    "task",
+                    "current"
+                ],
+                "title": "WebDomainDeployRelease"
             },
             "WebDomainLogMeta": {
                 "type": "object",

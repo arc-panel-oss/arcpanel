@@ -23,6 +23,10 @@
 # validates a php.ini change without saving it, and moves a web domain of a
 # throw-away user to the small profile; it installs nothing.
 #
+# Git Deploy (E20) turns push mode on for that domain, adds and removes a
+# trusted publisher and turns it off again; the deploy port is open while it
+# is on. Nothing is uploaded or deployed.
+#
 # Run as root on a test server, never on production.
 
 set -euo pipefail
@@ -981,6 +985,42 @@ check "the pool runs with the domain's memory_limit" 'php_admin_value[memory_lim
 check "a value above the package maximum answers 422" 422 "$(call "$PHP_KEY" PUT "/users/$PHP_USER/web-domains/$PHP_DOMAIN/php/settings" '{"memory_limit": "2G"}')"
 check "resetWebDomainPhpSettings answers 200" 200 "$(call "$PHP_KEY" DELETE "/users/$PHP_USER/web-domains/$PHP_DOMAIN/php/settings")"
 check "memory_limit is inherited again" null "$(json .data.settings.memory_limit.value)"
+# Git Deploy (E20 spec §8): push mode on the same domain with a key holding only v2-deploy;
+# nothing is uploaded, so no release is made
+DEPLOY_KEY=$(new_key "$PHP_USER" v2-deploy)
+DEPLOY="/users/$PHP_USER/web-domains/$PHP_DOMAIN/deploy"
+deploy_state() { "$ARCPANEL/bin/v-list-web-domain-deploy" "$PHP_USER" "$PHP_DOMAIN" json | jq -r '.[].STATE'; }
+check "getWebDomainDeploy answers 200" 200 "$(call "$DEPLOY_KEY" GET "$DEPLOY")"
+check "deploy starts off" off "$(json .data.state)"
+if [ "$(json .data.supported)" = true ]; then
+	check "a v2-read+v2-web key may not turn deploy on" 403 "$(call "$PHP_KEY" PUT "$DEPLOY" '{"mode": "push"}')"
+	check "configureWebDomainDeploy dry run answers 200" 200 "$(call "$DEPLOY_KEY" PUT "$DEPLOY?dry_run=1" '{"mode": "push"}')"
+	check "the dry run plans v-add-web-domain-deploy" v-add-web-domain-deploy "$(json '.data.steps[0].command')"
+	check "the dry run turned nothing on" off "$(deploy_state)"
+	check "a pull setting in push mode answers 422" 422 "$(call "$DEPLOY_KEY" PUT "$DEPLOY" '{"mode": "push", "branch": "main"}')"
+	check "configureWebDomainDeploy turns push mode on" 200 "$(call "$DEPLOY_KEY" PUT "$DEPLOY" '{"mode": "push", "keep": 3}')"
+	check "the deploy waits for its first upload" new "$(json .data.state)"
+	check "the deploy keeps 3 releases" 3 "$(json .data.keep)"
+	check "push mode answers no secret" null "$(json .data.webhook_secret)"
+	check "the upload URL names the deploy ID" true "$(json '.data.upload_url | test("/upload/[a-z0-9]{12}$")')"
+	check "the server has the deploy on" new "$(deploy_state)"
+	check "addWebDomainDeployPublisher answers 200" 200 "$(call "$DEPLOY_KEY" POST "$DEPLOY/publishers" '{"issuer": "https://token.actions.githubusercontent.com", "repository": "acme/shop", "ref": "main", "workflow": ".github/workflows/deploy.yml"}')"
+	check "the publisher trusts the main branch" refs/heads/main "$(json '.data.publishers[0].ref')"
+	DEPLOY_PUB="$(json '.data.publishers[0].id')"
+	check "a publisher without branch or environment answers 422" 422 "$(call "$DEPLOY_KEY" POST "$DEPLOY/publishers" '{"issuer": "https://gitlab.com", "repository": "acme/shop"}')"
+	check "getWebDomainDeploy lists the publisher" 1 "$(call "$DEPLOY_KEY" GET "$DEPLOY" > /dev/null && json '.data.publishers | length')"
+	check "listWebDomainDeployReleases answers 200" 200 "$(call "$DEPLOY_KEY" GET "$DEPLOY/releases")"
+	check "no release before the first upload" 0 "$(json .meta.total)"
+	check "a push deploy is not started from the API" 422 "$(call "$DEPLOY_KEY" POST "$DEPLOY/runs" '{}')"
+	check "deleteWebDomainDeployPublisher answers 200" 200 "$(call "$DEPLOY_KEY" DELETE "$DEPLOY/publishers/$DEPLOY_PUB")"
+	check "no publisher is left" 0 "$(json '.data.publishers | length')"
+	check "disableWebDomainDeploy answers 200" 200 "$(call "$DEPLOY_KEY" DELETE "$DEPLOY")"
+	check "the answer shows deploy off" off "$(json .data.state)"
+	check "the server has the deploy off" off "$(deploy_state)"
+	check "a v2-deploy key may not list web domains" 403 "$(call "$DEPLOY_KEY" GET "/users/$PHP_USER/web-domains")"
+else
+	skip "Git Deploy: $PHP_DOMAIN cannot use it ($(json .data.reason))"
+fi
 check "the PHP user is deleted" 204 "$(call "$ADMIN" DELETE "/users/$PHP_USER")"
 check "the PHP package is deleted" 204 "$(call "$ADMIN" DELETE "/packages/$PHP_PACKAGE")"
 

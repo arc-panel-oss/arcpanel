@@ -6,6 +6,7 @@ import apCardPicker from './card-picker.js';
 import apConfirm from './confirm.js';
 import apCronBuilder from './cron-builder.js';
 import apCsr from './csr.js';
+import apDeploy from './deploy.js';
 import apDnsRecord from './dns-record.js';
 import apLog from './log.js';
 import apMailAccount from './mail-account.js';
@@ -38,6 +39,7 @@ export const modules = {
 	apConfirm,
 	apCronBuilder,
 	apCsr,
+	apDeploy,
 	apDnsRecord,
 	apLog,
 	apMailAccount,

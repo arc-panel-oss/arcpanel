@@ -6,6 +6,7 @@ use App\Arc\ArcCommandException;
 use App\Auth\Principal;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Server\DatabaseSettingsRequest;
+use App\Http\Requests\Server\DeploySettingsRequest;
 use App\Http\Requests\Server\GeneralSettingsRequest;
 use App\Http\Requests\Server\MailSettingsRequest;
 use App\Http\Requests\Server\SecuritySettingsRequest;
@@ -13,6 +14,7 @@ use App\Http\Requests\Server\SslSettingsRequest;
 use App\Http\Requests\Server\WhiteLabelRequest;
 use App\Policies\ServerPolicy;
 use App\Services\Audit\AuditLog;
+use App\Services\Server\DeploySettings;
 use App\Services\Server\ServerSettings;
 use App\Services\Server\ServerSettingsActions;
 use App\Services\Server\SystemTaskService;
@@ -33,6 +35,7 @@ final class ServerSettingsController extends Controller
         private readonly ServerSettings $settings,
         private readonly SystemTaskService $tasks,
         private readonly ServerSettingsActions $actions,
+        private readonly DeploySettings $deploy,
     ) {}
 
     public function index(Principal $principal, ServerPolicy $policy): RedirectResponse
@@ -56,7 +59,7 @@ final class ServerSettingsController extends Controller
                 'languages' => $this->settings->languages(),
                 'themes' => $this->settings->themes(),
             ],
-            'web' => ['php' => $this->settings->phpVersions(), 'task' => $this->tasks->task()],
+            'web' => ['php' => $this->settings->phpVersions(), 'task' => $this->tasks->task(), 'deploy' => $this->deploy->server()],
             'dns' => ['hosts' => $this->settings->dnsHosts()],
             'databases' => ['hosts' => $this->settings->databaseHosts()],
             'ssl' => ['ssl' => $this->settings->ssl(), 'hostname' => $this->settings->hostname()],
@@ -94,6 +97,27 @@ final class ServerSettingsController extends Controller
         $data = $request->validate(['php_default' => ['required', 'string', Rule::in($this->actions->installedPhp())]]);
 
         return $this->finish('web', $this->settings->apply($this->settings->planDefaultPhp($data['php_default'])));
+    }
+
+    /** POST web/deploy: the Git Deploy card (E20 spec §3.4), `v-change-sys-deploy` for each changed key. */
+    public function deploy(DeploySettingsRequest $request): RedirectResponse
+    {
+        $server = $this->deploy->server();
+        abort_if($server === null, 404);
+
+        return $this->finish('web', $this->settings->apply($this->deploy->plan($server, $request->values())));
+    }
+
+    /** DELETE web/deploy/issuers: remove a CI provider the administrator added; the built-in ones stay. */
+    public function removeDeployIssuer(Request $request, Principal $principal, ServerPolicy $policy): RedirectResponse
+    {
+        abort_unless($policy->editSettings($principal), 403);
+        $server = $this->deploy->server();
+        abort_if($server === null, 404);
+        $data = $request->validate(['issuer' => ['required', 'string', Rule::in(DeploySettings::removable($server))]],
+            ['issuer.in' => __('Only a CI provider you added can be removed.')]);
+
+        return $this->finish('web', $this->settings->apply($this->deploy->planRemoveIssuer($server, $data['issuer'])));
     }
 
     /** POST web/php: install and remove PHP versions in the background (spec D4). */

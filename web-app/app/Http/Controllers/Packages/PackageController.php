@@ -67,7 +67,7 @@ final class PackageController extends Controller
         abort_unless($policy->create($principal), 403);
         $steps = $this->actions->planCreate($principal, (string) $request->input('name'),
             $request->packageValues([], $this->packages->resourcesLimit()), $request->tenancyValues(),
-            $request->portsValue(), $request->nodeValues(), $request->dockerValues(), $request->phpValues(), $request->processValues(), $request->storageValues());
+            $request->portsValue(), $request->nodeValues(), $request->dockerValues(), $request->phpValues(), $request->processValues(), $request->storageValues(), $request->deployValues());
 
         $result = $this->users->apply($steps);
         if (! $result->ok()) {
@@ -92,7 +92,7 @@ final class PackageController extends Controller
         $newName = PackageActions::resellerOf($principal) !== '' ? $record->name : (string) $request->input('name');
         $steps = $this->actions->planUpdate($principal, $record, $newName,
             $request->packageValues($record->data, $this->packages->resourcesLimit()), $request->tenancyValues(),
-            $request->portsValue(), $request->nodeValues(), $request->dockerValues(), $request->phpValues(), $request->processValues(), $request->storageValues());
+            $request->portsValue(), $request->nodeValues(), $request->dockerValues(), $request->phpValues(), $request->processValues(), $request->storageValues(), $request->deployValues());
 
         $result = $this->users->apply($steps);
         if (! $result->ok()) {
@@ -156,6 +156,7 @@ final class PackageController extends Controller
             'ownDocker' => $reseller !== '' ? $this->actions->ownDocker($reseller) : null,
             'ownProcesses' => $reseller !== '' ? $this->actions->ownProcesses($reseller) : null,
             'ownStorage' => $reseller !== '' ? $this->actions->ownStorage($reseller) : null,
+            'ownDeploy' => $reseller !== '' ? $this->actions->ownDeploy($reseller) : null,
             // PHP of the package (E41 §8): the installed versions and the profiles
             'php' => $this->phpOptions($reseller),
         ]);

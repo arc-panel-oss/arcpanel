@@ -47,6 +47,7 @@ final class PackageService
             'DOCKER' => 'no', 'DOCKER_APPS' => '0', 'DOCKER_CPUS' => 'unlimited', 'DOCKER_MEMORY' => 'unlimited',
             'PHP_VERSIONS' => '*', 'PHP_PROFILES' => 'default', 'PHP_DEFAULT_PROFILE' => 'default', ...PhpManager::SETTING_MAXIMUMS,
             'APP_PROCESSES' => 'no', 'APP_PROCESSES_MAX' => '3', 'APP_PROCESSES_MEMORY' => 'unlimited', 'APP_PROCESSES_CPUS' => '1',
+            'GIT_DEPLOY' => 'yes',
         ];
     }
 
@@ -126,7 +127,7 @@ final class PackageService
      * @param  array{NODE: string, NODE_VERSIONS: string, NODE_ALLOWED: string, NODE_APPS: string}|null  $node  Node.js keys (E13), null to keep them
      * @return list<Step>
      */
-    public function planCreate(string $name, array $values, ?array $tenancy, string $reseller = '', string $ports = '0', ?array $node = null, ?array $docker = null, ?array $php = null, ?array $processes = null, ?array $storage = null): array
+    public function planCreate(string $name, array $values, ?array $tenancy, string $reseller = '', string $ports = '0', ?array $node = null, ?array $docker = null, ?array $php = null, ?array $processes = null, ?array $storage = null, ?array $deploy = null): array
     {
         $file = Secret::file($this->file($values));
         if ($reseller !== '') {
@@ -137,6 +138,7 @@ final class PackageService
                 ...$this->dockerSteps($reseller.'_'.$name, $docker, null),
                 ...$this->processSteps($reseller.'_'.$name, $processes, null),
                 ...$this->storageSteps($reseller.'_'.$name, $storage, null),
+                ...$this->deploySteps($reseller.'_'.$name, $deploy, null),
                 ...$this->phpSteps($reseller.'_'.$name, $php, null),
             ];
         }
@@ -149,6 +151,7 @@ final class PackageService
             ...$this->dockerSteps($name, $docker, null),
             ...$this->processSteps($name, $processes, null),
             ...$this->storageSteps($name, $storage, null),
+            ...$this->deploySteps($name, $deploy, null),
             ...$this->phpSteps($name, $php, null),
         ];
     }
@@ -160,7 +163,7 @@ final class PackageService
      * @param  array{NODE: string, NODE_VERSIONS: string, NODE_ALLOWED: string, NODE_APPS: string}|null  $node  Node.js keys (E13), null to keep them
      * @return list<Step>
      */
-    public function planUpdate(PackageRecord $current, string $newName, array $values, ?array $tenancy, string $reseller = '', ?string $ports = null, ?array $node = null, ?array $docker = null, ?array $php = null, ?array $processes = null, ?array $storage = null): array
+    public function planUpdate(PackageRecord $current, string $newName, array $values, ?array $tenancy, string $reseller = '', ?string $ports = null, ?array $node = null, ?array $docker = null, ?array $php = null, ?array $processes = null, ?array $storage = null, ?array $deploy = null): array
     {
         $file = Secret::file($this->file($values));
         if ($reseller !== '') {
@@ -171,6 +174,7 @@ final class PackageService
                 ...$this->dockerSteps($current->name, $docker, $current),
                 ...$this->processSteps($current->name, $processes, $current),
                 ...$this->storageSteps($current->name, $storage, $current),
+                ...$this->deploySteps($current->name, $deploy, $current),
                 ...$this->phpSteps($current->name, $php, $current),
             ];
         }
@@ -184,6 +188,7 @@ final class PackageService
             ...$this->dockerSteps($current->name, $docker, $current),
             ...$this->processSteps($current->name, $processes, $current),
             ...$this->storageSteps($current->name, $storage, $current),
+            ...$this->deploySteps($current->name, $deploy, $current),
             ...$this->phpSteps($current->name, $php, $current),
         ];
         if ($newName !== $current->name) {
@@ -217,6 +222,7 @@ final class PackageService
                 'DOCKER_CPUS' => $current->get('DOCKER_CPUS', 'unlimited'),
                 'DOCKER_MEMORY' => $current->get('DOCKER_MEMORY', 'unlimited'),
             ], null),
+            ...$this->deploySteps($newName, ['GIT_DEPLOY' => self::gitDeploy($current->data)], null),
             ...$this->phpSteps($newName, PhpManager::packageKeys($current->data), null),
         ];
     }
@@ -364,6 +370,34 @@ final class PackageService
         }
 
         return $steps;
+    }
+
+    /**
+     * GIT_DEPLOY of package data (E20 D13): anything but no is yes, as a
+     * missing key is.
+     *
+     * @param  array<string, string>  $data
+     */
+    public static function gitDeploy(array $data): string
+    {
+        return ($data['GIT_DEPLOY'] ?? 'yes') === 'no' ? 'no' : 'yes';
+    }
+
+    /**
+     * GIT_DEPLOY of the package sidecar (E20 D13) when it is set or changed;
+     * missing means yes. The command checks a reseller's package against
+     * the reseller's key.
+     *
+     * @param  array{GIT_DEPLOY: string}|null  $deploy
+     * @return list<Step>
+     */
+    private function deploySteps(string $name, ?array $deploy, ?PackageRecord $current): array
+    {
+        if ($deploy === null || $deploy['GIT_DEPLOY'] === self::gitDeploy($current?->data ?? [])) {
+            return [];
+        }
+
+        return [new Step(sprintf(__('Set %s'), 'GIT_DEPLOY'), 'v-change-package-tenancy', [$name, 'GIT_DEPLOY', $deploy['GIT_DEPLOY']])];
     }
 
     /**

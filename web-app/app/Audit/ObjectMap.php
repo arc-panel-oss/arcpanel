@@ -87,6 +87,7 @@ final class ObjectMap
         // Git Deploy of a domain (E20 §7, §8)
         'web.kind' => 'deploy_credential',
         'web.pub' => 'deploy_publisher',
+        'web.release' => 'deploy_release',
         'web-domains.domain' => 'web_domain',
         'web-domains.id' => 'deploy_release',
         'web-domains.pub' => 'deploy_publisher',

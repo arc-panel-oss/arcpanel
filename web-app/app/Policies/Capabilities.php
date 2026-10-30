@@ -94,6 +94,8 @@ final class Capabilities
         'web.domains.php' => self::ALL_ROLES,
         // Per-domain PHP settings within the package maximums (E19 §6)
         'web.domains.php.settings' => self::ALL_ROLES,
+        // Git Deploy of a domain (E20 §7); the package switch GIT_DEPLOY decides too
+        'web.domains.deploy' => self::ALL_ROLES,
 
         // Databases (E7 batch 1 spec §5.1)
         'db.view' => self::ALL_ROLES,

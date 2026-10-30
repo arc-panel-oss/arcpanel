@@ -469,3 +469,77 @@ it('compares the limits of a reseller package after their units (E39 W4 §8.2)',
     $this->post('/packages', packageInput(['memory_limit' => '1024M', 'cpu_quota' => '50%', 'rate_limit' => '100']))
         ->assertSessionHasNoErrors()->assertRedirect('/packages');
 });
+
+it('switches Git Deploy of a package, on when the key is missing (E20 D13)', function () {
+    $this->fake->on('v-add-user-package')->returns();
+    $this->fake->on('v-update-user-package')->returns();
+    $this->fake->on('v-change-package-tenancy')->returns();
+
+    signIn('arcadmin', 'admin');
+    $page = $this->get('/packages/create')->assertOk()->assertSee('name="git_deploy_group"', false)->assertSee('Git Deploy')->getContent();
+    preg_match('/<input[^>]*name="git_deploy"[^>]*>/', $page, $switch);
+    expect($switch[0] ?? '')->toContain('checked');
+
+    // On by default: no step; turned off: GIT_DEPLOY no
+    $this->post('/packages', packageInput(['git_deploy_group' => '1', 'git_deploy' => '1']))->assertRedirect('/packages');
+    $this->fake->assertNotRan('v-change-package-tenancy');
+    $this->post('/packages', packageInput(['git_deploy_group' => '1']))->assertRedirect('/packages');
+    $this->fake->assertRan('v-change-package-tenancy', fn ($a) => $a === ['business', 'GIT_DEPLOY', 'no'], 1);
+
+    // A form without the switch keeps the key
+    $this->post('/packages/starter', packageInput(['name' => 'starter']))->assertRedirect('/packages/starter/edit');
+    $this->fake->assertRan('v-change-package-tenancy', fn ($a) => $a[1] === 'GIT_DEPLOY', 1);
+});
+
+it('shows Git Deploy of a package off and turns it back on', function () {
+    $this->fake->on('v-list-package-tenancy', ['all', 'json'])->returnsJson([
+        'default' => $this->base,
+        'starter' => ['GIT_DEPLOY' => 'no'] + $this->base,
+    ]);
+    $this->fake->on('v-add-user-package')->returns();
+    $this->fake->on('v-update-user-package')->returns();
+    $this->fake->on('v-change-package-tenancy')->returns();
+    signIn('arcadmin', 'admin');
+
+    $page = $this->get('/packages/starter/edit')->assertOk()->getContent();
+    preg_match('/<input[^>]*name="git_deploy"[^>]*>/', $page, $switch);
+    expect($switch[0] ?? '')->toContain('name="git_deploy"')->not->toContain('checked');
+    $this->post('/packages/starter', packageInput(['name' => 'starter', 'git_deploy_group' => '1', 'git_deploy' => '1']))->assertRedirect('/packages/starter/edit');
+    $this->fake->assertRan('v-change-package-tenancy', fn ($a) => $a === ['starter', 'GIT_DEPLOY', 'yes'], 1);
+});
+
+it('keeps Git Deploy within the reseller plan for a reseller (E20 D13)', function () {
+    $this->fake->on('v-list-package-tenancy', ['all', 'json'])->returnsJson([
+        'default' => $this->base,
+        'starter' => ['RESELLER_VISIBLE' => 'yes'] + $this->base,
+        'reseller' => ['USERS' => '25', 'RESELLER_PACKAGES' => '*', 'GIT_DEPLOY' => 'no'] + $this->base,
+        'hostco_gold' => ['RESELLER_OWNER' => 'hostco'] + $this->base,
+    ]);
+    $this->fake->on('v-add-reseller-package')->returns();
+    $this->fake->on('v-change-package-tenancy')->returns();
+    signIn('hostco', 'reseller');
+
+    $page = $this->get('/packages/create')->assertOk()->assertSee('Git Deploy is not included in your plan.')->getContent();
+    preg_match('/<input[^>]*name="git_deploy"[^>]*>/', $page, $switch);
+    expect($switch[0] ?? '')->toContain('disabled');
+    $this->post('/packages', packageInput(['git_deploy_group' => '1', 'git_deploy' => '1']))
+        ->assertSessionHasErrors(['git_deploy' => 'Git Deploy is not included in your plan.']);
+    $this->fake->assertNotRan('v-add-reseller-package');
+
+    // The disabled switch sends nothing: the new package has it off
+    $this->post('/packages', packageInput(['git_deploy_group' => '1']))->assertRedirect('/packages');
+    $this->fake->assertRan('v-change-package-tenancy', fn ($a) => $a === ['hostco_business', 'GIT_DEPLOY', 'no'], 1);
+});
+
+it('copies Git Deploy turned off with the package', function () {
+    $this->fake->on('v-list-package-tenancy', ['all', 'json'])->returnsJson([
+        'default' => $this->base,
+        'starter' => ['GIT_DEPLOY' => 'no'] + $this->base,
+    ]);
+    $this->fake->on('v-copy-user-package')->returns();
+    $this->fake->on('v-change-package-tenancy')->returns();
+    signIn('arcadmin', 'admin');
+
+    $this->post('/packages/starter/copy', ['name' => 'starter2'])->assertRedirect('/packages/starter2/edit');
+    $this->fake->assertRan('v-change-package-tenancy', fn ($a) => $a === ['starter2', 'GIT_DEPLOY', 'no'], 1);
+});

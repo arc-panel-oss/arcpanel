@@ -46,6 +46,9 @@ OBJECT_STORAGE_QUOTA	500	1G	within
 OBJECT_STORAGE_QUOTA	1T	unlimited	within
 OBJECT_STORAGE_QUOTA	unlimited	1T	above
 OBJECT_STORAGE_BACKUP	yes	no	above
+GIT_DEPLOY	yes	no	above
+GIT_DEPLOY	no	yes	within
+GIT_DEPLOY	yes	yes	within
 CPU_QUOTA	50%	100%	within
 CPU_QUOTA	150%	100%	above
 CPU_QUOTA	50	100%	above

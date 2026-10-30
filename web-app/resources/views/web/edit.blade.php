@@ -12,6 +12,7 @@
         'ftp' => $systems['ftp'] ? __('FTP') : null,
         'php' => $php !== null ? __('PHP') : null,
         'processes' => $appProcesses !== null ? __('App processes') : null,
+        'deploy' => $deploy !== null ? __('Deploy') : null,
         'stats' => __('Statistics'),
     ]);
     $locked = ! $can['update'];
@@ -227,6 +228,13 @@
                         </ul>
                     @endif
                 </x-ap-card>
+            </x-ap-tab-panel>
+        @endif
+
+        {{-- Git Deploy (E20) --}}
+        @if ($deploy !== null)
+            <x-ap-tab-panel name="deploy">
+                @include('web.partials.deploy')
             </x-ap-tab-panel>
         @endif
 

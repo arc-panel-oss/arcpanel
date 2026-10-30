@@ -43,6 +43,9 @@ beforeEach(function () {
     $this->fake->on('v-list-sys-themes')->returnsJson(['dark', 'default']);
     $this->fake->on('v-list-sys-php-versions')->returnsJson(phpVersionsFixture());
     $this->fake->on('v-list-sys-task')->returnsJson(noTask());
+    // The Git Deploy card of the Web tab (E20), tested in ServerDeploySettingsTest
+    $this->fake->on('v-list-sys-deploy')->returnsJson(['DEPLOY_PORT' => '8088', 'DEPLOY_MAX_ARTIFACT' => '512M', 'DEPLOY_BUILD_TIMEOUT' => '900',
+        'DEPLOY_OIDC_ISSUERS' => 'https://token.actions.githubusercontent.com,https://gitlab.com', 'DOMAINS' => '0', 'PORT_OPEN' => 'no']);
     $this->fake->on('v-list-remote-dns-hosts')->returns('');
     $this->fake->on('v-list-database-hosts')->returnsJson([
         ['HOST' => 'localhost', 'PORT' => '3306', 'TYPE' => 'mysql', 'MAX_DB' => '500', 'U_DB_BASES' => '3', 'SUSPENDED' => 'no'],

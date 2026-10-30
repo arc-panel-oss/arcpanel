@@ -432,7 +432,49 @@ php_reset() {
 	"$B/v-change-package-tenancy" default PHP_VERSIONS '*' > /dev/null 2>&1 || true
 }
 
+# Git Deploy spec (E20): e2e-deploy.example of arce2euser in push mode with a
+# trusted publisher and two releases, so the tab shows the active state
+DEPLOY_DOMAIN=e2e-deploy.example
+
+deploy_reset() {
+	"$B/v-delete-web-domain" arce2euser "$DEPLOY_DOMAIN" > /dev/null 2>&1 || true
+	if [ -f "$ARCPANEL/data/users/arce2euser/deploy/e2e-site.example.conf" ]; then
+		"$B/v-delete-web-domain-deploy" arce2euser e2e-site.example > /dev/null 2>&1 || true
+	fi
+}
+
+deploy_prepare() {
+	local dir n task i status
+	deploy_reset
+	"$B/v-add-web-domain" arce2euser "$DEPLOY_DOMAIN" > /dev/null
+	"$B/v-add-web-domain-deploy" arce2euser "$DEPLOY_DOMAIN" push > /dev/null
+	"$B/v-add-web-domain-deploy-publisher" arce2euser "$DEPLOY_DOMAIN" \
+		https://token.actions.githubusercontent.com acme/e2e refs/heads/main > /dev/null
+	dir=$(mktemp -d)
+	for n in one two; do
+		echo "e2e release $n" > "$dir/index.html"
+		tar -czf "$dir/$n.tar.gz" -C "$dir" index.html
+		task=$("$B/v-schedule-web-domain-deploy" arce2euser "$DEPLOY_DOMAIN" --artifact "$dir/$n.tar.gz")
+		for i in $(seq 1 120); do
+			status=$(grep -o "STATUS='[a-z]*'" "$ARCPANEL/data/users/arce2euser/tasks/$task.conf" | cut -d"'" -f2)
+			[ "$status" = succeeded ] || [ "$status" = failed ] && break
+			sleep 0.5
+		done
+		# Release ids are seconds apart
+		sleep 1
+	done
+	rm -rf "$dir"
+}
+
 case "${1:-}" in
+	deploy)
+		deploy_prepare
+		exit 0
+		;;
+	deploy-clean)
+		deploy_reset
+		exit 0
+		;;
 	php)
 		php_reset
 		mkdir -p "$PHP_SAVE"

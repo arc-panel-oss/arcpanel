@@ -38,6 +38,17 @@ it('maps node app tasks to node-apps resources', function () {
         ->and($view->resource)->toBe('/users/bob/node-apps/app.example');
 });
 
+it('maps Git Deploy tasks to the deploy of their web domain (E20)', function (string $args) {
+    $view = TaskMapper::fromSource(TaskId::queue('bob', '17617400001234'), [
+        'KIND' => 'deploy', 'ARGS' => $args, 'STATUS' => 'running', 'EXIT' => '', 'ERROR' => '',
+        'QUEUED' => '2026-10-29 14:24:58', 'START' => '2026-10-29 14:24:58', 'END' => '', 'LOG' => '',
+    ], 100);
+
+    expect($view->kind)->toBe('deploy')
+        ->and($view->args)->toBe($args)
+        ->and($view->resource)->toBe('/users/bob/web-domains/shop.example.com/deploy');
+})->with(['shop.example.com pull main', 'shop.example.com archive', 'shop.example.com rollback 20261028-091744']);
+
 it('passes queue succeeded status through unchanged', function () {
     $view = TaskMapper::fromSource(TaskId::queue('bob', '17280000004001'), [
         'KIND' => 'backup', 'ARGS' => 'bob.tar', 'STATUS' => 'succeeded', 'EXIT' => '0', 'ERROR' => '',

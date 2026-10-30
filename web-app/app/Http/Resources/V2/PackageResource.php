@@ -3,6 +3,7 @@
 namespace App\Http\Resources\V2;
 
 use App\Services\Packages\PackageRecord;
+use App\Services\Packages\PackageService;
 use App\Services\Users\UserService;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
@@ -122,6 +123,8 @@ final class PackageResource extends JsonResource
                 /** @var bool user backups include the objects */
                 'backup' => $get('OBJECT_STORAGE_BACKUP', 'no') === 'yes',
             ],
+            /** @var bool users may deploy their web domains from Git or from their CI (E20); true when the package never set it */
+            'git_deploy' => PackageService::gitDeploy($package->data) === 'yes',
             'php' => [
                 /** @var string `*` (every installed version that has not reached its end of life) or a comma list of versions (E41) */
                 'versions' => $get('PHP_VERSIONS', '*') ?: '*',

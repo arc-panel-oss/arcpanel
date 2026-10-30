@@ -37,6 +37,15 @@
                 <x-ap-select name="dns_template" :label="__('DNS Template')" :options="$options($templates['dns'])" :value="$values['DNS_TEMPLATE']" />
                 <x-ap-select name="shell" :label="__('SSH Access')" :options="$options($templates['shells'])" :value="$values['SHELL']" />
             </div>
+            {{-- Git Deploy of the web domains (E20 D13); the key is yes when missing --}}
+            <input type="hidden" name="git_deploy_group" value="1">
+            @if ($ownDeploy !== null && $ownDeploy['GIT_DEPLOY'] !== 'yes')
+                <p class="muted">{{ __('Git Deploy is not included in your plan.') }}</p>
+            @endif
+            <div class="ap-settings">
+                <x-ap-switch name="git_deploy" :label="__('Git Deploy')" :description="__('Users of this package can deploy their web domains from Git or from their CI.')"
+                    :checked="\App\Services\Packages\PackageService::gitDeploy($values) === 'yes'" :disabled="$ownDeploy !== null && $ownDeploy['GIT_DEPLOY'] !== 'yes'" />
+            </div>
         </x-ap-card>
 
         <x-ap-card :title="__('Limits')" icon="sliders">

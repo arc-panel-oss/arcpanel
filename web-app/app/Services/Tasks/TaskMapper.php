@@ -110,6 +110,8 @@ final class TaskMapper
                 : ($token !== '' ? '/users/'.$user.'/web-domains/'.$token : null),
             'backup', 'restore', 'backup-download' => $token !== '' ? '/users/'.$user.'/backups/'.$token : null,
             'snapshot', 'snapshot-restore', 'file-restore' => $token !== '' ? '/users/'.$user.'/snapshots/'.$token : null,
+            // Git Deploy (E20): ARGS "DOMAIN ACTION [VALUE]"
+            'deploy' => $token !== '' ? '/users/'.$user.'/web-domains/'.$token.'/deploy' : null,
             default => null,
         };
     }

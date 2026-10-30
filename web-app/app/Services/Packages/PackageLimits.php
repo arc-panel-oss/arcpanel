@@ -42,7 +42,7 @@ final class PackageLimits
             'CPU_QUOTA_PERIOD' => preg_match('/^(\d{1,9})(ms|s)$/D', $value, $m) === 1 ? (int) $m[1] * ($m[2] === 's' ? 1000 : 1) : null,
             // More often ranks higher (func/tenancy.sh)
             'BACKUP_FREQUENCY' => ['weekly' => 1, 'daily' => 2, 'hourly' => 3][$value] ?? null,
-            'BACKUPS_INCREMENTAL', 'NODE', 'DOCKER', 'APP_PROCESSES', 'OBJECT_STORAGE', 'OBJECT_STORAGE_BACKUP' => match ($value) {
+            'BACKUPS_INCREMENTAL', 'NODE', 'DOCKER', 'APP_PROCESSES', 'OBJECT_STORAGE', 'OBJECT_STORAGE_BACKUP', 'GIT_DEPLOY' => match ($value) {
                 'yes' => 1,
                 'no' => 0,
                 default => null,
