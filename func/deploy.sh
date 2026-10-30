@@ -347,7 +347,7 @@ deploy_release_value() {
 	local file
 	file="$(deploy_web "$1" "$2")/releases/$3/.arcpanel-release"
 	[ -f "$file" ] && [ ! -L "$file" ] || return 0
-	head -c 4096 "$file" | grep -oE "^$4='[^']*'" | head -n1 | cut -d\' -f2
+	head -c 4096 "$file" | grep -oE "(^| )$4='[^']*'" | head -n1 | cut -d\' -f2
 }
 
 # Set CUSTOM_DOCROOT and CUSTOM_PHPROOT of the domain to PATH (empty for the
@@ -609,12 +609,13 @@ deploy_unpack() {
 	fi
 }
 
-# Write the release's .arcpanel-release (SOURCE COMMIT REF CREATED TASK)
+# Write the release's .arcpanel-release (SOURCE COMMIT REF CREATED TASK);
+# CREATED is in the server's time, as the task records (the ID is UTC)
 deploy_write_release_info() {
 	local owner="$1" name="$2" release="$3" source="$4" commit="$5" ref="$6" task="$7" file
 	file="$(deploy_web "$owner" "$name")/releases/$release/.arcpanel-release"
 	printf "SOURCE='%s' COMMIT='%s' REF='%s' CREATED='%s' TASK='%s'\n" \
-		"$source" "${commit//\'/}" "${ref//\'/}" "$(date -u +'%F %T')" "$task" \
+		"$source" "${commit//\'/}" "${ref//\'/}" "$(date +'%F %T')" "$task" \
 		| deploy_as_user "$owner" bash -c 'rm -f -- "$1" && umask 027 && cat > "$1"' _ "$file"
 }
 

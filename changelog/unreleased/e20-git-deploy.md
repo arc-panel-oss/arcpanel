@@ -8,3 +8,4 @@ type: added
 - New commands `v-add-web-domain-deploy`, `v-change-web-domain-deploy`, `v-change-web-domain-deploy-credential`, `v-add-web-domain-deploy-publisher`, `v-delete-web-domain-deploy-publisher`, `v-schedule-web-domain-deploy`, `v-rollback-web-domain-deploy`, `v-list-web-domain-deploy`, `v-list-web-domain-deploys`, `v-delete-web-domain-deploy`, `v-change-sys-deploy` and `v-list-sys-deploy`.
 - REST API v2: `GET`, `PUT` and `DELETE /users/{user}/web-domains/{domain}/deploy`, `POST …/deploy/runs`, `GET …/deploy/releases`, `POST …/deploy/releases/{id}/rollback`, `POST` and `DELETE …/deploy/publishers`, with the new permission set `v2-deploy`.
 - The shipped PHP-FPM pool templates let PHP read the `releases` and `shared` folders of a domain; a custom pool template needs the same two paths before its domains can use deploy.
+- Backups of a domain that uses Git Deploy keep only the live release and `shared/`; a restore serves that release at once.

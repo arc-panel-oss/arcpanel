@@ -345,6 +345,16 @@ teardown_file() {
     echo "$output" | jq -e '[.releases[] | select(.CURRENT == "yes")] | length == 1' > /dev/null
     echo "$output" | jq -e '.tasks | length >= 3' > /dev/null
     echo "$output" | jq -e '.tasks[0].STATUS == "succeeded"' > /dev/null
+    # Every key of .arcpanel-release, not only the first of its line
+    current=$(conf_value "$U1" "$D1" CURRENT)
+    task=$(grep -oE "TASK='[0-9]+'" "/home/$U1/web/$D1/releases/$current/.arcpanel-release" | cut -d"'" -f2)
+    [ -n "$task" ]
+    echo "$output" | jq -e --arg t "$task" '[.releases[] | select(.CURRENT == "yes")][0].TASK == $t' > /dev/null
+    echo "$output" | jq -e '[.releases[] | select(.CURRENT == "yes")][0].CREATED | test("^[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9:]{8}$")' > /dev/null
+    # CREATED is in the server's time, as the task records the panel shows next to it
+    created=$(echo "$output" | jq -r '[.releases[] | select(.CURRENT == "yes")][0].CREATED')
+    [[ ! "$created" < "$(task_value "$U1" "$task" START)" ]]
+    [[ ! "$created" > "$(task_value "$U1" "$task" END)" ]]
 }
 
 @test "rollback: switches current to an older release" {

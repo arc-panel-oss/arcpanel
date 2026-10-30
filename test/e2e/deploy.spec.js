@@ -31,12 +31,19 @@ test('user: pull mode shows the webhook secret once', async ({ page }) => {
 	await expect(tab).toContainText('Pull from Git');
 	await expectAccessible(page);
 	await tab.locator('input[name="url"]').fill('ssh://git@127.0.0.1/e2e/none.git');
+	// A preset picks its usual web root (spec §5.1: static serves dist)
+	await tab.locator('select[name="preset"]').selectOption('static');
+	await expect(tab.locator('select[name="webroot"]')).toHaveValue('dist');
+	await tab.locator('select[name="preset"]').selectOption('laravel');
+	await expect(tab.locator('select[name="webroot"]')).toHaveValue('public');
 	await tab.locator('select[name="preset"]').selectOption('none');
 	await tab.locator('select[name="webroot"]').selectOption('.');
 	await tab.getByRole('button', { name: 'Set up pull deploy' }).click();
 
+	// The answer opens on the Deploy tab by itself
 	tab = page.getByRole('tabpanel', { name: 'Deploy' });
-	await page.getByRole('tab', { name: 'Deploy' }).click();
+	await expect(page.getByRole('tab', { name: 'Deploy' })).toHaveAttribute('aria-selected', 'true');
+	await expect(tab).toBeVisible();
 	await expect(tab).toContainText('Finish the setup');
 	await expect(tab).toContainText('Copy the secret now');
 	await expect(tab.locator('#deploy-pubkey')).toHaveValue(/^ssh-ed25519 /);
@@ -44,8 +51,12 @@ test('user: pull mode shows the webhook secret once', async ({ page }) => {
 	await expect(tab.locator('#deploy-hookurl')).toHaveValue(/:8088\/hooks\/[a-z0-9]{12}$/);
 	await expectAccessible(page);
 
-	// Never again: not after a reload
-	tab = await openDeploy(page, SITE);
+	// Never again: not after a reload (goto to the same URL with #deploy
+	// would stay on the page)
+	expect(page.url()).toMatch(/\/edit#deploy$/);
+	await page.reload();
+	await page.getByRole('tab', { name: 'Deploy' }).click();
+	tab = page.getByRole('tabpanel', { name: 'Deploy' });
 	await expect(tab).toContainText('Finish the setup');
 	await expect(tab.locator('#deploy-hooksecret')).toHaveCount(0);
 	await expect(tab.locator('#deploy-pubkey')).toHaveValue(/^ssh-ed25519 /);

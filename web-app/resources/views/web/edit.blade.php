@@ -70,7 +70,8 @@
         <x-ap-alert tone="info" :title="__('Read-only')">{{ __('You can view these settings but not change them.') }}</x-ap-alert>
     @endif
 
-    <x-ap-tabs :label="__('Domain settings')" :tabs="$tabs" initial="general">
+    {{-- A Git Deploy answer with a one-time secret opens on its tab --}}
+    <x-ap-tabs :label="__('Domain settings')" :tabs="$tabs" :initial="isset($deployOnce) ? 'deploy' : 'general'">
         {{-- General --}}
         <x-ap-tab-panel name="general">
             <x-ap-card :title="__('General')" icon="globe">

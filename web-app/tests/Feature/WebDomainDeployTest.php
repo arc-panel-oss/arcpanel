@@ -51,7 +51,11 @@ it('offers the setup of both modes when deploy is off', function () {
         ->assertSee('Deploy')->assertSee('Git Deploy')
         ->assertSee('Pull from Git')->assertSee('Push from CI')
         ->assertSee('action="http://localhost'.DEPLOY_BASE.'"', false)
-        ->assertSee('Your current files stay where they are');
+        ->assertSee('Your current files stay where they are')
+        // Blade does not compile @js inside a component attribute: the
+        // setup form would never show
+        ->assertSee('x-data="{ mode: \'pull\', auth: \'key\' }"', false)
+        ->assertDontSee('@js(', false);
 });
 
 it('hides the tab when the package does not allow deploy and it is off', function () {
@@ -102,10 +106,12 @@ it('sets up pull mode and shows the webhook secret once', function () {
     $this->fake->on('v-change-web-domain-deploy')->returns();
     signIn('bob', 'user');
 
-    $this->post(DEPLOY_BASE, ['mode' => 'pull', 'url' => 'git@github.com:acme/shop.git', 'branch' => 'main', 'auth' => 'key', 'preset' => 'laravel', 'webroot' => 'public'])
+    $response = $this->post(DEPLOY_BASE, ['mode' => 'pull', 'url' => 'git@github.com:acme/shop.git', 'branch' => 'main', 'auth' => 'key', 'preset' => 'laravel', 'webroot' => 'public'])
         ->assertOk()->assertSee('Finish the setup')->assertSee('Secret0123456789abcdefghijABCDEFGHIJ0123')
         ->assertSee('ssh-ed25519 AAAAkey arcpanel-deploy@example.com')
         ->assertSee('This is the only time the webhook secret is shown.');
+    // The answer opens on the Deploy tab, or the secret would go unseen
+    expect($response->getContent())->toMatch('/id="tab-deploy"[^>]*aria-selected="true"/');
     $this->fake->assertRan('v-add-web-domain-deploy', fn ($a) => $a === ['bob', 'example.com', 'pull', 'git@github.com:acme/shop.git', 'main', 'laravel', 'key']);
 });
 
@@ -168,7 +174,23 @@ it('shows the live release, the releases with rollback and the recent deploys', 
         ->assertSee('Roll back')->assertSee('Database migrations of later releases are not undone.')
         ->assertSee('health check failed, rolled back to 20261028-091744')
         ->assertSee('Deploy now')->assertSee('Turn off Git Deploy')
-        ->assertSee('arcpanel-deploy@example.com');
+        ->assertSee('arcpanel-deploy@example.com')
+        // The live release cell names the release once, with its time
+        ->assertSeeInOrder(['Live release', 'a1b2c3d', '20261029-142501 · 29 Oct, 14:25', 'Last deploy'])
+        ->assertSee('Deployed a1b2c3d to 20261029-142501');
+});
+
+it('names the release of an uploaded deploy, which has no commit', function () {
+    $history = deployHistory();
+    $history['releases'][0] = array_merge($history['releases'][0], ['SOURCE' => 'archive', 'COMMIT' => '', 'REF' => '']);
+    $history['tasks'][0] = array_merge($history['tasks'][0], ['ACTION' => 'archive', 'VALUE' => '']);
+    $this->fake->on('v-list-web-domain-deploy')->returnsJson(['example.com' => deployActive(['MODE' => 'push', 'URL' => '', 'BRANCH' => '', 'AUTH' => '', 'PRESET' => 'none', 'UPLOAD_URL' => 'https://panel.example.com:8088/upload/k3v9q2m7x1c8'])]);
+    $this->fake->on('v-list-web-domain-deploys')->returnsJson($history);
+    signIn('bob', 'user');
+
+    $this->get(DEPLOY_TAB)->assertOk()
+        ->assertSee('Deployed release 20261029-142501')->assertDontSee('Deployed the upload')
+        ->assertSeeInOrder(['Live release', '20261029-142501', 'Uploaded by CI · 29 Oct, 14:25', 'Last deploy']);
 });
 
 it('starts a deploy, waits while one runs, and rolls back', function () {
@@ -221,7 +243,10 @@ it('manages the trusted publishers of push mode', function () {
     signIn('bob', 'user');
 
     $this->get(DEPLOY_TAB)->assertOk()->assertSee('https://panel.example.com:8088/upload/k3v9q2m7x1c8')
-        ->assertSee('acme/shop')->assertSee('id-token: write');
+        ->assertSee('acme/shop')->assertSee('id-token: write')
+        // An active push deploy shows its releases first; the CI step is folded
+        ->assertSeeInOrder(['Live release', 'Releases', 'Recent deploys', 'CI workflow', 'Show the upload URL and the workflows', 'Trusted publishers', 'Settings'])
+        ->assertDontSee('Add the deploy step to your CI');
     $this->post(DEPLOY_BASE.'/publishers', ['issuer' => 'https://gitlab.com', 'repo' => 'acme/group/shop', 'ref' => '', 'environment' => 'production'])
         ->assertRedirect(DEPLOY_TAB.'#deploy');
     $this->fake->assertRan('v-add-web-domain-deploy-publisher', fn ($a) => $a === ['bob', 'example.com', 'https://gitlab.com', 'acme/group/shop', '', 'production', '', 'json']);
