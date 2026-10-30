@@ -290,6 +290,11 @@ HOST_SCRIPT="$REPO_ROOT/.github/scripts/apt-host.sh"
 	[ ! -e "$TMP/current/pool" ]
 	[ ! -e "$TMP/current/dists" ]
 	[ ! -e "$TMP/current/releases.json" ]
+	# A bucket lists an empty prefix instead of failing
+	mkdir -p "$TMP/host/beta/dists"
+	run bash "$HOST_SCRIPT" pull "$TMP/host/beta" "$TMP/current"
+	assert_success
+	assert_output --partial "nothing published"
 }
 
 @test "apt host: a manifest pull copies the manifest only" {
