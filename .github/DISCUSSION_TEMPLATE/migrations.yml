@@ -1,0 +1,41 @@
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ArcPanel installs on a **fresh** Debian or Ubuntu server; it does not convert a running server in place. Read the pinned "Moving to ArcPanel: start here" post first.
+        **Never post passwords, API keys, private keys or your customers' data.**
+  - type: input
+    id: source
+    attributes:
+      label: Migrating from
+      description: The panel you leave and its version.
+      placeholder: cPanel 118 or DirectAdmin 1.66
+    validations:
+      required: true
+  - type: input
+    id: size
+    attributes:
+      label: Size of the move
+      description: Number of accounts, domains and mailboxes, roughly.
+      placeholder: 12 accounts, 40 domains, 150 mailboxes
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: ArcPanel version and operating system of the new server
+      description: The version is on the About page, or run `grep ^VERSION= /usr/local/arcpanel/conf/arcpanel.conf`.
+      placeholder: 2.2.4 on Debian 12
+  - type: textarea
+    id: question
+    attributes:
+      label: Your question or what worries you
+      description: Mail, add-on domains, databases, DNS downtime, or the exact error you hit.
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: Formatted as code, so no need for backticks. **Remove secrets before posting.**
+      render: shell
