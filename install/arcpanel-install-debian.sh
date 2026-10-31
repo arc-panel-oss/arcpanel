@@ -58,12 +58,25 @@ case "$os" in
 esac
 # Final version string, e.g.: 1.10.0-1+deb13~alpha / 1.10.0-1+ubuntu26.04
 ARCPANEL_INSTALL_BUILD="${ARCPANEL_BASE_VER}-1+${os_id}${ARCPANEL_CHANNEL}"
-# Pre-release packages are published in the beta repository
-if [ -n "$ARCPANEL_CHANNEL" ]; then
-	RPATH='beta/'
-else
-	RPATH=''
-fi
+# Pre-release packages are published in the beta repository. ARCPANEL_APT_CHANNEL
+# (stable or beta) overrides the choice: CI installs the arcpanel package of a
+# line between tags (~alpha) with --with-debs and takes the engine packages from
+# the stable repository, since the beta repository is empty between pre-releases.
+case "${ARCPANEL_APT_CHANNEL:-}" in
+	stable) RPATH='' ;;
+	beta) RPATH='beta/' ;;
+	'')
+		if [ -n "$ARCPANEL_CHANNEL" ]; then
+			RPATH='beta/'
+		else
+			RPATH=''
+		fi
+		;;
+	*)
+		echo "Error: ARCPANEL_APT_CHANNEL must be stable or beta"
+		exit 1
+		;;
+esac
 
 # Supported PHP versions: the installable versions of the version catalog
 # (install/common/php/versions.conf, E41). An installer started from a
