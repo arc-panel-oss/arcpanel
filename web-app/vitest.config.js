@@ -11,5 +11,7 @@ export default defineConfig({
 		environment: 'jsdom',
 		include: ['tests/js/**/*.test.js'],
 		restoreMocks: true,
+		// Node 25+ defines its own localStorage, which hides jsdom's
+		execArgv: ['--no-experimental-webstorage'],
 	},
 });

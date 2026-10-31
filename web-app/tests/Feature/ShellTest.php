@@ -35,6 +35,10 @@ it('names mail in the search box only where the server runs it', function () {
 
 it('renders right to left for RTL languages', function () {
     signIn('bob', 'user', ['language' => 'ar']);
+    // lang/ holds generated catalogues only, so a fresh checkout has none
+    if (! is_dir(lang_path())) {
+        mkdir(lang_path());
+    }
     file_put_contents(lang_path('ar.json'), '{}');
 
     try {
