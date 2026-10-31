@@ -1,0 +1,16 @@
+{
+	"name": "ArcPanel panel app",
+	"build": { "dockerfile": "Dockerfile" },
+	"remoteUser": "dev",
+	"postCreateCommand": "npm ci && cd web-app && composer install --no-interaction && php artisan arcpanel:allow-list",
+	"customizations": {
+		"vscode": {
+			"extensions": [
+				"bmewburn.vscode-intelephense-client",
+				"esbenp.prettier-vscode",
+				"biomejs.biome",
+				"timonwong.shellcheck"
+			]
+		}
+	}
+}
