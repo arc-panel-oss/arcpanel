@@ -134,6 +134,9 @@ jobs:
         run: |
           docker exec arcpanel-ci bash -lc '
             set -euxo pipefail
+            # The arcpanel-nginx package of this line ships the header files that
+            # nginx.conf includes; CI installs the engine of the stable channel.
+            install -m 0644 /arcpanel-git/src/deb/nginx/security-headers.conf /arcpanel-git/src/deb/nginx/security-headers-files.conf /usr/local/arcpanel/nginx/conf/
             install -m 0644 /arcpanel-git/src/deb/nginx/nginx.conf /usr/local/arcpanel/nginx/conf/nginx-ci.conf
             /usr/local/arcpanel/nginx/sbin/arcpanel-nginx -t -c /usr/local/arcpanel/nginx/conf/nginx-ci.conf
             rm -f /usr/local/arcpanel/nginx/conf/nginx-ci.conf
