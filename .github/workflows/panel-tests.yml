@@ -1,0 +1,87 @@
+name: Panel app tests
+
+# Pint, Pest and Vitest of the panel app (docs/features/specs/2026-11-01-002-dev-container-design.md §3)
+
+on:
+  pull_request:
+  push:
+    branches:
+      - develop
+      - "v*.x"
+
+permissions:
+  contents: read
+
+env:
+  # The same extensions as .devcontainer/Dockerfile (all in the php:8.5-cli image)
+  PHP_EXTENSIONS: ctype, dom, fileinfo, iconv, mbstring, pdo_sqlite, simplexml, sqlite3, tokenizer, xml, xmlwriter
+
+jobs:
+  pint:
+    name: Pint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # 2.40.0
+        with:
+          php-version: "8.5"
+          extensions: ${{ env.PHP_EXTENSIONS }}
+          tools: composer:v2
+          coverage: none
+
+      - name: Install the panel app with its dev dependencies
+        working-directory: web-app
+        run: composer install --no-interaction --no-progress
+
+      - name: Check the code style
+        working-directory: web-app
+        run: vendor/bin/pint --test
+
+  pest:
+    name: Pest
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # 2.40.0
+        with:
+          php-version: "8.5"
+          extensions: ${{ env.PHP_EXTENSIONS }}
+          tools: composer:v2
+          coverage: none
+
+      - name: Install the panel app with its dev dependencies
+        working-directory: web-app
+        run: composer install --no-interaction --no-progress
+
+      # config/arc-commands.php is generated, not committed
+      - name: Build the command allow-list
+        working-directory: web-app
+        run: php artisan arcpanel:allow-list
+
+      - name: Run Pest
+        working-directory: web-app
+        run: php -d memory_limit=2G vendor/bin/pest --parallel
+
+  vitest:
+    name: Vitest
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Setup Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "lts/*"
+
+      - name: Install Node packages
+        run: npm ci --ignore-scripts
+
+      - name: Run Vitest
+        run: npm run test:js
