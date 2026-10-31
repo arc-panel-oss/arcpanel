@@ -2,6 +2,42 @@
 
 **Lightweight and powerful control panel for the modern web.**
 
+[![Latest release](https://img.shields.io/github/v/release/arc-panel-oss/arcpanel?label=release)](https://github.com/arc-panel-oss/arcpanel/releases/latest)
+[![License: GPL-3.0-or-later](https://img.shields.io/github/license/arc-panel-oss/arcpanel)](LICENSE)
+[![Debian 12 | 13, Ubuntu 22.04 | 24.04 | 26.04](https://img.shields.io/badge/runs%20on-Debian%2012%20%7C%2013%2C%20Ubuntu%2022.04%20%7C%2024.04%20%7C%2026.04-informational)](#installing-arcpanel-on-a-server)
+[![GitHub Discussions](https://img.shields.io/github/discussions/arc-panel-oss/arcpanel)](https://github.com/arc-panel-oss/arcpanel/discussions)
+[![Good first issues](https://img.shields.io/github/issues/arc-panel-oss/arcpanel/good%20first%20issue?label=good%20first%20issues)](https://github.com/arc-panel-oss/arcpanel/contribute)
+
+Web domains, mail, DNS, databases, SSL, backups, resellers, Node.js and Docker apps on one Debian or Ubuntu server. Free and open source: no licence keys, no per-account fees, no paid edition.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset=".github/readme/dashboard-dark.png">
+  <img alt="The ArcPanel dashboard: CPU, memory, disk and accounts at the top, load and memory charts, and the state of every service" src=".github/readme/dashboard-light.png">
+</picture>
+
+## Quick start
+
+On a fresh Debian 12/13 or Ubuntu 22.04/24.04/26.04 server (amd64), as root:
+
+```bash
+wget https://arcpanel.org/install.sh
+sudo bash install.sh
+```
+
+The panel answers on `https://<server>:8083` when the installer finishes. Options, upgrades and requirements are in [Installing ArcPanel on a server](#installing-arcpanel-on-a-server) and on [arcpanel.org/install](https://arcpanel.org/install).
+
+## Why ArcPanel
+
+- **Free for real.** GPL-3.0, every feature in one edition, nothing to activate.
+- **Resellers built in.** Resellers create customers and packages inside their own limits; every page and command is scoped to its owner.
+- **Modern workloads.** Node.js apps under pm2, Docker apps from a catalog that run as the hosting user, long-running app processes and a PHP manager (5.6 to 8.5).
+- **The command line is the system of record.** More than 500 `v-*` commands do everything the panel does, and REST API v2 has an OpenAPI document, a TypeScript SDK and the `arc` CLI.
+- **A familiar core.** Based on HestiaCP 1.10.5: NGINX and Apache, Exim and Dovecot, BIND, MariaDB and PostgreSQL, Let's Encrypt.
+
+**Community:** questions and ideas in [Discussions](https://github.com/arc-panel-oss/arcpanel/discussions), a first contribution from the [good first issues](https://github.com/arc-panel-oss/arcpanel/contribute), and every contributor is thanked in the release notes.
+
+## About
+
 ArcPanel is an open-source control panel for Linux web servers. From one dashboard and one command line it manages web domains, DNS zones, mail, databases, cron jobs, backups, firewall and SSL on a single host, and it adds what a modern hosting stack needs: resellers, a port registry, per-user Node.js and Docker apps, long-running app processes, a PHP manager, template metadata, a first-party file manager and REST API v2.
 
 ArcPanel is based on [HestiaCP](https://github.com/hestiacp/hestiacp) 1.10.5 and, since 2.0, a hard fork of it ([ADR-0007](https://github.com/arc-panel-oss/docs/blob/main/adr/0007-full-rename-and-hard-fork.md)). It keeps the architecture (the `v-*` commands, the REST API, the flat-file data model) under ArcPanel names: `/usr/local/arcpanel`, `/etc/arcpanel/arcpanel.conf`, `arcpanelweb`, `v-*-arcpanel-*`. Scripts and integrations written for HestiaCP need these names, and API clients read the `ArcPanel-Exit-Code` header.
