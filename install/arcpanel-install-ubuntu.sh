@@ -2877,7 +2877,12 @@ Please feel free to contact us at any time if you have any questions,
 or if you encounter any bugs or problems:
 
 Documentation:  https://arcpanel.org/docs
-GitHub:         https://github.com/arc-panel-oss/arcpanel
+Questions:      https://github.com/arc-panel-oss/arcpanel/discussions/categories/q-a
+Bug reports:    https://github.com/arc-panel-oss/arcpanel/issues
+Show and tell:  https://github.com/arc-panel-oss/arcpanel/discussions/categories/show-and-tell
+
+If ArcPanel is useful to you, a star on GitHub helps others find it:
+https://github.com/arc-panel-oss/arcpanel
 
 Note: Automatic updates are enabled by default. If you would like to disable them,
 please log in and navigate to Server > Updates to turn them off.
