@@ -1,11 +1,14 @@
 blank_issues_enabled: false
 contact_links:
   - name: Questions
-    url: https://github.com/arc-panel-oss/arcpanel/discussions
-    about: Ask and answer questions in GitHub Discussions. Issues are for bugs and feature requests.
+    url: https://github.com/arc-panel-oss/arcpanel/discussions/categories/q-a
+    about: Ask and answer questions in GitHub Discussions. Issues are for confirmed bugs and accepted work.
+  - name: Ideas and feature requests
+    url: https://github.com/arc-panel-oss/arcpanel/discussions/categories/ideas
+    about: Suggest a feature or a change in GitHub Discussions, where others can vote and add their use case. Ideas that fit the roadmap become issues.
   - name: Documentation
     url: https://arcpanel.org/docs
-    about: Installation, configuration and troubleshooting guides for ArcPanel. We use GitHub issues only for ArcPanel bugs and feature requests.
+    about: Installation, configuration and troubleshooting guides for ArcPanel.
   - name: Report a security vulnerability
     url: https://github.com/arc-panel-oss/arcpanel/security/advisories/new
     about: Please report security issues privately, not as a public issue.
