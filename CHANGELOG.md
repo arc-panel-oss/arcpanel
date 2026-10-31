@@ -6,6 +6,14 @@ All notable changes to ArcPanel are listed here. ArcPanel is based on HestiaCP 1
 
 Changes that are not released yet are in `changelog/unreleased/` of each release line.
 
+## 2.2.6 — 2026-10-31
+
+A maintenance release with no change to the panel. It brings the new project README, the issue forms that send questions and ideas to GitHub Discussions and the installer option below to the `master` branch. Servers take it like any patch release, and there is nothing to do.
+
+### Added
+
+- The installers accept `ARCPANEL_APT_CHANNEL=stable` or `ARCPANEL_APT_CHANNEL=beta` to choose the ArcPanel APT channel instead of deriving it from the version, for example to install a development build with `--with-debs` and take the engine packages from the stable channel. Without the variable nothing changes.
+
 ## 2.2.5 — 2026-10-31
 
 A maintenance release with no change to the panel. The package repository `apt.arcpanel.org` (and `apt.arcpanel.top` until 30 April 2027) is now served from new storage, and 2.2.5 is the first release published there; the addresses and the signing key stay the same. Servers take it like any patch release, and there is nothing to do.
