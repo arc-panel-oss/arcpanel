@@ -1,0 +1,5 @@
+---
+type: summary
+---
+
+A maintenance release with no change to the panel. The package repository `apt.arcpanel.org` (and `apt.arcpanel.top` until 30 April 2027) is now served from new storage, and 2.2.5 is the first release published there; the addresses and the signing key stay the same. Servers take it like any patch release, and there is nothing to do.
