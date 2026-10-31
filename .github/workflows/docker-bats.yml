@@ -78,8 +78,10 @@ jobs:
       - name: Install ArcPanel
         env:
           DEBS_ARTIFACT: ${{ inputs.debs-artifact }}
+          # The engine packages come from the stable repository, even on a line between tags
+          ARCPANEL_APT_CHANNEL: stable
         run: |
-          docker exec -e DEBS_ARTIFACT arcpanel-ci bash -lc '
+          docker exec -e DEBS_ARTIFACT -e ARCPANEL_APT_CHANNEL arcpanel-ci bash -lc '
             set -euxo pipefail
             export TERM=xterm
             if [ -n "${DEBS_ARTIFACT}" ]; then
