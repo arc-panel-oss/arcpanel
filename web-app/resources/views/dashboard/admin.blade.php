@@ -54,6 +54,24 @@
         </div>
     @endif
 
+    @if ($showCommunity)
+        {{-- Community card until hidden in arc_ui (docs/features/specs/2026-11-01-001-community-touchpoints-design.md §4) --}}
+        <x-ap-card :title="__('Join the ArcPanel community')" icon="users" x-data="apCommunityCard">
+            <x-slot:actions>
+                <x-ap-button variant="ghost" size="sm" icon="x" x-on:click="hide()">{{ __('Hide') }}</x-ap-button>
+            </x-slot:actions>
+            <div class="ap-card-body">
+                <p class="ap-hint">{{ __('Ask questions, share what you host and help shape what comes next.') }}</p>
+                <div class="ap-row">
+                    <x-ap-button href="https://github.com/arc-panel-oss/arcpanel/discussions/categories/q-a" icon="lifebuoy" target="_blank" rel="noopener">{{ __('Ask a question') }}</x-ap-button>
+                    <x-ap-button href="https://github.com/arc-panel-oss/arcpanel/discussions/categories/show-and-tell" icon="send" target="_blank" rel="noopener">{{ __('Show what you host') }}</x-ap-button>
+                    <x-ap-button href="https://github.com/arc-panel-oss/arcpanel" icon="sparkle" target="_blank" rel="noopener">{{ __('Star on GitHub') }}</x-ap-button>
+                    <x-ap-button href="https://github.com/arc-panel-oss/arcpanel/contribute" icon="git" target="_blank" rel="noopener">{{ __('Contribute') }}</x-ap-button>
+                </div>
+            </div>
+        </x-ap-card>
+    @endif
+
     <div class="ap-split">
         <div class="ap-stack">
             @if ($widgets['graphs']->ok())

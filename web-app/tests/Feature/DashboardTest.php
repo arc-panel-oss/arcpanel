@@ -99,3 +99,45 @@ it('sends a logged-in user from the login page to the dashboard', function () {
 
     $this->get('/login')->assertRedirect('/');
 });
+
+// Community card (docs/features/specs/2026-11-01-001-community-touchpoints-design.md §4)
+it('shows the Community card to an administrator once the server hosts a site', function () {
+    fakeServerHealth($this->fake);
+    fakeServerUsers($this->fake, ['bob' => ['U_WEB_DOMAINS' => '1']]);
+    signIn('arcadmin', 'admin');
+
+    $this->get('/')->assertOk()
+        ->assertSee('Join the ArcPanel community')
+        ->assertSee('x-data="apCommunityCard"', false)
+        ->assertSee('https://github.com/arc-panel-oss/arcpanel/discussions/categories/q-a', false)
+        ->assertSee('https://github.com/arc-panel-oss/arcpanel/discussions/categories/show-and-tell', false)
+        ->assertSee('https://github.com/arc-panel-oss/arcpanel/contribute', false);
+});
+
+it('shows no Community card before the first site', function () {
+    fakeServerHealth($this->fake);
+    signIn('arcadmin', 'admin');
+
+    $this->get('/')->assertOk()->assertSee('Accounts')->assertDontSee('Join the ArcPanel community');
+});
+
+it('shows no Community card once the administrator hid it', function () {
+    fakeServerHealth($this->fake);
+    fakeServerUsers($this->fake, ['bob' => ['U_WEB_DOMAINS' => '1']]);
+    signIn('arcadmin', 'admin');
+
+    $this->withUnencryptedCookie('arc_ui', '{"theme":"light","community":"hidden"}')
+        ->get('/')->assertOk()->assertSee('Accounts')->assertDontSee('Join the ArcPanel community');
+});
+
+it('shows no Community card to users, nor to an administrator acting as one', function () {
+    $this->fake->on('v-list-user-backups')->returnsJson([]);
+    $this->fake->on('v-list-user-notifications')->returnsJson([]);
+    fakeServerUsers($this->fake, ['bob' => ['U_WEB_DOMAINS' => '2', 'WEB_DOMAINS' => '2']]);
+
+    signIn('bob', 'user');
+    $this->get('/')->assertOk()->assertSee('Welcome, bob')->assertDontSee('Join the ArcPanel community');
+
+    signIn('arcadmin', 'admin', ['look' => 'bob']);
+    $this->get('/')->assertOk()->assertSee('Welcome, bob')->assertDontSee('Join the ArcPanel community');
+});

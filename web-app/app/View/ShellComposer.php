@@ -49,6 +49,7 @@ final class ShellComposer
                 in_array($density, UiPreferences::DENSITIES, true) ? $density : $prefs->density,
                 $prefs->canChangeTheme,
                 $prefs->sidebar,
+                $prefs->communityHidden,
             );
             $dir = in_array($this->request->query('dir'), ['ltr', 'rtl'], true) ? (string) $this->request->query('dir') : $dir;
         }

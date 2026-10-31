@@ -5,7 +5,9 @@ namespace App\View;
 /**
  * Theme, density and sidebar layout of the panel app (D8 of the E1-S2 spec):
  * the cookie arc_ui, else derived from THEME (the user's, else the server's).
- * Rendered on <html> by the server so pages never flash.
+ * Rendered on <html> by the server so pages never flash. The same cookie
+ * remembers a hidden Community card of the admin dashboard
+ * (docs/features/specs/2026-11-01-001-community-touchpoints-design.md §4).
  */
 final class UiPreferences
 {
@@ -23,6 +25,7 @@ final class UiPreferences
         public readonly string $density,
         public readonly bool $canChangeTheme,
         public readonly string $sidebar = 'full',
+        public readonly bool $communityHidden = false,
     ) {}
 
     /**
@@ -33,6 +36,7 @@ final class UiPreferences
     {
         [$theme, $density] = self::fromLegacyTheme($legacyTheme);
         $sidebar = 'full';
+        $communityHidden = false;
 
         $saved = is_string($cookie) ? json_decode($cookie, true) : null;
         if (is_array($saved)) {
@@ -45,9 +49,10 @@ final class UiPreferences
             if (in_array($saved['sidebar'] ?? null, self::SIDEBARS, true)) {
                 $sidebar = $saved['sidebar'];
             }
+            $communityHidden = ($saved['community'] ?? null) === 'hidden';
         }
 
-        return new self($theme, $density, $canChangeTheme, $sidebar);
+        return new self($theme, $density, $canChangeTheme, $sidebar, $communityHidden);
     }
 
     /**

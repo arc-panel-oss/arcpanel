@@ -2,11 +2,14 @@
 
 namespace App\Http\Controllers;
 
+use App\Arc\SysConfig;
 use App\Auth\Principal;
 use App\Auth\Role;
 use App\Policies\Capabilities;
 use App\Services\Dashboard\DashboardService;
 use App\View\Navigation;
+use App\View\ShellComposer;
+use Illuminate\Http\Request;
 use Illuminate\View\View;
 
 /**
@@ -16,13 +19,18 @@ use Illuminate\View\View;
  */
 final class DashboardController extends Controller
 {
-    public function __invoke(Principal $principal, DashboardService $dashboard, Navigation $navigation): View
+    public function __invoke(Principal $principal, DashboardService $dashboard, Navigation $navigation, SysConfig $config, Request $request): View
     {
         abort_unless(Capabilities::allows($principal->actingRole(), 'dashboard.view'), 403);
 
         if ($principal->actingRole() === Role::Admin) {
+            $widgets = $dashboard->admin($principal->loginUser);
+
             return view('dashboard.admin', [
-                'widgets' => $dashboard->admin($principal->loginUser),
+                'widgets' => $widgets,
+                // Community card once the server hosts a site, until hidden (community touchpoints spec §4)
+                'showCommunity' => $widgets['accounts']->ok() && $widgets['accounts']->data['webDomains'] > 0
+                    && ! ShellComposer::preferences($principal, $config, $request)->communityHidden,
                 'addUserUrl' => Navigation::url('users.create'),
                 'servicesUrl' => Navigation::url('server.services'),
                 'updatesUrl' => Navigation::url('server.updates'),

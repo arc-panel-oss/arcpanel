@@ -58,3 +58,9 @@ it('counts resellers on the admin dashboard', function () {
 
     $this->get('/')->assertOk()->assertSee('2 resellers');
 });
+
+it('shows no Community card to a reseller', function () {
+    signIn('resb', 'reseller');
+
+    $this->get('/')->assertOk()->assertSee('Welcome, resb')->assertDontSee('Join the ArcPanel community');
+});

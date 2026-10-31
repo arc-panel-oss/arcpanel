@@ -3,6 +3,7 @@ import apAccessKeySecret from './access-key-secret.js';
 import apBackupJob from './backup-job.js';
 import apBulkBar from './bulk-bar.js';
 import apCardPicker from './card-picker.js';
+import apCommunityCard from './community-card.js';
 import apConfirm from './confirm.js';
 import apCronBuilder from './cron-builder.js';
 import apCsr from './csr.js';
@@ -36,6 +37,7 @@ export const modules = {
 	apBackupJob,
 	apBulkBar,
 	apCardPicker,
+	apCommunityCard,
 	apConfirm,
 	apCronBuilder,
 	apCsr,

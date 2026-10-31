@@ -23,7 +23,7 @@ export function readPreferences() {
 
 /**
  * Stores preferences in arc_ui; keys that are not given keep their value.
- * @param {{theme?: string, density?: string, sidebar?: string}} preferences
+ * @param {{theme?: string, density?: string, sidebar?: string, community?: string}} preferences
  */
 export function writePreferences(preferences) {
 	const merged = { ...readPreferences(), ...preferences };

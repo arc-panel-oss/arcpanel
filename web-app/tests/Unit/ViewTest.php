@@ -60,6 +60,13 @@ it('reads the sidebar layout from the cookie, full by default', function () {
         ->and(UiPreferences::resolve(null, null, true)->sidebar)->toBe('full');
 });
 
+it('reads the hidden Community card from the cookie, shown by default', function () {
+    expect(UiPreferences::resolve('{"community":"hidden"}', null, true)->communityHidden)->toBeTrue()
+        ->and(UiPreferences::resolve('{"community":"yes"}', null, true)->communityHidden)->toBeFalse()
+        ->and(UiPreferences::resolve('{"theme":"light"}', null, true)->communityHidden)->toBeFalse()
+        ->and(UiPreferences::resolve(null, null, true)->communityHidden)->toBeFalse();
+});
+
 it('ignores the theme of the cookie when the policy forbids changing it', function () {
     $prefs = UiPreferences::resolve('{"theme":"light","density":"compact"}', 'dark', false);
 
