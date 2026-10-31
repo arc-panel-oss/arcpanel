@@ -2,7 +2,7 @@
 
 # Changelog
 
-All notable changes to ArcPanel are listed here. ArcPanel is based on HestiaCP 1.10.5 and, since 2.0, a hard fork of it ([ADR-0007](https://github.com/arc-panel-oss/docs/blob/main/adr/0007-full-rename-and-hard-fork.md)).
+All notable changes to ArcPanel are listed here. ArcPanel is based on HestiaCP 1.10.5 and, since 2.0, a hard fork of it.
 
 Changes that are not released yet are in `changelog/unreleased/` of each release line.
 
@@ -36,7 +36,7 @@ A maintenance release with no change to the panel. The package repository `apt.a
 
 ## 2.2.2 — 2026-10-20
 
-Automatic updates that stay on the installed release line, and an APT repository that keeps every version (E33 phase 1). See the [E33 phase 1 spec](https://github.com/arc-panel-oss/docs/blob/main/features/specs/2026-10-20-005-e33-update-center-phase-1-design.md).
+Automatic updates that stay on the installed release line, and an APT repository that keeps every version (E33 phase 1).
 
 ### Changed
 
@@ -44,7 +44,7 @@ Automatic updates that stay on the installed release line, and an APT repository
 - Automatic updates run at a random night time between 01:00 and 06:59 of the server; installs before 2.2.2 all ran at 04:41. Their output goes to `/usr/local/arcpanel/log/autoupdate.log`, and a failure sends one line through the cron e-mail.
 - A failed update of an ArcPanel package now shows the output of `apt-get` in the task log instead of only "update failed", and never waits for a question about a changed configuration file (the installed file is kept).
 - `arcpanel-web-terminal` is updated with the other ArcPanel packages when it is installed.
-- **The APT repository keeps every version.** `apt.arcpanel.top` now keeps each published version of the ArcPanel packages, starting with 2.2.1, instead of the newest one only, so a patch release of an older line no longer replaces a newer release and an earlier version can be installed again with `apt-get install arcpanel=<version>`. APT still installs the newest version by default. See the [E33 phase 1 spec](https://github.com/arc-panel-oss/docs/blob/main/features/specs/2026-10-20-005-e33-update-center-phase-1-design.md).
+- **The APT repository keeps every version.** `apt.arcpanel.top` now keeps each published version of the ArcPanel packages, starting with 2.2.1, instead of the newest one only, so a patch release of an older line no longer replaces a newer release and an earlier version can be installed again with `apt-get install arcpanel=<version>`. APT still installs the newest version by default.
 
 ### Fixed
 
@@ -52,12 +52,12 @@ Automatic updates that stay on the installed release line, and an APT repository
 
 ## 2.2.1 — 2026-10-20
 
-Webmail and the database tools on their own ports with webmail sign-on (E46), and `arm64` packages again (E47). See the [E46 spec](https://github.com/arc-panel-oss/docs/blob/main/features/specs/2026-10-20-002-e46-webmail-db-admin-ports-design.md) and the [E47 spec](https://github.com/arc-panel-oss/docs/blob/main/features/specs/2026-10-20-003-e47-arm64-packages-design.md).
+Webmail and the database tools on their own ports with webmail sign-on (E46), and `arm64` packages again (E47).
 
 ### Added
 
 - **`arm64` packages.** Stable releases publish the ArcPanel packages for `arm64` again, for every supported distribution, next to `amd64`. Installing on `arm64` is not supported yet: the installers still stop on `aarch64`.
-- **Webmail and database tools on their own ports.** The webmail client answers on port 8086 and phpMyAdmin and phpPgAdmin on port 8087 of every address of the server, with the panel certificate, so "Open Webmail" and the database buttons work without DNS for each mail domain and also when the panel is opened by IP address. The ports are separate origins from the panel. Change or turn them off under Server → Settings (Mail Server, Databases), in `PATCH /api/v2/system/settings/mail` and `/databases` (`webmail_port`, `webmail_link`, `db_admin_port`) or with `v-change-sys-webmail-port`, `v-change-sys-db-admin-port` and `v-change-sys-webmail-link`. Installs and upgrades open them in the firewall only when the tool is installed and the port is free ([runbook](https://github.com/arc-panel-oss/docs/blob/main/operations/tool-ports.md)).
+- **Webmail and database tools on their own ports.** The webmail client answers on port 8086 and phpMyAdmin and phpPgAdmin on port 8087 of every address of the server, with the panel certificate, so "Open Webmail" and the database buttons work without DNS for each mail domain and also when the panel is opened by IP address. The ports are separate origins from the panel. Change or turn them off under Server → Settings (Mail Server, Databases), in `PATCH /api/v2/system/settings/mail` and `/databases` (`webmail_port`, `webmail_link`, `db_admin_port`) or with `v-change-sys-webmail-port`, `v-change-sys-db-admin-port` and `v-change-sys-webmail-link`. Installs and upgrades open them in the firewall only when the tool is installed and the port is free.
 - **Webmail sign-on.** "Open Webmail (signed in)" on a mail account opens Roundcube without the mailbox password, for whoever may change that password. A one-time ticket, bound to the browser's address, becomes a session password of 8 hours that Dovecot accepts from the loopback address only; it ends when the password, the mailbox, its domain or its user changes, and every sign-on is in the user's action log.
 
 ### Changed
@@ -75,7 +75,7 @@ Webmail and the database tools on their own ports with webmail sign-on (E46), an
 
 ## 2.2.0 — 2026-10-17
 
-The REST API v2 additions that ArcPanel Fleet needs to operate many servers (E43), all additive. See the [E43 spec](https://github.com/arc-panel-oss/docs/blob/main/features/specs/2026-10-16-004-e43-api-v2-fleet-additions-design.md).
+The REST API v2 additions that ArcPanel Fleet needs to operate many servers (E43), all additive.
 
 ### Added
 
@@ -92,7 +92,7 @@ The REST API v2 additions that ArcPanel Fleet needs to operate many servers (E43
 
 ## 2.1.3 — 2026-10-17
 
-The supply-chain and authorization parts of the security audit remediation (E39 W3 and W4), and app processes for Laravel Octane and other long-running app servers (E42). See the [W3 spec](https://github.com/arc-panel-oss/docs/blob/main/features/specs/2026-10-16-001-e39-w3-supply-chain-design.md) and the [W4 spec](https://github.com/arc-panel-oss/docs/blob/main/features/specs/2026-10-16-002-e39-w4-authorization-and-tenancy-design.md).
+The supply-chain and authorization parts of the security audit remediation (E39 W3 and W4), and app processes for Laravel Octane and other long-running app servers (E42).
 
 ### Breaking changes
 
@@ -142,7 +142,7 @@ The tag `v2.1.1` exists, but its release build did not finish and no package was
 
 The tag `v2.1.0` exists, but its release build did not finish and no package was published; its changes ship in 2.1.1.
 
-Two features for PHP sites: the PHP Manager and a malware scan for PHP files. See the [E41 spec](https://github.com/arc-panel-oss/docs/blob/main/features/specs/2026-10-12-001-e41-php-manager-design.md) and the [E25 spec](https://github.com/arc-panel-oss/docs/blob/main/features/specs/2026-10-12-002-e25-malware-scan-design.md).
+Two features for PHP sites: the PHP Manager and a malware scan for PHP files.
 
 ### Breaking changes
 
@@ -168,7 +168,7 @@ Two features for PHP sites: the PHP Manager and a malware scan for PHP files. Se
 
 ## 2.0.0 — 2026-10-12
 
-The panel app (Laravel) serves every page at the root URL, and the HestiaCP web interface of 1.x is gone. See the [E8 spec](https://github.com/arc-panel-oss/docs/blob/main/features/specs/2026-10-06-004-e8-legacy-retirement-design.md).
+The panel app (Laravel) serves every page at the root URL, and the HestiaCP web interface of 1.x is gone.
 
 ### Breaking changes
 
@@ -179,7 +179,7 @@ The panel app (Laravel) serves every page at the root URL, and the HestiaCP web 
 - **FileGator removed.** The file manager of the panel replaced it in 1.x; `v-add-sys-filemanager` and `v-delete-sys-filemanager` now only turn `FILE_MANAGER` on and off.
 - **Themes.** The CSS themes of the HestiaCP interface (`dark`, `default`, `flat`, `vestia` and custom themes in `web/css/themes/custom`) are gone. `THEME` now holds a panel theme: `nocturne`, `light` or `auto`. Custom CSS themes are not supported any more; the panel's look follows the design tokens of `web-app/resources/css`.
 - **Switches removed.** `ARCPANEL_APP_PAGES` and `ARCPANEL_APP_LOGIN` no longer exist; there is no legacy interface to switch back to.
-- **ArcPanel names everywhere** ([ADR-0007](https://github.com/arc-panel-oss/docs/blob/main/adr/0007-full-rename-and-hard-fork.md), [full rename spec](https://github.com/arc-panel-oss/docs/blob/main/features/specs/2026-10-06-005-e9-full-rename-design.md)). Every internal name changed, and the 1.x aliases are gone:
+- **ArcPanel names everywhere**. Every internal name changed, and the 1.x aliases are gone:
   - paths: `/usr/local/hestia` → `/usr/local/arcpanel`, `/etc/hestiacp/hestia.conf` → `/etc/arcpanel/arcpanel.conf`, `conf/hestia.conf` → `conf/arcpanel.conf`, `/var/log/hestia` → `/var/log/arcpanel`;
   - shell: `$HESTIA` → `$ARCPANEL`, `HESTIA_*` → `ARCPANEL_*`, `check_hestia_demo_mode` → `check_arcpanel_demo_mode`;
   - commands: `v-*-hestia-*` → `v-*-arcpanel-*`; installer `hst-install*.sh` → `arcpanel-install*.sh`; build script `src/hst_autocompile.sh` → `src/arcpanel-build.sh` (flag `--arcpanel`);
@@ -187,7 +187,7 @@ The panel app (Laravel) serves every page at the root URL, and the HestiaCP web 
   - runtime identifiers: firewall chain `ARCPANEL`, API response header `ArcPanel-Exit-Code`, DNS cluster values `arcpanel` and `arcpanel-zone`, Roundcube password driver `arcpanel`, gettext domain `arcpanel`, PHP namespace `ArcPanel\`.
 - **Backups.** Archives keep their objects in `./arcpanel/`. Archives of HestiaCP and ArcPanel 1.x (`./hestia/`) and of VestaCP (`./vesta/`) still restore; the administrator's cron jobs are moved to the new paths.
 - **Third-party tools.** WHMCS and Blesta modules, scripts and API clients written for HestiaCP must use the new paths and command names, and read `ArcPanel-Exit-Code`; the API request format is unchanged.
-- **Fresh installs only.** There is no upgrade from ArcPanel 1.x or from HestiaCP to 2.0; install 2.0 on a new server and move the users with backups ([ADR-0007](https://github.com/arc-panel-oss/docs/blob/main/adr/0007-full-rename-and-hard-fork.md)).
+- **Fresh installs only.** There is no upgrade from ArcPanel 1.x or from HestiaCP to 2.0; install 2.0 on a new server and move the users with backups.
 - **One version number.** `VERSION` in `arcpanel.conf` is the ArcPanel version; `ARCPANEL_VERSION` and `install/upstream.conf` are gone. `v-list-sys-info` drops the `HESTIA` column. Upgrade steps of later releases go into `install/upgrade/versions/<version>.sh`, and the HestiaCP steps up to 1.10.5 are removed.
 
 ### Added
