@@ -170,14 +170,26 @@ build.js        esbuild + Lightning CSS build of the panel app assets
 | A test server  | Debian 12 / Ubuntu 24.04 with ArcPanel installed (VM, LXC, WSL or a Docker systemd container) | BATS, smoke test, e2e                                 |
 | Git            | any recent                                                                                    | BATS helpers are git submodules (`test/test_helper/`) |
 
+### Dev container (no local PHP or Node.js needed)
+
+[![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/arc-panel-oss/arcpanel?ref=develop)
+
+The repository ships a dev container with PHP 8.5, Composer 2, Node.js LTS and shellcheck. It runs the lint, Pint, Pest and Vitest suites below; BATS, the smoke test and e2e need a test server and run in CI.
+
+1. Open the repository in GitHub Codespaces with the button above, or open your clone in VS Code with the Dev Containers extension and choose **Reopen in Container**.
+2. Wait for the first start to finish `npm ci`, `composer install` and the command allow-list.
+3. Run the commands of [Lint, format, unit tests](#lint-format-unit-tests-no-server-needed).
+
+On Windows, clone inside WSL or use Codespaces: a Windows checkout has CRLF line endings, which the shell tools in the container reject.
+
 ### First checkout
 
 ```bash
 git clone --recurse-submodules https://github.com/arc-panel-oss/arcpanel.git
 cd arcpanel
-npm ci        # tooling + pre-commit hooks (Prettier, Biome, markdownlint, brand check)
-npm run build # frontend assets (npm run dev = watch mode)
-cd web-app && composer install && cd ..
+npm ci                                                                     # tooling + pre-commit hooks (Prettier, Biome, markdownlint, brand check)
+npm run build                                                              # frontend assets (npm run dev = watch mode)
+cd web-app && composer install && php artisan arcpanel:allow-list && cd .. # the allow-list is generated, Pest needs it
 ```
 
 ### Lint, format, unit tests (no server needed)
@@ -240,7 +252,7 @@ The user documentation is on [arcpanel.org/docs](https://arcpanel.org/docs). The
 
 - Features go to `develop`; fixes go to the oldest supported release line `vX.Y.x` and are merged forward. `master` follows the newest stable release.
 - ArcPanel owns every file: keep the conventions of the inherited code, use ArcPanel names only (`test/brand-check.sh`), and keep the original copyright headers.
-- Every change comes with tests at the right layer (BATS for commands, Pest for the panel app, Vitest for Alpine modules, Playwright for flows) and with the documentation updates the design calls for.
+- Every change comes with tests at the right layer (BATS for commands, Pest for the panel app, Vitest for Alpine modules, Playwright for flows) and with the documentation updates the design calls for. The [dev container](#dev-container-no-local-php-or-nodejs-needed) runs every suite that needs no server.
 - Commit messages follow Conventional Commits with the epic as scope, for example `feat(e12): add the Ports pages`.
 - Questions and ideas: [GitHub Discussions](https://github.com/arc-panel-oss/arcpanel/discussions). Bugs: [GitHub issues](https://github.com/arc-panel-oss/arcpanel/issues); first-time contributors start with [good first issues](https://github.com/arc-panel-oss/arcpanel/labels/good%20first%20issue). Vulnerabilities: see [SECURITY.md](SECURITY.md), never a public issue.
 
