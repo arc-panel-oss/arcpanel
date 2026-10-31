@@ -1,7 +1,7 @@
 Source: arcpanel
 Package: arcpanel
 Priority: optional
-Version: 2.2.6~alpha
+Version: 2.2.6
 Section: admin
 Maintainer: ArcPanel <support@arcpanel.org>
 Homepage: https://arcpanel.org
