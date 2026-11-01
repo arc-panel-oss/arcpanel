@@ -26,7 +26,7 @@ final class DockerEngineController extends Controller
         'Type', 'User', 'Users', 'Version', 'App', 'Detail',
         'Checked every 5 minutes', 'Docker is not installed', 'Install the engine to run Docker apps from the catalog. Every app runs as its user, without privileges.',
         'Last installation', 'No problem found', 'Not checked yet', 'Not repaired', 'Open the Services page', 'Read-only: changes are disabled.', 'Refresh',
-        'The engine and every Docker app passed the last check.', 'The first check of the engine and its apps runs within 5 minutes.','The engine is stopped: no Docker app runs until the docker service starts again.',
+        'The engine and every Docker app passed the last check.', 'The first check of the engine and its apps runs within 5 minutes.', 'The engine is stopped: no Docker app runs until the docker service starts again.',
         'GB', 'Usage', 'Used by Docker',
     ];
 
