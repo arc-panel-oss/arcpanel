@@ -212,7 +212,7 @@ teardown_file() {
 
     run v-delete-sys-package arctest-hello
     assert_success
-    ! hello_installed
+    refute hello_installed
     run grep "^SLUG='arctest-hello' " "$SP_CONF"
     assert_failure
     run v-delete-sys-package arctest-hello
@@ -259,7 +259,7 @@ teardown_file() {
     hello_installed
     run v-delete-sys-package arctest-hello force
     assert_success
-    ! hello_installed
+    refute hello_installed
     set_tpl default > /dev/null
     run field arctest-hello USED_BY
     assert_output "0"
@@ -274,7 +274,7 @@ teardown_file() {
     mv -f "$conf.e5" "$conf"
     assert_failure 1
     assert_output --partial "security restrictions"
-    ! hello_installed
+    refute hello_installed
 }
 
 #----------------------------------------------------------#
@@ -316,6 +316,6 @@ teardown_file() {
     assert_success
     run wait_task
     assert_output "done"
-    ! hello_installed
+    refute hello_installed
     rm -f "$CATALOG/arctest-hello.json"
 }

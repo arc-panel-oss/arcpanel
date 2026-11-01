@@ -165,7 +165,7 @@ teardown_file() {
     assert_success
     [ "$(wc -l < "$file")" -eq 30 ]
     assert_equal "$(br_value "$(br_last "$BR_USER")" STATUS)" succeeded
-    ! grep -q "^ID='17000000000006' " "$file"
+    refute grep -q "^ID='17000000000006' " "$file"
     grep -q "^ID='17000000000007' " "$file"
 }
 

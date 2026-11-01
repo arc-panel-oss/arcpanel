@@ -27,7 +27,11 @@ shellcheck --version
 i=0
 f=0
 # install/deb/pga/phppgadmin is vendored phpPgAdmin (install/deb/pga/README.txt)
-files=$(grep -rlE '#!/bin/(bash|sh)' ./ | grep -vE '\.(git|j2$|md$)' | grep -v '^\./install/deb/pga/phppgadmin/')
+# A file is a script when its first line is a sh, bash or bats shebang; a
+# shebang quoted inside a PHP or JavaScript test does not count
+files=$(git ls-files | grep -vE '\.(j2|md)$' | grep -v '^install/deb/pga/phppgadmin/' | while IFS= read -r file; do
+	[ -f "$file" ] && head -n 1 "$file" | grep -qE '^#!(/usr/bin/env )?(/usr)?(/bin/)?(bash|sh|bats)' && echo "./$file"
+done)
 for file in $files; do
 	i=$(($i + 1))
 	shellcheck -x "$file" --severity="error"
