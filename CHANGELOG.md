@@ -6,6 +6,39 @@ All notable changes to ArcPanel are listed here. ArcPanel is based on HestiaCP 1
 
 Changes that are not released yet are in `changelog/unreleased/` of each release line.
 
+## 2.3.0 — 2026-11-02
+
+### Security
+
+- The firewall no longer accepts packets from outside that claim one of the server's own addresses. The server's traffic to itself still arrives on the loopback interface. Since the table no longer lists the server's IPv6 addresses, rotating IPv6 privacy addresses no longer make the Firewall page report changed rules after a reboot.
+
+### Added
+
+- **IPv6 in the firewall.** The firewall runs on nftables: one table, `inet arcpanel`, filters IPv4 and IPv6 and is replaced in one step, checked first, so a rule set nftables refuses never replaces the one that runs. A port closed in the panel is now closed over IPv6 too; rules, bans and IP lists accept IPv6 addresses and networks, the IP list page offers IPv6 country lists, and Fail2Ban bans IPv6 addresses. `0.0.0.0/0` and `::/0` mean every address of both versions; ICMPv6 neighbour discovery is always allowed.
+- `v-check-firewall` and `GET /api/v2/system/firewall/status` (`getFirewallStatus`) tell whether the loaded rules are still the panel's (`ok`, `drift`, `missing`); the Firewall page warns and offers a reload when they are not.
+- `data/firewall/custom.nft`: nftables commands loaded together with the panel's table.
+- `v-check-firewall` also returns warnings (`WARNINGS`; `warnings` in `GET /api/v2/system/firewall/status`), which the Firewall page shows as alerts: `iptables-engine` when the 2.3.0 upgrade could not move the server to nftables, `fail2ban-action` when the Fail2Ban action is older than 2.3 (a reload replaces it), `nftables-service` when the distribution's `nftables.service` is enabled or active, and `ipv6-ssh` or `ipv6-panel` when a server with a global IPv6 address accepts the SSH ports or the panel port over IPv4 only. While a server is left on iptables, the ban and chain commands refuse with `E_DISABLED` instead of recording bans that block nothing. `v-update-firewall` masks the distribution's `nftables.service` while nobody uses it, and `v-delete-sys-firewall` unmasks it.
+- Records of backup runs: every run of a tar or restic backup (nightly, requested in the panel or the API, or started on the server), failed ones included with the exit code and reason, the last 30 per user. `v-list-user-backup-runs` and `v-list-sys-backup-runs` list them, and REST API v2 answers `GET /users/{user}/backup-runs` and, for administrators and resellers, `GET /backup-runs` with `updated_since`.
+- The REST API v2 document names the permission set of each operation (`x-arcpanel-permission-set`), the values of `Task.status`, the 409 answers of `createBackup`, `restoreBackup` and `createNodeApp`, how a Let's Encrypt request reports a failure and renews a certificate, and how `setNodeAppEnv` keeps values.
+- The one-off task of app processes is a task of `GET /tasks/{id}` and `listUserTasks` (`app-process:USER:ID`), and `startAppProcessTask` sends `Link` to it.
+- `createNodeApp` answers a domain that already has a Node.js app with `409 E_EXISTS` and `existing`, the path of that app.
+
+### Changed
+
+- The 2.3.0 upgrade moves the firewall from iptables and ipset to nftables (`FIREWALL_SYSTEM='nftables'`, unit `arcpanel-firewall.service` instead of `arcpanel-iptables.service`). When the new rules cannot be loaded, the server keeps its iptables rules and the upgrade warns. The `arcpanel` package depends on `nftables`; `ipset` is no longer installed. The firewall service is listed as `nftables`; `iptables` still works to start, stop and restart it. A `data/firewall/custom.sh` that calls `iptables` still runs, but its rules cannot open ports the new table drops: the upgrade warns, and `custom.nft` takes such rules.
+- Deleting an IP list that an active rule uses answers `E_INUSE` (`409` in REST API v2) and names the rule.
+- The firewall rule list shows `0.0.0.0/0` and `::/0` as "Any address, IPv4 and IPv6", and the rule form says that both mean every address of both versions.
+- A queued task whose command fails and asks to run again (Let's Encrypt while DNS propagates) is retried at most `QUEUE_MAX_ATTEMPTS` times, 3 by default, and then fails; before, it was retried every five minutes without end. Every failed queue task carries the reason from its log in `error`.
+- The REST API v2 document declares `Link` on every `202` that starts a task and `Location` only where the answer names a resource, as the panel answers. Before, it declared `Location` on the backup, snapshot, malware scan, Docker engine and PHP operations, which send only `Link`.
+- A firewall stopped on the Services page (or with `v-stop-firewall`) stays stopped when Fail2Ban bans an address or starts a jail. The ban is recorded and applies with the next start of the firewall.
+- The installer's closing message, on screen and by e-mail, links GitHub Discussions for questions and for showing what you host, and the issue tracker for bug reports.
+
+### Fixed
+
+- The ban list of the panel and REST API v2 accepts the `RECIDIVE` chain of Fail2Ban.
+- A backup with only remote backup hosts that fails to upload exits with the error code of the upload instead of 0.
+- A restic restore of a user's folders works with restic 0.16, which Ubuntu 24.04 ships; it stopped with "Unable to download user folders", because restic before 0.17 refuses `--include` together with `--exclude`.
+
 ## 2.2.6 — 2026-10-31
 
 A maintenance release with no change to the panel. It brings the new project README, the issue forms that send questions and ideas to GitHub Discussions and the installer option below to the `master` branch. Servers take it like any patch release, and there is nothing to do.
