@@ -150,6 +150,11 @@ final class PackageController extends Controller
             'templates' => $this->actions->choices($reseller, $record?->data ?? []),
             'resources' => $this->packages->resourcesLimit(),
             'resellerSettings' => $policy->manageResellerSettings($principal),
+            // Copy and delete in the page head
+            'can' => $record !== null ? $policy->abilities($principal, $record) : ['update' => false, 'delete' => false, 'copy' => false],
+            'deleteRefusal' => $record !== null ? $this->actions->deleteRefusal($record) : null,
+            // The packages a reseller package may let its reseller assign: those of no reseller
+            'packageChoices' => array_keys(array_filter($this->packages->all(), fn (PackageRecord $package, string $name) => $name !== 'system' && $package->owner() === '', ARRAY_FILTER_USE_BOTH)),
             'ownLimits' => $reseller !== '' ? $this->users->find($reseller)->data : [],
             'ownPorts' => $reseller !== '' ? $this->actions->ownPorts($reseller) : null,
             'ownNode' => $reseller !== '' ? $this->actions->ownNode($reseller) : null,

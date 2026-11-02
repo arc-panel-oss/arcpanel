@@ -16,7 +16,7 @@
     <div class="ap-unlimited">
         <div class="ap-input-group">
             <input {{ $attributes->merge(['class' => 'ap-input']) }} x-ref="input" id="{{ $id }}" name="{{ $name }}" type="number" min="0"
-                value="{{ $unlimited ? '' : $current }}" @disabled($unlimited)
+                value="{{ $unlimited ? '' : $current }}" @disabled($unlimited) :placeholder="unlimited ? '∞' : ''" @if ($unlimited) placeholder="∞" @endif
                 @if ($error) aria-invalid="true" @endif
                 @if ($describedBy) aria-describedby="{{ $describedBy }}" @endif>
             @if ($suffix)<span class="ap-addon" title="{{ $suffix }}"><span class="ap-addon-text">{{ $suffix }}</span></span>@endif
