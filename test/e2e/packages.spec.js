@@ -6,6 +6,9 @@ import { ADMIN, confirmPassword, expectAccessible, expectToast, login } from './
 
 const PACKAGE = 'arce2epkg';
 
+/** The note of the save bar about unsaved changes. */
+const unsaved = (page) => page.locator('[data-form-bar]').getByText('Unsaved changes');
+
 /** Open a page that may ask for the password first. */
 async function open(page, url) {
 	await page.goto(url);
@@ -14,9 +17,36 @@ async function open(page, url) {
 	}
 }
 
+/** Fill a limit field, turning its Unlimited box off first. */
+async function setLimit(page, id, value) {
+	const field = page.locator('.ap-field').filter({ has: page.locator(`#${id}`) });
+	const unlimited = field.getByRole('checkbox', { name: 'Unlimited' });
+	if (await unlimited.isChecked()) {
+		await unlimited.uncheck();
+	}
+	await page.locator(`#${id}`).fill(value);
+}
+
 test.describe.serial('package form', () => {
 	test.beforeEach(async ({ page }) => {
 		await login(page, ADMIN);
+	});
+
+	// A failed run leaves the package behind; the next run could not add it
+	test.afterAll(async ({ browser }) => {
+		const page = await browser.newPage();
+		await login(page, ADMIN);
+		await open(page, `/packages/${PACKAGE}/edit`);
+		const remove = page.getByRole('button', { name: 'Delete' });
+		if (await remove.isVisible()) {
+			await remove.click();
+			await page
+				.getByRole('alertdialog')
+				.getByRole('button', { name: /Confirm|Delete/ })
+				.click();
+			await expect(page).toHaveURL(/\/packages$/);
+		}
+		await page.close();
 	});
 
 	test('adds a package with a feature turned on and a limit in GB', async ({ page }) => {
@@ -30,10 +60,10 @@ test.describe.serial('package form', () => {
 		await page.getByRole('switch', { name: 'Docker apps' }).check();
 		await expect(docker).not.toHaveAttribute('inert', /.*/);
 
-		await page.getByLabel('Memory per app').fill('2');
+		await setLimit(page, 'f-docker-memory', '2');
 		await page.getByLabel('Unit of Memory per app').selectOption('G');
 		await expect(page.locator('input[type=hidden][name=docker_memory]')).toHaveValue('2G');
-		await expect(page.locator('[data-form-bar]')).toContainText('Unsaved changes');
+		await expect(unsaved(page)).toBeVisible();
 
 		await page.locator('[data-form-bar]').getByRole('button', { name: 'Add Package' }).click();
 		await expect(page).toHaveURL(/\/packages$/);
@@ -46,15 +76,15 @@ test.describe.serial('package form', () => {
 		await expect(page.locator('input[type=hidden][name=docker_memory]')).toHaveValue('2G');
 		await expect(page.locator('#package-docker-settings')).not.toHaveAttribute('inert', /.*/);
 		await expect(page.locator('#package-node-settings')).toHaveAttribute('inert', /.*/);
-		await expect(page.locator('[data-form-bar]')).not.toContainText('Unsaved changes');
+		await expect(unsaved(page)).toBeHidden();
 		await expectAccessible(page);
 
 		await page.getByLabel('Web Domains').fill('7');
-		await expect(page.locator('[data-form-bar]')).toContainText('Unsaved changes');
+		await expect(unsaved(page)).toBeVisible();
 		await page
 			.getByLabel('Web Domains')
 			.fill(await page.getByLabel('Web Domains').getAttribute('value'));
-		await expect(page.locator('[data-form-bar]')).not.toContainText('Unsaved changes');
+		await expect(unsaved(page)).toBeHidden();
 
 		await page.getByLabel('Web Domains').fill('7');
 		await page.locator('[data-form-bar]').getByRole('button', { name: 'Save' }).click();
