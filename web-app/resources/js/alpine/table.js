@@ -5,12 +5,15 @@
 // Selection checkboxes are [data-select-row] (value = item id) and
 // [data-select-all]; changes are announced as the window event
 // "ap-table-selection" {id, items}. The scroll box gets .is-scrollable while
-// the table is wider than it.
+// the table is wider than it. With perPage, the rows that match the filter
+// are shown one page at a time (firstShown–lastShown of visibleCount).
 import { readStore, writeStore } from './storage.js';
 
-export default function apTable({ id = '' } = {}) {
+export default function apTable({ id = '', perPage = 0 } = {}) {
 	return {
 		id,
+		perPage,
+		page: 1,
 		query: '',
 		sortKey: null,
 		sortDir: 'ascending',
@@ -23,7 +26,10 @@ export default function apTable({ id = '' } = {}) {
 			this.applyColumns();
 			this.watchWidth();
 			this.filter();
-			this.$watch('query', () => this.filter());
+			this.$watch('query', () => {
+				this.page = 1;
+				this.filter();
+			});
 			this.$root.addEventListener('change', (event) => {
 				if (event.target.matches('[data-select-all]')) {
 					this.toggleAll(event.target.checked);
@@ -64,6 +70,7 @@ export default function apTable({ id = '' } = {}) {
 			for (const row of sorted) {
 				body.append(row);
 			}
+			this.paginate();
 		},
 
 		ariaSort(key) {
@@ -76,7 +83,7 @@ export default function apTable({ id = '' } = {}) {
 			for (const row of this.rows()) {
 				const haystack = (row.dataset.search ?? row.textContent).toLowerCase();
 				const match = needle === '' || haystack.includes(needle);
-				row.hidden = !match;
+				row.toggleAttribute('data-filtered', !match);
 				if (match) {
 					visible++;
 				} else {
@@ -87,11 +94,53 @@ export default function apTable({ id = '' } = {}) {
 				}
 			}
 			this.visibleCount = visible;
+			this.paginate();
 			const empty = this.$root.querySelector('[data-table-empty]');
 			if (empty) {
 				empty.hidden = visible > 0 || this.rows().length === 0;
 			}
 			this.syncSelection();
+		},
+
+		get pages() {
+			return this.perPage > 0 ? Math.max(1, Math.ceil(this.visibleCount / this.perPage)) : 1;
+		},
+
+		get firstShown() {
+			return this.visibleCount === 0 ? 0 : this.perPage > 0 ? (this.page - 1) * this.perPage + 1 : 1;
+		},
+
+		get lastShown() {
+			return this.perPage > 0 ? Math.min(this.visibleCount, this.page * this.perPage) : this.visibleCount;
+		},
+
+		/** Hide the rows that the filter left out and those of other pages. */
+		paginate() {
+			this.page = Math.min(Math.max(1, this.page), this.pages);
+			const start = (this.page - 1) * this.perPage;
+			let index = 0;
+			for (const row of this.rows()) {
+				if (row.hasAttribute('data-filtered')) {
+					row.hidden = true;
+					continue;
+				}
+				row.hidden = this.perPage > 0 && (index < start || index >= start + this.perPage);
+				index++;
+			}
+		},
+
+		goTo(page) {
+			this.page = page;
+			this.paginate();
+			this.syncSelection();
+		},
+
+		next() {
+			this.goTo(this.page + 1);
+		},
+
+		prev() {
+			this.goTo(this.page - 1);
 		},
 
 		isHidden(key) {
@@ -166,7 +215,7 @@ export default function apTable({ id = '' } = {}) {
 
 		syncSelection() {
 			const boxes = this.rows()
-				.filter((row) => !row.hidden)
+				.filter((row) => !row.hasAttribute('data-filtered'))
 				.map((row) => row.querySelector('[data-select-row]'))
 				.filter((box) => box && !box.disabled);
 			this.selected = boxes.filter((box) => box.checked).map((box) => box.value);
