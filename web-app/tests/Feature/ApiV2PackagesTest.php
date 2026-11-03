@@ -333,3 +333,17 @@ it('describes, sets and keeps Git Deploy of a package, within the reseller plan 
         ->assertUnprocessable()->assertJsonStructure(['error' => ['fields' => ['git_deploy']]]);
     $this->fake->assertNotRan('v-add-reseller-package');
 });
+
+it('saves the app process settings of a package for an admin and names refused ones as the request does', function () {
+    foreach (['v-add-user-package', 'v-update-user-package', 'v-change-package-tenancy'] as $command) {
+        $this->fake->on($command)->returns();
+    }
+
+    $this->patchJson('/api/v2/packages/starter', ['app_processes' => ['enabled' => true, 'max' => 5]], apiAs($this->fake, 'arcadmin', 'admin'))->assertOk();
+    $this->fake->assertRan('v-change-package-tenancy', fn ($a) => $a === ['starter', 'APP_PROCESSES_MAX', '5']);
+    $this->fake->assertRan('v-change-package-tenancy', fn ($a) => $a === ['starter', 'APP_PROCESSES', 'yes']);
+
+    // hostco's own package has no app processes
+    $this->patchJson('/api/v2/packages/hostco_gold', ['app_processes' => ['enabled' => true, 'max' => 4]], apiAs($this->fake, 'hostco', 'reseller'))
+        ->assertUnprocessable()->assertJsonStructure(['error' => ['fields' => ['app_processes.enabled', 'app_processes.max']]]);
+});
