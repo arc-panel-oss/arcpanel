@@ -3351,6 +3351,264 @@ a.ap-pick:focus-visible {
 	gap: var(--ap-space-2);
 	padding-top: var(--ap-space-2);
 }
+
+/* ---------- Long forms (packages): sections, feature cards, save bar ---------- */
+
+.ap-form-layout {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr);
+	gap: var(--ap-space-5);
+	align-items: start;
+}
+.ap-form-sections {
+	display: flex;
+	flex-direction: column;
+	gap: var(--ap-space-5);
+	min-width: 0;
+}
+.ap-form-sections > [id] {
+	scroll-margin-top: calc(var(--ap-topbar-h) + var(--ap-space-4));
+}
+.ap-form-grid-3 {
+	grid-template-columns: repeat(auto-fill, minmax(min(240px, 100%), 1fr));
+}
+.ap-form-grid-2 {
+	grid-template-columns: repeat(auto-fill, minmax(min(300px, 100%), 1fr));
+}
+.ap-card-lead {
+	margin: 0;
+	color: var(--ap-fg-muted);
+	font-size: var(--ap-text-sm);
+}
+.ap-subhead {
+	padding: 0;
+	margin-bottom: var(--ap-space-2);
+	font-weight: 600;
+	font-size: var(--ap-text-md);
+	color: var(--ap-fg);
+}
+.ap-form-sections .ap-fieldset {
+	gap: var(--ap-space-3);
+}
+.ap-form-sections .ap-fieldset + .ap-fieldset {
+	margin-top: var(--ap-space-2);
+}
+.ap-settings-split {
+	padding-top: var(--ap-space-4);
+	border-top: 1px solid var(--ap-border);
+}
+
+/* In-page links: a row above the form, a column beside it on wide screens */
+.ap-section-nav ul {
+	display: flex;
+	gap: var(--ap-space-1);
+	margin: 0;
+	padding: 0;
+	list-style: none;
+	overflow-x: auto;
+	scrollbar-width: none;
+}
+.ap-section-nav a {
+	display: flex;
+	align-items: center;
+	min-height: 36px;
+	padding: 0 var(--ap-space-3);
+	border-radius: var(--ap-radius-md);
+	color: var(--ap-fg-muted);
+	font-size: var(--ap-text-sm);
+	white-space: nowrap;
+	text-decoration: none;
+	transition:
+		background var(--ap-duration-fast) var(--ap-ease),
+		color var(--ap-duration-fast) var(--ap-ease);
+}
+.ap-section-nav a:hover {
+	background: var(--ap-surface-hover);
+	color: var(--ap-fg);
+}
+.ap-section-nav a[aria-current="true"] {
+	background: var(--ap-accent-subtle);
+	color: var(--ap-fg);
+	font-weight: 500;
+}
+@media (min-width: 1200px) {
+	.ap-form-layout {
+		grid-template-columns: 184px minmax(0, 1fr);
+	}
+	.ap-section-nav {
+		position: sticky;
+		top: calc(var(--ap-topbar-h) + var(--ap-space-4));
+	}
+	.ap-section-nav ul {
+		flex-direction: column;
+		overflow: visible;
+	}
+	.ap-section-nav a {
+		min-height: 34px;
+		border-inline-start: 2px solid transparent;
+		border-radius: 0 var(--ap-radius-md) var(--ap-radius-md) 0;
+	}
+	.ap-section-nav a[aria-current="true"] {
+		border-inline-start-color: var(--ap-accent);
+	}
+}
+
+/* Feature card: the switch in the head, the settings greyed out while off */
+.ap-feature-switch {
+	gap: var(--ap-space-2-5);
+}
+.ap-feature-state {
+	min-width: 2.5em;
+	text-align: end;
+	color: var(--ap-fg-muted);
+	font-size: var(--ap-text-sm);
+}
+.ap-feature-text {
+	margin: 0;
+	color: var(--ap-fg-muted);
+	font-size: var(--ap-text-sm);
+}
+.ap-feature-body {
+	display: flex;
+	flex-direction: column;
+	gap: var(--ap-space-4-5);
+	transition: opacity var(--ap-duration-base) var(--ap-ease);
+}
+.ap-feature-body.is-off {
+	opacity: 0.45;
+	user-select: none;
+}
+
+/* Number with a unit select */
+.ap-input-group > .ap-unit {
+	flex: none;
+}
+.ap-input-group > .ap-unit .ap-select {
+	width: auto;
+	min-width: 76px;
+	border-start-start-radius: 0;
+	border-end-start-radius: 0;
+	background-color: var(--ap-surface-raised);
+}
+.ap-unlimited > .ap-input-group {
+	flex: 1 1 auto;
+	min-width: 0;
+}
+.ap-unlimited > .ap-check {
+	flex: none;
+}
+
+/* The save bar of a long form, kept in view at the bottom of the window */
+.ap-form-bar {
+	position: sticky;
+	bottom: var(--ap-space-4);
+	z-index: 15;
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	justify-content: space-between;
+	gap: var(--ap-space-3);
+	padding: var(--ap-space-3) var(--ap-space-4);
+	border: 1px solid var(--ap-border-strong);
+	border-radius: var(--ap-radius-lg);
+	background: var(--ap-surface-raised);
+	box-shadow: var(--ap-shadow-2);
+}
+.ap-form-bar-state {
+	margin: 0;
+	min-height: 1lh;
+	color: var(--ap-fg-muted);
+	font-size: var(--ap-text-sm);
+}
+.ap-form-bar-dirty {
+	display: inline-flex;
+	align-items: center;
+	gap: var(--ap-space-2);
+	color: var(--ap-fg);
+}
+.ap-form-bar .ap-dot {
+	width: 8px;
+	height: 8px;
+	border-radius: 50%;
+	background: var(--ap-warn);
+}
+.ap-form-bar-actions {
+	display: flex;
+	gap: var(--ap-space-2);
+	margin-inline-start: auto;
+}
+/* Toasts above the save bar, so they do not cover its buttons */
+body:has([data-form-bar]) .ap-toast-region {
+	bottom: calc(var(--ap-control-h) + var(--ap-space-9));
+}
+@media (max-width: 639px) {
+	.ap-form-bar {
+		bottom: var(--ap-space-2);
+		padding: var(--ap-space-2-5) var(--ap-space-3);
+	}
+	/* No empty line above the buttons while nothing changed */
+	.ap-form-bar:not(.is-dirty) > .ap-form-bar-state {
+		display: none;
+	}
+	.ap-form-bar-actions {
+		flex: 1 1 100%;
+	}
+	.ap-form-bar-actions > .ap-btn {
+		flex: 1 1 0;
+		justify-content: center;
+	}
+}
+.ap-row-actions {
+	display: inline-flex;
+	align-items: center;
+	justify-content: flex-end;
+	gap: var(--ap-space-1);
+}
+.ap-btn-ghost.is-danger {
+	color: var(--ap-danger);
+}
+.ap-btn-ghost.is-danger:hover {
+	background: var(--ap-danger-subtle);
+}
+/* Cards (below 768 px) show the folder inside the domain only */
+@media (max-width: 767px) {
+	.ap-ftp-base {
+		display: none;
+	}
+}
+@media (min-width: 768px) {
+	.ap-ftp-path {
+		max-width: 0;
+		width: 60%;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+}
+
+/* Client pager below a table (x-ap-table per-page) */
+.ap-table-pager {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	justify-content: space-between;
+	gap: var(--ap-space-3);
+	padding: var(--ap-space-3) var(--ap-space-5);
+	border-top: 1px solid var(--ap-border);
+	font-size: var(--ap-text-sm);
+}
+.ap-table-pager .ap-pager button:disabled {
+	opacity: 0.4;
+	cursor: not-allowed;
+}
+
+.ap-copy-menu {
+	padding: var(--ap-space-2);
+}
+.ap-btn.is-disabled {
+	opacity: 0.45;
+	cursor: not-allowed;
+}
 .ap-card-body {
 	padding: var(--ap-space-4) var(--ap-card-pad);
 }
