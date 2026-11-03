@@ -3395,6 +3395,12 @@ a.ap-pick:focus-visible {
 	font-size: var(--ap-text-md);
 	color: var(--ap-fg);
 }
+.ap-form-sections .ap-fieldset {
+	gap: var(--ap-space-3);
+}
+.ap-form-sections .ap-fieldset + .ap-fieldset {
+	margin-top: var(--ap-space-2);
+}
 .ap-settings-split {
 	padding-top: var(--ap-space-4);
 	border-top: 1px solid var(--ap-border);
@@ -3539,10 +3545,18 @@ a.ap-pick:focus-visible {
 	gap: var(--ap-space-2);
 	margin-inline-start: auto;
 }
+/* Toasts above the save bar, so they do not cover its buttons */
+body:has([data-form-bar]) .ap-toast-region {
+	bottom: calc(var(--ap-control-h) + var(--ap-space-9));
+}
 @media (max-width: 639px) {
 	.ap-form-bar {
 		bottom: var(--ap-space-2);
 		padding: var(--ap-space-2-5) var(--ap-space-3);
+	}
+	/* No empty line above the buttons while nothing changed */
+	.ap-form-bar:not(.is-dirty) > .ap-form-bar-state {
+		display: none;
 	}
 	.ap-form-bar-actions {
 		flex: 1 1 100%;
