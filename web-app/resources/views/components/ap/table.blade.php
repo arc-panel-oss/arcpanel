@@ -5,7 +5,8 @@
     Rows: <tr data-row data-search="…"> with <td data-col="key" data-label="Label">.
     selectable: rows carry <x-ap-row-check> boxes that belong to the bulk form.
     apTable adds client sort, filter, column chooser (per id in localStorage)
-    and selection; below 768 px rows render as cards.
+    and selection; below 768 px rows render as cards. perPage pages the rows
+    on the client, with a pager below the table when there is more than one page.
 --}}
 @props([
     'id',
@@ -18,6 +19,7 @@
     'footer' => null,
     'actionsColumn' => true,
     'caption' => null,
+    'perPage' => 0,
 ])
 @php
     $optional = array_values(array_filter($columns, fn ($c) => ($c['optional'] ?? false) || ($c['hidden'] ?? false)));
@@ -27,7 +29,7 @@
     {{-- Default-hidden columns stay out of the first paint; apTable takes over (data-columns-ready) --}}
     <style>@foreach ($defaultHidden as $key)#{{ $id }}:not([data-columns-ready]) [data-col="{{ $key }}"]{display:none}@endforeach</style>
 @endif
-<div {{ $attributes->merge(['class' => 'ap-table-block']) }} x-data="apTable({ id: @js($id) })">
+<div {{ $attributes->merge(['class' => 'ap-table-block']) }} x-data="apTable({ id: @js($id), perPage: @js((int) $perPage) })">
     @if ($searchable || $toolbar || $optional)
         <div class="ap-toolbar">
             @if ($searchable)
@@ -84,6 +86,18 @@
         </table>
         <p class="ap-table-nomatch" data-table-empty hidden>{{ __('No results') }}</p>
     </div>
+    @if ($perPage > 0)
+        <div class="ap-table-pager" x-show="pages > 1" x-cloak>
+            <span class="muted mono" aria-live="polite" x-text="firstShown + '–' + lastShown + ' / ' + visibleCount"></span>
+            <nav class="ap-pager" aria-label="{{ __('Pages of the table') }}">
+                <button type="button" x-on:click="prev()" x-bind:disabled="page === 1" aria-label="{{ __('Previous page') }}"><x-ap-icon name="chevron-left" size="sm" /></button>
+                <template x-for="number in pages" x-bind:key="number">
+                    <button type="button" x-on:click="goTo(number)" x-bind:aria-current="number === page ? 'page' : null" x-text="number"></button>
+                </template>
+                <button type="button" x-on:click="next()" x-bind:disabled="page === pages" aria-label="{{ __('Next page') }}"><x-ap-icon name="chevron-right" size="sm" /></button>
+            </nav>
+        </div>
+    @endif
     @if ($empty)
         {{ $empty }}
     @endif

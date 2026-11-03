@@ -3566,6 +3566,50 @@ body:has([data-form-bar]) .ap-toast-region {
 		justify-content: center;
 	}
 }
+.ap-row-actions {
+	display: inline-flex;
+	align-items: center;
+	justify-content: flex-end;
+	gap: var(--ap-space-1);
+}
+.ap-btn-ghost.is-danger {
+	color: var(--ap-danger);
+}
+.ap-btn-ghost.is-danger:hover {
+	background: var(--ap-danger-subtle);
+}
+/* Cards (below 768 px) show the folder inside the domain only */
+@media (max-width: 767px) {
+	.ap-ftp-base {
+		display: none;
+	}
+}
+@media (min-width: 768px) {
+	.ap-ftp-path {
+		max-width: 0;
+		width: 60%;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+}
+
+/* Client pager below a table (x-ap-table per-page) */
+.ap-table-pager {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	justify-content: space-between;
+	gap: var(--ap-space-3);
+	padding: var(--ap-space-3) var(--ap-space-5);
+	border-top: 1px solid var(--ap-border);
+	font-size: var(--ap-text-sm);
+}
+.ap-table-pager .ap-pager button:disabled {
+	opacity: 0.4;
+	cursor: not-allowed;
+}
+
 .ap-copy-menu {
 	padding: var(--ap-space-2);
 }

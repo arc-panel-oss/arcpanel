@@ -25,6 +25,10 @@ final class FtpRequest extends TabRequest
             'new.password' => ['nullable', 'required_with:new.user', 'string', 'max:255'],
             'new.path' => $path,
             'new.email' => ['nullable', 'email', 'max:255'],
+            // Bulk delete of the table (items[] of x-ap-bulk-bar, or one row)
+            'action' => ['nullable', 'in:delete'],
+            'items' => ['nullable', 'array', 'max:100'],
+            'items.*' => ['string', 'max:64', 'regex:/^[\w.-]+$/'],
         ];
     }
 
@@ -51,6 +55,12 @@ final class FtpRequest extends TabRequest
                 'email' => $account['email'] ?? '',
                 'delete' => filter_var($account['delete'] ?? false, FILTER_VALIDATE_BOOL),
             ];
+        }
+
+        if ($this->input('action') === 'delete') {
+            foreach ((array) $this->input('items', []) as $name) {
+                $accounts[] = ['user' => (string) $name, 'delete' => true];
+            }
         }
 
         return ['accounts' => $accounts, 'new' => (array) $this->input('new', [])];

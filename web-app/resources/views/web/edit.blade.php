@@ -46,23 +46,23 @@
         </div>
     </x-slot:head>
     <x-slot:actions>
-        <x-ap-button :href="($record->ssl ? 'https://' : 'http://').$record->domain.'/'" icon="external" target="_blank" rel="noopener">{{ __('Visit') }}</x-ap-button>
+        <x-ap-button size="sm" :href="($record->ssl ? 'https://' : 'http://').$record->domain.'/'" icon="external" target="_blank" rel="noopener">{{ __('Visit') }}</x-ap-button>
         @if ($fileManagerUrl)
-            <x-ap-button :href="$fileManagerUrl" icon="folder">{{ __('Open document root') }}</x-ap-button>
+            <x-ap-button size="sm" :href="$fileManagerUrl" icon="folder">{{ __('Open document root') }}</x-ap-button>
         @endif
-        <x-ap-button :href="route('web.domains.logs', $params + ['type' => 'access'])" icon="file">{{ __('Logs') }}</x-ap-button>
+        <x-ap-button size="sm" :href="route('web.domains.logs', $params + ['type' => 'access'])" icon="file">{{ __('Logs') }}</x-ap-button>
         @if ($appInstallerUrl)
-            <x-ap-button :href="$appInstallerUrl" icon="package">{{ __('Quick Install App') }}</x-ap-button>
+            <x-ap-button size="sm" :href="$appInstallerUrl" icon="package">{{ __('Quick Install App') }}</x-ap-button>
         @endif
         @if ($can['suspend'])
             @if ($record->suspended)
-                <x-ap-button :form-action="route('web.domains.unsuspend', $params)" icon="play">{{ __('Unsuspend') }}</x-ap-button>
+                <x-ap-button size="sm" :form-action="route('web.domains.unsuspend', $params)" icon="play">{{ __('Unsuspend') }}</x-ap-button>
             @else
-                <x-ap-button :form-action="route('web.domains.suspend', $params)" icon="pause" :confirm="sprintf(__('Are you sure you want to suspend domain %s?'), $record->domain)">{{ __('Suspend') }}</x-ap-button>
+                <x-ap-button size="sm" :form-action="route('web.domains.suspend', $params)" icon="pause" :confirm="sprintf(__('Are you sure you want to suspend domain %s?'), $record->domain)">{{ __('Suspend') }}</x-ap-button>
             @endif
         @endif
         @if ($can['delete'])
-            <x-ap-button variant="danger" :form-action="route('web.domains.destroy', $params)" form-method="DELETE" icon="trash" :confirm="sprintf(__('Are you sure you want to delete domain %s?'), $record->domain)">{{ __('Delete') }}</x-ap-button>
+            <x-ap-button size="sm" variant="danger" :form-action="route('web.domains.destroy', $params)" form-method="DELETE" icon="trash" :confirm="sprintf(__('Are you sure you want to delete domain %s?'), $record->domain)">{{ __('Delete') }}</x-ap-button>
         @endif
     </x-slot:actions>
 
@@ -239,41 +239,102 @@
             </x-ap-tab-panel>
         @endif
 
-        {{-- FTP --}}
+        {{-- FTP: the additional accounts in a table; added and edited in dialogs, deleted per row or in bulk --}}
         @if ($systems['ftp'])
+            @php
+                $ftpAction = route('web.domains.update.ftp', $params);
+                $ftpBase = '/home/'.$record->user.'/web/'.$record->domain.'/';
+                $ftpErrorKeys = $errors->getBag('ftp')->keys();
+                $ftpAddOpen = collect($ftpErrorKeys)->contains(fn ($key) => str_starts_with($key, 'new.'));
+                $ftpEditOpen = collect($ftpErrorKeys)->contains(fn ($key) => str_starts_with($key, 'accounts.'));
+                $ftpColumns = [
+                    ['key' => 'user', 'label' => __('Username'), 'sortable' => true],
+                    ['key' => 'path', 'label' => __('Path'), 'sortable' => true],
+                ];
+            @endphp
             <x-ap-tab-panel name="ftp">
-                <x-ap-card :title="__('Additional FTP accounts')" icon="key">
-                    <x-ap-form :action="route('web.domains.update.ftp', $params)">
-                        <fieldset class="ap-fieldset-plain" @disabled($locked)>
-                            @forelse ($record->ftpAccounts as $index => $account)
-                                <fieldset class="ap-ftp-account">
-                                    <legend class="mono">{{ $account['user'] }}</legend>
-                                    <input type="hidden" name="accounts[{{ $index }}][user]" value="{{ $account['user'] }}">
-                                    <div class="ap-form-grid">
-                                        <x-ap-input :name="'accounts['.$index.'][path]'" :label="__('Path')" :value="$account['path']" mono bag="ftp" :prefix="'/home/'.$record->user.'/web/'.$record->domain.'/'" />
-                                        <x-ap-password :name="'accounts['.$index.'][password]'" :label="__('New password')" bag="ftp" :generate="true" :hint="__('Leave empty to keep the current password.')" />
-                                        <x-ap-input :name="'accounts['.$index.'][email]'" :label="__('Send FTP credentials to email')" type="email" bag="ftp" />
-                                    </div>
-                                    <x-ap-checkbox :name="'accounts['.$index.'][delete]'" :label="__('Delete this account')" bag="ftp" />
-                                </fieldset>
-                            @empty
-                                <p class="muted">{{ __('This domain has no additional FTP accounts.') }}</p>
-                            @endforelse
-                            <fieldset class="ap-ftp-account">
-                                <legend>{{ __('Add FTP account') }}</legend>
-                                <div class="ap-form-grid">
-                                    <x-ap-input name="new[user]" :label="__('Username')" :prefix="$ftpPrefix" mono bag="ftp" autocomplete="off" />
-                                    <x-ap-password name="new[password]" :label="__('Password')" bag="ftp" :generate="true" />
-                                    <x-ap-input name="new[path]" :label="__('Path')" mono bag="ftp" :prefix="'/home/'.$record->user.'/web/'.$record->domain.'/'" />
-                                    <x-ap-input name="new[email]" :label="__('Send FTP credentials to email')" type="email" bag="ftp" />
-                                </div>
-                            </fieldset>
-                        </fieldset>
+                <x-ap-card :title="__('Additional FTP accounts')" icon="key" :flush="true">
+                    @unless ($locked)
+                        <x-slot:actions>
+                            <x-ap-button variant="primary" size="sm" icon="plus" x-on:click="$dispatch('ap-modal', { id: 'ftp-add' })">{{ __('FTP account') }}</x-ap-button>
+                        </x-slot:actions>
+                    @endunless
+                    @if ($record->ftpAccounts === [])
+                        <x-ap-empty icon="key" :title="__('No additional FTP accounts')">{{ __('An additional FTP account opens one folder of this domain and nothing else, for a developer or a deploy tool.') }}</x-ap-empty>
+                    @else
                         @unless ($locked)
-                            <div class="ap-form-actions"><x-ap-button type="submit" variant="primary" icon="check">{{ __('Save') }}</x-ap-button></div>
+                            <x-ap-bulk-bar table="ftp-accounts" :action="$ftpAction"
+                                :actions="['delete' => ['label' => __('Delete'), 'icon' => 'trash', 'danger' => true, 'confirm' => __('Delete %d FTP accounts?')]]" />
                         @endunless
-                    </x-ap-form>
+                        <x-ap-table id="ftp-accounts" :columns="$ftpColumns" :selectable="! $locked" :actions-column="! $locked" :per-page="10"
+                            :search-label="__('Search FTP accounts')" :caption="__('Additional FTP accounts')">
+                            @foreach ($record->ftpAccounts as $account)
+                                @php($account['path'] = ltrim($account['path'], '/'))
+                                <tr data-row data-search="{{ $account['user'] }} {{ $account['path'] }}">
+                                    @unless ($locked)
+                                        <x-ap-row-check :value="$account['user']" :label="__('Select :name', ['name' => $account['user']])" form="ftp-accounts-bulk" />
+                                    @endunless
+                                    <td data-col="user" data-label="{{ __('Username') }}" data-sort-value="{{ $account['user'] }}"><span class="mono">{{ $account['user'] }}</span></td>
+                                    <td data-col="path" data-label="{{ __('Path') }}" data-sort-value="{{ $account['path'] }}" class="mono ap-ftp-path" title="{{ $ftpBase.$account['path'] }}">
+                                        <span class="muted ap-ftp-base">{{ $ftpBase }}</span>{{ $account['path'] !== '' ? $account['path'] : '.' }}
+                                    </td>
+                                    @unless ($locked)
+                                        <td class="col-actions">
+                                            <div class="ap-row-actions">
+                                                <x-ap-button variant="ghost" size="sm" :icon-only="true" icon="edit" :label="sprintf(__('Edit FTP account %s'), $account['user'])"
+                                                    x-on:click="$dispatch('ap-ftp-edit', {{ \Illuminate\Support\Js::from($account) }}); $dispatch('ap-modal', { id: 'ftp-edit' })" />
+                                                <form method="post" action="{{ $ftpAction }}" class="ap-inline-form" data-confirm-danger
+                                                    data-confirm="{{ sprintf(__('Are you sure you want to delete FTP account %s?'), $account['user']) }}" data-confirm-accept="{{ __('Delete') }}">
+                                                    @csrf
+                                                    <input type="hidden" name="action" value="delete">
+                                                    <input type="hidden" name="items[]" value="{{ $account['user'] }}">
+                                                    <button type="submit" class="ap-btn ap-btn-ghost ap-btn-sm ap-btn-icon is-danger" aria-label="{{ sprintf(__('Delete FTP account %s'), $account['user']) }}"
+                                                        title="{{ sprintf(__('Delete FTP account %s'), $account['user']) }}"><x-ap-icon name="trash" /></button>
+                                                </form>
+                                            </div>
+                                        </td>
+                                    @endunless
+                                </tr>
+                            @endforeach
+                        </x-ap-table>
+                    @endif
                 </x-ap-card>
+
+                @unless ($locked)
+                    <x-ap-modal id="ftp-add" :title="__('Add FTP account')" icon="key" :open="$ftpAddOpen"
+                        :description="__('The account opens the folder below and the folders in it, nothing else.')">
+                        <x-ap-form :action="$ftpAction" id="ftp-add-form">
+                            <x-ap-input name="new[user]" :label="__('Username')" :prefix="$ftpPrefix" mono bag="ftp" autocomplete="off" required />
+                            <x-ap-password name="new[password]" :label="__('Password')" bag="ftp" :generate="true" required />
+                            <x-ap-input name="new[path]" :label="__('Path')" mono bag="ftp" :hint="sprintf(__('A folder in %s; empty for that folder itself.'), $ftpBase)" />
+                            <x-ap-input name="new[email]" :label="__('Send FTP credentials to email')" type="email" bag="ftp" />
+                        </x-ap-form>
+                        <x-slot:footer>
+                            <x-ap-button variant="ghost" x-on:click="close()">{{ __('Cancel') }}</x-ap-button>
+                            <x-ap-button type="submit" form="ftp-add-form" variant="primary" icon="plus">{{ __('Add FTP account') }}</x-ap-button>
+                        </x-slot:footer>
+                    </x-ap-modal>
+
+                    <x-ap-modal id="ftp-edit" :title="__('Edit FTP account')" icon="edit" :open="$ftpEditOpen">
+                        <div x-data="{ user: @js((string) old('accounts.0.user', '')), path: @js((string) old('accounts.0.path', '')) }"
+                            x-on:ap-ftp-edit.window="user = $event.detail.user; path = $event.detail.path">
+                            <x-ap-form :action="$ftpAction" id="ftp-edit-form">
+                                <input type="hidden" name="accounts[0][user]" x-bind:value="user">
+                                <div class="ap-field">
+                                    <span class="ap-label">{{ __('Username') }}</span>
+                                    <span class="mono" x-text="user"></span>
+                                </div>
+                                <x-ap-input name="accounts[0][path]" :label="__('Path')" mono bag="ftp" x-model="path" :hint="sprintf(__('A folder in %s; empty for that folder itself.'), $ftpBase)" />
+                                <x-ap-password name="accounts[0][password]" :label="__('New password')" bag="ftp" :generate="true" :hint="__('Leave empty to keep the current password.')" />
+                                <x-ap-input name="accounts[0][email]" :label="__('Send FTP credentials to email')" type="email" bag="ftp" :hint="__('Sent only with a new password.')" />
+                            </x-ap-form>
+                        </div>
+                        <x-slot:footer>
+                            <x-ap-button variant="ghost" x-on:click="close()">{{ __('Cancel') }}</x-ap-button>
+                            <x-ap-button type="submit" form="ftp-edit-form" variant="primary" icon="check">{{ __('Save') }}</x-ap-button>
+                        </x-slot:footer>
+                    </x-ap-modal>
+                @endunless
             </x-ap-tab-panel>
         @endif
 
