@@ -408,3 +408,69 @@ it('compares the limits of a reseller package after their units (E39 W4 §8.2)',
     $this->post('/packages', packageInput(['memory_limit' => '1024M', 'cpu_quota' => '50%', 'rate_limit' => '100']))
         ->assertSessionHasNoErrors()->assertRedirect('/packages');
 });
+
+it('shows on the edit page who uses the package, its sections and the actions on it', function () {
+    signIn('arcadmin', 'admin');
+
+    $this->get('/packages/reseller/edit')->assertOk()
+        ->assertSee('2 users have this package; saving changes it for each of them.')
+        ->assertSee('href="#package-limits"', false)->assertSee('href="#package-reseller"', false)
+        ->assertSee('id="package-limits"', false)
+        ->assertSee(route('packages.copy', ['package' => 'reseller']), false)
+        // in use: no delete, the reason instead
+        ->assertDontSee('Are you sure you want to delete package reseller?')
+        ->assertSee('This package is used by users and cannot be deleted.')
+        ->assertSee('data-form-bar', false);
+
+    $this->get('/packages/starter/edit')->assertOk()
+        ->assertSee('No user has this package yet.')
+        ->assertSee('Are you sure you want to delete package starter?');
+
+    $this->get('/packages/create')->assertOk()
+        ->assertDontSee('No user has this package yet.')
+        ->assertDontSee(route('packages.copy', ['package' => 'default']), false);
+});
+
+it('keeps the features of a package off and out of reach until their switch is on', function () {
+    signIn('arcadmin', 'admin');
+
+    $html = $this->get('/packages/starter/edit')->assertOk()->getContent();
+
+    // Node.js, Docker apps, app processes and object storage are off in the fixtures
+    foreach (['node', 'docker', 'app-processes', 'object-storage'] as $feature) {
+        expect($html)->toMatch('/id="package-'.$feature.'-settings"[^>]*\sinert[\s>]/');
+    }
+});
+
+it('offers the limits with units as one posted value', function () {
+    $this->fake->on('v-list-package-tenancy', ['all', 'json'])->returnsJson([
+        'starter' => ['DOCKER' => 'yes', 'DOCKER_MEMORY' => '512', 'DOCKER_CPUS' => '1.5', 'APP_PROCESSES_MEMORY' => '2G'] + $this->base,
+    ]);
+    signIn('arcadmin', 'admin');
+
+    $this->get('/packages/starter/edit')->assertOk()
+        ->assertSee('type="hidden" name="docker_memory" value="512"', false)
+        ->assertSee('type="hidden" name="docker_cpus" value="1.5"', false)
+        ->assertSee('type="hidden" name="app_processes_memory" value="2G"', false)
+        ->assertSee('<option value="G"', false);
+});
+
+it('turns reselling on and off with a switch and picks the packages a reseller may assign', function () {
+    signIn('arcadmin', 'admin');
+
+    $this->get('/packages/starter/edit')->assertOk()
+        ->assertSee('Customers can be added')
+        ->assertSee('name="reseller_packages"', false)
+        ->assertSee('value="default"', false);
+
+    $this->get('/packages/reseller/edit')->assertOk()
+        ->assertSee('type="hidden" name="reseller_packages" value="*"', false);
+
+    // reselling off posts no customers: users 0, and the list stays as it was
+    $this->fake->on('v-add-user-package')->returns();
+    $this->fake->on('v-update-user-package')->returns();
+    $this->fake->on('v-change-package-tenancy')->returns();
+    $this->post('/packages/reseller', packageInput(['name' => 'reseller', 'users' => '0', 'reseller_packages' => '*']))
+        ->assertRedirect('/packages/reseller/edit');
+    $this->fake->assertRan('v-change-package-tenancy', fn ($a) => $a === ['reseller', 'USERS', '0']);
+});

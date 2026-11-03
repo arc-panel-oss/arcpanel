@@ -26,7 +26,8 @@ final class FtpTab
 
         $existing = [];
         foreach ($current->ftpAccounts as $account) {
-            $existing[$account['user']] = $account['path'];
+            // v-add-web-domain-ftp stores the path with or without a leading slash
+            $existing[$account['user']] = ltrim(trim($account['path']), '/');
         }
 
         foreach ($input['accounts'] ?? [] as $account) {
@@ -40,7 +41,7 @@ final class FtpTab
                 continue;
             }
             $path = trim((string) ($account['path'] ?? ''));
-            if ($path !== trim($existing[$name])) {
+            if (ltrim($path, '/') !== $existing[$name]) {
                 $steps[] = new Step(sprintf(__('Change the path of FTP account %s'), $name), 'v-change-web-domain-ftp-path', [$user, $domain, $name, $path]);
             }
             $password = (string) ($account['password'] ?? '');
