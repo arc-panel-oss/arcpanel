@@ -1617,6 +1617,10 @@
 	margin-top: var(--ap-space-1);
 	color: var(--ap-fg-muted);
 }
+/* A dialog without a body (apConfirm): room between the text and the actions */
+.ap-modal-head + .ap-modal-foot {
+	margin-top: var(--ap-space-5);
+}
 .ap-modal-body {
 	padding: var(--ap-space-4) var(--ap-space-5);
 	display: flex;
