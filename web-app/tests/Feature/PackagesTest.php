@@ -451,3 +451,17 @@ it('turns reselling on and off with a switch and picks the packages a reseller m
         ->assertRedirect('/packages/reseller/edit');
     $this->fake->assertRan('v-change-package-tenancy', fn ($a) => $a === ['reseller', 'USERS', '0']);
 });
+
+it('saves the app process settings an admin changes on an existing package', function () {
+    signIn('arcadmin', 'admin');
+    foreach (['v-add-user-package', 'v-update-user-package', 'v-change-package-tenancy'] as $command) {
+        $this->fake->on($command)->returns();
+    }
+
+    $this->post('/packages/starter', packageInput(['name' => 'starter', 'app_processes' => '1', 'app_processes_max' => '5', 'app_processes_memory' => '2G']))
+        ->assertRedirect('/packages/starter/edit')->assertSessionHas('ok');
+
+    $this->fake->assertRan('v-change-package-tenancy', fn ($a) => $a === ['starter', 'APP_PROCESSES_MAX', '5']);
+    $this->fake->assertRan('v-change-package-tenancy', fn ($a) => $a === ['starter', 'APP_PROCESSES_MEMORY', '2G']);
+    $this->fake->assertRan('v-change-package-tenancy', fn ($a) => $a === ['starter', 'APP_PROCESSES', 'yes']);
+});

@@ -177,6 +177,7 @@ final class PackageService
             ...$this->nodeSteps($current->name, $node, $current),
             ...$this->dockerSteps($current->name, $docker, $current),
             ...$this->phpSteps($current->name, $php, $current),
+            ...$this->processSteps($current->name, $processes, $current),
         ];
         if ($newName !== $current->name) {
             $steps[] = new Step(__('Rename the package'), 'v-rename-user-package', [$current->name, $newName]);

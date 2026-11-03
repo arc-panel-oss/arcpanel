@@ -264,6 +264,8 @@ abstract class PackageRequest extends ApiRequest
                 'node' => 'node.enabled', 'node_versions' => 'node.versions', 'node_apps' => 'node.apps', 'node_allowed' => 'node.allowed',
                 'docker' => 'docker.enabled', 'docker_apps' => 'docker.apps', 'docker_cpus' => 'docker.cpus', 'docker_memory' => 'docker.memory',
                 'php_versions' => 'php.versions', 'php_profiles' => 'php.profiles', 'php_default_profile' => 'php.default_profile',
+                'app_processes' => 'app_processes.enabled', 'app_processes_max' => 'app_processes.max',
+                'app_processes_memory' => 'app_processes.memory', 'app_processes_cpus' => 'app_processes.cpus',
             ];
             foreach (self::LIMITS as $field => $key) {
                 $names[strtolower($key)] = 'limits.'.$field;
