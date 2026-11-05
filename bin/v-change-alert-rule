@@ -1,0 +1,98 @@
+#!/bin/bash
+# info: change an alert rule of a scope (E16)
+# options: SCOPE RULE ENABLED [WARNING] [CRITICAL] [FOR] [SEVERITY] [COOLDOWN] [CHANNELS] [OPTIONS]
+#
+# example: v-change-alert-rule system disk.usage yes 85 95 0 '' 1440 12345678901234
+# example: v-change-alert-rule alice ssl.expiring no
+#
+# This function writes the line of RULE (a type of the catalog that applies
+# to SCOPE, system or a user) in the scope's rules.conf. Arguments that are
+# not given keep their current value (the catalog default for a rule the
+# scope has no line for); an argument given empty clears the value.
+# WARNING and CRITICAL are the thresholds of metric rules, FOR the minutes
+# the condition must hold, SEVERITY the lowest severity of the events an
+# event rule sends (info, warning or critical), COOLDOWN the minutes between
+# two messages of one open alert, CHANNELS a comma list of channel IDs of
+# the scope and OPTIONS the services or mount points to watch.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+scope=$1
+rule=$2
+enabled=$3
+
+# Includes
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/alerts.sh
+source $ARCPANEL/func/alerts.sh
+# load config file
+source_conf "$ARCPANEL/conf/arcpanel.conf"
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '3' "$#" 'SCOPE RULE ENABLED [WARNING] [CRITICAL] [FOR] [SEVERITY] [COOLDOWN] [CHANNELS] [OPTIONS]'
+alerts_check_scope "$scope"
+if ! alert_type_valid "$rule"; then
+	check_result "$E_INVALID" "invalid rule :: $rule"
+fi
+if ! alert_type_in_scope "$rule" "$scope"; then
+	check_result "$E_INVALID" "rule $rule does not apply to scope $scope"
+fi
+
+# Perform verification if read-only mode is enabled
+check_arcpanel_demo_mode
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+alerts_check_lock
+if [ "$scope" != 'system' ]; then
+	alerts_user_defaults "$scope"
+fi
+alerts_panel_channel "$scope" > /dev/null
+alerts_rule_read "$scope" "$rule"
+RL[ENABLED]=$enabled
+[ "$#" -ge 4 ] && RL[WARNING]=$4
+[ "$#" -ge 5 ] && RL[CRITICAL]=$5
+[ "$#" -ge 6 ] && RL[FOR]=${6:-0}
+[ "$#" -ge 7 ] && RL[SEVERITY]=${7:-info}
+[ "$#" -ge 8 ] && RL[COOLDOWN]=${8:-1440}
+[ "$#" -ge 9 ] && RL[CHANNELS]=$9
+[ "$#" -ge 10 ] && RL[OPTIONS]=${10}
+if [ "${ALERT_KIND[$rule]}" = 'event' ] && [ -z "${RL[SEVERITY]}" ]; then
+	RL[SEVERITY]=info
+fi
+if ! alerts_rule_check "$scope"; then
+	check_result "$E_INVALID" "$ALERT_REASON"
+fi
+alerts_rule_write "$scope"
+
+# A rule turned off closes its open alerts without a message
+if [ "${RL[ENABLED]}" = 'no' ]; then
+	for object in $(alerts_state_objects "$rule" "$scope"); do
+		alerts_close "$rule" "$scope" "$object"
+	done
+fi
+alerts_unlock
+
+#----------------------------------------------------------#
+#                         ArcPanel                         #
+#----------------------------------------------------------#
+
+if [ "$scope" = 'system' ]; then
+	$BIN/v-log-action "system" "Info" "Alerts" "Alert rule changed (Rule: $rule, Enabled: $enabled)."
+else
+	$BIN/v-log-action "$scope" "Info" "Alerts" "Alert rule changed (Rule: $rule, Enabled: $enabled)."
+fi
+log_event "$OK" "$ARGUMENTS"
+
+exit

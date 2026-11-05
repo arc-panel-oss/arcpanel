@@ -1,0 +1,87 @@
+#!/bin/bash
+# info: list the alert history (E16)
+# options: SCOPE [SINCE] [FORMAT]
+#
+# example: v-list-alert-history system '2026-11-06 10:00:00' json
+# example: v-list-alert-history all '' json
+#
+# This function prints the history lines of SCOPE (system, a user, or all
+# for every scope: the panel's index alerts_history is built from it) whose
+# time is at or after SINCE (YYYY-MM-DD HH:MM:SS or YYYY-MM-DD; default the
+# whole history), oldest first. Each line is one fired, raised, reminded,
+# resolved or closed alert, one event, one retried delivery or one test,
+# with its deliveries.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+scope=$1
+since=${2-}
+format=${3-shell}
+
+# Includes
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/alerts.sh
+source $ARCPANEL/func/alerts.sh
+# load config file
+source_conf "$ARCPANEL/conf/arcpanel.conf"
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '1' "$#" 'SCOPE [SINCE] [FORMAT]'
+if [ "$scope" != 'all' ]; then
+	alerts_check_scope "$scope"
+fi
+if [ "$since" = 'all' ]; then
+	since=''
+elif [ -n "$since" ] && ! [[ "$since" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}([T\ ][0-9]{2}:[0-9]{2}:[0-9]{2})?$ ]]; then
+	check_result "$E_INVALID" "invalid time :: $since (YYYY-MM-DD or YYYY-MM-DD HH:MM:SS)"
+fi
+since=${since/T/ }
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+files=()
+for file in "$ALERTS_DIR"/history/*.jsonl; do
+	[ -f "$file" ] || continue
+	# Months before the month of SINCE hold nothing newer
+	if [ -n "$since" ] && [[ "$(basename "$file" .jsonl)" < "${since:0:7}" ]]; then
+		continue
+	fi
+	files+=("$file")
+done
+
+if [ "${#files[@]}" -gt 0 ]; then
+	json=$(cat "${files[@]}" | jq -c --arg scope "$scope" --arg since "$since" \
+		'select(($scope == "all" or .scope == $scope) and ($since == "" or .time >= $since))' | jq -s -c .)
+else
+	json='[]'
+fi
+
+case "$format" in
+	json) printf '%s\n' "$json" | jq . ;;
+	plain) printf '%s\n' "$json" | jq -r '.[] | [.time, .event, .id, .scope, .rule, .object, .severity, .value, .message] | @tsv' ;;
+	*)
+		{
+			echo "TIME EVENT RULE OBJECT SEVERITY"
+			echo "---- ----- ---- ------ --------"
+			printf '%s\n' "$json" | jq -r '.[] | [(.time | sub(" "; "_")), .event, (.rule | if . == "" then "-" else . end),
+				(.object | if . == "" then "-" else . end), (.severity | if . == "" then "-" else . end)] | join(" ")'
+		} | column -t
+		;;
+esac
+
+#----------------------------------------------------------#
+#                         ArcPanel                         #
+#----------------------------------------------------------#
+
+exit

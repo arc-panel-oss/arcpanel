@@ -1,0 +1,75 @@
+#!/bin/bash
+# info: list the alert rules of a scope (E16)
+# options: SCOPE [FORMAT]
+#
+# example: v-list-alert-rules system json
+# example: v-list-alert-rules alice
+#
+# This function prints one entry per rule type of the catalog that applies
+# to SCOPE (system or a user), keyed by RULE: its line of rules.conf, or the
+# catalog default with ENABLED no when the scope has none. KIND, TITLE,
+# UNIT, LEVELS (the thresholds the rule takes) and INTERVAL (minutes) come
+# from the catalog.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+scope=$1
+format=${2-shell}
+
+# Includes
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/alerts.sh
+source $ARCPANEL/func/alerts.sh
+# load config file
+source_conf "$ARCPANEL/conf/arcpanel.conf"
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '1' "$#" 'SCOPE [FORMAT]'
+alerts_check_scope "$scope"
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+json=$(
+	for rule in $(alert_types_of "$scope"); do
+		alerts_rule_read "$scope" "$rule"
+		jq -nc --arg rule "$rule" --arg enabled "${RL[ENABLED]}" --arg warning "${RL[WARNING]}" \
+			--arg critical "${RL[CRITICAL]}" --arg for "${RL[FOR]}" --arg severity "${RL[SEVERITY]}" \
+			--arg cooldown "${RL[COOLDOWN]}" --arg channels "${RL[CHANNELS]}" --arg options "${RL[OPTIONS]}" \
+			--arg custom "${RL[CUSTOM]}" --arg kind "${ALERT_KIND[$rule]}" --arg title "${ALERT_TITLE[$rule]}" \
+			--arg unit "${ALERT_UNIT[$rule]}" --arg levels "${ALERT_LEVELS[$rule]}" \
+			--arg interval "${ALERT_INTERVAL[$rule]}" --arg scopes "${ALERT_SCOPES[$rule]}" \
+			'{RULE: $rule, KIND: $kind, TITLE: $title, ENABLED: $enabled, WARNING: $warning, CRITICAL: $critical,
+			FOR: $for, SEVERITY: $severity, COOLDOWN: $cooldown, CHANNELS: $channels, OPTIONS: $options,
+			UNIT: $unit, LEVELS: $levels, INTERVAL: $interval, SCOPES: $scopes, CUSTOM: $custom}'
+	done | jq -s -c 'map({key: .RULE, value: .}) | from_entries'
+)
+
+case "$format" in
+	json) printf '%s\n' "$json" | jq . ;;
+	plain) printf '%s\n' "$json" | jq -r '.[] | [.RULE, .KIND, .ENABLED, .WARNING, .CRITICAL, .FOR, .SEVERITY, .COOLDOWN, .CHANNELS, .OPTIONS] | @tsv' ;;
+	*)
+		{
+			echo "RULE KIND ENABLED WARNING CRITICAL FOR COOLDOWN CHANNELS"
+			echo "---- ---- ------- ------- -------- --- -------- --------"
+			printf '%s\n' "$json" | jq -r '.[] | [.RULE, .KIND, .ENABLED, (.WARNING | if . == "" then "-" else . end),
+				(.CRITICAL | if . == "" then "-" else . end), .FOR, .COOLDOWN, (.CHANNELS | if . == "" then "-" else . end)] | join(" ")'
+		} | column -t
+		;;
+esac
+
+#----------------------------------------------------------#
+#                         ArcPanel                         #
+#----------------------------------------------------------#
+
+exit

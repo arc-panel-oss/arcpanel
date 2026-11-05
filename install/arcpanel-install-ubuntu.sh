@@ -2758,6 +2758,8 @@ $ARCPANEL/bin/v-add-sys-app-processes
 $ARCPANEL/bin/v-add-sys-panel-files
 # Secret store: the master key (E38); keep a copy of it off the server
 $ARCPANEL/bin/v-add-sys-secret-key
+# Alerts: data/alerts, the default server rules, the engine every minute (E16)
+$ARCPANEL/bin/v-add-sys-alerts
 # Backups: the local folder becomes a destination and the nightly job (E48)
 $ARCPANEL/bin/v-update-sys-backup-config > /dev/null
 # Server identifier for API clients (E43)

@@ -23,7 +23,7 @@ source_conf "$ARCPANEL/conf/arcpanel.conf"
 
 PORTS_DIR="$ARCPANEL/data/ports"
 CRONTAB="/var/spool/cron/crontabs/arcpanelweb"
-CRON_LINE="10 03 * * * sudo /usr/local/arcpanel/bin/v-check-sys-ports notify"
+CRON_LINE="10 03 * * * sudo /usr/local/arcpanel/bin/v-check-sys-ports"
 
 #----------------------------------------------------------#
 #                    Verifications                         #

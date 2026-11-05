@@ -609,6 +609,7 @@ function syshealth_repair_system_cronjobs() {
 	echo "30 03 * * * sudo /usr/local/arcpanel/bin/v-update-sys-queue webstats" >> /var/spool/cron/crontabs/arcpanelweb
 	echo "* * * * * sudo /usr/local/arcpanel/bin/v-update-sys-jobs > /dev/null 2>&1" >> /var/spool/cron/crontabs/arcpanelweb
 	echo "* * * * * sudo /usr/local/arcpanel/bin/v-update-backup-jobs > /dev/null 2>&1" >> /var/spool/cron/crontabs/arcpanelweb
+	echo "* * * * * sudo /usr/local/arcpanel/bin/v-check-sys-alerts > /dev/null 2>&1" >> /var/spool/cron/crontabs/arcpanelweb
 	echo "20 00 * * * sudo /usr/local/arcpanel/bin/v-update-user-stats" >> /var/spool/cron/crontabs/arcpanelweb
 	echo "*/5 * * * * sudo /usr/local/arcpanel/bin/v-update-sys-rrd" >> /var/spool/cron/crontabs/arcpanelweb
 	echo "$min $hour * * * sudo /usr/local/arcpanel/bin/v-update-letsencrypt-ssl" >> /var/spool/cron/crontabs/arcpanelweb

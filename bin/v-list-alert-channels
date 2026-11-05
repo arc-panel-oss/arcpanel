@@ -1,0 +1,70 @@
+#!/bin/bash
+# info: list the alert channels of a scope (E16)
+# options: SCOPE [FORMAT]
+#
+# example: v-list-alert-channels system json
+#
+# This function prints the channels of SCOPE (system or a user), keyed by
+# ID: NAME, TYPE, TARGET, ENABLED, STATUS (ok or the last delivery error),
+# LAST_SENT, FAILS (failures in a row) and SECRET_SET (yes when a token or
+# webhook URL is stored). Secrets are never printed. The scope's panel
+# channel is created when it is missing.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+scope=$1
+format=${2-shell}
+
+# Includes
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/alerts.sh
+source $ARCPANEL/func/alerts.sh
+# load config file
+source_conf "$ARCPANEL/conf/arcpanel.conf"
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '1' "$#" 'SCOPE [FORMAT]'
+alerts_check_scope "$scope"
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+if [ "$(id -u)" = '0' ] && alerts_lock; then
+	alerts_panel_channel "$scope" > /dev/null
+	alerts_unlock
+fi
+
+json=$(cat "$(alerts_channels_file "$scope")" 2> /dev/null | jq -R -s -c "
+	split(\"\n\") | map(select(length > 0) | $ALERTS_JQ_RECORD | select(.ID != null)
+		| {ID, NAME, TYPE, TARGET: (.TARGET // \"\"), ENABLED, STATUS: (.STATUS // \"\"), LAST_SENT: (.LAST_SENT // \"\"),
+			FAILS: (.FAILS // \"0\"), SECRET_SET: (if (.SECRET // \"\") != \"\" then \"yes\" else \"no\" end)})
+	| map({key: .ID, value: .}) | from_entries")
+[ -n "$json" ] || json='{}'
+
+case "$format" in
+	json) printf '%s\n' "$json" | jq . ;;
+	plain) printf '%s\n' "$json" | jq -r '.[] | [.ID, .NAME, .TYPE, .TARGET, .ENABLED, .STATUS, .LAST_SENT, .FAILS] | @tsv' ;;
+	*)
+		{
+			echo "ID TYPE ENABLED STATUS NAME"
+			echo "-- ---- ------- ------ ----"
+			printf '%s\n' "$json" | jq -r '.[] | [.ID, .TYPE, .ENABLED, (.STATUS | if . == "ok" or . == "" then "ok" else "error" end), (.NAME | gsub(" "; "_"))] | join(" ")'
+		} | column -t
+		;;
+esac
+
+#----------------------------------------------------------#
+#                         ArcPanel                         #
+#----------------------------------------------------------#
+
+exit

@@ -1,0 +1,80 @@
+#!/bin/bash
+# info: set up alerts (E16)
+# options: NONE
+#
+# example: v-add-sys-alerts
+#
+# This function prepares a server for alerts: the folder data/alerts/, the
+# panel channel of the server scope, the default rules of the server scope
+# (written once; spec §9) and the engine's cron line, every minute. The
+# nightly port check loses its notify mode: the ports.orphan rule sends its
+# findings. It is safe to run again and keeps rules an administrator has
+# changed.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Includes
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/alerts.sh
+source $ARCPANEL/func/alerts.sh
+# load config file
+source_conf "$ARCPANEL/conf/arcpanel.conf"
+
+CRONTAB="/var/spool/cron/crontabs/arcpanelweb"
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+if [ "$(id -u)" != '0' ]; then
+	echo "Error: v-add-sys-alerts can only be executed by the root user"
+	exit "$E_FORBIDEN"
+fi
+
+# Perform verification if read-only mode is enabled
+check_arcpanel_demo_mode
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+alerts_check_lock
+alerts_dir_init
+panel=$(alerts_panel_channel system)
+
+# The server defaults, once (spec §9)
+if [ ! -f "$ALERTS_DIR/.defaults" ]; then
+	for rule in disk.usage inode.usage load.average memory.usage service.down ssl.expiring ports.orphan; do
+		alerts_default_rule system "$rule" yes "$panel"
+	done
+	alerts_users_init
+	date +'%F %T' > "$ALERTS_DIR/.defaults"
+	alerts_mode "$ALERTS_DIR/.defaults"
+	echo "[ * ] E16: default alert rules written"
+fi
+alerts_unlock
+
+# The engine every minute; the port check without notify
+# (sed, not >>: fs.protected_regular forbids root to open another user's
+# file for appending in the sticky crontab directory)
+if [ -f "$CRONTAB" ]; then
+	sed -i -e 's#bin/v-check-sys-ports notify#bin/v-check-sys-ports#' "$CRONTAB"
+	if ! grep -q 'bin/v-check-sys-alerts' "$CRONTAB"; then
+		sed -i -e '$a* * * * * sudo /usr/local/arcpanel/bin/v-check-sys-alerts > /dev/null 2>&1' "$CRONTAB"
+	fi
+	chown arcpanelweb:arcpanelweb "$CRONTAB"
+	chmod 600 "$CRONTAB"
+fi
+
+#----------------------------------------------------------#
+#                         ArcPanel                         #
+#----------------------------------------------------------#
+
+log_event "$OK" "$ARGUMENTS"
+
+exit

@@ -1,0 +1,99 @@
+#!/bin/bash
+# info: run the alert engine (E16)
+# options: NONE
+#
+# example: v-check-sys-alerts
+#
+# This function runs from cron every minute. It retries the deliveries of
+# the outbox, evaluates the metric rules of every scope whose interval has
+# passed, reads the new events of data/alerts/events.log, sends the messages
+# that are due and appends the history. A run that takes longer than 50
+# seconds leaves the remaining rule types to the next run. A run that finds
+# another one running exits.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Includes
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/secret.sh
+source $ARCPANEL/func/secret.sh
+# shellcheck source=/usr/local/arcpanel/func/alerts.sh
+source $ARCPANEL/func/alerts.sh
+# load config file
+source_conf "$ARCPANEL/conf/arcpanel.conf"
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+if [ "$(id -u)" != '0' ]; then
+	echo "Error: v-check-sys-alerts can only be executed by the root user"
+	exit "$E_FORBIDEN"
+fi
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+alerts_dir_init
+exec {run_lock}> "$ALERTS_DIR/.run.lock"
+if ! flock -n "$run_lock"; then
+	exit 0
+fi
+started=$(date +%s)
+
+if ! alerts_lock; then
+	alerts_log "the alert files stayed locked; run skipped"
+	exit 0
+fi
+
+alerts_users_init
+alerts_panel_channel system > /dev/null
+
+# Deliveries that failed in the earlier runs
+alerts_outbox_retry
+
+# Metric rules whose interval has passed (spec §5.1)
+mapfile -t scopes < <(alerts_scopes)
+over=''
+for rule in $ALERT_TYPES; do
+	[ "${ALERT_KIND[$rule]}" = 'metric' ] || continue
+	for scope in "${scopes[@]}"; do
+		alert_type_in_scope "$rule" "$scope" || continue
+		alerts_due "$rule" "$scope" || continue
+		if [ $(($(date +%s) - started)) -ge "$ALERTS_BUDGET" ]; then
+			over=$rule
+			break 2
+		fi
+		alerts_run_metric "$scope" "$rule" || true
+	done
+done
+if [ -n "$over" ]; then
+	alerts_log "warning: the run took longer than $ALERTS_BUDGET s; $over and the rule types after it wait for the next run"
+fi
+
+# Events (spec D9)
+if declare -F alerts_process_events > /dev/null; then
+	alerts_process_events
+fi
+
+# History older than a year, once a day
+stamp="$ALERTS_DIR/.pruned"
+if [ ! -f "$stamp" ] || [ -n "$(find "$stamp" -mmin +1439 2> /dev/null)" ]; then
+	touch "$stamp"
+	alerts_history_prune
+fi
+
+alerts_unlock
+flock -u "$run_lock"
+
+#----------------------------------------------------------#
+#                         ArcPanel                         #
+#----------------------------------------------------------#
+
+exit

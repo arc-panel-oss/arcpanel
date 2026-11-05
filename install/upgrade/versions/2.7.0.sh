@@ -53,3 +53,8 @@ if [ -f "$upd_step_cron" ]; then
 fi
 unset upd_step_cron
 rm -f "$ARCPANEL/bin/v-run-queue-task"
+
+# E16 Alerts (docs/features/specs/2026-11-05-002-e16-alerts-design.md §9):
+# data/alerts/, the default rules and their channels, the engine every
+# minute; the port check loses its notify mode
+"$ARCPANEL/bin/v-add-sys-alerts"
