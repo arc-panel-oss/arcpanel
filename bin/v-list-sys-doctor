@@ -1,0 +1,133 @@
+#!/bin/bash
+# info: list the Doctor results (E17)
+# options: SCOPE [DOMAIN] [FORMAT]
+#
+# example: v-list-sys-doctor system json
+# example: v-list-sys-doctor alice json
+# example: v-list-sys-doctor alice example.com json
+#
+# This function prints the stored results of v-run-sys-doctor
+# (docs/features/specs/2026-11-05-003-e17-doctor-design.md §3.2): SCOPE
+# system the server checks, a user with DOMAIN the checks of that domain
+# (checked_at, score and checks: id, status, title, message, value, docs,
+# fix, link). A user without DOMAIN, or all for every user, prints the
+# summary of each domain (user, domain, checked_at, score, fail, warn,
+# failing), worst score first. A scope that never ran prints an empty
+# result.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+scope=$1
+domain=${2-}
+format=${3-shell}
+
+# Includes
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/tenancy.sh
+source $ARCPANEL/func/tenancy.sh
+# shellcheck source=/usr/local/arcpanel/func/doctor.sh
+source $ARCPANEL/func/doctor.sh
+# load config file
+source_conf "$ARCPANEL/conf/arcpanel.conf"
+
+# The checks of a result as lines for people
+shell_result() {
+	jq -r '"Checked: \(.checked_at // "never")", "Score:   \(.score // "-")", "",
+		(.checks[] | "\(.status | ascii_upcase)\t\(.id)\t\(.message)")' <<< "$1"
+}
+
+shell_summary() {
+	echo "USER   DOMAIN   SCORE   FAIL   WARN   CHECKED"
+	echo "----   ------   -----   ----   ----   -------"
+	jq -r '.[] | [.user, .domain, (.score // "-" | tostring), (.fail | tostring), (.warn | tostring),
+		(.checked_at // "never" | gsub(" "; "_"))] | join("   ")' <<< "$1"
+}
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '1' "$#" 'SCOPE [DOMAIN] [FORMAT]'
+# v-list-sys-doctor SCOPE FORMAT: a domain always has a dot
+case "$domain" in
+	json | shell | plain)
+		if [ $# -eq 2 ]; then
+			format=$domain
+			domain=''
+		fi
+		;;
+esac
+case "$scope" in
+	system | all)
+		if [ -n "$domain" ]; then
+			check_result "$E_INVALID" "a domain needs a user scope"
+		fi
+		;;
+	*)
+		user=$scope
+		is_format_valid 'user'
+		is_object_valid 'user' 'USER' "$user"
+		if [ -n "$domain" ]; then
+			is_format_valid 'domain'
+			if ! doctor_domain_exists "$user" web "$domain" && ! doctor_domain_exists "$user" mail "$domain"; then
+				check_result "$E_NOTEXIST" "$user has no web or mail domain $domain"
+			fi
+		fi
+		;;
+esac
+case "$format" in
+	json | shell | plain) ;;
+	*) check_result "$E_INVALID" "invalid format :: $format" ;;
+esac
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+summary=no
+case "$scope" in
+	system) out=$(doctor_list_result system) ;;
+	all)
+		mapfile -t users < <(tenancy_all_users)
+		out=$(doctor_list_summary "${users[@]}")
+		summary=yes
+		;;
+	*)
+		if [ -n "$domain" ]; then
+			out=$(doctor_list_result "$user" "$domain")
+		else
+			out=$(doctor_list_summary "$user")
+			summary=yes
+		fi
+		;;
+esac
+
+case "$format" in
+	json) jq . <<< "$out" ;;
+	plain)
+		if [ "$summary" = 'yes' ]; then
+			jq -r '.[] | [.user, .domain, (.score // "" | tostring), (.fail | tostring), (.warn | tostring), (.checked_at // "")] | @tsv' <<< "$out"
+		else
+			jq -r '.checks[] | [.id, .status, .message] | @tsv' <<< "$out"
+		fi
+		;;
+	*)
+		if [ "$summary" = 'yes' ]; then
+			shell_summary "$out" | column -t
+		else
+			shell_result "$out"
+		fi
+		;;
+esac
+
+#----------------------------------------------------------#
+#                         ArcPanel                         #
+#----------------------------------------------------------#
+
+exit

@@ -45,6 +45,13 @@ case "$key" in
 			check_result "$E_INVALID" "invalid audit syslog :: $value (yes or no)"
 		fi
 		;;
+	DOCTOR_RESOLVER)
+		# E17 D5: a resolver address, or system for the server's resolver
+		if [ "$value" != 'system' ] && ! [[ "$value" =~ ^[0-9]{1,3}(\.[0-9]{1,3}){3}$ ]] \
+			&& ! [[ "$value" =~ ^[0-9A-Fa-f:]+$ && "$value" == *:* ]]; then
+			check_result "$E_INVALID" "invalid Doctor resolver :: $value (an IP address or system)"
+		fi
+		;;
 esac
 #----------------------------------------------------------#
 #                       Action                             #

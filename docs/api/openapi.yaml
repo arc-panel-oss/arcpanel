@@ -26803,6 +26803,61 @@ paths:
           $ref: "#/components/responses/InvalidRequest"
         "422":
           $ref: "#/components/responses/Unprocessable"
+  "/api/#v-list-sys-doctor":
+    post:
+      operationId: v-list-sys-doctor
+      tags:
+        - System
+      summary: List the Doctor results (E17)
+      description: |-
+        This function prints the stored results of v-run-sys-doctor
+        (docs/features/specs/2026-11-05-003-e17-doctor-design.md §3.2): SCOPE
+        system the server checks, a user with DOMAIN the checks of that domain
+        (checked_at, score and checks: id, status, title, message, value, docs,
+        fix, link). A user without DOMAIN, or all for every user, prints the
+        summary of each domain (user, domain, checked_at, score, fail, warn,
+        failing), worst score first. A scope that never ran prints an empty
+        result.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `SCOPE` | yes |
+        | `arg2` | `DOMAIN` | no |
+        | `arg3` | `FORMAT` | no |
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-list-sys-doctor"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-list-sys-doctor"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+            application/json:
+              schema:
+                type: object
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
   "/api/#v-list-sys-dovecot-config":
     post:
       operationId: v-list-sys-dovecot-config
@@ -36019,6 +36074,63 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/v-run-sys-docker-task"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
+  "/api/#v-run-sys-doctor":
+    post:
+      operationId: v-run-sys-doctor
+      tags:
+        - System
+      summary: Run the Doctor checks of the server or of domains (E17)
+      description: |-
+        This function runs the read-only Doctor checks
+        (docs/features/specs/2026-11-05-003-e17-doctor-design.md): SCOPE system
+        runs the server checks, a user the web and mail checks of every domain of
+        the user (4 domains at a time) or of DOMAIN, all runs everything (the
+        nightly run). Each check has 30 seconds. The results are written to
+        data/doctor/server.json and data/users/USER/doctor/DOMAIN.json and read
+        with v-list-sys-doctor.
+
+        MODE job (default) starts a job of type doctor.run (E15) that runs the
+        checks and prints the job ID; ACTOR is who asked (a panel login, api:KEY,
+        cron). MODE now runs the checks in this process and prints a line per
+        scope or domain.
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `SCOPE` | yes |
+        | `arg2` | `DOMAIN` | no |
+        | `arg3` | `ACTOR` | no |
+        | `arg4` | `MODE` | no |
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-run-sys-doctor"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-run-sys-doctor"
       responses:
         "200":
           description: "The output of the command; `OK` for an empty output with legacy authentication."
@@ -61203,6 +61315,44 @@ components:
                 - json
             returncode:
               $ref: "#/components/schemas/ReturnCode"
+    v-list-sys-doctor:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-list-sys-doctor
+              default: v-list-sys-doctor
+            arg1:
+              type: string
+              title: SCOPE
+              description: "`SCOPE`"
+              examples:
+                - system
+            arg2:
+              type: string
+              title: DOMAIN
+              description: "`DOMAIN`, optional"
+              examples:
+                - json
+            arg3:
+              type: string
+              title: FORMAT
+              description: "`FORMAT`, optional"
+              enum:
+                - json
+                - plain
+                - csv
+                - shell
+              examples:
+                - json
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
     v-list-sys-dovecot-config:
       allOf:
         - $ref: "#/components/schemas/Credentials"
@@ -66668,6 +66818,45 @@ components:
               type: string
               title: DATA_ROOT
               description: "`DATA_ROOT`, optional"
+              examples:
+                - ""
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
+    v-run-sys-doctor:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-run-sys-doctor
+              default: v-run-sys-doctor
+            arg1:
+              type: string
+              title: SCOPE
+              description: "`SCOPE`"
+              examples:
+                - system
+            arg2:
+              type: string
+              title: DOMAIN
+              description: "`DOMAIN`, optional"
+              examples:
+                - ""
+            arg3:
+              type: string
+              title: ACTOR
+              description: "`ACTOR`, optional"
+              examples:
+                - ""
+            arg4:
+              type: string
+              title: MODE
+              description: "`MODE`, optional"
               examples:
                 - ""
             returncode:

@@ -93,6 +93,8 @@ $BIN/v-delete-mail-account-sso "$domain" > /dev/null 2>&1
 
 # Delete domain config
 sed -i "/DOMAIN='$domain'/ d" $USER_DATA/mail.conf
+# The Doctor result of the domain (E17) is written again by the next run
+rm -f "$USER_DATA/doctor/$domain.json"
 rm -f $USER_DATA/mail/$domain.conf
 rm -f $USER_DATA/mail/$domain.pem
 rm -f $USER_DATA/mail/$domain.pub
