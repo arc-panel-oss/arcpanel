@@ -108,8 +108,10 @@ cleanup() {
 	"$ARCPANEL/bin/v-change-sys-config-value" API_SYSTEM "${OLD_API_SYSTEM:-0}"
 	"$ARCPANEL/bin/v-change-sys-config-value" API_ALLOWED_IP "$OLD_API_ALLOWED_IP"
 	clear_panel_cache
-	# A queued certificate of a smoke domain
-	sed -i "/ $SMOKE_USER\.example\.test /d; / $APPS_USER\.example\.test /d" "$ARCPANEL/data/queue/letsencrypt.pipe" 2> /dev/null || true
+	# A queued certificate of a smoke domain: its letsencrypt.domain job (E15)
+	le_cancel "$SMOKE_USER" ''
+	le_cancel "$APPS_USER" ''
+	le_release "${LE_HOLD:-}"
 	rm -rf "$BODY" "$CERT_DIR" "$FILES_DIR"
 }
 trap cleanup EXIT
@@ -146,11 +148,60 @@ call() {
 # json FILTER -> value of the last answer
 json() { jq -r "$1" "$BODY"; }
 
-# wait_v2_task KEY TASK_ID [MAX_SECONDS] — poll GET /tasks/{id}, drive the backup queue
+# le_jobs USER DOMAIN — IDs of the queued or running letsencrypt.domain jobs of
+# USER for DOMAIN (every domain of USER when DOMAIN is empty), the queue of
+# certificates since E15
+le_jobs() {
+	local conf
+	for conf in "$ARCPANEL"/data/jobs/*.conf; do
+		[ -f "$conf" ] || continue
+		grep -qF "TYPE='letsencrypt.domain' USER='$1' " "$conf" || continue
+		if [ -n "$2" ]; then
+			grep -qF -e "OBJECT='web:$2' " -e "OBJECT='mail:$2' " "$conf" || continue
+		fi
+		grep -qE "STATUS='(queued|running)' " "$conf" || continue
+		basename "$conf" .conf
+	done
+}
+
+# le_queued USER DOMAIN — the command lines of those jobs, one per line
+le_queued() {
+	local id
+	for id in $(le_jobs "$1" "$2"); do
+		tr '\0' ' ' < "$ARCPANEL/data/jobs/$id.argv"
+		echo
+	done
+}
+
+# le_cancel USER DOMAIN — cancel those jobs, so that no certificate is issued
+le_cancel() {
+	local id
+	for id in $(le_jobs "$1" "$2"); do
+		"$ARCPANEL/bin/v-cancel-job" "$id" arcsmoke > /dev/null 2>&1 || true
+	done
+}
+
+# le_hold — hold the letsencrypt queue with a running job of a live fake
+# runner, so that a smoke request stays queued and asks Let's Encrypt for
+# nothing; prints the PID of the runner. le_release PID ends the hold.
+le_hold() {
+	local now
+	now=$(date +'%F %T')
+	bash -c 'exec -a v-run-job sleep 300' > /dev/null 2>&1 &
+	echo "ID='19990101120098' TYPE='letsencrypt.domain' USER='system' OWNER='system' ACTOR='arcsmoke' OBJECT='letsencrypt-hold' ARGS='v-add-letsencrypt-domain' STATUS='running' EXIT='' ERROR='' UNIT='' PID='$!' QUEUED='$now' START='$now' END='' HEARTBEAT='$now' ATTEMPTS='1' RETRY_OF='' RESOURCE='' UPDATED='$now'" > "$ARCPANEL/data/jobs/19990101120098.conf"
+	echo "$!"
+}
+
+le_release() {
+	kill "$1" 2> /dev/null || true
+	rm -f "$ARCPANEL"/data/jobs/19990101120098.*
+}
+
+# wait_v2_task KEY TASK_ID [MAX_SECONDS] — poll GET /tasks/{id}, drive the job queue
 wait_v2_task() {
 	local key="$1" task_id="$2" max="${3:-600}" i st
 	for i in $(seq 1 "$max"); do
-		"$ARCPANEL/bin/v-update-sys-queue" backup > /dev/null 2>&1 || true
+		"$ARCPANEL/bin/v-update-sys-jobs" > /dev/null 2>&1 || true
 		call "$key" GET "/tasks/$task_id" > /dev/null
 		st="$(json .data.status)"
 		case "$st" in
@@ -335,9 +386,11 @@ check "setWebDomainSsl changes HSTS alone" 200 "$(call "$WRITER" PUT "$WEB/$SMOK
 check "HSTS is on" yes "$(domain_value SSL_HSTS)"
 check "deleteWebDomainSsl answers 204" 204 "$(call "$WRITER" DELETE "$WEB/$SMOKE_DOMAIN/ssl")"
 check "the domain has no SSL" no "$(domain_value SSL)"
+LE_HOLD=$(le_hold)
 check "requestWebDomainLetsEncrypt answers 202" 202 "$(call "$WRITER" POST "$WEB/$SMOKE_DOMAIN/letsencrypt" '{"key_algorithm": "ecdsa-384"}')"
-check "the certificate is queued with its key type" 1 "$(grep -c " $SMOKE_DOMAIN .* no ecdsa-384$" "$ARCPANEL/data/queue/letsencrypt.pipe")"
-sed -i "/ $SMOKE_DOMAIN /d" "$ARCPANEL/data/queue/letsencrypt.pipe"
+check "the certificate is queued with its key type" 1 "$(le_queued "$SMOKE_USER" "$SMOKE_DOMAIN" | grep -c "/v-add-letsencrypt-domain $SMOKE_USER $SMOKE_DOMAIN .* no ecdsa-384 $")"
+le_cancel "$SMOKE_USER" "$SMOKE_DOMAIN"
+le_release "$LE_HOLD"
 check "deleteWebDomain answers 204" 204 "$(call "$WRITER" DELETE "$WEB/$SMOKE_DOMAIN")"
 check "the domain is gone" 404 "$(call "$WRITER" GET "$WEB/$SMOKE_DOMAIN")"
 
@@ -362,9 +415,11 @@ check "the mail domain needs an MX record" MX "$(
 	call "$MAIL_KEY" GET "$MAIL/$SMOKE_DOMAIN/dns-records" > /dev/null
 	json '.data[] | select(.type=="MX") | .type'
 )"
+LE_HOLD=$(le_hold)
 check "requestMailDomainLetsEncrypt answers 202" 202 "$(call "$MAIL_KEY" POST "$MAIL/$SMOKE_DOMAIN/letsencrypt" '{"key_algorithm": "ecdsa-256"}')"
-check "the mail certificate is queued" 1 "$(grep -c " $SMOKE_DOMAIN '' yes " "$ARCPANEL/data/queue/letsencrypt.pipe")"
-sed -i "/ $SMOKE_DOMAIN /d" "$ARCPANEL/data/queue/letsencrypt.pipe"
+check "the mail certificate is queued" 1 "$(le_queued "$SMOKE_USER" "$SMOKE_DOMAIN" | grep -c "/v-add-letsencrypt-domain $SMOKE_USER $SMOKE_DOMAIN  yes ")"
+le_cancel "$SMOKE_USER" "$SMOKE_DOMAIN"
+le_release "$LE_HOLD"
 check "deleteMailAccount answers 204" 204 "$(call "$MAIL_KEY" DELETE "$MAIL/$SMOKE_DOMAIN/accounts/info")"
 check "deleteMailDomain answers 204" 204 "$(call "$MAIL_KEY" DELETE "$MAIL/$SMOKE_DOMAIN")"
 
@@ -405,18 +460,20 @@ check "deleteCronJob answers 204 for the journaled job" 204 "$(call "$CRON_KEY" 
 WEB="/users/$SMOKE_USER/web-domains"
 BK="/users/$SMOKE_USER/backups"
 check "a web domain for the backup smoke" 201 "$(call "$WRITER" POST "$WEB" "{\"domain\": \"$SMOKE_DOMAIN\"}")"
+LE_HOLD=$(le_hold)
 le_headers=$(curl -sk -D - -o /dev/null -X POST \
 	-H "Authorization: Bearer $WRITER" -H 'Accept: application/json' -H 'Content-Type: application/json' \
 	--data '{"key_algorithm": "ecdsa-384"}' "$API$WEB/$SMOKE_DOMAIN/letsencrypt")
 le_code=$(head -1 <<< "$le_headers" | awk '{print $2}')
 check "requestWebDomainLetsEncrypt answers 202" 202 "$le_code"
 check "requestWebDomainLetsEncrypt sends Link rel=monitor" 1 "$(grep -ci 'link:.*tasks/.*rel="monitor"' <<< "$le_headers")"
-sed -i "/ $SMOKE_DOMAIN /d" "$ARCPANEL/data/queue/letsencrypt.pipe"
+le_cancel "$SMOKE_USER" "$SMOKE_DOMAIN"
+le_release "$LE_HOLD"
 
 BACKUP_KEY=$(new_key "$SMOKE_USER" v2-backup)
 check "createBackup answers 202" 202 "$(call "$BACKUP_KEY" POST "$BK")"
 BK_TASK="$(json .data.id)"
-if [[ "$BK_TASK" == queue:"$SMOKE_USER":* ]]; then ok "createBackup returns a queue task id"; else fail "createBackup task id (got '$BK_TASK')"; fi
+if [[ "$BK_TASK" =~ ^job:[0-9]{14}$ ]]; then ok "createBackup returns a job task id (E15)"; else fail "createBackup task id (got '$BK_TASK')"; fi
 wait_v2_task "$BACKUP_KEY" "$BK_TASK" 900
 if [ "$(call "$BACKUP_KEY" GET "/tasks/$BK_TASK")" = 200 ] && [ "$(json .data.status)" = succeeded ]; then
 	BK_NAME="$(call "$BACKUP_KEY" GET "$BK" > /dev/null && json '.data[0].name')"
@@ -517,7 +574,7 @@ NODE_APP="/users/$APPS_USER/node-apps/$APPS_DOMAIN"
 check "setNodeEnabled answers 200" 200 "$(call "$APPS_KEY" PUT "$NODE" '{"enabled": true}')"
 check "installNodeVersion answers 202" 202 "$(call "$APPS_KEY" POST "$NODE/versions" '{"spec": "lts"}')"
 NODE_TASK="$(json .data.id)"
-if [[ "$NODE_TASK" == node:"$APPS_USER":* ]] && wait_v2_task "$APPS_KEY" "$NODE_TASK" 600; then
+if [[ "$NODE_TASK" =~ ^job:[0-9]{14}$ ]] && wait_v2_task "$APPS_KEY" "$NODE_TASK" 600; then
 	check "a web domain for the Node.js app" 201 "$(call "$APPS_WRITER" POST "/users/$APPS_USER/web-domains" "{\"domain\": \"$APPS_DOMAIN\"}")"
 	app_dir="/home/$APPS_USER/web/$APPS_DOMAIN/public_html"
 	cat > "$app_dir/server.js" << 'EOF'
@@ -609,7 +666,7 @@ proc_headers=$(curl -sk -D - -o "$BODY" -X POST \
 	--data '{"task": "custom", "command": "python3 --version"}' "$API$PROC/tasks")
 check "startAppProcessTask answers 202" 202 "$(head -1 <<< "$proc_headers" | awk '{print $2}')"
 proc_task_id=$(grep -i '^link:' <<< "$proc_headers" | sed -E 's#.*/api/v2/tasks/([^>]+)>.*#\1#' | tr -d '\r')
-check "startAppProcessTask sends Link to an app-process task (Fleet PD4)" "app-process:$APPS_USER:" "${proc_task_id%"${proc_task_id##*:}"}"
+check "startAppProcessTask sends Link to its job (Fleet PD4, E15)" 1 "$([[ "$proc_task_id" =~ ^job:[0-9]{14}$ ]] && echo 1 || echo 0)"
 proc_task=running
 for _ in $(seq 1 60); do
 	call "$APPS_KEY" GET "/users/$APPS_USER/app-process-task" > /dev/null

@@ -206,57 +206,102 @@ setup() {
     assert_output "$USER_A"
 }
 
+# IDs of the queued or running letsencrypt.domain jobs of USER for DOMAIN,
+# the queue of certificates since E15
+le_ids() {
+    local conf
+    for conf in "$ARCPANEL"/data/jobs/*.conf; do
+        [ -f "$conf" ] || continue
+        grep -qF "TYPE='letsencrypt.domain' USER='$1' " "$conf" || continue
+        grep -qF -e "OBJECT='web:$2' " -e "OBJECT='mail:$2' " "$conf" || continue
+        grep -qE "STATUS='(queued|running)' " "$conf" || continue
+        basename "$conf" .conf
+    done
+}
+
+# Their command lines, one per job, arguments separated by single spaces
+# (an empty one leaves two)
+le_queued() {
+    local id
+    for id in $(le_ids "$1" "$2"); do
+        tr '\0' ' ' < "$ARCPANEL/data/jobs/$id.argv"
+        echo
+    done
+}
+
+# Cancel them, so that no certificate is requested
+le_cancel() {
+    local id
+    for id in $(le_ids "$1" "$2"); do
+        v-cancel-job "$id" bats > /dev/null 2>&1 || true
+    done
+}
+
+# Hold the letsencrypt queue with a running job of a live fake runner, so
+# that the new requests stay queued (as in arcpanel-api-v2-tasks.bats)
+le_hold() {
+    local now
+    now=$(date +'%F %T')
+    bash -c 'exec -a v-run-job sleep 120' > /dev/null 2>&1 &
+    echo "ID='19990101120097' TYPE='letsencrypt.domain' USER='system' OWNER='system' ACTOR='bats' OBJECT='letsencrypt-hold' ARGS='v-add-letsencrypt-domain' STATUS='running' EXIT='' ERROR='' UNIT='' PID='$!' QUEUED='$now' START='$now' END='' HEARTBEAT='$now' ATTEMPTS='1' RETRY_OF='' RESOURCE='' UPDATED='$now'" > "$ARCPANEL/data/jobs/19990101120097.conf"
+    echo "$!"
+}
+
+le_release() {
+    kill "$1" 2> /dev/null || true
+    rm -f "$ARCPANEL"/data/jobs/19990101120097.*
+}
+
 @test "schedule Let's Encrypt: queues the domain's aliases and the key type, once" {
-    local domain="$USER_A-le.example.test"
-    local pipe="$ARCPANEL/data/queue/letsencrypt.pipe"
+    local domain="$USER_A-le.example.test" hold
     v-add-web-domain "$USER_A" "$domain" '' no "www.$domain" > /dev/null
+    hold=$(le_hold)
 
     run v-schedule-letsencrypt-domain "$USER_A" "$domain" '' ecdsa-384
     assert_success
-    run grep -c " $domain " "$pipe"
-    assert_output 1
-    run grep " $domain " "$pipe"
-    assert_output --partial "$ARCPANEL/bin/v-add-letsencrypt-domain $USER_A $domain 'www.$domain' no ecdsa-384"
+    run le_queued "$USER_A" "$domain"
+    assert_equal "${#lines[@]}" 1
+    assert_output "$ARCPANEL/bin/v-add-letsencrypt-domain $USER_A $domain www.$domain no ecdsa-384 "
 
-    # Again without a key type: the domain's own, and still one line
+    # Again without a key type: the domain's own, and still one job
     run v-schedule-letsencrypt-domain "$USER_A" "$domain" "www.$domain"
     assert_success
-    run grep " $domain " "$pipe"
-    assert_output --partial "$ARCPANEL/bin/v-add-letsencrypt-domain $USER_A $domain 'www.$domain' no ecdsa-256"
+    run le_queued "$USER_A" "$domain"
+    assert_equal "${#lines[@]}" 1
+    assert_output "$ARCPANEL/bin/v-add-letsencrypt-domain $USER_A $domain www.$domain no ecdsa-256 "
 
     run v-schedule-letsencrypt-domain "$USER_A" "$domain" '' dsa
     assert_failure 2
-    sed -i "/ $domain /d" "$pipe"
+    le_cancel "$USER_A" "$domain"
+    le_release "$hold"
 }
 
-@test "schedule Let's Encrypt: a mail line waits beside a web line and replaces only itself" {
-    local domain="$USER_A-lemail.example.test"
-    local pipe="$ARCPANEL/data/queue/letsencrypt.pipe"
+@test "schedule Let's Encrypt: a mail job waits beside a web job and replaces only itself" {
+    local domain="$USER_A-lemail.example.test" hold
     v-add-web-domain "$USER_A" "$domain" '' no "www.$domain" > /dev/null
     v-add-mail-domain "$USER_A" "$domain" > /dev/null
+    hold=$(le_hold)
 
     run v-schedule-letsencrypt-domain "$USER_A" "$domain" '' ecdsa-256
     assert_success
     run v-schedule-letsencrypt-domain "$USER_A" "$domain" '' ecdsa-256 yes
     assert_success
-    run grep -c " $domain " "$pipe"
-    assert_output 2
-    run grep " $domain '' yes " "$pipe"
-    assert_output --partial "$ARCPANEL/bin/v-add-letsencrypt-domain $USER_A $domain '' yes ecdsa-256"
+    run le_queued "$USER_A" "$domain"
+    assert_equal "${#lines[@]}" 2
+    assert_line "$ARCPANEL/bin/v-add-letsencrypt-domain $USER_A $domain  yes ecdsa-256 "
 
     run v-schedule-letsencrypt-domain "$USER_A" "$domain" '' rsa yes
     assert_success
-    run grep -c " $domain " "$pipe"
-    assert_output 2
-    run grep " $domain '' yes " "$pipe"
-    assert_output --partial "$ARCPANEL/bin/v-add-letsencrypt-domain $USER_A $domain '' yes rsa"
-    run grep " $domain 'www.$domain' no " "$pipe"
-    assert_success
+    run le_queued "$USER_A" "$domain"
+    assert_equal "${#lines[@]}" 2
+    assert_line "$ARCPANEL/bin/v-add-letsencrypt-domain $USER_A $domain  yes rsa "
+    assert_line "$ARCPANEL/bin/v-add-letsencrypt-domain $USER_A $domain www.$domain no ecdsa-256 "
 
     run v-schedule-letsencrypt-domain "$USER_A" "$domain" '' dsa yes
     assert_failure 2
 
-    sed -i "/ $domain /d" "$pipe"
+    le_cancel "$USER_A" "$domain"
+    le_release "$hold"
     v-delete-mail-domain "$USER_A" "$domain" > /dev/null
     v-delete-web-domain "$USER_A" "$domain" > /dev/null
 }
