@@ -188,13 +188,29 @@
                     </details>
                 @endif
 
-                <div class="ap-tray" x-data="apNotifications({ url: @js(route('shell.notifications')) })" x-on:keydown.escape="close()" x-on:click.outside="close()" x-cloak>
+                <div class="ap-tray" x-data="apNotifications({ url: @js(route('shell.notifications')), jobsUrl: @js(route('jobs.tray')) })" x-on:keydown.escape="close()" x-on:click.outside="close()" x-cloak>
                     <span class="ap-icon-btn-wrap">
                         <button type="button" class="ap-btn ap-btn-icon ap-btn-ghost" x-on:click="toggle()" x-bind:aria-expanded="open.toString()" aria-controls="ap-tray-panel"
                             x-bind:aria-label="@js(__('Notifications')) + (unread ? ', ' + unread + ' ' + @js(__('unread')) : '')"><x-ap-icon name="bell" /></button>
                         <span class="ap-dot-count" x-show="unread > 0" x-text="unread" aria-hidden="true"></span>
+                        <span class="ap-dot-count ap-dot-jobs" x-show="running > 0" x-text="running" aria-hidden="true" title="{{ __('Running jobs') }}"></span>
                     </span>
                     <div class="ap-tray-panel ap-menu" id="ap-tray-panel" x-show="open" role="region" aria-label="{{ __('Notifications') }}">
+                        <div class="ap-segment ap-tray-tabs" role="group" aria-label="{{ __('Notifications and jobs') }}">
+                            <button type="button" x-on:click="show('notifications')" x-bind:aria-pressed="(tab === 'notifications').toString()">{{ __('Notifications') }}</button>
+                            <button type="button" x-on:click="show('jobs')" x-bind:aria-pressed="(tab === 'jobs').toString()" data-tray-jobs>{{ __('Jobs') }}<span class="muted" x-show="running > 0" x-text="' · ' + running"></span></button>
+                        </div>
+                        <div x-show="tab === 'jobs'" class="ap-stack" data-tray-jobs-list>
+                            <template x-for="job in jobs" x-bind:key="job.id">
+                                <a class="ap-notice ap-tray-job" x-bind:href="job.url">
+                                    <div class="ap-notice-body"><b class="mono" x-text="job.type"></b><p class="mono" x-text="job.object"></p><span class="subtle" x-text="(job.finished_at || job.started_at || '').replace('T', ' ')"></span></div>
+                                    <span class="ap-badge" x-bind:class="{ 'is-ok': job.status === 'succeeded', 'is-danger': job.status === 'failed', 'is-warn': job.status === 'running', 'is-info': job.status === 'queued' }" x-text="job.status"></span>
+                                </a>
+                            </template>
+                            <p class="ap-palette-empty" x-show="jobsLoaded && jobs.length === 0">{{ __('No jobs yet') }}</p>
+                            <a class="ap-btn ap-btn-ghost ap-btn-sm" href="{{ route('jobs.index') }}"><x-ap-icon name="activity" />{{ __('All jobs') }}</a>
+                        </div>
+                        <div x-show="tab === 'notifications'">
                         <div class="ap-row ap-tray-head">
                             <span class="ap-menu-label eyebrow">{{ __('Notifications') }}</span>
                             <button type="button" class="ap-btn ap-btn-ghost ap-btn-sm" x-show="unread > 0" x-on:click="acknowledgeAll()"><x-ap-icon name="check" />{{ __('Mark all read') }}</button>
@@ -210,6 +226,7 @@
                             </article>
                         </template>
                         <p class="ap-palette-empty" x-show="loaded && items.length === 0">{{ __('You’re all caught up') }}</p>
+                        </div>
                     </div>
                 </div>
 

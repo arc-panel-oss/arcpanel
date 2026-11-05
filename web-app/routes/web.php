@@ -39,6 +39,7 @@ use App\Http\Controllers\Firewall\FirewallController;
 use App\Http\Controllers\Firewall\FirewallIpsetController;
 use App\Http\Controllers\ImpersonationController;
 use App\Http\Controllers\Ips\IpController;
+use App\Http\Controllers\Jobs\JobController;
 use App\Http\Controllers\Keys\AccessKeyController;
 use App\Http\Controllers\Keys\SecretController;
 use App\Http\Controllers\Keys\SshKeyController;
@@ -70,7 +71,6 @@ use App\Http\Controllers\Server\ServerSettingsController;
 use App\Http\Controllers\Server\ServiceConfigController;
 use App\Http\Controllers\Server\ServiceController;
 use App\Http\Controllers\Server\SystemPackageController;
-use App\Http\Controllers\Server\SystemTaskController;
 use App\Http\Controllers\Server\UpdateController;
 use App\Http\Controllers\Shell\LanguageController;
 use App\Http\Controllers\Shell\NotificationController;
@@ -326,12 +326,25 @@ Route::middleware('auth.arc')->group(function () {
         Route::get('/verify', [AuditController::class, 'verify'])->name('verify');
     });
 
+    // Job Center (E15 spec §6.2): every role, scoped by TaskPolicy
+    Route::prefix('jobs')->name('jobs.')->group(function () {
+        Route::get('/', [JobController::class, 'index'])->name('index');
+        Route::get('/tray', [JobController::class, 'tray'])->name('tray');
+        Route::get('/{id}', [JobController::class, 'show'])->where('id', '\d{14}')->name('show');
+        Route::get('/{id}/status', [JobController::class, 'status'])->where('id', '\d{14}')->name('status');
+        Route::middleware('not-readonly')->group(function () {
+            Route::post('/rebuild', [JobController::class, 'rebuild'])->name('rebuild');
+            Route::post('/{id}/cancel', [JobController::class, 'cancel'])->where('id', '\d{14}')->name('cancel');
+            Route::post('/{id}/retry', [JobController::class, 'retry'])->where('id', '\d{14}')->name('retry');
+        });
+    });
+
     // Statistics and server graphs (E7 batch 2 spec §9.4, §9.5)
     Route::get('/stats', StatsController::class)->name('stats.index');
     Route::get('/server/rrd', RrdPageController::class)->name('server.rrd');
 
-    // System task of the server settings and updates (E7 batch 3 spec §6.2)
-    Route::get('/server/task', SystemTaskController::class)->name('server.task');
+    // The system task of the server settings and updates is a sys.* job:
+    // its panels poll jobs.status (E15 spec §6.2)
 
     // Server settings (E7 batch 3 spec §8)
     Route::prefix('server/settings')->group(function () {
@@ -701,7 +714,6 @@ Route::middleware('auth.arc')->group(function () {
         $quarantined = ['id' => '[0-9]{14}'];
         Route::get('/', [MalwareController::class, 'show'])->name('show');
         Route::middleware('sys-config:MALWARE_SCAN=yes')->group(function () use ($finding, $quarantined) {
-            Route::get('/task', [MalwareController::class, 'task'])->name('task');
             Route::middleware('not-readonly')->group(function () use ($finding, $quarantined) {
                 Route::post('/scan', [MalwareController::class, 'scan'])->name('scan');
                 Route::post('/findings/{finding}/quarantine', [MalwareController::class, 'quarantine'])->where($finding)->name('quarantine');
@@ -839,7 +851,6 @@ Route::middleware('auth.arc')->group(function () {
             // Quick Install (E7 batch 2 spec §10.2)
             Route::get('/install', [QuickInstallController::class, 'index'])->name('install');
             Route::get('/install/{app}', [QuickInstallController::class, 'form'])->where('app', '[A-Za-z][A-Za-z0-9]{0,63}')->name('install.form');
-            Route::get('/install-task', [QuickInstallController::class, 'task'])->name('install.task');
             Route::post('/install/{app}', [QuickInstallController::class, 'start'])->where('app', '[A-Za-z][A-Za-z0-9]{0,63}')->middleware('not-readonly')->name('install.start');
             // Git Deploy (E20 §7): the state of the tab and the log of a deploy task
             Route::get('/deploy/state', [WebDomainDeployController::class, 'state'])->name('deploy.state');

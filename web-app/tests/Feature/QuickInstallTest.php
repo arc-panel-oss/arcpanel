@@ -132,15 +132,15 @@ it('says when another install of the account is running', function () {
         ->assertSessionHas('error', 'Another installation is running for this account.');
 });
 
-it('reports the install task of the domain as JSON', function () {
-    $this->fake->on('v-list-user-quick-install-task')->returnsJson(['USER' => 'bob', 'ID' => '1', 'DOMAIN' => 'example.com', 'APP' => 'DokuWiki',
+it('follows the install of the domain on the job route (E15)', function () {
+    $this->fake->on('v-list-user-quick-install-task')->returnsJson(['USER' => 'bob', 'ID' => '17280000000001', 'DOMAIN' => 'example.com', 'APP' => 'DokuWiki',
         'STATUS' => 'running', 'EXIT' => '', 'START' => '2026-10-06 10:00:00', 'END' => '', 'LOG' => '$ v-add-web-domain-app bob example.com DokuWiki']);
     signIn('bob', 'user');
 
-    $this->getJson('/web/domains/bob/example.com/install-task')->assertOk()
-        ->assertJsonPath('task.status', 'running')->assertJsonPath('task.app', 'DokuWiki');
-    $this->getJson('/web/domains/bob/shop.example/install-task')->assertOk()->assertJsonPath('task.status', '');
-    $this->get('/web/domains/bob/example.com/install/DokuWiki')->assertOk()->assertSee('disabled', false);
+    $this->get('/web/domains/bob/example.com/install/DokuWiki')->assertOk()->assertSee('disabled', false)
+        ->assertSee(str_replace('/', '\/', route('jobs.status', ['id' => '17280000000001'])), false);
+    $this->get('/web/domains/bob/shop.example/install/DokuWiki')->assertOk()
+        ->assertDontSee(str_replace('/', '\/', route('jobs.status', ['id' => '17280000000001'])), false);
 });
 
 it('keeps Quick Install to the owners of the domain and their managers', function () {
@@ -167,6 +167,6 @@ it('refuses installs in read-only mode', function () {
 
 it('has a capability for the terminal and Quick Install routes', function () {
     expect(collect(Route::getRoutes()->getRoutesByName())->keys())->toContain('terminal.index', 'web.domains.install',
-        'web.domains.install.form', 'web.domains.install.start', 'web.domains.install.task')
+        'web.domains.install.form', 'web.domains.install.start')
         ->and(Capabilities::names())->toContain('terminal.use', 'web.apps.install');
 });

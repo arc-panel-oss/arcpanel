@@ -8,7 +8,8 @@
 <x-ap-page :title="$title" :crumbs="[['label' => __('Web'), 'url' => route('web.domains.index')], ['label' => $domain, 'url' => $edit], ['label' => __('Quick Install App'), 'url' => $picker], ['label' => $app['name']]]"
     :description="sprintf(__('Version: %s'), $app['version'])">
 
-    <div x-data="apTask({ url: {{ json_encode(route('web.domains.install.task', ['user' => $user, 'domain' => $domain])) }}, task: {{ json_encode($task) }},
+    @php $jobId = preg_match('/^\d{14}$/', (string) ($task['id'] ?? '')) === 1 ? $task['id'] : null; @endphp
+    <div x-data="apTask({ url: {{ json_encode($jobId ? route('jobs.status', ['id' => $jobId]) : '') }}, task: {{ json_encode($task) }},
         doneMessage: {{ json_encode(sprintf(__('%s installed successfully.'), $app['name'])) }}, failMessage: {{ json_encode(sprintf(__('Unable to install %s.'), $app['name'])) }} })"
         class="ap-stack">
 
@@ -16,10 +17,11 @@
             <x-ap-card :title="__('Installation')" icon="activity">
                 <x-slot:actions>
                     <span x-show="running" class="ap-row"><span class="ap-spinner" aria-hidden="true"></span>{{ __('Running') }}</span>
-                    <x-ap-badge tone="ok" x-show="task.status === 'done'">{{ __('Done') }}</x-ap-badge>
+                    <x-ap-badge tone="ok" x-show="succeeded">{{ __('Done') }}</x-ap-badge>
                     <x-ap-badge tone="danger" x-show="task.status === 'failed'">{{ __('Failed') }}</x-ap-badge>
+                    <x-ap-badge x-show="task.status === 'cancelled'">{{ __('Cancelled') }}</x-ap-badge>
                 </x-slot:actions>
-                <p x-show="task.status === 'done'" class="ap-row">
+                <p x-show="succeeded" class="ap-row">
                     <a class="ap-btn ap-btn-primary" href="http://{{ $domain }}/" target="_blank" rel="noopener"><x-ap-icon name="external" />{{ sprintf(__('Open %s'), $domain) }}</a>
                 </p>
                 <div class="ap-log"><pre class="ap-log-body ap-task-log" tabindex="0" role="log" aria-live="polite" aria-label="{{ __('Installation output') }}" x-text="task.log"></pre></div>

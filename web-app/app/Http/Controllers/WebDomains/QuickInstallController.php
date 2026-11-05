@@ -8,7 +8,6 @@ use App\Http\Controllers\Controller;
 use App\Policies\WebDomainPolicy;
 use App\Services\QuickInstall\QuickInstallService;
 use App\Services\WebDomains\WebDomainService;
-use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -102,18 +101,6 @@ final class QuickInstallController extends Controller
         }
 
         return $back->with('ok', sprintf(__('Installing %s. This can take a few minutes.'), $app));
-    }
-
-    /** GET …/install-task: the user's install, for this domain only. */
-    public function task(string $user, string $domain, Principal $principal, WebDomainPolicy $policy): JsonResponse
-    {
-        abort_unless($policy->installApp($principal, $user), 403);
-        $task = $this->installs->task($user);
-        if ($task['domain'] !== $domain) {
-            $task = ['id' => '', 'domain' => $domain, 'app' => '', 'status' => '', 'exit' => '', 'start' => '', 'end' => '', 'log' => ''];
-        }
-
-        return response()->json(['task' => $task]);
     }
 
     /**

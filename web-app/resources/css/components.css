@@ -6150,3 +6150,21 @@ body:has([data-form-bar]) .ap-toast-region {
 	flex: 1 1 16rem;
 	max-width: 32rem;
 }
+
+/* Job Center tray (E15 spec §6.2): the Jobs tab and the running-jobs badge */
+.ap-dot-jobs {
+	inset-inline-end: auto;
+	inset-inline-start: 4px;
+	background: var(--ap-warn, var(--ap-accent));
+}
+.ap-tray-tabs {
+	margin-bottom: var(--ap-space-2);
+}
+.ap-tray-job {
+	color: inherit;
+	text-decoration: none;
+}
+.ap-tray-job:hover,
+.ap-tray-job:focus-visible {
+	background: var(--ap-accent-subtle);
+}

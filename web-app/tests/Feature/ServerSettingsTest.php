@@ -103,7 +103,6 @@ it('keeps the settings for administrators and refuses changes in read-only mode'
         $this->get('/server/settings/general')->assertForbidden();
         $this->post('/server/settings/general', ['hostname' => 'x.example.net'])->assertForbidden();
         $this->post('/server/settings/plugins/quota', ['state' => 'on'])->assertForbidden();
-        $this->get('/server/task')->assertForbidden();
     }
 
     withSysConfig($this->fake, ['POLICY_SYSTEM_PROTECTED_ADMIN' => 'yes']);
@@ -200,14 +199,6 @@ it('says so when another task runs', function () {
 
     $this->post('/server/settings/web/php', ['versions' => ['8.2', '8.3']])
         ->assertSessionHas('error', 'Another task is running. Wait until it has finished.');
-});
-
-it('answers the task as JSON', function () {
-    $this->fake->on('v-list-sys-task')->returnsJson(['ID' => '1', 'KIND' => 'php', 'ARGS' => '8.2 -', 'STATUS' => 'running', 'EXIT' => '', 'START' => 'now', 'END' => '', 'LOG' => '$ v-add-web-php 8.2']);
-    signIn('arcadmin', 'admin');
-
-    $this->getJson('/server/task')->assertOk()->assertJsonPath('task.status', 'running')->assertJsonPath('task.log', '$ v-add-web-php 8.2')
-        ->assertHeader('Cache-Control', 'no-store, private');
 });
 
 // Mail
@@ -436,7 +427,7 @@ it('changes the White Label values and the logo', function () {
 });
 
 it('has a capability for every settings route', function () {
-    $routes = collect(Route::getRoutes()->getRoutesByName())->keys()->filter(fn ($name) => str_starts_with($name, 'server.settings') || $name === 'server.task');
+    $routes = collect(Route::getRoutes()->getRoutesByName())->keys()->filter(fn ($name) => str_starts_with($name, 'server.settings'));
 
     expect($routes)->not->toBeEmpty()
         ->and(Capabilities::names())->toContain('server.settings');

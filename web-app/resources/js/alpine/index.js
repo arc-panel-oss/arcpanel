@@ -27,6 +27,7 @@ import apSectionNav from './section-nav.js';
 import apSidebar from './sidebar.js';
 import apTable from './table.js';
 import apTabs from './tabs.js';
+import apJob from './job.js';
 import apTask from './task.js';
 import apTerminal from './terminal.js';
 import apToast from './toast.js';
@@ -67,6 +68,7 @@ export const modules = {
 	apSidebar,
 	apTable,
 	apTabs,
+	apJob,
 	apTask,
 	apTerminal,
 	apToast,

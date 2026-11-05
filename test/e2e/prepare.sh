@@ -43,6 +43,12 @@
 #   prepare.sh dockerapps         the Docker engine and a web domain with
 #                                 HTTPS for arce2edev (E4); dockerapps-clean
 #                                 removes its apps and the domain again
+#   prepare.sh jobs-failed USER   a failed backup.download job of USER (an
+#                                 archive that does not exist); prints its ID
+#   prepare.sh jobs-queued USER   holds the backup queue with a fake running
+#                                 job of the server and queues a backup of USER;
+#                                 prints its ID; jobs-release ends the hold and
+#                                 cancels what USER still has queued (E15)
 #   prepare.sh backups            a local restic repository (when the server
 #                                 has none), a web domain, ~/tmp/e2e-note.txt,
 #                                 one tar backup and one snapshot for
@@ -105,6 +111,34 @@ delete_users() {
 	"$B/v-delete-user-package" "$BACKUP_PACKAGE" > /dev/null 2>&1 || true
 }
 
+# The jobs of USER (E15) whose TYPE matches REGEX and whose STATUS matches
+# STATUS_REGEX (default: queued or running), newest first
+e2e_jobs() {
+	"$B/v-list-jobs" all json 2> /dev/null | jq -r --arg u "$1" --arg t "${2:-.}" --arg s "${3:-^(queued|running)$}" \
+		'[.[] | select(.USER == $u and (.TYPE | test($t)) and (.STATUS | test($s)))] | sort_by(.ID) | reverse | .[].ID'
+}
+
+# Cancel the queued and running jobs of USER of a type matching REGEX
+e2e_cancel_jobs() {
+	local id
+	for id in $(e2e_jobs "$1" "${2:-.}"); do
+		"$B/v-cancel-job" "$id" e2e > /dev/null 2>&1 || true
+	done
+}
+
+# Wait until job ID has finished (at most 120 s); print its STATUS
+e2e_wait_job() {
+	local i status=''
+	for i in $(seq 1 240); do
+		status=$("$B/v-list-job" "$1" 0 json 2> /dev/null | jq -r .STATUS)
+		case "$status" in
+			succeeded | failed | cancelled) break ;;
+		esac
+		sleep 0.5
+	done
+	echo "$status"
+}
+
 # Backups spec (E7): restic repository, domain, file, one archive, one snapshot
 backups_prepare() {
 	local user=arce2ebackup
@@ -118,7 +152,7 @@ backups_prepare() {
 		"$B/v-add-web-domain" "$user" e2e-backup.example > /dev/null
 	fi
 	runuser -u "$user" -- sh -c "mkdir -p /home/$user/tmp && echo original > /home/$user/tmp/e2e-note.txt"
-	sed -i "/'$user'/d; / $user /d" "$ARCPANEL/data/queue/backup.pipe" 2> /dev/null || true
+	e2e_cancel_jobs "$user" '^(backup|restore)\.'
 	for backup in $("$B/v-list-user-backups" "$user" plain | awk '{print $1}'); do
 		"$B/v-delete-user-backup" "$user" "$backup" > /dev/null 2>&1 || true
 	done
@@ -473,11 +507,7 @@ deploy_prepare() {
 		echo "e2e release $n" > "$dir/index.html"
 		tar -czf "$dir/$n.tar.gz" -C "$dir" index.html
 		task=$("$B/v-schedule-web-domain-deploy" arce2euser "$DEPLOY_DOMAIN" --artifact "$dir/$n.tar.gz")
-		for i in $(seq 1 120); do
-			status=$(grep -o "STATUS='[a-z]*'" "$ARCPANEL/data/users/arce2euser/tasks/$task.conf" | cut -d"'" -f2)
-			[ "$status" = succeeded ] || [ "$status" = failed ] && break
-			sleep 0.5
-		done
+		status=$(e2e_wait_job "$task")
 		# Release ids are seconds apart
 		sleep 1
 	done
@@ -759,7 +789,7 @@ PHP
 		exit 0
 		;;
 	backups-clear-queue)
-		sed -i "/'arce2ebackup'/d; / arce2ebackup /d" "$ARCPANEL/data/queue/backup.pipe" 2> /dev/null || true
+		e2e_cancel_jobs arce2ebackup '^(backup|restore)\.'
 		exit 0
 		;;
 	backups-change-file)
@@ -767,11 +797,9 @@ PHP
 		exit 0
 		;;
 	backups-run-queue)
-		# The queued file restore of arce2ebackup, run as v-update-sys-queue would
-		file=$(mktemp)
-		grep "v-restore-file-restic 'arce2ebackup' " "$ARCPANEL/data/queue/backup.pipe" > "$file" || true
-		bash "$file" > /dev/null 2>&1 || true
-		rm -f "$file"
+		# The file restore of arce2ebackup is a restore.file job (E15): wait for it
+		task=$(e2e_jobs arce2ebackup '^restore\.file$' '.' | head -n1)
+		[ -n "$task" ] && e2e_wait_job "$task" > /dev/null
 		cat /home/arce2ebackup/tmp/e2e-note.txt
 		exit 0
 		;;
@@ -803,6 +831,28 @@ PHP
 		;;
 	reset-clean)
 		reset_clean
+		exit 0
+		;;
+	jobs-failed)
+		id=$("$B/v-schedule-user-backup-download" "${2:?user}" e2e-no-such-archive.tar json 2> /dev/null | jq -r .ID)
+		e2e_wait_job "$id" > /dev/null
+		echo "$id"
+		exit 0
+		;;
+	jobs-queued)
+		# A running backup job of the server with a live runner fills the one
+		# backup slot, so the backup of USER stays queued
+		bash -c 'exec -a arce2e-job-hold sleep 600' > /dev/null 2>&1 &
+		now=$(date +'%F %T')
+		echo "ID='99999999999990' TYPE='backup.user' USER='system' OWNER='system' ACTOR='e2e' OBJECT='e2e-hold' ARGS='e2e hold' STATUS='running' EXIT='' ERROR='' UNIT='' PID='$!' QUEUED='$now' START='$now' END='' HEARTBEAT='$now' ATTEMPTS='1' RETRY_OF='' RESOURCE='' UPDATED='$now'" \
+			> "$ARCPANEL/data/jobs/99999999999990.conf"
+		"$B/v-schedule-user-backup" "${2:?user}" json | jq -r .ID
+		exit 0
+		;;
+	jobs-release)
+		pkill -f arce2e-job-hold 2> /dev/null || true
+		rm -f "$ARCPANEL/data/jobs/99999999999990".*
+		e2e_cancel_jobs "${2:?user}" '^backup\.'
 		exit 0
 		;;
 esac

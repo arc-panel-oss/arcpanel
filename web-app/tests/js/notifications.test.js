@@ -166,3 +166,41 @@ describe('apNotifications', () => {
 		expect(tray().open).toBe(false);
 	});
 });
+
+describe('apNotifications: the Jobs tab (E15)', () => {
+	const jobs = { running: 1, items: [{ id: '17280000007001', type: 'docker.install', status: 'running', url: '/jobs/17280000007001' }] };
+
+	beforeEach(() => {
+		fetchMock.mockImplementation(async (url) => (String(url).startsWith('/jobs/tray') ? jsonResponse(jobs) : jsonResponse(list())));
+	});
+
+	const jobsMarkup = `
+<div id="tray" x-data="apNotifications({ url: '/_notifications', jobsUrl: '/jobs/tray' })">
+	<span id="running" x-text="running"></span>
+</div>`;
+
+	it('loads the running jobs with the notifications and polls every 5 s while the tab is open', async () => {
+		mount(jobsMarkup);
+		await vi.advanceTimersByTimeAsync(0);
+		expect(tray().running).toBe(1);
+		expect(tray().jobs).toHaveLength(1);
+
+		const jobCalls = () => fetchMock.mock.calls.filter(([url]) => String(url).startsWith('/jobs/tray')).length;
+		const before = jobCalls();
+		tray().toggle();
+		tray().show('jobs');
+		await vi.advanceTimersByTimeAsync(10000);
+		expect(jobCalls()).toBeGreaterThanOrEqual(before + 3);
+
+		tray().close();
+		const closed = jobCalls();
+		await vi.advanceTimersByTimeAsync(10000);
+		expect(jobCalls()).toBe(closed);
+	});
+
+	it('does not ask for jobs without a jobs url', async () => {
+		mount(markup);
+		await vi.advanceTimersByTimeAsync(0);
+		expect(fetchMock.mock.calls.some(([url]) => String(url).startsWith('/jobs/tray'))).toBe(false);
+	});
+});

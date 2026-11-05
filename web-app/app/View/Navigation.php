@@ -142,6 +142,8 @@ final class Navigation
         'account' => [
             'label' => 'Account',
             'items' => [
+                // Job Center (E15 spec §6.2): the jobs of the account, its customers and, for administrators, the server
+                ['route' => 'jobs.index', 'label' => 'Jobs', 'icon' => 'activity', 'cap' => 'tasks.view', 'section' => 'jobs.'],
                 ['route' => 'logs.index', 'label' => 'Logs', 'icon' => 'file', 'cap' => 'logs.view', 'policy' => 'POLICY_USER_VIEW_LOGS', 'section' => 'logs.'],
                 ['route' => 'stats.index', 'label' => 'Statistics', 'icon' => 'trend', 'cap' => 'stats.view', 'section' => 'stats.'],
                 ['hub' => 'keys', 'label' => 'Keys', 'icon' => 'key', 'children' => [

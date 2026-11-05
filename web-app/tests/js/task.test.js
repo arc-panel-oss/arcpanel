@@ -107,4 +107,22 @@ describe('apTask', () => {
 		await vi.advanceTimersByTimeAsync(1500);
 		expect(reload).toHaveBeenCalledTimes(1);
 	});
+
+	it('follows a job: the end of the log first, then the chunks after the offset (E15)', async () => {
+		mount(markup({ ...running, status: 'queued', log: 'old' }));
+		fetchMock.mockResolvedValueOnce(jsonResponse({ task: { status: 'running', log: 'line 1\n', offset: 7, kind: 'x', args: 'y' } }));
+		await vi.advanceTimersByTimeAsync(2000);
+		expect(fetchMock).toHaveBeenLastCalledWith('/web/domains/bob/example.com/install-task', expect.anything());
+		expect(task().task.log).toBe('line 1\n');
+		expect(task().task.app).toBe('DokuWiki');
+
+		fetchMock.mockResolvedValueOnce(jsonResponse({ task: { status: 'succeeded', log: 'line 2\n', offset: 14, finished_at: '2026-11-06T10:00:00' } }));
+		await vi.advanceTimersByTimeAsync(2000);
+		expect(fetchMock).toHaveBeenLastCalledWith('/web/domains/bob/example.com/install-task?offset=7', expect.anything());
+		expect(task().task.log).toBe('line 1\nline 2\n');
+		expect(task().task.end).toBe('2026-11-06 10:00:00');
+		expect(task().running).toBe(false);
+		expect(task().succeeded).toBe(true);
+		expect(toastTitle()).toBe('DokuWiki installed successfully.');
+	});
 });
