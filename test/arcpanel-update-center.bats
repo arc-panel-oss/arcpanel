@@ -874,14 +874,16 @@ runner() {
 	server_setup
 	apt_installs
 	task_manifest
-	conf="$SERVER_ARCPANEL/data/sys-task/task.conf"
-	cp "$conf" "$TMP/task.conf" 2> /dev/null || true
-	bash -c 'exec -a v-run-sys-task sleep 60' &
+	# a running sys.arcpanel-release job (E15) with a live runner
+	conf="$SERVER_ARCPANEL/data/jobs/99999999999901.conf"
+	mkdir -p "$SERVER_ARCPANEL/data/jobs"
+	bash -c 'exec -a v-run-job sleep 60' &
 	pid=$!
-	echo "ID='1' KIND='arcpanel-release' ARGS='$PATCH policy policy' STATUS='running' PID='$pid' UNIT='' EXIT='' START='' END=''" > "$conf"
+	now=$(date +'%F %T')
+	echo "ID='99999999999901' TYPE='sys.arcpanel-release' USER='system' OWNER='system' ACTOR='cli' OBJECT='arcpanel' ARGS='v-run-sys-task arcpanel-release $PATCH policy policy' STATUS='running' EXIT='' ERROR='' UNIT='' PID='$pid' QUEUED='$now' START='$now' END='' HEARTBEAT='$now' ATTEMPTS='1' RETRY_OF='' RESOURCE='' UPDATED='$now'" > "$conf"
 	run runner
 	kill "$pid" 2> /dev/null || true
-	if [ -f "$TMP/task.conf" ]; then cp "$TMP/task.conf" "$conf"; else rm -f "$conf"; fi
+	rm -f "$SERVER_ARCPANEL/data/jobs/99999999999901".*
 	assert_success
 	[ ! -f "$TMP/start-task.log" ]
 	run jq -r 'length' <<< "$(history_json)"

@@ -1,6 +1,7 @@
 #!/usr/bin/env bats
 # System task commands (E7 batch 3,
-# docs/features/specs/2026-10-06-003-e7-batch3-pages-design.md §6).
+# docs/features/specs/2026-10-06-003-e7-batch3-pages-design.md §6); since
+# E15 a system task is a job of type sys.KIND.
 # Run as root on a test server with internet access (the PHP test installs
 # and removes PHP 8.3 from the PHP package repository).
 
@@ -13,7 +14,7 @@ load 'test_helper/bats-assert/load'
 load 'test_helper/bats-file/load'
 
 ARCPANEL=/usr/local/arcpanel
-ST_DIR=$ARCPANEL/data/sys-task
+JOB_DIR=$ARCPANEL/data/jobs
 PHP_TEST=8.3
 
 # Wait until the system task is no longer running; print its status
@@ -30,11 +31,17 @@ wait_task() {
     echo timeout
 }
 
-# A hand-written task record, as v-start-sys-task writes it
+# A hand-written job record of a system task (ID KIND ARGS STATUS UNIT)
 write_record() {
-    mkdir -p "$ST_DIR"
-    echo "ID='$1' KIND='$2' ARGS='$3' STATUS='$4' PID='' UNIT='$5' EXIT='' START='2026-10-06 10:00:00' END=''" > "$ST_DIR/task.conf"
-    : > "$ST_DIR/task.log"
+    local now
+    now=$(date +'%F %T')
+    mkdir -p "$JOB_DIR"
+    echo "ID='$1' TYPE='sys.$2' USER='system' OWNER='system' ACTOR='cli' OBJECT='bats' ARGS='v-run-sys-task $2 $3' STATUS='$4' EXIT='' ERROR='' UNIT='$5' PID='' QUEUED='$now' START='$now' END='' HEARTBEAT='' ATTEMPTS='1' RETRY_OF='' RESOURCE='' UPDATED='$now'" > "$JOB_DIR/$1.conf"
+    : > "$JOB_DIR/$1.log"
+}
+
+remove_record() {
+    rm -f "$JOB_DIR/$1".*
 }
 
 setup_file() {
@@ -92,7 +99,7 @@ setup_file() {
     assert_success
     assert_output --regexp '^[0-9]{14}$'
     id=$output
-    run grep -o "UNIT='arcpanel-sys-task-$id'" "$ST_DIR/task.conf"
+    run grep -o "UNIT='arcpanel-job-$id'" "$JOB_DIR/$id.conf"
     assert_success
     run wait_task
     assert_output done
@@ -102,34 +109,39 @@ setup_file() {
     assert_output "$id plugin firewall on 0"
     run bash -c "v-list-sys-task 50 json | jq -r .LOG"
     assert_output --partial '$ v-add-sys-firewall'
-    run stat -c '%U %a' "$ST_DIR/task.conf"
+    run stat -c '%U %a' "$JOB_DIR/$id.conf"
     assert_output "root 640"
 }
 
-@test "System task: the runner records a failure and refuses tasks it did not start" {
+@test "System task: the runner refuses tasks it did not start and fails an unknown kind" {
     write_record 11111111111111 bogus '' running ''
-    run v-run-sys-task 22222222222222
+    run v-run-sys-task plugin firewall on
     assert_failure 10
-    run v-run-sys-task 11111111111111
+    JOB_ID=22222222222222 run v-run-sys-task bogus
+    assert_failure 10
+    JOB_ID=11111111111111 run v-run-sys-task plugin firewall on
+    assert_failure 10
+    JOB_ID=11111111111111 run v-run-sys-task bogus
     assert_failure 2
-    run bash -c "v-list-sys-task 10 json | jq -r '.STATUS + \" \" + .EXIT'"
-    assert_output "failed 2"
+    assert_output --partial "Unknown task kind"
+    remove_record 11111111111111
 }
 
 @test "System task: a running task whose runner is gone is reaped as failed" {
-    write_record 33333333333333 plugin 'firewall on' running arcpanel-sys-task-gone
+    write_record 33333333333333 plugin 'firewall on' running arcpanel-job-gone
     run bash -c "v-list-sys-task 10 json | jq -r .STATUS"
     assert_output failed
-    run grep -c "STATUS='failed'" "$ST_DIR/task.conf"
+    run grep -c "STATUS='failed'" "$JOB_DIR/33333333333333.conf"
     assert_output 1
+    remove_record 33333333333333
 }
 
 @test "System task: a second task is refused while one runs" {
     write_record 44444444444444 plugin 'firewall on' running ''
     # a live runner: this shell, renamed by its command line
-    bash -c 'exec -a v-run-sys-task sleep 30' &
+    bash -c 'exec -a v-run-job sleep 30' &
     pid=$!
-    sed -i "s/PID=''/PID='$pid'/" "$ST_DIR/task.conf"
+    sed -i "s/PID=''/PID='$pid'/" "$JOB_DIR/44444444444444.conf"
     run v-start-sys-task plugin firewall on
     assert_failure 7
     assert_output --partial "Another system task is running"
@@ -137,6 +149,7 @@ setup_file() {
     wait "$pid" 2> /dev/null || true
     run wait_task 5
     assert_output failed
+    remove_record 44444444444444
 }
 
 @test "System task: PHP is installed through a panel restart and removed again" {
@@ -147,7 +160,7 @@ setup_file() {
     # the panel restarts (as a arcpanel package update does) while the task runs
     sleep 5
     systemctl restart arcpanel
-    run systemctl is-active "arcpanel-sys-task-$id.service"
+    run systemctl is-active "arcpanel-job-$id.service"
     [ "$output" = active ] || [ "$(v-list-sys-task 10 json | jq -r .STATUS)" = done ]
     run wait_task 600
     assert_output done

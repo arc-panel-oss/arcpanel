@@ -30,8 +30,6 @@ source $ARCPANEL/func/job.sh
 # load config file
 source_conf "$ARCPANEL/conf/arcpanel.conf"
 
-JOB_CHUNK_MAX=262144
-
 #----------------------------------------------------------#
 #                    Verifications                         #
 #----------------------------------------------------------#
@@ -54,36 +52,10 @@ fi
 job_reap_one "$id" > /dev/null 2>&1 || true
 job_read "$id" || check_result "$E_NOTEXIST" "job $id does not exist"
 
-log=$(job_log "$id")
-size=0
-[ -f "$log" ] && size=$(stat -c %s "$log")
-offset=$((10#$offset))
-# A log trimmed under the reader (spec §3.2): go on from its end
-if [ "$offset" -gt "$size" ]; then
-	offset=$size
-fi
-chunk=$(mktemp)
-if [ "$offset" -lt "$size" ]; then
-	tail -c +$((offset + 1)) "$log" | head -c "$JOB_CHUNK_MAX" > "$chunk"
-fi
-length=$(stat -c %s "$chunk")
-# A full chunk ends at its last line break, so the next call starts on a
-# line (and never inside a character)
-if [ "$length" -eq "$JOB_CHUNK_MAX" ]; then
-	cut=$(LC_ALL=C grep -boa $'\n' "$chunk" 2> /dev/null | tail -n1 | cut -d: -f1)
-	if [ -n "$cut" ]; then
-		truncate -s $((cut + 1)) "$chunk"
-		length=$((cut + 1))
-	fi
-fi
-next=$((offset + length))
-# No colours, no carriage returns of progress bars and spinners
 clean=$(mktemp)
-sed -e 's/\x1b\[[0-9;?]*[A-Za-z]//g' -e 's/\r$//' -e 's/.*\r//' -e 's/.\x08//g' "$chunk" | job_mask "$id" > "$clean"
-# job_mask ends every line with a line break; keep an open last line open
-if [ "$length" -gt 0 ] && [ "$(tail -c1 "$chunk" | od -An -tx1 | tr -d ' ')" != '0a' ]; then
-	truncate -s -1 "$clean"
-fi
+job_log_chunk "$id" "$offset" "$clean"
+next=$JOB_LOG_NEXT
+size=$JOB_LOG_SIZE
 
 retryable=no
 job_type_retryable "${JOB[TYPE]}" && retryable=yes
@@ -91,7 +63,7 @@ json=$(head -n1 "$(job_conf "$id")" | job_mask "$id" | jq -R -c "$JOB_JQ_RECORD"
 	| jq -c --rawfile log "$clean" --arg class "$(job_type_class "${JOB[TYPE]}")" \
 		--arg retryable "$retryable" --argjson offset "$next" --argjson size "$size" \
 		'. + {CLASS: $class, RETRYABLE: $retryable, LOG: $log, OFFSET: $offset, SIZE: $size}')
-rm -f "$chunk" "$clean"
+rm -f "$clean"
 
 case "$format" in
 	json) printf '%s\n' "$json" | jq . ;;

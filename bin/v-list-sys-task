@@ -4,10 +4,12 @@
 #
 # example: v-list-sys-task 100 json
 #
-# This function prints the task record (ID, KIND, ARGS, STATUS, EXIT,
-# START, END) and the last LINES lines of its output (default 100, at most
-# 1000). STATUS is running, done or failed; a running task whose runner is
-# gone is reported, and stored, as failed. Without a task, STATUS is empty.
+# This function prints the newest job of a sys.KIND type (E15) in the format
+# of the system task record (ID, KIND, ARGS, STATUS, EXIT, START, END) and
+# the last LINES lines of its output (default 100, at most 1000). STATUS is
+# running, done or failed; a running task whose runner is gone is reported,
+# and stored, as failed. Without a task, STATUS is empty.
+# Deprecated in 2.7.0: read the job with v-list-job; removed in 2.8.
 
 #----------------------------------------------------------#
 #                Variables & Functions                     #
@@ -39,17 +41,11 @@ fi
 #                       Action                             #
 #----------------------------------------------------------#
 
-if [ -f "$(st_task_conf)" ]; then
-	exec {lock}> "$(st_task_lock)"
-	flock -x "$lock"
-	st_task_reap
-	flock -u "$lock"
-fi
-
+st_task_reap
+id=$(st_task_id || true)
 log=''
-if [ -f "$(st_task_log)" ]; then
-	# no colours, no carriage returns of progress bars and spinners
-	log=$(tail -n "$lines" "$(st_task_log)" | sed -e 's/\x1b\[[0-9;?]*[A-Za-z]//g' -e 's/\r$//' -e 's/.*\r//' -e 's/.\x08//g')
+if [ -n "$id" ]; then
+	log=$(job_log_tail "$id" "$lines")
 fi
 
 json=$(jq -nc --arg id "$(st_task_get ID)" --arg kind "$(st_task_get KIND)" \

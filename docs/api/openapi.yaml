@@ -28045,10 +28045,12 @@ paths:
         - System
       summary: Show the current or last system task (E7 batch 3)
       description: |-
-        This function prints the task record (ID, KIND, ARGS, STATUS, EXIT,
-        START, END) and the last LINES lines of its output (default 100, at most
-        1000). STATUS is running, done or failed; a running task whose runner is
-        gone is reported, and stored, as failed. Without a task, STATUS is empty.
+        This function prints the newest job of a sys.KIND type (E15) in the format
+        of the system task record (ID, KIND, ARGS, STATUS, EXIT, START, END) and
+        the last LINES lines of its output (default 100, at most 1000). STATUS is
+        running, done or failed; a running task whose runner is gone is reported,
+        and stored, as failed. Without a task, STATUS is empty.
+        Deprecated in 2.7.0: read the job with v-list-job; removed in 2.8.
 
         **Arguments**
 
@@ -35585,16 +35587,17 @@ paths:
         - System
       summary: Run a system task started by v-start-sys-task (E7 batch 3)
       description: |-
-        This function is the background part of v-start-sys-task: it runs the
-        steps of the task, prints "$ COMMAND" before each, stops at the first
-        failure and records the result. It refuses to run a task that
-        v-start-sys-task did not start.
+        This function is the command of the sys.KIND jobs that v-start-sys-task
+        starts (E15): it runs the steps of the task, prints "$ COMMAND" before
+        each and stops at the first failure; the job runner records the result.
+        It refuses to run outside such a job.
 
         **Arguments**
 
         | Field | Option | Required |
         | --- | --- | --- |
-        | `arg1` | `ID` | yes |
+        | `arg1` | `KIND` | yes |
+        | `arg2`…`arg13` | `ARG` | no |
       requestBody:
         required: true
         content:
@@ -37063,9 +37066,10 @@ paths:
         - System
       summary: Start a long server operation in the background (E7 batch 3)
       description: |-
-        This function checks a system task and starts v-run-sys-task in a
-        transient systemd unit (arcpanel-sys-task-ID), so the task outlives a
-        restart of the panel, and prints the task ID. One task runs at a time.
+        This function checks a system task and starts it as a job of type
+        sys.KIND (E15) running v-run-sys-task in a transient systemd unit
+        (arcpanel-job-ID), so the task outlives a restart of the panel, and prints
+        the job ID. One system task (or Docker engine task) runs at a time.
         Kinds and arguments:
         php ADD DELETE            PHP versions to install and to remove, comma
         lists or "-"; a version in use by a web domain
@@ -37086,7 +37090,7 @@ paths:
         here, before the task starts
         package SLUG add|delete   v-add-sys-package or v-delete-sys-package of a
         system package of the catalog (E5)
-        The state and the output are read with v-list-sys-task.
+        The state and the output are read with v-list-job or v-list-sys-task.
 
         **Arguments**
 
@@ -65867,10 +65871,82 @@ components:
               default: v-run-sys-task
             arg1:
               type: string
-              title: ID
-              description: "`ID`"
+              title: KIND
+              description: "`KIND`"
               examples:
-                - "17286400001234"
+                - php
+            arg2:
+              type: string
+              title: ARG
+              description: "`ARG`, repeatable, optional"
+              examples:
+                - "8.3"
+            arg3:
+              type: string
+              title: ARG
+              description: "`ARG`, repeatable, optional"
+              examples:
+                - "-"
+            arg4:
+              type: string
+              title: ARG
+              description: "`ARG`, repeatable, optional"
+              examples:
+                - ""
+            arg5:
+              type: string
+              title: ARG
+              description: "`ARG`, repeatable, optional"
+              examples:
+                - ""
+            arg6:
+              type: string
+              title: ARG
+              description: "`ARG`, repeatable, optional"
+              examples:
+                - ""
+            arg7:
+              type: string
+              title: ARG
+              description: "`ARG`, repeatable, optional"
+              examples:
+                - ""
+            arg8:
+              type: string
+              title: ARG
+              description: "`ARG`, repeatable, optional"
+              examples:
+                - ""
+            arg9:
+              type: string
+              title: ARG
+              description: "`ARG`, repeatable, optional"
+              examples:
+                - ""
+            arg10:
+              type: string
+              title: ARG
+              description: "`ARG`, repeatable, optional"
+              examples:
+                - ""
+            arg11:
+              type: string
+              title: ARG
+              description: "`ARG`, repeatable, optional"
+              examples:
+                - ""
+            arg12:
+              type: string
+              title: ARG
+              description: "`ARG`, repeatable, optional"
+              examples:
+                - ""
+            arg13:
+              type: string
+              title: ARG
+              description: "`ARG`, repeatable, optional"
+              examples:
+                - ""
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-run-user-node-task:

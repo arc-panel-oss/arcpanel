@@ -3,99 +3,58 @@
 # ArcPanel: the system task (E7 batch 3,
 # docs/features/specs/2026-10-06-003-e7-batch3-pages-design.md §6).
 # One long server operation at a time (PHP versions, plugin installs, package
-# updates), run in the background like the Quick Install task of E7 batch 2.
-# The runner lives in a transient systemd unit, so a restart of the panel
-# (arcpanel.service) during a package update does not end it.
+# updates), run as a job of type sys.KIND (E15, func/job.sh) in a transient
+# systemd unit, so a restart of the panel (arcpanel.service) during a package
+# update does not end it.
 
 #----------------------------------------------------------#
 #                          Task                            #
 #----------------------------------------------------------#
 
-ST_DIR="$ARCPANEL/data/sys-task"
+# Since E15 a system task is a job of type sys.KIND (func/job.sh). These
+# wrappers read the newest one for the callers of the old task record
+# (func/updates.sh, v-run-sys-arcpanel-autoupdate); they go in 2.8.
 
-st_task_conf() {
-	echo "$ST_DIR/task.conf"
+# shellcheck source=/usr/local/arcpanel/func/job.sh
+source "$ARCPANEL/func/job.sh"
+
+ST_TYPES='sys\.[a-z-]+'
+
+# ID of the newest system task
+st_task_id() {
+	job_newest "$ST_TYPES"
 }
 
-st_task_log() {
-	echo "$ST_DIR/task.log"
-}
-
-st_task_lock() {
-	echo "$ST_DIR/task.lock"
-}
-
-# Create the task folder (root only)
-st_task_dir() {
-	if [ ! -d "$ST_DIR" ]; then
-		mkdir -p "$ST_DIR"
-	fi
-	chown root:root "$ST_DIR"
-	chmod 750 "$ST_DIR"
-}
-
-# Value of KEY in the task record
+# Value of KEY of the newest system task, in the old record's terms: KIND,
+# ARGS (the arguments of v-run-sys-task after KIND), STATUS (running, done
+# or failed), ID, EXIT, START, END
 st_task_get() {
-	local file
-	file=$(st_task_conf)
-	if [ -f "$file" ]; then
-		grep -oE "(^| )$1='[^']*'" "$file" | head -n1 | cut -d\' -f2
-	fi
+	local id args
+	id=$(st_task_id) || return 0
+	[ -n "$id" ] || return 0
+	case "$1" in
+		KIND) job_get "$id" TYPE | sed 's/^sys\.//' ;;
+		ARGS)
+			args=$(job_get "$id" ARGS)
+			read -r -a args <<< "$args"
+			printf '%s' "${args[*]:2}"
+			;;
+		STATUS) job_legacy_status "$(job_get "$id" STATUS)" ;;
+		*) job_get "$id" "$1" ;;
+	esac
 }
 
-ST_TASK_KEYS="ID KIND ARGS STATUS PID UNIT EXIT START END"
-
-# Set KEY=VALUE pairs in the task record; the other keys keep their values.
-# Quotes and line breaks are dropped from values.
-st_task_set() {
-	local pair key line='' tmp file
-	local -A values=()
-	for key in $ST_TASK_KEYS; do
-		values[$key]=$(st_task_get "$key")
-	done
-	for pair in "$@"; do
-		key=${pair%%=*}
-		values[$key]=$(printf '%s' "${pair#*=}" | tr -d "'\n\r")
-	done
-	for key in $ST_TASK_KEYS; do
-		line="$line$key='${values[$key]}' "
-	done
-	file=$(st_task_conf)
-	tmp="$file.$$"
-	echo "${line% }" > "$tmp"
-	chmod 640 "$tmp"
-	mv -f "$tmp" "$file"
-}
-
-# Whether the runner of the task is alive: its systemd unit, or (without
-# systemd) its process
-st_task_alive() {
-	local unit pid
-	unit=$(st_task_get UNIT)
-	pid=$(st_task_get PID)
-	if [ -n "$unit" ]; then
-		systemctl is-active --quiet "$unit.service"
-		return
-	fi
-	[[ "$pid" =~ ^[0-9]+$ ]] && [ -r "/proc/$pid/cmdline" ] \
-		&& tr '\0' ' ' < "/proc/$pid/cmdline" | grep -q 'v-run-sys-task'
-}
-
-# Mark a running task whose runner is gone as failed
+# Mark the newest system task failed when its runner is gone
 st_task_reap() {
-	if [ "$(st_task_get STATUS)" = 'running' ] && ! st_task_alive; then
-		st_task_set STATUS=failed "END=$(date +'%F %T')"
-	fi
+	local id
+	id=$(st_task_id) || return 0
+	[ -n "$id" ] && job_reap_one "$id" > /dev/null 2>&1
+	return 0
 }
 
 st_task_running() {
 	st_task_reap
 	[ "$(st_task_get STATUS)" = 'running' ]
-}
-
-# Whether systemd runs the machine (transient units are available)
-st_has_systemd() {
-	[ -d /run/systemd/system ] && command -v systemd-run > /dev/null 2>&1
 }
 
 #----------------------------------------------------------#

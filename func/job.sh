@@ -34,6 +34,12 @@
 #   HOOK       optional FILE:FUNCTION called by job_finish with the job ID,
 #              FILE relative to $ARCPANEL (func/deploy.sh:deploy_job_finished)
 
+# Sourced once (func/systask.sh and the other source libraries load it too)
+if [ -n "${JOB_SH_LOADED-}" ]; then
+	return 0
+fi
+JOB_SH_LOADED=1
+
 #----------------------------------------------------------#
 #                       Locations                          #
 #----------------------------------------------------------#
@@ -878,6 +884,118 @@ job_max_attempts() {
 	max=$((10#$max))
 	[ "$max" -ge 1 ] || max=1
 	echo "$max"
+}
+
+# Write the log of ID from byte OFFSET (at most 256 KB, cleaned of colours
+# and progress carriage returns, masked) to FILE. Sets JOB_LOG_NEXT (the
+# offset of the next call) and JOB_LOG_SIZE.
+JOB_CHUNK_MAX=262144
+job_log_chunk() {
+	local id="$1" offset="$2" out="$3" log size chunk length cut
+	log=$(job_log "$id")
+	size=0
+	[ -f "$log" ] && size=$(stat -c %s "$log")
+	offset=$((10#$offset))
+	# A log trimmed under the reader (spec §3.2): go on from its end
+	if [ "$offset" -gt "$size" ]; then
+		offset=$size
+	fi
+	chunk=$(mktemp)
+	if [ "$offset" -lt "$size" ]; then
+		tail -c +$((offset + 1)) "$log" | head -c "$JOB_CHUNK_MAX" > "$chunk"
+	fi
+	length=$(stat -c %s "$chunk")
+	# A full chunk ends at its last line break, so the next call starts on a
+	# line (and never inside a character)
+	if [ "$length" -eq "$JOB_CHUNK_MAX" ]; then
+		cut=$(LC_ALL=C grep -boa $'\n' "$chunk" 2> /dev/null | tail -n1 | cut -d: -f1)
+		if [ -n "$cut" ]; then
+			truncate -s $((cut + 1)) "$chunk"
+			length=$((cut + 1))
+		fi
+	fi
+	JOB_LOG_NEXT=$((offset + length))
+	JOB_LOG_SIZE=$size
+	job_clean_text "$id" < "$chunk" > "$out"
+	# job_mask ends every line with a line break; keep an open last line open
+	if [ "$length" -gt 0 ] && [ "$(tail -c1 "$chunk" | od -An -tx1 | tr -d ' ')" != '0a' ]; then
+		truncate -s -1 "$out"
+	fi
+	rm -f "$chunk"
+}
+
+# Standard input without colours, progress carriage returns and backspaces,
+# masked for job ID
+job_clean_text() {
+	sed -e 's/\x1b\[[0-9;?]*[A-Za-z]//g' -e 's/\r$//' -e 's/.*\r//' -e 's/.\x08//g' | job_mask "$1"
+}
+
+# The last LINES lines of the log of ID, cleaned and masked
+job_log_tail() {
+	local log
+	log=$(job_log "$1")
+	[ -f "$log" ] || return 0
+	tail -n "$2" "$log" | job_clean_text "$1"
+}
+
+#----------------------------------------------------------#
+#            Sources that keep their old commands          #
+#----------------------------------------------------------#
+
+# ID of the newest job whose TYPE matches the extended regular expression
+# TYPES and, when given, whose OBJECT is OBJECT (the v-list-*-task commands
+# of the single-slot sources, spec §4.2)
+job_newest() {
+	local types="$1" object="${2-}"
+	[ -d "$JOB_DIR" ] || return 1
+	local -a files=()
+	mapfile -t files < <(grep -rlE --include='*.conf' "(^| )TYPE='($types)'" "$JOB_DIR" 2> /dev/null)
+	[ "${#files[@]}" -gt 0 ] || return 1
+	if [ -n "$object" ]; then
+		mapfile -t files < <(grep -lF " OBJECT='$object' " "${files[@]}" 2> /dev/null)
+		[ "${#files[@]}" -gt 0 ] || return 1
+	fi
+	printf '%s\n' "${files[@]}" | sed -E 's|.*/([0-9]{14})\.conf$|\1|' | grep -E '^[0-9]{14}$' | sort | tail -n1
+}
+
+# The STATUS of the old task records: running, done or failed
+job_legacy_status() {
+	case "$1" in
+		queued | running) echo running ;;
+		succeeded) echo done ;;
+		failed | cancelled) echo failed ;;
+		*) echo '' ;;
+	esac
+}
+
+# ACTOR of a job started by a v-start-* command that has no ACTOR argument:
+# the panel (sudo from arcpanelweb) or the shell
+job_default_actor() {
+	if [ "${SUDO_USER-}" = 'arcpanelweb' ]; then
+		echo panel
+	else
+		echo cli
+	fi
+}
+
+# Whether this process runs as job JOB_ID of a type matching TYPES (the
+# runners refuse to run outside their job)
+job_is_current() {
+	local types="$1"
+	job_id_valid "${JOB_ID-}" || return 1
+	job_read "$JOB_ID" || return 1
+	[ "${JOB[STATUS]}" = 'running' ] && [[ "${JOB[TYPE]}" =~ ^($types)$ ]]
+}
+
+# Print the result of job_create/job_start for a v-start-* command and exit
+# on a failure: MESSAGE for E_INUSE (the job that holds the key is named)
+job_check_started() {
+	local rc="$1" inuse_message="$2"
+	[ "$rc" -eq 0 ] && return 0
+	if [ "$rc" -eq "$E_INUSE" ] && [ -n "$inuse_message" ]; then
+		check_result "$E_INUSE" "$inuse_message (job $JOB_INUSE)"
+	fi
+	check_result "$rc" "$JOB_REASON"
 }
 
 #----------------------------------------------------------#

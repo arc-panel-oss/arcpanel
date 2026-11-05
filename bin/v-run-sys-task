@@ -1,20 +1,20 @@
 #!/bin/bash
 # info: run a system task started by v-start-sys-task (E7 batch 3)
-# options: ID
+# options: KIND [ARG...]
 #
-# example: v-run-sys-task 17286400001234
+# example: v-run-sys-task php 8.3 -
 #
-# This function is the background part of v-start-sys-task: it runs the
-# steps of the task, prints "$ COMMAND" before each, stops at the first
-# failure and records the result. It refuses to run a task that
-# v-start-sys-task did not start.
+# This function is the command of the sys.KIND jobs that v-start-sys-task
+# starts (E15): it runs the steps of the task, prints "$ COMMAND" before
+# each and stops at the first failure; the job runner records the result.
+# It refuses to run outside such a job.
 
 #----------------------------------------------------------#
 #                Variables & Functions                     #
 #----------------------------------------------------------#
 
 # Argument definition
-id=$1
+kind=$1
 
 # Includes
 # shellcheck source=/etc/arcpanel/arcpanel.conf
@@ -23,6 +23,8 @@ source /etc/arcpanel/arcpanel.conf
 source $ARCPANEL/func/main.sh
 # shellcheck source=/usr/local/arcpanel/func/systask.sh
 source $ARCPANEL/func/systask.sh
+# shellcheck source=/usr/local/arcpanel/func/job.sh
+source $ARCPANEL/func/job.sh
 # load config file
 source_conf "$ARCPANEL/conf/arcpanel.conf"
 
@@ -44,20 +46,17 @@ step() {
 #                    Verifications                         #
 #----------------------------------------------------------#
 
-if [ -z "$id" ]; then
-	echo "Usage: v-run-sys-task ID"
-	exit "$E_ARGS"
+check_args '1' "$#" 'KIND [ARG...]'
+if ! [[ "$kind" =~ ^[a-z-]{1,32}$ ]] || ! job_is_current "sys\.$kind"; then
+	check_result "$E_FORBIDEN" "the task was not started by v-start-sys-task"
 fi
-if [ "$(st_task_get ID)" != "$id" ] || [ "$(st_task_get STATUS)" != 'running' ]; then
-	check_result "$E_FORBIDEN" "task $id was not started by v-start-sys-task"
-fi
+id=$JOB_ID
 
 #----------------------------------------------------------#
 #                       Action                             #
 #----------------------------------------------------------#
 
-kind=$(st_task_get KIND)
-read -r -a args <<< "$(st_task_get ARGS)"
+args=("${@:2}")
 
 case "$kind" in
 	php)
@@ -126,13 +125,6 @@ if [ "$rc" -eq 0 ]; then
 else
 	status=failed
 fi
-
-exec {lock}> "$(st_task_lock)"
-flock -x "$lock"
-if [ "$(st_task_get ID)" = "$id" ]; then
-	st_task_set "STATUS=$status" "EXIT=$rc" "END=$(date +'%F %T')"
-fi
-flock -u "$lock"
 
 #----------------------------------------------------------#
 #                         ArcPanel                         #

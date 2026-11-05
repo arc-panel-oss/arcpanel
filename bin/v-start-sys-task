@@ -10,9 +10,10 @@
 # example: v-start-sys-task arcpanel-rollback 12
 # example: v-start-sys-task package python add
 #
-# This function checks a system task and starts v-run-sys-task in a
-# transient systemd unit (arcpanel-sys-task-ID), so the task outlives a
-# restart of the panel, and prints the task ID. One task runs at a time.
+# This function checks a system task and starts it as a job of type
+# sys.KIND (E15) running v-run-sys-task in a transient systemd unit
+# (arcpanel-job-ID), so the task outlives a restart of the panel, and prints
+# the job ID. One system task (or Docker engine task) runs at a time.
 # Kinds and arguments:
 #   php ADD DELETE            PHP versions to install and to remove, comma
 #                             lists or "-"; a version in use by a web domain
@@ -33,7 +34,7 @@
 #                             here, before the task starts
 #   package SLUG add|delete   v-add-sys-package or v-delete-sys-package of a
 #                             system package of the catalog (E5)
-# The state and the output are read with v-list-sys-task.
+# The state and the output are read with v-list-job or v-list-sys-task.
 
 #----------------------------------------------------------#
 #                Variables & Functions                     #
@@ -41,6 +42,9 @@
 
 # Argument definition
 kind=$1
+run=()
+object=''
+actor=''
 
 # Includes
 # shellcheck source=/etc/arcpanel/arcpanel.conf
@@ -53,6 +57,8 @@ source $ARCPANEL/func/systask.sh
 source $ARCPANEL/func/syspackages.sh
 # shellcheck source=/usr/local/arcpanel/func/updates.sh
 source $ARCPANEL/func/updates.sh
+# shellcheck source=/usr/local/arcpanel/func/tenancy.sh
+source $ARCPANEL/func/tenancy.sh
 # load config file
 source_conf "$ARCPANEL/conf/arcpanel.conf"
 
@@ -119,6 +125,8 @@ case "$kind" in
 			fi
 		done
 		args="$2 $3"
+		run=("$2" "$3")
+		object=php
 		;;
 	php-ext)
 		check_args '4' "$#" 'php-ext VERSION ADD DELETE'
@@ -150,6 +158,8 @@ case "$kind" in
 			fi
 		done
 		args="$2 $3 $4"
+		run=("$2" "$3" "$4")
+		object="php:$2"
 		;;
 	plugin)
 		check_args '3' "$#" 'plugin NAME on|off'
@@ -161,6 +171,8 @@ case "$kind" in
 			check_result "$E_INVALID" "invalid plugin state :: $3 (on or off)"
 		fi
 		args="$2 $3"
+		run=("$2" "$3")
+		object="plugin:$2"
 		;;
 	arcpanel-update)
 		if [ -n "$2" ]; then
@@ -170,6 +182,9 @@ case "$kind" in
 			esac
 		fi
 		args="${2-}"
+		run=()
+		[ -n "${2-}" ] && run=("$2")
+		object=arcpanel
 		;;
 	arcpanel-release)
 		check_args '3' "$#" 'arcpanel-release VERSION TRIGGER [ACTOR]'
@@ -184,6 +199,10 @@ case "$kind" in
 			check_result "$E_INVALID" "invalid actor :: $4"
 		fi
 		args="$2 $3${4:+ $4}"
+		run=("$2" "$3")
+		[ -n "${4-}" ] && run+=("$4")
+		object=arcpanel
+		[ -n "${4-}" ] && actor=$4
 		;;
 	arcpanel-rollback)
 		# The rollback restarts the panel, so it runs as a task (E33 phase 1 §9)
@@ -195,6 +214,8 @@ case "$kind" in
 			check_result "$E_FORBIDEN" "the rollback is not allowed: $refusal"
 		fi
 		args="$2"
+		run=("$2")
+		object=arcpanel
 		;;
 	package)
 		check_args '3' "$#" 'package SLUG add|delete'
@@ -221,6 +242,8 @@ case "$kind" in
 			*) check_result "$E_INVALID" "invalid action :: $3 (add or delete)" ;;
 		esac
 		args="$2 $3"
+		run=("$2" "$3")
+		object="package:$2"
 		;;
 	*)
 		check_result "$E_INVALID" "invalid task kind :: $kind (php, php-ext, plugin, arcpanel-update, arcpanel-release, arcpanel-rollback, package)"
@@ -234,39 +257,10 @@ check_arcpanel_demo_mode
 #                       Action                             #
 #----------------------------------------------------------#
 
-st_task_dir
-exec {lock}> "$(st_task_lock)"
-flock -x "$lock"
-
-if st_task_running; then
-	check_result "$E_INUSE" "Another system task is running"
-fi
-
-id="$(date +%s)$(printf '%04d' $((RANDOM % 10000)))"
-log=$(st_task_log)
-: > "$log"
-chmod 640 "$log"
-st_task_set "ID=$id" "KIND=$kind" "ARGS=$args" STATUS=running PID= UNIT= EXIT= \
-	"START=$(date +'%F %T')" END=
-
-if st_has_systemd; then
-	# A transient unit outside arcpanel.service: a restart of the panel during
-	# a package update does not stop it
-	unit="arcpanel-sys-task-$id"
-	if ! systemd-run --unit="$unit" --collect --quiet \
-		--property="StandardOutput=append:$log" --property="StandardError=append:$log" \
-		"$BIN/v-run-sys-task" "$id" {lock}>&-; then
-		st_task_set STATUS=failed EXIT=1 "END=$(date +'%F %T')"
-		check_result "$E_UPDATE" "the task could not be started"
-	fi
-	st_task_set "UNIT=$unit"
-else
-	setsid "$BIN/v-run-sys-task" "$id" < /dev/null >> "$log" 2>&1 {lock}>&- &
-	st_task_set "PID=$!"
-fi
-
-flock -u "$lock"
-echo "$id"
+[ -n "$actor" ] && job_actor_valid "$actor" || actor=$(job_default_actor)
+job_start "sys.$kind" system "$object" "$actor" -- v-run-sys-task "$kind" "${run[@]}"
+job_check_started "$?" "Another system task is running"
+echo "$JOB_ID"
 
 #----------------------------------------------------------#
 #                         ArcPanel                         #
