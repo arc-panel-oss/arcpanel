@@ -68,6 +68,8 @@ safe_workdir() {
 	SAFE_WORKDIR=$(mktemp -d -p "$root" "${1:-work}.XXXXXXXX") || check_result "$E_FORBIDEN" "no working folder in $root"
 	SAFE_WORKDIRS+=("$SAFE_WORKDIR")
 	trap safe_workdir_cleanup EXIT
+	# A cancelled job (TERM) also removes the folders (E15)
+	exit_on_signals
 }
 
 #----------------------------------------------------------#

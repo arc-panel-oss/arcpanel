@@ -402,6 +402,15 @@ is_backup_scheduled() {
 	fi
 }
 
+# Turn TERM, INT and HUP into an exit, so that the EXIT trap of the command
+# runs when it is stopped: a cancelled job gets TERM (then KILL after 10 s)
+# and must not leave its work folders or a running record behind (E15)
+exit_on_signals() {
+	trap 'exit 143' TERM
+	trap 'exit 130' INT
+	trap 'exit 129' HUP
+}
+
 # A command run by a job of the backup or letsencrypt queue says that its
 # failure is final: the queue does not run it again (E15, func/job.sh)
 job_no_retry() {

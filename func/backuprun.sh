@@ -156,4 +156,6 @@ br_begin() {
 	# shellcheck disable=SC2034
 	CHECK_RESULT_CALLBACK=br_check_result
 	trap 'br_on_exit $?' EXIT
+	# A cancelled job (TERM) ends the run as failed instead of running (E15)
+	exit_on_signals
 }

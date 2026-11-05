@@ -238,6 +238,8 @@ if [ "$?" -ne 0 ]; then
 	job_no_retry
 	check_result "$E_NOTEXIST" "can't create tmp dir"
 fi
+# Removed on every exit, a cancelled job (TERM) included (E15)
+bd_trap_add 'rm -rf -- "$tmpdir"'
 
 # Backup sys configs
 echo "-- SYSTEM --" | tee $BACKUP/$user.log

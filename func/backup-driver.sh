@@ -373,6 +373,8 @@ bd_trap_add() {
 	current=$(trap -p EXIT | sed -E "s/^trap -- '(.*)' EXIT$/\1/")
 	# shellcheck disable=SC2064
 	trap "${current:+$current; }$1" EXIT
+	# A cancelled job (TERM) runs the EXIT trap too (E15)
+	exit_on_signals
 }
 
 # A private folder for this process, removed when it exits

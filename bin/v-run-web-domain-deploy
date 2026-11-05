@@ -80,6 +80,8 @@ finish() {
 	rm -f "$artifact"
 }
 trap finish EXIT
+# A cancelled deploy job (TERM) removes the artifact too (E15)
+exit_on_signals
 
 # End the task as failed: the new release goes, current stays
 fail() {
