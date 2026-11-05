@@ -8,7 +8,8 @@
 # EXIT, START, END) and its output after byte OFFSET (default 0, at most
 # 256 KB) with the next OFFSET. STATUS is running, done or failed; a running
 # task whose process is gone is reported as failed. Without a task, STATUS
-# is empty.
+# is empty. Since E15 it reads the newest docker.engine job; deprecated in
+# 2.7.0 (read the job with v-list-job), removed in 2.8.
 
 #----------------------------------------------------------#
 #                Variables & Functions                     #
@@ -31,9 +32,8 @@ source $ARCPANEL/func/ports.sh
 source_conf "$ARCPANEL/conf/arcpanel.conf"
 # shellcheck source=/usr/local/arcpanel/func/docker.sh
 source $ARCPANEL/func/docker.sh
-
-conf="$(docker_state_dir)/engine-task.state"
-log="$(docker_state_dir)/engine-task.log"
+# shellcheck source=/usr/local/arcpanel/func/job.sh
+source $ARCPANEL/func/job.sh
 
 #----------------------------------------------------------#
 #                    Verifications                         #
@@ -47,14 +47,16 @@ fi
 #                       Action                             #
 #----------------------------------------------------------#
 
-if [ -f "$conf" ] && grep -q " STATUS='running'" "$conf"; then
-	pid=$(grep -oE " PID='[0-9]*'" "$conf" | cut -d\' -f2)
-	if ! docker_task_alive "$pid" v-run-sys-docker-task; then
-		sed -i -e "s/ STATUS='[^']*'/ STATUS='failed'/" -e "s/ END='[^']*'/ END='$(date +'%F %T')'/" "$conf"
-	fi
+id=$(job_newest 'docker\.engine' || true)
+if [ -n "$id" ]; then
+	job_reap_one "$id" > /dev/null 2>&1 || true
 fi
-
-json=$(docker_task_json "$conf" "$log" "$offset")
+args=''
+if [ -n "$id" ]; then
+	args=$(job_legacy_args "$id" 1)
+fi
+json=$(job_legacy_json "$id" offset "$offset" | jq -c --arg args "$args" \
+	'{ID, ACTION: (if .ID == "" then "" else "install" end), ARGS: $args, STATUS, EXIT, START, END, LOG, OFFSET}')
 
 case "$format" in
 	json) printf '%s\n' "$json" | jq . ;;

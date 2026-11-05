@@ -1,40 +1,39 @@
 #!/bin/bash
 # info: run the Docker engine task started by v-start-sys-docker-task (E4)
-# options: ID [DATA_ROOT]
+# options: [DATA_ROOT]
 #
-# example: v-run-sys-docker-task 17286400001234
+# example: v-run-sys-docker-task
 #
-# This function is the background part of v-start-sys-docker-task: it runs
-# v-add-sys-docker and records the result. It refuses to run a task that
-# v-start-sys-docker-task did not start.
+# This function is the command of the docker.engine job that
+# v-start-sys-docker-task starts (E15): it runs v-add-sys-docker; the job
+# runner records the result. It refuses to run outside such a job.
 
 #----------------------------------------------------------#
 #                Variables & Functions                     #
 #----------------------------------------------------------#
 
 # Argument definition
-id=$1
-data_root=$2
+data_root=$1
 
 # Includes
 # shellcheck source=/etc/arcpanel/arcpanel.conf
 source /etc/arcpanel/arcpanel.conf
 # shellcheck source=/usr/local/arcpanel/func/main.sh
 source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/job.sh
+source $ARCPANEL/func/job.sh
 # load config file
 source_conf "$ARCPANEL/conf/arcpanel.conf"
 
 # Perform verification if read-only mode is enabled (E39 W5 L22)
 check_arcpanel_demo_mode
 
-conf="$ARCPANEL/data/docker/engine-task.state"
-
 #----------------------------------------------------------#
 #                    Verifications                         #
 #----------------------------------------------------------#
 
-if [ -z "$id" ] || ! grep -q "^ID='$id' .* STATUS='running'" "$conf" 2> /dev/null; then
-	check_result "$E_FORBIDEN" "task $id was not started by v-start-sys-docker-task"
+if ! job_is_current 'docker\.engine'; then
+	check_result "$E_FORBIDEN" "the task was not started by v-start-sys-docker-task"
 fi
 
 #----------------------------------------------------------#
@@ -42,21 +41,11 @@ fi
 #----------------------------------------------------------#
 
 echo "$ v-add-sys-docker $data_root"
-"$BIN/v-add-sys-docker" $data_root
+"$BIN/v-add-sys-docker" ${data_root:+"$data_root"}
 rc=$?
-status=done
 if [ "$rc" -ne 0 ]; then
-	status=failed
 	echo "Exit code $rc"
 fi
-
-exec {lock}> "$ARCPANEL/data/docker/engine-task.lock"
-flock -x "$lock"
-if grep -q "^ID='$id' " "$conf"; then
-	sed -i -e "s/ STATUS='[^']*'/ STATUS='$status'/" -e "s/ EXIT='[^']*'/ EXIT='$rc'/" \
-		-e "s/ END='[^']*'/ END='$(date +'%F %T')'/" "$conf"
-fi
-flock -u "$lock"
 
 #----------------------------------------------------------#
 #                         ArcPanel                         #
