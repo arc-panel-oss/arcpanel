@@ -1,23 +1,22 @@
 #!/bin/bash
 # info: run a Docker app task started by v-start-docker-app-task (E4)
-# options: ID USER NAME ACTION [VERSION]
+# options: USER NAME ACTION [VERSION]
 #
-# example: v-run-docker-app-task 17286400001234 alice status install
+# example: v-run-docker-app-task alice status install
 #
-# This function is the background part of v-start-docker-app-task: it runs
-# the task and records its result. It refuses to run a task that
-# v-start-docker-app-task did not start.
+# This function is the command of the docker.ACTION jobs that
+# v-start-docker-app-task and v-add-docker-app start (E15): it runs the task;
+# the job runner records the result. It refuses to run outside such a job.
 
 #----------------------------------------------------------#
 #                Variables & Functions                     #
 #----------------------------------------------------------#
 
 # Argument definition
-id=$1
-user=$2
-name=$3
-action=$4
-target=$5
+user=$1
+name=$2
+action=$3
+target=$4
 
 # Includes
 # shellcheck source=/etc/arcpanel/arcpanel.conf
@@ -41,15 +40,15 @@ source $ARCPANEL/func/docker.sh
 #----------------------------------------------------------#
 
 if [ -z "$action" ]; then
-	echo "Usage: v-run-docker-app-task ID USER NAME ACTION [VERSION]"
+	echo "Usage: v-run-docker-app-task USER NAME ACTION [VERSION]"
 	exit "$E_ARGS"
 fi
 is_format_valid 'user'
 is_object_valid 'user' 'USER' "$user"
 if ! dockerapp_name_valid "$name" || ! dockerapp_exists "$user" "$name" \
-	|| [ "$(dockerapp_task_get "$user" "$name" ID)" != "$id" ] \
-	|| [ "$(dockerapp_task_get "$user" "$name" STATUS)" != 'running' ]; then
-	check_result "$E_FORBIDEN" "task $id was not started by v-start-docker-app-task"
+	|| ! [[ "$action" =~ ^(install|update|rollback|snapshot)$ ]] \
+	|| ! job_is_current "docker\\.$action" || [ "${JOB[OBJECT]}" != "docker:$user:$name" ]; then
+	check_result "$E_FORBIDEN" "the task was not started by v-start-docker-app-task"
 fi
 
 #----------------------------------------------------------#
@@ -68,17 +67,13 @@ case "$action" in
 	*) check_result "$E_INVALID" "invalid action :: $action" ;;
 esac
 rc=$?
-status=done
 if [ "$rc" -ne 0 ]; then
-	status=failed
 	echo "Exit code $rc"
 	if [ "$rc" -eq 124 ] && [ "$action" != 'snapshot' ]; then
 		echo "The task took more than 30 minutes"
 		dockerapp_update "$user" "$name" STATUS=failed REASON=timeout
 	fi
 fi
-
-dockerapp_task_set "$user" "$name" "STATUS=$status" "EXIT=$rc" "END=$(date +'%F %T')"
 
 #----------------------------------------------------------#
 #                         ArcPanel                         #

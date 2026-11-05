@@ -79,7 +79,7 @@ for pair in $(jq -r '"web:\(.WEB_PORT)", (.EXTRA_PORTS | split(",")[] | select(l
 done
 
 # Last task without its output
-task=$(docker_task_json "$(dockerapp_task_conf "$user" "$name")" /dev/null 0 | jq -c 'del(.LOG, .OFFSET)')
+task=$(dockerapp_task_json "$user" "$name" 0 | jq -c 'del(.LOG, .OFFSET)')
 snapshot=no
 prev=$(jq -r .PREV_VERSION <<< "$row")
 if [ -n "$prev" ] && node_as_user "$user" test -f "$(dockerapp_home "$user" "$name")/.snapshots/$prev.tar.zst"; then

@@ -8,7 +8,9 @@
 # ACTION, ARGS, STATUS, EXIT, START, END) and its output after byte OFFSET
 # (default 0, at most 256 KB) with the next OFFSET. STATUS is running, done
 # or failed; a running task whose process is gone is reported, and stored,
-# as failed. Without a task, STATUS is empty.
+# as failed. Without a task, STATUS is empty. Since E15 it reads the newest
+# docker.* job of the app; deprecated in 2.7.0 (read the job with
+# v-list-job), removed in 2.8.
 
 #----------------------------------------------------------#
 #                Variables & Functions                     #
@@ -50,14 +52,8 @@ fi
 #                       Action                             #
 #----------------------------------------------------------#
 
-if [ -f "$(dockerapp_task_conf "$user" "$name")" ]; then
-	exec {lock}> "$(dockerapp_rdir "$user" "$name")/task.lock"
-	flock -x "$lock"
-	dockerapp_task_reap "$user" "$name"
-	flock -u "$lock"
-fi
-
-json=$(docker_task_json "$(dockerapp_task_conf "$user" "$name")" "$(dockerapp_task_log "$user" "$name")" "$offset" \
+dockerapp_task_reap "$user" "$name"
+json=$(dockerapp_task_json "$user" "$name" "$offset" \
 	| jq -c --arg user "$user" --arg name "$name" '{ USER: $user, NAME: $name } + .')
 
 case "$format" in

@@ -52,11 +52,7 @@ fi
 dockerapp_lock "$user"
 for name in $(dockerapp_names "$user"); do
 	# a running task is ended first: the account goes away
-	pid=$(dockerapp_task_get "$user" "$name" PID)
-	if [ "$(dockerapp_task_get "$user" "$name" STATUS)" = 'running' ] && docker_task_alive "$pid" v-run-docker-app-task; then
-		kill "$pid" 2> /dev/null
-		dockerapp_task_set "$user" "$name" STATUS=failed "END=$(date +'%F %T')"
-	fi
+	dockerapp_task_cancel "$user" "$name"
 	"$BIN/v-delete-docker-app" "$user" "$name" keep-data > /dev/null 2>&1
 done
 rm -rf "$ARCPANEL/data/users/$user/docker"

@@ -24,10 +24,11 @@
 source "$ARCPANEL/func/nodeapp.sh"
 # shellcheck source=/usr/local/arcpanel/func/safe-fs.sh
 source "$ARCPANEL/func/safe-fs.sh"
+# shellcheck source=/usr/local/arcpanel/func/job.sh
+source "$ARCPANEL/func/job.sh"
 
 DOCKERAPP_KEYS="NAME SLUG VERSION DOMAIN WEB_PORT EXTRA_PORTS STATE STATUS REASON SUSPENDED TEMPLATE PREV_TPL PREV_VERSION CPUS MEMORY TIME DATE"
 DOCKERAPP_TEMPLATE="docker-proxy"
-DOCKERAPP_TASK_KEYS="ID ACTION ARGS STATUS PID EXIT START END"
 DOCKER_CATEGORIES="monitoring automation dev cms storage security database analytics other"
 
 # Docker's apt repository and the fingerprint of its signing key
@@ -1212,62 +1213,50 @@ dockerapp_log_tail() {
 #                         Tasks                            #
 #----------------------------------------------------------#
 
-dockerapp_task_conf() {
-	echo "$(dockerapp_rdir "$1" "$2")/task.state"
+# Since E15 a task of a Docker app is a job of type docker.ACTION with
+# OBJECT docker:USER:NAME (func/job.sh); these functions read the newest one.
+
+# ID of the newest task of USER's NAME
+dockerapp_task_id() {
+	job_newest 'docker\.(install|update|rollback|snapshot)' "docker:$1:$2"
 }
 
-dockerapp_task_log() {
-	echo "$(dockerapp_rdir "$1" "$2")/task.log"
-}
-
+# Value of KEY of the newest task of USER's NAME in the old record's terms:
+# ID, ACTION, ARGS (the version of an update), STATUS (running, done or
+# failed), PID, EXIT, START, END
 dockerapp_task_get() {
-	local file
-	file=$(dockerapp_task_conf "$1" "$2")
-	if [ -f "$file" ]; then
-		grep -oE "(^| )$3='[^']*'" "$file" | head -n1 | cut -d\' -f2
-	fi
+	local id
+	id=$(dockerapp_task_id "$1" "$2") || return 0
+	[ -n "$id" ] || return 0
+	case "$3" in
+		ACTION) job_get "$id" TYPE | sed 's/^docker\.//' ;;
+		ARGS) job_legacy_args "$id" 4 ;;
+		STATUS) job_legacy_status "$(job_get "$id" STATUS)" ;;
+		*) job_get "$id" "$3" ;;
+	esac
 }
 
-dockerapp_task_set() {
-	local user="$1" name="$2" file pair key line='' tmp
-	local -A values=()
-	shift 2
-	for key in $DOCKERAPP_TASK_KEYS; do
-		values[$key]=$(dockerapp_task_get "$user" "$name" "$key")
-	done
-	for pair in "$@"; do
-		key=${pair%%=*}
-		values[$key]=$(printf '%s' "${pair#*=}" | tr -d "'\n\r")
-	done
-	for key in $DOCKERAPP_TASK_KEYS; do
-		line="$line$key='${values[$key]}' "
-	done
-	file=$(dockerapp_task_conf "$user" "$name")
-	tmp="$file.$$"
-	echo "${line% }" > "$tmp"
-	chmod 600 "$tmp"
-	mv -f "$tmp" "$file"
-}
-
-docker_task_alive() {
-	local pid="$1"
-	[[ "$pid" =~ ^[0-9]+$ ]] && [ -r "/proc/$pid/cmdline" ] \
-		&& tr '\0' ' ' < "/proc/$pid/cmdline" | grep -q "$2"
-}
-
-# Mark a running task whose process is gone as failed
+# Mark a running task whose runner is gone as failed
 dockerapp_task_reap() {
-	local user="$1" name="$2"
-	if [ "$(dockerapp_task_get "$user" "$name" STATUS)" = 'running' ] \
-		&& ! docker_task_alive "$(dockerapp_task_get "$user" "$name" PID)" v-run-docker-app-task; then
-		dockerapp_task_set "$user" "$name" STATUS=failed "END=$(date +'%F %T')"
-	fi
+	local id
+	id=$(dockerapp_task_id "$1" "$2") || return 0
+	[ -n "$id" ] && job_reap_one "$id" > /dev/null 2>&1
+	return 0
 }
 
 dockerapp_task_running() {
-	[ -f "$(dockerapp_task_conf "$1" "$2")" ] || return 1
 	dockerapp_task_reap "$1" "$2"
 	[ "$(dockerapp_task_get "$1" "$2" STATUS)" = 'running' ]
+}
+
+# Stop a running task of USER's NAME (the account goes away)
+dockerapp_task_cancel() {
+	local id
+	id=$(dockerapp_task_id "$1" "$2") || return 0
+	if [ -n "$id" ] && [ "$(job_get "$id" STATUS)" = 'running' ]; then
+		"$BIN/v-cancel-job" "$id" system > /dev/null 2>&1
+	fi
+	return 0
 }
 
 # Exit with E_INUSE while a task of USER's NAME runs (unless called from
@@ -1281,27 +1270,14 @@ dockerapp_check_no_task() {
 	fi
 }
 
-# Task log from byte OFFSET as JSON (at most 256 KB), with the next offset
-docker_task_json() {
-	local conf="$1" log="$2" offset="$3" size=0 text='' get
-	if [ -f "$log" ]; then
-		size=$(stat -c %s "$log")
-	fi
-	if [ "$offset" -gt "$size" ]; then
-		offset=0
-	fi
-	if [ "$size" -gt "$offset" ]; then
-		text=$(tail -c +"$((offset + 1))" "$log" | head -c 262144 | sed -e 's/\x1b\[[0-9;?]*[A-Za-z]//g' -e 's/.*\r//')
-		offset=$((offset + $(tail -c +"$((offset + 1))" "$log" | head -c 262144 | wc -c)))
-	fi
-	get() {
-		if [ -f "$conf" ]; then
-			grep -oE "(^| )$1='[^']*'" "$conf" | head -n1 | cut -d\' -f2
-		fi
-	}
-	jq -nc --arg id "$(get ID)" --arg action "$(get ACTION)" --arg args "$(get ARGS)" --arg status "$(get STATUS)" \
-		--arg exit "$(get EXIT)" --arg start "$(get START)" --arg end "$(get END)" --arg log "$text" --arg offset "$offset" \
-		'{ ID: $id, ACTION: $action, ARGS: $args, STATUS: $status, EXIT: $exit, START: $start, END: $end, LOG: $log, OFFSET: $offset }'
+# The newest task of USER's NAME as JSON (ID, ACTION, ARGS, STATUS, EXIT,
+# START, END) and its output from byte OFFSET (LOG, OFFSET)
+dockerapp_task_json() {
+	local id args=''
+	id=$(dockerapp_task_id "$1" "$2" || true)
+	[ -n "$id" ] && args=$(job_legacy_args "$id" 4)
+	job_legacy_json "$id" offset "$3" | jq -c --arg action "$([ -n "$id" ] && job_get "$id" TYPE | sed 's/^docker\.//')" \
+		--arg args "$args" '{ID, ACTION: $action, ARGS: $args, STATUS, EXIT, START, END, LOG, OFFSET}'
 }
 
 #----------------------------------------------------------#
@@ -1621,32 +1597,18 @@ dockerapp_task_install() {
 
 # Start a task of USER's NAME detached from the caller; prints the task ID
 dockerapp_task_start() {
-	local user="$1" name="$2" action="$3" arg="$4" lock id log
-	exec {lock}> "$(dockerapp_rdir "$user" "$name")/task.lock"
-	flock -x "$lock"
-	if dockerapp_task_running "$user" "$name"; then
-		flock -u "$lock"
+	local user="$1" name="$2" action="$3" arg="$4" rc
+	# A job of type docker.ACTION (E15) in the user's slice; the runner keeps
+	# no descriptor of the caller (the lock of the records held by
+	# v-add-docker-app is not passed on)
+	job_start "docker.$action" "$user" "docker:$user:$name" "$(job_default_actor)" -- \
+		v-run-docker-app-task "$user" "$name" "$action" ${arg:+"$arg"}
+	rc=$?
+	if [ "$rc" -eq "$E_INUSE" ]; then
 		check_result "$E_INUSE" "a task of the Docker app $name is running ($(dockerapp_task_get "$user" "$name" ACTION))"
 	fi
-	id="$(date +%s)$(printf '%04d' $((RANDOM % 10000)))"
-	log=$(dockerapp_task_log "$user" "$name")
-	: > "$log"
-	chmod 600 "$log"
-	dockerapp_task_set "$user" "$name" "ID=$id" "ACTION=$action" "ARGS=$arg" STATUS=running PID= EXIT= \
-		"START=$(date +'%F %T')" END=
-	# Detached: new session, no descriptor shared with the caller, so the
-	# panel's request returns at once and the task survives it; the lock of
-	# the records (held by v-add-docker-app) is not passed on
-	if [ -n "$DOCKERAPP_LOCK_FD" ]; then
-		setsid "$BIN/v-run-docker-app-task" "$id" "$user" "$name" "$action" $arg \
-			< /dev/null >> "$log" 2>&1 {lock}>&- {DOCKERAPP_LOCK_FD}>&- &
-	else
-		setsid "$BIN/v-run-docker-app-task" "$id" "$user" "$name" "$action" $arg \
-			< /dev/null >> "$log" 2>&1 {lock}>&- &
-	fi
-	dockerapp_task_set "$user" "$name" "PID=$!"
-	flock -u "$lock"
-	echo "$id"
+	job_check_started "$rc" ''
+	echo "$JOB_ID"
 }
 
 #----------------------------------------------------------#
