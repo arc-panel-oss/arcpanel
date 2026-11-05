@@ -181,7 +181,7 @@ teardown_file() {
     else
         sed -i '/^DOCTOR_RESOLVER=/d' "$ARCPANEL/conf/arcpanel.conf"
     fi
-    rm -f "$CHECKS/zz-test-slow.sh"
+    rm -f "$CHECKS/zz-test-slow.sh" "$CHECKS/server-zz-test-fix.sh"
     rm -rf "$SAVE" "$FIX" "$CERTS"
 }
 
@@ -852,4 +852,158 @@ EOF
     v-delete-mail-domain "$USR" "$DOM" > /dev/null
     assert_file_not_exists "$file"
     v-add-mail-domain "$USR" "$DOM" > /dev/null
+}
+
+#----------------------------------------------------------#
+#                Fix, nightly run, alerts                  #
+#----------------------------------------------------------#
+
+# The doctor events of events.log (E16) as JSON lines
+doctor_events() {
+    grep -h '"type":"doctor\.' "$ARCPANEL/data/alerts/events.log" 2> /dev/null || true
+}
+
+# A server check of the suite whose fix fails
+fake_fix_check() {
+    cat > "$CHECKS/server-zz-test-fix.sh" << 'EOF'
+DOCTOR_ID=server.zz-test-fix
+DOCTOR_SCOPE=server
+DOCTOR_TITLE='A check of the test suite'
+DOCTOR_DOCS='/docs/guides/doctor#test'
+DOCTOR_FIX_ALLOWED='v-restart-service'
+doctor_check() { dr_fail 'The test check fails.'; dr_fix 'Restart nothing' v-restart-service arcnosuchservice; }
+EOF
+}
+
+@test "v-fix-sys-doctor: the arguments are checked" {
+    run v-fix-sys-doctor system server.nosuch
+    assert_failure 3
+    run v-fix-sys-doctor system web.https-redirect
+    assert_failure 2
+    run v-fix-sys-doctor "$USR" server.fail2ban "$DOM"
+    assert_failure 2
+    run v-fix-sys-doctor "$USR" web.https-redirect
+    assert_failure 1
+    run v-fix-sys-doctor "$USR" web.https-redirect nosuch.test
+    assert_failure 3
+    run v-fix-sys-doctor system server.fail2ban '' 'bad actor!'
+    assert_failure 2
+}
+
+@test "v-fix-sys-doctor: a check that passes or has no fix answers E_EXISTS" {
+    zone "$DOM A $(pub_ip)" "www.$DOM A $(pub_ip)"
+    run v-fix-sys-doctor "$USR" web.dns-a "$DOM" bats-doctor
+    assert_failure 4
+    assert_output --partial 'does not fail (ok)'
+    zone "$DOM A 203.0.113.9"
+    run v-fix-sys-doctor "$USR" web.dns-a "$DOM" bats-doctor
+    assert_failure 4
+    assert_output --partial 'has no fix'
+}
+
+@test "v-fix-sys-doctor: a doctor.fix job runs the fix and the check again, and updates the result" {
+    v-delete-web-domain-ssl-force "$USR" "$DOM" > /dev/null
+    eventually test "$(status_of web.https-redirect "$USR" "$DOM")" = warn
+    v-run-sys-doctor "$USR" "$DOM" cli now > /dev/null
+    file=$ARCPANEL/data/users/$USR/doctor/$DOM.json
+    assert_equal "$(jq -r '.checks[] | select(.id == "web.https-redirect") | .status' "$file")" warn
+    before=$(jq -r .score "$file")
+    run v-fix-sys-doctor "$USR" web.https-redirect "$DOM" bats-doctor
+    assert_success
+    id=$output
+    assert_equal "$(job_field "$id" TYPE)" doctor.fix
+    assert_equal "$(job_field "$id" OBJECT)" "doctor:$USR:$DOM:web.https-redirect"
+    assert_equal "$(job_field "$id" USER)" "$USR"
+    assert_equal "$(job_field "$id" ACTOR)" bats-doctor
+    run wait_job "$id"
+    assert_output succeeded
+    run cat "$JOB_DIR/$id.log"
+    assert_line --regexp '^Check: web.https-redirect: warn - '
+    assert_line "Running: v-add-web-domain-ssl-force $USR $DOM"
+    assert_line --regexp '^Check again: web.https-redirect: ok - '
+    assert_equal "$(jq -r '.checks[] | select(.id == "web.https-redirect") | .status' "$file")" ok
+    [ "$(jq -r .score "$file")" -gt "$before" ]
+}
+
+@test "v-fix-sys-doctor: a fix that fails fails the job and keeps the result" {
+    fake_fix_check
+    v-run-sys-doctor system '' cli now > /dev/null
+    stored=$(jq -c '.checks[] | select(.id == "server.zz-test-fix")' "$DD/server.json")
+    run v-fix-sys-doctor system server.zz-test-fix '' bats-doctor
+    assert_success
+    id=$output
+    assert_equal "$(job_field "$id" OBJECT)" doctor:system:server.zz-test-fix
+    run wait_job "$id"
+    rm -f "$CHECKS/server-zz-test-fix.sh"
+    assert_output failed
+    run grep -c 'Error: the fix failed' "$JOB_DIR/$id.log"
+    assert_output 1
+    assert_equal "$(jq -c '.checks[] | select(.id == "server.zz-test-fix")' "$DD/server.json")" "$stored"
+}
+
+@test "Doctor: a check that changes to fail emits doctor.failed once" {
+    rm -rf "$DD"
+    echo yes > "$FIX/time-sync"
+    DOCTOR_FIXTURES=$FIX v-run-sys-doctor system '' cli now > /dev/null
+    n0=$(doctor_events | grep -c 'server.time-sync' || true)
+    echo no > "$FIX/time-sync"
+    DOCTOR_FIXTURES=$FIX run v-run-sys-doctor system '' cli now
+    assert_line 'Alert: server.time-sync fails on the server'
+    n1=$(doctor_events | grep -c 'server.time-sync' || true)
+    assert_equal "$n1" $((n0 + 1))
+    event=$(doctor_events | grep 'server.time-sync' | tail -n1)
+    assert_equal "$(jq -r .type <<< "$event")" doctor.failed
+    assert_equal "$(jq -r .user <<< "$event")" system
+    assert_equal "$(jq -r .object <<< "$event")" doctor:system:server.time-sync
+    assert_equal "$(jq -r .severity <<< "$event")" warning
+    DOCTOR_FIXTURES=$FIX v-run-sys-doctor system '' cli now > /dev/null
+    assert_equal "$(doctor_events | grep -c 'server.time-sync')" "$n1"
+}
+
+@test "Doctor: a failing domain check emits doctor.failed for its user" {
+    zone "$DOM A 203.0.113.9"
+    rm -f "$ARCPANEL/data/users/$USR/doctor/$DOM.json"
+    run v-run-sys-doctor "$USR" "$DOM" cli now
+    assert_line "Alert: web.dns-a fails on $DOM"
+    event=$(doctor_events | grep "doctor:$DOM:web.dns-a" | tail -n1)
+    assert_equal "$(jq -r .user <<< "$event")" "$USR"
+    assert_output --partial 'fails on'
+}
+
+@test "Doctor: the Monday run of cron sends the weekly digest per scope" {
+    run lib "DOCTOR_NOW=$(date -d '2026-11-09 04:40' +%s) doctor_digest_day"
+    assert_success
+    run lib "DOCTOR_NOW=$(date -d '2026-11-10 04:40' +%s) doctor_digest_day"
+    assert_failure
+    zone "$DOM A 203.0.113.9"
+    v-run-sys-doctor "$USR" "$DOM" cli now > /dev/null
+    n0=$(doctor_events | grep -c '"type":"doctor.digest"' || true)
+    run lib "doctor_digest $USR"
+    assert_line --regexp "^Digest: $USR, [0-9]+ checks$"
+    event=$(doctor_events | grep '"type":"doctor.digest"' | grep "\"user\":\"$USR\"" | tail -n1)
+    assert_equal "$(jq -r .object <<< "$event")" "doctor:$USR"
+    assert_equal "$(jq -r .severity <<< "$event")" info
+    assert_equal "$(jq -r .system <<< "$event")" false
+    assert_equal "$(jq -r .message <<< "$event" | grep -c "$DOM web.dns-a (fail)")" 1
+    [ "$(doctor_events | grep -c '"type":"doctor.digest"')" -gt "$n0" ]
+}
+
+@test "Doctor: the alert links of doctor objects open the Doctor pages" {
+    run bash -c "source /etc/arcpanel/arcpanel.conf; source $ARCPANEL/func/main.sh; source $ARCPANEL/func/alerts.sh; source_conf $ARCPANEL/conf/arcpanel.conf; alerts_object_url system doctor:system:server.ptr; alerts_object_url $USR doctor:$DOM:web.dns-a"
+    assert_line --regexp '/server/doctor$'
+    assert_line --regexp ':[0-9]+/doctor$'
+}
+
+@test "Doctor: the 2.7.0 step adds the nightly cron line once" {
+    cron=/var/spool/cron/crontabs/arcpanelweb
+    cp -p "$cron" "$FIX/crontab.save"
+    sed -i '/bin\/v-run-sys-doctor/d' "$cron"
+    sed -n '/^# E17 Doctor/,/^unset upd_step_cron/p' "$BATS_TEST_DIRNAME/../install/upgrade/versions/2.7.0.sh" > "$FIX/step.sh"
+    run bash "$FIX/step.sh"
+    run bash "$FIX/step.sh"
+    run grep -c 'bin/v-run-sys-doctor' "$cron"
+    line=$(grep 'bin/v-run-sys-doctor' "$cron")
+    cp -p "$FIX/crontab.save" "$cron"
+    assert_output 1
+    assert_equal "$line" "40 04 * * * sudo /usr/local/arcpanel/bin/v-run-sys-doctor all '' cron > /dev/null 2>&1"
 }

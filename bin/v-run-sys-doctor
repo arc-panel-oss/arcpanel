@@ -114,6 +114,10 @@ case "$scope" in
 		source "$ARCPANEL/func/tenancy.sh"
 		mapfile -t users < <(tenancy_all_users)
 		doctor_run_users "${users[@]}"
+		# The nightly run of Monday sends the weekly digest (spec D8)
+		if [ "$actor" = 'cron' ] && doctor_digest_day; then
+			doctor_digest "${users[@]}"
+		fi
 		;;
 	*)
 		if [ -n "$domain" ]; then

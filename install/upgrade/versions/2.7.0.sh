@@ -58,3 +58,13 @@ rm -f "$ARCPANEL/bin/v-run-queue-task"
 # data/alerts/, the default rules and their channels, the engine every
 # minute; the port check loses its notify mode
 "$ARCPANEL/bin/v-add-sys-alerts"
+
+# E17 Doctor (docs/features/specs/2026-11-05-003-e17-doctor-design.md §3.4):
+# the nightly run of every check at 04:40, after the backups
+upd_step_cron=/var/spool/cron/crontabs/arcpanelweb
+if [ -f "$upd_step_cron" ] && ! grep -q 'bin/v-run-sys-doctor' "$upd_step_cron"; then
+	# sed, not >> (fs.protected_regular, see the E15 step above)
+	sed -i -e "\$a40 04 * * * sudo /usr/local/arcpanel/bin/v-run-sys-doctor all '' cron > /dev/null 2>&1" "$upd_step_cron"
+	echo "[ * ] E17: the Doctor runs every night from cron"
+fi
+unset upd_step_cron

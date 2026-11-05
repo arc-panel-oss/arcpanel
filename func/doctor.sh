@@ -635,10 +635,75 @@ doctor_run_users() {
 	wait
 }
 
-# Called after a result was written (alerts, M3); SCOPE is system or the
-# user, OBJECT system or the domain
+# Load the alert library for alert_event (E16); returns 1 without it
+doctor_alerts_loaded() {
+	declare -F alert_event > /dev/null && return 0
+	[ -f "$ARCPANEL/func/alerts.sh" ] || return 1
+	# shellcheck source=/usr/local/arcpanel/func/alerts.sh
+	source "$ARCPANEL/func/alerts.sh" > /dev/null 2>&1 || return 1
+	declare -F alert_event > /dev/null
+}
+
+# After a result FILE was written for SCOPE (system or the user) and OBJECT
+# (system or the domain): every check that changed to fail since
+# DOCTOR_PREVIOUS (or that fails in a first result) emits doctor.failed
+# (spec D8), once per change
 doctor_after_result() {
-	return 0
+	local scope="$1" object="$2" file="$3" changed id title message label user
+	changed=$(jq -r --argjson prev "${DOCTOR_PREVIOUS:-$DOCTOR_EMPTY}" '
+		([$prev.checks[]? | {(.id): .status}] | add // {}) as $p
+		| .checks[] | select(.status == "fail" and ($p[.id] // "") != "fail")
+		| [.id, .title, .message] | @tsv' "$file" 2> /dev/null)
+	[ -n "$changed" ] || return 0
+	doctor_alerts_loaded || return 0
+	if [ "$scope" = 'system' ]; then
+		label='the server' user=system
+	else
+		label=$object user=$scope
+	fi
+	while IFS=$'\t' read -r id title message; do
+		[ -n "$id" ] || continue
+		echo "Alert: $id fails on $label"
+		alert_event doctor.failed "$user" "doctor:$object:$id" warning \
+			"Doctor: \"$title\" fails on $label. $message" "${JOB_ID-}"
+	done <<< "$changed"
+}
+
+# The weekly digest (spec D8): one doctor.digest event per scope (the
+# server and every user with domains) that lists the checks that are not
+# ok. Scopes where everything passes send nothing.
+doctor_digest() {
+	local user domain file lines count text
+	doctor_alerts_loaded || return 0
+	lines=$(jq -r '.checks[]? | select(.status == "fail" or .status == "warn") | "\(.id) (\(.status))"' \
+		"$(doctor_result_file system)" 2> /dev/null)
+	if [ -n "$lines" ]; then
+		count=$(wc -l <<< "$lines")
+		text=$(paste -sd, - <<< "$lines" | sed 's/,/, /g')
+		echo "Digest: the server, $count checks"
+		alert_event doctor.digest system doctor:system info \
+			"Doctor weekly digest of the server: $count checks are not ok: $text." "${JOB_ID-}"
+	fi
+	for user in "$@"; do
+		lines=''
+		for domain in $(doctor_user_domains "$user"); do
+			file=$(doctor_result_file "$user" "$domain")
+			[ -f "$file" ] || continue
+			lines="$lines$(jq -r --arg d "$domain" '.checks[]? | select(.status == "fail" or .status == "warn") | "\($d) \(.id) (\(.status))"' "$file" 2> /dev/null)"$'\n'
+		done
+		lines=$(grep -v '^$' <<< "$lines")
+		[ -n "$lines" ] || continue
+		count=$(wc -l <<< "$lines")
+		text=$(paste -sd, - <<< "$lines" | sed 's/,/, /g')
+		echo "Digest: $user, $count checks"
+		ALERT_EVENT_USER_ONLY=yes alert_event doctor.digest "$user" "doctor:$user" info \
+			"Doctor weekly digest of $user: $count checks are not ok: $text." "${JOB_ID-}"
+	done
+}
+
+# Whether today is the day of the digest (Monday, DOCTOR_NOW aware)
+doctor_digest_day() {
+	[ "$(date -d "@$(doctor_now)" +%u)" = '1' ]
 }
 
 # Print the stored result of SCOPE and DOMAIN as JSON

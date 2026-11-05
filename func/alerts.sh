@@ -651,6 +651,14 @@ alerts_object_url() {
 		backup-job:*) path="/server/backups/jobs/${object#backup-job:}" ;;
 		backup:*) path=/backups ;;
 		update:*) path=/server/updates ;;
+		doctor:system | doctor:system:*) path=/server/doctor ;;
+		doctor:*)
+			if [ "$scope" = 'system' ]; then
+				path=/server/doctor
+			else
+				path=/doctor
+			fi
+			;;
 		*)
 			if [ "$scope" = 'system' ]; then
 				path=/server/alerts

@@ -20644,6 +20644,59 @@ paths:
           $ref: "#/components/responses/InvalidRequest"
         "422":
           $ref: "#/components/responses/Unprocessable"
+  "/api/#v-fix-sys-doctor":
+    post:
+      operationId: v-fix-sys-doctor
+      tags:
+        - System
+      summary: Fix a failing Doctor check (E17)
+      description: |-
+        This function runs the Doctor check CHECK again
+        (docs/features/specs/2026-11-05-003-e17-doctor-design.md §3.3) for the
+        server (SCOPE system) or for DOMAIN of the user SCOPE. When it still does
+        not pass and names a fix, a job of type doctor.fix (E15) starts that runs
+        the fix command (only a command of the check's allow-list), then the
+        check again, and the job ID is printed; the result file gets the new
+        result when the fix succeeded. A check that passes, or that has no fix,
+        answers E_EXISTS. ACTOR is who asked (a panel login or api:KEY).
+
+        **Arguments**
+
+        | Field | Option | Required |
+        | --- | --- | --- |
+        | `arg1` | `SCOPE` | yes |
+        | `arg2` | `CHECK` | yes |
+        | `arg3` | `DOMAIN` | no |
+        | `arg4` | `ACTOR` | no |
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: "#/components/schemas/v-fix-sys-doctor"
+          application/json:
+            schema:
+              $ref: "#/components/schemas/v-fix-sys-doctor"
+      responses:
+        "200":
+          description: "The output of the command; `OK` for an empty output with legacy authentication."
+          headers:
+            ArcPanel-Exit-Code:
+              $ref: "#/components/headers/ArcPanel-Exit-Code"
+          content:
+            text/plain:
+              schema:
+                type: string
+        "204":
+          $ref: "#/components/responses/NoContent"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "405":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/Unprocessable"
   "/api/#v-generate-api-key":
     post:
       operationId: v-generate-api-key
@@ -57465,6 +57518,46 @@ components:
               description: "`TEST`, optional"
               examples:
                 - ""
+            returncode:
+              $ref: "#/components/schemas/ReturnCode"
+    v-fix-sys-doctor:
+      allOf:
+        - $ref: "#/components/schemas/Credentials"
+        - type: object
+          required:
+            - cmd
+            - arg1
+            - arg2
+          properties:
+            cmd:
+              type: string
+              enum:
+                - v-fix-sys-doctor
+              default: v-fix-sys-doctor
+            arg1:
+              type: string
+              title: SCOPE
+              description: "`SCOPE`"
+              examples:
+                - system
+            arg2:
+              type: string
+              title: CHECK
+              description: "`CHECK`"
+              examples:
+                - server.fail2ban
+            arg3:
+              type: string
+              title: DOMAIN
+              description: "`DOMAIN`, optional"
+              examples:
+                - ""
+            arg4:
+              type: string
+              title: ACTOR
+              description: "`ACTOR`, optional"
+              examples:
+                - admin
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-generate-api-key:

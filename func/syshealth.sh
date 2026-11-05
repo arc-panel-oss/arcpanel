@@ -608,6 +608,7 @@ function syshealth_repair_system_cronjobs() {
 	echo "10 00 * * * sudo /usr/local/arcpanel/bin/v-update-sys-queue traffic" >> /var/spool/cron/crontabs/arcpanelweb
 	echo "30 03 * * * sudo /usr/local/arcpanel/bin/v-update-sys-queue webstats" >> /var/spool/cron/crontabs/arcpanelweb
 	echo "* * * * * sudo /usr/local/arcpanel/bin/v-update-sys-jobs > /dev/null 2>&1" >> /var/spool/cron/crontabs/arcpanelweb
+	echo "40 04 * * * sudo /usr/local/arcpanel/bin/v-run-sys-doctor all '' cron > /dev/null 2>&1" >> /var/spool/cron/crontabs/arcpanelweb
 	echo "* * * * * sudo /usr/local/arcpanel/bin/v-update-backup-jobs > /dev/null 2>&1" >> /var/spool/cron/crontabs/arcpanelweb
 	echo "* * * * * sudo /usr/local/arcpanel/bin/v-check-sys-alerts > /dev/null 2>&1" >> /var/spool/cron/crontabs/arcpanelweb
 	echo "20 00 * * * sudo /usr/local/arcpanel/bin/v-update-user-stats" >> /var/spool/cron/crontabs/arcpanelweb

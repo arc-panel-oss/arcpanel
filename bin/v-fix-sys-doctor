@@ -1,0 +1,152 @@
+#!/bin/bash
+# info: fix a failing Doctor check (E17)
+# options: SCOPE CHECK [DOMAIN] [ACTOR]
+#
+# example: v-fix-sys-doctor system server.fail2ban '' admin
+# example: v-fix-sys-doctor alice web.https-redirect example.com alice
+#
+# This function runs the Doctor check CHECK again
+# (docs/features/specs/2026-11-05-003-e17-doctor-design.md §3.3) for the
+# server (SCOPE system) or for DOMAIN of the user SCOPE. When it still does
+# not pass and names a fix, a job of type doctor.fix (E15) starts that runs
+# the fix command (only a command of the check's allow-list), then the
+# check again, and the job ID is printed; the result file gets the new
+# result when the fix succeeded. A check that passes, or that has no fix,
+# answers E_EXISTS. ACTOR is who asked (a panel login or api:KEY).
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+scope=$1
+check=$2
+domain=${3-}
+actor=${4-}
+
+# Includes
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/job.sh
+source $ARCPANEL/func/job.sh
+# shellcheck source=/usr/local/arcpanel/func/doctor.sh
+source $ARCPANEL/func/doctor.sh
+# load config file
+source_conf "$ARCPANEL/conf/arcpanel.conf"
+
+# One line for the job log: STATUS - MESSAGE
+result_line() {
+	jq -r '"\(.id): \(.status) - \(.message)"' <<< "$1"
+}
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '2' "$#" 'SCOPE CHECK [DOMAIN] [ACTOR]'
+if ! file=$(doctor_check_file "$check"); then
+	check_result "$E_NOTEXIST" "unknown Doctor check :: $check"
+fi
+kind=${check%%.*}
+if [ "$scope" = 'system' ]; then
+	if [ "$kind" != 'server' ]; then
+		check_result "$E_INVALID" "$check is not a server check"
+	fi
+	if [ -n "$domain" ]; then
+		check_result "$E_INVALID" "a server check takes no domain"
+	fi
+	juser=system object=system
+else
+	user=$scope
+	is_format_valid 'user'
+	is_object_valid 'user' 'USER' "$user"
+	if [ "$kind" = 'server' ]; then
+		check_result "$E_INVALID" "$check is a server check"
+	fi
+	check_args '3' "$#" 'SCOPE CHECK DOMAIN [ACTOR]'
+	is_format_valid 'domain'
+	if ! doctor_domain_exists "$user" "$kind" "$domain"; then
+		check_result "$E_NOTEXIST" "$user has no $kind domain $domain"
+	fi
+	juser=$user object=$domain
+fi
+[ -n "$actor" ] || actor=$(job_default_actor)
+if ! job_actor_valid "$actor"; then
+	check_result "$E_INVALID" "invalid actor :: $actor"
+fi
+
+# Perform verification if read-only mode is enabled
+check_arcpanel_demo_mode
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+DOCTOR_CACHE=$(mktemp -d)
+export DOCTOR_CACHE
+trap 'rm -rf "$DOCTOR_CACHE"' EXIT
+
+result=$(doctor_run_check "$file" "$juser" "$object")
+status=$(jq -r .status <<< "$result")
+mapfile -t fix < <(jq -r '.fix.argv // [] | .[]' <<< "$result")
+allowed=$(doctor_check_meta "$file" | jq -r '.fix_allowed | join(" ")')
+result_file=$(doctor_result_file "$juser" "$object")
+
+if ! job_is_current 'doctor\.fix'; then
+	if [ "$status" = 'ok' ] || [ "$status" = 'skip' ]; then
+		check_result "$E_EXISTS" "$check does not fail ($status); there is nothing to fix"
+	fi
+	if [ "${#fix[@]}" -eq 0 ]; then
+		check_result "$E_EXISTS" "$check has no fix"
+	fi
+	if [ "$scope" = 'system' ]; then
+		jobject="doctor:system:$check" resource=/system/doctor
+	else
+		jobject="doctor:$scope:$domain:$check" resource="/users/$scope/doctor/$domain"
+	fi
+	job_start doctor.fix "$juser" "$jobject" "$actor" "$resource" -- \
+		v-fix-sys-doctor "$scope" "$check" "$domain" "$actor"
+	job_check_started "$?" "a fix of $check is running"
+	echo "$JOB_ID"
+	log_event "$OK" "$ARGUMENTS"
+	exit
+fi
+
+# In the doctor.fix job: the check, the fix, the check again
+echo "Check: $(result_line "$result")"
+if [ "$status" = 'ok' ] || [ "$status" = 'skip' ]; then
+	echo "The check does not fail any more; nothing to fix."
+	doctor_update_check "$result_file" "$result" 2> /dev/null
+	exit 0
+fi
+if [ "${#fix[@]}" -eq 0 ]; then
+	echo "The check has no fix."
+	exit "$E_EXISTS"
+fi
+if [[ " $allowed " != *" ${fix[0]} "* ]] || [[ "${fix[0]}" == */* ]] || [ ! -x "$BIN/${fix[0]}" ]; then
+	echo "Error: ${fix[0]} is not an allowed fix of $check"
+	exit "$E_FORBIDEN"
+fi
+echo "Running: $(jq -r .fix.command <<< "$result")"
+"$BIN/${fix[0]}" "${fix[@]:1}" 2>&1
+rc=$?
+if [ "$rc" -ne 0 ]; then
+	echo "Error: the fix failed with exit code $rc"
+	exit "$rc"
+fi
+rm -rf "${DOCTOR_CACHE:?}"/*
+# Web servers reload in the background
+sleep "${DOCTOR_FIX_SETTLE:-3}"
+result=$(doctor_run_check "$file" "$juser" "$object")
+echo "Check again: $(result_line "$result")"
+doctor_update_check "$result_file" "$result" 2> /dev/null
+
+#----------------------------------------------------------#
+#                         ArcPanel                         #
+#----------------------------------------------------------#
+
+log_event "$OK" "$ARGUMENTS"
+
+exit
