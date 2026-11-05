@@ -1,23 +1,23 @@
 #!/bin/bash
 # info: run a Quick Install started by v-start-user-quick-install (E7 batch 2)
-# options: ID USER DOMAIN APP
+# options: USER DOMAIN APP
 #
-# example: v-run-user-quick-install 17286400001234 alice example.com DokuWiki
+# example: v-run-user-quick-install alice example.com DokuWiki
 #
-# This function is the background part of v-start-user-quick-install: it
-# runs v-add-web-domain-app with the staged options, removes them on every
-# exit path and records the result. It refuses to run a task that
-# v-start-user-quick-install did not start.
+# This function is the command of the quick-install jobs that
+# v-start-user-quick-install starts (E15): it runs v-add-web-domain-app with
+# the options of the job's request; the job runner records the result and
+# removes the request when the install succeeds. It refuses to run outside
+# such a job.
 
 #----------------------------------------------------------#
 #                Variables & Functions                     #
 #----------------------------------------------------------#
 
 # Argument definition
-id=$1
-user=$2
-domain=$3
-app=$4
+user=$1
+domain=$2
+app=$3
 
 # Includes
 # shellcheck source=/etc/arcpanel/arcpanel.conf
@@ -34,16 +34,18 @@ source_conf "$ARCPANEL/conf/arcpanel.conf"
 #----------------------------------------------------------#
 
 if [ -z "$app" ]; then
-	echo "Usage: v-run-user-quick-install ID USER DOMAIN APP"
+	echo "Usage: v-run-user-quick-install USER DOMAIN APP"
 	exit "$E_ARGS"
 fi
 is_format_valid 'user'
 is_object_valid 'user' 'USER' "$user"
-if [ "$(qi_task_get "$user" ID)" != "$id" ] || [ "$(qi_task_get "$user" STATUS)" != 'running' ]; then
-	check_result "$E_FORBIDEN" "task $id was not started by v-start-user-quick-install"
+if ! job_is_current 'quick-install' || [ "${JOB[OBJECT]}" != "web:$domain" ] || [ "${JOB[USER]}" != "$user" ]; then
+	check_result "$E_FORBIDEN" "the install was not started by v-start-user-quick-install"
 fi
-options=$(qi_task_options "$user")
-trap 'rm -f "$options"' EXIT
+options=$(job_request_file "$JOB_ID")
+if [ ! -f "$options" ]; then
+	check_result "$E_NOTEXIST" "the options of the install are not kept any more; start it again"
+fi
 
 #----------------------------------------------------------#
 #                       Action                             #
@@ -52,20 +54,9 @@ trap 'rm -f "$options"' EXIT
 echo "$ v-add-web-domain-app $user $domain $app"
 "$BIN/v-add-web-domain-app" "$user" "$domain" "$app" "$options"
 rc=$?
-rm -f "$options"
-if [ "$rc" -eq 0 ]; then
-	status=done
-else
-	status=failed
+if [ "$rc" -ne 0 ]; then
 	echo "Exit code $rc"
 fi
-
-exec {lock}> "$(qi_task_lock "$user")"
-flock -x "$lock"
-if [ "$(qi_task_get "$user" ID)" = "$id" ]; then
-	qi_task_set "$user" "STATUS=$status" "EXIT=$rc" "END=$(date +'%F %T')"
-fi
-flock -u "$lock"
 
 #----------------------------------------------------------#
 #                         ArcPanel                         #

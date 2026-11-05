@@ -8,6 +8,8 @@
 # START, END) and the last LINES lines of its output (default 100, at most
 # 1000). STATUS is running, done or failed; a running task whose process is
 # gone is reported, and stored, as failed. Without a task, STATUS is empty.
+# Since E15 it reads the newest quick-install job of USER; deprecated in
+# 2.7.0 (read the job with v-list-job), removed in 2.8.
 
 #----------------------------------------------------------#
 #                Variables & Functions                     #
@@ -43,25 +45,12 @@ fi
 #                       Action                             #
 #----------------------------------------------------------#
 
-if [ -f "$(qi_task_conf "$user")" ]; then
-	exec {lock}> "$(qi_task_lock "$user")"
-	flock -x "$lock"
-	qi_task_reap "$user"
-	flock -u "$lock"
-fi
-
-log=''
-if [ -f "$(qi_task_log "$user")" ]; then
-	# no colours, no carriage returns of progress bars
-	log=$(tail -n "$lines" "$(qi_task_log "$user")" | sed -e 's/\x1b\[[0-9;?]*[A-Za-z]//g' -e 's/\r$//' -e 's/.*\r//')
-fi
-
-json=$(jq -nc --arg id "$(qi_task_get "$user" ID)" --arg domain "$(qi_task_get "$user" DOMAIN)" \
-	--arg app "$(qi_task_get "$user" APP)" --arg status "$(qi_task_get "$user" STATUS)" \
-	--arg exit "$(qi_task_get "$user" EXIT)" --arg start "$(qi_task_get "$user" START)" \
-	--arg end "$(qi_task_get "$user" END)" --arg log "$log" --arg user "$user" '
-	{ USER: $user, ID: $id, DOMAIN: $domain, APP: $app, STATUS: $status, EXIT: $exit,
-		START: $start, END: $end, LOG: $log }')
+qi_task_reap "$user"
+id=$(qi_task_id "$user" || true)
+json=$(job_legacy_json "$id" lines "$lines" | jq -c --arg domain "$(qi_task_get "$user" DOMAIN)" \
+	--arg app "$(qi_task_get "$user" APP)" --arg user "$user" '
+	{ USER: $user, ID, DOMAIN: $domain, APP: $app, STATUS, EXIT, START, END, LOG }')
+log=$(jq -r .LOG <<< "$json")
 
 case "$format" in
 	json) printf '%s\n' "$json" | jq . ;;

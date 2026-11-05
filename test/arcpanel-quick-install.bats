@@ -126,6 +126,12 @@ teardown_file() {
     assert_output --partial 'Missing required field: wiki_name'
     refute_output --partial "$SECRET_PASS"
     assert_file_not_exists "$ARCPANEL/data/users/$QI_USER/quick-install.options"
+    # the options stay root-only for a retry of the job (E15), never in its record or log
+    id=$(v-list-user-quick-install-task "$QI_USER" 10 json | jq -r .ID)
+    run stat -c '%U %a' "$ARCPANEL/data/jobs/$id.request"
+    assert_output "root 600"
+    run grep -c "$SECRET_PASS" "$ARCPANEL/data/jobs/$id.conf" "$ARCPANEL/data/jobs/$id.log"
+    refute_output --regexp ':[1-9]'
 }
 
 @test "DokuWiki installs in the background, one install at a time" {
@@ -144,6 +150,8 @@ teardown_file() {
     assert_output --partial 'DokuWiki installed successfully.'
     refute_output --partial "$SECRET_PASS"
     assert_file_not_exists "$ARCPANEL/data/users/$QI_USER/quick-install.options"
+    id=$(v-list-user-quick-install-task "$QI_USER" 10 json | jq -r .ID)
+    assert_file_not_exists "$ARCPANEL/data/jobs/$id.request"
     run grep -c "$SECRET_PASS" "$ARCPANEL/log/system.log" "$ARCPANEL/data/users/$QI_USER/history.log"
     refute_output --regexp ':[1-9]'
 
@@ -154,7 +162,7 @@ teardown_file() {
 }
 
 @test "v-run-user-quick-install refuses a task it did not start" {
-    run v-run-user-quick-install 1 "$QI_USER" "$QI_DOMAIN" DokuWiki
+    run v-run-user-quick-install "$QI_USER" "$QI_DOMAIN" DokuWiki
     assert_failure 10
 }
 

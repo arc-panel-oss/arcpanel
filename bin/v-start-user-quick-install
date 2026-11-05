@@ -5,10 +5,10 @@
 # example: v-start-user-quick-install alice example.com DokuWiki /tmp/options.json
 #
 # This function checks the arguments of a Quick Install, keeps a root-only
-# copy of the options (a JSON object, at most 64 KiB), starts
-# v-add-web-domain-app detached from the caller and prints the task ID. A
-# user runs one install at a time; the state and the output are read with
-# v-list-user-quick-install-task.
+# copy of the options (a JSON object, at most 64 KiB) as the request of a
+# job of type quick-install (E15) that runs v-add-web-domain-app, and prints
+# the job ID. A user runs one install at a time; the state and the output
+# are read with v-list-job or v-list-user-quick-install-task.
 
 #----------------------------------------------------------#
 #                Variables & Functions                     #
@@ -67,23 +67,16 @@ if qi_task_running "$user"; then
 	check_result "$E_INUSE" "Another installation is running for $user"
 fi
 
-options=$(qi_task_options "$user")
-(umask 077 && cp "$options_file" "$options")
-chown root:root "$options"
-chmod 600 "$options"
-
-id="$(date +%s)$(printf '%04d' $((RANDOM % 10000)))"
-log=$(qi_task_log "$user")
-: > "$log"
-chmod 640 "$log"
-qi_task_set "$user" "ID=$id" "DOMAIN=$domain" "APP=$app" STATUS=running PID= EXIT= \
-	"START=$(date +'%F %T')" END=
-
-# Detached: new session, no descriptor shared with the caller, so the panel's
-# request returns at once and the install survives it
-setsid "$BIN/v-run-user-quick-install" "$id" "$user" "$domain" "$app" \
-	< /dev/null >> "$log" 2>&1 {lock}>&- &
-qi_task_set "$user" "PID=$!"
+# The runner starts once the options are its request
+job_create quick-install "$user" "web:$domain" "$(job_default_actor)" -- \
+	v-run-user-quick-install "$user" "$domain" "$app"
+job_check_started "$?" "Another installation is running for $user"
+id=$JOB_ID
+if ! job_request_store "$id" "$options_file"; then
+	job_set "$id" STATUS=failed "END=$(date +'%F %T')" "ERROR=the options could not be stored"
+	check_result "$E_DISK" "the options could not be stored"
+fi
+job_dispatch
 
 flock -u "$lock"
 echo "$id"
