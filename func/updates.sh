@@ -908,19 +908,23 @@ upd_snapshot() {
 	done
 }
 
-# A panel notification for the administrator and, with UPGRADE_SEND_EMAIL,
-# an e-mail: SUBJECT HTML TEXT
+# The update.result event of E16 (docs/features/specs/2026-11-05-002-e16-
+# alerts-design.md §9): SUBJECT HTML TEXT [SEVERITY] [VERSION]. Its alert
+# rule sends the panel notification and, while UPGRADE_SEND_EMAIL is true,
+# the mail that this function sent before 2.7. Without the alert library
+# the administrator still gets the panel notification.
 upd_notify_admin() {
-	local subject="$1" html="$2" text="$3" admin email
-	admin="$(upd_policy_get ROOT_USER)"
-	admin="${admin:-admin}"
-	"$BIN/v-add-user-notification" "$admin" "$subject" "$html" > /dev/null 2>&1
-	if [ "$(upd_policy_get UPGRADE_SEND_EMAIL)" = 'true' ]; then
-		email="$("$BIN/v-list-user" "$admin" json 2> /dev/null | jq -r '.[].CONTACT // empty' 2> /dev/null)"
-		if [ -n "$email" ]; then
-			printf '%s\n' "$text" | "$ARCPANEL/lib/mail-wrapper.php" -s "$subject" "$email" > /dev/null 2>&1
-		fi
+	local subject="$1" html="$2" text="$3" severity="${4:-info}" version="${5-}" admin
+	if ! declare -F alert_event > /dev/null && [ -f "$ARCPANEL/func/alerts.sh" ]; then
+		# shellcheck source=/usr/local/arcpanel/func/alerts.sh
+		source "$ARCPANEL/func/alerts.sh"
 	fi
+	if declare -F alert_event > /dev/null; then
+		alert_event update.result system "update:${version:-arcpanel}" "$severity" "$subject. $(printf '%s' "$text" | tr '\n' ' ')"
+		return 0
+	fi
+	admin="$(upd_policy_get ROOT_USER)"
+	"$BIN/v-add-user-notification" "${admin:-admin}" "$subject" "$html" > /dev/null 2>&1
 }
 
 # The failed checks of UPD_CHECKS in one line
@@ -1108,6 +1112,6 @@ upd_task_run() {
 		"<p>The update of ArcPanel from <b>$installed</b> to <b>$version</b> failed: $reason.</p><p>Result: <b>$result</b>. $outcome</p><p>The task log is in Server › Updates › History.</p>" \
 		"The update of ArcPanel on $HOSTNAME from $installed to $version failed: $reason.
 Result: $result. $outcome
-The task log is in Server > Updates > History in the panel."
+The task log is in Server > Updates > History in the panel." critical "$version"
 	return "$E_UPDATE"
 }

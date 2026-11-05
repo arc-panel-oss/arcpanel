@@ -81,8 +81,10 @@ worker() {
 	result=$(user_result "$owner" "$rc")
 	printf '%s\t%s\n' "$owner" "$result" >> "$results"
 	if [ "$result" != ok ]; then
-		"$BIN/v-add-user-notification" "$owner" "$(notice_title "$result")" \
-			"<p>$(notice_body "$owner")</p>" > /dev/null 2>&1
+		# The user's own scopes hear of it (E16); the server scope gets the
+		# run's event below
+		ALERT_EVENT_USER_ONLY=yes bj_alert_event "$owner" "backup:$owner" "$result" \
+			"$(notice_title "$result") for $owner. $(notice_body "$owner" | sed 's#</\?code>##g')" "$run"
 	fi
 }
 

@@ -17,6 +17,8 @@ source /etc/arcpanel/arcpanel.conf
 source $ARCPANEL/func/main.sh
 # shellcheck source=/usr/local/arcpanel/func/syshealth.sh
 source $ARCPANEL/func/syshealth.sh
+# shellcheck source=/usr/local/arcpanel/func/alerts.sh
+source $ARCPANEL/func/alerts.sh
 # load config file
 source_conf "$ARCPANEL/conf/arcpanel.conf"
 
@@ -103,6 +105,9 @@ for user in $("$BIN/v-list-users" list); do
 				echo "$msg"
 				log_event "$E_INVALID" "$domain $msg"
 				$BIN/v-log-action "$user" "Error" "Web" "Let's Encrypt SSL certificate update failed (Domain: $domain)."
+				# The letsencrypt.failed event of E16
+				alert_event letsencrypt.failed "$user" "web:$domain" warning \
+					"The Let's Encrypt renewal of $domain failed: $(printf '%s' "$msg" | sed 's/^Error: //' | tr '\n' ' ')"
 				if [ -z "$fail_counter" ]; then
 					add_object_key "web" 'DOMAIN' "$domain" 'LETSENCRYPT_FAIL_COUNT' 'LETSENCRYPT'
 				fi
@@ -157,6 +162,8 @@ for user in $("$BIN/v-list-users" list); do
 				echo "$msg"
 				$BIN/v-log-action "$user" "Error" "Web" "Let's Encrypt SSL certificate update failed (Domain: $domain)."
 				log_event "$E_INVALID" "$domain $msg"
+				alert_event letsencrypt.failed "$user" "mail:$domain" warning \
+					"The Let's Encrypt renewal of mail.$domain failed: $(printf '%s' "$msg" | sed 's/^Error: //' | tr '\n' ' ')"
 				if [ -z "$fail_counter" ]; then
 					add_object_key "mail" 'DOMAIN' "$domain" 'LETSENCRYPT_FAIL_COUNT' 'LETSENCRYPT'
 				fi

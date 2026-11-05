@@ -279,9 +279,10 @@ notification_ids() {
 '
 }
 
-# Notifications of the administrator added since server_setup
+# update.result events (E16) written since server_setup: the alert rule of
+# the event sends the administrator's notification and mail
 new_notifications() {
-	notification_ids | grep -cvxF -f "$TMP/notifications" || true
+	tail -n +"$(($(cat "$TMP/events") + 1))" "$SERVER_ARCPANEL/data/alerts/events.log" 2> /dev/null | grep -c '"type":"update.result"' || true
 }
 
 server_setup() {
@@ -292,6 +293,7 @@ server_setup() {
 	ADMIN="$(grep -m1 "^ROOT_USER=" "$SERVER_ARCPANEL/conf/arcpanel.conf" | cut -d"'" -f2)"
 	ADMIN="${ADMIN:-admin}"
 	notification_ids > "$TMP/notifications"
+	grep -c '' "$SERVER_ARCPANEL/data/alerts/events.log" 2> /dev/null > "$TMP/events" || echo 0 > "$TMP/events"
 	INSTALLED="$(grep -m1 "^VERSION=" "$SERVER_ARCPANEL/conf/arcpanel.conf" | cut -d"'" -f2)"
 	BASE="${INSTALLED%%~*}"
 	LINE="${BASE%.*}"

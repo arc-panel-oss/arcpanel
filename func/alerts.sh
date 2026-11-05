@@ -1443,3 +1443,312 @@ alerts_users_init() {
 
 # The jq program that turns record lines into objects
 ALERTS_JQ_RECORD='[scan("([A-Z_]+)='"'"'([^'"'"']*)'"'"'")] | map({key: .[0], value: .[1]}) | from_entries'
+
+#----------------------------------------------------------#
+#                         Events                           #
+#----------------------------------------------------------#
+
+ALERTS_EVENTS="$ALERTS_DIR/events.log"
+
+# Record an event for the event rules (spec §6, D9); the only writer of
+# data/alerts/events.log. The engine sends it on its next run.
+#
+#   alert_event TYPE USER OBJECT SEVERITY MESSAGE [REF]
+#
+# TYPE is an event rule of the catalog (job.failed, backup.failed,
+# letsencrypt.failed, update.result, doctor.failed, doctor.digest), USER
+# system or the user the object belongs to (its scopes, its reseller's and
+# the server scope see the event), OBJECT what it is about (job:ID,
+# backup-job:ID, web:example.com), SEVERITY info, warning or critical,
+# MESSAGE one line for people, REF a job or run ID. With
+# ALERT_EVENT_USER_ONLY=yes in the environment the server scope does not see
+# it (the per-user results of a backup job run, which sends its own). Never
+# fails its caller: returns 1 only for an unknown TYPE.
+alert_event() {
+	local type="$1" user="$2" object="$3" severity="$4" message="$5" ref="${6-}" lock line system=yes
+	if ! alert_type_valid "$type" || [ "${ALERT_KIND[$type]}" != 'event' ]; then
+		return 1
+	fi
+	case "$severity" in
+		info | warning | critical) ;;
+		*) severity=warning ;;
+	esac
+	[[ "$user" =~ ^[A-Za-z0-9][-A-Za-z0-9_.]{0,63}$ ]] || user=system
+	object=$(printf '%s' "$object" | tr -c 'A-Za-z0-9_.:@/-' '_')
+	object=${object:0:255}
+	[ -n "$object" ] || object=system
+	message=$(printf '%s' "$message" | tr '\n\r\t' '   ' | tr -d '\000-\037\177')
+	message=${message:0:1000}
+	ref=$(printf '%s' "$ref" | tr -cd 'A-Za-z0-9_.:-')
+	[ "${ALERT_EVENT_USER_ONLY-}" = 'yes' ] && system=no
+	(
+		alerts_dir_init 2> /dev/null
+		line=$(jq -nc --arg time "$(alerts_ts "$(alerts_now)")" --arg type "$type" --arg user "$user" \
+			--arg object "$object" --arg severity "$severity" --arg message "$message" --arg ref "$ref" \
+			--arg system "$system" \
+			'{time: $time, type: $type, user: $user, object: $object, severity: $severity, message: $message, ref: $ref}
+			+ (if $system == "no" then {system: false} else {} end)') || exit 0
+		exec {lock}> "$ALERTS_DIR/.events.lock"
+		flock -w 30 "$lock" || exit 0
+		printf '%s\n' "$line" >> "$ALERTS_EVENTS"
+		alerts_mode "$ALERTS_EVENTS"
+	) 2> /dev/null
+	return 0
+}
+
+# Send or fold one event in SCOPE (spec §4): EVENT_JSON (a line of
+# events.log). Caller holds the lock.
+alerts_event_apply() {
+	local scope="$1" event="$2" rule object severity message ref etime now nowts age cooldown id
+	rule=$(jq -r .type <<< "$event")
+	object=$(jq -r .object <<< "$event")
+	severity=$(jq -r .severity <<< "$event")
+	message=$(jq -r .message <<< "$event")
+	ref=$(jq -r '.ref // ""' <<< "$event")
+	etime=$(jq -r .time <<< "$event")
+	alerts_rule_read "$scope" "$rule"
+	[ "${RL[ENABLED]}" = 'yes' ] || return 0
+	now=$(alerts_now)
+	nowts=$(alerts_ts "$now")
+	age=$((now - $(alerts_epoch "$etime")))
+	id=$(alerts_new_id "$ALERTS_STATE")
+	ALERT_DELIVERIES='[]'
+	# Below the rule's severity, or too old (the engine was stopped): kept in
+	# the history without a message
+	if [ "$(alert_severity_rank "$severity")" -lt "$(alert_severity_rank "${RL[SEVERITY]:-info}")" ] \
+		|| [ "$age" -gt "$ALERTS_EVENT_MAX_AGE" ]; then
+		alerts_history_add event "$id" "$scope" "$rule" "$object" "$severity" "$ref" "$message" "$etime" 1
+		return 0
+	fi
+	cooldown=$((${RL[COOLDOWN]:-1440} * 60))
+	if alerts_state_read "$rule" "$scope" "$object" && [ "${ST[KIND]}" = 'event' ] \
+		&& [ $((now - $(alerts_epoch "${ST[LAST_NOTIFIED]}"))) -lt "$cooldown" ]; then
+		# Folded into the next message of this rule and object
+		ST[FOLDED]=$((${ST[FOLDED]:-0} + 1))
+		ST[DETAIL]=$message
+		ST[VALUE]=$ref
+		if [ "$(alert_severity_rank "$severity")" -gt "$(alert_severity_rank "${ST[SEVERITY]}")" ]; then
+			ST[SEVERITY]=$severity
+		fi
+		alerts_state_write
+		alerts_history_add event "$id" "$scope" "$rule" "$object" "$severity" "$ref" "$message" "$etime" 1
+		return 0
+	fi
+	alerts_message event "$scope" "$rule" "$object" "$severity" "${ref:+Ref: $ref}" "$message" "$etime"
+	alerts_notify "$scope" "${RL[CHANNELS]}" "$MSG_TITLE" "$MSG_TEXT" "$id"
+	alerts_history_add event "$id" "$scope" "$rule" "$object" "$severity" "$ref" "$message" "$etime" 1
+	ST=([ID]=$id [KIND]=event [RULE]=$rule [SCOPE]=$scope [OBJECT]=$object [SEVERITY]=$severity [VALUE]=$ref
+		[DETAIL]=$message [SINCE]=$nowts [FIRED]=$nowts [LAST_NOTIFIED]=$nowts [COUNT]=1 [CLEAR]=0 [FOLDED]=0)
+	alerts_state_write
+}
+
+# Send the folded events whose cooldown has passed as one message with a
+# count, and forget the quiet ones. Caller holds the lock.
+alerts_event_flush() {
+	local line now cooldown count id key
+	local -A E=()
+	[ -f "$ALERTS_STATE" ] || return 0
+	now=$(alerts_now)
+	while IFS= read -r line; do
+		alerts_parse "$line" E
+		[ "${E[KIND]-}" = 'event' ] || continue
+		if [ "${E[SCOPE]}" != 'system' ] && ! alerts_user_exists "${E[SCOPE]}"; then
+			alerts_state_delete "${E[RULE]}" "${E[SCOPE]}" "${E[OBJECT]}"
+			continue
+		fi
+		alerts_rule_read "${E[SCOPE]}" "${E[RULE]}"
+		cooldown=$((${RL[COOLDOWN]:-1440} * 60))
+		[ $((now - $(alerts_epoch "${E[LAST_NOTIFIED]}"))) -ge "$cooldown" ] || continue
+		count=${E[FOLDED]:-0}
+		if [ "$count" -gt 0 ] && [ "${RL[ENABLED]}" = 'yes' ]; then
+			id=$(alerts_new_id "$ALERTS_STATE")
+			alerts_message event "${E[SCOPE]}" "${E[RULE]}" "${E[OBJECT]}" "${E[SEVERITY]}" \
+				"${E[VALUE]:+Ref: ${E[VALUE]}}" "$count more since the last message; the last: ${E[DETAIL]}" "${E[LAST_NOTIFIED]}" "$count"
+			alerts_notify "${E[SCOPE]}" "${RL[CHANNELS]}" "$MSG_TITLE" "$MSG_TEXT" "$id"
+			alerts_history_add folded "$id" "${E[SCOPE]}" "${E[RULE]}" "${E[OBJECT]}" "${E[SEVERITY]}" "${E[VALUE]}" \
+				"$MSG_TITLE" "${E[LAST_NOTIFIED]}" "$count"
+			ST=()
+			for key in "${!E[@]}"; do
+				ST[$key]=${E[$key]}
+			done
+			ST[FOLDED]=0
+			ST[LAST_NOTIFIED]=$(alerts_ts "$now")
+			ST[COUNT]=$((${E[COUNT]:-1} + 1))
+			alerts_state_write
+		else
+			alerts_state_delete "${E[RULE]}" "${E[SCOPE]}" "${E[OBJECT]}"
+		fi
+	done < <(grep -F "KIND='event'" "$ALERTS_STATE")
+}
+
+# Read the events written since the last run (events.offset) and apply each
+# to the scopes that see it; rotate events.log at the start of a month once
+# it is read. Caller holds the lock.
+alerts_process_events() {
+	local offset size chunk length cut line user scope lock month
+	alerts_event_flush
+	[ -f "$ALERTS_EVENTS" ] || return 0
+	offset=$(cat "$ALERTS_DIR/events.offset" 2> /dev/null)
+	[[ "$offset" =~ ^[0-9]+$ ]] || offset=0
+	size=$(stat -c %s "$ALERTS_EVENTS")
+	[ "$offset" -le "$size" ] || offset=0
+	if [ "$offset" -lt "$size" ]; then
+		chunk=$(mktemp)
+		tail -c +$((offset + 1)) "$ALERTS_EVENTS" | head -c $((size - offset)) > "$chunk"
+		# Complete lines only; a line being written waits for the next run
+		length=$(stat -c %s "$chunk")
+		if [ "$(tail -c1 "$chunk" | od -An -tx1 | tr -d ' ')" != '0a' ]; then
+			cut=$(LC_ALL=C grep -boa $'\n' "$chunk" | tail -n1 | cut -d: -f1)
+			length=$((${cut:--1} + 1))
+			truncate -s "$length" "$chunk"
+		fi
+		while IFS= read -r line; do
+			jq -e 'type == "object" and has("type")' > /dev/null 2>&1 <<< "$line" || continue
+			user=$(jq -r '.user // "system"' <<< "$line")
+			for scope in $(alerts_scopes_of_user "$user"); do
+				if [ "$scope" = 'system' ] && [ "$(jq -r 'if has("system") then .system else true end' <<< "$line")" = 'false' ]; then
+					continue
+				fi
+				alert_type_in_scope "$(jq -r .type <<< "$line")" "$scope" || continue
+				[ "$scope" = 'system' ] || alerts_user_defaults "$scope"
+				alerts_event_apply "$scope" "$line"
+			done
+		done < "$chunk"
+		rm -f "$chunk"
+		offset=$((offset + length))
+		echo "$offset" > "$ALERTS_DIR/events.offset"
+		alerts_mode "$ALERTS_DIR/events.offset"
+	fi
+	# A new month starts a new log once the old one is read
+	month=$(date -d "@$(alerts_now)" +%Y-%m)
+	if [ "$offset" -ge "$(stat -c %s "$ALERTS_EVENTS")" ] && [ "$(date -r "$ALERTS_EVENTS" +%Y-%m)" != "$month" ]; then
+		exec {lock}> "$ALERTS_DIR/.events.lock"
+		if flock -w 10 "$lock"; then
+			if [ "$offset" -ge "$(stat -c %s "$ALERTS_EVENTS")" ]; then
+				mv -f "$ALERTS_EVENTS" "$ALERTS_EVENTS.1"
+				echo 0 > "$ALERTS_DIR/events.offset"
+			fi
+			flock -u "$lock"
+		fi
+		exec {lock}>&-
+	fi
+}
+
+#----------------------------------------------------------#
+#                 Server defaults (spec §9)                #
+#----------------------------------------------------------#
+
+# The contact address of the administrator account
+alerts_admin_contact() {
+	grep -m1 "^CONTACT='" "$ARCPANEL/data/users/${ROOT_USER:-admin}/user.conf" 2> /dev/null | cut -d"'" -f2
+}
+
+# ID of the server's email channel to the administrator (kept in
+# .admin-email), created when CREATE is yes and CONTACT is set. Caller holds
+# the lock.
+alerts_admin_email_channel() {
+	local create="${1-no}" id contact file
+	file=$(alerts_channels_file system)
+	id=$(cat "$ALERTS_DIR/.admin-email" 2> /dev/null)
+	if [[ "$id" =~ ^[0-9]{14}$ ]] && alerts_channel_exists system "$id"; then
+		echo "$id"
+		return 0
+	fi
+	[ "$create" = 'yes' ] || return 1
+	contact=$(alerts_admin_contact)
+	if [ -z "$contact" ] || ! [[ "$contact" =~ ^[A-Za-z0-9._%+-]+@[[:alnum:].-]+\.[A-Za-z]{2,63}$ ]]; then
+		return 1
+	fi
+	id=$(alerts_new_id "$file")
+	CH=([ID]=$id [NAME]='Administrator email' [TYPE]=email [TARGET]=$contact [SECRET]='' [ENABLED]=yes [STATUS]='' [FAILS]=0)
+	alerts_channel_write system
+	echo "$id" > "$ALERTS_DIR/.admin-email"
+	alerts_mode "$ALERTS_DIR/.admin-email"
+	echo "$id"
+}
+
+# Add (on=yes) or remove the administrator's email channel from RULE of the
+# server scope. Caller holds the lock.
+alerts_rule_email() {
+	local rule="$1" on="$2" email channels
+	if [ "$on" = 'yes' ]; then
+		email=$(alerts_admin_email_channel yes) || return 0
+	else
+		email=$(alerts_admin_email_channel no) || return 0
+	fi
+	alerts_rule_read system "$rule"
+	channels=",${RL[CHANNELS]},"
+	channels=${channels//,$email,/,}
+	if [ "$on" = 'yes' ]; then
+		channels="$channels$email,"
+	fi
+	channels=${channels#,}
+	channels=${channels%,}
+	channels=${channels#,}
+	RL[CHANNELS]=$channels
+	alerts_rule_write system
+}
+
+# The server defaults (spec §9): the rules of the catalog on with the panel
+# channel and the administrator's email channel; backup.failed and
+# update.result follow BACKUP_REPORT and UPGRADE_SEND_EMAIL. Caller holds the
+# lock.
+alerts_server_defaults() {
+	local panel email rule channels
+	panel=$(alerts_panel_channel system)
+	email=$(alerts_admin_email_channel yes) || email=''
+	channels=$panel${email:+,$email}
+	for rule in disk.usage inode.usage load.average memory.usage service.down ssl.expiring letsencrypt.failed \
+		job.failed ports.orphan; do
+		alerts_default_rule system "$rule" yes "$channels"
+	done
+	case "${BACKUP_REPORT:-failures}" in
+		off) alerts_default_rule system backup.failed yes "$panel" ;;
+		*) alerts_default_rule system backup.failed yes "$channels" ;;
+	esac
+	if [ "${UPGRADE_SEND_EMAIL:-true}" = 'true' ]; then
+		alerts_default_rule system update.result yes "$channels"
+	else
+		alerts_default_rule system update.result yes "$panel"
+	fi
+}
+
+# The aliases of 2.7 (spec §9): changing BACKUP_REPORT or UPGRADE_SEND_EMAIL
+# changes the administrator's email channel of backup.failed or
+# update.result. KEY VALUE; does nothing before alerts are set up.
+alerts_config_alias() {
+	local key="$1" value="$2"
+	[ -f "$ALERTS_DIR/.defaults" ] || return 0
+	alerts_lock || return 0
+	case "$key" in
+		BACKUP_REPORT)
+			if [ "$value" = 'off' ]; then
+				alerts_rule_email backup.failed no
+			else
+				alerts_rule_email backup.failed yes
+			fi
+			;;
+		UPGRADE_SEND_EMAIL)
+			if [ "$value" = 'true' ]; then
+				alerts_rule_email update.result yes
+			else
+				alerts_rule_email update.result no
+			fi
+			;;
+	esac
+	alerts_unlock
+}
+
+# Close the open alerts of scopes whose user was deleted (spec §10). Caller
+# holds the lock.
+alerts_state_prune() {
+	local line
+	local -A P=()
+	[ -f "$ALERTS_STATE" ] || return 0
+	while IFS= read -r line; do
+		alerts_parse "$line" P
+		[ -n "${P[SCOPE]-}" ] && [ "${P[SCOPE]}" != 'system' ] || continue
+		alerts_user_exists "${P[SCOPE]}" && continue
+		alerts_state_delete "${P[RULE]}" "${P[SCOPE]}" "${P[OBJECT]}"
+	done < <(cat "$ALERTS_STATE")
+}

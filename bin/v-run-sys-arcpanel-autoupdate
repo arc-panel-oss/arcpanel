@@ -49,7 +49,7 @@ announce() {
 		upd_notify_admin "ArcPanel $version is available" \
 			"<p>ArcPanel <b>$version</b> ($kind release) is available and waits for you.</p><p>Read the release notes, then update from Server › Updates.</p>" \
 			"ArcPanel $version ($kind release) is available on $HOSTNAME and waits for you.
-Read the release notes, then update from Server > Updates in the panel."
+Read the release notes, then update from Server > Updates in the panel." info "$version"
 		notified="${notified:+$notified,}$version"
 		change_sys_value 'UPDATE_NOTIFIED_VERSION' "$notified" > /dev/null
 		echo "Announced ArcPanel $version ($reason)"

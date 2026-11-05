@@ -93,8 +93,12 @@ teardown_file() {
     assert_success
     run v-list-sys-config json
     assert_output --partial '"PORT_REGISTRY": "yes"'
-    run grep -c "v-check-sys-ports notify" /var/spool/cron/crontabs/arcpanelweb
+    # Since 2.7 the ports.orphan alert rule (E16) sends the findings: the
+    # nightly check runs without notify
+    run grep -c "bin/v-check-sys-ports" /var/spool/cron/crontabs/arcpanelweb
     assert_output "1"
+    run grep -c "v-check-sys-ports notify" /var/spool/cron/crontabs/arcpanelweb
+    assert_output "0"
 }
 
 @test "Package PORTS is validated and listed" {

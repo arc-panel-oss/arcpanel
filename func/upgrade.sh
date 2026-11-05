@@ -210,6 +210,15 @@ upgrade_send_notification_to_email() {
 	if [ -z "$ROOT_USER" ]; then
 		ROOT_USER="admin"
 	fi
+	# Since 2.7 the update.result alert rule sends it (E16 spec §9); its
+	# email channel follows UPGRADE_SEND_EMAIL
+	if [ -f "$ARCPANEL/data/alerts/.defaults" ] && [ -f "$ARCPANEL/func/alerts.sh" ]; then
+		# shellcheck source=/usr/local/arcpanel/func/alerts.sh
+		source "$ARCPANEL/func/alerts.sh"
+		alert_event update.result system "update:$new_version" info \
+			"$HOSTNAME has been upgraded from ArcPanel v$previous_version to v$new_version. Installation log: $LOG"
+		return 0
+	fi
 	if [ "$UPGRADE_SEND_EMAIL" = "true" ]; then
 		# Retrieve admin email address, sendmail path, and message temp file path
 		admin_email=$($BIN/v-list-user "$ROOT_USER" json | grep "CONTACT" | cut -d'"' -f4)

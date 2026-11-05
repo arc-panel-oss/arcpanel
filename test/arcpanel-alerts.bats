@@ -121,6 +121,7 @@ setup_file() {
         mv "$dir" "$SAVE/users/$user"
     done
     [ -f "$ARCPANEL/log/alerts.log" ] && mv "$ARCPANEL/log/alerts.log" "$SAVE/alerts.log"
+    grep -E "^(BACKUP_REPORT|UPGRADE_SEND_EMAIL)=" "$ARCPANEL/conf/arcpanel.conf" > "$SAVE/switches" || true
     if [ -f "$CRONTAB" ]; then
         cp -p "$CRONTAB" "$SAVE/crontab"
         sed -i '/bin\/v-check-sys-alerts/d' "$CRONTAB"
@@ -232,6 +233,10 @@ teardown_file() {
     v-delete-user-package "$PKG" > /dev/null 2>&1 || true
     v-delete-package-tenancy "$PKG" > /dev/null 2>&1 || true
     rm -rf "$AD" "$FIX"
+    # The mail switches as they were (no alert files yet: no alias runs)
+    while IFS= read -r line; do
+        v-change-sys-config-value "${line%%=*}" "$(cut -d"'" -f2 <<< "$line")" > /dev/null
+    done < "$SAVE/switches"
     for dir in "$ARCPANEL"/data/users/*/alerts; do
         [ -d "$dir" ] && rm -rf "$dir"
     done
@@ -339,7 +344,7 @@ setup() {
     run v-list-alert-rules system json
     assert_equal "$(jq -r '[.[] | select(.ENABLED == "yes" and .KIND == "metric") | .RULE] | sort | join(" ")' <<< "$output")" \
         "disk.usage inode.usage load.average memory.usage ports.orphan service.down ssl.expiring"
-    assert_equal "$(jq -r '."disk.usage".CHANNELS' <<< "$output")" "$(panel_id)"
+    assert_equal "$(jq -r '."disk.usage".CHANNELS | split(",")[0]' <<< "$output")" "$(panel_id)"
     run grep -c 'bin/v-check-sys-alerts' "$CRONTAB"
     assert_output 1
     run grep -c 'v-check-sys-ports notify' "$CRONTAB"
@@ -926,4 +931,220 @@ setup() {
     assert_equal "$(requests | wc -l)" 1
     run grep -rF "${token#*:}" "$ARCPANEL/log/alerts.log" "$ARCPANEL/log/system.log" "$ARCPANEL/log/error.log"
     assert_failure
+}
+
+#----------------------------------------------------------#
+#                          Events                          #
+#----------------------------------------------------------#
+
+# Write an event at minute M after T0: event M TYPE USER OBJECT SEVERITY MESSAGE [REF]
+event() {
+    local m="$1"
+    shift
+    (
+        export ALERTS_NOW=$((T0 + m * 60))
+        lib "alert_event $(printf '%q ' "$@")"
+    )
+}
+
+@test "Events: alert_event writes one JSON line and refuses unknown types" {
+    run event 0 job.failed "$USR" 'job:12345678901234' warning $'Job failed\nsecond line' 12345678901234
+    assert_success
+    run jq -c . "$AD/events.log"
+    assert_success
+    assert_equal "$(jq -r '[.type, .user, .object, .severity, .message, .ref] | join("|")' "$AD/events.log")" \
+        "job.failed|$USR|job:12345678901234|warning|Job failed second line|12345678901234"
+    run event 0 disk.usage system system warning x
+    assert_failure 1
+    run event 0 nope system system warning x
+    assert_failure 1
+    event 0 backup.failed system 'backup-job:1 <x>' urgent 'odd'
+    assert_equal "$(tail -n1 "$AD/events.log" | jq -r '[.object, .severity] | join("|")')" "backup-job:1__x_|warning"
+    (
+        export ALERT_EVENT_USER_ONLY=yes
+        event 0 backup.failed "$USR" "backup:$USR" critical 'only the user'
+    )
+    assert_equal "$(tail -n1 "$AD/events.log" | jq -r '.system')" false
+    run stat -c '%a %U %G' "$AD/events.log"
+    assert_output '640 root arcpanelweb'
+}
+
+@test "Events: an event reaches the server scope and the scopes of its user and reseller" {
+    only_rule system job.failed '' '' 0 info 1440 "$(panel_id)" > /dev/null
+    v-change-alert-rule "$CUS" job.failed yes '' '' 0 info 1440 "$(panel_id "$CUS")" > /dev/null
+    v-change-alert-rule "$RES" job.failed yes '' '' 0 info 1440 "$(panel_id "$RES")" > /dev/null
+    event 0 job.failed "$CUS" job:11111111111111 warning 'Job node.build on app failed: exit 1' 11111111111111
+    run engine 0
+    assert_success
+    assert_equal "$(history | jq -r 'select(.event == "event") | .scope' | sort | xargs)" "$(echo "$CUS $RES system" | tr ' ' '\n' | sort | xargs)"
+    assert_equal "$(notices "$CUS" | grep -c 'Job failed: job:11111111111111')" 1
+    assert_equal "$(notices "$RES" | grep -c 'Job failed: job:11111111111111')" 1
+    assert_equal "$(notices | grep -c '\[WARNING\] Job failed: job:11111111111111')" 1
+    run notice_texts "$CUS"
+    assert_output --partial 'Job node.build on app failed: exit 1'
+    # Read once: a second run sends nothing
+    run engine 1
+    assert_equal "$(history | jq -s 'map(select(.event == "event")) | length')" 3
+    # The per-user results of a backup run skip the server scope
+    v-change-alert-rule "$CUS" backup.failed yes '' '' 0 info 1440 "$(panel_id "$CUS")" > /dev/null
+    v-change-alert-rule system backup.failed yes '' '' 0 info 1440 "$(panel_id)" > /dev/null
+    (
+        export ALERT_EVENT_USER_ONLY=yes
+        event 2 backup.failed "$CUS" "backup:$CUS" warning 'partial'
+    )
+    run engine 2
+    assert_equal "$(history | jq -r 'select(.rule == "backup.failed") | .scope' | sort | xargs)" "$(echo "$CUS $RES" | tr ' ' '\n' | sort | xargs)"
+}
+
+@test "Events: events within the cooldown fold into one message with a count" {
+    only_rule system backup.failed '' '' 0 info 60 "$(panel_id)" > /dev/null
+    event 0 backup.failed system backup-job:7 warning 'run 1 partial'
+    run engine 0
+    event 5 backup.failed system backup-job:7 critical 'run 2 failed'
+    event 6 backup.failed system backup-job:7 warning 'run 3 partial'
+    event 6 backup.failed system backup-job:8 warning 'other job'
+    run engine 7
+    assert_equal "$(notices | grep -c 'backup-job:7')" 1
+    assert_equal "$(notices | grep -c 'backup-job:8')" 1
+    assert_equal "$(history | jq -r 'select(.object == "backup-job:7" and .event == "event") | (.deliveries | length)' | xargs)" "1 0 0"
+    # After the cooldown the folded events go out in one message
+    run engine 61
+    assert_equal "$(history | jq -r 'select(.event == "folded") | [.object, .severity, .count] | join(" ")')" "backup-job:7 critical 2"
+    assert_equal "$(notices | grep -c '\[CRITICAL\] Backup failed: backup-job:7')" 1
+    run notice_texts
+    assert_output --partial '2 more since the last message; the last: run 3 partial'
+    # Quiet objects are forgotten after the cooldown
+    run engine 200
+    run grep -c "KIND='event'" "$AD/state.conf"
+    assert_output 0
+}
+
+@test "Events: below the rule's severity, or older than a day, an event is kept without a message" {
+    only_rule system update.result '' '' 0 critical 1440 "$(panel_id)" > /dev/null
+    event 0 update.result system update:2.7.1 info 'ArcPanel 2.7.1 is available'
+    event 0 update.result system update:2.7.1 critical 'The update to ArcPanel 2.7.1 failed'
+    run engine 0
+    assert_equal "$(history | jq -r 'select(.event == "event") | [.severity, (.deliveries | length)] | join(":")' | xargs)" "info:0 critical:1"
+    v-change-alert-rule system update.result yes '' '' 0 info > /dev/null
+    event 10 update.result system update:2.7.2 critical 'old news'
+    run engine $((10 + 25 * 60))
+    assert_equal "$(history | jq -r 'select(.message == "old news") | .deliveries | length')" 0
+    assert_equal "$(notices | grep -c 'update:2.7.2')" 0
+}
+
+@test "Events: a failed job sends job.failed, a certificate job letsencrypt.failed, backups nothing" {
+    lib_jobs() {
+        bash -c "source /etc/arcpanel/arcpanel.conf; source $ARCPANEL/func/main.sh; source $ARCPANEL/func/tenancy.sh; source $ARCPANEL/func/job.sh; source_conf $ARCPANEL/conf/arcpanel.conf; $1"
+    }
+    for spec in '99000000000001 node.build' '99000000000002 letsencrypt.domain' '99000000000003 backup.user'; do
+        id=${spec% *}
+        type=${spec#* }
+        echo "ID='$id' TYPE='$type' USER='$USR' OWNER='$ROOT_USER' ACTOR='bats' OBJECT='bats-alerts-$id' ARGS='x' STATUS='failed' EXIT='3' ERROR='it broke' UNIT='' PID='' QUEUED='2026-11-06 10:00:00' START='2026-11-06 10:00:00' END='2026-11-06 10:00:01' HEARTBEAT='' ATTEMPTS='1' RETRY_OF='' RESOURCE='' UPDATED='2026-11-06 10:00:01'" > "$ARCPANEL/data/jobs/$id.conf"
+        lib_jobs "job_finish $id"
+        rm -f "$ARCPANEL/data/jobs/$id.conf"
+    done
+    run jq -r '[.type, .user, .object, .severity, .ref] | join("|")' "$AD/events.log"
+    assert_line "job.failed|$USR|job:99000000000001|warning|99000000000001"
+    assert_line "letsencrypt.failed|$USR|job:99000000000002|warning|99000000000002"
+    refute_line --partial 99000000000003
+    assert_equal "$(jq -r 'select(.ref == "99000000000001") | .message' "$AD/events.log")" "Job node.build on bats-alerts-99000000000001 failed: it broke"
+}
+
+@test "Events: the backup and update sources write their events instead of mails" {
+    lib_bj() {
+        bash -c "source /etc/arcpanel/arcpanel.conf; source $ARCPANEL/func/main.sh; source $ARCPANEL/func/backup-job.sh; source_conf $ARCPANEL/conf/arcpanel.conf; $1"
+    }
+    lib_bj "bj_value() { echo Nightly; }; bj_notify_admins 17000000000001 17000000000009 partial 'alice (failed)'"
+    lib_bj "bj_notify_user $USR failed 'disk full'"
+    lib_bj "ARC_BACKUP_JOB_RUN=yes; user=$USR; echo reason | bj_mail_failure 'Backup of $USR failed'"
+    lib_bj "user=$USR; echo 'no space' | bj_mail_failure 'Backup of $USR failed'"
+    run jq -r '[.type, .user, .object, .severity, .message] | join("|")' "$AD/events.log"
+    assert_line "backup.failed|system|backup-job:17000000000001|warning|The backup job Nightly (run 17000000000009) ended partial. alice (failed)"
+    assert_line "backup.failed|$USR|backup:$USR|critical|Backup of $USR ended failed. disk full"
+    assert_line "backup.failed|$USR|backup:$USR|critical|Backup of $USR failed: no space "
+    assert_equal "$(jq -s 'length' "$AD/events.log")" 3
+    bash -c "source /etc/arcpanel/arcpanel.conf; source $ARCPANEL/func/main.sh; source $ARCPANEL/func/updates.sh; source_conf $ARCPANEL/conf/arcpanel.conf; upd_notify_admin 'The update to ArcPanel 9.9.9 failed' '<p>x</p>' 'line one
+line two' critical 9.9.9"
+    assert_equal "$(tail -n1 "$AD/events.log" | jq -r '[.type, .object, .severity, .message] | join("|")')" \
+        "update.result|update:9.9.9|critical|The update to ArcPanel 9.9.9 failed. line one line two"
+}
+
+@test "Events: events.log starts again in a new month once it is read" {
+    only_rule system job.failed '' '' 0 info 1440 "$(panel_id)" > /dev/null
+    event 0 job.failed system job:1 warning one
+    run engine 0
+    touch -d '2026-10-15 10:00:00' "$AD/events.log"
+    run engine 1
+    assert_file_not_exists "$AD/events.log"
+    assert_file_exists "$AD/events.log.1"
+    assert_equal "$(cat "$AD/events.offset")" 0
+    event 2 job.failed system job:2 warning two
+    run engine 2
+    assert_equal "$(history | jq -r 'select(.event == "event") | .object' | xargs)" "job:1 job:2"
+}
+
+@test "Events: the open alerts of a deleted user close" {
+    v-change-alert-rule "$USR" quota.disk yes 90 '' 0 '' 1440 "$(panel_id "$USR")" > /dev/null
+    echo "$USR 95 100" > "$FIX/quota.$USR"
+    run engine 0
+    run grep -c "SCOPE='$USR'" "$AD/state.conf"
+    assert_output 1
+    sed -i "s/SCOPE='$USR'/SCOPE='arcalgone'/" "$AD/state.conf"
+    run engine 1
+    run grep -c "SCOPE='arcalgone'" "$AD/state.conf"
+    assert_output 0
+}
+
+#----------------------------------------------------------#
+#                   Upgrade defaults (§9)                  #
+#----------------------------------------------------------#
+
+contact() {
+    v-list-user "$ROOT_USER" json | jq -r '.[].CONTACT'
+}
+
+# Rules with the administrator email channel, sorted
+email_rules() {
+    local email
+    email=$(cat "$AD/.admin-email")
+    v-list-alert-rules system json | jq -r --arg e "$email" '[.[] | select(.CHANNELS | split(",") | index($e)) | .RULE] | sort | join(" ")'
+}
+
+defaults_with() {
+    rm -rf "$AD"
+    v-change-sys-config-value BACKUP_REPORT "$1" > /dev/null
+    v-change-sys-config-value UPGRADE_SEND_EMAIL "$2" > /dev/null
+    v-add-sys-alerts > /dev/null
+}
+
+@test "Upgrade: the server defaults follow BACKUP_REPORT and UPGRADE_SEND_EMAIL; the aliases keep them in step" {
+    [ -n "$(contact)" ] || skip "the administrator account has no contact address"
+    cp -p "$CRONTAB" "$FIX/crontab.before"
+    cp "$ARCPANEL/conf/arcpanel.conf" "$FIX/conf.before"
+    defaults_with failures true
+    run v-list-alert-rules system json
+    assert_equal "$(jq -r '[.[] | select(.ENABLED == "yes") | .RULE] | sort | join(" ")' <<< "$output")" \
+        "backup.failed disk.usage inode.usage job.failed letsencrypt.failed load.average memory.usage ports.orphan service.down ssl.expiring update.result"
+    run v-list-alert-channels system json
+    assert_equal "$(jq -r '.[] | select(.TYPE == "email") | [.NAME, .TARGET] | join("|")' <<< "$output")" "Administrator email|$(contact)"
+    assert_equal "$(email_rules)" "backup.failed disk.usage inode.usage job.failed letsencrypt.failed load.average memory.usage ports.orphan service.down ssl.expiring update.result"
+    defaults_with off false
+    assert_equal "$(email_rules)" "disk.usage inode.usage job.failed letsencrypt.failed load.average memory.usage ports.orphan service.down ssl.expiring"
+    run v-list-alert-rules system json
+    assert_equal "$(jq -r '."backup.failed".CHANNELS, ."update.result".CHANNELS' <<< "$output" | xargs)" "$(panel_id) $(panel_id)"
+    defaults_with daily true
+    assert_equal "$(email_rules)" "backup.failed disk.usage inode.usage job.failed letsencrypt.failed load.average memory.usage ports.orphan service.down ssl.expiring update.result"
+    # The aliases: the settings change the email channel of their rule
+    v-change-sys-config-value BACKUP_REPORT off > /dev/null
+    v-change-sys-config-value UPGRADE_SEND_EMAIL false > /dev/null
+    assert_equal "$(email_rules)" "disk.usage inode.usage job.failed letsencrypt.failed load.average memory.usage ports.orphan service.down ssl.expiring"
+    v-change-sys-config-value BACKUP_REPORT failures > /dev/null
+    v-change-sys-config-value UPGRADE_SEND_EMAIL true > /dev/null
+    assert_equal "$(email_rules)" "backup.failed disk.usage inode.usage job.failed letsencrypt.failed load.average memory.usage ports.orphan service.down ssl.expiring update.result"
+    # Every user scope: certificates and failed backups on its panel channel
+    run v-list-alert-rules "$CUS" json
+    assert_equal "$(jq -r '[.[] | select(.ENABLED == "yes") | .RULE + ":" + .CHANNELS] | join(" ")' <<< "$output")" \
+        "ssl.expiring:$(panel_id "$CUS") backup.failed:$(panel_id "$CUS")"
+    cp "$FIX/conf.before" "$ARCPANEL/conf/arcpanel.conf"
+    cp -p "$FIX/crontab.before" "$CRONTAB"
 }

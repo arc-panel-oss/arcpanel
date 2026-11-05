@@ -90,6 +90,17 @@ log_lines() {
     grep -c '' "$ARCPANEL/log/backup.log" 2> /dev/null || echo 0
 }
 
+# Lines of the E16 event log; its backup.failed events after line FROM as
+# USER|OBJECT|SEVERITY|SERVER (no when the server scope does not see it)
+event_lines() {
+    grep -c '' "$ARCPANEL/data/alerts/events.log" 2> /dev/null || echo 0
+}
+
+events_since() {
+    tail -n +"$(($1 + 1))" "$ARCPANEL/data/alerts/events.log" 2> /dev/null \
+        | jq -r 'select(.type == "backup.failed") | [.user, .object, .severity, (if has("system") then "no" else "yes" end)] | join("|")' 
+}
+
 setup_file() {
     local tmp pass
     cleanup
@@ -173,6 +184,7 @@ teardown_file() {
     local id archive
     id=$(v-add-backup-job arcbats-partial archive "users:$U1,$U2" daily:01:00 arcbats-l1:2,arcbats-down)
     assert_equal "$(job_value "$id" TARGETS)" 'arcbats-l1:2:-1:-1:-1:-1,arcbats-down:-1:-1:-1:-1:-1'
+    from_events=$(event_lines)
     run v-run-backup-job "$id"
     assert_success
     assert_equal "$(last_run "$id" STATUS)" partial
@@ -183,9 +195,11 @@ teardown_file() {
     assert_file_exists "$DIR/l1/$archive"
     run grep "^BACKUP='$archive' " "$ARCPANEL/data/users/$U1/backup.conf"
     assert_output --partial "JOB='$id' DESTINATIONS='arcbats-l1' ENCRYPTED=''"
-    # The user and the administrators hear of it
-    run v-list-user-notifications "$U1" json
-    assert_output --partial 'Backup partly failed'
+    # The user and the administrators hear of it: the backup.failed events
+    # of E16, sent by the alert engine
+    run events_since "$from_events"
+    assert_line "$U1|backup:$U1|warning|no"
+    assert_line --regexp "^system\\|backup-job:$id\\|warning\\|yes$"
     # A third failure in a row marks the destination failing
     v-run-backup-job "$id" > /dev/null
     assert_equal "$(v-list-backup-destination arcbats-down json | jq -r '."arcbats-down".STATE')" failing
@@ -335,41 +349,32 @@ teardown_file() {
     assert_output --partial 'Backups at once:'
 }
 
-@test "notices: a failed backup tells the user once and mails follow BACKUP_REPORT" {
-    local id from before
+@test "notices: a failed backup sends backup.failed events instead of notices and mails" {
+    local id from mail
     id=$(v-add-backup-job arcbats-notice archive "users:$U1" daily:01:00 arcbats-down)
     v-change-sys-config-value BACKUP_REPORT failures > /dev/null
 
-    # A backup with the job outside a job run (a request, the command line)
-    before=$(notices "$U1" 'Backup failed')
-    from=$(log_lines)
+    # Outside a job run: the event of the user, its reseller and the server
+    from=$(event_lines)
+    mail=$(log_lines)
     run v-backup-user "$U1" no "$id"
     assert_failure
-    assert_equal "$(notices "$U1" 'Backup failed')" "$((before + 1))"
-    run v-list-user-notifications "$U1" json
-    assert_output --partial 'arcbats-notice'
-    run mails_since "$from"
-    assert_output --partial "$U1 → backup failed"
-    assert_equal "$(mails_since "$from" | wc -l)" 1
+    assert_equal "$(events_since "$from" | sort -u)" "$U1|backup:$U1|critical|yes"
+    assert_equal "$(mails_since "$mail" | wc -l)" 0
 
-    # A job run: one notice for the user, one mail for the job, none per user
-    before=$(notices "$U1" 'Backup failed')
-    from=$(log_lines)
+    # A job run: the user's own event and the run's event for the server
+    from=$(event_lines)
+    mail=$(log_lines)
     v-run-backup-job "$id" > /dev/null
     assert_equal "$(last_run "$id" STATUS)" failed
-    assert_equal "$(notices "$U1" 'Backup failed')" "$((before + 1))"
-    run mails_since "$from"
-    assert_output --partial 'Backup job arcbats-notice: failed'
-    assert_equal "$(mails_since "$from" | wc -l)" 1
+    assert_equal "$(events_since "$from" | sort -u | xargs)" "$(printf '%s\n' "$U1|backup:$U1|critical|no" "system|backup-job:$id|critical|yes" | sort | xargs)"
+    assert_equal "$(mails_since "$mail" | wc -l)" 0
 
-    # BACKUP_REPORT off: no mail, the notices stay
+    # BACKUP_REPORT only changes the channels of the alert rule
     v-change-sys-config-value BACKUP_REPORT off > /dev/null
-    before=$(notices "$U1" 'Backup failed')
-    from=$(log_lines)
-    v-backup-user "$U1" no "$id" > /dev/null 2>&1 || true
+    from=$(event_lines)
     v-run-backup-job "$id" > /dev/null
-    assert_equal "$(notices "$U1" 'Backup failed')" "$((before + 2))"
-    assert_equal "$(mails_since "$from" | wc -l)" 0
+    assert_equal "$(events_since "$from" | grep -c '^system|')" 1
 
     v-change-sys-config-value BACKUP_REPORT failures > /dev/null
     v-delete-backup-job "$id" > /dev/null

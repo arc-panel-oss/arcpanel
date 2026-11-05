@@ -78,9 +78,10 @@ if [ -n "$over" ]; then
 fi
 
 # Events (spec D9)
-if declare -F alerts_process_events > /dev/null; then
-	alerts_process_events
-fi
+alerts_process_events
+
+# Alerts of deleted users close without a message (spec §10)
+alerts_state_prune
 
 # History older than a year, once a day
 stamp="$ALERTS_DIR/.pruned"

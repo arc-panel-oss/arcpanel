@@ -5,11 +5,14 @@
 # example: v-add-sys-alerts
 #
 # This function prepares a server for alerts: the folder data/alerts/, the
-# panel channel of the server scope, the default rules of the server scope
-# (written once; spec §9) and the engine's cron line, every minute. The
-# nightly port check loses its notify mode: the ports.orphan rule sends its
-# findings. It is safe to run again and keeps rules an administrator has
-# changed.
+# panel channel of the server scope, the default rules (written once; spec
+# §9) and the engine's cron line, every minute. The server rules use the
+# panel channel and an email channel to the administrator's contact;
+# BACKUP_REPORT off keeps backup.failed on the panel channel only, and
+# UPGRADE_SEND_EMAIL false does the same for update.result. Every user gets
+# ssl.expiring and backup.failed on its panel channel. The nightly port
+# check loses its notify mode: the ports.orphan rule sends its findings. It
+# is safe to run again and keeps rules an administrator has changed.
 
 #----------------------------------------------------------#
 #                Variables & Functions                     #
@@ -45,13 +48,11 @@ check_arcpanel_demo_mode
 
 alerts_check_lock
 alerts_dir_init
-panel=$(alerts_panel_channel system)
+alerts_panel_channel system > /dev/null
 
 # The server defaults, once (spec §9)
 if [ ! -f "$ALERTS_DIR/.defaults" ]; then
-	for rule in disk.usage inode.usage load.average memory.usage service.down ssl.expiring ports.orphan; do
-		alerts_default_rule system "$rule" yes "$panel"
-	done
+	alerts_server_defaults
 	alerts_users_init
 	date +'%F %T' > "$ALERTS_DIR/.defaults"
 	alerts_mode "$ALERTS_DIR/.defaults"

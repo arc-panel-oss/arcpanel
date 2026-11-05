@@ -70,6 +70,14 @@ if [ "$key" = 'BACKUP' ]; then
 	fi
 fi
 
+# The aliases of 2.7 (E16 spec §9): the old mail switches change the
+# administrator's email channel of their alert rule
+if [ "$key" = 'BACKUP_REPORT' ] || [ "$key" = 'UPGRADE_SEND_EMAIL' ]; then
+	# shellcheck source=/usr/local/arcpanel/func/alerts.sh
+	source "$ARCPANEL/func/alerts.sh"
+	alerts_config_alias "$key" "$value"
+fi
+
 #----------------------------------------------------------#
 #                         ArcPanel                         #
 #----------------------------------------------------------#
