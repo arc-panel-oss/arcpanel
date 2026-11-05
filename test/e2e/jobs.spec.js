@@ -64,7 +64,7 @@ test('user: cancel stops a queued job, and the tray lists it', async ({ page }) 
 test('reseller: sees the jobs of its customers, not those of the server', async ({ page }) => {
 	await login(page, RESELLER);
 	await page.goto('/jobs');
-	await expect(page.getByRole('heading', { name: 'Jobs' })).toBeVisible();
+	await expect(page.getByRole('heading', { name: 'Jobs', exact: true })).toBeVisible();
 	await expect(page.locator('tr[data-job-id="99999999999990"]')).toHaveCount(0);
 	const response = await page.goto('/jobs/99999999999990');
 	expect(response.status()).toBe(404);
