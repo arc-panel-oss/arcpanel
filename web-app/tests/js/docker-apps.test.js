@@ -14,7 +14,6 @@ import {
 	generateSecret,
 	isAppName,
 	mergeLogs,
-	mergeTask,
 	shownValue,
 	varError,
 } from '../../resources/js/islands/docker-apps/model.js';
@@ -135,12 +134,6 @@ describe('status, catalog and logs', () => {
 		const more = mergeLogs(first, { lines: [{ text: 'c' }], next: 't3' }, 't2', 2);
 		expect(more).toEqual({ lines: [{ text: 'b' }, { text: 'c' }], next: 't3' });
 		expect(mergeLogs(more, { lines: [], next: '' }, 't3').next).toBe('t3');
-	});
-
-	it('appends task output read after an offset', () => {
-		const first = mergeTask({}, { status: 'running', log: 'one\n', offset: 4 }, 0);
-		expect(first.log).toBe('one\n');
-		expect(mergeTask(first, { status: 'done', log: 'two\n', offset: 8 }, 4)).toEqual({ status: 'done', log: 'one\ntwo\n', offset: 8 });
 	});
 
 	it('formats sizes', () => {

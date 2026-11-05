@@ -186,12 +186,6 @@ export function mergeLogs(view, answer, since, max = 2000) {
 	return { lines: lines.slice(-max), next: answer.next || view.next || '' };
 }
 
-/** Task output: a read from 0 replaces it, a later read is appended */
-export function mergeTask(previous, answer, offset) {
-	const log = offset === 0 ? answer.log : `${previous.log ?? ''}${answer.log ?? ''}`;
-	return { ...answer, log };
-}
-
 /** MB as "512 MB" or "1.5 GB" */
 export function formatMb(mb) {
 	const value = Number(mb) || 0;

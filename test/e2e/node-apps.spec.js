@@ -153,7 +153,8 @@ test('deleting the apps restores the domains', async ({ page }) => {
 		await page.getByRole('button', { name: 'Delete the app' }).click();
 		const dialog = page.getByRole('dialog', { name: 'Delete the app' });
 		await dialog.getByRole('button', { name: 'Delete', exact: true }).click();
-		await expect(page).toHaveURL(new RegExp(`/node/${DEV}/apps$`));
+		// The delete stops the app and rebuilds the domain before it answers
+		await expect(page).toHaveURL(new RegExp(`/node/${DEV}/apps$`), { timeout: 30_000 });
 		await expect.poll(() => https(domain).body, { timeout: 60_000 }).not.toContain('arce2e-');
 	}
 	await expect(page.getByText('No Node.js app yet.')).toBeVisible();

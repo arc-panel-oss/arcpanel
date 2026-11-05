@@ -1,16 +1,14 @@
 <script setup>
 // A task of a Docker app or of the engine (install, update, rollback,
-// snapshot): its state and its output, read after a byte offset every 2
-// seconds while it runs.
+// snapshot), since E15 a docker.* job: its state and its output, read from
+// the job route after a byte offset every 2 seconds while it runs.
 import { onBeforeUnmount, ref, watch } from 'vue';
 import ApBadge from '../shared/ApBadge.vue';
+import { fetchJobTask, jobFetcher } from '../shared/job-task.js';
 import { createTaskPoller } from '../shared/task-poller.js';
-import { mergeTask } from './model.js';
 
 const props = defineProps({
 	api: { type: Object, required: true },
-	/** GET path of the task, without ?offset */
-	path: { type: String, required: true },
 	task: { type: Object, required: true },
 	label: { type: String, required: true },
 	t: { type: Function, required: true },
@@ -21,11 +19,10 @@ const t = props.t;
 const current = ref({ ...props.task });
 const open = ref(Boolean(props.task.running));
 
+const fetchJob = jobFetcher(() => current.value);
 const poller = createTaskPoller({
 	fetchTask: async () => {
-		const offset = Number(current.value.offset) || 0;
-		const answer = (await props.api.call('GET', `${props.path}?offset=${offset}`)).task;
-		current.value = mergeTask(current.value, answer, offset);
+		current.value = await fetchJob();
 		return current.value;
 	},
 	onFinish: (task) => emit('finish', task),
@@ -41,7 +38,7 @@ function toggle() {
 
 async function load() {
 	try {
-		current.value = (await props.api.call('GET', `${props.path}?offset=0`)).task;
+		current.value = await fetchJobTask(current.value, 0);
 	} catch {
 		// shown as it came with the page
 	}

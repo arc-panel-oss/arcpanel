@@ -144,13 +144,6 @@ final class AppProcessController extends Controller
         return response()->json($this->processes->logs($user, $domain, $name, (string) ($data['stream'] ?? 'process'), $offset, (int) ($data['lines'] ?? 200)));
     }
 
-    public function task(string $user, Principal $principal, AppProcessPolicy $policy): JsonResponse
-    {
-        abort_unless($policy->view($principal, $user), 403);
-
-        return response()->json(['task' => $this->processes->task($user)?->toArray()]);
-    }
-
     public function startTask(Request $request, string $user, string $domain, string $name, Principal $principal, AppProcessPolicy $policy): JsonResponse
     {
         abort_unless($policy->manage($principal, $user), 403);

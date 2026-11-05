@@ -161,14 +161,6 @@ final class DockerAppController extends Controller
             isset($data['since']) ? (string) $data['since'] : null, (int) ($data['lines'] ?? 200)));
     }
 
-    public function task(Request $request, string $user, string $name, Principal $principal, DockerPolicy $policy): JsonResponse
-    {
-        abort_unless($policy->viewApps($principal, $user), 403);
-        $offset = (int) ($request->validate(['offset' => ['nullable', 'integer', 'min:0']])['offset'] ?? 0);
-
-        return response()->json(['task' => $this->apps->task($user, $name, $offset)->toArray()]);
-    }
-
     public function startTask(Request $request, string $user, string $name, Principal $principal, DockerPolicy $policy): JsonResponse
     {
         $data = $request->validate([

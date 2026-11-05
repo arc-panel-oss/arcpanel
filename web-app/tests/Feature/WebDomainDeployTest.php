@@ -272,21 +272,24 @@ it('reports a refused command on the tab', function () {
 
 // Logs and live state
 
-it('answers the log of a deploy task of the domain only', function () {
+it('reads the log of a deploy from the job route, for the domain owner only (E15)', function () {
     fakeJobs($this->fake, [
         jobRecord('17617400001234', ['TYPE' => 'deploy.run', 'OBJECT' => 'deploy:example.com', 'ARGS' => 'v-run-web-domain-deploy bob example.com pull main',
             'QUEUED' => '2026-10-29 14:24:58', 'START' => '2026-10-29 14:24:58', 'END' => '2026-10-29 14:26:10', 'CLASS' => 'deploy', 'RETRYABLE' => 'no',
             'LOG' => "2026-10-29 14:24:58 fetching main\n2026-10-29 14:26:10 release 20261029-142501 is live\n"]),
-        jobRecord('17617400002222', ['LOG' => 'x']),
+        jobRecord('17617400002222', ['USER' => 'carol', 'OWNER' => 'admin', 'OBJECT' => 'deploy:carol.example', 'LOG' => 'x']),
     ]);
     signIn('bob', 'user');
 
-    $this->getJson(DEPLOY_BASE.'/tasks/17617400001234')->assertOk()
-        ->assertJsonPath('task.status', 'succeeded')->assertJsonPath('lines.1', '2026-10-29 14:26:10 release 20261029-142501 is live');
-    $this->getJson(DEPLOY_BASE.'/tasks/17617400002222')->assertNotFound();
+    $this->getJson('/jobs/17617400001234/status')->assertOk()
+        ->assertJsonPath('task.status', 'succeeded')->assertJsonPath('task.log', "2026-10-29 14:24:58 fetching main\n2026-10-29 14:26:10 release 20261029-142501 is live\n");
+    $this->getJson('/jobs/17617400002222/status')->assertNotFound();
+    // the routes of the tab before E15 are gone
+    $this->getJson(DEPLOY_BASE.'/tasks/17617400001234')->assertNotFound();
+    $this->getJson(DEPLOY_BASE.'/state')->assertNotFound();
 });
 
-it('answers the running deploy with its log, for the live view', function () {
+it('follows the running deploy on the job route, for the live view (E15)', function () {
     $this->fake->on('v-list-web-domain-deploy')->returnsJson(['example.com' => deployActive(['RUNNING' => '17617400007777'])]);
     $this->fake->on('v-list-web-domain-deploys')->returnsJson(deployHistory());
     fakeJobs($this->fake, [jobRecord('17617400007777', ['TYPE' => 'deploy.run', 'OBJECT' => 'deploy:example.com',
@@ -295,6 +298,7 @@ it('answers the running deploy with its log, for the live view', function () {
         'LOG' => "2026-10-29 14:51:02 fetching main\n"])]);
     signIn('bob', 'user');
 
-    $this->getJson(DEPLOY_BASE.'/state')->assertOk()->assertJsonPath('running', true)->assertJsonPath('lines.0', '2026-10-29 14:51:02 fetching main');
-    $this->get(DEPLOY_TAB)->assertOk()->assertSee('A deploy is running')->assertSee('apDeploy(', false);
+    $this->get(DEPLOY_TAB)->assertOk()->assertSee('A deploy is running')->assertSee('apDeploy(', false)
+        ->assertSee('17617400007777', false)->assertSee('2026-10-29 14:51:02 fetching main')
+        ->assertDontSee('deploy/state', false);
 });

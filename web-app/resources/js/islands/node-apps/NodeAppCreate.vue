@@ -4,6 +4,7 @@
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import ApIcon from '../shared/ApIcon.vue';
 import { translator } from '../shared/strings.js';
+import { jobFetcher } from '../shared/job-task.js';
 import { createTaskPoller } from '../shared/task-poller.js';
 import { appUrl, createApi, fieldErrors } from './api.js';
 import { composeStart, defaultName, isAppName, isRelativePath, isStart, templateFor } from './model.js';
@@ -118,7 +119,8 @@ async function create() {
 }
 
 const poller = createTaskPoller({
-	fetchTask: async () => (await api.call('GET', `/${encodeURIComponent(created.value.domain)}`)).task,
+	// The node.build or node.npm job of the task, on the job route (E15 §6.2)
+	fetchTask: jobFetcher(() => task.value),
 	onUpdate: (value) => {
 		task.value = value;
 	},

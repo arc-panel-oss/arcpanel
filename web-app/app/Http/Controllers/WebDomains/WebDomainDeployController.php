@@ -11,7 +11,6 @@ use App\Services\Deploy\DeployRules;
 use App\Services\Deploy\DeployService;
 use App\Services\Tasks\TaskService;
 use App\Services\WebDomains\WebDomainService;
-use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
@@ -182,31 +181,6 @@ final class WebDomainDeployController extends Controller
         }
 
         return $this->back($user, $domain)->with('ok', __('Git Deploy is off.'));
-    }
-
-    /** GET deploy/tasks/{task}: a deploy task of the domain and its log, for the drawer. */
-    public function task(string $user, string $domain, string $task, Principal $principal, WebDomainPolicy $policy, TaskService $tasks): JsonResponse
-    {
-        abort_unless($policy->viewDeploy($principal, $user), 403);
-        $this->web->find($user, $domain);
-        $row = $this->readTask($tasks, $user, $domain, $task);
-        abort_if($row === null, 404);
-
-        return response()->json($row);
-    }
-
-    /** GET deploy/state: whether a deploy runs, with its log, for the live view. */
-    public function state(string $user, string $domain, Principal $principal, WebDomainPolicy $policy, TaskService $tasks): JsonResponse
-    {
-        abort_unless($policy->viewDeploy($principal, $user), 403);
-        $this->web->find($user, $domain);
-        $running = (string) ($this->deploy->config($user, $domain)['RUNNING'] ?? '');
-        $row = $running !== '' ? $this->readTask($tasks, $user, $domain, $running) : null;
-        if ($row === null) {
-            return response()->json(['running' => false, 'task' => null, 'lines' => []]);
-        }
-
-        return response()->json(['running' => in_array($row['task']['status'], ['running', 'queued'], true)] + $row);
     }
 
     /**

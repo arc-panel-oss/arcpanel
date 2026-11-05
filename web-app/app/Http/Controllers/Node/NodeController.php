@@ -100,15 +100,6 @@ final class NodeController extends Controller
         return response()->json($this->node->packages($user, $version));
     }
 
-    public function task(Request $request, string $user, Principal $principal, NodePolicy $policy): JsonResponse
-    {
-        abort_unless($policy->view($principal, $user), 403);
-        $request->validate(['lines' => ['nullable', 'integer', 'min:1', 'max:1000']]);
-        $lines = $request->integer('lines') ?: 100;
-
-        return response()->json(['task' => $this->node->task($user, $lines)->toArray()]);
-    }
-
     public function enable(string $user, Principal $principal, NodePolicy $policy): JsonResponse
     {
         abort_unless($policy->manage($principal, $user), 403);

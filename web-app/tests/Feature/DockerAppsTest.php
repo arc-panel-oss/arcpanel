@@ -188,7 +188,6 @@ it('reads logs with a cursor and task output with an offset', function () {
         'LINES' => [['TIME' => '2026-10-05T10:00:00.1Z', 'SERVICE' => 'app', 'TEXT' => 'ready']], 'NEXT' => '2026-10-05T10:00:00.1Z',
     ]);
     $this->fake->on('v-list-docker-app-logs', ['bob', 'kuma', 'app', '2026-10-05T10:00:00.1Z', '50', 'json'])->returnsJson(['LINES' => [], 'NEXT' => '']);
-    $this->fake->on('v-list-docker-app-task', ['bob', 'kuma', '120', 'json'])->returnsJson(dockerTask(['STATUS' => 'running', 'LOG' => 'pulling', 'OFFSET' => '127']));
 
     $this->getJson('/docker/bob/api/apps/kuma/logs')->assertOk()
         ->assertJsonPath('lines.0', ['time' => '2026-10-05T10:00:00.1Z', 'service' => 'app', 'text' => 'ready'])
@@ -196,10 +195,8 @@ it('reads logs with a cursor and task output with an offset', function () {
     $this->getJson('/docker/bob/api/apps/kuma/logs?service=app&since=2026-10-05T10:00:00.1Z&lines=50')->assertOk()->assertJsonPath('lines', []);
     $this->getJson('/docker/bob/api/apps/kuma/logs?since=yesterday')->assertUnprocessable();
     $this->getJson('/docker/bob/api/apps/kuma/logs?service=../x')->assertUnprocessable();
-    $this->getJson('/docker/bob/api/apps/kuma/task?offset=120')->assertOk()
-        ->assertJsonPath('task.running', true)
-        ->assertJsonPath('task.log', 'pulling')
-        ->assertJsonPath('task.offset', 127);
+    // E15: the panels follow the docker.* job on jobs.status; the task route is gone
+    $this->getJson('/docker/bob/api/apps/kuma/task?offset=120')->assertNotFound();
 });
 
 it('offers the free domains of an account', function () {

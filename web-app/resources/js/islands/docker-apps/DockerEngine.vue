@@ -127,9 +127,9 @@ async function finished(value) {
 				</div>
 			</div>
 
-			<DockerTaskPanel v-if="taskPlace === 'main'" :api="api" path="/task" :task="task" :label="t('Installing the Docker engine…')" :t="t" @finish="finished" />
+			<DockerTaskPanel v-if="taskPlace === 'main'" :api="api" :task="task" :label="t('Installing the Docker engine…')" :t="t" @finish="finished" />
 			<div v-else-if="taskPlace === 'last'" class="ap-docker-last">
-				<DockerTaskPanel :api="api" path="/task" :task="task" :label="t('Last installation')" :t="t" @finish="finished" />
+				<DockerTaskPanel :api="api" :task="task" :label="t('Last installation')" :t="t" @finish="finished" />
 			</div>
 		</section>
 

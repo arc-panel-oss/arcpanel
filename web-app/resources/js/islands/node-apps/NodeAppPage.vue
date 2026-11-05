@@ -7,6 +7,7 @@ import ApBadge from '../shared/ApBadge.vue';
 import ApDialog from '../shared/ApDialog.vue';
 import ApIcon from '../shared/ApIcon.vue';
 import { translator } from '../shared/strings.js';
+import { jobFetcher } from '../shared/job-task.js';
 import { createTaskPoller } from '../shared/task-poller.js';
 import AppEnv from './AppEnv.vue';
 import AppLogs from './AppLogs.vue';
@@ -80,7 +81,8 @@ async function act(action) {
 }
 
 const poller = createTaskPoller({
-	fetchTask: async () => (await api.call('GET', path.value)).task,
+	// The node.build or node.npm job of the task, on the job route (E15 §6.2)
+	fetchTask: jobFetcher(() => task.value),
 	onUpdate: (value) => {
 		task.value = value;
 	},

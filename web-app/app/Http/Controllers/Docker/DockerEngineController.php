@@ -7,7 +7,6 @@ use App\Http\Controllers\Controller;
 use App\Policies\DockerPolicy;
 use App\Services\Docker\DockerEngineService;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Http\Request;
 use Illuminate\View\View;
 
 /**
@@ -71,13 +70,5 @@ final class DockerEngineController extends Controller
         $id = $this->engine->startInstall();
 
         return response()->json(['id' => $id, 'task' => $this->engine->task()->toArray()], 202);
-    }
-
-    public function task(Request $request, Principal $principal, DockerPolicy $policy): JsonResponse
-    {
-        abort_unless($policy->manageEngine($principal), 403);
-        $offset = (int) ($request->validate(['offset' => ['nullable', 'integer', 'min:0']])['offset'] ?? 0);
-
-        return response()->json(['task' => $this->engine->task($offset)->toArray()]);
     }
 }

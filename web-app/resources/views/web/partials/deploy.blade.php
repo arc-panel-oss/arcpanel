@@ -51,7 +51,7 @@
     $ciBranch = collect($cfg['PUBLISHERS'] ?? [])->map(fn ($p) => preg_replace('#^refs/heads/#', '', (string) ($p['REF'] ?? '')))->filter()->first() ?: 'main';
 @endphp
 
-<div class="ap-stack" x-data="apDeploy({ stateUrl: @js(route('web.domains.deploy.state', $base)), taskUrl: @js(route('web.domains.deploy.task', $base + ['task' => '00000000000000'])), running: @js($running !== null), lines: @js($running['lines'] ?? []) })">
+<div class="ap-stack" x-data="apDeploy({ job: @js($running !== null ? substr((string) $running['task']['id'], 4) : ''), running: @js($running !== null), lines: @js($running['lines'] ?? []) })">
     @if ($once !== null)
         {{-- A reload must not post the form again --}}
         <div x-data x-init="history.replaceState(null, '', {{ json_encode(route('web.domains.edit', $base).'#deploy') }})"></div>

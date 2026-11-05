@@ -502,7 +502,6 @@ Route::middleware('auth.arc')->group(function () {
         Route::prefix('api')->name('api.')->group(function () {
             Route::get('/', [AppProcessController::class, 'index'])->name('index');
             Route::get('/options', [AppProcessController::class, 'options'])->name('options');
-            Route::get('/task', [AppProcessController::class, 'task'])->name('task');
             Route::get('/{domain}/{name}', [AppProcessController::class, 'show'])->name('show');
             Route::get('/{domain}/{name}/env', [AppProcessController::class, 'env'])->name('env');
             Route::get('/{domain}/{name}/logs', [AppProcessController::class, 'logs'])->name('logs');
@@ -537,7 +536,6 @@ Route::middleware('auth.arc')->group(function () {
             Route::prefix('api')->name('api.')->group(function () {
                 Route::get('/overview', [NodeController::class, 'overview'])->name('overview');
                 Route::get('/releases', [NodeController::class, 'releases'])->name('releases');
-                Route::get('/task', [NodeController::class, 'task'])->name('task');
                 Route::get('/versions/{version}/packages', [NodeController::class, 'packages'])->name('packages');
                 Route::middleware('not-readonly')->group(function () {
                     Route::post('/enable', [NodeController::class, 'enable'])->name('enable');
@@ -583,7 +581,6 @@ Route::middleware('auth.arc')->group(function () {
     Route::get('/server/docker', [DockerEngineController::class, 'page'])->name('server.docker');
     Route::prefix('server/docker/api')->name('server.docker.api.')->group(function () {
         Route::get('/status', [DockerEngineController::class, 'status'])->name('status');
-        Route::get('/task', [DockerEngineController::class, 'task'])->name('task');
         Route::post('/install', [DockerEngineController::class, 'install'])->middleware('not-readonly')->name('install');
     });
     Route::prefix('docker/{user}')->name('docker.')->middleware('effective-user')->group(function () {
@@ -599,7 +596,6 @@ Route::middleware('auth.arc')->group(function () {
             Route::get('/apps/{name}', [DockerAppController::class, 'show'])->name('apps.show');
             Route::get('/apps/{name}/env', [DockerAppController::class, 'env'])->name('apps.env');
             Route::get('/apps/{name}/logs', [DockerAppController::class, 'logs'])->name('apps.logs');
-            Route::get('/apps/{name}/task', [DockerAppController::class, 'task'])->name('apps.task');
             Route::middleware('not-readonly')->group(function () {
                 Route::post('/apps', [DockerAppController::class, 'store'])->name('apps.store');
                 Route::delete('/apps/{name}', [DockerAppController::class, 'destroy'])->name('apps.destroy');
@@ -852,9 +848,7 @@ Route::middleware('auth.arc')->group(function () {
             Route::get('/install', [QuickInstallController::class, 'index'])->name('install');
             Route::get('/install/{app}', [QuickInstallController::class, 'form'])->where('app', '[A-Za-z][A-Za-z0-9]{0,63}')->name('install.form');
             Route::post('/install/{app}', [QuickInstallController::class, 'start'])->where('app', '[A-Za-z][A-Za-z0-9]{0,63}')->middleware('not-readonly')->name('install.start');
-            // Git Deploy (E20 §7): the state of the tab and the log of a deploy task
-            Route::get('/deploy/state', [WebDomainDeployController::class, 'state'])->name('deploy.state');
-            Route::get('/deploy/tasks/{task}', [WebDomainDeployController::class, 'task'])->where('task', '\d{14}')->name('deploy.task');
+            // Git Deploy (E20 §7): the tab follows its deploy jobs on jobs.status (E15 §6.2)
 
             Route::middleware('not-readonly')->group(function () {
                 foreach (['general', 'ssl', 'redirect', 'advanced', 'ftp', 'stats'] as $tab) {

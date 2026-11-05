@@ -215,7 +215,7 @@ onBeforeUnmount(() => clearTimeout(timer));
 					<ApIcon name="info" />
 					<div class="ap-alert-body"><p>{{ app.postInstall }}</p></div>
 				</div>
-				<DockerTaskPanel :api="api" :path="appPath(app.name, '/task')" :task="task" :label="taskLabels[task.action] || t('Task')" :t="t" @finish="taskFinished" />
+				<DockerTaskPanel :api="api" :task="task" :label="taskLabels[task.action] || t('Task')" :t="t" @finish="taskFinished" />
 				<div class="ap-table-wrap">
 					<table class="ap-table">
 						<caption class="sr-only">{{ t('Services') }}</caption>

@@ -9,6 +9,7 @@ import ApBadge from '../shared/ApBadge.vue';
 import ApDialog from '../shared/ApDialog.vue';
 import ApIcon from '../shared/ApIcon.vue';
 import { translator } from '../shared/strings.js';
+import { jobFetcher } from '../shared/job-task.js';
 import { createTaskPoller } from '../shared/task-poller.js';
 import { isPackageName, isPackageSpec, quickPackages, releaseStatus, taskLabel } from './model.js';
 
@@ -112,7 +113,8 @@ async function loadPackages() {
 }
 
 const poller = createTaskPoller({
-	fetchTask: async () => (await call('GET', '/task')).task,
+	// The node.* job of the task, on the job route (E15 §6.2)
+	fetchTask: jobFetcher(() => task.value),
 	onUpdate: (value) => {
 		task.value = value;
 	},

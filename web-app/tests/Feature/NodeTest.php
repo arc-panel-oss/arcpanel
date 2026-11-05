@@ -110,15 +110,9 @@ it('reports a running task with the error contract', function () {
         ->assertJsonPath('error.message', 'Error: Another Node.js task is running for bob');
 });
 
-it('reads the task with its log', function () {
+it('has no task route: the page follows the node.* job on jobs.status (E15)', function () {
     signIn('bob', 'user');
-    $this->fake->on('v-list-user-node-task', ['bob', '50', 'json'])->returnsJson(nodeTask('bob',
-        ['ID' => '1', 'ACTION' => 'add-package', 'ARGS' => '24.21.0 pm2', 'STATUS' => 'running', 'LOG' => "Installing pm2\nadded 1 package"]));
-
-    $this->getJson('/node/bob/api/task?lines=50')->assertOk()
-        ->assertJsonPath('task.running', true)
-        ->assertJsonPath('task.log', "Installing pm2\nadded 1 package");
-    $this->getJson('/node/bob/api/task?lines=5000')->assertUnprocessable();
+    $this->getJson('/node/bob/api/task?lines=50')->assertNotFound();
 });
 
 it('changes the default, uninstalls and enables', function () {

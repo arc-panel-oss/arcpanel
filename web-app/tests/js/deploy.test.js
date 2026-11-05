@@ -1,11 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { data, jsonResponse, mount, unmount } from './helpers.js';
 
-// apDeploy: the live log of a running deploy and the log drawer of the Deploy tab (E20 §7).
+// apDeploy: the live log of a running deploy and the log drawer of the Deploy
+// tab (E20 §7), both read from the job route of the Job Center (E15 §6.2).
 
 const markup = (running) => `
-<div id="deploy" x-data="apDeploy({ stateUrl: '/web/domains/bob/example.com/deploy/state',
-	taskUrl: '/web/domains/bob/example.com/deploy/tasks/00000000000000', running: ${running}, lines: ['10:00:00 fetching main'] })">
+<div id="deploy" x-data="apDeploy({ job: '${running ? '17617400007777' : ''}', running: ${running}, lines: ['10:00:00 fetching main'] })">
 	<pre id="live" x-text="lines.join('\\n')"></pre>
 	<button id="open" x-on:click="openLog('17617400001234', 'Deployed a1b2c3d')">Log</button>
 	<div id="drawer"><template x-for="(line, index) in drawer.lines" :key="index"><div class="line" x-text="line"></div></template>
@@ -33,17 +33,24 @@ const deploy = () => data(document.getElementById('deploy'));
 
 describe('apDeploy', () => {
 	it('follows the log of a running deploy and reloads the page when it ends', async () => {
-		fetchMock = vi.fn(async () => jsonResponse({ running: true, lines: ['10:00:00 fetching main', '10:00:05 running the laravel preset'] }));
+		fetchMock = vi.fn(async () =>
+			jsonResponse({ task: { status: 'running', finished: false, log: '10:00:00 fetching main\n10:00:05 running the laravel preset\n', offset: 60 } }),
+		);
 		vi.stubGlobal('fetch', fetchMock);
 		mount(markup(true));
 		expect(document.getElementById('live').textContent).toBe('10:00:00 fetching main');
 
 		await vi.advanceTimersByTimeAsync(2000);
-		expect(fetchMock).toHaveBeenCalledWith('/web/domains/bob/example.com/deploy/state', expect.objectContaining({ method: 'GET' }));
+		expect(fetchMock).toHaveBeenCalledWith('/jobs/17617400007777/status', expect.objectContaining({ method: 'GET' }));
 		expect(document.getElementById('live').textContent).toBe('10:00:00 fetching main\n10:00:05 running the laravel preset');
 		expect(reload).not.toHaveBeenCalled();
 
-		fetchMock.mockImplementation(async () => jsonResponse({ running: false, lines: [] }));
+		fetchMock.mockImplementation(async () => jsonResponse({ task: { status: 'running', finished: false, log: '10:00:09 release is live\n', offset: 85 } }));
+		await vi.advanceTimersByTimeAsync(2000);
+		expect(fetchMock).toHaveBeenLastCalledWith('/jobs/17617400007777/status?offset=60', expect.anything());
+		expect(deploy().lines).toEqual(['10:00:00 fetching main', '10:00:05 running the laravel preset', '10:00:09 release is live']);
+
+		fetchMock.mockImplementation(async () => jsonResponse({ task: { status: 'succeeded', finished: true, log: '', offset: 85 } }));
 		await vi.advanceTimersByTimeAsync(2000);
 		await vi.advanceTimersByTimeAsync(1500);
 		expect(reload).toHaveBeenCalledTimes(1);
@@ -61,13 +68,13 @@ describe('apDeploy', () => {
 	});
 
 	it('loads the log of a task into the drawer', async () => {
-		fetchMock = vi.fn(async () => jsonResponse({ task: { status: 'succeeded' }, lines: ['14:24:58 fetching main', '14:26:10 release is live'] }));
+		fetchMock = vi.fn(async () => jsonResponse({ task: { status: 'succeeded', finished: true, log: '14:24:58 fetching main\n14:26:10 release is live\n', offset: 50 } }));
 		vi.stubGlobal('fetch', fetchMock);
 		mount(markup(false));
 
 		document.getElementById('open').click();
 		await vi.advanceTimersByTimeAsync(0);
-		expect(fetchMock).toHaveBeenCalledWith('/web/domains/bob/example.com/deploy/tasks/17617400001234', expect.anything());
+		expect(fetchMock).toHaveBeenCalledWith('/jobs/17617400001234/status', expect.anything());
 		expect([...document.querySelectorAll('#drawer .line')].map((el) => el.textContent)).toEqual(['14:24:58 fetching main', '14:26:10 release is live']);
 		expect(deploy().drawer.title).toBe('Deployed a1b2c3d');
 		expect(deploy().drawer.loading).toBe(false);
