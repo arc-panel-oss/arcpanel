@@ -1,0 +1,99 @@
+#!/bin/bash
+# info: add an alert channel to a scope (E16)
+# options: SCOPE NAME TYPE [TARGET] [SECRET_FILE]
+#
+# example: v-add-alert-channel system 'Ops mail' email ops@example.com
+# example: v-add-alert-channel alice 'My chat' telegram 123456789 /tmp/token
+# example: v-add-alert-channel system 'Ops room' slack '' /tmp/webhook
+#
+# This function adds a channel to SCOPE (system or a user) and prints its
+# ID. TYPE is email (TARGET: one to five addresses, separated by commas),
+# telegram (TARGET: the chat id; SECRET_FILE: the bot token), slack, discord
+# or mattermost (SECRET_FILE: the incoming-webhook URL). The secret is read
+# from SECRET_FILE, which is deleted, and stored as /arcpanel/alerts/ID in
+# the secret store of the scope's user (the administrator for system); it
+# is never printed again. The panel channel of a scope exists by itself.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+scope=$1
+name=$2
+type=$3
+target=${4-}
+secret_file=${5-}
+
+# Includes
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/secret.sh
+source $ARCPANEL/func/secret.sh
+# shellcheck source=/usr/local/arcpanel/func/alerts.sh
+source $ARCPANEL/func/alerts.sh
+# load config file
+source_conf "$ARCPANEL/conf/arcpanel.conf"
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '3' "$#" 'SCOPE NAME TYPE [TARGET] [SECRET_FILE]'
+alerts_check_scope "$scope"
+alerts_check_channel_name "$name"
+if ! alerts_channel_type_valid "$type" || [ "$type" = 'panel' ]; then
+	check_result "$E_INVALID" "invalid channel type :: $type (email, telegram, slack, discord or mattermost)"
+fi
+alerts_check_target "$type" "$target"
+if alerts_type_has_secret "$type"; then
+	if [ -z "$secret_file" ]; then
+		check_result "$E_ARGS" "a $type channel needs SECRET_FILE"
+	fi
+	secret_check_system
+elif [ -n "$secret_file" ]; then
+	check_result "$E_INVALID" "a $type channel takes no secret"
+fi
+
+# Perform verification if read-only mode is enabled
+check_arcpanel_demo_mode
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+if alerts_type_has_secret "$type"; then
+	alerts_read_secret_file "$type" "$secret_file"
+fi
+
+alerts_check_lock
+if [ "$scope" != 'system' ]; then
+	alerts_user_defaults "$scope"
+fi
+alerts_panel_channel "$scope" > /dev/null
+file=$(alerts_channels_file "$scope")
+if [ "$(alerts_channel_ids "$scope" | wc -l)" -ge "$ALERTS_CHANNELS_MAX" ]; then
+	check_result "$E_LIMIT" "scope $scope has reached the limit of $ALERTS_CHANNELS_MAX channels"
+fi
+id=$(alerts_new_id "$file")
+secret=''
+if alerts_type_has_secret "$type"; then
+	alerts_store_secret "$scope" "$id" "$name"
+	secret=$(alerts_secret_name "$id")
+fi
+CH=([ID]=$id [NAME]=$name [TYPE]=$type [TARGET]=$target [SECRET]=$secret [ENABLED]=yes [STATUS]='' [FAILS]=0)
+alerts_channel_write "$scope"
+alerts_unlock
+
+echo "$id"
+
+#----------------------------------------------------------#
+#                         ArcPanel                         #
+#----------------------------------------------------------#
+
+alerts_log_action "$scope" "Alert channel added (Name: $name, Type: $type)."
+log_event "$OK" "$ARGUMENTS"
+
+exit

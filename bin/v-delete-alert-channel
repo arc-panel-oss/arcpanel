@@ -1,0 +1,86 @@
+#!/bin/bash
+# info: delete an alert channel of a scope (E16)
+# options: SCOPE ID
+#
+# example: v-delete-alert-channel system 17940000001234
+#
+# This function deletes channel ID of SCOPE with its secret, removes it from
+# the rules of the scope and drops its waiting deliveries. The panel channel
+# cannot be deleted.
+
+#----------------------------------------------------------#
+#                Variables & Functions                     #
+#----------------------------------------------------------#
+
+# Argument definition
+scope=$1
+id=$2
+
+# Includes
+# shellcheck source=/etc/arcpanel/arcpanel.conf
+source /etc/arcpanel/arcpanel.conf
+# shellcheck source=/usr/local/arcpanel/func/main.sh
+source $ARCPANEL/func/main.sh
+# shellcheck source=/usr/local/arcpanel/func/secret.sh
+source $ARCPANEL/func/secret.sh
+# shellcheck source=/usr/local/arcpanel/func/alerts.sh
+source $ARCPANEL/func/alerts.sh
+# load config file
+source_conf "$ARCPANEL/conf/arcpanel.conf"
+
+#----------------------------------------------------------#
+#                    Verifications                         #
+#----------------------------------------------------------#
+
+check_args '2' "$#" 'SCOPE ID'
+alerts_check_scope "$scope"
+if ! alerts_channel_exists "$scope" "$id"; then
+	check_result "$E_NOTEXIST" "channel $id does not exist in scope $scope"
+fi
+alerts_channel_read "$scope" "$id"
+if [ "${CH[TYPE]}" = 'panel' ]; then
+	check_result "$E_FORBIDEN" "the panel channel cannot be deleted"
+fi
+name=${CH[NAME]}
+
+# Perform verification if read-only mode is enabled
+check_arcpanel_demo_mode
+
+#----------------------------------------------------------#
+#                       Action                             #
+#----------------------------------------------------------#
+
+alerts_check_lock
+if [ -n "${CH[SECRET]}" ]; then
+	alerts_remove_secret "$scope" "$id"
+fi
+alerts_line_put "$(alerts_channels_file "$scope")" "ID='$id' " ''
+
+# The rules of the scope lose the channel
+rules=$(alerts_rules_file "$scope")
+if [ -f "$rules" ]; then
+	while IFS= read -r line; do
+		alerts_parse "$line" RL
+		channels=",${RL[CHANNELS]},"
+		[[ "$channels" == *",$id,"* ]] || continue
+		channels=${channels//,$id,/,}
+		channels=${channels#,}
+		RL[CHANNELS]=${channels%,}
+		alerts_rule_write "$scope"
+	done < <(grep -F "$id" "$rules")
+fi
+
+# Its waiting deliveries
+for file in "$ALERTS_DIR"/outbox/*-"$id"-*.json; do
+	[ -f "$file" ] && rm -f "$file"
+done
+alerts_unlock
+
+#----------------------------------------------------------#
+#                         ArcPanel                         #
+#----------------------------------------------------------#
+
+alerts_log_action "$scope" "Alert channel deleted (Name: $name)."
+log_event "$OK" "$ARGUMENTS"
+
+exit

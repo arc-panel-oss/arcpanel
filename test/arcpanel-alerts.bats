@@ -671,3 +671,259 @@ setup() {
     assert_file_not_exists "$AD/history/2020-01.jsonl"
     assert_file_exists "$AD/history/$(date +%Y-%m).jsonl"
 }
+
+#----------------------------------------------------------#
+#                        Channels                          #
+#----------------------------------------------------------#
+
+@test "Channels: v-add-alert-channel validates the type, target and secret" {
+    run v-add-alert-channel system Ops sms ''
+    assert_failure 2
+    run v-add-alert-channel system Ops panel ''
+    assert_failure 2
+    run v-add-alert-channel system "Ops'mail" email ops@example.invalid
+    assert_failure 2
+    run v-add-alert-channel system Ops email ''
+    assert_failure 2
+    run v-add-alert-channel system Ops email 'a@example.com,b@example.com,c@example.com,d@example.com,e@example.com,f@example.com'
+    assert_failure 2
+    run v-add-alert-channel system Ops email 'not-an-address'
+    assert_failure 2
+    run v-add-alert-channel system Ops telegram 'chat 1' "$(secret_file 123456:ABCDEFGHIJKLMNOPQRSTUVWXYZ012345)"
+    assert_failure 2
+    run v-add-alert-channel system Ops telegram 123456789
+    assert_failure 1
+    run v-add-alert-channel system Ops telegram 123456789 "$(secret_file not-a-token)"
+    assert_failure 2
+    run v-add-alert-channel system Ops slack '' "$(secret_file 'ftp://hooks.example.invalid/x')"
+    assert_failure 2
+    run v-add-alert-channel system Ops slack 'target' "$(secret_file "$URL/slack")"
+    assert_failure 2
+    run v-add-alert-channel system Ops email ops@example.invalid "$(secret_file x)"
+    assert_failure 2
+    run v-add-alert-channel nosuchuser Ops email ops@example.invalid
+    assert_failure 3
+    run v-list-alert-channels system json
+    assert_equal "$(jq 'length' <<< "$output")" 1
+    rm -f /root/arcpanel-alerts-secret.*
+}
+
+@test "Channels: the secret goes to the scope's secret store and is never shown again" {
+    token='123456789:AAbbCCddEEffGGhhIIjjKKllMMnnOOppQQr'
+    file=$(secret_file "$token")
+    run v-add-alert-channel system 'Ops chat' telegram -1001234567 "$file"
+    assert_success
+    id=$output
+    assert_regex "$id" '^[0-9]{14}$'
+    assert_file_not_exists "$file"
+    run v-list-alert-channels system json
+    assert_equal "$(jq -r --arg id "$id" '.[$id] | [.NAME, .TYPE, .TARGET, .ENABLED, .SECRET_SET] | join("|")' <<< "$output")" "Ops chat|telegram|-1001234567|yes|yes"
+    refute_output --partial "$token"
+    refute_output --partial 'arcpanel/alerts'
+    run grep -rF "$token" "$AD"
+    assert_failure
+    run v-list-user-secret-store "$ROOT_USER" json
+    assert_output --partial "/arcpanel/alerts/$id"
+    # A user's channel uses the user's store
+    run v-add-alert-channel "$USR" Hook slack '' "$(secret_file "$URL/hooks/user")"
+    assert_success
+    uid=$output
+    run v-list-user-secret-store "$USR" json
+    assert_output --partial "/arcpanel/alerts/$uid"
+    run v-list-user-secret-store "$ROOT_USER" json
+    refute_output --partial "/arcpanel/alerts/$uid"
+    run grep -c "ID='$uid'" "$ARCPANEL/data/users/$USR/alerts/channels.conf"
+    assert_output 1
+}
+
+@test "Channels: Slack, Discord, Mattermost and Telegram messages reach the stub in their formats" {
+    s=$(add_channel system Slack slack '' "$URL/hooks/slack")
+    d=$(add_channel system Discord discord '' "$URL/api/webhooks/1/discord")
+    m=$(add_channel system MM mattermost '' "$URL/hooks/mm")
+    t=$(add_channel system TG telegram 4242 '123456789:AAbbCCddEEffGGhhIIjjKKllMMnnOOppQQr')
+    only_rule system service.down '' '' 0 '' 1440 "$s,$d,$m,$t" > /dev/null
+    echo '{"nginx": {"STATE": "stopped"}}' > "$FIX/services"
+    export ALERTS_TELEGRAM_API=$URL
+    run engine 0
+    assert_success
+    assert_equal "$(requests | wc -l)" 4
+    assert_equal "$(requests | jq -r 'select(.path == "/hooks/slack") | .body | fromjson | .text' | head -n1)" "[CRITICAL] Service down: service:nginx on $HOST"
+    assert_equal "$(requests | jq -r 'select(.path == "/api/webhooks/1/discord") | .body | fromjson | .content | split("\n")[0]')" "[CRITICAL] Service down: service:nginx on $HOST"
+    assert_equal "$(requests | jq -r 'select(.path == "/hooks/mm") | .body | fromjson | has("text")')" true
+    tg=$(requests | jq -c 'select(.path | startswith("/bot"))')
+    assert_equal "$(jq -r .path <<< "$tg")" "/bot123456789:AAbbCCddEEffGGhhIIjjKKllMMnnOOppQQr/sendMessage"
+    assert_equal "$(jq -r '.body | fromjson | [.chat_id, .parse_mode] | join(" ")' <<< "$tg")" "4242 HTML"
+    assert_equal "$(jq -r '.body | fromjson | .text | split("\n")[0]' <<< "$tg")" "<b>[CRITICAL] Service down: service:nginx on $HOST</b>"
+    assert_equal "$(history | jq -r 'select(.event == "fired") | [.deliveries[].result] | join(",")')" "sent,sent,sent,sent"
+    run v-list-alert-channels system json
+    assert_equal "$(jq -r --arg id "$s" '.[$id] | [.STATUS, .FAILS] | join(" ")' <<< "$output")" "ok 0"
+    assert_regex "$(jq -r --arg id "$s" '.[$id].LAST_SENT' <<< "$output")" '^20[0-9]{2}-'
+}
+
+@test "Channels: Telegram escapes HTML; email goes through the mailer" {
+    t=$(add_channel system TG telegram 4242 '123456789:AAbbCCddEEffGGhhIIjjKKllMMnnOOppQQr')
+    e=$(add_channel system Mail email 'ops@example.invalid,noc@example.invalid')
+    only_rule system ports.orphan '' '' 0 '' 1440 "$t,$e" > /dev/null
+    echo '{"FINDINGS": [{"TYPE": "a<b>&c"}]}' > "$FIX/ports"
+    export ALERTS_TELEGRAM_API=$URL ALERTS_SENDMAIL=$STUB/mail.sh
+    run engine 0
+    assert_success
+    run jq -r '.body | fromjson | .text' "$STUB/requests.jsonl"
+    assert_output --partial '1 a&lt;b&gt;&amp;c'
+    run grep -c '^TO ' "$STUB/mail.log"
+    assert_output 2
+    run grep '^TO ' "$STUB/mail.log"
+    assert_line "TO ops@example.invalid SUBJECT [WARNING] Port registry findings: system on $HOST"
+    assert_line --partial 'TO noc@example.invalid'
+    run grep -c 'a&lt;b&gt;&amp;c' "$STUB/mail.log"
+    assert_output 2
+    # A mailer that says ERROR is a failed delivery
+    touch "$STUB/mail-fail"
+    run v-test-alert-channel system "$e"
+    assert_failure 15
+    assert_output --partial 'mail to ops@example.invalid failed: mail not sent: stub refused'
+}
+
+@test "Channels: a failed delivery waits in the outbox, is retried three times and dropped" {
+    s=$(add_channel system Slack slack '' "$URL/hooks/slack")
+    only_rule system service.down '' '' 0 '' 1440 "$s" > /dev/null
+    echo '{"nginx": {"STATE": "stopped"}}' > "$FIX/services"
+    echo 500 > "$STUB/code"
+    run engine 0
+    assert_equal "$(history | jq -r 'select(.event == "fired") | .deliveries[0] | [.result, .error] | join(" ")')" "failed HTTP 500: stub says no"
+    assert_equal "$(ls "$AD"/outbox/*.json | wc -l)" 1
+    run engine 1
+    run engine 2
+    assert_equal "$(ls "$AD"/outbox/*.json | wc -l)" 1
+    run engine 3
+    assert_equal "$(ls "$AD"/outbox/ | wc -l)" 0
+    assert_equal "$(history | jq -r 'select(.event == "delivery") | .deliveries[0].result')" dropped
+    assert_equal "$(requests | wc -l)" 4
+    run v-list-alert-channels system json
+    assert_equal "$(jq -r --arg id "$s" '.[$id] | [.STATUS, .FAILS, .ENABLED] | join("|")' <<< "$output")" "HTTP 500: stub says no|4|yes"
+    # A retry that succeeds empties the outbox and resets the failures
+    echo '{"nginx": {"STATE": "stopped"}, "exim4": {"STATE": "stopped"}}' > "$FIX/services"
+    run engine 4
+    assert_equal "$(ls "$AD"/outbox/*.json | wc -l)" 1
+    echo 200 > "$STUB/code"
+    run engine 5
+    assert_equal "$(ls "$AD"/outbox/ | wc -l)" 0
+    assert_equal "$(history | jq -r 'select(.event == "delivery") | .deliveries[0].result' | tail -n1)" sent
+    run v-list-alert-channels system json
+    assert_equal "$(jq -r --arg id "$s" '.[$id] | [.STATUS, .FAILS] | join("|")' <<< "$output")" "ok|0"
+}
+
+@test "Channels: ten failures in a row turn a channel off and the panel channel says so" {
+    s=$(add_channel system Slack slack '' "$URL/hooks/slack")
+    only_rule system service.down '' '' 0 '' 1440 "$s" > /dev/null
+    lib "alerts_lock; alerts_channel_set system $s FAILS=9; alerts_unlock"
+    echo '{"nginx": {"STATE": "stopped"}}' > "$FIX/services"
+    echo 502 > "$STUB/code"
+    run engine 0
+    run v-list-alert-channels system json
+    assert_equal "$(jq -r --arg id "$s" '.[$id] | [.ENABLED, .FAILS] | join(" ")' <<< "$output")" "no 10"
+    run notice_texts
+    assert_output --partial 'Alert channel Slack disabled'
+    # A disabled channel is skipped; turning it on clears the count
+    echo '{"nginx": {"STATE": "stopped"}, "exim4": {"STATE": "stopped"}}' > "$FIX/services"
+    run engine 1
+    assert_equal "$(history | jq -r 'select(.object == "service:exim4") | .deliveries[0].result')" skipped
+    run v-change-alert-channel system "$s" Slack yes
+    assert_success
+    run v-list-alert-channels system json
+    assert_equal "$(jq -r --arg id "$s" '.[$id] | [.ENABLED, .FAILS] | join(" ")' <<< "$output")" "yes 0"
+}
+
+@test "Channels: v-test-alert-channel sends now and reports the result" {
+    s=$(add_channel system Slack slack '' "$URL/hooks/slack")
+    run v-test-alert-channel system "$s"
+    assert_success
+    assert_output ok
+    assert_equal "$(requests | jq -r '.body | fromjson | .text | split("\n")[0]')" "Test message from ArcPanel on $(hostname -f)"
+    v-change-alert-channel system "$s" Slack no > /dev/null
+    echo 404 > "$STUB/code"
+    run v-test-alert-channel system "$s" json
+    assert_failure 15
+    assert_equal "$(jq -r '[.RESULT, .ERROR] | join("|")' <<< "$output")" "failed|HTTP 404: stub says no"
+    run v-list-alert-channels system json
+    assert_equal "$(jq -r --arg id "$s" '.[$id] | [.STATUS, .FAILS, .ENABLED] | join("|")' <<< "$output")" "HTTP 404: stub says no|0|no"
+    assert_equal "$(history | jq -r 'select(.event == "test") | .deliveries[0].result' | xargs)" "sent failed"
+    run v-test-alert-channel system "$(panel_id)"
+    assert_success
+    run v-test-alert-channel system 12345678901234
+    assert_failure 3
+    # A dead endpoint fails within the time limit
+    stop_stub
+    run v-test-alert-channel system "$s"
+    assert_failure 15
+    assert_output --partial 'connection failed'
+    refute_output --partial "$URL/hooks/slack"
+    start_stub
+}
+
+@test "Channels: v-change-alert-channel keeps or replaces the secret; the panel channel takes no target" {
+    s=$(add_channel system Slack slack '' "$URL/hooks/one")
+    run v-change-alert-channel system "$s" 'Slack two' yes
+    assert_success
+    v-test-alert-channel system "$s" > /dev/null
+    assert_equal "$(requests | jq -r .path)" /hooks/one
+    run v-change-alert-channel system "$s" 'Slack two' yes '' "$(secret_file "$URL/hooks/two")"
+    assert_success
+    v-test-alert-channel system "$s" > /dev/null
+    assert_equal "$(requests | jq -r .path | tail -n1)" /hooks/two
+    run v-change-alert-channel system "$s" 'Slack two' yes '' "$(secret_file 'not a url')"
+    assert_failure 2
+    run v-change-alert-channel system "$s" 'Slack two' maybe
+    assert_failure 2
+    run v-change-alert-channel system "$(panel_id)" 'Panel' yes 'x@example.invalid'
+    assert_failure 2
+    run v-change-alert-channel system "$(panel_id)" 'Our panel' yes
+    assert_success
+    e=$(add_channel system Mail email ops@example.invalid)
+    run v-change-alert-channel system "$e" Mail yes 'noc@example.invalid'
+    assert_success
+    run v-list-alert-channels system json
+    assert_equal "$(jq -r --arg id "$e" '.[$id].TARGET' <<< "$output")" noc@example.invalid
+    assert_equal "$(jq -r --arg id "$s" '.[$id].NAME' <<< "$output")" 'Slack two'
+}
+
+@test "Channels: v-delete-alert-channel removes the secret, the rules' reference and the outbox" {
+    s=$(add_channel system Slack slack '' "$URL/hooks/slack")
+    p=$(panel_id)
+    only_rule system service.down '' '' 0 '' 1440 "$p,$s" > /dev/null
+    echo '{"nginx": {"STATE": "stopped"}}' > "$FIX/services"
+    echo 500 > "$STUB/code"
+    run engine 0
+    assert_equal "$(ls "$AD"/outbox/*.json | wc -l)" 1
+    run v-delete-alert-channel system "$s"
+    assert_success
+    assert_equal "$(ls "$AD"/outbox/ | wc -l)" 0
+    run v-list-alert-rules system json
+    assert_equal "$(jq -r '."service.down".CHANNELS' <<< "$output")" "$p"
+    run v-list-user-secret-store "$ROOT_USER" json
+    refute_output --partial "/arcpanel/alerts/$s"
+    run v-delete-alert-channel system "$p"
+    assert_failure 10
+    run v-delete-alert-channel system "$s"
+    assert_failure 3
+}
+
+@test "Channels: the token never appears on a command line or in a log" {
+    token='987654321:ZZyyXXwwVVuuTTssRRqqPPooNNmmLLkkJJi'
+    t=$(add_channel system TG telegram 4242 "$token")
+    echo 3 > "$STUB/delay"
+    ALERTS_TELEGRAM_API=$URL v-test-alert-channel system "$t" > /dev/null &
+    pid=$!
+    seen=0
+    for _ in $(seq 1 20); do
+        if ps -eo args | grep -v grep | grep -qF "${token#*:}"; then
+            seen=1
+        fi
+        sleep 0.1
+    done
+    wait "$pid"
+    assert_equal "$seen" 0
+    assert_equal "$(requests | wc -l)" 1
+    run grep -rF "${token#*:}" "$ARCPANEL/log/alerts.log" "$ARCPANEL/log/system.log" "$ARCPANEL/log/error.log"
+    assert_failure
+}
