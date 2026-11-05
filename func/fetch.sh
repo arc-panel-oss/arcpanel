@@ -16,7 +16,7 @@
 #===========================================================================#
 
 FETCH_HELPER="$ARCPANEL/func/fetch.php"
-FETCH_KEYS="ID URL DIR NAME ON_CONFLICT PRIVATE STATUS BYTES TOTAL ERROR HTTP CREATED START END UNIT PID TEMP"
+FETCH_KEYS="ID URL DIR NAME ON_CONFLICT PRIVATE STATUS BYTES TOTAL ERROR HTTP CREATED START END UNIT PID TEMP JOB"
 # Fetches that run at once per account, and that wait or run at most (D8)
 FETCH_RUNNING_MAX=3
 FETCH_ACTIVE_MAX=20
@@ -170,25 +170,39 @@ fetch_now() {
 #                         Queue                            #
 #----------------------------------------------------------#
 
+# shellcheck source=/usr/local/arcpanel/func/job.sh
+source "$ARCPANEL/func/job.sh"
+
 fetch_unit() {
 	echo "arcpanel-fetch-$1-$2"
 }
 
-# Whether the runner of a running fetch is still there
+# Whether the runner of a running fetch is still there: its job (E15), or
+# the process of a fetch started before the jobs
 fetch_alive() {
-	local user=$1 id=$2 pid
+	local user=$1 id=$2 pid job
+	job=$(fetch_get "$user" "$id" JOB)
+	if [ -n "$job" ]; then
+		job_reap_one "$job" > /dev/null 2>&1
+		case "$(job_get "$job" STATUS)" in
+			queued | running) return 0 ;;
+			*) return 1 ;;
+		esac
+	fi
 	pid=$(fetch_get "$user" "$id" PID)
 	[ -n "$pid" ] && [ -r "/proc/$pid/cmdline" ] && tr '\0' ' ' < "/proc/$pid/cmdline" 2> /dev/null | grep -q "v-run-fs-fetch $user $id"
 }
 
-# Starts the runner of a queued fetch (the queue lock is held)
+# Starts the runner of a queued fetch as a job of type fs.fetch (E15); the
+# record keeps the job ID (the queue lock is held)
 fetch_launch() {
 	local user=$1 id=$2
 	fetch_set "$user" "$id" STATUS=running "START=$(fetch_now)" "UNIT=$(fetch_unit "$user" "$id")"
-	# Detached: new session, no descriptor shared with the caller, so the
-	# panel's request returns at once and the fetch survives it
-	setsid "$BIN/v-run-fs-fetch" "$user" "$id" < /dev/null > /dev/null 2>&1 {FETCH_QUEUE_LOCK}>&- &
-	fetch_set "$user" "$id" "PID=$!"
+	if job_start fs.fetch "$user" "fetch:$user:$id" "$(job_default_actor)" -- v-run-fs-fetch "$user" "$id"; then
+		fetch_set "$user" "$id" "JOB=$JOB_ID" PID=
+	else
+		fetch_set "$user" "$id" STATUS=failed ERROR=internal "END=$(fetch_now)"
+	fi
 }
 
 # Starts the oldest queued fetches while fewer than FETCH_RUNNING_MAX run

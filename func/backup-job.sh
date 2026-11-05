@@ -16,7 +16,11 @@ BJ_DIR="$ARCPANEL/data/backup/jobs"
 BJ_RUNS="$ARCPANEL/data/backup/runs"
 BJ_SLOTS="$ARCPANEL/data/backup/slots"
 BJ_SCHEDULE_HELPER="$ARCPANEL/func/backup-schedule.php"
-BJ_RUN_KEYS=(RUN TRIGGER STATUS START END USERS DONE FAILED SKIPPED PID)
+
+# A whole run starts as a job (E15)
+# shellcheck source=/usr/local/arcpanel/func/job.sh
+source "$ARCPANEL/func/job.sh"
+BJ_RUN_KEYS=(RUN TRIGGER STATUS START END USERS DONE FAILED SKIPPED PID JOB)
 BJ_RUN_KEEP=50
 
 #----------------------------------------------------------#
@@ -583,15 +587,13 @@ bj_json() {
 #                  Starting and notices                    #
 #----------------------------------------------------------#
 
-# Start a whole run of job ID in the background (TRIGGER schedule or request)
+# Start a whole run of job ID in the background (TRIGGER schedule or
+# request) as a job of type backup.job (E15); the run line records it (JOB)
 bj_start_detached() {
-	local id="$1" trigger="$2"
-	if command -v systemd-run > /dev/null 2>&1 && [ -d /run/systemd/system ]; then
-		systemd-run --unit "arcpanel-backup-job-$id-$(date +%s)" --collect --quiet \
-			--setenv=HOME=/root --property=Nice=10 \
-			"$BIN/v-run-backup-job" "$id" '' "$trigger" > /dev/null 2>&1 && return 0
-	fi
-	setsid nohup "$BIN/v-run-backup-job" "$id" '' "$trigger" > /dev/null 2>&1 < /dev/null &
+	local id="$1" trigger="$2" actor
+	actor=$(job_default_actor)
+	[ "$trigger" = schedule ] && actor=cron
+	job_start backup.job system "backup-job:$id" "$actor" -- v-run-backup-job "$id" '' "$trigger"
 }
 
 # Administrators of the server, one per line

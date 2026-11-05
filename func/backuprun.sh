@@ -128,17 +128,19 @@ br_on_exit() {
 # br_begin USER ENGINE: record a running run of this process and finish it
 # when the process exits. The command sets BR_ARCHIVE and BR_SIZE once the
 # archive exists, and BR_ERROR for a failure that does not go through
-# check_result. TRIGGER is `request` under v-run-queue-task (QT_TASK_ID),
-# `schedule` under the nightly loops (ARC_BACKUP_TRIGGER), else `cli`.
+# check_result. TRIGGER is `request` in a job of the backup queue (E15,
+# JOB_ID; TASK is the job ID), `schedule` under the nightly loops
+# (ARC_BACKUP_TRIGGER), else `cli`. The runs of a backup job (E48) run in
+# a backup.job job and are not requests.
 br_begin() {
 	local trigger=cli task=''
 	BR_USER=$1
 	BR_ERROR=
 	BR_ARCHIVE=
 	BR_SIZE=
-	if [ -n "${QT_TASK_ID-}" ]; then
+	if [[ "${JOB_ID-}" =~ ^[0-9]{14}$ ]] && [ -z "${ARC_BACKUP_JOB_RUN-}" ]; then
 		trigger=request
-		task=$QT_TASK_ID
+		task=$JOB_ID
 	elif [ "${ARC_BACKUP_TRIGGER-}" = schedule ]; then
 		trigger=schedule
 	fi

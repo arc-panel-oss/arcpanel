@@ -21774,6 +21774,8 @@ paths:
         This function shows the last task started with v-start-app-process-task:
         its id, domain, process, task, STATUS (running, done or failed), exit
         code and times. A running task whose process is gone is shown as failed.
+        Since E15 it reads the newest app-process.* job of USER; deprecated in
+        2.7.0 (read the job with v-list-job), removed in 2.8.
 
         **Arguments**
 
@@ -23388,7 +23390,9 @@ paths:
         ACTION, ARGS, STATUS, EXIT, START, END) and its output after byte OFFSET
         (default 0, at most 256 KB) with the next OFFSET. STATUS is running, done
         or failed; a running task whose process is gone is reported, and stored,
-        as failed. Without a task, STATUS is empty.
+        as failed. Without a task, STATUS is empty. Since E15 it reads the newest
+        docker.* job of the app; deprecated in 2.7.0 (read the job with
+        v-list-job), removed in 2.8.
 
         **Arguments**
 
@@ -26249,7 +26253,8 @@ paths:
         EXIT, START, END) and its output after byte OFFSET (default 0, at most
         256 KB) with the next OFFSET. STATUS is running, done or failed; a running
         task whose process is gone is reported as failed. Without a task, STATUS
-        is empty.
+        is empty. Since E15 it reads the newest docker.engine job; deprecated in
+        2.7.0 (read the job with v-list-job), removed in 2.8.
 
         **Arguments**
 
@@ -29495,7 +29500,9 @@ paths:
         END) of the scan started by v-start-user-malware-scan and the last LINES
         lines of its output (default 100, at most 1000). STATUS is running, done
         or failed; a running task whose process is gone is reported, and stored,
-        as failed. Without a task, STATUS is empty.
+        as failed. Without a task, STATUS is empty. Since E15 it reads the newest
+        malware.scan job of USER; deprecated in 2.7.0 (read the job with
+        v-list-job), removed in 2.8.
 
         **Arguments**
 
@@ -29550,6 +29557,8 @@ paths:
         START, END) and the last LINES lines of its output (default 100, at most
         1000). STATUS is running, done or failed; a running task whose process is
         gone is reported, and stored, as failed. Without a task, STATUS is empty.
+        Since E15 it reads the newest node.* job of USER; deprecated in 2.7.0
+        (read the job with v-list-job), removed in 2.8.
 
         **Arguments**
 
@@ -30077,6 +30086,8 @@ paths:
         START, END) and the last LINES lines of its output (default 100, at most
         1000). STATUS is running, done or failed; a running task whose process is
         gone is reported, and stored, as failed. Without a task, STATUS is empty.
+        Since E15 it reads the newest quick-install job of USER; deprecated in
+        2.7.0 (read the job with v-list-job), removed in 2.8.
 
         **Arguments**
 
@@ -30387,11 +30398,12 @@ paths:
         - Users
       summary: List the tasks of a user
       description: |-
-        This function prints the queue-task records of USER, newest first, or
-        one record. LOG is the last LINES lines of the task log (default 100,
-        at most 1000). A record that is still queued but whose line is gone
-        from every queue is stored as failed. ATTEMPTS counts the runs of a
-        task that the queue retries.
+        This function prints the queue tasks of USER, newest first, or one task:
+        since E15 the jobs of the backup, restore, letsencrypt and deploy types,
+        in the format of the old records (KIND, ARGS). LOG is the last LINES lines
+        of the job log (default 100, at most 1000). ATTEMPTS counts the runs of a
+        task that the queue retries. Deprecated in 2.7.0 (v-list-job,
+        v-list-jobs); removed in 2.8.
 
         **Arguments**
 
@@ -35006,9 +35018,10 @@ paths:
         - App processes
       summary: Run a one-off task of an app process (E42)
       description: |-
-        This function is started by v-start-app-process-task and runs the task in
-        the foreground as the user, appending its output to
-        app-process/logs/task.log of the domain, then records the exit code. COMMAND
+        This function is the command of the app-process.TASK job that
+        v-start-app-process-task starts (E15) and runs the task in the foreground
+        as the user, writing its output to app-process/logs/task.log of the domain
+        (its end is copied to the job log), then exits with its code. COMMAND
         is base64, for the custom task. The task runs in a transient unit in the
         user's slice with the limits of the process (E39 W5 N24), so it shares the
         package's resources and stops with all its children. Not meant to be called
@@ -35018,15 +35031,14 @@ paths:
 
         | Field | Option | Required |
         | --- | --- | --- |
-        | `arg1` | `ID` | yes |
-        | `arg2` | `USER` | yes |
-        | `arg3` | `DOMAIN` | yes |
-        | `arg4` | `NAME` | yes |
-        | `arg5` | `TASK` | yes |
-        | `arg6` | `COMMAND` | no |
+        | `arg1` | `USER` | yes |
+        | `arg2` | `DOMAIN` | yes |
+        | `arg3` | `NAME` | yes |
+        | `arg4` | `TASK` | yes |
+        | `arg5` | `COMMAND` | no |
 
-        **User argument:** with the access key of a user other than the admin, `arg2` must be the key's user.
-      x-arcpanel-user-arg: 2
+        **User argument:** with the access key of a user other than the admin, `arg1` must be the key's user.
+      x-arcpanel-user-arg: 1
       requestBody:
         required: true
         content:
@@ -35171,22 +35183,21 @@ paths:
         - Docker
       summary: Run a Docker app task started by v-start-docker-app-task (E4)
       description: |-
-        This function is the background part of v-start-docker-app-task: it runs
-        the task and records its result. It refuses to run a task that
-        v-start-docker-app-task did not start.
+        This function is the command of the docker.ACTION jobs that
+        v-start-docker-app-task and v-add-docker-app start (E15): it runs the task;
+        the job runner records the result. It refuses to run outside such a job.
 
         **Arguments**
 
         | Field | Option | Required |
         | --- | --- | --- |
-        | `arg1` | `ID` | yes |
-        | `arg2` | `USER` | yes |
-        | `arg3` | `NAME` | yes |
-        | `arg4` | `ACTION` | yes |
-        | `arg5` | `VERSION` | no |
+        | `arg1` | `USER` | yes |
+        | `arg2` | `NAME` | yes |
+        | `arg3` | `ACTION` | yes |
+        | `arg4` | `VERSION` | no |
 
-        **User argument:** with the access key of a user other than the admin, `arg2` must be the key's user.
-      x-arcpanel-user-arg: 2
+        **User argument:** with the access key of a user other than the admin, `arg1` must be the key's user.
+      x-arcpanel-user-arg: 1
       requestBody:
         required: true
         content:
@@ -35426,66 +35437,6 @@ paths:
           $ref: "#/components/responses/InvalidRequest"
         "422":
           $ref: "#/components/responses/Unprocessable"
-  "/api/#v-run-queue-task":
-    post:
-      operationId: v-run-queue-task
-      tags:
-        - System
-      summary: Run a queued command and record its result
-      description: |-
-        This function runs one command that a v-schedule-* script queued. The
-        record must exist and be queued. The command's output is appended to the
-        task log and also written to standard output, so the redirection on the
-        queue line (>> $ARCPANEL/log/backup.log and the others) still receives it.
-
-        When the command fails and its line is still in the pipe, the record is
-        queued again (ERROR, ATTEMPTS) and the next pass of the queue retries it,
-        as the queue did before the records, up to QUEUE_MAX_ATTEMPTS runs
-        (default 3); then the line is removed and the record fails. A failed
-        record carries the reason from its log in ERROR. A line whose record is
-        missing or finished is removed without running anything.
-
-        **Arguments**
-
-        | Field | Option | Required |
-        | --- | --- | --- |
-        | `arg1` | `USER` | yes |
-        | `arg2` | `ID` | yes |
-        | `arg3` | `--` | yes |
-        | `arg4` | `COMMAND` | yes |
-        | `arg5` | `ARG…` | no |
-
-        **User argument:** with the access key of a user other than the admin, `arg1` must be the key's user.
-      x-arcpanel-user-arg: 1
-      requestBody:
-        required: true
-        content:
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: "#/components/schemas/v-run-queue-task"
-          application/json:
-            schema:
-              $ref: "#/components/schemas/v-run-queue-task"
-      responses:
-        "200":
-          description: "The output of the command; `OK` for an empty output with legacy authentication."
-          headers:
-            ArcPanel-Exit-Code:
-              $ref: "#/components/headers/ArcPanel-Exit-Code"
-          content:
-            text/plain:
-              schema:
-                type: string
-        "204":
-          $ref: "#/components/responses/NoContent"
-        "400":
-          $ref: "#/components/responses/BadRequest"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "405":
-          $ref: "#/components/responses/InvalidRequest"
-        "422":
-          $ref: "#/components/responses/Unprocessable"
   "/api/#v-run-sys-arcpanel-autoupdate":
     post:
       operationId: v-run-sys-arcpanel-autoupdate
@@ -35541,16 +35492,15 @@ paths:
         - System
       summary: Run the Docker engine task started by v-start-sys-docker-task (E4)
       description: |-
-        This function is the background part of v-start-sys-docker-task: it runs
-        v-add-sys-docker and records the result. It refuses to run a task that
-        v-start-sys-docker-task did not start.
+        This function is the command of the docker.engine job that
+        v-start-sys-docker-task starts (E15): it runs v-add-sys-docker; the job
+        runner records the result. It refuses to run outside such a job.
 
         **Arguments**
 
         | Field | Option | Required |
         | --- | --- | --- |
-        | `arg1` | `ID` | yes |
-        | `arg2` | `DATA_ROOT` | no |
+        | `arg1` | `DATA_ROOT` | no |
       requestBody:
         required: true
         content:
@@ -35634,21 +35584,20 @@ paths:
         - Users
       summary: Run a Node.js task started by v-start-user-node-task (E13)
       description: |-
-        This function is the background part of v-start-user-node-task: it runs
-        the command of the task and records its result. It refuses to run a task
-        that v-start-user-node-task did not start.
+        This function is the command of the node.* jobs that v-start-user-node-task
+        starts (E15): it runs the command of the task; the job runner records the
+        result. It refuses to run outside such a job.
 
         **Arguments**
 
         | Field | Option | Required |
         | --- | --- | --- |
-        | `arg1` | `ID` | yes |
-        | `arg2` | `USER` | yes |
-        | `arg3` | `ACTION` | yes |
-        | `arg4`…`arg13` | `ARGS` | no |
+        | `arg1` | `USER` | yes |
+        | `arg2` | `ACTION` | yes |
+        | `arg3`…`arg13` | `ARGS` | no |
 
-        **User argument:** with the access key of a user other than the admin, `arg2` must be the key's user.
-      x-arcpanel-user-arg: 2
+        **User argument:** with the access key of a user other than the admin, `arg1` must be the key's user.
+      x-arcpanel-user-arg: 1
       requestBody:
         required: true
         content:
@@ -35685,22 +35634,22 @@ paths:
         - Users
       summary: Run a Quick Install started by v-start-user-quick-install (E7 batch 2)
       description: |-
-        This function is the background part of v-start-user-quick-install: it
-        runs v-add-web-domain-app with the staged options, removes them on every
-        exit path and records the result. It refuses to run a task that
-        v-start-user-quick-install did not start.
+        This function is the command of the quick-install jobs that
+        v-start-user-quick-install starts (E15): it runs v-add-web-domain-app with
+        the options of the job's request; the job runner records the result and
+        removes the request when the install succeeds. It refuses to run outside
+        such a job.
 
         **Arguments**
 
         | Field | Option | Required |
         | --- | --- | --- |
-        | `arg1` | `ID` | yes |
-        | `arg2` | `USER` | yes |
-        | `arg3` | `DOMAIN` | yes |
-        | `arg4` | `APP` | yes |
+        | `arg1` | `USER` | yes |
+        | `arg2` | `DOMAIN` | yes |
+        | `arg3` | `APP` | yes |
 
-        **User argument:** with the access key of a user other than the admin, `arg2` must be the key's user.
-      x-arcpanel-user-arg: 2
+        **User argument:** with the access key of a user other than the admin, `arg1` must be the key's user.
+      x-arcpanel-user-arg: 1
       requestBody:
         required: true
         content:
@@ -35743,8 +35692,10 @@ paths:
         one rename, reloads PHP-FPM and the domain's app processes, checks the
         health path (a failure switches back), and prunes old releases. A
         rollback task switches to an existing release. A failed step leaves
-        current where it was. The runner unit started by v-schedule-web-domain-deploy
-        calls it through v-run-queue-task; it is not meant to be called directly.
+        current where it was. It is the command of the deploy.run and
+        deploy.rollback jobs (E15) that v-schedule-web-domain-deploy and
+        v-rollback-web-domain-deploy start, and refuses to run outside such a job;
+        ACTION is archive, pull (VALUE: the ref) or rollback (VALUE: the release).
 
         **Arguments**
 
@@ -35752,7 +35703,8 @@ paths:
         | --- | --- | --- |
         | `arg1` | `USER` | yes |
         | `arg2` | `DOMAIN` | yes |
-        | `arg3` | `TASK` | yes |
+        | `arg3` | `ACTION` | yes |
+        | `arg4` | `VALUE` | no |
 
         **User argument:** with the access key of a user other than the admin, `arg1` must be the key's user.
       x-arcpanel-user-arg: 1
@@ -36730,7 +36682,8 @@ paths:
         One task runs at a time per user, for at most 30 minutes; its output goes
         to app-process/logs/task.log of the domain. After a successful install a
         running process is reloaded. It prints the id of the task; follow it with
-        v-list-app-process-task and v-list-app-process-logs ... task.
+        v-list-app-process-task and v-list-app-process-logs ... task. Since E15
+        the task is a job of type app-process.TASK and the ID is the job ID.
 
         **Arguments**
 
@@ -37021,9 +36974,10 @@ paths:
         - System
       summary: Install the Docker engine in the background (E4)
       description: |-
-        This function starts v-add-sys-docker detached from the caller, for the
-        admin Docker page, and prints the task ID. The state and the output are
-        read with v-list-sys-docker-task. One engine task runs at a time.
+        This function starts v-add-sys-docker as a job of type docker.engine (E15),
+        for the admin Docker page, and prints the job ID. The state and the output
+        are read with v-list-job or v-list-sys-docker-task. One engine task (or
+        system task) runs at a time.
 
         **Arguments**
 
@@ -37135,9 +37089,9 @@ paths:
       summary: Start a malware scan of a user in the background (E25)
       description: |-
         This function starts a full v-scan-user-web of one web domain, or of every
-        web domain of the user when DOMAIN is empty, detached from the caller, and
-        prints the task ID. One scan per user runs at a time; the state and the
-        output are read with v-list-user-malware-task.
+        web domain of the user when DOMAIN is empty, as a job of type malware.scan
+        (E15), and prints the job ID. One scan per user runs at a time; the state
+        and the output are read with v-list-job or v-list-user-malware-task.
 
         **Arguments**
 
@@ -37189,7 +37143,9 @@ paths:
         (SPEC), add-package (VERSION SPEC), update-packages (VERSION) or
         check-outdated (VERSION), app-install (DOMAIN) or app-build (DOMAIN
         [SCRIPT]) for a Node.js app (E14). A user runs one task at a time; the
-        state and the output are read with v-list-user-node-task.
+        state and the output are read with v-list-job or v-list-user-node-task.
+        Since E15 the task is a job of type node.install, node.npm or node.build
+        (OBJECT node:USER) in the user's slice and the ID is the job ID.
 
         **Arguments**
 
@@ -37238,10 +37194,10 @@ paths:
       summary: Start a Quick Install of an application on a web domain in the background (E7 batch 2)
       description: |-
         This function checks the arguments of a Quick Install, keeps a root-only
-        copy of the options (a JSON object, at most 64 KiB), starts
-        v-add-web-domain-app detached from the caller and prints the task ID. A
-        user runs one install at a time; the state and the output are read with
-        v-list-user-quick-install-task.
+        copy of the options (a JSON object, at most 64 KiB) as the request of a
+        job of type quick-install (E15) that runs v-add-web-domain-app, and prints
+        the job ID. A user runs one install at a time; the state and the output
+        are read with v-list-job or v-list-user-quick-install-task.
 
         **Arguments**
 
@@ -65436,7 +65392,6 @@ components:
             - arg2
             - arg3
             - arg4
-            - arg5
           properties:
             cmd:
               type: string
@@ -65445,35 +65400,29 @@ components:
               default: v-run-app-process-task
             arg1:
               type: string
-              title: ID
-              description: "`ID`"
-              examples:
-                - "17606214250042"
-            arg2:
-              type: string
               title: USER
               description: "`USER`"
               examples:
                 - alice
-            arg3:
+            arg2:
               type: string
               title: DOMAIN
               description: "`DOMAIN`"
               examples:
                 - shop.example.com
-            arg4:
+            arg3:
               type: string
               title: NAME
               description: "`NAME`"
               examples:
                 - web
-            arg5:
+            arg4:
               type: string
               title: TASK
               description: "`TASK`"
               examples:
                 - migrate
-            arg6:
+            arg5:
               type: string
               title: COMMAND
               description: "`COMMAND`, optional"
@@ -65617,7 +65566,6 @@ components:
             - arg1
             - arg2
             - arg3
-            - arg4
           properties:
             cmd:
               type: string
@@ -65626,29 +65574,23 @@ components:
               default: v-run-docker-app-task
             arg1:
               type: string
-              title: ID
-              description: "`ID`"
-              examples:
-                - "17286400001234"
-            arg2:
-              type: string
               title: USER
               description: "`USER`"
               examples:
                 - alice
-            arg3:
+            arg2:
               type: string
               title: NAME
               description: "`NAME`"
               examples:
                 - status
-            arg4:
+            arg3:
               type: string
               title: ACTION
               description: "`ACTION`"
               examples:
                 - install
-            arg5:
+            arg4:
               type: string
               title: VERSION
               description: "`VERSION`, optional"
@@ -65767,54 +65709,6 @@ components:
                 - api.example.com
             returncode:
               $ref: "#/components/schemas/ReturnCode"
-    v-run-queue-task:
-      allOf:
-        - $ref: "#/components/schemas/Credentials"
-        - type: object
-          required:
-            - cmd
-            - arg1
-            - arg2
-            - arg3
-            - arg4
-          properties:
-            cmd:
-              type: string
-              enum:
-                - v-run-queue-task
-              default: v-run-queue-task
-            arg1:
-              type: string
-              title: USER
-              description: "`USER`"
-              examples:
-                - admin
-            arg2:
-              type: string
-              title: ID
-              description: "`ID`"
-              examples:
-                - "17280000001234"
-            arg3:
-              type: string
-              title: "--"
-              description: "`--`"
-              examples:
-                - "--"
-            arg4:
-              type: string
-              title: COMMAND
-              description: "`COMMAND`"
-              examples:
-                - /usr/local/arcpanel/bin/v-backup-user
-            arg5:
-              type: string
-              title: "ARG…"
-              description: "`ARG…`, optional"
-              examples:
-                - admin
-            returncode:
-              $ref: "#/components/schemas/ReturnCode"
     v-run-sys-arcpanel-autoupdate:
       allOf:
         - $ref: "#/components/schemas/Credentials"
@@ -65835,7 +65729,6 @@ components:
         - type: object
           required:
             - cmd
-            - arg1
           properties:
             cmd:
               type: string
@@ -65843,12 +65736,6 @@ components:
                 - v-run-sys-docker-task
               default: v-run-sys-docker-task
             arg1:
-              type: string
-              title: ID
-              description: "`ID`"
-              examples:
-                - "17286400001234"
-            arg2:
               type: string
               title: DATA_ROOT
               description: "`DATA_ROOT`, optional"
@@ -65957,7 +65844,6 @@ components:
             - cmd
             - arg1
             - arg2
-            - arg3
           properties:
             cmd:
               type: string
@@ -65966,28 +65852,28 @@ components:
               default: v-run-user-node-task
             arg1:
               type: string
-              title: ID
-              description: "`ID`"
-              examples:
-                - "17286400001234"
-            arg2:
-              type: string
               title: USER
               description: "`USER`"
               examples:
                 - alice
-            arg3:
+            arg2:
               type: string
               title: ACTION
               description: "`ACTION`"
               examples:
                 - add-version
-            arg4:
+            arg3:
               type: string
               title: ARGS
               description: "`ARGS`, repeatable, optional"
               examples:
                 - lts
+            arg4:
+              type: string
+              title: ARGS
+              description: "`ARGS`, repeatable, optional"
+              examples:
+                - ""
             arg5:
               type: string
               title: ARGS
@@ -66053,7 +65939,6 @@ components:
             - arg1
             - arg2
             - arg3
-            - arg4
           properties:
             cmd:
               type: string
@@ -66062,23 +65947,17 @@ components:
               default: v-run-user-quick-install
             arg1:
               type: string
-              title: ID
-              description: "`ID`"
-              examples:
-                - "17286400001234"
-            arg2:
-              type: string
               title: USER
               description: "`USER`"
               examples:
                 - alice
-            arg3:
+            arg2:
               type: string
               title: DOMAIN
               description: "`DOMAIN`"
               examples:
                 - example.com
-            arg4:
+            arg3:
               type: string
               title: APP
               description: "`APP`"
@@ -66115,10 +65994,16 @@ components:
                 - shop.example.com
             arg3:
               type: string
-              title: TASK
-              description: "`TASK`"
+              title: ACTION
+              description: "`ACTION`"
               examples:
-                - "17617400001234"
+                - pull
+            arg4:
+              type: string
+              title: VALUE
+              description: "`VALUE`, optional"
+              examples:
+                - main
             returncode:
               $ref: "#/components/schemas/ReturnCode"
     v-save-fs-file:

@@ -74,6 +74,11 @@ finish() {
 		$BIN/v-log-action "$user" "Warning" "Files" "Download from a URL failed (URL: $(fetch_get "$user" "$id" URL), Error: $error)."
 	fi
 	log_event "$OK" "$user $id $status $error"
+	# The job of the fetch (E15) fails with it
+	if [ "$status" = 'failed' ]; then
+		echo "Error: the download failed ($error)"
+		exit "$E_CONNECT"
+	fi
 	exit 0
 }
 

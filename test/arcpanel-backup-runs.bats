@@ -113,13 +113,16 @@ teardown_file() {
     grep -q '^\s*run_trigger=schedule' "$BIN/v-run-backup-job"
 }
 
-@test "v-run-queue-task: a requested backup is recorded with its task" {
-    local id line
+@test "v-schedule-user-backup: a requested backup is recorded with its job (E15)" {
+    local id line status
     br_clear "$BR_USER"
     id=$(v-schedule-user-backup "$BR_USER" json | jq -r .ID)
-    sed -i "/v-run-queue-task $BR_USER $id/d" "$PIPE"
-    run v-run-queue-task "$BR_USER" "$id" -- "$BIN/v-backup-user" "$BR_USER" yes
-    assert_success
+    for _ in $(seq 1 120); do
+        status=$(v-list-job "$id" 0 json | jq -r .STATUS)
+        [ "$status" = queued ] || [ "$status" = running ] || break
+        sleep 1
+    done
+    assert_equal "$status" succeeded
     line=$(br_last "$BR_USER")
     assert_equal "$(br_value "$line" TRIGGER)" request
     assert_equal "$(br_value "$line" TASK)" "$id"
