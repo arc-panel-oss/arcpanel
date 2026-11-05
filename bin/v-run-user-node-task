@@ -1,22 +1,21 @@
 #!/bin/bash
 # info: run a Node.js task started by v-start-user-node-task (E13)
-# options: ID USER ACTION [ARGS...]
+# options: USER ACTION [ARGS...]
 #
-# example: v-run-user-node-task 17286400001234 alice add-version lts
+# example: v-run-user-node-task alice add-version lts
 #
-# This function is the background part of v-start-user-node-task: it runs
-# the command of the task and records its result. It refuses to run a task
-# that v-start-user-node-task did not start.
+# This function is the command of the node.* jobs that v-start-user-node-task
+# starts (E15): it runs the command of the task; the job runner records the
+# result. It refuses to run outside such a job.
 
 #----------------------------------------------------------#
 #                Variables & Functions                     #
 #----------------------------------------------------------#
 
 # Argument definition
-id=$1
-user=$2
-action=$3
-shift 3 2> /dev/null
+user=$1
+action=$2
+shift 2 2> /dev/null
 
 # Includes
 # shellcheck source=/etc/arcpanel/arcpanel.conf
@@ -35,13 +34,14 @@ source_conf "$ARCPANEL/conf/arcpanel.conf"
 #----------------------------------------------------------#
 
 if [ -z "$action" ]; then
-	echo "Usage: v-run-user-node-task ID USER ACTION [ARGS...]"
+	echo "Usage: v-run-user-node-task USER ACTION [ARGS...]"
 	exit "$E_ARGS"
 fi
 is_format_valid 'user'
 is_object_valid 'user' 'USER' "$user"
-if [ "$(node_task_get "$user" ID)" != "$id" ] || [ "$(node_task_get "$user" STATUS)" != 'running' ]; then
-	check_result "$E_FORBIDEN" "task $id was not started by v-start-user-node-task"
+if ! job_is_current 'node\.(install|npm|build)' || [ "${JOB[TYPE]}" != "$(node_task_type "$action")" ] \
+	|| [ "${JOB[OBJECT]}" != "node:$user" ]; then
+	check_result "$E_FORBIDEN" "the task was not started by v-start-user-node-task"
 fi
 case "$action" in
 	add-version) command=v-add-user-node-version ;;
@@ -62,19 +62,9 @@ esac
 echo "$ $command $user $*"
 "$BIN/$command" "$user" "$@" 2>&1 | log_cap
 rc=${PIPESTATUS[0]}
-if [ "$rc" -eq 0 ]; then
-	status=done
-else
-	status=failed
+if [ "$rc" -ne 0 ]; then
 	echo "Exit code $rc"
 fi
-
-exec {lock}> "$ARCPANEL/data/users/$user/node-task.lock"
-flock -x "$lock"
-if [ "$(node_task_get "$user" ID)" = "$id" ]; then
-	node_task_set "$user" "STATUS=$status" "EXIT=$rc" "END=$(date +'%F %T')"
-fi
-flock -u "$lock"
 
 #----------------------------------------------------------#
 #                         ArcPanel                         #

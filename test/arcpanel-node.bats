@@ -497,10 +497,12 @@ wait_task() {
 }
 
 @test "Tasks: one task at a time; a task whose process died is failed" {
-    bash -c 'exec -a v-run-user-node-task sleep 60' &
+    bash -c 'exec -a v-run-job sleep 60' &
     pid=$!
-    conf=$ARCPANEL/data/users/tnu1/node-task.conf
-    echo "ID='1' ACTION='add-version' ARGS='lts' STATUS='running' PID='$pid' EXIT='' START='' END=''" > "$conf"
+    id=99999999999903
+    now=$(date +'%F %T')
+    conf=$ARCPANEL/data/jobs/$id.conf
+    echo "ID='$id' TYPE='node.install' USER='tnu1' OWNER='admin' ACTOR='cli' OBJECT='node:tnu1' ARGS='v-run-user-node-task tnu1 add-version lts' STATUS='running' EXIT='' ERROR='' UNIT='' PID='$pid' QUEUED='$now' START='$now' END='' HEARTBEAT='$now' ATTEMPTS='1' RETRY_OF='' RESOURCE='' UPDATED='$now'" > "$conf"
     run v-start-user-node-task tnu1 add-version lts
     assert_failure 7
     run v-delete-user-node-version tnu1 "$V24"
@@ -511,6 +513,7 @@ wait_task() {
     echo "$output" | jq -e '.STATUS == "failed"'
     run grep -c "STATUS='failed'" "$conf"
     assert_output "1"
+    rm -f "$ARCPANEL/data/jobs/$id".*
 }
 
 @test "Tasks: arguments are checked before the start" {
@@ -529,7 +532,7 @@ wait_task() {
 }
 
 @test "Tasks: the runner refuses a task it was not given" {
-    run v-run-user-node-task 42 tnu1 add-version lts
+    run v-run-user-node-task tnu1 add-version lts
     assert_failure 10
 }
 

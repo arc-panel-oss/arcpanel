@@ -616,61 +616,47 @@ node_outdated_clear() {
 #                      Panel tasks                         #
 #----------------------------------------------------------#
 
-node_task_conf() {
-	echo "$ARCPANEL/data/users/$1/node-task.conf"
+# shellcheck source=/usr/local/arcpanel/func/job.sh
+source "$ARCPANEL/func/job.sh"
+
+# Since E15 a Node.js task is a job of type node.install, node.npm or
+# node.build with OBJECT node:USER (func/job.sh); these functions read the
+# newest one of USER.
+
+# The job type of a task ACTION
+node_task_type() {
+	case "$1" in
+		add-version) echo node.install ;;
+		app-build) echo node.build ;;
+		*) echo node.npm ;;
+	esac
 }
 
-node_task_log() {
-	echo "$ARCPANEL/data/users/$1/node-task.log"
+# ID of the newest Node.js task of USER
+node_task_id() {
+	job_newest 'node\.(install|npm|build)' "node:$1"
 }
 
-# Value of KEY in the task record of USER
+# Value of KEY of the newest task of USER in the old record's terms: ID,
+# ACTION, ARGS, STATUS (running, done or failed), PID, EXIT, START, END
 node_task_get() {
-	local file
-	file=$(node_task_conf "$1")
-	if [ -f "$file" ]; then
-		grep -oE "(^| )$2='[^']*'" "$file" | head -n1 | cut -d\' -f2
-	fi
+	local id
+	id=$(node_task_id "$1") || return 0
+	[ -n "$id" ] || return 0
+	case "$2" in
+		ACTION) job_argv_word "$id" 2 ;;
+		ARGS) job_legacy_args "$id" 3 ;;
+		STATUS) job_legacy_status "$(job_get "$id" STATUS)" ;;
+		*) job_get "$id" "$2" ;;
+	esac
 }
 
-NODE_TASK_KEYS="ID ACTION ARGS STATUS PID EXIT START END"
-
-# Set KEY=VALUE pairs in the task record of USER; the other keys keep their
-# values. Quotes and line breaks are dropped from values.
-node_task_set() {
-	local user="$1" file pair key line='' tmp
-	local -A values=()
-	shift
-	for key in $NODE_TASK_KEYS; do
-		values[$key]=$(node_task_get "$user" "$key")
-	done
-	for pair in "$@"; do
-		key=${pair%%=*}
-		values[$key]=$(printf '%s' "${pair#*=}" | tr -d "'\n\r")
-	done
-	for key in $NODE_TASK_KEYS; do
-		line="$line$key='${values[$key]}' "
-	done
-	file=$(node_task_conf "$user")
-	tmp="$file.$$"
-	echo "${line% }" > "$tmp"
-	chmod 640 "$tmp"
-	mv -f "$tmp" "$file"
-}
-
-# Whether the task process PID is alive and still the task runner
-node_task_alive() {
-	local pid="$1"
-	[[ "$pid" =~ ^[0-9]+$ ]] && [ -r "/proc/$pid/cmdline" ] \
-		&& tr '\0' ' ' < "/proc/$pid/cmdline" | grep -q 'v-run-user-node-task'
-}
-
-# Mark a running task whose process is gone as failed
+# Mark a running task whose runner is gone as failed
 node_task_reap() {
-	local user="$1"
-	if [ "$(node_task_get "$user" STATUS)" = 'running' ] && ! node_task_alive "$(node_task_get "$user" PID)"; then
-		node_task_set "$user" STATUS=failed "END=$(date +'%F %T')"
-	fi
+	local id
+	id=$(node_task_id "$1") || return 0
+	[ -n "$id" ] && job_reap_one "$id" > /dev/null 2>&1
+	return 0
 }
 
 node_task_running() {

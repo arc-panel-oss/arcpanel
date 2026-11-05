@@ -8,6 +8,8 @@
 # START, END) and the last LINES lines of its output (default 100, at most
 # 1000). STATUS is running, done or failed; a running task whose process is
 # gone is reported, and stored, as failed. Without a task, STATUS is empty.
+# Since E15 it reads the newest node.* job of USER; deprecated in 2.7.0
+# (read the job with v-list-job), removed in 2.8.
 
 #----------------------------------------------------------#
 #                Variables & Functions                     #
@@ -45,25 +47,17 @@ fi
 #                       Action                             #
 #----------------------------------------------------------#
 
-if [ -f "$(node_task_conf "$user")" ]; then
-	exec {lock}> "$ARCPANEL/data/users/$user/node-task.lock"
-	flock -x "$lock"
-	node_task_reap "$user"
-	flock -u "$lock"
+node_task_reap "$user"
+id=$(node_task_id "$user" || true)
+action=''
+args=''
+if [ -n "$id" ]; then
+	action=$(job_argv_word "$id" 2)
+	args=$(job_legacy_args "$id" 3)
 fi
-
-log=''
-if [ -f "$(node_task_log "$user")" ]; then
-	# no colours, no carriage returns of progress bars
-	log=$(tail -n "$lines" "$(node_task_log "$user")" | sed -e 's/\x1b\[[0-9;?]*[A-Za-z]//g' -e 's/\r$//' -e 's/.*\r//')
-fi
-
-json=$(jq -nc --arg id "$(node_task_get "$user" ID)" --arg action "$(node_task_get "$user" ACTION)" \
-	--arg args "$(node_task_get "$user" ARGS)" --arg status "$(node_task_get "$user" STATUS)" \
-	--arg exit "$(node_task_get "$user" EXIT)" --arg start "$(node_task_get "$user" START)" \
-	--arg end "$(node_task_get "$user" END)" --arg log "$log" --arg user "$user" '
-	{ USER: $user, ID: $id, ACTION: $action, ARGS: $args, STATUS: $status, EXIT: $exit,
-		START: $start, END: $end, LOG: $log }')
+json=$(job_legacy_json "$id" lines "$lines" | jq -c --arg action "$action" --arg args "$args" --arg user "$user" '
+	{ USER: $user, ID, ACTION: $action, ARGS: $args, STATUS, EXIT, START, END, LOG }')
+log=$(jq -r .LOG <<< "$json")
 
 case "$format" in
 	json) printf '%s\n' "$json" | jq . ;;

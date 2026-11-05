@@ -13,7 +13,9 @@
 # (SPEC), add-package (VERSION SPEC), update-packages (VERSION) or
 # check-outdated (VERSION), app-install (DOMAIN) or app-build (DOMAIN
 # [SCRIPT]) for a Node.js app (E14). A user runs one task at a time; the
-# state and the output are read with v-list-user-node-task.
+# state and the output are read with v-list-job or v-list-user-node-task.
+# Since E15 the task is a job of type node.install, node.npm or node.build
+# (OBJECT node:USER) in the user's slice and the ID is the job ID.
 
 #----------------------------------------------------------#
 #                Variables & Functions                     #
@@ -36,6 +38,8 @@ source $ARCPANEL/func/tenancy.sh
 source $ARCPANEL/func/node.sh
 # shellcheck source=/usr/local/arcpanel/func/nodeapp.sh
 source $ARCPANEL/func/nodeapp.sh
+# shellcheck source=/usr/local/arcpanel/func/job.sh
+source $ARCPANEL/func/job.sh
 # load config file
 source_conf "$ARCPANEL/conf/arcpanel.conf"
 
@@ -110,28 +114,10 @@ check_arcpanel_demo_mode
 #                       Action                             #
 #----------------------------------------------------------#
 
-exec {lock}> "$ARCPANEL/data/users/$user/node-task.lock"
-flock -x "$lock"
-
-if node_task_running "$user"; then
-	check_result "$E_INUSE" "Another Node.js task is running for $user"
-fi
-
-id="$(date +%s)$(printf '%04d' $((RANDOM % 10000)))"
-log=$(node_task_log "$user")
-: > "$log"
-chmod 640 "$log"
-node_task_set "$user" "ID=$id" "ACTION=$action" "ARGS=${args[*]}" STATUS=running PID= EXIT= \
-	"START=$(date +'%F %T')" END=
-
-# Detached: new session, no descriptor shared with the caller, so the panel's
-# request returns at once and the task survives it
-setsid "$BIN/v-run-user-node-task" "$id" "$user" "$action" "${args[@]}" \
-	< /dev/null >> "$log" 2>&1 {lock}>&- &
-node_task_set "$user" "PID=$!"
-
-flock -u "$lock"
-echo "$id"
+job_start "$(node_task_type "$action")" "$user" "node:$user" "$(job_default_actor)" -- \
+	v-run-user-node-task "$user" "$action" "${args[@]}"
+job_check_started "$?" "Another Node.js task is running for $user"
+echo "$JOB_ID"
 
 #----------------------------------------------------------#
 #                         ArcPanel                         #
