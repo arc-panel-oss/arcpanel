@@ -7,6 +7,8 @@
 # This function shows the last task started with v-start-app-process-task:
 # its id, domain, process, task, STATUS (running, done or failed), exit
 # code and times. A running task whose process is gone is shown as failed.
+# Since E15 it reads the newest app-process.* job of USER; deprecated in
+# 2.7.0 (read the job with v-list-job), removed in 2.8.
 
 #----------------------------------------------------------#
 #                Variables & Functions                     #
@@ -25,6 +27,8 @@ source $ARCPANEL/func/main.sh
 source $ARCPANEL/func/tenancy.sh
 # shellcheck source=/usr/local/arcpanel/func/appprocess.sh
 source $ARCPANEL/func/appprocess.sh
+# shellcheck source=/usr/local/arcpanel/func/job.sh
+source $ARCPANEL/func/job.sh
 # load config file
 source_conf "$ARCPANEL/conf/arcpanel.conf"
 
@@ -41,13 +45,17 @@ is_object_valid 'user' 'USER' "$user"
 #----------------------------------------------------------#
 
 appproc_task_running "$user" > /dev/null
-line=''
-if [ -f "$(appproc_task_conf "$user")" ]; then
-	line=$(head -n1 "$(appproc_task_conf "$user")")
+id=$(appproc_task_id "$user" || true)
+if [ -n "$id" ]; then
+	json=$(jq -nc --arg id "$id" --arg domain "$(appproc_task_get "$user" DOMAIN)" \
+		--arg name "$(appproc_task_get "$user" NAME)" --arg task "$(appproc_task_get "$user" TASK)" \
+		--arg status "$(appproc_task_get "$user" STATUS)" --arg exit "$(appproc_task_get "$user" EXIT)" \
+		--arg start "$(appproc_task_get "$user" START)" --arg end "$(appproc_task_get "$user" END)" '
+		{ TASK: { ID: $id, DOMAIN: $domain, NAME: $name, TASK: $task, STATUS: $status, EXIT: $exit,
+			START: $start, END: $end } }')
+else
+	json='{"TASK":null}'
 fi
-json=$(jq -nc --arg line "$line" '
-	($line | [scan("([A-Z_]+)='"'"'([^'"'"']*)'"'"'")] | map({ key: .[0], value: .[1] }) | from_entries)
-	| { TASK: (if . == {} then null else del(.PID) end) }')
 
 case "$format" in
 	json) jq . <<< "$json" ;;

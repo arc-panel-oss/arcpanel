@@ -1,12 +1,13 @@
 #!/bin/bash
 # info: run a one-off task of an app process (E42)
-# options: ID USER DOMAIN NAME TASK [COMMAND]
+# options: USER DOMAIN NAME TASK [COMMAND]
 #
-# example: v-run-app-process-task 17606214250042 alice shop.example.com web migrate
+# example: v-run-app-process-task alice shop.example.com web migrate
 #
-# This function is started by v-start-app-process-task and runs the task in
-# the foreground as the user, appending its output to
-# app-process/logs/task.log of the domain, then records the exit code. COMMAND
+# This function is the command of the app-process.TASK job that
+# v-start-app-process-task starts (E15) and runs the task in the foreground
+# as the user, writing its output to app-process/logs/task.log of the domain
+# (its end is copied to the job log), then exits with its code. COMMAND
 # is base64, for the custom task. The task runs in a transient unit in the
 # user's slice with the limits of the process (E39 W5 N24), so it shares the
 # package's resources and stops with all its children. Not meant to be called
@@ -17,12 +18,11 @@
 #----------------------------------------------------------#
 
 # Argument definition
-id=$1
-user=$2
-domain=$3
-name=$4
-task=$5
-command=$6
+user=$1
+domain=$2
+name=$3
+task=$4
+command=$5
 
 # Includes
 # shellcheck source=/etc/arcpanel/arcpanel.conf
@@ -35,6 +35,8 @@ source $ARCPANEL/func/tenancy.sh
 source $ARCPANEL/func/ports.sh
 # shellcheck source=/usr/local/arcpanel/func/appprocess.sh
 source $ARCPANEL/func/appprocess.sh
+# shellcheck source=/usr/local/arcpanel/func/job.sh
+source $ARCPANEL/func/job.sh
 # load config file
 source_conf "$ARCPANEL/conf/arcpanel.conf"
 
@@ -45,12 +47,14 @@ format_domain
 #                    Verifications                         #
 #----------------------------------------------------------#
 
-check_args '5' "$#" 'ID USER DOMAIN NAME TASK [COMMAND]'
+check_args '4' "$#" 'USER DOMAIN NAME TASK [COMMAND]'
 is_format_valid 'user' 'domain'
 is_object_valid 'user' 'USER' "$user"
-if [ "$(appproc_task_get "$user" ID)" != "$id" ]; then
-	check_result "$E_NOTEXIST" "task $id is not the current task of $user"
+if ! job_is_current 'app-process\.[a-z-]+' || [ "${JOB[TYPE]}" != "app-process.$task" ] \
+	|| [ "${JOB[OBJECT]}" != "app-process:$user:$domain:$name" ]; then
+	check_result "$E_FORBIDEN" "the task was not started by v-start-app-process-task"
 fi
+id=$JOB_ID
 appproc_check_process "$user" "$domain" "$name"
 
 #----------------------------------------------------------#
@@ -90,8 +94,11 @@ else
 	rc=$?
 fi
 
+# The output stays in the domain's task log; the job log gets its end
+if node_as_user "$user" test -f "$log" 2> /dev/null && [ ! -L "$log" ]; then
+	node_as_user "$user" tail -n 500 "$log" 2> /dev/null
+fi
 if [ "$rc" -eq 0 ]; then
-	appproc_task_set "$user" STATUS=done EXIT=0 "END=$(date +'%F %T')"
 	case "$task" in
 		composer-install | pip-install | bundle-install)
 			if appproc_running "$user" "$APPPROC_ID"; then
@@ -99,8 +106,6 @@ if [ "$rc" -eq 0 ]; then
 			fi
 			;;
 	esac
-else
-	appproc_task_set "$user" STATUS=failed "EXIT=$rc" "END=$(date +'%F %T')"
 fi
 
 #----------------------------------------------------------#
@@ -109,4 +114,4 @@ fi
 
 log_event "$OK" "$id $user $domain $name $task"
 
-exit
+exit "$rc"

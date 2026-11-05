@@ -1269,12 +1269,7 @@ appproc_delete() {
 #----------------------------------------------------------#
 
 APPPROC_TASKS="composer-install migrate pip-install bundle-install custom"
-APPPROC_TASK_KEYS="ID DOMAIN NAME TASK STATUS PID EXIT START END"
 APPPROC_TASK_TIMEOUT=1800
-
-appproc_task_conf() {
-	echo "$ARCPANEL/data/users/$1/app-process-task.conf"
-}
 
 # The transient unit that runs USER's one-off task (E39 W5 N24)
 appproc_task_unit() {
@@ -1305,54 +1300,41 @@ appproc_task_stop() {
 	systemctl stop "$(appproc_task_unit "$1")" > /dev/null 2>&1 || true
 }
 
+# shellcheck source=/usr/local/arcpanel/func/job.sh
+source "$ARCPANEL/func/job.sh"
+
+# Since E15 a one-off task is a job of type app-process.TASK with OBJECT
+# app-process:USER:DOMAIN:NAME (func/job.sh); one runs at a time per user,
+# since the task unit is per user.
+
+# ID of the newest one-off task of USER
+appproc_task_id() {
+	job_newest 'app-process\.[a-z-]+' '' "$1"
+}
+
+# Value of KEY of the newest task of USER in the old record's terms: ID,
+# DOMAIN, NAME, TASK, STATUS (running, done or failed), PID, EXIT, START, END
 appproc_task_get() {
-	local file
-	file=$(appproc_task_conf "$1")
-	if [ -f "$file" ]; then
-		appproc_field "$(head -n1 "$file")" "$2"
-	fi
+	local id
+	id=$(appproc_task_id "$1") || return 0
+	[ -n "$id" ] || return 0
+	case "$2" in
+		DOMAIN) job_argv_word "$id" 2 ;;
+		NAME) job_argv_word "$id" 3 ;;
+		TASK) job_argv_word "$id" 4 ;;
+		STATUS) job_legacy_status "$(job_get "$id" STATUS)" ;;
+		*) job_get "$id" "$2" ;;
+	esac
 }
 
-# Set KEY=VALUE pairs in the task record of USER; the other keys keep their
-# values
-appproc_task_set() {
-	local user="$1" file pair key line='' tmp
-	local -A values=()
-	shift
-	for key in $APPPROC_TASK_KEYS; do
-		values[$key]=$(appproc_task_get "$user" "$key")
-	done
-	for pair in "$@"; do
-		key=${pair%%=*}
-		values[$key]=$(printf '%s' "${pair#*=}" | tr -d "'\n\r")
-	done
-	for key in $APPPROC_TASK_KEYS; do
-		line="$line$key='${values[$key]}' "
-	done
-	file=$(appproc_task_conf "$user")
-	tmp="$file.$$"
-	echo "${line% }" > "$tmp"
-	chmod 640 "$tmp"
-	mv -f "$tmp" "$file"
-}
-
-# Whether the task process PID is alive and still the task runner
-appproc_task_alive() {
-	local pid="$1"
-	[[ "$pid" =~ ^[0-9]+$ ]] && [ -r "/proc/$pid/cmdline" ] \
-		&& tr '\0' ' ' < "/proc/$pid/cmdline" | grep -q 'v-run-app-process-task'
-}
-
-# Whether a task of USER runs; a running record whose process is gone is
-# marked failed first
+# Whether a task of USER runs; a running job whose runner is gone is marked
+# failed first
 appproc_task_running() {
-	if [ "$(appproc_task_get "$1" STATUS)" = 'running' ]; then
-		if appproc_task_alive "$(appproc_task_get "$1" PID)"; then
-			return 0
-		fi
-		appproc_task_set "$1" STATUS=failed "END=$(date +'%F %T')"
-	fi
-	return 1
+	local id
+	id=$(appproc_task_id "$1") || return 1
+	[ -n "$id" ] || return 1
+	job_reap_one "$id" > /dev/null 2>&1
+	[ "$(appproc_task_get "$1" STATUS)" = 'running' ]
 }
 
 # The composer of USER: the user's own (v-add-user-composer), else the

@@ -13,7 +13,8 @@
 # One task runs at a time per user, for at most 30 minutes; its output goes
 # to app-process/logs/task.log of the domain. After a successful install a
 # running process is reloaded. It prints the id of the task; follow it with
-# v-list-app-process-task and v-list-app-process-logs ... task.
+# v-list-app-process-task and v-list-app-process-logs ... task. Since E15
+# the task is a job of type app-process.TASK and the ID is the job ID.
 
 #----------------------------------------------------------#
 #                Variables & Functions                     #
@@ -35,6 +36,8 @@ source $ARCPANEL/func/main.sh
 source $ARCPANEL/func/tenancy.sh
 # shellcheck source=/usr/local/arcpanel/func/appprocess.sh
 source $ARCPANEL/func/appprocess.sh
+# shellcheck source=/usr/local/arcpanel/func/job.sh
+source $ARCPANEL/func/job.sh
 # load config file
 source_conf "$ARCPANEL/conf/arcpanel.conf"
 
@@ -71,18 +74,11 @@ fi
 if ! appproc_dirs_write "$user" "$domain" "$name"; then
 	check_result "$E_FORBIDEN" "the folder of the app processes is not usable"
 fi
-id="$(date +%s)$(printf '%04d' $((RANDOM % 10000)))"
-appproc_task_set "$user" "ID=$id" "DOMAIN=$domain" "NAME=$name" "TASK=$task" STATUS=running PID= EXIT= \
-	"START=$(date +'%F %T')" END=
-
-# Detached: new session, no descriptor shared with the caller, so the panel's
-# request returns at once and the task survives it
-setsid "$BIN/v-run-app-process-task" "$id" "$user" "$domain" "$name" "$task" "$(appproc_encode "$command")" \
-	< /dev/null > /dev/null 2>&1 {lock}>&- &
-appproc_task_set "$user" "PID=$!"
-
+job_start "app-process.$task" "$user" "app-process:$user:$domain:$name" "$(job_default_actor)" -- \
+	v-run-app-process-task "$user" "$domain" "$name" "$task" "$(appproc_encode "$command")"
+job_check_started "$?" "another app process task is running for $user"
 flock -u "$lock"
-echo "$id"
+echo "$JOB_ID"
 
 #----------------------------------------------------------#
 #                         ArcPanel                         #

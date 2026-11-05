@@ -52,7 +52,7 @@ if [ -d "$ARCPANEL/data/users/$user" ]; then
 	for id in $(appproc_ids "$user"); do
 		appproc_delete "$user" "$id"
 	done
-	rm -f "$(appproc_task_conf "$user")" "$ARCPANEL/data/users/$user/app-process-task.lock"
+	rm -f "$ARCPANEL/data/users/$user/app-process-task.lock"
 fi
 # Units and prepared environments left without records (only USER's: a
 # user named alice-1 has units arcpanel-app-alice-1-<id>)
